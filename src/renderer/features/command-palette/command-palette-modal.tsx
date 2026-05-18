@@ -18,6 +18,7 @@ import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { cn } from '@renderer/utils/utils';
 import { getCommandIcon } from './command-icons';
 import { PaletteConversationItem } from './palette-conversation-item';
+import { PALETTE_ITEM_CLASS } from './palette-item-styles';
 import { PaletteNotificationsGroup } from './palette-notifications-group';
 import { PaletteProjectsGroup } from './palette-projects-group';
 import { PaletteTaskItem } from './palette-task-item';
@@ -53,6 +54,20 @@ const GROUP_CLASS = cn(
   '[&_[cmdk-group-heading]]:text-foreground/50'
 );
 
+// Ordered allowlists for the "Suggested Actions" empty-state group. Defined at
+// module scope so the arrays keep stable references across renders.
+const TASK_SUGGESTED = [
+  'task.newConversation',
+  'task.sidebarChanges',
+  'task.sidebarFiles',
+  'task.sidebarConversations',
+  'task.toggleTerminalDrawer',
+  'resource-monitor',
+  'app.giveFeedback',
+];
+const PROJECT_SUGGESTED = ['app.newTask', 'app.settings', 'resource-monitor', 'app.giveFeedback'];
+const APP_SUGGESTED = ['app.newProject', 'app.settings', 'resource-monitor', 'app.giveFeedback'];
+
 /** Converts a TanStack hotkey string (e.g. 'Mod+Shift+C') to a display label. */
 function formatHotkey(hotkey: string | undefined): string | undefined {
   if (!hotkey) return undefined;
@@ -75,13 +90,8 @@ function PaletteItem({
   ) : (
     KIND_ICON[item.kind]
   );
-
   return (
-    <Command.Item
-      value={value}
-      onSelect={onSelect}
-      className="flex cursor-pointer items-center gap-2.5 text-foreground-muted aria-selected:text-foreground rounded-md px-2 py-2 text-sm aria-selected:bg-background-2"
-    >
+    <Command.Item value={value} onSelect={onSelect} className={PALETTE_ITEM_CLASS}>
       {iconNode}
       <span className="flex-1 truncate">{item.title}</span>
       {action?.shortcut && (
@@ -103,11 +113,7 @@ function PaletteFileItem({
   onSelect: () => void;
 }) {
   return (
-    <Command.Item
-      value={value}
-      onSelect={onSelect}
-      className="flex cursor-pointer items-center gap-2.5 text-foreground-muted aria-selected:text-foreground rounded-md px-2 py-2 text-sm aria-selected:bg-background-2"
-    >
+    <Command.Item value={value} onSelect={onSelect} className={PALETTE_ITEM_CLASS}>
       <FileIcon filename={item.title} size={14} />
       <span className="flex min-w-0 flex-1 items-baseline gap-2 overflow-hidden">
         <span className="shrink-0">{item.title}</span>
@@ -179,40 +185,44 @@ export function CommandPaletteModal({
       })
   );
 
-  // Ordered allowlists for the "Suggested Actions" empty-state group.
-  const TASK_SUGGESTED = [
-    'task.newConversation',
-    'task.sidebarChanges',
-    'task.sidebarFiles',
-    'task.sidebarConversations',
-    'task.toggleTerminalDrawer',
-  ];
-  const PROJECT_SUGGESTED = ['app.newTask', 'app.settings'];
-  const APP_SUGGESTED = ['app.newProject', 'app.settings'];
+  const resourceMonitorAction = useMemo<PaletteAction | null>(
+    () =>
+      resourceMonitor?.enabled
+        ? {
+            kind: 'action',
+            id: 'resource-monitor',
+            title: 'Resource Monitor',
+            subtitle: 'Show CPU and memory performance for running agents',
+            icon: Activity,
+            execute: () => setView('resource-monitor'),
+          }
+        : null,
+    [resourceMonitor?.enabled]
+  );
 
   const actions = useMemo(() => {
-    const allActions = [...registryActions];
-    if (resourceMonitor?.enabled) {
-      allActions.push({
-        kind: 'action',
-        id: 'resource-monitor',
-        title: 'Resource Monitor',
-        subtitle: 'Show CPU and memory performance for running agents',
-        icon: Activity,
-        execute: () => setView('resource-monitor'),
-      });
-    }
-
     // Empty state: show the ordered context-specific suggested actions only.
     const suggestedIds = taskId ? TASK_SUGGESTED : projectId ? PROJECT_SUGGESTED : APP_SUGGESTED;
-    return allActions
+    const pool = resourceMonitorAction
+      ? [...registryActions, resourceMonitorAction]
+      : registryActions;
+    return pool
       .filter((a) => suggestedIds.includes(a.id))
       .sort((a, b) => suggestedIds.indexOf(a.id) - suggestedIds.indexOf(b.id))
       .slice(0, 7);
-  }, [registryActions, resourceMonitor?.enabled, projectId, taskId]);
+  }, [registryActions, resourceMonitorAction, projectId, taskId]);
 
   const rankedDb = applyContextAffinity(dbResults, { projectId });
   const actionResults = actions;
+
+  const q = debouncedQuery.toLowerCase();
+  const matchedResourceMonitor =
+    resourceMonitorAction &&
+    q &&
+    (resourceMonitorAction.title.toLowerCase().includes(q) ||
+      resourceMonitorAction.subtitle?.toLowerCase().includes(q))
+      ? resourceMonitorAction
+      : null;
   const taskResults = rankedDb.filter((r): r is SearchItem => r.kind === 'task');
   const conversationResults = rankedDb.filter((r): r is SearchItem => r.kind === 'conversation');
 
@@ -297,10 +307,17 @@ export function CommandPaletteModal({
             <Command.Empty className="py-8 text-center text-sm text-foreground/40">
               No results for &ldquo;{query}&rdquo;
             </Command.Empty>
+            {matchedResourceMonitor && (
+              <PaletteItem
+                value={matchedResourceMonitor.id}
+                item={matchedResourceMonitor}
+                onSelect={matchedResourceMonitor.execute}
+              />
+            )}
             {rankedDb.map((item) => {
               if (item.kind === 'command') {
                 const live = commandRegistry.findById(item.id);
-                if (!live || live.enabled === false) return null;
+                if (!live || live.enabled === false || live.hideFromPalette) return null;
                 const def = ALL_COMMAND_DEFS.find((d) => d.id === item.id) as
                   | CommandDef
                   | undefined;

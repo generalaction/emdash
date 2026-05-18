@@ -156,6 +156,13 @@ export const APP_SHORTCUTS = defineShortcuts({
     description: 'Navigate to the next location',
     category: 'Navigation',
   },
+  splitPane: {
+    defaultHotkey: 'Mod+\\',
+    label: 'Split Pane',
+    description: 'Move the active tab to a new pane on the right',
+    category: 'Tab Navigation',
+    conflictBehavior: 'allow',
+  },
 });
 
 export type ShortcutSettingsKey = keyof typeof APP_SHORTCUTS;

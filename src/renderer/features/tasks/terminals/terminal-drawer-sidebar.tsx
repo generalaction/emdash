@@ -13,8 +13,8 @@ interface TerminalDrawerSidebarProps {
   lifecycleScriptsMgr: LifecycleScriptsStore | null;
   activeScriptId: string | undefined;
   onSelectScript: (id: string) => void;
-  onRunScript: () => void;
-  onStopScript: () => void;
+  onRunScript: (id: string) => void;
+  onStopScript: (id: string) => void;
   terminalTabView: TerminalTabViewStore;
   activeTerminalId: string | undefined;
   onSelectTerminal: (id: string) => void;
@@ -120,30 +120,31 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
                 isActive={isActive}
                 onSelect={() => onSelectScript(script.data.id)}
                 action={
-                  isActive ? (
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <button
-                          className="ml-1 shrink-0 flex items-center justify-center size-5 rounded hover:bg-background text-foreground-muted hover:text-foreground"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (script.isRunning) {
-                              onStopScript();
-                            } else {
-                              onRunScript();
-                            }
-                          }}
-                        >
-                          {script.isRunning ? (
-                            <Pause className="size-3" />
-                          ) : (
-                            <Play className="size-3" />
-                          )}
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent>{script.isRunning ? 'Stop' : 'Run'}</TooltipContent>
-                    </Tooltip>
-                  ) : null
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <button
+                        className={cn(
+                          'ml-1 shrink-0 flex items-center justify-center size-5 rounded hover:bg-background text-foreground-muted hover:text-foreground',
+                          !isActive && 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'
+                        )}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (script.isRunning) {
+                            onStopScript(script.data.id);
+                          } else {
+                            onRunScript(script.data.id);
+                          }
+                        }}
+                      >
+                        {script.isRunning ? (
+                          <Pause className="size-3" />
+                        ) : (
+                          <Play className="size-3" />
+                        )}
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>{script.isRunning ? 'Stop' : 'Run'}</TooltipContent>
+                  </Tooltip>
                 }
               />
             );

@@ -104,6 +104,8 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
   tabOrder: string[] = [];
   activeTabId: string | undefined = undefined;
   isVisible = false;
+  /** True when this pane is the active/focused pane AND the task is the active view. */
+  isFocused = false;
 
   /** Used by resolvedTabs and FileModelLifecycleStore to build buffer URIs. */
   readonly modelRootPath: string;
@@ -120,6 +122,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       tabOrder: observable,
       activeTabId: observable,
       isVisible: observable,
+      isFocused: observable,
       resolvedActiveTabId: computed,
       activeDescriptor: computed,
       activeConversation: computed,
@@ -146,6 +149,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       setPreviousTabActive: action,
       setTabActiveIndex: action,
       setVisible: action,
+      setFocused: action,
       updateRenderer: action,
       setImageContent: action,
       setFileTotalSize: action,
@@ -174,22 +178,22 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       )
     );
 
-    // Mark conversation as seen when it becomes the active visible tab.
+    // Mark conversation as seen when it becomes the active tab in the focused pane.
     this.disposers.push(
       autorun(() => {
         const conv = this.activeConversation;
-        if (this.isVisible && conv && !conv.seen) {
+        if (this.isFocused && conv && !conv.seen) {
           conv.markSeen();
         }
       })
     );
 
-    // Update telemetry scope when the active conversation changes.
+    // Update telemetry scope when the active conversation changes in the focused pane.
     this.disposers.push(
       reaction(
         () => this.activeConversation?.data.id ?? null,
         (conversationId) => {
-          if (this.isVisible) {
+          if (this.isFocused) {
             setTelemetryConversationScope(conversationId);
           }
         }
@@ -596,6 +600,10 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     if (visible) {
       setTelemetryConversationScope(this.activeConversation?.data.id ?? null);
     }
+  }
+
+  setFocused(focused: boolean): void {
+    this.isFocused = focused;
   }
 
   // ---------------------------------------------------------------------------

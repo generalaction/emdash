@@ -19,7 +19,7 @@ export function SidebarSpace() {
             pressed={isLeftOpen}
             onPressedChange={() => setCollapsed('left', isLeftOpen)}
           >
-            <PanelLeft />
+            <PanelLeft className="h-4 w-4" />
           </Toggle>
         </TooltipTrigger>
         <TooltipContent>

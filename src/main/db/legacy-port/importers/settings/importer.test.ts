@@ -4,6 +4,7 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { AppSettings, AppSettingsKey } from '@shared/app-settings';
+import type { PromptLibraryPrompt } from '@shared/prompt-library';
 import { getDefaultForKey } from '@main/core/settings/settings-registry';
 import { computeDelta, isDeepEqual, isPlainObject, mergeDeep } from '@main/core/settings/utils';
 import { createDrizzleClient } from '../../../drizzleClient';
@@ -171,11 +172,17 @@ describe('portLegacySettings', () => {
     appSqlite
       .prepare('INSERT INTO app_settings (key, value) VALUES (?, ?)')
       .run('providerConfigs', JSON.stringify({ codex: { defaultArgs: ['--legacy-arg'] } }));
+    const promptLibrary: PromptLibraryPrompt[] = [];
 
     const summary = await portLegacySettings(userDataDir, {
       appDb,
       appSqlite,
       settingsStore: createSettingsStoreStub(appSqlite),
+      promptLibraryStore: {
+        async upsertReviewPrompt(prompt) {
+          promptLibrary.unshift({ id: 'review-prompt', title: 'Review prompt', prompt });
+        },
+      },
     });
 
     expect(summary.imported).toEqual([
@@ -212,7 +219,14 @@ describe('portLegacySettings', () => {
       soundFocusMode: 'unfocused',
     });
     expect(readRawSetting(appSqlite, 'defaultAgent')).toBe('codex');
-    expect(readRawSetting(appSqlite, 'reviewPrompt')).toBe('Review this worktree carefully.');
+    expect(readRawSetting(appSqlite, 'reviewPrompt')).toBeNull();
+    expect(promptLibrary).toEqual([
+      {
+        id: 'review-prompt',
+        title: 'Review prompt',
+        prompt: 'Review this worktree carefully.',
+      },
+    ]);
     expect(readRawSetting(appSqlite, 'theme')).toBe('emdark');
 
     const terminal = readRawSetting(appSqlite, 'terminal') as Record<string, unknown>;

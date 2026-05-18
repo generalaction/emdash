@@ -1,6 +1,7 @@
 import { createRPCRouter } from '../shared/ipc/rpc';
 import { accountController } from './core/account/controller';
 import { appController } from './core/app/controller';
+import { asanaController } from './core/asana/controller';
 import { conversationController } from './core/conversations/controller';
 import { dependenciesController } from './core/dependencies/controller';
 import { editorBufferController } from './core/editor/controller';
@@ -16,6 +17,7 @@ import { linearController } from './core/linear/controller';
 import { mcpController } from './core/mcp/controller';
 import { plainController } from './core/plain/controller';
 import { projectController } from './core/projects/controller';
+import { promptLibraryController } from './core/prompt-library/controller';
 import { ptyController } from './core/pty/controller';
 import { pullRequestController } from './core/pull-requests/controller';
 import { repositoryController } from './core/repository/controller';
@@ -45,6 +47,7 @@ export const rpcRouter = createRPCRouter({
   update: updateController,
   pty: ptyController,
   resourceMonitor: resourceMonitorController,
+  asana: asanaController,
   featurebase: featurebaseController,
   forgejo: forgejoController,
   github: githubController,
@@ -53,6 +56,7 @@ export const rpcRouter = createRPCRouter({
   jira: jiraController,
   linear: linearController,
   plain: plainController,
+  promptLibrary: promptLibraryController,
   skills: skillsController,
   ssh: sshController,
   projects: projectController,

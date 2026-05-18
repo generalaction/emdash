@@ -12,7 +12,6 @@ import KeyboardSettingsCard from './KeyboardSettingsCard';
 import NotificationSettingsCard from './NotificationSettingsCard';
 import RepositorySettingsCard from './RepositorySettingsCard';
 import ResourceMonitorSettingsCard from './ResourceMonitorSettingsCard';
-import { ReviewPromptResetButton, ReviewPromptSettingsCard } from './ReviewPromptSettingsCard';
 import { SshConnectionsSettingsCard } from './SshConnectionsSettingsCard';
 import {
   AutoGenerateTaskNamesRow,
@@ -111,11 +110,6 @@ export function SettingsPage({
       description: 'Manage CLI agents and model configurations.',
       sections: [
         { component: <DefaultAgentSettingsCard /> },
-        {
-          title: 'Review Prompt',
-          action: <ReviewPromptResetButton />,
-          component: <ReviewPromptSettingsCard />,
-        },
         {
           title: 'CLI agents',
           component: (

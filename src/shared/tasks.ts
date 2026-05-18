@@ -6,11 +6,12 @@ import type { PullRequest } from '@shared/pull-requests';
 export type TaskLifecycleStatus = 'todo' | 'in_progress' | 'review' | 'done' | 'cancelled';
 
 export type Issue = {
-  provider: 'github' | 'linear' | 'jira' | 'gitlab' | 'plain' | 'forgejo' | 'featurebase';
+  provider: 'github' | 'linear' | 'jira' | 'gitlab' | 'plain' | 'forgejo' | 'featurebase' | 'asana';
   url: string;
   title: string;
   identifier: string;
   description?: string;
+  context?: string;
   branchName?: string;
   status?: string;
   assignees?: string[];
@@ -99,15 +100,34 @@ export type CreateTaskSuccess = {
   warning?: CreateTaskWarning;
 };
 
+export type RenameTaskError =
+  | { type: 'task-not-found'; taskId: string }
+  | { type: 'project-not-found'; projectId: string }
+  | { type: 'branch-already-exists'; branch: string }
+  | { type: 'branch-rename-failed'; branch: string; message: string };
+
+export type RenameTaskWarning = {
+  type: 'branch-remote-push-failed';
+  branch: string;
+  message: string;
+};
+
+export type RenameTaskSuccess = {
+  warning?: RenameTaskWarning;
+};
+
 export type ProvisionTaskResult = {
   path: string;
   workspaceId: string;
 };
 
 export function formatIssueAsPrompt(issue: Issue, initialPrompt?: string): string {
-  const parts = [`[${issue.identifier}] ${issue.title}`, issue.url, issue.description].filter(
-    Boolean
-  );
+  const parts = [
+    `[${issue.identifier}] ${issue.title}`,
+    issue.url,
+    issue.description,
+    issue.context,
+  ].filter(Boolean);
 
   if (initialPrompt?.trim()) parts.push('', initialPrompt.trim());
   return parts.join('\n');

@@ -1,9 +1,10 @@
+import type { PromptLibraryPrompt } from '@shared/prompt-library';
 import type { Issue } from '@shared/tasks';
 import { ISSUE_PROVIDER_META } from '@renderer/features/integrations/issue-provider-meta';
 
 const MAX_LABEL_TITLE_LENGTH = 24;
 
-export type ContextActionKind = 'linked-issue' | 'draft-comments' | 'review-prompt';
+export type ContextActionKind = 'linked-issue' | 'draft-comments' | 'prompt';
 
 export interface ContextAction {
   id: string;
@@ -45,12 +46,15 @@ function issueInjectionText(issue: Issue): string {
       : undefined,
     issue.project ? `Project: ${normalizeWhitespace(issue.project)}` : undefined,
   ].filter(Boolean);
+  const context = issue.context?.trim();
 
-  if (parts.length === 0) {
+  if (parts.length === 0 && !context) {
     return 'Linked issue context';
   }
 
-  return parts.join(' | ');
+  return [parts.join(' | '), context ? `Context:\n${context}` : undefined]
+    .filter(Boolean)
+    .join('\n\n');
 }
 
 export function buildLinkedIssueContextAction(issue?: Issue): ContextAction | null {
@@ -65,15 +69,23 @@ export function buildLinkedIssueContextAction(issue?: Issue): ContextAction | nu
   };
 }
 
-export function buildReviewPromptContextAction(reviewPrompt?: string): ContextAction | null {
-  const text = (reviewPrompt ?? '').trim();
-  if (!text) return null;
-  return {
-    id: 'review-prompt',
-    kind: 'review-prompt',
-    label: 'Review prompt',
-    text,
-  };
+export function buildPromptLibraryContextActions(
+  prompts: PromptLibraryPrompt[] | undefined
+): ContextAction[] {
+  return (prompts ?? []).flatMap((prompt) => {
+    const text = prompt.prompt.trim();
+    if (!text) return [];
+
+    const title = normalizeWhitespace(prompt.title) || 'Custom prompt';
+    return [
+      {
+        id: `prompt:${prompt.id}`,
+        kind: 'prompt' as const,
+        label: truncate(title, MAX_LABEL_TITLE_LENGTH),
+        text,
+      },
+    ];
+  });
 }
 
 export function buildDraftCommentsContextAction(args: {
@@ -93,15 +105,15 @@ export function buildDraftCommentsContextAction(args: {
 
 export function buildTaskContextActions(
   linkedIssue?: Issue,
-  reviewPrompt?: string,
-  draftComments?: { count: number; formattedComments?: string }
+  draftComments?: { count: number; formattedComments?: string },
+  promptLibrary?: PromptLibraryPrompt[]
 ): ContextAction[] {
   const linkedIssueAction = buildLinkedIssueContextAction(linkedIssue);
   const draftCommentsAction = draftComments ? buildDraftCommentsContextAction(draftComments) : null;
-  const reviewPromptAction = buildReviewPromptContextAction(reviewPrompt);
+  const promptLibraryActions = buildPromptLibraryContextActions(promptLibrary);
   const actions: ContextAction[] = [];
   if (linkedIssueAction) actions.push(linkedIssueAction);
   if (draftCommentsAction) actions.push(draftCommentsAction);
-  if (reviewPromptAction) actions.push(reviewPromptAction);
+  actions.push(...promptLibraryActions);
   return actions;
 }

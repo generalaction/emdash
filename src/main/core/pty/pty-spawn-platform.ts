@@ -65,6 +65,17 @@ function quoteForCmdExe(input: string): string {
     .replace(/(["^&|<>()])/g, '^$1')}"`;
 }
 
+/**
+ * cmd.exe + /S /C has a quirk: if the command string starts with a quote, the
+ * outer quotes are taken as part of the executable name (printed back as
+ * `'"C:\Program Files\..."' is not recognized`). The documented workaround is
+ * to wrap the entire command line in an extra pair of outer quotes so cmd.exe
+ * strips one layer and runs the still-quoted path.
+ */
+function wrapCmdExeCommandLine(commandLine: string): string {
+  return commandLine.startsWith('"') ? `"${commandLine}"` : commandLine;
+}
+
 function getWindowsPathDirs(env: NodeJS.ProcessEnv): string[] {
   const rawPath = getWindowsEnvValue(env, 'PATH') ?? '';
   return rawPath.split(path.win32.delimiter).filter(Boolean);
@@ -139,7 +150,7 @@ function resolveWindowsSpawn(
   if (intent.command.kind === 'shell-line') {
     return {
       command: shell,
-      args: ['/d', '/s', '/c', intent.command.commandLine],
+      args: ['/d', '/s', '/c', wrapCmdExeCommandLine(intent.command.commandLine)],
       cwd: intent.cwd,
       warnings,
     };
@@ -158,7 +169,12 @@ function resolveWindowsSpawn(
   if (ext === '.cmd' || ext === '.bat') {
     return {
       command: shell,
-      args: ['/d', '/s', '/c', [resolvedCommand, ...args].map(quoteForCmdExe).join(' ')],
+      args: [
+        '/d',
+        '/s',
+        '/c',
+        wrapCmdExeCommandLine([resolvedCommand, ...args].map(quoteForCmdExe).join(' ')),
+      ],
       cwd: intent.cwd,
       warnings,
     };
@@ -176,7 +192,12 @@ function resolveWindowsSpawn(
   if (!ext) {
     return {
       command: shell,
-      args: ['/d', '/s', '/c', [command, ...args].map(quoteForCmdExe).join(' ')],
+      args: [
+        '/d',
+        '/s',
+        '/c',
+        wrapCmdExeCommandLine([command, ...args].map(quoteForCmdExe).join(' ')),
+      ],
       cwd: intent.cwd,
       warnings,
     };
