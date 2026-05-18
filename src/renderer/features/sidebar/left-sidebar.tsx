@@ -20,6 +20,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
 } from './sidebar-primitives';
+import { SidebarSearchTrigger } from './sidebar-search-trigger';
 import { SidebarSpace } from './sidebar-space';
 import { SidebarVirtualList } from './sidebar-virtual-list';
 import { UpdateSection } from './update-section';
@@ -53,6 +54,7 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
       <SidebarSpace />
       <SidebarContainer className="w-full border-r-0 flex-1 min-h-0">
         <SidebarContent className="flex flex-col">
+          <SidebarSearchTrigger />
           <SidebarPinnedTaskList />
           <SidebarGroup className="mb-0 min-h-0 flex-1 flex flex-col">
             <ProjectsGroupLabel />
