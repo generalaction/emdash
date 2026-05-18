@@ -21,7 +21,7 @@ export const PrRow = memo(function PrRow({
   const showCreateTaskModal = useShowModal('taskModal');
 
   return (
-    <div className="flex relative items-start gap-3 rounded-lg p-3 py-4 hover:bg-background-1 transition-colors group">
+    <div className="flex relative items-start gap-3 w-full">
       <div className="pt-0.5 shrink-0">
         <StatusIcon status={pr.status} />
       </div>

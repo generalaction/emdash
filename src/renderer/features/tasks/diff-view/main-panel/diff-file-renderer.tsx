@@ -201,7 +201,7 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
   if (!diffView) return null;
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="file-diff-view flex h-full flex-col">
       <div className="relative min-h-0 flex-1">
         <StickyDiffEditor
           originalUri={originalUri}
