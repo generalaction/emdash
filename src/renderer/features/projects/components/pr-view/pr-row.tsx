@@ -23,7 +23,7 @@ export const PrRow = memo(function PrRow({
   return (
     <div className="flex relative items-start gap-3 w-full">
       <div className="pt-0.5 shrink-0">
-        <StatusIcon status={pr.status} />
+        <StatusIcon pr={pr} />
       </div>
       <div className="flex-1 min-w-0 flex flex-col gap-2">
         <div className="flex items-center gap-2 justify-between">

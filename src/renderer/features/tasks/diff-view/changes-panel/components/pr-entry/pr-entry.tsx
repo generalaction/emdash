@@ -121,7 +121,6 @@ function computeMergeUiState(pr: PullRequest): MergeUiState {
 
 export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr: PullRequest }) {
   const taskView = useWorkspaceViewModel();
-  const prStatus = pr.status;
   const prStore = taskView.prStore!;
   const diffView = taskView.diffView;
   const showConfirm = useShowModal('confirmActionModal');
@@ -172,7 +171,7 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
             className="relative flex gap-2 items-center min-w-0 group"
             onClick={() => rpc.app.openExternal(pr.url)}
           >
-            <StatusIcon className="size-4" status={prStatus} />
+            <StatusIcon className="size-4" pr={pr} />
             <span className="flex-1 min-w-0 truncate text-sm font-normal">{pr.title}</span>
             <PrNumberBadge number={getPrNumber(pr) ?? 0} />
             <span className="absolute right-0 flex items-center pl-4 pr-0.5 bg-linear-to-r from-transparent to-background opacity-0 group-hover:opacity-100 transition-opacity">
