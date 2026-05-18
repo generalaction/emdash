@@ -203,7 +203,7 @@ export const InlineIssueSelector = observer(function InlineIssueSelector({
         <div className="text-foreground-muted">Navigate with arrow keys</div>
         <div className="text-foreground-muted">
           <button className="flex items-center gap-2">
-            Select Issue <Kbd>↵</Kbd>
+            Select Issue <Kbd>⏎</Kbd>
           </button>{' '}
         </div>
       </div>
