@@ -8,7 +8,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/toolti
 export function SidebarSpace() {
   const { isLeftOpen, setCollapsed } = useWorkspaceLayoutContext();
   return (
-    <div className="[-webkit-app-region:drag] flex h-10 w-full items-center justify-end px-2 gap-2">
+    <div className="[-webkit-app-region:drag] flex h-10 w-full items-center justify-end gap-2 px-2">
       <NavButtons />
       <Tooltip>
         <TooltipTrigger>
@@ -19,7 +19,7 @@ export function SidebarSpace() {
             pressed={isLeftOpen}
             onPressedChange={() => setCollapsed('left', isLeftOpen)}
           >
-            <PanelLeft />
+            <PanelLeft className="h-4 w-4" />
           </Toggle>
         </TooltipTrigger>
         <TooltipContent>

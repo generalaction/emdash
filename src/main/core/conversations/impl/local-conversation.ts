@@ -41,7 +41,10 @@ export class LocalConversationProvider implements ConversationProvider {
   private readonly ctx: IExecutionContext;
   private readonly taskEnvVars: Record<string, string>;
   private readonly hookConfigWriter: HookConfigWriter;
-  private readonly preparedHookProviders = new Map<string, boolean>();
+  private readonly preparedHookProviders = new Map<
+    string,
+    { writeGitIgnoreEntries: boolean; hooksAvailable: boolean }
+  >();
 
   constructor({
     projectId,
@@ -89,7 +92,7 @@ export class LocalConversationProvider implements ConversationProvider {
       cwd: this.taskPath,
       homedir: homedir(),
     });
-    await this.prepareHookConfig(conversation.providerId);
+    const hooksAvailable = await this.prepareHookConfig(conversation.providerId);
 
     const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
     const { command, args } = buildAgentCommand({
@@ -142,7 +145,7 @@ export class LocalConversationProvider implements ConversationProvider {
 
     const hookActive = port > 0;
     const provider = getProvider(conversation.providerId);
-    const useHooksOnly = hookActive && provider?.supportsHooks;
+    const useHooksOnly = hookActive && provider?.supportsHooks && hooksAvailable;
 
     if (!useHooksOnly) {
       wireAgentClassifier({
@@ -198,7 +201,9 @@ export class LocalConversationProvider implements ConversationProvider {
       }
     });
 
-    ptySessionRegistry.register(sessionId, pty);
+    ptySessionRegistry.register(sessionId, pty, {
+      metadata: { providerId: conversation.providerId, title: conversation.title },
+    });
     this.sessions.set(sessionId, pty);
     telemetryService.capture('agent_run_started', {
       provider: conversation.providerId,
@@ -208,26 +213,27 @@ export class LocalConversationProvider implements ConversationProvider {
     });
   }
 
-  private async prepareHookConfig(providerId: Conversation['providerId']): Promise<void> {
+  private async prepareHookConfig(providerId: Conversation['providerId']): Promise<boolean> {
     try {
       const localProjectSettings = await appSettingsService.get('localProject');
       const writeGitIgnoreEntries = localProjectSettings.writeAgentConfigToGitIgnore ?? true;
-      const previousWriteGitIgnoreEntries = this.preparedHookProviders.get(providerId);
+      const previous = this.preparedHookProviders.get(providerId);
       const shouldPrepareHookConfig =
-        previousWriteGitIgnoreEntries === undefined ||
-        (!previousWriteGitIgnoreEntries && writeGitIgnoreEntries);
-      if (!shouldPrepareHookConfig) return;
+        previous === undefined || (!previous.writeGitIgnoreEntries && writeGitIgnoreEntries);
+      if (!shouldPrepareHookConfig) return previous?.hooksAvailable ?? false;
 
-      await this.hookConfigWriter.writeForProvider(providerId, {
+      const hooksAvailable = await this.hookConfigWriter.writeForProvider(providerId, {
         writeGitIgnoreEntries,
       });
-      this.preparedHookProviders.set(providerId, writeGitIgnoreEntries);
+      this.preparedHookProviders.set(providerId, { writeGitIgnoreEntries, hooksAvailable });
+      return hooksAvailable;
     } catch (error) {
       log.warn('LocalConversationProvider: failed to prepare hook config', {
         providerId,
         taskPath: this.taskPath,
         error: String(error),
       });
+      return false;
     }
   }
 

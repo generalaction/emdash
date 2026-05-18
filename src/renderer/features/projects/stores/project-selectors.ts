@@ -58,6 +58,12 @@ export function mountedProjectData(
   return store?.mountedProject?.data ?? null;
 }
 
+/** Returns the SSH connection id for a mounted SSH project, otherwise undefined. */
+export function getProjectSshConnectionId(projectId: string): string | undefined {
+  const data = mountedProjectData(getProjectStore(projectId));
+  return data?.type === 'ssh' ? data.connectionId : undefined;
+}
+
 /** Returns the display name from any project store variant. */
 export function projectDisplayName(store: ProjectStore | undefined): string | undefined {
   return store?.name ?? undefined;

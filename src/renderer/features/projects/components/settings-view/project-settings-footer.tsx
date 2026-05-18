@@ -29,7 +29,7 @@ export function ProjectSettingsFooter({
   const saveDisabled = saving || !dirty;
 
   return (
-    <div className="flex justify-between gap-2 pt-5 pb-10 px-10">
+    <div className="flex justify-between gap-2 pt-5">
       <TooltipProvider delay={150}>
         <Tooltip>
           <TooltipTrigger>
@@ -54,7 +54,7 @@ export function ProjectSettingsFooter({
       <div className="flex items-center gap-2">
         <Button
           variant="outline"
-          size="icon-sm"
+          size="icon-md"
           aria-label="Reset changes"
           onClick={onUndo}
           disabled={!dirty || saving}

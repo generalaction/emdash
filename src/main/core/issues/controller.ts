@@ -5,7 +5,12 @@ import type {
   IssueProviderType,
 } from '@shared/issue-providers';
 import { projectManager } from '@main/core/projects/project-manager';
-import type { IssueProvider, IssueQueryOpts, IssueSearchOpts } from './issue-provider';
+import type {
+  IssueContextOpts,
+  IssueProvider,
+  IssueQueryOpts,
+  IssueSearchOpts,
+} from './issue-provider';
 import { getAllIssueProviders, getIssueProvider } from './registry';
 
 const DEFAULT_CAPABILITIES = {
@@ -57,7 +62,7 @@ async function withResolvedRemote<T extends IssueQueryOpts>(opts: T): Promise<T>
   const project = projectManager.getProject(opts.projectId);
   if (!project) return opts;
 
-  const remote = await project.repository.getConfiguredRemote().catch(() => undefined);
+  const remote = await project.repository.getBaseRemote().catch(() => undefined);
   return { ...opts, remote };
 }
 
@@ -104,5 +109,18 @@ export const issueController = createRPCController({
     }
 
     return issueProvider.searchIssues(await withResolvedRemote(opts));
+  },
+
+  getIssueContext: async (provider: IssueProviderType, opts: IssueContextOpts) => {
+    const issueProvider = getIssueProvider(provider);
+    if (!issueProvider) {
+      return { success: false, error: `Unknown provider: ${provider}` } as const;
+    }
+
+    if (!issueProvider.getIssueContext) {
+      return { success: false, error: `${provider} does not support issue context.` } as const;
+    }
+
+    return issueProvider.getIssueContext(await withResolvedRemote(opts));
   },
 });

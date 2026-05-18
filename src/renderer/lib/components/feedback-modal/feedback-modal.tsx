@@ -77,7 +77,9 @@ export function FeedbackModal({ onSuccess, blurb }: Props) {
     setContactEmail,
     submitting,
     errorMessage,
+    contactEmailError,
     clearError,
+    clearContactEmailError,
     handleSubmit,
     canSubmit,
   } = useFeedbackSubmit({
@@ -149,11 +151,23 @@ export function FeedbackModal({ onSuccess, blurb }: Props) {
               type="text"
               placeholder="productive@example.com (optional)"
               value={contactEmail}
+              aria-invalid={contactEmailError ? 'true' : undefined}
+              aria-describedby={contactEmailError ? 'feedback-contact-error' : undefined}
               onChange={(event) => {
                 setContactEmail(event.target.value);
                 if (errorMessage) clearError();
+                if (contactEmailError) clearContactEmailError();
               }}
             />
+            {contactEmailError ? (
+              <p
+                id="feedback-contact-error"
+                className="text-xs text-foreground-destructive"
+                role="alert"
+              >
+                {contactEmailError}
+              </p>
+            ) : null}
           </div>
 
           <div className="space-y-2">

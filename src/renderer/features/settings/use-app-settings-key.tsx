@@ -35,6 +35,9 @@ function mergeValue<K extends AppSettingsKey>(
   current: AppSettings[K] | undefined,
   partial: Partial<AppSettings[K]>
 ): AppSettings[K] {
+  if (Array.isArray(partial)) {
+    return partial as unknown as AppSettings[K];
+  }
   if (
     typeof partial === 'object' &&
     partial !== null &&

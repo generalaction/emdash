@@ -31,6 +31,29 @@ describe('buildAgentGroups', () => {
     );
   });
 
+  it('keeps installing agents in the not-installed group until install resolves', () => {
+    const groups = buildAgentGroups(['codex', 'claude'], [], new Set(['claude']));
+
+    expect(groups.find((group) => group.value === 'installed')?.items).toEqual(
+      expect.arrayContaining([expect.objectContaining({ agentId: 'codex', disabled: false })])
+    );
+    expect(groups.find((group) => group.value === 'installed')?.items).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ agentId: 'claude' })])
+    );
+    expect(groups.find((group) => group.value === 'not-installed')?.items).toEqual(
+      expect.arrayContaining([expect.objectContaining({ agentId: 'claude', disabled: true })])
+    );
+  });
+
+  it('does not assume an installing selected agent is installed', () => {
+    const groups = buildAgentGroups([], ['claude'], new Set(['claude']));
+
+    expect(groups.find((group) => group.value === 'installed')?.items).toBeUndefined();
+    expect(groups.find((group) => group.value === 'not-installed')?.items).toEqual(
+      expect.arrayContaining([expect.objectContaining({ agentId: 'claude', disabled: true })])
+    );
+  });
+
   it('keeps the selected agent installed when dependency data is partial', () => {
     const assumedInstalledAgents = getAssumedInstalledAgents('codex', {
       claude: {

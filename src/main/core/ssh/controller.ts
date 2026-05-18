@@ -4,9 +4,20 @@ import { homedir } from 'node:os';
 import { eq } from 'drizzle-orm';
 import { Client } from 'ssh2';
 import { createRPCController } from '@/shared/ipc/rpc';
-import type { ConnectionState, ConnectionTestResult, FileEntry, SshConfig } from '@shared/ssh';
+import type {
+  ConnectionState,
+  ConnectionTestResult,
+  FileEntry,
+  SshConfig,
+  SshConnectionUsage,
+  SshHealthState,
+} from '@shared/ssh';
 import { db } from '@main/db/client';
-import { sshConnections as sshConnectionsTable, type SshConnectionInsert } from '@main/db/schema';
+import {
+  projects,
+  sshConnections as sshConnectionsTable,
+  type SshConnectionInsert,
+} from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { sshConnectionManager } from './ssh-connection-manager';
@@ -28,6 +39,25 @@ export const sshController = createRPCController({
       privateKeyPath: row.privateKeyPath ?? undefined,
       useAgent: row.useAgent === 1,
     }));
+  },
+
+  /** List projects currently using each saved SSH connection. */
+  getConnectionUsage: async (): Promise<SshConnectionUsage> => {
+    const rows = await db
+      .select({
+        id: projects.id,
+        name: projects.name,
+        sshConnectionId: projects.sshConnectionId,
+      })
+      .from(projects);
+
+    const usage: SshConnectionUsage = {};
+    for (const row of rows) {
+      if (!row.sshConnectionId) continue;
+      usage[row.sshConnectionId] ??= [];
+      usage[row.sshConnectionId].push({ id: row.id, name: row.name });
+    }
+    return usage;
   },
 
   /** Create or update an SSH connection, storing secrets in local secure storage. */
@@ -87,6 +117,16 @@ export const sshController = createRPCController({
 
   /** Delete a saved SSH connection and its stored credentials. */
   deleteConnection: async (id: string): Promise<void> => {
+    const referencingProjects = await db
+      .select({ name: projects.name })
+      .from(projects)
+      .where(eq(projects.sshConnectionId, id));
+
+    if (referencingProjects.length > 0) {
+      const projectNames = referencingProjects.map((project) => project.name).join(', ');
+      throw new Error(`SSH connection is used by ${projectNames}`);
+    }
+
     if (sshConnectionManager.isConnected(id)) {
       await sshConnectionManager.disconnect(id).catch((e) => {
         log.warn('sshController.deleteConnection: error disconnecting', {
@@ -173,6 +213,10 @@ export const sshController = createRPCController({
     return sshConnectionManager.getAllConnectionStates();
   },
 
+  getHealthStates: async (): Promise<Record<string, SshHealthState>> => {
+    return sshConnectionManager.getAllHealthStates();
+  },
+
   /** Rename a saved SSH connection without changing any other fields. */
   renameConnection: async (id: string, name: string): Promise<void> => {
     const [row] = await db.select().from(sshConnectionsTable).where(eq(sshConnectionsTable.id, id));
@@ -198,7 +242,7 @@ export const sshController = createRPCController({
     }
 
     return new Promise((resolve, reject) => {
-      proxy!.client.sftp((err, sftp) => {
+      proxy!.sftp((err, sftp) => {
         if (err) {
           reject(new Error(`SFTP error: ${err.message}`));
           return;

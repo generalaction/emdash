@@ -3,6 +3,7 @@ import { App } from './App';
 import { ErrorBoundary } from './lib/components/error-boundary';
 import './index.css';
 import 'devicon/devicon.min.css';
+import 'katex/dist/katex.min.css';
 import type { NavigationSnapshot, SidebarSnapshot } from '@shared/view-state';
 import { prefetchAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { setupAppCommandProvider } from '@renderer/lib/commands/app-commands';
@@ -26,6 +27,7 @@ async function bootstrap() {
   wireCommitHistoryInvalidation();
 
   appState.update.start();
+  appState.resourceMonitor.start();
   initSoundPlayer();
 
   // Initialize Monaco and load app data in parallel. Awaiting Monaco here

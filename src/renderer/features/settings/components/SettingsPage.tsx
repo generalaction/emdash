@@ -12,8 +12,14 @@ import InterfaceSettingsCard from './InterfaceSettingsCard';
 import KeyboardSettingsCard from './KeyboardSettingsCard';
 import NotificationSettingsCard from './NotificationSettingsCard';
 import RepositorySettingsCard from './RepositorySettingsCard';
-import { ReviewPromptResetButton, ReviewPromptSettingsCard } from './ReviewPromptSettingsCard';
-import { AutoGenerateTaskNamesRow, AutoTrustWorktreesRow, EnableTmuxRow } from './TaskSettingsRows';
+import ResourceMonitorSettingsCard from './ResourceMonitorSettingsCard';
+import { SshConnectionsSettingsCard } from './SshConnectionsSettingsCard';
+import {
+  AutoGenerateTaskNamesRow,
+  AutoTrustWorktreesRow,
+  CreateBranchAndWorktreeRow,
+  EnableTmuxRow,
+} from './TaskSettingsRows';
 import TelemetryCard from './TelemetryCard';
 import TerminalSettingsCard from './TerminalSettingsCard';
 import ThemeCard from './ThemeCard';
@@ -24,6 +30,7 @@ export type SettingsPageTab =
   | 'account'
   | 'clis-models'
   | 'integrations'
+  | 'connections'
   | 'repository'
   | 'interface'
   | 'docs';
@@ -54,6 +61,7 @@ export function SettingsPage({
     { id: 'account', label: 'Account' },
     { id: 'clis-models', label: 'Agents' },
     { id: 'integrations', label: 'Integrations' },
+    { id: 'connections', label: 'Connections' },
     { id: 'repository', label: 'Repository' },
     { id: 'interface', label: 'Interface' },
     { id: 'docs', label: 'Docs', isExternal: true },
@@ -77,6 +85,9 @@ export function SettingsPage({
           component: <AutoTrustWorktreesRow />,
         },
         {
+          component: <CreateBranchAndWorktreeRow />,
+        },
+        {
           component: <EnableTmuxRow />,
         },
         {
@@ -98,11 +109,6 @@ export function SettingsPage({
       sections: [
         { component: <DefaultAgentSettingsCard /> },
         {
-          title: 'Review Prompt',
-          action: <ReviewPromptResetButton />,
-          component: <ReviewPromptSettingsCard />,
-        },
-        {
           title: 'CLI agents',
           component: (
             <div className="rounded-xl border border-border/60 bg-muted/10 p-2">
@@ -117,6 +123,11 @@ export function SettingsPage({
       description: 'Connect external services and tools.',
       sections: [{ title: 'Integrations', component: <IntegrationsCard /> }],
     },
+    connections: {
+      title: 'Connections',
+      description: 'Manage reusable SSH connections for remote projects.',
+      sections: [{ component: <SshConnectionsSettingsCard /> }],
+    },
     repository: {
       title: 'Repository',
       description: 'Configure repository and branch settings.',
@@ -127,8 +138,9 @@ export function SettingsPage({
       description: 'Customize the appearance and behavior of the app.',
       sections: [
         { component: <ThemeCard /> },
-        { component: <InterfaceSettingsCard /> },
         { component: <TerminalSettingsCard /> },
+        { component: <ResourceMonitorSettingsCard /> },
+        { component: <InterfaceSettingsCard /> },
         { title: 'Keyboard shortcuts', component: <KeyboardSettingsCard /> },
         {
           title: 'Tools',

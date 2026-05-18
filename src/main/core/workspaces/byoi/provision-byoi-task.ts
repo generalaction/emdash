@@ -10,7 +10,6 @@ import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
 import { buildTaskFromWorkspace } from '@main/core/tasks/task-builder';
 import { parseProvisionOutput } from '@main/core/workspaces/byoi/provision-output';
 import { createWorkspaceFactory } from '@main/core/workspaces/workspace-factory';
-import { remoteTaskWorkspaceId } from '@main/core/workspaces/workspace-id';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
@@ -28,6 +27,8 @@ export type ProvisionBYOITaskParams = {
   projectPath: string;
   settings: ProjectSettingsProvider;
   logPrefix: string;
+  /** UUID from the workspaces table — used as the workspace registry key. */
+  workspaceId: string;
 };
 
 /**
@@ -87,7 +88,7 @@ export async function provisionBYOITask(params: ProvisionBYOITaskParams): Promis
   });
 
   const workDir = output.worktreePath ?? projectPath;
-  const workspaceId = remoteTaskWorkspaceId(output.id ?? task.id);
+  const { workspaceId } = params;
 
   const workspace = await workspaceRegistry.acquire(
     workspaceId,

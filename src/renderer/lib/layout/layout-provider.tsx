@@ -51,12 +51,15 @@ export function useWorkspaceLayoutService() {
   const setCollapsed = useCallback(
     (side: 'left', collapsed: boolean) => {
       const panel = leftPanelRef.current;
-      if (panel) {
-        if (collapsed) {
-          panel.collapse();
-        } else {
-          panel.expand();
-        }
+      if (!panel) return;
+      // Programmatic toggles (cmd+B) emit a short burst of ResizeObserver
+      // events. Suppress them and resize xterm once after the layout settles
+      // to avoid repeated term.resize() calls during the burst.
+      panelDragStore.suppressFor(140);
+      if (collapsed) {
+        panel.collapse();
+      } else {
+        panel.expand();
       }
     },
     [leftPanelRef]

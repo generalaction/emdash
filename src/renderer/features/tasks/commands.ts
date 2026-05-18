@@ -1,17 +1,19 @@
-import { asMounted, getProjectStore } from '@renderer/features/projects/stores/project-selectors';
+import { TASK_COMMAND_DEFS, type CommandDef, type TaskCommandId } from '@shared/commands';
+import type { ShortcutSettingsKey } from '@shared/shortcuts';
 import {
-  asProvisioned,
   getRegisteredTaskData,
   getTaskGitStore,
-  getTaskManagerStore,
   getTaskStore,
   getTaskView,
 } from '@renderer/features/tasks/stores/task-selectors';
 import { closeActiveTabWithConfirm } from '@renderer/features/tasks/tabs/close-tab-with-confirm';
 import type { CommandProvider } from '@renderer/lib/commands/types';
-import type { ShortcutSettingsKey } from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { showModal } from '@renderer/lib/modal/modal-provider';
-import { appState } from '@renderer/lib/stores/app-state';
+import { appState, sidebarStore } from '@renderer/lib/stores/app-state';
+
+function taskDef(id: TaskCommandId): CommandDef {
+  return TASK_COMMAND_DEFS.find((d) => d.id === id)!;
+}
 
 /**
  * Returns a CommandProvider for the task scope.
@@ -25,39 +27,47 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
 
     getCommands() {
       const taskStore = getTaskStore(projectId, taskId);
-      const provisioned = asProvisioned(taskStore);
 
       // Guard: only expose commands when the task is fully provisioned.
-      if (!provisioned) return [];
+      if (taskStore?.state !== 'provisioned') return [];
 
       const taskView = getTaskView(projectId, taskId);
       const tabManager = taskView?.tabManager;
       const hasTabs = (tabManager?.resolvedTabs.length ?? 0) > 0;
 
-      const mountedProject = asMounted(getProjectStore(projectId));
-      const connectionId =
-        mountedProject?.data.type === 'ssh' ? mountedProject.data.connectionId : undefined;
-
-      const taskMgr = getTaskManagerStore(projectId);
-      const taskIds = taskMgr ? Array.from(taskMgr.tasks.keys()) : [];
+      const taskIds = sidebarStore.visibleTaskIdsForProject(projectId);
       const currentIdx = taskIds.indexOf(taskId);
 
       const git = getTaskGitStore(projectId, taskId);
       const taskData = getRegisteredTaskData(projectId, taskId);
 
+      const newConversationDef = taskDef('task.newConversation');
+      const sidebarChangesDef = taskDef('task.sidebarChanges');
+      const sidebarConversationsDef = taskDef('task.sidebarConversations');
+      const sidebarFilesDef = taskDef('task.sidebarFiles');
+      const viewTerminalsDef = taskDef('task.viewTerminals');
+      const toggleTerminalDrawerDef = taskDef('task.toggleTerminalDrawer');
+      const toggleRightSidebarDef = taskDef('task.toggleRightSidebar');
+      const newTerminalDef = taskDef('task.newTerminal');
+      const gitFetchDef = taskDef('task.gitFetch');
+      const gitPullDef = taskDef('task.gitPull');
+      const gitPushDef = taskDef('task.gitPush');
+      const pinDef = taskDef('task.pin');
+      const nextTaskDef = taskDef('task.nextTask');
+      const prevTaskDef = taskDef('task.prevTask');
+
       return [
         // ── Conversations ──────────────────────────────────────────────────
         {
-          id: 'task.newConversation',
-          label: 'New Conversation',
-          description: 'Create a new conversation in the current task',
-          shortcutKey: 'newConversation',
-          group: 'Conversations',
+          id: newConversationDef.id,
+          label: newConversationDef.label,
+          description: newConversationDef.description,
+          shortcutKey: newConversationDef.shortcutKey,
+          group: newConversationDef.group,
           execute() {
             showModal('createConversationModal', {
               projectId,
               taskId,
-              connectionId,
               onSuccess: ({ conversationId }) => {
                 tabManager?.openConversation(conversationId);
                 taskView?.setFocusedRegion('main');
@@ -68,43 +78,43 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
 
         // ── View sidebar panels ────────────────────────────────────────────
         {
-          id: 'task.sidebarChanges',
-          label: 'View Changes',
-          description: 'Open the Changes panel in the right sidebar',
-          shortcutKey: 'sidebarChanges',
-          group: 'View',
+          id: sidebarChangesDef.id,
+          label: sidebarChangesDef.label,
+          description: sidebarChangesDef.description,
+          shortcutKey: sidebarChangesDef.shortcutKey,
+          group: sidebarChangesDef.group,
           execute() {
             taskView?.setSidebarTab('changes');
             taskView?.setSidebarCollapsed(false);
           },
         },
         {
-          id: 'task.sidebarConversations',
-          label: 'View Conversations',
-          description: 'Open the Conversations panel in the right sidebar',
-          shortcutKey: 'sidebarConversations',
-          group: 'View',
+          id: sidebarConversationsDef.id,
+          label: sidebarConversationsDef.label,
+          description: sidebarConversationsDef.description,
+          shortcutKey: sidebarConversationsDef.shortcutKey,
+          group: sidebarConversationsDef.group,
           execute() {
             taskView?.setSidebarTab('conversations');
             taskView?.setSidebarCollapsed(false);
           },
         },
         {
-          id: 'task.sidebarFiles',
-          label: 'View Files',
-          description: 'Open the Files panel in the right sidebar',
-          shortcutKey: 'sidebarFiles',
-          group: 'View',
+          id: sidebarFilesDef.id,
+          label: sidebarFilesDef.label,
+          description: sidebarFilesDef.description,
+          shortcutKey: sidebarFilesDef.shortcutKey,
+          group: sidebarFilesDef.group,
           execute() {
             taskView?.setSidebarTab('files');
             taskView?.setSidebarCollapsed(false);
           },
         },
         {
-          id: 'task.viewTerminals',
-          label: 'View Terminals',
-          description: 'Open the terminal drawer',
-          group: 'View',
+          id: viewTerminalsDef.id,
+          label: viewTerminalsDef.label,
+          description: viewTerminalsDef.description,
+          group: viewTerminalsDef.group,
           execute() {
             taskView?.setTerminalDrawerOpen(true);
           },
@@ -112,21 +122,22 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
 
         // ── Layout toggles ─────────────────────────────────────────────────
         {
-          id: 'task.toggleTerminalDrawer',
-          label: taskView?.isTerminalDrawerOpen ? 'Close Terminal Drawer' : 'Open Terminal Drawer',
-          description: 'Show or hide the terminal drawer',
-          shortcutKey: 'toggleTerminalDrawer',
-          group: 'Panel',
+          id: toggleTerminalDrawerDef.id,
+          label: toggleTerminalDrawerDef.label,
+          description: toggleTerminalDrawerDef.description,
+          shortcutKey: toggleTerminalDrawerDef.shortcutKey,
+          group: toggleTerminalDrawerDef.group,
           execute() {
             taskView?.setTerminalDrawerOpen(!taskView.isTerminalDrawerOpen);
           },
         },
         {
-          id: 'task.toggleRightSidebar',
+          id: toggleRightSidebarDef.id,
+          // Dynamic label reflecting current collapsed/expanded state
           label: taskView?.isSidebarCollapsed ? 'Show Right Sidebar' : 'Hide Right Sidebar',
-          description: 'Show or hide the right sidebar',
-          shortcutKey: 'toggleRightSidebar',
-          group: 'Panel',
+          description: toggleRightSidebarDef.description,
+          shortcutKey: toggleRightSidebarDef.shortcutKey,
+          group: toggleRightSidebarDef.group,
           execute() {
             taskView?.setSidebarCollapsed(!taskView.isSidebarCollapsed);
           },
@@ -134,13 +145,13 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
 
         // ── Terminals ─────────────────────────────────────────────────────
         {
-          id: 'task.newTerminal',
-          label: 'New Terminal',
-          description: 'Create a new terminal session',
-          shortcutKey: 'newTerminal',
-          group: 'Terminals',
+          id: newTerminalDef.id,
+          label: newTerminalDef.label,
+          description: newTerminalDef.description,
+          shortcutKey: newTerminalDef.shortcutKey,
+          group: newTerminalDef.group,
           execute() {
-            taskView?.openNewTerminal();
+            void taskView?.openNewTerminal();
           },
         },
 
@@ -192,32 +203,33 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
 
         // ── Git ────────────────────────────────────────────────────────────
         {
-          id: 'task.gitFetch',
-          label: 'Git Fetch',
-          description: 'Fetch latest changes from remote',
-          group: 'Git',
+          id: gitFetchDef.id,
+          label: gitFetchDef.label,
+          description: gitFetchDef.description,
+          group: gitFetchDef.group,
           enabled: git != null,
           execute() {
             void git?.fetchRemote();
           },
         },
         {
-          id: 'task.gitPull',
-          label: 'Git Pull',
-          description: 'Pull latest changes from remote',
-          group: 'Git',
+          id: gitPullDef.id,
+          label: gitPullDef.label,
+          description: gitPullDef.description,
+          group: gitPullDef.group,
           enabled: git != null,
           execute() {
             void git?.pull();
           },
         },
         {
-          id: 'task.gitPush',
+          id: gitPushDef.id,
+          // Dynamic label: push vs publish branch
           label: git?.isBranchPublished ? 'Git Push' : 'Git Publish Branch',
           description: git?.isBranchPublished
             ? 'Push commits to remote'
             : 'Publish this branch to remote',
-          group: 'Git',
+          group: gitPushDef.group,
           enabled: git != null,
           execute() {
             if (git?.isBranchPublished) {
@@ -230,12 +242,13 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
 
         // ── Task actions ───────────────────────────────────────────────────
         {
-          id: 'task.pin',
+          id: pinDef.id,
+          // Dynamic label: pin vs unpin
           label: taskData?.isPinned ? 'Unpin Task' : 'Pin Task',
           description: taskData?.isPinned
             ? 'Remove this task from pinned'
             : 'Pin this task to keep it at the top',
-          group: 'Task',
+          group: pinDef.group,
           enabled: taskData != null,
           execute() {
             if (taskData) void taskStore?.setPinned(!taskData.isPinned);
@@ -244,22 +257,24 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
 
         // ── Navigation ─────────────────────────────────────────────────────
         {
-          id: 'task.nextTask',
-          label: 'Next Task',
-          description: 'Switch to the next task',
-          group: 'Navigation',
+          id: nextTaskDef.id,
+          label: nextTaskDef.label,
+          description: nextTaskDef.description,
+          group: nextTaskDef.group,
           enabled: currentIdx !== -1 && currentIdx < taskIds.length - 1,
+          hideFromPalette: true,
           execute() {
             const nextId = taskIds[currentIdx + 1];
             if (nextId) appState.navigation.navigate('task', { projectId, taskId: nextId });
           },
         },
         {
-          id: 'task.prevTask',
-          label: 'Previous Task',
-          description: 'Switch to the previous task',
-          group: 'Navigation',
+          id: prevTaskDef.id,
+          label: prevTaskDef.label,
+          description: prevTaskDef.description,
+          group: prevTaskDef.group,
           enabled: currentIdx > 0,
+          hideFromPalette: true,
           execute() {
             const prevId = taskIds[currentIdx - 1];
             if (prevId) appState.navigation.navigate('task', { projectId, taskId: prevId });

@@ -1,69 +1,88 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 import type { Issue } from '@shared/tasks';
-import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
-import { buildTaskContextActions } from '@renderer/features/tasks/conversations/context-actions';
+import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
+import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
+import {
+  buildTaskContextActions,
+  type ContextAction,
+} from '@renderer/features/tasks/conversations/context-actions';
+import { resolveContextActionText } from '@renderer/features/tasks/conversations/resolve-context-action-text';
 import { useEffectiveProvider } from '@renderer/features/tasks/conversations/use-effective-provider';
 import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
 import { Field, FieldLabel } from '@renderer/lib/ui/field';
 import { Switch } from '@renderer/lib/ui/switch';
 import { Textarea } from '@renderer/lib/ui/textarea';
+import { appendInitialConversationText } from './initial-conversation-text';
 import { ModalContextBar } from './modal-context-bar';
 
 export type InitialConversationState = {
   provider: AgentProviderId | null;
   setProvider: (provider: AgentProviderId | null) => void;
   prompt: string;
-  setPrompt: (prompt: string) => void;
+  setPrompt: Dispatch<SetStateAction<string>>;
+  connectionId?: string;
 };
 
-export function useInitialConversationState(connectionId?: string): InitialConversationState {
+export function useInitialConversationState(projectId?: string): InitialConversationState {
+  const connectionId = projectId ? getProjectSshConnectionId(projectId) : undefined;
   const { providerId, setProviderOverride } = useEffectiveProvider(connectionId);
   const [prompt, setPrompt] = useState('');
-  return { provider: providerId, setProvider: setProviderOverride, prompt, setPrompt };
+  return {
+    provider: providerId,
+    setProvider: setProviderOverride,
+    prompt,
+    setPrompt,
+    connectionId,
+  };
 }
 
 interface InitialConversationFieldProps {
   state: InitialConversationState;
   linkedIssue?: Issue;
-  connectionId?: string;
+  projectId?: string;
 }
 
 export function InitialConversationField({
   state,
   linkedIssue,
-  connectionId,
+  projectId,
 }: InitialConversationFieldProps) {
-  const { value: reviewPrompt } = useAppSettingsKey('reviewPrompt');
+  const { value: promptLibrary } = usePromptLibrary();
   const autoApproveDefaults = useAgentAutoApproveDefaults();
   const contextActions = useMemo(
-    () => buildTaskContextActions(linkedIssue, reviewPrompt),
-    [linkedIssue, reviewPrompt]
+    () => buildTaskContextActions(linkedIssue, undefined, promptLibrary),
+    [linkedIssue, promptLibrary]
   );
 
-  const handleActionClick = (text: string) => {
-    state.setPrompt(state.prompt ? `${state.prompt}\n${text}` : text);
+  const handleActionClick = async (action: ContextAction) => {
+    const text = await resolveContextActionText({ action, linkedIssue, projectId });
+
+    state.setPrompt((current) => appendInitialConversationText(current, text));
   };
 
   return (
     <>
       <Field>
-        <FieldLabel>Initial Conversation</FieldLabel>
+        <FieldLabel>Initial conversation</FieldLabel>
         <div className="flex flex-col border border-border rounded-md">
           <AgentSelector
             value={state.provider}
             onChange={(provider) => state.setProvider(provider)}
-            connectionId={connectionId}
+            connectionId={state.connectionId}
             className="rounded-none border-0 border-b"
           />
           <Textarea
             placeholder="Start with a prompt... (optional)"
             value={state.prompt}
             onChange={(e) => state.setPrompt(e.target.value)}
-            className="min-h-24 resize-none border-0 rounded-none focus-visible:ring-0 focus-visible:border-0"
+            className="min-h-24 max-h-64 resize-none border-0 rounded-none focus-visible:ring-0 focus-visible:border-0"
           />
-          <ModalContextBar actions={contextActions} onActionClick={handleActionClick} />
+          <ModalContextBar
+            actions={contextActions}
+            onActionClick={(action) => void handleActionClick(action)}
+          />
         </div>
       </Field>
       <Field>
@@ -75,7 +94,7 @@ export function InitialConversationField({
               if (state.provider) autoApproveDefaults.setDefault(state.provider, checked);
             }}
           />
-          <FieldLabel>Dangerously skip permissions</FieldLabel>
+          <FieldLabel>Auto-approve permissions</FieldLabel>
         </div>
       </Field>
     </>

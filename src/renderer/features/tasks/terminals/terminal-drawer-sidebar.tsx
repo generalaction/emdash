@@ -13,14 +13,15 @@ interface TerminalDrawerSidebarProps {
   lifecycleScriptsMgr: LifecycleScriptsStore | null;
   activeScriptId: string | undefined;
   onSelectScript: (id: string) => void;
-  onRunScript: () => void;
-  onStopScript: () => void;
+  onRunScript: (id: string) => void;
+  onStopScript: (id: string) => void;
   terminalTabView: TerminalTabViewStore;
   activeTerminalId: string | undefined;
   onSelectTerminal: (id: string) => void;
   onAddTerminal: () => void;
   onRemoveTerminal: (id: string) => void;
   onRenameTerminal: (id: string, name: string) => void;
+  onHoverTerminal?: (id: string) => void;
   projectId: string;
   className?: string;
 }
@@ -37,6 +38,7 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
   onAddTerminal,
   onRemoveTerminal,
   onRenameTerminal,
+  onHoverTerminal,
   projectId,
   className,
 }: TerminalDrawerSidebarProps) {
@@ -71,6 +73,7 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
             isActive={activeTerminalId === terminal.data.id}
             onSelect={() => onSelectTerminal(terminal.data.id)}
             onRename={(name) => onRenameTerminal(terminal.data.id, name)}
+            onHover={onHoverTerminal ? () => onHoverTerminal(terminal.data.id) : undefined}
             action={
               <Tooltip>
                 <TooltipTrigger>
@@ -117,30 +120,31 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
                 isActive={isActive}
                 onSelect={() => onSelectScript(script.data.id)}
                 action={
-                  isActive ? (
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <button
-                          className="ml-1 shrink-0 flex items-center justify-center size-5 rounded hover:bg-background text-foreground-muted hover:text-foreground"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (script.isRunning) {
-                              onStopScript();
-                            } else {
-                              onRunScript();
-                            }
-                          }}
-                        >
-                          {script.isRunning ? (
-                            <Pause className="size-3" />
-                          ) : (
-                            <Play className="size-3" />
-                          )}
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent>{script.isRunning ? 'Stop' : 'Run'}</TooltipContent>
-                    </Tooltip>
-                  ) : null
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <button
+                        className={cn(
+                          'ml-1 shrink-0 flex items-center justify-center size-5 rounded hover:bg-background text-foreground-muted hover:text-foreground',
+                          !isActive && 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'
+                        )}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (script.isRunning) {
+                            onStopScript(script.data.id);
+                          } else {
+                            onRunScript(script.data.id);
+                          }
+                        }}
+                      >
+                        {script.isRunning ? (
+                          <Pause className="size-3" />
+                        ) : (
+                          <Play className="size-3" />
+                        )}
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>{script.isRunning ? 'Stop' : 'Run'}</TooltipContent>
+                  </Tooltip>
                 }
               />
             );
@@ -157,10 +161,19 @@ interface SidebarRowProps {
   isActive: boolean;
   onSelect: () => void;
   onRename?: (name: string) => void;
+  onHover?: () => void;
   action?: ReactNode;
 }
 
-function SidebarRow({ icon, label, isActive, onSelect, onRename, action }: SidebarRowProps) {
+function SidebarRow({
+  icon,
+  label,
+  isActive,
+  onSelect,
+  onRename,
+  onHover,
+  action,
+}: SidebarRowProps) {
   const [isEditing, setIsEditing] = useState(false);
 
   if (isEditing && onRename) {
@@ -191,6 +204,7 @@ function SidebarRow({ icon, label, isActive, onSelect, onRename, action }: Sideb
         isActive && 'bg-background-2 text-foreground'
       )}
       onClick={onSelect}
+      onMouseEnter={onHover}
       onDoubleClick={(e) => {
         if (!onRename) return;
         e.stopPropagation();

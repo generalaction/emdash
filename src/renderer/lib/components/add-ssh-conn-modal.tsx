@@ -35,6 +35,7 @@ import { RadioGroup, RadioGroupItem } from '@renderer/lib/ui/radio-group';
 
 export interface AddSshConnModalProps extends BaseModalProps<{ connectionId: string }> {
   initialConfig?: SshConfig;
+  dismissControl?: 'back' | 'close';
 }
 
 const formSchema = z
@@ -76,9 +77,15 @@ const formSchema = z
 type AuthType = 'password' | 'key' | 'agent';
 type TestState = 'idle' | 'testing' | 'success' | 'error';
 
-export function AddSshConnModal({ onSuccess, onClose, initialConfig }: AddSshConnModalProps) {
+export function AddSshConnModal({
+  onSuccess,
+  onClose,
+  initialConfig,
+  dismissControl = 'back',
+}: AddSshConnModalProps) {
   const sshConnections = appState.sshConnections;
   const isEditing = !!initialConfig;
+  const showBackButton = dismissControl === 'back';
 
   const [testState, setTestState] = useState<TestState>('idle');
   const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null);
@@ -158,13 +165,15 @@ export function AddSshConnModal({ onSuccess, onClose, initialConfig }: AddSshCon
     <ModalLayout
       header={
         <DialogHeader
-          showCloseButton={false}
+          showCloseButton={!showBackButton}
           className="flex-row items-center gap-2 -mt-2 w-full justify-between"
         >
-          <div className="flex items-center gap-2 -ml-2">
-            <Button variant="ghost" size="icon-sm" onClick={onClose}>
-              <ArrowLeftIcon className="w-4 h-4" />
-            </Button>
+          <div className={`flex items-center gap-2 ${showBackButton ? '-ml-2' : ''}`}>
+            {showBackButton && (
+              <Button variant="ghost" size="icon-xs" onClick={onClose}>
+                <ArrowLeftIcon className="w-4 h-4" />
+              </Button>
+            )}
             <DialogTitle>{isEditing ? 'Edit SSH Connection' : 'Add SSH Connection'}</DialogTitle>
           </div>
         </DialogHeader>
@@ -187,6 +196,11 @@ export function AddSshConnModal({ onSuccess, onClose, initialConfig }: AddSshCon
             )}
           </Button>
           <div className="flex gap-2">
+            {!showBackButton && (
+              <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
+                Cancel
+              </Button>
+            )}
             <ConfirmButton type="submit" form="add-ssh-conn-form" disabled={isSubmitting}>
               {isSubmitting ? (
                 <>

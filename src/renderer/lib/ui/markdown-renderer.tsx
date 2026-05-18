@@ -2,13 +2,18 @@ import React, { useEffect, useMemo, useState } from 'react';
 import Markdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import rehypeKatex from 'rehype-katex';
 import rehypeRaw from 'rehype-raw';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
 import type { PluggableList } from 'unified';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { rpc } from '@renderer/lib/ipc';
 import { cn } from '@renderer/utils/utils';
+import { ContainedImage } from './contained-image';
+import { normalizeLatexDelimiters } from './markdown-latex';
+import { MermaidDiagram } from './mermaid-diagram';
 
 type Variant = 'full' | 'compact';
 
@@ -16,6 +21,7 @@ interface MarkdownRendererProps {
   content: string;
   variant?: Variant;
   className?: string;
+  allowHtml?: boolean;
   /**
    * Optional callback for resolving non-external image src values (e.g. relative
    * paths inside a workspace). Should return a `data:` URI string, or `null` to
@@ -24,14 +30,36 @@ interface MarkdownRendererProps {
   resolveImage?: (src: string) => Promise<string | null>;
 }
 
-/** Sanitize schema that also allows data: URIs on images */
+// Sanitize runs before rehype-katex so user input is sanitized but KaTeX's
+// (trusted) output passes through untouched. The schema preserves the
+// math-inline/math-display classes that remark-math emits so rehype-katex can
+// still recognize them post-sanitize.
 const sanitizeSchema = {
   ...defaultSchema,
   protocols: {
     ...defaultSchema.protocols,
     src: [...(defaultSchema.protocols?.src || []), 'data'],
   },
+  attributes: {
+    ...defaultSchema.attributes,
+    span: [
+      ...(defaultSchema.attributes?.span || []),
+      ['className', 'math', 'math-inline', 'math-display'],
+    ],
+    div: [
+      ...(defaultSchema.attributes?.div || []),
+      ['className', 'math', 'math-inline', 'math-display'],
+    ],
+  },
 };
+
+const REMARK_PLUGINS: PluggableList = [remarkGfm, remarkMath];
+const FULL_REHYPE_PLUGINS: PluggableList = [
+  rehypeRaw,
+  [rehypeSanitize, sanitizeSchema],
+  rehypeKatex,
+];
+const COMPACT_REHYPE_PLUGINS: PluggableList = [[rehypeSanitize, sanitizeSchema], rehypeKatex];
 
 /** Resolves a local image src via the provided callback and renders as a base64 data URI. */
 const ResolvedImage: React.FC<{
@@ -73,13 +101,36 @@ const ResolvedImage: React.FC<{
       <span className="my-3 inline-block text-xs text-muted-foreground">Loading image...</span>
     );
   }
-  return <img src={dataUrl} alt={alt} className="my-3 max-w-full rounded" />;
+  return <ContainedImage src={dataUrl} alt={alt} className="my-3 max-w-full rounded" />;
 };
 
 type WithChildren = { children?: React.ReactNode };
 type WithChildrenAndClass = { children?: React.ReactNode; className?: string };
 type AnchorProps = { href?: string; children?: React.ReactNode };
 type ImgProps = { src?: string; alt?: string };
+
+function getCodeBlock(children: React.ReactNode, className?: string) {
+  const language = /language-(\w+)/.exec(className || '')?.[1] ?? '';
+  const isBlock = className?.includes('language-') ?? false;
+  const code = String(children).replace(/\n$/, '');
+  return { code, isBlock, language };
+}
+
+function renderMermaidCodeBlock(
+  children: React.ReactNode,
+  className: string | undefined,
+  isDark: boolean,
+  compact?: boolean
+) {
+  const { code, isBlock, language } = getCodeBlock(children, className);
+  if (!isBlock || language !== 'mermaid') return null;
+  return <MermaidDiagram chart={code} isDark={isDark} compact={compact} />;
+}
+
+function isOnlyMermaidDiagramChild(children: React.ReactNode): boolean {
+  const child = Array.isArray(children) ? children[0] : children;
+  return React.isValidElement(child) && child.type === MermaidDiagram;
+}
 
 function useFullComponents(
   isDark: boolean,
@@ -120,10 +171,10 @@ function useFullComponents(
       ),
       li: ({ children }: WithChildren) => <li className="leading-relaxed">{children}</li>,
       code: ({ children, className }: WithChildrenAndClass) => {
-        const match = /language-(\w+)/.exec(className || '');
-        const language = match ? match[1] : '';
-        const isBlock = className?.includes('language-');
+        const mermaidBlock = renderMermaidCodeBlock(children, className, isDark);
+        if (mermaidBlock) return mermaidBlock;
 
+        const { code, isBlock, language } = getCodeBlock(children, className);
         if (isBlock) {
           return (
             <SyntaxHighlighter
@@ -132,16 +183,19 @@ function useFullComponents(
               PreTag="div"
               className="!my-0 !rounded-md !text-xs"
             >
-              {String(children).replace(/\n$/, '')}
+              {code}
             </SyntaxHighlighter>
           );
         }
 
         return <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{children}</code>;
       },
-      pre: ({ children }: WithChildren) => (
-        <pre className="mb-3 overflow-x-auto rounded-md border border-border">{children}</pre>
-      ),
+      pre: ({ children }: WithChildren) =>
+        isOnlyMermaidDiagramChild(children) ? (
+          <>{children}</>
+        ) : (
+          <pre className="mb-3 overflow-x-auto rounded-md border border-border">{children}</pre>
+        ),
       a: ({ href, children }: AnchorProps) => {
         const isHttp = typeof href === 'string' && /^https?:\/\//i.test(href);
         const handleClick = (e: React.MouseEvent) => {
@@ -187,7 +241,7 @@ function useFullComponents(
         if (!isExternal && resolveImage && src) {
           return <ResolvedImage src={src} alt={alt || ''} resolveImage={resolveImage} />;
         }
-        return <img src={src} alt={alt || ''} className="my-3 max-w-full rounded" />;
+        return <ContainedImage src={src} alt={alt || ''} className="my-3 max-w-full rounded" />;
       },
       strong: ({ children }: WithChildren) => (
         <strong className="font-semibold text-foreground">{children}</strong>
@@ -206,7 +260,7 @@ function useFullComponents(
   );
 }
 
-function useCompactComponents() {
+function useCompactComponents(isDark: boolean) {
   return useMemo(
     () => ({
       h1: ({ children }: WithChildren) => (
@@ -227,16 +281,25 @@ function useCompactComponents() {
       ),
       li: ({ children }: WithChildren) => <li className="leading-relaxed">{children}</li>,
       code: ({ children, className }: WithChildrenAndClass) => {
-        const isBlock = className?.includes('language-');
-        return isBlock ? (
-          <code className="block overflow-x-auto rounded bg-muted/60 p-2 text-[11px]">
-            {children}
-          </code>
-        ) : (
-          <code className="rounded bg-muted/60 px-1 py-0.5 text-[11px]">{children}</code>
-        );
+        const mermaidBlock = renderMermaidCodeBlock(children, className, isDark, true);
+        if (mermaidBlock) return mermaidBlock;
+
+        const { isBlock } = getCodeBlock(children, className);
+        if (isBlock) {
+          return (
+            <code className="block overflow-x-auto rounded bg-muted/60 p-2 text-[11px]">
+              {children}
+            </code>
+          );
+        }
+        return <code className="rounded bg-muted/60 px-1 py-0.5 text-[11px]">{children}</code>;
       },
-      pre: ({ children }: WithChildren) => <pre className="mb-2 overflow-x-auto">{children}</pre>,
+      pre: ({ children }: WithChildren) =>
+        isOnlyMermaidDiagramChild(children) ? (
+          <>{children}</>
+        ) : (
+          <pre className="mb-2 overflow-x-auto">{children}</pre>
+        ),
       strong: ({ children }: WithChildren) => (
         <strong className="font-semibold text-foreground">{children}</strong>
       ),
@@ -260,8 +323,15 @@ function useCompactComponents() {
           </a>
         );
       },
+      img: ({ src, alt }: ImgProps) => (
+        <ContainedImage
+          src={src}
+          alt={alt || ''}
+          className="my-2 h-auto max-h-80 max-w-full rounded"
+        />
+      ),
     }),
-    []
+    [isDark]
   );
 }
 
@@ -269,24 +339,27 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   content,
   variant = 'full',
   className,
+  allowHtml = variant === 'full',
   resolveImage,
 }) => {
   const { effectiveTheme } = useTheme();
   const isDark = effectiveTheme === 'emdark';
 
   const fullComponents = useFullComponents(isDark, resolveImage);
-  const compactComponents = useCompactComponents();
+  const compactComponents = useCompactComponents(isDark);
 
   const components = variant === 'full' ? fullComponents : compactComponents;
-  const rehypePlugins: PluggableList =
-    variant === 'full'
-      ? [rehypeRaw, [rehypeSanitize, sanitizeSchema]]
-      : [[rehypeSanitize, sanitizeSchema]];
+  const rehypePlugins = allowHtml ? FULL_REHYPE_PLUGINS : COMPACT_REHYPE_PLUGINS;
+  const normalizedContent = useMemo(() => normalizeLatexDelimiters(content), [content]);
 
   return (
     <div className={cn(className)}>
-      <Markdown remarkPlugins={[remarkGfm]} rehypePlugins={rehypePlugins} components={components}>
-        {content}
+      <Markdown
+        remarkPlugins={REMARK_PLUGINS}
+        rehypePlugins={rehypePlugins}
+        components={components}
+      >
+        {normalizedContent}
       </Markdown>
     </div>
   );

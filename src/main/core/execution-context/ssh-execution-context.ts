@@ -49,7 +49,7 @@ export class SshExecutionContext implements IExecutionContext {
         return;
       }
 
-      this.proxy.client.exec(full, (execErr, stream) => {
+      this.proxy.exec(full, (execErr, stream) => {
         if (execErr) return reject(execErr);
 
         let stdout = '';
@@ -98,6 +98,10 @@ export class SshExecutionContext implements IExecutionContext {
     });
   }
 
+  async refreshShellEnv(): Promise<void> {
+    await this.proxy.refreshRemoteShellProfile();
+  }
+
   async execStreaming(
     command: string,
     args: string[],
@@ -115,7 +119,7 @@ export class SshExecutionContext implements IExecutionContext {
         return;
       }
 
-      this.proxy.client.exec(full, (execErr, stream) => {
+      this.proxy.exec(full, (execErr, stream) => {
         if (execErr) return reject(execErr);
 
         let settled = false;

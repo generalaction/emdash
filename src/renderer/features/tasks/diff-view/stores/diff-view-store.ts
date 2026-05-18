@@ -8,6 +8,8 @@ import { type GitStore } from './git-store';
 
 export const MAX_STACKED_FILES = 8;
 
+type CommitAction = 'commit' | 'commit-push' | 'commit-pr';
+
 const VALID_OBJECT_REF_KINDS = new Set(['branch', 'commit', 'tag']);
 
 function isValidGitObjectRef(raw: unknown): raw is GitObjectRef {
@@ -22,7 +24,7 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
   activeFileOverride: ActiveFile | null = null;
   diffStyle: 'unified' | 'split' = 'unified';
   readonly viewMode = 'file' as const;
-  commitAction: 'commit' | 'commit-push' | null = null;
+  commitAction: CommitAction | null = null;
   prTab: 'files' | 'commits' | 'checks' = 'files';
 
   readonly changesView: ChangesViewStore;
@@ -158,12 +160,12 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
     if (snapshot.prTab) this.prTab = snapshot.prTab;
   }
 
-  get effectiveCommitAction(): 'commit' | 'commit-push' {
+  get effectiveCommitAction(): CommitAction {
     if (this.commitAction !== null) return this.commitAction;
     return this.git.isBranchPublished ? 'commit-push' : 'commit';
   }
 
-  setCommitAction(action: 'commit' | 'commit-push' | null): void {
+  setCommitAction(action: CommitAction | null): void {
     this.commitAction = action;
   }
 

@@ -7,6 +7,7 @@ import {
   getRepositoryStore,
   mountedProjectData,
 } from '@renderer/features/projects/stores/project-selectors';
+import { nextDefaultConversationTitle } from '@renderer/features/tasks/conversations/conversation-title-utils';
 import { ProjectSelector } from '@renderer/features/tasks/create-task-modal/project-selector';
 import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
@@ -71,9 +72,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const projectData = selectedProjectId
     ? mountedProjectData(getProjectManagerStore().projects.get(selectedProjectId))
     : null;
-  const connectionId = projectData?.type === 'ssh' ? projectData.connectionId : undefined;
-
-  const initialConversation = useInitialConversationState(connectionId);
+  const initialConversation = useInitialConversationState(selectedProjectId);
   const autoApproveDefaults = useAgentAutoApproveDefaults();
 
   useEffect(() => setUseBYOI(false), [selectedProjectId]);
@@ -123,7 +122,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           projectId: selectedProjectId,
           taskId: id,
           provider: initialConversation.provider,
-          title: activeMode.taskName,
+          title: nextDefaultConversationTitle(initialConversation.provider, []),
           initialPrompt: initialConversation.prompt.trim() || undefined,
           autoApprove: autoApproveDefaults.getDefault(initialConversation.provider),
         }
@@ -208,7 +207,6 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     useBYOI,
     initialConversation,
     autoApproveDefaults,
-    activeMode.taskName,
     navigate,
     onClose,
   ]);
@@ -229,7 +227,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         <ChevronRight className="size-3.5 text-foreground-passive" />
         <DialogTitle>Create Task</DialogTitle>
       </DialogHeader>
-      <DialogContentArea className="gap-4">
+      <div className="flex flex-col gap-4 px-6 pb-4 shrink-0">
         <ToggleGroup
           className="w-full"
           value={[selectedStrategy]}
@@ -255,6 +253,8 @@ export const CreateTaskModal = observer(function CreateTaskModal({
             <span className="text-sm text-muted-foreground">Use BYOI infrastructure</span>
           </div>
         )}
+      </div>
+      <DialogContentArea>
         <AnimatedHeight onAnimatingChange={setIsTransitioning}>
           {selectedStrategy === 'from-branch' && (
             <FromBranchContent
@@ -263,7 +263,6 @@ export const CreateTaskModal = observer(function CreateTaskModal({
               currentBranch={currentBranch}
               isUnborn={isUnborn}
               initialConversation={initialConversation}
-              connectionId={connectionId}
             />
           )}
           {selectedStrategy === 'from-issue' && (
@@ -276,7 +275,6 @@ export const CreateTaskModal = observer(function CreateTaskModal({
               disabled={isTransitioning}
               isUnborn={isUnborn}
               initialConversation={initialConversation}
-              connectionId={connectionId}
             />
           )}
           {selectedStrategy === 'from-pull-request' && (
@@ -292,7 +290,6 @@ export const CreateTaskModal = observer(function CreateTaskModal({
                 repositoryUrl={repositoryUrl}
                 disabled={isTransitioning || fromPrUnavailable}
                 initialConversation={initialConversation}
-                connectionId={connectionId}
               />
             </div>
           )}
