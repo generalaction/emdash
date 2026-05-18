@@ -10,6 +10,7 @@ import { useLegacyPortStatus } from './lib/hooks/useLegacyPort';
 import { WorkspaceLayoutContextProvider } from './lib/layout/layout-provider';
 import { WorkspaceViewProvider } from './lib/layout/provider';
 import { ModalRenderer } from './lib/modal/modal-renderer';
+import { CursorStyleProvider } from './lib/providers/cursor-style-provider';
 import { FeatureFlagProvider } from './lib/providers/feature-flag-override-context';
 import { GithubContextProvider } from './lib/providers/github-context-provider';
 import { ThemeProvider } from './lib/providers/theme-provider';
@@ -86,8 +87,10 @@ function AppContent() {
                 <AppMenuEvents onOpenSettings={handleOpenSettingsFromMenu} />
                 <RightSidebarProvider>
                   <ThemeProvider>
-                    <ModalRenderer />
-                    {renderContent()}
+                    <CursorStyleProvider>
+                      <ModalRenderer />
+                      {renderContent()}
+                    </CursorStyleProvider>
                   </ThemeProvider>
                 </RightSidebarProvider>
               </WorkspaceViewProvider>

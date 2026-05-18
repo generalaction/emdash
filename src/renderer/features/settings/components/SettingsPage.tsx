@@ -5,6 +5,7 @@ import { Separator } from '@renderer/lib/ui/separator';
 import { cn } from '@renderer/utils/utils';
 import { AccountTab } from './AccountTab';
 import { CliAgentsList } from './CliAgentsList';
+import CursorPointerSettingsCard from './CursorPointerSettingsCard';
 import DefaultAgentSettingsCard from './DefaultAgentSettingsCard';
 import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
 import IntegrationsCard from './IntegrationsCard';
@@ -139,6 +140,7 @@ export function SettingsPage({
         { component: <ThemeCard /> },
         { component: <TerminalSettingsCard /> },
         { component: <ResourceMonitorSettingsCard /> },
+        { component: <CursorPointerSettingsCard /> },
         { title: 'Keyboard shortcuts', component: <KeyboardSettingsCard /> },
         {
           title: 'Tools',

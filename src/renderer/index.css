@@ -577,4 +577,28 @@
   .file-diff-view .comment-view-zone {
     pointer-events: auto !important;
   }
+
+  .cursor-pointer-enabled button:not(:disabled),
+  .cursor-pointer-enabled [role='button']:not([aria-disabled='true']),
+  .cursor-pointer-enabled [role='link']:not([aria-disabled='true']),
+  .cursor-pointer-enabled [role='menuitem']:not([aria-disabled='true']),
+  .cursor-pointer-enabled [role='menuitemcheckbox']:not([aria-disabled='true']),
+  .cursor-pointer-enabled [role='menuitemradio']:not([aria-disabled='true']),
+  .cursor-pointer-enabled [role='option']:not([aria-disabled='true']),
+  .cursor-pointer-enabled [role='tab']:not([aria-disabled='true']),
+  .cursor-pointer-enabled [role='checkbox']:not([aria-disabled='true']),
+  .cursor-pointer-enabled [role='radio']:not([aria-disabled='true']),
+  .cursor-pointer-enabled [role='switch']:not([aria-disabled='true']),
+  .cursor-pointer-enabled a[href],
+  .cursor-pointer-enabled summary,
+  .cursor-pointer-enabled label[for],
+  .cursor-pointer-enabled select:not(:disabled),
+  .cursor-pointer-enabled input[type='checkbox']:not(:disabled),
+  .cursor-pointer-enabled input[type='radio']:not(:disabled),
+  .cursor-pointer-enabled input[type='submit']:not(:disabled),
+  .cursor-pointer-enabled input[type='button']:not(:disabled),
+  .cursor-pointer-enabled input[type='reset']:not(:disabled),
+  .cursor-pointer-enabled input[type='file']:not(:disabled) {
+    cursor: pointer;
+  }
 }
