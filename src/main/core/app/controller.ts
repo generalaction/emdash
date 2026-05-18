@@ -50,6 +50,15 @@ export const appController = createRPCController({
   },
   openSelectDirectoryDialog: (args: { title: string; message: string }) =>
     appService.openSelectDirectoryDialog(args),
+  openSelectAudioFileDialog: (args: { title: string; message: string }) =>
+    appService.openSelectAudioFileDialog(args),
+  readAudioFileDataUrl: async (filePath: string) => {
+    try {
+      return { success: true, dataUrl: await appService.readAudioFileDataUrl(filePath) };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  },
   getAppVersion: () => appService.getCachedAppVersion(),
   getElectronVersion: () => process.versions.electron,
   getPlatform: () => process.platform,
