@@ -4,7 +4,13 @@ import { rpc } from '../lib/ipc';
 import { queryClient } from '../lib/query-client';
 
 let audioCtx: AudioContext | null = null;
-let settings: NotificationSettings | null = null;
+let settings: NotificationSettings = {
+  enabled: true,
+  sound: true,
+  osNotifications: true,
+  soundFocusMode: 'always',
+};
+let unsubscribeSettingsCache: (() => void) | null = null;
 
 const NOTIFICATIONS_QUERY_KEY = ['appSettings', 'notifications', 'meta'] as const;
 
@@ -13,16 +19,16 @@ function applyMeta(meta: unknown): void {
   settings = (meta as { value: NotificationSettings }).value;
 }
 
-export function initSoundPlayer(): void {
+export function initSoundPlayer(): () => void {
   rpc.appSettings
     .getWithMeta('notifications')
     .then((meta) => {
-      applyMeta(meta);
       queryClient.setQueryData([...NOTIFICATIONS_QUERY_KEY], meta);
     })
     .catch(() => {});
 
-  queryClient.getQueryCache().subscribe((event) => {
+  unsubscribeSettingsCache?.();
+  const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
     const key = event.query.queryKey;
     if (
       Array.isArray(key) &&
@@ -33,6 +39,14 @@ export function initSoundPlayer(): void {
       applyMeta(event.query.state.data);
     }
   });
+  unsubscribeSettingsCache = unsubscribe;
+
+  return () => {
+    unsubscribe();
+    if (unsubscribeSettingsCache === unsubscribe) {
+      unsubscribeSettingsCache = null;
+    }
+  };
 }
 
 function getContext(): AudioContext {
@@ -81,7 +95,6 @@ function playTaskComplete(): void {
 
 export const soundPlayer = {
   play(event: SoundEvent, appFocused?: boolean): void {
-    if (!settings) return;
     if (!settings.enabled) return;
     if (!settings.sound) return;
     if (settings.soundFocusMode === 'unfocused' && appFocused) return;
