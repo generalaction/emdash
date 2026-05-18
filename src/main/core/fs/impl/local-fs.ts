@@ -1,7 +1,6 @@
-import { createReadStream, promises as fs, statSync, type Stats } from 'node:fs';
+import { createReadStream, promises as fs, statSync, watch as watchFs, type Stats } from 'node:fs';
 import { basename, dirname, extname, join, relative, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline';
-import parcelWatcher from '@parcel/watcher';
 import { glob } from 'glob';
 import ignore from 'ignore';
 import type { FileWatchEvent } from '@shared/fs';
@@ -112,9 +111,6 @@ const WATCH_IGNORED_NAMES = [
   '.cody',
   '.windsurf',
 ];
-
-// Glob patterns for parcel/watcher ignore option, derived from WATCH_IGNORED_NAMES.
-const WATCH_IGNORE_GLOBS = WATCH_IGNORED_NAMES.map((n) => `**/${n}/**`);
 
 // Allowed image extensions for readImage
 const ALLOWED_IMAGE_EXTENSIONS = new Set([
@@ -781,9 +777,28 @@ export class LocalFileSystem implements FileSystemProvider {
     const stabilityMs = options.debounceMs ?? 200;
     let pending: FileWatchEvent[] = [];
     let flushTimer: ReturnType<typeof setTimeout> | null = null;
-    // Set when the async subscribe resolves; used by close() if it resolves after close() is called.
-    let resolvedSub: parcelWatcher.AsyncSubscription | null = null;
-    let closed = false;
+    const watcher = watchFs(
+      this.projectPath,
+      { recursive: true },
+      (eventType, fileName: string | Buffer | null) => {
+        if (!fileName) return;
+        const rel = fileName.toString().replace(/\\/g, '/');
+        if (rel.startsWith('..')) return;
+        if (rel.split('/').some((part) => WATCH_IGNORED_NAMES.includes(part))) return;
+        const fullPath = join(this.projectPath, rel);
+
+        let entryType: 'file' | 'directory' = 'file';
+        if (eventType !== 'rename') {
+          try {
+            entryType = statSync(fullPath).isDirectory() ? 'directory' : 'file';
+          } catch {
+            // File removed between the event and the stat — treat as file.
+          }
+        }
+        const type = eventType === 'rename' ? ('modify' as const) : ('modify' as const);
+        enqueue({ type, entryType, path: rel });
+      }
+    );
 
     const flush = () => {
       if (pending.length) {
@@ -798,50 +813,12 @@ export class LocalFileSystem implements FileSystemProvider {
       flushTimer = setTimeout(flush, stabilityMs);
     };
 
-    const toRel = (absPath: string) => relative(this.projectPath, absPath).replace(/\\/g, '/');
-
-    void parcelWatcher
-      .subscribe(
-        this.projectPath,
-        (err, events) => {
-          if (err) return;
-          for (const e of events) {
-            const rel = toRel(e.path);
-            // Skip paths outside the project root (shouldn't happen, but guard anyway).
-            if (rel.startsWith('..')) continue;
-
-            let entryType: 'file' | 'directory' = 'file';
-            if (e.type !== 'delete') {
-              try {
-                entryType = statSync(e.path).isDirectory() ? 'directory' : 'file';
-              } catch {
-                // File removed between the event and the stat — treat as file.
-              }
-            }
-            const type = e.type === 'update' ? ('modify' as const) : e.type;
-            enqueue({ type, entryType, path: rel });
-          }
-        },
-        { ignore: WATCH_IGNORE_GLOBS }
-      )
-      .then((sub) => {
-        if (closed) {
-          void sub.unsubscribe();
-        } else {
-          resolvedSub = sub;
-        }
-      })
-      .catch(() => {
-        // Subscription failed (e.g. project path removed before watch started).
-      });
-
     return {
       // No-op: the recursive subscription already covers the entire worktree.
       update(_paths: string[]) {},
       close() {
-        closed = true;
         if (flushTimer) clearTimeout(flushTimer);
-        if (resolvedSub) void resolvedSub.unsubscribe();
+        watcher.close();
       },
     };
   }
