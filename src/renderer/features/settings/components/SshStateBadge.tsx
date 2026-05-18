@@ -12,14 +12,14 @@ export function SshStateBadge({ state }: { state: ConnectionState }) {
       variant={isError ? 'destructive' : 'secondary'}
       className={cn(
         'gap-1.5',
-        isActive && 'text-emerald-700 dark:text-emerald-400',
+        isActive && 'text-foreground-success',
         state === 'disconnected' && 'text-foreground-muted'
       )}
     >
       <span
         className={cn(
           'size-1.5 rounded-full bg-foreground-muted',
-          isActive && 'bg-emerald-500',
+          isActive && 'bg-foreground-success',
           isError && 'bg-destructive'
         )}
       />

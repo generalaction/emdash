@@ -117,13 +117,13 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
           height: '100%',
           minHeight: 0,
           boxSizing: 'border-box',
-          backgroundColor: themeOverride?.background ?? 'var(--background-1)',
+          backgroundColor: themeOverride?.background ?? 'var(--background-secondary)',
         }}
       >
         <div
           ref={containerRef}
           data-terminal-container
-          className="p-2"
+          className={cn('p-2 ', themeOverride?.background ? '' : 'bg-background-secondary-1')}
           style={{
             width: '100%',
             height: '100%',

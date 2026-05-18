@@ -46,7 +46,7 @@ export const PendingProjectStatus = observer(function PendingProjectStatus({
             <div key={stage} className="flex items-center gap-3">
               <div className="flex h-5 w-5 shrink-0 items-center justify-center">
                 {isDone ? (
-                  <Check className="h-4 w-4 text-green-500" />
+                  <Check className="h-4 w-4 text-foreground-success" />
                 ) : isActive ? (
                   <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                 ) : (

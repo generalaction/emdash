@@ -100,9 +100,9 @@ export function GitChangeStatusIcon({
     case 'deleted':
       return <SquareMinus className={cn('size-4 text-foreground-diff-deleted', className)} />;
     case 'renamed':
-      return <SquareArrowRight className={cn('size-4 text-gray-500', className)} />;
+      return <SquareArrowRight className={cn('size-4 text-foreground-muted', className)} />;
     case 'conflicted':
-      return <SquareX className={cn('size-4 text-orange-500', className)} />;
+      return <SquareX className={cn('size-4 text-foreground-conflict', className)} />;
     default:
       return null;
   }

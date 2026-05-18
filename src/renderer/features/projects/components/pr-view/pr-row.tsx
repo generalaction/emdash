@@ -74,8 +74,8 @@ function PrDiffStat({ pr }: { pr: PullRequest }) {
 
   return (
     <span className="shrink-0 text-xs tabular-nums" aria-label="Pull request diff lines">
-      <span className="text-green-600">+{formatDiffLineCount(pr.additions ?? 0)}</span>{' '}
-      <span className="text-red-500">-{formatDiffLineCount(pr.deletions ?? 0)}</span>
+      <span className="text-foreground-success">+{formatDiffLineCount(pr.additions ?? 0)}</span>{' '}
+      <span className="text-foreground-error">-{formatDiffLineCount(pr.deletions ?? 0)}</span>
     </span>
   );
 }

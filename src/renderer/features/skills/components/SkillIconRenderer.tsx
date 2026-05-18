@@ -24,19 +24,23 @@ export const SkillIconRenderer: React.FC<SkillIconRendererProps> = ({ skill }) =
     const svg = resolveSkillIcon(skill.id, skill.source);
     if (svg) {
       const html = processSvg(svg, isDark ? '#ffffff' : '#000000');
-      return (
-        <div  dangerouslySetInnerHTML={{ __html: html }} />
-      );
+      return <div dangerouslySetInnerHTML={{ __html: html }} />;
     }
     if (skill.iconUrl && !imgError) {
       const filter = isDark ? 'brightness(0) invert(1)' : 'brightness(0)';
       return (
-          <img src={skill.iconUrl} alt="" className="h-full w-full rounded-lg object-contain" style={{ filter }} onError={() => setImgError(true)} loading="lazy" />
-
+        <img
+          src={skill.iconUrl}
+          alt=""
+          className="h-full w-full rounded-lg object-contain"
+          style={{ filter }}
+          onError={() => setImgError(true)}
+          loading="lazy"
+        />
       );
     }
-    return letter
-  }
+    return letter;
+  };
 
   return (
     <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-background-2 p-2 font-semibold text-foreground/60 group-hover:bg-background-3 transition-colors">
@@ -44,5 +48,3 @@ export const SkillIconRenderer: React.FC<SkillIconRendererProps> = ({ skill }) =
     </div>
   );
 };
-
-

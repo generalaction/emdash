@@ -12,9 +12,9 @@ import { cn } from '@renderer/utils/utils';
 import { type MergeSeverity, type MergeUiState } from './pr-entry';
 
 const severityConfig: Record<MergeSeverity, SeverityConfig> = {
-  success: { icon: CheckCircle2, iconClass: 'text-green-600' },
-  warning: { icon: AlertTriangle, iconClass: 'text-amber-500' },
-  error: { icon: XCircle, iconClass: 'text-red-500' },
+  success: { icon: CheckCircle2, iconClass: 'text-foreground-success' },
+  warning: { icon: AlertTriangle, iconClass: 'text-foreground-warning' },
+  error: { icon: XCircle, iconClass: 'text-foreground-error' },
   neutral: { icon: HelpCircle, iconClass: 'text-foreground-passive' },
 };
 

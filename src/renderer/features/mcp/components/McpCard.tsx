@@ -2,8 +2,8 @@ import { ExternalLink, Globe, Pencil, Plus, Terminal } from 'lucide-react';
 import React from 'react';
 import { type AgentProviderId } from '@shared/agent-provider-registry';
 import type { McpCatalogEntry, McpServer } from '@shared/mcp/types';
-import { CardGridItem } from '@renderer/lib/components/card-grid';
 import AgentLogo from '@renderer/lib/components/agent-logo';
+import { CardGridItem } from '@renderer/lib/components/card-grid';
 import { Button } from '@renderer/lib/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { agentConfig } from '@renderer/utils/agentConfig';
@@ -65,11 +65,7 @@ export const McpCard: React.FC<McpCardProps> = ({ server, catalogEntry, onEdit, 
         <div className="flex items-center gap-2">
           <h3 className="truncate text-smd">{name}</h3>
           <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-background-2 px-1 py-0.5 text-[10px] text-foreground-muted">
-            {transport === 'http' ? (
-              <Globe className="size-2" />
-            ) : (
-              <Terminal className="size-2" />
-            )}
+            {transport === 'http' ? <Globe className="size-2" /> : <Terminal className="size-2" />}
             {transport}
           </span>
         </div>
