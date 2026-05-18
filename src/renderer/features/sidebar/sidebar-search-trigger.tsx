@@ -25,7 +25,7 @@ export const SidebarSearchTrigger = observer(function SidebarSearchTrigger() {
       : undefined;
 
   return (
-    <div className="px-3 pt-3 pb-2">
+    <div>
       <button
         type="button"
         onClick={() =>
@@ -36,9 +36,9 @@ export const SidebarSearchTrigger = observer(function SidebarSearchTrigger() {
           })
         }
         aria-label="Search"
-        className="flex h-7 w-full min-w-0 items-center gap-2 rounded-md pl-2 pr-1 text-sm text-foreground-passive transition-colors hover:bg-background-tertiary-2 hover:text-foreground-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/30"
+        className="flex h-8 w-full min-w-0 items-center gap-2 rounded-lg px-3 py-2 text-sm text-foreground-tertiary-muted transition-colors hover:bg-background-tertiary-1 hover:text-foreground-tertiary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       >
-        <Search className="size-3.5 shrink-0" />
+        <Search className="h-5 w-5 shrink-0 sm:h-4 sm:w-4" />
         <span className="flex-1 truncate text-left">Search…</span>
         <ShortcutHint settingsKey="commandPalette" />
       </button>
