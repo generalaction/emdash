@@ -57,10 +57,6 @@ export function useTaskViewKind(): TaskViewKind {
   return taskViewKind(getTaskStore(projectId, taskId), projectId);
 }
 
-// ---------------------------------------------------------------------------
-// Focused hooks (Phase 4)
-// ---------------------------------------------------------------------------
-
 /** Returns the active WorkspaceStore. Throws if the task is not provisioned. */
 export function useWorkspace(): WorkspaceStore {
   const { projectId, taskId } = useTaskViewContext();

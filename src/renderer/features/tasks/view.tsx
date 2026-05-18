@@ -1,12 +1,13 @@
 import { observer } from 'mobx-react-lite';
 import { useEffect, type ReactNode } from 'react';
-import { type ViewDefinition } from '@renderer/app/view-registry';
+import { type GuardResult, type ViewDefinition } from '@renderer/app/view-registry';
 import {
   getTaskManagerStore,
   getTaskStore,
   taskViewKind,
 } from '@renderer/features/tasks/stores/task-selectors';
 import { TaskViewWrapper } from '@renderer/features/tasks/task-view-context';
+import { appState } from '@renderer/lib/stores/app-state';
 import { createTaskCommandProvider } from './commands';
 import { TaskMainPanel } from './main-panel';
 import { TaskTitlebar } from './task-titlebar';
@@ -56,4 +57,6 @@ export const taskView = {
   MainPanel: TaskMainPanel,
   commandProvider: ({ projectId, taskId }: { projectId: string; taskId: string }) =>
     createTaskCommandProvider(projectId, taskId),
+  canActivate: ({ projectId }: { projectId: string; taskId: string }): GuardResult =>
+    appState.projects.projects.has(projectId) ? { ok: true } : { ok: false, redirect: 'home' },
 } satisfies ViewDefinition<{ projectId: string; taskId: string }>;

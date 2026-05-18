@@ -348,6 +348,7 @@ export class ProjectManagerStore {
     runInAction(() => {
       this.projects.delete(projectId);
     });
+    appState.navigation.revalidate();
     try {
       await rpc.projects.deleteProject(projectId);
     } catch (err) {
