@@ -221,11 +221,13 @@ export class UpdateStore {
   private _maybeToastAvailable(version: string): void {
     if (!this._shouldNotify(version)) return;
     toast('Update Available', {
-      description: `Version ${version} is ready to install.`,
+      description: `Version ${version} is ready to download.`,
       action: {
         label: 'Update',
         onClick: () => {
-          void this.download();
+          if (this.state.status === 'available') {
+            void this.download();
+          }
         },
       },
     });
