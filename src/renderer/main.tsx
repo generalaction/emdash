@@ -5,6 +5,7 @@ import './index.css';
 import 'devicon/devicon.min.css';
 import 'katex/dist/katex.min.css';
 import type { NavigationSnapshot, SidebarSnapshot } from '@shared/view-state';
+import { setupNavigationGuards } from '@renderer/app/view-registry';
 import { setupAppCommandProvider } from '@renderer/lib/commands/app-commands';
 import { setupViewCommandProvider } from '@renderer/lib/commands/registry';
 import { wireCommitHistoryInvalidation } from '@renderer/lib/commit-history-invalidation';
@@ -47,6 +48,7 @@ async function bootstrap() {
 
   viewStateCache.populate(allViewState as Record<string, unknown>);
 
+  setupNavigationGuards();
   if (navResult) appState.navigation.restoreSnapshot(navResult);
   setupAppCommandProvider();
   setupViewCommandProvider();
