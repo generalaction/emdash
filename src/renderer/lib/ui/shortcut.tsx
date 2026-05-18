@@ -42,9 +42,9 @@ function Shortcut({ hotkey, className, variant = 'text' }: ShortcutProps) {
       aria-label={describeShortcut(parsed, PLATFORM)}
       className={cn(
         variant === 'text' &&
-          'inline-flex shrink-0 items-center justify-center gap-0 rounded px-1.5 py-0.5 text-xs leading-none text-muted-foreground in-data-[slot=tooltip-content]:text-background',
+          'inline-flex shrink-0 items-center justify-center gap-0 rounded px-1.5 py-1 text-xs leading-none text-muted-foreground in-data-[slot=tooltip-content]:text-background',
         variant === 'badge' &&
-          'inline-flex shrink-0 items-center justify-center gap-0 rounded bg-background-secondary px-1.5 py-0.5 text-xs leading-none text-foreground/60 in-data-[slot=tooltip-content]:-mr-1.5 in-data-[slot=tooltip-content]:bg-background/20 in-data-[slot=tooltip-content]:text-background dark:in-data-[slot=tooltip-content]:bg-background/10',
+          'inline-flex shrink-0 items-center justify-center gap-0 rounded bg-background-secondary px-1.5 py-1 text-xs leading-none text-foreground/60 in-data-[slot=tooltip-content]:-mr-1.5 in-data-[slot=tooltip-content]:bg-background/20 in-data-[slot=tooltip-content]:text-background dark:in-data-[slot=tooltip-content]:bg-background/10',
         variant === 'keycaps' &&
           'inline-flex shrink-0 items-center gap-1 text-muted-foreground in-data-[slot=tooltip-content]:text-background',
         className
