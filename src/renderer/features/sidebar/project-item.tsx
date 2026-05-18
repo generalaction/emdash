@@ -36,6 +36,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@renderer/lib/ui/context-menu';
+import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 import { SidebarItemMiniButton, SidebarMenuButton, SidebarMenuRow } from './sidebar-primitives';
@@ -167,18 +168,31 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
               )}
             </span>
           </div>
-          <SidebarItemMiniButton
-            type="button"
-            className={'opacity-0 group-hover/row:opacity-100 transition-opacity duration-150'}
-            onPointerEnter={() => prefetchRepository()}
-            onClick={(e) => {
-              e.stopPropagation();
-              showCreateTaskModal({ projectId });
-            }}
-            disabled={project.state === 'unregistered'}
-          >
-            <Plus className="h-4 w-4" />
-          </SidebarItemMiniButton>
+          <Tooltip>
+            <TooltipTrigger
+              className="h-6"
+              render={
+                <SidebarItemMiniButton
+                  type="button"
+                  className={
+                    'opacity-0 group-hover/row:opacity-100 transition-opacity duration-150'
+                  }
+                  onPointerEnter={() => prefetchRepository()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    showCreateTaskModal({ projectId });
+                  }}
+                  disabled={project.state === 'unregistered'}
+                >
+                  <Plus className="h-4 w-4" />
+                </SidebarItemMiniButton>
+              }
+            />
+            <TooltipContent>
+              New Task
+              <ShortcutHint settingsKey="newTask" />
+            </TooltipContent>
+          </Tooltip>
         </SidebarMenuRow>
       </ContextMenuTrigger>
       <ContextMenuContent>

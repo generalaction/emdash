@@ -1,4 +1,4 @@
-import { FolderInput, FolderPlus, Library, MessageSquareShare, Settings } from 'lucide-react';
+import { FolderInput, Library, MessageSquareShare, Settings } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React from 'react';
 import {
@@ -30,7 +30,6 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
   const { navigate } = useNavigate();
   const { currentView } = useWorkspaceSlots();
 
-  const showAddProjectModal = useShowModal('addProjectModal');
   const showFeedbackModal = useShowModal('feedbackModal');
   const { isDragOver, onDragOver, onDragEnter, onDragLeave, onDrop } = useSidebarDrop();
 
@@ -54,7 +53,6 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
       <SidebarSpace />
       <SidebarContainer className="w-full border-r-0 flex-1 min-h-0">
         <SidebarContent className="flex flex-col">
-          <SidebarSearchTrigger />
           <SidebarPinnedTaskList />
           <SidebarGroup className="mb-0 min-h-0 flex-1 flex flex-col">
             <ProjectsGroupLabel />
@@ -67,18 +65,7 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
         </SidebarContent>
         <SidebarFooter>
           <SidebarMenu>
-            <SidebarMenuButton
-              isActive={false}
-              onClick={() => showAddProjectModal({})}
-              aria-label="Add Project"
-              className="w-full justify-between"
-            >
-              <span className="flex items-center gap-2 min-w-0 w-full">
-                <FolderPlus className="h-5 w-5 sm:h-4 sm:w-4 shrink-0" />
-                <span className="truncate min-w-0">Add Project</span>
-              </span>
-              <ShortcutHint settingsKey="newProject" />
-            </SidebarMenuButton>
+            <SidebarSearchTrigger />
             <SidebarMenuButton
               isActive={
                 isCurrentView(currentView, 'library') ||
@@ -89,8 +76,10 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
               aria-label="Library"
               className="w-full justify-start"
             >
-              <Library className="h-5 w-5 sm:h-4 sm:w-4" />
-              Library
+              <span className="flex items-center gap-2">
+                <Library className="h-5 w-5 sm:h-4 sm:w-4" />
+                Library
+              </span>
             </SidebarMenuButton>
             <SidebarMenuButton
               isActive={isCurrentView(currentView, 'settings')}

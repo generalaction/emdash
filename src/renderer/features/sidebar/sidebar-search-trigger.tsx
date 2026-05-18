@@ -4,6 +4,7 @@ import { getRegisteredTaskData } from '@renderer/features/tasks/stores/task-sele
 import { useParams, useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
+import { SidebarMenuButton } from './sidebar-primitives';
 
 export const SidebarSearchTrigger = observer(function SidebarSearchTrigger() {
   const showCommandPalette = useShowModal('commandPaletteModal');
@@ -25,23 +26,23 @@ export const SidebarSearchTrigger = observer(function SidebarSearchTrigger() {
       : undefined;
 
   return (
-    <div className="px-3 pt-3 pb-2">
-      <button
-        type="button"
-        onClick={() =>
-          showCommandPalette({
-            projectId: currentProjectId,
-            taskId: currentTaskId,
-            workspaceId: currentWorkspaceId,
-          })
-        }
-        aria-label="Search"
-        className="flex h-7 w-full min-w-0 items-center gap-2 rounded-md pl-2 pr-1 text-sm text-foreground-passive transition-colors hover:bg-background-tertiary-2 hover:text-foreground-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/30"
-      >
-        <Search className="size-3.5 shrink-0" />
-        <span className="flex-1 truncate text-left">Search…</span>
-        <ShortcutHint settingsKey="commandPalette" />
-      </button>
-    </div>
+    <SidebarMenuButton
+      isActive={false}
+      onClick={() =>
+        showCommandPalette({
+          projectId: currentProjectId,
+          taskId: currentTaskId,
+          workspaceId: currentWorkspaceId,
+        })
+      }
+      aria-label="Search"
+      className="w-full justify-between"
+    >
+      <span className="flex min-w-0 items-center gap-2">
+        <Search className="h-5 w-5 shrink-0 sm:h-4 sm:w-4" />
+        <span className="truncate">Search…</span>
+      </span>
+      <ShortcutHint settingsKey="commandPalette" />
+    </SidebarMenuButton>
   );
 });
