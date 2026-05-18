@@ -153,33 +153,52 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
     refetchOnWindowFocus: true,
   });
 
-  const invalidateStatuses = useCallback(() => {
-    void queryClient.invalidateQueries({ queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY });
-  }, [queryClient]);
+  const invalidateProvider = useCallback(
+    (provider: IssueProviderType) => {
+      queryClient.removeQueries({
+        queryKey: ['issues:initial', provider],
+      });
+      queryClient.removeQueries({
+        queryKey: ['issues:search', provider],
+      });
+      void queryClient.invalidateQueries({ queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY });
+    },
+    [queryClient]
+  );
+
+  const invalidateLinear = useCallback(() => invalidateProvider('linear'), [invalidateProvider]);
+  const invalidateJira = useCallback(() => invalidateProvider('jira'), [invalidateProvider]);
+  const invalidateGitlab = useCallback(() => invalidateProvider('gitlab'), [invalidateProvider]);
+  const invalidatePlain = useCallback(() => invalidateProvider('plain'), [invalidateProvider]);
+  const invalidateForgejo = useCallback(() => invalidateProvider('forgejo'), [invalidateProvider]);
+  const invalidateFeaturebase = useCallback(
+    () => invalidateProvider('featurebase'),
+    [invalidateProvider]
+  );
 
   const linearConnection = useProviderConnection({
     ...PROVIDER_CONNECTION_CONFIG.linear,
-    invalidate: invalidateStatuses,
+    invalidate: invalidateLinear,
   });
   const jiraConnection = useProviderConnection({
     ...PROVIDER_CONNECTION_CONFIG.jira,
-    invalidate: invalidateStatuses,
+    invalidate: invalidateJira,
   });
   const gitlabConnection = useProviderConnection({
     ...PROVIDER_CONNECTION_CONFIG.gitlab,
-    invalidate: invalidateStatuses,
+    invalidate: invalidateGitlab,
   });
   const plainConnection = useProviderConnection({
     ...PROVIDER_CONNECTION_CONFIG.plain,
-    invalidate: invalidateStatuses,
+    invalidate: invalidatePlain,
   });
   const forgejoConnection = useProviderConnection({
     ...PROVIDER_CONNECTION_CONFIG.forgejo,
-    invalidate: invalidateStatuses,
+    invalidate: invalidateForgejo,
   });
   const featurebaseConnection = useProviderConnection({
     ...PROVIDER_CONNECTION_CONFIG.featurebase,
-    invalidate: invalidateStatuses,
+    invalidate: invalidateFeaturebase,
   });
   const asanaConnection = useProviderConnection({
     ...PROVIDER_CONNECTION_CONFIG.asana,
