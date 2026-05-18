@@ -15,6 +15,7 @@ import { localDependencyManager } from './core/dependencies/dependency-manager';
 import { editorBufferService } from './core/editor/editor-buffer-service';
 import { gitWatcherRegistry } from './core/git/git-watcher-registry';
 import { githubConnectionService } from './core/github/services/github-connection-service';
+import { mcpServerService } from './core/mcp-server/service';
 import { projectManager } from './core/projects/project-manager';
 import { projectSettingsService } from './core/projects/settings/project-settings-service';
 import { promptLibraryService } from './core/prompt-library/service';
@@ -137,6 +138,13 @@ void app.whenReady().then(async () => {
 
   void reconcileResourceSampler();
 
+  // MCP server is gated by appSettings.mcpServer.enabled (default off).
+  // initialize() reads settings and only binds the loopback HTTP transport
+  // when the user has explicitly opted in from the Settings UI.
+  mcpServerService.initialize().catch((e) => {
+    log.error('Failed to initialize MCP server service:', e);
+  });
+
   localDependencyManager.probeAll().catch((e) => {
     log.error('Failed to probe dependencies:', e);
   });
@@ -162,6 +170,9 @@ app.on('before-quit', (event) => {
     stopResourceSampler();
     updateService.dispose();
     prSyncScheduler.dispose();
+    void mcpServerService.dispose().catch((e) => {
+      log.error('Failed to shutdown MCP server service:', e);
+    });
     void gitWatcherRegistry.dispose();
     void projectManager.dispose().catch((e) => {
       log.error('Failed to shutdown project manager:', e);

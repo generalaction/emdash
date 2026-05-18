@@ -32,7 +32,11 @@ export default defineConfig({
         test: {
           name: 'node',
           environment: 'node',
-          include: ['src/**/*.test.ts'],
+          // `bin/` ships the standalone `emdash-mcp` stdio bridge that
+          // external MCP clients spawn (T9). It lives outside `src/` because
+          // `electron-vite` builds it as a separate Node bundle, but its unit
+          // tests still belong in the same suite as everything else.
+          include: ['src/**/*.test.ts', 'bin/**/*.test.ts'],
           exclude: [
             '**/_*/**',
             'src/renderer/tests/browser/**',
