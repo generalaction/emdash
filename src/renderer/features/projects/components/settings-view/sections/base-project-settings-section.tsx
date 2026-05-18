@@ -1,9 +1,13 @@
+import { Folder } from 'lucide-react';
 import type { Branch, Remote } from '@shared/git';
+import type { Project } from '@shared/projects';
 import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
 import {
   RemoteSelectContent,
   RemoteSelectItem,
 } from '@renderer/lib/components/remote-select-content';
+import { rpc } from '@renderer/lib/ipc';
+import { Button } from '@renderer/lib/ui/button';
 import { Field, FieldDescription, FieldTitle } from '@renderer/lib/ui/field';
 import { Input } from '@renderer/lib/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/ui/select';
@@ -18,6 +22,7 @@ type BaseProjectSettingsSectionProps = {
   projectId: string;
   form: FormState;
   defaultWorktreeDirectory: string;
+  projectType: Project['type'];
   remotes: Remote[];
   worktreeDirectoryError: string | null;
   update: FormUpdate;
@@ -27,6 +32,7 @@ export function BaseProjectSettingsSection({
   projectId,
   form,
   defaultWorktreeDirectory,
+  projectType,
   remotes,
   worktreeDirectoryError,
   update,
@@ -36,6 +42,16 @@ export function BaseProjectSettingsSection({
   const selectedBaseRemote = remotes.find((remote) => remote.name === baseRemoteValue);
   const selectedPushRemote = remotes.find((remote) => remote.name === pushRemoteValue);
 
+  const handleBrowseWorktreeDirectory = async () => {
+    const result = await rpc.app.openSelectDirectoryDialog({
+      title: 'Select worktree directory',
+      message: 'Choose the directory where worktrees should be created.',
+    });
+    if (result) {
+      update('worktreeDirectory', result);
+    }
+  };
+
   return (
     <>
       <Field>
@@ -43,18 +59,26 @@ export function BaseProjectSettingsSection({
         <FieldDescription className="text-foreground-muted">
           Change where worktrees are created.
         </FieldDescription>
-        <div className="relative">
-          <Input
-            aria-invalid={worktreeDirectoryError ? true : undefined}
-            className={cn(worktreeDirectoryError ? 'pr-44' : undefined)}
-            placeholder={defaultWorktreeDirectory}
-            value={form.worktreeDirectory}
-            onChange={(e) => update('worktreeDirectory', e.target.value)}
-          />
-          {worktreeDirectoryError ? (
-            <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-red-500">
-              {worktreeDirectoryError}
-            </span>
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <Input
+              aria-invalid={worktreeDirectoryError ? true : undefined}
+              className={cn(worktreeDirectoryError ? 'pr-44' : undefined)}
+              placeholder={defaultWorktreeDirectory}
+              value={form.worktreeDirectory}
+              onChange={(e) => update('worktreeDirectory', e.target.value)}
+            />
+            {worktreeDirectoryError ? (
+              <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-red-500">
+                {worktreeDirectoryError}
+              </span>
+            ) : null}
+          </div>
+          {projectType === 'local' ? (
+            <Button type="button" variant="outline" onClick={handleBrowseWorktreeDirectory}>
+              <Folder data-icon="inline-start" className="size-4" />
+              Browse
+            </Button>
           ) : null}
         </div>
       </Field>
