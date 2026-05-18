@@ -3,6 +3,7 @@ import { applyHistoryEntry } from '@renderer/lib/components/nav-buttons';
 import { toggleSettingsView } from '@renderer/lib/layout/settings-toggle';
 import { showModal } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
+import { toggleAppTheme } from '@renderer/lib/theme/theme-toggle';
 import { commandRegistry } from './registry';
 import type { AppCommand, CommandProvider } from './types';
 
@@ -26,6 +27,7 @@ function createAppCommandProvider(): CommandProvider {
       const settingsDef = appDef('app.settings');
       const newProjectDef = appDef('app.newProject');
       const giveFeedbackDef = appDef('app.giveFeedback');
+      const toggleThemeDef = appDef('app.toggleTheme');
       const navigateBackDef = appDef('app.navigateBack');
       const navigateForwardDef = appDef('app.navigateForward');
 
@@ -64,6 +66,17 @@ function createAppCommandProvider(): CommandProvider {
         group: giveFeedbackDef.group,
         execute() {
           showModal('feedbackModal', {});
+        },
+      });
+
+      commands.push({
+        id: toggleThemeDef.id,
+        label: toggleThemeDef.label,
+        description: toggleThemeDef.description,
+        shortcutKey: toggleThemeDef.shortcutKey,
+        group: toggleThemeDef.group,
+        execute() {
+          void toggleAppTheme();
         },
       });
 
