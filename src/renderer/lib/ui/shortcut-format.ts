@@ -67,8 +67,8 @@ const MODIFIER_DISPLAY_ORDER: Record<Platform, Record<CanonicalModifier, number>
   mac: {
     Control: 0,
     Alt: 1,
-    Shift: 2,
-    Meta: 3,
+    Meta: 2,
+    Shift: 3,
   },
   windows: {
     Control: 0,

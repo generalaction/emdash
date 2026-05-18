@@ -11,7 +11,7 @@ describe('shortcut formatting', () => {
   it('describes Mod as Command on macOS', () => {
     const parsed = parseHotkey('Mod+Shift+T', 'mac');
 
-    expect(describeShortcut(parsed, 'mac')).toBe('Shift Command T');
+    expect(describeShortcut(parsed, 'mac')).toBe('Command Shift T');
   });
 
   it('describes Mod as Control on non-macOS platforms', () => {
@@ -26,11 +26,11 @@ describe('shortcut formatting', () => {
     expect(describeShortcut(parsed, 'mac')).toBe('Option Command Right Arrow');
   });
 
-  it('orders macOS modifiers as Control, Option, Shift, Command', () => {
+  it('orders macOS modifiers as Control, Option, Command, Shift', () => {
     const parsed = parseHotkey('Meta+Shift+Alt+Control+K', 'mac');
 
-    expect(getShortcutKeys(parsed, 'mac')).toEqual(['Control', 'Alt', 'Shift', 'Meta', 'K']);
-    expect(describeShortcut(parsed, 'mac')).toBe('Control Option Shift Command K');
+    expect(getShortcutKeys(parsed, 'mac')).toEqual(['Control', 'Alt', 'Meta', 'Shift', 'K']);
+    expect(describeShortcut(parsed, 'mac')).toBe('Control Option Command Shift K');
   });
 
   it('orders Windows modifiers as Control, Alt, Shift, Windows', () => {
