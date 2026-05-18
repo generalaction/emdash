@@ -1,6 +1,6 @@
 import { computed, makeAutoObservable, observable, reaction, runInAction } from 'mobx';
 import { type LocalProject, type SshProject } from '@shared/projects';
-import type { SidebarSnapshot, SidebarTaskSortBy } from '@shared/view-state';
+import type { SidebarSnapshot, SidebarSortBy, SidebarTaskSortBy } from '@shared/view-state';
 import {
   type ProjectStore,
   type UnregisteredProject,
@@ -12,6 +12,12 @@ import {
   type TaskStore,
 } from '@renderer/features/tasks/stores/task-store';
 import type { Snapshottable } from '@renderer/lib/stores/snapshottable';
+
+function parseSidebarSortBy(value: unknown): SidebarSortBy | undefined {
+  return value === 'created-at' || value === 'updated-at' || value === 'project-name'
+    ? value
+    : undefined;
+}
 
 function parseSidebarTaskSortBy(value: unknown): SidebarTaskSortBy | undefined {
   return value === 'created-at' || value === 'updated-at' ? value : undefined;
@@ -31,6 +37,10 @@ export function getSortInstant(task: TaskStore, kind: 'created' | 'updated'): st
   return '';
 }
 
+function projectSortName(project: ProjectStore): string {
+  return project.name ?? project.data?.name ?? project.id;
+}
+
 export type SidebarRow =
   | { kind: 'project'; projectId: string }
   | { kind: 'task'; projectId: string; taskId: string };
@@ -39,7 +49,8 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
   projectOrder: string[] = [];
   taskOrderByProject: Record<string, string[]> = {};
   expandedProjectIds = observable.set<string>();
-  taskSortBy: SidebarTaskSortBy = 'created-at';
+  taskSortBy: SidebarSortBy = 'created-at';
+  lastTaskSortBy: SidebarTaskSortBy = 'created-at';
 
   constructor(private readonly projectManager: ProjectManagerStore) {
     makeAutoObservable(this, {
@@ -82,14 +93,17 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
       (p): p is ProjectStore & { data: LocalProject | SshProject } => p.state !== 'unregistered'
     );
 
-    const sorted = [...real].sort((a, b) => {
-      const ai = this.projectOrder.indexOf(a.data.id);
-      const bi = this.projectOrder.indexOf(b.data.id);
-      if (ai === -1 && bi === -1) return 0;
-      if (ai === -1) return 1;
-      if (bi === -1) return -1;
-      return ai - bi;
-    });
+    const sorted =
+      this.taskSortBy === 'project-name' && this.projectOrder.length === 0
+        ? [...real].sort((a, b) => this.compareSidebarProjects(a, b))
+        : [...real].sort((a, b) => {
+            const ai = this.projectOrder.indexOf(a.data.id);
+            const bi = this.projectOrder.indexOf(b.data.id);
+            if (ai === -1 && bi === -1) return 0;
+            if (ai === -1) return 1;
+            if (bi === -1) return -1;
+            return ai - bi;
+          });
 
     return [...unregistered, ...sorted];
   }
@@ -164,6 +178,7 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
       projectOrder: [...this.projectOrder],
       taskOrderByProject: { ...this.taskOrderByProject },
       taskSortBy: this.taskSortBy,
+      lastTaskSortBy: this.lastTaskSortBy,
     };
   }
 
@@ -178,8 +193,15 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
       this.taskOrderByProject = { ...snapshot.taskOrderByProject };
     }
     if (snapshot.taskSortBy !== undefined) {
-      const v = parseSidebarTaskSortBy(snapshot.taskSortBy);
-      if (v !== undefined) this.taskSortBy = v;
+      const v = parseSidebarSortBy(snapshot.taskSortBy);
+      if (v !== undefined) {
+        this.taskSortBy = v;
+        if (v !== 'project-name') this.lastTaskSortBy = v;
+      }
+    }
+    if (snapshot.lastTaskSortBy !== undefined) {
+      const v = parseSidebarTaskSortBy(snapshot.lastTaskSortBy);
+      if (v !== undefined) this.lastTaskSortBy = v;
     }
   }
 
@@ -205,12 +227,18 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
 
   setTaskSortBy(sortBy: SidebarTaskSortBy): void {
     this.taskSortBy = sortBy;
+    this.lastTaskSortBy = sortBy;
   }
 
   /** Set the sort key and clear all manual task orders so the list fully re-sorts. */
-  applySort(sortBy: SidebarTaskSortBy): void {
+  applySort(sortBy: SidebarSortBy): void {
     this.taskSortBy = sortBy;
     this.taskOrderByProject = {};
+    if (sortBy === 'project-name') {
+      this.projectOrder = [];
+    } else {
+      this.lastTaskSortBy = sortBy;
+    }
   }
 
   setProjectOrder(ids: string[]): void {
@@ -242,7 +270,8 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
   }
 
   private compareSidebarTasks(a: TaskStore, b: TaskStore): number {
-    const kind: 'created' | 'updated' = this.taskSortBy === 'created-at' ? 'created' : 'updated';
+    const kind: 'created' | 'updated' =
+      this.lastTaskSortBy === 'created-at' ? 'created' : 'updated';
     const ia = getSortInstant(a, kind);
     const ib = getSortInstant(b, kind);
     const d = ib.localeCompare(ia);
@@ -252,5 +281,14 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
 
   private sortTasksForSidebar(tasks: TaskStore[]): TaskStore[] {
     return [...tasks].sort((a, b) => this.compareSidebarTasks(a, b));
+  }
+
+  private compareSidebarProjects(a: ProjectStore, b: ProjectStore): number {
+    const d = projectSortName(a).localeCompare(projectSortName(b), undefined, {
+      sensitivity: 'base',
+      numeric: true,
+    });
+    if (d !== 0) return d;
+    return a.id.localeCompare(b.id);
   }
 }

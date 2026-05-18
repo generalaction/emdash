@@ -43,6 +43,12 @@ export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
               >
                 Last used
               </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem
+                value="project-name"
+                onClick={() => sidebarStore.applySort('project-name')}
+              >
+                Project name
+              </DropdownMenuRadioItem>
             </DropdownMenuRadioGroup>
           </DropdownMenuGroup>
         </DropdownMenuContent>
