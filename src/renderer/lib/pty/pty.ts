@@ -1,5 +1,6 @@
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal, type ITerminalOptions } from '@xterm/xterm';
+import type { AppSettings } from '@shared/app-settings';
 import { ptyDataChannel } from '@shared/events/ptyEvents';
 import { events, rpc } from '@renderer/lib/ipc';
 import { cssVar } from '@renderer/utils/cssVars';
@@ -7,6 +8,70 @@ import { log } from '@renderer/utils/logger';
 import { ensureXtermHost } from './xterm-host';
 
 const SCROLLBACK_LINES = 100_000;
+const DEFAULT_TERMINAL_FONT_FAMILY = 'Menlo, Monaco, Consolas, "Liberation Mono", monospace';
+
+// Applied at construction so historical scrollback renders with the user's
+// font instead of being patched after xterm has already measured glyphs.
+let cachedFontFamily = DEFAULT_TERMINAL_FONT_FAMILY;
+let installedFontNames: Set<string> | null = null;
+let prefetchPromise: Promise<void> | null = null;
+
+export function resolveTerminalFontFamily(fontFamily: string): string {
+  const trimmed = fontFamily.trim();
+  if (!trimmed) return DEFAULT_TERMINAL_FONT_FAMILY;
+  const resolved = `${quoteFontFamily(trimmed)}, ${DEFAULT_TERMINAL_FONT_FAMILY}`;
+  if (!installedFontNames || isFontFamilyInstalled(trimmed, installedFontNames)) return resolved;
+  log.warn('FrontendPty: requested font was not found in the OS font list', {
+    fontFamily: trimmed,
+  });
+  return resolved;
+}
+
+function quoteFontFamily(fontFamily: string): string {
+  if (fontFamily.includes(',') || isGenericFontFamily(fontFamily)) return fontFamily;
+  return `"${fontFamily.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
+function isGenericFontFamily(fontFamily: string): boolean {
+  const normalized = fontFamily.trim().toLowerCase();
+  return normalized === 'monospace' || normalized === 'serif' || normalized === 'sans-serif';
+}
+
+function isFontFamilyInstalled(fontFamily: string, installed: Set<string>): boolean {
+  const primaryFamily = fontFamily
+    .split(',')[0]
+    ?.trim()
+    .replace(/^["']|["']$/g, '')
+    .toLowerCase();
+  if (!primaryFamily) return false;
+  if (isGenericFontFamily(primaryFamily)) return true;
+  return installed.has(primaryFamily);
+}
+
+async function runTerminalSettingsPrefetch(): Promise<void> {
+  try {
+    const [terminalSettings, fontsResult] = await Promise.all([
+      rpc.appSettings.get('terminal') as Promise<AppSettings['terminal']>,
+      rpc.app.listInstalledFonts(),
+    ]);
+    if (fontsResult.success) {
+      installedFontNames = new Set(fontsResult.fonts.map((font) => font.trim().toLowerCase()));
+    }
+    cachedFontFamily = resolveTerminalFontFamily(terminalSettings?.fontFamily?.trim() ?? '');
+  } catch (error) {
+    log.warn('prefetchTerminalSettings: failed to load terminal settings', { error });
+    prefetchPromise = null;
+  }
+}
+
+export function prefetchTerminalSettings(): Promise<void> {
+  if (!prefetchPromise) prefetchPromise = runTerminalSettingsPrefetch();
+  return prefetchPromise;
+}
+
+export function setCachedFontFamily(font: string): void {
+  cachedFontFamily = resolveTerminalFontFamily(font);
+}
 
 // ── Theme helpers ─────────────────────────────────────────────────────────────
 
@@ -76,6 +141,7 @@ export class FrontendPty {
       rows: 32,
       scrollback: SCROLLBACK_LINES,
       convertEol: true,
+      fontFamily: cachedFontFamily,
       fontSize: 13,
       lineHeight: 1.2,
       letterSpacing: 0,
@@ -174,6 +240,14 @@ export class FrontendPty {
    */
   unmount(): void {
     ensureXtermHost().appendChild(this.ownedContainer);
+  }
+
+  setFontFamily(fontFamily: string): void {
+    const resolved = resolveTerminalFontFamily(fontFamily);
+    if (this.terminal.options.fontFamily === resolved) return;
+    this.terminal.options.fontFamily = resolved;
+    this.terminal.clearTextureAtlas();
+    this.terminal.refresh(0, this.terminal.rows - 1);
   }
 
   /**

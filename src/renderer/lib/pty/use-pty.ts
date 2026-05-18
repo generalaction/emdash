@@ -8,7 +8,12 @@ import { events, rpc } from '@renderer/lib/ipc';
 import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
 import { log } from '@renderer/utils/logger';
 import { usePaneSizingContext } from './pane-sizing-context';
-import type { FrontendPty, SessionTheme } from './pty';
+import {
+  resolveTerminalFontFamily,
+  setCachedFontFamily,
+  type FrontendPty,
+  type SessionTheme,
+} from './pty';
 import { measureDimensions } from './pty-dimensions';
 import { isRealTaskInput, SubmittedInputBuffer } from './pty-input-buffer';
 import {
@@ -349,12 +354,17 @@ export function usePty(
       measureAndResize();
 
       // ── Load settings ──────────────────────────────────────────────────────
+      // The cached fontFamily was applied at FrontendPty construction; re-read
+      // here picks up any changes since prefetch and refreshes stale glyphs.
       let customFontFamily = '';
       void (rpc.appSettings.get('terminal') as Promise<AppSettings['terminal']>).then(
         (terminalSettings) => {
-          if (terminalSettings?.fontFamily) {
-            customFontFamily = terminalSettings.fontFamily.trim();
-            if (customFontFamily) frontendPty.terminal.options.fontFamily = customFontFamily;
+          customFontFamily = terminalSettings?.fontFamily?.trim() ?? '';
+          setCachedFontFamily(customFontFamily);
+          const currentFontFamily = (frontendPty.terminal.options.fontFamily ?? '') as string;
+          if (currentFontFamily !== resolveTerminalFontFamily(customFontFamily)) {
+            frontendPty.setFontFamily(customFontFamily);
+            measureAndResize();
           }
           frontendPty.terminal.options.fontSize =
             terminalSettings?.fontSize ?? TERMINAL_FONT_SIZE_DEFAULT;
@@ -541,7 +551,8 @@ export function usePty(
         const detail = (e as CustomEvent<{ fontFamily?: string; fontSize?: number }>).detail;
         if (detail?.fontFamily !== undefined) {
           customFontFamily = detail.fontFamily.trim();
-          terminal.options.fontFamily = customFontFamily || undefined;
+          setCachedFontFamily(customFontFamily);
+          frontendPty.setFontFamily(customFontFamily);
         }
         if (detail?.fontSize !== undefined) {
           terminal.options.fontSize = detail.fontSize;
