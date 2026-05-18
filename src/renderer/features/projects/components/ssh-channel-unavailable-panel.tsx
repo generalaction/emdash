@@ -17,8 +17,7 @@ export function SshChannelUnavailablePanel() {
             raise the limit:
           </p>
           <pre className="text-[11px] font-mono text-foreground bg-background rounded px-2 py-1 overflow-x-auto">
-            MaxSessions 100{'     '}
-            <span className="text-foreground-muted">// 500 for heavy parallel use</span>
+            {'MaxSessions 100     # 500 for heavy parallel use'}
           </pre>
           <p className="text-xs text-foreground-passive mt-2">Then reload sshd:</p>
           <div className="text-[11px] font-mono text-foreground bg-background rounded px-2 py-1 mt-1 overflow-x-auto">
