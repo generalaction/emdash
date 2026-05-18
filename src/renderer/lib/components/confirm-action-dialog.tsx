@@ -11,6 +11,7 @@ import {
 export type ConfirmActionDialogArgs = {
   title: string;
   description: string;
+  detail?: string;
   confirmLabel?: string;
   variant?: 'destructive' | 'default';
 };
@@ -20,6 +21,7 @@ type Props = BaseModalProps<void> & ConfirmActionDialogArgs;
 export function ConfirmActionDialog({
   title,
   description,
+  detail,
   confirmLabel = 'Confirm',
   variant = 'destructive',
   onSuccess,
@@ -30,8 +32,13 @@ export function ConfirmActionDialog({
       <DialogHeader showCloseButton={false}>
         <DialogTitle>{title}</DialogTitle>
       </DialogHeader>
-      <DialogContentArea className="pt-0">
-        <p>{description}</p>
+      <DialogContentArea className="flex flex-col gap-3 pt-0">
+        <p className="wrap-anywhere">{description}</p>
+        {detail ? (
+          <code className="block max-h-32 overflow-auto wrap-anywhere rounded-md border border-border bg-background-1 px-2.5 py-2 font-mono text-xs text-foreground-passive">
+            {detail}
+          </code>
+        ) : null}
       </DialogContentArea>
       <DialogFooter>
         <Button variant="outline" onClick={onClose}>

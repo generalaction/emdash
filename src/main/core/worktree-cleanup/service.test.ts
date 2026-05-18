@@ -48,6 +48,13 @@ vi.mock('@main/db/client', () => ({
   },
 }));
 
+vi.mock('@main/lib/events', () => ({
+  events: {
+    emit: vi.fn(),
+    on: vi.fn(() => () => {}),
+  },
+}));
+
 vi.mock('../settings/settings-service', () => ({
   appSettingsService: {
     get: vi.fn((key: string) => {
@@ -215,9 +222,15 @@ describe('WorktreeCleanupService', () => {
     ];
 
     const service = new WorktreeCleanupService();
-    const summary = await service.listManagedWorktrees({ forceRefresh: true });
+    const summary = await service.listManagedWorktrees({
+      forceRefresh: true,
+      awaitSizes: true,
+    });
 
-    expect(summary.totalSizeBytes).toBe(Buffer.byteLength('content'));
+    // `du -sk` reports block-allocated size, which is >= apparent bytes — assert the
+    // node_modules contents are at least counted (not skipped) without locking to a
+    // byte-exact value the filesystem doesn't guarantee.
+    expect(summary.totalSizeBytes).toBeGreaterThanOrEqual(Buffer.byteLength('content'));
   });
 
   it('does not clear the workspace record when directory removal fails', async () => {

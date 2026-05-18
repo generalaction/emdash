@@ -6,4 +6,5 @@ export const worktreeCleanupController = createRPCController({
   listManagedWorktrees: (options?: ListManagedWorktreesOptions) =>
     worktreeCleanupService.listManagedWorktrees(options),
   cleanupNow: () => worktreeCleanupService.cleanup(),
+  removeWorktree: (workspaceId: string) => worktreeCleanupService.removeWorktreeById(workspaceId),
 });

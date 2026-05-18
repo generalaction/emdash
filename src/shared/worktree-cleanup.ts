@@ -20,8 +20,10 @@ export type ManagedWorktreesSummary = {
   totalSizeBytes: number;
   cleanedCount: number;
   cleanedSizeBytes: number;
+  isRefreshing?: boolean;
 };
 
 export type ListManagedWorktreesOptions = {
   forceRefresh?: boolean;
+  awaitSizes?: boolean;
 };

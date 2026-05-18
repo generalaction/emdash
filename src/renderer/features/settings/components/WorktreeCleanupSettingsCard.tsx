@@ -1,13 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FolderIcon, Minus, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import React from 'react';
+import {
+  managedWorktreeRefreshCompleteChannel,
+  managedWorktreeSizeUpdatedChannel,
+} from '@shared/events/worktree-events';
 import { dirnameFromAnyPath } from '@shared/path-name';
 import type { ManagedWorktreesSummary } from '@shared/worktree-cleanup';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
-import { rpc } from '@renderer/lib/ipc';
+import { events, rpc } from '@renderer/lib/ipc';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { AnimatedHeight } from '@renderer/lib/ui/animated-height';
-import { Badge } from '@renderer/lib/ui/badge';
 import { Button } from '@renderer/lib/ui/button';
 import { Switch } from '@renderer/lib/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
@@ -25,39 +28,6 @@ type WorktreeGroup = {
   worktrees: ManagedWorktree[];
   totalSizeBytes: number;
 };
-
-const WORKTREE_STATUS_LABELS: Record<ManagedWorktree['status'], string> = {
-  active: 'In use',
-  archived: 'Archived',
-  orphaned: 'Unlinked',
-  missing: 'Missing',
-};
-
-const WORKTREE_STATUS_DESCRIPTIONS: Record<ManagedWorktree['status'], string> = {
-  active: 'Connected to an active task. Cleanup will not remove it.',
-  archived: 'The task is archived. Cleanup may remove this worktree if limits are exceeded.',
-  orphaned:
-    'Found on disk, but no longer linked to a saved task. Cleanup may remove it if limits are exceeded.',
-  missing: 'The saved path no longer exists. Cleanup will clear the stale record.',
-};
-
-function WorktreeStatusBadge({ worktree }: { worktree: ManagedWorktree }) {
-  return (
-    <Tooltip>
-      <TooltipTrigger className="h-auto">
-        <Badge
-          variant={worktree.status === 'missing' ? 'destructive' : 'secondary'}
-          className="cursor-help"
-        >
-          {WORKTREE_STATUS_LABELS[worktree.status]}
-        </Badge>
-      </TooltipTrigger>
-      <TooltipContent side="left" align="center">
-        {WORKTREE_STATUS_DESCRIPTIONS[worktree.status]}
-      </TooltipContent>
-    </Tooltip>
-  );
-}
 
 function groupWorktreesByProject(worktrees: ManagedWorktree[]): WorktreeGroup[] {
   const groups = new Map<string, WorktreeGroup>();
@@ -151,6 +121,31 @@ function NumberStepper({
   );
 }
 
+function WorktreeListLoading() {
+  return (
+    <div
+      className="flex min-h-48 flex-col gap-0 overflow-hidden rounded-lg border border-border bg-muted/10"
+      aria-label="Loading managed worktrees"
+    >
+      {[0, 1, 2].map((row) => (
+        <div
+          key={row}
+          className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border/60 px-4 py-4 last:border-b-0"
+        >
+          <div className="min-w-0 space-y-2">
+            <div className="worktree-loading-shimmer h-4 w-40 rounded" />
+            <div className="worktree-loading-shimmer h-3 w-full max-w-lg rounded" />
+          </div>
+          <div className="flex shrink-0 flex-col items-end gap-2">
+            <div className="worktree-loading-shimmer h-5 w-16 rounded-full" />
+            <div className="worktree-loading-shimmer h-3 w-12 rounded" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function WorktreeCleanupSettingsCard() {
   const queryClient = useQueryClient();
   const showConfirm = useShowModal('confirmActionModal');
@@ -162,6 +157,31 @@ export default function WorktreeCleanupSettingsCard() {
     queryFn: () => rpc.worktreeCleanup.listManagedWorktrees(),
     staleTime: 30_000,
   });
+
+  React.useEffect(() => {
+    const offSize = events.on(managedWorktreeSizeUpdatedChannel, ({ workspaceId, sizeBytes }) => {
+      queryClient.setQueryData<ManagedWorktreesSummary>(['managedWorktrees'], (prev) => {
+        if (!prev) return prev;
+        const worktrees = prev.worktrees.map((worktree) =>
+          worktree.workspaceId === workspaceId ? { ...worktree, sizeBytes } : worktree
+        );
+        return {
+          ...prev,
+          worktrees,
+          totalSizeBytes: worktrees.reduce((sum, worktree) => sum + worktree.sizeBytes, 0),
+        };
+      });
+    });
+    const offDone = events.on(managedWorktreeRefreshCompleteChannel, () => {
+      queryClient.setQueryData<ManagedWorktreesSummary>(['managedWorktrees'], (prev) =>
+        prev ? { ...prev, isRefreshing: false } : prev
+      );
+    });
+    return () => {
+      offSize();
+      offDone();
+    };
+  }, [queryClient]);
 
   const refreshMutation = useMutation({
     mutationFn: () => rpc.worktreeCleanup.listManagedWorktrees({ forceRefresh: true }),
@@ -177,8 +197,16 @@ export default function WorktreeCleanupSettingsCard() {
     },
   });
 
+  const removeWorktreeMutation = useMutation({
+    mutationFn: (workspaceId: string) => rpc.worktreeCleanup.removeWorktree(workspaceId),
+    onSuccess: (summary) => {
+      queryClient.setQueryData(['managedWorktrees'], summary);
+    },
+  });
+
   const busy = isLoading || isSaving;
   const summary = worktreesQuery.data;
+  const isLoadingWorktrees = (!summary && worktreesQuery.isFetching) || summary?.isRefreshing;
   const worktreeGroups = React.useMemo(
     () => groupWorktreesByProject(summary?.worktrees ?? []),
     [summary?.worktrees]
@@ -197,6 +225,23 @@ export default function WorktreeCleanupSettingsCard() {
       variant: 'destructive',
       onSuccess: () => {
         cleanupMutation.mutate();
+      },
+    });
+  };
+
+  const requestRemoveWorktree = (worktree: ManagedWorktree) => {
+    const activeWarning =
+      worktree.status === 'active'
+        ? ' The linked task will be archived and its running session terminated.'
+        : '';
+    showConfirm({
+      title: 'Delete worktree',
+      description: `This will permanently delete the worktree below.${activeWarning} Uncommitted changes will be lost.`,
+      detail: worktree.path,
+      confirmLabel: 'Delete',
+      variant: 'destructive',
+      onSuccess: () => {
+        removeWorktreeMutation.mutate(worktree.workspaceId);
       },
     });
   };
@@ -295,9 +340,13 @@ export default function WorktreeCleanupSettingsCard() {
           <div className="flex min-w-0 flex-col gap-0.5">
             <h3 className="text-sm font-normal text-foreground">Managed worktrees</h3>
             <p className="text-xs text-foreground-passive">
-              {summary
-                ? `${summary.worktrees.length} ${summary.worktrees.length === 1 ? 'worktree' : 'worktrees'} · ${formatBytes(summary.totalSizeBytes)}`
-                : 'Worktrees Emdash created on this machine.'}
+              {summary?.isRefreshing
+                ? summary.worktrees.length > 0
+                  ? `${summary.worktrees.length} ${summary.worktrees.length === 1 ? 'worktree' : 'worktrees'} · loading sizes...`
+                  : 'Loading managed worktrees...'
+                : summary
+                  ? `${summary.worktrees.length} ${summary.worktrees.length === 1 ? 'worktree' : 'worktrees'} · ${formatBytes(summary.totalSizeBytes)}`
+                  : 'Worktrees Emdash created on this machine.'}
             </p>
           </div>
           <div className="flex items-center gap-1">
@@ -334,7 +383,9 @@ export default function WorktreeCleanupSettingsCard() {
           </div>
         </div>
 
-        {!summary || summary.worktrees.length === 0 ? (
+        {isLoadingWorktrees && (!summary || summary.worktrees.length === 0) ? (
+          <WorktreeListLoading />
+        ) : !summary || summary.worktrees.length === 0 ? (
           <div className="flex min-h-48 flex-col items-center justify-center rounded-lg border border-border bg-muted/10 p-8 text-center">
             <FolderIcon className="mb-3 size-8 text-foreground-passive" />
             <div className="text-sm text-foreground">No managed worktrees</div>
@@ -365,29 +416,47 @@ export default function WorktreeCleanupSettingsCard() {
                   </div>
                 </div>
                 <div className="divide-y divide-border/60">
-                  {group.worktrees.map((worktree) => (
-                    <div
-                      key={worktree.workspaceId}
-                      className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 py-3 pl-8 pr-4"
-                    >
-                      <div className="min-w-0">
-                        <div className="flex min-w-0 items-center gap-2">
-                          <span className="truncate text-sm text-foreground">
-                            {worktree.taskName ?? worktree.branch ?? worktree.workspaceId}
-                          </span>
+                  {group.worktrees.map((worktree) => {
+                    const isDeleting =
+                      removeWorktreeMutation.isPending &&
+                      removeWorktreeMutation.variables === worktree.workspaceId;
+                    return (
+                      <div
+                        key={worktree.workspaceId}
+                        className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 py-3 pl-8 pr-4"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span className="truncate text-sm text-foreground">
+                              {worktree.taskName ?? worktree.branch ?? worktree.workspaceId}
+                            </span>
+                          </div>
+                          <div className="mt-0.5 truncate text-xs text-foreground-passive">
+                            {worktree.path}
+                          </div>
                         </div>
-                        <div className="mt-0.5 truncate text-xs text-foreground-passive">
-                          {worktree.path}
-                        </div>
-                      </div>
-                      <div className="flex shrink-0 flex-col items-end gap-1">
-                        <WorktreeStatusBadge worktree={worktree} />
-                        <div className="text-right text-xs tabular-nums text-foreground-passive">
+                        <div className="shrink-0 text-right text-xs tabular-nums text-foreground-passive">
                           {formatBytes(worktree.sizeBytes)}
                         </div>
+                        <Tooltip>
+                          <TooltipTrigger>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label={`Delete ${worktree.taskName ?? worktree.path}`}
+                              className="hover:text-foreground-destructive"
+                              disabled={isDeleting}
+                              onClick={() => requestRemoveWorktree(worktree)}
+                            >
+                              <Trash2 className={cn('size-4', isDeleting && 'animate-pulse')} />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent side="left">Delete this worktree</TooltipContent>
+                        </Tooltip>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ))}
