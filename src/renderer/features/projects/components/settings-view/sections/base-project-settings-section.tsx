@@ -79,7 +79,7 @@ export function BaseProjectSettingsSection({
               onChange={(e) => update('worktreeDirectory', e.target.value)}
             />
             {worktreeDirectoryError ? (
-              <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-red-500">
+              <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-foreground-error">
                 {worktreeDirectoryError}
               </span>
             ) : null}

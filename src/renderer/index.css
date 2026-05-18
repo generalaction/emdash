@@ -83,6 +83,28 @@
   --color-status-todo: var(--status-todo);
   --color-status-cancelled: var(--status-cancelled);
 
+  --color-foreground-success: var(--foreground-success);
+  --color-background-success: var(--background-success);
+  --color-background-success-hover: var(--background-success-hover);
+  --color-border-success: var(--border-success);
+
+  --color-foreground-error: var(--foreground-error);
+  --color-background-error: var(--background-error);
+  --color-background-error-hover: var(--background-error-hover);
+
+  --color-foreground-warning: var(--foreground-warning);
+  --color-background-warning: var(--background-warning);
+  --color-background-warning-hover: var(--background-warning-hover);
+  --color-border-warning: var(--border-warning);
+
+  --color-foreground-info: var(--foreground-info);
+  --color-background-info: var(--background-info);
+  --color-background-info-hover: var(--background-info-hover);
+  --color-border-info: var(--border-info);
+
+  --color-foreground-conflict: var(--foreground-conflict);
+  --color-foreground-merged: var(--foreground-merged);
+
   --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
@@ -374,6 +396,29 @@
     --foreground-diff-added: var(--green-9);
     --foreground-diff-modified: var(--amber-9);
     --foreground-diff-deleted: var(--red-9);
+
+    /* State / indicator tokens */
+    --foreground-success: var(--green-9);
+    --background-success: var(--green-3);
+    --background-success-hover: var(--green-4);
+    --border-success: var(--green-7);
+
+    --foreground-error: var(--red-9);
+    --background-error: var(--red-3);
+    --background-error-hover: var(--red-4);
+
+    --foreground-warning: var(--amber-11);
+    --background-warning: var(--amber-3);
+    --background-warning-hover: var(--amber-4);
+    --border-warning: var(--amber-7);
+
+    --foreground-info: var(--blue-9);
+    --background-info: var(--blue-3);
+    --background-info-hover: var(--blue-4);
+    --border-info: var(--blue-7);
+
+    --foreground-conflict: var(--orange-9);
+    --foreground-merged: var(--purple-9);
   }
 
   .emdark {

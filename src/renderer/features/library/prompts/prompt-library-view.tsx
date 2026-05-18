@@ -39,7 +39,7 @@ function PromptRow({
   onDelete: () => void;
 }) {
   return (
-    <div className="flex">
+    <div className="flex w-full">
       <button
         type="button"
         className="min-w-0 flex-1 text-left"
@@ -145,7 +145,7 @@ export function PromptLibraryView() {
             </Button>
           </div>
         </PageHeader>
-        <div className={cn('flex flex-col gap-2 py-2', filteredItems.length === 0 && 'min-h-64')}>
+        <div className={cn('flex flex-col py-2', filteredItems.length === 0 && 'min-h-64')}>
           {filteredItems.length > 0 ? (
             filteredItems.map((prompt, index) => {
               return (

@@ -287,8 +287,8 @@ const StackedFileSlot = observer(function StackedFileSlot({
           {dirPath && <span className="truncate text-xs text-foreground-muted">{dirPath}</span>}
         </button>
         <span className="shrink-0 text-xs">
-          <span className="text-green-500">+{formatDiffLineCount(file.additions)}</span>{' '}
-          <span className="text-red-500">-{formatDiffLineCount(file.deletions)}</span>
+          <span className="text-foreground-success">+{formatDiffLineCount(file.additions)}</span>{' '}
+          <span className="text-foreground-error">-{formatDiffLineCount(file.deletions)}</span>
         </span>
       </div>
 

@@ -43,7 +43,7 @@ export function WorkspaceProviderSettingsSection({
             onChange={(e) => update('provisionCommand', e.target.value)}
           />
           {errors.provisionCommand ? (
-            <p className="text-xs text-red-500">{errors.provisionCommand}</p>
+            <p className="text-xs text-foreground-error">{errors.provisionCommand}</p>
           ) : null}
         </Field>
         <Field>
@@ -56,7 +56,7 @@ export function WorkspaceProviderSettingsSection({
             onChange={(e) => update('terminateCommand', e.target.value)}
           />
           {errors.terminateCommand ? (
-            <p className="text-xs text-red-500">{errors.terminateCommand}</p>
+            <p className="text-xs text-foreground-error">{errors.terminateCommand}</p>
           ) : null}
         </Field>
       </div>

@@ -74,7 +74,7 @@ const renderAgentRow = (agent: CliAgentStatus, actions: AgentRowActions) => {
     : undefined;
 
   const isDetected = agent.status === 'connected';
-  const indicatorClass = isDetected ? 'bg-emerald-500' : 'bg-muted-foreground/50';
+  const indicatorClass = isDetected ? 'bg-foreground-success' : 'bg-foreground-passive/50';
   const statusLabel = isDetected ? 'Detected' : 'Not detected';
 
   return (

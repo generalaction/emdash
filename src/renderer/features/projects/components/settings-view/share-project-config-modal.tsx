@@ -190,7 +190,7 @@ export function ShareProjectConfigModal({
               ))}
             </div>
           </Field>
-          {status === 'error' ? <p className="text-xs text-red-500">{errorMessage}</p> : null}
+          {status === 'error' ? <p className="text-xs text-foreground-error">{errorMessage}</p> : null}
         </FieldGroup>
       </DialogContentArea>
       <DialogFooter>

@@ -25,18 +25,18 @@ export function StatusIcon({
 
   if (status === 'merged') {
     return renderTooltip(
-      <GitMerge className={cn('size-4 shrink-0 text-purple-500', className)} />,
+      <GitMerge className={cn('size-4 shrink-0 text-foreground-merged', className)} />,
       'Merged'
     );
   }
   if (status === 'closed') {
     return renderTooltip(
-      <GitPullRequestClosed className={cn('size-4 shrink-0 text-red-500', className)} />,
+      <GitPullRequestClosed className={cn('size-4 shrink-0 text-foreground-error', className)} />,
       'Closed'
     );
   }
   return renderTooltip(
-    <GitPullRequestArrow className={cn('size-4 shrink-0 text-green-600', className)} />,
+    <GitPullRequestArrow className={cn('size-4 shrink-0 text-foreground-success', className)} />,
     'Open'
   );
 }

@@ -186,7 +186,7 @@ const IntegrationsCard: React.FC = () => {
       onClick={() => confirmDisconnect({ name: 'GitHub', onDisconnect: logout })}
       aria-label="Disconnect GitHub"
     >
-      <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+      <Check className="h-4 w-4 text-foreground-success" />
     </Button>
   ) : undefined;
 
@@ -343,7 +343,7 @@ const IntegrationsCard: React.FC = () => {
                       className="inline-flex h-8 w-8 shrink-0 cursor-default items-center justify-center rounded-md border border-input bg-background opacity-70"
                       aria-label={integration.disabledTooltip}
                     >
-                      <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                      <Check className="h-4 w-4 text-foreground-success" />
                     </TooltipTrigger>
                     <TooltipContent side="top">
                       <p className="text-xs">{integration.disabledTooltip}</p>
@@ -359,7 +359,7 @@ const IntegrationsCard: React.FC = () => {
                   onClick={integration.onDisconnect}
                   aria-label={`Disconnect ${integration.name}`}
                 >
-                  <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                  <Check className="h-4 w-4 text-foreground-success" />
                 </Button>
               )
             ) : (

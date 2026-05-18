@@ -108,9 +108,9 @@ const FileTreeRow = observer(function FileTreeRow({
       <span
         className={cn(
           'min-w-0 flex-1 truncate text-sm',
-          fileStatus === 'added' && 'text-green-500',
-          fileStatus === 'modified' && 'text-amber-500',
-          fileStatus === 'deleted' && 'text-red-500 line-through',
+          fileStatus === 'added' && 'text-foreground-success',
+          fileStatus === 'modified' && 'text-foreground-warning',
+          fileStatus === 'deleted' && 'text-foreground-error line-through',
           fileStatus === 'renamed' && 'text-blue-500'
         )}
       >

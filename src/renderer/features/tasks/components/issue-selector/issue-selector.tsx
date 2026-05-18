@@ -35,11 +35,12 @@ function getStatusColorClass(status?: string) {
     s.includes('resolved') ||
     s.includes('completed')
   )
-    return 'bg-emerald-500 ';
-  if (s.includes('progress') || s.includes('review') || s.includes('open')) return 'bg-yellow-500';
+    return 'bg-foreground-success';
+  if (s.includes('progress') || s.includes('review') || s.includes('open'))
+    return 'bg-foreground-warning';
   if (s.includes('blocked') || s.includes('cancelled') || s.includes('canceled'))
-    return 'bg-red-500';
-  return 'bg-gray-300';
+    return 'bg-foreground-error';
+  return 'bg-foreground-passive';
 }
 
 export function IssueIdentifier({

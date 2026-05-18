@@ -31,7 +31,7 @@ export function ShareableSettingTitle({ children, leafLabel, overrideSources, on
               <TooltipTrigger className="inline-flex h-4.5 items-center">
                 <Badge
                   variant="outline"
-                  className="rounded-xs h-4.5 border-amber-200 bg-amber-50 leading-none text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-400"
+                  className="rounded-xs h-4.5 border-border-warning bg-background-warning leading-none text-foreground-warning"
                 >
                   Overriding
                 </Badge>
