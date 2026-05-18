@@ -22,6 +22,7 @@ import {
   buildRemoteSshCommand,
   buildRemoteTerminalExecArgs,
 } from '@main/utils/remoteOpenIn';
+import { quotePathForShell } from './open-in-shell';
 import {
   checkCommand,
   checkMacApp,
@@ -351,10 +352,10 @@ class AppService implements IInitializable, IDisposable {
       );
     }
 
-    const quoted = (p: string) => `'${p.replace(/'/g, "'\\''")}'`;
+    const quotedTarget = quotePathForShell(target, process.platform as PlatformKey);
     const commands: string[] = platformConfig?.openCommands ?? [];
     const command = commands
-      .map((cmd) => cmd.replace('{{path}}', quoted(target)).replace('{{path_raw}}', target))
+      .map((cmd) => cmd.replace('{{path}}', quotedTarget).replace('{{path_raw}}', target))
       .join(' || ');
 
     if (!command) throw new Error('Unsupported platform or app');
