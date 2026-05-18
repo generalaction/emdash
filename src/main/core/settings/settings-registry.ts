@@ -56,6 +56,11 @@ export const SETTINGS_DEFAULTS = {
   resourceMonitor: {
     enabled: false,
   },
+  worktreeCleanup: {
+    autoCleanupEnabled: false,
+    maxWorktrees: 20,
+    maxTotalSizeGb: 50,
+  },
 } satisfies SettingsDefaultsMap;
 
 export function getDefaultForKey<K extends AppSettingsKey>(key: K): AppSettings[K] {

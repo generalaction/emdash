@@ -11,6 +11,13 @@ export function basenameFromAnyPath(input: string): string {
   );
 }
 
+export function dirnameFromAnyPath(input: string): string {
+  const trimmed = input.replace(/[\\/]+$/, '');
+  const separatorIndex = Math.max(trimmed.lastIndexOf('/'), trimmed.lastIndexOf('\\'));
+  if (separatorIndex < 0) return '';
+  return trimmed.slice(0, separatorIndex) || '/';
+}
+
 export function safePathSegment(input: string, fallback = 'project'): string {
   const segment = basenameFromAnyPath(input)
     .replace(/[<>:"/\\|?*\x00-\x1f]/g, '-')

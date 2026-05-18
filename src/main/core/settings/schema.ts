@@ -98,6 +98,12 @@ export const browserPreviewSettingsSchema = z.object({ enabled: z.boolean() });
 
 export const resourceMonitorSettingsSchema = z.object({ enabled: z.boolean() });
 
+export const worktreeCleanupSettingsSchema = z.object({
+  autoCleanupEnabled: z.boolean().default(false),
+  maxWorktrees: z.number().int().min(1).max(500).default(20),
+  maxTotalSizeGb: z.number().int().min(0).max(10_000).default(50),
+});
+
 export const openInSettingsSchema = z.object({
   default: openInAppIdSchema,
   hidden: z.array(openInAppIdSchema),
@@ -117,6 +123,7 @@ export const APP_SETTINGS_SCHEMA_MAP = {
   terminal: terminalSettingsSchema,
   browserPreview: browserPreviewSettingsSchema,
   resourceMonitor: resourceMonitorSettingsSchema,
+  worktreeCleanup: worktreeCleanupSettingsSchema,
 } as const;
 
 export const appSettingsSchema = z.object({
@@ -133,4 +140,5 @@ export const appSettingsSchema = z.object({
   terminal: terminalSettingsSchema,
   browserPreview: browserPreviewSettingsSchema,
   resourceMonitor: resourceMonitorSettingsSchema,
+  worktreeCleanup: worktreeCleanupSettingsSchema,
 });

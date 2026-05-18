@@ -28,6 +28,7 @@ import { workspaceFileIndexService } from './core/search/workspace-file-index-se
 import { appSettingsService } from './core/settings/settings-service';
 import { updateService } from './core/updates/update-service';
 import { viewStateService } from './core/view-state/view-state-service';
+import { worktreeCleanupService } from './core/worktree-cleanup/service';
 import { initializeDatabase } from './db/initialize';
 import { log } from './lib/logger';
 import { telemetryService } from './lib/telemetry';
@@ -119,6 +120,7 @@ void app.whenReady().then(async () => {
   prSyncScheduler.initialize();
   appService.initialize();
   await appSettingsService.initialize();
+  worktreeCleanupService.initialize();
   await promptLibraryService.initialize();
 
   agentHookService.initialize().catch((e) => {
@@ -160,6 +162,7 @@ app.on('before-quit', (event) => {
   void telemetryService.dispose().finally(() => {
     agentHookService.dispose();
     stopResourceSampler();
+    worktreeCleanupService.dispose();
     updateService.dispose();
     prSyncScheduler.dispose();
     void gitWatcherRegistry.dispose();

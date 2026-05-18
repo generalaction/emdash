@@ -10,6 +10,7 @@ import {
   type taskSettingsSchema,
   type terminalSettingsSchema,
   type themeSchema,
+  type worktreeCleanupSettingsSchema,
 } from '@main/core/settings/schema';
 
 export type LocalProjectSettings = z.infer<typeof localProjectSettingsSchema>;
@@ -18,6 +19,7 @@ export type NotificationSettings = z.infer<typeof notificationSettingsSchema>;
 export type TaskSettings = z.infer<typeof taskSettingsSchema>;
 export type AgentAutoApproveDefaults = z.infer<typeof agentAutoApproveDefaultsSchema>;
 export type TerminalSettings = z.infer<typeof terminalSettingsSchema>;
+export type WorktreeCleanupSettings = z.infer<typeof worktreeCleanupSettingsSchema>;
 export type Theme = z.infer<typeof themeSchema>;
 
 export type InterfaceSettings = z.infer<typeof interfaceSettingsSchema>;

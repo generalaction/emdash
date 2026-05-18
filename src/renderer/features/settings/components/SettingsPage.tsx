@@ -23,6 +23,7 @@ import TelemetryCard from './TelemetryCard';
 import TerminalSettingsCard from './TerminalSettingsCard';
 import ThemeCard from './ThemeCard';
 import { UpdateCard } from './UpdateCard';
+import WorktreeCleanupSettingsCard from './WorktreeCleanupSettingsCard';
 
 export type SettingsPageTab =
   | 'general'
@@ -31,6 +32,7 @@ export type SettingsPageTab =
   | 'integrations'
   | 'connections'
   | 'repository'
+  | 'worktrees'
   | 'interface'
   | 'docs';
 
@@ -62,6 +64,7 @@ export function SettingsPage({
     { id: 'integrations', label: 'Integrations' },
     { id: 'connections', label: 'Connections' },
     { id: 'repository', label: 'Repository' },
+    { id: 'worktrees', label: 'Worktrees' },
     { id: 'interface', label: 'Interface' },
     { id: 'docs', label: 'Docs', isExternal: true },
   ];
@@ -131,6 +134,11 @@ export function SettingsPage({
       title: 'Repository',
       description: 'Configure repository and branch settings.',
       sections: [{ title: 'Branch prefix', component: <RepositorySettingsCard /> }],
+    },
+    worktrees: {
+      title: 'Worktrees',
+      description: 'Tune local worktree cleanup and inspect Emdash-managed worktrees.',
+      sections: [{ component: <WorktreeCleanupSettingsCard /> }],
     },
     interface: {
       title: 'Interface',
