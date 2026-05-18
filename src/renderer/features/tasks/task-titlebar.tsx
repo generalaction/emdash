@@ -343,7 +343,9 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                   <FileDiff className="size-3.5" />
                 </ToggleGroupItem>
               </TooltipTrigger>
-              <TooltipContent>Changes</TooltipContent>
+              <TooltipContent>
+                Changes <BoundShortcut settingsKey="sidebarChanges" variant="badge" />
+              </TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger>
@@ -351,7 +353,9 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                   <MessageSquare className="size-3.5" />
                 </ToggleGroupItem>
               </TooltipTrigger>
-              <TooltipContent>Conversations</TooltipContent>
+              <TooltipContent>
+                Conversations <BoundShortcut settingsKey="sidebarConversations" variant="badge" />
+              </TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger>
@@ -359,7 +363,9 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                   <FolderOpen className="size-3.5" />
                 </ToggleGroupItem>
               </TooltipTrigger>
-              <TooltipContent>Files</TooltipContent>
+              <TooltipContent>
+                Files <BoundShortcut settingsKey="sidebarFiles" variant="badge" />
+              </TooltipContent>
             </Tooltip>
           </ToggleGroup>
         </div>

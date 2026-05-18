@@ -5,6 +5,7 @@ import { type LifecycleScriptsStore } from '@renderer/features/tasks/stores/life
 import { type TerminalTabViewStore } from '@renderer/features/tasks/terminals/terminal-tab-view-store';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { MicroLabel } from '@renderer/lib/ui/label';
+import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 import { scriptIcon } from './terminal-tabs';
@@ -61,7 +62,9 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
                 <Plus className="size-3" />
               </button>
             </TooltipTrigger>
-            <TooltipContent>New terminal</TooltipContent>
+            <TooltipContent>
+              New terminal <BoundShortcut settingsKey="newTerminal" variant="badge" />
+            </TooltipContent>
           </Tooltip>
         }
       >
