@@ -47,6 +47,8 @@ export const PullRequestsSection = observer(function PullRequestsSection({
           taskBranch
             ? () =>
                 showCreatePrModal({
+                  projectId,
+                  taskId,
                   repositoryUrl: repositoryUrl ?? '',
                   branchName: taskBranch,
                   draft: false,
@@ -59,6 +61,8 @@ export const PullRequestsSection = observer(function PullRequestsSection({
           taskBranch
             ? () =>
                 showCreatePrModal({
+                  projectId,
+                  taskId,
                   repositoryUrl: repositoryUrl ?? '',
                   branchName: taskBranch,
                   draft: true,
