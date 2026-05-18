@@ -127,6 +127,7 @@ async function createSshProvider(project: SshProject): Promise<ProjectProvider> 
       projectId: project.id,
       error: error instanceof Error ? error.message : String(error),
     });
+    sshConnectionManager.reportChannelError(project.connectionId, error);
     throw error;
   }
 }
