@@ -306,7 +306,7 @@
     --jade-12: color(display-p3 0.142 0.229 0.194);
 
     /* ── Semantic tokens ─────────────────────────────────────── */
-    --background: var(--neutral-1);
+    --background: white;
     --background-1: var(--neutral-2);
     --background-2: var(--neutral-3);
     --background-3: var(--neutral-4);
@@ -318,7 +318,7 @@
 
     --background-secondary: var(--background-1);
     --background-secondary-1: var(--background);
-    --background-secondary-2: var(--neutral-5);
+    --background-secondary-2: var(--background-3);
     --background-secondary-3: var(--neutral-6);
 
     --foreground-secondary: var(--neutral-12);

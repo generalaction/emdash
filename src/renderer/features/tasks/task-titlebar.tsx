@@ -303,7 +303,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
         <div className="flex items-center gap-2">
           <DevServerPills projectId={projectId} taskId={taskId} />
           {!isRemoteProject && (
-            <OpenInMenu path={workspace.path} className="h-7 bg-background" borderless />
+            <OpenInMenu path={workspace.path} className="h-7 bg-transparent" borderless />
           )}
           <Separator orientation="vertical" className="h-5 self-center!" />
           <Tooltip>
@@ -335,7 +335,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
               }
             }}
             size="icon-sm"
-            className="border-none"
+            className="border-none bg-transparent"
           >
             <Tooltip>
               <TooltipTrigger>
