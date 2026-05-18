@@ -2,7 +2,7 @@ import { FolderPlus, ListFilter } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { sidebarStore } from '@renderer/lib/stores/app-state';
-import { Button } from '@renderer/lib/ui/button';
+import { buttonVariants } from '@renderer/lib/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,18 +25,26 @@ export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
       <div className="flex items-center gap-1">
         <DropdownMenu>
           <Tooltip>
-            <TooltipTrigger>
-              <DropdownMenuTrigger>
-                <Button
-                  size="icon-xs"
-                  variant="ghost"
-                  aria-label="Sort projects"
-                  className="hover:bg-transparent text-foreground-muted hover:text-foreground"
-                >
-                  <ListFilter />
-                </Button>
-              </DropdownMenuTrigger>
-            </TooltipTrigger>
+            <DropdownMenuTrigger
+              render={
+                <TooltipTrigger
+                  render={
+                    <button
+                      type="button"
+                      aria-label="Sort projects"
+                      className={buttonVariants({
+                        size: 'icon-xs',
+                        variant: 'ghost',
+                        className:
+                          'hover:bg-transparent text-foreground-muted hover:text-foreground',
+                      })}
+                    >
+                      <ListFilter />
+                    </button>
+                  }
+                />
+              }
+            />
             <TooltipContent>Sort by</TooltipContent>
           </Tooltip>
           <DropdownMenuContent className="min-w-48">
@@ -60,17 +68,22 @@ export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
           </DropdownMenuContent>
         </DropdownMenu>
         <Tooltip>
-          <TooltipTrigger>
-            <Button
-              size="icon-xs"
-              variant="ghost"
-              onClick={() => showAddProjectModal({})}
-              aria-label="Add Project"
-              className="hover:bg-transparent text-foreground-muted hover:text-foreground"
-            >
-              <FolderPlus />
-            </Button>
-          </TooltipTrigger>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                onClick={() => showAddProjectModal({})}
+                aria-label="Add Project"
+                className={buttonVariants({
+                  size: 'icon-xs',
+                  variant: 'ghost',
+                  className: 'hover:bg-transparent text-foreground-muted hover:text-foreground',
+                })}
+              >
+                <FolderPlus />
+              </button>
+            }
+          />
           <TooltipContent>
             Add Project
             <ShortcutHint settingsKey="newProject" />
