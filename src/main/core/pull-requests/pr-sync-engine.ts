@@ -23,6 +23,7 @@ import {
   GET_PR_BY_NUMBER_QUERY,
   GET_PR_CHECK_RUNS_BY_URL_QUERY,
   INCREMENTAL_SYNC_PRS_QUERY,
+  SEARCH_PRS_QUERY,
   SYNC_PRS_QUERY,
 } from '@main/core/github/services/pr-queries';
 import { db } from '@main/db/client';
@@ -160,7 +161,7 @@ export class PrSyncEngine {
   private readonly _controllers = new Map<string, AbortController>();
   // Per-operation deduplication for single-PR and check-run syncs
   private readonly _singleInflight = new Map<string, Promise<void>>();
-  private readonly _checksInflight = new Map<string, Promise<void>>();
+  private readonly _checksInflight = new Map<string, Promise<boolean>>();
 
   constructor(private readonly getOctokit: () => Promise<Octokit>) {}
 
@@ -510,7 +511,61 @@ export class PrSyncEngine {
 
   // ── Single PR sync ─────────────────────────────────────────────────────────
 
-  /** Sync a single PR by number. Deduplicated — awaits any in-flight call for the same PR. */
+  /** Sync open PRs whose head branch matches any of the provided branch names. */
+  async syncOpenForBranches(
+    repositoryUrl: string,
+    branchNames: Iterable<string>
+  ): Promise<PullRequest[]> {
+    const branches = [...new Set(branchNames)].filter((branch) => branch.length > 0);
+    if (branches.length === 0) return [];
+
+    try {
+      const repository = parseGitHubRepositoryResult(repositoryUrl);
+      if (!repository.success) {
+        log.warn('PrSyncEngine: syncOpenForBranches — invalid repository URL', {
+          repositoryUrl,
+          error: repository.error,
+        });
+        return [];
+      }
+      const { owner, repo } = repository.data;
+      const octokit = await this.getOctokit();
+
+      const matches: GqlPrNode[] = [];
+      const seenUrls = new Set<string>();
+
+      for (const branch of branches) {
+        const searchQuery = `repo:${owner}/${repo} is:pr is:open head:${branch}`;
+        const response = await withRetry(() =>
+          githubRateLimiter.acquire().then(() =>
+            octokit.graphql<{
+              search: {
+                nodes: Array<GqlPrNode | null>;
+              };
+            }>(SEARCH_PRS_QUERY, { searchQuery, limit: 10 })
+          )
+        );
+
+        for (const node of response.search.nodes) {
+          if (!node || node.headRefName !== branch || seenUrls.has(node.url)) continue;
+          seenUrls.add(node.url);
+          matches.push(node);
+        }
+      }
+
+      const prs = await this._upsertBatch(repositoryUrl, matches);
+      for (const pr of prs) this._notifyPrUpdated(pr);
+      return prs;
+    } catch (e: unknown) {
+      log.warn('PrSyncEngine: syncOpenForBranches failed', {
+        repositoryUrl,
+        branches,
+        error: String(e),
+      });
+      return [];
+    }
+  }
+
   async syncSingle(repositoryUrl: string, prNumber: number): Promise<PullRequest | null> {
     const key = `single:${repositoryUrl}:${prNumber}`;
     if (this._singleInflight.has(key)) {
@@ -583,30 +638,24 @@ export class PrSyncEngine {
    */
   async syncChecks(pullRequestUrl: string, headRefOid: string): Promise<boolean> {
     const key = `checks:${pullRequestUrl}:${headRefOid}`;
-    if (this._checksInflight.has(key)) {
-      await this._checksInflight.get(key);
-      return false;
-    }
+    const existing = this._checksInflight.get(key);
+    if (existing) return existing;
 
     const ctrl = new AbortController();
-    let result = false;
 
     const promise = this._runSyncChecks(pullRequestUrl, headRefOid, ctrl.signal)
-      .then((r) => {
-        result = r;
-      })
       .catch((e: unknown) => {
         if ((e as { name?: string }).name !== 'AbortError') {
           log.error('PrSyncEngine: syncChecks failed', { pullRequestUrl, error: String(e) });
         }
+        return false;
       })
       .finally(() => {
         this._checksInflight.delete(key);
       });
 
     this._checksInflight.set(key, promise);
-    await promise;
-    return result;
+    return promise;
   }
 
   private async _runSyncChecks(

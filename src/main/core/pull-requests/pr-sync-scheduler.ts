@@ -1,16 +1,19 @@
-import { eq } from 'drizzle-orm';
+import { and, desc, eq, isNull } from 'drizzle-orm';
 import { parseGitHubRepository } from '@shared/github-repository';
 import { gitWatcherRegistry } from '@main/core/git/git-watcher-registry';
 import { projectManager } from '@main/core/projects/project-manager';
 import { taskManager } from '@main/core/tasks/task-manager';
 import { db } from '@main/db/client';
-import { projectRemotes } from '@main/db/schema';
+import { projectRemotes, pullRequests, tasks } from '@main/db/schema';
 import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
 import { log } from '@main/lib/logger';
 import { prSyncEngine } from './pr-sync-engine';
 import { syncProjectRemotes } from './project-remotes-service';
 
 const INCREMENTAL_SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const ACTIVE_TASK_KNOWN_PR_SYNC_INTERVAL_MS = 15 * 1000;
+const ACTIVE_TASK_PR_DISCOVERY_INTERVAL_MS = 30 * 1000;
+const ACTIVE_TASK_PR_SYNC_LIMIT = 10;
 
 /**
  * Wires sync coordinator to application lifecycle events.
@@ -51,20 +54,7 @@ export class PrSyncScheduler implements IInitializable, IDisposable {
 
     log.info('PrSyncScheduler: found GitHub remotes', { projectId, remoteUrls });
     this._projectRemoteUrls.set(projectId, remoteUrls);
-    const intervals: ReturnType<typeof setInterval>[] = [];
-
-    for (const url of remoteUrls) {
-      // sync() routes to full or incremental based on cursor state
-      prSyncEngine.sync(url);
-
-      const handle = setInterval(() => {
-        prSyncEngine.sync(url);
-      }, INCREMENTAL_SYNC_INTERVAL_MS);
-
-      intervals.push(handle);
-    }
-
-    this._intervals.set(projectId, intervals);
+    this._intervals.set(projectId, this._startIntervals(projectId, remoteUrls));
   }
 
   onProjectUnmounted(projectId: string): void {
@@ -119,19 +109,7 @@ export class PrSyncScheduler implements IInitializable, IDisposable {
     for (const h of handles) clearInterval(h);
 
     this._projectRemoteUrls.set(projectId, newUrls);
-    const intervals: ReturnType<typeof setInterval>[] = [];
-
-    for (const url of newUrls) {
-      prSyncEngine.sync(url);
-
-      const handle = setInterval(() => {
-        prSyncEngine.sync(url);
-      }, INCREMENTAL_SYNC_INTERVAL_MS);
-
-      intervals.push(handle);
-    }
-
-    this._intervals.set(projectId, intervals);
+    this._intervals.set(projectId, this._startIntervals(projectId, newUrls));
   }
 
   // ── Private helpers ────────────────────────────────────────────────────────
@@ -153,6 +131,88 @@ export class PrSyncScheduler implements IInitializable, IDisposable {
     }
   }
 
+  private _startIntervals(
+    projectId: string,
+    remoteUrls: string[]
+  ): ReturnType<typeof setInterval>[] {
+    const intervals: ReturnType<typeof setInterval>[] = [];
+
+    for (const url of remoteUrls) {
+      // sync() routes to full or incremental based on cursor state.
+      prSyncEngine.sync(url);
+      void this._discoverActiveTaskPrs(projectId, url);
+      void this._syncKnownActiveTaskPrs(projectId, url);
+
+      intervals.push(
+        setInterval(() => {
+          prSyncEngine.sync(url);
+        }, INCREMENTAL_SYNC_INTERVAL_MS)
+      );
+
+      intervals.push(
+        setInterval(() => {
+          void this._syncKnownActiveTaskPrs(projectId, url);
+        }, ACTIVE_TASK_KNOWN_PR_SYNC_INTERVAL_MS)
+      );
+
+      intervals.push(
+        setInterval(() => {
+          void this._discoverActiveTaskPrs(projectId, url);
+        }, ACTIVE_TASK_PR_DISCOVERY_INTERVAL_MS)
+      );
+    }
+
+    return intervals;
+  }
+
+  private async _discoverActiveTaskPrs(projectId: string, repositoryUrl: string): Promise<void> {
+    try {
+      const taskBranches = await this._getActiveTaskBranches(projectId);
+      await prSyncEngine.syncOpenForBranches(repositoryUrl, taskBranches);
+    } catch (error) {
+      log.warn('PrSyncScheduler: active task PR discovery failed', {
+        projectId,
+        repositoryUrl,
+        error: String(error),
+      });
+    }
+  }
+
+  private async _syncKnownActiveTaskPrs(projectId: string, repositoryUrl: string): Promise<void> {
+    try {
+      const taskBranches = await this._getActiveTaskBranches(projectId);
+      if (taskBranches.size === 0) return;
+
+      const prs = await db
+        .select({ identifier: pullRequests.identifier, headRefName: pullRequests.headRefName })
+        .from(pullRequests)
+        .where(and(eq(pullRequests.repositoryUrl, repositoryUrl), eq(pullRequests.status, 'open')));
+
+      for (const pr of prs) {
+        if (!taskBranches.has(pr.headRefName) || !pr.identifier) continue;
+        const prNumber = Number.parseInt(pr.identifier.replace('#', ''), 10);
+        if (!Number.isNaN(prNumber)) void prSyncEngine.syncSingle(repositoryUrl, prNumber);
+      }
+    } catch (error) {
+      log.warn('PrSyncScheduler: active task PR refresh failed', {
+        projectId,
+        repositoryUrl,
+        error: String(error),
+      });
+    }
+  }
+
+  private async _getActiveTaskBranches(projectId: string): Promise<Set<string>> {
+    const taskRows = await db
+      .select({ taskBranch: tasks.taskBranch })
+      .from(tasks)
+      .where(and(eq(tasks.projectId, projectId), isNull(tasks.archivedAt)))
+      .orderBy(desc(tasks.lastInteractedAt), desc(tasks.updatedAt))
+      .limit(ACTIVE_TASK_PR_SYNC_LIMIT);
+
+    return new Set(taskRows.flatMap((task) => (task.taskBranch ? [task.taskBranch] : [])));
+  }
+
   private async _getGitHubRemoteUrls(projectId: string): Promise<string[]> {
     const cached = this._projectRemoteUrls.get(projectId);
     if (cached) return cached;
@@ -172,16 +232,11 @@ export class PrSyncScheduler implements IInitializable, IDisposable {
     repositoryUrl: string,
     taskBranch: string
   ): Promise<number | null> {
-    const { pullRequests } = await import('@main/db/schema');
-    const { and, eq: deq } = await import('drizzle-orm');
     const rows = await db
       .select({ identifier: pullRequests.identifier })
       .from(pullRequests)
       .where(
-        and(
-          deq(pullRequests.repositoryUrl, repositoryUrl),
-          deq(pullRequests.headRefName, taskBranch)
-        )
+        and(eq(pullRequests.repositoryUrl, repositoryUrl), eq(pullRequests.headRefName, taskBranch))
       )
       .limit(1);
 
