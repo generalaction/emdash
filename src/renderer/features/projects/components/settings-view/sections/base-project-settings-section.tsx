@@ -1,4 +1,5 @@
 import { Folder } from 'lucide-react';
+import { useState } from 'react';
 import type { Branch, Remote } from '@shared/git';
 import type { Project } from '@shared/projects';
 import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
@@ -41,14 +42,23 @@ export function BaseProjectSettingsSection({
   const pushRemoteValue = form.pushRemote || SAME_AS_BASE_REMOTE;
   const selectedBaseRemote = remotes.find((remote) => remote.name === baseRemoteValue);
   const selectedPushRemote = remotes.find((remote) => remote.name === pushRemoteValue);
+  const [isBrowsingWorktreeDirectory, setIsBrowsingWorktreeDirectory] = useState(false);
 
   const handleBrowseWorktreeDirectory = async () => {
-    const result = await rpc.app.openSelectDirectoryDialog({
-      title: 'Select worktree directory',
-      message: 'Choose the directory where worktrees should be created.',
-    });
-    if (result) {
-      update('worktreeDirectory', result);
+    if (isBrowsingWorktreeDirectory) return;
+
+    setIsBrowsingWorktreeDirectory(true);
+    try {
+      const result = await rpc.app.openSelectDirectoryDialog({
+        title: 'Select worktree directory',
+        message: 'Choose the directory where worktrees should be created.',
+        defaultPath: form.worktreeDirectory || defaultWorktreeDirectory,
+      });
+      if (result) {
+        update('worktreeDirectory', result);
+      }
+    } finally {
+      setIsBrowsingWorktreeDirectory(false);
     }
   };
 
@@ -75,7 +85,12 @@ export function BaseProjectSettingsSection({
             ) : null}
           </div>
           {projectType === 'local' ? (
-            <Button type="button" variant="outline" onClick={handleBrowseWorktreeDirectory}>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={isBrowsingWorktreeDirectory}
+              onClick={handleBrowseWorktreeDirectory}
+            >
               <Folder data-icon="inline-start" className="size-4" />
               Browse
             </Button>
