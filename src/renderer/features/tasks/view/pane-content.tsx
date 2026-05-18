@@ -36,7 +36,7 @@ export const PaneContent = observer(function PaneContent() {
           {paneRenderer.kind === 'file' && <FileRenderer tab={paneRenderer.tab} />}
         </Activity>
         <Activity mode={paneRenderer.kind === 'file-diff' ? 'visible' : 'hidden'}>
-          <DiffView />
+          {paneRenderer.kind === 'file-diff' && <DiffView tab={paneRenderer.tab} />}
         </Activity>
       </div>
     </div>
