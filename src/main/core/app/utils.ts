@@ -176,7 +176,9 @@ export const resolveAppVersion = async (): Promise<string> => {
 
 export const checkCommand = (cmd: string): Promise<boolean> =>
   new Promise((resolve) => {
-    exec(`where ${cmd}`, { env: buildExternalToolEnv() }, (error) => {
+    const check =
+      process.platform !== 'win32' ? `command -v ${cmd} >/dev/null 2>&1` : `where ${cmd}`;
+    exec(check, { env: buildExternalToolEnv() }, (error) => {
       resolve(!error);
     });
   });
