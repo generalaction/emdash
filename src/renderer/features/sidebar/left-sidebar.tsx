@@ -64,8 +64,8 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
           </SidebarGroup>
         </SidebarContent>
         <SidebarFooter>
-          <SidebarSearchTrigger />
           <SidebarMenu>
+            <SidebarSearchTrigger />
             <SidebarMenuButton
               isActive={
                 isCurrentView(currentView, 'library') ||
@@ -76,8 +76,10 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
               aria-label="Library"
               className="w-full justify-start"
             >
-              <Library className="h-5 w-5 sm:h-4 sm:w-4" />
-              Library
+              <span className="flex items-center gap-2">
+                <Library className="h-5 w-5 sm:h-4 sm:w-4" />
+                Library
+              </span>
             </SidebarMenuButton>
             <SidebarMenuButton
               isActive={isCurrentView(currentView, 'settings')}
