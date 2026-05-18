@@ -5,6 +5,7 @@ import { HEAD_REF, STAGED_REF } from '@shared/git';
 import type { ActiveFile } from '@shared/view-state';
 import { useDiffEditorComments } from '@renderer/features/tasks/diff-view/comments/use-diff-editor-comments';
 import { ImageDiffView } from '@renderer/features/tasks/diff-view/main-panel/image-diff-view';
+import { isMissingFileError } from '@renderer/features/tasks/diff-view/main-panel/missing-file-error';
 import { getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
 import type { DiffTabStore } from '@renderer/features/tasks/tabs/diff-tab-store';
 import {
@@ -240,9 +241,4 @@ function tabToActiveFile(tab: DiffTabStore): ActiveFile {
     modifiedRef: tab.modifiedRef,
     prNumber: tab.prNumber,
   };
-}
-
-function isMissingFileError(err: unknown): boolean {
-  const message = err instanceof Error ? err.message : String(err);
-  return /\b(ENOENT|File not found)\b/i.test(message);
 }

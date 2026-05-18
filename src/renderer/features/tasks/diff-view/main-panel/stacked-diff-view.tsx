@@ -3,6 +3,7 @@ import { reaction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import { Activity, useEffect, useMemo, useRef, useState } from 'react';
 import { HEAD_REF, STAGED_REF } from '@shared/git';
+import { isMissingFileError } from '@renderer/features/tasks/diff-view/main-panel/missing-file-error';
 import type { DiffViewStore } from '@renderer/features/tasks/diff-view/stores/diff-view-store';
 import {
   StackedDiffPanelStore,
@@ -247,6 +248,7 @@ const StackedFileSlot = observer(function StackedFileSlot({
     originalRef,
     modifiedRef,
     file,
+    file?.status,
     slotStore,
   ]);
 
@@ -329,8 +331,3 @@ const StackedFileSlot = observer(function StackedFileSlot({
     </div>
   );
 });
-
-function isMissingFileError(err: unknown): boolean {
-  const message = err instanceof Error ? err.message : String(err);
-  return /\b(ENOENT|File not found)\b/i.test(message);
-}
