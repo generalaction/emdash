@@ -118,6 +118,8 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
     await new Promise((r) => setTimeout(r, 500));
     setPhase('idle');
     showCreatePrModal({
+      projectId,
+      taskId,
       repositoryUrl: workspace.repository.repositoryUrl ?? '',
       branchName: taskData?.taskBranch ?? '',
       draft: false,

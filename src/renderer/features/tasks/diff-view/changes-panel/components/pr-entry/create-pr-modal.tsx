@@ -6,7 +6,6 @@ import { parseGitHubRepository } from '@shared/github-repository';
 import { pullRequestErrorMessage } from '@shared/pull-requests';
 import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { getRegisteredTaskData } from '@renderer/features/tasks/stores/task-selectors';
-import { useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import { BranchDisplay } from '@renderer/lib/components/branch-display';
 import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
 import { RemoteSelectContent } from '@renderer/lib/components/remote-select-content';
@@ -32,6 +31,8 @@ import { resolveInitialBaseBranch } from './base-branch';
 import { getGitHubTargetRemotes, resolveCreatePrTargetRemote } from './target-remote';
 
 export type CreatePrModalArgs = {
+  projectId: string;
+  taskId: string;
   repositoryUrl: string;
   branchName: string;
   draft: boolean;
@@ -41,13 +42,14 @@ export type CreatePrModalArgs = {
 type Props = BaseModalProps<void> & CreatePrModalArgs;
 
 export const CreatePrModal = observer(function CreatePrModal({
+  projectId,
+  taskId,
   repositoryUrl,
   branchName,
   draft,
   workspaceId,
   onSuccess,
 }: Props) {
-  const { projectId, taskId } = useTaskViewContext();
   const [title, setTitle] = useState(branchName);
   const [description, setDescription] = useState('');
   const [selectedBaseOverride, setSelectedBaseOverride] = useState<Branch | undefined>();
