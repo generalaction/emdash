@@ -9,5 +9,7 @@ export const projectView = {
   TitlebarSlot: ProjectTitlebar,
   MainPanel: ProjectMainPanel,
   canActivate: ({ projectId }: { projectId: string }): GuardResult =>
-    appState.projects.projects.has(projectId) ? { ok: true } : { ok: false, redirect: 'home' },
+    appState.projects.projects.has(projectId) || appState.projects.pendingCreationIds.has(projectId)
+      ? { ok: true }
+      : { ok: false, redirect: 'home' },
 };

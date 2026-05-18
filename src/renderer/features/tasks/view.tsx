@@ -58,5 +58,7 @@ export const taskView = {
   commandProvider: ({ projectId, taskId }: { projectId: string; taskId: string }) =>
     createTaskCommandProvider(projectId, taskId),
   canActivate: ({ projectId }: { projectId: string; taskId: string }): GuardResult =>
-    appState.projects.projects.has(projectId) ? { ok: true } : { ok: false, redirect: 'home' },
+    appState.projects.projects.has(projectId) || appState.projects.pendingCreationIds.has(projectId)
+      ? { ok: true }
+      : { ok: false, redirect: 'home' },
 } satisfies ViewDefinition<{ projectId: string; taskId: string }>;
