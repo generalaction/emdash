@@ -147,24 +147,6 @@ const KeyboardSettingsCard: React.FC = () => {
                           {showActions && (
                             <div className="pointer-events-none flex items-center gap-1 opacity-0 transition-opacity group-hover/shortcut:pointer-events-auto group-hover/shortcut:opacity-100">
                               <TooltipProvider delay={150}>
-                                {showClear && (
-                                  <Tooltip>
-                                    <TooltipTrigger>
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        className="text-muted-foreground hover:text-foreground"
-                                        onClick={() => handleClear(key)}
-                                        disabled={loading || saving}
-                                        aria-label="Remove shortcut"
-                                      >
-                                        <X className="h-3.5 w-3.5" />
-                                      </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="top">Remove shortcut</TooltipContent>
-                                  </Tooltip>
-                                )}
                                 {showReset && (
                                   <Tooltip>
                                     <TooltipTrigger>
@@ -181,6 +163,24 @@ const KeyboardSettingsCard: React.FC = () => {
                                       </Button>
                                     </TooltipTrigger>
                                     <TooltipContent side="top">Reset to default</TooltipContent>
+                                  </Tooltip>
+                                )}
+                                {showClear && (
+                                  <Tooltip>
+                                    <TooltipTrigger>
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="text-muted-foreground hover:text-foreground"
+                                        onClick={() => handleClear(key)}
+                                        disabled={loading || saving}
+                                        aria-label="Remove shortcut"
+                                      >
+                                        <X className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top">Remove shortcut</TooltipContent>
                                   </Tooltip>
                                 )}
                               </TooltipProvider>
