@@ -162,4 +162,51 @@ describe('createTask', () => {
       expect.objectContaining({ type: 'local' })
     );
   });
+
+  it('fetches the pull request branch when it is not already checked out', async () => {
+    mocks.findBranchAnywhere.mockResolvedValue(undefined);
+
+    const insertTaskValues = vi.fn((values: Partial<TaskRow>) => ({
+      returning: vi.fn().mockResolvedValue([makeTaskRow(values)]),
+    }));
+    const insertWorkspaceValues = vi.fn().mockResolvedValue(undefined);
+    mocks.insert
+      .mockReturnValueOnce({ values: insertTaskValues })
+      .mockReturnValueOnce({ values: insertWorkspaceValues });
+
+    const result = await createTask({
+      id: 'task-1',
+      projectId: 'project-1',
+      name: 'Review PR',
+      sourceBranch: {
+        type: 'remote',
+        branch: 'main',
+        remote: { name: 'origin', url: 'https://github.com/example/repo.git' },
+      },
+      strategy: {
+        kind: 'from-pull-request',
+        prNumber: 123,
+        headBranch: 'claude/add-french-translations-ud2fs',
+        headRepositoryUrl: 'https://github.com/example/repo.git',
+        isFork: false,
+      },
+    });
+
+    expect(result.success).toBe(true);
+    expect(mocks.findBranchAnywhere).toHaveBeenCalledWith('claude/add-french-translations-ud2fs');
+    expect(mocks.fetchPrForReview).toHaveBeenCalledWith(
+      123,
+      'claude/add-french-translations-ud2fs',
+      'https://github.com/example/repo.git',
+      'claude/add-french-translations-ud2fs',
+      false,
+      'origin'
+    );
+    expect(insertTaskValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        taskBranch: 'claude/add-french-translations-ud2fs',
+        sourceBranch: { type: 'local', branch: 'claude/add-french-translations-ud2fs' },
+      })
+    );
+  });
 });
