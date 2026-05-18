@@ -28,7 +28,7 @@ export function PrBadge({ variant = 'default', pr, className, hoverDelay }: PrBa
               className
             )}
           >
-            <StatusIcon className="size-3" status={pr.status} disableTooltip />
+            <StatusIcon className="size-3" pr={pr} disableTooltip />
             <PrNumberBadge number={getPrNumber(pr) ?? 0} className="text-[10px]" />
             <span className="text-xs text-foreground-muted truncate">{pr.title}</span>
           </div>
@@ -36,7 +36,7 @@ export function PrBadge({ variant = 'default', pr, className, hoverDelay }: PrBa
       case 'compact':
         return (
           <div className={cn('px-1 flex items-center justify-center', className)}>
-            <StatusIcon className="size-3" status={pr.status} disableTooltip />
+            <StatusIcon className="size-3" pr={pr} disableTooltip />
           </div>
         );
     }
@@ -51,7 +51,7 @@ export function PrBadge({ variant = 'default', pr, className, hoverDelay }: PrBa
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2 justify-between no-wrap">
             <div className="flex items-center gap-2  min-w-0">
-              <StatusIcon status={pr.status} className="size-3" />
+              <StatusIcon pr={pr} className="size-3" />
               <span className="text-sm text-foreground leading-snug truncate min-w-0">
                 {pr.title}
               </span>
