@@ -5,7 +5,6 @@ import type { ConversationManagerStore } from '@renderer/features/tasks/conversa
 import type { DevServerStore } from '@renderer/features/tasks/stores/dev-server-store';
 import {
   getConversationsForTask,
-  getRegisteredTaskData,
   getTaskStore,
   getTerminalsForTask,
   getWorkspaceForTask,
@@ -34,7 +33,7 @@ export const TaskViewWrapper = observer(function TaskViewWrapper({
   projectId: string;
   taskId: string;
 }) {
-  const workspaceId = getRegisteredTaskData(projectId, taskId)?.workspaceId ?? null;
+  const workspaceId = getTaskStore(projectId, taskId)?.workspaceId ?? null;
   return (
     <ProjectViewWrapper projectId={projectId}>
       <TaskViewContext.Provider value={{ projectId, taskId, workspaceId }}>
