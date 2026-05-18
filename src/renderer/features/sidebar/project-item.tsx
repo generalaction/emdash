@@ -169,20 +169,25 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
             </span>
           </div>
           <Tooltip>
-            <TooltipTrigger className="flex items-center">
-              <SidebarItemMiniButton
-                type="button"
-                className={'opacity-0 group-hover/row:opacity-100 transition-opacity duration-150'}
-                onPointerEnter={() => prefetchRepository()}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  showCreateTaskModal({ projectId });
-                }}
-                disabled={project.state === 'unregistered'}
-              >
-                <Plus className="h-4 w-4" />
-              </SidebarItemMiniButton>
-            </TooltipTrigger>
+            <TooltipTrigger
+              className="h-6"
+              render={
+                <SidebarItemMiniButton
+                  type="button"
+                  className={
+                    'opacity-0 group-hover/row:opacity-100 transition-opacity duration-150'
+                  }
+                  onPointerEnter={() => prefetchRepository()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    showCreateTaskModal({ projectId });
+                  }}
+                  disabled={project.state === 'unregistered'}
+                >
+                  <Plus className="h-4 w-4" />
+                </SidebarItemMiniButton>
+              }
+            />
             <TooltipContent>
               New Task
               <ShortcutHint settingsKey="newTask" />
