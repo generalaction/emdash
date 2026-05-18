@@ -187,22 +187,21 @@ export function FeedbackModal({ onSuccess, blurb }: Props) {
           </div>
 
           <div className="space-y-2">
-            <label className="flex items-start gap-2 rounded-md border border-border bg-background-subtle p-3 text-sm">
-              <Checkbox
-                checked={includeDiagnosticLogs}
-                onCheckedChange={(checked) => setIncludeDiagnosticLogs(Boolean(checked))}
-                disabled={submitting}
-                aria-describedby={diagnosticHelpId}
-              />
-              <span className="flex min-w-0 flex-col gap-0.5">
-                <span className="flex items-center gap-1.5 font-medium">
+            <label className="block rounded-md border border-border bg-background-subtle p-3 text-sm">
+              <span className="flex items-center gap-2">
+                <Checkbox
+                  checked={includeDiagnosticLogs}
+                  onCheckedChange={(checked) => setIncludeDiagnosticLogs(Boolean(checked))}
+                  disabled={submitting}
+                  aria-describedby={diagnosticHelpId}
+                />
+                <span className="flex min-w-0 items-center gap-1.5 font-medium">
                   <FileTextIcon className="size-3.5" aria-hidden="true" />
                   Include diagnostic logs
                 </span>
-                <span id={diagnosticHelpId} className="text-xs text-muted-foreground">
-                  Attaches recent app logs. We automatically remove emails, file paths, and tokens
-                  before sending.
-                </span>
+              </span>
+              <span id={diagnosticHelpId} className="mt-1 block pl-8 text-xs text-muted-foreground">
+                Attaches recent app logs with sensitive details redacted.
               </span>
             </label>
 

@@ -137,16 +137,21 @@ export function registerProcessErrorLogging(log: {
 }) {
   process.on('uncaughtException', (error) => {
     log.error('Uncaught exception', serializeLogValue(error));
-    const flush = Promise.race([
-      flushLogWrites(),
-      new Promise<void>((resolve) => setTimeout(resolve, PROCESS_EXIT_FLUSH_TIMEOUT_MS)),
-    ]);
-    void flush.finally(() => process.exit(1));
+    flushAndExit();
   });
 
   process.on('unhandledRejection', (reason) => {
     log.error('Unhandled rejection', serializeLogValue(reason));
+    flushAndExit();
   });
+}
+
+function flushAndExit() {
+  const flush = Promise.race([
+    flushLogWrites(),
+    new Promise<void>((resolve) => setTimeout(resolve, PROCESS_EXIT_FLUSH_TIMEOUT_MS)),
+  ]);
+  void flush.finally(() => process.exit(1));
 }
 
 export function registerRendererLogHandler(ipcMain: Electron.IpcMain) {
@@ -201,8 +206,9 @@ async function rotateIfNeeded(path: string, incomingBytes: number) {
 }
 
 function trimToLineBoundary(value: string, maxBytes: number) {
-  if (value.length <= maxBytes) return value;
-  const sliced = value.slice(-maxBytes);
+  const encoded = Buffer.from(value, 'utf8');
+  if (encoded.byteLength <= maxBytes) return value;
+  const sliced = encoded.slice(-maxBytes).toString('utf8');
   const newline = sliced.indexOf('\n');
   if (newline === -1 || newline === sliced.length - 1) return sliced;
   return sliced.slice(newline + 1);
@@ -243,8 +249,8 @@ function redactPii(value: string) {
 }
 
 function applyRedactions(value: string, patterns: Array<[RegExp, RedactionReplacement]>) {
-  return patterns.reduce((redacted, [pattern, replacement]) => {
-    if (typeof replacement === 'function') return redacted.replace(pattern, replacement);
-    return redacted.replace(pattern, replacement);
-  }, value);
+  return patterns.reduce(
+    (redacted, [pattern, replacement]) => redacted.replace(pattern, replacement as string),
+    value
+  );
 }
