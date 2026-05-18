@@ -1,4 +1,4 @@
-import { formatForDisplay, useHotkeyRecorder, type Hotkey } from '@tanstack/react-hotkeys';
+import { useHotkeyRecorder, type Hotkey } from '@tanstack/react-hotkeys';
 import { RotateCcw, X } from 'lucide-react';
 import React, { useState } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
@@ -10,6 +10,8 @@ import {
   type ShortcutSettingsKey,
 } from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { Button } from '@renderer/lib/ui/button';
+import { Shortcut } from '@renderer/lib/ui/shortcut';
+import { describeHotkey } from '@renderer/lib/ui/shortcut-format';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 
 const CONFIGURABLE_SHORTCUTS = (
@@ -60,7 +62,7 @@ const KeyboardSettingsCard: React.FC = () => {
       update({ [editingKey]: hotkey });
       toast({
         title: 'Shortcut updated',
-        description: `${APP_SHORTCUTS[editingKey].label} is now ${formatForDisplay(hotkey)}`,
+        description: `${APP_SHORTCUTS[editingKey].label} is now ${describeHotkey(hotkey)}`,
       });
       setEditingKey(null);
     },
@@ -105,7 +107,6 @@ const KeyboardSettingsCard: React.FC = () => {
                 const defaultHotkey = resolveDefaultHotkey(def);
                 const showReset = defaultHotkey != null && effectiveHotkey !== defaultHotkey;
                 const showActions = showClear || showReset;
-                const displayHotkey = effectiveHotkey ? formatForDisplay(effectiveHotkey) : '';
 
                 return (
                   <div
@@ -187,13 +188,13 @@ const KeyboardSettingsCard: React.FC = () => {
                           )}
                           <Button
                             type="button"
-                            variant="outline"
+                            variant="ghost"
                             size="sm"
-                            className="min-w-[80px] font-mono"
+                            className="min-w-[80px] justify-end px-0 hover:bg-transparent dark:hover:bg-transparent"
                             onClick={() => startCapture(key)}
                             disabled={loading || saving}
                           >
-                            {displayHotkey}
+                            <Shortcut hotkey={effectiveHotkey} variant="keycaps" />
                           </Button>
                         </>
                       )}
