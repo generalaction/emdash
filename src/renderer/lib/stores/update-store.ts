@@ -221,7 +221,13 @@ export class UpdateStore {
   private _maybeToastAvailable(version: string): void {
     if (!this._shouldNotify(version)) return;
     toast('Update Available', {
-      description: `Version ${version} is ready. Go to Settings to upgrade.`,
+      description: `Version ${version} is ready to install.`,
+      action: {
+        label: 'Update',
+        onClick: () => {
+          void this.download();
+        },
+      },
     });
     this._rememberNotified(version);
   }
