@@ -1,12 +1,35 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AppSettings, AppSettingsKey } from '@shared/app-settings';
 import { rpc } from '@renderer/lib/ipc';
+import { queryClient } from '@renderer/lib/query-client';
 
 type SettingsMeta<K extends AppSettingsKey> = {
   value: AppSettings[K];
   defaults: AppSettings[K];
   overrides: Partial<AppSettings[K]>;
 };
+
+const settingsMetaQueryKey = <K extends AppSettingsKey>(key: K) =>
+  ['appSettings', key, 'meta'] as const;
+
+/** Synchronous read of the cached settings value. Returns undefined if not yet fetched. */
+export function getAppSettingValueSnapshot<K extends AppSettingsKey>(
+  key: K
+): AppSettings[K] | undefined {
+  return queryClient.getQueryData<SettingsMeta<K>>(settingsMetaQueryKey(key))?.value;
+}
+
+const appSettingsGcTime = <K extends AppSettingsKey>(key: K) =>
+  key === 'interface' ? Infinity : undefined;
+
+export function prefetchAppSettingsKey<K extends AppSettingsKey>(key: K) {
+  return queryClient.prefetchQuery<SettingsMeta<K>>({
+    queryKey: settingsMetaQueryKey(key),
+    queryFn: () => rpc.appSettings.getWithMeta(key) as Promise<SettingsMeta<K>>,
+    staleTime: 5 * 60_000,
+    gcTime: appSettingsGcTime(key),
+  });
+}
 
 function mergeValue<K extends AppSettingsKey>(
   current: AppSettings[K] | undefined,
@@ -30,9 +53,10 @@ export function useAppSettingsKey<K extends AppSettingsKey>(key: K) {
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery<SettingsMeta<K>>({
-    queryKey: ['appSettings', key, 'meta'] as const,
+    queryKey: settingsMetaQueryKey(key),
     queryFn: () => rpc.appSettings.getWithMeta(key) as Promise<SettingsMeta<K>>,
     staleTime: 5 * 60_000,
+    gcTime: appSettingsGcTime(key),
   });
 
   const updateMutation = useMutation<
