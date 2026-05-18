@@ -31,6 +31,7 @@ export class GitStore {
             }),
           onEvent: 'reload',
           debounceMs: 100,
+          maxWaitMs: 500,
         },
         {
           kind: 'event',
@@ -42,6 +43,7 @@ export class GitStore {
             }),
           onEvent: 'reload',
           debounceMs: 300,
+          maxWaitMs: 1000,
         },
         {
           kind: 'event',
@@ -63,6 +65,7 @@ export class GitStore {
           },
           onEvent: 'reload',
           debounceMs: 500,
+          maxWaitMs: 1500,
         },
       ]
     );
