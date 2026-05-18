@@ -714,6 +714,48 @@ export class LocalFileSystem implements FileSystemProvider {
     }
   }
 
+  async readPdf(path: string): Promise<{
+    success: boolean;
+    dataUrl?: string;
+    mimeType?: string;
+    size?: number;
+    error?: string;
+  }> {
+    const fullPath = this.resolvePath(path);
+    const ext = extname(path).toLowerCase();
+    if (ext !== '.pdf') {
+      return { success: false, error: `Unsupported PDF format: ${ext}` };
+    }
+
+    let stat;
+    try {
+      stat = await fs.stat(fullPath);
+    } catch {
+      return { success: false, error: `PDF not found: ${path}` };
+    }
+
+    if (stat.isDirectory()) {
+      return { success: false, error: `Path is a directory: ${path}` };
+    }
+
+    const maxPdfSize = 50 * 1024 * 1024;
+    if (stat.size > maxPdfSize) {
+      return { success: false, error: `PDF too large: ${stat.size} bytes (max ${maxPdfSize})` };
+    }
+
+    try {
+      const buffer = await fs.readFile(fullPath);
+      return {
+        success: true,
+        dataUrl: `data:application/pdf;base64,${buffer.toString('base64')}`,
+        mimeType: 'application/pdf',
+        size: stat.size,
+      };
+    } catch (err: unknown) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
   async mkdir(dirPath: string, options?: { recursive?: boolean }): Promise<void> {
     await fs.mkdir(this.resolvePath(dirPath), { recursive: options?.recursive ?? false });
   }

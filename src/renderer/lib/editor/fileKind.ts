@@ -22,7 +22,6 @@ export const BINARY_EXTS = new Set([
   'bz2',
   '7z',
   'rar',
-  'pdf',
   'db',
   'sqlite',
   'sqlite3',
@@ -60,6 +59,7 @@ export function getFileKind(filePath: string): Exclude<ManagedFileKind, 'too-lar
   const ext = filePath.split('.').pop()?.toLowerCase() ?? '';
   if (RASTER_EXTS.has(ext)) return 'image';
   if (ext === 'svg') return 'svg';
+  if (ext === 'pdf') return 'pdf';
   if (ext === 'md' || ext === 'mdx') return 'markdown';
   if (HTML_EXTS.has(ext)) return 'html';
   if (BINARY_EXTS.has(ext)) return 'binary';
@@ -68,13 +68,13 @@ export function getFileKind(filePath: string): Exclude<ManagedFileKind, 'too-lar
 
 /** True for file kinds that default to rendered/preview mode. */
 export function isPreviewableKind(kind: ManagedFileKind): boolean {
-  return kind === 'svg' || kind === 'markdown' || kind === 'html';
+  return kind === 'svg' || kind === 'markdown' || kind === 'html' || kind === 'pdf';
 }
 
 /** True for files the diff viewer must not load into Monaco. */
 export function isBinaryForDiff(filePath: string): boolean {
   const kind = getFileKind(filePath);
-  return kind === 'binary' || kind === 'image' || kind === 'svg';
+  return kind === 'binary' || kind === 'image' || kind === 'svg' || kind === 'pdf';
 }
 
 /** True for files the diff viewer renders as an `<img>` preview instead of text. */

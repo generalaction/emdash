@@ -7,6 +7,7 @@ export type ManagedFileKind =
   | 'html'
   | 'svg'
   | 'image'
+  | 'pdf'
   | 'too-large'
   | 'binary';
 
@@ -14,9 +15,9 @@ export type ManagedFileKind =
 export interface ManagedFile {
   path: string;
   kind: ManagedFileKind;
-  /** Data-URL for images; empty string for Monaco-backed files (content lives in Monaco model). */
+  /** Data-URL for binary previews; empty string for Monaco-backed files (content lives in Monaco model). */
   content: string;
-  /** True only for image files while the data-URL is being fetched. */
+  /** True while preview content is being fetched. */
   isLoading: boolean;
   /** Only set for `kind === 'too-large'` files. */
   totalSize?: number | null;

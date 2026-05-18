@@ -235,6 +235,19 @@ export interface FileSystemProvider {
   }>;
 
   /**
+   * Read PDF file as base64 data URL
+   * @param path - PDF file path relative to project root
+   * @returns Promise resolving to PDF data
+   */
+  readPdf?(path: string): Promise<{
+    success: boolean;
+    dataUrl?: string;
+    mimeType?: string;
+    size?: number;
+    error?: string;
+  }>;
+
+  /**
    * Copy a local file into the project's .emdash attachments directory.
    * Only supported on local filesystems (srcPath is an absolute local path).
    * @param srcPath - Absolute local path of the source file

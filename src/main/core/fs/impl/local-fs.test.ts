@@ -463,6 +463,38 @@ describe('LocalFileSystem', () => {
     });
   });
 
+  describe('readPdf', () => {
+    it('should read PDF as data URL', async () => {
+      const pdfBuffer = Buffer.from('%PDF-1.4\n%test\n');
+      fs.writeFileSync(path.join(tempDir, 'test.pdf'), pdfBuffer);
+
+      const result = await fsService.readPdf('test.pdf');
+
+      expect(result.success).toBe(true);
+      expect(result.dataUrl).toBe(`data:application/pdf;base64,${pdfBuffer.toString('base64')}`);
+      expect(result.mimeType).toBe('application/pdf');
+      expect(result.size).toBe(pdfBuffer.length);
+    });
+
+    it('should reject non-PDF files', async () => {
+      fs.writeFileSync(path.join(tempDir, 'test.txt'), 'fake-data');
+
+      const result = await fsService.readPdf('test.txt');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Unsupported PDF format');
+    });
+
+    it('should reject oversized PDFs', async () => {
+      fs.writeFileSync(path.join(tempDir, 'large.pdf'), Buffer.alloc(51 * 1024 * 1024));
+
+      const result = await fsService.readPdf('large.pdf');
+
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('too large');
+    });
+  });
+
   describe('path traversal protection', () => {
     it('should block absolute path traversal', async () => {
       // Absolute paths get normalized by resolvePath

@@ -781,6 +781,72 @@ export class SshFileSystem implements FileSystemProvider {
     });
   }
 
+  async readPdf(path: string): Promise<{
+    success: boolean;
+    dataUrl?: string;
+    mimeType?: string;
+    size?: number;
+    error?: string;
+  }> {
+    const ext = path.toLowerCase().substring(path.lastIndexOf('.'));
+    if (ext !== '.pdf') {
+      return { success: false, error: `Unsupported PDF format: ${ext}` };
+    }
+
+    const fullPath = this.resolveRemotePath(path);
+    const sftp = await this.getSftp();
+
+    return new Promise((resolve, reject) => {
+      sftp.open(fullPath, 'r', (err, handle) => {
+        if (err) {
+          reject(this.mapSftpError(err, fullPath));
+          return;
+        }
+
+        sftp.fstat(handle, (statErr, stats) => {
+          if (statErr) {
+            sftp.close(handle, () => {});
+            reject(this.mapSftpError(statErr, fullPath));
+            return;
+          }
+
+          const maxPdfSize = 50 * 1024 * 1024;
+          if (stats.size > maxPdfSize) {
+            sftp.close(handle, () => {});
+            resolve({
+              success: false,
+              error: `PDF too large: ${stats.size} bytes (max ${maxPdfSize})`,
+            });
+            return;
+          }
+
+          if (stats.size === 0) {
+            sftp.close(handle, () => {});
+            resolve({ success: false, error: 'PDF file is empty' });
+            return;
+          }
+
+          const buffer = Buffer.alloc(stats.size);
+          sftp.read(handle, buffer, 0, stats.size, 0, (readErr) => {
+            sftp.close(handle, () => {});
+
+            if (readErr) {
+              reject(this.mapSftpError(readErr, fullPath));
+              return;
+            }
+
+            resolve({
+              success: true,
+              dataUrl: `data:application/pdf;base64,${buffer.toString('base64')}`,
+              mimeType: 'application/pdf',
+              size: stats.size,
+            });
+          });
+        });
+      });
+    });
+  }
+
   // ─── Private utilities ────────────────────────────────────────────────────
 
   /**

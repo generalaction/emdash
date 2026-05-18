@@ -6,7 +6,7 @@ import type { ManagedFileKind } from '@renderer/lib/editor/types';
 
 /**
  * Observable store for a single open file tab.
- * Owns all file-specific display state: path, renderer kind, image content, size.
+ * Owns all file-specific display state: path, renderer kind, preview content, size.
  */
 export class FileTabStore {
   readonly tabId: string;
@@ -16,9 +16,9 @@ export class FileTabStore {
   isPreview: boolean;
   fileKind: ManagedFileKind;
   renderer: FileRendererData;
-  /** Data-URL for image files; empty string for Monaco-backed files. */
+  /** Data-URL for binary previews; empty string for Monaco-backed files. */
   content: string;
-  /** True only for image files while the data-URL is being fetched. */
+  /** True while preview content is being fetched. */
   isLoading: boolean;
   totalSize: number | null;
 
@@ -30,7 +30,7 @@ export class FileTabStore {
     this.fileKind = fileKind;
     this.renderer = getDefaultRenderer(fileKind);
     this.content = '';
-    this.isLoading = fileKind === 'image';
+    this.isLoading = fileKind === 'image' || fileKind === 'pdf';
     this.totalSize = null;
 
     makeObservable(this, {
@@ -76,7 +76,7 @@ export class FileTabStore {
     this.fileKind = fileKind;
     this.renderer = getDefaultRenderer(fileKind);
     this.content = '';
-    this.isLoading = fileKind === 'image';
+    this.isLoading = fileKind === 'image' || fileKind === 'pdf';
     this.totalSize = null;
   }
 }

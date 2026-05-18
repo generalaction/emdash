@@ -9,6 +9,7 @@ export type FileRendererData =
   | { kind: 'svg' }
   | { kind: 'svg-source' }
   | { kind: 'image' }
+  | { kind: 'pdf' }
   | { kind: 'binary' }
   | { kind: 'too-large' }
   | { kind: 'file-error' };

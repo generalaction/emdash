@@ -126,6 +126,26 @@ export const filesController = createRPCController({
     }
   },
 
+  readPdf: async (projectId: string, workspaceId: string, filePath: string) => {
+    const env = resolveWorkspace(projectId, workspaceId);
+    if (!env)
+      return err({ type: 'not_found' as const, entity: 'filesystem' as const, detail: undefined });
+
+    if (!env.fs.readPdf) {
+      return err({
+        type: 'fs_error' as const,
+        message: 'readPdf not supported by this filesystem',
+      });
+    }
+
+    try {
+      const result = await env.fs.readPdf(filePath);
+      return ok(result);
+    } catch (e) {
+      return err({ type: 'fs_error' as const, message: String(e) });
+    }
+  },
+
   searchFiles: async (
     projectId: string,
     workspaceId: string,

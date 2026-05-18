@@ -5,6 +5,7 @@ import { BinaryRenderer } from '@renderer/lib/editor/binary-renderer';
 import { FileErrorRenderer } from '@renderer/lib/editor/file-error-renderer';
 import { HtmlRenderer } from '@renderer/lib/editor/html-renderer';
 import { ImageRenderer } from '@renderer/lib/editor/image-renderer';
+import { PdfRenderer } from '@renderer/lib/editor/pdf-renderer';
 import { SvgRenderer } from '@renderer/lib/editor/svg-renderer';
 import { TooLargeRenderer } from '@renderer/lib/editor/too-large-renderer';
 
@@ -37,6 +38,8 @@ function OtherFileRenderer({ file }: OtherFileRendererProps) {
       return <HtmlRenderer filePath={file.path} />;
     case 'image':
       return <ImageRenderer file={file} />;
+    case 'pdf':
+      return <PdfRenderer file={file} />;
     case 'too-large':
       return <TooLargeRenderer file={file} />;
     case 'binary':
