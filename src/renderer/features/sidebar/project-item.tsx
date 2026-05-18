@@ -169,7 +169,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
             </span>
           </div>
           <Tooltip>
-            <TooltipTrigger>
+            <TooltipTrigger className="flex items-center">
               <SidebarItemMiniButton
                 type="button"
                 className={'opacity-0 group-hover/row:opacity-100 transition-opacity duration-150'}
