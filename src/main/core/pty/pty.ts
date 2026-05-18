@@ -12,6 +12,7 @@ export interface Pty {
   write(data: string): void;
   resize(cols: number, rows: number): void;
   kill(): void;
+  shutdown?(): void;
   onData(handler: (data: string) => void): void;
   onExit(handler: (info: PtyExitInfo) => void): void;
   /**

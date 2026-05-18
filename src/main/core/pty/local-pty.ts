@@ -15,6 +15,7 @@ export interface LocalSpawnOptions extends PtyDimensions {
 
 const MIN_COLS = 2;
 const MIN_ROWS = 1;
+const localPtys = new Set<LocalPtySession>();
 
 export function spawnLocalPty(options: LocalSpawnOptions): LocalPtySession {
   const { id, command, args, cwd, env, cols, rows } = options;
@@ -46,19 +47,25 @@ export function spawnLocalPty(options: LocalSpawnOptions): LocalPtySession {
 
 export class LocalPtySession implements Pty {
   readonly id: string;
+  private killed = false;
+  private exited = false;
+  private suppressExit = false;
 
   constructor(
     id: string,
     private readonly proc: IPty
   ) {
     this.id = id;
+    localPtys.add(this);
   }
 
   write(data: string): void {
+    if (this.killed || this.exited) return;
     this.proc.write(data);
   }
 
   resize(cols: number, rows: number): void {
+    if (this.killed || this.exited) return;
     const c = Number.isFinite(cols) ? Math.max(MIN_COLS, Math.floor(cols)) : MIN_COLS;
     const r = Number.isFinite(rows) ? Math.max(MIN_ROWS, Math.floor(rows)) : MIN_ROWS;
     try {
@@ -73,20 +80,41 @@ export class LocalPtySession implements Pty {
   }
 
   kill(): void {
+    if (this.killed || this.exited) return;
+    this.killed = true;
+    localPtys.delete(this);
     this.proc.kill();
   }
 
+  shutdown(): void {
+    this.suppressExit = true;
+    this.kill();
+  }
+
   onData(handler: (data: string) => void): void {
-    this.proc.onData(handler);
+    this.proc.onData((data) => {
+      if (!this.killed && !this.exited) handler(data);
+    });
   }
 
   onExit(handler: (info: PtyExitInfo) => void): void {
     this.proc.onExit(({ exitCode, signal }) => {
+      this.exited = true;
+      localPtys.delete(this);
+      if (this.suppressExit) return;
       handler({ exitCode, signal: normalizeSignal(signal) });
     });
   }
 
   getPid(): number {
     return this.proc.pid;
+  }
+}
+
+export function shutdownLocalPtys(): void {
+  for (const pty of [...localPtys]) {
+    try {
+      pty.shutdown();
+    } catch {}
   }
 }

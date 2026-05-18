@@ -92,6 +92,22 @@ export class PtySessionRegistry {
     this.metadata.delete(sessionId);
   }
 
+  shutdownAll(): void {
+    for (const [sessionId, pty] of [...this.ptyMap]) {
+      try {
+        try {
+          if (pty.shutdown) {
+            pty.shutdown();
+          } else {
+            pty.kill();
+          }
+        } finally {
+          this.unregister(sessionId);
+        }
+      } catch {}
+    }
+  }
+
   get(sessionId: string): Pty | undefined {
     return this.ptyMap.get(sessionId);
   }

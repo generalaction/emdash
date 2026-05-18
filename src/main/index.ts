@@ -18,6 +18,8 @@ import { githubConnectionService } from './core/github/services/github-connectio
 import { projectManager } from './core/projects/project-manager';
 import { projectSettingsService } from './core/projects/settings/project-settings-service';
 import { promptLibraryService } from './core/prompt-library/service';
+import { shutdownLocalPtys } from './core/pty/local-pty';
+import { ptySessionRegistry } from './core/pty/pty-session-registry';
 import { prSyncScheduler } from './core/pull-requests/pr-sync-scheduler';
 import {
   reconcileResourceSampler,
@@ -152,18 +154,51 @@ void app.whenReady().then(async () => {
   }
 });
 
+let isQuitting = false;
+
 app.on('before-quit', (event) => {
+  if (isQuitting) return;
+  isQuitting = true;
   event.preventDefault();
   telemetryService.capture('app_closed');
-  void telemetryService.dispose().finally(() => {
-    agentHookService.dispose();
-    stopResourceSampler();
-    updateService.dispose();
-    prSyncScheduler.dispose();
-    void gitWatcherRegistry.dispose();
-    void projectManager.dispose().catch((e) => {
+
+  void (async () => {
+    try {
+      await telemetryService.dispose();
+    } finally {
+      ptySessionRegistry.shutdownAll();
+      shutdownLocalPtys();
+    }
+
+    try {
+      agentHookService.dispose();
+    } catch (e) {
+      log.error('Failed to dispose agent hook service:', e);
+    }
+    try {
+      stopResourceSampler();
+    } catch (e) {
+      log.error('Failed to stop resource sampler:', e);
+    }
+    try {
+      updateService.dispose();
+    } catch (e) {
+      log.error('Failed to dispose update service:', e);
+    }
+    try {
+      prSyncScheduler.dispose();
+    } catch (e) {
+      log.error('Failed to dispose PR sync scheduler:', e);
+    }
+    await gitWatcherRegistry.dispose().catch((e) => {
+      log.error('Failed to dispose git watcher registry:', e);
+    });
+    await projectManager.dispose().catch((e) => {
       log.error('Failed to shutdown project manager:', e);
     });
     app.exit(0);
+  })().catch((e) => {
+    log.error('Failed to shutdown cleanly:', e);
+    app.exit(1);
   });
 });
