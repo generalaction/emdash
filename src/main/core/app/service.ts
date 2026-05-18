@@ -1,7 +1,7 @@
 import { exec } from 'node:child_process';
 import { readFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { extname, relative, resolve } from 'node:path';
+import { extname, resolve, sep } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { app, clipboard, dialog, shell } from 'electron';
 import { appPasteChannel, appRedoChannel, appUndoChannel } from '@shared/events/appEvents';
@@ -421,8 +421,8 @@ class AppService implements IInitializable, IDisposable {
 
     const resolvedPath = resolve(filePath);
     const resolvedHome = resolve(homedir());
-    const relativeToHome = relative(resolvedHome, resolvedPath);
-    if (relativeToHome.startsWith('..') || relativeToHome === '') {
+    const homePrefix = resolvedHome.endsWith(sep) ? resolvedHome : `${resolvedHome}${sep}`;
+    if (!resolvedPath.startsWith(homePrefix) && resolvedPath !== resolvedHome) {
       throw new Error('Audio file must be located within the user home directory');
     }
 
