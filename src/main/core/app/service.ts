@@ -1,4 +1,7 @@
 import { exec } from 'node:child_process';
+import { readFile, stat } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { extname, resolve, sep } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { app, clipboard, dialog, shell } from 'electron';
 import { appPasteChannel, appRedoChannel, appUndoChannel } from '@shared/events/appEvents';
@@ -34,6 +37,19 @@ import {
 } from './utils';
 
 const FONT_CACHE_TTL_MS = 5 * 60 * 1_000;
+const MAX_AUDIO_FILE_BYTES = 20 * 1024 * 1024;
+
+const AUDIO_MIME_TYPES: Record<string, string> = {
+  '.aac': 'audio/aac',
+  '.flac': 'audio/flac',
+  '.m4a': 'audio/mp4',
+  '.mp3': 'audio/mpeg',
+  '.oga': 'audio/ogg',
+  '.ogg': 'audio/ogg',
+  '.opus': 'audio/ogg',
+  '.wav': 'audio/wav',
+  '.webm': 'audio/webm',
+};
 
 type RemoteTerminalLaunchAttempt = {
   file: string;
@@ -378,6 +394,48 @@ class AppService implements IInitializable, IDisposable {
     });
     if (result.canceled) return undefined;
     return result.filePaths[0];
+  }
+
+  async openSelectAudioFileDialog(args: {
+    title: string;
+    message: string;
+  }): Promise<string | undefined> {
+    const result = await dialog.showOpenDialog(getMainWindow()!, {
+      title: args.title,
+      properties: ['openFile'],
+      message: args.message,
+      filters: [
+        {
+          name: 'Audio',
+          extensions: ['aac', 'flac', 'm4a', 'mp3', 'oga', 'ogg', 'opus', 'wav', 'webm'],
+        },
+        { name: 'All files', extensions: ['*'] },
+      ],
+    });
+    if (result.canceled) return undefined;
+    return result.filePaths[0];
+  }
+
+  async readAudioFileDataUrl(filePath: string): Promise<string> {
+    if (!filePath || typeof filePath !== 'string') throw new Error('Invalid audio path');
+
+    const resolvedPath = resolve(filePath);
+    const resolvedHome = resolve(homedir());
+    const homePrefix = resolvedHome.endsWith(sep) ? resolvedHome : `${resolvedHome}${sep}`;
+    if (!resolvedPath.startsWith(homePrefix) && resolvedPath !== resolvedHome) {
+      throw new Error('Audio file must be located within the user home directory');
+    }
+
+    const extension = extname(filePath).toLowerCase();
+    const mimeType = AUDIO_MIME_TYPES[extension];
+    if (!mimeType) throw new Error('Unsupported audio file type');
+
+    const fileStat = await stat(resolvedPath);
+    if (!fileStat.isFile()) throw new Error('Audio path is not a file');
+    if (fileStat.size > MAX_AUDIO_FILE_BYTES) throw new Error('Audio file is larger than 20 MB');
+
+    const file = await readFile(resolvedPath);
+    return `data:${mimeType};base64,${file.toString('base64')}`;
   }
 }
 
