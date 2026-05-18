@@ -1,3 +1,4 @@
+import { EventEmitter } from 'node:events';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type * as RemoteShellProfileModule from './remote-shell-profile';
 import { SshClientProxy } from './ssh-client-proxy';
@@ -94,6 +95,7 @@ describe('SshClientProxy channel health reporting', () => {
     const error = new Error('open failed');
     const reporter = {
       reportChannelError: vi.fn(),
+      reportChannelRecovered: vi.fn(),
     };
     const client = {
       exec: vi
@@ -108,6 +110,7 @@ describe('SshClientProxy channel health reporting', () => {
     proxy.exec('false', vi.fn());
 
     expect(successCallback).toHaveBeenCalledWith(undefined, {});
+    expect(reporter.reportChannelRecovered).toHaveBeenCalledWith('ssh-1');
     expect(reporter.reportChannelError).toHaveBeenCalledWith('ssh-1', error);
   });
 
@@ -129,5 +132,48 @@ describe('SshClientProxy channel health reporting', () => {
 
     expect(reporter.reportChannelError).toHaveBeenCalledWith('ssh-1', ptyError);
     expect(reporter.reportChannelError).toHaveBeenCalledWith('ssh-1', sftpError);
+  });
+});
+
+describe('SshClientProxy SFTP channel caching', () => {
+  it('reuses an open SFTP channel for the same SSH connection', () => {
+    const sftp = new EventEmitter();
+    const firstCallback = vi.fn();
+    const secondCallback = vi.fn();
+    const client = {
+      sftp: vi.fn((callback) => callback(undefined, sftp)),
+    };
+    const proxy = new SshClientProxy('ssh-1');
+    proxy.update(client as never);
+
+    proxy.sftp(firstCallback);
+    proxy.sftp(secondCallback);
+
+    expect(client.sftp).toHaveBeenCalledTimes(1);
+    expect(firstCallback).toHaveBeenCalledWith(undefined, sftp);
+    expect(secondCallback).toHaveBeenCalledWith(undefined, sftp);
+  });
+
+  it('opens a new SFTP channel after the cached channel closes', () => {
+    const firstSftp = new EventEmitter();
+    const secondSftp = new EventEmitter();
+    const firstCallback = vi.fn();
+    const secondCallback = vi.fn();
+    const client = {
+      sftp: vi
+        .fn()
+        .mockImplementationOnce((callback) => callback(undefined, firstSftp))
+        .mockImplementationOnce((callback) => callback(undefined, secondSftp)),
+    };
+    const proxy = new SshClientProxy('ssh-1');
+    proxy.update(client as never);
+
+    proxy.sftp(firstCallback);
+    firstSftp.emit('close');
+    proxy.sftp(secondCallback);
+
+    expect(client.sftp).toHaveBeenCalledTimes(2);
+    expect(firstCallback).toHaveBeenCalledWith(undefined, firstSftp);
+    expect(secondCallback).toHaveBeenCalledWith(undefined, secondSftp);
   });
 });

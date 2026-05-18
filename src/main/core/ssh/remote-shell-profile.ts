@@ -55,6 +55,13 @@ function buildRemoteShellProcessEnvPrefix(env: Record<string, string>): string {
   return assignments.length > 0 ? `env ${assignments.join(' ')} ` : '';
 }
 
+function quoteRemoteLoginShellArg(arg: string): string {
+  // The SSH server first hands this text to the user's login shell, which may
+  // be fish. Double quotes with escaped expansion characters are accepted by
+  // both fish and POSIX shells while preserving the inner POSIX shell script.
+  return `"${arg.replace(/["\\$`]/g, '\\$&')}"`;
+}
+
 export function buildRemoteShellCommand(
   profile: RemoteShellProfile,
   command: string,
@@ -62,7 +69,7 @@ export function buildRemoteShellCommand(
 ): string {
   const shell = normalizeRemoteShell(profile.shell);
   const prefix = `${buildRemoteShellEnvPrefix(profile.env)}${buildRemoteShellEnvPrefix(env)}`;
-  return `${quoteShellArg(shell)} ${remoteShellCommandFlag(shell)} ${quoteShellArg(
+  return `${quoteRemoteLoginShellArg(shell)} ${remoteShellCommandFlag(shell)} ${quoteRemoteLoginShellArg(
     `${prefix}${command}`
   )}`;
 }

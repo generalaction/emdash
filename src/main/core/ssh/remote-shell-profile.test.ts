@@ -19,7 +19,7 @@ describe('remote shell profile command building', () => {
     const command = buildRemoteShellCommand(profile, 'which claude');
 
     expect(command).toBe(
-      "'/bin/zsh' -lc 'export PATH='\\''/Users/jona/.local/bin:/opt/homebrew/bin:/usr/bin'\\''; export NVM_DIR='\\''/Users/jona/.nvm'\\''; which claude'"
+      `"/bin/zsh" -lc "export PATH='/Users/jona/.local/bin:/opt/homebrew/bin:/usr/bin'; export NVM_DIR='/Users/jona/.nvm'; which claude"`
     );
   });
 
@@ -37,16 +37,16 @@ describe('remote shell profile command building', () => {
       FOO: 'task',
     });
 
-    expect(command).toContain("export PATH='\\''/captured/bin:/usr/bin'\\''");
-    expect(command).toContain("export PATH='\\''/task/bin:/usr/bin'\\''");
+    expect(command).toContain("export PATH='/captured/bin:/usr/bin'");
+    expect(command).toContain("export PATH='/task/bin:/usr/bin'");
     expect(command.indexOf('/captured/bin')).toBeLessThan(command.indexOf('/task/bin'));
-    expect(command).toContain("export FOO='\\''task'\\''; node --version");
+    expect(command).toContain("export FOO='task'; node --version");
   });
 
   it('uses /bin/sh without login flags for the fallback profile', () => {
     const command = buildRemoteShellCommand(FALLBACK_REMOTE_SHELL_PROFILE, 'which claude');
 
-    expect(command).toBe("'/bin/sh' -c 'which claude'");
+    expect(command).toBe(`"/bin/sh" -c "which claude"`);
   });
 
   it('filters volatile and invalid environment variables from command exports', () => {
@@ -68,7 +68,7 @@ describe('remote shell profile command building', () => {
     );
 
     expect(command).toBe(
-      "'/bin/zsh' -lc 'export PATH='\\''/usr/bin'\\''; export GOOD_NAME='\\''value'\\''; export ALSO_GOOD='\\''yes'\\''; env'"
+      `"/bin/zsh" -lc "export PATH='/usr/bin'; export GOOD_NAME='value'; export ALSO_GOOD='yes'; env"`
     );
   });
 
@@ -81,7 +81,23 @@ describe('remote shell profile command building', () => {
   it('falls back to /bin/sh for unsupported remote shells', () => {
     expect(normalizeRemoteShell('/usr/local/bin/fish')).toBe('/bin/sh');
     expect(buildRemoteShellCommand({ shell: '/usr/local/bin/fish', env: {} }, 'echo ok')).toBe(
-      "'/bin/sh' -c 'echo ok'"
+      `"/bin/sh" -c "echo ok"`
+    );
+  });
+
+  it('escapes outer double-quote metacharacters while preserving the inner shell script', () => {
+    const command = buildRemoteShellCommand(
+      {
+        shell: '/usr/local/bin/fish',
+        env: {
+          VALUE: `a "quoted" $value`,
+        },
+      },
+      `printf '%s\\n' "$VALUE"`
+    );
+
+    expect(command).toBe(
+      `"/bin/sh" -c "export VALUE='a \\"quoted\\" \\$value'; printf '%s\\\\n' \\"\\$VALUE\\""`
     );
   });
 });

@@ -6,9 +6,7 @@ describe('buildSshCommand', () => {
   it('uses the shared remote shell command builder for fallback SSH exec commands', () => {
     const command = buildSshCommand('/workspace/project', 'which', ['claude']);
 
-    expect(command).toBe(
-      "'/bin/sh' -c 'cd '\\''/workspace/project'\\'' && which '\\''claude'\\'''"
-    );
+    expect(command).toBe(`"/bin/sh" -c "cd '/workspace/project' && which 'claude'"`);
   });
 
   it('uses the remote shell profile and cwd when building SSH exec commands', () => {
@@ -22,7 +20,7 @@ describe('buildSshCommand', () => {
     const command = buildSshCommand('/workspace/project', 'which', ['claude'], profile);
 
     expect(command).toBe(
-      "'/bin/zsh' -lc 'export PATH='\\''/Users/jona/.local/bin:/opt/homebrew/bin:/usr/bin'\\''; cd '\\''/workspace/project'\\'' && which '\\''claude'\\'''"
+      `"/bin/zsh" -lc "export PATH='/Users/jona/.local/bin:/opt/homebrew/bin:/usr/bin'; cd '/workspace/project' && which 'claude'"`
     );
   });
 });

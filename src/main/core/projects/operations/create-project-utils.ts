@@ -10,10 +10,8 @@ export async function resolveProjectBaseRef(
   if (!remoteName) return detectedBaseRef;
 
   try {
-    const [gitDefaultBranch, branches] = await Promise.all([
-      git.getDefaultBranch(remoteName),
-      git.getBranches(),
-    ]);
+    const gitDefaultBranch = await git.getDefaultBranch(remoteName);
+    const branches = await git.getBranches();
     return resolveBaseRefFromRemoteDefault({ detectedBaseRef, gitDefaultBranch, branches });
   } catch (error) {
     log.debug('Failed to resolve project base ref, using detected base ref', {

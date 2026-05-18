@@ -1,10 +1,15 @@
-import type { Client, ClientCallback, ClientSFTPCallback, ExecOptions } from 'ssh2';
+import type { Client, ClientCallback, ClientSFTPCallback, ExecOptions, SFTPWrapper } from 'ssh2';
 import { captureRemoteShellProfile, type RemoteShellProfile } from './remote-shell-profile';
 
 type RemoteShellProfileState =
   | { kind: 'empty' }
   | { kind: 'loading'; client: Client; promise: Promise<RemoteShellProfile> }
   | { kind: 'ready'; client: Client; profile: RemoteShellProfile };
+
+type SftpState =
+  | { kind: 'empty' }
+  | { kind: 'loading'; client: Client; callbacks: ClientSFTPCallback[] }
+  | { kind: 'ready'; client: Client; sftp: SFTPWrapper };
 
 /**
  * Stable reference to an ssh2 Client that survives reconnects.
@@ -19,16 +24,21 @@ type RemoteShellProfileState =
 export class SshClientProxy {
   private _client: Client | null = null;
   private _remoteShellProfileState: RemoteShellProfileState = { kind: 'empty' };
+  private _sftpState: SftpState = { kind: 'empty' };
 
   constructor(
     readonly connectionId: string,
-    private healthReporter?: { reportChannelError(connectionId: string, error: unknown): void }
+    private healthReporter?: {
+      reportChannelError(connectionId: string, error: unknown): void;
+      reportChannelRecovered?(connectionId: string): void;
+    }
   ) {}
 
   /** Called by SshConnectionManager when a connection becomes ready. */
   update(client: Client): void {
     if (this._client !== client) {
       this._remoteShellProfileState = { kind: 'empty' };
+      this._sftpState = { kind: 'empty' };
     }
     this._client = client;
   }
@@ -82,9 +92,53 @@ export class SshClientProxy {
   }
 
   sftp(callback: ClientSFTPCallback): void {
-    this.client.sftp((err, sftp) => {
+    const client = this.client;
+    const state = this._sftpState;
+
+    // Reuse one SFTP session per SSH connection so short-lived filesystem
+    // wrappers do not exhaust servers with low MaxSessions limits.
+    if (state.kind === 'ready' && state.client === client) {
+      callback(undefined, state.sftp);
+      return;
+    }
+
+    if (state.kind === 'loading' && state.client === client) {
+      state.callbacks.push(callback);
+      return;
+    }
+
+    this._sftpState = { kind: 'loading', client, callbacks: [callback] };
+
+    client.sftp((err, sftp) => {
       this.reportChannelResult(err);
-      callback(err, sftp);
+      const loadingState = this._sftpState;
+      const callbacks =
+        loadingState.kind === 'loading' && loadingState.client === client
+          ? loadingState.callbacks
+          : [callback];
+
+      if (err || !sftp) {
+        if (this._client === client && this._sftpState === loadingState) {
+          this._sftpState = { kind: 'empty' };
+        }
+        for (const cb of callbacks) cb(err, sftp);
+        return;
+      }
+
+      if (this._client === client && this._sftpState === loadingState) {
+        this._sftpState = { kind: 'ready', client, sftp };
+        sftp.on('close', () => {
+          if (
+            this._sftpState.kind === 'ready' &&
+            this._sftpState.client === client &&
+            this._sftpState.sftp === sftp
+          ) {
+            this._sftpState = { kind: 'empty' };
+          }
+        });
+      }
+
+      for (const cb of callbacks) cb(undefined, sftp);
     });
   }
 
@@ -100,12 +154,14 @@ export class SshClientProxy {
       this.healthReporter?.reportChannelError(this.connectionId, err);
       return;
     }
+    this.healthReporter?.reportChannelRecovered?.(this.connectionId);
   }
 
   /** Called by SshConnectionManager when the connection drops. */
   invalidate(): void {
     this._client = null;
     this._remoteShellProfileState = { kind: 'empty' };
+    this._sftpState = { kind: 'empty' };
   }
 
   /**
