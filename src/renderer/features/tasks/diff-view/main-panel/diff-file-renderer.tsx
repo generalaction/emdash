@@ -25,9 +25,7 @@ interface DiffFileRendererProps {
  * Routes a diff tab to the correct renderer based on its renderer kind.
  * Mirrors the FileRenderer pattern for file tabs.
  */
-export const DiffFileRenderer = observer(function DiffFileRenderer({
-  tab,
-}: DiffFileRendererProps) {
+export const DiffFileRenderer = observer(function DiffFileRenderer({ tab }: DiffFileRendererProps) {
   const { projectId } = useTaskViewContext();
   const workspaceId = useWorkspaceId();
 
@@ -132,14 +130,7 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
     if (tab.diffGroup === 'disk') {
       const diskUri = modelRegistry.toDiskUri(uri);
       void (async () => {
-        await modelRegistry.registerModel(
-          projectId,
-          workspaceId,
-          root,
-          tab.path,
-          language,
-          'disk'
-        );
+        await modelRegistry.registerModel(projectId, workspaceId, root, tab.path, language, 'disk');
         if (disposed) {
           modelRegistry.unregisterModel(diskUri);
           return;
@@ -157,15 +148,7 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
         }
       })().catch(() => {});
       void modelRegistry
-        .registerModel(
-          projectId,
-          workspaceId,
-          root,
-          tab.path,
-          language,
-          'git',
-          tab.originalRef
-        )
+        .registerModel(projectId, workspaceId, root, tab.path, language, 'git', tab.originalRef)
         .catch(() => {});
     } else if (tab.diffGroup === 'staged') {
       void modelRegistry
@@ -176,15 +159,7 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
         .catch(() => {});
     } else {
       void modelRegistry
-        .registerModel(
-          projectId,
-          workspaceId,
-          root,
-          tab.path,
-          language,
-          'git',
-          tab.originalRef
-        )
+        .registerModel(projectId, workspaceId, root, tab.path, language, 'git', tab.originalRef)
         .catch(() => {});
       const effectiveModifiedRef =
         tab.diffGroup === 'pr' ? (tab.modifiedRef ?? HEAD_REF) : HEAD_REF;
@@ -209,7 +184,19 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
         modelRegistry.unregisterModel(modelRegistry.toDiskUri(uri));
       }
     };
-  }, [originalUri, modifiedUri, language, tab.path, tab.diffGroup, tab.originalRef, tab.modifiedRef, projectId, workspaceId, root, uri]);
+  }, [
+    originalUri,
+    modifiedUri,
+    language,
+    tab.path,
+    tab.diffGroup,
+    tab.originalRef,
+    tab.modifiedRef,
+    projectId,
+    workspaceId,
+    root,
+    uri,
+  ]);
 
   if (!diffView) return null;
 

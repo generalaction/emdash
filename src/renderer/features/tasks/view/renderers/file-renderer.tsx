@@ -5,9 +5,9 @@ import { BinaryRenderer } from '@renderer/lib/editor/binary-renderer';
 import { FileErrorRenderer } from '@renderer/lib/editor/file-error-renderer';
 import { HtmlRenderer } from '@renderer/lib/editor/html-renderer';
 import { ImageRenderer } from '@renderer/lib/editor/image-renderer';
+import { MarkdownEditorRenderer } from '@renderer/lib/editor/markdown-renderer';
 import { SvgRenderer } from '@renderer/lib/editor/svg-renderer';
 import { TooLargeRenderer } from '@renderer/lib/editor/too-large-renderer';
-import { MarkdownEditorRenderer } from '@renderer/lib/editor/markdown-renderer';
 import { MonacoFileRenderer } from './monaco-file-renderer';
 
 interface FileRendererProps {

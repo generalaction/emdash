@@ -5,9 +5,9 @@ import { ConversationsPanel } from '../conversations/conversations-panel';
 import { DiffView } from '../diff-view/main-panel/diff-view';
 import { useTabGroupContext } from '../tabs/tab-group-context';
 import { PaneEmptyState } from './pane-empty-state';
-import { TabBar } from './tab-bar';
 import { resolvePaneRenderer } from './pane-renderer';
 import { FileRenderer } from './renderers/file-renderer';
+import { TabBar } from './tab-bar';
 
 /** The content for a single pane: tab bar + renderer area. */
 export const PaneContent = observer(function PaneContent() {

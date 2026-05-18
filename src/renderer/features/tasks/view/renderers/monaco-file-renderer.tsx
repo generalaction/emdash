@@ -50,8 +50,7 @@ const SourceModeToggleOverlay = observer(function SourceModeToggleOverlay() {
   const activeTab = tabManager.activeFileEntry;
   if (!activeTab) return null;
 
-  const previewKind =
-    SOURCE_TO_PREVIEW[activeTab.renderer.kind as keyof typeof SOURCE_TO_PREVIEW];
+  const previewKind = SOURCE_TO_PREVIEW[activeTab.renderer.kind as keyof typeof SOURCE_TO_PREVIEW];
   if (!previewKind) return null;
 
   return (
