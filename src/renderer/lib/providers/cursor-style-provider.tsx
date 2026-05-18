@@ -8,7 +8,6 @@ export function CursorStyleProvider({ children }: { children: ReactNode }) {
 
   useLayoutEffect(() => {
     if (isLoading) return;
-    if (typeof document === 'undefined') return;
     const root = document.documentElement;
     if (interfaceSettings?.cursorPointer) {
       root.classList.add(CURSOR_POINTER_CLASS);

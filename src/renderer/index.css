@@ -580,6 +580,8 @@
 
   .cursor-pointer-enabled button:not(:disabled),
   .cursor-pointer-enabled [role='button']:not([aria-disabled='true']),
+  .cursor-pointer-enabled [role='combobox']:not([aria-disabled='true']),
+  .cursor-pointer-enabled [role='gridcell']:not([aria-disabled='true']),
   .cursor-pointer-enabled [role='link']:not([aria-disabled='true']),
   .cursor-pointer-enabled [role='menuitem']:not([aria-disabled='true']),
   .cursor-pointer-enabled [role='menuitemcheckbox']:not([aria-disabled='true']),
@@ -589,6 +591,7 @@
   .cursor-pointer-enabled [role='checkbox']:not([aria-disabled='true']),
   .cursor-pointer-enabled [role='radio']:not([aria-disabled='true']),
   .cursor-pointer-enabled [role='switch']:not([aria-disabled='true']),
+  .cursor-pointer-enabled [role='treeitem']:not([aria-disabled='true']),
   .cursor-pointer-enabled a[href],
   .cursor-pointer-enabled summary,
   .cursor-pointer-enabled label[for],
