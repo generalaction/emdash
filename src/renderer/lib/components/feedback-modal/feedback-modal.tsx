@@ -1,10 +1,12 @@
-import { ImageIcon, Paperclip, XIcon } from 'lucide-react';
-import React, { useCallback } from 'react';
+import { FileTextIcon, ImageIcon, Paperclip, XIcon } from 'lucide-react';
+import React, { useCallback, useId, useState } from 'react';
 import { useAttachments } from '@renderer/lib/hooks/use-attachments';
+import { rpc } from '@renderer/lib/ipc';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 import { Button } from '@renderer/lib/ui/button';
+import { Checkbox } from '@renderer/lib/ui/checkbox';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
   DialogContentArea,
@@ -53,6 +55,8 @@ function AttachmentThumbnail({
 }
 
 export function FeedbackModal({ onSuccess, blurb }: Props) {
+  const [includeDiagnosticLogs, setIncludeDiagnosticLogs] = useState(false);
+  const diagnosticHelpId = useId();
   const { user: githubUser } = useGithubContext();
   const appVersion = appState.update.currentVersion;
   const {
@@ -87,6 +91,7 @@ export function FeedbackModal({ onSuccess, blurb }: Props) {
     appVersion,
     onSuccess: () => {
       resetAttachments();
+      setIncludeDiagnosticLogs(false);
       onSuccess();
     },
   });
@@ -94,9 +99,20 @@ export function FeedbackModal({ onSuccess, blurb }: Props) {
   const handleFormSubmit = useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      await handleSubmit(attachments.map((attachment) => attachment.file));
+      const loadDiagnosticLog = includeDiagnosticLogs
+        ? async () => {
+            const attachment = await rpc.app.getDiagnosticLogAttachment();
+            return new File([attachment.content], attachment.filename, {
+              type: attachment.mimeType,
+            });
+          }
+        : undefined;
+      await handleSubmit(
+        attachments.map((attachment) => attachment.file),
+        loadDiagnosticLog
+      );
     },
-    [handleSubmit, attachments]
+    [handleSubmit, attachments, includeDiagnosticLogs]
   );
 
   return (
@@ -171,6 +187,25 @@ export function FeedbackModal({ onSuccess, blurb }: Props) {
           </div>
 
           <div className="space-y-2">
+            <label className="flex items-start gap-2 rounded-md border border-border bg-background-subtle p-3 text-sm">
+              <Checkbox
+                checked={includeDiagnosticLogs}
+                onCheckedChange={(checked) => setIncludeDiagnosticLogs(Boolean(checked))}
+                disabled={submitting}
+                aria-describedby={diagnosticHelpId}
+              />
+              <span className="flex min-w-0 flex-col gap-0.5">
+                <span className="flex items-center gap-1.5 font-medium">
+                  <FileTextIcon className="size-3.5" aria-hidden="true" />
+                  Include diagnostic logs
+                </span>
+                <span id={diagnosticHelpId} className="text-xs text-muted-foreground">
+                  Attaches recent app logs. We automatically remove emails, file paths, and tokens
+                  before sending.
+                </span>
+              </span>
+            </label>
+
             <input
               ref={fileInputRef}
               type="file"
