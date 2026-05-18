@@ -2,7 +2,7 @@ import { agentEventChannel } from '@shared/events/agentEvents';
 import { events } from '@main/lib/events';
 import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
 import { enrichEvent } from './event-enricher';
-import { HookServer } from './hook-server';
+import { HookServer, type RouteHandler } from './hook-server';
 import { isAppFocused, maybeShowNotification } from './notification';
 
 class AgentHookService implements IInitializable, IDisposable {
@@ -26,6 +26,14 @@ class AgentHookService implements IInitializable, IDisposable {
   }
   getToken(): string {
     return this.server.getToken();
+  }
+  /**
+   * Register an additional authenticated route on the hook server.
+   * Used by the coordination service to expose GET /coord/* endpoints
+   * without spinning up a second HTTP server.
+   */
+  addRoute(method: string, pathname: string, handler: RouteHandler): void {
+    this.server.addRoute(method, pathname, handler);
   }
 }
 

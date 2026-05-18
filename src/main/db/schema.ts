@@ -388,6 +388,38 @@ export const appSecrets = sqliteTable(
   })
 );
 
+export const taskActivity = sqliteTable('task_activity', {
+  taskId: text('task_id')
+    .primaryKey()
+    .references(() => tasks.id, { onDelete: 'cascade' }),
+  status: text('status').notNull(), // 'active' | 'idle' | 'inactive'
+  summary: text('summary'),
+  lastEventAt: text('last_event_at')
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text('updated_at')
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const taskTouchedFiles = sqliteTable(
+  'task_touched_files',
+  {
+    taskId: text('task_id')
+      .notNull()
+      .references(() => tasks.id, { onDelete: 'cascade' }),
+    filePath: text('file_path').notNull(), // repo-relative; worktrees collapse onto the same logical path
+    lastTouchedAt: text('last_touched_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.taskId, table.filePath] }),
+    filePathIdx: index('idx_task_touched_files_path').on(table.filePath),
+    taskIdIdx: index('idx_task_touched_files_task_id').on(table.taskId),
+  })
+);
+
 export const sshConnectionsRelations = relations(sshConnections, ({ many }) => ({
   projects: many(projects),
 }));
@@ -451,3 +483,7 @@ export type AppSecretRow = typeof appSecrets.$inferSelect;
 export type AppSecretInsert = typeof appSecrets.$inferInsert;
 export type WorkspaceRow = typeof workspaces.$inferSelect;
 export type WorkspaceInsert = typeof workspaces.$inferInsert;
+export type TaskActivityRow = typeof taskActivity.$inferSelect;
+export type TaskActivityInsert = typeof taskActivity.$inferInsert;
+export type TaskTouchedFileRow = typeof taskTouchedFiles.$inferSelect;
+export type TaskTouchedFileInsert = typeof taskTouchedFiles.$inferInsert;
