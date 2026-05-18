@@ -71,7 +71,10 @@ export const McpView: React.FC = () => {
   return (
     <div className="flex h-full flex-col overflow-y-auto text-foreground">
       <div className="mx-auto w-full max-w-3xl px-8 py-8">
-        <PageHeader title="MCP" description="Connect your agents with external data sources and tools">
+        <PageHeader
+          title="MCP"
+          description="Connect your agents with external data sources and tools"
+        >
           <div className="flex items-center gap-2 w-full justify-between">
             <SearchInput
               placeholder="Search servers..."
@@ -79,21 +82,21 @@ export const McpView: React.FC = () => {
               onChange={(e) => setSearch(e.target.value)}
             />
             <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={refresh}
-              disabled={isRefreshing}
-              aria-label="Refresh providers"
-            >
-              <RefreshCw
-                className={`h-4 w-4 text-muted-foreground ${isRefreshing ? 'animate-spin' : ''}`}
-              />
-            </Button>
-            <Button onClick={() => openModal({ type: 'add-custom' })}>
-              <Plus className="size-4" />
-              Custom MCP
-            </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={refresh}
+                disabled={isRefreshing}
+                aria-label="Refresh providers"
+              >
+                <RefreshCw
+                  className={`h-4 w-4 text-muted-foreground ${isRefreshing ? 'animate-spin' : ''}`}
+                />
+              </Button>
+              <Button onClick={() => openModal({ type: 'add-custom' })}>
+                <Plus className="size-4" />
+                Custom MCP
+              </Button>
             </div>
           </div>
         </PageHeader>

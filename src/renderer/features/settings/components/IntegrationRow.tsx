@@ -30,8 +30,7 @@ interface IntegrationRowProps {
 }
 
 const STATUS_CLASSES: Record<IntegrationStatus, string> = {
-  connected:
-    'border border-border-success bg-background-success text-foreground-success',
+  connected: 'border border-border-success bg-background-success text-foreground-success',
   loading: 'border border-border/60 bg-transparent text-muted-foreground',
   error: 'border border-border/60 bg-transparent text-muted-foreground',
   disconnected: 'border border-border/60 bg-transparent text-muted-foreground',

@@ -433,7 +433,9 @@ export function AddSshConnModal({
               {testState === 'testing' && (
                 <LoaderCircle className="size-4 animate-spin text-muted-foreground" />
               )}
-              {testState === 'success' && <CheckCircle2 className="size-4 text-foreground-success" />}
+              {testState === 'success' && (
+                <CheckCircle2 className="size-4 text-foreground-success" />
+              )}
               {testState === 'error' && <XCircle className="size-4 text-destructive" />}
               <span className="flex-1 font-medium">
                 {testState === 'testing' && 'Testing connection…'}
