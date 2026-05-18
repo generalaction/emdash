@@ -76,7 +76,7 @@
     "dotenv": "^17.4.2",
     "drizzle-kit": "^0.24.2",
     "electron": "^40.7.0",
-    "electron-builder": "^26.8.1",
+    "electron-builder": "^26.9.1",
     "electron-vite": "^5.0.0",
     "eslint": "^9.0.0",
     "eslint-plugin-react-hooks": "^7.0.0",
