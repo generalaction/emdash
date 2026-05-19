@@ -291,19 +291,19 @@ const _OPEN_IN_APPS = {
     iconPath: ICON_PATHS.termy,
     platforms: {
       darwin: {
-        openUrls: ['termy://new?dir={{path_url}}'],
-        openCommands: ['command -v termy >/dev/null 2>&1 && termy', 'open -a "Termy"'],
+        openCommands: [
+          'command -v termy >/dev/null 2>&1 && termy --working-directory={{path}}',
+          'open -a "Termy" {{path}}',
+        ],
         checkCommands: ['termy'],
         appNames: ['Termy'],
       },
       win32: {
-        openUrls: ['termy://new?dir={{path_url}}'],
-        openCommands: ['start "" termy'],
+        openCommands: ['start "" termy --working-directory={{path}}'],
         checkCommands: ['termy'],
       },
       linux: {
-        openUrls: ['termy://new?dir={{path_url}}'],
-        openCommands: ['termy'],
+        openCommands: ['termy --working-directory={{path}}'],
         checkCommands: ['termy'],
       },
     },
