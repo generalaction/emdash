@@ -2,7 +2,6 @@ import { eq } from 'drizzle-orm';
 import { automationEvents } from '@main/core/automations/automation-events';
 import { projectEvents } from '@main/core/projects/project-events';
 import { projectManager } from '@main/core/projects/project-manager';
-import { prSyncEngine } from '@main/core/pull-requests/pr-sync-engine';
 import { getTasks } from '@main/core/tasks/operations/getTasks';
 import { taskManager } from '@main/core/tasks/task-manager';
 import { viewStateService } from '@main/core/view-state/view-state-service';
@@ -19,8 +18,6 @@ export async function deleteProject(id: string): Promise<void> {
       ...projectTasks.map((t) => viewStateService.del(`task:${t.id}`)),
     ]);
   }
-
-  await prSyncEngine.deleteProjectData(id);
 
   await db.delete(projects).where(eq(projects.id, id));
   automationEvents._emit('automation:changed');
