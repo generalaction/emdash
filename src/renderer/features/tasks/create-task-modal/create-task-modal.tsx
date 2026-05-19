@@ -7,9 +7,12 @@ import {
   getRepositoryStore,
   mountedProjectData,
 } from '@renderer/features/projects/stores/project-selectors';
+import { buildLinkedIssueContextAction } from '@renderer/features/tasks/conversations/context-actions';
 import { nextDefaultConversationTitle } from '@renderer/features/tasks/conversations/conversation-title-utils';
+import { resolveContextActionText } from '@renderer/features/tasks/conversations/resolve-context-action-text';
 import { ProjectSelector } from '@renderer/features/tasks/create-task-modal/project-selector';
 import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
+import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
@@ -33,6 +36,7 @@ import { FromBranchContent } from './from-branch-content';
 import { FromIssueContent } from './from-issue-content';
 import { FromPrContent } from './from-pr-content';
 import { useInitialConversationState } from './initial-conversation-section';
+import { upsertInitialIssueContext } from './initial-conversation-text';
 import { useFromBranchMode } from './use-from-branch-mode';
 import { useFromIssueMode } from './use-from-issue-mode';
 import { useFromPullRequestMode } from './use-from-pull-request-mode';
@@ -67,6 +71,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   });
   const [selectedStrategy, setSelectedStrategy] = useState<CreateTaskStrategy>(strategy);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
   const [useBYOI, setUseBYOI] = useState(false);
 
   const projectData = selectedProjectId
@@ -74,6 +79,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     : null;
   const initialConversation = useInitialConversationState(selectedProjectId);
   const autoApproveDefaults = useAgentAutoApproveDefaults();
+  const taskSettings = useTaskSettings();
 
   useEffect(() => setUseBYOI(false), [selectedProjectId]);
   useEffect(() => {
@@ -108,95 +114,120 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     'from-issue': fromIssue,
     'from-pull-request': fromPR,
   }[selectedStrategy];
-  const canCreate = !!selectedProjectId && activeMode.isValid && !fromPrUnavailable;
+  const canCreate = !!selectedProjectId && activeMode.isValid && !fromPrUnavailable && !isCreating;
 
-  const handleCreateTask = useCallback(() => {
+  const handleCreateTask = useCallback(async () => {
     if (!selectedProjectId) return;
     const id = crypto.randomUUID();
     const projectStore = getProjectManagerStore().projects.get(selectedProjectId);
     if (projectStore?.state !== 'mounted') return;
 
-    const builtInitialConversation = initialConversation.provider
-      ? {
-          id: crypto.randomUUID(),
-          projectId: selectedProjectId,
-          taskId: id,
-          provider: initialConversation.provider,
-          title: nextDefaultConversationTitle(initialConversation.provider, []),
-          initialPrompt: initialConversation.prompt.trim() || undefined,
-          autoApprove: autoApproveDefaults.getDefault(initialConversation.provider),
+    setIsCreating(true);
+    let shouldResetCreating = true;
+    try {
+      let initialPrompt = initialConversation.prompt;
+
+      if (
+        selectedStrategy === 'from-issue' &&
+        taskSettings.includeIssueContextByDefault &&
+        fromIssue.linkedIssue
+      ) {
+        const action = buildLinkedIssueContextAction(fromIssue.linkedIssue);
+        if (action) {
+          const issueContext = await resolveContextActionText({
+            action,
+            linkedIssue: fromIssue.linkedIssue,
+            projectId: selectedProjectId,
+          });
+          initialPrompt = upsertInitialIssueContext(initialPrompt, issueContext);
         }
-      : undefined;
+      }
 
-    switch (selectedStrategy) {
-      case 'from-branch': {
-        if (!fromBranch.selectedBranch) return;
-        const taskStrategy = resolveBranchLikeTaskStrategy({
-          isUnborn,
-          createBranchAndWorktree: fromBranch.createBranchAndWorktree,
-          taskBranch: fromBranch.taskName,
-          pushBranch: fromBranch.pushBranch,
-        });
-        void projectStore.mountedProject!.taskManager.createTask({
-          id,
-          projectId: selectedProjectId,
-          name: fromBranch.taskName,
-          sourceBranch: fromBranch.selectedBranch,
-          strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
-          workspaceProvider: useBYOI ? 'byoi' : undefined,
-          initialConversation: builtInitialConversation,
-        });
-        break;
+      const builtInitialConversation = initialConversation.provider
+        ? {
+            id: crypto.randomUUID(),
+            projectId: selectedProjectId,
+            taskId: id,
+            provider: initialConversation.provider,
+            title: nextDefaultConversationTitle(initialConversation.provider, []),
+            initialPrompt: initialPrompt.trim() || undefined,
+            autoApprove: autoApproveDefaults.getDefault(initialConversation.provider),
+          }
+        : undefined;
+
+      switch (selectedStrategy) {
+        case 'from-branch': {
+          if (!fromBranch.selectedBranch) return;
+          const taskStrategy = resolveBranchLikeTaskStrategy({
+            isUnborn,
+            createBranchAndWorktree: fromBranch.createBranchAndWorktree,
+            taskBranch: fromBranch.taskName,
+            pushBranch: fromBranch.pushBranch,
+          });
+          void projectStore.mountedProject!.taskManager.createTask({
+            id,
+            projectId: selectedProjectId,
+            name: fromBranch.taskName,
+            sourceBranch: fromBranch.selectedBranch,
+            strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
+            workspaceProvider: useBYOI ? 'byoi' : undefined,
+            initialConversation: builtInitialConversation,
+          });
+          break;
+        }
+        case 'from-issue': {
+          if (!fromIssue.selectedBranch) return;
+          const taskStrategy = resolveBranchLikeTaskStrategy({
+            isUnborn,
+            createBranchAndWorktree: fromIssue.createBranchAndWorktree,
+            taskBranch: fromIssue.taskName,
+            pushBranch: fromIssue.pushBranch,
+          });
+          void projectStore.mountedProject!.taskManager.createTask({
+            id,
+            projectId: selectedProjectId,
+            name: fromIssue.taskName,
+            sourceBranch: fromIssue.selectedBranch,
+            strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
+            linkedIssue: fromIssue.linkedIssue ?? undefined,
+            workspaceProvider: useBYOI ? 'byoi' : undefined,
+            initialConversation: builtInitialConversation,
+          });
+          break;
+        }
+        case 'from-pull-request': {
+          if (!fromPR.linkedPR) return;
+          const reviewBranch = fromPR.linkedPR.headRefName;
+          const taskStrategy = resolvePullRequestTaskStrategy({
+            checkoutMode: fromPR.checkoutMode,
+            prNumber: getPrNumber(fromPR.linkedPR) ?? 0,
+            headBranch: reviewBranch,
+            headRepositoryUrl: fromPR.linkedPR.headRepositoryUrl,
+            isFork: isForkPr(fromPR.linkedPR),
+            taskBranch: fromPR.taskName,
+            pushBranch: fromPR.branchSelection.pushBranch,
+          });
+          void projectStore.mountedProject!.taskManager.createTask({
+            id,
+            projectId: selectedProjectId,
+            name: fromPR.taskName,
+            sourceBranch: { type: 'local', branch: reviewBranch },
+            initialStatus:
+              fromPR.linkedPR.status === 'open' && !fromPR.linkedPR.isDraft ? 'review' : undefined,
+            strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
+            workspaceProvider: useBYOI ? 'byoi' : undefined,
+            initialConversation: builtInitialConversation,
+          });
+          break;
+        }
       }
-      case 'from-issue': {
-        if (!fromIssue.selectedBranch) return;
-        const taskStrategy = resolveBranchLikeTaskStrategy({
-          isUnborn,
-          createBranchAndWorktree: fromIssue.createBranchAndWorktree,
-          taskBranch: fromIssue.taskName,
-          pushBranch: fromIssue.pushBranch,
-        });
-        void projectStore.mountedProject!.taskManager.createTask({
-          id,
-          projectId: selectedProjectId,
-          name: fromIssue.taskName,
-          sourceBranch: fromIssue.selectedBranch,
-          strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
-          linkedIssue: fromIssue.linkedIssue ?? undefined,
-          workspaceProvider: useBYOI ? 'byoi' : undefined,
-          initialConversation: builtInitialConversation,
-        });
-        break;
-      }
-      case 'from-pull-request': {
-        if (!fromPR.linkedPR) return;
-        const reviewBranch = fromPR.linkedPR.headRefName;
-        const taskStrategy = resolvePullRequestTaskStrategy({
-          checkoutMode: fromPR.checkoutMode,
-          prNumber: getPrNumber(fromPR.linkedPR) ?? 0,
-          headBranch: reviewBranch,
-          headRepositoryUrl: fromPR.linkedPR.headRepositoryUrl,
-          isFork: isForkPr(fromPR.linkedPR),
-          taskBranch: fromPR.taskName,
-          pushBranch: fromPR.branchSelection.pushBranch,
-        });
-        void projectStore.mountedProject!.taskManager.createTask({
-          id,
-          projectId: selectedProjectId,
-          name: fromPR.taskName,
-          sourceBranch: { type: 'local', branch: reviewBranch },
-          initialStatus:
-            fromPR.linkedPR.status === 'open' && !fromPR.linkedPR.isDraft ? 'review' : undefined,
-          strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
-          workspaceProvider: useBYOI ? 'byoi' : undefined,
-          initialConversation: builtInitialConversation,
-        });
-        break;
-      }
+
+      navigate('task', { projectId: selectedProjectId, taskId: id });
+      shouldResetCreating = false;
+      onClose();
+    } finally {
+      if (shouldResetCreating) setIsCreating(false);
     }
-
-    navigate('task', { projectId: selectedProjectId, taskId: id });
-    onClose();
   }, [
     selectedProjectId,
     selectedStrategy,
@@ -207,6 +238,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     useBYOI,
     initialConversation,
     autoApproveDefaults,
+    taskSettings.includeIssueContextByDefault,
     navigate,
     onClose,
   ]);
@@ -297,7 +329,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
       </DialogContentArea>
       <DialogFooter>
         <ConfirmButton size="sm" onClick={handleCreateTask} disabled={!canCreate}>
-          Create
+          {isCreating ? 'Creating...' : 'Create'}
         </ConfirmButton>
       </DialogFooter>
     </>
