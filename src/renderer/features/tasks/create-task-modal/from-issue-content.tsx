@@ -42,20 +42,26 @@ export function FromIssueContent({
 
   const handleValueChange = (issue: Issue | null) => {
     state.setLinkedIssue(issue);
+    const requestId = ++issueContextRequestId.current;
+
     if (!issue) {
-      issueContextRequestId.current += 1;
       setIsAddingIssueContext(false);
       return;
     }
 
     setIsSelecting(false);
 
-    if (!taskSettings.includeIssueContextByDefault) return;
+    if (!taskSettings.includeIssueContextByDefault) {
+      setIsAddingIssueContext(false);
+      return;
+    }
 
     const action = buildLinkedIssueContextAction(issue);
-    if (!action) return;
+    if (!action) {
+      setIsAddingIssueContext(false);
+      return;
+    }
 
-    const requestId = ++issueContextRequestId.current;
     setIsAddingIssueContext(true);
 
     void resolveContextActionText({ action, linkedIssue: issue, projectId })
