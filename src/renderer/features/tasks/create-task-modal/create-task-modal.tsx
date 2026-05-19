@@ -250,7 +250,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         {isWorkspaceProviderEnabled && (
           <div className="flex items-center gap-2">
             <Switch size="sm" checked={useBYOI} onCheckedChange={setUseBYOI} />
-            <span className="text-sm text-muted-foreground">Use BYOI infrastructure</span>
+            <span className="text-sm text-muted-foreground">Run on own infrastructure</span>
           </div>
         )}
       </div>
