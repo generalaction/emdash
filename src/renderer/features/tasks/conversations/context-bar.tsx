@@ -13,13 +13,9 @@ import { buildTaskContextActions, type ContextAction } from './context-actions';
 
 interface ContextBarProps {
   conversationId: string | undefined;
-  onSend?: () => void;
 }
 
-export const ContextBar = observer(function ContextBar({
-  conversationId,
-  onSend,
-}: ContextBarProps) {
+export const ContextBar = observer(function ContextBar({ conversationId }: ContextBarProps) {
   const { projectId, taskId } = useTaskViewContext();
   const conversations = useConversations();
   const task = getRegisteredTaskData(projectId, taskId);
@@ -60,7 +56,6 @@ export const ContextBar = observer(function ContextBar({
 
     if (opts?.andSend) {
       await rpc.pty.sendInput(activeSessionId, '\r');
-      onSend?.();
     }
 
     activeSession?.pty?.terminal.focus();

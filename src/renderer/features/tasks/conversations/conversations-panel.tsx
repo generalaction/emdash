@@ -140,15 +140,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
           </PaneSizingProvider>
         </div>
       </div>
-      <ContextBar
-        conversationId={tm.activeConversationId}
-        onSend={() => {
-          if (shouldSetWorkingOnEnter && activeConversation) {
-            activeConversation.setWorking();
-            void conversations.touchConversation(activeConversation.data.id);
-          }
-        }}
-      />
+      <ContextBar conversationId={tm.activeConversationId} />
     </div>
   );
 });
