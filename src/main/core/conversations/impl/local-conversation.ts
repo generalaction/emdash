@@ -21,7 +21,6 @@ import { providerOverrideSettings } from '@main/core/settings/provider-settings-
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
-import { telemetryService } from '@main/lib/telemetry';
 import { buildAgentCommand } from './agent-command';
 import { resolveProviderEnv } from './provider-env';
 
@@ -161,13 +160,6 @@ export class LocalConversationProvider implements ConversationProvider {
       ptySessionRegistry.unregister(sessionId);
       const shouldRespawn = this.sessions.has(sessionId);
       this.sessions.delete(sessionId);
-      telemetryService.capture('agent_run_finished', {
-        provider: conversation.providerId,
-        exit_code: typeof exitCode === 'number' ? exitCode : -1,
-        project_id: conversation.projectId,
-        task_id: conversation.taskId,
-        conversation_id: conversation.id,
-      });
       events.emit(agentSessionExitedChannel, {
         sessionId,
         projectId: conversation.projectId,
@@ -205,12 +197,6 @@ export class LocalConversationProvider implements ConversationProvider {
       metadata: { providerId: conversation.providerId, title: conversation.title },
     });
     this.sessions.set(sessionId, pty);
-    telemetryService.capture('agent_run_started', {
-      provider: conversation.providerId,
-      project_id: conversation.projectId,
-      task_id: conversation.taskId,
-      conversation_id: conversation.id,
-    });
   }
 
   private async prepareHookConfig(providerId: Conversation['providerId']): Promise<boolean> {
