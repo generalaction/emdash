@@ -1,7 +1,11 @@
 import { makeObservable, observable, reaction, runInAction, toJS } from 'mobx';
 import { toast } from 'sonner';
 import { prSyncProgressChannel, prUpdatedChannel } from '@shared/events/prEvents';
-import { taskProvisionProgressChannel, taskStatusUpdatedChannel } from '@shared/events/taskEvents';
+import {
+  taskProvisionProgressChannel,
+  taskRenamedChannel,
+  taskStatusUpdatedChannel,
+} from '@shared/events/taskEvents';
 import type {
   CreateTaskError,
   CreateTaskParams,
@@ -128,6 +132,7 @@ export class TaskManagerStore {
   private _unsubPrUpdated: (() => void) | null = null;
   private _unsubPrSyncProgress: (() => void) | null = null;
   private _unsubProvisionProgress: (() => void) | null = null;
+  private _unsubTaskRenamed: (() => void) | null = null;
   private _disposeRepositoryReaction: (() => void) | null = null;
 
   tasks = observable.map<string, TaskStore>();
@@ -153,6 +158,19 @@ export class TaskManagerStore {
         });
       }
     });
+
+    this._unsubTaskRenamed = events.on(
+      taskRenamedChannel,
+      ({ taskId, projectId: evtProjectId, name }) => {
+        if (evtProjectId !== this.projectId) return;
+        const store = this.tasks.get(taskId);
+        if (store && isProvisioned(store)) {
+          runInAction(() => {
+            store.data.name = name;
+          });
+        }
+      }
+    );
 
     this._unsubProvisionProgress = events.on(
       taskProvisionProgressChannel,
@@ -626,6 +644,8 @@ export class TaskManagerStore {
     this._unsubPrSyncProgress = null;
     this._unsubProvisionProgress?.();
     this._unsubProvisionProgress = null;
+    this._unsubTaskRenamed?.();
+    this._unsubTaskRenamed = null;
     this._disposeRepositoryReaction?.();
     this._disposeRepositoryReaction = null;
   }
