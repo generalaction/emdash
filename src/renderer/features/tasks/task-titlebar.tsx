@@ -125,6 +125,8 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
   const { navigate } = useNavigate();
 
   const isRemoteProject = projectStore?.data.type === 'ssh';
+
+  const hasChanges = workspace.git.hasData && (workspace.git.totalLinesAdded > 0 || workspace.git.totalLinesDeleted > 0);
   return (
     <Titlebar
       leftSlot={
@@ -339,22 +341,24 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
           >
             <Tooltip>
               <TooltipTrigger>
-                <ToggleGroupItem size="icon-sm" value="changes" aria-label="Changes">
+                <ToggleGroupItem
+                  size="icon-sm"
+                  value="changes"
+                  aria-label="Changes"
+                  className={cn("w-auto! px-1.5!", hasChanges && "px-2.5!")}
+                >
                   <FileDiff className="size-3.5" />
+                  {workspace.git.hasData &&
+                    (workspace.git.totalLinesAdded > 0 || workspace.git.totalLinesDeleted > 0) && (
+                      <span className="flex items-center gap-1 text-xs leading-none">
+                        <span className="text-foreground-diff-added">+{workspace.git.totalLinesAdded}</span>
+                        <span className="text-foreground-diff-deleted">-{workspace.git.totalLinesDeleted}</span>
+                      </span>
+                    )}
                 </ToggleGroupItem>
               </TooltipTrigger>
               <TooltipContent>
                 Changes <BoundShortcut settingsKey="sidebarChanges" variant="badge" />
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger>
-                <ToggleGroupItem size="icon-sm" value="conversations" aria-label="Conversations">
-                  <MessageSquare className="size-3.5" />
-                </ToggleGroupItem>
-              </TooltipTrigger>
-              <TooltipContent>
-                Conversations <BoundShortcut settingsKey="sidebarConversations" variant="badge" />
               </TooltipContent>
             </Tooltip>
             <Tooltip>
@@ -365,6 +369,16 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
               </TooltipTrigger>
               <TooltipContent>
                 Files <BoundShortcut settingsKey="sidebarFiles" variant="badge" />
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger>
+                <ToggleGroupItem size="icon-sm" value="conversations" aria-label="Conversations">
+                  <MessageSquare className="size-3.5" />
+                </ToggleGroupItem>
+              </TooltipTrigger>
+              <TooltipContent>
+                Conversations <BoundShortcut settingsKey="sidebarConversations" variant="badge" />
               </TooltipContent>
             </Tooltip>
           </ToggleGroup>
