@@ -106,9 +106,11 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
               <TooltipTrigger>
                 <button
                   onClick={() => {
-                    project?.view.setProjectView('settings');
+                    if (!project) return;
+                    project.view.setProjectView('settings');
                     navigate('project', { projectId });
                   }}
+                  disabled={!project}
                   className="flex items-center justify-center size-5 rounded hover:bg-background-2 text-foreground-muted hover:text-foreground"
                 >
                   <Settings className="size-3" />
