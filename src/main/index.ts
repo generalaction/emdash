@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { config as dotenvConfig } from 'dotenv';
-import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, systemPreferences } from 'electron';
 import dockIcon from '@/assets/images/emdash/icon-dock.png?asset';
 import { PRODUCT_NAME } from '@shared/app-identity';
 import { registerRPCRouter } from '@shared/ipc/rpc';
@@ -140,6 +140,14 @@ void app.whenReady().then(async () => {
   localDependencyManager.probeAll().catch((e) => {
     log.error('Failed to probe dependencies:', e);
   });
+
+  if (process.platform === 'darwin') {
+    if (systemPreferences.getMediaAccessStatus('microphone') !== 'granted') {
+      systemPreferences.askForMediaAccess('microphone').catch((e) => {
+        log.warn('Failed to request microphone access:', e);
+      });
+    }
+  }
 
   setupAppProtocol(join(app.getAppPath(), 'out', 'renderer'));
   setupApplicationMenu();
