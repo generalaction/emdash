@@ -1,4 +1,5 @@
-import { agentEventChannel } from '@shared/events/agentEvents';
+import { agentEventChannel, type AgentEvent } from '@shared/events/agentEvents';
+import { conversationEvents } from '@main/core/conversations/conversation-events';
 import { events } from '@main/lib/events';
 import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
 import { enrichEvent } from './event-enricher';
@@ -16,6 +17,23 @@ class AgentHookService implements IInitializable, IDisposable {
       await maybeShowNotification(event, appFocused);
       events.emit(agentEventChannel, { event, appFocused });
     });
+
+    conversationEvents.on(
+      'conversation:input-submitted',
+      ({ projectId, taskId, conversationId, providerId }) => {
+        const event: AgentEvent = {
+          type: 'start',
+          source: 'input',
+          providerId,
+          projectId,
+          taskId,
+          conversationId,
+          timestamp: Date.now(),
+          payload: {},
+        };
+        events.emit(agentEventChannel, { event, appFocused: isAppFocused() });
+      }
+    );
   }
 
   dispose(): void {

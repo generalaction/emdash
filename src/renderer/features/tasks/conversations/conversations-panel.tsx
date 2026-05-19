@@ -24,7 +24,6 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
   const { groupId, tabManager: tm } = useTabGroupContext();
   const isActive = useIsActiveTask(taskId);
   const remoteConnectionId = workspace.sshConnectionId;
-  const shouldSetWorkingOnEnter = !remoteConnectionId;
 
   const autoFocus = isActive && taskView.focusedRegion === 'main';
 
@@ -89,11 +88,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
           task_id: activeConversation.data.taskId,
           conversation_id: activeConversation.data.id,
         });
-
-        if (shouldSetWorkingOnEnter) {
-          activeConversation.setWorking();
-          void conversations.touchConversation(activeConversation.data.id);
-        }
+        void conversations.touchConversation(activeConversation.data.id);
       }
     : undefined;
 

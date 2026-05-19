@@ -103,6 +103,10 @@ export class ConversationManagerStore implements IDisposable {
       if (event.taskId !== this.taskId) return;
       const conversationStore = this.conversations.get(event.conversationId);
       if (!conversationStore) return;
+      if (event.type === 'start') {
+        conversationStore.setWorking();
+        return;
+      }
       if (event.type === 'notification') {
         const nt = event.payload.notificationType;
         if (!isAttentionNotification(nt)) return;
