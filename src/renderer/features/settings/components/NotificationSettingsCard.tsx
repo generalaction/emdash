@@ -1,5 +1,9 @@
+import { FolderOpen, Play } from 'lucide-react';
 import React from 'react';
+import type { NotificationSettings } from '@shared/app-settings';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { rpc } from '@renderer/lib/ipc';
+import { Button } from '@renderer/lib/ui/button';
 import {
   Select,
   SelectContent,
@@ -8,9 +12,49 @@ import {
   SelectValue,
 } from '@renderer/lib/ui/select';
 import { Switch } from '@renderer/lib/ui/switch';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+import { configureSoundPlayer, soundPlayer } from '@renderer/utils/soundPlayer';
 import { cn } from '@renderer/utils/utils';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
 import { SettingRow } from './SettingRow';
+
+const getFileName = (path: string): string => {
+  const trimmed = path.trim();
+  if (!trimmed) return '';
+  const parts = trimmed.split(/[/\\]/);
+  return parts[parts.length - 1] || trimmed;
+};
+
+function PreviewSoundButton({
+  path,
+  disabled,
+}: {
+  path: string;
+  disabled?: boolean;
+}): React.JSX.Element {
+  return (
+    <TooltipProvider delay={150}>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground hover:text-foreground"
+              disabled={disabled}
+              onClick={() => soundPlayer.preview(path)}
+              aria-label="Preview sound"
+            >
+              <Play className="size-3.5" />
+            </Button>
+          }
+        />
+        <TooltipContent side="top">Preview</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
 
 const NotificationSettingsCard: React.FC = () => {
   const {
@@ -20,6 +64,36 @@ const NotificationSettingsCard: React.FC = () => {
     isFieldOverridden,
     resetField,
   } = useAppSettingsKey('notifications');
+
+  const currentNotifications: NotificationSettings = notifications ?? {
+    enabled: true,
+    sound: true,
+    customSoundPath: '',
+    osNotifications: true,
+    soundFocusMode: 'always',
+  };
+  const customSoundPath = currentNotifications.customSoundPath?.trim() ?? '';
+
+  const updateNotifications = (partial: Partial<NotificationSettings>) => {
+    configureSoundPlayer({ ...currentNotifications, ...partial });
+    update(partial);
+  };
+
+  const resetNotificationField = <K extends keyof NotificationSettings>(
+    field: K,
+    value: NotificationSettings[K]
+  ) => {
+    configureSoundPlayer({ ...currentNotifications, [field]: value });
+    resetField(field);
+  };
+
+  const chooseCustomSound = async () => {
+    const result = await rpc.app.openSelectAudioFileDialog({
+      title: 'Choose custom sound',
+      message: 'Select an audio file to play for agent events',
+    });
+    if (result) updateNotifications({ customSoundPath: result });
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -37,7 +111,7 @@ const NotificationSettingsCard: React.FC = () => {
             <Switch
               checked={notifications?.enabled ?? true}
               disabled={loading}
-              onCheckedChange={(next) => update({ enabled: next })}
+              onCheckedChange={(next) => updateNotifications({ enabled: next })}
             />
           </>
         }
@@ -56,14 +130,58 @@ const NotificationSettingsCard: React.FC = () => {
               <ResetToDefaultButton
                 visible={isFieldOverridden('sound')}
                 defaultLabel="on"
-                onReset={() => resetField('sound')}
+                onReset={() => resetNotificationField('sound', true)}
                 disabled={loading}
               />
+              {!customSoundPath && <PreviewSoundButton path="" disabled={loading} />}
               <Switch
                 checked={notifications?.sound ?? true}
                 disabled={loading}
-                onCheckedChange={(next) => update({ sound: next })}
+                onCheckedChange={(next) => updateNotifications({ sound: next })}
               />
+            </>
+          }
+        />
+
+        <SettingRow
+          title="Custom sound"
+          description="Use an audio file instead of the built-in cue."
+          control={
+            <>
+              <ResetToDefaultButton
+                visible={isFieldOverridden('customSoundPath')}
+                defaultLabel="built-in"
+                onReset={() => resetNotificationField('customSoundPath', '')}
+                disabled={loading}
+              />
+              {customSoundPath && <PreviewSoundButton path={customSoundPath} disabled={loading} />}
+              <TooltipProvider delay={150}>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="max-w-56 font-normal text-muted-foreground"
+                        disabled={loading}
+                        onClick={chooseCustomSound}
+                        aria-label={customSoundPath ? 'Change custom sound' : 'Choose custom sound'}
+                      >
+                        <FolderOpen className="size-3.5 shrink-0" />
+                        <span className="truncate">
+                          {customSoundPath ? getFileName(customSoundPath) : 'Choose file…'}
+                        </span>
+                      </Button>
+                    }
+                  />
+                  {customSoundPath && (
+                    <TooltipContent side="top" className="break-all">
+                      {customSoundPath}
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+              </TooltipProvider>
             </>
           }
         />
@@ -76,14 +194,16 @@ const NotificationSettingsCard: React.FC = () => {
               <ResetToDefaultButton
                 visible={isFieldOverridden('soundFocusMode')}
                 defaultLabel="always"
-                onReset={() => resetField('soundFocusMode')}
+                onReset={() => resetNotificationField('soundFocusMode', 'always')}
                 disabled={loading}
               />
               <Select
                 value={notifications?.soundFocusMode ?? 'always'}
-                onValueChange={(next) => update({ soundFocusMode: next as 'always' | 'unfocused' })}
+                onValueChange={(next) =>
+                  updateNotifications({ soundFocusMode: next as 'always' | 'unfocused' })
+                }
               >
-                <SelectTrigger className="w-auto shrink-0 gap-2 [&>span]:line-clamp-none">
+                <SelectTrigger className="w-auto shrink-0 gap-2 capitalize [&>span]:line-clamp-none">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="min-w-max">
@@ -103,13 +223,13 @@ const NotificationSettingsCard: React.FC = () => {
               <ResetToDefaultButton
                 visible={isFieldOverridden('osNotifications')}
                 defaultLabel="on"
-                onReset={() => resetField('osNotifications')}
+                onReset={() => resetNotificationField('osNotifications', true)}
                 disabled={loading}
               />
               <Switch
                 checked={notifications?.osNotifications ?? true}
                 disabled={loading}
-                onCheckedChange={(next) => update({ osNotifications: next })}
+                onCheckedChange={(next) => updateNotifications({ osNotifications: next })}
               />
             </>
           }

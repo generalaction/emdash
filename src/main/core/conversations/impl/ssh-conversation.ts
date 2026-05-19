@@ -185,7 +185,7 @@ export class SshConversationProvider implements ConversationProvider {
     });
 
     ptySessionRegistry.register(sessionId, pty, {
-      metadata: { providerId: conversation.providerId, title: conversation.title },
+      metadata: { providerId: conversation.providerId, title: conversation.title, isRemote: true },
     });
     this.sessions.set(sessionId, pty);
   }
