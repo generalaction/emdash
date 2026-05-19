@@ -42,6 +42,7 @@ const ICON_PATHS = {
   iterm2: 'iterm2.png',
   ghostty: 'ghostty.png',
   kitty: 'kitty.png',
+  termy: 'termy.png',
   zed: 'zed.png',
   trae: 'trae.png',
   'intellij-idea': 'intellij-idea.svg',
@@ -281,6 +282,29 @@ const _OPEN_IN_APPS = {
       linux: {
         openCommands: ['kitty --directory {{path}}'],
         checkCommands: ['kitty'],
+      },
+    },
+  },
+  termy: {
+    id: 'termy',
+    label: 'Termy',
+    iconPath: ICON_PATHS.termy,
+    platforms: {
+      darwin: {
+        openCommands: [
+          'command -v termy >/dev/null 2>&1 && termy --working-directory={{path}}',
+          'open -a "Termy" {{path}}',
+        ],
+        checkCommands: ['termy'],
+        appNames: ['Termy'],
+      },
+      win32: {
+        openCommands: ['start "" termy --working-directory={{path}}'],
+        checkCommands: ['termy'],
+      },
+      linux: {
+        openCommands: ['termy --working-directory={{path}}'],
+        checkCommands: ['termy'],
       },
     },
   },
