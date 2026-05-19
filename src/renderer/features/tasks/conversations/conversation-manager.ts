@@ -7,6 +7,7 @@ import {
   type NotificationType,
 } from '@shared/events/agentEvents';
 import { conversationChangedChannel } from '@shared/events/conversationEvents';
+import { conversationRenamedChannel } from '@shared/events/taskEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { events, rpc } from '@renderer/lib/ipc';
 import { PtySession } from '@renderer/lib/pty/pty-session';
@@ -21,6 +22,7 @@ export class ConversationManagerStore implements IDisposable {
   private offAgentEvents: (() => void) | null = null;
   private offSessionExited: (() => void) | null = null;
   private offConversationChanges: (() => void) | null = null;
+  private offConversationRenamed: (() => void) | null = null;
   private readonly _disposeReaction: () => void;
 
   /** Data layer: plain Conversation records loaded from the main process. */
@@ -99,6 +101,7 @@ export class ConversationManagerStore implements IDisposable {
     this.offAgentEvents = this.listenToAgentEvents();
     this.offSessionExited = this.listenToSessionExited();
     this.offConversationChanges = this.listenToConversationChanges();
+    this.offConversationRenamed = this.listenToConversationRenamed();
   }
 
   private listenToAgentEvents(): () => void {
@@ -144,6 +147,17 @@ export class ConversationManagerStore implements IDisposable {
       if (!store) return;
       runInAction(() => {
         Object.assign(store.data, event.changes);
+      });
+    });
+  }
+
+  private listenToConversationRenamed(): () => void {
+    return events.on(conversationRenamedChannel, ({ conversationId, taskId, title }) => {
+      if (taskId !== this.taskId) return;
+      const store = this.conversations.get(conversationId);
+      if (!store) return;
+      runInAction(() => {
+        store.data.title = title;
       });
     });
   }
@@ -250,6 +264,8 @@ export class ConversationManagerStore implements IDisposable {
     this.offSessionExited = null;
     this.offConversationChanges?.();
     this.offConversationChanges = null;
+    this.offConversationRenamed?.();
+    this.offConversationRenamed = null;
     for (const session of this.sessions.values()) {
       session.dispose();
     }

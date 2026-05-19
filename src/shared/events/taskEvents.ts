@@ -28,3 +28,16 @@ export const taskProvisionProgressChannel = defineEvent<{
   step: ProvisionStep;
   message: string;
 }>('task:provision-progress');
+
+export const taskRenamedChannel = defineEvent<{
+  taskId: string;
+  projectId: string;
+  name: string;
+}>('task:renamed');
+
+export const conversationRenamedChannel = defineEvent<{
+  conversationId: string;
+  taskId: string;
+  projectId: string;
+  title: string;
+}>('conversation:renamed');
