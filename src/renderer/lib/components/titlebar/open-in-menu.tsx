@@ -11,7 +11,7 @@ import {
 import { useOpenInApps } from '@renderer/lib/hooks/useOpenInApps';
 import { rpc } from '@renderer/lib/ipc';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/ui/select';
-import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
+import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 
@@ -134,7 +134,7 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, className, borderl
           <TooltipContent side="bottom">
             <div className="flex flex-col gap-1">
               <span>Open in {buttonAppLabel || 'editor'}</span>
-              <ShortcutHint settingsKey="openInEditor" />
+              <BoundShortcut settingsKey="openInEditor" variant="badge" />
             </div>
           </TooltipContent>
         </Tooltip>

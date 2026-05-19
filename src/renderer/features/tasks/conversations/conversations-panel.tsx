@@ -16,7 +16,8 @@ import { TerminalSearchOverlay } from '@renderer/lib/pty/terminal-search-overlay
 import { useTerminalSearch } from '@renderer/lib/pty/use-terminal-search';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
-import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
+import { BoundShortcut } from '@renderer/lib/ui/shortcut';
+import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import { ContextBar } from './context-bar';
 import type { ConversationStore } from './conversation-manager';
 
@@ -97,13 +98,21 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
     }
   }, [sessionStatus]);
 
-  const onEnterPress =
-    shouldSetWorkingOnEnter && activeConversation
-      ? () => {
+  const onEnterPress = activeConversation
+    ? () => {
+        captureTelemetry('agent_run_started', {
+          provider: activeConversation.data.providerId,
+          project_id: activeConversation.data.projectId,
+          task_id: activeConversation.data.taskId,
+          conversation_id: activeConversation.data.id,
+        });
+
+        if (shouldSetWorkingOnEnter) {
           activeConversation.setWorking();
           void conversations.touchConversation(activeConversation.data.id);
         }
-      : undefined;
+      }
+    : undefined;
 
   const onInterruptPress = activeConversation ? () => activeConversation.clearWorking() : undefined;
 
@@ -137,7 +146,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
                     className="flex items-center gap-2"
                   >
                     Create conversation
-                    <ShortcutHint settingsKey="newConversation" />
+                    <BoundShortcut settingsKey="newConversation" />
                   </Button>
                 }
               />

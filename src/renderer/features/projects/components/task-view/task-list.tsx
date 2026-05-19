@@ -10,7 +10,7 @@ import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { SearchInput } from '@renderer/lib/ui/search-input';
-import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
+import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { cn } from '@renderer/utils/utils';
 import { TaskRow, type ReadyTask } from './task-row';
@@ -199,7 +199,7 @@ export const TaskList = observer(function TaskList() {
               className="flex-1"
             />
             <Button onClick={() => showCreateTaskModal({ projectId })}>
-              Create Task <ShortcutHint settingsKey="newTask" />
+              Create Task <BoundShortcut settingsKey="newTask" />
             </Button>
           </div>
         </div>

@@ -44,11 +44,12 @@ export type ProjectType = { type: 'local' } | { type: 'ssh'; connectionId: strin
 
 export class ProjectManagerStore {
   projects = observable.map<string, ProjectStore>();
+  pendingCreationIds = observable.set<string>();
   private _projectMountPromises = new Map<string, Promise<void>>();
   private _loadPromise: Promise<void> | null = null;
 
   constructor() {
-    makeObservable(this, { projects: observable });
+    makeObservable(this, { projects: observable, pendingCreationIds: observable });
 
     events.on(sshConnectionEventChannel, (event) => {
       if (event.type !== 'connected' && event.type !== 'reconnected') return;
@@ -91,6 +92,19 @@ export class ProjectManagerStore {
     id?: string
   ): Promise<string | undefined> {
     const projectId = id ?? crypto.randomUUID();
+    runInAction(() => this.pendingCreationIds.add(projectId));
+    try {
+      return await this._doCreateProject(projectType, data, projectId);
+    } finally {
+      runInAction(() => this.pendingCreationIds.delete(projectId));
+    }
+  }
+
+  private async _doCreateProject(
+    projectType: ProjectType,
+    data: ModeData,
+    projectId: string
+  ): Promise<string | undefined> {
     const isSsh = projectType.type === 'ssh';
     const inspection = await rpc.projects.inspectProjectPath(
       isSsh
@@ -348,6 +362,7 @@ export class ProjectManagerStore {
     runInAction(() => {
       this.projects.delete(projectId);
     });
+    appState.navigation.revalidate();
     try {
       await rpc.projects.deleteProject(projectId);
     } catch (err) {

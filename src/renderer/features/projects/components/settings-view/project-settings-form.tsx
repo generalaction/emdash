@@ -10,7 +10,7 @@ import type {
   ProjectSettingsWriteTargetOption,
   WriteProjectConfigRequest,
 } from '@shared/project-settings';
-import type { UpdateProjectSettingsError } from '@shared/projects';
+import type { Project, UpdateProjectSettingsError } from '@shared/projects';
 import type { Result } from '@shared/result';
 import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
@@ -23,6 +23,7 @@ import { useProjectSettingsForm } from './use-project-settings-form';
 
 export interface ProjectSettingsFormProps {
   projectId: string;
+  projectType: Project['type'];
   initial: ProjectSettings;
   defaults: ProjectSettingsPage['defaults'];
   writeTargets: ProjectSettingsWriteTargetOption[];
@@ -42,6 +43,7 @@ const EMPTY_REMOTES: Remote[] = [];
 
 export const ProjectSettingsForm = observer(function ProjectSettingsForm({
   projectId,
+  projectType,
   initial,
   defaults,
   writeTargets,
@@ -80,6 +82,7 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
             projectId={projectId}
             form={formModel.form}
             defaultWorktreeDirectory={defaults.worktreeDirectory}
+            projectType={projectType}
             remotes={remotes}
             worktreeDirectoryError={formModel.worktreeDirectoryError}
             update={formModel.update}

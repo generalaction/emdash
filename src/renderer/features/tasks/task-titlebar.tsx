@@ -38,7 +38,7 @@ import { Button } from '@renderer/lib/ui/button';
 import { MicroLabel } from '@renderer/lib/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
 import { Separator } from '@renderer/lib/ui/separator';
-import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
+import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Toggle } from '@renderer/lib/ui/toggle';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
@@ -303,7 +303,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
         <div className="flex items-center gap-2">
           <DevServerPills projectId={projectId} taskId={taskId} />
           {!isRemoteProject && (
-            <OpenInMenu path={workspace.path} className="h-7 bg-background" borderless />
+            <OpenInMenu path={workspace.path} className="h-7 bg-transparent" borderless />
           )}
           <Separator orientation="vertical" className="h-5 self-center!" />
           <Tooltip>
@@ -320,7 +320,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
               </Toggle>
             </TooltipTrigger>
             <TooltipContent>
-              Toggle terminal <ShortcutHint settingsKey="toggleTerminalDrawer" />
+              Toggle terminal <BoundShortcut settingsKey="toggleTerminalDrawer" variant="badge" />
             </TooltipContent>
           </Tooltip>
           <Separator orientation="vertical" className="h-5 self-center!" />
@@ -335,7 +335,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
               }
             }}
             size="icon-sm"
-            className="border-none"
+            className="border-none bg-transparent"
           >
             <Tooltip>
               <TooltipTrigger>
@@ -343,7 +343,9 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                   <FileDiff className="size-3.5" />
                 </ToggleGroupItem>
               </TooltipTrigger>
-              <TooltipContent>Changes</TooltipContent>
+              <TooltipContent>
+                Changes <BoundShortcut settingsKey="sidebarChanges" variant="badge" />
+              </TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger>
@@ -351,7 +353,9 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                   <MessageSquare className="size-3.5" />
                 </ToggleGroupItem>
               </TooltipTrigger>
-              <TooltipContent>Conversations</TooltipContent>
+              <TooltipContent>
+                Conversations <BoundShortcut settingsKey="sidebarConversations" variant="badge" />
+              </TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger>
@@ -359,7 +363,9 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                   <FolderOpen className="size-3.5" />
                 </ToggleGroupItem>
               </TooltipTrigger>
-              <TooltipContent>Files</TooltipContent>
+              <TooltipContent>
+                Files <BoundShortcut settingsKey="sidebarFiles" variant="badge" />
+              </TooltipContent>
             </Tooltip>
           </ToggleGroup>
         </div>

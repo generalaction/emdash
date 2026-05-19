@@ -102,7 +102,7 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
 
       case 'downloaded':
         return (
-          <p className="flex items-center gap-1 text-sm text-green-600 dark:text-green-500">
+          <p className="flex items-center gap-1 text-sm text-foreground-success">
             <CheckCircle2 className="h-3 w-3" />
             Update ready. Restart {PRODUCT_NAME} to use the new version.
           </p>
@@ -121,7 +121,7 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
         return (
           <Badge
             variant="outline"
-            className="border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-400"
+            className="border-border-warning bg-background-warning text-foreground-warning"
           >
             <AlertCircle className="h-3 w-3" />
             Update temporarily unavailable — please try again later
@@ -131,7 +131,7 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
       default:
         return (
           <p className="flex items-center gap-1 text-sm text-muted-foreground">
-            <CheckCircle2 className="h-3 w-3 text-green-600 dark:text-green-500" />
+            <CheckCircle2 className="h-3 w-3 text-foreground-success" />
             You're up to date.{' '}
           </p>
         );

@@ -5,7 +5,7 @@ import { useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import { EmdashLogo } from '@renderer/lib/emdash-logo';
 import { useArrowKeyNavigation } from '@renderer/lib/hooks/use-arrow-key-navigation';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
-import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
+import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { cn } from '@renderer/utils/utils';
 import { useTabGroupContext } from '../tabs/tab-group-context';
 
@@ -82,7 +82,7 @@ function PaneEmptyStateAction({
         {icon}
         {label}
       </div>
-      <ShortcutHint settingsKey={shortcutSettingsKey} className="text-foreground-muted" />
+      <BoundShortcut settingsKey={shortcutSettingsKey} className="text-foreground-muted" />
     </button>
   );
 }

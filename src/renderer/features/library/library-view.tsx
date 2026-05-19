@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, type ReactNode } from 'react';
 import { McpView } from '@renderer/features/mcp/components/McpView';
-import SkillsView from '@renderer/features/skills/components/SkillsView';
+import { SkillsView } from '@renderer/features/skills/components/SkillsView';
 import { Titlebar } from '@renderer/lib/components/titlebar/Titlebar';
 import { useParams } from '@renderer/lib/layout/navigation-provider';
 import { cn } from '@renderer/utils/utils';

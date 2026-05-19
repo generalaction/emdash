@@ -4,7 +4,7 @@ import { getTaskView } from '@renderer/features/tasks/stores/task-selectors';
 import { appState } from '@renderer/lib/stores/app-state';
 import type { HistoryEntry } from '@renderer/lib/stores/navigation-history-store';
 import { Button } from '@renderer/lib/ui/button';
-import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
+import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 
 export function applyHistoryEntry(entry: HistoryEntry): void {
@@ -37,7 +37,7 @@ export const NavButtons = observer(function NavButtons() {
         </TooltipTrigger>
         <TooltipContent>
           Go Back
-          <ShortcutHint settingsKey="navigateBack" />
+          <BoundShortcut settingsKey="navigateBack" variant="badge" />
         </TooltipContent>
       </Tooltip>
       <Tooltip>
@@ -54,7 +54,7 @@ export const NavButtons = observer(function NavButtons() {
         </TooltipTrigger>
         <TooltipContent>
           Go Forward
-          <ShortcutHint settingsKey="navigateForward" />
+          <BoundShortcut settingsKey="navigateForward" variant="badge" />
         </TooltipContent>
       </Tooltip>
     </div>

@@ -252,7 +252,7 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
         {success ? (
           // Success State
           <div className="flex flex-col items-center space-y-6 duration-300 animate-in fade-in zoom-in">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-500 duration-500 animate-in zoom-in">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-foreground-success duration-500 animate-in zoom-in">
               <Check className="h-8 w-8 text-white" strokeWidth={3} />
             </div>
             <div className="space-y-2 text-center">
@@ -274,8 +274,8 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
         ) : error ? (
           // Error State
           <div className="flex w-full flex-col items-center space-y-6">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-red-500/20">
-              <AlertCircle className="h-8 w-8 text-red-500" />
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-background-error">
+              <AlertCircle className="h-8 w-8 text-foreground-error" />
             </div>
             <div className="space-y-2 text-center">
               <h2 className="text-xl font-semibold">Authentication Failed</h2>
@@ -344,8 +344,8 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
             </div>
 
             {browserOpening && (
-              <div className="w-full rounded-lg border border-blue-500/20 bg-blue-500/10 p-4">
-                <p className="text-center text-sm text-blue-600 dark:text-blue-400">
+              <div className="w-full rounded-lg border border-border-info bg-background-info p-4">
+                <p className="text-center text-sm text-foreground-info">
                   Opening GitHub in {browserOpenCountdown}s...
                 </p>
               </div>
