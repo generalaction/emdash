@@ -1,6 +1,6 @@
 import { motion, type Variants } from 'framer-motion';
 import IconLight from '@/assets/images/emdash/icon-light.png';
-import YTBanner from '@/assets/images/ytbanner.png';
+import YTBanner from '@/assets/images/ytbanner.webp';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { Button } from '@renderer/lib/ui/button';
 
