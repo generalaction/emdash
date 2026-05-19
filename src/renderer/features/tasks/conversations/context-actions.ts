@@ -91,7 +91,7 @@ export function buildLinkedIssueContextAction(issue?: Issue): IssueContextAction
 }
 
 export function buildDraftCommentsContextAction(
-  comments: DraftComment[],
+  comments: DraftComment[]
 ): DraftCommentsContextAction | null {
   if (comments.length === 0) return null;
   const fileCount = new Set(comments.map((c) => c.filePath)).size;
@@ -105,7 +105,7 @@ export function buildDraftCommentsContextAction(
 }
 
 export function buildPromptLibraryContextActions(
-  prompts: PromptLibraryPrompt[],
+  prompts: PromptLibraryPrompt[]
 ): PromptContextAction[] {
   return prompts
     .filter((p) => p.prompt.trim().length > 0)
@@ -119,7 +119,7 @@ export function buildPromptLibraryContextActions(
 export function buildTaskContextActions(
   issue: Issue | undefined,
   comments: DraftComment[],
-  prompts: PromptLibraryPrompt[],
+  prompts: PromptLibraryPrompt[]
 ): ContextAction[] {
   return [
     buildLinkedIssueContextAction(issue),

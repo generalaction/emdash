@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import type { Issue } from '@shared/tasks';
-import type { DraftComment } from '@renderer/features/tasks/diff-view/stores/draft-comments-store';
 import {
   buildDraftCommentsContextAction,
   buildIssueContextText,
@@ -8,6 +7,7 @@ import {
   buildPromptLibraryContextActions,
   buildTaskContextActions,
 } from '@renderer/features/tasks/conversations/context-actions';
+import type { DraftComment } from '@renderer/features/tasks/diff-view/stores/draft-comments-store';
 
 function makeIssue(overrides: Partial<Issue> = {}): Issue {
   return {
@@ -41,7 +41,9 @@ function makeDraftComment(overrides: Partial<DraftComment> = {}): DraftComment {
 
 describe('buildIssueContextText', () => {
   it('normalizes field whitespace and produces a newline-free string for basic fields', () => {
-    const text = buildIssueContextText(makeIssue({ description: 'Line one.\nLine two.\n\nLine three.' }));
+    const text = buildIssueContextText(
+      makeIssue({ description: 'Line one.\nLine two.\n\nLine three.' })
+    );
 
     expect(text).toContain('Provider: GitHub');
     expect(text).toContain('Identifier: EMD-123');
@@ -65,11 +67,11 @@ describe('buildIssueContextText', () => {
       makeIssue({
         provider: 'linear',
         context: 'Linear issue activity\n\nComments:\n- 2026-04-17 by Jona: Looks good',
-      }),
+      })
     );
 
     expect(text).toContain(
-      'Context:\nLinear issue activity\n\nComments:\n- 2026-04-17 by Jona: Looks good',
+      'Context:\nLinear issue activity\n\nComments:\n- 2026-04-17 by Jona: Looks good'
     );
   });
 });
@@ -91,7 +93,9 @@ describe('buildLinkedIssueContextAction', () => {
   });
 
   it('uses the issue provider and identifier in the id', () => {
-    const action = buildLinkedIssueContextAction(makeIssue({ provider: 'linear', identifier: 'LIN-42' }));
+    const action = buildLinkedIssueContextAction(
+      makeIssue({ provider: 'linear', identifier: 'LIN-42' })
+    );
 
     expect(action?.id).toBe('linked-issue:linear:LIN-42');
     expect(action?.provider).toBe('linear');
@@ -108,7 +112,11 @@ describe('buildPromptLibraryContextActions', () => {
     expect(actions).toHaveLength(1);
     expect(actions[0]?.id).toBe('prompt:one');
     expect(actions[0]?.kind).toBe('prompt');
-    expect(actions[0]?.prompt).toEqual({ id: 'one', title: 'Security review', prompt: 'Check auth boundaries.' });
+    expect(actions[0]?.prompt).toEqual({
+      id: 'one',
+      title: 'Security review',
+      prompt: 'Check auth boundaries.',
+    });
   });
 
   it('returns an empty array when all prompts are blank', () => {
@@ -153,14 +161,10 @@ describe('buildDraftCommentsContextAction', () => {
 describe('buildTaskContextActions', () => {
   it('includes linked issue context, draft comments, then prompt library actions', () => {
     const comments = [makeDraftComment()];
-    const actions = buildTaskContextActions(
-      makeIssue(),
-      comments,
-      [
-        { id: 'review-prompt', title: 'Review prompt', prompt: 'Review this worktree.' },
-        { id: 'custom', title: 'Perf review', prompt: 'Look for slow paths.' },
-      ],
-    );
+    const actions = buildTaskContextActions(makeIssue(), comments, [
+      { id: 'review-prompt', title: 'Review prompt', prompt: 'Review this worktree.' },
+      { id: 'custom', title: 'Perf review', prompt: 'Look for slow paths.' },
+    ]);
 
     expect(actions).toHaveLength(4);
     expect(actions[0]?.id).toBe('linked-issue:github:EMD-123');
@@ -170,7 +174,11 @@ describe('buildTaskContextActions', () => {
   });
 
   it('omits the linked issue action when issue is undefined', () => {
-    const actions = buildTaskContextActions(undefined, [], [{ id: 'p', title: 'P', prompt: 'Do it.' }]);
+    const actions = buildTaskContextActions(
+      undefined,
+      [],
+      [{ id: 'p', title: 'P', prompt: 'Do it.' }]
+    );
     expect(actions).toHaveLength(1);
     expect(actions[0]?.kind).toBe('prompt');
   });

@@ -41,7 +41,9 @@ export function ModalContextBar({ actions, onActionClick }: ModalContextBarProps
                 {issueAction.provider ? (
                   <ProviderLogo provider={issueAction.provider} className="h-3.5 w-3.5" />
                 ) : null}
-                <span className="max-w-72 truncate">{issueAction.issue.identifier} {issueAction.issue.title}</span>
+                <span className="max-w-72 truncate">
+                  {issueAction.issue.identifier} {issueAction.issue.title}
+                </span>
                 <ArrowUp className="size-3 shrink-0" />
               </Button>
             </TooltipTrigger>

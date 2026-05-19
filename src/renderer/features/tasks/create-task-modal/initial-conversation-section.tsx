@@ -44,15 +44,12 @@ interface InitialConversationFieldProps {
   projectId?: string;
 }
 
-export function InitialConversationField({
-  state,
-  linkedIssue,
-}: InitialConversationFieldProps) {
+export function InitialConversationField({ state, linkedIssue }: InitialConversationFieldProps) {
   const { value: promptLibrary } = usePromptLibrary();
   const autoApproveDefaults = useAgentAutoApproveDefaults();
   const contextActions = useMemo(
     () => buildTaskContextActions(linkedIssue, [], promptLibrary),
-    [linkedIssue, promptLibrary],
+    [linkedIssue, promptLibrary]
   );
 
   const handleActionClick = (action: ContextAction) => {

@@ -54,5 +54,4 @@ describe('refreshLinkedIssueContext', () => {
 
     await expect(refreshLinkedIssueContext(issue, 'project-1')).resolves.toBe(issue);
   });
-
 });

@@ -1,4 +1,4 @@
-import { type Hotkey, useHotkey } from '@tanstack/react-hotkeys';
+import { useHotkey, type Hotkey } from '@tanstack/react-hotkeys';
 import { ChevronDown, ChevronUp, MessageSquare, TextInitial } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import {
@@ -45,10 +45,7 @@ export function ActionItemRow({ action }: { action: ContextAction }) {
       return (
         <ActionItemBaseRow
           icon={
-            <ProviderLogo
-              provider={action.provider || 'linear'}
-              className="h-3.5 w-3.5 shrink-0"
-            />
+            <ProviderLogo provider={action.provider || 'linear'} className="h-3.5 w-3.5 shrink-0" />
           }
           label={action.issue.title}
           text={action.issue.identifier}
@@ -78,7 +75,11 @@ export function ActionItemRow({ action }: { action: ContextAction }) {
 export interface AddContextPopoverProps {
   actions: ContextAction[];
   disabled: boolean;
-  onApplyAction: (text: string, action: ContextAction, opts?: { andSend?: boolean }) => Promise<void>;
+  onApplyAction: (
+    text: string,
+    action: ContextAction,
+    opts?: { andSend?: boolean }
+  ) => Promise<void>;
 }
 
 export function AddContextPopover({ actions, disabled, onApplyAction }: AddContextPopoverProps) {

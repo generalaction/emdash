@@ -9,10 +9,7 @@ import { useConversations, useTaskViewContext } from '@renderer/features/tasks/t
 import { rpc } from '@renderer/lib/ipc';
 import { pastePromptInjection } from '@renderer/lib/pty/prompt-injection';
 import { AddContextPopover } from './add-context-popover';
-import {
-  buildTaskContextActions,
-  type ContextAction,
-} from './context-actions';
+import { buildTaskContextActions, type ContextAction } from './context-actions';
 
 interface ContextBarProps {
   conversationId: string | undefined;
@@ -37,13 +34,8 @@ export const ContextBar = observer(function ContextBar({
   const hasConversation = conversations.conversations.size > 0;
 
   const actions = useMemo(
-    () =>
-      buildTaskContextActions(
-        task?.linkedIssue,
-        draftComments?.comments ?? [],
-        promptLibrary,
-      ),
-    [task?.linkedIssue, draftComments?.comments, promptLibrary],
+    () => buildTaskContextActions(task?.linkedIssue, draftComments?.comments ?? [], promptLibrary),
+    [task?.linkedIssue, draftComments?.comments, promptLibrary]
   );
 
   if (!draftComments || !hasConversation || actions.length === 0) return null;
@@ -51,7 +43,7 @@ export const ContextBar = observer(function ContextBar({
   const handleApplyAction = async (
     text: string,
     action: ContextAction,
-    opts?: { andSend?: boolean },
+    opts?: { andSend?: boolean }
   ) => {
     if (!activeSessionId || !text) return;
 

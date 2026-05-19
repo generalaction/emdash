@@ -91,7 +91,9 @@ export function PromptActionsMenu({
                   onClick={() => handleActionClick(action)}
                 >
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm text-foreground">{action.prompt.title}</span>
+                    <span className="block truncate text-sm text-foreground">
+                      {action.prompt.title}
+                    </span>
                     <span
                       className={
                         expanded
