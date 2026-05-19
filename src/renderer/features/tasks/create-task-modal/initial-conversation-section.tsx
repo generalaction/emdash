@@ -4,10 +4,10 @@ import type { Issue } from '@shared/tasks';
 import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
 import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
 import {
+  buildContextActionText,
   buildTaskContextActions,
   type ContextAction,
 } from '@renderer/features/tasks/conversations/context-actions';
-import { resolveContextActionText } from '@renderer/features/tasks/conversations/resolve-context-action-text';
 import { useEffectiveProvider } from '@renderer/features/tasks/conversations/use-effective-provider';
 import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
@@ -47,18 +47,16 @@ interface InitialConversationFieldProps {
 export function InitialConversationField({
   state,
   linkedIssue,
-  projectId,
 }: InitialConversationFieldProps) {
   const { value: promptLibrary } = usePromptLibrary();
   const autoApproveDefaults = useAgentAutoApproveDefaults();
   const contextActions = useMemo(
-    () => buildTaskContextActions(linkedIssue, undefined, promptLibrary),
-    [linkedIssue, promptLibrary]
+    () => buildTaskContextActions(linkedIssue, [], promptLibrary),
+    [linkedIssue, promptLibrary],
   );
 
-  const handleActionClick = async (action: ContextAction) => {
-    const text = await resolveContextActionText({ action, linkedIssue, projectId });
-
+  const handleActionClick = (action: ContextAction) => {
+    const text = buildContextActionText(action);
     state.setPrompt((current) => appendInitialConversationText(current, text));
   };
 

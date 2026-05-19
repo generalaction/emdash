@@ -181,7 +181,15 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
           </PaneSizingProvider>
         </div>
       </div>
-      <ContextBar />
+      <ContextBar
+        conversationId={tm.activeConversationId}
+        onSend={() => {
+          if (shouldSetWorkingOnEnter && activeConversation) {
+            activeConversation.setWorking();
+            void conversations.touchConversation(activeConversation.data.id);
+          }
+        }}
+      />
     </div>
   );
 });

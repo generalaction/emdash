@@ -1,119 +1,129 @@
+import { formatCommentsForAgent } from '@shared/lineComments';
 import type { PromptLibraryPrompt } from '@shared/prompt-library';
 import type { Issue } from '@shared/tasks';
-import { ISSUE_PROVIDER_META } from '@renderer/features/integrations/issue-provider-meta';
+import type { DraftComment } from '../diff-view/stores/draft-comments-store';
 
-const MAX_LABEL_TITLE_LENGTH = 24;
+// ─── Types ───────────────────────────────────────────────────────────────────
 
 export type ContextActionKind = 'linked-issue' | 'draft-comments' | 'prompt';
 
-export interface ContextAction {
+export interface IssueContextAction {
   id: string;
-  kind: ContextActionKind;
-  label: string;
-  text: string;
-  provider?: Issue['provider'];
+  kind: 'linked-issue';
+  provider: Issue['provider'];
+  issue: Issue;
 }
 
-function normalizeWhitespace(value: string | undefined): string {
-  return (value ?? '').replace(/\s+/g, ' ').trim();
+export interface DraftCommentsContextAction {
+  id: string;
+  kind: 'draft-comments';
+  comments: DraftComment[];
+  commentCount: number;
+  fileCount: number;
 }
 
-function truncate(text: string, maxLength: number): string {
-  if (text.length <= maxLength) return text;
-  return `${text.slice(0, maxLength - 1).trimEnd()}…`;
+export interface PromptContextAction {
+  id: string;
+  kind: 'prompt';
+  prompt: PromptLibraryPrompt;
 }
 
-function issueLabel(issue: Issue): string {
-  const identifier = normalizeWhitespace(issue.identifier);
-  const title = truncate(normalizeWhitespace(issue.title), MAX_LABEL_TITLE_LENGTH);
-  if (identifier && title) return `${identifier} ${title}`;
-  if (identifier) return identifier;
-  if (title) return title;
-  return 'Linked issue';
-}
+export type ContextAction = IssueContextAction | DraftCommentsContextAction | PromptContextAction;
 
-function issueInjectionText(issue: Issue): string {
-  const providerDisplay = ISSUE_PROVIDER_META[issue.provider]?.displayName ?? issue.provider;
-  const parts = [
-    `Provider: ${providerDisplay}`,
-    `Identifier: ${normalizeWhitespace(issue.identifier)}`,
-    `Title: ${normalizeWhitespace(issue.title)}`,
-    `URL: ${normalizeWhitespace(issue.url)}`,
-    issue.description ? `Description: ${normalizeWhitespace(issue.description)}` : undefined,
-    issue.status ? `Status: ${normalizeWhitespace(issue.status)}` : undefined,
-    issue.assignees?.length
-      ? `Assignees: ${issue.assignees.map(normalizeWhitespace).filter(Boolean).join(', ')}`
-      : undefined,
-    issue.project ? `Project: ${normalizeWhitespace(issue.project)}` : undefined,
-  ].filter(Boolean);
-  const context = issue.context?.trim();
+// ─── Text building ───────────────────────────────────────────────────────────
 
-  if (parts.length === 0 && !context) {
-    return 'Linked issue context';
+const PROVIDER_LABELS: Record<Issue['provider'], string> = {
+  github: 'GitHub',
+  linear: 'Linear',
+  jira: 'Jira',
+  gitlab: 'GitLab',
+  plain: 'Plain',
+  forgejo: 'Forgejo',
+  featurebase: 'Featurebase',
+  asana: 'Asana',
+};
+
+export function buildIssueContextText(issue: Issue): string {
+  const normalize = (s: string) => s.replace(/[\r\n]+/g, ' ').trim();
+
+  const parts: string[] = [
+    `Provider: ${PROVIDER_LABELS[issue.provider]}`,
+    `Identifier: ${issue.identifier}`,
+    `Title: ${issue.title}`,
+    `URL: ${issue.url}`,
+  ];
+
+  if (issue.description) parts.push(`Description: ${normalize(issue.description)}`);
+  if (issue.status) parts.push(`Status: ${issue.status}`);
+  if (issue.assignees?.length) parts.push(`Assignees: ${issue.assignees.join(', ')}`);
+  if (issue.project) parts.push(`Project: ${issue.project}`);
+
+  let text = parts.join('. ');
+
+  if (issue.context) {
+    text += `\nContext:\n${issue.context}`;
   }
 
-  return [parts.join(' | '), context ? `Context:\n${context}` : undefined]
-    .filter(Boolean)
-    .join('\n\n');
+  return text;
 }
 
-export function buildLinkedIssueContextAction(issue?: Issue): ContextAction | null {
+export function buildContextActionText(action: ContextAction): string {
+  switch (action.kind) {
+    case 'linked-issue':
+      return buildIssueContextText(action.issue);
+    case 'draft-comments':
+      return formatCommentsForAgent(action.comments, { includeIntro: false });
+    case 'prompt':
+      return action.prompt.prompt;
+  }
+}
+
+// ─── Builders ────────────────────────────────────────────────────────────────
+
+export function buildLinkedIssueContextAction(issue?: Issue): IssueContextAction | null {
   if (!issue) return null;
-  const normalizedIdentifier = normalizeWhitespace(issue.identifier) || 'unknown';
   return {
-    id: `linked-issue:${issue.provider}:${normalizedIdentifier}`,
+    id: `linked-issue:${issue.provider}:${issue.identifier}`,
     kind: 'linked-issue',
-    label: issueLabel(issue),
-    text: issueInjectionText(issue),
     provider: issue.provider,
+    issue,
+  };
+}
+
+export function buildDraftCommentsContextAction(
+  comments: DraftComment[],
+): DraftCommentsContextAction | null {
+  if (comments.length === 0) return null;
+  const fileCount = new Set(comments.map((c) => c.filePath)).size;
+  return {
+    id: 'draft-comments',
+    kind: 'draft-comments',
+    comments,
+    commentCount: comments.length,
+    fileCount,
   };
 }
 
 export function buildPromptLibraryContextActions(
-  prompts: PromptLibraryPrompt[] | undefined
-): ContextAction[] {
-  return (prompts ?? []).flatMap((prompt) => {
-    const text = prompt.prompt.trim();
-    if (!text) return [];
-
-    const title = normalizeWhitespace(prompt.title) || 'Custom prompt';
-    return [
-      {
-        id: `prompt:${prompt.id}`,
-        kind: 'prompt' as const,
-        label: truncate(title, MAX_LABEL_TITLE_LENGTH),
-        text,
-      },
-    ];
-  });
-}
-
-export function buildDraftCommentsContextAction(args: {
-  count: number;
-  formattedComments?: string;
-}): ContextAction | null {
-  const text = (args.formattedComments ?? '').trim();
-  if (!text || args.count <= 0) return null;
-
-  return {
-    id: 'draft-comments',
-    kind: 'draft-comments',
-    label: `Comments (${args.count})`,
-    text,
-  };
+  prompts: PromptLibraryPrompt[],
+): PromptContextAction[] {
+  return prompts
+    .filter((p) => p.prompt.trim().length > 0)
+    .map((p) => ({
+      id: `prompt:${p.id}`,
+      kind: 'prompt' as const,
+      prompt: p,
+    }));
 }
 
 export function buildTaskContextActions(
-  linkedIssue?: Issue,
-  draftComments?: { count: number; formattedComments?: string },
-  promptLibrary?: PromptLibraryPrompt[]
+  issue: Issue | undefined,
+  comments: DraftComment[],
+  prompts: PromptLibraryPrompt[],
 ): ContextAction[] {
-  const linkedIssueAction = buildLinkedIssueContextAction(linkedIssue);
-  const draftCommentsAction = draftComments ? buildDraftCommentsContextAction(draftComments) : null;
-  const promptLibraryActions = buildPromptLibraryContextActions(promptLibrary);
-  const actions: ContextAction[] = [];
-  if (linkedIssueAction) actions.push(linkedIssueAction);
-  if (draftCommentsAction) actions.push(draftCommentsAction);
-  actions.push(...promptLibraryActions);
-  return actions;
+  return [
+    buildLinkedIssueContextAction(issue),
+    buildDraftCommentsContextAction(comments),
+    ...buildPromptLibraryContextActions(prompts),
+  ].filter((a): a is ContextAction => a !== null);
 }

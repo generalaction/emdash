@@ -1,5 +1,8 @@
 import { ArrowUp } from 'lucide-react';
-import { type ContextAction } from '@renderer/features/tasks/conversations/context-actions';
+import {
+  type ContextAction,
+  type PromptContextAction,
+} from '@renderer/features/tasks/conversations/context-actions';
 import { PromptActionsMenu } from '@renderer/features/tasks/conversations/prompt-actions-menu';
 import { Button } from '@renderer/lib/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
@@ -14,7 +17,7 @@ export function ModalContextBar({ actions, onActionClick }: ModalContextBarProps
   if (actions.length === 0) return null;
 
   const issueAction = actions.find((a) => a.kind === 'linked-issue') ?? null;
-  const promptActions = actions.filter((a) => a.kind === 'prompt');
+  const promptActions = actions.filter((a): a is PromptContextAction => a.kind === 'prompt');
 
   return (
     <TooltipProvider>
@@ -38,7 +41,7 @@ export function ModalContextBar({ actions, onActionClick }: ModalContextBarProps
                 {issueAction.provider ? (
                   <ProviderLogo provider={issueAction.provider} className="h-3.5 w-3.5" />
                 ) : null}
-                <span className="max-w-72 truncate">{issueAction.label}</span>
+                <span className="max-w-72 truncate">{issueAction.issue.identifier} {issueAction.issue.title}</span>
                 <ArrowUp className="size-3 shrink-0" />
               </Button>
             </TooltipTrigger>

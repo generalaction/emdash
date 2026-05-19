@@ -2,7 +2,7 @@ import { ArrowUp, ChevronDown, ChevronUp, FileSearch } from 'lucide-react';
 import { useState, type CSSProperties } from 'react';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import type { ContextAction } from './context-actions';
+import type { ContextAction, PromptContextAction } from './context-actions';
 
 const EXPAND_TEXT_LENGTH = 140;
 
@@ -24,7 +24,7 @@ export function PromptActionsMenu({
   actionTooltip,
   onActionClick,
 }: {
-  actions: ContextAction[];
+  actions: PromptContextAction[];
   disabled?: boolean;
   disabledTooltip: string;
   actionTooltip: string;
@@ -78,7 +78,7 @@ export function PromptActionsMenu({
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-1">
           {actions.map((action) => {
-            const canExpand = action.text.length > EXPAND_TEXT_LENGTH;
+            const canExpand = action.prompt.prompt.length > EXPAND_TEXT_LENGTH;
             const expanded = expandedIds.has(action.id);
             return (
               <div
@@ -91,7 +91,7 @@ export function PromptActionsMenu({
                   onClick={() => handleActionClick(action)}
                 >
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm text-foreground">{action.label}</span>
+                    <span className="block truncate text-sm text-foreground">{action.prompt.title}</span>
                     <span
                       className={
                         expanded
@@ -100,7 +100,7 @@ export function PromptActionsMenu({
                       }
                       style={previewStyle(expanded)}
                     >
-                      {action.text}
+                      {action.prompt.prompt}
                     </span>
                   </span>
                 </button>
@@ -110,7 +110,7 @@ export function PromptActionsMenu({
                       type="button"
                       className="rounded-sm p-1 text-foreground-muted hover:bg-background-quaternary-2 hover:text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-foreground/30"
                       onClick={() => toggleExpanded(action.id)}
-                      aria-label={`${expanded ? 'Collapse' : 'Expand'} ${action.label}`}
+                      aria-label={`${expanded ? 'Collapse' : 'Expand'} ${action.prompt.title}`}
                     >
                       {expanded ? (
                         <ChevronUp className="size-3.5" />
@@ -123,7 +123,7 @@ export function PromptActionsMenu({
                     type="button"
                     className="rounded-sm p-1 text-foreground-muted hover:bg-background-quaternary-2 hover:text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-foreground/30"
                     onClick={() => handleActionClick(action)}
-                    aria-label={`Add ${action.label}`}
+                    aria-label={`Add ${action.prompt.title}`}
                   >
                     <ArrowUp className="size-3.5" />
                   </button>
