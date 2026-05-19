@@ -26,23 +26,6 @@
     "**/*.yaml",
     "**/*.yml"
   ],
-  "sortImports": {
-    "customGroups": [
-      { "groupName": "root-alias", "elementNamePattern": ["@/**", "@root/**"] },
-      { "groupName": "shared-alias", "elementNamePattern": ["@shared/**"] },
-      { "groupName": "main-alias", "elementNamePattern": ["@main/**"] },
-      { "groupName": "renderer-alias", "elementNamePattern": ["@renderer/**"] }
-    ],
-    "groups": [
-      ["value-builtin", "value-external"],
-      "root-alias",
-      "shared-alias",
-      "main-alias",
-      "renderer-alias",
-      ["value-parent", "value-sibling", "value-index"],
-      "unknown"
-    ]
-  },
   "sortTailwindcss": {
     "stylesheet": "./src/renderer/index.css"
   }
