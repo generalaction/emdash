@@ -21,9 +21,9 @@ export const PrRow = memo(function PrRow({
   const showCreateTaskModal = useShowModal('taskModal');
 
   return (
-    <div className="flex relative items-start gap-3 rounded-lg p-3 py-4 hover:bg-background-1 transition-colors group">
+    <div className="flex relative items-start gap-3 w-full">
       <div className="pt-0.5 shrink-0">
-        <StatusIcon status={pr.status} />
+        <StatusIcon pr={pr} />
       </div>
       <div className="flex-1 min-w-0 flex flex-col gap-2">
         <div className="flex items-center gap-2 justify-between">
@@ -74,8 +74,8 @@ function PrDiffStat({ pr }: { pr: PullRequest }) {
 
   return (
     <span className="shrink-0 text-xs tabular-nums" aria-label="Pull request diff lines">
-      <span className="text-green-600">+{formatDiffLineCount(pr.additions ?? 0)}</span>{' '}
-      <span className="text-red-500">-{formatDiffLineCount(pr.deletions ?? 0)}</span>
+      <span className="text-foreground-success">+{formatDiffLineCount(pr.additions ?? 0)}</span>{' '}
+      <span className="text-foreground-error">-{formatDiffLineCount(pr.deletions ?? 0)}</span>
     </span>
   );
 }

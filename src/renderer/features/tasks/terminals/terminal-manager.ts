@@ -3,10 +3,11 @@ import { makePtySessionId } from '@shared/ptySessionId';
 import { type CreateTerminalParams, type Terminal } from '@shared/terminals';
 import { rpc } from '@renderer/lib/ipc';
 import { PtySession } from '@renderer/lib/pty/pty-session';
+import type { IDisposable } from '@renderer/lib/stores/lifecycle';
 import { Resource } from '@renderer/lib/stores/resource';
 import { nextTerminalName } from './terminal-tabs';
 
-export class TerminalManagerStore {
+export class TerminalManagerStore implements IDisposable {
   readonly projectId: string;
   readonly taskId: string;
   /** Data layer: plain Terminal records loaded from the main process. */

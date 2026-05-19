@@ -1,6 +1,7 @@
 import React, { forwardRef, useImperativeHandle, useRef } from 'react';
 import { RENDERER_FILE_MAX_BYTES } from '@shared/conversations';
 import { quoteShellArg } from '@shared/shell';
+import { getDraggedFilePaths } from '@renderer/lib/drag-files';
 import { rpc } from '@renderer/lib/ipc';
 import { log } from '@renderer/utils/logger';
 import { cn } from '@renderer/utils/utils';
@@ -71,43 +72,48 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
     };
 
     const handleDrop: React.DragEventHandler<HTMLDivElement> = (event) => {
-      event.preventDefault();
-      const dt = event.dataTransfer;
-      if (!dt?.files?.length) return;
-      const files = Array.from(dt.files);
+      try {
+        event.preventDefault();
+        const draggedPaths = getDraggedFilePaths(event.dataTransfer);
+        const files = Array.from(event.dataTransfer?.files ?? []);
+        if (draggedPaths.length === 0 && files.length === 0) return;
 
-      const saveDroppedFile = async (file: File) => {
-        if (file.size > RENDERER_FILE_MAX_BYTES) {
-          throw new Error(`File "${file.name}" is too large to drop into the terminal.`);
-        }
-        const buffer = await file.arrayBuffer();
-        return rpc.app.saveRendererFile({
-          name: file.name,
-          data: new Uint8Array(buffer),
-        });
-      };
+        const saveDroppedFile = async (file: File) => {
+          if (file.size > RENDERER_FILE_MAX_BYTES) {
+            throw new Error(`File "${file.name}" is too large to drop into the terminal.`);
+          }
+          const buffer = await file.arrayBuffer();
+          return rpc.app.saveRendererFile({
+            name: file.name,
+            data: new Uint8Array(buffer),
+          });
+        };
 
-      void (async () => {
-        try {
-          const localPaths = await Promise.all(files.map(saveDroppedFile));
-          if (localPaths.length === 0) return;
+        void (async () => {
+          try {
+            const savedFilePaths = await Promise.all(files.map(saveDroppedFile));
+            const localPaths = draggedPaths.length > 0 ? draggedPaths : savedFilePaths;
+            if (localPaths.length === 0) return;
 
-          const paths = remoteConnectionId
-            ? await (async () => {
-                const result = await rpc.pty.uploadFiles({ sessionId, localPaths });
-                if (!result.success || !result.data?.remotePaths) return [];
-                return result.data.remotePaths;
-              })()
-            : localPaths;
+            const paths = remoteConnectionId
+              ? await (async () => {
+                  const result = await rpc.pty.uploadFiles({ sessionId, localPaths });
+                  if (!result.success || !result.data?.remotePaths) return [];
+                  return result.data.remotePaths;
+                })()
+              : localPaths;
 
-          if (paths.length === 0) return;
-          const escaped = paths.map((p: string) => quoteShellArg(p)).join(' ');
-          sendInput(`${escaped} `);
-          focus();
-        } catch (error) {
-          log.warn('Terminal drop failed', { error });
-        }
-      })();
+            if (paths.length === 0) return;
+            const escaped = paths.map((p: string) => quoteShellArg(p)).join(' ');
+            sendInput(`${escaped} `);
+            focus();
+          } catch (error) {
+            log.warn('Terminal drop failed', { error });
+          }
+        })();
+      } catch (error) {
+        log.warn('Terminal drop failed', { error });
+      }
     };
 
     return (
@@ -118,13 +124,13 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
           height: '100%',
           minHeight: 0,
           boxSizing: 'border-box',
-          backgroundColor: themeOverride?.background ?? 'var(--background-1)',
+          backgroundColor: themeOverride?.background ?? 'var(--background-secondary)',
         }}
       >
         <div
           ref={containerRef}
           data-terminal-container
-          className="p-2"
+          className={cn('p-2 ', themeOverride?.background ? '' : 'bg-background-secondary-1')}
           style={{
             width: '100%',
             height: '100%',

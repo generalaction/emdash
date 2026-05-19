@@ -55,7 +55,7 @@ export const KeyValueSection: React.FC<KeyValueSectionProps> = ({
                 }}
                 className={`h-8 w-1/2 ${
                   isCredential && isRequired && !entry.value
-                    ? 'border-amber-400/60 bg-amber-50/10'
+                    ? 'border-border-warning bg-background-warning'
                     : ''
                 }`}
                 placeholder={isCredential ? (isRequired ? 'Required' : 'Optional') : 'value'}

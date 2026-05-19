@@ -1,36 +1,41 @@
 import { X } from 'lucide-react';
 import type React from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { createPortal } from 'react-dom';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 import { INITIAL_PROMPT_IMAGE_MAX_BYTES } from '@shared/conversations';
 import type { Issue } from '@shared/tasks';
+import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
 import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
-import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
-import { buildTaskContextActions } from '@renderer/features/tasks/conversations/context-actions';
+import {
+  buildTaskContextActions,
+  type ContextAction,
+} from '@renderer/features/tasks/conversations/context-actions';
+import { resolveContextActionText } from '@renderer/features/tasks/conversations/resolve-context-action-text';
 import { useEffectiveProvider } from '@renderer/features/tasks/conversations/use-effective-provider';
 import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
-import { useAttachments } from '@renderer/lib/hooks/use-attachments';
+import { type Attachment, useAttachments } from '@renderer/lib/hooks/use-attachments';
 import { rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
 import { Field, FieldLabel } from '@renderer/lib/ui/field';
 import { Switch } from '@renderer/lib/ui/switch';
 import { Textarea } from '@renderer/lib/ui/textarea';
+import { appendInitialConversationText } from './initial-conversation-text';
 import { ModalContextBar } from './modal-context-bar';
 
 export type InitialConversationState = {
   provider: AgentProviderId | null;
   setProvider: (provider: AgentProviderId | null) => void;
   prompt: string;
-  setPrompt: (prompt: string) => void;
-  imageAttachments: File[];
+  setPrompt: Dispatch<SetStateAction<string>>;
+  connectionId?: string;
+  imageAttachments: Attachment[];
   removeImageAttachment: (index: number) => void;
   handleImagePaste: (event: React.ClipboardEvent<HTMLTextAreaElement>) => void;
   handleImageDrop: (event: React.DragEvent<HTMLElement>) => void;
   handleImageDragOver: (event: React.DragEvent<HTMLElement>) => void;
   resetImages: () => void;
-  connectionId?: string;
 };
 
 type ImagePreview = {
@@ -60,11 +65,13 @@ async function resolveImagePath(file: File): Promise<string> {
   });
 }
 
-export async function getInitialPromptImages(files: File[]): Promise<InitialPromptImage[]> {
+export async function getInitialPromptImages(
+  attachments: Attachment[]
+): Promise<InitialPromptImage[]> {
   return Promise.all(
-    files.map(async (file, index) => ({
-      name: imageDisplayName(file, index),
-      path: await resolveImagePath(file),
+    attachments.map(async (attachment, index) => ({
+      name: imageDisplayName(attachment.file, index),
+      path: await resolveImagePath(attachment.file),
     }))
   );
 }
@@ -80,56 +87,47 @@ export function useInitialConversationState(projectId?: string): InitialConversa
     setProvider: setProviderOverride,
     prompt,
     setPrompt,
-    imageAttachments: attachments.map((attachment) => attachment.file),
+    connectionId,
+    imageAttachments: attachments,
     removeImageAttachment: removeAttachment,
     handleImagePaste: handlePaste,
     handleImageDrop: handleDrop,
     handleImageDragOver: handleDragOver,
     resetImages: reset,
-    connectionId,
   };
 }
 
 interface InitialConversationFieldProps {
   state: InitialConversationState;
   linkedIssue?: Issue;
+  projectId?: string;
 }
 
-export function InitialConversationField({ state, linkedIssue }: InitialConversationFieldProps) {
+export function InitialConversationField({
+  state,
+  linkedIssue,
+  projectId,
+}: InitialConversationFieldProps) {
   const [preview, setPreview] = useState<ImagePreview | null>(null);
-  const { value: reviewPrompt } = useAppSettingsKey('reviewPrompt');
+  const { value: promptLibrary } = usePromptLibrary();
   const autoApproveDefaults = useAgentAutoApproveDefaults();
   const contextActions = useMemo(
-    () => buildTaskContextActions(linkedIssue, reviewPrompt),
-    [linkedIssue, reviewPrompt]
+    () => buildTaskContextActions(linkedIssue, undefined, promptLibrary),
+    [linkedIssue, promptLibrary]
   );
 
-  const handleActionClick = (text: string) => {
-    state.setPrompt(state.prompt ? `${state.prompt}\n${text}` : text);
+  const handleActionClick = async (action: ContextAction) => {
+    const text = await resolveContextActionText({ action, linkedIssue, projectId });
+
+    state.setPrompt((current) => appendInitialConversationText(current, text));
   };
 
-  useEffect(() => {
-    return () => {
-      setPreview((current) => {
-        if (current) URL.revokeObjectURL(current.src);
-        return null;
-      });
-    };
-  }, []);
-
-  const openPreview = (file: File, displayName: string) => {
-    const src = URL.createObjectURL(file);
-    setPreview((current) => {
-      if (current) URL.revokeObjectURL(current.src);
-      return { name: displayName, src };
-    });
+  const openPreview = (attachment: Attachment, displayName: string) => {
+    setPreview({ name: displayName, src: attachment.previewUrl });
   };
 
   const closePreview = () => {
-    setPreview((current) => {
-      if (current) URL.revokeObjectURL(current.src);
-      return null;
-    });
+    setPreview(null);
   };
 
   const handlePreviewKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -197,21 +195,21 @@ export function InitialConversationField({ state, linkedIssue }: InitialConversa
             value={state.prompt}
             onChange={(e) => state.setPrompt(e.target.value)}
             onPaste={state.handleImagePaste}
-            className="min-h-24 resize-none border-0 rounded-none focus-visible:ring-0 focus-visible:border-0"
+            className="min-h-24 max-h-64 resize-none border-0 rounded-none focus-visible:ring-0 focus-visible:border-0"
           />
           {state.imageAttachments.length > 0 ? (
             <ul className="flex flex-col gap-1 border-t border-border p-2">
-              {state.imageAttachments.map((file, index) => {
-                const displayName = imageDisplayName(file, index);
+              {state.imageAttachments.map((attachment, index) => {
+                const displayName = imageDisplayName(attachment.file, index);
                 return (
                   <li
-                    key={`${file.name}-${index}`}
+                    key={attachment.id}
                     className="flex items-center justify-between gap-2 rounded-md bg-background-1 px-2 py-1 text-xs"
                   >
                     <button
                       type="button"
                       className="truncate text-left text-foreground-muted hover:text-foreground"
-                      onClick={() => openPreview(file, displayName)}
+                      onClick={() => openPreview(attachment, displayName)}
                     >
                       {displayName}
                     </button>
@@ -229,7 +227,10 @@ export function InitialConversationField({ state, linkedIssue }: InitialConversa
               })}
             </ul>
           ) : null}
-          <ModalContextBar actions={contextActions} onActionClick={handleActionClick} />
+          <ModalContextBar
+            actions={contextActions}
+            onActionClick={(action) => void handleActionClick(action)}
+          />
         </div>
         {previewPortal}
       </Field>

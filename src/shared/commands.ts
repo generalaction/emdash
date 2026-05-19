@@ -48,6 +48,22 @@ export const APP_COMMAND_DEFS = defineCommandDefs([
     iconKey: 'square-plus',
   },
   {
+    id: 'app.giveFeedback',
+    label: 'Give Feedback',
+    description: 'Send feedback to the emdash team',
+    scope: 'app',
+    group: 'App',
+    iconKey: 'message-square-share',
+  },
+  {
+    id: 'app.toggleTheme',
+    label: 'Toggle Theme',
+    description: 'Switch between light and dark themes',
+    scope: 'app',
+    group: 'View',
+    iconKey: 'palette',
+  },
+  {
     id: 'app.navigateBack',
     label: 'Go Back',
     description: 'Navigate to the previous location',

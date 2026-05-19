@@ -2,7 +2,7 @@ import { ExternalLink } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import { getPrNumber, type PullRequest } from '@shared/pull-requests';
-import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
+import { useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
 import { PrMergeLine } from '@renderer/lib/components/pr-merge-line';
 import { PrNumberBadge } from '@renderer/lib/components/pr-number-badge';
 import { StatusIcon } from '@renderer/lib/components/pr-status-icon';
@@ -120,12 +120,12 @@ function computeMergeUiState(pr: PullRequest): MergeUiState {
 }
 
 export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr: PullRequest }) {
-  const task = useProvisionedTask();
-  const prStatus = pr.status;
-  const prStore = task.workspace.pr;
-  const diffView = task.taskView.diffView;
+  const taskView = useWorkspaceViewModel();
+  const prStore = taskView.prStore!;
+  const diffView = taskView.diffView;
   const showConfirm = useShowModal('confirmActionModal');
   const [isMerging, setIsMerging] = useState(false);
+  if (!diffView) return null;
   const tab = diffView.effectivePrTab;
   const isOpen = pr.status === 'open';
 
@@ -171,7 +171,7 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
             className="relative flex gap-2 items-center min-w-0 group"
             onClick={() => rpc.app.openExternal(pr.url)}
           >
-            <StatusIcon className="size-4" status={prStatus} />
+            <StatusIcon className="size-4" pr={pr} />
             <span className="flex-1 min-w-0 truncate text-sm font-normal">{pr.title}</span>
             <PrNumberBadge number={getPrNumber(pr) ?? 0} />
             <span className="absolute right-0 flex items-center pl-4 pr-0.5 bg-linear-to-r from-transparent to-background opacity-0 group-hover:opacity-100 transition-opacity">

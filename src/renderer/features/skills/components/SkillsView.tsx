@@ -1,14 +1,16 @@
-import { Loader2, Plus, RefreshCw, Search } from 'lucide-react';
+import { Loader2, Plus, RefreshCw } from 'lucide-react';
 import React from 'react';
+import { CardGridSection } from '@renderer/lib/components/card-grid';
+import { PageHeader } from '@renderer/lib/components/page-header';
 import { rpc } from '@renderer/lib/ipc';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
-import { Input } from '@renderer/lib/ui/input';
-import SkillCard from './SkillCard';
-import SkillDetailModal from './SkillDetailModal';
+import { SearchInput } from '@renderer/lib/ui/search-input';
+import { SkillCard } from './SkillCard';
+import { SkillDetailModal } from './SkillDetailModal';
 import { useSkills } from './useSkills';
 
-const SkillsView: React.FC = () => {
+export const SkillsView: React.FC = () => {
   const {
     isLoading,
     isRefreshing,
@@ -32,121 +34,74 @@ const SkillsView: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="flex h-full items-center justify-center bg-background text-foreground">
+      <div className="flex h-full items-center justify-center text-foreground">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto bg-background text-foreground">
+    <div className="flex h-full flex-col overflow-y-auto text-foreground">
       <div className="mx-auto w-full max-w-3xl px-8 py-8">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-lg font-semibold">Skills</h1>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Extend your agents with reusable skill modules
-          </p>
-        </div>
-
-        {/* Toolbar */}
-        <div className="mb-6 flex items-center gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search skills..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-            />
+        <PageHeader title="Skills" description="Extend your agents with reusable skill modules">
+          <div className="flex flex-col items-center gap-2">
+            <div className="flex items-center gap-2 w-full justify-between">
+              <SearchInput
+                placeholder="Search skills..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={refresh}
+                  disabled={isRefreshing}
+                  aria-label="Refresh catalog"
+                >
+                  <RefreshCw
+                    className={`h-4 w-4 text-muted-foreground ${isRefreshing ? 'animate-spin' : ''}`}
+                  />
+                </Button>
+                <Button onClick={() => showCreateSkillModal({})}>
+                  <Plus className="size-4" />
+                  New Skill
+                </Button>
+              </div>
+            </div>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={refresh}
-            disabled={isRefreshing}
-            aria-label="Refresh catalog"
-          >
-            <RefreshCw
-              className={`h-4 w-4 text-muted-foreground ${isRefreshing ? 'animate-spin' : ''}`}
-            />
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => showCreateSkillModal({})}>
-            <Plus className="mr-1.5 h-3.5 w-3.5" />
-            New Skill
-          </Button>
-        </div>
-
-        <div className="mb-4 flex items-start gap-3 rounded-lg border border-border bg-muted/20 px-4 py-3">
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            Skills from the{' '}
-            <a
-              href="https://github.com/openai/skills"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-medium text-foreground underline decoration-muted-foreground/40 underline-offset-2 hover:decoration-foreground"
-            >
-              OpenAI
-            </a>{' '}
-            and{' '}
-            <a
-              href="https://github.com/anthropics/skills"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-medium text-foreground underline decoration-muted-foreground/40 underline-offset-2 hover:decoration-foreground"
-            >
-              Anthropic
-            </a>{' '}
-            catalogs. Install a skill to make it available across all your coding agents. Skills
-            follow the open{' '}
-            <a
-              href="https://agentskills.io"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-medium text-foreground underline decoration-muted-foreground/40 underline-offset-2 hover:decoration-foreground"
-            >
-              Agent Skills
-            </a>{' '}
-            standard. If you want to use skills from another library, feel free to let us know
-            through the feedback modal.
-          </p>
-        </div>
-
-        {installedSkills.length > 0 && (
-          <div className="mb-6">
-            <h2 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground">
-              Installed
-            </h2>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        </PageHeader>
+        <div className="flex flex-col gap-8 py-8">
+          {installedSkills.length > 0 && (
+            <CardGridSection title="Installed">
               {installedSkills.map((skill) => (
-                <SkillCard key={skill.id} skill={skill} onSelect={openDetail} onInstall={install} />
+                <SkillCard
+                  key={skill.id}
+                  skill={skill}
+                  isInstalled={true}
+                  onInstall={install}
+                  onUninstall={uninstall}
+                  onClick={() => openDetail(skill)}
+                />
               ))}
-            </div>
-          </div>
-        )}
-
-        {recommendedSkills.length > 0 && (
-          <div className="mb-6">
-            <h2 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground">
-              Recommended
-            </h2>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            </CardGridSection>
+          )}
+          {recommendedSkills.length > 0 && (
+            <CardGridSection title="Recommended">
               {recommendedSkills.map((skill) => (
-                <SkillCard key={skill.id} skill={skill} onSelect={openDetail} onInstall={install} />
+                <SkillCard
+                  key={skill.id}
+                  skill={skill}
+                  isInstalled={false}
+                  onInstall={install}
+                  onUninstall={uninstall}
+                  onClick={() => openDetail(skill)}
+                />
               ))}
-            </div>
-          </div>
-        )}
-
-        {installedSkills.length === 0 && recommendedSkills.length === 0 && (
-          <div className="py-12 text-center">
-            <p className="text-sm text-muted-foreground">
-              {searchQuery ? 'No skills match your search.' : 'No skills available.'}
-            </p>
-          </div>
-        )}
+            </CardGridSection>
+          )}
+        </div>
       </div>
-
       <SkillDetailModal
         skill={selectedSkill}
         isOpen={showDetailModal}
@@ -158,5 +113,3 @@ const SkillsView: React.FC = () => {
     </div>
   );
 };
-
-export default SkillsView;

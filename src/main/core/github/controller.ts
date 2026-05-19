@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import type {
   GitHubAuthResponse,
   GitHubConnectResponse,
+  GitHubStatusOptions,
   GitHubStatusResponse,
 } from '@shared/github';
 import { createRPCController } from '@shared/ipc/rpc';
@@ -21,9 +22,9 @@ import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 
 export const githubController = createRPCController({
-  getStatus: async (): Promise<GitHubStatusResponse> => {
+  getStatus: async (options?: GitHubStatusOptions): Promise<GitHubStatusResponse> => {
     try {
-      return await githubConnectionService.getStatus();
+      return await githubConnectionService.getStatus(options);
     } catch (error) {
       log.error('GitHub status check failed:', error);
       return { authenticated: false, user: null, tokenSource: null };

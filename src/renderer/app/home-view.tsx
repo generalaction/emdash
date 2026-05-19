@@ -1,28 +1,35 @@
 import { FolderOpen, Github, Plus, Server, type LucideIcon } from 'lucide-react';
-import emdashLogoWhite from '@/assets/images/emdash/emdash_logo_white.svg';
-import emdashLogo from '@/assets/images/emdash/emdash_logo.svg';
+import { motion } from 'motion/react';
 import { Titlebar } from '@renderer/lib/components/titlebar/Titlebar';
+import { EmdashShimmerLogo } from '@renderer/lib/emdash-shimmer-logo';
+import { useArrowKeyNavigation } from '@renderer/lib/hooks/use-arrow-key-navigation';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { Kbd } from '@renderer/lib/ui/kbd';
+import { cn } from '@renderer/utils/utils';
 
 const PROJECT_ACTIONS = [
   {
     label: 'Open project',
+    description: 'Create a project from an existing local directory',
     icon: FolderOpen,
     modalArgs: { strategy: 'local', mode: 'pick' },
   },
   {
-    label: 'Create New Project',
+    label: 'Create repository',
+    description: 'Create a project by creating a new repository on GitHub',
     icon: Plus,
     modalArgs: { strategy: 'local', mode: 'new' },
   },
   {
     label: 'Clone from GitHub',
+    description: 'Clone a GitHub repository to work on locally',
     icon: Github,
     modalArgs: { strategy: 'local', mode: 'clone' },
   },
   {
-    label: 'Add Remote Project',
+    label: 'Add remote project',
+    description: 'Create a project on a remote SSH server',
     icon: Server,
     modalArgs: { strategy: 'ssh', mode: 'pick' },
   },
@@ -33,76 +40,94 @@ export function HomeTitlebar() {
 }
 
 export function HomeMainPanel() {
-  const { effectiveTheme } = useTheme();
   const showAddProjectModal = useShowModal('addProjectModal');
+  const { selectedIndex, setSelectedIndex } = useArrowKeyNavigation(
+    PROJECT_ACTIONS.length,
+    (index) => showAddProjectModal(PROJECT_ACTIONS[index].modalArgs)
+  );
+  const { effectiveTheme } = useTheme();
+  const isDark = effectiveTheme === 'emdark';
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto bg-background text-foreground">
+    <motion.div
+      className="flex h-full flex-col overflow-y-auto bg-background text-foreground"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5, ease: 'easeOut' }}
+    >
       <div className="container mx-auto flex min-h-full max-w-6xl flex-1 flex-col justify-center px-8 py-8">
         <div className="mb-3 text-center">
           <div className="mb-3 flex items-center justify-center">
-            <div className="logo-shimmer-container">
-              <img
-                key={effectiveTheme}
-                src={effectiveTheme === 'emdark' ? emdashLogoWhite : emdashLogo}
-                alt="Emdash"
-                className="logo-shimmer-image"
-              />
-              <span
-                className="logo-shimmer-overlay"
-                aria-hidden="true"
-                style={{
-                  WebkitMaskImage: `url(${effectiveTheme === 'emdark' ? emdashLogoWhite : emdashLogo})`,
-                  maskImage: `url(${effectiveTheme === 'emdark' ? emdashLogoWhite : emdashLogo})`,
-                  WebkitMaskRepeat: 'no-repeat',
-                  maskRepeat: 'no-repeat',
-                  WebkitMaskSize: 'contain',
-                  maskSize: 'contain',
-                  WebkitMaskPosition: 'center',
-                  maskPosition: 'center',
-                }}
-              />
-            </div>
+            <EmdashShimmerLogo
+              height={32}
+              color={isDark ? 'var(--color-background-2)' : 'var(--color-foreground)'}
+              shimmerColor={isDark ? 'white' : 'var(--color-foreground-passive)'}
+            />
           </div>
-          <p className="whitespace-nowrap text-xs text-muted-foreground">
-            Agentic Development Environment
-          </p>
         </div>
-        <div className="mx-auto mt-4 grid w-full max-w-[600px] grid-cols-2 gap-2 sm:grid-cols-[repeat(4,minmax(132px,1fr))]">
-          {PROJECT_ACTIONS.map((action) => (
+        <div className="mx-auto mt-8 flex flex-col w-full max-w-md gap-1">
+          {PROJECT_ACTIONS.map((action, i) => (
             <HomeProjectAction
               key={action.label}
               label={action.label}
+              description={action.description}
               icon={action.icon}
+              isSelected={i === selectedIndex}
+              onMouseEnter={() => setSelectedIndex(i)}
               onClick={() => showAddProjectModal(action.modalArgs)}
             />
           ))}
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
 function HomeProjectAction({
   label,
+  description,
   icon: Icon,
+  isSelected,
   onClick,
+  onMouseEnter,
 }: {
   label: string;
+  description: string;
   icon: LucideIcon;
+  isSelected: boolean;
   onClick: () => void;
+  onMouseEnter: () => void;
 }) {
   return (
     <button
       type="button"
       aria-label={label}
       onClick={onClick}
-      className="group flex h-[68px] w-full flex-col items-start rounded-md border border-border/80 bg-background px-3.5 py-3 text-left shadow-sm transition-all hover:border-border-1 hover:bg-background-1 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+      onMouseEnter={onMouseEnter}
+      className={cn(
+        'group flex w-full items-center justify-between rounded-lg bg-background hover:bg-background-1 p-4 text-left transition-all ',
+        isSelected && 'bg-background-1'
+      )}
     >
-      <Icon className="size-4 text-foreground-muted transition-colors group-hover:text-foreground" />
-      <span className="mt-auto whitespace-nowrap pt-4 text-[11px] font-semibold leading-none tracking-normal text-foreground">
-        {label}
-      </span>
+      <div className="flex items-center gap-3">
+        <Icon className="size-7.5 text-foreground-passive transition-colors" strokeWidth={1} />
+        <div className="flex flex-col gap-1.5">
+          <span
+            className={cn(
+              ' whitespace-nowrap leading-none tracking-normal text-sm text-foreground-muted transition-colors',
+              isSelected && 'text-foreground'
+            )}
+          >
+            {label}
+          </span>
+          <span className="text-xs text-foreground-passive">{description}</span>
+        </div>
+      </div>
+      {isSelected && (
+        <Kbd className="text-foreground-muted group-hover:text-foreground bg-background-2 size-6 pt-1">
+          ⏎
+        </Kbd>
+      )}
     </button>
   );
 }

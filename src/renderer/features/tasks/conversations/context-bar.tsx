@@ -1,9 +1,13 @@
-import { ArrowUp, FileSearch } from 'lucide-react';
+import { ArrowUp } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
-import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
-import { getRegisteredTaskData } from '@renderer/features/tasks/stores/task-selectors';
-import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
+import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
+import {
+  getRegisteredTaskData,
+  getTaskStore,
+} from '@renderer/features/tasks/stores/task-selectors';
+import { useTabGroupContext } from '@renderer/features/tasks/tabs/tab-group-context';
+import { useConversations, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
 import { rpc } from '@renderer/lib/ipc';
 import { pastePromptInjection } from '@renderer/lib/pty/prompt-injection';
 import { Button } from '@renderer/lib/ui/button';
@@ -11,77 +15,77 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@rende
 import { ProviderLogo } from '../components/issue-selector/issue-selector';
 import { CommentsPopover } from './comments-popover';
 import { buildTaskContextActions, type ContextAction } from './context-actions';
+import { PromptActionsMenu } from './prompt-actions-menu';
+import { resolveContextActionText } from './resolve-context-action-text';
 
 export const ContextBar = observer(function ContextBar() {
   const { projectId, taskId } = useTaskViewContext();
-  const provisioned = useProvisionedTask();
+  const conversations = useConversations();
   const task = getRegisteredTaskData(projectId, taskId);
-  const { value: reviewPrompt, isSaving: isSavingReviewPrompt } = useAppSettingsKey('reviewPrompt');
-  const conversationStore = provisioned.conversations;
-  const draftComments = provisioned.draftComments;
-  const activeConversation = provisioned.taskView.tabManager.activeConversation;
+  const draftComments = getTaskStore(projectId, taskId)?.draftComments;
+  const { value: promptLibrary, isSaving: isSavingPromptLibrary } = usePromptLibrary();
+  const conversationStore = conversations;
+  const { tabManager } = useTabGroupContext();
+  const activeConversation = tabManager.activeConversation;
   const activeSessionId = activeConversation
-    ? provisioned.conversations.sessions.get(activeConversation.data.id)?.sessionId
+    ? conversations.sessions.get(activeConversation.data.id)?.sessionId
     : undefined;
   const canApplyContext = Boolean(activeSessionId);
   const hasConversation = conversationStore.conversations.size > 0;
-  const formattedDraftComments = draftComments.formattedForAgent;
+  const formattedDraftComments = draftComments?.formattedForAgent ?? '';
 
   const actions = useMemo(
     () =>
-      buildTaskContextActions(task?.linkedIssue, reviewPrompt, {
-        count: draftComments.count,
-        formattedComments: formattedDraftComments,
-      }),
-    [reviewPrompt, task?.linkedIssue, draftComments.count, formattedDraftComments]
+      buildTaskContextActions(
+        task?.linkedIssue,
+        {
+          count: draftComments?.count ?? 0,
+          formattedComments: formattedDraftComments,
+        },
+        promptLibrary
+      ),
+    [promptLibrary, task?.linkedIssue, draftComments?.count, formattedDraftComments]
   );
   const issueAction = actions.find((action) => action.kind === 'linked-issue') ?? null;
-  const reviewAction = actions.find((action) => action.kind === 'review-prompt') ?? null;
+  const promptActions = actions.filter((action) => action.kind === 'prompt');
   const draftCommentsAction = actions.find((action) => action.kind === 'draft-comments') ?? null;
 
-  if (!hasConversation || (!issueAction && !draftCommentsAction && !reviewAction)) return null;
+  if (
+    !draftComments ||
+    !hasConversation ||
+    (!issueAction && !draftCommentsAction && promptActions.length === 0)
+  )
+    return null;
 
   const applyContext = async (action: ContextAction) => {
     if (!activeSessionId) return;
-    if (!action.text) return;
+
+    const linkedIssue = task?.linkedIssue;
+    const text = await resolveContextActionText({ action, linkedIssue, projectId });
+
+    if (!text) return;
 
     await pastePromptInjection({
       providerId: activeConversation?.data.providerId,
-      text: action.text,
+      text,
+      forceBracketedPaste: true,
       sendInput: (data) => rpc.pty.sendInput(activeSessionId, data),
     });
 
-    provisioned.conversations.sessions
-      .get(activeConversation?.data.id ?? '')
-      ?.pty?.terminal.focus();
+    conversations.sessions.get(activeConversation?.data.id ?? '')?.pty?.terminal.focus();
   };
 
   return (
     <TooltipProvider>
       <div className="px-2 pb-4 flex justify-center items-center gap-2 bg-background-secondary-1 w-full">
-        <div className="border  rounded-lg bg-background-2">
-          {reviewAction ? (
-            <Tooltip>
-              <TooltipTrigger>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={!canApplyContext || isSavingReviewPrompt}
-                  onClick={() => void applyContext(reviewAction)}
-                  className="h-7 max-w-full rounded-md bg-background-1 px-2 text-xs font-normal hover:bg-background-1/80"
-                >
-                  <FileSearch className="size-3.5 shrink-0" />
-                  <span className="max-w-72 truncate">{reviewAction.label}</span>
-                  <ArrowUp className="size-3 shrink-0" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                {canApplyContext
-                  ? 'Add review prompt to the chat input'
-                  : 'Create and select a conversation first'}
-              </TooltipContent>
-            </Tooltip>
-          ) : null}
+        <div className="flex max-w-full flex-wrap items-center gap-1 rounded-lg border bg-background-2 p-1">
+          <PromptActionsMenu
+            actions={promptActions}
+            disabled={!canApplyContext || isSavingPromptLibrary}
+            disabledTooltip="Create and select a conversation first"
+            actionTooltip="Add a prompt to the chat input"
+            onActionClick={(action) => void applyContext(action)}
+          />
           {issueAction ? (
             <Tooltip>
               <TooltipTrigger>

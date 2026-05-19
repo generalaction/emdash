@@ -248,7 +248,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         <ChevronRight className="size-3.5 text-foreground-passive" />
         <DialogTitle>Create Task</DialogTitle>
       </DialogHeader>
-      <DialogContentArea className="gap-4">
+      <div className="flex flex-col gap-4 px-6 pb-4 shrink-0">
         <ToggleGroup
           className="w-full"
           value={[selectedStrategy]}
@@ -274,6 +274,8 @@ export const CreateTaskModal = observer(function CreateTaskModal({
             <span className="text-sm text-muted-foreground">Use BYOI infrastructure</span>
           </div>
         )}
+      </div>
+      <DialogContentArea>
         <AnimatedHeight onAnimatingChange={setIsTransitioning}>
           {selectedStrategy === 'from-branch' && (
             <FromBranchContent

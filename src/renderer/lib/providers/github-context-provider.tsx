@@ -7,6 +7,7 @@ import {
 } from '@shared/events/githubEvents';
 import type {
   GitHubAuthResponse,
+  GitHubStatusOptions,
   GitHubStatusResponse,
   GitHubTokenSource,
   GitHubUser,
@@ -30,10 +31,11 @@ type GithubContextValue = {
   cancelGithubConnect: () => void;
   login: () => Promise<GitHubAuthResponse>;
   logout: () => Promise<void>;
-  checkStatus: () => Promise<GitHubStatusResponse>;
+  checkStatus: (options?: GitHubStatusOptions) => Promise<GitHubStatusResponse>;
 };
 
 const GITHUB_STATUS_KEY = ['github:status'] as const;
+const GITHUB_STATUS_REFRESH_KEY = [...GITHUB_STATUS_KEY, 'refresh'] as const;
 const ISSUE_CONNECTION_STATUS_QUERY_KEY = ['issues:connection-status'] as const;
 
 const GithubContext = createContext<GithubContextValue | null>(null);
@@ -93,13 +95,26 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
 
   const isLoading = isFetching || loginMutation.isPending || logoutMutation.isPending;
 
-  const checkStatus = useCallback(async () => {
-    return queryClient.fetchQuery<GitHubStatusResponse>({
-      queryKey: GITHUB_STATUS_KEY,
-      queryFn: () => rpc.github.getStatus(),
-      staleTime: 0,
-    });
-  }, [queryClient]);
+  const checkStatus = useCallback(
+    async (options?: GitHubStatusOptions) => {
+      if (options?.refresh) {
+        const result = await queryClient.fetchQuery<GitHubStatusResponse>({
+          queryKey: GITHUB_STATUS_REFRESH_KEY,
+          queryFn: () => rpc.github.getStatus(options),
+          staleTime: 0,
+        });
+        queryClient.setQueryData(GITHUB_STATUS_KEY, result);
+        return result;
+      }
+
+      return queryClient.fetchQuery<GitHubStatusResponse>({
+        queryKey: GITHUB_STATUS_KEY,
+        queryFn: () => rpc.github.getStatus(),
+        staleTime: 0,
+      });
+    },
+    [queryClient]
+  );
 
   const login = useCallback(() => loginMutation.mutateAsync(), [loginMutation]);
 

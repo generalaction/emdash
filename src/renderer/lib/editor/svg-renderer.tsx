@@ -1,9 +1,10 @@
 import { Eye, Pencil } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
-import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
+import { useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
+import { ContainedImage } from '@renderer/lib/ui/contained-image';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 
 interface SvgRendererProps {
@@ -14,7 +15,7 @@ interface SvgRendererProps {
  * Renders an SVG file as an image.
  */
 export const SvgRenderer = observer(function SvgRenderer({ filePath }: SvgRendererProps) {
-  const { taskView } = useProvisionedTask();
+  const taskView = useWorkspaceViewModel();
   const { editorView, tabManager } = taskView;
   const bufferUri = buildMonacoModelPath(editorView.modelRootPath, filePath);
 
@@ -31,7 +32,7 @@ export const SvgRenderer = observer(function SvgRenderer({ filePath }: SvgRender
   return (
     <div className="relative flex h-full items-center justify-center overflow-auto p-4">
       {svgUrl ? (
-        <img src={svgUrl} alt={fileName} className="max-h-full max-w-full object-contain" />
+        <ContainedImage src={svgUrl} alt={fileName} className="max-h-full max-w-full" />
       ) : (
         <div className="text-xs text-foreground-passive">Loading…</div>
       )}

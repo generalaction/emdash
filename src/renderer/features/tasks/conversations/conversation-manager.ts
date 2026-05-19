@@ -9,13 +9,14 @@ import {
 import { makePtySessionId } from '@shared/ptySessionId';
 import { events, rpc } from '@renderer/lib/ipc';
 import { PtySession } from '@renderer/lib/pty/pty-session';
+import type { IDisposable } from '@renderer/lib/stores/lifecycle';
 import { Resource } from '@renderer/lib/stores/resource';
 import { log } from '@renderer/utils/logger';
 import { soundPlayer } from '@renderer/utils/soundPlayer';
 
 export type AgentStatus = 'idle' | 'working' | 'awaiting-input' | 'error' | 'completed';
 
-export class ConversationManagerStore {
+export class ConversationManagerStore implements IDisposable {
   private offAgentEvents: (() => void) | null = null;
   private offSessionExited: (() => void) | null = null;
   private readonly _disposeReaction: () => void;
