@@ -29,6 +29,7 @@ export const taskSettingsSchema = z.object({
   autoGenerateName: z.boolean(),
   autoTrustWorktrees: z.boolean(),
   createBranchAndWorktree: z.boolean(),
+  includeIssueContextByDefault: z.boolean(),
 });
 
 export const agentAutoApproveDefaultsSchema = z
