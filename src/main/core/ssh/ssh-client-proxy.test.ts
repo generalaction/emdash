@@ -176,4 +176,88 @@ describe('SshClientProxy SFTP channel caching', () => {
     expect(firstCallback).toHaveBeenCalledWith(undefined, firstSftp);
     expect(secondCallback).toHaveBeenCalledWith(undefined, secondSftp);
   });
+
+  it('drains queued callbacks if the connection is invalidated while SFTP is opening', () => {
+    const sftp = new EventEmitter();
+    const firstCallback = vi.fn();
+    const secondCallback = vi.fn();
+    let openSftp!: (err: Error | undefined, sftp: EventEmitter) => void;
+    const client = {
+      sftp: vi.fn((callback) => {
+        openSftp = callback;
+      }),
+    };
+    const proxy = new SshClientProxy('ssh-1');
+    proxy.update(client as never);
+
+    proxy.sftp(firstCallback);
+    proxy.sftp(secondCallback);
+    proxy.invalidate();
+    openSftp(undefined, sftp);
+
+    expect(client.sftp).toHaveBeenCalledTimes(1);
+    expect(firstCallback).toHaveBeenCalledWith(undefined, sftp);
+    expect(secondCallback).toHaveBeenCalledWith(undefined, sftp);
+  });
+
+  it('drains queued callbacks without caching stale SFTP after the client changes', () => {
+    const staleSftp = new EventEmitter();
+    const currentSftp = new EventEmitter();
+    const firstCallback = vi.fn();
+    const secondCallback = vi.fn();
+    const thirdCallback = vi.fn();
+    let openFirstSftp!: (err: Error | undefined, sftp: EventEmitter) => void;
+    const firstClient = {
+      sftp: vi.fn((callback) => {
+        openFirstSftp = callback;
+      }),
+    };
+    const secondClient = {
+      sftp: vi.fn((callback) => callback(undefined, currentSftp)),
+    };
+    const proxy = new SshClientProxy('ssh-1');
+    proxy.update(firstClient as never);
+
+    proxy.sftp(firstCallback);
+    proxy.sftp(secondCallback);
+    proxy.update(secondClient as never);
+    openFirstSftp(undefined, staleSftp);
+    proxy.sftp(thirdCallback);
+
+    expect(firstClient.sftp).toHaveBeenCalledTimes(1);
+    expect(secondClient.sftp).toHaveBeenCalledTimes(1);
+    expect(firstCallback).toHaveBeenCalledWith(undefined, staleSftp);
+    expect(secondCallback).toHaveBeenCalledWith(undefined, staleSftp);
+    expect(thirdCallback).toHaveBeenCalledWith(undefined, currentSftp);
+  });
+
+  it('does not report stale SFTP opens as current channel recovery', () => {
+    const staleSftp = new EventEmitter();
+    const currentSftp = new EventEmitter();
+    const reporter = {
+      reportChannelError: vi.fn(),
+      reportChannelRecovered: vi.fn(),
+    };
+    let openFirstSftp!: (err: Error | undefined, sftp: EventEmitter) => void;
+    const firstClient = {
+      sftp: vi.fn((callback) => {
+        openFirstSftp = callback;
+      }),
+    };
+    const secondClient = {
+      sftp: vi.fn((callback) => callback(undefined, currentSftp)),
+    };
+    const proxy = new SshClientProxy('ssh-1', reporter);
+    proxy.update(firstClient as never);
+
+    proxy.sftp(vi.fn());
+    proxy.update(secondClient as never);
+    openFirstSftp(undefined, staleSftp);
+
+    expect(reporter.reportChannelRecovered).not.toHaveBeenCalled();
+
+    proxy.sftp(vi.fn());
+
+    expect(reporter.reportChannelRecovered).toHaveBeenCalledWith('ssh-1');
+  });
 });

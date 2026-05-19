@@ -107,25 +107,23 @@ export class SshClientProxy {
       return;
     }
 
-    this._sftpState = { kind: 'loading', client, callbacks: [callback] };
+    const loadingState: SftpState = { kind: 'loading', client, callbacks: [callback] };
+    this._sftpState = loadingState;
 
     client.sftp((err, sftp) => {
-      this.reportChannelResult(err);
-      const loadingState = this._sftpState;
-      const callbacks =
-        loadingState.kind === 'loading' && loadingState.client === client
-          ? loadingState.callbacks
-          : [callback];
+      const isCurrentClient = this._client === client;
+      if (isCurrentClient) this.reportChannelResult(err);
+      const callbacks = loadingState.callbacks.splice(0);
 
       if (err || !sftp) {
-        if (this._client === client && this._sftpState === loadingState) {
+        if (isCurrentClient && this._sftpState === loadingState) {
           this._sftpState = { kind: 'empty' };
         }
         for (const cb of callbacks) cb(err, sftp);
         return;
       }
 
-      if (this._client === client && this._sftpState === loadingState) {
+      if (isCurrentClient && this._sftpState === loadingState) {
         this._sftpState = { kind: 'ready', client, sftp };
         sftp.on('close', () => {
           if (
