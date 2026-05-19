@@ -1,7 +1,7 @@
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { reaction } from 'mobx';
 import { observer } from 'mobx-react-lite';
-import { Activity, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { HEAD_REF, STAGED_REF } from '@shared/git';
 import { isMissingFileError } from '@renderer/features/tasks/diff-view/main-panel/missing-file-error';
 import type { DiffViewStore } from '@renderer/features/tasks/diff-view/stores/diff-view-store';
@@ -19,6 +19,7 @@ import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { StickyDiffEditor } from '@renderer/lib/monaco/sticky-diff-editor';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
+import { ShowHide } from '@renderer/lib/ui/show-hide';
 import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
 import { cn } from '@renderer/utils/utils';
 
@@ -300,7 +301,7 @@ const StackedFileSlot = observer(function StackedFileSlot({
         </span>
       </div>
 
-      <Activity mode={expanded ? 'visible' : 'hidden'}>
+      <ShowHide visible={expanded}>
         <div style={{ height: isBinary || (isLarge && !forceLoad) ? 80 : editorHeight }}>
           {isBinary ? (
             <div className="flex h-full items-center justify-center text-sm text-foreground-passive">
@@ -327,7 +328,7 @@ const StackedFileSlot = observer(function StackedFileSlot({
             />
           )}
         </div>
-      </Activity>
+      </ShowHide>
     </div>
   );
 });
