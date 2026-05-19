@@ -35,7 +35,7 @@ const ConversationRow = observer(function ConversationRow({
   const pendingRenameRef = useRef(false);
   const taskView = useWorkspaceViewModel();
   const conversations = useConversations();
-  const { tabManager } = taskView;
+  const { tabManager, tabGroupManager } = taskView;
   const showConfirm = useShowModal('confirmActionModal');
 
   const handleRenameInputRef = useCallback((input: HTMLInputElement | null) => {
@@ -118,8 +118,8 @@ const ConversationRow = observer(function ConversationRow({
     <ContextMenu onOpenChangeComplete={handleContextMenuOpenChangeComplete}>
       <ContextMenuTrigger>
         <button
-          onClick={() => tabManager.openConversationPreview(conversationId)}
-          onDoubleClick={() => tabManager.openConversation(conversationId)}
+          onClick={() => tabGroupManager.openConversationPreview(conversationId)}
+          onDoubleClick={() => tabGroupManager.openConversation(conversationId)}
           className={cn(
             'flex w-full items-center gap-2 h-8 rounded-md px-2 text-left text-sm text-foreground-muted transition-colors hover:bg-background-1 hover:text-foreground',
             isActive && 'bg-background-2 text-foreground hover:bg-background-2'
@@ -169,7 +169,7 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
   const { projectId, taskId } = useTaskViewContext();
   const taskView = useWorkspaceViewModel();
   const conversations = useConversations();
-  const { tabManager } = taskView;
+  const { tabGroupManager } = taskView;
   const showCreateConversationModal = useShowModal('createConversationModal');
   const conversationIds = Array.from(conversations.conversations.values())
     .sort((a, b) => {
@@ -193,7 +193,7 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
       projectId,
       taskId,
       onSuccess: ({ conversationId }) => {
-        tabManager.openConversation(conversationId);
+        tabGroupManager.openConversation(conversationId);
       },
     });
   };

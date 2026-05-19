@@ -4,6 +4,7 @@ import type { Issue } from '@shared/tasks';
 import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
 import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
 import {
+  buildContextActionText,
   buildTaskContextActions,
   type ContextAction,
 } from '@renderer/features/tasks/conversations/context-actions';
@@ -57,12 +58,15 @@ export function InitialConversationField({
   const { value: promptLibrary } = usePromptLibrary();
   const autoApproveDefaults = useAgentAutoApproveDefaults();
   const contextActions = useMemo(
-    () => buildTaskContextActions(linkedIssue, undefined, promptLibrary),
+    () => buildTaskContextActions(linkedIssue, [], promptLibrary),
     [linkedIssue, promptLibrary]
   );
 
   const handleActionClick = async (action: ContextAction) => {
-    const text = await resolveContextActionText({ action, linkedIssue, projectId });
+    const text =
+      action.kind === 'linked-issue'
+        ? await resolveContextActionText({ action, linkedIssue, projectId })
+        : buildContextActionText(action);
 
     state.setPrompt((current) =>
       action.kind === 'linked-issue'

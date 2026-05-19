@@ -61,7 +61,7 @@ export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boole
         const dispose = when(
           () => !!getTaskView(projectId, taskId),
           () => {
-            getTaskView(projectId, taskId)?.tabManager.openConversation(conversationId);
+            getTaskView(projectId, taskId)?.tabGroupManager.openConversation(conversationId);
           },
           {
             timeout: 10_000,

@@ -1,4 +1,3 @@
-import { MessageSquare } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useRef } from 'react';
 import { useIsActiveTask } from '@renderer/features/tasks/hooks/use-is-active-task';
@@ -9,40 +8,23 @@ import {
   useWorkspace,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { PaneSizingProvider } from '@renderer/lib/pty/pane-sizing-context';
 import { PtyPane } from '@renderer/lib/pty/pty-pane';
 import { TerminalSearchOverlay } from '@renderer/lib/pty/terminal-search-overlay';
 import { useTerminalSearch } from '@renderer/lib/pty/use-terminal-search';
-import { Button } from '@renderer/lib/ui/button';
-import { EmptyState } from '@renderer/lib/ui/empty-state';
-import { BoundShortcut } from '@renderer/lib/ui/shortcut';
-import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import { ContextBar } from './context-bar';
 import type { ConversationStore } from './conversation-manager';
 
 export const ConversationsPanel = observer(function ConversationsPanel() {
-  const { projectId, taskId } = useTaskViewContext();
+  const { taskId } = useTaskViewContext();
   const taskView = useWorkspaceViewModel();
   const conversations = useConversations();
   const workspace = useWorkspace();
   const { groupId, tabManager: tm } = useTabGroupContext();
-  const showCreateConversationModal = useShowModal('createConversationModal');
   const isActive = useIsActiveTask(taskId);
   const remoteConnectionId = workspace.sshConnectionId;
-  const shouldSetWorkingOnEnter = !remoteConnectionId;
 
   const autoFocus = isActive && taskView.focusedRegion === 'main';
-
-  const handleCreate = () =>
-    showCreateConversationModal({
-      projectId,
-      taskId,
-      onSuccess: ({ conversationId }) => {
-        tm.openConversation(conversationId);
-        taskView.setFocusedRegion('main');
-      },
-    });
 
   // Build session ID list for PaneSizingProvider (all open conversation tabs).
   const allSessionIds = useMemo(() => {
@@ -57,7 +39,6 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
     ? (conversations.sessions.get(activeConversation.data.id) ?? null)
     : null;
   const activeSessionId = activeSession?.sessionId ?? null;
-  const hasConversationTabs = tm.resolvedTabs.some((t) => t.kind === 'conversation');
 
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalContainerRef = useRef<HTMLDivElement>(null);
@@ -98,22 +79,6 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
     }
   }, [sessionStatus]);
 
-  const onEnterPress = activeConversation
-    ? () => {
-        captureTelemetry('agent_run_started', {
-          provider: activeConversation.data.providerId,
-          project_id: activeConversation.data.projectId,
-          task_id: activeConversation.data.taskId,
-          conversation_id: activeConversation.data.id,
-        });
-
-        if (shouldSetWorkingOnEnter) {
-          activeConversation.setWorking();
-          void conversations.touchConversation(activeConversation.data.id);
-        }
-      }
-    : undefined;
-
   const onInterruptPress = activeConversation ? () => activeConversation.clearWorking() : undefined;
 
   return (
@@ -133,55 +98,35 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
           }}
         >
           <PaneSizingProvider paneId={`conversations-${groupId}`} sessionIds={allSessionIds}>
-            {!hasConversationTabs ? (
-              <EmptyState
-                icon={<MessageSquare className="h-5 w-5 text-muted-foreground" />}
-                label="No conversations yet"
-                description="Create one to open a terminal session for this task and work with an agent."
-                action={
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleCreate}
-                    className="flex items-center gap-2"
-                  >
-                    Create conversation
-                    <BoundShortcut settingsKey="newConversation" />
-                  </Button>
-                }
-              />
-            ) : (
-              <div className="flex min-h-0 flex-1 flex-col">
-                {activeSessionId && activeSession?.status === 'ready' && activeSession.pty ? (
-                  <div ref={terminalContainerRef} className="relative flex h-full min-h-0 flex-1">
-                    <TerminalSearchOverlay
-                      isOpen={isSearchOpen}
-                      fullWidth
-                      searchQuery={searchQuery}
-                      searchStatus={searchStatus}
-                      searchInputRef={searchInputRef}
-                      onQueryChange={handleSearchQueryChange}
-                      onStep={stepSearch}
-                      onClose={closeSearch}
-                    />
-                    <PtyPane
-                      ref={terminalRef}
-                      sessionId={activeSessionId}
-                      pty={activeSession.pty}
-                      className="h-full w-full"
-                      onEnterPress={onEnterPress}
-                      onInterruptPress={onInterruptPress}
-                      mapShiftEnterToCtrlJ
-                      remoteConnectionId={remoteConnectionId}
-                    />
-                  </div>
-                ) : null}
-              </div>
-            )}
+            <div className="flex min-h-0 flex-1 flex-col">
+              {activeSessionId && activeSession?.status === 'ready' && activeSession.pty ? (
+                <div ref={terminalContainerRef} className="relative flex h-full min-h-0 flex-1">
+                  <TerminalSearchOverlay
+                    isOpen={isSearchOpen}
+                    fullWidth
+                    searchQuery={searchQuery}
+                    searchStatus={searchStatus}
+                    searchInputRef={searchInputRef}
+                    onQueryChange={handleSearchQueryChange}
+                    onStep={stepSearch}
+                    onClose={closeSearch}
+                  />
+                  <PtyPane
+                    ref={terminalRef}
+                    sessionId={activeSessionId}
+                    pty={activeSession.pty}
+                    className="h-full w-full"
+                    onInterruptPress={onInterruptPress}
+                    mapShiftEnterToCtrlJ
+                    remoteConnectionId={remoteConnectionId}
+                  />
+                </div>
+              ) : null}
+            </div>
           </PaneSizingProvider>
         </div>
       </div>
-      <ContextBar />
+      <ContextBar conversationId={tm.activeConversationId} />
     </div>
   );
 });

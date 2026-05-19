@@ -4,7 +4,6 @@ import { deleteConversation } from './deleteConversation';
 import { getConversations } from './getConversations';
 import { getConversationsForTask } from './getConversationsForTask';
 import { renameConversation } from './renameConversation';
-import { touchConversation } from './touchConversation';
 
 export const conversationController = createRPCController({
   getConversations,
@@ -12,5 +11,4 @@ export const conversationController = createRPCController({
   deleteConversation,
   renameConversation,
   getConversationsForTask,
-  touchConversation,
 });

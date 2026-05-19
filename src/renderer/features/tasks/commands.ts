@@ -30,7 +30,6 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
       if (taskStore?.state !== 'provisioned') return [];
 
       const taskView = getTaskView(projectId, taskId);
-      const tabManager = taskView?.tabManager;
 
       const taskIds = sidebarStore.visibleTaskIdsForProject(projectId);
       const currentIdx = taskIds.indexOf(taskId);
@@ -66,7 +65,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
               projectId,
               taskId,
               onSuccess: ({ conversationId }) => {
-                tabManager?.openConversation(conversationId);
+                taskView?.tabGroupManager.openConversation(conversationId);
                 taskView?.setFocusedRegion('main');
               },
             });

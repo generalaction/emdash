@@ -1,6 +1,6 @@
 import { defineEvent } from '@shared/ipc/events';
 
-export type AgentEventType = 'notification' | 'stop' | 'error';
+export type AgentEventType = 'notification' | 'stop' | 'error' | 'start';
 
 export type NotificationType =
   | 'permission_prompt'
@@ -20,7 +20,7 @@ export function isAttentionNotification(nt: NotificationType | undefined): nt is
 
 export interface AgentEvent {
   type: AgentEventType;
-  source?: 'hook' | 'classifier';
+  source?: 'hook' | 'classifier' | 'input';
   ptyId?: string;
   providerId?: string;
   projectId: string;
