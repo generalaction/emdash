@@ -32,6 +32,10 @@ const config: Configuration = {
     hardenedRuntime: true,
     entitlements: 'build/entitlements.mac.plist',
     entitlementsInherit: 'build/entitlements.mac.plist',
+    extendInfo: {
+      NSMicrophoneUsageDescription:
+        'Emdash needs microphone access for voice dictation and voice mode features.',
+    },
     target: [
       { target: 'dmg', arch: ['arm64'] },
       { target: 'zip', arch: ['arm64'] },
