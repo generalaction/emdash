@@ -80,7 +80,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     initialConversation.setProvider(null);
     initialConversation.setPrompt('');
     // setProvider and setPrompt are stable useState setters
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [selectedProjectId]);
 
   const isWorkspaceProviderEnabled = useFeatureFlag('workspace-provider');

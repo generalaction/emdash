@@ -126,7 +126,7 @@ export class MonacoModelRegistry {
    * register the same file concurrently before either resolves.
    * Key: `{projectId}:{workspaceId}:{filePath}:disk` or `…:git:{ref}`
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line typescript/no-explicit-any
   private pendingFetches = new Map<string, Promise<any>>();
 
   // ---------------------------------------------------------------------------
