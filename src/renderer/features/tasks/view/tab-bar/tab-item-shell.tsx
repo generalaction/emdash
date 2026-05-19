@@ -19,6 +19,7 @@ export const TabItemShell = observer(function TabItemShell({
   title,
   onSelect,
   onPin,
+  onClose,
   className,
   innerPaddingRight = 'pr-2',
   children,
@@ -28,6 +29,7 @@ export const TabItemShell = observer(function TabItemShell({
   title: string;
   onSelect: () => void;
   onPin: () => void;
+  onClose: () => void;
   className?: string;
   activeClassName?: string;
   innerPaddingRight?: string;
@@ -42,13 +44,21 @@ export const TabItemShell = observer(function TabItemShell({
       <button
         onClick={onSelect}
         onDoubleClick={onPin}
+        onMouseDown={(e) => {
+          if (e.button === 1) e.preventDefault();
+        }}
+        onAuxClick={(e) => {
+          if (e.button === 1) {
+            e.preventDefault();
+            onClose();
+          }
+        }}
         title={title}
         data-tabid={tabId}
         className={cn(
-          'group relative flex h-full flex-col bg-[var(--task-tab-background)] text-sm hover:bg-muted',
+          'group relative flex h-full flex-col bg-background-secondary hover:bg-background-secondary-1 text-sm hover:bg-muted',
           className,
-          isActive &&
-            'bg-[var(--task-tab-active-background)] hover:bg-[var(--task-tab-active-background)] text-foreground-muted',
+          isActive && 'bg-background-secondary-1 text-foreground-muted',
           isFocused && 'text-foreground'
         )}
       >

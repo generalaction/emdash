@@ -16,6 +16,7 @@ import { ProviderLogo } from '../components/issue-selector/issue-selector';
 import { CommentsPopover } from './comments-popover';
 import { buildTaskContextActions, type ContextAction } from './context-actions';
 import { PromptActionsMenu } from './prompt-actions-menu';
+import { resolveContextActionText } from './resolve-context-action-text';
 
 export const ContextBar = observer(function ContextBar() {
   const { projectId, taskId } = useTaskViewContext();
@@ -58,11 +59,16 @@ export const ContextBar = observer(function ContextBar() {
 
   const applyContext = async (action: ContextAction) => {
     if (!activeSessionId) return;
-    if (!action.text) return;
+
+    const linkedIssue = task?.linkedIssue;
+    const text = await resolveContextActionText({ action, linkedIssue, projectId });
+
+    if (!text) return;
 
     await pastePromptInjection({
       providerId: activeConversation?.data.providerId,
-      text: action.text,
+      text,
+      forceBracketedPaste: true,
       sendInput: (data) => rpc.pty.sendInput(activeSessionId, data),
     });
 

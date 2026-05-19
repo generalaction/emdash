@@ -36,7 +36,7 @@ export default function HiddenToolsSettingsCard() {
           const canToggleVisibility = isDetected;
           const label = labels[app.id] ?? app.label;
           const icon = icons[app.id];
-          const indicatorClass = isDetected ? 'bg-emerald-500' : 'bg-muted-foreground/50';
+          const indicatorClass = isDetected ? 'bg-foreground-success' : 'bg-foreground-passive/50';
           const statusLabel = isDetected ? 'Detected' : 'Not detected';
 
           return (

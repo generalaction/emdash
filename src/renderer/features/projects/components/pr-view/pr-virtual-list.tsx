@@ -2,8 +2,8 @@ import type { FetchNextPageOptions, InfiniteQueryObserverResult } from '@tanstac
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useEffect, useRef } from 'react';
 import type { PullRequest } from '@shared/pull-requests';
+import { MultiLineListItem } from '@renderer/lib/components/multi-line-list-item';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
-import { cn } from '@renderer/utils/utils';
 import { PrRow } from './pr-row';
 
 interface PrVirtualListProps {
@@ -70,10 +70,6 @@ export function PrVirtualList({
             key={virtualItem.key}
             data-index={virtualItem.index}
             ref={virtualizer.measureElement}
-            className={cn(
-              'border-b border-border py-1',
-              virtualItem.index === prs.length - 1 && 'border-b-0'
-            )}
             style={{
               position: 'absolute',
               top: 0,
@@ -82,7 +78,9 @@ export function PrVirtualList({
               transform: `translateY(${virtualItem.start}px)`,
             }}
           >
-            <PrRow pr={prs[virtualItem.index]!} projectId={projectId} />
+            <MultiLineListItem isLast={virtualItem.index === prs.length - 1}>
+              <PrRow pr={prs[virtualItem.index]!} projectId={projectId} />
+            </MultiLineListItem>
           </div>
         ))}
       </div>

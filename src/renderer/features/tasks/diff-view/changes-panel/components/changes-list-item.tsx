@@ -27,10 +27,16 @@ export const ChangesListItem = forwardRef<HTMLButtonElement, ChangesListItemProp
         ref={ref}
         {...props}
       >
-        <div className="flex items-center gap-1.5 min-w-0">
+        <div className="flex min-w-0 flex-1 items-center gap-1.5">
           <FileIcon filename={filename} size={12} />
-          <span className="text-sm truncate">{filename}</span>
-          {directory && <span className="text-xs text-foreground-muted truncate">{directory}</span>}
+          <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
+            <span className="max-w-full shrink-0 truncate text-sm">{filename}</span>
+            {directory && (
+              <span className="min-w-0 shrink truncate text-xs text-foreground-muted">
+                {directory}
+              </span>
+            )}
+          </span>
         </div>
         <div
           className="flex shrink-0 items-center gap-1.5"
@@ -100,9 +106,9 @@ export function GitChangeStatusIcon({
     case 'deleted':
       return <SquareMinus className={cn('size-4 text-foreground-diff-deleted', className)} />;
     case 'renamed':
-      return <SquareArrowRight className={cn('size-4 text-gray-500', className)} />;
+      return <SquareArrowRight className={cn('size-4 text-foreground-muted', className)} />;
     case 'conflicted':
-      return <SquareX className={cn('size-4 text-orange-500', className)} />;
+      return <SquareX className={cn('size-4 text-foreground-conflict', className)} />;
     default:
       return null;
   }

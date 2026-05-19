@@ -54,7 +54,16 @@ export type TelemetryEventProperties = {
   task_created: {
     strategy: 'blank' | 'branch' | 'issue' | 'pr';
     has_initial_prompt: boolean;
-    has_issue: 'github' | 'linear' | 'jira' | 'gitlab' | 'plain' | 'forgejo' | 'none';
+    has_issue:
+      | 'github'
+      | 'linear'
+      | 'jira'
+      | 'gitlab'
+      | 'plain'
+      | 'forgejo'
+      | 'featurebase'
+      | 'asana'
+      | 'none';
     provider: AgentProviderId | null;
   };
   task_provisioned: EmptyProps;
@@ -89,9 +98,19 @@ export type TelemetryEventProperties = {
   user_signed_in: EmptyProps;
   user_signed_out: EmptyProps;
 
-  integration_connected: { provider: 'github' | 'linear' | 'jira' };
-  integration_disconnected: { provider: 'github' | 'linear' | 'jira' };
-  issue_linked_to_task: { provider: 'github' | 'linear' | 'jira' | 'gitlab' | 'plain' | 'forgejo' };
+  integration_connected: { provider: 'github' | 'linear' | 'jira' | 'asana' };
+  integration_disconnected: { provider: 'github' | 'linear' | 'jira' | 'asana' };
+  issue_linked_to_task: {
+    provider:
+      | 'github'
+      | 'linear'
+      | 'jira'
+      | 'gitlab'
+      | 'plain'
+      | 'forgejo'
+      | 'featurebase'
+      | 'asana';
+  };
 
   open_in_external: { app: OpenInAppId | 'browser' };
   ssh_connection_attempted: { success: boolean };

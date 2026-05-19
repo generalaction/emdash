@@ -305,34 +305,34 @@ const FileTreeRow = observer(function FileTreeRow({
           )}
         </span>
 
-        <span
-          className={cn(
-            'min-w-0 flex-1 truncate text-sm',
-            fileStatus === 'added' && 'text-green-500',
-            fileStatus === 'modified' && 'text-amber-500',
-            fileStatus === 'deleted' && 'text-red-500 line-through',
-            fileStatus === 'renamed' && 'text-blue-500'
+         <span
+            className={cn(
+              'min-w-0 flex-1 truncate text-sm',
+              fileStatus === 'added' && 'text-foreground-success',
+              fileStatus === 'modified' && 'text-foreground-warning',
+              fileStatus === 'deleted' && 'text-foreground-error line-through',
+              fileStatus === 'renamed' && 'text-blue-500'
+            )}
+          >
+            {node.name}
+          </span>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          {node.type === 'file' && (
+            <ContextMenuItem onClick={() => void copyFile()}>
+              <FileText className="size-4" />
+              Copy
+            </ContextMenuItem>
           )}
-        >
-          {node.name}
-        </span>
-      </ContextMenuTrigger>
-      <ContextMenuContent>
-        {node.type === 'file' && (
-          <ContextMenuItem onClick={() => void copyFile()}>
-            <FileText className="size-4" />
-            Copy
+          <ContextMenuItem onClick={() => void copyPath()}>
+            <Copy className="size-4" />
+            Copy path
           </ContextMenuItem>
-        )}
-        <ContextMenuItem onClick={() => void copyPath()}>
-          <Copy className="size-4" />
-          Copy path
-        </ContextMenuItem>
-        <ContextMenuItem onClick={() => void copyRelativePath()}>
-          <Copy className="size-4" />
-          Copy relative path
-        </ContextMenuItem>
-      </ContextMenuContent>
+          <ContextMenuItem onClick={() => void copyRelativePath()}>
+            <Copy className="size-4" />
+            Copy relative path
+          </ContextMenuItem>
+        </ContextMenuContent>
     </ContextMenu>
   );
 });

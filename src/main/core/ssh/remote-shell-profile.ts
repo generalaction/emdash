@@ -67,6 +67,20 @@ export function buildRemoteShellCommand(
   )}`;
 }
 
+export function includeRemoteUserBinDirs(env: Record<string, string>): Record<string, string> {
+  const home = env.HOME?.replace(/\/+$/, '');
+  if (!home) return env;
+
+  const userBin = `${home}/.local/bin`;
+  const pathEntries = (env.PATH ?? '').split(':').filter(Boolean);
+  if (pathEntries.includes(userBin)) return env;
+
+  return {
+    ...env,
+    PATH: [userBin, ...pathEntries].join(':'),
+  };
+}
+
 export async function captureRemoteShellProfile(
   client: RemoteShellExecClient
 ): Promise<RemoteShellProfile> {
@@ -94,11 +108,11 @@ async function captureRemoteEnv(
       shell
     )} ${quoteShellArg('env')}`;
     const { stdout } = await execRaw(client, capture, CAPTURE_TIMEOUT_MS);
-    return parseRemoteEnvOutput(stdout);
+    return includeRemoteUserBinDirs(parseRemoteEnvOutput(stdout));
   } catch {
     try {
       const { stdout } = await execRaw(client, 'env', CAPTURE_TIMEOUT_MS);
-      return parseRemoteEnvOutput(stdout);
+      return includeRemoteUserBinDirs(parseRemoteEnvOutput(stdout));
     } catch {
       return {};
     }

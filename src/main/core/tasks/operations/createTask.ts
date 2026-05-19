@@ -111,7 +111,9 @@ export async function createTask(
     case 'from-pull-request': {
       // If the head branch is already checked out in a valid worktree, skip the fetch.
       // Git refuses to update a branch that is currently checked out, even with --force.
-      const existingWorktree = await project.getWorktreeForBranch(strategy.headBranch);
+      const existingWorktree = await project.worktreeService.findBranchAnywhere(
+        strategy.headBranch
+      );
 
       if (!existingWorktree) {
         // Fetch the PR head — handles same-repo and fork PRs.

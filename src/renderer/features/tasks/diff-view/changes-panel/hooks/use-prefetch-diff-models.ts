@@ -50,10 +50,10 @@ export function usePrefetchDiffModels(
           .registerModel(projectId, workspaceId, root, filePath, language, 'disk')
           .catch(() => {});
         void modelRegistry
-          .registerModel(projectId, workspaceId, root, filePath, language, 'git', originalRef)
+          .registerModel(projectId, workspaceId, root, filePath, language, 'git', STAGED_REF)
           .catch(() => {});
         entry.diskUri = modelRegistry.toDiskUri(uri);
-        entry.gitUris = [modelRegistry.toGitUri(uri, originalRef)];
+        entry.gitUris = [modelRegistry.toGitUri(uri, STAGED_REF)];
       } else if (group === 'staged') {
         void modelRegistry
           .registerModel(projectId, workspaceId, root, filePath, language, 'git', HEAD_REF)
