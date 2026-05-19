@@ -189,9 +189,6 @@
     "zod": "^4.3.6"
   },
   "pnpm": {
-    "overrides": {
-      "lucide-react": "$lucide-react"
-    },
     "onlyBuiltDependencies": [
       "better-sqlite3",
       "node-pty",
