@@ -27,6 +27,18 @@ const config: Configuration = {
     'node_modules/@parcel/watcher/**',
     '**/*.node',
   ],
+  // Ship the standalone `emdash-mcp` stdio bridge as an unpacked resource so
+  // it can be spawned as a Node script by external MCP clients (Claude Code,
+  // Cursor, Codex). Its in-app source lives at `bin/emdash-mcp.ts` and is
+  // built to `out/main/emdash-mcp.js` by `electron.vite.config.ts`.
+  // Resolved at runtime from the path emitted by `getBridgeCommand()` in
+  // `src/main/core/mcp-server/service.ts`.
+  extraResources: [
+    {
+      from: 'out/main/emdash-mcp.js',
+      to: 'bin/emdash-mcp.js',
+    },
+  ],
   mac: {
     category: 'public.app-category.developer-tools',
     hardenedRuntime: true,

@@ -98,6 +98,17 @@ export const browserPreviewSettingsSchema = z.object({ enabled: z.boolean() });
 
 export const resourceMonitorSettingsSchema = z.object({ enabled: z.boolean() });
 
+/**
+ * MCP server settings — controls whether emdash exposes itself as an MCP
+ * server (`mcpServer.enabled`) and which loopback port it binds
+ * (`mcpServer.port`). See
+ * `docs/superpowers/specs/2026-05-16-mcp-server-design.md` for context.
+ */
+export const mcpServerSettingsSchema = z.object({
+  enabled: z.boolean(),
+  port: z.number().int().min(1).max(65535),
+});
+
 export const openInSettingsSchema = z.object({
   default: openInAppIdSchema,
   hidden: z.array(openInAppIdSchema),
@@ -117,6 +128,7 @@ export const APP_SETTINGS_SCHEMA_MAP = {
   terminal: terminalSettingsSchema,
   browserPreview: browserPreviewSettingsSchema,
   resourceMonitor: resourceMonitorSettingsSchema,
+  mcpServer: mcpServerSettingsSchema,
 } as const;
 
 export const appSettingsSchema = z.object({
@@ -133,4 +145,5 @@ export const appSettingsSchema = z.object({
   terminal: terminalSettingsSchema,
   browserPreview: browserPreviewSettingsSchema,
   resourceMonitor: resourceMonitorSettingsSchema,
+  mcpServer: mcpServerSettingsSchema,
 });

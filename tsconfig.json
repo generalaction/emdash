@@ -31,7 +31,8 @@
     "src/shared/**/*",
     "src/types/**/*",
     "src/test/**/*",
-    "tooling/**/*"
+    "tooling/**/*",
+    "bin/**/*"
   ],
   "exclude": ["node_modules", "dist", "out", "**/_*/**"]
 }

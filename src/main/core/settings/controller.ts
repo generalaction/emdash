@@ -1,6 +1,15 @@
 import { createRPCController } from '@/shared/ipc/rpc';
+import { mcpServerService } from '@main/core/mcp-server/service';
 import { reconcileResourceSampler } from '@main/core/resource-monitor/resource-sampler';
 import { appSettingsService, type AppSettings, type AppSettingsKey } from './settings-service';
+
+async function reconcileForKey(key: AppSettingsKey): Promise<void> {
+  if (key === 'resourceMonitor') {
+    await reconcileResourceSampler();
+  } else if (key === 'mcpServer') {
+    await mcpServerService.reconcile();
+  }
+}
 
 export const appSettingsController = createRPCController({
   get: <T extends AppSettingsKey>(key: T): Promise<AppSettings[T]> => appSettingsService.get(key),
@@ -17,16 +26,16 @@ export const appSettingsController = createRPCController({
 
   update: async <T extends AppSettingsKey>(key: T, value: AppSettings[T]): Promise<void> => {
     await appSettingsService.update(key, value);
-    if (key === 'resourceMonitor') await reconcileResourceSampler();
+    await reconcileForKey(key);
   },
 
   reset: async <T extends AppSettingsKey>(key: T): Promise<void> => {
     await appSettingsService.reset(key);
-    if (key === 'resourceMonitor') await reconcileResourceSampler();
+    await reconcileForKey(key);
   },
 
   resetField: async <T extends AppSettingsKey>(key: T, field: string): Promise<void> => {
     await appSettingsService.resetField(key, field as keyof AppSettings[T]);
-    if (key === 'resourceMonitor') await reconcileResourceSampler();
+    await reconcileForKey(key);
   },
 });
