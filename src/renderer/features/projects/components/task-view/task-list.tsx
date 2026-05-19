@@ -13,6 +13,7 @@ import { SearchInput } from '@renderer/lib/ui/search-input';
 import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { cn } from '@renderer/utils/utils';
+import { TaskListEmptyState } from './task-list-empty-state';
 import { TaskRow, type ReadyTask } from './task-row';
 
 function TaskVirtualList({
@@ -205,11 +206,15 @@ export const TaskList = observer(function TaskList() {
         </div>
       </div>
 
-      <TaskVirtualList
-        tasks={filteredTasks}
-        selectedIds={taskView.selectedIds}
-        onToggleSelect={(id) => taskView.toggleSelect(id)}
-      />
+      {filteredTasks.length === 0 && taskView.tab === 'active' ? (
+        <TaskListEmptyState projectId={projectId} />
+      ) : (
+        <TaskVirtualList
+          tasks={filteredTasks}
+          selectedIds={taskView.selectedIds}
+          onToggleSelect={(id) => taskView.toggleSelect(id)}
+        />
+      )}
 
       <SelectionBar
         count={taskView.selectedIds.size}
