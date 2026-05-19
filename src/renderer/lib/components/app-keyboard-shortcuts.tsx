@@ -7,7 +7,6 @@ import {
   getEffectiveHotkey,
   getHotkeyRegistration,
 } from '@renderer/lib/hooks/useKeyboardShortcuts';
-import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
 import {
   useNavigate,
@@ -21,17 +20,14 @@ export function AppKeyboardShortcuts() {
   const { value: keyboard } = useAppSettingsKey('keyboard');
   const showCommandPalette = useShowModal('commandPaletteModal');
   const { toggleLeft } = useWorkspaceLayoutContext();
-  const { toggleTheme } = useTheme();
   const { navigate } = useNavigate();
 
   const commandPaletteHotkey = getEffectiveHotkey('commandPalette', keyboard);
   const closeModalHotkey = getEffectiveHotkey('closeModal', keyboard);
   const toggleLeftSidebarHotkey = getEffectiveHotkey('toggleLeftSidebar', keyboard);
-  const toggleThemeHotkey = getEffectiveHotkey('toggleTheme', keyboard);
   const switcherNextHotkey = getEffectiveHotkey('switcherNextTask', keyboard);
   const switcherPrevHotkey = getEffectiveHotkey('switcherPrevTask', keyboard);
 
-  // Resolve current project/task context for the command palette
   const { currentView, lastNonSettingsView } = useWorkspaceSlots();
   const { params: taskParams } = useParams('task');
   const { params: projectParams } = useParams('project');
@@ -71,10 +67,6 @@ export function AppKeyboardShortcuts() {
 
   useHotkey(getHotkeyRegistration('toggleLeftSidebar', keyboard), () => toggleLeft(), {
     enabled: toggleLeftSidebarHotkey !== null,
-  });
-
-  useHotkey(getHotkeyRegistration('toggleTheme', keyboard), () => toggleTheme(), {
-    enabled: toggleThemeHotkey !== null,
   });
 
   // Ctrl+Tab: task switcher cycling
