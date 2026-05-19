@@ -5,6 +5,7 @@ import { HEAD_REF, STAGED_REF } from '@shared/git';
 import type { ActiveFile } from '@shared/view-state';
 import { useDiffEditorComments } from '@renderer/features/tasks/diff-view/comments/use-diff-editor-comments';
 import { ImageDiffView } from '@renderer/features/tasks/diff-view/main-panel/image-diff-view';
+import { isMissingFileError } from '@renderer/features/tasks/diff-view/main-panel/missing-file-error';
 import { getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
 import type { DiffTabStore } from '@renderer/features/tasks/tabs/diff-tab-store';
 import {
@@ -107,6 +108,9 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
   const language = getLanguageFromPath(tab.path);
 
   const originalUri = (() => {
+    if (tab.diffGroup === 'disk') {
+      return modelRegistry.toGitUri(uri, STAGED_REF);
+    }
     if (tab.diffGroup === 'git' || tab.diffGroup === 'pr') {
       return modelRegistry.toGitUri(uri, tab.originalRef);
     }
@@ -130,7 +134,20 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
     if (tab.diffGroup === 'disk') {
       const diskUri = modelRegistry.toDiskUri(uri);
       void (async () => {
-        await modelRegistry.registerModel(projectId, workspaceId, root, tab.path, language, 'disk');
+        if (tab.status !== 'deleted') {
+          try {
+            await modelRegistry.registerModel(
+              projectId,
+              workspaceId,
+              root,
+              tab.path,
+              language,
+              'disk'
+            );
+          } catch (err) {
+            if (!isMissingFileError(err)) throw err;
+          }
+        }
         if (disposed) {
           modelRegistry.unregisterModel(diskUri);
           return;
@@ -148,7 +165,7 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
         }
       })().catch(() => {});
       void modelRegistry
-        .registerModel(projectId, workspaceId, root, tab.path, language, 'git', tab.originalRef)
+        .registerModel(projectId, workspaceId, root, tab.path, language, 'git', STAGED_REF)
         .catch(() => {});
     } else if (tab.diffGroup === 'staged') {
       void modelRegistry
@@ -192,6 +209,7 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
     tab.diffGroup,
     tab.originalRef,
     tab.modifiedRef,
+    tab.status,
     projectId,
     workspaceId,
     root,
