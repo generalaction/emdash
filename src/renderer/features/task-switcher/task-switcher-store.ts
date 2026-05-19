@@ -6,6 +6,7 @@ import { sortTasksForSwitcher, type SwitcherTask } from './sort-switcher-tasks';
 
 export interface SwitcherEntry {
   projectId: string;
+  projectName: string;
   taskId: string;
   name: string;
 }
@@ -33,16 +34,18 @@ export class TaskSwitcherStore {
 
   /** Live MRU-sorted task list (recomputes reactively). */
   get tasks(): SwitcherEntry[] {
-    const allEntries: { projectId: string; task: SwitcherTask }[] = [];
+    const allEntries: { projectId: string; projectName: string; task: SwitcherTask }[] = [];
     for (const store of this.projectManager.projects.values()) {
       const mounted = asMounted(store);
       if (!mounted) continue;
       const projectId = mounted.data.id;
+      const projectName = mounted.data.name;
       for (const taskStore of mounted.taskManager.tasks.values()) {
         const task = registeredTaskData(taskStore);
         if (!task || task.archivedAt) continue;
         allEntries.push({
           projectId,
+          projectName,
           task: {
             id: task.id,
             name: task.name,
@@ -58,7 +61,7 @@ export class TaskSwitcherStore {
     );
     return sorted.map((t) => {
       const entry = allEntries.find((e) => e.task.id === t.id)!;
-      return { projectId: entry.projectId, taskId: t.id, name: t.name };
+      return { projectId: entry.projectId, projectName: entry.projectName, taskId: t.id, name: t.name };
     });
   }
 

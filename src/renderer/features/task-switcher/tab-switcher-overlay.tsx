@@ -39,6 +39,7 @@ export const TabSwitcherOverlay = observer(function TabSwitcherOverlay() {
             {task.taskId === store.currentTaskId && (
               <span className="shrink-0 text-xs text-foreground/40">current</span>
             )}
+            <span className="shrink-0 text-xs text-foreground/40">{task.projectName}</span>
           </div>
         ))}
       </div>
