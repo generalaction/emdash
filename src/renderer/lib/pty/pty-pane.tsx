@@ -1,4 +1,5 @@
 import React, { forwardRef, useImperativeHandle, useRef } from 'react';
+import { getDraggedFilePaths } from '@renderer/lib/drag-files';
 import { rpc } from '@renderer/lib/ipc';
 import { log } from '@renderer/utils/logger';
 import { cn } from '@renderer/utils/utils';
@@ -71,14 +72,7 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
     const handleDrop: React.DragEventHandler<HTMLDivElement> = (event) => {
       try {
         event.preventDefault();
-        const dt = event.dataTransfer;
-        if (!dt?.files?.length) return;
-
-        const paths: string[] = [];
-        for (const file of Array.from(dt.files)) {
-          const path = window.electronAPI.getPathForFile(file).trim();
-          if (path) paths.push(path);
-        }
+        const paths = getDraggedFilePaths(event.dataTransfer);
         if (paths.length === 0) return;
 
         void (async () => {
