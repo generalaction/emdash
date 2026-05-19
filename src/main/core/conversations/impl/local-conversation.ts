@@ -1,9 +1,4 @@
 import { homedir } from 'node:os';
-import { getProvider } from '@shared/agent-provider-registry';
-import type { Conversation } from '@shared/conversations';
-import { agentSessionExitedChannel } from '@shared/events/agentEvents';
-import { makePtyId } from '@shared/ptyId';
-import { makePtySessionId } from '@shared/ptySessionId';
 import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
 import { wireAgentClassifier } from '@main/core/agent-hooks/classifier-wiring';
 import { claudeTrustService } from '@main/core/agent-hooks/claude-trust-service';
@@ -21,6 +16,11 @@ import { providerOverrideSettings } from '@main/core/settings/provider-settings-
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
+import { getProvider } from '@shared/agent-provider-registry';
+import type { Conversation } from '@shared/conversations';
+import { agentSessionExitedChannel } from '@shared/events/agentEvents';
+import { makePtyId } from '@shared/ptyId';
+import { makePtySessionId } from '@shared/ptySessionId';
 import { buildAgentCommand } from './agent-command';
 import { resolveProviderEnv } from './provider-env';
 

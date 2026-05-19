@@ -1,11 +1,11 @@
-import { ISSUE_PROVIDER_CAPABILITIES, type IssueListResult } from '@shared/issue-providers';
-import type { Issue } from '@shared/tasks';
 import {
   clampIssueLimit,
   normalizeSearchTerm,
   requireProjectPath,
 } from '@main/core/issues/helpers/provider-inputs';
 import type { IssueProvider } from '@main/core/issues/issue-provider';
+import { ISSUE_PROVIDER_CAPABILITIES, type IssueListResult } from '@shared/issue-providers';
+import type { Issue } from '@shared/tasks';
 import { gitLabConnectionService, toGitLabErrorMessage } from './gitlab-connection-service';
 
 function asRecord(value: unknown): Record<string, unknown> | null {

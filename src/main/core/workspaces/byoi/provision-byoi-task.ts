@@ -1,8 +1,3 @@
-import type { Conversation } from '@shared/conversations';
-import { taskProvisionProgressChannel } from '@shared/events/taskEvents';
-import type { ProjectSettings } from '@shared/project-settings';
-import type { Task } from '@shared/tasks';
-import type { Terminal } from '@shared/terminals';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { ProvisionResult } from '@main/core/projects/project-provider';
 import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
@@ -14,6 +9,11 @@ import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { quoteShellArg } from '@main/utils/shellEscape';
+import type { Conversation } from '@shared/conversations';
+import { taskProvisionProgressChannel } from '@shared/events/taskEvents';
+import type { ProjectSettings } from '@shared/project-settings';
+import type { Task } from '@shared/tasks';
+import type { Terminal } from '@shared/terminals';
 
 export type ProvisionBYOITaskParams = {
   task: Task;

@@ -1,4 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
+import { useToast } from '@renderer/lib/hooks/use-toast';
+import { useModalContext } from '@renderer/lib/modal/modal-provider';
 import type { Remote } from '@shared/git';
 import {
   emptyProjectSettingsOverrideState,
@@ -14,8 +16,6 @@ import {
 } from '@shared/project-settings';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import { err, type Result } from '@shared/result';
-import { useToast } from '@renderer/lib/hooks/use-toast';
-import { useModalContext } from '@renderer/lib/modal/modal-provider';
 import type { ProjectSettingsSaveStatus } from './project-settings-footer';
 import {
   areFormStatesEqual,

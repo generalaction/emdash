@@ -1,11 +1,11 @@
 import { useCallback, useRef, useState } from 'react';
-import { basenameFromAnyPath } from '@shared/path-name';
 import { getProjectManagerStore } from '@renderer/features/projects/stores/project-selectors';
 import { getDraggedFilePaths, hasDraggedFiles } from '@renderer/lib/drag-files';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { log } from '@renderer/utils/logger';
+import { basenameFromAnyPath } from '@shared/path-name';
 
 export function useSidebarDrop() {
   const [isDragOver, setIsDragOver] = useState(false);

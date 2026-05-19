@@ -1,4 +1,3 @@
-import { TASK_COMMAND_DEFS, type CommandDef, type TaskCommandId } from '@shared/commands';
 import {
   getRegisteredTaskData,
   getTaskGitStore,
@@ -8,6 +7,7 @@ import {
 import type { CommandProvider } from '@renderer/lib/commands/types';
 import { showModal } from '@renderer/lib/modal/modal-provider';
 import { appState, sidebarStore } from '@renderer/lib/stores/app-state';
+import { TASK_COMMAND_DEFS, type CommandDef, type TaskCommandId } from '@shared/commands';
 
 function taskDef(id: TaskCommandId): CommandDef {
   return TASK_COMMAND_DEFS.find((d) => d.id === id)!;

@@ -4,15 +4,6 @@ import { homedir } from 'node:os';
 import { extname, resolve, sep } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { app, clipboard, dialog, shell } from 'electron';
-import { appPasteChannel, appRedoChannel, appUndoChannel } from '@shared/events/appEvents';
-import {
-  getAppById,
-  getResolvedLabel,
-  OPEN_IN_APPS,
-  type OpenInAppId,
-  type PlatformConfig,
-  type PlatformKey,
-} from '@shared/openInApps';
 import { getMainWindow } from '@main/app/window';
 import { db } from '@main/db/client';
 import { sshConnections } from '@main/db/schema';
@@ -25,6 +16,15 @@ import {
   buildRemoteSshCommand,
   buildRemoteTerminalExecArgs,
 } from '@main/utils/remoteOpenIn';
+import { appPasteChannel, appRedoChannel, appUndoChannel } from '@shared/events/appEvents';
+import {
+  getAppById,
+  getResolvedLabel,
+  OPEN_IN_APPS,
+  type OpenInAppId,
+  type PlatformConfig,
+  type PlatformKey,
+} from '@shared/openInApps';
 import {
   checkCommand,
   checkMacApp,

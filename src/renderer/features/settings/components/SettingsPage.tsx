@@ -110,7 +110,7 @@ export function SettingsPage({
         {
           title: 'CLI agents',
           component: (
-            <div className="rounded-xl border border-border/60 bg-muted/10 p-2">
+            <div className="bg-muted/10 rounded-xl border border-border/60 p-2">
               <CliAgentsList />
             </div>
           ),

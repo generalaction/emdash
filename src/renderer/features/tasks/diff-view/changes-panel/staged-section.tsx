@@ -1,6 +1,5 @@
 import { Minus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { commitRef, HEAD_REF, type GitChange } from '@shared/git';
 import {
   useTaskViewContext,
   useWorkspace,
@@ -9,6 +8,7 @@ import {
 } from '@renderer/features/tasks/task-view-context';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
+import { commitRef, HEAD_REF, type GitChange } from '@shared/git';
 import { ActionCard } from './components/action-card';
 import { CommitCard } from './components/commit-card';
 import { SectionHeader } from './components/section-header';

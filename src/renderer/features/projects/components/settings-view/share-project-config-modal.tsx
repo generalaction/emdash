@@ -1,14 +1,5 @@
 import { Check, Loader2 } from 'lucide-react';
 import { useState } from 'react';
-import type {
-  ProjectSettingsPage,
-  ProjectSettingsWriteTarget,
-  ProjectSettingsWriteTargetOption,
-  ShareableProjectSettingsWriteField,
-  WriteProjectConfigRequest,
-} from '@shared/project-settings';
-import type { UpdateProjectSettingsError } from '@shared/projects';
-import { err, type Result } from '@shared/result';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { Checkbox } from '@renderer/lib/ui/checkbox';
@@ -21,6 +12,15 @@ import {
 } from '@renderer/lib/ui/dialog';
 import { Field, FieldGroup, FieldTitle } from '@renderer/lib/ui/field';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/ui/select';
+import type {
+  ProjectSettingsPage,
+  ProjectSettingsWriteTarget,
+  ProjectSettingsWriteTargetOption,
+  ShareableProjectSettingsWriteField,
+  WriteProjectConfigRequest,
+} from '@shared/project-settings';
+import type { UpdateProjectSettingsError } from '@shared/projects';
+import { err, type Result } from '@shared/result';
 import { SHAREABLE_FIELD_DESCRIPTOR_BY_ID } from './shareable-project-settings-fields';
 
 type WriteStatus = 'idle' | 'writing' | 'written' | 'error';
@@ -163,7 +163,7 @@ export function ShareProjectConfigModal({
                     title={`${target.label} ${target.path}`}
                   >
                     <div className="flex min-w-0 flex-1 items-center gap-2">
-                      <span className="relative -top-px min-w-0 max-w-[45%] truncate">
+                      <span className="relative -top-px max-w-[45%] min-w-0 truncate">
                         {target.label}
                       </span>
                       <span className="min-w-0 flex-1 truncate text-xs text-foreground-muted">

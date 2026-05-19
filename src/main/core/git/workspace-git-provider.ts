@@ -1,3 +1,4 @@
+import type { Hookable } from '@main/lib/hookable';
 import type {
   Commit,
   CommitError,
@@ -17,7 +18,6 @@ import type {
   SoftResetError,
 } from '@shared/git';
 import type { Result } from '@shared/result';
-import type { Hookable } from '@main/lib/hookable';
 
 export type WorkspaceGitHooks = {
   'status:updated': (status: FullGitStatus) => void | Promise<void>;

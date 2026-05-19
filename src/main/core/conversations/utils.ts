@@ -1,6 +1,6 @@
+import { type ConversationRow } from '@main/db/schema';
 import { type AgentProviderId } from '@shared/agent-provider-registry';
 import { type Conversation } from '@shared/conversations';
-import { type ConversationRow } from '@main/db/schema';
 
 export function mapConversationRowToConversation(
   row: ConversationRow,

@@ -64,7 +64,7 @@ export function HomeMainPanel() {
             />
           </div>
         </div>
-        <div className="mx-auto mt-8 flex flex-col w-full max-w-md gap-1">
+        <div className="mx-auto mt-8 flex w-full max-w-md flex-col gap-1">
           {PROJECT_ACTIONS.map((action, i) => (
             <HomeProjectAction
               key={action.label}

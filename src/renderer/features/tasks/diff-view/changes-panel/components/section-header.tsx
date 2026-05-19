@@ -27,10 +27,10 @@ export function SectionHeader({
   onToggleCollapsed,
 }: SectionHeaderProps) {
   return (
-    <div className="shrink-0 flex items-center justify-between px-3.5 h-10">
-      <div className="flex items-center gap-2 justify-between w-full">
+    <div className="flex h-10 shrink-0 items-center justify-between px-3.5">
+      <div className="flex w-full items-center justify-between gap-2">
         <button onClick={onToggleCollapsed}>
-          <span className="text-sm text-foreground-muted flex items-center gap-2">
+          <span className="flex items-center gap-2 text-sm text-foreground-muted">
             <span>{label}</span> <Badge variant="secondary">{count}</Badge>{' '}
             <span className="p-2 text-foreground-muted hover:text-foreground">
               <ChevronDown
@@ -88,10 +88,10 @@ export function PullRequestSectionHeader({
   ];
 
   return (
-    <div className="shrink-0 flex items-center justify-between px-3.5 h-10">
-      <div className="flex items-center gap-2 justify-between w-full min-w-0">
+    <div className="flex h-10 shrink-0 items-center justify-between px-3.5">
+      <div className="flex w-full min-w-0 items-center justify-between gap-2">
         <button onClick={onToggleCollapsed} className="min-w-0">
-          <span className="text-sm text-foreground-muted flex items-center gap-2 min-w-0">
+          <span className="flex min-w-0 items-center gap-2 text-sm text-foreground-muted">
             <span className="truncate">Pull Requests</span>{' '}
             <Badge variant="secondary" className="shrink-0">
               {count}

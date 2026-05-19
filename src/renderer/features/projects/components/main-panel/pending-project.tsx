@@ -48,9 +48,9 @@ export const PendingProjectStatus = observer(function PendingProjectStatus({
                 {isDone ? (
                   <Check className="h-4 w-4 text-foreground-success" />
                 ) : isActive ? (
-                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  <Loader2 className="text-muted-foreground h-4 w-4 animate-spin" />
                 ) : (
-                  <div className="h-2 w-2 rounded-full bg-muted-foreground/30" />
+                  <div className="bg-muted-foreground/30 h-2 w-2 rounded-full" />
                 )}
               </div>
               <span
@@ -58,8 +58,8 @@ export const PendingProjectStatus = observer(function PendingProjectStatus({
                   isActive
                     ? 'text-sm font-medium text-foreground'
                     : isDone
-                      ? 'text-sm text-muted-foreground'
-                      : 'text-sm text-muted-foreground/50'
+                      ? 'text-muted-foreground text-sm'
+                      : 'text-muted-foreground/50 text-sm'
                 }
               >
                 {STAGE_LABELS[stage]}
@@ -69,10 +69,10 @@ export const PendingProjectStatus = observer(function PendingProjectStatus({
         })}
 
         {isError && (
-          <div className="mt-2 flex min-w-0 flex-col gap-3 rounded-md border border-destructive/40 bg-destructive/10 p-3">
+          <div className="border-destructive/40 bg-destructive/10 mt-2 flex min-w-0 flex-col gap-3 rounded-md border p-3">
             <div className="flex min-w-0 items-start gap-2">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
-              <span className="min-w-0 break-words text-sm text-destructive">
+              <AlertCircle className="text-destructive mt-0.5 h-4 w-4 shrink-0" />
+              <span className="text-destructive min-w-0 text-sm break-words">
                 {project.error ?? 'An error occurred'}
               </span>
             </div>

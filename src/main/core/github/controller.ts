@@ -1,12 +1,5 @@
 import { homedir } from 'node:os';
 import * as path from 'node:path';
-import type {
-  GitHubAuthResponse,
-  GitHubConnectResponse,
-  GitHubStatusOptions,
-  GitHubStatusResponse,
-} from '@shared/github';
-import { createRPCController } from '@shared/ipc/rpc';
 import { ACCOUNT_CONFIG } from '@main/core/account/config';
 import { GitHubAuthExecutionContext } from '@main/core/execution-context/github-auth-execution-context';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
@@ -20,6 +13,13 @@ import { repoService } from '@main/core/github/services/repo-service';
 import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
+import type {
+  GitHubAuthResponse,
+  GitHubConnectResponse,
+  GitHubStatusOptions,
+  GitHubStatusResponse,
+} from '@shared/github';
+import { createRPCController } from '@shared/ipc/rpc';
 
 export const githubController = createRPCController({
   getStatus: async (options?: GitHubStatusOptions): Promise<GitHubStatusResponse> => {

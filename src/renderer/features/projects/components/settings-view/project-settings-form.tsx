@@ -1,4 +1,7 @@
 import { observer } from 'mobx-react-lite';
+import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
+import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
+import { FieldGroup } from '@renderer/lib/ui/field';
 import type { Remote } from '@shared/git';
 import type {
   MigrateProjectConfigRequest,
@@ -12,9 +15,6 @@ import type {
 } from '@shared/project-settings';
 import type { Project, UpdateProjectSettingsError } from '@shared/projects';
 import type { Result } from '@shared/result';
-import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
-import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
-import { FieldGroup } from '@renderer/lib/ui/field';
 import { ProjectSettingsFooter } from './project-settings-footer';
 import { BaseProjectSettingsSection } from './sections/base-project-settings-section';
 import { ShareableSettingsSection } from './sections/shareable-project-settings-section';
@@ -74,7 +74,7 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
       <div
-        className="flex-1 overflow-y-auto overflow-x-hidden py-2"
+        className="flex-1 overflow-x-hidden overflow-y-auto py-2"
         style={{ scrollbarWidth: 'none' }}
       >
         <FieldGroup>

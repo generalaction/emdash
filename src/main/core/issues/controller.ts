@@ -1,10 +1,10 @@
+import { projectManager } from '@main/core/projects/project-manager';
 import { createRPCController } from '@shared/ipc/rpc';
 import type {
   ConnectionStatus,
   ConnectionStatusMap,
   IssueProviderType,
 } from '@shared/issue-providers';
-import { projectManager } from '@main/core/projects/project-manager';
 import type {
   IssueContextOpts,
   IssueProvider,
