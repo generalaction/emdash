@@ -1,4 +1,3 @@
-
 ---
 default_branch: main
 package_manager: pnpm
@@ -26,72 +25,90 @@ optional_env:
 
 # Emdash Agent Guide
 
-Start here. Load only the linked `agents/` docs that are relevant to the task.
+This file is the entry point. Load only the `agents/` docs you actually need for the task at hand — don't pre-load everything.
 
-## Start Here
+## Orientation
 
-- Repo map: `agents/README.md`
-- Setup and commands: `agents/quickstart.md`
-- System overview: `agents/architecture/overview.md`
-- Validation flow: `agents/workflows/testing.md`
+| Need | File |
+| --- | --- |
+| Repo map | `agents/README.md` |
+| Setup & commands | `agents/quickstart.md` |
+| System overview | `agents/architecture/overview.md` |
+| How to validate work | `agents/workflows/testing.md` |
 
-## Read By Task
+## Load By Task
 
-- Main-process changes: `agents/architecture/main-process.md`
-- Renderer/UI changes: `agents/architecture/renderer.md`
-- Shared types or provider metadata: `agents/architecture/shared.md`
-- Worktree behavior or `.emdash.json`: `agents/workflows/worktrees.md`
-- SSH or remote project work: `agents/workflows/remote-development.md`
-- Provider integration or CLI behavior: `agents/integrations/providers.md`
-- MCP changes: `agents/integrations/mcp.md`
+**Code areas**
+- Main process → `agents/architecture/main-process.md`
+- Renderer / UI → `agents/architecture/renderer.md`
+- Shared types, provider metadata → `agents/architecture/shared.md`
 
-## High-Risk Areas
+**Workflows**
+- Worktrees, `.emdash.json` → `agents/workflows/worktrees.md`
+- SSH / remote projects → `agents/workflows/remote-development.md`
 
-- Database and migrations: `agents/risky-areas/database.md`
-- PTY/session orchestration: `agents/risky-areas/pty.md`
-- SSH and shell escaping: `agents/risky-areas/ssh.md`
-- Auto-update and packaging: `agents/risky-areas/updater.md`
+**Integrations**
+- Providers / CLI behavior → `agents/integrations/providers.md`
+- MCP → `agents/integrations/mcp.md`
+
+**High-risk — read before touching**
+- Database & migrations → `agents/risky-areas/database.md`
+- PTY / session orchestration → `agents/risky-areas/pty.md`
+- SSH & shell escaping → `agents/risky-areas/ssh.md`
+- Auto-update & packaging → `agents/risky-areas/updater.md`
 
 ## Conventions
 
-- IPC contract and typing: `agents/conventions/ipc.md`
-- Main process patterns (controllers, services, Result type, events): `agents/conventions/main-patterns.md`
-- Renderer patterns (modals, views, PTY frontend, React Query contexts): `agents/conventions/renderer-patterns.md`
-- TypeScript and React norms: `agents/conventions/typescript.md`
-- Config files and repo rules: `agents/conventions/config-files.md`
-- Never do re exports always import from the original source
+- IPC contract & typing → `agents/conventions/ipc.md`
+- Main process patterns (controllers, services, `Result`, events) → `agents/conventions/main-patterns.md`
+- Renderer patterns (modals, views, PTY frontend, React Query contexts) → `agents/conventions/renderer-patterns.md`
+- TypeScript & React norms → `agents/conventions/typescript.md`
+- Config files & repo rules → `agents/conventions/config-files.md`
 
-### State Guard Conventions (renderer stores)
+**Import rule:** never re-export — always import from the original source.
 
-`ProjectStore` and `TaskStore` are mutable MobX class instances that transition through states. Use the following layers — do not mix them:
+### Renderer state guards (MobX stores)
 
-**Selectors** (`task-selectors.ts`, `project-selectors.ts`) — pure functions, safe in observer components, effects, and event handlers:
-- `getTaskStore(projectId, taskId)` → `TaskStore | undefined`
-- `asProvisioned(store)` → `ProvisionedTask | undefined` (use with explicit null check, never `!`)
-- `taskViewKind(store, projectId)` → `TaskViewKind`
-- `getTaskManagerStore(projectId)` → `TaskManagerStore | undefined` (use this instead of reaching through project store)
-- `getProjectStore(projectId)` → `ProjectStore | undefined`
-- `asMounted(store)` → `MountedProject | undefined` (use with explicit null check, never `!`)
+`ProjectStore` and `TaskStore` are mutable class instances that transition through states. Use one of these three layers; do not mix them.
 
-**Hooks** (`task-view-context.tsx`) — for `observer` components inside the task view tree:
-- `useTaskViewKind()` — routing/state-gating
-- `useProvisionedTask()` → `ProvisionedTask | null` — when the component handles a non-provisioned state
-- `useRequireProvisionedTask()` → `ProvisionedTask` — when the component must only render when provisioned (throws with a descriptive error if the invariant is violated)
+**Selectors** — pure functions, safe in observers, effects, and event handlers
+| Function | Returns |
+| --- | --- |
+| `getProjectStore(projectId)` | `ProjectStore \| undefined` |
+| `getTaskStore(projectId, taskId)` | `TaskStore \| undefined` |
+| `getTaskManagerStore(projectId)` | `TaskManagerStore \| undefined` (use instead of `project.taskManager`) |
+| `asMounted(store)` | `MountedProject \| undefined` (explicit null check — never `!`) |
+| `asProvisioned(store)` | `ProvisionedTask \| undefined` (explicit null check — never `!`) |
+| `taskViewKind(store, projectId)` | `TaskViewKind` |
 
-**Rules:**
-- Never `asProvisioned(...)!` or `asMounted(...)!` — use the hook or an explicit null check
-- State guards must use `kind !== 'ready'`, never enumerate non-ready states (new states would silently fall through)
-- Access task manager via `getTaskManagerStore(projectId)`, not through `project.taskManager`
-- Access mounted project via `asMounted(getProjectStore(id))`, not via inline `isMountedProject` guards
+Selectors live in `task-selectors.ts` / `project-selectors.ts`.
+
+**Hooks** — for `observer` components inside the task view tree (`task-view-context.tsx`)
+- `useTaskViewKind()` — for routing / state-gating
+- `useProvisionedTask()` → `ProvisionedTask | null` — when the component handles non-provisioned states
+- `useRequireProvisionedTask()` → `ProvisionedTask` — when the component must only render when provisioned (throws with a descriptive error otherwise)
+
+**Hard rules**
+- Never write `asProvisioned(...)!` or `asMounted(...)!` — use the hook or an explicit null check.
+- State guards must check `kind !== 'ready'`. Never enumerate the non-ready states — a new state would silently fall through.
+- Access the task manager via `getTaskManagerStore(projectId)`, not `project.taskManager`.
+- Access a mounted project via `asMounted(getProjectStore(id))`, not via inline `isMountedProject` guards.
 
 ## Non-Negotiables
 
-- Run `pnpm run format`, `pnpm run lint`, `pnpm run typecheck`, and `pnpm test` before merging.
-- Do not hand-edit numbered Drizzle migrations or `drizzle/meta/`.
-- New RPC methods go in the appropriate `src/main/core/*/controller.ts` and are auto-registered via `src/main/rpc.ts`.
-- Only use manual IPC in `electron-api.d.ts` for methods requiring `event.sender`.
-- New modals must be registered in `src/renderer/core/modal/registry.ts`.
-- New views must be registered in `src/renderer/core/view/registry.ts`.
-- Treat `src/main/core/pty/`, `src/main/core/ssh/`, `src/main/db/`, and updater code as high risk.
-- Avoid editing `dist/`, `release/`, and `build/` unless the task is explicitly about packaging or updater/signing behavior.
-- The docs app in `docs/` is separate from the Electron renderer and also defaults to port `3000`.
+**Before merging, run all four:**
+```
+pnpm run format
+pnpm run lint
+pnpm run typecheck
+pnpm test
+```
+
+**Code & infra rules**
+- Do not hand-edit numbered Drizzle migrations or anything under `drizzle/meta/`.
+- New RPC methods → add to the appropriate `src/main/core/*/controller.ts`; they're auto-registered via `src/main/rpc.ts`. Only fall back to manual IPC in `electron-api.d.ts` when the method needs `event.sender`.
+- New modals → register in `src/renderer/core/modal/registry.ts`.
+- New views → register in `src/renderer/core/view/registry.ts`.
+- Treat `src/main/core/pty/`, `src/main/core/ssh/`, `src/main/db/`, and updater code as high risk — read the matching `agents/risky-areas/*.md` first.
+- Don't touch `dist/`, `release/`, or `build/` unless the task is explicitly about packaging or updater/signing behavior.
+- The docs app in `docs/` is a separate Next.js app and also defaults to port `3000` — mind the port clash when running both.
