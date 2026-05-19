@@ -18,6 +18,7 @@ const EMDASH_MARKER = 'EMDASH_HOOK_PORT';
 const CLAUDE_SETTINGS_PATH = '.claude/settings.local.json';
 const CODEX_CONFIG_PATH = '.codex/config.toml';
 const CODEX_HOOKS_PATH = '.codex/hooks.json';
+const DROID_SETTINGS_PATH = '.factory/settings.json';
 const PI_EMDASH_EXTENSION_PATH = '.pi/extensions/emdash-hook.ts';
 const OPENCODE_PLUGIN_PATH = '.opencode/plugins/emdash-notifications.js';
 const GITIGNORE_PATH = '.gitignore';
@@ -111,6 +112,27 @@ export class HookConfigWriter {
     return true;
   }
 
+  async writeDroidHooks(): Promise<boolean> {
+    if (!(await resolveCommandPath('droid', this.exec))) return false;
+
+    const config: Record<string, unknown> = (await this.fs.exists(DROID_SETTINGS_PATH))
+      ? await this.fs
+          .read(DROID_SETTINGS_PATH)
+          .then((r) => JSON.parse(r.content) ?? {})
+          .catch(() => ({}))
+      : {};
+
+    const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
+    const existing = Array.isArray(hooks.Stop) ? hooks.Stop : [];
+    hooks.Stop = this.buildHookEntries(
+      existing,
+      makeClaudeHookCommand('stop', { platform: this.platform })
+    );
+
+    await this.fs.write(DROID_SETTINGS_PATH, JSON.stringify({ ...config, hooks }, null, 2) + '\n');
+    return true;
+  }
+
   async writePiExtension(): Promise<boolean> {
     if (!(await resolveCommandPath('pi', this.exec))) return false;
 
@@ -156,6 +178,14 @@ export class HookConfigWriter {
       return this.writeCodexHooks();
     }
 
+    if (providerId === 'droid') {
+      const wroteConfig = await this.writeDroidHooks();
+      if (wroteConfig && writeGitIgnoreEntries) {
+        await this.ensureGitIgnoreEntries([DROID_SETTINGS_PATH]);
+      }
+      return wroteConfig;
+    }
+
     if (providerId === 'pi') {
       const wroteConfig = await this.writePiExtension();
       if (wroteConfig && writeGitIgnoreEntries) {
@@ -177,7 +207,7 @@ export class HookConfigWriter {
 
   async writeAll(options: HookConfigWriteOptions = {}): Promise<void> {
     await Promise.all(
-      (['claude', 'codex', 'pi', 'opencode'] as const).map((providerId) =>
+      (['claude', 'codex', 'droid', 'pi', 'opencode'] as const).map((providerId) =>
         this.writeForProvider(providerId, options).catch((err: Error) => {
           log.warn(`Failed to write ${providerId} hook config`, { error: String(err) });
         })
