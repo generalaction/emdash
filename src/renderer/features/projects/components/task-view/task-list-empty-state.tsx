@@ -53,13 +53,10 @@ export const TaskListEmptyState = observer(function TaskListEmptyState({
     },
   ];
 
-  const { selectedIndex, setSelectedIndex } = useArrowKeyNavigation(
-    actions.length,
-    (index) => {
-      const action = actions[index];
-      if (action && !action.disabled) showTaskModal({ projectId, strategy: action.strategy });
-    }
-  );
+  const { selectedIndex, setSelectedIndex } = useArrowKeyNavigation(actions.length, (index) => {
+    const action = actions[index];
+    if (action && !action.disabled) showTaskModal({ projectId, strategy: action.strategy });
+  });
 
   return (
     <div className="flex h-full flex-col items-center justify-center p-8 bg-background">

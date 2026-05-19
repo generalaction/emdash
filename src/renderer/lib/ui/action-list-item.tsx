@@ -30,9 +30,7 @@ export function ActionListItem({
       onMouseEnter={disabled ? undefined : onMouseEnter}
       className={cn(
         'group flex w-full items-center justify-between rounded-lg bg-background p-4 text-left transition-all',
-        disabled
-          ? 'opacity-50 cursor-not-allowed'
-          : 'hover:bg-background-1',
+        disabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-background-1',
         !disabled && isSelected && 'bg-background-1'
       )}
     >
