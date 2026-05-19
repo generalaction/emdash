@@ -10,7 +10,7 @@ function checkSource(context, node) {
 
   context.report({
     node,
-    message: TOOLING_IMPORT_MESSAGE,
+    messageId: 'restricted',
   });
 }
 
