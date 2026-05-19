@@ -24,6 +24,7 @@ const OPENCODE_PLUGIN_PATH = '.opencode/plugins/emdash-notifications.js';
 const GITIGNORE_PATH = '.gitignore';
 type HookConfigWriteOptions = { writeGitIgnoreEntries?: boolean };
 type CodexHookEvent = 'Stop' | 'PermissionRequest';
+type DroidHookEvent = 'Notification' | 'Stop';
 
 const HOOK_EVENT_MAP = [
   { eventType: 'notification', hookKey: 'Notification' },
@@ -34,6 +35,11 @@ const CODEX_HOOK_EVENT_MAP = [
   { hookKey: 'Stop', notificationType: 'idle_prompt' },
   { hookKey: 'PermissionRequest', notificationType: 'permission_prompt' },
 ] satisfies { hookKey: CodexHookEvent; notificationType: 'idle_prompt' | 'permission_prompt' }[];
+
+const DROID_HOOK_EVENT_MAP = [
+  { hookKey: 'Notification', eventType: 'notification' },
+  { hookKey: 'Stop', eventType: 'stop' },
+] satisfies { hookKey: DroidHookEvent; eventType: 'notification' | 'stop' }[];
 
 const LEGACY_CODEX_NOTIFY_COMMAND = [
   'bash',
@@ -123,11 +129,14 @@ export class HookConfigWriter {
       : {};
 
     const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
-    const existing = Array.isArray(hooks.Stop) ? hooks.Stop : [];
-    hooks.Stop = this.buildHookEntries(
-      existing,
-      makeClaudeHookCommand('stop', { platform: this.platform })
-    );
+
+    for (const { hookKey, eventType } of DROID_HOOK_EVENT_MAP) {
+      const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
+      hooks[hookKey] = this.buildHookEntries(
+        existing,
+        makeClaudeHookCommand(eventType, { platform: this.platform })
+      );
+    }
 
     await this.fs.write(DROID_SETTINGS_PATH, JSON.stringify({ ...config, hooks }, null, 2) + '\n');
     return true;
