@@ -20,7 +20,7 @@ const config: Configuration = {
     },
   ],
   generateUpdatesFilesForAllChannels: false,
-  files: ['out/**/*', 'node_modules/**/*', 'drizzle/**/*', '!**/*.map'],
+  files: ['out/**/*', 'node_modules/**/*', 'drizzle/**/*', '!node_modules/**/*.map'],
   asarUnpack: [
     'node_modules/better-sqlite3/**',
     'node_modules/node-pty/**',
