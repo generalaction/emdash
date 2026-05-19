@@ -1,7 +1,7 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { formatConversationTitleForDisplay } from '@renderer/features/tasks/conversations/conversation-title-utils';
 import {
   useConversations,
@@ -32,10 +32,27 @@ const ConversationRow = observer(function ConversationRow({
   conversationId: string;
 }) {
   const [isEditing, setIsEditing] = useState(false);
+  const pendingRenameRef = useRef(false);
   const taskView = useWorkspaceViewModel();
   const conversations = useConversations();
   const { tabManager } = taskView;
   const showConfirm = useShowModal('confirmActionModal');
+
+  const handleRenameInputRef = useCallback((input: HTMLInputElement | null) => {
+    input?.focus();
+    input?.select();
+  }, []);
+
+  const handleRename = useCallback(() => {
+    pendingRenameRef.current = true;
+  }, []);
+
+  const handleContextMenuOpenChangeComplete = useCallback((open: boolean) => {
+    if (!open && pendingRenameRef.current) {
+      pendingRenameRef.current = false;
+      setIsEditing(true);
+    }
+  }, []);
 
   const conversation = conversations.conversations.get(conversationId);
   if (!conversation) return null;
@@ -69,9 +86,9 @@ const ConversationRow = observer(function ConversationRow({
     return (
       <div className="flex h-full w-full items-center px-2">
         <input
+          ref={handleRenameInputRef}
           className="w-full rounded bg-background-1 px-1.5 py-0.5 text-sm text-foreground outline-none ring-1 ring-foreground/20 focus:ring-foreground/40"
           defaultValue={rawTitle}
-          autoFocus
           onBlur={(e) => {
             const value = e.target.value.trim();
             if (value && value !== rawTitle) {
@@ -98,7 +115,7 @@ const ConversationRow = observer(function ConversationRow({
   }
 
   return (
-    <ContextMenu>
+    <ContextMenu onOpenChangeComplete={handleContextMenuOpenChangeComplete}>
       <ContextMenuTrigger>
         <button
           onClick={() => tabManager.openConversationPreview(conversationId)}
@@ -134,7 +151,7 @@ const ConversationRow = observer(function ConversationRow({
         </button>
       </ContextMenuTrigger>
       <ContextMenuContent>
-        <ContextMenuItem onClick={() => setIsEditing(true)}>
+        <ContextMenuItem onClick={handleRename}>
           <Pencil className="size-4" />
           Rename
         </ContextMenuItem>
