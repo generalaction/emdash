@@ -11,12 +11,26 @@ export type PaneRenderer =
 /**
  * Derives the active pane renderer from the tab manager's current state.
  * Returns null when the pane has no open tabs.
+ *
+ * Uses resolvedTabs as the single source of truth so that conversation tabs
+ * whose ConversationStore is not yet available are excluded — preventing
+ * ConversationsPanel from being shown with no active conversation.
  */
 export function resolvePaneRenderer(tabManager: TabManagerStore): PaneRenderer | null {
-  if (tabManager.resolvedTabs.length === 0) return null;
-  const desc = tabManager.activeDescriptor;
-  if (!desc) return null;
-  if (desc.kind === 'diff') return { kind: 'file-diff', tab: desc };
-  if (desc.kind === 'file') return { kind: 'file', tab: desc };
+  const resolvedTabs = tabManager.resolvedTabs;
+  if (resolvedTabs.length === 0) return null;
+  // Fall back to the first resolved tab when no tab is marked active (e.g. the
+  // raw activeTabId points to a conversation entry that was filtered out).
+  const activeTab = resolvedTabs.find((t) => t.isActive) ?? resolvedTabs[0];
+  if (activeTab.kind === 'diff') {
+    const entry = tabManager.entries.get(activeTab.tabId);
+    if (entry?.kind !== 'diff') return null;
+    return { kind: 'file-diff', tab: entry };
+  }
+  if (activeTab.kind === 'file') {
+    const entry = tabManager.entries.get(activeTab.tabId);
+    if (entry?.kind !== 'file') return null;
+    return { kind: 'file', tab: entry };
+  }
   return { kind: 'pty-agent' };
 }
