@@ -627,7 +627,7 @@ export function usePty(
       inputBufferRef.current = '';
       submittedInputBufferRef.current = new SubmittedInputBuffer();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [sessionId, pty]); // Re-run only when the session changes
 
   // ── Theme update (after initial mount) ──────────────────────────────────────

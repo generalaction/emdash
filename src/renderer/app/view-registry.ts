@@ -18,7 +18,7 @@ export const views = {
   project: projectView,
   task: taskView,
   settings: settingsView,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line typescript/no-explicit-any
 } satisfies Record<string, ViewDefinition<any>>;
 
 export type ViewDefinition<TParams extends object = Record<never, never>> = {

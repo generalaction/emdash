@@ -172,7 +172,7 @@ function useRemoteDirectoryBrowser(connectionId: string | undefined, initialPath
     setLoadedPath(null);
     if (connectionId) void loadDirectory(currentPath, { force: true });
     // Only reconnect/connection-switch should clear the browsing cache.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [connectionId]);
 
   return {

@@ -145,7 +145,7 @@ export function CommandPaletteModal({
         rpc.search.commandPalette({ query: '', context: { projectId, taskId, workspaceId } }),
       staleTime: 5_000,
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, []);
 
   const { data: dbResults = [] } = useQuery({

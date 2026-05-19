@@ -36,13 +36,13 @@ export const StackedDiffView = observer(function StackedDiffView() {
 
   const panelStore = useMemo(
     () => (diffView ? new StackedDiffPanelStore(projectId, workspaceId, diffView, git, pr!) : null),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
     []
   );
 
   useEffect(() => {
     return () => panelStore?.dispose();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, []);
 
   if (!panelStore) return null;
