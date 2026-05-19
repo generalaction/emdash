@@ -1,7 +1,7 @@
 import type React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-type Attachment = {
+export type Attachment = {
   id: string;
   file: File;
   previewUrl: string;
