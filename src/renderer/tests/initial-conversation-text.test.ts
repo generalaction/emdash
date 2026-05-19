@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   appendInitialConversationText,
   formatInitialIssueContextBlock,
+  hasInitialIssueContext,
   upsertInitialIssueContext,
 } from '@renderer/features/tasks/create-task-modal/initial-conversation-text';
 
@@ -56,5 +57,34 @@ describe('upsertInitialIssueContext', () => {
     expect(upsertInitialIssueContext(prompt, 'Provider: Linear | Identifier: ENG-1')).toBe(
       '<issue_context>\nProvider: Linear | Identifier: ENG-1\n</issue_context>'
     );
+  });
+
+  it('preserves blank lines around an existing issue context block', () => {
+    const prompt = [
+      'Existing instructions.',
+      '',
+      formatInitialIssueContextBlock('Provider: Linear | Identifier: ENG-1'),
+      '',
+      'Keep this line.',
+    ].join('\n');
+
+    expect(upsertInitialIssueContext(prompt, 'Provider: Linear | Identifier: ENG-2')).toBe(
+      [
+        'Existing instructions.',
+        '',
+        '<issue_context>',
+        'Provider: Linear | Identifier: ENG-2',
+        '</issue_context>',
+        '',
+        'Keep this line.',
+      ].join('\n')
+    );
+  });
+});
+
+describe('hasInitialIssueContext', () => {
+  it('detects issue context blocks', () => {
+    expect(hasInitialIssueContext(formatInitialIssueContextBlock('Provider: Linear'))).toBe(true);
+    expect(hasInitialIssueContext('Existing instructions.')).toBe(false);
   });
 });

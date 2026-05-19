@@ -36,7 +36,7 @@ import { FromBranchContent } from './from-branch-content';
 import { FromIssueContent } from './from-issue-content';
 import { FromPrContent } from './from-pr-content';
 import { useInitialConversationState } from './initial-conversation-section';
-import { upsertInitialIssueContext } from './initial-conversation-text';
+import { hasInitialIssueContext, upsertInitialIssueContext } from './initial-conversation-text';
 import { useFromBranchMode } from './use-from-branch-mode';
 import { useFromIssueMode } from './use-from-issue-mode';
 import { useFromPullRequestMode } from './use-from-pull-request-mode';
@@ -123,14 +123,14 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     if (projectStore?.state !== 'mounted') return;
 
     setIsCreating(true);
-    let shouldResetCreating = true;
     try {
       let initialPrompt = initialConversation.prompt;
 
       if (
         selectedStrategy === 'from-issue' &&
         taskSettings.includeIssueContextByDefault &&
-        fromIssue.linkedIssue
+        fromIssue.linkedIssue &&
+        !hasInitialIssueContext(initialPrompt)
       ) {
         const action = buildLinkedIssueContextAction(fromIssue.linkedIssue);
         if (action) {
@@ -223,10 +223,9 @@ export const CreateTaskModal = observer(function CreateTaskModal({
       }
 
       navigate('task', { projectId: selectedProjectId, taskId: id });
-      shouldResetCreating = false;
       onClose();
     } finally {
-      if (shouldResetCreating) setIsCreating(false);
+      setIsCreating(false);
     }
   }, [
     selectedProjectId,
