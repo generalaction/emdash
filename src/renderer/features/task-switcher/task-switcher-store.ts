@@ -61,7 +61,12 @@ export class TaskSwitcherStore {
     );
     return sorted.map((t) => {
       const entry = allEntries.find((e) => e.task.id === t.id)!;
-      return { projectId: entry.projectId, projectName: entry.projectName, taskId: t.id, name: t.name };
+      return {
+        projectId: entry.projectId,
+        projectName: entry.projectName,
+        taskId: t.id,
+        name: t.name,
+      };
     });
   }
 
