@@ -91,7 +91,6 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
       <span className="truncate text-sm text-muted-foreground">{accountLabel}</span>
     ) : null;
 
-  // Check if logoSrc is an SVG string (starts with <svg)
   const isSvg = logoSrc?.trim().startsWith('<svg');
 
   // Process SVG to use currentColor for theme-aware colors (primary)
