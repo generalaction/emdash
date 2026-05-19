@@ -15,7 +15,7 @@ import { resolveContextActionText } from '@renderer/features/tasks/conversations
 import { useEffectiveProvider } from '@renderer/features/tasks/conversations/use-effective-provider';
 import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
-import { type Attachment, useAttachments } from '@renderer/lib/hooks/use-attachments';
+import { useAttachments, type Attachment } from '@renderer/lib/hooks/use-attachments';
 import { rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
 import { Field, FieldLabel } from '@renderer/lib/ui/field';
