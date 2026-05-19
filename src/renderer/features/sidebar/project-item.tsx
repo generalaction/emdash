@@ -36,7 +36,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@renderer/lib/ui/context-menu';
-import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
+import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 import { SidebarItemMiniButton, SidebarMenuButton, SidebarMenuRow } from './sidebar-primitives';
@@ -190,7 +190,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
             />
             <TooltipContent>
               New Task
-              <ShortcutHint settingsKey="newTask" />
+              <BoundShortcut settingsKey="newTask" variant="badge" />
             </TooltipContent>
           </Tooltip>
         </SidebarMenuRow>

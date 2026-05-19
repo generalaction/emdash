@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@renderer/lib/ui/dropdown-menu';
 import { MicroLabel } from '@renderer/lib/ui/label';
-import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
+import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 
 export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
@@ -86,7 +86,7 @@ export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
           />
           <TooltipContent>
             Add Project
-            <ShortcutHint settingsKey="newProject" />
+            <BoundShortcut settingsKey="newProject" variant="badge" />
           </TooltipContent>
         </Tooltip>
       </div>

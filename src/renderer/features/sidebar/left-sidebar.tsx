@@ -7,7 +7,7 @@ import {
   useWorkspaceSlots,
 } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
-import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
+import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { cn } from '@renderer/utils/utils';
 import { SidebarPinnedTaskList } from './pinned-task-list';
 import { ProjectsGroupLabel } from './projects-group-label';
@@ -91,7 +91,7 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
                 <Settings className="h-5 w-5 sm:h-4 sm:w-4" />
                 Settings
               </span>
-              <ShortcutHint settingsKey="settings" />
+              <BoundShortcut settingsKey="settings" />
             </SidebarMenuButton>
           </SidebarMenu>
         </SidebarFooter>

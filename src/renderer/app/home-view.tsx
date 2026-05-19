@@ -125,7 +125,7 @@ function HomeProjectAction({
       </div>
       {isSelected && (
         <Kbd className="text-foreground-muted group-hover:text-foreground bg-background-2 size-6 pt-1">
-          ↵
+          ⏎
         </Kbd>
       )}
     </button>

@@ -15,6 +15,7 @@ import { getEffectiveHotkey } from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { Shortcut } from '@renderer/lib/ui/shortcut';
 import { cn } from '@renderer/utils/utils';
 import { getCommandIcon } from './command-icons';
 import { PaletteConversationItem } from './palette-conversation-item';
@@ -36,7 +37,7 @@ interface PaletteAction {
   id: string;
   title: string;
   subtitle?: string;
-  shortcut?: string;
+  shortcut?: ReturnType<typeof getEffectiveHotkey>;
   icon?: LucideIcon;
   execute: () => void;
 }
@@ -68,12 +69,6 @@ const TASK_SUGGESTED = [
 const PROJECT_SUGGESTED = ['app.newTask', 'app.settings', 'resource-monitor', 'app.giveFeedback'];
 const APP_SUGGESTED = ['app.newProject', 'app.settings', 'resource-monitor', 'app.giveFeedback'];
 
-/** Converts a TanStack hotkey string (e.g. 'Mod+Shift+C') to a display label. */
-function formatHotkey(hotkey: string | undefined): string | undefined {
-  if (!hotkey) return undefined;
-  return hotkey.replace('Mod', '⌘').replace('Shift', '⇧').replace('Alt', '⌥').replace(/\+/g, '');
-}
-
 function PaletteItem({
   value,
   item,
@@ -91,13 +86,18 @@ function PaletteItem({
     KIND_ICON[item.kind]
   );
   return (
-    <Command.Item value={value} onSelect={onSelect} className={PALETTE_ITEM_CLASS}>
+    <Command.Item value={value} onSelect={onSelect} className={cn(PALETTE_ITEM_CLASS, 'group')}>
       {iconNode}
       <span className="flex-1 truncate">{item.title}</span>
       {action?.shortcut && (
-        <kbd className="shrink-0 rounded bg-background-quaternary px-1.5 py-0.5 text-xs text-foreground/60">
-          {action.shortcut}
-        </kbd>
+        <>
+          <Shortcut hotkey={action.shortcut} className="group-aria-selected:hidden" />
+          <Shortcut
+            hotkey={action.shortcut}
+            variant="badge"
+            className="hidden group-aria-selected:inline-flex"
+          />
+        </>
       )}
     </Command.Item>
   );
@@ -173,9 +173,7 @@ export function CommandPaletteModal({
           id: cmd.id,
           title: cmd.label,
           subtitle: cmd.description,
-          shortcut: cmd.shortcutKey
-            ? formatHotkey(getEffectiveHotkey(cmd.shortcutKey, keyboard) ?? undefined)
-            : undefined,
+          shortcut: cmd.shortcutKey ? getEffectiveHotkey(cmd.shortcutKey, keyboard) : null,
           icon: getCommandIcon(def?.iconKey),
           execute: () => {
             onClose();
@@ -277,12 +275,8 @@ export function CommandPaletteModal({
         <ResourceMonitorView onBack={() => setView('search')} />
         <div className="flex items-center gap-4 border-t border-foreground/10 px-3 py-2">
           <span className="flex items-center gap-1 text-xs text-foreground/40">
-            <kbd className="rounded bg-background-secondary px-1.5 py-0.5 font-mono text-[10px] text-foreground/50">
-              Esc
-            </kbd>
-            <kbd className="rounded bg-background-secondary px-1.5 py-0.5 font-mono text-[10px] text-foreground/50">
-              ⌫
-            </kbd>
+            <Shortcut hotkey="Escape" variant="badge" />
+            <Shortcut hotkey="Backspace" variant="badge" />
             Back
           </span>
         </div>
@@ -322,8 +316,8 @@ export function CommandPaletteModal({
                   | CommandDef
                   | undefined;
                 const shortcut = def?.shortcutKey
-                  ? formatHotkey(getEffectiveHotkey(def.shortcutKey, keyboard) ?? undefined)
-                  : undefined;
+                  ? getEffectiveHotkey(def.shortcutKey, keyboard)
+                  : null;
                 const displayItem: PaletteAction = {
                   kind: 'action',
                   id: item.id,
@@ -469,24 +463,16 @@ export function CommandPaletteModal({
 
       <div className="flex items-center gap-4 border-t border-foreground/10 px-3 py-2">
         <span className="flex items-center gap-1 text-xs text-foreground/40">
-          <kbd className="rounded bg-background-secondary px-1.5 py-0.5 font-mono text-[10px] text-foreground/50">
-            ↑
-          </kbd>
-          <kbd className="rounded bg-background-secondary px-1.5 py-0.5 font-mono text-[10px] text-foreground/50">
-            ↓
-          </kbd>
+          <Shortcut hotkey="ArrowUp" variant="badge" />
+          <Shortcut hotkey="ArrowDown" variant="badge" />
           Navigate
         </span>
         <span className="flex items-center gap-1 text-xs text-foreground/40">
-          <kbd className="rounded bg-background-secondary px-1.5 py-0.5 font-mono text-[10px] text-foreground/50">
-            ↵
-          </kbd>
+          <Shortcut hotkey="Enter" variant="badge" />
           Select
         </span>
         <span className="flex items-center gap-1 text-xs text-foreground/40">
-          <kbd className="rounded bg-background-secondary px-1.5 py-0.5 font-mono text-[10px] text-foreground/50">
-            Esc
-          </kbd>
+          <Shortcut hotkey="Escape" variant="badge" />
           Close
         </span>
       </div>
