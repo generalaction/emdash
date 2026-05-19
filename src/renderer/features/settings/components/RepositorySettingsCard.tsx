@@ -62,7 +62,8 @@ const RepositorySettingsCard: React.FC = () => {
           />
         </div>
         <div className="text-[11px] text-muted-foreground">
-          Example: <code className="rounded bg-muted/60 px-1">{example}</code>
+          Leave blank to use the task branch name directly. Example:{' '}
+          <code className="rounded bg-muted/60 px-1">{example}</code>
         </div>
       </div>
       <SettingRow

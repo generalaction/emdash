@@ -44,6 +44,10 @@ function readTrimmedString(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function readOptionalTrimmedString(value: unknown): string | null {
+  return typeof value === 'string' ? value.trim() : null;
+}
+
 function readBoolean(value: unknown): boolean | null {
   return typeof value === 'boolean' ? value : null;
 }
@@ -121,8 +125,8 @@ export async function portLegacySettings(
   if (repository) {
     const patch: Record<string, unknown> = {};
 
-    const branchPrefix = readTrimmedString(repository.branchPrefix);
-    if (branchPrefix) {
+    const branchPrefix = readOptionalTrimmedString(repository.branchPrefix);
+    if (branchPrefix !== null) {
       patch.branchPrefix = branchPrefix;
       summary.imported.push('project.branchPrefix');
     }

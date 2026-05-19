@@ -248,6 +248,34 @@ describe('portLegacySettings', () => {
     expect(readRawSetting(appSqlite, 'browserPreview')).toBe(null);
   });
 
+  it('ports an empty branch prefix as an explicit override', async () => {
+    const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'legacy-settings-port-'));
+    tempDirs.push(userDataDir);
+
+    fs.writeFileSync(
+      path.join(userDataDir, 'settings.json'),
+      JSON.stringify({ repository: { branchPrefix: '   ' } }),
+      'utf8'
+    );
+
+    const { appSqlite, appDb } = createSettingsDb();
+    openDbs.push(appSqlite);
+
+    const summary = await portLegacySettings(userDataDir, {
+      appDb,
+      appSqlite,
+      settingsStore: createSettingsStoreStub(appSqlite),
+      promptLibraryStore: {
+        async upsertReviewPrompt() {
+          return undefined;
+        },
+      },
+    });
+
+    expect(summary.imported).toEqual(['project.branchPrefix']);
+    expect(readRawSetting(appSqlite, 'project')).toEqual({ branchPrefix: '' });
+  });
+
   it('skips when settings.json is missing or invalid', async () => {
     const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'legacy-settings-port-missing-'));
     tempDirs.push(userDataDir);
