@@ -168,7 +168,11 @@ export function AddContextPopover({ actions, disabled, onApplyAction }: AddConte
             <ComboboxGroup items={group.items}>
               <ComboboxCollection>
                 {(action: ContextAction) => (
-                  <ComboboxItem key={action.id} value={action} className="items-start">
+                  <ComboboxItem
+                    key={action.id}
+                    value={action}
+                    className="items-start data-highlighted:bg-background-2!"
+                  >
                     <ActionItemRow action={action} />
                   </ComboboxItem>
                 )}
