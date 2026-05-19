@@ -143,9 +143,14 @@ void app.whenReady().then(async () => {
 
   if (process.platform === 'darwin') {
     if (systemPreferences.getMediaAccessStatus('microphone') !== 'granted') {
-      systemPreferences.askForMediaAccess('microphone').catch((e) => {
-        log.warn('Failed to request microphone access:', e);
-      });
+      systemPreferences
+        .askForMediaAccess('microphone')
+        .then((granted) => {
+          log.info('Microphone access request resolved:', { granted });
+        })
+        .catch((e) => {
+          log.warn('Failed to request microphone access:', e);
+        });
     }
   }
 
