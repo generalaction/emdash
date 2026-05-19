@@ -370,11 +370,13 @@ class AppService implements IInitializable, IDisposable {
   async openSelectDirectoryDialog(args: {
     title: string;
     message: string;
+    defaultPath?: string;
   }): Promise<string | undefined> {
     const result = await dialog.showOpenDialog(getMainWindow()!, {
       title: args.title,
       properties: ['openDirectory'],
       message: args.message,
+      defaultPath: args.defaultPath,
     });
     if (result.canceled) return undefined;
     return result.filePaths[0];

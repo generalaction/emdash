@@ -8,7 +8,7 @@ import {
   getHotkeyRegistration,
 } from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { Button, type buttonVariants } from './button';
-import { ShortcutHint } from './shortcut-hint';
+import { BoundShortcut } from './shortcut';
 
 type ConfirmButtonProps = ButtonPrimitive.Props & VariantProps<typeof buttonVariants>;
 
@@ -25,7 +25,7 @@ export function ConfirmButton({ disabled, children, ...props }: ConfirmButtonPro
     <Button ref={ref} disabled={disabled} {...props}>
       <span className="flex items-center gap-2">
         {children}
-        <ShortcutHint settingsKey="confirm" />
+        <BoundShortcut settingsKey="confirm" />
       </span>
     </Button>
   );

@@ -118,6 +118,8 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
     await new Promise((r) => setTimeout(r, 500));
     setPhase('idle');
     showCreatePrModal({
+      projectId,
+      taskId,
       repositoryUrl: workspace.repository.repositoryUrl ?? '',
       branchName: taskData?.taskBranch ?? '',
       draft: false,
@@ -181,13 +183,19 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
         <StatusRow icon={<Loader2 className="size-4 animate-spin" />} label="Opening PR…" />
       )}
       {(phase === 'commit-only-done' || phase === 'committed') && (
-        <StatusRow icon={<CheckCircle className="size-4 text-green-500" />} label="Committed" />
+        <StatusRow
+          icon={<CheckCircle className="size-4 text-foreground-success" />}
+          label="Committed"
+        />
       )}
       {phase === 'pushing' && (
         <StatusRow icon={<Loader2 className="size-4 animate-spin" />} label="Pushing…" />
       )}
       {phase === 'pushed' && (
-        <StatusRow icon={<CheckCircle className="size-4 text-green-500" />} label="Pushed" />
+        <StatusRow
+          icon={<CheckCircle className="size-4 text-foreground-success" />}
+          label="Pushed"
+        />
       )}
     </div>
   );

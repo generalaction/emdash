@@ -38,7 +38,7 @@ describe('buildLinkedIssueContextAction', () => {
     expect(action?.label).toContain('Fix task context');
   });
 
-  it('formats injected text as one line so it does not auto-submit', () => {
+  it('normalizes field whitespace when building injected text', () => {
     const action = buildLinkedIssueContextAction(
       makeIssue({ description: 'Line one.\nLine two.\n\nLine three.' })
     );
@@ -61,6 +61,21 @@ describe('buildLinkedIssueContextAction', () => {
 
     expect(action).not.toBeNull();
     expect(action?.text).toContain(`Description: ${longDescription}`);
+  });
+
+  it('includes provider-specific context when building injected text', () => {
+    const action = buildLinkedIssueContextAction(
+      makeIssue({
+        provider: 'linear',
+        context: 'Linear issue activity\n\nComments:\n- 2026-04-17 by Jona: Looks good',
+      })
+    );
+
+    expect(action).not.toBeNull();
+    expect(action?.text).toContain(
+      'Context:\nLinear issue activity\n\nComments:\n- 2026-04-17 by Jona: Looks good'
+    );
+    expect(action?.text).toContain('Looks good');
   });
 });
 

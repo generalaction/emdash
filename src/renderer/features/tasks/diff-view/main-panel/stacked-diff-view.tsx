@@ -3,6 +3,7 @@ import { reaction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import { Activity, useEffect, useMemo, useRef, useState } from 'react';
 import { HEAD_REF, STAGED_REF } from '@shared/git';
+import { isMissingFileError } from '@renderer/features/tasks/diff-view/main-panel/missing-file-error';
 import type { DiffViewStore } from '@renderer/features/tasks/diff-view/stores/diff-view-store';
 import {
   StackedDiffPanelStore,
@@ -196,14 +197,20 @@ const StackedFileSlot = observer(function StackedFileSlot({
     } else {
       const diskUri = modelRegistry.toDiskUri(modifiedUri);
       void (async () => {
-        await modelRegistry.registerModel(
-          projectId,
-          workspaceId,
-          root,
-          file.path,
-          language,
-          'disk'
-        );
+        if (file.status !== 'deleted') {
+          try {
+            await modelRegistry.registerModel(
+              projectId,
+              workspaceId,
+              root,
+              file.path,
+              language,
+              'disk'
+            );
+          } catch (err) {
+            if (!isMissingFileError(err)) throw err;
+          }
+        }
         if (disposed) {
           modelRegistry.unregisterModel(diskUri);
           return;
@@ -221,7 +228,7 @@ const StackedFileSlot = observer(function StackedFileSlot({
         }
       })().catch(() => {});
       void modelRegistry
-        .registerModel(projectId, workspaceId, root, file.path, language, 'git', originalRef)
+        .registerModel(projectId, workspaceId, root, file.path, language, 'git', STAGED_REF)
         .catch(() => {});
     }
     return () => {
@@ -241,6 +248,7 @@ const StackedFileSlot = observer(function StackedFileSlot({
     originalRef,
     modifiedRef,
     file,
+    file?.status,
     slotStore,
   ]);
 
@@ -287,8 +295,8 @@ const StackedFileSlot = observer(function StackedFileSlot({
           {dirPath && <span className="truncate text-xs text-foreground-muted">{dirPath}</span>}
         </button>
         <span className="shrink-0 text-xs">
-          <span className="text-green-500">+{formatDiffLineCount(file.additions)}</span>{' '}
-          <span className="text-red-500">-{formatDiffLineCount(file.deletions)}</span>
+          <span className="text-foreground-success">+{formatDiffLineCount(file.additions)}</span>{' '}
+          <span className="text-foreground-error">-{formatDiffLineCount(file.deletions)}</span>
         </span>
       </div>
 

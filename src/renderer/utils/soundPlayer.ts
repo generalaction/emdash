@@ -1,20 +1,52 @@
 import type { NotificationSettings } from '@shared/app-settings';
 import type { SoundEvent } from '@shared/events/agentEvents';
 import { rpc } from '../lib/ipc';
+import { queryClient } from '../lib/query-client';
 
 let audioCtx: AudioContext | null = null;
-let enabled = true;
-let focusMode: 'always' | 'unfocused' = 'always';
+let settings: NotificationSettings = {
+  enabled: true,
+  sound: true,
+  osNotifications: true,
+  soundFocusMode: 'always',
+};
+let unsubscribeSettingsCache: (() => void) | null = null;
 
-export function initSoundPlayer(): void {
+const NOTIFICATIONS_QUERY_KEY = ['appSettings', 'notifications', 'meta'] as const;
+
+function applyMeta(meta: unknown): void {
+  if (!meta || typeof meta !== 'object' || !('value' in meta)) return;
+  settings = (meta as { value: NotificationSettings }).value;
+}
+
+export function initSoundPlayer(): () => void {
   rpc.appSettings
     .getWithMeta('notifications')
     .then((meta) => {
-      const value = (meta as { value: NotificationSettings }).value;
-      enabled = value.sound ?? true;
-      focusMode = value.soundFocusMode ?? 'always';
+      queryClient.setQueryData([...NOTIFICATIONS_QUERY_KEY], meta);
     })
     .catch(() => {});
+
+  unsubscribeSettingsCache?.();
+  const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
+    const key = event.query.queryKey;
+    if (
+      Array.isArray(key) &&
+      key[0] === NOTIFICATIONS_QUERY_KEY[0] &&
+      key[1] === NOTIFICATIONS_QUERY_KEY[1] &&
+      key[2] === NOTIFICATIONS_QUERY_KEY[2]
+    ) {
+      applyMeta(event.query.state.data);
+    }
+  });
+  unsubscribeSettingsCache = unsubscribe;
+
+  return () => {
+    unsubscribe();
+    if (unsubscribeSettingsCache === unsubscribe) {
+      unsubscribeSettingsCache = null;
+    }
+  };
 }
 
 function getContext(): AudioContext {
@@ -63,8 +95,9 @@ function playTaskComplete(): void {
 
 export const soundPlayer = {
   play(event: SoundEvent, appFocused?: boolean): void {
-    if (!enabled) return;
-    if (focusMode === 'unfocused' && appFocused) return;
+    if (!settings.enabled) return;
+    if (!settings.sound) return;
+    if (settings.soundFocusMode === 'unfocused' && appFocused) return;
     try {
       switch (event) {
         case 'needs_attention':

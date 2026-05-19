@@ -35,14 +35,22 @@ function getStatusColorClass(status?: string) {
     s.includes('resolved') ||
     s.includes('completed')
   )
-    return 'bg-emerald-500 ';
-  if (s.includes('progress') || s.includes('review') || s.includes('open')) return 'bg-yellow-500';
+    return 'bg-foreground-success';
+  if (s.includes('progress') || s.includes('review') || s.includes('open'))
+    return 'bg-foreground-warning';
   if (s.includes('blocked') || s.includes('cancelled') || s.includes('canceled'))
-    return 'bg-red-500';
-  return 'bg-gray-300';
+    return 'bg-foreground-error';
+  return 'bg-foreground-passive';
 }
 
-export function IssueIdentifier({ identifier }: { identifier: string }) {
+export function IssueIdentifier({
+  identifier,
+  provider,
+}: {
+  identifier: string;
+  provider?: Issue['provider'];
+}) {
+  if (provider === 'asana') return null;
   return (
     <span className="shrink-0 whitespace-nowrap font-medium text-muted-foreground group-hover:text-muted-foreground text-xs font-mono">
       {identifier}
@@ -99,7 +107,7 @@ export function IssueRow({ issue, linkedTo }: { issue: Issue; linkedTo?: LinkedI
         <TooltipTrigger render={<StatusDot status={issue.status} />} />
         <TooltipContent>{issue.status}</TooltipContent>
       </Tooltip>
-      <IssueIdentifier identifier={issue.identifier} />
+      <IssueIdentifier identifier={issue.identifier} provider={issue.provider} />
       {issue.title ? <span className="truncate text-foreground">{issue.title}</span> : null}
       {linkedTo ? <LinkedIssueIndicator linkedTo={linkedTo} /> : null}
     </span>
@@ -167,8 +175,8 @@ export const IssueSelector = observer(function IssueSelector({
         }}
       >
         <SelectTrigger
-          showChevron={false}
-          className="h-6 gap-0 border-none bg-transparent px-1.5 shadow-none focus:ring-0"
+          aria-label="Select issue provider"
+          className="h-6 gap-1 border-none bg-transparent px-1.5 shadow-none focus:ring-0"
         >
           <ProviderLogo provider={issueProvider} className="h-3.5 w-3.5" />
         </SelectTrigger>
@@ -272,7 +280,7 @@ export function SelectedIssueValue({ issue }: { issue: Issue }) {
         <div className="flex items-center gap-2">
           <ProviderLogo provider={issue.provider} className="h-3.5 w-3.5" />
           <span>{`${ISSUE_PROVIDER_META[issue.provider].displayName} issue`}</span>
-          <IssueIdentifier identifier={issue.identifier} />
+          <IssueIdentifier identifier={issue.identifier} provider={issue.provider} />
         </div>
         <Button
           variant="ghost"

@@ -59,7 +59,7 @@ async function resolveTaskTarget(
   }
 
   if (!targetPath && task.taskBranch) {
-    targetPath = (await project.worktreeService.getWorktree(task.taskBranch)) ?? null;
+    targetPath = (await project.worktreeService.findBranchAnywhere(task.taskBranch)) ?? null;
   }
   if (!targetPath) return null;
   if (targetPath === project.repoPath) return null;

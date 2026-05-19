@@ -10,7 +10,7 @@ import type {
   ProjectSettingsWriteTargetOption,
   WriteProjectConfigRequest,
 } from '@shared/project-settings';
-import type { UpdateProjectSettingsError } from '@shared/projects';
+import type { Project, UpdateProjectSettingsError } from '@shared/projects';
 import type { Result } from '@shared/result';
 import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
@@ -23,6 +23,7 @@ import { useProjectSettingsForm } from './use-project-settings-form';
 
 export interface ProjectSettingsFormProps {
   projectId: string;
+  projectType: Project['type'];
   initial: ProjectSettings;
   defaults: ProjectSettingsPage['defaults'];
   writeTargets: ProjectSettingsWriteTargetOption[];
@@ -42,6 +43,7 @@ const EMPTY_REMOTES: Remote[] = [];
 
 export const ProjectSettingsForm = observer(function ProjectSettingsForm({
   projectId,
+  projectType,
   initial,
   defaults,
   writeTargets,
@@ -70,10 +72,9 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
   });
 
   return (
-    <div className="flex flex-col max-w-3xl mx-auto w-full h-full overflow-hidden">
-      <h1 className="text-lg font-medium pt-10 pb-5 px-10">Project Settings</h1>
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
       <div
-        className="flex-1 overflow-y-auto overflow-x-hidden px-10 py-2"
+        className="flex-1 overflow-y-auto overflow-x-hidden py-2"
         style={{ scrollbarWidth: 'none' }}
       >
         <FieldGroup>
@@ -81,6 +82,7 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
             projectId={projectId}
             form={formModel.form}
             defaultWorktreeDirectory={defaults.worktreeDirectory}
+            projectType={projectType}
             remotes={remotes}
             worktreeDirectoryError={formModel.worktreeDirectoryError}
             update={formModel.update}

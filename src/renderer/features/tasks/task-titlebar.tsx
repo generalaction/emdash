@@ -46,7 +46,7 @@ import { MicroLabel } from '@renderer/lib/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
 import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { Separator } from '@renderer/lib/ui/separator';
-import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
+import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Spinner } from '@renderer/lib/ui/spinner';
 import { Toggle } from '@renderer/lib/ui/toggle';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
@@ -288,7 +288,7 @@ const AutomationTaskTitlebarRightSlot = observer(function AutomationTaskTitlebar
           </Toggle>
         </TooltipTrigger>
         <TooltipContent>
-          Toggle terminal <ShortcutHint settingsKey="toggleTerminalDrawer" />
+          Toggle terminal <BoundShortcut settingsKey="toggleTerminalDrawer" variant="badge" />
         </TooltipContent>
       </Tooltip>
       <Separator orientation="vertical" className="h-5 self-center!" />
@@ -344,13 +344,20 @@ const PendingTaskTitlebar = observer(function PendingTaskTitlebar({
   const taskStore = getTaskStore(projectId, taskId)!;
   const projectName = projectDisplayName(getProjectStore(projectId));
   const name = taskDisplayName(taskStore);
+  const { navigate } = useNavigate();
 
   return (
     <Titlebar
       leftSlot={
         <div className="flex items-center gap-1 px-2 text-sm text-foreground-muted">
           <span className="flex items-center gap-1">
-            <span className="text-sm text-foreground-passive">{projectName}</span>
+            <button
+              type="button"
+              className="text-sm text-foreground-passive hover:text-foreground"
+              onClick={() => navigate('project', { projectId })}
+            >
+              {projectName}
+            </button>
             <span className="text-sm text-foreground-passive">/</span>
             {name}
           </span>
@@ -389,24 +396,36 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
   const projectStore = asMounted(getProjectStore(projectId));
 
   const projectName = projectDisplayName(getProjectStore(projectId));
+  const { navigate } = useNavigate();
 
   const isRemoteProject = projectStore?.data.type === 'ssh';
   return (
     <Titlebar
       leftSlot={
         <div className="flex items-center gap-1 px-2">
+          <button
+            type="button"
+            className="text-sm text-foreground-passive hover:text-foreground"
+            onClick={() => navigate('project', { projectId })}
+          >
+            {projectName}
+          </button>
+          <span className="text-sm text-foreground-passive">/</span>
           <Popover>
-            <PopoverTrigger className="flex items-center gap-1 text-sm text-foreground-muted hover:text-foreground">
-              <span className="flex items-center gap-1">
-                <span className="text-sm text-foreground-passive">{projectName}</span>
-                <span className="text-sm text-foreground-passive">/</span>
-                <span className="flex items-center gap-1.5 min-w-0">
-                  <span className="truncate max-w-56">{taskDisplayName(taskStore)}</span>
-                  <ConnectionStatusDot state={workspace.connectionState} />
-                </span>
-              </span>
-              <ChevronDown className="size-3.5 shrink-0" />
-            </PopoverTrigger>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <PopoverTrigger className="flex items-center gap-1 text-sm text-foreground-muted hover:text-foreground">
+                    <span className="flex items-center gap-1.5 min-w-0">
+                      <span className="truncate max-w-56">{taskDisplayName(taskStore)}</span>
+                      <ConnectionStatusDot state={workspace.connectionState} />
+                    </span>
+                    <ChevronDown className="size-3.5 shrink-0" />
+                  </PopoverTrigger>
+                }
+              />
+              <TooltipContent>Link to issue</TooltipContent>
+            </Tooltip>
             <PopoverContent align="start" className="w-96 p-4 flex flex-col gap-2">
               <div className="flex flex-col gap-1 w-full">
                 <MicroLabel className="text-foreground-passive items-center flex">Task</MicroLabel>
@@ -558,7 +577,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
         <div className="flex items-center gap-2">
           <DevServerPills projectId={projectId} taskId={taskId} />
           {!isRemoteProject && (
-            <OpenInMenu path={workspace.path} className="h-7 bg-background" borderless />
+            <OpenInMenu path={workspace.path} className="h-7 bg-transparent" borderless />
           )}
           <Separator orientation="vertical" className="h-5 self-center!" />
           <Tooltip>
@@ -575,7 +594,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
               </Toggle>
             </TooltipTrigger>
             <TooltipContent>
-              Toggle terminal <ShortcutHint settingsKey="toggleTerminalDrawer" />
+              Toggle terminal <BoundShortcut settingsKey="toggleTerminalDrawer" variant="badge" />
             </TooltipContent>
           </Tooltip>
           <Separator orientation="vertical" className="h-5 self-center!" />
@@ -590,7 +609,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
               }
             }}
             size="icon-sm"
-            className="border-none"
+            className="border-none bg-transparent"
           >
             <Tooltip>
               <TooltipTrigger>
@@ -598,7 +617,9 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                   <FileDiff className="size-3.5" />
                 </ToggleGroupItem>
               </TooltipTrigger>
-              <TooltipContent>Changes</TooltipContent>
+              <TooltipContent>
+                Changes <BoundShortcut settingsKey="sidebarChanges" variant="badge" />
+              </TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger>
@@ -606,7 +627,9 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                   <MessageSquare className="size-3.5" />
                 </ToggleGroupItem>
               </TooltipTrigger>
-              <TooltipContent>Conversations</TooltipContent>
+              <TooltipContent>
+                Conversations <BoundShortcut settingsKey="sidebarConversations" variant="badge" />
+              </TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger>
@@ -614,7 +637,9 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                   <FolderOpen className="size-3.5" />
                 </ToggleGroupItem>
               </TooltipTrigger>
-              <TooltipContent>Files</TooltipContent>
+              <TooltipContent>
+                Files <BoundShortcut settingsKey="sidebarFiles" variant="badge" />
+              </TooltipContent>
             </Tooltip>
           </ToggleGroup>
         </div>
@@ -637,7 +662,11 @@ function LinkedIssueBadge({ issue }: { issue: Issue }) {
             className="flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-xs text-foreground-muted hover:bg-muted/30 disabled:cursor-default disabled:opacity-60"
           >
             <ProviderLogo provider={issue.provider} className="h-3 w-3" />
-            <span className="font-mono">{issue.identifier}</span>
+            {issue.provider === 'asana' ? (
+              <span className="max-w-[180px] truncate">{issue.title || 'Asana task'}</span>
+            ) : (
+              <span className="font-mono">{issue.identifier}</span>
+            )}
           </button>
         }
       />

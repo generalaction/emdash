@@ -9,7 +9,6 @@ import {
   projectDisplayName,
   projectViewKind,
 } from '@renderer/features/projects/stores/project-selectors';
-import type { ProjectView } from '@renderer/features/projects/stores/project-view';
 import { OpenInMenu } from '@renderer/lib/components/titlebar/open-in-menu';
 import { Titlebar } from '@renderer/lib/components/titlebar/Titlebar';
 import { rpc } from '@renderer/lib/ipc';
@@ -21,7 +20,6 @@ import {
   DropdownMenuTrigger,
 } from '@renderer/lib/ui/dropdown-menu';
 import { Separator } from '@renderer/lib/ui/separator';
-import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 
 const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
   projectId,
@@ -127,28 +125,11 @@ export const ProjectTitlebar = observer(function ProjectTitlebar() {
     <Titlebar
       leftSlot={<MountedProjectTitlebarLeft projectId={projectId} />}
       rightSlot={
-        <div className="flex items-center gap-2 mr-2">
-          {!isRemote && <OpenInMenu path={mounted.data.path} className="h-7 bg-background" />}
-          <ToggleGroup
-            variant="outline"
-            size="sm"
-            value={[mounted.view.activeView]}
-            className="rounded-lg overflow-hidden shadow-none h-7 border border-border mx-1"
-            onValueChange={([value]) => {
-              if (value) mounted.view.setProjectView(value as ProjectView);
-            }}
-          >
-            <ToggleGroupItem value="tasks" size="sm">
-              Tasks
-            </ToggleGroupItem>
-            <ToggleGroupItem value="pull-request" size="sm">
-              Pull Requests
-            </ToggleGroupItem>
-            <ToggleGroupItem value="settings" size="sm">
-              Settings
-            </ToggleGroupItem>
-          </ToggleGroup>
-        </div>
+        !isRemote ? (
+          <div className="flex items-center gap-2 mr-2">
+            <OpenInMenu path={mounted.data.path} className="h-7 bg-background" />
+          </div>
+        ) : undefined
       }
     />
   );

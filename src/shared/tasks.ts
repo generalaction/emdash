@@ -6,11 +6,12 @@ import type { PullRequest } from '@shared/pull-requests';
 export type TaskLifecycleStatus = 'todo' | 'in_progress' | 'review' | 'done' | 'cancelled';
 
 export type Issue = {
-  provider: 'github' | 'linear' | 'jira' | 'gitlab' | 'plain' | 'forgejo' | 'featurebase';
+  provider: 'github' | 'linear' | 'jira' | 'gitlab' | 'plain' | 'forgejo' | 'featurebase' | 'asana';
   url: string;
   title: string;
   identifier: string;
   description?: string;
+  context?: string;
   branchName?: string;
   status?: string;
   assignees?: string[];
@@ -124,9 +125,12 @@ export type ProvisionTaskResult = {
 };
 
 export function formatIssueAsPrompt(issue: Issue, initialPrompt?: string): string {
-  const parts = [`[${issue.identifier}] ${issue.title}`, issue.url, issue.description].filter(
-    Boolean
-  );
+  const parts = [
+    `[${issue.identifier}] ${issue.title}`,
+    issue.url,
+    issue.description,
+    issue.context,
+  ].filter(Boolean);
 
   if (initialPrompt?.trim()) parts.push('', initialPrompt.trim());
   return parts.join('\n');

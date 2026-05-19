@@ -162,13 +162,6 @@ export class LocalConversationProvider implements ConversationProvider {
       ptySessionRegistry.unregister(sessionId);
       const shouldRespawn = this.sessions.has(sessionId);
       this.sessions.delete(sessionId);
-      telemetryService.capture('agent_run_finished', {
-        provider: conversation.providerId,
-        exit_code: typeof exitCode === 'number' ? exitCode : -1,
-        project_id: conversation.projectId,
-        task_id: conversation.taskId,
-        conversation_id: conversation.id,
-      });
       events.emit(agentSessionExitedChannel, {
         sessionId,
         projectId: conversation.projectId,

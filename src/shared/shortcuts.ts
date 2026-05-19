@@ -50,12 +50,6 @@ export const APP_SHORTCUTS = defineShortcuts({
     description: 'Show or hide the right sidebar',
     category: 'View',
   },
-  toggleTheme: {
-    defaultHotkey: 'Mod+T',
-    label: 'Toggle Theme',
-    description: 'Cycle through light, dark navy, and dark black themes',
-    category: 'View',
-  },
   closeModal: {
     defaultHotkey: 'Escape',
     label: 'Close Modal',
@@ -121,7 +115,7 @@ export const APP_SHORTCUTS = defineShortcuts({
     conflictBehavior: 'allow',
   },
   newConversation: {
-    defaultHotkey: 'Mod+Shift+C',
+    defaultHotkey: 'Mod+T',
     label: 'New Conversation',
     description: 'Create a new conversation in the current task',
     category: 'Task View',

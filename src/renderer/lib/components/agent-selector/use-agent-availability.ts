@@ -34,18 +34,13 @@ export function useAgentAvailability({
     [value, dependencyData]
   );
 
-  const groups = useMemo(
-    () => buildAgentGroups(installedAgents, assumedInstalledAgents),
-    [installedAgents, assumedInstalledAgents]
-  );
   const installingAgents = new Set<AgentProviderId>();
-  for (const group of groups) {
-    for (const item of group.items) {
-      if (appState.dependencies.isInstalling(item.agentId, connectionId)) {
-        installingAgents.add(item.agentId);
-      }
+  for (const id of Object.keys(agentConfig) as AgentProviderId[]) {
+    if (appState.dependencies.isInstalling(id, connectionId)) {
+      installingAgents.add(id);
     }
   }
+  const groups = buildAgentGroups(installedAgents, assumedInstalledAgents, installingAgents);
 
   async function installAgent(agentId: AgentProviderId): Promise<void> {
     if (appState.dependencies.isInstalling(agentId, connectionId)) return;

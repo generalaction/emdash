@@ -8,7 +8,7 @@ import {
 } from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
-import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
+import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { useTabGroupContext } from '../../tabs/tab-group-context';
 import { useTaskViewContext, useWorkspaceViewModel } from '../../task-view-context';
@@ -57,7 +57,7 @@ export const TabBarActions = observer(function TabBarActions() {
           </Button>
         </TooltipTrigger>
         <TooltipContent>
-          New Conversations <ShortcutHint settingsKey="newConversation" />
+          New Conversations <BoundShortcut settingsKey="newConversation" variant="badge" />
         </TooltipContent>
       </Tooltip>
       <Tooltip>
@@ -93,7 +93,7 @@ export const TabBarActions = observer(function TabBarActions() {
             {canSplit ? (
               <span className="flex items-center gap-2">
                 Move active tab to a new pane
-                <ShortcutHint settingsKey="splitPane" />
+                <BoundShortcut settingsKey="splitPane" variant="badge" />
               </span>
             ) : (
               'Open at least 2 tabs to split this pane'

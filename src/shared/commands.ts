@@ -56,6 +56,14 @@ export const APP_COMMAND_DEFS = defineCommandDefs([
     iconKey: 'message-square-share',
   },
   {
+    id: 'app.toggleTheme',
+    label: 'Toggle Theme',
+    description: 'Switch between light and dark themes',
+    scope: 'app',
+    group: 'View',
+    iconKey: 'palette',
+  },
+  {
     id: 'app.navigateBack',
     label: 'Go Back',
     description: 'Navigate to the previous location',

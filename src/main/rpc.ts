@@ -1,6 +1,7 @@
 import { createRPCRouter } from '../shared/ipc/rpc';
 import { accountController } from './core/account/controller';
 import { appController } from './core/app/controller';
+import { asanaController } from './core/asana/controller';
 import { automationsController } from './core/automations/controller';
 import { conversationController } from './core/conversations/controller';
 import { dependenciesController } from './core/dependencies/controller';
@@ -47,6 +48,7 @@ export const rpcRouter = createRPCRouter({
   update: updateController,
   pty: ptyController,
   resourceMonitor: resourceMonitorController,
+  asana: asanaController,
   featurebase: featurebaseController,
   forgejo: forgejoController,
   github: githubController,

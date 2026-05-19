@@ -1,10 +1,12 @@
 import { Pause, Play, Plus, Settings, Terminal, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { asMounted, getProjectStore } from '@renderer/features/projects/stores/project-selectors';
 import { type LifecycleScriptsStore } from '@renderer/features/tasks/stores/lifecycle-scripts';
 import { type TerminalTabViewStore } from '@renderer/features/tasks/terminals/terminal-tab-view-store';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { MicroLabel } from '@renderer/lib/ui/label';
+import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 import { scriptIcon } from './terminal-tabs';
@@ -46,6 +48,7 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
   const terminals = terminalTabView.tabs;
 
   const { navigate } = useNavigate();
+  const project = asMounted(getProjectStore(projectId));
 
   return (
     <div className={cn('flex flex-col overflow-y-auto text-sm', className)}>
@@ -61,7 +64,9 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
                 <Plus className="size-3" />
               </button>
             </TooltipTrigger>
-            <TooltipContent>New terminal</TooltipContent>
+            <TooltipContent>
+              New terminal <BoundShortcut settingsKey="newTerminal" variant="badge" />
+            </TooltipContent>
           </Tooltip>
         }
       >
@@ -100,7 +105,12 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
             <Tooltip>
               <TooltipTrigger>
                 <button
-                  onClick={() => navigate('project', { projectId })}
+                  onClick={() => {
+                    if (!project) return;
+                    project.view.setProjectView('settings');
+                    navigate('project', { projectId });
+                  }}
+                  disabled={!project}
                   className="flex items-center justify-center size-5 rounded hover:bg-background-2 text-foreground-muted hover:text-foreground"
                 >
                   <Settings className="size-3" />
