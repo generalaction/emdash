@@ -237,7 +237,7 @@ export function CommandPaletteModal({
 
   const handleNavigateToConversation = (item: SearchItem) => {
     if (!item.projectId || !item.taskId) return;
-    getTaskView(item.projectId, item.taskId)?.tabManager.openConversation(item.id);
+    getTaskView(item.projectId, item.taskId)?.tabGroupManager.openConversation(item.id);
     onClose();
     navigate('task', { projectId: item.projectId, taskId: item.taskId });
   };
