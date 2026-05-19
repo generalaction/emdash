@@ -126,7 +126,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     autoApproveFlag: '--always-approve',
     useKeystrokeInjection: true,
     resumeFlag: '-r',
-    icon: 'grok.svg',
+    icon: 'xai.svg',
     alt: 'Grok CLI',
     terminalOnly: true,
   },
