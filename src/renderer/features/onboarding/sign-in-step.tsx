@@ -1,16 +1,13 @@
 import { AlertCircle, CheckCircle, Github, LogIn, User } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useAccountSession, useAccountSignIn } from '@renderer/lib/hooks/useAccount';
-import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
 import { Button } from '@renderer/lib/ui/button';
 
 export function SignInStep({ onComplete }: { onComplete: () => void }) {
   const { data: session, isLoading: sessionLoading } = useAccountSession();
-  const { authenticated: githubAuthenticated, tokenSource } = useGithubContext();
   const signInMutation = useAccountSignIn();
   const skippedSignInRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
-  const isUsingGhCli = githubAuthenticated && tokenSource === 'cli';
 
   const handleSignIn = async () => {
     skippedSignInRef.current = false;
@@ -101,7 +98,7 @@ export function SignInStep({ onComplete }: { onComplete: () => void }) {
           </div>
         )}
         <Button size={'lg'} variant="outline" onClick={handleSkip}>
-          {isUsingGhCli ? 'Continue with GitHub CLI' : 'Skip for now'}
+          Skip for now
         </Button>
       </div>
     </div>
