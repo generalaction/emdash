@@ -346,9 +346,7 @@ export const EditorFileTree = observer(function EditorFileTree() {
   const editorView = taskView.editorView;
   const [isDragOverRoot, setIsDragOverRoot] = useState(false);
 
-  const visibleRows = files
-    ? buildVisibleRows(files.nodes, files.childIndex, editorView.expandedPaths)
-    : [];
+  const visibleRows = files ? buildVisibleRows(files.rootNodes, editorView.expandedPaths) : [];
 
   const parentRef = useRef<HTMLDivElement>(null);
 
