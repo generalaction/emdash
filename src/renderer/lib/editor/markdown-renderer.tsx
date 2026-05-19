@@ -1,7 +1,11 @@
 import { Eye, Pencil } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback } from 'react';
-import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
+import {
+  useTaskViewContext,
+  useWorkspaceId,
+  useWorkspaceViewModel,
+} from '@renderer/features/tasks/task-view-context';
 import { rpc } from '@renderer/lib/ipc';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
@@ -20,9 +24,9 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
   filePath,
 }: MarkdownEditorRendererProps) {
   const { projectId } = useTaskViewContext();
-  const provisioned = useProvisionedTask();
-  const { workspaceId } = provisioned;
-  const { editorView, tabManager } = provisioned.taskView;
+  const workspaceId = useWorkspaceId();
+  const taskView = useWorkspaceViewModel();
+  const { editorView, tabManager } = taskView;
   const bufferUri = buildMonacoModelPath(editorView.modelRootPath, filePath);
   // Reading bufferVersions creates a MobX tracking dependency so this observer()
   // component re-renders whenever the buffer content changes or is first populated.

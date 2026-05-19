@@ -49,6 +49,7 @@ const ICON_PATHS = {
   'android-studio-canary': 'android-studio-canary.svg',
   webstorm: 'webstorm.svg',
   pycharm: 'pycharm.svg',
+  rubymine: 'rubymine.svg',
   rustrover: 'rustrover.svg',
   kiro: 'kiro.png',
   antigravity: 'antigravity.png',
@@ -506,6 +507,27 @@ const _OPEN_IN_APPS = {
       linux: {
         openCommands: ['pycharm {{path}}'],
         checkCommands: ['pycharm'],
+      },
+    },
+  },
+  rubymine: {
+    id: 'rubymine',
+    label: 'RubyMine',
+    iconPath: ICON_PATHS.rubymine,
+    hideIfUnavailable: true,
+    platforms: {
+      darwin: {
+        openCommands: ['open -a "RubyMine" {{path}}'],
+        bundleIds: ['com.jetbrains.rubymine'],
+        appNames: ['RubyMine'],
+      },
+      win32: {
+        openCommands: ['rubymine64 {{path}}', 'rubymine {{path}}'],
+        checkCommands: ['rubymine64', 'rubymine'],
+      },
+      linux: {
+        openCommands: ['rubymine {{path}}'],
+        checkCommands: ['rubymine'],
       },
     },
   },

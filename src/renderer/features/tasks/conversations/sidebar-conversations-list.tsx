@@ -1,9 +1,13 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { formatConversationTitleForDisplay } from '@renderer/features/tasks/conversations/conversation-title-utils';
-import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
+import {
+  useConversations,
+  useTaskViewContext,
+  useWorkspaceViewModel,
+} from '@renderer/features/tasks/task-view-context';
 import AgentLogo from '@renderer/lib/components/agent-logo';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
@@ -28,11 +32,29 @@ const ConversationRow = observer(function ConversationRow({
   conversationId: string;
 }) {
   const [isEditing, setIsEditing] = useState(false);
-  const provisioned = useProvisionedTask();
-  const { tabManager } = provisioned.taskView;
+  const pendingRenameRef = useRef(false);
+  const taskView = useWorkspaceViewModel();
+  const conversations = useConversations();
+  const { tabManager } = taskView;
   const showConfirm = useShowModal('confirmActionModal');
 
-  const conversation = provisioned.conversations.conversations.get(conversationId);
+  const handleRenameInputRef = useCallback((input: HTMLInputElement | null) => {
+    input?.focus();
+    input?.select();
+  }, []);
+
+  const handleRename = useCallback(() => {
+    pendingRenameRef.current = true;
+  }, []);
+
+  const handleContextMenuOpenChangeComplete = useCallback((open: boolean) => {
+    if (!open && pendingRenameRef.current) {
+      pendingRenameRef.current = false;
+      setIsEditing(true);
+    }
+  }, []);
+
+  const conversation = conversations.conversations.get(conversationId);
   if (!conversation) return null;
 
   const isActive = tabManager.activeConversationId === conversationId;
@@ -45,7 +67,7 @@ const ConversationRow = observer(function ConversationRow({
 
   const handleRenameSubmit = (newTitle: string) => {
     setIsEditing(false);
-    void provisioned.conversations.renameConversation(conversationId, newTitle);
+    void conversations.renameConversation(conversationId, newTitle);
   };
 
   const handleDelete = () => {
@@ -55,7 +77,7 @@ const ConversationRow = observer(function ConversationRow({
       confirmLabel: 'Delete',
       variant: 'destructive',
       onSuccess: () => {
-        void provisioned.conversations.deleteConversation(conversationId);
+        void conversations.deleteConversation(conversationId);
       },
     });
   };
@@ -64,9 +86,9 @@ const ConversationRow = observer(function ConversationRow({
     return (
       <div className="flex h-full w-full items-center px-2">
         <input
+          ref={handleRenameInputRef}
           className="w-full rounded bg-background-1 px-1.5 py-0.5 text-sm text-foreground outline-none ring-1 ring-foreground/20 focus:ring-foreground/40"
           defaultValue={rawTitle}
-          autoFocus
           onBlur={(e) => {
             const value = e.target.value.trim();
             if (value && value !== rawTitle) {
@@ -93,7 +115,7 @@ const ConversationRow = observer(function ConversationRow({
   }
 
   return (
-    <ContextMenu>
+    <ContextMenu onOpenChangeComplete={handleContextMenuOpenChangeComplete}>
       <ContextMenuTrigger>
         <button
           onClick={() => tabManager.openConversationPreview(conversationId)}
@@ -129,7 +151,7 @@ const ConversationRow = observer(function ConversationRow({
         </button>
       </ContextMenuTrigger>
       <ContextMenuContent>
-        <ContextMenuItem onClick={() => setIsEditing(true)}>
+        <ContextMenuItem onClick={handleRename}>
           <Pencil className="size-4" />
           Rename
         </ContextMenuItem>
@@ -145,10 +167,11 @@ const ConversationRow = observer(function ConversationRow({
 
 export const SidebarConversationsList = observer(function SidebarConversationsList() {
   const { projectId, taskId } = useTaskViewContext();
-  const provisioned = useProvisionedTask();
-  const { tabManager } = provisioned.taskView;
+  const taskView = useWorkspaceViewModel();
+  const conversations = useConversations();
+  const { tabManager } = taskView;
   const showCreateConversationModal = useShowModal('createConversationModal');
-  const conversationIds = Array.from(provisioned.conversations.conversations.values())
+  const conversationIds = Array.from(conversations.conversations.values())
     .sort((a, b) => {
       const aTime = a.data.lastInteractedAt ? new Date(a.data.lastInteractedAt).getTime() : 0;
       const bTime = b.data.lastInteractedAt ? new Date(b.data.lastInteractedAt).getTime() : 0;

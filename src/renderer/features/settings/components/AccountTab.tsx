@@ -41,7 +41,7 @@ export function AccountTab() {
       }
       toast({
         title: 'Signed in to Emdash',
-        description: result.user ? `Connected as @${result.user.username}` : 'Signed in',
+        description: result.user ? `Connected as ${result.user.username}` : 'Signed in',
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Sign in failed';
@@ -101,9 +101,7 @@ export function AccountTab() {
             </div>
           )}
           <div className="flex-1">
-            <p className="text-sm font-medium text-foreground">
-              Connected as <span className="font-semibold">@{user.username}</span>
-            </p>
+            <p className="text-sm font-semibold text-foreground">{user.username}</p>
             {user.email && <p className="text-xs text-muted-foreground">{user.email}</p>}
           </div>
           <Button

@@ -122,8 +122,8 @@ export const InlineIssueSelector = observer(function InlineIssueSelector({
         onValueChange={(v) => v && handleProviderChange(v as Issue['provider'])}
       >
         <SelectTrigger
-          showChevron={false}
-          className="h-6 gap-0 border-none bg-transparent px-1.5 shadow-none focus:ring-0"
+          aria-label="Select issue provider"
+          className="h-6 gap-1 border-none bg-transparent px-1.5 shadow-none focus:ring-0"
         >
           <ProviderLogo provider={issueProvider} className="h-3.5 w-3.5" />
         </SelectTrigger>
@@ -203,7 +203,7 @@ export const InlineIssueSelector = observer(function InlineIssueSelector({
         <div className="text-foreground-muted">Navigate with arrow keys</div>
         <div className="text-foreground-muted">
           <button className="flex items-center gap-2">
-            Select Issue <Kbd>↵</Kbd>
+            Select Issue <Kbd>⏎</Kbd>
           </button>{' '}
         </div>
       </div>

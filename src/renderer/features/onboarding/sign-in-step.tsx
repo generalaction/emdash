@@ -1,25 +1,40 @@
-import { CheckCircle, Github, LogIn, User } from 'lucide-react';
-import { useState } from 'react';
+import { AlertCircle, CheckCircle, Github, LogIn, User } from 'lucide-react';
+import { useRef, useState } from 'react';
 import { useAccountSession, useAccountSignIn } from '@renderer/lib/hooks/useAccount';
+import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
 import { Button } from '@renderer/lib/ui/button';
 
 export function SignInStep({ onComplete }: { onComplete: () => void }) {
   const { data: session, isLoading: sessionLoading } = useAccountSession();
+  const { authenticated: githubAuthenticated, tokenSource } = useGithubContext();
   const signInMutation = useAccountSignIn();
+  const skippedSignInRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
+  const isUsingGhCli = githubAuthenticated && tokenSource === 'cli';
 
   const handleSignIn = async () => {
+    skippedSignInRef.current = false;
     setError(null);
     try {
       const result = await signInMutation.mutateAsync(undefined);
       if (!result.success) {
+        if (skippedSignInRef.current) return;
         setError(result.error || 'Sign in failed');
+        return;
+      }
+      if (skippedSignInRef.current) {
         return;
       }
       onComplete();
     } catch (err) {
+      if (skippedSignInRef.current) return;
       setError(err instanceof Error ? err.message : 'Sign in failed');
     }
+  };
+
+  const handleSkip = () => {
+    skippedSignInRef.current = true;
+    onComplete();
   };
 
   if (sessionLoading) {
@@ -68,20 +83,25 @@ export function SignInStep({ onComplete }: { onComplete: () => void }) {
       <div className="flex flex-col items-center justify-center gap-6">
         <Github className="h-10 w-10" absoluteStrokeWidth strokeWidth={1.5} />
         <div className="flex flex-col items-center justify-center gap-2">
-          <h1 className="text-xl text-center">Connect your GitHub account to Emdash</h1>
+          <h1 className="text-xl text-center">Connect GitHub</h1>
           <p className="text-md text-foreground-muted text-center">
-            This will allow you to work with your GitHub repositories in Emdash
+            Emdash uses GitHub for git operations, pull requests and issues.
           </p>
         </div>
       </div>
-      {error && <p className="text-sm text-destructive text-center">{error}</p>}
       <div className="flex flex-col w-full gap-2">
         <Button size={'lg'} onClick={handleSignIn} disabled={signInMutation.isPending}>
           <LogIn className="h-4 w-4" />
-          {signInMutation.isPending ? 'Signing in...' : 'Sign in with GitHub'}
+          {signInMutation.isPending ? 'Signing in…' : 'Sign in with GitHub'}
         </Button>
-        <Button variant="ghost" onClick={onComplete} disabled={signInMutation.isPending}>
-          Skip
+        {error && (
+          <div className="flex items-start gap-1.5 rounded-md bg-destructive/10 px-2.5 py-2 text-xs text-destructive">
+            <AlertCircle className="mt-px h-3.5 w-3.5 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+        <Button size={'lg'} variant="outline" onClick={handleSkip}>
+          {isUsingGhCli ? 'Continue with GitHub CLI' : 'Skip for now'}
         </Button>
       </div>
     </div>

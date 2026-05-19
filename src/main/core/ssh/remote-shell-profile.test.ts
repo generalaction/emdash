@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildRemoteShellCommand,
   FALLBACK_REMOTE_SHELL_PROFILE,
+  includeRemoteUserBinDirs,
   normalizeRemoteShell,
   type RemoteShellProfile,
 } from './remote-shell-profile';
@@ -41,6 +42,18 @@ describe('remote shell profile command building', () => {
     expect(command).toContain("export PATH='\\''/task/bin:/usr/bin'\\''");
     expect(command.indexOf('/captured/bin')).toBeLessThan(command.indexOf('/task/bin'));
     expect(command).toContain("export FOO='\\''task'\\''; node --version");
+  });
+
+  it('adds ~/.local/bin to captured remote PATH', () => {
+    expect(
+      includeRemoteUserBinDirs({
+        HOME: '/root',
+        PATH: '/usr/local/bin:/usr/bin',
+      })
+    ).toEqual({
+      HOME: '/root',
+      PATH: '/root/.local/bin:/usr/local/bin:/usr/bin',
+    });
   });
 
   it('uses /bin/sh without login flags for the fallback profile', () => {

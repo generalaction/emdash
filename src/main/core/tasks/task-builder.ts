@@ -40,6 +40,7 @@ export type ProvisionLocalTaskParams = {
   fetchService: GitFetchService;
   repository: GitRepositoryService;
   logPrefix: string;
+  workDir?: string;
 };
 
 export type ProvisionLocalTaskResult = {
@@ -81,7 +82,7 @@ export async function provisionLocalTask(
     step: 'resolving-worktree',
     message: 'Resolving worktree…',
   });
-  const workDir = await resolveTaskWorkDir(task, projectPath, worktreeService);
+  const workDir = params.workDir ?? (await resolveTaskWorkDir(task, projectPath, worktreeService));
 
   events.emit(taskProvisionProgressChannel, {
     taskId: task.id,

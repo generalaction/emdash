@@ -16,12 +16,18 @@ vi.mock('../ssh/ssh-connection-manager', () => ({
 }));
 
 function makeCtx(
-  handler: (command: string, args: string[]) => Promise<{ stdout: string; stderr: string }>
+  handler: (command: string, args: string[]) => Promise<{ stdout: string; stderr: string }>,
+  options: {
+    refreshShellEnv?: () => Promise<void>;
+  } = {}
 ): IExecutionContext {
   return {
     root: undefined,
     supportsLocalSpawn: false,
     exec: vi.fn().mockImplementation(handler),
+    refreshShellEnv: options.refreshShellEnv
+      ? vi.fn().mockImplementation(options.refreshShellEnv)
+      : undefined,
     execStreaming: vi.fn(),
     dispose: vi.fn(),
   } as unknown as IExecutionContext;
@@ -112,6 +118,35 @@ describe('DependencyManager install', () => {
 
     expect(result.success).toBe(true);
     if (result.success) expect(result.data.status).toBe('available');
+  });
+
+  it('refreshes cached shell environment after install before probing', async () => {
+    let shellEnvRefreshed = false;
+    const ctx = makeCtx(
+      async (command, args = []) => {
+        if (command === 'which' && args[0] === 'codex' && shellEnvRefreshed) {
+          return { stdout: '/home/user/.local/bin/codex\n', stderr: '' };
+        }
+        if (command === '/home/user/.local/bin/codex' && args[0] === '--version') {
+          return { stdout: 'codex-cli 1.2.3\n', stderr: '' };
+        }
+        throw new Error('missing');
+      },
+      {
+        refreshShellEnv: async () => {
+          shellEnvRefreshed = true;
+        },
+      }
+    );
+    const manager = new DependencyManager(ctx, {
+      emitEvents: false,
+      runInstallCommand: async () => ok<void>(),
+    });
+
+    const result = await manager.install('codex');
+
+    expect(result.success).toBe(true);
+    expect(ctx.refreshShellEnv).toHaveBeenCalled();
   });
 
   it('emits dependency updates with the SSH connection id', async () => {

@@ -45,6 +45,27 @@ export const execFileCommand = (
     );
   });
 
+const execFileOutput = (
+  file: string,
+  args: string[],
+  opts?: { maxBuffer?: number; timeout?: number; includeStderr?: boolean }
+): Promise<string> =>
+  new Promise((resolve, reject) => {
+    execFile(
+      file,
+      args,
+      {
+        maxBuffer: opts?.maxBuffer ?? 8 * 1024 * 1024,
+        timeout: opts?.timeout ?? 30_000,
+        env: buildExternalToolEnv(),
+      },
+      (error, stdout, stderr) => {
+        if (error) return reject(error);
+        resolve(`${stdout ?? ''}${opts?.includeStderr ? (stderr ?? '') : ''}`);
+      }
+    );
+  });
+
 export const escapeAppleScriptString = (value: string): string =>
   value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 
@@ -56,23 +77,20 @@ const dedupeAndSortFonts = (fonts: string[]): string[] => {
 };
 
 const listInstalledFontsMac = async (): Promise<string[]> => {
-  const stdout = await execCommand('system_profiler SPFontsDataType -json', {
-    maxBuffer: 24 * 1024 * 1024,
-    timeout: 60_000,
+  const script = `
+ObjC.import('AppKit')
+const families = $.NSFontManager.sharedFontManager.availableFontFamilies
+const result = []
+for (let i = 0; i < families.count; i++) {
+  result.push(ObjC.unwrap(families.objectAtIndex(i)))
+}
+console.log(result.join('\\n'))
+`;
+  const output = await execFileOutput('osascript', ['-l', 'JavaScript', '-e', script], {
+    includeStderr: true,
+    timeout: 5_000,
   });
-  const parsed = JSON.parse(stdout) as {
-    SPFontsDataType?: Array<{
-      typefaces?: Array<{ family?: string; fullname?: string }>;
-      _name?: string;
-    }>;
-  };
-  const fonts: string[] = [];
-  for (const item of parsed.SPFontsDataType ?? []) {
-    for (const typeface of item.typefaces ?? []) {
-      if (typeface.family) fonts.push(typeface.family);
-    }
-  }
-  return dedupeAndSortFonts(fonts);
+  return dedupeAndSortFonts(output.split('\n'));
 };
 
 const listInstalledFontsLinux = async (): Promise<string[]> => {

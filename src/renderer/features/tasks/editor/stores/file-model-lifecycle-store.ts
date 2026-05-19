@@ -1,7 +1,7 @@
 import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import { HEAD_REF } from '@shared/git';
 import type { EditorViewSnapshot } from '@shared/view-state';
-import type { TabManagerStore } from '@renderer/features/tasks/tabs/tab-manager-store';
+import type { TabGroupManagerStore } from '@renderer/features/tasks/tabs/tab-group-manager-store';
 import { getFileKind } from '@renderer/lib/editor/fileKind';
 import { rpc } from '@renderer/lib/ipc';
 import { showModal } from '@renderer/lib/modal/modal-provider';
@@ -36,11 +36,11 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
 
   private readonly projectId: string;
   private readonly workspaceId: string;
-  private readonly tabManager: TabManagerStore;
+  private readonly tabGroupManager: TabGroupManagerStore;
   private readonly disposers: (() => void)[] = [];
 
-  constructor(tabManager: TabManagerStore, projectId: string, workspaceId: string) {
-    this.tabManager = tabManager;
+  constructor(tabGroupManager: TabGroupManagerStore, projectId: string, workspaceId: string) {
+    this.tabGroupManager = tabGroupManager;
     this.projectId = projectId;
     this.workspaceId = workspaceId;
     this.modelRootPath = `workspace:${workspaceId}`;
@@ -48,15 +48,15 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
     makeObservable(this, {
       isSaving: observable,
       pendingConflictUri: observable,
-      activeBufferUri: computed,
       openFilePaths: computed,
       snapshot: computed,
     });
 
-    // Reactive model lifecycle: register/unregister Monaco models as file tabs open/close.
+    // Reactive model lifecycle: register/unregister Monaco models as file tabs open/close
+    // across ALL panes. A model stays registered as long as any pane has the file open.
     this.disposers.push(
       reaction(
-        () => this.tabManager.openFilePaths,
+        () => this.tabGroupManager.allOpenFilePaths,
         (current, previous = []) => {
           const prev = new Set(previous);
           const curr = new Set(current);
@@ -73,21 +73,26 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
       )
     );
 
-    // Register as the close coordinator for all tabs. For dirty file tabs this
+    // Register as the close coordinator for all panes. For dirty file tabs this
     // shows the unsaved-changes dialog before proceeding. All other tab kinds
-    // and clean file tabs close immediately. The handler calls closeTab (force-
-    // close) once it is satisfied, so model unload is handled by the existing
-    // openFilePaths reaction above.
-    tabManager.registerCloseHandler(async (tabId) => {
-      const entry = tabManager.entries.get(tabId);
-      if (entry?.kind === 'file') {
-        const uri = buildMonacoModelPath(this.modelRootPath, entry.path);
-        if (modelRegistry.isDirty(uri)) {
-          const result = await this._confirmClose(entry.path);
-          if (result === 'cancel') return;
+    // and clean file tabs close immediately. The handler is propagated to all
+    // current and future groups via TabGroupManagerStore.
+    tabGroupManager.registerCloseHandler(async (tabId) => {
+      // Find which group owns this tab.
+      for (const { tabManager } of tabGroupManager.groups) {
+        const entry = tabManager.entries.get(tabId);
+        if (entry !== undefined) {
+          if (entry.kind === 'file') {
+            const uri = buildMonacoModelPath(this.modelRootPath, entry.path);
+            if (modelRegistry.isDirty(uri)) {
+              const result = await this._confirmClose(entry.path);
+              if (result === 'cancel') return;
+            }
+          }
+          tabManager.closeTab(tabId);
+          return;
         }
       }
-      tabManager.closeTab(tabId);
     });
   }
 
@@ -95,15 +100,9 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
   // Computed
   // ---------------------------------------------------------------------------
 
-  /** Buffer URI of the active file tab, or null if no file tab is active. */
-  get activeBufferUri(): string | null {
-    const entry = this.tabManager.activeFileEntry;
-    if (!entry) return null;
-    return buildMonacoModelPath(this.modelRootPath, entry.path);
-  }
-
+  /** Union of all open file paths across all panes (deduplicated). */
   get openFilePaths(): string[] {
-    return this.tabManager.openFilePaths;
+    return this.tabGroupManager.allOpenFilePaths;
   }
 
   // ---------------------------------------------------------------------------
@@ -245,7 +244,11 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
     if (kind === 'image') {
       const result = await rpc.fs.readImage(this.projectId, this.workspaceId, filePath);
       const imageContent = result.success ? (result.data?.dataUrl ?? '') : '';
-      runInAction(() => this.tabManager.setImageContent(filePath, imageContent));
+      runInAction(() => {
+        for (const { tabManager } of this.tabGroupManager.groups) {
+          tabManager.setImageContent(filePath, imageContent);
+        }
+      });
       return;
     }
 
@@ -262,7 +265,9 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
         );
       } catch {
         runInAction(() => {
-          this.tabManager.updateRenderer(filePath, () => ({ kind: 'file-error' as const }));
+          for (const { tabManager } of this.tabGroupManager.groups) {
+            tabManager.updateRenderer(filePath, () => ({ kind: 'file-error' as const }));
+          }
         });
         return;
       }
@@ -272,8 +277,10 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
       if (modelRegistry.modelStatus.get(diskUri) === 'too-large') {
         const totalSize = modelRegistry.modelTotalSizes.get(diskUri);
         runInAction(() => {
-          this.tabManager.updateRenderer(filePath, () => ({ kind: 'too-large' as const }));
-          if (totalSize != null) this.tabManager.setFileTotalSize(filePath, totalSize);
+          for (const { tabManager } of this.tabGroupManager.groups) {
+            tabManager.updateRenderer(filePath, () => ({ kind: 'too-large' as const }));
+            if (totalSize != null) tabManager.setFileTotalSize(filePath, totalSize);
+          }
         });
         return;
       }

@@ -1,17 +1,63 @@
-import { describe, expect, it, vi } from 'vitest';
-import { makeCodexNotifyCommand, makeOpenCodePluginContent } from './agent-notify-command';
+import { describe, expect, it } from 'vitest';
+import {
+  makeClaudeHookCommand,
+  makeCodexHookCommand,
+  makeOpenCodePluginContent,
+} from './agent-notify-command';
 
-describe('makeCodexNotifyCommand', () => {
-  it('writes the Windows notify script only once per script path', () => {
-    const writeFile = vi.fn();
-    const mkdir = vi.fn();
-    const scriptPath = 'C:\\Temp\\emdash-codex-notify.ps1';
+function decodeWindowsHookCommand(command: string): string {
+  const encodedScript = command.match(/-EncodedCommand ([^"]+)/)?.[1];
+  return Buffer.from(encodedScript ?? '', 'base64').toString('utf16le');
+}
 
-    makeCodexNotifyCommand({ platform: 'win32', scriptPath, mkdir, writeFile });
-    makeCodexNotifyCommand({ platform: 'win32', scriptPath, mkdir, writeFile });
+describe('makeClaudeHookCommand', () => {
+  it('forwards Claude hook stdin to the Emdash hook server on POSIX', () => {
+    const content = makeClaudeHookCommand('stop', { platform: 'darwin' });
 
-    expect(mkdir).toHaveBeenCalledTimes(1);
-    expect(writeFile).toHaveBeenCalledTimes(1);
+    expect(content).toContain('EMDASH_HOOK_PORT');
+    expect(content).toContain('X-Emdash-Token');
+    expect(content).toContain('X-Emdash-Pty-Id');
+    expect(content).toContain('X-Emdash-Event-Type: stop');
+    expect(content).toContain('-d @-');
+  });
+
+  it('forwards Claude hook stdin to the Emdash hook server on Windows', () => {
+    const content = makeClaudeHookCommand('stop', { platform: 'win32' });
+    const script = decodeWindowsHookCommand(content);
+
+    expect(content).toContain('cmd.exe');
+    expect(content).toContain('powershell.exe');
+    expect(content).toContain('EMDASH_HOOK_PORT');
+    expect(content).toContain('-EncodedCommand');
+    expect(script).toContain('$payload = [Console]::In.ReadToEnd()');
+    expect(script).toContain('X-Emdash-Token');
+    expect(script).toContain('X-Emdash-Pty-Id');
+    expect(script).toContain("'X-Emdash-Event-Type' = 'stop'");
+  });
+});
+
+describe('makeCodexHookCommand', () => {
+  it('posts native Codex hook events to the Emdash hook server on POSIX', () => {
+    const content = makeCodexHookCommand('idle_prompt', { platform: 'darwin' });
+
+    expect(content).toContain('EMDASH_HOOK_PORT');
+    expect(content).toContain('X-Emdash-Token');
+    expect(content).toContain('X-Emdash-Pty-Id');
+    expect(content).toContain('{"notification_type":"idle_prompt"}');
+  });
+
+  it('posts native Codex hook events to the Emdash hook server on Windows', () => {
+    const content = makeCodexHookCommand('permission_prompt', { platform: 'win32' });
+    const script = decodeWindowsHookCommand(content);
+
+    expect(content).toContain('cmd.exe');
+    expect(content).toContain('powershell.exe');
+    expect(content).toContain('EMDASH_HOOK_PORT');
+    expect(content).toContain('-EncodedCommand');
+    expect(script).toContain('X-Emdash-Token');
+    expect(script).toContain('X-Emdash-Pty-Id');
+    expect(script).toContain('$payload = \'{"notification_type":"permission_prompt"}\'');
+    expect(script).toContain("'X-Emdash-Event-Type' = 'notification'");
   });
 });
 

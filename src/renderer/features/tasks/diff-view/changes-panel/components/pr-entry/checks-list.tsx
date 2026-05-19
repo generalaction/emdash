@@ -25,11 +25,11 @@ const bucketOrder: Record<CheckRunBucket, number> = {
 export function BucketIcon({ bucket }: { bucket: CheckRunBucket }) {
   switch (bucket) {
     case 'pass':
-      return <CheckCircle2 className="size-3.5 text-green-500 shrink-0" />;
+      return <CheckCircle2 className="size-3.5 text-foreground-success shrink-0" />;
     case 'fail':
       return <XCircle className="size-3.5 text-foreground-destructive shrink-0" />;
     case 'pending':
-      return <Loader2 className="size-3.5 animate-spin text-amber-500 shrink-0" />;
+      return <Loader2 className="size-3.5 animate-spin text-foreground-warning shrink-0" />;
     case 'skipping':
     case 'cancel':
       return <MinusCircle className="size-3.5 text-foreground-muted shrink-0" />;

@@ -109,7 +109,7 @@ export const AgentInfoCard: React.FC<Props> = ({ id }) => {
         </code>
         <Button
           variant="ghost"
-          size="icon-sm"
+          size="icon-xs"
           onClick={() => {
             void handleCopyClick();
           }}

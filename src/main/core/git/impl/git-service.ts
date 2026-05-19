@@ -38,8 +38,11 @@ import { err, ok, type Result } from '@shared/result';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { GIT_EXECUTABLE } from '@main/core/utils/exec';
+import { HookCore } from '@main/lib/hookable';
 import type { IDisposable } from '@main/lib/lifecycle';
+import { log } from '@main/lib/logger';
 import { type GitProvider } from '../types';
+import type { WorkspaceGitHooks } from '../workspace-git-provider';
 import { CatFileBatch } from './cat-file-batch';
 import {
   computeBaseRef,
@@ -87,15 +90,27 @@ function looksLikeLfsPointer(buffer: Buffer): boolean {
   return buffer.slice(0, LFS_POINTER_PREFIX.length).equals(LFS_POINTER_PREFIX);
 }
 
+type HeadInfo =
+  | { kind: 'branch'; name: string }
+  | { kind: 'detached'; shortHash: string }
+  | { kind: 'unborn'; name: string };
+
 export class GitService implements GitProvider, IDisposable {
   private _statusInFlight: Promise<FullGitStatus> | null = null;
   private _catFile: CatFileBatch | null = null;
+  private readonly _hooks = new HookCore<WorkspaceGitHooks>((name, e) =>
+    log.error(`GitService: ${String(name)} hook error`, e)
+  );
 
   constructor(
     private readonly ctx: IExecutionContext,
     private readonly authCtx: IExecutionContext,
     private readonly fs: FileSystemProvider
   ) {}
+
+  on<K extends keyof WorkspaceGitHooks>(name: K, handler: WorkspaceGitHooks[K]) {
+    return this._hooks.on(name, handler);
+  }
 
   dispose(): void {
     this._catFile?.dispose();
@@ -127,9 +142,14 @@ export class GitService implements GitProvider, IDisposable {
 
   async getFullStatus(): Promise<FullGitStatus> {
     if (this._statusInFlight) return this._statusInFlight;
-    this._statusInFlight = this._loadFullStatus().finally(() => {
-      this._statusInFlight = null;
-    });
+    this._statusInFlight = this._loadFullStatus()
+      .then((status) => {
+        this._hooks.callHookBackground('status:updated', status);
+        return status;
+      })
+      .finally(() => {
+        this._statusInFlight = null;
+      });
     return this._statusInFlight;
   }
 
@@ -158,16 +178,27 @@ export class GitService implements GitProvider, IDisposable {
     }
   }
 
+  async isFileCleanlyTracked(filePath: string): Promise<boolean> {
+    try {
+      await this.ctx.exec('git', ['ls-files', '--error-unmatch', '--', filePath]);
+      await this.ctx.exec('git', ['diff', '--quiet', '--', filePath]);
+      await this.ctx.exec('git', ['diff', '--cached', '--quiet', '--', filePath]);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   private async _loadFullStatus(): Promise<FullGitStatus> {
     try {
       const parser = new StatusParser();
-      const [, stagedRes, unstagedRes, currentBranch] = await Promise.all([
+      const [, stagedRes, unstagedRes, head] = await Promise.all([
         this._runStatusZ(parser),
         this.ctx.exec('git', ['diff', '--numstat', '--cached']).catch(() => ({
           stdout: '',
         })),
         this.ctx.exec('git', ['diff', '--numstat']).catch(() => ({ stdout: '' })),
-        this.getCurrentBranch(),
+        this._getHeadInfo(),
       ]);
 
       const stagedNumstat = this.parseNumstat(stagedRes.stdout);
@@ -177,18 +208,15 @@ export class GitService implements GitProvider, IDisposable {
         throw new TooManyFilesChangedError();
       }
 
-      return await this._buildFullGitStatus(
-        parser.status,
-        stagedNumstat,
-        unstagedNumstat,
-        currentBranch
-      );
+      return await this._buildFullGitStatus(parser.status, stagedNumstat, unstagedNumstat, head);
     } catch (e) {
       if (e instanceof TooManyFilesChangedError) throw e;
       return {
         staged: [],
         unstaged: [],
         currentBranch: null,
+        headKind: 'branch',
+        shortHash: null,
         totalAdded: 0,
         totalDeleted: 0,
       };
@@ -211,7 +239,7 @@ export class GitService implements GitProvider, IDisposable {
     entries: IFileStatus[],
     stagedNumstat: Map<string, { additions: number; deletions: number }>,
     unstagedNumstat: Map<string, { additions: number; deletions: number }>,
-    currentBranch: string | null
+    head: HeadInfo
   ): Promise<FullGitStatus> {
     const staged: GitChange[] = [];
     const unstaged: GitChange[] = [];
@@ -260,7 +288,15 @@ export class GitService implements GitProvider, IDisposable {
     const totalAdded = staged.reduce((s, c) => s + c.additions, 0);
     const totalDeleted = staged.reduce((s, c) => s + c.deletions, 0);
 
-    return { staged, unstaged, currentBranch, totalAdded, totalDeleted };
+    return {
+      staged,
+      unstaged,
+      currentBranch: head.kind === 'detached' ? null : head.name,
+      headKind: head.kind,
+      shortHash: head.kind === 'detached' ? head.shortHash : null,
+      totalAdded,
+      totalDeleted,
+    };
   }
 
   async getStatus(): Promise<{ changes: GitChange[]; currentBranch: string | null }> {
@@ -1014,6 +1050,16 @@ export class GitService implements GitProvider, IDisposable {
     };
 
     try {
+      const remote = preferredRemote?.trim();
+      if (remote) {
+        const { stdout } = await this.ctx.exec('git', ['branch', '--show-current']);
+        const currentBranch = stdout.trim();
+        if (!currentBranch) {
+          return err({ type: 'error', message: 'No branch checked out' });
+        }
+        const output = await doPush(['push', remote, `HEAD:${currentBranch}`]);
+        return ok({ output });
+      }
       const output = await doPush(['push']);
       return ok({ output });
     } catch (error: unknown) {
@@ -1032,15 +1078,7 @@ export class GitService implements GitProvider, IDisposable {
         try {
           const { stdout: branchOut } = await this.ctx.exec('git', ['branch', '--show-current']);
           const currentBranch = branchOut.trim();
-          let pushRemote = preferredRemote?.trim() || DEFAULT_REMOTE_NAME;
-          try {
-            const { stdout: remoteOut } = await this.ctx.exec('git', [
-              'config',
-              '--get',
-              `branch.${currentBranch}.remote`,
-            ]);
-            if (remoteOut.trim()) pushRemote = remoteOut.trim();
-          } catch {}
+          const pushRemote = preferredRemote?.trim() || DEFAULT_REMOTE_NAME;
           const output = await doPush(['push', '--set-upstream', pushRemote, currentBranch]);
           return ok({ output });
         } catch (upstreamError: unknown) {
@@ -1251,15 +1289,35 @@ export class GitService implements GitProvider, IDisposable {
   }
 
   async getCurrentBranch(): Promise<string | null> {
+    const head = await this._getHeadInfo();
+    return head.kind === 'detached' ? null : head.name;
+  }
+
+  private async _getHeadInfo(): Promise<HeadInfo> {
     try {
       const { stdout } = await this.ctx.exec('git', ['rev-parse', '--symbolic-full-name', 'HEAD']);
       const ref = stdout.trim();
-      if (ref === 'HEAD' || !ref) return null;
-      if (ref.startsWith('refs/heads/')) return ref.slice('refs/heads/'.length);
-      if (ref.startsWith('heads/')) return ref.slice('heads/'.length);
-      return ref;
+      if (ref === 'HEAD' || !ref) {
+        // Detached HEAD — also capture the short commit hash for display
+        try {
+          const { stdout: hashOut } = await this.ctx.exec('git', ['rev-parse', '--short', 'HEAD']);
+          return { kind: 'detached', shortHash: hashOut.trim() };
+        } catch {
+          return { kind: 'detached', shortHash: '' };
+        }
+      }
+      if (ref.startsWith('refs/heads/'))
+        return { kind: 'branch', name: ref.slice('refs/heads/'.length) };
+      if (ref.startsWith('heads/')) return { kind: 'branch', name: ref.slice('heads/'.length) };
+      return { kind: 'branch', name: ref };
     } catch {
-      return null;
+      // Unborn branch — rev-parse fails but symbolic-ref still resolves
+      try {
+        const { stdout: symOut } = await this.ctx.exec('git', ['symbolic-ref', '--short', 'HEAD']);
+        return { kind: 'unborn', name: symOut.trim() };
+      } catch {
+        return { kind: 'unborn', name: 'main' };
+      }
     }
   }
 

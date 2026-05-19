@@ -215,7 +215,7 @@ export function InlinePrSelector({
         <div className="text-foreground-muted">Navigate with arrow keys</div>
         <div className="text-foreground-muted">
           <button className="flex items-center gap-2">
-            Select PR <Kbd>↵</Kbd>
+            Select PR <Kbd>⏎</Kbd>
           </button>
         </div>
       </div>

@@ -3,7 +3,7 @@ import type { Issue } from '@shared/tasks';
 import {
   buildDraftCommentsContextAction,
   buildLinkedIssueContextAction,
-  buildReviewPromptContextAction,
+  buildPromptLibraryContextActions,
   buildTaskContextActions,
 } from '@renderer/features/tasks/conversations/context-actions';
 
@@ -38,7 +38,7 @@ describe('buildLinkedIssueContextAction', () => {
     expect(action?.label).toContain('Fix task context');
   });
 
-  it('formats injected text as one line so it does not auto-submit', () => {
+  it('normalizes field whitespace when building injected text', () => {
     const action = buildLinkedIssueContextAction(
       makeIssue({ description: 'Line one.\nLine two.\n\nLine three.' })
     );
@@ -62,22 +62,38 @@ describe('buildLinkedIssueContextAction', () => {
     expect(action).not.toBeNull();
     expect(action?.text).toContain(`Description: ${longDescription}`);
   });
+
+  it('includes provider-specific context when building injected text', () => {
+    const action = buildLinkedIssueContextAction(
+      makeIssue({
+        provider: 'linear',
+        context: 'Linear issue activity\n\nComments:\n- 2026-04-17 by Jona: Looks good',
+      })
+    );
+
+    expect(action).not.toBeNull();
+    expect(action?.text).toContain(
+      'Context:\nLinear issue activity\n\nComments:\n- 2026-04-17 by Jona: Looks good'
+    );
+    expect(action?.text).toContain('Looks good');
+  });
 });
 
-describe('buildReviewPromptContextAction', () => {
-  it('returns null for empty review prompt', () => {
-    expect(buildReviewPromptContextAction('   ')).toBeNull();
-  });
+describe('buildPromptLibraryContextActions', () => {
+  it('builds one action per non-empty custom prompt', () => {
+    const actions = buildPromptLibraryContextActions([
+      { id: 'one', title: 'Security review', prompt: 'Check auth boundaries.' },
+      { id: 'two', title: 'Empty', prompt: '   ' },
+    ]);
 
-  it('builds review prompt action', () => {
-    const action = buildReviewPromptContextAction('Review this worktree for issues.');
-    expect(action).not.toBeNull();
-    expect(action).toMatchObject({
-      id: 'review-prompt',
-      kind: 'review-prompt',
-      label: 'Review prompt',
-      text: 'Review this worktree for issues.',
-    });
+    expect(actions).toEqual([
+      {
+        id: 'prompt:one',
+        kind: 'prompt',
+        label: 'Security review',
+        text: 'Check auth boundaries.',
+      },
+    ]);
   });
 });
 
@@ -116,14 +132,22 @@ describe('buildDraftCommentsContextAction', () => {
 });
 
 describe('buildTaskContextActions', () => {
-  it('includes linked issue context, then draft comments, then review prompt', () => {
-    const actions = buildTaskContextActions(makeIssue(), 'Review this worktree for issues.', {
-      count: 1,
-      formattedComments: '<user_comments>test</user_comments>',
-    });
-    expect(actions).toHaveLength(3);
+  it('includes linked issue context, draft comments, then prompt library actions', () => {
+    const actions = buildTaskContextActions(
+      makeIssue(),
+      {
+        count: 1,
+        formattedComments: '<user_comments>test</user_comments>',
+      },
+      [
+        { id: 'review-prompt', title: 'Review prompt', prompt: 'Review this worktree.' },
+        { id: 'custom', title: 'Perf review', prompt: 'Look for slow paths.' },
+      ]
+    );
+    expect(actions).toHaveLength(4);
     expect(actions[0]?.id).toBe('linked-issue:github:EMD-123');
     expect(actions[1]?.id).toBe('draft-comments');
-    expect(actions[2]?.id).toBe('review-prompt');
+    expect(actions[2]?.id).toBe('prompt:review-prompt');
+    expect(actions[3]?.id).toBe('prompt:custom');
   });
 });

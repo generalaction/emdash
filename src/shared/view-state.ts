@@ -25,6 +25,16 @@ export type TabManagerSnapshot = {
   activeTabId: string | undefined;
 };
 
+export type TabGroupsSnapshot = {
+  groups: Array<{
+    groupId: string;
+    tabManager: TabManagerSnapshot;
+  }>;
+  activeGroupId: string;
+  /** Percentage sizes parallel to groups[]. */
+  paneSizes: number[];
+};
+
 export type EditorViewSnapshot = {
   expandedPaths: string[];
 };
@@ -36,6 +46,10 @@ export type DiffViewSnapshot = {
   commitAction: 'commit' | 'commit-push' | 'commit-pr' | null;
   prTab?: 'files' | 'commits' | 'checks';
 };
+
+export type TerminalDrawerActiveItem =
+  | { kind: 'terminal'; id: string }
+  | { kind: 'script'; id: string };
 
 export interface ActiveFile {
   path: string;
@@ -63,6 +77,10 @@ export type TaskViewSnapshot = {
   isSidebarCollapsed?: boolean;
   focusedRegion: 'main' | 'bottom';
   isTerminalDrawerOpen?: boolean;
+  terminalDrawerActiveItem?: TerminalDrawerActiveItem;
+  /** Takes precedence over tabManager when present. */
+  tabGroups?: TabGroupsSnapshot;
+  /** @deprecated Use tabGroups. Kept for migration from single-pane snapshots. */
   tabManager?: TabManagerSnapshot;
   /** @deprecated Legacy field from before the unified tab refactor. Used only for migration. */
   conversations?: TabViewSnapshot;

@@ -11,6 +11,7 @@ import type {
 import type { Result } from '@shared/result';
 
 export interface RepositoryGitProvider {
+  isFileCleanlyTracked(filePath: string): Promise<boolean>;
   getBranches(): Promise<Branch[]>;
   getCurrentBranch(): Promise<string | null>;
   getHeadState(): Promise<GitHeadState>;

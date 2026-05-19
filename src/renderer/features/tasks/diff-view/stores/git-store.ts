@@ -80,6 +80,8 @@ export class GitStore {
       aheadCount: computed,
       behindCount: computed,
       branchName: computed,
+      headKind: computed,
+      headDisplay: computed,
     });
   }
 
@@ -149,6 +151,22 @@ export class GitStore {
 
   get branchName(): string | null {
     return this.fullStatus.data?.currentBranch ?? null;
+  }
+
+  /** The HEAD state: 'branch' (normal), 'detached' (mid-rebase etc.), or 'unborn' (no commits yet). */
+  get headKind(): 'branch' | 'detached' | 'unborn' {
+    return this.fullStatus.data?.headKind ?? 'branch';
+  }
+
+  /**
+   * Always non-null once hasData is true.
+   * Returns the branch name on a branch/unborn repo, or the short commit hash when detached.
+   */
+  get headDisplay(): string | null {
+    const d = this.fullStatus.data;
+    if (!d) return null;
+    if (d.headKind === 'detached') return d.shortHash;
+    return d.currentBranch;
   }
 
   /** True when this workspace's branch has a remote tracking ref. */
@@ -336,7 +354,7 @@ export class GitStore {
   }
 
   async push() {
-    const remote = this.repositoryStore.configuredRemote.name;
+    const remote = this.repositoryStore.pushRemote.name;
     const result = await rpc.git.push(this.projectId, this.workspaceId, remote);
     if (result.success) {
       this.repositoryStore.refreshLocal(); // divergence resets to 0
@@ -353,7 +371,7 @@ export class GitStore {
   async publishBranch() {
     const branchName = this.branchName;
     if (!branchName) return err({ type: 'git_error' as const, message: 'No branch checked out' });
-    const remote = this.repositoryStore.configuredRemote.name;
+    const remote = this.repositoryStore.pushRemote.name;
     const result = await rpc.git.publishBranch(
       this.projectId,
       this.workspaceId,

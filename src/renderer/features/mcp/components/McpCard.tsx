@@ -1,9 +1,11 @@
-import { motion } from 'framer-motion';
 import { ExternalLink, Globe, Pencil, Plus, Terminal } from 'lucide-react';
 import React from 'react';
 import { type AgentProviderId } from '@shared/agent-provider-registry';
 import type { McpCatalogEntry, McpServer } from '@shared/mcp/types';
 import AgentLogo from '@renderer/lib/components/agent-logo';
+import { CardGridItem } from '@renderer/lib/components/card-grid';
+import { Button } from '@renderer/lib/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { agentConfig } from '@renderer/utils/agentConfig';
 import { McpServerIcon } from '@renderer/utils/mcpIcons';
 
@@ -46,11 +48,9 @@ export const McpCard: React.FC<McpCardProps> = ({ server, catalogEntry, onEdit, 
   };
 
   return (
-    <motion.div
+    <CardGridItem
       role="button"
       tabIndex={0}
-      whileTap={{ scale: 0.97 }}
-      transition={{ duration: 0.1, ease: 'easeInOut' }}
       onClick={handleClick}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -58,23 +58,19 @@ export const McpCard: React.FC<McpCardProps> = ({ server, catalogEntry, onEdit, 
           handleClick();
         }
       }}
-      className="group flex w-full cursor-pointer items-center gap-3 rounded-lg border border-border bg-muted/20 p-4 text-left text-card-foreground shadow-sm transition-all hover:bg-muted/40 hover:shadow-md"
+      className="relative"
     >
       <McpServerIcon name={name} iconKey={catalogEntry?.key ?? server?.name} />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
-          <h3 className="truncate text-sm font-semibold">{name}</h3>
-          <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-muted px-1 py-0.5 text-[10px] text-muted-foreground">
-            {transport === 'http' ? (
-              <Globe className="h-2.5 w-2.5" />
-            ) : (
-              <Terminal className="h-2.5 w-2.5" />
-            )}
+      <div className="min-w-0 flex-1 flex flex-col gap-0.5">
+        <div className="flex items-center gap-2">
+          <h3 className="truncate text-smd">{name}</h3>
+          <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-background-2 px-1 py-0.5 text-[10px] text-foreground-muted">
+            {transport === 'http' ? <Globe className="size-2" /> : <Terminal className="size-2" />}
             {transport}
           </span>
         </div>
         {description && (
-          <p className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{description}</p>
+          <p className=" line-clamp-1 text-xs text-foreground-muted">{description}</p>
         )}
         {syncedProviders.length > 0 && (
           <div className="mt-1.5 flex items-center gap-1">
@@ -91,36 +87,47 @@ export const McpCard: React.FC<McpCardProps> = ({ server, catalogEntry, onEdit, 
           </div>
         )}
       </div>
-      <div className="flex shrink-0 items-center gap-1 self-center">
+
+      <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
         {docsUrl && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              window.open(docsUrl, '_blank', 'noopener,noreferrer');
-            }}
-            className="rounded-md p-1 opacity-0 transition-opacity group-hover:opacity-100"
-            aria-label={`View ${name} docs`}
-          >
-            <ExternalLink className="h-3.5 w-3.5" />
-          </button>
+          <Tooltip>
+            <TooltipTrigger>
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  window.open(docsUrl, '_blank', 'noopener,noreferrer');
+                }}
+                aria-label={`View ${name} docs`}
+              >
+                <ExternalLink className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>View docs</TooltipContent>
+          </Tooltip>
         )}
-        {isInstalled ? (
-          <Pencil className="h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
-        ) : onAdd ? (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (catalogEntry) onAdd(catalogEntry);
-            }}
-            className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            aria-label={`Add ${name}`}
-          >
-            <Plus className="h-4 w-4" />
-          </button>
-        ) : null}
+        <Tooltip>
+          <TooltipTrigger>
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (isInstalled && server) {
+                  onEdit(server);
+                } else if (catalogEntry && onAdd) {
+                  onAdd(catalogEntry);
+                }
+              }}
+              aria-label={isInstalled ? `Edit ${name}` : `Add ${name}`}
+            >
+              {isInstalled ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{isInstalled ? 'Edit' : 'Add'}</TooltipContent>
+        </Tooltip>
       </div>
-    </motion.div>
+    </CardGridItem>
   );
 };

@@ -104,22 +104,25 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
   tabOrder: string[] = [];
   activeTabId: string | undefined = undefined;
   isVisible = false;
+  /** True when this pane is the active/focused pane AND the task is the active view. */
+  isFocused = false;
 
   /** Used by resolvedTabs and FileModelLifecycleStore to build buffer URIs. */
   readonly modelRootPath: string;
 
-  private readonly conversations: ConversationManagerStore;
+  private readonly _getConversations: () => ConversationManagerStore | null;
   private readonly disposers: (() => void)[] = [];
   private _closeHandler?: (tabId: string) => Promise<void>;
 
-  constructor(conversations: ConversationManagerStore, workspaceId: string) {
-    this.conversations = conversations;
+  constructor(getConversations: () => ConversationManagerStore | null, workspaceId: string) {
+    this._getConversations = getConversations;
     this.modelRootPath = `workspace:${workspaceId}`;
 
     makeObservable(this, {
       tabOrder: observable,
       activeTabId: observable,
       isVisible: observable,
+      isFocused: observable,
       resolvedActiveTabId: computed,
       activeDescriptor: computed,
       activeConversation: computed,
@@ -146,6 +149,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       setPreviousTabActive: action,
       setTabActiveIndex: action,
       setVisible: action,
+      setFocused: action,
       updateRenderer: action,
       setImageContent: action,
       setFileTotalSize: action,
@@ -158,7 +162,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     // Auto-close conversation tabs when the conversation is deleted from the manager.
     this.disposers.push(
       reaction(
-        () => Array.from(conversations.conversations.keys()),
+        () => Array.from(this._getConversations()?.conversations.keys() ?? []),
         action((ids: string[]) => {
           const idSet = new Set(ids);
           const toRemove: string[] = [];
@@ -174,21 +178,22 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       )
     );
 
-    // Mark conversation as seen when it becomes the active visible tab.
+    // Mark conversation as seen when it becomes the active tab in the focused pane.
     this.disposers.push(
       autorun(() => {
-        if (this.isVisible && this.activeConversation && !this.activeConversation.seen) {
-          this.activeConversation.markSeen();
+        const conv = this.activeConversation;
+        if (this.isFocused && conv && !conv.seen) {
+          conv.markSeen();
         }
       })
     );
 
-    // Update telemetry scope when the active conversation changes.
+    // Update telemetry scope when the active conversation changes in the focused pane.
     this.disposers.push(
       reaction(
         () => this.activeConversation?.data.id ?? null,
         (conversationId) => {
-          if (this.isVisible) {
+          if (this.isFocused) {
             setTelemetryConversationScope(conversationId);
           }
         }
@@ -220,7 +225,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
   get activeConversation(): ConversationStore | undefined {
     const desc = this.activeDescriptor;
     if (!desc || desc.kind !== 'conversation') return undefined;
-    return this.conversations.conversations.get(desc.conversationId);
+    return this._getConversations()?.conversations.get(desc.conversationId);
   }
 
   get activeConversationId(): string | undefined {
@@ -281,7 +286,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       if (!entry) continue;
 
       if (entry.kind === 'conversation') {
-        const store = this.conversations.conversations.get(entry.conversationId);
+        const store = this._getConversations()?.conversations.get(entry.conversationId);
         if (!store) continue;
         result.push({
           kind: 'conversation',
@@ -597,6 +602,10 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     }
   }
 
+  setFocused(focused: boolean): void {
+    this.isFocused = focused;
+  }
+
   // ---------------------------------------------------------------------------
   // Helpers for sidebar
   // ---------------------------------------------------------------------------
@@ -645,7 +654,9 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
   }
 
   initializeDefault(): void {
-    for (const [id, store] of this.conversations.conversations) {
+    const conversations = this._getConversations();
+    if (!conversations) return;
+    for (const [id, store] of conversations.conversations) {
       if (store.isInitialConversation) {
         this.openConversation(id);
         return;

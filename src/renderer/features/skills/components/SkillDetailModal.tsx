@@ -13,7 +13,7 @@ import {
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
 import { MarkdownRenderer } from '@renderer/lib/ui/markdown-renderer';
-import SkillIconRenderer from './SkillIconRenderer';
+import { SkillIconRenderer } from './SkillIconRenderer';
 
 interface SkillDetailModalProps {
   skill: CatalogSkill | null;
@@ -24,7 +24,7 @@ interface SkillDetailModalProps {
   onOpenTerminal?: (skillPath: string) => void;
 }
 
-const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
+export const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
   skill,
   isOpen,
   onClose,
@@ -49,8 +49,8 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
     if (!skill) return;
     setIsProcessing(true);
     try {
-      await onUninstall(skill.id);
-      onClose();
+      const success = await onUninstall(skill.id);
+      if (success) onClose();
     } finally {
       setIsProcessing(false);
     }
@@ -71,7 +71,7 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <div className="flex items-center gap-3">
-            <SkillIconRenderer skill={skill} size="md" />
+            <SkillIconRenderer skill={skill} />
             <div className="min-w-0 flex-1">
               <DialogTitle className="text-base font-sans normal-case tracking-normal text-foreground">
                 {skill.displayName}
@@ -145,5 +145,3 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
     </Dialog>
   );
 };
-
-export default SkillDetailModal;

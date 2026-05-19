@@ -1,6 +1,6 @@
 import { exec } from 'node:child_process';
 import { eq } from 'drizzle-orm';
-import { clipboard, dialog, shell } from 'electron';
+import { app, clipboard, dialog, shell } from 'electron';
 import { appPasteChannel, appRedoChannel, appUndoChannel } from '@shared/events/appEvents';
 import {
   getAppById,
@@ -174,6 +174,10 @@ class AppService implements IInitializable, IDisposable {
   clipboardWriteText(text: string): void {
     if (typeof text !== 'string') throw new Error('Invalid clipboard text');
     clipboard.writeText(text);
+  }
+
+  quit(): void {
+    app.quit();
   }
 
   async openIn(args: {
@@ -366,11 +370,13 @@ class AppService implements IInitializable, IDisposable {
   async openSelectDirectoryDialog(args: {
     title: string;
     message: string;
+    defaultPath?: string;
   }): Promise<string | undefined> {
     const result = await dialog.showOpenDialog(getMainWindow()!, {
       title: args.title,
       properties: ['openDirectory'],
       message: args.message,
+      defaultPath: args.defaultPath,
     });
     if (result.canceled) return undefined;
     return result.filePaths[0];

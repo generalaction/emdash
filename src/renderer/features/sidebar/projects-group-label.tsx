@@ -1,7 +1,8 @@
-import { ListFilter } from 'lucide-react';
+import { FolderPlus, ListFilter } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { sidebarStore } from '@renderer/lib/stores/app-state';
-import { Button } from '@renderer/lib/ui/button';
+import { buttonVariants } from '@renderer/lib/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,41 +13,83 @@ import {
   DropdownMenuTrigger,
 } from '@renderer/lib/ui/dropdown-menu';
 import { MicroLabel } from '@renderer/lib/ui/label';
+import { BoundShortcut } from '@renderer/lib/ui/shortcut';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 
 export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
+  const showAddProjectModal = useShowModal('addProjectModal');
+
   return (
     <div className="flex items-center justify-between pl-5 pr-2.5 h-[40px]">
       <MicroLabel className="text-foreground-tertiary-passive">Projects</MicroLabel>
-      <DropdownMenu>
-        <DropdownMenuTrigger>
-          <Button
-            size="icon-xs"
-            variant="ghost"
-            className="hover:bg-transparent text-foreground-muted hover:text-foreground"
-          >
-            <ListFilter />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent className="min-w-48">
-          <DropdownMenuGroup>
-            <DropdownMenuLabel>Sort by</DropdownMenuLabel>
-            <DropdownMenuRadioGroup value={sidebarStore.taskSortBy}>
-              <DropdownMenuRadioItem
-                value="created-at"
-                onClick={() => sidebarStore.applySort('created-at')}
+      <div className="flex items-center gap-1">
+        <DropdownMenu>
+          <Tooltip>
+            <DropdownMenuTrigger
+              render={
+                <TooltipTrigger
+                  render={
+                    <button
+                      type="button"
+                      aria-label="Sort projects"
+                      className={buttonVariants({
+                        size: 'icon-xs',
+                        variant: 'ghost',
+                        className:
+                          'hover:bg-transparent text-foreground-muted hover:text-foreground',
+                      })}
+                    >
+                      <ListFilter />
+                    </button>
+                  }
+                />
+              }
+            />
+            <TooltipContent>Sort by</TooltipContent>
+          </Tooltip>
+          <DropdownMenuContent className="min-w-48">
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>Sort by</DropdownMenuLabel>
+              <DropdownMenuRadioGroup value={sidebarStore.taskSortBy}>
+                <DropdownMenuRadioItem
+                  value="created-at"
+                  onClick={() => sidebarStore.applySort('created-at')}
+                >
+                  Created at
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem
+                  value="updated-at"
+                  onClick={() => sidebarStore.applySort('updated-at')}
+                >
+                  Last used
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuGroup>
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                onClick={() => showAddProjectModal({})}
+                aria-label="Add Project"
+                className={buttonVariants({
+                  size: 'icon-xs',
+                  variant: 'ghost',
+                  className: 'hover:bg-transparent text-foreground-muted hover:text-foreground',
+                })}
               >
-                Created at
-              </DropdownMenuRadioItem>
-              <DropdownMenuRadioItem
-                value="updated-at"
-                onClick={() => sidebarStore.applySort('updated-at')}
-              >
-                Last used
-              </DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
-          </DropdownMenuGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
+                <FolderPlus />
+              </button>
+            }
+          />
+          <TooltipContent>
+            Add Project
+            <BoundShortcut settingsKey="newProject" variant="badge" />
+          </TooltipContent>
+        </Tooltip>
+      </div>
     </div>
   );
 });
