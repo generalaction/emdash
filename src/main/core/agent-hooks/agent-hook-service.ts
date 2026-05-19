@@ -1,7 +1,10 @@
 import { agentEventChannel, type AgentEvent } from '@shared/events/agentEvents';
+import { conversationChangedChannel } from '@shared/events/conversationEvents';
 import { conversationEvents } from '@main/core/conversations/conversation-events';
+import { touchConversation } from '@main/core/conversations/touchConversation';
 import { events } from '@main/lib/events';
 import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
+import { telemetryService } from '@main/lib/telemetry';
 import { enrichEvent } from './event-enricher';
 import { HookServer } from './hook-server';
 import { isAppFocused, maybeShowNotification } from './notification';
@@ -21,7 +24,7 @@ class AgentHookService implements IInitializable, IDisposable {
     conversationEvents.on(
       'conversation:input-submitted',
       ({ projectId, taskId, conversationId, providerId }) => {
-        const event: AgentEvent = {
+        const agentEvent: AgentEvent = {
           type: 'start',
           source: 'input',
           providerId,
@@ -31,7 +34,24 @@ class AgentHookService implements IInitializable, IDisposable {
           timestamp: Date.now(),
           payload: {},
         };
-        events.emit(agentEventChannel, { event, appFocused: isAppFocused() });
+        events.emit(agentEventChannel, { event: agentEvent, appFocused: isAppFocused() });
+
+        telemetryService.capture('agent_run_started', {
+          provider: providerId,
+          project_id: projectId,
+          task_id: taskId,
+          conversation_id: conversationId,
+        });
+
+        const now = new Date().toISOString();
+        void touchConversation(conversationId, now).then(() => {
+          events.emit(conversationChangedChannel, {
+            conversationId,
+            taskId,
+            projectId,
+            changes: { lastInteractedAt: now },
+          });
+        });
       }
     );
   }

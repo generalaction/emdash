@@ -148,7 +148,7 @@ export function AddContextPopover({ actions, disabled, onApplyAction }: AddConte
           )}
           <span>Add context</span>
         </span>
-        {open ? <Kbd>↑↓</Kbd> : <Shortcut hotkey={ADD_CONTEXT_HOTKEY} />}
+        <Shortcut hotkey={ADD_CONTEXT_HOTKEY} />
       </ComboboxTrigger>
 
       <ComboboxContent

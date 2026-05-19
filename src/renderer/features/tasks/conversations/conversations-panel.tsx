@@ -12,7 +12,6 @@ import { PaneSizingProvider } from '@renderer/lib/pty/pane-sizing-context';
 import { PtyPane } from '@renderer/lib/pty/pty-pane';
 import { TerminalSearchOverlay } from '@renderer/lib/pty/terminal-search-overlay';
 import { useTerminalSearch } from '@renderer/lib/pty/use-terminal-search';
-import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import { ContextBar } from './context-bar';
 import type { ConversationStore } from './conversation-manager';
 
@@ -80,18 +79,6 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
     }
   }, [sessionStatus]);
 
-  const onEnterPress = activeConversation
-    ? () => {
-        captureTelemetry('agent_run_started', {
-          provider: activeConversation.data.providerId,
-          project_id: activeConversation.data.projectId,
-          task_id: activeConversation.data.taskId,
-          conversation_id: activeConversation.data.id,
-        });
-        void conversations.touchConversation(activeConversation.data.id);
-      }
-    : undefined;
-
   const onInterruptPress = activeConversation ? () => activeConversation.clearWorking() : undefined;
 
   return (
@@ -129,7 +116,6 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
                     sessionId={activeSessionId}
                     pty={activeSession.pty}
                     className="h-full w-full"
-                    onEnterPress={onEnterPress}
                     onInterruptPress={onInterruptPress}
                     mapShiftEnterToCtrlJ
                     remoteConnectionId={remoteConnectionId}
