@@ -1,5 +1,6 @@
 import { APP_COMMAND_DEFS, type AppCommandId, type CommandDef } from '@shared/commands';
 import { applyHistoryEntry } from '@renderer/lib/components/nav-buttons';
+import { toast } from '@renderer/lib/hooks/use-toast';
 import { toggleSettingsView } from '@renderer/lib/layout/settings-toggle';
 import { showModal } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
@@ -76,7 +77,14 @@ function createAppCommandProvider(): CommandProvider {
         shortcutKey: toggleThemeDef.shortcutKey,
         group: toggleThemeDef.group,
         execute() {
-          void toggleAppTheme();
+          void toggleAppTheme().then((result) => {
+            if (result.success) return;
+            toast({
+              title: 'Theme not changed',
+              description: result.error.message,
+              variant: 'destructive',
+            });
+          });
         },
       });
 

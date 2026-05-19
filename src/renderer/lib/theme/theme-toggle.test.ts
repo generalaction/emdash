@@ -3,18 +3,18 @@ import { getNextTheme } from './theme-toggle-model';
 
 describe('getNextTheme', () => {
   it('toggles explicit light to dark', () => {
-    expect(getNextTheme('emlight', false)).toBe('emdark');
+    expect(getNextTheme('emlight', 'emlight')).toBe('emdark');
   });
 
   it('toggles explicit dark to light', () => {
-    expect(getNextTheme('emdark', true)).toBe('emlight');
+    expect(getNextTheme('emdark', 'emdark')).toBe('emlight');
   });
 
   it('uses system light when no explicit theme is selected', () => {
-    expect(getNextTheme(null, false)).toBe('emdark');
+    expect(getNextTheme(null, 'emlight')).toBe('emdark');
   });
 
   it('uses system dark when no explicit theme is selected', () => {
-    expect(getNextTheme(null, true)).toBe('emlight');
+    expect(getNextTheme(null, 'emdark')).toBe('emlight');
   });
 });
