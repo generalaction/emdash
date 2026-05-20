@@ -30,7 +30,9 @@ describe('resolveProviderEnv', () => {
   });
 
   it('does not set inline opencode permissions when auto-approve is disabled', () => {
-    expect(resolveProviderEnv(undefined, { providerId: 'opencode', autoApprove: false })).toBeUndefined();
+    expect(
+      resolveProviderEnv(undefined, { providerId: 'opencode', autoApprove: false })
+    ).toBeUndefined();
   });
 
   it('preserves custom opencode permissions when auto-approve is enabled', () => {
