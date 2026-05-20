@@ -38,10 +38,12 @@ const ICON_PATHS = {
   windsurf: 'windsurf.png',
   xcode: 'xcode.png',
   terminal: 'terminal.png',
+  alacritty: 'alacritty.svg',
   warp: 'warp.svg',
   iterm2: 'iterm2.png',
   ghostty: 'ghostty.png',
   kitty: 'kitty.png',
+  termy: 'termy.png',
   zed: 'zed.png',
   trae: 'trae.png',
   'intellij-idea': 'intellij-idea.svg',
@@ -49,6 +51,7 @@ const ICON_PATHS = {
   'android-studio-canary': 'android-studio-canary.svg',
   webstorm: 'webstorm.svg',
   pycharm: 'pycharm.svg',
+  rubymine: 'rubymine.svg',
   rustrover: 'rustrover.svg',
   kiro: 'kiro.png',
   antigravity: 'antigravity.png',
@@ -214,6 +217,35 @@ const _OPEN_IN_APPS = {
       },
     },
   },
+  alacritty: {
+    id: 'alacritty',
+    label: 'Alacritty',
+    iconPath: ICON_PATHS.alacritty,
+    supportsRemote: true,
+    platforms: {
+      darwin: {
+        openCommands: [
+          'command -v alacritty >/dev/null 2>&1 && alacritty --working-directory {{path}}',
+          'open -n -b org.alacritty --args --working-directory {{path}}',
+          'open -na "Alacritty" --args --working-directory {{path}}',
+        ],
+        checkCommands: ['alacritty'],
+        bundleIds: ['org.alacritty'],
+        appNames: ['Alacritty'],
+      },
+      win32: {
+        openCommands: [
+          'start "" alacritty --working-directory "{{path_raw}}"',
+          'alacritty --working-directory "{{path_raw}}"',
+        ],
+        checkCommands: ['alacritty'],
+      },
+      linux: {
+        openCommands: ['alacritty --working-directory {{path}}'],
+        checkCommands: ['alacritty'],
+      },
+    },
+  },
   warp: {
     id: 'warp',
     label: 'Warp',
@@ -280,6 +312,29 @@ const _OPEN_IN_APPS = {
       linux: {
         openCommands: ['kitty --directory {{path}}'],
         checkCommands: ['kitty'],
+      },
+    },
+  },
+  termy: {
+    id: 'termy',
+    label: 'Termy',
+    iconPath: ICON_PATHS.termy,
+    platforms: {
+      darwin: {
+        openCommands: [
+          'command -v termy >/dev/null 2>&1 && termy --working-directory={{path}}',
+          'open -a "Termy" {{path}}',
+        ],
+        checkCommands: ['termy'],
+        appNames: ['Termy'],
+      },
+      win32: {
+        openCommands: ['start "" termy --working-directory={{path}}'],
+        checkCommands: ['termy'],
+      },
+      linux: {
+        openCommands: ['termy --working-directory={{path}}'],
+        checkCommands: ['termy'],
       },
     },
   },
@@ -506,6 +561,27 @@ const _OPEN_IN_APPS = {
       linux: {
         openCommands: ['pycharm {{path}}'],
         checkCommands: ['pycharm'],
+      },
+    },
+  },
+  rubymine: {
+    id: 'rubymine',
+    label: 'RubyMine',
+    iconPath: ICON_PATHS.rubymine,
+    hideIfUnavailable: true,
+    platforms: {
+      darwin: {
+        openCommands: ['open -a "RubyMine" {{path}}'],
+        bundleIds: ['com.jetbrains.rubymine'],
+        appNames: ['RubyMine'],
+      },
+      win32: {
+        openCommands: ['rubymine64 {{path}}', 'rubymine {{path}}'],
+        checkCommands: ['rubymine64', 'rubymine'],
+      },
+      linux: {
+        openCommands: ['rubymine {{path}}'],
+        checkCommands: ['rubymine'],
       },
     },
   },

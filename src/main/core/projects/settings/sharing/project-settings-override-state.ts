@@ -1,3 +1,4 @@
+import { log } from '@main/lib/logger';
 import {
   emptyProjectSettingsOverrideState,
   SHAREABLE_PROJECT_SETTINGS_WRITE_FIELDS,
@@ -5,7 +6,6 @@ import {
   type ProjectSettingsOverrideState,
 } from '@shared/project-settings';
 import { SHAREABLE_FIELD_ACCESSORS } from '@shared/project-settings-fields';
-import { log } from '@main/lib/logger';
 import type { ProjectSettingsResolvedTarget } from './project-settings-target-resolver';
 import { CONFIG_FILE } from './workspace-config-file';
 

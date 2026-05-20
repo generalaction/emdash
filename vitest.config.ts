@@ -27,12 +27,30 @@ export default defineConfig({
       {
         // All existing tests that run in a Node.js environment.
         // Migration tests are excluded — run them via `pnpm run test:migrations`.
+        // DB integration tests (*.db.test.ts) are excluded — run under the main-db project.
         extends: true,
         test: {
           name: 'node',
           environment: 'node',
           include: ['src/**/*.test.ts'],
-          exclude: ['**/_*/**', 'src/renderer/tests/browser/**', 'src/main/db/tests/migrations/**'],
+          exclude: [
+            '**/_*/**',
+            'src/renderer/tests/browser/**',
+            'src/main/db/tests/migrations/**',
+            'src/main/db/legacy-port/**/*.test.ts',
+            'src/main/core/**/*.db.test.ts',
+          ],
+        },
+      },
+      {
+        // Main-process integration tests that need a real SQLite connection.
+        // Uses toolingAlias so better-sqlite3 resolves to the system-Node build.
+        extends: true,
+        resolve: { alias: toolingAlias },
+        test: {
+          name: 'main-db',
+          environment: 'node',
+          include: ['src/main/core/**/*.db.test.ts', 'src/main/db/legacy-port/**/*.test.ts'],
         },
       },
       {

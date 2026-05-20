@@ -1,6 +1,6 @@
-import type { ConnectionState } from '@shared/ssh';
 import { Badge } from '@renderer/lib/ui/badge';
 import { cn } from '@renderer/utils/utils';
+import type { ConnectionState } from '@shared/ssh';
 import { stateLabel } from './ssh-connection-formatters';
 
 export function SshStateBadge({ state }: { state: ConnectionState }) {
@@ -12,14 +12,14 @@ export function SshStateBadge({ state }: { state: ConnectionState }) {
       variant={isError ? 'destructive' : 'secondary'}
       className={cn(
         'gap-1.5',
-        isActive && 'text-emerald-700 dark:text-emerald-400',
+        isActive && 'text-foreground-success',
         state === 'disconnected' && 'text-foreground-muted'
       )}
     >
       <span
         className={cn(
           'size-1.5 rounded-full bg-foreground-muted',
-          isActive && 'bg-emerald-500',
+          isActive && 'bg-foreground-success',
           isError && 'bg-destructive'
         )}
       />

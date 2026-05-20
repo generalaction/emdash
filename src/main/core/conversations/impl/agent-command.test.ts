@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { providerConfigDefaults } from '@main/core/settings/schema';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 import type { ProviderCustomConfig } from '@shared/app-settings';
-import { providerConfigDefaults } from '@main/core/settings/schema';
 import { buildAgentCommand } from './agent-command';
 
 function makeConfig(overrides: Partial<ProviderCustomConfig> = {}): ProviderCustomConfig {
@@ -122,6 +122,7 @@ describe('buildAgentCommand', () => {
     resumeArgs: string[];
   }>([
     { providerId: 'cursor', freshArgs: ['Fix the bug'], resumeArgs: ['--resume'] },
+    { providerId: 'grok', freshArgs: [], resumeArgs: ['-r'] },
     { providerId: 'opencode', freshArgs: [], resumeArgs: ['--continue'] },
     { providerId: 'copilot', freshArgs: ['Fix the bug'], resumeArgs: ['--resume'] },
     {

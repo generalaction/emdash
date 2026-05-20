@@ -1,4 +1,4 @@
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// oxlint-disable-next-line typescript/no-explicit-any
 type HookSchema = Record<string, (...args: any[]) => void | Promise<void>>;
 
 export interface Hookable<T extends HookSchema> {

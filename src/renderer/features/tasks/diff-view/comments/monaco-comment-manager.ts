@@ -2,16 +2,21 @@ import type * as monaco from 'monaco-editor';
 import React from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { DraftComment } from '../stores/draft-comments-store';
+import { AddCommentButton } from './add-comment-button';
 import { CommentInput } from './comment-input';
 import { CommentWidget } from './comment-widget';
 
-const GUTTER_GLYPH_MARGIN = 2;
 const COMMENT_ZONE_HEIGHT_PX = 140 + 24;
 
 interface MonacoCommentManagerOptions {
   onAddComment: (lineNumber: number, content: string, lineContent?: string) => void | Promise<void>;
   onEditComment: (id: string, content: string) => void | Promise<void>;
   onDeleteComment: (id: string) => void | Promise<void>;
+}
+
+interface GlyphWidgetHandle {
+  widget: monaco.editor.IGlyphMarginWidget;
+  root: Root;
 }
 
 export class MonacoCommentManager {
@@ -24,9 +29,10 @@ export class MonacoCommentManager {
   > = new Map();
 
   private decorationIds: string[] = [];
-  private hoverDecorationIds: string[] = [];
-  private pinnedDecorationIds: string[] = [];
   private hoveredLine: number | null = null;
+
+  private hoverWidgetHandle: GlyphWidgetHandle | null = null;
+  private pinnedWidgetHandle: GlyphWidgetHandle | null = null;
 
   private inputZoneId: string | null = null;
   private inputRoot: Root | null = null;
@@ -34,35 +40,49 @@ export class MonacoCommentManager {
   private activeInputLine: number | null = null;
 
   private disposed = false;
-  private gutterClickDisposable: monaco.IDisposable | null = null;
   private hoverMoveDisposable: monaco.IDisposable | null = null;
   private hoverLeaveDisposable: monaco.IDisposable | null = null;
 
   constructor(editor: monaco.editor.IStandaloneDiffEditor, options: MonacoCommentManagerOptions) {
     this.editor = editor;
     this.options = options;
-    this.setupGutterClickHandler();
     this.setupHoverHandler();
   }
 
-  private setupGutterClickHandler() {
+  private createGlyphWidget(
+    id: string,
+    lineNumber: number,
+    pinned: boolean,
+    onClick: () => void
+  ): GlyphWidgetHandle {
+    // oxlint-disable-next-line typescript/no-explicit-any
+    const m = (globalThis as any).__monaco as typeof monaco;
+    const domNode = document.createElement('div');
+    const root = createRoot(domNode);
+    root.render(React.createElement(AddCommentButton, { pinned, onClick }));
+
+    const widget: monaco.editor.IGlyphMarginWidget = {
+      getId: () => id,
+      getDomNode: () => domNode,
+      getPosition: () => ({
+        lane: m.editor.GlyphMarginLane.Right,
+        zIndex: 10,
+        range: {
+          startLineNumber: lineNumber,
+          startColumn: 1,
+          endLineNumber: lineNumber,
+          endColumn: 1,
+        },
+      }),
+    };
+
+    return { widget, root };
+  }
+
+  private removeGlyphWidgetHandle(handle: GlyphWidgetHandle): void {
     const modifiedEditor = this.editor.getModifiedEditor();
-
-    this.gutterClickDisposable = modifiedEditor.onMouseDown((e) => {
-      if (e.target.type !== GUTTER_GLYPH_MARGIN) return;
-      const targetElement = e.target.element;
-      if (!targetElement?.classList.contains('comment-hover-icon')) return;
-
-      const lineNumber = e.target.position?.lineNumber;
-      if (!lineNumber) return;
-
-      e.event?.preventDefault();
-      e.event?.stopPropagation();
-
-      const model = modifiedEditor.getModel();
-      const lineContent = model?.getLineContent(lineNumber) ?? '';
-      this.showInputAt(lineNumber, lineContent);
-    });
+    modifiedEditor.removeGlyphMarginWidget(handle.widget);
+    handle.root.unmount();
   }
 
   private setupHoverHandler() {
@@ -72,7 +92,7 @@ export class MonacoCommentManager {
       if (this.disposed) return;
       const targetElement = e.target.element as HTMLElement | null;
       if (targetElement?.closest?.('.comment-view-zone')) {
-        this.clearHoverDecoration();
+        this.clearHoverWidget();
         this.hoveredLine = null;
         return;
       }
@@ -81,73 +101,44 @@ export class MonacoCommentManager {
 
       if (lineNumber && lineNumber !== this.hoveredLine) {
         if (lineNumber === this.activeInputLine) {
-          this.clearHoverDecoration();
+          this.clearHoverWidget();
           this.hoveredLine = lineNumber;
           return;
         }
-        this.setHoverDecoration(lineNumber);
+        this.setHoverWidget(lineNumber);
         this.hoveredLine = lineNumber;
       } else if (!lineNumber && this.hoveredLine !== null) {
-        this.clearHoverDecoration();
+        this.clearHoverWidget();
         this.hoveredLine = null;
       }
     });
 
     this.hoverLeaveDisposable = modifiedEditor.onMouseLeave(() => {
       if (this.disposed) return;
-      this.clearHoverDecoration();
+      this.clearHoverWidget();
       this.hoveredLine = null;
     });
   }
 
-  private setHoverDecoration(lineNumber: number) {
+  private setHoverWidget(lineNumber: number): void {
     const modifiedEditor = this.editor.getModifiedEditor();
-
-    const decoration: monaco.editor.IModelDeltaDecoration = {
-      range: {
-        startLineNumber: lineNumber,
-        startColumn: 1,
-        endLineNumber: lineNumber,
-        endColumn: 1,
-      },
-      options: {
-        glyphMarginClassName: 'comment-hover-icon',
-      },
-    };
-
-    this.hoverDecorationIds = modifiedEditor.deltaDecorations(this.hoverDecorationIds, [
-      decoration,
-    ]);
+    if (this.hoverWidgetHandle) {
+      this.removeGlyphWidgetHandle(this.hoverWidgetHandle);
+      this.hoverWidgetHandle = null;
+    }
+    const handle = this.createGlyphWidget('comment-add-hover', lineNumber, false, () => {
+      const model = modifiedEditor.getModel();
+      const lineContent = model?.getLineContent(lineNumber) ?? '';
+      this.showInputAt(lineNumber, lineContent);
+    });
+    modifiedEditor.addGlyphMarginWidget(handle.widget);
+    this.hoverWidgetHandle = handle;
   }
 
-  private setPinnedDecoration(lineNumber: number) {
-    const modifiedEditor = this.editor.getModifiedEditor();
-
-    const decoration: monaco.editor.IModelDeltaDecoration = {
-      range: {
-        startLineNumber: lineNumber,
-        startColumn: 1,
-        endLineNumber: lineNumber,
-        endColumn: 1,
-      },
-      options: {
-        glyphMarginClassName: 'comment-hover-icon comment-hover-icon-pinned',
-      },
-    };
-
-    this.pinnedDecorationIds = modifiedEditor.deltaDecorations(this.pinnedDecorationIds, [
-      decoration,
-    ]);
-  }
-
-  private clearHoverDecoration() {
-    const modifiedEditor = this.editor.getModifiedEditor();
-    this.hoverDecorationIds = modifiedEditor.deltaDecorations(this.hoverDecorationIds, []);
-  }
-
-  private clearPinnedDecoration() {
-    const modifiedEditor = this.editor.getModifiedEditor();
-    this.pinnedDecorationIds = modifiedEditor.deltaDecorations(this.pinnedDecorationIds, []);
+  private clearHoverWidget(): void {
+    if (!this.hoverWidgetHandle) return;
+    this.removeGlyphWidgetHandle(this.hoverWidgetHandle);
+    this.hoverWidgetHandle = null;
   }
 
   setComments(comments: DraftComment[]) {
@@ -251,7 +242,13 @@ export class MonacoCommentManager {
 
     const modifiedEditor = this.editor.getModifiedEditor();
     this.activeInputLine = lineNumber;
-    this.setPinnedDecoration(lineNumber);
+
+    // Show pinned widget at the active input line
+    const pinnedHandle = this.createGlyphWidget('comment-add-pinned', lineNumber, true, () =>
+      this.showInputAt(lineNumber, lineContent)
+    );
+    modifiedEditor.addGlyphMarginWidget(pinnedHandle.widget);
+    this.pinnedWidgetHandle = pinnedHandle;
 
     this.inputDomNode = document.createElement('div');
     this.inputRoot = createRoot(this.inputDomNode);
@@ -317,22 +314,28 @@ export class MonacoCommentManager {
     this.inputRoot = null;
     this.inputDomNode = null;
     this.activeInputLine = null;
-    this.clearPinnedDecoration();
+
+    if (this.pinnedWidgetHandle) {
+      this.removeGlyphWidgetHandle(this.pinnedWidgetHandle);
+      this.pinnedWidgetHandle = null;
+    }
   }
 
   dispose() {
     this.disposed = true;
 
-    this.gutterClickDisposable?.dispose();
     this.hoverMoveDisposable?.dispose();
     this.hoverLeaveDisposable?.dispose();
+
+    if (this.hoverWidgetHandle) {
+      this.removeGlyphWidgetHandle(this.hoverWidgetHandle);
+      this.hoverWidgetHandle = null;
+    }
 
     this.hideInput();
 
     const modifiedEditor = this.editor.getModifiedEditor();
     this.decorationIds = modifiedEditor.deltaDecorations(this.decorationIds, []);
-    this.hoverDecorationIds = modifiedEditor.deltaDecorations(this.hoverDecorationIds, []);
-    this.pinnedDecorationIds = modifiedEditor.deltaDecorations(this.pinnedDecorationIds, []);
 
     modifiedEditor.changeViewZones((accessor) => {
       for (const zone of this.viewZoneRoots.values()) {

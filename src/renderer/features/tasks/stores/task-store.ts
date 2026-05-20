@@ -1,9 +1,16 @@
 import { makeAutoObservable, observable, runInAction } from 'mobx';
-import type { Issue, Task, TaskLifecycleStatus } from '@shared/tasks';
 import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
 import { DraftCommentsStore } from '@renderer/features/tasks/diff-view/stores/draft-comments-store';
 import { rpc } from '@renderer/lib/ipc';
 import { log } from '@renderer/utils/logger';
+import { err, type Result } from '@shared/result';
+import type {
+  Issue,
+  RenameTaskError,
+  RenameTaskSuccess,
+  Task,
+  TaskLifecycleStatus,
+} from '@shared/tasks';
 import { conversationRegistry } from './conversation-registry';
 import { workspaceRegistry } from './workspace-registry';
 import { WorkspaceViewModel } from './workspace-view-model';
@@ -174,19 +181,19 @@ export class TaskStore {
     return (this.data as Task).conversations;
   }
 
-  async rename(name: string): Promise<void> {
-    if (this.state !== 'provisioned') return;
+  async rename(name: string): Promise<Result<RenameTaskSuccess, RenameTaskError>> {
     const task = registeredTaskData(this);
-    if (!task) return;
+    if (!task) return err({ type: 'task-not-found', taskId: this.data.id });
     try {
-      await rpc.tasks.renameTask(task.projectId, task.id, name);
+      const result = await rpc.tasks.renameTask(task.projectId, task.id, name);
+      if (!result.success) {
+        return result;
+      }
       runInAction(() => {
         this.data.name = name;
       });
+      return result;
     } catch (e) {
-      runInAction(() => {
-        this.data.name = task.name;
-      });
       log.error(e);
       throw e;
     }

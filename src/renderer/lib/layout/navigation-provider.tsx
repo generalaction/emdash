@@ -8,6 +8,8 @@ import {
 } from '@renderer/app/view-registry';
 import { appState } from '@renderer/lib/stores/app-state';
 
+export type NonSettingsViewId = Exclude<ViewId, 'settings'>;
+
 /**
  * NavArgs makes the params argument optional when all fields are optional,
  * and omits it entirely for views with no params (home, skills).
@@ -30,7 +32,8 @@ export type SlotsContextValue = {
   WrapView: ComponentType<{ children: ReactNode } & Record<string, unknown>>;
   TitlebarSlot: ComponentType;
   MainPanel: ComponentType;
-  currentView: string;
+  currentView: ViewId;
+  lastNonSettingsView: NonSettingsViewId;
 };
 
 export type WrapParamsContextValue = {
@@ -52,16 +55,18 @@ export function useNavigate(): { navigate: NavigateFnTyped } {
 export function useWorkspaceSlots(): SlotsContextValue {
   return useObserver(() => {
     const viewId = appState.navigation.currentViewId;
-    const def = (views as unknown as Record<string, ViewDefinition<Record<string, unknown>>>)[
-      viewId
-    ];
+    const registry = views as unknown as Record<string, ViewDefinition<Record<string, unknown>>>;
+    const viewDef = registry[viewId];
+    const def = viewDef ?? registry.home;
+    const resolvedViewId = viewDef ? viewId : 'home';
     return {
       WrapView: (def.WrapView ?? Fragment) as ComponentType<
         { children: ReactNode } & Record<string, unknown>
       >,
       TitlebarSlot: def.TitlebarSlot ?? (() => null),
       MainPanel: def.MainPanel,
-      currentView: viewId,
+      currentView: resolvedViewId,
+      lastNonSettingsView: appState.navigation.lastNonSettingsView,
     };
   });
 }

@@ -1,5 +1,11 @@
 import crypto from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
+import { projectManager } from '@main/core/projects/project-manager';
+import { taskEvents } from '@main/core/tasks/task-events';
+import { taskManager } from '@main/core/tasks/task-manager';
+import { db } from '@main/db/client';
+import { tasks, workspaces } from '@main/db/schema';
+import { telemetryService } from '@main/lib/telemetry';
 import { resolveAgentAutoApprove } from '@shared/agent-auto-approve-defaults';
 import { err, ok, type Result } from '@shared/result';
 import type {
@@ -9,12 +15,6 @@ import type {
   CreateTaskWarning,
   TaskLifecycleStatus,
 } from '@shared/tasks';
-import { projectManager } from '@main/core/projects/project-manager';
-import { taskEvents } from '@main/core/tasks/task-events';
-import { taskManager } from '@main/core/tasks/task-manager';
-import { db } from '@main/db/client';
-import { tasks, workspaces } from '@main/db/schema';
-import { telemetryService } from '@main/lib/telemetry';
 import { createConversation } from '../../conversations/createConversation';
 import { prQueryService } from '../../pull-requests/pr-query-service';
 import { appSettingsService } from '../../settings/settings-service';
@@ -45,7 +45,6 @@ export async function createTask(
 ): Promise<Result<CreateTaskSuccess, CreateTaskError>> {
   const { strategy } = params;
   const suffix = Math.random().toString(36).slice(2, 7);
-  const branchPrefix = (await appSettingsService.get('project')).branchPrefix ?? '';
   const agentAutoApproveDefaults = await appSettingsService.get('agentAutoApproveDefaults');
   let warning: CreateTaskWarning | undefined;
 
@@ -53,6 +52,9 @@ export async function createTask(
   if (!project) {
     return err({ type: 'project-not-found' });
   }
+  const projectDefaults = await appSettingsService.get('project');
+  const branchPrefix = projectDefaults.branchPrefix ?? '';
+  const appendRandomSuffix = projectDefaults.appendRandomBranchSuffix ?? true;
   const { baseRemote, pushRemote } = await project.repository.getConfiguredRemotes();
 
   // Determines what gets stored as taskBranch in the DB and how the worktree is prepared.
@@ -67,6 +69,7 @@ export async function createTask(
         rawBranch,
         branchPrefix,
         suffix,
+        appendRandomSuffix,
         linkedIssue: params.linkedIssue,
       });
       const repoInfo = await project.repository.getRepositoryInfo();
@@ -108,7 +111,9 @@ export async function createTask(
     case 'from-pull-request': {
       // If the head branch is already checked out in a valid worktree, skip the fetch.
       // Git refuses to update a branch that is currently checked out, even with --force.
-      const existingWorktree = await project.getWorktreeForBranch(strategy.headBranch);
+      const existingWorktree = await project.worktreeService.findBranchAnywhere(
+        strategy.headBranch
+      );
 
       if (!existingWorktree) {
         // Fetch the PR head — handles same-repo and fork PRs.
@@ -139,6 +144,7 @@ export async function createTask(
           rawBranch,
           branchPrefix,
           suffix,
+          appendRandomSuffix,
         });
         const createResult = await project.repository.createBranch(
           taskBranch,

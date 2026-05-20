@@ -192,7 +192,7 @@ export function AddRemoteModal({
                     render={
                       <button className="flex h-9 w-full min-w-0 items-center justify-between rounded-md border border-border px-2.5 py-1 text-left text-sm outline-none">
                         <ComboboxValue />
-                        <ChevronsUpDownIcon className="size-4 shrink-0 text-muted-foreground" />
+                        <ChevronsUpDownIcon className="text-muted-foreground size-4 shrink-0" />
                       </button>
                     }
                   />
@@ -209,14 +209,14 @@ export function AddRemoteModal({
                 value={visibility}
                 onValueChange={(v) => setVisibility(v as 'public' | 'private')}
               >
-                <div className="flex items-center gap-3">
+                <Label className="flex cursor-pointer items-center gap-3 font-normal">
                   <RadioGroupItem value="private" />
-                  <Label className="cursor-pointer font-normal">Private</Label>
-                </div>
-                <div className="flex items-center gap-3">
+                  Private
+                </Label>
+                <Label className="flex cursor-pointer items-center gap-3 font-normal">
                   <RadioGroupItem value="public" />
-                  <Label className="cursor-pointer font-normal">Public</Label>
-                </div>
+                  Public
+                </Label>
               </RadioGroup>
             </Field>
           </FieldGroup>
@@ -236,7 +236,7 @@ export function AddRemoteModal({
           </FieldGroup>
         )}
 
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        {error && <p className="text-destructive text-sm">{error}</p>}
       </DialogContentArea>
     </ModalLayout>
   );

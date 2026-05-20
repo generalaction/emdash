@@ -3,11 +3,12 @@ import { AGENT_PROVIDER_IDS, AGENT_PROVIDERS } from '@shared/agent-provider-regi
 import { openInAppIdSchema } from '@shared/openInApps';
 import { APP_SHORTCUTS } from '@shared/shortcuts';
 import { TERMINAL_FONT_SIZE_MAX, TERMINAL_FONT_SIZE_MIN } from '@shared/terminal-settings';
-import { DEFAULT_AGENT_ID, DEFAULT_REVIEW_PROMPT } from './settings-registry';
+import { DEFAULT_AGENT_ID } from './settings-registry';
 
 export const projectSettingsSchema = z.object({
   pushOnCreate: z.boolean(),
   branchPrefix: z.string(),
+  appendRandomBranchSuffix: z.boolean(),
   tmuxByDefault: z.boolean(),
 });
 
@@ -20,6 +21,7 @@ export const localProjectSettingsSchema = z.object({
 export const notificationSettingsSchema = z.object({
   enabled: z.boolean(),
   sound: z.boolean(),
+  customSoundPath: z.string(),
   osNotifications: z.boolean(),
   soundFocusMode: z.enum(['always', 'unfocused']),
 });
@@ -48,8 +50,6 @@ export const themeSchema = z
   .default(null);
 
 export const defaultAgentSchema = z.optional(z.enum(AGENT_PROVIDER_IDS)).default(DEFAULT_AGENT_ID);
-
-export const reviewPromptSchema = z.string().default(DEFAULT_REVIEW_PROMPT);
 
 export const keyboardSettingsSchema = z
   .optional(
@@ -110,7 +110,6 @@ export const APP_SETTINGS_SCHEMA_MAP = {
   tasks: taskSettingsSchema,
   agentAutoApproveDefaults: agentAutoApproveDefaultsSchema,
   defaultAgent: defaultAgentSchema,
-  reviewPrompt: reviewPromptSchema,
   keyboard: keyboardSettingsSchema,
   notifications: notificationSettingsSchema,
   theme: themeSchema,
@@ -127,7 +126,6 @@ export const appSettingsSchema = z.object({
   tasks: taskSettingsSchema,
   agentAutoApproveDefaults: agentAutoApproveDefaultsSchema,
   defaultAgent: defaultAgentSchema,
-  reviewPrompt: reviewPromptSchema,
   keyboard: keyboardSettingsSchema,
   notifications: notificationSettingsSchema,
   theme: themeSchema,

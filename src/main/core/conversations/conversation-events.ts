@@ -1,6 +1,7 @@
-import type { Conversation } from '@shared/conversations';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
+import type { AgentProviderId } from '@shared/agent-provider-registry';
+import type { Conversation } from '@shared/conversations';
 
 export type ConversationCrudHooks = {
   'conversation:created': (conversation: Conversation) => void | Promise<void>;
@@ -11,6 +12,12 @@ export type ConversationCrudHooks = {
     newTitle: string
   ) => void | Promise<void>;
   'conversation:deleted': (conversationId: string) => void | Promise<void>;
+  'conversation:input-submitted': (params: {
+    projectId: string;
+    taskId: string;
+    conversationId: string;
+    providerId: AgentProviderId;
+  }) => void | Promise<void>;
 };
 
 class ConversationEvents implements Hookable<ConversationCrudHooks> {

@@ -10,6 +10,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const toolingInstall = spawnSync('npm', ['install', '--prefix', 'tooling/node-deps'], {
   stdio: 'inherit',
   cwd: path.resolve(__dirname, '..'),
+  shell: process.platform === 'win32',
 });
 if (toolingInstall.error) {
   console.error(

@@ -1,14 +1,14 @@
 import { type Terminal } from '@xterm/xterm';
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
+import { events, rpc } from '@renderer/lib/ipc';
+import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
+import { log } from '@renderer/utils/logger';
 import type { AppSettings } from '@shared/app-settings';
 import { appPasteChannel } from '@shared/events/appEvents';
 import { ptyDataChannel, ptyExitChannel } from '@shared/events/ptyEvents';
 import { TERMINAL_FONT_SIZE_DEFAULT } from '@shared/terminal-settings';
-import { events, rpc } from '@renderer/lib/ipc';
-import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
-import { log } from '@renderer/utils/logger';
 import { usePaneSizingContext } from './pane-sizing-context';
-import { buildTheme, type FrontendPty, type SessionTheme } from './pty';
+import type { FrontendPty, SessionTheme } from './pty';
 import { measureDimensions } from './pty-dimensions';
 import { isRealTaskInput, SubmittedInputBuffer } from './pty-input-buffer';
 import {
@@ -249,10 +249,12 @@ export function usePty(
   const measureAndResizeRef = useRef(measureAndResize);
   measureAndResizeRef.current = measureAndResize;
 
-  const applyTheme = useCallback((t?: SessionTheme) => {
-    if (!termRef.current) return;
-    termRef.current.options.theme = buildTheme(t);
-  }, []);
+  const applyTheme = useCallback(
+    (t?: SessionTheme) => {
+      pty.setTheme(t);
+    },
+    [pty]
+  );
 
   const setTheme = useCallback(
     (t: SessionTheme) => {
@@ -336,7 +338,7 @@ export function usePty(
 
       // Apply current theme before mounting (in case it differs from the
       // theme the terminal was constructed with).
-      frontendPty.terminal.options.theme = buildTheme(themeRef.current);
+      frontendPty.setTheme(themeRef.current);
 
       // Mount: pre-resize then appendChild (flash-free).
       frontendPty.mount(container as HTMLElement, targetDims);
@@ -625,7 +627,7 @@ export function usePty(
       inputBufferRef.current = '';
       submittedInputBufferRef.current = new SubmittedInputBuffer();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [sessionId, pty]); // Re-run only when the session changes
 
   // ── Theme update (after initial mount) ──────────────────────────────────────

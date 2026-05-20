@@ -5,7 +5,7 @@ import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
 import { formatProvisionTaskError } from '@main/core/tasks/provision-task-error';
 import { taskManager, type WorkspaceHint } from '@main/core/tasks/task-manager';
 import { mapTerminalRowToTerminal } from '@main/core/terminals/core';
-import { computeWorkspaceKey } from '@main/core/workspaces/workspace-key';
+import { workspaceBootstrapService } from '@main/core/workspaces/workspace-bootstrap-service';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { db } from '@main/db/client';
 import { conversations, tasks, terminals, workspaces } from '@main/db/schema';
@@ -89,15 +89,12 @@ export async function provisionTask(taskId: string) {
       project.defaultWorkspaceType.kind === 'ssh'
         ? project.defaultWorkspaceType.connectionId
         : undefined;
-    const key =
-      workspaceRow.type !== 'byoi'
-        ? computeWorkspaceKey(workspaceRow.type, workspacePath, connectionId)
-        : null;
-
-    await db
-      .update(workspaces)
-      .set({ path: workspacePath, key, updatedAt: sql`CURRENT_TIMESTAMP` })
-      .where(eq(workspaces.id, workspaceRow.id));
+    await workspaceBootstrapService.persistPath(
+      workspaceRow.id,
+      workspacePath,
+      workspaceRow.type,
+      connectionId
+    );
   }
 
   if (workspaceRow.type === 'byoi' && persistData.workspaceProviderData) {

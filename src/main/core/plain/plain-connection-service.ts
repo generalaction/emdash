@@ -5,9 +5,9 @@ import {
   PlainError,
   RateLimitError,
 } from '@team-plain/graphql';
-import { ISSUE_PROVIDER_CAPABILITIES, type ConnectionStatus } from '@shared/issue-providers';
 import { encryptedAppSecretsStore } from '@main/core/secrets/encrypted-app-secrets-store';
 import { log } from '@main/lib/logger';
+import { ISSUE_PROVIDER_CAPABILITIES, type ConnectionStatus } from '@shared/issue-providers';
 
 const NOT_CONFIGURED_ERROR = 'Plain is not configured. Connect Plain in settings.';
 

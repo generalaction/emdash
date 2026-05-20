@@ -1,9 +1,9 @@
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal, type ITerminalOptions } from '@xterm/xterm';
-import { ptyDataChannel } from '@shared/events/ptyEvents';
 import { events, rpc } from '@renderer/lib/ipc';
 import { cssVar } from '@renderer/utils/cssVars';
 import { log } from '@renderer/utils/logger';
+import { ptyDataChannel } from '@shared/events/ptyEvents';
 import { ensureXtermHost } from './xterm-host';
 
 const SCROLLBACK_LINES = 100_000;
@@ -55,6 +55,7 @@ export class FrontendPty {
   static readonly all = new Set<FrontendPty>();
   readonly terminal: Terminal;
   readonly ownedContainer: HTMLDivElement;
+  private theme?: SessionTheme;
   private offData: (() => void) | null = null;
   /** Last { cols, rows } sent to rpc.pty.resize(). Used by PaneSizingContext to skip redundant IPC calls. */
   lastSentDims: { cols: number; rows: number } | null = null;
@@ -63,6 +64,7 @@ export class FrontendPty {
     readonly sessionId: string,
     theme?: SessionTheme
   ) {
+    this.theme = theme;
     this.ownedContainer = document.createElement('div');
     Object.assign(this.ownedContainer.style, {
       width: '100%',
@@ -109,6 +111,15 @@ export class FrontendPty {
 
     ensureXtermHost().appendChild(this.ownedContainer);
     FrontendPty.all.add(this);
+  }
+
+  setTheme(theme?: SessionTheme): void {
+    this.theme = theme;
+    this.terminal.options.theme = buildTheme(theme);
+  }
+
+  refreshTheme(): void {
+    this.terminal.options.theme = buildTheme(this.theme);
   }
 
   /**
@@ -188,9 +199,12 @@ export class FrontendPty {
 
 /** Apply a theme to all live terminals. Called on app-level theme change. */
 export function applyThemeToAll(theme?: SessionTheme): void {
-  const xTermTheme = buildTheme(theme);
   for (const pty of FrontendPty.all) {
-    pty.terminal.options.theme = xTermTheme;
+    if (theme) {
+      pty.setTheme(theme);
+    } else {
+      pty.refreshTheme();
+    }
   }
 }
 

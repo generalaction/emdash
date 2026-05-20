@@ -1,4 +1,6 @@
 import { RequestError } from '@octokit/request-error';
+import { log } from '@main/lib/logger';
+import { telemetryService } from '@main/lib/telemetry';
 import { createRPCController } from '@shared/ipc/rpc';
 import type {
   ListPrOptions,
@@ -7,8 +9,6 @@ import type {
   PullRequestFile,
 } from '@shared/pull-requests';
 import { err, ok } from '@shared/result';
-import { log } from '@main/lib/logger';
-import { telemetryService } from '@main/lib/telemetry';
 import { prQueryService } from './pr-query-service';
 import { prSyncEngine } from './pr-sync-engine';
 

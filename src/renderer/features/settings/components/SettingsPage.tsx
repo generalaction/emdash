@@ -1,7 +1,7 @@
 import { ExternalLink } from 'lucide-react';
 import React, { useCallback } from 'react';
+import { PageHeader } from '@renderer/lib/components/page-header';
 import { rpc } from '@renderer/lib/ipc';
-import { Separator } from '@renderer/lib/ui/separator';
 import { cn } from '@renderer/utils/utils';
 import { AccountTab } from './AccountTab';
 import { CliAgentsList } from './CliAgentsList';
@@ -12,7 +12,6 @@ import KeyboardSettingsCard from './KeyboardSettingsCard';
 import NotificationSettingsCard from './NotificationSettingsCard';
 import RepositorySettingsCard from './RepositorySettingsCard';
 import ResourceMonitorSettingsCard from './ResourceMonitorSettingsCard';
-import { ReviewPromptResetButton, ReviewPromptSettingsCard } from './ReviewPromptSettingsCard';
 import { SshConnectionsSettingsCard } from './SshConnectionsSettingsCard';
 import {
   AutoGenerateTaskNamesRow,
@@ -109,14 +108,9 @@ export function SettingsPage({
       sections: [
         { component: <DefaultAgentSettingsCard /> },
         {
-          title: 'Review Prompt',
-          action: <ReviewPromptResetButton />,
-          component: <ReviewPromptSettingsCard />,
-        },
-        {
           title: 'CLI agents',
           component: (
-            <div className="rounded-xl border border-border/60 bg-muted/10 p-2">
+            <div className="bg-muted/10 rounded-xl border border-border/60 p-2">
               <CliAgentsList />
             </div>
           ),
@@ -192,13 +186,7 @@ export function SettingsPage({
           {currentContent && (
             <div className="min-h-0 min-w-0 flex-1 justify-center overflow-x-hidden overflow-y-auto">
               <div className="mx-auto w-full max-w-4xl space-y-8 px-1 py-10">
-                <div className="flex flex-col gap-6">
-                  <div className="flex flex-col gap-1">
-                    <h2 className="text-xl">{currentContent.title}</h2>
-                    <p className="text-sm text-foreground-muted">{currentContent.description}</p>
-                  </div>
-                  <Separator />
-                </div>
+                <PageHeader title={currentContent.title} description={currentContent.description} />
                 {currentContent.sections.map((section) => (
                   <div key={section.title} className="flex flex-col gap-3">
                     {section.title && (

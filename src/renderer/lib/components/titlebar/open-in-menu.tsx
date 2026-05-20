@@ -1,7 +1,6 @@
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { ChevronDown } from 'lucide-react';
 import React, { useCallback, useMemo } from 'react';
-import { getAppById, isValidOpenInAppId, type OpenInAppId } from '@shared/openInApps';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import {
@@ -11,9 +10,10 @@ import {
 import { useOpenInApps } from '@renderer/lib/hooks/useOpenInApps';
 import { rpc } from '@renderer/lib/ipc';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/ui/select';
-import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
+import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
+import { getAppById, isValidOpenInAppId, type OpenInAppId } from '@shared/openInApps';
 
 interface OpenInMenuProps {
   path: string;
@@ -106,7 +106,7 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, className, borderl
     >
       <TooltipProvider delay={0}>
         <Tooltip>
-          <TooltipTrigger className="flex-1 flex min-w-0">
+          <TooltipTrigger className="flex min-w-0 flex-1">
             <button
               type="button"
               className={cn(
@@ -134,7 +134,7 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, className, borderl
           <TooltipContent side="bottom">
             <div className="flex flex-col gap-1">
               <span>Open in {buttonAppLabel || 'editor'}</span>
-              <ShortcutHint settingsKey="openInEditor" />
+              <BoundShortcut settingsKey="openInEditor" variant="badge" />
             </div>
           </TooltipContent>
         </Tooltip>
@@ -152,7 +152,7 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, className, borderl
             render={
               <SelectTrigger
                 showChevron={false}
-                className="group shrink-0 size-6 border-none bg-transparent flex items-center justify-center transition-colors hover:bg-background-1 hover:text-foreground"
+                className="group flex size-6 shrink-0 items-center justify-center border-none bg-transparent transition-colors hover:bg-background-1 hover:text-foreground"
                 aria-label="Open in options"
               >
                 <ChevronDown className="size-3.5" />

@@ -1,3 +1,10 @@
+import {
+  type pullRequestAssignees,
+  type pullRequestChecks,
+  type pullRequestLabels,
+  type pullRequests,
+  type pullRequestUsers,
+} from '@main/db/schema';
 import type {
   Label,
   MergeableState,
@@ -7,13 +14,6 @@ import type {
   PullRequestStatus,
   PullRequestUser,
 } from '@shared/pull-requests';
-import {
-  type pullRequestAssignees,
-  type pullRequestChecks,
-  type pullRequestLabels,
-  type pullRequests,
-  type pullRequestUsers,
-} from '@main/db/schema';
 
 export type PrRow = typeof pullRequests.$inferSelect;
 export type PrUserRow = typeof pullRequestUsers.$inferSelect;

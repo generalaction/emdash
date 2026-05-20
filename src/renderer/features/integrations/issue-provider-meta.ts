@@ -1,3 +1,4 @@
+import asanaLogo from '@/assets/images/Asana.svg';
 import featurebaseLogo from '@/assets/images/Featurebase.svg';
 import forgejoLogo from '@/assets/images/Forgejo.svg';
 import githubLogo from '@/assets/images/github.png';
@@ -12,6 +13,7 @@ export const ISSUE_PROVIDER_ORDER: IssueProviderType[] = [
   'github',
   'jira',
   'gitlab',
+  'asana',
   'forgejo',
   'featurebase',
   'plain',
@@ -28,6 +30,7 @@ export const ISSUE_PROVIDER_META: Record<
   github: { displayName: 'GitHub', logo: githubLogo },
   jira: { displayName: 'Jira', logo: jiraLogo },
   gitlab: { displayName: 'GitLab', logo: gitlabLogo },
+  asana: { displayName: 'Asana', logo: asanaLogo },
   forgejo: { displayName: 'Forgejo', logo: forgejoLogo },
   featurebase: { displayName: 'Featurebase', logo: featurebaseLogo },
   plain: { displayName: 'Plain', logo: plainLogo },

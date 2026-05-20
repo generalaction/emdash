@@ -1,4 +1,6 @@
 import { computed, makeObservable, reaction } from 'mobx';
+import { events, rpc } from '@renderer/lib/ipc';
+import { Resource } from '@renderer/lib/stores/resource';
 import { gitRefChangedChannel, type GitRefChange } from '@shared/events/gitEvents';
 import type {
   Branch,
@@ -15,8 +17,6 @@ import {
   type ConfiguredRemotes,
 } from '@shared/git-utils';
 import { parseGitHubRepository } from '@shared/github-repository';
-import { events, rpc } from '@renderer/lib/ipc';
-import { Resource } from '@renderer/lib/stores/resource';
 import type { ProjectSettingsStore } from './project-settings-store';
 
 export class RepositoryStore {

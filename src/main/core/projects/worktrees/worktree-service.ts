@@ -1,11 +1,11 @@
 import { promises as fsPromises } from 'node:fs';
 import path from 'node:path';
-import type { Branch } from '@shared/git';
-import { DEFAULT_REMOTE_NAME } from '@shared/git-utils';
-import { err, ok, type Result } from '@shared/result';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { log } from '@main/lib/logger';
+import type { Branch } from '@shared/git';
+import { DEFAULT_REMOTE_NAME } from '@shared/git-utils';
+import { err, ok, type Result } from '@shared/result';
 import { getEffectiveTaskSettings } from '../settings/effective-task-settings';
 import type { ProjectSettingsProvider } from '../settings/provider';
 import type { WorktreeHost } from './hosts/worktree-host';
@@ -338,3 +338,15 @@ export class WorktreeService {
     }
   }
 }
+
+/**
+ * The subset of WorktreeService methods required by WorkspaceBootstrapService.
+ * Using Pick keeps signatures in sync automatically.
+ */
+export type WorktreeBootstrapOps = Pick<
+  WorktreeService,
+  | 'existsAtAbsolutePath'
+  | 'findBranchAnywhere'
+  | 'checkoutExistingBranch'
+  | 'checkoutBranchWorktree'
+>;

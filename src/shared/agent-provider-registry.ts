@@ -1,6 +1,7 @@
 export const AGENT_PROVIDER_IDS = [
   'codex',
   'claude',
+  'grok',
   'devin',
   'qwen',
   'droid',
@@ -113,6 +114,23 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     supportsHooks: true,
   },
   {
+    id: 'grok',
+    name: 'Grok',
+    description:
+      "xAI's Grok CLI for terminal-first coding sessions with plans, subagents, and parallel work.",
+    docUrl: 'https://x.ai/cli',
+    installCommand: 'curl -fsSL https://x.ai/cli/install.sh | bash',
+    commands: ['grok'],
+    versionArgs: ['--version'],
+    cli: 'grok',
+    autoApproveFlag: '--always-approve',
+    useKeystrokeInjection: true,
+    resumeFlag: '-r',
+    icon: 'xai.svg',
+    alt: 'Grok CLI',
+    terminalOnly: true,
+  },
+  {
     id: 'devin',
     name: 'Devin',
     description:
@@ -196,6 +214,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'droid.svg',
     alt: 'Factory Droid',
     terminalOnly: true,
+    supportsHooks: true,
   },
   {
     id: 'amp',
@@ -363,6 +382,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     versionArgs: ['--version'],
     cli: 'kiro-cli',
     defaultArgs: ['chat'],
+    autoApproveFlag: '--trust-all-tools',
     initialPromptFlag: '',
     icon: 'kiro.png',
     alt: 'Kiro CLI',
