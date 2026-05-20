@@ -1,4 +1,5 @@
 import ampcodeIcon from '@/assets/images/ampcode.png';
+import antigravityIcon from '@/assets/images/antigravity.png';
 import atlassianIcon from '@/assets/images/atlassian.png';
 import augmentcodeIcon from '@/assets/images/Auggie.svg?raw';
 import autohandIcon from '@/assets/images/autohand.svg?raw';
@@ -37,6 +38,7 @@ const ICONS: Record<string, string> = {
   'opencode.png': opencodeIcon,
   'ampcode.png': ampcodeIcon,
   'openai.svg': openaiIcon,
+  'antigravity.png': antigravityIcon,
   'claude.png': claudeIcon,
   'droid.svg': factorydroidIcon,
   'gemini.png': geminiIcon,
