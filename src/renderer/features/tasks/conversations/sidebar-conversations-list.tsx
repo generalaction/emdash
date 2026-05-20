@@ -87,7 +87,7 @@ const ConversationRow = observer(function ConversationRow({
       <div className="flex h-full w-full items-center px-2">
         <input
           ref={handleRenameInputRef}
-          className="w-full rounded bg-background-1 px-1.5 py-0.5 text-sm text-foreground outline-none ring-1 ring-foreground/20 focus:ring-foreground/40"
+          className="w-full rounded bg-background-1 px-1.5 py-0.5 text-sm text-foreground ring-1 ring-foreground/20 outline-none focus:ring-foreground/40"
           defaultValue={rawTitle}
           onBlur={(e) => {
             const value = e.target.value.trim();
@@ -143,7 +143,7 @@ const ConversationRow = observer(function ConversationRow({
             ) : (
               <RelativeTime
                 value={conversation.data.lastInteractedAt ?? ''}
-                className="text-xs text-foreground-passive font-mono pr-1 h-full flex items-center"
+                className="flex h-full items-center pr-1 font-mono text-xs text-foreground-passive"
                 compact
               />
             )}
@@ -199,8 +199,8 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
   };
 
   return (
-    <div className="flex h-full flex-col w-full">
-      <div className="shrink-0 pl-4 pr-2 pt-2 pb-1 flex items-center justify-between">
+    <div className="flex h-full w-full flex-col">
+      <div className="flex shrink-0 items-center justify-between pt-2 pr-2 pb-1 pl-4">
         <MicroLabel>Conversations</MicroLabel>
         <Button size="icon-sm" variant="ghost" onClick={handleCreate}>
           <Plus className="size-3.5" />

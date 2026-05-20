@@ -1,11 +1,11 @@
-import type { AgentSessionConfig } from '@shared/agent-session';
-import type { GeneralSessionConfig } from '@shared/general-session';
 import {
   buildRemoteShellCommand,
   FALLBACK_REMOTE_SHELL_PROFILE,
   type RemoteShellProfile,
 } from '@main/core/ssh/remote-shell-profile';
 import { quoteShellArg } from '@main/utils/shellEscape';
+import type { AgentSessionConfig } from '@shared/agent-session';
+import type { GeneralSessionConfig } from '@shared/general-session';
 import { buildTmuxShellLine } from './tmux-session-name';
 
 export type SessionType = 'agent' | 'general';

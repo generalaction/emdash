@@ -44,7 +44,7 @@ function TaskVirtualList({
   return (
     <div
       ref={parentRef}
-      className="overflow-y-auto min-h-0 flex-1 py-3"
+      className="min-h-0 flex-1 overflow-y-auto py-3"
       style={{ scrollbarWidth: 'none' }}
     >
       <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
@@ -96,7 +96,7 @@ function SelectionBar({
 
   return (
     <ListPopoverCard className="justify-between">
-      <span className="text-foreground-muted whitespace-nowrap">{count} selected</span>
+      <span className="whitespace-nowrap text-foreground-muted">{count} selected</span>
       <div className="flex items-center gap-2">
         {tab === 'active' && (
           <Button variant="outline" size="sm" onClick={onArchive}>
@@ -179,8 +179,8 @@ export const TaskList = observer(function TaskList() {
 
   return (
     <div className="relative flex h-full min-h-0 w-full flex-col">
-      <div className="flex flex-col gap-4 border-b border-border pb-3 shrink-0">
-        <div className="flex items-center gap-2 flex-wrap justify-between">
+      <div className="flex shrink-0 flex-col gap-4 border-b border-border pb-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <ToggleGroup
             multiple={false}
             value={[taskView.tab]}

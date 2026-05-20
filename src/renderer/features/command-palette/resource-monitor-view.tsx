@@ -1,12 +1,12 @@
 import { Activity, ArrowLeft, Check, Copy, Folder, GitBranch } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { ResourceAppProcess, ResourceSnapshot } from '@shared/resource-monitor';
 import AgentLogo from '@renderer/lib/components/agent-logo';
 import { agentMeta } from '@renderer/lib/providers/meta';
 import { appState } from '@renderer/lib/stores/app-state';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { formatBytes } from '@renderer/utils/formatBytes';
+import type { ResourceAppProcess, ResourceSnapshot } from '@shared/resource-monitor';
 import {
   appProcessLabel,
   buildGroups,
@@ -93,7 +93,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 function Section({ heading, children }: { heading: string; children: ReactNode }) {
   return (
     <div className="flex flex-col">
-      <div className="px-2 pb-0.5 pt-2 text-[10px] font-medium uppercase tracking-wider text-foreground/40">
+      <div className="px-2 pt-2 pb-0.5 text-[10px] font-medium tracking-wider text-foreground/40 uppercase">
         {heading}
       </div>
       {children}
@@ -110,8 +110,8 @@ function ProcessRow({ process, cpuCount }: { process: ResourceAppProcess; cpuCou
       title={`pid ${process.pid}`}
     >
       <span className="truncate">{label}</span>
-      <span className="text-right tabular-nums text-foreground/50">{cpu.toFixed(1)}%</span>
-      <span className="text-right tabular-nums text-foreground/50">
+      <span className="text-right text-foreground/50 tabular-nums">{cpu.toFixed(1)}%</span>
+      <span className="text-right text-foreground/50 tabular-nums">
         {formatBytes(process.memory)}
       </span>
     </div>
@@ -126,7 +126,7 @@ const ProjectRow = observer(function ProjectRow({ group }: { group: Group }) {
         <span className="flex-1 truncate text-xs font-medium text-foreground">
           {group.projectName}
         </span>
-        <span className="text-[10px] tabular-nums text-foreground/40">{group.entryCount}</span>
+        <span className="text-[10px] text-foreground/40 tabular-nums">{group.entryCount}</span>
       </div>
       <div className="ml-[14px] flex flex-col border-l border-foreground/10 pl-1.5">
         {group.tasks.map((task) => (
@@ -143,7 +143,7 @@ function TaskRow({ task }: { task: TaskBucket }) {
       <div className="flex items-center gap-1.5 px-2 py-0.5">
         <GitBranch size={10} className="shrink-0 text-foreground/40" />
         <span className="flex-1 truncate text-[11px] text-foreground/60">{task.taskName}</span>
-        <span className="text-[10px] tabular-nums text-foreground/40">{task.entries.length}</span>
+        <span className="text-[10px] text-foreground/40 tabular-nums">{task.entries.length}</span>
       </div>
       <div className="ml-[10px] flex flex-col border-l border-foreground/10 pl-1.5">
         {task.entries.map((entry) => (
@@ -182,7 +182,7 @@ function AgentRow({ entry }: { entry: Entry }) {
         <span className="truncate text-xs text-foreground-muted">{label}</span>
         {entry.pid === undefined ? <Badge>SSH</Badge> : null}
       </div>
-      <span className="shrink-0 text-xs tabular-nums text-foreground/50">
+      <span className="shrink-0 text-xs text-foreground/50 tabular-nums">
         {norm.toFixed(0)}% · {formatBytes(entry.memory)}
       </span>
     </div>
@@ -191,7 +191,7 @@ function AgentRow({ entry }: { entry: Entry }) {
 
 function Badge({ children }: { children: ReactNode }) {
   return (
-    <span className="shrink-0 rounded bg-background-2 px-1.5 py-px font-mono text-[9px] uppercase tracking-wider text-foreground/50">
+    <span className="shrink-0 rounded bg-background-2 px-1.5 py-px font-mono text-[9px] tracking-wider text-foreground/50 uppercase">
       {children}
     </span>
   );

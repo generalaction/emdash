@@ -1,9 +1,9 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
-import type { PrFilters, PrSortField } from '@shared/pull-requests';
 import { getPrSyncStore } from '@renderer/features/projects/stores/project-selectors';
 import { useDebounce } from '@renderer/lib/hooks/useDebounce';
 import { rpc } from '@renderer/lib/ipc';
+import type { PrFilters, PrSortField } from '@shared/pull-requests';
 import { useFilterOptions, usePullRequests } from './usePullRequests';
 
 export type StatusFilter = 'open' | 'not-open';

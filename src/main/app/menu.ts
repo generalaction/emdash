@@ -1,4 +1,6 @@
 import { app, clipboard, Menu, shell } from 'electron';
+import { events } from '@main/lib/events';
+import { telemetryService } from '@main/lib/telemetry';
 import {
   menuCheckForUpdatesChannel,
   menuCloseTabChannel,
@@ -9,8 +11,6 @@ import {
   menuUndoChannel,
 } from '@shared/events/appEvents';
 import { EMDASH_DOCS_URL, EMDASH_ISSUES_NEW_URL, EMDASH_RELEASES_URL } from '@shared/urls';
-import { events } from '@main/lib/events';
-import { telemetryService } from '@main/lib/telemetry';
 import { getMainWindow } from './window';
 
 function copyInstallationId(): void {

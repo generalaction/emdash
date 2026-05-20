@@ -62,7 +62,7 @@ export const ContextBar = observer(function ContextBar({ conversationId }: Conte
   };
 
   return (
-    <div className="px-4 pb-2 flex justify-center items-center bg-background-secondary-1 w-full">
+    <div className="flex w-full items-center justify-center bg-background-secondary-1 px-4 pb-2">
       <AddContextPopover
         actions={actions}
         disabled={!canApplyContext || isSavingPromptLibrary}

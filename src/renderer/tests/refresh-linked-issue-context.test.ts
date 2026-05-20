@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Issue } from '@shared/tasks';
 import { refreshLinkedIssueContext } from '@renderer/features/tasks/issue-context/refresh-linked-issue-context';
+import type { Issue } from '@shared/tasks';
 
 const mocks = vi.hoisted(() => ({
   getIssueContext: vi.fn(),

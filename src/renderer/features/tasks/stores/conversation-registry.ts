@@ -1,5 +1,5 @@
-import type { Conversation } from '@shared/conversations';
 import { ConversationManagerStore } from '@renderer/features/tasks/conversations/conversation-manager';
+import type { Conversation } from '@shared/conversations';
 
 export class ConversationRegistry {
   private readonly entries = new Map<string, ConversationManagerStore>();

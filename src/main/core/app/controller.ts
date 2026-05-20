@@ -1,6 +1,6 @@
+import { telemetryService } from '@main/lib/telemetry';
 import { createRPCController } from '@shared/ipc/rpc';
 import type { OpenInAppId } from '@shared/openInApps';
-import { telemetryService } from '@main/lib/telemetry';
 import { appService } from './service';
 
 export const appController = createRPCController({

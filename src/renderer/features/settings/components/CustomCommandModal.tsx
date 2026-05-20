@@ -1,7 +1,5 @@
 import { Info, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { AGENT_PROVIDERS, type AgentProviderDefinition } from '@shared/agent-provider-registry';
-import type { ProviderCustomConfig } from '@shared/app-settings';
 import { useProviderSettings } from '@renderer/features/settings/use-provider-settings';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
@@ -10,6 +8,8 @@ import { Input } from '@renderer/lib/ui/input';
 import { Label } from '@renderer/lib/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { log } from '@renderer/utils/logger';
+import { AGENT_PROVIDERS, type AgentProviderDefinition } from '@shared/agent-provider-registry';
+import type { ProviderCustomConfig } from '@shared/app-settings';
 
 interface CustomCommandModalProps {
   isOpen: boolean;
@@ -195,7 +195,7 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
-              <div className="text-sm text-muted-foreground">Loading...</div>
+              <div className="text-muted-foreground text-sm">Loading...</div>
             </div>
           ) : (
             <div className="space-y-4">
@@ -348,11 +348,11 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
               </div>
 
               {/* Preview */}
-              <div className="mt-6 rounded-lg border border-border/60 bg-muted/30 p-4">
-                <div className="mb-2 text-xs font-medium text-muted-foreground">
+              <div className="bg-muted/30 mt-6 rounded-lg border border-border/60 p-4">
+                <div className="text-muted-foreground mb-2 text-xs font-medium">
                   Command Preview
                 </div>
-                <code className="block break-all font-mono text-sm text-foreground">
+                <code className="block font-mono text-sm break-all text-foreground">
                   {previewCommand}
                 </code>
               </div>

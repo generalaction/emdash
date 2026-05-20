@@ -2,7 +2,6 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { reaction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { HEAD_REF, STAGED_REF } from '@shared/git';
 import { isMissingFileError } from '@renderer/features/tasks/diff-view/main-panel/missing-file-error';
 import type { DiffViewStore } from '@renderer/features/tasks/diff-view/stores/diff-view-store';
 import {
@@ -22,6 +21,7 @@ import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { ShowHide } from '@renderer/lib/ui/show-hide';
 import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
 import { cn } from '@renderer/utils/utils';
+import { HEAD_REF, STAGED_REF } from '@shared/git';
 
 const LARGE_DIFF_LINE_THRESHOLD = 1500;
 
@@ -272,7 +272,7 @@ const StackedFileSlot = observer(function StackedFileSlot({
     <div
       ref={sectionRef}
       data-file-path={file.path}
-      className="border-border mb-2 overflow-hidden rounded-lg border"
+      className="mb-2 overflow-hidden rounded-lg border border-border"
     >
       <div
         className={cn(

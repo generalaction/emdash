@@ -1,6 +1,4 @@
 import { useMemo, useState, type Dispatch, type SetStateAction } from 'react';
-import type { AgentProviderId } from '@shared/agent-provider-registry';
-import type { Issue } from '@shared/tasks';
 import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
 import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
 import {
@@ -14,6 +12,8 @@ import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-sel
 import { Field, FieldLabel } from '@renderer/lib/ui/field';
 import { Switch } from '@renderer/lib/ui/switch';
 import { Textarea } from '@renderer/lib/ui/textarea';
+import type { AgentProviderId } from '@shared/agent-provider-registry';
+import type { Issue } from '@shared/tasks';
 import { appendInitialConversationText } from './initial-conversation-text';
 import { ModalContextBar } from './modal-context-bar';
 
@@ -61,7 +61,7 @@ export function InitialConversationField({ state, linkedIssue }: InitialConversa
     <>
       <Field>
         <FieldLabel>Initial conversation</FieldLabel>
-        <div className="flex flex-col border border-border rounded-md">
+        <div className="flex flex-col rounded-md border border-border">
           <AgentSelector
             value={state.provider}
             onChange={(provider) => state.setProvider(provider)}
@@ -72,7 +72,7 @@ export function InitialConversationField({ state, linkedIssue }: InitialConversa
             placeholder="Start with a prompt... (optional)"
             value={state.prompt}
             onChange={(e) => state.setPrompt(e.target.value)}
-            className="min-h-24 max-h-64 resize-none border-0 rounded-none focus-visible:ring-0 focus-visible:border-0"
+            className="max-h-64 min-h-24 resize-none rounded-none border-0 focus-visible:border-0 focus-visible:ring-0"
           />
           <ModalContextBar
             actions={contextActions}

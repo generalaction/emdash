@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import type { Issue } from '@shared/tasks';
 import {
   buildDraftCommentsContextAction,
   buildIssueContextText,
@@ -8,6 +7,7 @@ import {
   buildTaskContextActions,
 } from '@renderer/features/tasks/conversations/context-actions';
 import type { DraftComment } from '@renderer/features/tasks/diff-view/stores/draft-comments-store';
+import type { Issue } from '@shared/tasks';
 
 function makeIssue(overrides: Partial<Issue> = {}): Issue {
   return {

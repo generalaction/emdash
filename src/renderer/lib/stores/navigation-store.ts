@@ -1,10 +1,10 @@
 import { makeAutoObservable, toJS } from 'mobx';
-import type { NavigationSnapshot } from '@shared/view-state';
 import { type GuardResult, type ViewId, type WrapParams } from '@renderer/app/view-registry';
 import type { NonSettingsViewId } from '@renderer/lib/layout/navigation-provider';
 import { modalStore } from '@renderer/lib/modal/modal-store';
 import { focusTracker } from '@renderer/utils/focus-tracker';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
+import type { NavigationSnapshot } from '@shared/view-state';
 import { appState } from './app-state';
 import type { Snapshottable } from './snapshottable';
 

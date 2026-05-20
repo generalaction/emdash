@@ -1,11 +1,11 @@
 import { homedir } from 'node:os';
 import * as toml from 'smol-toml';
-import type { AgentProviderId } from '@shared/agent-provider-registry';
 import { resolveCommandPath } from '@main/core/dependencies/probe';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { log } from '@main/lib/logger';
+import type { AgentProviderId } from '@shared/agent-provider-registry';
 import {
   makeClaudeHookCommand,
   makeCodexHookCommand,

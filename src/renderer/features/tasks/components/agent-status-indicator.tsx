@@ -59,7 +59,7 @@ export function AgentStatusIndicator({
   };
 
   const indicator = (
-    <span className="size-6 flex items-center justify-center">{renderIndicator()}</span>
+    <span className="flex size-6 items-center justify-center">{renderIndicator()}</span>
   );
 
   if (disableTooltip) return indicator;

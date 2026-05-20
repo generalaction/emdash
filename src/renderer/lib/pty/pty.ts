@@ -1,9 +1,9 @@
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal, type ITerminalOptions } from '@xterm/xterm';
-import { ptyDataChannel } from '@shared/events/ptyEvents';
 import { events, rpc } from '@renderer/lib/ipc';
 import { cssVar } from '@renderer/utils/cssVars';
 import { log } from '@renderer/utils/logger';
+import { ptyDataChannel } from '@shared/events/ptyEvents';
 import { ensureXtermHost } from './xterm-host';
 
 const SCROLLBACK_LINES = 100_000;

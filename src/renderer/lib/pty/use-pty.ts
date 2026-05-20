@@ -1,12 +1,12 @@
 import { type Terminal } from '@xterm/xterm';
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
+import { events, rpc } from '@renderer/lib/ipc';
+import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
+import { log } from '@renderer/utils/logger';
 import type { AppSettings } from '@shared/app-settings';
 import { appPasteChannel } from '@shared/events/appEvents';
 import { ptyDataChannel, ptyExitChannel } from '@shared/events/ptyEvents';
 import { TERMINAL_FONT_SIZE_DEFAULT } from '@shared/terminal-settings';
-import { events, rpc } from '@renderer/lib/ipc';
-import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
-import { log } from '@renderer/utils/logger';
 import { usePaneSizingContext } from './pane-sizing-context';
 import type { FrontendPty, SessionTheme } from './pty';
 import { measureDimensions } from './pty-dimensions';

@@ -4,8 +4,8 @@ import { createInterface } from 'node:readline';
 import parcelWatcher from '@parcel/watcher';
 import { glob } from 'glob';
 import ignore from 'ignore';
-import type { FileWatchEvent } from '@shared/fs';
 import { log } from '@main/lib/logger';
+import type { FileWatchEvent } from '@shared/fs';
 import {
   FileSystemError,
   FileSystemErrorCodes,

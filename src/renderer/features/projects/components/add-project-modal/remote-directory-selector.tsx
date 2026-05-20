@@ -9,12 +9,12 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
-import type { FileEntry } from '@shared/ssh';
 import { rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
 import { Input } from '@renderer/lib/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
 import { cn } from '@renderer/utils/utils';
+import type { FileEntry } from '@shared/ssh';
 
 interface RemoteDirectorySelectorProps {
   connectionId: string | undefined;
@@ -278,14 +278,14 @@ export function RemoteDirectorySelector({
     if (isBrowsing && fileEntries.length === 0) {
       return (
         <div className="flex flex-1 items-center justify-center">
-          <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          <Loader2 className="text-muted-foreground h-5 w-5 animate-spin" />
         </div>
       );
     }
 
     if (browseError) {
       return (
-        <div className="flex flex-1 items-center justify-center px-6 text-center text-sm text-destructive">
+        <div className="text-destructive flex flex-1 items-center justify-center px-6 text-center text-sm">
           {browseError}
         </div>
       );
@@ -293,7 +293,7 @@ export function RemoteDirectorySelector({
 
     if (fileEntries.length === 0) {
       return (
-        <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+        <div className="text-muted-foreground flex flex-1 items-center justify-center text-sm">
           Empty directory
         </div>
       );
@@ -318,16 +318,16 @@ export function RemoteDirectorySelector({
               )}
             >
               {isDirectory ? (
-                <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <Folder className="text-muted-foreground h-4 w-4 shrink-0" />
               ) : entry.type === 'symlink' ? (
-                <Folder className="h-4 w-4 shrink-0 text-muted-foreground opacity-60" />
+                <Folder className="text-muted-foreground h-4 w-4 shrink-0 opacity-60" />
               ) : (
-                <FileCode className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <FileCode className="text-muted-foreground h-4 w-4 shrink-0" />
               )}
               <span className="min-w-0 flex-1 truncate">{entry.name}</span>
-              {isSelectedPath && <Check className="h-4 w-4 shrink-0 text-primary" />}
+              {isSelectedPath && <Check className="text-primary h-4 w-4 shrink-0" />}
               {entry.type === 'file' && (
-                <span className="text-xs text-muted-foreground">
+                <span className="text-muted-foreground text-xs">
                   {(entry.size / 1024).toFixed(1)} KB
                 </span>
               )}
@@ -352,7 +352,7 @@ export function RemoteDirectorySelector({
           render={
             <button
               type="button"
-              className="h-9 border border-border rounded-md p-2 w-full flex items-center gap-2 hover:bg-background-quaternary-1 pr-1.5 transition-colors disabled:pointer-events-none disabled:opacity-50"
+              className="flex h-9 w-full items-center gap-2 rounded-md border border-border p-2 pr-1.5 transition-colors hover:bg-background-quaternary-1 disabled:pointer-events-none disabled:opacity-50"
               disabled={!connectionId}
             >
               <Folder className="size-4 text-foreground-muted" />
@@ -376,7 +376,7 @@ export function RemoteDirectorySelector({
           sideOffset={4}
           className="h-[420px] w-[min(640px,calc(100vw-32px))] gap-0 overflow-hidden p-0"
         >
-          <div className="flex items-center gap-1 border-b border-border bg-muted/40 px-3 py-2">
+          <div className="bg-muted/40 flex items-center gap-1 border-b border-border px-3 py-2">
             <Button
               type="button"
               variant="ghost"
@@ -446,7 +446,7 @@ export function RemoteDirectorySelector({
         </PopoverContent>
       </Popover>
       {!connectionId && (
-        <p className="text-xs text-muted-foreground">
+        <p className="text-muted-foreground text-xs">
           Select an SSH connection to browse remote directories.
         </p>
       )}

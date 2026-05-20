@@ -1,3 +1,7 @@
+import { events } from '@main/lib/events';
+import { HookCore, type Hookable } from '@main/lib/hookable';
+import type { IInitializable } from '@main/lib/lifecycle';
+import { log } from '@main/lib/logger';
 import { projectSettingsChangedChannel } from '@shared/events/projectEvents';
 import {
   type MigrateProjectConfigRequest,
@@ -9,10 +13,6 @@ import {
 import { hasConfiguredShareableProjectSettings } from '@shared/project-settings-fields';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import { err, ok, type Result } from '@shared/result';
-import { events } from '@main/lib/events';
-import { HookCore, type Hookable } from '@main/lib/hookable';
-import type { IInitializable } from '@main/lib/lifecycle';
-import { log } from '@main/lib/logger';
 import { projectManager } from '../project-manager';
 import type { ProjectProvider } from '../project-provider';
 import {

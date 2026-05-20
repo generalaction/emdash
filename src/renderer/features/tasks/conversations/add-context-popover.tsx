@@ -29,12 +29,12 @@ export function ActionItemBaseRow({
   text: string;
 }) {
   return (
-    <div className="min-w-0 w-full flex gap-4 items-center h-5">
+    <div className="flex h-5 w-full min-w-0 items-center gap-4">
       <div className="flex items-center gap-1.5">
         {icon}
-        <div className="truncate text-sm font-normal shrink-0 text-foreground-muted">{label}</div>
+        <div className="shrink-0 truncate text-sm font-normal text-foreground-muted">{label}</div>
       </div>
-      <div className="text-xs text-foreground-passive truncate">{text}</div>
+      <div className="truncate text-xs text-foreground-passive">{text}</div>
     </div>
   );
 }
@@ -138,7 +138,7 @@ export function AddContextPopover({ actions, disabled, onApplyAction }: AddConte
     >
       <ComboboxTrigger
         disabled={disabled}
-        className="flex h-6 min-w-[160px] justify-between items-center gap-1.5 rounded-lg text-foreground-muted bg-background-secondary-2 border-border px-2 text-xs font-normal hover:text-foreground hover:bg-background-secondary-3 disabled:pointer-events-none transition-colors"
+        className="flex h-6 min-w-[160px] items-center justify-between gap-1.5 rounded-lg border-border bg-background-secondary-2 px-2 text-xs font-normal text-foreground-muted transition-colors hover:bg-background-secondary-3 hover:text-foreground disabled:pointer-events-none"
       >
         <span className="flex items-center gap-1.5">
           {open ? (
@@ -154,7 +154,7 @@ export function AddContextPopover({ actions, disabled, onApplyAction }: AddConte
       <ComboboxContent
         side="top"
         align="center"
-        className="min-w-[440px] max-w-[92vw] min-h-[200px] flex flex-col"
+        className="flex min-h-[200px] max-w-[92vw] min-w-[440px] flex-col"
         onKeyDown={(e) => {
           if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
             e.preventDefault();
@@ -180,7 +180,7 @@ export function AddContextPopover({ actions, disabled, onApplyAction }: AddConte
             </ComboboxGroup>
           )}
         </ComboboxList>
-        <ComboboxEmpty className="flex-1 flex items-center justify-center">
+        <ComboboxEmpty className="flex flex-1 items-center justify-center">
           No context found
         </ComboboxEmpty>
         <div className="flex items-center justify-end border-t px-2 py-1.5">

@@ -1,7 +1,6 @@
 import { useForm } from '@tanstack/react-form';
 import { Trash2 } from 'lucide-react';
 import React, { useRef, useState } from 'react';
-import type { McpCatalogEntry, McpProvidersResponse, McpServer } from '@shared/mcp/types';
 import type { BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
@@ -20,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@renderer/lib/ui/select';
+import type { McpCatalogEntry, McpProvidersResponse, McpServer } from '@shared/mcp/types';
 import { KeyValueSection, type KVEntry } from './KeyValueSection';
 import { ProviderSelect } from './ProviderSelect';
 
@@ -116,7 +116,7 @@ export const McpModal: React.FC<McpModalProps> = ({
 
       <DialogContentArea>
         {isCatalog && mode.entry.description && (
-          <p className="text-xs text-muted-foreground">{mode.entry.description}</p>
+          <p className="text-muted-foreground text-xs">{mode.entry.description}</p>
         )}
         <FieldGroup>
           {/* Name */}
@@ -197,7 +197,7 @@ export const McpModal: React.FC<McpModalProps> = ({
                             disabled={isCatalog}
                             placeholder={'-y\nmy-mcp-server'}
                             rows={3}
-                            className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="border-input placeholder:text-muted-foreground focus-visible:ring-ring flex w-full rounded-md border bg-background px-3 py-2 text-sm ring-offset-background focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                           />
                         </Field>
                       )}
