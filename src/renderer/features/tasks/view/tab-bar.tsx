@@ -21,7 +21,7 @@ import { TabBarActions } from './tab-bar/tab-bar-actions';
 
 function makeTabRenderers(
   tabManager: ReturnType<typeof useTabGroupContext>['tabManager'],
-  conversations: ConversationManagerStore,
+  conversations: ConversationManagerStore
 ) {
   return {
     conversation: (tab: ResolvedConversationTab): ReactNode => (
@@ -31,9 +31,7 @@ function makeTabRenderers(
         onSelect={() => tabManager.setActiveTab(tab.tabId)}
         onPin={() => tabManager.openConversation(tab.conversationId)}
         onClose={() => tabManager.closeTab(tab.tabId)}
-        onRenameSubmit={(name) =>
-          void conversations.renameConversation(tab.conversationId, name)
-        }
+        onRenameSubmit={(name) => void conversations.renameConversation(tab.conversationId, name)}
       />
     ),
     diff: (tab: ResolvedDiffTab): ReactNode => (

@@ -6,7 +6,6 @@ import {
   FileDiff,
   FolderOpen,
   GitBranch,
-  MessageSquare,
   Pin,
   RefreshCcw,
   Terminal,
@@ -350,7 +349,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                 <ToggleGroupItem
                   value="changes"
                   aria-label="Changes"
-                  className={cn("w-auto! min-w-7! gap-0", hasDiffStats && "w-full px-2!")}
+                  className={cn('w-auto! min-w-7! gap-0', hasDiffStats && 'w-full px-2!')}
                 >
                   <FileDiff className="size-3.5" />
                   <span

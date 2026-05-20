@@ -58,7 +58,7 @@ export const ConversationTabItem = observer(function ConversationTabItem({
 
   if (isEditing) {
     return (
-      <div className="flex h-full items-center gap-1.5 bg-background-secondary-1 pl-3 pr-2">
+      <div className="flex h-full items-center gap-1.5 bg-background-secondary-1 pr-2 pl-3">
         {config ? (
           <AgentLogo
             logo={config.logo}
