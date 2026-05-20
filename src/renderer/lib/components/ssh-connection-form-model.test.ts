@@ -2,11 +2,29 @@ import { describe, expect, it } from 'vitest';
 import { suggestedAuthTypeForSshConfigHost } from './ssh-connection-form-model';
 
 describe('suggestedAuthTypeForSshConfigHost', () => {
-  it('defaults imported SSH config aliases to agent auth even when ssh -G reports identity files', () => {
+  it('uses key auth when an SSH config alias declares an identity file', () => {
     expect(
       suggestedAuthTypeForSshConfigHost({
         host: 'corp-dev',
         identityFile: '~/.ssh/id_rsa',
+      })
+    ).toBe('key');
+  });
+
+  it('uses agent auth when an SSH config alias declares an identity agent', () => {
+    expect(
+      suggestedAuthTypeForSshConfigHost({
+        host: 'corp-dev',
+        identityFile: '~/.ssh/id_rsa',
+        identityAgent: '/tmp/agent.sock',
+      })
+    ).toBe('agent');
+  });
+
+  it('defaults to agent auth when no auth hint is present', () => {
+    expect(
+      suggestedAuthTypeForSshConfigHost({
+        host: 'corp-dev',
       })
     ).toBe('agent');
   });
