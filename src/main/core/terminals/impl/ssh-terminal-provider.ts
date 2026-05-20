@@ -4,11 +4,9 @@ import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { resolveSshCommand } from '@main/core/pty/spawn-utils';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
+import { sshConnectionManager } from '@main/core/ssh/production-ssh-connection-manager';
 import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
-import {
-  sshConnectionManager,
-  type SshConnectionManagerEvent,
-} from '@main/core/ssh/ssh-connection-manager';
+import type { SshConnectionManagerEvent } from '@main/core/ssh/ssh-connection-manager';
 import {
   type LifecycleScriptSpawnRequest,
   type TerminalProvider,

@@ -1,7 +1,9 @@
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
+import { glob } from 'glob';
 import type { SshConfigHost } from '@shared/ssh';
+import { resolveIdentityAgentFromSshConfig } from './resolve-ssh-config';
 
 /**
  * Strips surrounding quotes (single or double) from a value string.
@@ -35,11 +37,76 @@ function expandTilde(filePath: string): string {
  */
 export async function parseSshConfigFile(): Promise<SshConfigHost[]> {
   const configPath = join(homedir(), '.ssh', 'config');
-  const content = await readFile(configPath, 'utf-8').catch(() => '');
+  return await parseSshConfigFileAt(configPath);
+}
 
+export async function parseSshConfigFileAt(configPath: string): Promise<SshConfigHost[]> {
+  const content = await readSshConfigWithIncludes(configPath, new Set());
+  return parseSshConfigContent(content);
+}
+
+async function readSshConfigWithIncludes(
+  configPath: string,
+  includeStack: Set<string>
+): Promise<string> {
+  const absoluteConfigPath = resolve(configPath);
+  if (includeStack.has(absoluteConfigPath)) return '';
+
+  const nextIncludeStack = new Set(includeStack);
+  nextIncludeStack.add(absoluteConfigPath);
+
+  const configDir = dirname(absoluteConfigPath);
+  const content = await readFile(configPath, 'utf-8').catch(() => '');
+  const expandedLines: string[] = [];
+
+  for (const line of content.split('\n')) {
+    const includeMatch = line.trim().match(/^Include\s+(.+)$/i);
+    if (!includeMatch) {
+      expandedLines.push(line);
+      continue;
+    }
+
+    const includeFiles = await resolveIncludePaths(includeMatch[1], configDir);
+    for (const includeFile of includeFiles) {
+      expandedLines.push(await readSshConfigWithIncludes(includeFile, nextIncludeStack));
+    }
+  }
+
+  return expandedLines.join('\n');
+}
+
+async function resolveIncludePaths(value: string, configDir: string): Promise<string[]> {
+  const patterns = value.match(/"[^"]*"|'[^']*'|\S+/g) ?? [];
+  const matches = await Promise.all(
+    patterns.map(async (pattern) => {
+      const expandedPattern = expandTilde(stripQuotes(pattern));
+      const absolutePattern = isAbsolute(expandedPattern)
+        ? expandedPattern
+        : resolve(configDir, expandedPattern);
+      return await glob(absolutePattern, { nodir: true });
+    })
+  );
+
+  return matches.flat().sort();
+}
+
+/**
+ * Parses OpenSSH config content for concrete Host aliases that can be shown in
+ * import UI. This is intentionally best-effort; connection behavior is resolved
+ * with `ssh -G`.
+ */
+export function parseSshConfigContent(content: string): SshConfigHost[] {
   const hosts: SshConfigHost[] = [];
   const lines = content.split('\n');
-  let currentHost: SshConfigHost | null = null;
+  let currentAliases: string[] = [];
+  let currentConfig: Omit<SshConfigHost, 'host'> | null = null;
+
+  const flushCurrentHost = () => {
+    if (!currentConfig || currentAliases.length === 0) return;
+    for (const host of currentAliases) {
+      hosts.push({ host, ...currentConfig });
+    }
+  };
 
   for (const line of lines) {
     const trimmed = line.trim();
@@ -50,65 +117,94 @@ export async function parseSshConfigFile(): Promise<SshConfigHost[]> {
     // Match Host directive
     const hostMatch = trimmed.match(/^Host\s+(.+)$/i);
     if (hostMatch) {
-      // Save previous host if exists
-      if (currentHost && currentHost.host) {
-        hosts.push(currentHost);
-      }
-      // Start new host entry
-      const hostPattern = hostMatch[1].trim();
-      // Skip wildcard patterns
-      if (!hostPattern.includes('*') && !hostPattern.includes('?')) {
-        currentHost = { host: hostPattern };
-      } else {
-        currentHost = null;
-      }
+      flushCurrentHost();
+      currentAliases = hostMatch[1]
+        .trim()
+        .split(/\s+/)
+        .map(stripQuotes)
+        .filter((host) => host && !host.includes('*') && !host.includes('?'));
+      currentConfig = currentAliases.length > 0 ? {} : null;
       continue;
     }
 
     // Match HostName
     const hostnameMatch = trimmed.match(/^HostName\s+(.+)$/i);
-    if (hostnameMatch && currentHost) {
-      currentHost.hostname = hostnameMatch[1].trim();
+    if (hostnameMatch && currentConfig) {
+      currentConfig.hostname = stripQuotes(hostnameMatch[1].trim());
       continue;
     }
 
     // Match User
     const userMatch = trimmed.match(/^User\s+(.+)$/i);
-    if (userMatch && currentHost) {
-      currentHost.user = userMatch[1].trim();
+    if (userMatch && currentConfig) {
+      currentConfig.user = stripQuotes(userMatch[1].trim());
       continue;
     }
 
     // Match Port
     const portMatch = trimmed.match(/^Port\s+(\d+)$/i);
-    if (portMatch && currentHost) {
-      currentHost.port = parseInt(portMatch[1], 10);
+    if (portMatch && currentConfig) {
+      currentConfig.port = parseInt(portMatch[1], 10);
       continue;
     }
 
     // Match IdentityFile
     const identityMatch = trimmed.match(/^IdentityFile\s+(.+)$/i);
-    if (identityMatch && currentHost) {
+    if (identityMatch && currentConfig) {
       const identityFile = expandTilde(stripQuotes(identityMatch[1].trim()));
-      currentHost.identityFile = identityFile;
+      currentConfig.identityFile = identityFile;
       continue;
     }
 
     // Match IdentityAgent
     const identityAgentMatch = trimmed.match(/^IdentityAgent\s+(.+)$/i);
-    if (identityAgentMatch && currentHost) {
+    if (identityAgentMatch && currentConfig) {
       const identityAgent = expandTilde(stripQuotes(identityAgentMatch[1].trim()));
-      currentHost.identityAgent = identityAgent;
+      currentConfig.identityAgent = identityAgent;
+      continue;
+    }
+
+    // Match ProxyJump
+    const proxyJumpMatch = trimmed.match(/^ProxyJump\s+(.+)$/i);
+    if (proxyJumpMatch && currentConfig) {
+      const proxyJump = stripQuotes(proxyJumpMatch[1].trim());
+      currentConfig.proxyJump = proxyJump.toLowerCase() === 'none' ? undefined : proxyJump;
+      continue;
+    }
+
+    // Match ProxyCommand
+    const proxyCommandMatch = trimmed.match(/^ProxyCommand\s+(.+)$/i);
+    if (proxyCommandMatch && currentConfig) {
+      const proxyCommand = proxyCommandMatch[1].trim();
+      currentConfig.proxyCommand = proxyCommand.toLowerCase() === 'none' ? undefined : proxyCommand;
+      continue;
+    }
+
+    // Match ForwardAgent
+    const forwardAgentMatch = trimmed.match(/^ForwardAgent\s+(.+)$/i);
+    if (forwardAgentMatch && currentConfig) {
+      const value = stripQuotes(forwardAgentMatch[1].trim());
+      const normalizedValue = value.toLowerCase();
+      currentConfig.forwardAgent = normalizedValue !== 'no';
+      if (currentConfig.forwardAgent) {
+        currentConfig.forwardAgentValue = normalizedValue === 'yes' ? undefined : value;
+      }
       continue;
     }
   }
 
   // Don't forget the last host
-  if (currentHost && currentHost.host) {
-    hosts.push(currentHost);
-  }
+  flushCurrentHost();
 
   return hosts;
+}
+
+export function findSshConfigHostByHostName(
+  hosts: SshConfigHost[],
+  hostname: string
+): SshConfigHost | undefined {
+  const normalizedHostname = hostname.toLowerCase();
+  return hosts.find((host) => host.hostname?.toLowerCase() === normalizedHostname);
 }
 
 /**
@@ -119,15 +215,5 @@ export async function parseSshConfigFile(): Promise<SshConfigHost[]> {
  * IdentityAgent path if found, or undefined.
  */
 export async function resolveIdentityAgent(hostname: string): Promise<string | undefined> {
-  try {
-    const hosts = await parseSshConfigFile();
-    const match = hosts.find(
-      (h) =>
-        h.host.toLowerCase() === hostname.toLowerCase() ||
-        h.hostname?.toLowerCase() === hostname.toLowerCase()
-    );
-    return match?.identityAgent;
-  } catch {
-    return undefined;
-  }
+  return await resolveIdentityAgentFromSshConfig(hostname).catch(() => undefined);
 }

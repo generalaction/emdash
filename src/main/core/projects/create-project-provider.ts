@@ -10,10 +10,8 @@ import { GitFetchService } from '@main/core/git/git-fetch-service';
 import { GitService } from '@main/core/git/impl/git-service';
 import { GitRepositoryService } from '@main/core/git/repository-service';
 import { githubConnectionService } from '@main/core/github/services/github-connection-service';
-import {
-  sshConnectionManager,
-  type SshConnectionManagerEvent,
-} from '@main/core/ssh/ssh-connection-manager';
+import { sshConnectionManager } from '@main/core/ssh/production-ssh-connection-manager';
+import type { SshConnectionManagerEvent } from '@main/core/ssh/ssh-connection-manager';
 import { log } from '@main/lib/logger';
 import { safePathSegment } from '@shared/path-name';
 import type { LocalProject, SshProject } from '@shared/projects';

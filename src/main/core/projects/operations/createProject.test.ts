@@ -38,7 +38,7 @@ vi.mock('@main/core/fs/impl/ssh-fs', () => ({
   }),
 }));
 
-vi.mock('@main/core/ssh/ssh-connection-manager', () => ({
+vi.mock('@main/core/ssh/production-ssh-connection-manager', () => ({
   sshConnectionManager: {
     connect: mocks.sshConnectMock,
   },
