@@ -31,6 +31,21 @@ describe('buildAgentCommand', () => {
     });
   });
 
+  it('uses the Antigravity skip-permissions flag when auto-approve is enabled', () => {
+    const command = buildAgentCommand({
+      providerId: 'antigravity',
+      providerConfig: providerConfigDefaults.antigravity,
+      autoApprove: true,
+      initialPrompt: 'Fix the issue',
+      sessionId: 'session-1',
+    });
+
+    expect(command).toEqual({
+      command: 'agy',
+      args: ['--conversation=session-1', '--dangerously-skip-permissions', '-i', 'Fix the issue'],
+    });
+  });
+
   it('supports custom CLI command prefixes and appends managed provider args', () => {
     const result = buildAgentCommand({
       providerId: 'claude',
@@ -81,6 +96,17 @@ describe('buildAgentCommand', () => {
     });
 
     expect(result.args).toEqual(['--session', 'id', 'conv-1']);
+  });
+
+  it('appends equals-style session id flags when resuming', () => {
+    const result = buildAgentCommand({
+      providerId: 'claude',
+      providerConfig: makeConfig({ resumeFlag: '--resume=' }),
+      sessionId: 'conv-1',
+      isResuming: true,
+    });
+
+    expect(result.args).toEqual(['--resume=conv-1']);
   });
 
   it('puts default args before resume flags for CLIs with subcommands', () => {
@@ -139,6 +165,11 @@ describe('buildAgentCommand', () => {
     { providerId: 'codebuff', freshArgs: ['Fix the bug'], resumeArgs: [] },
     { providerId: 'freebuff', freshArgs: ['Fix the bug'], resumeArgs: [] },
     { providerId: 'mistral', freshArgs: ['Fix the bug'], resumeArgs: [] },
+    {
+      providerId: 'antigravity',
+      freshArgs: ['--conversation=conv-1', '-i', 'Fix the bug'],
+      resumeArgs: ['--conversation=conv-1'],
+    },
   ])('builds fresh and resume args for $providerId', ({ providerId, freshArgs, resumeArgs }) => {
     const fresh = buildAgentCommand({
       providerId,

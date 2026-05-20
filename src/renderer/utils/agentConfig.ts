@@ -1,5 +1,6 @@
 import { type AgentProviderId } from '@shared/agent-provider-registry';
 import ampLogo from '../../assets/images/ampcode.png';
+import antigravityLogo from '../../assets/images/antigravity.png';
 import atlassianLogo from '../../assets/images/atlassian.png';
 import augmentLogoSvg from '../../assets/images/Auggie.svg?raw';
 import autohandLogoSvg from '../../assets/images/autohand.svg?raw';
@@ -44,6 +45,7 @@ export const agentConfig: Record<AgentProviderId, AgentInfo> = {
   devin: { name: 'Devin', logo: devinLogo, alt: 'Devin' },
   cursor: { name: 'Cursor', logo: cursorLogoSvg, alt: 'Cursor CLI', isSvg: true },
   gemini: { name: 'Gemini', logo: geminiLogo, alt: 'Gemini CLI' },
+  antigravity: { name: 'Antigravity', logo: antigravityLogo, alt: 'Antigravity CLI' },
   mistral: { name: 'Mistral Vibe', logo: mistralLogo, alt: 'Mistral Vibe CLI' },
   qwen: { name: 'Qwen Code', logo: qwenLogo, alt: 'Qwen Code' },
   droid: { name: 'Droid', logo: factoryLogoSvg, alt: 'Factory Droid', isSvg: true },
