@@ -163,12 +163,11 @@ app.on('before-quit', (event) => {
   telemetryService.capture('app_closed');
 
   void (async () => {
-    try {
-      await telemetryService.dispose();
-    } finally {
-      ptySessionRegistry.shutdownAll();
-      shutdownLocalPtys();
-    }
+    await telemetryService.dispose().catch((e) => {
+      log.error('Failed to dispose telemetry service:', e);
+    });
+    ptySessionRegistry.shutdownAll();
+    shutdownLocalPtys();
 
     try {
       agentHookService.dispose();
