@@ -14,6 +14,18 @@ describe('buildTerminalFontFamily', () => {
     );
   });
 
+  it('preserves comma-separated custom font family lists', () => {
+    expect(buildTerminalFontFamily('SF Mono, Menlo, Monaco')).toBe(
+      '"SF Mono", "Menlo", "Monaco", "Consolas", monospace'
+    );
+  });
+
+  it('does not treat quoted CSS lists as a single quoted font name', () => {
+    expect(buildTerminalFontFamily('"SF Mono", "Menlo"')).toBe(
+      '"SF Mono", "Menlo", "Monaco", "Consolas", monospace'
+    );
+  });
+
   it('keeps generic font families unquoted', () => {
     expect(buildTerminalFontFamily('monospace')).toBe('monospace, "Menlo", "Monaco", "Consolas"');
   });
