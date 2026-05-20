@@ -22,4 +22,14 @@ describe('resolveProviderEnv', () => {
     expect(resolveProviderEnv(undefined)).toBeUndefined();
     expect(resolveProviderEnv({ env: { 'INVALID-NAME': 'ignored' } })).toBeUndefined();
   });
+
+  it('sets inline opencode permissions when auto-approve is enabled', () => {
+    expect(resolveProviderEnv(undefined, { providerId: 'opencode', autoApprove: true })).toEqual({
+      OPENCODE_PERMISSION: '{"*":"allow"}',
+    });
+  });
+
+  it('does not set inline opencode permissions for other providers', () => {
+    expect(resolveProviderEnv(undefined, { providerId: 'claude', autoApprove: true })).toBeUndefined();
+  });
 });

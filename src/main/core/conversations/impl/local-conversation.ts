@@ -102,7 +102,10 @@ export class LocalConversationProvider implements ConversationProvider {
       isResuming,
       initialPrompt,
     });
-    const providerEnv = resolveProviderEnv(providerConfig);
+    const providerEnv = resolveProviderEnv(providerConfig, {
+      providerId: conversation.providerId,
+      autoApprove: conversation.autoApprove,
+    });
 
     const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
 
