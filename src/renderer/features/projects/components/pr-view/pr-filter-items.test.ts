@@ -25,6 +25,16 @@ describe('usersWithLoginFirst', () => {
     ]);
   });
 
+  it('matches the current GitHub user case-insensitively', () => {
+    const users = [user('anna'), user('Dominik'), user('zoe')];
+
+    expect(usersWithLoginFirst(users, 'dominik').map((item) => item.userName)).toEqual([
+      'Dominik',
+      'anna',
+      'zoe',
+    ]);
+  });
+
   it('preserves order when the current GitHub user is unavailable', () => {
     const users = [user('anna'), user('zoe')];
 

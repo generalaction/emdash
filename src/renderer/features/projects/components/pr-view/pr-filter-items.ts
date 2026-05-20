@@ -16,7 +16,10 @@ export function usersWithLoginFirst(
 ): PullRequestUser[] {
   if (!login) return [...users];
 
-  const currentUserIndex = users.findIndex((user) => user.userName === login);
+  const normalizedLogin = login.toLowerCase();
+  const currentUserIndex = users.findIndex(
+    (user) => user.userName.toLowerCase() === normalizedLogin
+  );
   if (currentUserIndex === -1) return [...users];
 
   const currentUser = users[currentUserIndex];
