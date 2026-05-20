@@ -4,11 +4,11 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
+  FileCogIcon,
   LoaderCircle,
   XCircle,
 } from 'lucide-react';
-import { useState } from 'react';
-import * as z from 'zod';
+import { useEffect, useMemo, useState } from 'react';
 import type { BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 import { Button } from '@renderer/lib/ui/button';
@@ -31,51 +31,25 @@ import {
 import { Input } from '@renderer/lib/ui/input';
 import { ModalLayout } from '@renderer/lib/ui/modal-layout';
 import { RadioGroup, RadioGroupItem } from '@renderer/lib/ui/radio-group';
-import type { ConnectionTestResult, SshConfig } from '@shared/ssh';
+import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/ui/select';
+import { Switch } from '@renderer/lib/ui/switch';
+import type { ConnectionTestResult, SshConfig, SshConfigHost } from '@shared/ssh';
+import { suggestedAuthTypeForSshConfigHost, type AuthType } from './ssh-connection-form-model';
+import { sshConnectionFormSchema } from './ssh-connection-form-schema';
 
 export interface AddSshConnModalProps extends BaseModalProps<{ connectionId: string }> {
   initialConfig?: SshConfig;
   dismissControl?: 'back' | 'close';
 }
 
-const formSchema = z
-  .object({
-    name: z.string().min(1, 'Name is required'),
-    host: z
-      .string()
-      .min(1, 'Host is required')
-      .regex(/^[a-zA-Z0-9._\-[\]:]+$/, 'Invalid hostname or IP address'),
-    port: z
-      .number()
-      .int()
-      .min(1, 'Port must be at least 1')
-      .max(65535, 'Port must be at most 65535'),
-    username: z.string().min(1, 'Username is required'),
-    authType: z.enum(['password', 'key', 'agent']),
-    password: z.string(),
-    privateKeyPath: z.string(),
-    passphrase: z.string(),
-    isEditing: z.boolean(),
-  })
-  .superRefine((val, ctx) => {
-    if (val.authType === 'password' && !val.password && !val.isEditing) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Password is required',
-        path: ['password'],
-      });
-    }
-    if (val.authType === 'key' && !val.privateKeyPath) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'Private key path is required',
-        path: ['privateKeyPath'],
-      });
-    }
-  });
-
-type AuthType = 'password' | 'key' | 'agent';
 type TestState = 'idle' | 'testing' | 'success' | 'error';
+const MANUAL_CONNECTION_VALUE = '__manual__';
+
+function proxyPreview(host: SshConfigHost): string {
+  if (host.proxyCommand) return 'ProxyCommand';
+  if (host.proxyJump) return `ProxyJump ${host.proxyJump}`;
+  return 'Direct';
+}
 
 export function AddSshConnModal({
   onSuccess,
@@ -91,6 +65,8 @@ export function AddSshConnModal({
   const [testResult, setTestResult] = useState<ConnectionTestResult | null>(null);
   const [showDebugLogs, setShowDebugLogs] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [sshConfigHosts, setSshConfigHosts] = useState<SshConfigHost[]>([]);
+  const [sshConfigLoadError, setSshConfigLoadError] = useState<string | null>(null);
 
   const form = useForm({
     defaultValues: {
@@ -102,24 +78,34 @@ export function AddSshConnModal({
       password: '',
       privateKeyPath: initialConfig?.privateKeyPath ?? '',
       passphrase: '',
+      sshConfigAlias: initialConfig?.sshConfigAlias ?? '',
+      forwardAgent: initialConfig?.forwardAgent ?? false,
+      proxyJump: initialConfig?.proxyJump ?? '',
       isEditing,
     },
     validators: {
-      onSubmit: formSchema,
+      onSubmit: sshConnectionFormSchema,
     },
     onSubmit: async ({ value }) => {
       setIsSubmitting(true);
       try {
+        const isAliasBacked = value.sshConfigAlias.trim().length > 0;
+        const proxyJump = value.proxyJump.trim();
+        const username = value.username || value.sshConfigAlias || value.host;
+        const privateKeyPath = value.privateKeyPath.trim();
         const config: Partial<Pick<SshConfig, 'id'>> &
           Omit<SshConfig, 'id'> & { password?: string; passphrase?: string } = {
           id: initialConfig?.id,
           name: value.name,
           host: value.host,
           port: value.port,
-          username: value.username,
+          username,
+          sshConfigAlias: value.sshConfigAlias || undefined,
           authType: value.authType,
-          privateKeyPath: value.authType === 'key' ? value.privateKeyPath : undefined,
+          privateKeyPath: value.authType === 'key' ? privateKeyPath || undefined : undefined,
           useAgent: value.authType === 'agent',
+          forwardAgent: isAliasBacked ? false : value.forwardAgent,
+          proxyJump: isAliasBacked ? '' : proxyJump,
           password: value.authType === 'password' ? value.password : undefined,
           passphrase: value.authType === 'key' ? value.passphrase : undefined,
         };
@@ -133,18 +119,61 @@ export function AddSshConnModal({
 
   const buildTestConfig = (): SshConfig & { password?: string; passphrase?: string } => {
     const v = form.state.values;
+    const username = v.username || v.sshConfigAlias || v.host;
+    const privateKeyPath = v.privateKeyPath.trim();
     return {
       id: '',
       name: v.name,
       host: v.host,
       port: v.port,
-      username: v.username,
+      username,
+      sshConfigAlias: v.sshConfigAlias || undefined,
       authType: v.authType,
-      privateKeyPath: v.authType === 'key' ? v.privateKeyPath : undefined,
+      privateKeyPath: v.authType === 'key' ? privateKeyPath || undefined : undefined,
       useAgent: v.authType === 'agent',
+      forwardAgent: v.sshConfigAlias ? false : v.forwardAgent,
+      proxyJump: v.sshConfigAlias ? undefined : v.proxyJump.trim() || undefined,
       password: v.authType === 'password' ? v.password : undefined,
       passphrase: v.authType === 'key' ? v.passphrase : undefined,
     };
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+    void sshConnections
+      .getSshConfigHosts()
+      .then((hosts) => {
+        if (!isMounted) return;
+        setSshConfigHosts(hosts);
+        setSshConfigLoadError(null);
+      })
+      .catch((error: unknown) => {
+        if (!isMounted) return;
+        setSshConfigHosts([]);
+        setSshConfigLoadError(error instanceof Error ? error.message : String(error));
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [sshConnections]);
+
+  const sshConfigHostsByAlias = useMemo(
+    () => new Map(sshConfigHosts.map((host) => [host.host, host])),
+    [sshConfigHosts]
+  );
+  const shouldShowSshConfigField =
+    sshConfigHosts.length > 0 || !!form.state.values.sshConfigAlias || !!sshConfigLoadError;
+
+  const applySshConfigHost = (host: SshConfigHost) => {
+    form.setFieldValue('sshConfigAlias', host.host);
+    form.setFieldValue('name', form.state.values.name || host.host);
+    form.setFieldValue('host', host.hostname || host.host);
+    form.setFieldValue('port', host.port ?? 22);
+    form.setFieldValue('username', host.user ?? form.state.values.username);
+    form.setFieldValue('authType', suggestedAuthTypeForSshConfigHost(host));
+    form.setFieldValue('privateKeyPath', host.identityFile ?? form.state.values.privateKeyPath);
+    form.setFieldValue('forwardAgent', host.forwardAgent ?? false);
+    form.setFieldValue('proxyJump', host.proxyJump ?? '');
   };
 
   const handleTestConnection = async () => {
@@ -246,11 +275,84 @@ export function AddSshConnModal({
               }}
             </form.Field>
 
+            {shouldShowSshConfigField && (
+              <form.Field name="sshConfigAlias">
+                {(field) => {
+                  const selectedHost = sshConfigHostsByAlias.get(field.state.value);
+                  return (
+                    <Field>
+                      <FieldLabel>SSH Config</FieldLabel>
+                      {sshConfigHosts.length > 0 && (
+                        <Select
+                          value={field.state.value || MANUAL_CONNECTION_VALUE}
+                          onValueChange={(value) => {
+                            if (!value) return;
+                            if (value === MANUAL_CONNECTION_VALUE) {
+                              field.handleChange('');
+                              form.setFieldValue('forwardAgent', false);
+                              form.setFieldValue('proxyJump', '');
+                              return;
+                            }
+                            const host = sshConfigHostsByAlias.get(value);
+                            if (host) applySshConfigHost(host);
+                          }}
+                        >
+                          <SelectTrigger className="w-full">
+                            <span className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
+                              {selectedHost ? (
+                                <span className="truncate">{selectedHost.host}</span>
+                              ) : field.state.value ? (
+                                <span className="truncate">{field.state.value}</span>
+                              ) : (
+                                'Manual connection'
+                              )}
+                            </span>
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={MANUAL_CONNECTION_VALUE}>
+                              Manual connection
+                            </SelectItem>
+                            {sshConfigHosts.map((host) => (
+                              <SelectItem key={host.host} value={host.host}>
+                                <span className="truncate">{host.host}</span>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                      {sshConfigLoadError && (
+                        <FieldDescription>{sshConfigLoadError}</FieldDescription>
+                      )}
+                      {selectedHost && (
+                        <div className="border-input bg-muted/30 grid gap-1 rounded-md border px-3 py-2 text-xs text-foreground-passive">
+                          <div className="flex min-w-0 items-center gap-2 text-foreground">
+                            <FileCogIcon className="size-3.5 shrink-0" />
+                            <span className="truncate">{selectedHost.host}</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                            <span className="truncate">
+                              Host: {selectedHost.hostname ?? selectedHost.host}
+                            </span>
+                            <span className="truncate">Proxy: {proxyPreview(selectedHost)}</span>
+                            <span className="truncate">User: {selectedHost.user ?? 'default'}</span>
+                            <span className="truncate">
+                              ForwardAgent: {selectedHost.forwardAgent ? 'On' : 'Off'}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </Field>
+                  );
+                }}
+              </form.Field>
+            )}
+
             {/* Host + Port */}
             <div className="grid grid-cols-[1fr_6rem] gap-3">
               <form.Field name="host">
                 {(field) => {
                   const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
+                  const isAliasBacked = !!form.state.values.sshConfigAlias;
                   return (
                     <Field data-invalid={isInvalid}>
                       <FieldLabel htmlFor={field.name}>Host</FieldLabel>
@@ -262,6 +364,7 @@ export function AddSshConnModal({
                         onChange={(e) => field.handleChange(e.target.value)}
                         aria-invalid={isInvalid}
                         placeholder="example.com"
+                        disabled={isAliasBacked}
                       />
                       {isInvalid && <FieldError errors={field.state.meta.errors} />}
                     </Field>
@@ -271,6 +374,7 @@ export function AddSshConnModal({
               <form.Field name="port">
                 {(field) => {
                   const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
+                  const isAliasBacked = !!form.state.values.sshConfigAlias;
                   return (
                     <Field data-invalid={isInvalid}>
                       <FieldLabel htmlFor={field.name}>Port</FieldLabel>
@@ -282,6 +386,7 @@ export function AddSshConnModal({
                         onBlur={field.handleBlur}
                         onChange={(e) => field.handleChange(Number(e.target.value))}
                         aria-invalid={isInvalid}
+                        disabled={isAliasBacked}
                       />
                       {isInvalid && <FieldError errors={field.state.meta.errors} />}
                     </Field>
@@ -294,6 +399,7 @@ export function AddSshConnModal({
             <form.Field name="username">
               {(field) => {
                 const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
+                const isAliasBacked = !!form.state.values.sshConfigAlias;
                 return (
                   <Field data-invalid={isInvalid}>
                     <FieldLabel htmlFor={field.name}>Username</FieldLabel>
@@ -306,6 +412,7 @@ export function AddSshConnModal({
                       aria-invalid={isInvalid}
                       placeholder="ubuntu"
                       autoComplete="off"
+                      disabled={isAliasBacked}
                     />
                     {isInvalid && <FieldError errors={field.state.meta.errors} />}
                   </Field>
@@ -421,6 +528,44 @@ export function AddSshConnModal({
                     The SSH agent running on this machine will be used for authentication. Make sure
                     your key is loaded into the agent.
                   </FieldDescription>
+                );
+              }}
+            </form.Subscribe>
+
+            <form.Subscribe selector={(state) => state.values.sshConfigAlias}>
+              {(sshConfigAlias) => {
+                if (sshConfigAlias) return null;
+                return (
+                  <>
+                    <form.Field name="proxyJump">
+                      {(field) => (
+                        <Field>
+                          <FieldLabel htmlFor={field.name}>ProxyJump</FieldLabel>
+                          <Input
+                            id={field.name}
+                            name={field.name}
+                            value={field.state.value}
+                            onBlur={field.handleBlur}
+                            onChange={(e) => field.handleChange(e.target.value)}
+                            placeholder="bastion.example.com"
+                            autoComplete="off"
+                          />
+                        </Field>
+                      )}
+                    </form.Field>
+                    <form.Field name="forwardAgent">
+                      {(field) => (
+                        <Field className="flex-row items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
+                          <FieldLabel htmlFor={field.name}>ForwardAgent</FieldLabel>
+                          <Switch
+                            id={field.name}
+                            checked={field.state.value}
+                            onCheckedChange={(checked) => field.handleChange(checked)}
+                          />
+                        </Field>
+                      )}
+                    </form.Field>
+                  </>
                 );
               }}
             </form.Subscribe>
