@@ -33,4 +33,24 @@ describe('usersWithLoginFirst', () => {
       'zoe',
     ]);
   });
+
+  it('preserves order when no GitHub login is available', () => {
+    const users = [user('anna'), user('zoe')];
+
+    expect(usersWithLoginFirst(users, null).map((item) => item.userName)).toEqual(['anna', 'zoe']);
+    expect(usersWithLoginFirst(users, undefined).map((item) => item.userName)).toEqual([
+      'anna',
+      'zoe',
+    ]);
+  });
+
+  it('preserves order when the current GitHub user is already first', () => {
+    const users = [user('dominik'), user('anna'), user('zoe')];
+
+    expect(usersWithLoginFirst(users, 'dominik').map((item) => item.userName)).toEqual([
+      'dominik',
+      'anna',
+      'zoe',
+    ]);
+  });
 });
