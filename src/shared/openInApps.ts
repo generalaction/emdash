@@ -38,6 +38,7 @@ const ICON_PATHS = {
   windsurf: 'windsurf.png',
   xcode: 'xcode.png',
   terminal: 'terminal.png',
+  alacritty: 'alacritty.svg',
   warp: 'warp.svg',
   iterm2: 'iterm2.png',
   ghostty: 'ghostty.png',
@@ -213,6 +214,35 @@ const _OPEN_IN_APPS = {
           'gnome-terminal --working-directory={{path}}',
           'konsole --workdir {{path}}',
         ],
+      },
+    },
+  },
+  alacritty: {
+    id: 'alacritty',
+    label: 'Alacritty',
+    iconPath: ICON_PATHS.alacritty,
+    supportsRemote: true,
+    platforms: {
+      darwin: {
+        openCommands: [
+          'command -v alacritty >/dev/null 2>&1 && alacritty --working-directory {{path}}',
+          'open -n -b org.alacritty --args --working-directory {{path}}',
+          'open -na "Alacritty" --args --working-directory {{path}}',
+        ],
+        checkCommands: ['alacritty'],
+        bundleIds: ['org.alacritty'],
+        appNames: ['Alacritty'],
+      },
+      win32: {
+        openCommands: [
+          'start "" alacritty --working-directory "{{path_raw}}"',
+          'alacritty --working-directory "{{path_raw}}"',
+        ],
+        checkCommands: ['alacritty'],
+      },
+      linux: {
+        openCommands: ['alacritty --working-directory {{path}}'],
+        checkCommands: ['alacritty'],
       },
     },
   },
