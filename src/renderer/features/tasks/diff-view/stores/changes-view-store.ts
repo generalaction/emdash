@@ -13,7 +13,7 @@ export interface ExpandedSections {
 export class ChangesViewStore {
   unstagedSelection = observable.set<string>();
   stagedSelection = observable.set<string>();
-  expandedSections: ExpandedSections = { unstaged: true, staged: true, pullRequests: true };
+  expandedSections: ExpandedSections = { unstaged: true, staged: false, pullRequests: false };
 
   private _disposeReactions: Array<() => void> = [];
   private _suppressAutoExpand = new Set<keyof ExpandedSections>();
@@ -51,6 +51,7 @@ export class ChangesViewStore {
     );
 
     // Set sensible initial expanded state once the first git load completes.
+    // Staged and pull-requests start collapsed; only unstaged is expanded by default.
     this._disposeReactions.push(
       when(
         () => !this.git.isLoading && !this.git.error,
@@ -62,8 +63,8 @@ export class ChangesViewStore {
           runInAction(() => {
             this.expandedSections = {
               unstaged: hasUnstaged || (!hasStaged && !hasUnstaged && !hasPullRequests),
-              staged: hasStaged,
-              pullRequests: hasPullRequests,
+              staged: false,
+              pullRequests: false,
             };
           });
         }
@@ -98,25 +99,11 @@ export class ChangesViewStore {
             if (curr.staged === 0 && prev.staged > 0) {
               next.staged = false;
               changed = true;
-            } else if (curr.staged > 0 && prev.staged === 0) {
-              if (this._suppressAutoExpand.has('staged')) {
-                this._suppressAutoExpand.delete('staged');
-              } else {
-                next.staged = true;
-                changed = true;
-              }
             }
 
             if (curr.pullRequests === 0 && prev.pullRequests > 0) {
               next.pullRequests = false;
               changed = true;
-            } else if (curr.pullRequests > 0 && prev.pullRequests === 0) {
-              if (this._suppressAutoExpand.has('pullRequests')) {
-                this._suppressAutoExpand.delete('pullRequests');
-              } else {
-                next.pullRequests = true;
-                changed = true;
-              }
             }
 
             if (changed) this.expandedSections = next;

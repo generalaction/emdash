@@ -131,7 +131,7 @@ const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {
         collapsible
         collapsedSize={SIDEBAR_COLLAPSED_SIZE}
         onResize={() =>
-          taskView.setSidebarCollapsed(sidebarPanelRef.current?.isCollapsed() ?? false)
+          taskView.syncPanelCollapsed(sidebarPanelRef.current?.isCollapsed() ?? false)
         }
       >
         <TaskSidebar />

@@ -5,8 +5,8 @@ import type {
   ExpandedSections,
 } from '@renderer/features/tasks/diff-view/stores/changes-view-store';
 
-// Unreachable in practice: callers guard with `if (!changesView) return null` before calling this
-// hook, so changesView is always non-null here. React Hooks rules prevent a conditional call.
+// The DEFAULT_EXPANDED fallback is unreachable now that callers guard with the
+// outer ChangesPanel component, but kept for type-safety with the nullable param.
 const DEFAULT_EXPANDED: ExpandedSections = { unstaged: true, staged: true, pullRequests: true };
 
 // Matches the SectionHeader height: outer py-2 (8+8px) + button p-2 (8+8px) + size-4 icon (16px) = 48px

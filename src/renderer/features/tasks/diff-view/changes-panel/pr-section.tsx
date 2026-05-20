@@ -37,7 +37,7 @@ export const PullRequestsSection = observer(function PullRequestsSection({
     : false;
 
   return (
-    <>
+    <div className="h-10">
       <PullRequestSectionHeader
         count={pullRequests.length}
         collapsed={collapsed}
@@ -90,6 +90,6 @@ export const PullRequestsSection = observer(function PullRequestsSection({
         ) : null}
         {repositoryUrl && currentPr && <PullRequestEntry key={currentPr.url} pr={currentPr} />}
       </div>
-    </>
+    </div>
   );
 });

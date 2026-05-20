@@ -162,7 +162,7 @@ export class DiffViewStore implements Snapshottable<DiffViewSnapshot> {
 
   get effectiveCommitAction(): CommitAction {
     if (this.commitAction !== null) return this.commitAction;
-    return this.git.isBranchPublished ? 'commit-push' : 'commit';
+    return 'commit-pr';
   }
 
   setCommitAction(action: CommitAction | null): void {

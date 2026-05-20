@@ -58,6 +58,13 @@ export class WorkspaceViewModel implements ILifecycle {
 
   private _diffTabLifecycle: DiffTabLifecycleStore | null = null;
 
+  /**
+   * True once the user has manually interacted with the sidebar controls (tab
+   * pick or collapse). While false, the auto-discovery reaction may switch tabs
+   * on their behalf.
+   */
+  private _hasUserInteractedWithSidebar = false;
+
   /** Permanent reactions (live as long as the view model). */
   private readonly _disposers: (() => void)[] = [];
   /** Session reactions (created in initialize, disposed in suspend). */
@@ -74,9 +81,10 @@ export class WorkspaceViewModel implements ILifecycle {
     const taskData = _taskStore.data as Task;
     this.taskId = taskData.id;
 
-    // UI state defaults — overridden by restoreSnapshot when called
-    this.sidebarTab = 'conversations';
-    this.isSidebarCollapsed = true;
+    // UI state defaults — overridden by restoreSnapshot when called.
+    // New tasks (no snapshot) open with the sidebar expanded on the file tree.
+    this.sidebarTab = 'files';
+    this.isSidebarCollapsed = false;
     this.focusedRegion = 'main';
     this.isTerminalDrawerOpen = false;
     this.terminalDrawerActiveItem = undefined;
@@ -209,6 +217,9 @@ export class WorkspaceViewModel implements ILifecycle {
    * initialize() so the reaction baseline is correct.
    */
   restoreSnapshot(savedSnapshot: TaskViewSnapshot): void {
+    // Mark as user-owned so the auto-discovery reaction never fires for tasks
+    // that have already been visited and have persisted sidebar state.
+    this._hasUserInteractedWithSidebar = true;
     this.sidebarTab = (savedSnapshot.sidebarTab as SidebarTab) ?? 'conversations';
     this.isSidebarCollapsed = savedSnapshot.isSidebarCollapsed ?? true;
     this.focusedRegion = savedSnapshot.focusedRegion === 'bottom' ? 'bottom' : 'main';
@@ -315,6 +326,22 @@ export class WorkspaceViewModel implements ILifecycle {
       }
     );
     this._sessionDisposers.push(terminalsDisposer);
+
+    // Auto-switch from the file tree to the changes panel the first time git
+    // changes appear, provided the user hasn't manually touched the sidebar.
+    // The reaction is self-disposing after its first switch.
+    const autoSwitchDisposer = reaction(
+      () => this._workspace?.git.fileChanges.length ?? 0,
+      (count, prevCount, r) => {
+        if (count > 0 && prevCount === 0 && !this._hasUserInteractedWithSidebar) {
+          runInAction(() => {
+            this.sidebarTab = 'changes';
+          });
+          r.dispose();
+        }
+      }
+    );
+    this._sessionDisposers.push(autoSwitchDisposer);
   }
 
   /**
@@ -373,10 +400,21 @@ export class WorkspaceViewModel implements ILifecycle {
   }
 
   setSidebarTab(v: SidebarTab): void {
+    this._hasUserInteractedWithSidebar = true;
     this.sidebarTab = v;
   }
 
   setSidebarCollapsed(collapsed: boolean): void {
+    this._hasUserInteractedWithSidebar = true;
+    this.isSidebarCollapsed = collapsed;
+  }
+
+  /**
+   * Called by the ResizablePanel's onResize handler to sync the physical
+   * panel collapse state back into the store. This is not a user-initiated
+   * action, so it does NOT set _hasUserInteractedWithSidebar.
+   */
+  syncPanelCollapsed(collapsed: boolean): void {
     this.isSidebarCollapsed = collapsed;
   }
 

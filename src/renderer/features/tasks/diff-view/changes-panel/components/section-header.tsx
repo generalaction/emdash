@@ -31,7 +31,7 @@ export function SectionHeader({
       <div className="flex items-center gap-2 justify-between w-full">
         <button onClick={onToggleCollapsed}>
           <span className="text-sm text-foreground-muted flex items-center gap-2">
-            <span>{label}</span> <Badge variant="secondary">{count}</Badge>{' '}
+            <span>{label}</span> 
             <span className="p-2 text-foreground-muted hover:text-foreground">
               <ChevronDown
                 className={cn(
@@ -93,9 +93,9 @@ export function PullRequestSectionHeader({
         <button onClick={onToggleCollapsed} className="min-w-0">
           <span className="text-sm text-foreground-muted flex items-center gap-2 min-w-0">
             <span className="truncate">Pull Requests</span>{' '}
-            <Badge variant="secondary" className="shrink-0">
+            {/* <Badge variant="secondary" className="shrink-0">
               {count}
-            </Badge>
+            </Badge> */}
             <span className="p-2 text-foreground-muted hover:text-foreground">
               <ChevronDown
                 className={cn(
@@ -107,28 +107,7 @@ export function PullRequestSectionHeader({
           </span>
         </button>
         <div className="flex items-center gap-1.5">
-          <Tooltip>
-            <TooltipTrigger>
-              <SplitButton
-                variant="outline"
-                size="xs"
-                actions={prActions}
-                disabled={hasOpenPr || !onCreatePr || !onCreateDraftPr}
-                icon={<Plus className="size-3" />}
-              />
-            </TooltipTrigger>
-            <TooltipContent>
-              {hasOpenPr ? 'A pull request is already open' : 'Create a pull request'}
-            </TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger>
-              <Button variant="outline" size="icon-xs" onClick={onRefresh} disabled={isRefreshing}>
-                <RefreshCw className={cn('size-3', isRefreshing && 'animate-spin')} />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Refresh pull requests</TooltipContent>
-          </Tooltip>
+         
         </div>
       </div>
     </div>

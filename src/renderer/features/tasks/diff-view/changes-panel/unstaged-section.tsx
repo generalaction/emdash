@@ -105,7 +105,7 @@ export const UnstagedSection = observer(function UnstagedSection() {
         {!hasChanges && (
           <EmptyState label="Working tree clean" description="No uncommitted file changes." />
         )}
-        {hasChanges && (
+        {/* {hasChanges && (
           <ActionCard
             selectedCount={changesView.unstagedSelection.size}
             selectionActions={
@@ -157,8 +157,9 @@ export const UnstagedSection = observer(function UnstagedSection() {
               </>
             }
           />
-        )}
+        )} */}
         <div className="min-h-0 flex-1 px-1">
+          {hasChanges && !hasStagedChanges && <CommitCard autoStage />}
           <VirtualizedChangesList
             changes={changes}
             isSelected={(path) => changesView.unstagedSelection.has(path)}
@@ -169,7 +170,6 @@ export const UnstagedSection = observer(function UnstagedSection() {
             onPrefetch={(change) => prefetch(change.path)}
           />
         </div>
-        {hasChanges && !hasStagedChanges && <CommitCard autoStage />}
       </div>
     </>
   );

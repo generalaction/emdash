@@ -15,7 +15,7 @@ import { SectionHeader } from './components/section-header';
 import { VirtualizedChangesList } from './components/virtualized-changes-list';
 import { usePrefetchDiffModels } from './hooks/use-prefetch-diff-models';
 
-export const StagedSection = observer(function StagedSection() {
+export const StagedSection = observer(function StagedSection({ collapsed }: { collapsed?: boolean }) {
   const { projectId } = useTaskViewContext();
   const workspaceId = useWorkspaceId();
   const taskView = useWorkspaceViewModel();
@@ -72,6 +72,9 @@ export const StagedSection = observer(function StagedSection() {
         collapsed={!changesView.expandedSections.staged}
         onToggleCollapsed={() => changesView.toggleExpanded('staged')}
       />
+      {
+        !collapsed && (
+          <>
       {!hasChanges && (
         <EmptyState
           label="Nothing staged"
@@ -120,6 +123,9 @@ export const StagedSection = observer(function StagedSection() {
         </div>
         {hasChanges && <CommitCard />}
       </div>
+          </>
+        )
+      }
     </>
   );
 });
