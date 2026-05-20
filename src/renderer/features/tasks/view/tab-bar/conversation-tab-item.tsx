@@ -32,6 +32,7 @@ export const ConversationTabItem = observer(function ConversationTabItem({
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const pendingRenameRef = useRef(false);
+  const committedRef = useRef(false);
 
   const config = agentConfig[tab.store.data.providerId];
   const title = formatConversationTitleForDisplay(tab.store.data.providerId, tab.store.data.title);
@@ -44,11 +45,14 @@ export const ConversationTabItem = observer(function ConversationTabItem({
   const handleContextMenuOpenChangeComplete = useCallback((open: boolean) => {
     if (!open && pendingRenameRef.current) {
       pendingRenameRef.current = false;
+      committedRef.current = false;
       setIsEditing(true);
     }
   }, []);
 
   const commitRename = (value: string) => {
+    if (committedRef.current) return;
+    committedRef.current = true;
     const trimmed = value.trim();
     if (trimmed && trimmed !== rawTitle) {
       onRenameSubmit(trimmed);
@@ -78,7 +82,10 @@ export const ConversationTabItem = observer(function ConversationTabItem({
           onBlur={(e) => commitRename(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') commitRename(e.currentTarget.value);
-            else if (e.key === 'Escape') setIsEditing(false);
+            else if (e.key === 'Escape') {
+              committedRef.current = true;
+              setIsEditing(false);
+            }
           }}
         />
         <Separator orientation="vertical" />
