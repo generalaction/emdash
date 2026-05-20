@@ -2,9 +2,10 @@ import { createProviderClassifier, type ClassificationResult } from './base';
 
 export function createAntigravityClassifier() {
   return createProviderClassifier((text: string, chunk: string): ClassificationResult => {
-    const tail = text.slice(-700);
+    const tailStart = Math.max(0, text.length - 700);
+    const tail = text.slice(tailStart);
     const permissionPromptIndex = tail.search(
-      /approve|reject|permission|allow|confirm|run command/i
+      /\b(?:approve|reject)\b.*\?|permission\s+(?:required|denied|requested)|run command\?/i
     );
     const authSuccessIndex = chunk.search(/Successfully authenticated|Login successful|Signed in/i);
     const errorIndex = chunk.search(/^\s*(?:error|fatal|exception|failed):/im);
@@ -13,15 +14,16 @@ export function createAntigravityClassifier() {
       tail.search(/\? for shortcuts/i),
       tail.search(/How can I help|let me know|Anything else|What would you like/i)
     );
+    const chunkStart = text.length - chunk.length;
     const generatingIndex = tail.lastIndexOf('Generating...');
     const lastActionableIndex = Math.max(
-      permissionPromptIndex,
-      authSuccessIndex,
-      errorIndex,
-      readyPromptIndex
+      permissionPromptIndex >= 0 ? tailStart + permissionPromptIndex : -1,
+      authSuccessIndex >= 0 ? chunkStart + authSuccessIndex : -1,
+      errorIndex >= 0 ? chunkStart + errorIndex : -1,
+      readyPromptIndex >= 0 ? tailStart + readyPromptIndex : -1
     );
 
-    if (generatingIndex > lastActionableIndex) {
+    if (generatingIndex >= 0 && tailStart + generatingIndex > lastActionableIndex) {
       return undefined;
     }
 

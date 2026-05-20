@@ -43,6 +43,25 @@ describe('createAntigravityClassifier', () => {
     });
   });
 
+  it('does not suppress chunk-scoped results when generating text has a larger tail offset', () => {
+    const classifier = createAntigravityClassifier();
+
+    expect(classifier.classify(`${'x'.repeat(300)}Generating...`)).toBeUndefined();
+    expect(classifier.classify('\nerror: failed to load configuration')).toEqual({
+      type: 'error',
+    });
+  });
+
+  it('does not classify ordinary allow or confirm text as a permission prompt', () => {
+    const classifier = createAntigravityClassifier();
+
+    expect(
+      classifier.classify(
+        "I'll allow you to review the diff and confirm the change before editing."
+      )
+    ).toBeUndefined();
+  });
+
   it('does not repeat old error classifications on later chunks', () => {
     const classifier = createAntigravityClassifier();
 
