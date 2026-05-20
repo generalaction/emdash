@@ -347,22 +347,29 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
           >
             <Tooltip>
               <TooltipTrigger>
-                <ToggleGroupItem value="changes" aria-label="Changes" className={cn("", hasDiffStats && "w-full px-2! transition-all")}>
+                <ToggleGroupItem
+                  value="changes"
+                  aria-label="Changes"
+                  className={cn("w-auto! min-w-7! gap-0", hasDiffStats && "w-full px-2!")}
+                >
                   <FileDiff className="size-3.5" />
-                  {hasDiffStats && (
-                    <span className="flex items-center tabular-nums text-xs leading-none gap-1">
-                      {linesAdded > 0 && (
-                        <span className="text-foreground-diff-added">
-                          +{formatDiffLineCount(linesAdded)}
-                        </span>
-                      )}
-                      {linesDeleted > 0 && (
-                        <span className="text-foreground-diff-deleted">
-                          -{formatDiffLineCount(linesDeleted)}
-                        </span>
-                      )}
-                    </span>
-                  )}
+                  <span
+                    className={cn(
+                      'overflow-hidden transition-[max-width,padding-left] duration-500 ease-in-out flex items-center tabular-nums text-xs leading-none gap-0.5',
+                      hasDiffStats ? 'max-w-20 pl-1' : 'max-w-0 pl-0'
+                    )}
+                  >
+                    {linesAdded > 0 && (
+                      <span className="text-foreground-diff-added">
+                        +{formatDiffLineCount(linesAdded)}
+                      </span>
+                    )}
+                    {linesDeleted > 0 && (
+                      <span className="text-foreground-diff-deleted">
+                        -{formatDiffLineCount(linesDeleted)}
+                      </span>
+                    )}
+                  </span>
                 </ToggleGroupItem>
               </TooltipTrigger>
               <TooltipContent>
