@@ -27,7 +27,7 @@ export interface ProviderClassifier {
   reset(): void;
 }
 
-type ClassifyFn = (text: string) => ClassificationResult;
+type ClassifyFn = (text: string, chunk: string) => ClassificationResult;
 
 const MAX_BUFFER = 4096; // 4KB sliding window
 
@@ -58,9 +58,10 @@ export function createProviderClassifier(classifyFn: ClassifyFn): ProviderClassi
 
       // Strip ANSI codes for pattern matching
       const clean = stripAnsi(buffer);
+      const cleanChunk = stripAnsi(chunk);
 
       // Call provider-specific classification
-      return classifyFn(clean);
+      return classifyFn(clean, cleanChunk);
     },
 
     reset(): void {
