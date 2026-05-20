@@ -58,6 +58,45 @@ describe('pty env Windows shell handling', () => {
     expect(env.SHELL).toBe('/bin/bash');
   });
 
+  it('passes through documented provider launch environment variables', async () => {
+    const providerEnv = {
+      CLAUDE_CONFIG_DIR: '/tmp/claude-config',
+      ANTHROPIC_AUTH_TOKEN: 'anthropic-token',
+      ANTHROPIC_BASE_URL: 'https://anthropic.example.test',
+      CODEX_HOME: '/tmp/codex-home',
+      OPENAI_ORGANIZATION: 'org_123',
+      OPENAI_PROJECT: 'proj_123',
+      GEMINI_MODEL: 'gemini-2.5-pro',
+      GOOGLE_GENAI_API_VERSION: 'v1beta',
+      GROK_CODE_XAI_API_KEY: 'xai-key',
+      BAILIAN_CODING_PLAN_API_KEY: 'bailian-key',
+      GOOSE_PROVIDER: 'openai',
+      GOOSE_MODEL: 'gpt-5.1',
+      GOOSE_PROVIDER__HOST: 'https://goose.example.test',
+      OPENCODE_MODEL: 'anthropic/claude-sonnet-4-5',
+      AMP_TOOLBOX: '/tmp/amp-toolbox',
+      ALL_PROXY: 'socks5://127.0.0.1:9000',
+      EDITOR: 'vim',
+    };
+    Object.assign(process.env, providerEnv, {
+      CLAUDE_PROJECT_DIR: '/tmp/hook-owned',
+      CODEX_ACCESS_TOKEN: 'do-not-pass',
+      GOOSE_TERMINAL: 'do-not-pass',
+      TOOLBOX_ACTION: 'do-not-pass',
+    });
+
+    const { buildAgentEnv } = await loadPtyEnv();
+    const env = buildAgentEnv();
+
+    for (const [key, value] of Object.entries(providerEnv)) {
+      expect(env[key]).toBe(value);
+    }
+    expect(env.CLAUDE_PROJECT_DIR).toBeUndefined();
+    expect(env.CODEX_ACCESS_TOKEN).toBeUndefined();
+    expect(env.GOOSE_TERMINAL).toBeUndefined();
+    expect(env.TOOLBOX_ACTION).toBeUndefined();
+  });
+
   it('adds provider vars while keeping hook variables authoritative', async () => {
     const { buildAgentEnv } = await loadPtyEnv();
     const env = buildAgentEnv({
