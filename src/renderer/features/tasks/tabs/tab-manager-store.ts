@@ -18,7 +18,7 @@ import {
   setTabActiveIndex as tabUtilsSetTabActiveIndex,
 } from '@renderer/lib/stores/tab-utils';
 import { setTelemetryConversationScope } from '@renderer/utils/telemetry-scope';
-import type { GitChangeStatus, GitObjectRef } from '@shared/git';
+import { refsEqual, type GitChangeStatus, type GitObjectRef } from '@shared/git';
 import type { ActiveFile, TabDescriptor, TabManagerSnapshot } from '@shared/view-state';
 
 // ---------------------------------------------------------------------------
@@ -48,6 +48,11 @@ export class ConversationTabEntry {
 }
 
 export type TabEntry = FileTabStore | DiffTabStore | ConversationTabEntry;
+
+function optionalRefsEqual(left: GitObjectRef | undefined, right: GitObjectRef | undefined) {
+  if (left === undefined || right === undefined) return left === right;
+  return refsEqual(left, right);
+}
 
 // ---------------------------------------------------------------------------
 // Resolved tabs — enriched with live store references and derived state
@@ -447,7 +452,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
   // ---------------------------------------------------------------------------
 
   openDiff(activeFile: ActiveFile, status?: GitChangeStatus): void {
-    const existing = this._findDiffEntryByKey(activeFile.path, activeFile.group);
+    const existing = this._findDiffEntry(activeFile);
     if (existing) {
       existing.isPreview = false;
       if (status !== undefined) existing.status = status;
@@ -461,7 +466,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
   }
 
   openDiffPreview(activeFile: ActiveFile, status?: GitChangeStatus): void {
-    const existing = this._findDiffEntryByKey(activeFile.path, activeFile.group);
+    const existing = this._findDiffEntry(activeFile);
     if (existing) {
       this.activeTabId = existing.tabId;
       return;
@@ -698,10 +703,20 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     return undefined;
   }
 
-  private _findDiffEntryByKey(path: string, group: string): DiffTabStore | undefined {
+  private _findDiffEntry(activeFile: ActiveFile): DiffTabStore | undefined {
     for (const id of this.tabOrder) {
       const entry = this.entries.get(id);
-      if (entry?.kind === 'diff' && entry.path === path && entry.diffGroup === group) return entry;
+      if (
+        entry?.kind !== 'diff' ||
+        entry.path !== activeFile.path ||
+        entry.diffGroup !== activeFile.group
+      ) {
+        continue;
+      }
+      if (activeFile.group === 'disk' || activeFile.group === 'staged') return entry;
+      if (!refsEqual(entry.originalRef, activeFile.originalRef)) continue;
+      if (!optionalRefsEqual(entry.modifiedRef, activeFile.modifiedRef)) continue;
+      return entry;
     }
     return undefined;
   }

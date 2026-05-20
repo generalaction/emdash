@@ -65,7 +65,7 @@ export class DiffSlotStore {
     }
 
     if (this.diffType === 'git') {
-      return modelRegistry.toGitUri(this.uri, HEAD_REF);
+      return modelRegistry.toGitUri(this.uri, this.modifiedRef ?? HEAD_REF);
     }
 
     return this.uri;

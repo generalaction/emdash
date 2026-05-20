@@ -123,7 +123,7 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
       return modelRegistry.toGitUri(uri, tab.modifiedRef ?? HEAD_REF);
     }
     if (tab.diffGroup === 'git') {
-      return modelRegistry.toGitUri(uri, HEAD_REF);
+      return modelRegistry.toGitUri(uri, tab.modifiedRef ?? HEAD_REF);
     }
     return uri;
   })();
@@ -179,7 +179,9 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
         .registerModel(projectId, workspaceId, root, tab.path, language, 'git', tab.originalRef)
         .catch(() => {});
       const effectiveModifiedRef =
-        tab.diffGroup === 'pr' ? (tab.modifiedRef ?? HEAD_REF) : HEAD_REF;
+        tab.diffGroup === 'git' || tab.diffGroup === 'pr'
+          ? (tab.modifiedRef ?? HEAD_REF)
+          : HEAD_REF;
       void modelRegistry
         .registerModel(
           projectId,

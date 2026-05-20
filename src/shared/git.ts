@@ -226,7 +226,7 @@ export type Commit = {
 
 export type CommitFile = {
   path: string;
-  status: string;
+  status: GitChangeStatus;
   additions: number;
   deletions: number;
 };

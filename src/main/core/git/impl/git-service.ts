@@ -24,6 +24,7 @@ import {
   type FetchPrForReviewError,
   type FullGitStatus,
   type GitChange,
+  type GitChangeStatus,
   type GitHeadState,
   type GitInfo,
   type GitObjectRef,
@@ -946,7 +947,7 @@ export class GitService implements GitProvider, IDisposable {
     const statLines = stdout.trim().split('\n').filter(Boolean);
     const statusLines = nameStatus.trim().split('\n').filter(Boolean);
 
-    const statusMap = new Map<string, string>();
+    const statusMap = new Map<string, GitChangeStatus>();
     for (const line of statusLines) {
       const [code, ...pathParts] = line.split('\t');
       const filePath = pathParts[pathParts.length - 1] || '';
