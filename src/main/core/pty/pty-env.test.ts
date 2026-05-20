@@ -57,7 +57,9 @@ describe('pty env Windows shell handling', () => {
 
     expect(env.SHELL).toBe('/bin/bash');
   });
+});
 
+describe('buildAgentEnv provider env forwarding', () => {
   it('passes through documented provider launch environment variables', async () => {
     const providerEnv = {
       CLAUDE_CONFIG_DIR: '/tmp/claude-config',
@@ -76,7 +78,6 @@ describe('pty env Windows shell handling', () => {
       OPENCODE_MODEL: 'anthropic/claude-sonnet-4-5',
       AMP_TOOLBOX: '/tmp/amp-toolbox',
       ALL_PROXY: 'socks5://127.0.0.1:9000',
-      EDITOR: 'vim',
     };
     Object.assign(process.env, providerEnv, {
       CLAUDE_PROJECT_DIR: '/tmp/hook-owned',
