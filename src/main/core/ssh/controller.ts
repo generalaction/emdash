@@ -4,14 +4,6 @@ import { homedir } from 'node:os';
 import { eq } from 'drizzle-orm';
 import { Client } from 'ssh2';
 import { createRPCController } from '@/shared/ipc/rpc';
-import type {
-  ConnectionState,
-  ConnectionTestResult,
-  FileEntry,
-  SshConfig,
-  SshConnectionUsage,
-  SshHealthState,
-} from '@shared/ssh';
 import { db } from '@main/db/client';
 import {
   projects,
@@ -20,6 +12,14 @@ import {
 } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
+import type {
+  ConnectionState,
+  ConnectionTestResult,
+  FileEntry,
+  SshConfig,
+  SshConnectionUsage,
+  SshHealthState,
+} from '@shared/ssh';
 import { sshConnectionManager } from './ssh-connection-manager';
 import { sshCredentialService } from './ssh-credential-service';
 import { resolveIdentityAgent } from './utils';

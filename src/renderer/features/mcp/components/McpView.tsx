@@ -63,7 +63,7 @@ export const McpView: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center bg-background text-foreground">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
       </div>
     );
   }
@@ -75,7 +75,7 @@ export const McpView: React.FC = () => {
           title="MCP"
           description="Connect your agents with external data sources and tools"
         >
-          <div className="flex items-center gap-2 w-full justify-between">
+          <div className="flex w-full items-center justify-between gap-2">
             <SearchInput
               placeholder="Search servers..."
               value={search}
@@ -90,7 +90,7 @@ export const McpView: React.FC = () => {
                 aria-label="Refresh providers"
               >
                 <RefreshCw
-                  className={`h-4 w-4 text-muted-foreground ${isRefreshing ? 'animate-spin' : ''}`}
+                  className={`text-muted-foreground h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
                 />
               </Button>
               <Button onClick={() => openModal({ type: 'add-custom' })}>
@@ -130,7 +130,7 @@ export const McpView: React.FC = () => {
 
           {filteredInstalled.length === 0 && filteredCatalog.length === 0 && (
             <div className="py-12 text-center">
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 {search ? 'No servers match your search.' : 'No servers available.'}
               </p>
             </div>

@@ -1,10 +1,10 @@
 import { ExternalLink, MessageSquare } from 'lucide-react';
 import { useMemo } from 'react';
-import type { PullRequestComment } from '@shared/pull-requests';
 import { rpc } from '@renderer/lib/ipc';
 import { MarkdownRenderer } from '@renderer/lib/ui/markdown-renderer';
 import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { cn } from '@renderer/utils/utils';
+import type { PullRequestComment } from '@shared/pull-requests';
 
 function commentAuthorLabel(comment: PullRequestComment): string {
   return comment.author?.displayName ?? comment.author?.userName ?? 'Unknown author';
@@ -69,7 +69,7 @@ function CommentItem({ comment }: { comment: PullRequestComment }) {
         </div>
       </div>
       <button
-        className="absolute right-3 top-2 hidden items-center justify-center rounded bg-background-1 px-1 py-0.5 text-foreground-muted hover:text-foreground group-hover:flex"
+        className="absolute top-2 right-3 hidden items-center justify-center rounded bg-background-1 px-1 py-0.5 text-foreground-muted group-hover:flex hover:text-foreground"
         onClick={() => void rpc.app.openExternal(comment.url)}
       >
         <ExternalLink className="size-3.5" />

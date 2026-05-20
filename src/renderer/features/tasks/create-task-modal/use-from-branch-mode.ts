@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { type Branch } from '@shared/git';
 import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
 import { rpc } from '@renderer/lib/ipc';
+import { type Branch } from '@shared/git';
 import { useBranchSelection } from './use-branch-selection';
 import { useTaskName } from './use-task-name';
 

@@ -1,8 +1,8 @@
 import { eq, sql } from 'drizzle-orm';
-import { type TaskLifecycleStatus } from '@shared/tasks';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
 import { telemetryService } from '@main/lib/telemetry';
+import { type TaskLifecycleStatus } from '@shared/tasks';
 
 export async function updateTaskStatus(taskId: string, status: TaskLifecycleStatus): Promise<void> {
   const [row] = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);

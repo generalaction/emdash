@@ -1,6 +1,6 @@
-import type { Branch } from '@shared/git';
 import type { AppDb } from '@main/db/client';
 import { conversations, projectRemotes, projects, projectSettings, tasks } from '@main/db/schema';
+import type { Branch } from '@shared/git';
 
 const mainBranch: Branch = { type: 'local', branch: 'main' };
 

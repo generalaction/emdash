@@ -5,9 +5,9 @@ import {
   GitPullRequestDraft,
 } from 'lucide-react';
 import { type ReactNode } from 'react';
-import { type PullRequest } from '@shared/pull-requests';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
+import { type PullRequest } from '@shared/pull-requests';
 
 type PrStatusIconInput = Pick<PullRequest, 'status' | 'isDraft'>;
 

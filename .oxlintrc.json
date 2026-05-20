@@ -1,0 +1,84 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["eslint", "typescript", "react"],
+  "jsPlugins": ["./tooling/oxlint-plugin.js"],
+  "env": {
+    "browser": true,
+    "node": true,
+    "es2020": true
+  },
+  "categories": {
+    "correctness": "error"
+  },
+  "ignorePatterns": ["dist/**", "out/**", "build/**", "node_modules/**", "**/_*/**"],
+  "options": {
+    "typeAware": true,
+    "respectEslintDisableDirectives": false,
+    "reportUnusedDisableDirectives": "warn"
+  },
+  "rules": {
+    "no-unused-vars": [
+      "error",
+      {
+        "argsIgnorePattern": "^_",
+        "varsIgnorePattern": "^_"
+      }
+    ],
+    "prefer-const": "error",
+    "typescript/no-explicit-any": "warn",
+    "typescript/consistent-type-imports": [
+      "warn",
+      {
+        "prefer": "type-imports",
+        "fixStyle": "inline-type-imports"
+      }
+    ],
+    "no-empty": ["warn", { "allowEmptyCatch": true }],
+    "no-control-regex": "off",
+    "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "warn",
+    "typescript/no-floating-promises": "off",
+    "typescript/no-misused-promises": "off",
+    "typescript/await-thenable": "off",
+    "typescript/no-base-to-string": "off",
+    "typescript/no-meaningless-void-operator": "off",
+    "typescript/no-redundant-type-constituents": "off",
+    "typescript/no-useless-default-assignment": "off",
+    "typescript/restrict-template-expressions": "off",
+    "typescript/unbound-method": "off"
+  },
+  "overrides": [
+    {
+      "files": ["src/**/*.{ts,tsx}"],
+      "rules": {
+        "typescript/no-floating-promises": "warn",
+        "typescript/no-misused-promises": [
+          "warn",
+          {
+            "checksVoidReturn": {
+              "attributes": false
+            }
+          }
+        ],
+        "typescript/await-thenable": "warn"
+      }
+    },
+    {
+      "files": [
+        "src/main/**/*.{ts,tsx}",
+        "src/renderer/**/*.{ts,tsx}",
+        "src/preload/**/*.{ts,tsx}"
+      ],
+      "rules": {
+        "emdash/no-tooling-imports": "error"
+      }
+    },
+    {
+      "files": ["**/*.test.{ts,tsx}"],
+      "rules": {
+        "typescript/no-explicit-any": "off",
+        "emdash/no-tooling-imports": "off"
+      }
+    }
+  ]
+}

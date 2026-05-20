@@ -59,9 +59,9 @@ export const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ chart, isDark, c
       >
         <div className="font-medium">{GENERIC_RENDER_ERROR}</div>
         {visibleState.message && (
-          <div className="mt-1 text-muted-foreground">{visibleState.message}</div>
+          <div className="text-muted-foreground mt-1">{visibleState.message}</div>
         )}
-        <pre className="mt-2 overflow-x-auto rounded bg-muted/60 p-2 text-muted-foreground">
+        <pre className="bg-muted/60 text-muted-foreground mt-2 overflow-x-auto rounded p-2">
           <code>{chart}</code>
         </pre>
       </div>

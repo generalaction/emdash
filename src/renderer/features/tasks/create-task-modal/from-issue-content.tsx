@@ -49,11 +49,11 @@ export function FromIssueContent({
           disabled={disabled}
         />
       ) : (
-        <div className="rounded-md border border-border overflow-hidden flex flex-col gap-2">
+        <div className="flex flex-col gap-2 overflow-hidden rounded-md border border-border">
           <div className="flex flex-col gap-2 p-2">
             <SelectedIssueValue issue={state.linkedIssue!} />
           </div>
-          <div className="flex items-center justify-between h-6 px-2 text-xs bg-background-1 border-t border-border">
+          <div className="flex h-6 items-center justify-between border-t border-border bg-background-1 px-2 text-xs">
             <div className="text-foreground-muted"></div>
             <div className="text-foreground-muted">
               <button className="flex items-center gap-2" onClick={() => setIsSelecting(true)}>

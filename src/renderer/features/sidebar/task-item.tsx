@@ -1,5 +1,4 @@
 import { observer } from 'mobx-react-lite';
-import { selectCurrentPr } from '@shared/pull-requests';
 import { TaskSidebarAgentStatus } from '@renderer/features/sidebar/task-sidebar-agent-status';
 import { TaskContextMenu } from '@renderer/features/tasks/components/task-context-menu';
 import { TaskGitDiffStats } from '@renderer/features/tasks/components/task-git-diff-stats';
@@ -17,6 +16,7 @@ import {
 } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { cn } from '@renderer/utils/utils';
+import { selectCurrentPr } from '@shared/pull-requests';
 import { PrBadge } from '../../lib/components/pr-badge';
 import { SidebarMenuRow } from './sidebar-primitives';
 
@@ -117,7 +117,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
           >
             {taskName}
           </span>
-          <TaskGitDiffStats task={task} className="h-full shrink-0 flex items-center pl-1 pr-1" />
+          <TaskGitDiffStats task={task} className="flex h-full shrink-0 items-center pr-1 pl-1" />
           <RenderPrBadge task={task} />
         </div>
         <TaskSidebarAgentStatus task={task} />

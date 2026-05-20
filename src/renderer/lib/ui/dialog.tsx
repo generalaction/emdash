@@ -70,7 +70,7 @@ function DialogHeader({
   return (
     <div
       data-slot="dialog-header"
-      className="flex items-center gap-2 p-6 justify-between"
+      className="flex items-center justify-between gap-2 p-6"
       {...props}
     >
       <div className={cn('flex items-center gap-2', className)}>{children}</div>
@@ -78,7 +78,7 @@ function DialogHeader({
         <DialogPrimitive.Close
           data-slot="dialog-close"
           render={
-            <button className="p-0  text-foreground-tertiary-muted hover:text-foreground-tertiary hover:bg-transparent bg-transparent" />
+            <button className="bg-transparent p-0 text-foreground-tertiary-muted hover:bg-transparent hover:text-foreground-tertiary" />
           }
         >
           <XIcon className="size-4" />

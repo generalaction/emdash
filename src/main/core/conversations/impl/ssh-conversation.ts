@@ -1,7 +1,3 @@
-import type { AgentSessionConfig } from '@shared/agent-session';
-import type { Conversation } from '@shared/conversations';
-import { agentSessionExitedChannel } from '@shared/events/agentEvents';
-import { makePtySessionId } from '@shared/ptySessionId';
 import { wireAgentClassifier } from '@main/core/agent-hooks/classifier-wiring';
 import { claudeTrustService } from '@main/core/agent-hooks/claude-trust-service';
 import type { ConversationProvider } from '@main/core/conversations/types';
@@ -16,6 +12,10 @@ import { providerOverrideSettings } from '@main/core/settings/provider-settings-
 import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
+import type { AgentSessionConfig } from '@shared/agent-session';
+import type { Conversation } from '@shared/conversations';
+import { agentSessionExitedChannel } from '@shared/events/agentEvents';
+import { makePtySessionId } from '@shared/ptySessionId';
 import { buildAgentCommand } from './agent-command';
 import { resolveProviderEnv } from './provider-env';
 
@@ -185,7 +185,7 @@ export class SshConversationProvider implements ConversationProvider {
     });
 
     ptySessionRegistry.register(sessionId, pty, {
-      metadata: { providerId: conversation.providerId, title: conversation.title },
+      metadata: { providerId: conversation.providerId, title: conversation.title, isRemote: true },
     });
     this.sessions.set(sessionId, pty);
   }

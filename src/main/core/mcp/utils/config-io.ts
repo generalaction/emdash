@@ -2,8 +2,8 @@ import * as fs from 'fs/promises';
 import path from 'path';
 import * as jsoncParser from 'jsonc-parser';
 import * as toml from 'smol-toml';
-import type { AgentMcpMeta, RawServerEntry, ServerMap } from '@shared/mcp/types';
 import { log } from '@main/lib/logger';
+import type { AgentMcpMeta, RawServerEntry, ServerMap } from '@shared/mcp/types';
 
 // ── Read ───────────────────────────────────────────────────────────────────
 

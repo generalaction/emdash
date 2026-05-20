@@ -108,8 +108,8 @@ export function FeedbackModal({ onSuccess, blurb }: Props) {
       onDragLeave={handleDragLeave}
     >
       {isDraggingOver && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl border-2 border-dashed border-primary bg-primary/5">
-          <div className="flex flex-col items-center gap-1 text-primary">
+        <div className="border-primary bg-primary/5 absolute inset-0 z-10 flex items-center justify-center rounded-xl border-2 border-dashed">
+          <div className="text-primary flex flex-col items-center gap-1">
             <ImageIcon className="size-6" />
             <span className="text-xs font-medium">Drop image here</span>
           </div>
@@ -201,7 +201,7 @@ export function FeedbackModal({ onSuccess, blurb }: Props) {
           </div>
 
           {errorMessage ? (
-            <p className="text-sm text-destructive" role="alert">
+            <p className="text-destructive text-sm" role="alert">
               {errorMessage}
             </p>
           ) : null}

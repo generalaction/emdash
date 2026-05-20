@@ -18,7 +18,7 @@ export const views = {
   project: projectView,
   task: taskView,
   settings: settingsView,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line typescript/no-explicit-any
 } satisfies Record<string, ViewDefinition<any>>;
 
 export type ViewDefinition<TParams extends object = Record<never, never>> = {
@@ -34,8 +34,11 @@ export type ViewDefinition<TParams extends object = Record<never, never>> = {
   /**
    * Called before navigation to this view is committed. Return { ok: false }
    * to redirect to a different view instead.
+   *
+   * Receives `unknown` because params can come from persisted snapshots written
+   * by older builds, so each guard must validate the shape before using it.
    */
-  canActivate?: (params: TParams) => GuardResult;
+  canActivate?: (params: unknown) => GuardResult;
 };
 
 type Views = typeof views;
@@ -54,13 +57,11 @@ export type GuardResult =
 
 export function setupNavigationGuards(): void {
   for (const [viewId, view] of Object.entries(views) as Array<
-    [string, ViewDefinition<Record<string, unknown>>]
+    [ViewId, ViewDefinition<Record<string, unknown>>]
   >) {
+    appState.navigation.registerView(viewId);
     if (view.canActivate) {
-      appState.navigation.registerGuard(
-        viewId as ViewId,
-        view.canActivate as (params: unknown) => GuardResult
-      );
+      appState.navigation.registerGuard(viewId, view.canActivate);
     }
   }
 }

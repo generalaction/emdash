@@ -1,9 +1,9 @@
 import { useMemo } from 'react';
-import { OPEN_IN_APPS, type OpenInAppId } from '@shared/openInApps';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { useOpenInApps } from '@renderer/lib/hooks/useOpenInApps';
 import { Switch } from '@renderer/lib/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+import { OPEN_IN_APPS, type OpenInAppId } from '@shared/openInApps';
 import IntegrationRow from './IntegrationRow';
 
 export default function HiddenToolsSettingsCard() {
@@ -28,7 +28,7 @@ export default function HiddenToolsSettingsCard() {
   }, [availability, labels]);
 
   return (
-    <div className="rounded-xl border border-border/60 bg-muted/10 p-2">
+    <div className="bg-muted/10 rounded-xl border border-border/60 p-2">
       <div className="space-y-2">
         {sortedApps.map((app) => {
           const isDetected = availability[app.id] ?? app.alwaysAvailable ?? false;
@@ -47,7 +47,7 @@ export default function HiddenToolsSettingsCard() {
               status={isDetected ? 'connected' : 'missing'}
               showStatusPill={false}
               middle={
-                <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span className="text-muted-foreground flex items-center gap-2 text-sm">
                   <span className={`h-1.5 w-1.5 rounded-full ${indicatorClass}`} />
                   {statusLabel}
                 </span>

@@ -1,3 +1,6 @@
+import type { FileSystemProvider } from '@main/core/fs/types';
+import type { RepositoryGitProvider } from '@main/core/git/repository-git-provider';
+import { log } from '@main/lib/logger';
 import { remoteNameFromQualifiedRef } from '@shared/git-utils';
 import {
   baseProjectSettingsSchema,
@@ -10,9 +13,6 @@ import {
 import { mergeShareableProjectSettings } from '@shared/project-settings-fields';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import type { Result } from '@shared/result';
-import type { FileSystemProvider } from '@main/core/fs/types';
-import type { RepositoryGitProvider } from '@main/core/git/repository-git-provider';
-import { log } from '@main/lib/logger';
 import {
   hasLegacyShareableConfigMigrated,
   serializeShareableProjectSettings,

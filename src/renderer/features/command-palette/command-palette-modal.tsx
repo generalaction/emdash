@@ -3,8 +3,6 @@ import { Command } from 'cmdk';
 import { Activity, FolderOpen, GitBranch, MessageSquare, type LucideIcon } from 'lucide-react';
 import { useObserver } from 'mobx-react-lite';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ALL_COMMAND_DEFS, type CommandDef } from '@shared/commands';
-import type { SearchItem } from '@shared/search';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
 import { getTaskStore, getTaskView } from '@renderer/features/tasks/stores/task-selectors';
@@ -18,6 +16,8 @@ import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 import { Shortcut } from '@renderer/lib/ui/shortcut';
 import { cn } from '@renderer/utils/utils';
+import { ALL_COMMAND_DEFS, type CommandDef } from '@shared/commands';
+import type { SearchItem } from '@shared/search';
 import { getCommandIcon } from './command-icons';
 import { PaletteConversationItem } from './palette-conversation-item';
 import { PALETTE_ITEM_CLASS } from './palette-item-styles';
@@ -156,7 +156,7 @@ export function CommandPaletteModal({
         rpc.search.commandPalette({ query: '', context: { projectId, taskId, workspaceId } }),
       staleTime: 5_000,
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, []);
 
   const { data: dbResults = [] } = useQuery({

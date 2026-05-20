@@ -1,9 +1,9 @@
 import { createContext, useEffect, useLayoutEffect, type ReactNode } from 'react';
-import type { Theme } from '@shared/app-settings';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { useLocalStorage } from '@renderer/lib/hooks/useLocalStorage';
 import { applyThemeToAll } from '@renderer/lib/pty/pty';
 import { getNextTheme } from '@renderer/lib/theme/theme-toggle-model';
+import type { Theme } from '@shared/app-settings';
 
 type EffectiveTheme = 'emlight' | 'emdark';
 
