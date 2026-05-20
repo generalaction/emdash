@@ -67,6 +67,8 @@ export const ContextBar = observer(function ContextBar({ conversationId }: Conte
         actions={actions}
         disabled={!canApplyContext || isSavingPromptLibrary}
         onApplyAction={handleApplyAction}
+        onDeleteComment={(id) => draftComments?.deleteComment(id)}
+        onDeleteAllComments={() => draftComments?.clear()}
       />
     </div>
   );

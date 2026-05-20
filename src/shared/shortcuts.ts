@@ -114,6 +114,12 @@ export const APP_SHORTCUTS = defineShortcuts({
     category: 'Tab Navigation',
     conflictBehavior: 'allow',
   },
+  addContext: {
+    defaultHotkey: 'Mod+Shift+A',
+    label: 'Add Context',
+    description: 'Open the Add Context menu in the conversations panel',
+    category: 'Task View',
+  },
   newConversation: {
     defaultHotkey: 'Mod+T',
     label: 'New Conversation',
