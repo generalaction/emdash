@@ -2,6 +2,7 @@ import {
   ArrowDown,
   ArrowUp,
   ChevronDown,
+  Clock,
   FileDiff,
   FolderOpen,
   GitBranch,
@@ -41,6 +42,7 @@ import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Toggle } from '@renderer/lib/ui/toggle';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
 import { cn } from '@renderer/utils/utils';
 import type { Issue } from '@shared/tasks';
 import { DevServerPills } from './components/dev-server-pills';
@@ -118,6 +120,10 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
     isPulling,
     isPushing,
   } = useGitActions(projectId, taskId);
+
+  const linesAdded = workspace.git.totalLinesAdded;
+  const linesDeleted = workspace.git.totalLinesDeleted;
+  const hasDiffStats = linesAdded > 0 || linesDeleted > 0;
 
   const projectStore = asMounted(getProjectStore(projectId));
 
@@ -341,22 +347,26 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
           >
             <Tooltip>
               <TooltipTrigger>
-                <ToggleGroupItem size="icon-sm" value="changes" aria-label="Changes">
+                <ToggleGroupItem value="changes" aria-label="Changes" className={cn("", hasDiffStats && "w-full px-2! transition-all")}>
                   <FileDiff className="size-3.5" />
+                  {hasDiffStats && (
+                    <span className="flex items-center tabular-nums text-xs leading-none gap-1">
+                      {linesAdded > 0 && (
+                        <span className="text-foreground-diff-added">
+                          +{formatDiffLineCount(linesAdded)}
+                        </span>
+                      )}
+                      {linesDeleted > 0 && (
+                        <span className="text-foreground-diff-deleted">
+                          -{formatDiffLineCount(linesDeleted)}
+                        </span>
+                      )}
+                    </span>
+                  )}
                 </ToggleGroupItem>
               </TooltipTrigger>
               <TooltipContent>
                 Changes <BoundShortcut settingsKey="sidebarChanges" variant="badge" />
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger>
-                <ToggleGroupItem size="icon-sm" value="conversations" aria-label="Conversations">
-                  <MessageSquare className="size-3.5" />
-                </ToggleGroupItem>
-              </TooltipTrigger>
-              <TooltipContent>
-                Conversations <BoundShortcut settingsKey="sidebarConversations" variant="badge" />
               </TooltipContent>
             </Tooltip>
             <Tooltip>
@@ -367,6 +377,16 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
               </TooltipTrigger>
               <TooltipContent>
                 Files <BoundShortcut settingsKey="sidebarFiles" variant="badge" />
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger>
+                <ToggleGroupItem size="icon-sm" value="conversations" aria-label="Conversations">
+                  <Clock className="size-3.5" />
+                </ToggleGroupItem>
+              </TooltipTrigger>
+              <TooltipContent>
+                Conversations <BoundShortcut settingsKey="sidebarConversations" variant="badge" />
               </TooltipContent>
             </Tooltip>
           </ToggleGroup>
