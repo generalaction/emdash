@@ -56,8 +56,9 @@ export function useWorkspaceSlots(): SlotsContextValue {
   return useObserver(() => {
     const viewId = appState.navigation.currentViewId;
     const registry = views as unknown as Record<string, ViewDefinition<Record<string, unknown>>>;
-    const def = registry[viewId] ?? registry.home;
-    const resolvedViewId = registry[viewId] ? viewId : 'home';
+    const viewDef = registry[viewId];
+    const def = viewDef ?? registry.home;
+    const resolvedViewId = viewDef ? viewId : 'home';
     return {
       WrapView: (def.WrapView ?? Fragment) as ComponentType<
         { children: ReactNode } & Record<string, unknown>
