@@ -1,3 +1,8 @@
+import {
+  parseShellWords,
+  resolveProviderCommandPath,
+  resolveProviderCliPrefix,
+} from '@main/core/conversations/impl/agent-command';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
 import type { IExecutionContext } from '@main/core/execution-context/types';
@@ -5,6 +10,7 @@ import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
 import { events } from '@main/lib/events';
 import type { IInitializable } from '@main/lib/lifecycle';
 import { log } from '@main/lib/logger';
+import type { ProviderCustomConfig } from '@shared/app-settings';
 import type {
   DependencyCategory,
   DependencyId,
@@ -24,6 +30,19 @@ import { DEPENDENCIES, getDependencyDescriptor } from './registry';
 import type { DependencyDescriptor, ProbeResult } from './types';
 
 const VERSION_RE = /(\d+\.\d+[\d.]*)/;
+
+type ProviderConfigGetter = (id: string) => Promise<ProviderCustomConfig | undefined>;
+
+async function getStoredProviderConfig(id: string): Promise<ProviderCustomConfig | undefined> {
+  try {
+    const { providerOverrideSettings } =
+      await import('@main/core/settings/provider-settings-service');
+    return providerOverrideSettings.getItem(id);
+  } catch (error) {
+    log.warn(`[DependencyManager] Failed to load provider settings for ${id}:`, error);
+    return undefined;
+  }
+}
 
 function resolveProbeStatus(
   descriptor: DependencyDescriptor,
@@ -82,6 +101,7 @@ export class DependencyManager implements IInitializable {
   private readonly emitEvents: boolean;
   private readonly runInstallCommand: InstallCommandRunner;
   private readonly connectionId: string | undefined;
+  private readonly getProviderConfig: ProviderConfigGetter;
 
   constructor(
     ctx: IExecutionContext,
@@ -89,16 +109,19 @@ export class DependencyManager implements IInitializable {
       emitEvents = true,
       runInstallCommand = runLocalInstallCommand,
       connectionId,
+      getProviderConfig = getStoredProviderConfig,
     }: {
       emitEvents?: boolean;
       runInstallCommand?: InstallCommandRunner;
       connectionId?: string;
+      getProviderConfig?: ProviderConfigGetter;
     } = {}
   ) {
     this.ctx = ctx;
     this.emitEvents = emitEvents;
     this.runInstallCommand = runInstallCommand;
     this.connectionId = connectionId;
+    this.getProviderConfig = getProviderConfig;
   }
 
   /**
@@ -210,11 +233,30 @@ export class DependencyManager implements IInitializable {
   }
 
   private async resolveFirstPath(descriptor: DependencyDescriptor): Promise<string | null> {
-    for (const command of descriptor.commands) {
+    const commands = await this.resolveProbeCommands(descriptor);
+    for (const command of commands) {
       const path = await resolveCommandPath(command, this.ctx);
       if (path) return path;
     }
     return null;
+  }
+
+  private async resolveProbeCommands(descriptor: DependencyDescriptor): Promise<string[]> {
+    if (descriptor.category !== 'agent') return descriptor.commands;
+
+    const providerConfig = await this.getProviderConfig(descriptor.id);
+    const configuredCli = providerConfig?.cli?.trim();
+    const parsed = configuredCli ? parseShellWords(configuredCli) : null;
+    const resolvedWords = parsed?.ok
+      ? resolveProviderCliPrefix(parsed.words, providerConfig?.installPath)
+      : undefined;
+    const configuredCommand = resolvedWords?.at(-1);
+    const baseCommands = configuredCommand ? [configuredCommand] : descriptor.commands;
+
+    if (!providerConfig?.installPath) return baseCommands;
+    return baseCommands.map((command) =>
+      resolveProviderCommandPath(command, providerConfig.installPath)
+    );
   }
 
   private updateState(state: DependencyState): void {

@@ -1,7 +1,8 @@
-import { Info, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { Folder, Info, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useProviderSettings } from '@renderer/features/settings/use-provider-settings';
 import { parseEnvAssignmentPaste, replaceEnvEntryWithPaste } from '@renderer/lib/env-paste';
+import { rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@renderer/lib/ui/dialog';
@@ -16,12 +17,14 @@ interface CustomCommandModalProps {
   isOpen: boolean;
   onClose: () => void;
   providerId: string;
+  detectedCommandPath?: string | null;
 }
 
 type EnvEntry = { key: string; value: string };
 
 type FormState = {
   cli: string;
+  installPath: string;
   resumeFlag: string;
   defaultArgs: string;
   extraArgs: string;
@@ -32,6 +35,7 @@ type FormState = {
 
 const getDefaultFromProvider = (provider: AgentProviderDefinition | undefined): FormState => ({
   cli: provider?.cli ?? '',
+  installPath: '',
   resumeFlag: provider?.resumeFlag ?? '',
   defaultArgs: provider?.defaultArgs?.join(' ') ?? '',
   extraArgs: '',
@@ -42,6 +46,7 @@ const getDefaultFromProvider = (provider: AgentProviderDefinition | undefined): 
 
 const configToFormState = (config: ProviderCustomConfig, fallback: FormState): FormState => ({
   cli: config.cli ?? fallback.cli,
+  installPath: config.installPath ?? '',
   resumeFlag: config.resumeFlag ?? fallback.resumeFlag,
   defaultArgs: Array.isArray(config.defaultArgs)
     ? config.defaultArgs.join(' ')
@@ -52,9 +57,49 @@ const configToFormState = (config: ProviderCustomConfig, fallback: FormState): F
   envEntries: config.env ? Object.entries(config.env).map(([key, value]) => ({ key, value })) : [],
 });
 
-const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose, providerId }) => {
+function getDirectoryFromPath(filePath: string | null | undefined): string {
+  if (!filePath) return '';
+  const normalized = filePath.replace(/\\/g, '/');
+  const index = normalized.lastIndexOf('/');
+  return index > 0 ? filePath.slice(0, index) : '';
+}
+
+function isAbsoluteCommand(command: string): boolean {
+  return command.startsWith('/') || /^[A-Za-z]:[\\/]/.test(command);
+}
+
+function joinInstallPath(installPath: string, command: string): string {
+  const trimmedPath = installPath.trim().replace(/[\\/]+$/, '');
+  if (!trimmedPath || isAbsoluteCommand(command)) return command;
+  const separator = trimmedPath.includes('\\') ? '\\' : '/';
+  const basename = command.split(/[\\/]/).pop() ?? command;
+  return `${trimmedPath}${separator}${basename}`;
+}
+
+function previewCliWithInstallPath(cli: string, installPath: string): string {
+  const trimmedCli = cli.trim();
+  if (!trimmedCli) return '';
+  if (!installPath.trim()) return cli;
+
+  const match = trimmedCli.match(/\S+$/);
+  if (!match) return cli;
+
+  const command = match[0];
+  return `${trimmedCli.slice(0, match.index)}${joinInstallPath(installPath, command)}`;
+}
+
+const CustomCommandModal: React.FC<CustomCommandModalProps> = ({
+  isOpen,
+  onClose,
+  providerId,
+  detectedCommandPath,
+}) => {
   const provider = useMemo(() => AGENT_PROVIDERS.find((p) => p.id === providerId), [providerId]);
   const registryDefaults = useMemo(() => getDefaultFromProvider(provider), [provider]);
+  const suggestedInstallPath = useMemo(
+    () => getDirectoryFromPath(detectedCommandPath),
+    [detectedCommandPath]
+  );
 
   const {
     value: storedConfig,
@@ -66,6 +111,7 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
 
   const [form, setForm] = useState<FormState>(registryDefaults);
   const [saving, setSaving] = useState(false);
+  const [isBrowsingInstallPath, setIsBrowsingInstallPath] = useState(false);
 
   useEffect(() => {
     if (!isOpen || isLoading) return;
@@ -114,6 +160,24 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
     setForm(registryDefaults);
   }, [registryDefaults]);
 
+  const handleBrowseInstallPath = useCallback(async () => {
+    if (isBrowsingInstallPath) return;
+
+    setIsBrowsingInstallPath(true);
+    try {
+      const result = await rpc.app.openSelectDirectoryDialog({
+        title: 'Select agent install path',
+        message: `Choose the directory containing ${provider?.name ?? 'this agent'} CLI.`,
+        defaultPath: form.installPath || undefined,
+      });
+      if (result) {
+        handleChange('installPath', result);
+      }
+    } finally {
+      setIsBrowsingInstallPath(false);
+    }
+  }, [form.installPath, handleChange, isBrowsingInstallPath, provider?.name]);
+
   const handleSave = useCallback(async () => {
     setSaving(true);
     try {
@@ -127,6 +191,7 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
 
       const isAtDefaults =
         form.cli === registryDefaults.cli &&
+        form.installPath === '' &&
         form.resumeFlag === registryDefaults.resumeFlag &&
         form.defaultArgs === registryDefaults.defaultArgs &&
         form.extraArgs === '' &&
@@ -141,6 +206,7 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
       } else {
         const config: ProviderCustomConfig = {
           cli: form.cli,
+          installPath: form.installPath.trim() || undefined,
           resumeFlag: form.resumeFlag,
           defaultArgs: form.defaultArgs.trim() ? form.defaultArgs.trim().split(/\s+/) : undefined,
           extraArgs: form.extraArgs.trim() || undefined,
@@ -162,7 +228,7 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
 
   const previewCommand = useMemo(() => {
     const parts: string[] = [];
-    if (form.cli) parts.push(form.cli);
+    if (form.cli) parts.push(previewCliWithInstallPath(form.cli, form.installPath));
     if (form.resumeFlag) parts.push(form.resumeFlag);
     if (form.defaultArgs) parts.push(form.defaultArgs);
     if (form.extraArgs) parts.push(form.extraArgs);
@@ -177,6 +243,7 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
     const hasEnv = form.envEntries.some((e) => e.key.trim() !== '');
     return (
       form.cli !== registryDefaults.cli ||
+      form.installPath !== '' ||
       form.resumeFlag !== registryDefaults.resumeFlag ||
       form.defaultArgs !== registryDefaults.defaultArgs ||
       form.extraArgs !== '' ||
@@ -226,6 +293,38 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
                   placeholder={registryDefaults.cli || 'CLI command'}
                   className="font-mono text-sm"
                 />
+              </div>
+
+              {/* Agent install path */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="installPath" className="text-sm font-medium">
+                    Agent install path
+                  </Label>
+                  <FieldTooltip content="Directory containing this agent CLI. Leave empty to use PATH." />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="installPath"
+                    value={form.installPath}
+                    onChange={(e) => handleChange('installPath', e.target.value)}
+                    placeholder={
+                      suggestedInstallPath
+                        ? `Detected: ${suggestedInstallPath}`
+                        : 'Default: use PATH'
+                    }
+                    className="font-mono text-sm"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={isBrowsingInstallPath}
+                    onClick={() => void handleBrowseInstallPath()}
+                  >
+                    <Folder data-icon="inline-start" className="size-4" />
+                    Browse
+                  </Button>
+                </div>
               </div>
 
               {/* Resume Flag */}

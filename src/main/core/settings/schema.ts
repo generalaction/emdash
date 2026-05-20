@@ -63,6 +63,7 @@ export const keyboardSettingsSchema = z
 
 export const providerCustomConfigEntrySchema = z.object({
   cli: z.string().optional(),
+  installPath: z.string().optional(),
   resumeFlag: z.string().optional(),
   defaultArgs: z.array(z.string()).optional(),
   autoApproveFlag: z.string().optional(),

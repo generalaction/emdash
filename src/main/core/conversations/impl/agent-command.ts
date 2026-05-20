@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { getProvider, type AgentProviderId } from '@shared/agent-provider-registry';
 import type { ProviderCustomConfig } from '@shared/app-settings';
 
@@ -77,6 +78,32 @@ function parseArgField(value: string | undefined): string[] {
   return parsed.words;
 }
 
+function joinInstallPath(installPath: string, command: string): string {
+  const trimmedPath = installPath.trim();
+  if (!trimmedPath || path.isAbsolute(command) || path.win32.isAbsolute(command)) return command;
+  const joiner =
+    /^[A-Za-z]:[\\/]/.test(trimmedPath) || trimmedPath.includes('\\') ? path.win32 : path.posix;
+  return joiner.join(trimmedPath, path.basename(command));
+}
+
+export function resolveProviderCommandPath(
+  command: string,
+  installPath: string | undefined
+): string {
+  return installPath ? joinInstallPath(installPath, command) : command;
+}
+
+export function resolveProviderCliPrefix(
+  words: string[],
+  installPath: string | undefined
+): string[] {
+  if (!installPath || words.length === 0) return words;
+  const resolved = [...words];
+  const commandIndex = resolved.length - 1;
+  resolved[commandIndex] = resolveProviderCommandPath(resolved[commandIndex], installPath);
+  return resolved;
+}
+
 function parseCliPrefix(value: string | undefined, providerId: AgentProviderId): string[] {
   const cli = value?.trim();
   if (!cli) throw new Error(`Missing CLI command for provider: ${providerId}`);
@@ -107,7 +134,10 @@ export function buildAgentCommand({
   isResuming?: boolean;
 }): AgentCommand {
   const providerDef = getProvider(providerId);
-  const [command, ...args] = parseCliPrefix(providerConfig?.cli, providerId);
+  const [command, ...args] = resolveProviderCliPrefix(
+    parseCliPrefix(providerConfig?.cli, providerId),
+    providerConfig?.installPath
+  );
 
   args.push(...(providerConfig?.defaultArgs ?? []));
 

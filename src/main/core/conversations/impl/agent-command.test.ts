@@ -58,6 +58,31 @@ describe('buildAgentCommand', () => {
     });
   });
 
+  it('prepends the configured agent install path to the CLI command', () => {
+    const result = buildAgentCommand({
+      providerId: 'claude',
+      providerConfig: makeConfig({ installPath: '/Users/jan/.claude/local' }),
+      sessionId: 'conv-1',
+    });
+
+    expect(result.command).toBe('/Users/jan/.claude/local/claude');
+  });
+
+  it('prepends the configured agent install path to the provider command in CLI prefixes', () => {
+    const result = buildAgentCommand({
+      providerId: 'claude',
+      providerConfig: makeConfig({
+        cli: 'caffeinate -i direnv exec . claude',
+        installPath: '/Users/jan/.claude/local',
+      }),
+      sessionId: 'conv-1',
+    });
+
+    expect(result.command).toBe('caffeinate');
+    expect(result.args).toContain('/Users/jan/.claude/local/claude');
+    expect(result.args).not.toContain('/Users/jan/.claude/local/caffeinate');
+  });
+
   it('preserves quoted custom CLI and flag arguments', () => {
     const result = buildAgentCommand({
       providerId: 'claude',
