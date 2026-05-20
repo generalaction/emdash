@@ -16,6 +16,7 @@ const baseValues: SshConnectionFormValues = {
   sshConfigAlias: '',
   forwardAgent: false,
   proxyJump: '',
+  proxyCommand: '',
   isEditing: false,
 };
 

@@ -20,6 +20,7 @@ export const sshConnectionFormSchema = z
     sshConfigAlias: z.string(),
     forwardAgent: z.boolean(),
     proxyJump: z.string(),
+    proxyCommand: z.string(),
     isEditing: z.boolean(),
   })
   .superRefine((val, ctx) => {

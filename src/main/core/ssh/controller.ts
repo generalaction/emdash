@@ -27,6 +27,7 @@ import {
 } from './connection-metadata';
 import { sshConnectionManager } from './production-ssh-connection-manager';
 import { testProductionSshConnection } from './production-test-connection';
+import { resolveSshConfig } from './resolve-ssh-config';
 import { sshCredentialService } from './ssh-credential-service';
 import { parseSshConfigFile } from './sshConfigParser';
 
@@ -39,6 +40,22 @@ export const sshController = createRPCController({
 
   getSshConfigHosts: async (): Promise<SshConfigHost[]> => {
     return await parseSshConfigFile();
+  },
+
+  getSshConfigHost: async (alias: string): Promise<SshConfigHost> => {
+    const resolved = await resolveSshConfig(alias);
+    return {
+      host: alias,
+      hostname: resolved.hostname,
+      user: resolved.user,
+      port: resolved.port,
+      identityFile: resolved.identityFile[0],
+      identityAgent: resolved.identityAgent,
+      proxyJump: resolved.proxyJump,
+      proxyCommand: resolved.proxyCommand,
+      forwardAgent: resolved.forwardAgent,
+      forwardAgentValue: resolved.forwardAgentValue,
+    };
   },
 
   /** List projects currently using each saved SSH connection. */

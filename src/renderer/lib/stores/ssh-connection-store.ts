@@ -169,6 +169,10 @@ export class SshConnectionStore {
     return await rpc.ssh.getSshConfigHosts();
   }
 
+  async getSshConfigHost(alias: string): Promise<SshConfigHost> {
+    return await rpc.ssh.getSshConfigHost(alias);
+  }
+
   async renameConnection(id: string, name: string): Promise<void> {
     await this.withMutation(async () => {
       await rpc.ssh.renameConnection(id, name);
