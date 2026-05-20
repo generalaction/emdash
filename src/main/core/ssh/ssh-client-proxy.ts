@@ -14,12 +14,13 @@ type SftpState =
 /**
  * Stable reference to an ssh2 Client that survives reconnects.
  *
- * Services like SshFileSystem and SshGitService hold a SshClientProxy
- * rather than a raw Client. SshConnectionManager calls update() each time
- * a connection is established (including after reconnect) and invalidate()
- * when the connection drops. Callers that access proxy.client at call time
- * therefore always get the current live Client without needing to be
- * rebuilt or replaced.
+ * Services like SshFileSystem hold a SshClientProxy rather than a raw Client.
+ * SshConnectionManager calls update() each time a connection is established
+ * (including after reconnect) and invalidate() when the connection drops.
+ * Callers that access proxy.client at call time therefore always get the
+ * current live Client without needing to be rebuilt or replaced.
+ *
+ * See sftp() for the shared SFTPWrapper ownership contract.
  */
 export class SshClientProxy {
   private _client: Client | null = null;
@@ -91,6 +92,28 @@ export class SshClientProxy {
     this.client.exec(command, options, this.wrapClientCallback(callback));
   }
 
+  /**
+   * Obtains the shared, long-lived SFTPWrapper for this SSH connection.
+   *
+   * CONTRACT (callers must obey):
+   * - The returned SFTPWrapper is OWNED by SshClientProxy and cached for the
+   *   lifetime of the underlying Client (reused across SshFileSystem, listFiles,
+   *   future callers, etc.). This prevents exhausting the remote server's
+   *   MaxSessions limit with short-lived wrappers.
+   * - NEVER call .end(), .destroy(), or .close() (no-argument form) on the
+   *   wrapper itself. Doing so closes the SFTP subsystem channel for EVERY
+   *   consumer and will break remote filesystem operations until the next
+   *   reconnect.
+   * - The ONLY permitted close is sftp.close(handle: Buffer, callback) for
+   *   handles obtained from open(), opendir(), etc.
+   * - The proxy automatically clears its cache and will open a fresh channel
+   *   on the next .sftp() call after a 'close' event.
+   *
+   * Treat the wrapper as borrowed, not owned. See SshFileSystem.getSftp()
+   * for the recommended caching + 'close' listener pattern.
+   *
+   * @see https://github.com/mscdex/ssh2 (SFTP channel lifecycle)
+   */
   sftp(callback: ClientSFTPCallback): void {
     const client = this.client;
     const state = this._sftpState;
@@ -125,7 +148,7 @@ export class SshClientProxy {
 
       if (isCurrentClient && this._sftpState === loadingState) {
         this._sftpState = { kind: 'ready', client, sftp };
-        sftp.on('close', () => {
+        sftp.once('close', () => {
           if (
             this._sftpState.kind === 'ready' &&
             this._sftpState.client === client &&

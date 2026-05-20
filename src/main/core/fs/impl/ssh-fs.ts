@@ -84,7 +84,7 @@ export class SshFileSystem implements FileSystemProvider {
       this.proxy.sftp((err, sftp) => {
         if (err) return reject(err);
         this.cachedSftp = sftp;
-        sftp.on('close', () => {
+        sftp.once('close', () => {
           this.cachedSftp = undefined;
         });
         resolve(sftp);
