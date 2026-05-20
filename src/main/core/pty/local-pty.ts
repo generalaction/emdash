@@ -1,5 +1,5 @@
 import * as nodePty from 'node-pty';
-import type { IPty } from 'node-pty';
+import type { IDisposable, IPty } from 'node-pty';
 import { log } from '@main/lib/logger';
 import { normalizeSignal } from './exit-signals';
 import { suppressExpectedNodePtyErrors } from './node-pty-errors';
@@ -50,6 +50,7 @@ export class LocalPtySession implements Pty {
   private killed = false;
   private exited = false;
   private suppressExit = false;
+  private readonly subscriptions = new Set<IDisposable>();
 
   constructor(
     id: string,
@@ -82,6 +83,7 @@ export class LocalPtySession implements Pty {
   kill(): void {
     if (this.killed || this.exited) return;
     this.killed = true;
+    this.disposeSubscriptions();
     localPtys.delete(this);
     this.proc.kill();
   }
@@ -92,22 +94,40 @@ export class LocalPtySession implements Pty {
   }
 
   onData(handler: (data: string) => void): void {
-    this.proc.onData((data) => {
-      if (!this.killed && !this.exited) handler(data);
-    });
+    this.trackSubscription(
+      this.proc.onData((data) => {
+        if (!this.killed && !this.exited) handler(data);
+      })
+    );
   }
 
   onExit(handler: (info: PtyExitInfo) => void): void {
-    this.proc.onExit(({ exitCode, signal }) => {
-      this.exited = true;
-      localPtys.delete(this);
-      if (this.suppressExit) return;
-      handler({ exitCode, signal: normalizeSignal(signal) });
-    });
+    this.trackSubscription(
+      this.proc.onExit(({ exitCode, signal }) => {
+        this.exited = true;
+        localPtys.delete(this);
+        queueMicrotask(() => this.disposeSubscriptions());
+        if (this.suppressExit) return;
+        handler({ exitCode, signal: normalizeSignal(signal) });
+      })
+    );
   }
 
   getPid(): number {
     return this.proc.pid;
+  }
+
+  private trackSubscription(subscription: IDisposable): void {
+    this.subscriptions.add(subscription);
+  }
+
+  private disposeSubscriptions(): void {
+    for (const subscription of this.subscriptions) {
+      try {
+        subscription.dispose();
+      } catch {}
+    }
+    this.subscriptions.clear();
   }
 }
 
