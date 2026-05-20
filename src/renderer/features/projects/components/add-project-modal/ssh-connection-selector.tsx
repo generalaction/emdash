@@ -74,13 +74,13 @@ export const SshConnectionSelector = observer(function SshConnectionSelector({
               <span className="min-w-0 truncate">
                 <ComboboxValue
                   placeholder={
-                    <p className="min-w-0 truncate text-muted-foreground">
+                    <p className="text-muted-foreground min-w-0 truncate">
                       Select or add a connection
                     </p>
                   }
                 />
               </span>
-              <ChevronsUpDownIcon className="size-4 shrink-0 text-muted-foreground" />
+              <ChevronsUpDownIcon className="text-muted-foreground size-4 shrink-0" />
             </button>
           }
         />

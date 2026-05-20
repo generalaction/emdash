@@ -1,6 +1,12 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
+import type { IExecutionContext } from '@main/core/execution-context/types';
+import type { FileSystemProvider } from '@main/core/fs/types';
+import { GIT_EXECUTABLE } from '@main/core/utils/exec';
+import { HookCore } from '@main/lib/hookable';
+import type { IDisposable } from '@main/lib/lifecycle';
+import { log } from '@main/lib/logger';
 import {
   HEAD_MODE,
   toRangeString,
@@ -35,12 +41,6 @@ import {
 import { DEFAULT_REMOTE_NAME } from '@shared/git-utils';
 import { parseGitHubRepository } from '@shared/github-repository';
 import { err, ok, type Result } from '@shared/result';
-import type { IExecutionContext } from '@main/core/execution-context/types';
-import type { FileSystemProvider } from '@main/core/fs/types';
-import { GIT_EXECUTABLE } from '@main/core/utils/exec';
-import { HookCore } from '@main/lib/hookable';
-import type { IDisposable } from '@main/lib/lifecycle';
-import { log } from '@main/lib/logger';
 import { type GitProvider } from '../types';
 import type { WorkspaceGitHooks } from '../workspace-git-provider';
 import { CatFileBatch } from './cat-file-batch';

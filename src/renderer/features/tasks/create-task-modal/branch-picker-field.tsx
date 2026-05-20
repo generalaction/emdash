@@ -38,9 +38,9 @@ export function BranchPickerField({
           onValueChange={state.setSelectedBranch}
           showRemoteSelectorFooter
           trigger={
-            <ComboboxTrigger className="flex w-full items-center gap-2 justify-between hover:bg-background-1 data-popup-open:bg-background-1 p-2 outline-none">
-              <div className="flex flex-col text-left text-sm gap-0.5">
-                <span className="text-foreground-passive text-xs">{label}</span>
+            <ComboboxTrigger className="flex w-full items-center justify-between gap-2 p-2 outline-none hover:bg-background-1 data-popup-open:bg-background-1">
+              <div className="flex flex-col gap-0.5 text-left text-sm">
+                <span className="text-xs text-foreground-passive">{label}</span>
                 <span className="flex items-center gap-1">
                   <GitBranch
                     absoluteStrokeWidth
@@ -58,12 +58,12 @@ export function BranchPickerField({
       ) : null}
       {!isUnborn && (
         <Collapsible className="border-t border-border">
-          <CollapsibleTrigger className="w-full p-2 hover:bg-background-1 data-open:bg-background-1 flex text-xs text-foreground-muted items-center gap-2 justify-between">
+          <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 p-2 text-xs text-foreground-muted hover:bg-background-1 data-open:bg-background-1">
             Should create and push feature branch
             <ChevronDown className="size-4 shrink-0 text-foreground-muted" />
           </CollapsibleTrigger>
-          <CollapsibleContent className="overflow-hidden h-(--collapsible-panel-height) transition-[height] duration-200 ease-out">
-            <div className="p-2 flex flex-col gap-2">
+          <CollapsibleContent className="h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-200 ease-out">
+            <div className="flex flex-col gap-2 p-2">
               <Field orientation="horizontal">
                 <Switch
                   checked={createBranchAndWorktree}

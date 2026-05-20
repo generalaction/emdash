@@ -74,7 +74,6 @@ export type TelemetryEventProperties = {
   conversation_created: { provider: AgentProviderId; is_first_in_task: boolean };
   conversation_deleted: EmptyProps;
   agent_run_started: { provider: AgentProviderId };
-  agent_run_finished: { provider: AgentProviderId; exit_code: number };
 
   terminal_created: { terminal_id: string };
   terminal_deleted: { terminal_id: string };

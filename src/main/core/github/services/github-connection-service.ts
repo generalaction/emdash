@@ -1,12 +1,5 @@
 import { createOAuthDeviceAuth } from '@octokit/auth-oauth-device';
 import { Octokit } from '@octokit/rest';
-import {
-  githubAuthCancelledChannel,
-  githubAuthDeviceCodeChannel,
-  githubAuthErrorChannel,
-  githubAuthSuccessChannel,
-} from '@shared/events/githubEvents';
-import type { GitHubConnectResponse, GitHubStatusOptions, GitHubUser } from '@shared/github';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import { encryptedAppSecretsStore } from '@main/core/secrets/encrypted-app-secrets-store';
 import { executeOAuthFlow } from '@main/core/shared/oauth-flow';
@@ -14,6 +7,13 @@ import { TTLCache } from '@main/core/utils/ttl-cache';
 import { KV } from '@main/db/kv';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
+import {
+  githubAuthCancelledChannel,
+  githubAuthDeviceCodeChannel,
+  githubAuthErrorChannel,
+  githubAuthSuccessChannel,
+} from '@shared/events/githubEvents';
+import type { GitHubConnectResponse, GitHubStatusOptions, GitHubUser } from '@shared/github';
 import { extractGhCliToken } from './gh-cli-token';
 
 // ---------------------------------------------------------------------------

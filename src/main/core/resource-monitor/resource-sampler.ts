@@ -1,6 +1,10 @@
 import os from 'node:os';
 import { app } from 'electron';
 import pidusage from 'pidusage';
+import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
+import { appSettingsService } from '@main/core/settings/settings-service';
+import { events } from '@main/lib/events';
+import { log } from '@main/lib/logger';
 import { resourceSnapshotChannel } from '@shared/events/resourceEvents';
 import { parsePtySessionId } from '@shared/ptySessionId';
 import type {
@@ -9,10 +13,6 @@ import type {
   ResourcePtyEntry,
   ResourceSnapshot,
 } from '@shared/resource-monitor';
-import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
-import { appSettingsService } from '@main/core/settings/settings-service';
-import { events } from '@main/lib/events';
-import { log } from '@main/lib/logger';
 
 const SAMPLE_INTERVAL_MS = 1500;
 const CPU_COUNT = os.cpus().length;

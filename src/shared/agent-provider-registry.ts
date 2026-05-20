@@ -214,6 +214,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'droid.svg',
     alt: 'Factory Droid',
     terminalOnly: true,
+    supportsHooks: true,
   },
   {
     id: 'amp',

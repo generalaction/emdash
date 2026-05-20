@@ -1,6 +1,6 @@
+import { projectManager } from '@main/core/projects/project-manager';
 import { createRPCController } from '@shared/ipc/rpc';
 import type { WorkspaceResolution } from '@shared/workspaces';
-import { projectManager } from '@main/core/projects/project-manager';
 import type { ProjectProvider } from '../projects/project-provider';
 import { workspaceBootstrapService, type WorktreeContext } from './workspace-bootstrap-service';
 

@@ -4,11 +4,11 @@
  */
 
 import type { SFTPWrapper } from 'ssh2';
-import type { FileWatchEvent } from '@shared/fs';
 import { buildRemoteShellCommand } from '@main/core/ssh/remote-shell-profile';
 import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
 import { log } from '@main/lib/logger';
 import { quoteShellArg } from '@main/utils/shellEscape';
+import type { FileWatchEvent } from '@shared/fs';
 import {
   FileSystemError,
   FileSystemErrorCodes,

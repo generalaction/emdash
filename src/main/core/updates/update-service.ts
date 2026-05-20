@@ -3,6 +3,10 @@ import _electronUpdater, {
   type UpdateInfo,
   type Logger as UpdaterLogger,
 } from 'electron-updater';
+import { resolveAppVersion } from '@main/core/app/utils';
+import { events } from '@main/lib/events';
+import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
+import { log } from '@main/lib/logger';
 import { UPDATE_CHANNEL } from '@shared/app-identity';
 import {
   updateAvailableEvent,
@@ -14,10 +18,6 @@ import {
   updateNotAvailableEvent,
   updateProgressEvent,
 } from '@shared/events/updateEvents';
-import { resolveAppVersion } from '@main/core/app/utils';
-import { events } from '@main/lib/events';
-import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
-import { log } from '@main/lib/logger';
 import { formatUpdaterError, sanitizeUpdaterLogArgs } from './utils';
 
 const { autoUpdater } = _electronUpdater;

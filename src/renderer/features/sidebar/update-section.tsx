@@ -25,7 +25,7 @@ export const UpdateSection = observer(function UpdateSection() {
   }
 
   return (
-    <MicroLabel className="inline-flex h-6 items-center lowercase text-foreground-passive">
+    <MicroLabel className="inline-flex h-6 items-center text-foreground-passive lowercase">
       v{update.currentVersion}
     </MicroLabel>
   );

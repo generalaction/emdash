@@ -1,5 +1,3 @@
-import { fsWatchEventChannel } from '@shared/events/fsEvents';
-import { type FileNode, type FileWatchEvent } from '@shared/fs';
 import {
   isExcluded,
   makeNode,
@@ -7,6 +5,8 @@ import {
 } from '@renderer/features/tasks/editor/stores/files-store-utils';
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
+import { fsWatchEventChannel } from '@shared/events/fsEvents';
+import { type FileNode, type FileWatchEvent } from '@shared/fs';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -128,6 +128,30 @@ export class FilesStore {
   async loadDir(dirPath: string, force = false): Promise<void> {
     await this._loadDirInternal(dirPath, force);
     this._bumpTreeDebounced();
+  }
+
+  /** Optimistically insert dropped nodes and bump the tree once. */
+  addOptimisticNodes(nodes: Array<{ relPath: string; type: 'file' | 'directory' }>): string[] {
+    const inserted: string[] = [];
+
+    for (const { relPath, type } of nodes) {
+      if (!relPath || isExcluded(relPath) || this._nodes.has(relPath)) continue;
+
+      const parent = relPath.includes('/') ? relPath.slice(0, relPath.lastIndexOf('/')) : '';
+      if (!this._loadedPaths.has(parent)) continue;
+
+      this._addNode(makeNode(relPath, type));
+      inserted.push(relPath);
+    }
+
+    if (inserted.length > 0) this._bumpTree();
+    return inserted;
+  }
+
+  removeNode(relPath: string): void {
+    if (!this._nodes.has(relPath)) return;
+    this._removeNode(relPath);
+    this._bumpTree();
   }
 
   async revealFile(filePath: string, expandedPaths: Set<string>): Promise<void> {

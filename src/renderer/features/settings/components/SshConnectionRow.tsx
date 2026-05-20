@@ -1,10 +1,10 @@
 import { PencilIcon, ServerIcon, Trash2Icon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import type { ReactNode } from 'react';
-import type { SshConfig } from '@shared/ssh';
 import { appState } from '@renderer/lib/stores/app-state';
 import { Button } from '@renderer/lib/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+import type { SshConfig } from '@shared/ssh';
 import { authLabel, projectUsageNamesText, projectUsageText } from './ssh-connection-formatters';
 import { SshStateBadge } from './SshStateBadge';
 
@@ -66,7 +66,7 @@ export const SshConnectionRow = observer(function SshConnectionRow({
 
   return (
     <div className="flex min-w-0 items-start gap-4 rounded-lg border border-border bg-background p-4">
-      <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-muted text-foreground-muted">
+      <div className="bg-muted flex size-9 shrink-0 items-center justify-center rounded-md text-foreground-muted">
         <ServerIcon className="size-4" />
       </div>
       <div className="grid min-w-0 flex-1 gap-2">
@@ -101,7 +101,7 @@ export const SshConnectionRow = observer(function SshConnectionRow({
         </ConnectionActionButton>
         <ConnectionActionButton
           label={`Delete ${connection.name}`}
-          className="text-foreground-destructive hover:bg-destructive/10 hover:text-foreground-destructive"
+          className="hover:bg-destructive/10 text-foreground-destructive hover:text-foreground-destructive"
           disabled={isDeleting}
           onClick={() => void onDelete(connection)}
         >

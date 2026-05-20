@@ -1,4 +1,6 @@
 import { action, makeObservable, observable } from 'mobx';
+import type { DiffRendererData } from '@renderer/features/tasks/types';
+import { getFileKind } from '@renderer/lib/editor/fileKind';
 import type { GitChangeStatus, GitObjectRef } from '@shared/git';
 import type { ActiveFile } from '@shared/view-state';
 
@@ -12,6 +14,7 @@ export class DiffTabStore {
 
   path: string;
   isPreview: boolean;
+  renderer: DiffRendererData;
   diffGroup: 'disk' | 'staged' | 'git' | 'pr';
   originalRef: GitObjectRef;
   modifiedRef: GitObjectRef | undefined;
@@ -27,6 +30,7 @@ export class DiffTabStore {
     this.tabId = tabId ?? crypto.randomUUID();
     this.path = activeFile.path;
     this.isPreview = isPreview;
+    this.renderer = resolveDiffRenderer(activeFile.path);
     this.diffGroup = activeFile.group;
     this.originalRef = activeFile.originalRef;
     this.modifiedRef = activeFile.modifiedRef;
@@ -35,6 +39,7 @@ export class DiffTabStore {
 
     makeObservable(this, {
       isPreview: observable,
+      renderer: observable,
       diffGroup: observable,
       originalRef: observable,
       modifiedRef: observable,
@@ -65,4 +70,11 @@ export class DiffTabStore {
   pin(): void {
     this.isPreview = false;
   }
+}
+
+function resolveDiffRenderer(path: string): DiffRendererData {
+  const kind = getFileKind(path);
+  if (kind === 'image' || kind === 'svg') return { kind: 'image' };
+  if (kind === 'binary') return { kind: 'binary' };
+  return { kind: 'text' };
 }

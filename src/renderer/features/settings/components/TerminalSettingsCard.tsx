@@ -1,10 +1,5 @@
 import { ChevronsUpDownIcon, LoaderCircle } from 'lucide-react';
 import React, { useCallback, useMemo, useState } from 'react';
-import {
-  TERMINAL_FONT_SIZE_DEFAULT,
-  TERMINAL_FONT_SIZE_MAX,
-  TERMINAL_FONT_SIZE_MIN,
-} from '@shared/terminal-settings';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { useInstalledFonts } from '@renderer/features/settings/use-installed-fonts';
 import {
@@ -21,6 +16,11 @@ import {
   ComboboxValue,
 } from '@renderer/lib/ui/combobox';
 import { Switch } from '@renderer/lib/ui/switch';
+import {
+  TERMINAL_FONT_SIZE_DEFAULT,
+  TERMINAL_FONT_SIZE_MAX,
+  TERMINAL_FONT_SIZE_MIN,
+} from '@shared/terminal-settings';
 import { SettingRow } from './SettingRow';
 import { SettingsNumberStepper } from './SettingsNumberStepper';
 

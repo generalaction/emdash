@@ -64,7 +64,7 @@ export const CommentInput: React.FC<CommentInputProps> = ({
             title="Submit (Cmd/Ctrl+Enter)"
             aria-label="Submit comment"
           >
-            <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <Check className="h-4 w-4 text-foreground-success" />
           </Button>
         </Comment.Actions>
       </Comment.Header>

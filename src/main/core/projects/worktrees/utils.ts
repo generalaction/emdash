@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
-import type { Task } from '@shared/tasks';
 import type { FileSystemProvider } from '@main/core/fs/types';
+import type { Task } from '@shared/tasks';
 import { mapWorktreeErrorToProvisionError } from '../../tasks/provision-task-error';
 import type { WorktreeService } from './worktree-service';
 

@@ -1,7 +1,6 @@
 import { userGetCurrent } from '@llamaduck/forgejo-ts';
 import { createClient, type Client } from '@llamaduck/forgejo-ts/client';
 import { AxiosError } from 'axios';
-import { ISSUE_PROVIDER_CAPABILITIES, type ConnectionStatus } from '@shared/issue-providers';
 import { resolvePreferredRemote } from '@main/core/issues/git-remote-resolver';
 import {
   assertRemoteHostMatchesInstance,
@@ -10,6 +9,7 @@ import {
 } from '@main/core/issues/helpers/hosted-instance';
 import { encryptedAppSecretsStore } from '@main/core/secrets/encrypted-app-secrets-store';
 import { KV } from '@main/db/kv';
+import { ISSUE_PROVIDER_CAPABILITIES, type ConnectionStatus } from '@shared/issue-providers';
 
 interface ForgejoConnectionConfig {
   instanceUrl: string;

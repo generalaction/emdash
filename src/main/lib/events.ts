@@ -1,6 +1,6 @@
 import { ipcMain } from 'electron';
-import { createEventEmitter, type EmitterAdapter } from '@shared/ipc/events';
 import { getMainWindow } from '@main/app/window';
+import { createEventEmitter, type EmitterAdapter } from '@shared/ipc/events';
 
 function createMainAdapter(): EmitterAdapter {
   return {
