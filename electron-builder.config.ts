@@ -40,7 +40,21 @@ const config: Configuration = {
     notarize: false,
   },
   dmg: {
-    icon: 'src/assets/images/emdash/emdash-beta.icns',
+    // Unique volume title — Finder caches window state per-volume-name,
+    // and stale state from previous builds otherwise overrides the .DS_Store
+    // that electron-builder writes into the DMG.
+    title: 'Install Emdash',
+    background: 'build/dmg-background.png',
+    window: { x: 400, y: 100, width: 660, height: 400 },
+    iconSize: 100,
+    iconTextSize: 12,
+    contents: [
+      // Emdash.app — moved up from Paper's y=190 to compensate for Finder's
+      // bottom chrome reservation, which would otherwise push everything down.
+      { x: 140, y: 145, type: 'file' },
+      // /Applications symlink — right icon slot; macOS renders the alias arrow
+      { x: 520, y: 145, type: 'link', path: '/Applications' },
+    ],
   },
   linux: {
     category: 'Development',

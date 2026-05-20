@@ -1,0 +1,138 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=JetBrains+Mono&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 660px;
+        height: 400px;
+        background: #ffffff;
+        overflow: hidden;
+        font-family: 'Inter', system-ui, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        font-synthesis: none;
+      }
+      body {
+        position: relative;
+      }
+
+      /* Trail (dashes + caption) sits between the icon slots.
+         macOS draws Emdash.app at (140,145) and /Applications at (520,145)
+         with iconSize 100, so icons span y:95–195 with their center at y:145. */
+      .trail {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 93px;
+        height: 120px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        padding-top: 46px;
+      }
+
+      .dashes {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .dash {
+        display: block;
+        flex-shrink: 0;
+      }
+
+      .caption {
+        color: #9ca2aa;
+        font-size: 12px;
+        line-height: 16px;
+        letter-spacing: -0.02em;
+        font-weight: 400;
+      }
+
+      .footer {
+        position: absolute;
+        left: 56px;
+        right: 56px;
+        bottom: 65px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .hairline {
+        width: 100%;
+        height: 1px;
+        background: #e5e7eb;
+      }
+
+      .footer-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .meta {
+        color: #9ca2aa;
+        font-size: 11px;
+        line-height: 14px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        font-weight: 500;
+      }
+
+      .version {
+        color: #9ca2aa;
+        font-size: 11px;
+        line-height: 14px;
+        letter-spacing: -0.02em;
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-variant-numeric: tabular-nums;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="trail">
+      <div class="dashes">
+        <svg class="dash" width="28" height="8" viewBox="0 0 28 8" xmlns="http://www.w3.org/2000/svg" style="opacity: 0.15">
+          <polygon points="6,0 28,0 22,8 0,8" fill="#0E1216" />
+        </svg>
+        <svg class="dash" width="28" height="8" viewBox="0 0 28 8" xmlns="http://www.w3.org/2000/svg" style="opacity: 0.25">
+          <polygon points="6,0 28,0 22,8 0,8" fill="#0E1216" />
+        </svg>
+        <svg class="dash" width="28" height="8" viewBox="0 0 28 8" xmlns="http://www.w3.org/2000/svg" style="opacity: 0.35">
+          <polygon points="6,0 28,0 22,8 0,8" fill="#0E1216" />
+        </svg>
+        <svg class="dash" width="28" height="8" viewBox="0 0 28 8" xmlns="http://www.w3.org/2000/svg" style="opacity: 0.45">
+          <polygon points="6,0 28,0 22,8 0,8" fill="#0E1216" />
+        </svg>
+        <svg class="dash" width="28" height="8" viewBox="0 0 28 8" xmlns="http://www.w3.org/2000/svg" style="opacity: 0.55">
+          <polygon points="6,0 28,0 22,8 0,8" fill="#0E1216" />
+        </svg>
+      </div>
+      <div class="caption">[ drag to install ]</div>
+    </div>
+
+    <div class="footer">
+      <div class="hairline"></div>
+      <div class="footer-row">
+        <div class="meta">Open-source</div>
+        <div class="version">v__VERSION__</div>
+      </div>
+    </div>
+  </body>
+</html>

@@ -26,6 +26,7 @@
     "build:main": "electron-vite build --filter main",
     "build:renderer": "electron-vite build --filter renderer",
     "package": "pnpm run build && electron-builder --config electron-builder.config.ts",
+    "dmg:background": "electron build/render-dmg-background.cjs",
     "package:mac": "pnpm run build && electron-builder --mac --config electron-builder.config.ts",
     "package:linux": "pnpm run build && electron-builder --linux --publish never --config electron-builder.config.ts",
     "package:win": "pnpm run build && electron-builder --win --publish never --config electron-builder.config.ts",
