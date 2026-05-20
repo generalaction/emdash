@@ -1,7 +1,7 @@
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
-import { sshConnectionEventChannel, type SshConnectionEvent } from '@shared/events/sshEvents';
-import type { ConnectionState, ConnectionTestResult, SshConfig } from '@shared/ssh';
 import { events, rpc } from '@renderer/lib/ipc';
+import { sshConnectionEventChannel, type SshConnectionEvent } from '@shared/events/sshEvents';
+import type { ConnectionState, ConnectionTestResult, SshConfig, SshHealthState } from '@shared/ssh';
 import { Resource } from './resource';
 
 type SaveConnectionInput = Partial<Pick<SshConfig, 'id'>> &
@@ -11,7 +11,9 @@ type SshConnectionStoreOptions = {
   onConnectionReady?: (connectionId: string) => void;
 };
 
-function toConnectionState(event: SshConnectionEvent): ConnectionState {
+type SshConnectionStateEvent = Exclude<SshConnectionEvent, { type: 'health-changed' }>;
+
+function toConnectionState(event: SshConnectionStateEvent): ConnectionState {
   switch (event.type) {
     case 'connected':
     case 'reconnected':
@@ -31,6 +33,7 @@ function toConnectionState(event: SshConnectionEvent): ConnectionState {
 export class SshConnectionStore {
   readonly connectionsResource: Resource<SshConfig[]>;
   readonly connectionStatesResource: Resource<Record<string, ConnectionState>, SshConnectionEvent>;
+  readonly healthStatesResource: Resource<Record<string, SshHealthState>, SshConnectionEvent>;
 
   private pendingMutations = 0;
   private started = false;
@@ -54,6 +57,7 @@ export class SshConnectionStore {
         kind: 'event',
         subscribe: (handler) => events.on(sshConnectionEventChannel, handler),
         onEvent: (event, ctx) => {
+          if (event.type === 'health-changed') return;
           const next = { ...(ctx.data ?? {}) };
           next[event.connectionId] = toConnectionState(event);
           ctx.set(next);
@@ -64,10 +68,31 @@ export class SshConnectionStore {
       },
     ]);
 
+    this.healthStatesResource = new Resource<Record<string, SshHealthState>, SshConnectionEvent>(
+      () => rpc.ssh.getHealthStates(),
+      [
+        {
+          kind: 'event',
+          subscribe: (handler) => events.on(sshConnectionEventChannel, handler),
+          onEvent: (event, ctx) => {
+            if (event.type !== 'health-changed') return;
+            const next = { ...(ctx.data ?? {}) };
+            if (event.health.status === 'ok') {
+              delete next[event.connectionId];
+            } else {
+              next[event.connectionId] = event.health;
+            }
+            ctx.set(next);
+          },
+        },
+      ]
+    );
+
     makeObservable<SshConnectionStore, 'pendingMutations'>(this, {
       pendingMutations: observable,
       connections: computed,
       connectionStates: computed,
+      healthStates: computed,
       isLoading: computed,
       start: action,
       dispose: action,
@@ -82,10 +107,15 @@ export class SshConnectionStore {
     return this.connectionStatesResource.data ?? {};
   }
 
+  get healthStates(): Record<string, SshHealthState> {
+    return this.healthStatesResource.data ?? {};
+  }
+
   get isLoading(): boolean {
     return (
       this.connectionsResource.loading ||
       this.connectionStatesResource.loading ||
+      this.healthStatesResource.loading ||
       this.pendingMutations > 0
     );
   }
@@ -94,17 +124,23 @@ export class SshConnectionStore {
     if (this.started) return;
     this.started = true;
     this.connectionStatesResource.start();
+    this.healthStatesResource.start();
     void this.connectionsResource.load();
   }
 
   dispose(): void {
     this.connectionsResource.dispose();
     this.connectionStatesResource.dispose();
+    this.healthStatesResource.dispose();
     this.started = false;
   }
 
   stateFor(connectionId: string): ConnectionState {
     return this.connectionStates[connectionId] ?? 'disconnected';
+  }
+
+  healthFor(connectionId: string): SshHealthState {
+    return this.healthStates[connectionId] ?? { status: 'ok' };
   }
 
   async connect(connectionId: string): Promise<void> {
@@ -146,6 +182,12 @@ export class SshConnectionStore {
       if (id in currentStates) {
         const { [id]: _removed, ...rest } = currentStates;
         this.connectionStatesResource.setValue(rest);
+      }
+
+      const currentHealthStates = this.healthStatesResource.data ?? {};
+      if (id in currentHealthStates) {
+        const { [id]: _removed, ...rest } = currentHealthStates;
+        this.healthStatesResource.setValue(rest);
       }
     });
   }

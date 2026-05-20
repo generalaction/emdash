@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto';
 import type BetterSqlite3 from 'better-sqlite3';
 import journal from '@root/drizzle/meta/_journal.json';
-import { sqlite } from './client';
 
 // Vite bundles all migration SQL files at build time — no runtime path resolution needed.
 // Each value is the raw SQL string content of the file.
@@ -56,7 +55,9 @@ function runBundledMigrations(connection: BetterSqlite3.Database): void {
  * table so it can be safely dropped and recreated when the schema changes.
  */
 function ensureSearchIndex(connection: BetterSqlite3.Database): void {
-  const SEARCH_INDEX_VERSION = '2';
+  // Bump this version string whenever the FTS schema changes — the table is
+  // dropped and recreated, and backfill() + seedCommands() repopulate it.
+  const SEARCH_INDEX_VERSION = '3';
 
   const row = connection.prepare(`SELECT value FROM kv WHERE key = 'fts_version'`).get() as
     | { value: string }
@@ -72,7 +73,7 @@ function ensureSearchIndex(connection: BetterSqlite3.Database): void {
         task_id    UNINDEXED,
         title,
         keywords,
-        tokenize = 'unicode61 remove_diacritics 1'
+        tokenize = 'trigram case_sensitive 0'
       )
     `);
     connection
@@ -84,16 +85,62 @@ function ensureSearchIndex(connection: BetterSqlite3.Database): void {
 }
 
 /**
- * Runs all pending migrations against the shared SQLite connection and validates
- * the schema contract. Call this once in main.ts before any db queries run.
- *
- * Throws `DatabaseSchemaMismatchError` when required columns/tables are missing
- * after migration (e.g. the user downgraded from a newer build).
- *
- * Returns the raw better-sqlite3 handle so the caller can close it on shutdown.
+ * Creates the FTS5 virtual table and companion meta table used for workspace
+ * file indexing. Managed outside Drizzle (same reason as ensureSearchIndex).
+ * Version-gated via `kv` so the tables can be dropped and recreated on schema
+ * changes without a full Drizzle migration.
  */
-export async function initializeDatabase(): Promise<BetterSqlite3.Database> {
-  runBundledMigrations(sqlite);
-  ensureSearchIndex(sqlite);
-  return sqlite;
+function ensureFileIndex(connection: BetterSqlite3.Database): void {
+  const FILE_INDEX_VERSION = '1';
+
+  const row = connection.prepare(`SELECT value FROM kv WHERE key = 'file_index_version'`).get() as
+    | { value: string }
+    | undefined;
+
+  if (row?.value === FILE_INDEX_VERSION) return;
+
+  connection.exec(`DROP TABLE IF EXISTS workspace_file_index`);
+  connection.exec(`DROP TABLE IF EXISTS workspace_file_index_meta`);
+  connection.exec(`
+    CREATE VIRTUAL TABLE workspace_file_index USING fts5(
+      workspace_id UNINDEXED,
+      path,
+      filename,
+      tokenize = 'trigram case_sensitive 0'
+    )
+  `);
+  connection.exec(`
+    CREATE TABLE workspace_file_index_meta (
+      workspace_id TEXT PRIMARY KEY,
+      indexed_at   INTEGER NOT NULL
+    )
+  `);
+  connection
+    .prepare(
+      `INSERT OR REPLACE INTO kv (key, value, updated_at) VALUES ('file_index_version', ?, unixepoch())`
+    )
+    .run(FILE_INDEX_VERSION);
+}
+
+/**
+ * Runs all pending migrations against the provided SQLite connection (or the
+ * app's shared singleton when called without arguments). Call this once in
+ * main.ts before any db queries run.
+ *
+ * Accepts an explicit connection so migration tests and fixture generators can
+ * pass an in-memory database without pulling in the Electron-dependent client
+ * module at import time.
+ *
+ * Returns the connection that was used.
+ */
+export async function initializeDatabase(
+  connection?: BetterSqlite3.Database
+): Promise<BetterSqlite3.Database> {
+  // Lazily import the app singleton only when no explicit connection is given.
+  // This keeps the module importable in non-Electron environments (Vitest).
+  const conn = connection ?? (await import('./client')).sqlite;
+  runBundledMigrations(conn);
+  ensureSearchIndex(conn);
+  ensureFileIndex(conn);
+  return conn;
 }

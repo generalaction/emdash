@@ -32,7 +32,7 @@ export function AgentStatusIndicator({
       case 'awaiting-input':
         return (
           <span
-            className={cn('rounded-full bg-blue-200 border size-2 border-blue-500', className)}
+            className={cn('rounded-full bg-foreground-info size-2', className)}
             aria-label="Agent is awaiting input"
             title="Agent is awaiting input"
           />
@@ -40,7 +40,7 @@ export function AgentStatusIndicator({
       case 'error':
         return (
           <span
-            className={cn('rounded-full bg-red-200 border size-2 border-red-500', className)}
+            className={cn('rounded-full bg-foreground-error size-2', className)}
             aria-label="Agent error"
             title="Agent error"
           />
@@ -48,7 +48,7 @@ export function AgentStatusIndicator({
       case 'completed':
         return (
           <span
-            className={cn('rounded-full bg-green-200 border size-2 border-green-500', className)}
+            className={cn('rounded-full bg-foreground-success size-2', className)}
             aria-label="Agent completed"
             title="Agent completed"
           />
@@ -59,7 +59,7 @@ export function AgentStatusIndicator({
   };
 
   const indicator = (
-    <span className="size-6 flex items-center justify-center">{renderIndicator()}</span>
+    <span className="flex size-6 items-center justify-center">{renderIndicator()}</span>
   );
 
   if (disableTooltip) return indicator;

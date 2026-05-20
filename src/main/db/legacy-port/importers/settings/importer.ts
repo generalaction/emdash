@@ -1,10 +1,10 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type Database from 'better-sqlite3';
-import { isValidProviderId } from '@shared/agent-provider-registry';
-import type { AppSettings, AppSettingsKey } from '@shared/app-settings';
 import { getDefaultForKey } from '@main/core/settings/settings-registry';
 import { isPlainObject, mergeDeep } from '@main/core/settings/utils';
+import { isValidProviderId } from '@shared/agent-provider-registry';
+import type { AppSettings, AppSettingsKey } from '@shared/app-settings';
 import { tableExists } from '../../sqlite-utils';
 import type { RelationalImportDb } from '../relational/types';
 
@@ -21,6 +21,9 @@ export type PortLegacySettingsOptions = {
   settingsStore?: {
     get<K extends AppSettingsKey>(key: K): Promise<AppSettings[K]>;
     update<K extends AppSettingsKey>(key: K, value: AppSettings[K]): Promise<void>;
+  };
+  promptLibraryStore?: {
+    upsertReviewPrompt(prompt: string): Promise<void>;
   };
 };
 
@@ -111,6 +114,9 @@ export async function portLegacySettings(
   const settingsStore =
     options.settingsStore ??
     new (await import('@main/core/settings/settings-service')).SettingsStore();
+  const promptLibraryStore =
+    options.promptLibraryStore ??
+    (await import('@main/core/prompt-library/service')).promptLibraryService;
   const repository = isPlainObject(legacyRaw.repository) ? legacyRaw.repository : null;
   if (repository) {
     const patch: Record<string, unknown> = {};
@@ -217,7 +223,7 @@ export async function portLegacySettings(
     const prompt = readTrimmedString(review.prompt);
     if (prompt) {
       try {
-        await updateScalarSetting(settingsStore, 'reviewPrompt', prompt);
+        await promptLibraryStore.upsertReviewPrompt(prompt);
         summary.imported.push('reviewPrompt');
       } catch {
         summary.skipped.push('reviewPrompt:validation-failed');

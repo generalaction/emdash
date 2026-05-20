@@ -4,11 +4,11 @@
  */
 
 import type { SFTPWrapper } from 'ssh2';
-import type { FileWatchEvent } from '@shared/fs';
 import { buildRemoteShellCommand } from '@main/core/ssh/remote-shell-profile';
 import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
 import { log } from '@main/lib/logger';
 import { quoteShellArg } from '@main/utils/shellEscape';
+import type { FileWatchEvent } from '@shared/fs';
 import {
   FileSystemError,
   FileSystemErrorCodes,
@@ -49,6 +49,15 @@ const MAX_READ_SIZE = 100 * 1024 * 1024;
  */
 const DEFAULT_MAX_BYTES = 200 * 1024;
 
+function fileEntryMetadataChanged(prev: FileEntry, next: FileEntry): boolean {
+  return (
+    prev.type !== next.type ||
+    prev.size !== next.size ||
+    prev.mode !== next.mode ||
+    prev.mtime?.getTime() !== next.mtime?.getTime()
+  );
+}
+
 /**
  * SshFileSystem implements IFileSystem using SFTP over SSH.
  * Provides path traversal protection and proper error handling.
@@ -72,7 +81,7 @@ export class SshFileSystem implements FileSystemProvider {
   private getSftp(): Promise<SFTPWrapper> {
     if (this.cachedSftp) return Promise.resolve(this.cachedSftp);
     return new Promise((resolve, reject) => {
-      this.proxy.client.sftp((err, sftp) => {
+      this.proxy.sftp((err, sftp) => {
         if (err) return reject(err);
         this.cachedSftp = sftp;
         sftp.on('close', () => {
@@ -89,7 +98,7 @@ export class SshFileSystem implements FileSystemProvider {
     const profile = await this.proxy.getRemoteShellProfile();
     const full = buildRemoteShellCommand(profile, command);
     return new Promise((resolve, reject) => {
-      this.proxy.client.exec(full, (err, stream) => {
+      this.proxy.exec(full, (err, stream) => {
         if (err) return reject(err);
         let stdout = '';
         let stderr = '';
@@ -978,9 +987,16 @@ export class SshFileSystem implements FileSystemProvider {
 
         const evts: FileWatchEvent[] = [];
         for (const [p, e] of currMap) {
-          if (!prevMap.has(p))
+          const prev = prevMap.get(p);
+          if (!prev)
             evts.push({
               type: 'create',
+              entryType: e.type === 'dir' ? 'directory' : 'file',
+              path: p,
+            });
+          else if (fileEntryMetadataChanged(prev, e))
+            evts.push({
+              type: 'modify',
               entryType: e.type === 'dir' ? 'directory' : 'file',
               path: p,
             });

@@ -1,17 +1,20 @@
 import { observer } from 'mobx-react-lite';
+import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
+import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
+import { FieldGroup } from '@renderer/lib/ui/field';
 import type { Remote } from '@shared/git';
 import type {
+  MigrateProjectConfigRequest,
+  MigrateProjectConfigResult,
+  ProjectConfigMigration,
   ProjectSettings,
   ProjectSettingsOverrideState,
   ProjectSettingsPage,
   ProjectSettingsWriteTargetOption,
   WriteProjectConfigRequest,
 } from '@shared/project-settings';
-import type { UpdateProjectSettingsError } from '@shared/projects';
+import type { Project, UpdateProjectSettingsError } from '@shared/projects';
 import type { Result } from '@shared/result';
-import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
-import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
-import { FieldGroup } from '@renderer/lib/ui/field';
 import { ProjectSettingsFooter } from './project-settings-footer';
 import { BaseProjectSettingsSection } from './sections/base-project-settings-section';
 import { ShareableSettingsSection } from './sections/shareable-project-settings-section';
@@ -20,48 +23,58 @@ import { useProjectSettingsForm } from './use-project-settings-form';
 
 export interface ProjectSettingsFormProps {
   projectId: string;
+  projectType: Project['type'];
   initial: ProjectSettings;
   defaults: ProjectSettingsPage['defaults'];
   writeTargets: ProjectSettingsWriteTargetOption[];
   overrideState: ProjectSettingsOverrideState;
+  configMigrations: ProjectConfigMigration[];
   onSuccess: () => void;
   save: (settings: ProjectSettings) => Promise<Result<ProjectSettings, UpdateProjectSettingsError>>;
   writeConfigToRepo: (
     request: WriteProjectConfigRequest
   ) => Promise<Result<ProjectSettingsPage, UpdateProjectSettingsError>>;
+  migrateProjectConfig: (
+    request: MigrateProjectConfigRequest
+  ) => Promise<Result<MigrateProjectConfigResult, UpdateProjectSettingsError>>;
 }
 
 const EMPTY_REMOTES: Remote[] = [];
+
 export const ProjectSettingsForm = observer(function ProjectSettingsForm({
   projectId,
+  projectType,
   initial,
   defaults,
   writeTargets,
   overrideState,
+  configMigrations,
   onSuccess,
   save,
   writeConfigToRepo,
+  migrateProjectConfig,
 }: ProjectSettingsFormProps) {
   const repo = getRepositoryStore(projectId);
   const remotes = repo?.remotes ?? EMPTY_REMOTES;
-  const configuredRemote = repo?.configuredRemote.name ?? 'origin';
+  const baseRemote = repo?.baseRemote.name ?? 'origin';
   const isWorkspaceProviderEnabled = useFeatureFlag('workspace-provider');
   const formModel = useProjectSettingsForm({
     initial,
-    configuredRemote,
+    baseRemote,
     remotes,
     writeTargets,
     overrideState,
+    configMigrations,
     onSuccess,
     save,
     writeConfigToRepo,
+    migrateProjectConfig,
   });
 
   return (
-    <div className="flex flex-col max-w-3xl mx-auto w-full h-full overflow-hidden">
-      <h1 className="text-lg font-medium pt-10 pb-5 px-10">Project Settings</h1>
+    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
       <div
-        className="flex-1 overflow-y-auto overflow-x-hidden px-10 py-2"
+        className="flex-1 overflow-x-hidden overflow-y-auto py-2"
         style={{ scrollbarWidth: 'none' }}
       >
         <FieldGroup>
@@ -69,6 +82,7 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
             projectId={projectId}
             form={formModel.form}
             defaultWorktreeDirectory={defaults.worktreeDirectory}
+            projectType={projectType}
             remotes={remotes}
             worktreeDirectoryError={formModel.worktreeDirectoryError}
             update={formModel.update}
@@ -83,6 +97,9 @@ export const ProjectSettingsForm = observer(function ProjectSettingsForm({
             form={formModel.form}
             update={formModel.update}
             getOverrideSources={formModel.getOverrideSources}
+            configMigrations={formModel.configMigrations}
+            importDisabled={formModel.importDisabled}
+            openImportConfigModal={formModel.openImportConfigModal}
           />
         </FieldGroup>
       </div>

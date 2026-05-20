@@ -1,6 +1,6 @@
+import { log } from '@main/lib/logger';
 import type { FetchError } from '@shared/git';
 import { err, type Result } from '@shared/result';
-import { log } from '@main/lib/logger';
 import type { GitService } from './impl/git-service';
 import { isGitHubSshRemoteUrl, isSshRemoteUrl } from './remote-helper';
 
@@ -13,7 +13,8 @@ export class GitFetchService {
 
   constructor(
     private readonly git: GitService,
-    private readonly hasGitHubToken: () => Promise<boolean>
+    private readonly hasGitHubToken: () => Promise<boolean>,
+    private readonly getRemote: () => Promise<string | undefined>
   ) {}
 
   /** Start the background fetch loop: immediate fetch, then every `intervalMs`. */
@@ -41,8 +42,8 @@ export class GitFetchService {
 
   private _doFetch(): Promise<Result<void, FetchError>> {
     if (this._inflight) return this._inflight;
-    this._inflight = this.git
-      .fetch()
+    this._inflight = this.getRemote()
+      .then((remote) => this.git.fetch(remote))
       .catch((e): Result<void, FetchError> => {
         log.warn('GitFetchService: fetch threw unexpectedly', { error: String(e) });
         return err({ type: 'error', message: String(e) });

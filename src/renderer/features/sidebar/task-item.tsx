@@ -1,15 +1,14 @@
 import { observer } from 'mobx-react-lite';
-import { selectCurrentPr } from '@shared/pull-requests';
 import { TaskSidebarAgentStatus } from '@renderer/features/sidebar/task-sidebar-agent-status';
 import { TaskContextMenu } from '@renderer/features/tasks/components/task-context-menu';
 import { TaskGitDiffStats } from '@renderer/features/tasks/components/task-git-diff-stats';
-import { type TaskStore } from '@renderer/features/tasks/stores/task';
 import {
-  asProvisioned,
+  getTaskGitStore,
   getTaskManagerStore,
   getTaskStore,
+  getWorkspaceForTask,
 } from '@renderer/features/tasks/stores/task-selectors';
-import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
+import { type TaskStore } from '@renderer/features/tasks/stores/task-store';
 import {
   useNavigate,
   useParams,
@@ -17,6 +16,7 @@ import {
 } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { cn } from '@renderer/utils/utils';
+import { selectCurrentPr } from '@shared/pull-requests';
 import { PrBadge } from '../../lib/components/pr-badge';
 import { SidebarMenuRow } from './sidebar-primitives';
 
@@ -33,7 +33,6 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
   rowVariant = 'underProject',
 }: SidebarTaskItemProps) {
   const { navigate } = useNavigate();
-  const { setCollapsed } = useWorkspaceLayoutContext();
   const showRename = useShowModal('renameTaskModal');
   const showConfirm = useShowModal('confirmActionModal');
 
@@ -77,13 +76,12 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
 
   const canPin = task.state !== 'unregistered';
 
-  const provisionedTask = asProvisioned(task);
+  const workspaceStore = getWorkspaceForTask(projectId, taskId);
+  const git = getTaskGitStore(projectId, taskId);
   const branchName =
-    provisionedTask?.workspace.git.branchName ??
-    ('taskBranch' in task.data ? task.data.taskBranch : undefined);
-  const workspace = provisionedTask?.workspace;
+    git?.branchName ?? ('taskBranch' in task.data ? task.data.taskBranch : undefined);
   const handleReconnect =
-    workspace?.connectionState != null ? () => workspace.reconnect() : undefined;
+    workspaceStore?.connectionState != null ? () => workspaceStore.reconnect() : undefined;
 
   return (
     <TaskContextMenu
@@ -109,7 +107,6 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
           handleProvision();
           navigate('task', { projectId, taskId });
         }}
-        onDoubleClick={() => setCollapsed('left', true)}
       >
         <div className="flex min-w-0 flex-1 items-center gap-1 self-stretch overflow-hidden">
           <span
@@ -120,7 +117,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
           >
             {taskName}
           </span>
-          <TaskGitDiffStats task={task} className="h-full shrink-0 flex items-center pl-1 pr-1" />
+          <TaskGitDiffStats task={task} className="flex h-full shrink-0 items-center pr-1 pl-1" />
           <RenderPrBadge task={task} />
         </div>
         <TaskSidebarAgentStatus task={task} />
@@ -132,5 +129,5 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
 const RenderPrBadge = observer(function RenderPrBadge({ task }: { task: TaskStore }) {
   if (!('prs' in task.data)) return null;
   const pr = selectCurrentPr(task.data.prs);
-  return pr ? <PrBadge variant="compact" pr={pr} /> : null;
+  return pr ? <PrBadge variant="compact" pr={pr} hoverDelay={100} /> : null;
 });

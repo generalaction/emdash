@@ -1,8 +1,3 @@
-import type { Conversation } from '@shared/conversations';
-import { taskProvisionProgressChannel } from '@shared/events/taskEvents';
-import type { ProjectSettings } from '@shared/project-settings';
-import type { Task } from '@shared/tasks';
-import type { Terminal } from '@shared/terminals';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { ProvisionResult } from '@main/core/projects/project-provider';
 import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
@@ -10,11 +5,15 @@ import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
 import { buildTaskFromWorkspace } from '@main/core/tasks/task-builder';
 import { parseProvisionOutput } from '@main/core/workspaces/byoi/provision-output';
 import { createWorkspaceFactory } from '@main/core/workspaces/workspace-factory';
-import { remoteTaskWorkspaceId } from '@main/core/workspaces/workspace-id';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { quoteShellArg } from '@main/utils/shellEscape';
+import type { Conversation } from '@shared/conversations';
+import { taskProvisionProgressChannel } from '@shared/events/taskEvents';
+import type { ProjectSettings } from '@shared/project-settings';
+import type { Task } from '@shared/tasks';
+import type { Terminal } from '@shared/terminals';
 
 export type ProvisionBYOITaskParams = {
   task: Task;
@@ -28,6 +27,8 @@ export type ProvisionBYOITaskParams = {
   projectPath: string;
   settings: ProjectSettingsProvider;
   logPrefix: string;
+  /** UUID from the workspaces table — used as the workspace registry key. */
+  workspaceId: string;
 };
 
 /**
@@ -87,7 +88,7 @@ export async function provisionBYOITask(params: ProvisionBYOITaskParams): Promis
   });
 
   const workDir = output.worktreePath ?? projectPath;
-  const workspaceId = remoteTaskWorkspaceId(output.id ?? task.id);
+  const { workspaceId } = params;
 
   const workspace = await workspaceRegistry.acquire(
     workspaceId,

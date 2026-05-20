@@ -1,4 +1,5 @@
 import { ChevronsUpDownIcon } from 'lucide-react';
+import { useId } from 'react';
 import { GithubAuthDisclaimer } from '@renderer/features/integrations/components/github-auth-disclaimer';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
 import { ComboboxPopover } from '@renderer/lib/ui/combobox-popover';
@@ -24,6 +25,7 @@ export function PickExistingPanel({
   state: PickModeState;
   showInitializeGitPrompt: boolean;
 }) {
+  const nameId = useId();
   return (
     <FieldGroup>
       <Field>
@@ -44,8 +46,9 @@ export function PickExistingPanel({
         )}
       </Field>
       <Field>
-        <FieldLabel>Name</FieldLabel>
+        <FieldLabel htmlFor={nameId}>Name</FieldLabel>
         <Input
+          id={nameId}
           placeholder="Enter a project name"
           value={state.name}
           onChange={(e) => state.handleNameChange(e.target.value)}
@@ -84,6 +87,9 @@ export function CreateNewPanel({
   showGithubAuthDisclaimer: boolean;
   onOpenAccountSettings: () => void;
 }) {
+  const repositoryNameId = useId();
+  const projectNameId = useId();
+
   if (showGithubAuthDisclaimer) {
     return <GithubAuthDisclaimer onOpenAccountSettings={onOpenAccountSettings} />;
   }
@@ -92,8 +98,9 @@ export function CreateNewPanel({
     <div className="flex flex-col gap-6">
       <FieldGroup>
         <Field>
-          <FieldLabel>Repository Name</FieldLabel>
+          <FieldLabel htmlFor={repositoryNameId}>Repository Name</FieldLabel>
           <Input
+            id={repositoryNameId}
             autoFocus
             placeholder="Enter a repository name"
             value={state.repositoryName}
@@ -108,7 +115,7 @@ export function CreateNewPanel({
                 render={
                   <button className="flex h-9 w-full min-w-0 items-center justify-between rounded-md border border-border px-2.5 py-1 text-left text-sm outline-none">
                     <ComboboxValue />
-                    <ChevronsUpDownIcon className="size-4 shrink-0 text-muted-foreground" />
+                    <ChevronsUpDownIcon className="text-muted-foreground size-4 shrink-0" />
                   </button>
                 }
               />
@@ -125,22 +132,23 @@ export function CreateNewPanel({
             value={state.repositoryVisibility}
             onValueChange={(value) => state.setRepositoryVisibility(value as 'public' | 'private')}
           >
-            <div className="flex items-center gap-3">
+            <Label className="flex cursor-pointer items-center gap-3 font-normal">
               <RadioGroupItem value="private" />
-              <Label className="cursor-pointer font-normal">Private</Label>
-            </div>
-            <div className="flex items-center gap-3">
+              Private
+            </Label>
+            <Label className="flex cursor-pointer items-center gap-3 font-normal">
               <RadioGroupItem value="public" />
-              <Label className="cursor-pointer font-normal">Public</Label>
-            </div>
+              Public
+            </Label>
           </RadioGroup>
         </Field>
       </FieldGroup>
       <Separator className="w-full" />
       <FieldGroup>
         <Field>
-          <FieldLabel>Project Name</FieldLabel>
+          <FieldLabel htmlFor={projectNameId}>Project Name</FieldLabel>
           <Input
+            id={projectNameId}
             placeholder="Enter a project name"
             value={state.name}
             onChange={(e) => state.handleNameChange(e.target.value)}
@@ -177,12 +185,15 @@ export function ClonePanel({
   connectionId?: string;
   state: CloneModeState;
 }) {
+  const repositoryUrlId = useId();
+  const projectNameId = useId();
   return (
     <div className="flex flex-col gap-6">
       <FieldGroup>
         <Field>
-          <FieldLabel>Repository URL</FieldLabel>
+          <FieldLabel htmlFor={repositoryUrlId}>Repository URL</FieldLabel>
           <Input
+            id={repositoryUrlId}
             autoFocus
             placeholder="Enter a repository URL"
             value={state.repositoryUrl}
@@ -193,8 +204,9 @@ export function ClonePanel({
       <Separator className="w-full" />
       <FieldGroup>
         <Field>
-          <FieldLabel>Project Name</FieldLabel>
+          <FieldLabel htmlFor={projectNameId}>Project Name</FieldLabel>
           <Input
+            id={projectNameId}
             placeholder="Enter a project name"
             value={state.name}
             onChange={(e) => state.handleNameChange(e.target.value)}

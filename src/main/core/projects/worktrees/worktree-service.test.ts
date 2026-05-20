@@ -2,9 +2,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import type { Remote } from '@shared/git';
 import { ok } from '@shared/result';
-import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import type { ProjectSettingsProvider } from '../settings/provider';
 import { LocalWorktreeHost } from './hosts/local-worktree-host';
 import type { WorktreeHost } from './hosts/worktree-host';
@@ -35,7 +35,8 @@ function makeSettings(preservePatterns: string[] = []): ProjectSettingsProvider 
     getDefaultWorktreeDirectory: async () => '',
     getWorktreeDirectory: async () => '',
     getDefaultBranch: async () => 'main',
-    getRemote: async () => 'origin',
+    getBaseRemote: async () => 'origin',
+    getPushRemote: async () => 'origin',
   } as ProjectSettingsProvider;
 }
 
@@ -78,6 +79,18 @@ describe('WorktreeService', () => {
   }
 
   describe('checkoutBranchWorktree', () => {
+    it('ignores stale worktree-list entries under the pool', async () => {
+      const branchName = 'emdash/openrouter-embedding-3hvp5';
+      const stalePath = path.join(poolDir, 'backend', branchName);
+      await git(['branch', branchName], { cwd: repoDir });
+      await git(['worktree', 'add', stalePath, branchName], { cwd: repoDir });
+      fs.rmSync(stalePath, { recursive: true, force: true });
+
+      const svc = makeService({ worktreePoolPath: path.join(poolDir, 'backend') });
+
+      await expect(svc.getWorktree(branchName)).resolves.toBeUndefined();
+    });
+
     it('creates a worktree from an existing local source branch', async () => {
       await git(['branch', 'task/local-checkout'], { cwd: repoDir });
       const svc = makeService();

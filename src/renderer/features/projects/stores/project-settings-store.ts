@@ -1,6 +1,12 @@
+import { events, rpc } from '@renderer/lib/ipc';
+import { Resource } from '@renderer/lib/stores/resource';
 import { fsWatchEventChannel } from '@shared/events/fsEvents';
+import { projectSettingsChangedChannel } from '@shared/events/projectEvents';
 import {
   PROJECT_CONFIG_FILE,
+  type MigrateProjectConfigRequest,
+  type MigrateProjectConfigResult,
+  type ProjectConfigMigration,
   type ProjectSettings,
   type ProjectSettingsOverrideState,
   type ProjectSettingsPage,
@@ -9,12 +15,11 @@ import {
 } from '@shared/project-settings';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import type { Result } from '@shared/result';
-import { events, rpc } from '@renderer/lib/ipc';
-import { Resource } from '@renderer/lib/stores/resource';
 
 export class ProjectSettingsStore {
   readonly pageData: Resource<ProjectSettingsPage>;
   private readonly _unsubscribeConfigWatch: () => void;
+  private readonly _unsubscribeSettingsChanged: () => void;
 
   constructor(private readonly projectId: string) {
     this.pageData = new Resource(async () => {
@@ -39,6 +44,12 @@ export class ProjectSettingsStore {
         this.pageData.invalidate();
       }
     });
+
+    this._unsubscribeSettingsChanged = events.on(projectSettingsChangedChannel, (data) => {
+      if (data.projectId === projectId) {
+        this.pageData.invalidate();
+      }
+    });
   }
 
   get settings(): ProjectSettings | null {
@@ -55,6 +66,19 @@ export class ProjectSettingsStore {
 
   get overrideState(): ProjectSettingsOverrideState | null {
     return this.pageData.data?.overrideState ?? null;
+  }
+
+  get configMigrations(): ProjectConfigMigration[] | null {
+    return this.pageData.data?.configMigrations ?? null;
+  }
+
+  get shouldPromptConfigMigration(): boolean {
+    return this.pageData.data?.shouldPromptConfigMigration ?? false;
+  }
+
+  async load(): Promise<ProjectSettingsPage | null> {
+    await this.pageData.load();
+    return this.pageData.data;
   }
 
   async save(
@@ -79,8 +103,19 @@ export class ProjectSettingsStore {
     return result;
   }
 
+  async migrateProjectConfig(
+    request: MigrateProjectConfigRequest
+  ): Promise<Result<MigrateProjectConfigResult, UpdateProjectSettingsError>> {
+    const result = await rpc.projects.migrateProjectConfig(this.projectId, request);
+    if (result.success) {
+      this.pageData.setValue(result.data.page);
+    }
+    return result;
+  }
+
   dispose(): void {
     this._unsubscribeConfigWatch();
+    this._unsubscribeSettingsChanged();
     this.pageData.dispose();
   }
 }

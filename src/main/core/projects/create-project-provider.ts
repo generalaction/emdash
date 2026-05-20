@@ -1,7 +1,5 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { safePathSegment } from '@shared/path-name';
-import type { LocalProject, SshProject } from '@shared/projects';
 import { GitHubAuthExecutionContext } from '@main/core/execution-context/github-auth-execution-context';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
@@ -14,9 +12,11 @@ import { GitRepositoryService } from '@main/core/git/repository-service';
 import { githubConnectionService } from '@main/core/github/services/github-connection-service';
 import {
   sshConnectionManager,
-  type SshConnectionEvent,
+  type SshConnectionManagerEvent,
 } from '@main/core/ssh/ssh-connection-manager';
 import { log } from '@main/lib/logger';
+import { safePathSegment } from '@shared/path-name';
+import type { LocalProject, SshProject } from '@shared/projects';
 import { ProjectProvider, type ProjectProviderTransport } from './project-provider';
 import type { ProjectSettingsProvider } from './settings/provider';
 import { LocalProjectSettingsProvider } from './settings/providers/local-project-settings-provider';
@@ -41,8 +41,11 @@ async function createLocalProvider(project: LocalProject): Promise<ProjectProvid
   const baseCtx = new LocalExecutionContext({ root: project.path });
   const authCtx = new GitHubAuthExecutionContext(baseCtx, () => githubConnectionService.getToken());
   const ctx = baseCtx;
+  const repoGit = new GitService(ctx, authCtx, localFs);
 
-  const settings = new LocalProjectSettingsProvider(project.id, project.path, project.baseRef);
+  const settings = new LocalProjectSettingsProvider(project.id, project.path, project.baseRef, {
+    git: repoGit,
+  });
   const worktreeDirectory = await settings.getWorktreeDirectory();
   await fs.promises.mkdir(worktreeDirectory, { recursive: true });
   const worktreePoolPath = path.join(worktreeDirectory, safePathSegment(project.name, project.id));
@@ -55,6 +58,7 @@ async function createLocalProvider(project: LocalProject): Promise<ProjectProvid
     project.path,
     { kind: 'local', defaultWorkspaceType: { kind: 'local' }, ctx, authCtx },
     localFs,
+    repoGit,
     settings,
     worktreeHost,
     worktreePoolPath,
@@ -73,6 +77,7 @@ async function createSshProvider(project: SshProject): Promise<ProjectProvider> 
       githubConnectionService.getToken()
     );
     const ctx = baseCtx;
+    const repoGit = new GitService(ctx, authCtx, projectFs);
 
     const settings = new SshProjectSettingsProvider(
       project.id,
@@ -80,7 +85,10 @@ async function createSshProvider(project: SshProject): Promise<ProjectProvider> 
       project.baseRef,
       rootFs,
       project.path,
-      baseCtx
+      baseCtx,
+      {
+        git: repoGit,
+      }
     );
     const worktreePoolPath = path.posix.join(await settings.getWorktreeDirectory(), project.name);
     const worktreeHost = new SshWorktreeHost(rootFs);
@@ -98,6 +106,7 @@ async function createSshProvider(project: SshProject): Promise<ProjectProvider> 
         authCtx,
       },
       projectFs,
+      repoGit,
       settings,
       worktreeHost,
       worktreePoolPath,
@@ -105,7 +114,7 @@ async function createSshProvider(project: SshProject): Promise<ProjectProvider> 
     );
 
     // Wire reconnect handler after provider is built so gitFetchService is available.
-    const handler = (evt: SshConnectionEvent) => {
+    const handler = (evt: SshConnectionManagerEvent) => {
       if (evt.type === 'reconnected' && evt.connectionId === project.connectionId) {
         void provider.gitFetchService.fetch();
       }
@@ -118,6 +127,7 @@ async function createSshProvider(project: SshProject): Promise<ProjectProvider> 
       projectId: project.id,
       error: error instanceof Error ? error.message : String(error),
     });
+    sshConnectionManager.reportChannelError(project.connectionId, error);
     throw error;
   }
 }
@@ -130,12 +140,13 @@ function buildProvider(
     'kind' | 'defaultWorkspaceType' | 'ctx' | 'authCtx'
   >,
   projectFs: FileSystemProvider,
+  repoGit: GitService,
   settings: ProjectSettingsProvider,
   worktreeHost: WorktreeHost,
   worktreePoolPath: string,
   dispose: () => void
 ): ProjectProvider {
-  const { ctx, authCtx } = transportMeta;
+  const { ctx } = transportMeta;
 
   const transport: ProjectProviderTransport = {
     ...transportMeta,
@@ -145,7 +156,6 @@ function buildProvider(
     worktreePoolPath,
   };
 
-  const repoGit = new GitService(ctx, authCtx, projectFs);
   const repository = new GitRepositoryService(repoGit, settings);
   const worktreeService = new WorktreeService({
     worktreePoolPath,
@@ -154,7 +164,9 @@ function buildProvider(
     ctx,
     host: worktreeHost,
   });
-  const gitFetchService = new GitFetchService(repoGit, hasGitHubToken);
+  const gitFetchService = new GitFetchService(repoGit, hasGitHubToken, () =>
+    repository.getBaseRemote()
+  );
   gitFetchService.start();
 
   return new ProjectProvider(

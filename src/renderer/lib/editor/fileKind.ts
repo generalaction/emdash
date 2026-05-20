@@ -3,6 +3,9 @@ import type { ManagedFileKind } from './types';
 /** Raster image extensions — rendered with <img>, not Monaco. */
 export const RASTER_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'ico', 'bmp']);
 
+/** HTML extensions — rendered with the HTML preview iframe. */
+export const HTML_EXTS = new Set(['html', 'htm']);
+
 /**
  * Known binary / non-text extensions — shown as "unsupported" instead of
  * attempting to load into Monaco.
@@ -58,13 +61,14 @@ export function getFileKind(filePath: string): Exclude<ManagedFileKind, 'too-lar
   if (RASTER_EXTS.has(ext)) return 'image';
   if (ext === 'svg') return 'svg';
   if (ext === 'md' || ext === 'mdx') return 'markdown';
+  if (HTML_EXTS.has(ext)) return 'html';
   if (BINARY_EXTS.has(ext)) return 'binary';
   return 'text';
 }
 
 /** True for file kinds that default to rendered/preview mode. */
 export function isPreviewableKind(kind: ManagedFileKind): boolean {
-  return kind === 'svg' || kind === 'markdown';
+  return kind === 'svg' || kind === 'markdown' || kind === 'html';
 }
 
 /** True for files the diff viewer must not load into Monaco. */

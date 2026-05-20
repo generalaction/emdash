@@ -1,8 +1,16 @@
 import { applyHistoryEntry } from '@renderer/lib/components/nav-buttons';
+import { toast } from '@renderer/lib/hooks/use-toast';
+import { toggleSettingsView } from '@renderer/lib/layout/settings-toggle';
 import { showModal } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
+import { toggleAppTheme } from '@renderer/lib/theme/theme-toggle';
+import { APP_COMMAND_DEFS, type AppCommandId, type CommandDef } from '@shared/commands';
 import { commandRegistry } from './registry';
 import type { AppCommand, CommandProvider } from './types';
+
+function appDef(id: AppCommandId): CommandDef {
+  return APP_COMMAND_DEFS.find((d) => d.id === id)!;
+}
 
 function createAppCommandProvider(): CommandProvider {
   return {
@@ -17,36 +25,77 @@ function createAppCommandProvider(): CommandProvider {
         | undefined;
       const projectId = params?.projectId;
 
+      const settingsDef = appDef('app.settings');
+      const newProjectDef = appDef('app.newProject');
+      const giveFeedbackDef = appDef('app.giveFeedback');
+      const toggleThemeDef = appDef('app.toggleTheme');
+      const navigateBackDef = appDef('app.navigateBack');
+      const navigateForwardDef = appDef('app.navigateForward');
+
       const commands: AppCommand[] = [
         {
-          id: 'app.settings',
-          label: 'Open Settings',
-          description: 'Open application settings',
-          shortcutKey: 'settings',
-          group: 'App',
+          id: settingsDef.id,
+          label: settingsDef.label,
+          description: settingsDef.description,
+          shortcutKey: settingsDef.shortcutKey,
+          group: settingsDef.group,
           execute() {
-            appState.navigation.navigate('settings');
+            toggleSettingsView(
+              appState.navigation.navigate.bind(appState.navigation),
+              appState.navigation.currentViewId,
+              appState.navigation.lastNonSettingsView
+            );
           },
         },
         {
-          id: 'app.newProject',
-          label: 'New Project',
-          description: 'Add a new local or SSH project',
-          shortcutKey: 'newProject',
-          group: 'App',
+          id: newProjectDef.id,
+          label: newProjectDef.label,
+          description: newProjectDef.description,
+          shortcutKey: newProjectDef.shortcutKey,
+          group: newProjectDef.group,
           execute() {
             showModal('addProjectModal', { strategy: 'local', mode: 'pick' });
           },
         },
       ];
 
+      commands.push({
+        id: giveFeedbackDef.id,
+        label: giveFeedbackDef.label,
+        description: giveFeedbackDef.description,
+        shortcutKey: giveFeedbackDef.shortcutKey,
+        group: giveFeedbackDef.group,
+        execute() {
+          showModal('feedbackModal', {});
+        },
+      });
+
+      commands.push({
+        id: toggleThemeDef.id,
+        label: toggleThemeDef.label,
+        description: toggleThemeDef.description,
+        shortcutKey: toggleThemeDef.shortcutKey,
+        group: toggleThemeDef.group,
+        execute() {
+          void toggleAppTheme().then((result) => {
+            if (result.success) return;
+            toast({
+              title: 'Theme not changed',
+              description: result.error.message,
+              variant: 'destructive',
+            });
+          });
+        },
+      });
+
       if (projectId) {
+        const newTaskDef = appDef('app.newTask');
         commands.push({
-          id: 'app.newTask',
-          label: 'New Task',
-          description: 'Create a new task in this project',
-          shortcutKey: 'newTask',
-          group: 'App',
+          id: newTaskDef.id,
+          label: newTaskDef.label,
+          description: newTaskDef.description,
+          shortcutKey: newTaskDef.shortcutKey,
+          group: newTaskDef.group,
           execute() {
             showModal('taskModal', { projectId });
           },
@@ -55,23 +104,25 @@ function createAppCommandProvider(): CommandProvider {
 
       commands.push(
         {
-          id: 'app.navigateBack',
-          label: 'Go Back',
-          description: 'Navigate to the previous location',
-          shortcutKey: 'navigateBack',
-          group: 'Navigation',
+          id: navigateBackDef.id,
+          label: navigateBackDef.label,
+          description: navigateBackDef.description,
+          shortcutKey: navigateBackDef.shortcutKey,
+          group: navigateBackDef.group,
           enabled: appState.history.canGoBack,
+          hideFromPalette: true,
           execute() {
             appState.history.back(applyHistoryEntry);
           },
         },
         {
-          id: 'app.navigateForward',
-          label: 'Go Forward',
-          description: 'Navigate to the next location',
-          shortcutKey: 'navigateForward',
-          group: 'Navigation',
+          id: navigateForwardDef.id,
+          label: navigateForwardDef.label,
+          description: navigateForwardDef.description,
+          shortcutKey: navigateForwardDef.shortcutKey,
+          group: navigateForwardDef.group,
           enabled: appState.history.canGoForward,
+          hideFromPalette: true,
           execute() {
             appState.history.forward(applyHistoryEntry);
           },

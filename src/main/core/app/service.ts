@@ -1,15 +1,9 @@
 import { exec } from 'node:child_process';
+import { readFile, realpath, stat } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { extname, resolve, sep } from 'node:path';
 import { eq } from 'drizzle-orm';
-import { clipboard, dialog, shell } from 'electron';
-import { appPasteChannel, appRedoChannel, appUndoChannel } from '@shared/events/appEvents';
-import {
-  getAppById,
-  getResolvedLabel,
-  OPEN_IN_APPS,
-  type OpenInAppId,
-  type PlatformConfig,
-  type PlatformKey,
-} from '@shared/openInApps';
+import { app, clipboard, dialog, shell } from 'electron';
 import { getMainWindow } from '@main/app/window';
 import { db } from '@main/db/client';
 import { sshConnections } from '@main/db/schema';
@@ -22,10 +16,20 @@ import {
   buildRemoteSshCommand,
   buildRemoteTerminalExecArgs,
 } from '@main/utils/remoteOpenIn';
+import { appPasteChannel, appRedoChannel, appUndoChannel } from '@shared/events/appEvents';
+import {
+  getAppById,
+  getResolvedLabel,
+  OPEN_IN_APPS,
+  type OpenInAppId,
+  type PlatformConfig,
+  type PlatformKey,
+} from '@shared/openInApps';
 import {
   checkCommand,
   checkMacApp,
   checkMacAppByName,
+  checkMacMdfindQuery,
   escapeAppleScriptString,
   execFileCommand,
   listInstalledFontsAll,
@@ -33,6 +37,19 @@ import {
 } from './utils';
 
 const FONT_CACHE_TTL_MS = 5 * 60 * 1_000;
+const MAX_AUDIO_FILE_BYTES = 20 * 1024 * 1024;
+
+const AUDIO_MIME_TYPES: Record<string, string> = {
+  '.aac': 'audio/aac',
+  '.flac': 'audio/flac',
+  '.m4a': 'audio/mp4',
+  '.mp3': 'audio/mpeg',
+  '.oga': 'audio/ogg',
+  '.ogg': 'audio/ogg',
+  '.opus': 'audio/ogg',
+  '.wav': 'audio/wav',
+  '.webm': 'audio/webm',
+};
 
 type RemoteTerminalLaunchAttempt = {
   file: string;
@@ -141,6 +158,9 @@ class AppService implements IInitializable, IDisposable {
             }
           }
         }
+        if (!isAvailable && platformConfig?.mdfindQuery && platform === 'darwin') {
+          isAvailable = await checkMacMdfindQuery(platformConfig.mdfindQuery);
+        }
         availability[openInApp.id] = isAvailable;
       } catch (error) {
         log.error(`Error checking installed app ${openInApp.id}:`, error);
@@ -170,6 +190,10 @@ class AppService implements IInitializable, IDisposable {
   clipboardWriteText(text: string): void {
     if (typeof text !== 'string') throw new Error('Invalid clipboard text');
     clipboard.writeText(text);
+  }
+
+  quit(): void {
+    app.quit();
   }
 
   async openIn(args: {
@@ -297,6 +321,29 @@ class AppService implements IInitializable, IDisposable {
       return;
     }
 
+    if (appId === 'alacritty') {
+      const remoteExecArgs = buildRemoteTerminalExecArgs({
+        host,
+        username,
+        port,
+        targetPath: target,
+      });
+      const attempts =
+        platform === 'darwin'
+          ? [
+              {
+                file: 'open',
+                args: ['-n', '-b', 'org.alacritty', '--args', '-e', ...remoteExecArgs],
+              },
+              { file: 'open', args: ['-na', 'Alacritty', '--args', '-e', ...remoteExecArgs] },
+              { file: 'alacritty', args: ['-e', ...remoteExecArgs] },
+            ]
+          : [{ file: 'alacritty', args: ['-e', ...remoteExecArgs] }];
+
+      await this.launchRemoteTerminal('Alacritty', attempts);
+      return;
+    }
+
     if (appConfig?.supportsRemote) {
       throw new Error(`Remote SSH not yet implemented for ${label}`);
     }
@@ -362,14 +409,58 @@ class AppService implements IInitializable, IDisposable {
   async openSelectDirectoryDialog(args: {
     title: string;
     message: string;
+    defaultPath?: string;
   }): Promise<string | undefined> {
     const result = await dialog.showOpenDialog(getMainWindow()!, {
       title: args.title,
       properties: ['openDirectory'],
       message: args.message,
+      defaultPath: args.defaultPath,
     });
     if (result.canceled) return undefined;
     return result.filePaths[0];
+  }
+
+  async openSelectAudioFileDialog(args: {
+    title: string;
+    message: string;
+  }): Promise<string | undefined> {
+    const result = await dialog.showOpenDialog(getMainWindow()!, {
+      title: args.title,
+      properties: ['openFile'],
+      message: args.message,
+      filters: [
+        {
+          name: 'Audio',
+          extensions: ['aac', 'flac', 'm4a', 'mp3', 'oga', 'ogg', 'opus', 'wav', 'webm'],
+        },
+        { name: 'All files', extensions: ['*'] },
+      ],
+    });
+    if (result.canceled) return undefined;
+    return result.filePaths[0];
+  }
+
+  async readAudioFileDataUrl(filePath: string): Promise<string> {
+    if (!filePath || typeof filePath !== 'string') throw new Error('Invalid audio path');
+
+    const resolvedPath = await realpath(resolve(filePath));
+    const resolvedHome = resolve(homedir());
+    const homePrefix = resolvedHome.endsWith(sep) ? resolvedHome : `${resolvedHome}${sep}`;
+    if (!resolvedPath.startsWith(homePrefix) && resolvedPath !== resolvedHome) {
+      throw new Error('Audio file must be located within the user home directory');
+    }
+
+    const extension = extname(filePath).toLowerCase();
+    const mimeType = AUDIO_MIME_TYPES[extension];
+    if (!mimeType) throw new Error('Unsupported audio file type');
+
+    const fileStat = await stat(resolvedPath);
+    if (!fileStat.isFile()) throw new Error('Audio path is not a file');
+    if (fileStat.size > MAX_AUDIO_FILE_BYTES) throw new Error('Audio file is larger than 20 MB');
+
+    const file = await readFile(resolvedPath);
+    return `data:${mimeType};base64,${file.toString('base64')}`;
   }
 }
 

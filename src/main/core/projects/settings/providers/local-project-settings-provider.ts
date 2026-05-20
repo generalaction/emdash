@@ -1,15 +1,17 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { appSettingsService } from '@main/core/settings/settings-service';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import type { Result } from '@shared/result';
-import { appSettingsService } from '@main/core/settings/settings-service';
-import type { ProjectSettingsStorage } from '../project-settings-storage';
 import {
   normalizeWorktreeDirectory,
   resolveAndValidateWorktreeDirectory,
 } from '../worktree-directory';
-import { DbProjectSettingsProvider } from './db-project-settings-provider';
+import {
+  DbProjectSettingsProvider,
+  type DbProjectSettingsProviderOptions,
+} from './db-project-settings-provider';
 
 async function getLocalDefaultWorktreeDirectory(): Promise<string> {
   return (await appSettingsService.get('localProject')).defaultWorktreeDirectory;
@@ -22,7 +24,7 @@ export class LocalProjectSettingsProvider extends DbProjectSettingsProvider {
     projectId: string,
     projectPath: string,
     defaultBranchFallback: string = 'main',
-    storage?: ProjectSettingsStorage
+    options: DbProjectSettingsProviderOptions = {}
   ) {
     super(
       projectId,
@@ -35,7 +37,7 @@ export class LocalProjectSettingsProvider extends DbProjectSettingsProvider {
           return { content, truncated: false, totalSize: Buffer.byteLength(content) };
         },
       },
-      storage
+      options
     );
   }
 

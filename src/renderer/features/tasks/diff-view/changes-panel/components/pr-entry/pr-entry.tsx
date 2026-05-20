@@ -1,8 +1,7 @@
 import { ExternalLink } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
-import { getPrNumber, type PullRequest } from '@shared/pull-requests';
-import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
+import { useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
 import { PrMergeLine } from '@renderer/lib/components/pr-merge-line';
 import { PrNumberBadge } from '@renderer/lib/components/pr-number-badge';
 import { StatusIcon } from '@renderer/lib/components/pr-status-icon';
@@ -11,6 +10,7 @@ import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { type SplitButtonAction } from '@renderer/lib/ui/split-button';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { cn } from '@renderer/utils/utils';
+import { getPrNumber, type PullRequest } from '@shared/pull-requests';
 import { PrChecksList } from './checks-list';
 import { PrCommitsList } from './commits-list';
 import { PrFilesList } from './files-list';
@@ -120,12 +120,12 @@ function computeMergeUiState(pr: PullRequest): MergeUiState {
 }
 
 export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr: PullRequest }) {
-  const task = useProvisionedTask();
-  const prStatus = pr.status;
-  const prStore = task.workspace.pr;
-  const diffView = task.taskView.diffView;
+  const taskView = useWorkspaceViewModel();
+  const prStore = taskView.prStore!;
+  const diffView = taskView.diffView;
   const showConfirm = useShowModal('confirmActionModal');
   const [isMerging, setIsMerging] = useState(false);
+  if (!diffView) return null;
   const tab = diffView.effectivePrTab;
   const isOpen = pr.status === 'open';
 
@@ -165,23 +165,23 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
 
   return (
     <div className={cn('flex min-h-0 flex-1 flex-col border-t border-border')}>
-      <div className="flex flex-col gap-2 p-2.5 w-full">
-        <div className="flex items-center gap-2 justify-between">
+      <div className="flex w-full flex-col gap-2 p-2.5">
+        <div className="flex items-center justify-between gap-2">
           <button
-            className="relative flex gap-2 items-center min-w-0 group"
+            className="group relative flex min-w-0 items-center gap-2"
             onClick={() => rpc.app.openExternal(pr.url)}
           >
-            <StatusIcon className="size-4" status={prStatus} />
-            <span className="flex-1 min-w-0 truncate text-sm font-normal">{pr.title}</span>
+            <StatusIcon className="size-4" pr={pr} />
+            <span className="min-w-0 flex-1 truncate text-sm font-normal">{pr.title}</span>
             <PrNumberBadge number={getPrNumber(pr) ?? 0} />
-            <span className="absolute right-0 flex items-center pl-4 pr-0.5 bg-linear-to-r from-transparent to-background opacity-0 group-hover:opacity-100 transition-opacity">
+            <span className="absolute right-0 flex items-center bg-linear-to-r from-transparent to-background pr-0.5 pl-4 opacity-0 transition-opacity group-hover:opacity-100">
               <ExternalLink className="size-3.5 text-foreground-muted" />
             </span>
           </button>
         </div>
         <PrMergeLine pr={pr} />
       </div>
-      <div className="min-h-0 flex flex-1 flex-col px-2.5">
+      <div className="flex min-h-0 flex-1 flex-col px-2.5">
         <ToggleGroup
           value={[tab]}
           size={'xs'}

@@ -1,4 +1,4 @@
-import type { Client } from 'ssh2';
+import type { Client, ClientCallback, ClientSFTPCallback, ExecOptions } from 'ssh2';
 import { captureRemoteShellProfile, type RemoteShellProfile } from './remote-shell-profile';
 
 type RemoteShellProfileState =
@@ -20,6 +20,11 @@ export class SshClientProxy {
   private _client: Client | null = null;
   private _remoteShellProfileState: RemoteShellProfileState = { kind: 'empty' };
 
+  constructor(
+    readonly connectionId: string,
+    private healthReporter?: { reportChannelError(connectionId: string, error: unknown): void }
+  ) {}
+
   /** Called by SshConnectionManager when a connection becomes ready. */
   update(client: Client): void {
     if (this._client !== client) {
@@ -39,7 +44,7 @@ export class SshClientProxy {
       return state.promise;
     }
 
-    const promise = captureRemoteShellProfile(client).then((profile) => {
+    const promise = captureRemoteShellProfile(this).then((profile) => {
       if (
         this._client === client &&
         this._remoteShellProfileState.kind === 'loading' &&
@@ -51,6 +56,66 @@ export class SshClientProxy {
     });
     this._remoteShellProfileState = { kind: 'loading', client, promise };
     return promise;
+  }
+
+  async refreshRemoteShellProfile(): Promise<RemoteShellProfile> {
+    const client = this.client;
+    const promise = captureRemoteShellProfile(this).then((profile) => {
+      if (
+        this._client === client &&
+        this._remoteShellProfileState.kind === 'loading' &&
+        this._remoteShellProfileState.promise === promise
+      ) {
+        this._remoteShellProfileState = { kind: 'ready', client, profile };
+      }
+      return profile;
+    });
+    this._remoteShellProfileState = { kind: 'loading', client, promise };
+    return promise;
+  }
+
+  exec(command: string, callback: ClientCallback): void;
+  exec(command: string, options: ExecOptions, callback: ClientCallback): void;
+  exec(
+    command: string,
+    optionsOrCallback: ExecOptions | ClientCallback,
+    callback?: ClientCallback
+  ): void {
+    const wrappedCallback = this.wrapClientCallback(
+      typeof optionsOrCallback === 'function' ? optionsOrCallback : callback
+    );
+
+    if (typeof optionsOrCallback === 'function') {
+      this.client.exec(command, wrappedCallback);
+      return;
+    }
+
+    this.client.exec(command, optionsOrCallback, wrappedCallback);
+  }
+
+  execPty(command: string, options: ExecOptions, callback: ClientCallback): void {
+    this.client.exec(command, options, this.wrapClientCallback(callback));
+  }
+
+  sftp(callback: ClientSFTPCallback): void {
+    this.client.sftp((err, sftp) => {
+      this.reportChannelResult(err);
+      callback(err, sftp);
+    });
+  }
+
+  private wrapClientCallback(callback: ClientCallback | undefined): ClientCallback {
+    return (err, channel) => {
+      this.reportChannelResult(err);
+      callback?.(err, channel);
+    };
+  }
+
+  private reportChannelResult(err: Error | undefined): void {
+    if (err) {
+      this.healthReporter?.reportChannelError(this.connectionId, err);
+      return;
+    }
   }
 
   /** Called by SshConnectionManager when the connection drops. */

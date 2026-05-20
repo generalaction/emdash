@@ -67,7 +67,7 @@ export function SplitButton({
       <Button
         variant={variant}
         size={size}
-        className="flex-1 min-w-0 shrink rounded-r-none"
+        className="min-w-0 flex-1 shrink rounded-r-none"
         onClick={selectedAction.action}
         disabled={isDisabled}
       >
@@ -108,7 +108,7 @@ export function SplitButton({
               >
                 <span className="text-sm">{action.label}</span>
                 {action.description && (
-                  <span className="text-xs text-foreground-muted whitespace-normal">
+                  <span className="text-xs whitespace-normal text-foreground-muted">
                     {action.description}
                   </span>
                 )}

@@ -1,5 +1,5 @@
-import type { Issue } from '@shared/tasks';
 import { normalizeTaskName } from '@renderer/utils/taskNames';
+import type { Issue } from '@shared/tasks';
 
 export function getIssueTaskName(issue: Issue | null | undefined): string | null {
   if (issue?.provider !== 'linear') {

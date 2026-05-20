@@ -1,11 +1,11 @@
 import { promises as fsPromises } from 'node:fs';
 import path from 'node:path';
-import type { Branch } from '@shared/git';
-import { DEFAULT_REMOTE_NAME } from '@shared/git-utils';
-import { err, ok, type Result } from '@shared/result';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { log } from '@main/lib/logger';
+import type { Branch } from '@shared/git';
+import { DEFAULT_REMOTE_NAME } from '@shared/git-utils';
+import { err, ok, type Result } from '@shared/result';
 import { getEffectiveTaskSettings } from '../settings/effective-task-settings';
 import type { ProjectSettingsProvider } from '../settings/provider';
 import type { WorktreeHost } from './hosts/worktree-host';
@@ -65,14 +65,26 @@ export class WorktreeService {
   }
 
   private async getRemoteCandidates(): Promise<string[]> {
-    const configuredRemote = (await this.projectSettings.getRemote().catch(() => '')).trim();
-    if (!configuredRemote || configuredRemote === DEFAULT_REMOTE_NAME) {
+    const baseRemote = (await this.projectSettings.getBaseRemote().catch(() => '')).trim();
+    if (!baseRemote || baseRemote === DEFAULT_REMOTE_NAME) {
       return [DEFAULT_REMOTE_NAME];
     }
-    return [configuredRemote, DEFAULT_REMOTE_NAME];
+    return [baseRemote, DEFAULT_REMOTE_NAME];
   }
 
-  private async findCheckedOutPathForBranch(branchName: string): Promise<string | undefined> {
+  async existsAtAbsolutePath(absPath: string): Promise<boolean> {
+    if (this.ctx.supportsLocalSpawn) {
+      try {
+        await fsPromises.access(absPath);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    return this.host.existsAbsolute(absPath);
+  }
+
+  async findBranchAnywhere(branchName: string): Promise<string | undefined> {
     try {
       const { stdout } = await this.ctx.exec('git', ['worktree', 'list', '--porcelain']);
       const branchLine = `branch refs/heads/${branchName}`;
@@ -132,7 +144,10 @@ export class WorktreeService {
       for (const block of stdout.split('\n\n')) {
         if (block.split('\n').some((line) => line === branchLine)) {
           const match = /^worktree (.+)$/m.exec(block);
-          if (match?.[1]?.startsWith(realPoolPath)) return match[1];
+          const candidatePath = match?.[1];
+          if (!candidatePath?.startsWith(realPoolPath)) continue;
+          if (await this.isValidWorktree(candidatePath)) return candidatePath;
+          await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
         }
       }
     } catch {}
@@ -151,7 +166,7 @@ export class WorktreeService {
     sourceBranch: Branch | undefined,
     branchName: string
   ): Promise<Result<string, ServeWorktreeError>> {
-    const checkedOutPath = await this.findCheckedOutPathForBranch(branchName);
+    const checkedOutPath = await this.findBranchAnywhere(branchName);
     if (checkedOutPath) {
       return ok(checkedOutPath);
     }
@@ -203,7 +218,7 @@ export class WorktreeService {
   private async doCheckoutExistingBranch(
     branchName: string
   ): Promise<Result<string, ServeWorktreeError>> {
-    const checkedOutPath = await this.findCheckedOutPathForBranch(branchName);
+    const checkedOutPath = await this.findBranchAnywhere(branchName);
     if (checkedOutPath) {
       return ok(checkedOutPath);
     }
@@ -323,3 +338,15 @@ export class WorktreeService {
     }
   }
 }
+
+/**
+ * The subset of WorktreeService methods required by WorkspaceBootstrapService.
+ * Using Pick keeps signatures in sync automatically.
+ */
+export type WorktreeBootstrapOps = Pick<
+  WorktreeService,
+  | 'existsAtAbsolutePath'
+  | 'findBranchAnywhere'
+  | 'checkoutExistingBranch'
+  | 'checkoutBranchWorktree'
+>;

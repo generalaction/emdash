@@ -1,13 +1,14 @@
 import { EventEmitter } from 'node:events';
 import { eq } from 'drizzle-orm';
 import { Client, type ConnectConfig } from 'ssh2';
-import { sshConnectionEventChannel } from '@shared/events/sshEvents';
-import type { ConnectionState } from '@shared/ssh';
 import { db } from '@main/db/client';
 import { sshConnections } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
+import { sshConnectionEventChannel } from '@shared/events/sshEvents';
+import type { ConnectionState, SshHealthState } from '@shared/ssh';
 import { buildConnectConfigFromRow } from './build-connect-config';
+import { isSshChannelOpenFailure } from './ssh-channel-open-failure';
 import { SshClientProxy } from './ssh-client-proxy';
 
 // ─── Error classes ────────────────────────────────────────────────────────────
@@ -35,7 +36,7 @@ export class SshConnectionError extends Error {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type SshConnectionEvent =
+export type SshConnectionManagerEvent =
   | { type: 'connecting'; connectionId: string }
   | { type: 'connected'; connectionId: string; proxy: SshClientProxy }
   | { type: 'disconnected'; connectionId: string }
@@ -62,6 +63,8 @@ export class SshConnectionManager extends EventEmitter {
 
   /** Tracks ongoing reconnect backoff state per connection. */
   private reconnecting: Map<string, ReconnectState> = new Map();
+
+  private healthStates: Map<string, SshHealthState> = new Map();
 
   /**
    * IDs for which disconnect() was called — these are excluded from
@@ -139,6 +142,21 @@ export class SshConnectionManager extends EventEmitter {
     return result;
   }
 
+  getAllHealthStates(): Record<string, SshHealthState> {
+    return Object.fromEntries(this.healthStates);
+  }
+
+  reportChannelError(connectionId: string, error: unknown): void {
+    if (!isSshChannelOpenFailure(error)) return;
+
+    this.healthStates.set(connectionId, { status: 'degraded' });
+    this.emitHealthChanged(connectionId, { status: 'degraded' });
+  }
+
+  reportChannelRecovered(connectionId: string): void {
+    this.clearHealthState(connectionId);
+  }
+
   /**
    * Gracefully close a connection and permanently stop reconnection for it.
    * This is an intentional teardown — auto-reconnect will NOT fire afterward.
@@ -212,7 +230,7 @@ export class SshConnectionManager extends EventEmitter {
     });
 
     // Ensure a stable proxy exists for this ID.
-    const proxy = this.proxies.get(id) ?? new SshClientProxy();
+    const proxy = this.proxies.get(id) ?? new SshClientProxy(id, this);
     this.proxies.set(id, proxy);
 
     const client = new Client();
@@ -221,7 +239,7 @@ export class SshConnectionManager extends EventEmitter {
       this.emit('connection-event', {
         type: 'connecting',
         connectionId: id,
-      } satisfies SshConnectionEvent);
+      } satisfies SshConnectionManagerEvent);
 
       events.emit(sshConnectionEventChannel, {
         type: 'connecting',
@@ -246,7 +264,7 @@ export class SshConnectionManager extends EventEmitter {
           type: 'error',
           connectionId: id,
           error,
-        } satisfies SshConnectionEvent);
+        } satisfies SshConnectionManagerEvent);
 
         events.emit(sshConnectionEventChannel, {
           type: 'error',
@@ -267,7 +285,7 @@ export class SshConnectionManager extends EventEmitter {
           this.emit('connection-event', {
             type: 'disconnected',
             connectionId: id,
-          } satisfies SshConnectionEvent);
+          } satisfies SshConnectionManagerEvent);
 
           events.emit(sshConnectionEventChannel, { type: 'disconnected', connectionId: id });
 
@@ -283,6 +301,7 @@ export class SshConnectionManager extends EventEmitter {
         log.info('SshConnectionManager: connection ready', { connectionId: id });
 
         proxy.update(client);
+        this.clearHealthState(id);
 
         // Capture the remote login-shell profile once, non-blocking. Failures are
         // warned but do not prevent the connection from being used.
@@ -300,7 +319,7 @@ export class SshConnectionManager extends EventEmitter {
           type: isReconnect ? 'reconnected' : 'connected',
           connectionId: id,
           proxy,
-        } satisfies SshConnectionEvent);
+        } satisfies SshConnectionManagerEvent);
 
         events.emit(sshConnectionEventChannel, {
           type: isReconnect ? 'reconnected' : 'connected',
@@ -324,7 +343,7 @@ export class SshConnectionManager extends EventEmitter {
       this.emit('connection-event', {
         type: 'reconnect-failed',
         connectionId: id,
-      } satisfies SshConnectionEvent);
+      } satisfies SshConnectionManagerEvent);
       events.emit(sshConnectionEventChannel, { type: 'reconnect-failed', connectionId: id });
       return;
     }
@@ -342,7 +361,7 @@ export class SshConnectionManager extends EventEmitter {
       connectionId: id,
       attempt,
       delayMs,
-    } satisfies SshConnectionEvent);
+    } satisfies SshConnectionManagerEvent);
 
     events.emit(sshConnectionEventChannel, {
       type: 'reconnecting',
@@ -375,7 +394,7 @@ export class SshConnectionManager extends EventEmitter {
             this.emit('connection-event', {
               type: 'reconnect-failed',
               connectionId: id,
-            } satisfies SshConnectionEvent);
+            } satisfies SshConnectionManagerEvent);
             events.emit(sshConnectionEventChannel, { type: 'reconnect-failed', connectionId: id });
           } else {
             this.scheduleReconnect(id);
@@ -392,6 +411,22 @@ export class SshConnectionManager extends EventEmitter {
       clearTimeout(state.timer);
     }
     this.reconnecting.delete(id);
+  }
+
+  private clearHealthState(connectionId: string): SshHealthState {
+    const health: SshHealthState = { status: 'ok' };
+    if (this.healthStates.delete(connectionId)) {
+      this.emitHealthChanged(connectionId, health);
+    }
+    return health;
+  }
+
+  private emitHealthChanged(connectionId: string, health: SshHealthState): void {
+    events.emit(sshConnectionEventChannel, {
+      type: 'health-changed',
+      connectionId,
+      health,
+    });
   }
 }
 

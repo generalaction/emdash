@@ -1,11 +1,11 @@
 import { action, computed, makeObservable, observable, reaction } from 'mobx';
-import { commitRef, HEAD_REF, STAGED_REF, type GitChange, type GitObjectRef } from '@shared/git';
-import { getPrNumber } from '@shared/pull-requests';
 import type { PrStore } from '@renderer/features/tasks/stores/pr-store';
 import { isBinaryForDiff } from '@renderer/lib/editor/fileKind';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import { getLanguageFromPath } from '@renderer/utils/languageUtils';
+import { commitRef, HEAD_REF, STAGED_REF, type GitChange, type GitObjectRef } from '@shared/git';
+import { getPrNumber } from '@shared/pull-requests';
 import { MAX_STACKED_FILES, type DiffViewStore } from './diff-view-store';
 import type { GitStore } from './git-store';
 
@@ -51,6 +51,8 @@ export class DiffSlotStore {
     if (this.diffType === 'git' || this.diffType === 'pr') {
       return modelRegistry.toGitUri(this.uri, this.originalRef);
     }
+    if (this.diffType === 'disk') return modelRegistry.toGitUri(this.uri, STAGED_REF);
+
     return modelRegistry.toGitUri(this.uri, HEAD_REF);
   }
 

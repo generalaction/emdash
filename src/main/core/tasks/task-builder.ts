@@ -1,7 +1,3 @@
-import type { Conversation } from '@shared/conversations';
-import { taskProvisionProgressChannel } from '@shared/events/taskEvents';
-import type { Task } from '@shared/tasks';
-import type { Terminal } from '@shared/terminals';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import type { GitFetchService } from '@main/core/git/git-fetch-service';
 import type { GitRepositoryService } from '@main/core/git/repository-service';
@@ -10,6 +6,10 @@ import type { Workspace } from '@main/core/workspaces/workspace';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
+import type { Conversation } from '@shared/conversations';
+import { taskProvisionProgressChannel } from '@shared/events/taskEvents';
+import type { Task } from '@shared/tasks';
+import type { Terminal } from '@shared/terminals';
 import type { ProvisionResult, TaskProvider } from '../projects/project-provider';
 import type { ProjectSettingsProvider } from '../projects/settings/provider';
 import { resolveTaskWorkDir } from '../projects/worktrees/utils';
@@ -40,6 +40,7 @@ export type ProvisionLocalTaskParams = {
   fetchService: GitFetchService;
   repository: GitRepositoryService;
   logPrefix: string;
+  workDir?: string;
 };
 
 export type ProvisionLocalTaskResult = {
@@ -81,7 +82,7 @@ export async function provisionLocalTask(
     step: 'resolving-worktree',
     message: 'Resolving worktree…',
   });
-  const workDir = await resolveTaskWorkDir(task, projectPath, worktreeService);
+  const workDir = params.workDir ?? (await resolveTaskWorkDir(task, projectPath, worktreeService));
 
   events.emit(taskProvisionProgressChannel, {
     taskId: task.id,
