@@ -355,7 +355,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                   <FileDiff className="size-3.5" />
                   <span
                     className={cn(
-                      'overflow-hidden transition-[max-width,padding-left] duration-500 ease-in-out flex items-center tabular-nums text-xs leading-none gap-0.5',
+                      'overflow-hidden transition-[max-width,padding-left] duration-500 ease-in-out flex items-center tabular-nums text-xs leading-none gap-1',
                       hasDiffStats ? 'max-w-20 pl-1' : 'max-w-0 pl-0'
                     )}
                   >
