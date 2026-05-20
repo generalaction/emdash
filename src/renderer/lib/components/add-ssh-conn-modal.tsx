@@ -4,7 +4,6 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
-  FileCogIcon,
   LoaderCircle,
   XCircle,
 } from 'lucide-react';
@@ -12,6 +11,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 import { Button } from '@renderer/lib/ui/button';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@renderer/lib/ui/collapsible';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
   DialogContentArea,
@@ -45,12 +45,6 @@ export interface AddSshConnModalProps extends BaseModalProps<{ connectionId: str
 type TestState = 'idle' | 'testing' | 'success' | 'error';
 const MANUAL_CONNECTION_VALUE = '__manual__';
 
-function proxyPreview(host: SshConfigHost): string {
-  if (host.proxyCommand) return 'ProxyCommand';
-  if (host.proxyJump) return `ProxyJump ${host.proxyJump}`;
-  return 'Direct';
-}
-
 export function AddSshConnModal({
   onSuccess,
   onClose,
@@ -67,6 +61,9 @@ export function AddSshConnModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sshConfigHosts, setSshConfigHosts] = useState<SshConfigHost[]>([]);
   const [sshConfigLoadError, setSshConfigLoadError] = useState<string | null>(null);
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(
+    !!initialConfig?.proxyJump || initialConfig?.forwardAgent === true
+  );
 
   const form = useForm({
     defaultValues: {
@@ -102,7 +99,8 @@ export function AddSshConnModal({
           username,
           sshConfigAlias: value.sshConfigAlias || undefined,
           authType: value.authType,
-          privateKeyPath: value.authType === 'key' ? privateKeyPath || undefined : undefined,
+          privateKeyPath:
+            value.authType === 'key' && !isAliasBacked ? privateKeyPath || undefined : undefined,
           useAgent: value.authType === 'agent',
           forwardAgent: isAliasBacked ? false : value.forwardAgent,
           proxyJump: isAliasBacked ? '' : proxyJump,
@@ -129,7 +127,8 @@ export function AddSshConnModal({
       username,
       sshConfigAlias: v.sshConfigAlias || undefined,
       authType: v.authType,
-      privateKeyPath: v.authType === 'key' ? privateKeyPath || undefined : undefined,
+      privateKeyPath:
+        v.authType === 'key' && !v.sshConfigAlias ? privateKeyPath || undefined : undefined,
       useAgent: v.authType === 'agent',
       forwardAgent: v.sshConfigAlias ? false : v.forwardAgent,
       proxyJump: v.sshConfigAlias ? undefined : v.proxyJump.trim() || undefined,
@@ -174,6 +173,7 @@ export function AddSshConnModal({
     form.setFieldValue('privateKeyPath', host.identityFile ?? form.state.values.privateKeyPath);
     form.setFieldValue('forwardAgent', host.forwardAgent ?? false);
     form.setFieldValue('proxyJump', host.proxyJump ?? '');
+    setIsAdvancedOpen(true);
   };
 
   const handleTestConnection = async () => {
@@ -289,8 +289,16 @@ export function AddSshConnModal({
                             if (!value) return;
                             if (value === MANUAL_CONNECTION_VALUE) {
                               field.handleChange('');
+                              form.setFieldValue('name', '');
+                              form.setFieldValue('host', '');
+                              form.setFieldValue('port', 22);
+                              form.setFieldValue('username', '');
+                              form.setFieldValue('authType', 'password');
+                              form.setFieldValue('privateKeyPath', '');
+                              form.setFieldValue('passphrase', '');
                               form.setFieldValue('forwardAgent', false);
                               form.setFieldValue('proxyJump', '');
+                              setIsAdvancedOpen(false);
                               return;
                             }
                             const host = sshConfigHostsByAlias.get(value);
@@ -322,24 +330,6 @@ export function AddSshConnModal({
                       )}
                       {sshConfigLoadError && (
                         <FieldDescription>{sshConfigLoadError}</FieldDescription>
-                      )}
-                      {selectedHost && (
-                        <div className="border-input bg-muted/30 grid gap-1 rounded-md border px-3 py-2 text-xs text-foreground-passive">
-                          <div className="flex min-w-0 items-center gap-2 text-foreground">
-                            <FileCogIcon className="size-3.5 shrink-0" />
-                            <span className="truncate">{selectedHost.host}</span>
-                          </div>
-                          <div className="grid grid-cols-2 gap-x-3 gap-y-1">
-                            <span className="truncate">
-                              Host: {selectedHost.hostname ?? selectedHost.host}
-                            </span>
-                            <span className="truncate">Proxy: {proxyPreview(selectedHost)}</span>
-                            <span className="truncate">User: {selectedHost.user ?? 'default'}</span>
-                            <span className="truncate">
-                              ForwardAgent: {selectedHost.forwardAgent ? 'On' : 'Off'}
-                            </span>
-                          </div>
-                        </div>
                       )}
                     </Field>
                   );
@@ -445,8 +435,13 @@ export function AddSshConnModal({
             </form.Field>
 
             {/* Auth credential fields — reactive to authType */}
-            <form.Subscribe selector={(state) => state.values.authType}>
-              {(authType) => {
+            <form.Subscribe
+              selector={(state) => ({
+                authType: state.values.authType,
+                sshConfigAlias: state.values.sshConfigAlias,
+              })}
+            >
+              {({ authType, sshConfigAlias }) => {
                 if (authType === 'password') {
                   return (
                     <form.Field name="password">
@@ -491,6 +486,7 @@ export function AddSshConnModal({
                                 onChange={(e) => field.handleChange(e.target.value)}
                                 aria-invalid={isInvalid}
                                 placeholder="~/.ssh/id_rsa"
+                                disabled={!!sshConfigAlias}
                               />
                               {isInvalid && <FieldError errors={field.state.meta.errors} />}
                             </Field>
@@ -534,38 +530,57 @@ export function AddSshConnModal({
 
             <form.Subscribe selector={(state) => state.values.sshConfigAlias}>
               {(sshConfigAlias) => {
-                if (sshConfigAlias) return null;
+                const isAliasBacked = !!sshConfigAlias;
                 return (
-                  <>
-                    <form.Field name="proxyJump">
-                      {(field) => (
-                        <Field>
-                          <FieldLabel htmlFor={field.name}>ProxyJump</FieldLabel>
-                          <Input
-                            id={field.name}
-                            name={field.name}
-                            value={field.state.value}
-                            onBlur={field.handleBlur}
-                            onChange={(e) => field.handleChange(e.target.value)}
-                            placeholder="bastion.example.com"
-                            autoComplete="off"
-                          />
-                        </Field>
+                  <Collapsible
+                    open={isAliasBacked || isAdvancedOpen}
+                    onOpenChange={isAliasBacked ? undefined : setIsAdvancedOpen}
+                  >
+                    <CollapsibleTrigger
+                      type="button"
+                      className="flex h-8 w-full items-center justify-between rounded-md px-0 text-sm font-medium text-foreground-muted hover:text-foreground"
+                      disabled={isAliasBacked}
+                    >
+                      <span>Advanced</span>
+                      {isAliasBacked || isAdvancedOpen ? (
+                        <ChevronUp className="size-4" />
+                      ) : (
+                        <ChevronDown className="size-4" />
                       )}
-                    </form.Field>
-                    <form.Field name="forwardAgent">
-                      {(field) => (
-                        <Field className="flex-row items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
-                          <FieldLabel htmlFor={field.name}>ForwardAgent</FieldLabel>
-                          <Switch
-                            id={field.name}
-                            checked={field.state.value}
-                            onCheckedChange={(checked) => field.handleChange(checked)}
-                          />
-                        </Field>
-                      )}
-                    </form.Field>
-                  </>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="grid gap-3 pt-2">
+                      <form.Field name="proxyJump">
+                        {(field) => (
+                          <Field>
+                            <FieldLabel htmlFor={field.name}>ProxyJump</FieldLabel>
+                            <Input
+                              id={field.name}
+                              name={field.name}
+                              value={field.state.value}
+                              onBlur={field.handleBlur}
+                              onChange={(e) => field.handleChange(e.target.value)}
+                              placeholder="bastion or user@bastion:2222"
+                              autoComplete="off"
+                              disabled={isAliasBacked}
+                            />
+                          </Field>
+                        )}
+                      </form.Field>
+                      <form.Field name="forwardAgent">
+                        {(field) => (
+                          <Field className="flex-row items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
+                            <FieldLabel htmlFor={field.name}>ForwardAgent</FieldLabel>
+                            <Switch
+                              id={field.name}
+                              checked={field.state.value}
+                              onCheckedChange={(checked) => field.handleChange(checked)}
+                              disabled={isAliasBacked}
+                            />
+                          </Field>
+                        )}
+                      </form.Field>
+                    </CollapsibleContent>
+                  </Collapsible>
                 );
               }}
             </form.Subscribe>
