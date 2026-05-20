@@ -1,3 +1,4 @@
+import { quoteShellArg } from '@main/utils/shellEscape';
 import { getProvider, type AgentProviderId } from '@shared/agent-provider-registry';
 import type { ProviderCustomConfig } from '@shared/app-settings';
 
@@ -142,11 +143,39 @@ export function buildAgentCommand({
     args.push(...parseArgField(providerConfig.autoApproveFlag));
   }
 
-  if (!isResuming && initialPrompt && !providerDef?.useKeystrokeInjection) {
+  if (
+    !isResuming &&
+    initialPrompt &&
+    !providerDef?.useKeystrokeInjection &&
+    !providerDef?.initialPromptViaStdinPipe
+  ) {
     args.push(...parseArgField(providerConfig?.initialPromptFlag), initialPrompt);
   }
 
   args.push(...parseArgField(providerConfig?.extraArgs));
 
   return { command, args };
+}
+
+export function wrapAgentCommandWithStdinPipe(agent: AgentCommand, prompt: string): AgentCommand {
+  const agentLine = [agent.command, ...agent.args].map(quoteShellArg).join(' ');
+  const shellLine = `printf '%s\\n' ${quoteShellArg(prompt)} | ${agentLine}`;
+  return { command: 'bash', args: ['-c', shellLine] };
+}
+
+export function buildAgentSessionCommand(args: {
+  providerId: AgentProviderId;
+  providerConfig: ProviderCustomConfig | undefined;
+  autoApprove?: boolean;
+  initialPrompt?: string;
+  sessionId: string;
+  isResuming?: boolean;
+}): AgentCommand {
+  const command = buildAgentCommand(args);
+  const prompt = args.initialPrompt?.trim();
+  const providerDef = getProvider(args.providerId);
+  if (!args.isResuming && prompt && providerDef?.initialPromptViaStdinPipe) {
+    return wrapAgentCommandWithStdinPipe(command, prompt);
+  }
+  return command;
 }
