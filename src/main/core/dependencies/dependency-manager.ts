@@ -1,4 +1,5 @@
 import {
+  getProviderCliCommand,
   parseShellWords,
   resolveProviderCommandPath,
   resolveProviderCliPrefix,
@@ -250,7 +251,7 @@ export class DependencyManager implements IInitializable {
     const resolvedWords = parsed?.ok
       ? resolveProviderCliPrefix(parsed.words, providerConfig?.installPath)
       : undefined;
-    const configuredCommand = resolvedWords?.at(-1);
+    const configuredCommand = resolvedWords ? getProviderCliCommand(resolvedWords) : undefined;
     const baseCommands = configuredCommand ? [configuredCommand] : descriptor.commands;
 
     if (!providerConfig?.installPath) return baseCommands;

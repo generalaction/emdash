@@ -1,4 +1,4 @@
-import path from 'node:path';
+import { joinInstallPath } from '@shared/agent-command-path';
 import { getProvider, type AgentProviderId } from '@shared/agent-provider-registry';
 import type { ProviderCustomConfig } from '@shared/app-settings';
 
@@ -78,19 +78,16 @@ function parseArgField(value: string | undefined): string[] {
   return parsed.words;
 }
 
-function joinInstallPath(installPath: string, command: string): string {
-  const trimmedPath = installPath.trim();
-  if (!trimmedPath || path.isAbsolute(command) || path.win32.isAbsolute(command)) return command;
-  const joiner =
-    /^[A-Za-z]:[\\/]/.test(trimmedPath) || trimmedPath.includes('\\') ? path.win32 : path.posix;
-  return joiner.join(trimmedPath, path.basename(command));
-}
-
 export function resolveProviderCommandPath(
   command: string,
   installPath: string | undefined
 ): string {
   return installPath ? joinInstallPath(installPath, command) : command;
+}
+
+export function getProviderCliCommand(words: string[]): string | undefined {
+  if (words.length === 0) return undefined;
+  return words[words.at(-1)?.startsWith('-') ? 0 : words.length - 1];
 }
 
 export function resolveProviderCliPrefix(
@@ -99,7 +96,7 @@ export function resolveProviderCliPrefix(
 ): string[] {
   if (!installPath || words.length === 0) return words;
   const resolved = [...words];
-  const commandIndex = resolved.length - 1;
+  const commandIndex = words.at(-1)?.startsWith('-') ? 0 : words.length - 1;
   resolved[commandIndex] = resolveProviderCommandPath(resolved[commandIndex], installPath);
   return resolved;
 }

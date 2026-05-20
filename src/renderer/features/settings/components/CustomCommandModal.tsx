@@ -10,6 +10,7 @@ import { Input } from '@renderer/lib/ui/input';
 import { Label } from '@renderer/lib/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { log } from '@renderer/utils/logger';
+import { joinInstallPath } from '@shared/agent-command-path';
 import { AGENT_PROVIDERS, type AgentProviderDefinition } from '@shared/agent-provider-registry';
 import type { ProviderCustomConfig } from '@shared/app-settings';
 
@@ -61,19 +62,8 @@ function getDirectoryFromPath(filePath: string | null | undefined): string {
   if (!filePath) return '';
   const normalized = filePath.replace(/\\/g, '/');
   const index = normalized.lastIndexOf('/');
+  if (/^[A-Za-z]:\/$/.test(normalized.slice(0, index + 1))) return normalized.slice(0, index + 1);
   return index > 0 ? filePath.slice(0, index) : '';
-}
-
-function isAbsoluteCommand(command: string): boolean {
-  return command.startsWith('/') || /^[A-Za-z]:[\\/]/.test(command);
-}
-
-function joinInstallPath(installPath: string, command: string): string {
-  const trimmedPath = installPath.trim().replace(/[\\/]+$/, '');
-  if (!trimmedPath || isAbsoluteCommand(command)) return command;
-  const separator = trimmedPath.includes('\\') ? '\\' : '/';
-  const basename = command.split(/[\\/]/).pop() ?? command;
-  return `${trimmedPath}${separator}${basename}`;
 }
 
 function previewCliWithInstallPath(cli: string, installPath: string): string {
@@ -81,8 +71,9 @@ function previewCliWithInstallPath(cli: string, installPath: string): string {
   if (!trimmedCli) return '';
   if (!installPath.trim()) return cli;
 
-  const match = trimmedCli.match(/\S+$/);
-  if (!match) return cli;
+  const matches = [...trimmedCli.matchAll(/\S+/g)];
+  const match = matches.at(-1)?.[0].startsWith('-') ? matches[0] : matches.at(-1);
+  if (!match?.[0]) return cli;
 
   const command = match[0];
   return `${trimmedCli.slice(0, match.index)}${joinInstallPath(installPath, command)}`;

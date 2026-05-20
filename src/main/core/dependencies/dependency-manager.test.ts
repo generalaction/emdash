@@ -192,4 +192,31 @@ describe('DependencyManager install', () => {
       path: '/Users/jan/.claude/local/claude',
     });
   });
+
+  it('probes the installed provider command when custom CLI flags follow it', async () => {
+    const ctx = makeCtx(async (command, args = []) => {
+      if (command === 'which' && args[0] === '/Users/jan/.claude/local/claude') {
+        return { stdout: '/Users/jan/.claude/local/claude\n', stderr: '' };
+      }
+      if (command === '/Users/jan/.claude/local/claude' && args[0] === '--version') {
+        return { stdout: 'claude 1.2.3\n', stderr: '' };
+      }
+      throw new Error('missing');
+    });
+    const manager = new DependencyManager(ctx, {
+      emitEvents: false,
+      getProviderConfig: async () => ({
+        cli: 'claude --dangerously-skip-permissions',
+        installPath: '/Users/jan/.claude/local',
+      }),
+    });
+
+    const result = await manager.probe('claude');
+
+    expect(result).toMatchObject({
+      id: 'claude',
+      status: 'available',
+      path: '/Users/jan/.claude/local/claude',
+    });
+  });
 });
