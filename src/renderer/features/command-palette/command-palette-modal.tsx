@@ -138,9 +138,7 @@ export function CommandPaletteModal({
   const { value: keyboard } = useAppSettingsKey('keyboard');
   const queryClient = useQueryClient();
 
-  const handleClose = useCallback(() => {
-    onClose();
-  }, [onClose]);
+  const handleClose = onClose;
 
   useEffect(() => {
     if (view !== 'resource-monitor') return;

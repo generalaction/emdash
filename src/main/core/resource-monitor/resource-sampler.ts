@@ -152,8 +152,12 @@ export function setResourceMonitorOpen(
   const latestSequence = latestSequenceByClient.get(clientId) ?? 0;
   if (sequence <= latestSequence) return;
   latestSequenceByClient.set(clientId, sequence);
-  if (open) openSubscriptions.add(subscriptionId);
-  else openSubscriptions.delete(subscriptionId);
+  if (open) {
+    openSubscriptions.add(subscriptionId);
+  } else {
+    openSubscriptions.delete(subscriptionId);
+    latestSequenceByClient.delete(clientId);
+  }
   void reconcileResourceSampler();
 }
 

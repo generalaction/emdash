@@ -70,8 +70,7 @@ export class ResourceMonitorStore {
       .then((res) => {
         if (!res?.success || !res.data) return;
         runInAction(() => {
-          if (this.snapshot && this.snapshot.timestamp > res.data.timestamp) return;
-          this.snapshot = res.data;
+          this.applyFetchedSnapshot(res.data);
         });
       })
       .catch(() => {});
@@ -93,8 +92,13 @@ export class ResourceMonitorStore {
     const res = await rpc.resourceMonitor.getSnapshot();
     if (!res?.success) return;
     runInAction(() => {
-      this.snapshot = res.data;
+      this.applyFetchedSnapshot(res.data);
     });
+  }
+
+  private applyFetchedSnapshot(snap: ResourceSnapshot | null): void {
+    if (snap && this.snapshot && this.snapshot.timestamp > snap.timestamp) return;
+    this.snapshot = snap;
   }
 
   /** Normalized CPU% (relative to all cores) for a single entry. */

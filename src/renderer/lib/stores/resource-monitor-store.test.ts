@@ -73,4 +73,23 @@ describe('ResourceMonitorStore', () => {
 
     expect(store.snapshot?.timestamp).toBe(2);
   });
+
+  it('does not let refresh overwrite a newer snapshot', async () => {
+    const { ResourceMonitorStore } = await import('./resource-monitor-store');
+    const { rpc } = await import('@renderer/lib/ipc');
+    let resolveSnapshot!: (value: { success: true; data: ResourceSnapshot }) => void;
+    vi.mocked(rpc.resourceMonitor.getSnapshot).mockReturnValue(
+      new Promise((resolve) => {
+        resolveSnapshot = resolve;
+      })
+    );
+
+    const store = new ResourceMonitorStore();
+    const refreshing = store.refresh();
+    store.snapshot = snapshot(2);
+    resolveSnapshot({ success: true, data: snapshot(1) });
+    await refreshing;
+
+    expect(store.snapshot?.timestamp).toBe(2);
+  });
 });
