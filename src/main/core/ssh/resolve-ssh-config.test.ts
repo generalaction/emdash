@@ -94,6 +94,22 @@ sleep 2
     );
   });
 
+  it('bounds ssh -G output with maxBuffer', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'emdash-ssh-g-max-buffer-'));
+    const sshPath = join(dir, 'ssh');
+    await writeFile(
+      sshPath,
+      `#!/bin/sh
+printf '%0600d\\n' 0
+`
+    );
+    await chmod(sshPath, 0o755);
+
+    await expect(resolveSshConfig('corp-dev', { sshPath, maxBuffer: 128 })).rejects.toThrow(
+      /maxBuffer|stdout maxBuffer length exceeded/
+    );
+  });
+
   it('can resolve a real OpenSSH config file through an injected runner', async () => {
     const dir = await mkdtemp(join(tmpdir(), 'emdash-ssh-config-'));
     const configPath = join(dir, 'config');

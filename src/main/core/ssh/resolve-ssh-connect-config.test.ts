@@ -663,6 +663,32 @@ describe('resolveSshConnectConfig', () => {
     expect(result.debugLogs).toContain('late stderr');
   });
 
+  it('preserves ConnectTimeout 0 as an infinite ssh2 ready timeout', async () => {
+    const result = await resolveSshConnectConfig(
+      {
+        kind: 'transient',
+        config: baseConfig({ sshConfigAlias: 'corp-dev', authType: 'agent' }),
+      },
+      deps({
+        resolveSshConfig: async () => ({
+          hostname: 'dev.internal',
+          user: 'deploy',
+          port: 22,
+          identityFile: [],
+          identityAgent: '/tmp/agent.sock',
+          identityAgentDisabled: false,
+          identitiesOnly: false,
+          proxyCommand: undefined,
+          proxyJump: undefined,
+          forwardAgent: false,
+          connectTimeout: 0,
+        }),
+      })
+    );
+
+    expect(result.config.readyTimeout).toBe(0);
+  });
+
   it('loads persisted credentials and uses the first alias identity file for key auth', async () => {
     const readFiles: string[] = [];
     const result = await resolveSshConnectConfig(

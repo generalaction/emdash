@@ -34,10 +34,12 @@ export interface ResolveSshConfigOptions {
   runner?: SshConfigRunner;
   env?: Record<string, string | undefined>;
   timeoutMs?: number;
+  maxBuffer?: number;
 }
 
 const SSH_ALIAS_PATTERN = /^[A-Za-z0-9._@%+:/[\]-]+$/;
 const DEFAULT_SSH_G_TIMEOUT_MS = 10_000;
+const DEFAULT_SSH_G_MAX_BUFFER = 256 * 1024;
 
 function parseInteger(value: string): number | undefined {
   const parsed = Number.parseInt(value, 10);
@@ -109,18 +111,20 @@ export function createExecFileSshConfigRunner(
     sshPath?: string;
     extraArgs?: string[];
     timeoutMs?: number;
+    maxBuffer?: number;
   } = {}
 ): SshConfigRunner {
   const sshPath = options.sshPath ?? 'ssh';
   const extraArgs = options.extraArgs ?? [];
   const timeoutMs = options.timeoutMs ?? DEFAULT_SSH_G_TIMEOUT_MS;
+  const maxBuffer = options.maxBuffer ?? DEFAULT_SSH_G_MAX_BUFFER;
 
   return async (alias: string) =>
     await new Promise<SshConfigRunnerResult>((resolve, reject) => {
       execFile(
         sshPath,
         [...extraArgs, '-G', alias],
-        { timeout: timeoutMs, killSignal: 'SIGKILL' },
+        { timeout: timeoutMs, killSignal: 'SIGKILL', maxBuffer },
         (error, stdout, stderr) => {
           if (error) {
             const execError = error as Error & { killed?: boolean; signal?: string | null };
@@ -153,7 +157,11 @@ export async function resolveSshConfig(
   const trimmedAlias = assertValidAlias(alias);
   const runner =
     options.runner ??
-    createExecFileSshConfigRunner({ sshPath: options.sshPath, timeoutMs: options.timeoutMs });
+    createExecFileSshConfigRunner({
+      sshPath: options.sshPath,
+      timeoutMs: options.timeoutMs,
+      maxBuffer: options.maxBuffer,
+    });
   const { stdout } = await runner(trimmedAlias);
 
   return parseSshGOutput(stdout);

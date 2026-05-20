@@ -298,7 +298,7 @@ export async function resolveSshConnectConfig(
     host,
     port,
     username,
-    readyTimeout: resolved?.connectTimeout ? resolved.connectTimeout * 1000 : 20_000,
+    readyTimeout: resolved?.connectTimeout !== undefined ? resolved.connectTimeout * 1000 : 20_000,
     keepaliveInterval: resolved?.serverAliveInterval ? resolved.serverAliveInterval * 1000 : 60_000,
     keepaliveCountMax: resolved?.serverAliveCountMax ?? 3,
     ...authConfig,
