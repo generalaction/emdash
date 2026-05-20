@@ -1,12 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { FolderIcon, Minus, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { FolderIcon, RefreshCw, Trash2 } from 'lucide-react';
 import React from 'react';
 import {
   managedWorktreeRefreshCompleteChannel,
   managedWorktreeSizeUpdatedChannel,
 } from '@shared/events/worktree-events';
 import { dirnameFromAnyPath } from '@shared/path-name';
-import type { ManagedWorktreesSummary } from '@shared/worktree-cleanup';
+import {
+  WORKTREE_CLEANUP_INTERVAL_MS,
+  type ManagedWorktreesSummary,
+} from '@shared/worktree-cleanup';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { events, rpc } from '@renderer/lib/ipc';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
@@ -18,6 +21,7 @@ import { formatBytes } from '@renderer/utils/formatBytes';
 import { cn } from '@renderer/utils/utils';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
 import { SettingRow } from './SettingRow';
+import { SettingsNumberStepper } from './SettingsNumberStepper';
 
 type ManagedWorktree = ManagedWorktreesSummary['worktrees'][number];
 
@@ -28,6 +32,20 @@ type WorktreeGroup = {
   worktrees: ManagedWorktree[];
   totalSizeBytes: number;
 };
+
+function formatCleanupInterval(ms: number): string {
+  const minutes = ms / (60 * 1000);
+  if (Number.isInteger(minutes) && minutes < 60) {
+    return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`;
+  }
+
+  const hours = ms / (60 * 60 * 1000);
+  if (Number.isInteger(hours)) {
+    return `${hours} ${hours === 1 ? 'hour' : 'hours'}`;
+  }
+
+  return `${Math.round(minutes)} minutes`;
+}
 
 function groupWorktreesByProject(worktrees: ManagedWorktree[]): WorktreeGroup[] {
   const groups = new Map<string, WorktreeGroup>();
@@ -59,66 +77,6 @@ function groupWorktreesByProject(worktrees: ManagedWorktree[]): WorktreeGroup[] 
   }
 
   return Array.from(groups.values());
-}
-
-function NumberStepper({
-  value,
-  min,
-  max,
-  step,
-  disabled,
-  label,
-  onChange,
-}: {
-  value: number;
-  min: number;
-  max: number;
-  step: number;
-  disabled?: boolean;
-  label: string;
-  onChange: (value: number) => void;
-}) {
-  const clamp = (next: number) => Math.min(max, Math.max(min, next));
-  return (
-    <div className="inline-grid h-8 grid-cols-[2rem_4rem_2rem] items-stretch overflow-hidden rounded-md border border-border/80 bg-background-1">
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        className="flex h-full w-full items-center justify-center rounded-none border-r border-border/60"
-        aria-label={`Decrease ${label}`}
-        disabled={disabled || value <= min}
-        onClick={() => onChange(clamp(value - step))}
-      >
-        <Minus className="size-4" />
-      </Button>
-      <input
-        type="number"
-        value={value}
-        min={min}
-        max={max}
-        step={step}
-        disabled={disabled}
-        aria-label={label}
-        onChange={(event) => {
-          const next = Number.parseInt(event.target.value, 10);
-          if (Number.isFinite(next)) onChange(clamp(next));
-        }}
-        className="h-full w-full appearance-none bg-transparent p-0 text-center text-sm leading-none tabular-nums outline-none disabled:opacity-50 [-moz-appearance:textfield] [&::-webkit-inner-spin-button]:m-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:m-0 [&::-webkit-outer-spin-button]:appearance-none"
-      />
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-sm"
-        className="flex h-full w-full items-center justify-center rounded-none border-l border-border/60"
-        aria-label={`Increase ${label}`}
-        disabled={disabled || value >= max}
-        onClick={() => onChange(clamp(value + step))}
-      >
-        <Plus className="size-4" />
-      </Button>
-    </div>
-  );
 }
 
 function WorktreeListLoading() {
@@ -215,6 +173,7 @@ export default function WorktreeCleanupSettingsCard() {
   if (!defaults) return null;
   const settings = value ?? defaults;
   const autoCleanupEnabled = settings.autoCleanupEnabled;
+  const cleanupInterval = formatCleanupInterval(WORKTREE_CLEANUP_INTERVAL_MS);
 
   const requestCleanup = () => {
     showConfirm({
@@ -251,7 +210,7 @@ export default function WorktreeCleanupSettingsCard() {
       <div className="flex flex-col gap-4">
         <SettingRow
           title="Automatic cleanup"
-          description="Periodically remove eligible managed worktrees that exceed the limits below. When off, cleanup only runs when you trigger it manually."
+          description={`Every ${cleanupInterval}, remove eligible managed worktrees that exceed the limits below. When off, cleanup only runs when you trigger it manually.`}
           control={
             <>
               <ResetToDefaultButton
@@ -267,8 +226,7 @@ export default function WorktreeCleanupSettingsCard() {
                   if (next) {
                     showConfirm({
                       title: 'Enable automatic cleanup?',
-                      description:
-                        'Emdash will periodically delete eligible archived, orphaned, or missing managed worktrees in the background once the limits below are exceeded. Active tasks are never touched.',
+                      description: `Emdash will check every ${cleanupInterval} and delete eligible archived, orphaned, or missing managed worktrees in the background once the limits below are exceeded. Active tasks are never touched.`,
                       confirmLabel: 'Enable',
                       variant: 'destructive',
                       onSuccess: () => update({ autoCleanupEnabled: true }),
@@ -295,7 +253,7 @@ export default function WorktreeCleanupSettingsCard() {
                       onReset={() => resetField('maxWorktrees')}
                       disabled={busy}
                     />
-                    <NumberStepper
+                    <SettingsNumberStepper
                       value={settings.maxWorktrees}
                       min={1}
                       max={500}
@@ -318,13 +276,14 @@ export default function WorktreeCleanupSettingsCard() {
                       onReset={() => resetField('maxTotalSizeGb')}
                       disabled={busy}
                     />
-                    <NumberStepper
+                    <SettingsNumberStepper
                       value={settings.maxTotalSizeGb}
                       min={0}
                       max={10_000}
                       step={5}
                       disabled={busy}
                       label="Maximum total size in GB"
+                      unit="GB"
                       onChange={(maxTotalSizeGb) => update({ maxTotalSizeGb })}
                     />
                   </>

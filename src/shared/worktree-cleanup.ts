@@ -1,3 +1,5 @@
+export const WORKTREE_CLEANUP_INTERVAL_MS = 30 * 60 * 1000;
+
 export type ManagedWorktree = {
   workspaceId: string;
   taskId: string | null;

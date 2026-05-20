@@ -8,10 +8,11 @@ import {
 } from '@shared/events/worktree-events';
 import { basenameFromAnyPath, safePathSegment } from '@shared/path-name';
 import { baseProjectSettingsSchema } from '@shared/project-settings';
-import type {
-  ListManagedWorktreesOptions,
-  ManagedWorktree,
-  ManagedWorktreesSummary,
+import {
+  WORKTREE_CLEANUP_INTERVAL_MS,
+  type ListManagedWorktreesOptions,
+  type ManagedWorktree,
+  type ManagedWorktreesSummary,
 } from '@shared/worktree-cleanup';
 import { sqlite } from '@main/db/client';
 import { events } from '@main/lib/events';
@@ -20,7 +21,6 @@ import { appSettingsService } from '../settings/settings-service';
 
 const execFileAsync = promisify(execFile);
 
-const CLEANUP_INTERVAL_MS = 30 * 60 * 1000;
 const STARTUP_CLEANUP_DELAY_MS = 30 * 1000;
 const MANAGED_WORKTREES_CACHE_TTL_MS = 30 * 1000;
 const ONE_GB = 1024 * 1024 * 1024;
@@ -310,7 +310,7 @@ export class WorktreeCleanupService {
     if (this.timer) return;
     this.timer = setInterval(() => {
       void this.runScheduledCleanup('periodic');
-    }, CLEANUP_INTERVAL_MS);
+    }, WORKTREE_CLEANUP_INTERVAL_MS);
     this.timer.unref?.();
     this.startupTimer = setTimeout(() => {
       this.startupTimer = undefined;
@@ -550,8 +550,28 @@ export class WorktreeCleanupService {
     };
   }
 
+  private async getSummaryForRemoval(): Promise<ManagedWorktreesSummary> {
+    const preview = await this.buildPreview();
+    const cachedSizes = new Map(
+      this.managedWorktreesCache?.summary.worktrees.map((worktree) => [
+        worktree.workspaceId,
+        worktree.sizeBytes,
+      ]) ?? []
+    );
+    const worktrees = preview.worktrees.map((worktree) => ({
+      ...worktree,
+      sizeBytes: cachedSizes.get(worktree.workspaceId) ?? worktree.sizeBytes,
+    }));
+
+    return {
+      ...preview,
+      worktrees,
+      totalSizeBytes: worktrees.reduce((sum, worktree) => sum + worktree.sizeBytes, 0),
+    };
+  }
+
   async removeWorktreeById(workspaceId: string): Promise<ManagedWorktreesSummary> {
-    const summary = await this.listManagedWorktrees({ forceRefresh: true });
+    const summary = await this.getSummaryForRemoval();
     const worktree = summary.worktrees.find((entry) => entry.workspaceId === workspaceId);
     if (!worktree) {
       throw new Error(`Worktree ${workspaceId} not found`);
@@ -575,6 +595,7 @@ export class WorktreeCleanupService {
             taskId: task.taskId,
             error: String(error),
           });
+          throw error;
         });
       }
     }

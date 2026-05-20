@@ -1,4 +1,4 @@
-import { ChevronsUpDownIcon, LoaderCircle, Minus, Plus } from 'lucide-react';
+import { ChevronsUpDownIcon, LoaderCircle } from 'lucide-react';
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   TERMINAL_FONT_SIZE_DEFAULT,
@@ -7,7 +7,6 @@ import {
 } from '@shared/terminal-settings';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { useInstalledFonts } from '@renderer/features/settings/use-installed-fonts';
-import { Button } from '@renderer/lib/ui/button';
 import {
   Combobox,
   ComboboxCollection,
@@ -23,6 +22,7 @@ import {
 } from '@renderer/lib/ui/combobox';
 import { Switch } from '@renderer/lib/ui/switch';
 import { SettingRow } from './SettingRow';
+import { SettingsNumberStepper } from './SettingsNumberStepper';
 
 type FontOption = {
   value: string;
@@ -229,32 +229,16 @@ const TerminalSettingsCard: React.FC = () => {
         title="Terminal font size"
         description="Adjust the font size used by terminal sessions and CLI agents."
         control={
-          <div className="flex h-9 w-[183px] flex-shrink-0 items-center justify-between rounded-md border border-border bg-background px-1 shadow-xs">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              disabled={loading || saving || fontSize <= TERMINAL_FONT_SIZE_MIN}
-              onClick={() => applyFontSize(fontSize - 1)}
-              aria-label="Decrease terminal font size"
-            >
-              <Minus />
-            </Button>
-            <div className="flex min-w-14 items-baseline justify-center gap-1 text-sm tabular-nums text-foreground">
-              <span>{fontSize}</span>
-              <span className="text-xs text-muted-foreground">px</span>
-            </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              disabled={loading || saving || fontSize >= TERMINAL_FONT_SIZE_MAX}
-              onClick={() => applyFontSize(fontSize + 1)}
-              aria-label="Increase terminal font size"
-            >
-              <Plus />
-            </Button>
-          </div>
+          <SettingsNumberStepper
+            value={fontSize}
+            min={TERMINAL_FONT_SIZE_MIN}
+            max={TERMINAL_FONT_SIZE_MAX}
+            step={1}
+            disabled={loading || saving}
+            label="terminal font size"
+            unit="px"
+            onChange={applyFontSize}
+          />
         }
       />
       <SettingRow

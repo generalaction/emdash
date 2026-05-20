@@ -20,10 +20,13 @@ type MockRow = {
 };
 
 let rows: MockRow[] = [];
+let taskRows: { taskId: string; projectId: string }[] = [];
 let projectRows: unknown[] = [];
 let defaultWorktreeDirectory = '';
 const workspaceRun = vi.fn();
 const originalCwd = process.cwd();
+const archiveTask = vi.hoisted(() => vi.fn());
+const emit = vi.hoisted(() => vi.fn());
 
 vi.mock('@main/db/client', () => ({
   sqlite: {
@@ -40,6 +43,12 @@ vi.mock('@main/db/client', () => ({
           run: vi.fn(),
         };
       }
+      if (sql.includes('FROM tasks')) {
+        return {
+          all: () => taskRows,
+          run: vi.fn(),
+        };
+      }
       return {
         all: () => [],
         run: vi.fn(),
@@ -50,9 +59,13 @@ vi.mock('@main/db/client', () => ({
 
 vi.mock('@main/lib/events', () => ({
   events: {
-    emit: vi.fn(),
+    emit,
     on: vi.fn(() => () => {}),
   },
+}));
+
+vi.mock('../tasks/operations/archiveTask', () => ({
+  archiveTask,
 }));
 
 vi.mock('../settings/settings-service', () => ({
@@ -78,14 +91,54 @@ describe('WorktreeCleanupService', () => {
     defaultWorktreeDirectory = path.join(tempDir, 'default-worktrees');
     fs.mkdirSync(defaultWorktreeDirectory, { recursive: true });
     projectRows = [];
+    taskRows = [];
     workspaceRun.mockClear();
+    emit.mockClear();
+    archiveTask.mockReset();
   });
 
   afterEach(() => {
     process.chdir(originalCwd);
     rows = [];
+    taskRows = [];
     projectRows = [];
     fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  it('does not remove an active worktree when archiving its task fails', async () => {
+    const { WorktreeCleanupService } = await import('./service');
+    const worktreePath = path.join(tempDir, 'active-worktree');
+    fs.mkdirSync(worktreePath);
+    fs.writeFileSync(path.join(worktreePath, 'file.txt'), 'content');
+    rows = [
+      {
+        workspaceId: 'active-workspace',
+        path: worktreePath,
+        workspaceUpdatedAt: '2026-05-01T00:00:00.000Z',
+        taskId: 'active-task',
+        taskName: 'Active task',
+        taskBranch: 'feature/active',
+        taskStatus: 'in-progress',
+        taskUpdatedAt: '2026-05-01T00:00:00.000Z',
+        lastInteractedAt: null,
+        archivedAt: null,
+        projectId: 'project',
+        projectName: 'Project',
+        projectPath: tempDir,
+      },
+    ];
+    taskRows = [{ taskId: 'active-task', projectId: 'project' }];
+    const archiveError = new Error('archive failed');
+    archiveTask.mockRejectedValue(archiveError);
+    const removeSpy = vi.spyOn(fs.promises, 'rm');
+
+    const service = new WorktreeCleanupService();
+
+    await expect(service.removeWorktreeById('active-workspace')).rejects.toThrow(archiveError);
+
+    expect(fs.existsSync(worktreePath)).toBe(true);
+    expect(removeSpy).not.toHaveBeenCalled();
+    removeSpy.mockRestore();
   });
 
   it('does not delete a shared worktree path while an active task still references it', async () => {
@@ -262,5 +315,62 @@ describe('WorktreeCleanupService', () => {
 
     expect(workspaceRun).not.toHaveBeenCalled();
     removeSpy.mockRestore();
+  });
+
+  it('does not refresh every worktree size when removing one worktree', async () => {
+    const { managedWorktreeSizeUpdatedChannel } = await import('@shared/events/worktree-events');
+    const { WorktreeCleanupService } = await import('./service');
+    const firstPath = path.join(tempDir, 'first-worktree');
+    const secondPath = path.join(tempDir, 'second-worktree');
+    fs.mkdirSync(firstPath);
+    fs.mkdirSync(secondPath);
+    fs.writeFileSync(path.join(firstPath, 'file.txt'), 'first');
+    fs.writeFileSync(path.join(secondPath, 'file.txt'), 'second');
+    rows = [
+      {
+        workspaceId: 'first-workspace',
+        path: firstPath,
+        workspaceUpdatedAt: '2026-05-01T00:00:00.000Z',
+        taskId: 'first-task',
+        taskName: 'First task',
+        taskBranch: 'feature/first',
+        taskStatus: 'done',
+        taskUpdatedAt: '2026-05-01T00:00:00.000Z',
+        lastInteractedAt: null,
+        archivedAt: '2026-05-02T00:00:00.000Z',
+        projectId: 'project',
+        projectName: 'Project',
+        projectPath: tempDir,
+      },
+      {
+        workspaceId: 'second-workspace',
+        path: secondPath,
+        workspaceUpdatedAt: '2026-05-03T00:00:00.000Z',
+        taskId: 'second-task',
+        taskName: 'Second task',
+        taskBranch: 'feature/second',
+        taskStatus: 'done',
+        taskUpdatedAt: '2026-05-03T00:00:00.000Z',
+        lastInteractedAt: null,
+        archivedAt: '2026-05-04T00:00:00.000Z',
+        projectId: 'project',
+        projectName: 'Project',
+        projectPath: tempDir,
+      },
+    ];
+
+    const service = new WorktreeCleanupService();
+    const before = await service.listManagedWorktrees({ forceRefresh: true, awaitSizes: true });
+    const secondSize = before.worktrees.find(
+      (worktree) => worktree.workspaceId === 'second-workspace'
+    )?.sizeBytes;
+    emit.mockClear();
+
+    const after = await service.removeWorktreeById('first-workspace');
+    const remaining = after.worktrees.find((worktree) => worktree.workspaceId === 'second-workspace');
+
+    expect(emit).not.toHaveBeenCalledWith(managedWorktreeSizeUpdatedChannel, expect.anything());
+    expect(remaining?.sizeBytes).toBe(secondSize);
+    expect(after.totalSizeBytes).toBe(secondSize);
   });
 });
