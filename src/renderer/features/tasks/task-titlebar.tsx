@@ -67,7 +67,7 @@ const PendingTaskTitlebar = observer(function PendingTaskTitlebar({
   taskId: string;
   projectId: string;
 }) {
-  const taskStore = getTaskStore(projectId, taskId)!;
+  const taskStore = getTaskStore(projectId, taskId);
   const projectName = projectDisplayName(getProjectStore(projectId));
   const name = taskDisplayName(taskStore);
   const { navigate } = useNavigate();
@@ -100,8 +100,8 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
   projectId: string;
   taskId: string;
 }) {
-  const taskStore = getTaskStore(projectId, taskId)!;
-  const taskPayload = getRegisteredTaskData(projectId, taskId)!;
+  const taskStore = getTaskStore(projectId, taskId);
+  const taskPayload = getRegisteredTaskData(projectId, taskId);
   const workspace = useWorkspace();
   const taskView = useWorkspaceViewModel();
 
@@ -123,6 +123,8 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
 
   const projectName = projectDisplayName(getProjectStore(projectId));
   const { navigate } = useNavigate();
+
+  if (!taskStore || !taskPayload) return null;
 
   const isRemoteProject = projectStore?.data.type === 'ssh';
   return (

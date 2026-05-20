@@ -55,16 +55,16 @@ export function useNavigate(): { navigate: NavigateFnTyped } {
 export function useWorkspaceSlots(): SlotsContextValue {
   return useObserver(() => {
     const viewId = appState.navigation.currentViewId;
-    const def = (views as unknown as Record<string, ViewDefinition<Record<string, unknown>>>)[
-      viewId
-    ];
+    const registry = views as unknown as Record<string, ViewDefinition<Record<string, unknown>>>;
+    const def = registry[viewId] ?? registry.home;
+    const resolvedViewId = registry[viewId] ? viewId : 'home';
     return {
       WrapView: (def.WrapView ?? Fragment) as ComponentType<
         { children: ReactNode } & Record<string, unknown>
       >,
       TitlebarSlot: def.TitlebarSlot ?? (() => null),
       MainPanel: def.MainPanel,
-      currentView: viewId,
+      currentView: resolvedViewId,
       lastNonSettingsView: appState.navigation.lastNonSettingsView,
     };
   });
