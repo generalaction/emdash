@@ -86,7 +86,7 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
                     providerId: undefined,
                     text: formatDroppedPaths(result.data.remotePaths),
                     forceBracketedPaste: true,
-                    sendInput: async (data) => sendInput(data),
+                    sendInput: async (data) => sendInput(`${data} `),
                   });
                 }
               } catch (error) {
@@ -97,7 +97,7 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
                 providerId: undefined,
                 text: formatDroppedPaths(paths),
                 forceBracketedPaste: true,
-                sendInput: async (data) => sendInput(data),
+                sendInput: async (data) => sendInput(`${data} `),
               });
             }
             focus();
@@ -143,7 +143,7 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
 );
 
 function formatDroppedPaths(paths: string[]): string {
-  return `${paths.map((path) => `'${path.replace(/'/g, "'\\''")}'`).join(' ')} `;
+  return paths.map((path) => `'${path.replace(/'/g, "'\\''")}'`).join(' ');
 }
 
 PtyPaneComponent.displayName = 'TerminalPane';
