@@ -114,6 +114,8 @@ function sampleAppUsage(): { usage: ResourceAppUsage; processes: ResourceAppProc
 }
 
 let timer: NodeJS.Timeout | null = null;
+const openSubscriptions = new Set<string>();
+const latestSequenceByClient = new Map<string, number>();
 
 export function startResourceSampler(): void {
   if (timer) return;
@@ -141,10 +143,24 @@ export function stopResourceSampler(): void {
   }
 }
 
+export function setResourceMonitorOpen(
+  clientId: string,
+  subscriptionId: string,
+  open: boolean,
+  sequence: number
+): void {
+  const latestSequence = latestSequenceByClient.get(clientId) ?? 0;
+  if (sequence <= latestSequence) return;
+  latestSequenceByClient.set(clientId, sequence);
+  if (open) openSubscriptions.add(subscriptionId);
+  else openSubscriptions.delete(subscriptionId);
+  void reconcileResourceSampler();
+}
+
 export async function reconcileResourceSampler(): Promise<void> {
   try {
     const { enabled } = await appSettingsService.get('resourceMonitor');
-    if (enabled) startResourceSampler();
+    if (enabled && openSubscriptions.size > 0) startResourceSampler();
     else stopResourceSampler();
   } catch (err) {
     log.warn('resource-sampler: failed to read settings', err);

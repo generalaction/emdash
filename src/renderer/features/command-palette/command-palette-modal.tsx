@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Command } from 'cmdk';
 import { Activity, FolderOpen, GitBranch, MessageSquare, type LucideIcon } from 'lucide-react';
 import { useObserver } from 'mobx-react-lite';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ALL_COMMAND_DEFS, type CommandDef } from '@shared/commands';
 import type { SearchItem } from '@shared/search';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
@@ -15,6 +15,7 @@ import { getEffectiveHotkey } from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { appState } from '@renderer/lib/stores/app-state';
 import { Shortcut } from '@renderer/lib/ui/shortcut';
 import { cn } from '@renderer/utils/utils';
 import { getCommandIcon } from './command-icons';
@@ -137,6 +138,16 @@ export function CommandPaletteModal({
   const { value: keyboard } = useAppSettingsKey('keyboard');
   const queryClient = useQueryClient();
 
+  const handleClose = useCallback(() => {
+    onClose();
+  }, [onClose]);
+
+  useEffect(() => {
+    if (view !== 'resource-monitor') return;
+    appState.resourceMonitor.start();
+    return () => appState.resourceMonitor.dispose();
+  }, [view]);
+
   // Prefetch recents immediately on mount so the empty-query view is instant.
   useEffect(() => {
     void queryClient.prefetchQuery({
@@ -176,7 +187,7 @@ export function CommandPaletteModal({
           shortcut: cmd.shortcutKey ? getEffectiveHotkey(cmd.shortcutKey, keyboard) : null,
           icon: getCommandIcon(def?.iconKey),
           execute: () => {
-            onClose();
+            handleClose();
             cmd.execute();
           },
         };
@@ -192,7 +203,9 @@ export function CommandPaletteModal({
             title: 'Resource Monitor',
             subtitle: 'Show CPU and memory performance for running agents',
             icon: Activity,
-            execute: () => setView('resource-monitor'),
+            execute: () => {
+              setView('resource-monitor');
+            },
           }
         : null,
     [resourceMonitor?.enabled]
@@ -226,26 +239,26 @@ export function CommandPaletteModal({
 
   const handleNavigateToTask = (item: SearchItem) => {
     if (!item.projectId) return;
-    onClose();
+    handleClose();
     navigate('task', { projectId: item.projectId, taskId: item.id });
   };
 
   const handleNavigateToProject = (item: SearchItem) => {
-    onClose();
+    handleClose();
     navigate('project', { projectId: item.id });
   };
 
   const handleNavigateToConversation = (item: SearchItem) => {
     if (!item.projectId || !item.taskId) return;
     getTaskView(item.projectId, item.taskId)?.tabGroupManager.openConversation(item.id);
-    onClose();
+    handleClose();
     navigate('task', { projectId: item.projectId, taskId: item.taskId });
   };
 
   const handleOpenFile = (item: SearchItem) => {
     if (!item.projectId || !item.taskId) return;
     getTaskView(item.projectId, item.taskId)?.tabManager.openFile(item.id);
-    onClose();
+    handleClose();
     navigate('task', { projectId: item.projectId, taskId: item.taskId });
   };
 
@@ -256,23 +269,27 @@ export function CommandPaletteModal({
     if (item.kind === 'file') return handleOpenFile(item);
   };
 
+  const handleResourceMonitorBack = useCallback(() => {
+    setView('search');
+  }, []);
+
   useEffect(() => {
     if (view !== 'resource-monitor') return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' || e.key === 'Backspace') {
         e.preventDefault();
         e.stopPropagation();
-        setView('search');
+        handleResourceMonitorBack();
       }
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [view]);
+  }, [view, handleResourceMonitorBack]);
 
   if (view === 'resource-monitor') {
     return (
       <div className="flex flex-col overflow-hidden">
-        <ResourceMonitorView onBack={() => setView('search')} />
+        <ResourceMonitorView onBack={handleResourceMonitorBack} />
         <div className="flex items-center gap-4 border-t border-foreground/10 px-3 py-2">
           <span className="flex items-center gap-1 text-xs text-foreground/40">
             <Shortcut hotkey="Escape" variant="badge" />
@@ -326,7 +343,7 @@ export function CommandPaletteModal({
                   shortcut,
                   icon: getCommandIcon(def?.iconKey),
                   execute: () => {
-                    onClose();
+                    handleClose();
                     live.execute();
                   },
                 };
@@ -336,7 +353,7 @@ export function CommandPaletteModal({
                     value={item.id}
                     item={displayItem}
                     onSelect={() => {
-                      onClose();
+                      handleClose();
                       live.execute();
                     }}
                   />
@@ -393,7 +410,7 @@ export function CommandPaletteModal({
             <PaletteNotificationsGroup
               currentProjectId={projectId}
               currentTaskId={taskId}
-              onClose={onClose}
+              onClose={handleClose}
               navigate={navigate}
             />
             {actionResults.length > 0 && (
@@ -429,7 +446,7 @@ export function CommandPaletteModal({
               <PaletteProjectsGroup
                 currentProjectId={projectId}
                 limit={5}
-                onClose={onClose}
+                onClose={handleClose}
                 navigate={navigate}
               />
             )}

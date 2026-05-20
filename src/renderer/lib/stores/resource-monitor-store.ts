@@ -6,6 +6,10 @@ import { events, rpc } from '@renderer/lib/ipc';
 export class ResourceMonitorStore {
   snapshot: ResourceSnapshot | null = null;
   private started = false;
+  private offSnapshot: (() => void) | null = null;
+  private clientId = crypto.randomUUID();
+  private sequence = 0;
+  private subscriptionId: string | null = null;
 
   constructor() {
     makeObservable(this, {
@@ -53,7 +57,10 @@ export class ResourceMonitorStore {
   start(): void {
     if (this.started) return;
     this.started = true;
-    events.on(resourceSnapshotChannel, (snap) => {
+    const subscriptionId = crypto.randomUUID();
+    this.subscriptionId = subscriptionId;
+    void rpc.resourceMonitor.setOpen(this.clientId, subscriptionId, true, ++this.sequence);
+    this.offSnapshot = events.on(resourceSnapshotChannel, (snap) => {
       runInAction(() => {
         this.snapshot = snap;
       });
@@ -61,12 +68,25 @@ export class ResourceMonitorStore {
     rpc.resourceMonitor
       .getSnapshot()
       .then((res) => {
-        if (!res?.success) return;
+        if (!res?.success || !res.data) return;
         runInAction(() => {
+          if (this.snapshot && this.snapshot.timestamp > res.data.timestamp) return;
           this.snapshot = res.data;
         });
       })
       .catch(() => {});
+  }
+
+  dispose(): void {
+    if (!this.started) return;
+    const subscriptionId = this.subscriptionId;
+    this.offSnapshot?.();
+    this.offSnapshot = null;
+    this.started = false;
+    this.subscriptionId = null;
+    if (subscriptionId) {
+      void rpc.resourceMonitor.setOpen(this.clientId, subscriptionId, false, ++this.sequence);
+    }
   }
 
   async refresh(): Promise<void> {
