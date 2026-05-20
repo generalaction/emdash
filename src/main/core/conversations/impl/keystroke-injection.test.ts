@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Conversation } from '@shared/conversations';
 import type { Pty, PtyExitInfo } from '@main/core/pty/pty';
+import type { Conversation } from '@shared/conversations';
 import { scheduleInitialPromptInjection } from './keystroke-injection';
 
 function makeConversation(providerId: Conversation['providerId']): Conversation {

@@ -1,8 +1,8 @@
+import type { Pty } from '@main/core/pty/pty';
+import { log } from '@main/lib/logger';
 import { getProvider } from '@shared/agent-provider-registry';
 import type { Conversation } from '@shared/conversations';
 import { buildPromptInjectionPayload } from '@shared/prompt-injection';
-import type { Pty } from '@main/core/pty/pty';
-import { log } from '@main/lib/logger';
 
 // Inject only after the TUI has produced output and stayed idle for a beat;
 // fixed delays race the agent's startup (auth, sync, model load).

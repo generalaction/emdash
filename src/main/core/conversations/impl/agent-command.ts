@@ -1,6 +1,6 @@
+import { quoteShellArg } from '@main/utils/shellEscape';
 import { getProvider, type AgentProviderId } from '@shared/agent-provider-registry';
 import type { ProviderCustomConfig } from '@shared/app-settings';
-import { quoteShellArg } from '@main/utils/shellEscape';
 
 export type AgentCommand = {
   command: string;
