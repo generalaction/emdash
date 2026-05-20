@@ -67,7 +67,7 @@ const EXTENSION_MAP: Record<string, string> = {
 
   // C family
   c: 'devicon-c-plain colored',
-  h: 'devicon-c-plain colored',
+  h: 'devicon-cplusplus-plain colored',
   cpp: 'devicon-cplusplus-plain colored',
   cc: 'devicon-cplusplus-plain colored',
   cxx: 'devicon-cplusplus-plain colored',
@@ -78,7 +78,6 @@ const EXTENSION_MAP: Record<string, string> = {
 
   // Apple ecosystem
   swift: 'devicon-swift-plain colored',
-  m: 'devicon-objectivec-plain',
   mm: 'devicon-objectivec-plain',
 
   // Other languages
@@ -144,6 +143,7 @@ const FILENAME_MAP: Record<string, string> = {
   '.eslintignore': 'devicon-eslint-plain colored',
   'eslint.config.js': 'devicon-eslint-plain colored',
   'eslint.config.mjs': 'devicon-eslint-plain colored',
+  'eslint.config.ts': 'devicon-eslint-plain colored',
   '.babelrc': 'devicon-babel-plain colored',
   'babel.config.js': 'devicon-babel-plain colored',
   'babel.config.json': 'devicon-babel-plain colored',
