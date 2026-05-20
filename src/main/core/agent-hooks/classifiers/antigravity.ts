@@ -3,7 +3,9 @@ import { createProviderClassifier, type ClassificationResult } from './base';
 export function createAntigravityClassifier() {
   return createProviderClassifier((text: string, chunk: string): ClassificationResult => {
     const tail = text.slice(-700);
-    const permissionPromptIndex = tail.search(/approve|reject|permission|allow|confirm|run command/i);
+    const permissionPromptIndex = tail.search(
+      /approve|reject|permission|allow|confirm|run command/i
+    );
     const authSuccessIndex = chunk.search(/Successfully authenticated|Login successful|Signed in/i);
     const errorIndex = chunk.search(/^\s*(?:error|fatal|exception|failed):/im);
     const readyPromptIndex = Math.max(
