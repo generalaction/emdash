@@ -75,6 +75,7 @@ export function ActionItemRow({ action }: { action: ContextAction }) {
 export interface AddContextPopoverProps {
   actions: ContextAction[];
   disabled: boolean;
+  isActivePane?: boolean;
   onApplyAction: (
     text: string,
     action: ContextAction,
@@ -82,7 +83,12 @@ export interface AddContextPopoverProps {
   ) => Promise<void>;
 }
 
-export function AddContextPopover({ actions, disabled, onApplyAction }: AddContextPopoverProps) {
+export function AddContextPopover({
+  actions,
+  disabled,
+  isActivePane = true,
+  onApplyAction,
+}: AddContextPopoverProps) {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<ContextAction | null>(null);
   const [query, setQuery] = useState('');
@@ -108,7 +114,7 @@ export function AddContextPopover({ actions, disabled, onApplyAction }: AddConte
     });
   }, [query, actions]);
 
-  useHotkey(ADD_CONTEXT_HOTKEY, () => setOpen((v) => !v), { enabled: !disabled });
+  useHotkey(ADD_CONTEXT_HOTKEY, () => setOpen((v) => !v), { enabled: !disabled && isActivePane });
 
   const handleConfirm = (action: ContextAction | null, opts?: { andSend?: boolean }) => {
     if (!action) return;
