@@ -10,12 +10,12 @@ export function resolveProviderEnv(
 ): Record<string, string> | undefined {
   const env: Record<string, string> = {};
 
-  for (const [key, value] of Object.entries(providerConfig?.env ?? {})) {
-    if (ENV_NAME_PATTERN.test(key)) env[key] = value;
-  }
-
   if (options.providerId === 'opencode' && options.autoApprove) {
     env.OPENCODE_PERMISSION = OPENCODE_ALLOW_ALL_PERMISSIONS;
+  }
+
+  for (const [key, value] of Object.entries(providerConfig?.env ?? {})) {
+    if (ENV_NAME_PATTERN.test(key)) env[key] = value;
   }
 
   return Object.keys(env).length > 0 ? env : undefined;

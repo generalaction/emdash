@@ -29,7 +29,24 @@ describe('resolveProviderEnv', () => {
     });
   });
 
+  it('does not set inline opencode permissions when auto-approve is disabled', () => {
+    expect(resolveProviderEnv(undefined, { providerId: 'opencode', autoApprove: false })).toBeUndefined();
+  });
+
+  it('preserves custom opencode permissions when auto-approve is enabled', () => {
+    expect(
+      resolveProviderEnv(
+        { env: { OPENCODE_PERMISSION: '{"edit":"allow","bash":"ask"}' } },
+        { providerId: 'opencode', autoApprove: true }
+      )
+    ).toEqual({
+      OPENCODE_PERMISSION: '{"edit":"allow","bash":"ask"}',
+    });
+  });
+
   it('does not set inline opencode permissions for other providers', () => {
-    expect(resolveProviderEnv(undefined, { providerId: 'claude', autoApprove: true })).toBeUndefined();
+    expect(
+      resolveProviderEnv(undefined, { providerId: 'claude', autoApprove: true })
+    ).toBeUndefined();
   });
 });
