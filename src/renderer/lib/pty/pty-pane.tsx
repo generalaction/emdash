@@ -3,6 +3,7 @@ import { getDraggedFilePaths } from '@renderer/lib/drag-files';
 import { rpc } from '@renderer/lib/ipc';
 import { log } from '@renderer/utils/logger';
 import { cn } from '@renderer/utils/utils';
+import { pastePromptInjection } from './prompt-injection';
 import type { FrontendPty, SessionTheme } from './pty';
 import { usePty } from './use-pty';
 
@@ -81,17 +82,23 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
               try {
                 const result = await rpc.pty.uploadFiles({ sessionId, localPaths: paths });
                 if (result.success && result.data?.remotePaths) {
-                  const escaped = result.data.remotePaths
-                    .map((p: string) => `'${p.replace(/'/g, "'\\''")}'`)
-                    .join(' ');
-                  sendInput(`${escaped} `);
+                  await pastePromptInjection({
+                    providerId: undefined,
+                    text: formatDroppedPaths(result.data.remotePaths),
+                    forceBracketedPaste: true,
+                    sendInput: async (data) => sendInput(`${data} `),
+                  });
                 }
               } catch (error) {
                 log.warn('SSH file transfer failed', { error });
               }
             } else {
-              const escaped = paths.map((p) => `'${p.replace(/'/g, "'\\''")}'`).join(' ');
-              sendInput(`${escaped} `);
+              await pastePromptInjection({
+                providerId: undefined,
+                text: formatDroppedPaths(paths),
+                forceBracketedPaste: true,
+                sendInput: async (data) => sendInput(`${data} `),
+              });
             }
             focus();
           } catch (error) {
@@ -134,6 +141,10 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
     );
   }
 );
+
+function formatDroppedPaths(paths: string[]): string {
+  return paths.map((path) => `'${path.replace(/'/g, "'\\''")}'`).join(' ');
+}
 
 PtyPaneComponent.displayName = 'TerminalPane';
 

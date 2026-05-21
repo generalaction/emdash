@@ -4,6 +4,7 @@ import { events, rpc } from '@renderer/lib/ipc';
 import { cssVar } from '@renderer/utils/cssVars';
 import { log } from '@renderer/utils/logger';
 import { ptyDataChannel } from '@shared/events/ptyEvents';
+import { buildTerminalFontFamily } from './terminal-font';
 import { ensureXtermHost } from './xterm-host';
 
 const SCROLLBACK_LINES = 100_000;
@@ -76,6 +77,7 @@ export class FrontendPty {
       rows: 32,
       scrollback: SCROLLBACK_LINES,
       convertEol: true,
+      fontFamily: buildTerminalFontFamily(),
       fontSize: 13,
       lineHeight: 1.2,
       letterSpacing: 0,
