@@ -1,11 +1,11 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import React, { createContext, useCallback, useContext } from 'react';
+import { rpc } from '@renderer/lib/ipc';
 import {
   ISSUE_PROVIDER_CAPABILITIES,
   type ConnectionStatusMap,
   type IssueProviderType,
 } from '@shared/issue-providers';
-import { rpc } from '@renderer/lib/ipc';
 import { useProviderConnection } from './use-provider-connection';
 
 export const ISSUE_CONNECTION_STATUS_QUERY_KEY = ['issues:connection-status'] as const;

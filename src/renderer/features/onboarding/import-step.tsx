@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import type { LegacyImportSource } from '@shared/legacy-port';
 import { useImportProgress } from '@renderer/lib/hooks/useImportProgress';
 import {
   useLegacyPortImport,
@@ -8,6 +7,7 @@ import {
 } from '@renderer/lib/hooks/useLegacyPort';
 import { Button } from '@renderer/lib/ui/button';
 import { cn } from '@renderer/utils/utils';
+import type { LegacyImportSource } from '@shared/legacy-port';
 import { ImportHeader } from './components/import-header';
 import { ImportProgress } from './components/import-progress';
 import { ImportSourceSelector } from './components/import-source-selector';
@@ -146,9 +146,9 @@ export function ImportStep({ onComplete }: { onComplete: () => void }) {
       {importProgress.isImporting && <ImportProgress progress={importProgress.progress} />}
 
       {importProgress.error && (
-        <p className="text-sm text-destructive text-center">{importProgress.error}</p>
+        <p className="text-destructive text-center text-sm">{importProgress.error}</p>
       )}
-      {startFreshError && <p className="text-sm text-destructive text-center">{startFreshError}</p>}
+      {startFreshError && <p className="text-destructive text-center text-sm">{startFreshError}</p>}
 
       <div className="flex w-full shrink-0 flex-col gap-2">
         <Button size={'lg'} onClick={handleImport} disabled={isBusy || !canImport}>

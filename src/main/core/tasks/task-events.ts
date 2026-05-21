@@ -1,6 +1,6 @@
-import type { Task } from '@shared/tasks';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
+import type { Task } from '@shared/tasks';
 
 export type TaskCrudHooks = {
   'task:created': (task: Task) => void | Promise<void>;

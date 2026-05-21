@@ -1,7 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
-import type { RenameTaskError } from '@shared/tasks';
 import { getTaskManagerStore } from '@renderer/features/tasks/stores/task-selectors';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
@@ -19,6 +18,7 @@ import {
   MAX_TASK_NAME_LENGTH,
   normalizeTaskName,
 } from '@renderer/utils/taskNames';
+import type { RenameTaskError } from '@shared/tasks';
 
 type RenameTaskModalArgs = {
   projectId: string;
@@ -120,9 +120,9 @@ export const RenameTaskModal = observer(function RenameTaskModal({
               autoFocus
             />
             {validationMessage && !isUnchanged && (
-              <p className="text-xs text-destructive mt-1">{validationMessage}</p>
+              <p className="text-destructive mt-1 text-xs">{validationMessage}</p>
             )}
-            {error && <p className="text-xs text-destructive mt-1">{error}</p>}
+            {error && <p className="text-destructive mt-1 text-xs">{error}</p>}
           </Field>
         </FieldGroup>
       </DialogContentArea>

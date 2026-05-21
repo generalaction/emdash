@@ -1,6 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
 import React, { useState } from 'react';
-import { isValidSkillName } from '@shared/skills/validation';
 import { rpc } from '@renderer/lib/ipc';
 import type { BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { useCloseGuard } from '@renderer/lib/modal/use-close-guard';
@@ -16,6 +15,7 @@ import { Input } from '@renderer/lib/ui/input';
 import { Label } from '@renderer/lib/ui/label';
 import { Textarea } from '@renderer/lib/ui/textarea';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
+import { isValidSkillName } from '@shared/skills/validation';
 
 type Props = BaseModalProps<void>;
 
@@ -89,7 +89,7 @@ export function CreateSkillModal({ onSuccess, onClose }: Props) {
               }}
               className="text-sm"
             />
-            <p className="text-[10px] text-muted-foreground">
+            <p className="text-muted-foreground text-[10px]">
               Lowercase letters, numbers, and hyphens
             </p>
           </div>
@@ -122,14 +122,14 @@ export function CreateSkillModal({ onSuccess, onClose }: Props) {
                 setContent(e.target.value);
                 setCreateError(null);
               }}
-              className="h-64 max-h-[40dvh] resize-y overflow-y-auto field-sizing-fixed font-mono text-sm"
+              className="field-sizing-fixed h-64 max-h-[40dvh] resize-y overflow-y-auto font-mono text-sm"
             />
-            <p className="text-[10px] text-muted-foreground">
+            <p className="text-muted-foreground text-[10px]">
               Define what this skill does and how agents should use it
             </p>
           </div>
 
-          {createError && <p className="text-xs text-destructive">{createError}</p>}
+          {createError && <p className="text-destructive text-xs">{createError}</p>}
         </div>
       </DialogContentArea>
 

@@ -1,9 +1,9 @@
 import { join } from 'node:path';
 import { BrowserWindow } from 'electron';
 import appIcon from '@/assets/images/emdash/emdash_logo.png?asset';
-import { PRODUCT_NAME } from '@shared/app-identity';
 import { telemetryService } from '@main/lib/telemetry';
 import { registerExternalLinkHandlers } from '@main/utils/externalLinks';
+import { PRODUCT_NAME } from '@shared/app-identity';
 import { APP_ORIGIN } from './protocol';
 
 let mainWindow: BrowserWindow | null = null;

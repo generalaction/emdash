@@ -1,15 +1,15 @@
 import { ArrowUpRight, Check, Copy } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
+import AgentLogo from '@renderer/lib/components/agent-logo';
+import { type UiAgent } from '@renderer/lib/providers/meta';
+import { Button } from '@renderer/lib/ui/button';
+import { agentConfig } from '@renderer/utils/agentConfig';
 import {
   getDescriptionForProvider,
   getDocUrlForProvider,
   getInstallCommandForProvider,
   getProvider,
 } from '@shared/agent-provider-registry';
-import AgentLogo from '@renderer/lib/components/agent-logo';
-import { type UiAgent } from '@renderer/lib/providers/meta';
-import { Button } from '@renderer/lib/ui/button';
-import { agentConfig } from '@renderer/utils/agentConfig';
 
 type Props = {
   id: UiAgent;

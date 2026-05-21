@@ -1,7 +1,7 @@
 import { and, desc, eq } from 'drizzle-orm';
-import type { LocalProject, SshProject } from '@shared/projects';
 import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
+import type { LocalProject, SshProject } from '@shared/projects';
 
 export async function getProjects(): Promise<(LocalProject | SshProject)[]> {
   const rows = await db.select().from(projects).orderBy(desc(projects.updatedAt));

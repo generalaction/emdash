@@ -1,13 +1,13 @@
 import { ExternalLink, Globe, Pencil, Plus, Terminal } from 'lucide-react';
 import React from 'react';
-import { type AgentProviderId } from '@shared/agent-provider-registry';
-import type { McpCatalogEntry, McpServer } from '@shared/mcp/types';
 import AgentLogo from '@renderer/lib/components/agent-logo';
 import { CardGridItem } from '@renderer/lib/components/card-grid';
 import { Button } from '@renderer/lib/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { agentConfig } from '@renderer/utils/agentConfig';
 import { McpServerIcon } from '@renderer/utils/mcpIcons';
+import { type AgentProviderId } from '@shared/agent-provider-registry';
+import type { McpCatalogEntry, McpServer } from '@shared/mcp/types';
 
 interface McpCardProps {
   server?: McpServer;
@@ -61,17 +61,15 @@ export const McpCard: React.FC<McpCardProps> = ({ server, catalogEntry, onEdit, 
       className="relative"
     >
       <McpServerIcon name={name} iconKey={catalogEntry?.key ?? server?.name} />
-      <div className="min-w-0 flex-1 flex flex-col gap-0.5">
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex items-center gap-2">
-          <h3 className="truncate text-smd">{name}</h3>
+          <h3 className="text-smd truncate">{name}</h3>
           <span className="inline-flex shrink-0 items-center gap-0.5 rounded bg-background-2 px-1 py-0.5 text-[10px] text-foreground-muted">
             {transport === 'http' ? <Globe className="size-2" /> : <Terminal className="size-2" />}
             {transport}
           </span>
         </div>
-        {description && (
-          <p className=" line-clamp-1 text-xs text-foreground-muted">{description}</p>
-        )}
+        {description && <p className="line-clamp-1 text-xs text-foreground-muted">{description}</p>}
         {syncedProviders.length > 0 && (
           <div className="mt-1.5 flex items-center gap-1">
             {syncedProviders.map((p) => (
@@ -88,7 +86,7 @@ export const McpCard: React.FC<McpCardProps> = ({ server, catalogEntry, onEdit, 
         )}
       </div>
 
-      <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+      <div className="absolute top-1/2 right-2 flex -translate-y-1/2 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
         {docsUrl && (
           <Tooltip>
             <TooltipTrigger>

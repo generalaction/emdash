@@ -1,6 +1,3 @@
-import type { GeneralSessionConfig } from '@shared/general-session';
-import { makePtySessionId } from '@shared/ptySessionId';
-import type { Terminal } from '@shared/terminals';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { Pty } from '@main/core/pty/pty';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
@@ -17,6 +14,9 @@ import {
   type TerminalProvider,
 } from '@main/core/terminals/terminal-provider';
 import { log } from '@main/lib/logger';
+import type { GeneralSessionConfig } from '@shared/general-session';
+import { makePtySessionId } from '@shared/ptySessionId';
+import type { Terminal } from '@shared/terminals';
 import { wireTerminalDevServerWatcher } from '../dev-server-watcher';
 
 const DEFAULT_COLS = 80;

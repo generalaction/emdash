@@ -1,8 +1,8 @@
+import type { FileSystemProvider } from '@main/core/fs/types';
+import { log } from '@main/lib/logger';
 import type { MigrateProjectConfigRequest, ProjectConfigMigration } from '@shared/project-settings';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import { err, type Result } from '@shared/result';
-import type { FileSystemProvider } from '@main/core/fs/types';
-import { log } from '@main/lib/logger';
 import type { ProjectProvider } from '../../project-provider';
 import { codexConfigMigrator } from './codex-config-migration';
 import { conductorConfigMigrator } from './conductor-config-migration';

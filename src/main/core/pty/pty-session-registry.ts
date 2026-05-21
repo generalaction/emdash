@@ -1,6 +1,6 @@
+import { events } from '@main/lib/events';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 import { ptyDataChannel, ptyExitChannel, ptyInputChannel } from '@shared/events/ptyEvents';
-import { events } from '@main/lib/events';
 import type { Pty } from './pty';
 
 export interface PtySessionMetadata {

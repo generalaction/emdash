@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { events, rpc } from '@renderer/lib/ipc';
+import { log } from '@renderer/utils/logger';
 import {
   githubAuthErrorChannel,
   githubAuthSuccessChannel,
@@ -12,8 +14,6 @@ import type {
   GitHubTokenSource,
   GitHubUser,
 } from '@shared/github';
-import { events, rpc } from '@renderer/lib/ipc';
-import { log } from '@renderer/utils/logger';
 import { useToast } from '../hooks/use-toast';
 import { useAccountSession, useFetchAccountHealth } from '../hooks/useAccount';
 import { useModalContext } from '../modal/modal-provider';

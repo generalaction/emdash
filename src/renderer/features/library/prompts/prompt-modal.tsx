@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import type { PromptLibraryPrompt } from '@shared/prompt-library';
 import type { BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
@@ -12,6 +11,7 @@ import {
 import { Field, FieldGroup, FieldLabel } from '@renderer/lib/ui/field';
 import { Input } from '@renderer/lib/ui/input';
 import { Textarea } from '@renderer/lib/ui/textarea';
+import type { PromptLibraryPrompt } from '@shared/prompt-library';
 
 export type PromptFormResult = Pick<PromptLibraryPrompt, 'title' | 'prompt'>;
 

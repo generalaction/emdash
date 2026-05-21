@@ -57,8 +57,28 @@ export const taskView = {
   MainPanel: TaskMainPanel,
   commandProvider: ({ projectId, taskId }: { projectId: string; taskId: string }) =>
     createTaskCommandProvider(projectId, taskId),
-  canActivate: ({ projectId }: { projectId: string; taskId: string }): GuardResult =>
-    appState.projects.projects.has(projectId) || appState.projects.pendingCreationIds.has(projectId)
-      ? { ok: true }
-      : { ok: false, redirect: 'home' },
+  canActivate: (params: unknown): GuardResult => {
+    const projectId =
+      typeof params === 'object' && params !== null
+        ? (params as { projectId?: unknown }).projectId
+        : undefined;
+    const taskId =
+      typeof params === 'object' && params !== null
+        ? (params as { taskId?: unknown }).taskId
+        : undefined;
+    if (typeof projectId !== 'string' || typeof taskId !== 'string') {
+      return { ok: false, redirect: 'home' };
+    }
+    if (
+      !appState.projects.projects.has(projectId) &&
+      !appState.projects.pendingCreationIds.has(projectId)
+    ) {
+      return { ok: false, redirect: 'home' };
+    }
+    const taskManager = getTaskManagerStore(projectId);
+    if (taskManager && !taskManager.tasks.has(taskId)) {
+      return { ok: false, redirect: 'project', params: { projectId } };
+    }
+    return { ok: true };
+  },
 } satisfies ViewDefinition<{ projectId: string; taskId: string }>;

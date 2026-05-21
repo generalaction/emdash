@@ -1,5 +1,6 @@
 import { X } from 'lucide-react';
 import React from 'react';
+import { parseEnvAssignmentPaste, replaceEnvEntryWithPaste } from '@renderer/lib/env-paste';
 import { Button } from '@renderer/lib/ui/button';
 import { Field, FieldLabel } from '@renderer/lib/ui/field';
 import { Input } from '@renderer/lib/ui/input';
@@ -17,6 +18,7 @@ interface KeyValueSectionProps {
   addLabel: string;
   makeId: () => number;
   credentialKeys: Map<string, boolean>;
+  splitEnvPaste?: boolean;
 }
 
 export const KeyValueSection: React.FC<KeyValueSectionProps> = ({
@@ -26,7 +28,23 @@ export const KeyValueSection: React.FC<KeyValueSectionProps> = ({
   addLabel,
   makeId,
   credentialKeys,
+  splitEnvPaste = false,
 }) => {
+  const handlePaste = (index: number, e: React.ClipboardEvent<HTMLInputElement>) => {
+    if (!splitEnvPaste) return;
+
+    const pasted = parseEnvAssignmentPaste(e.clipboardData.getData('text'));
+    if (pasted.length === 0) return;
+
+    e.preventDefault();
+    const pastedEntries = pasted.map((entry, pastedIndex) => ({
+      id: pastedIndex === 0 ? entries[index].id : makeId(),
+      key: entry.key,
+      value: entry.value,
+    }));
+    onChange(replaceEnvEntryWithPaste(entries, index, pastedEntries));
+  };
+
   return (
     <Field>
       <FieldLabel>{label}</FieldLabel>
@@ -45,6 +63,7 @@ export const KeyValueSection: React.FC<KeyValueSectionProps> = ({
                 }}
                 className="h-8 w-1/2"
                 placeholder="KEY"
+                onPaste={(e) => handlePaste(i, e)}
               />
               <Input
                 value={entry.value}
@@ -64,7 +83,7 @@ export const KeyValueSection: React.FC<KeyValueSectionProps> = ({
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                className="text-muted-foreground hover:text-destructive h-8 w-8 shrink-0"
                 onClick={() => onChange(entries.filter((_, j) => j !== i))}
               >
                 <X className="h-3 w-3" />

@@ -1,6 +1,6 @@
-import type { ConnectionState } from '@shared/ssh';
 import { Badge } from '@renderer/lib/ui/badge';
 import { cn } from '@renderer/utils/utils';
+import type { ConnectionState } from '@shared/ssh';
 import { stateLabel } from './ssh-connection-formatters';
 
 export function SshStateBadge({ state }: { state: ConnectionState }) {

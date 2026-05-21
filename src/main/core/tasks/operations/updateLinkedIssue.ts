@@ -1,10 +1,10 @@
 import { eq } from 'drizzle-orm';
-import { type Issue } from '@shared/tasks';
 import { taskEvents } from '@main/core/tasks/task-events';
 import { mapTaskRowToTask } from '@main/core/tasks/utils/utils';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
 import { telemetryService } from '@main/lib/telemetry';
+import { type Issue } from '@shared/tasks';
 
 export async function updateLinkedIssue(taskId: string, issue?: Issue) {
   const [existingRow] = await db

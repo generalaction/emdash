@@ -148,7 +148,7 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
       : diffView.effectiveCommitAction;
 
   return (
-    <div className="shrink-0 mx-2 mb-2 flex flex-col gap-2 items-center justify-between rounded-xl border border-border bg-background-1 p-2">
+    <div className="mx-2 mb-2 flex shrink-0 flex-col items-center justify-between gap-2 rounded-xl border border-border bg-background-1 p-2">
       <Input
         placeholder="Commit message"
         autoFocus

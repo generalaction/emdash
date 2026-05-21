@@ -1,12 +1,6 @@
 import { AlertCircle, Check, Copy, ExternalLink } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import emdashLogo from '@/assets/images/emdash/emdash_logo_white.svg';
-import {
-  githubAuthDeviceCodeChannel,
-  githubAuthErrorChannel,
-  githubAuthSuccessChannel,
-} from '@shared/events/githubEvents';
-import type { GitHubUser } from '@shared/github';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import { events, rpc } from '@renderer/lib/ipc';
 import type { BaseModalProps } from '@renderer/lib/modal/modal-provider';
@@ -14,6 +8,12 @@ import { useGithubContext } from '@renderer/lib/providers/github-context-provide
 import { Button } from '@renderer/lib/ui/button';
 import { Spinner } from '@renderer/lib/ui/spinner';
 import { log } from '@renderer/utils/logger';
+import {
+  githubAuthDeviceCodeChannel,
+  githubAuthErrorChannel,
+  githubAuthSuccessChannel,
+} from '@shared/events/githubEvents';
+import type { GitHubUser } from '@shared/github';
 
 interface GithubDeviceFlowModalProps {
   onClose: () => void;
@@ -251,13 +251,13 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
 
         {success ? (
           // Success State
-          <div className="flex flex-col items-center space-y-6 duration-300 animate-in fade-in zoom-in">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-foreground-success duration-500 animate-in zoom-in">
+          <div className="flex animate-in flex-col items-center space-y-6 duration-300 fade-in zoom-in">
+            <div className="flex h-16 w-16 animate-in items-center justify-center rounded-full bg-foreground-success duration-500 zoom-in">
               <Check className="h-8 w-8 text-white" strokeWidth={3} />
             </div>
             <div className="space-y-2 text-center">
               <h2 className="text-2xl font-semibold">Success!</h2>
-              <p className="text-sm text-muted-foreground">You're connected to GitHub</p>
+              <p className="text-muted-foreground text-sm">You're connected to GitHub</p>
               {user && (
                 <div className="mt-4 flex items-center justify-center gap-2">
                   {user.avatar_url && (
@@ -265,7 +265,7 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
                   )}
                   <div className="text-left">
                     <p className="text-sm font-medium">{user.name || user.login}</p>
-                    <p className="text-xs text-muted-foreground">@{user.login}</p>
+                    <p className="text-muted-foreground text-xs">@{user.login}</p>
                   </div>
                 </div>
               )}
@@ -279,7 +279,7 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
             </div>
             <div className="space-y-2 text-center">
               <h2 className="text-xl font-semibold">Authentication Failed</h2>
-              <p className="text-sm text-muted-foreground">{error}</p>
+              <p className="text-muted-foreground text-sm">{error}</p>
             </div>
             <Button onClick={handleClose} variant="outline" className="w-full">
               Close
@@ -290,16 +290,16 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
           <div className="flex w-full flex-col items-center space-y-6">
             <div className="space-y-2 text-center">
               <h2 className="text-2xl font-semibold">Connect to GitHub</h2>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 Follow these steps to authorize Emdash
               </p>
             </div>
 
             {userCode && (
               <>
-                <div className="w-full space-y-3 rounded-lg bg-muted/30 p-6">
-                  <p className="text-center text-xs font-medium text-muted-foreground">Your code</p>
-                  <p className="select-all text-center font-mono text-4xl font-bold tracking-wider">
+                <div className="bg-muted/30 w-full space-y-3 rounded-lg p-6">
+                  <p className="text-muted-foreground text-center text-xs font-medium">Your code</p>
+                  <p className="text-center font-mono text-4xl font-bold tracking-wider select-all">
                     {userCode}
                   </p>
                 </div>
@@ -327,7 +327,7 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
 
             <div className="w-full space-y-3 text-sm">
               <div className="flex items-start gap-3">
-                <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold">
+                <div className="bg-primary/10 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold">
                   1
                 </div>
                 <p className="text-muted-foreground">
@@ -336,7 +336,7 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
                 </p>
               </div>
               <div className="flex items-start gap-3">
-                <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold">
+                <div className="bg-primary/10 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold">
                   2
                 </div>
                 <p className="text-muted-foreground">Click Authorize</p>
@@ -352,10 +352,10 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
             )}
 
             <div className="flex flex-col items-center gap-2 text-center">
-              <Spinner className="h-5 w-5 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground">Waiting for authorization...</p>
+              <Spinner className="text-muted-foreground h-5 w-5" />
+              <p className="text-muted-foreground text-sm">Waiting for authorization...</p>
               {timeRemaining > 0 && (
-                <p className="text-xs text-muted-foreground">
+                <p className="text-muted-foreground text-xs">
                   Code expires in {formatTime(timeRemaining)}
                 </p>
               )}
@@ -369,7 +369,7 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
             )}
 
             <div className="w-full border-t pt-4">
-              <p className="text-center text-xs text-muted-foreground">
+              <p className="text-muted-foreground text-center text-xs">
                 Having{' '}
                 <button
                   onClick={() =>
@@ -383,7 +383,7 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
               </p>
             </div>
 
-            <div className="space-x-3 text-center text-xs text-muted-foreground">
+            <div className="text-muted-foreground space-x-3 text-center text-xs">
               <span>⌘C to copy</span>
               <span>•</span>
               <span>⌘R to reopen</span>

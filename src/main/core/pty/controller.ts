@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { basename } from 'node:path';
+import { conversationEvents } from '@main/core/conversations/conversation-events';
+import { log } from '@main/lib/logger';
 import { createRPCController } from '@shared/ipc/rpc';
 import { parsePtySessionId } from '@shared/ptySessionId';
 import { err, ok } from '@shared/result';
-import { conversationEvents } from '@main/core/conversations/conversation-events';
-import { log } from '@main/lib/logger';
 import { taskManager } from '../tasks/task-manager';
 import { workspaceRegistry } from '../workspaces/workspace-registry';
 import { ptySessionRegistry } from './pty-session-registry';

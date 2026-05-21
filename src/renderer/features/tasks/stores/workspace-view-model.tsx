@@ -1,10 +1,4 @@
 import { computed, makeAutoObservable, observable, reaction, runInAction } from 'mobx';
-import type { Task } from '@shared/tasks';
-import type {
-  DiffViewSnapshot,
-  TaskViewSnapshot,
-  TerminalDrawerActiveItem,
-} from '@shared/view-state';
 import { DiffTabLifecycleStore } from '@renderer/features/tasks/diff-view/stores/diff-tab-lifecycle-store';
 import { DiffViewStore } from '@renderer/features/tasks/diff-view/stores/diff-view-store';
 import { FileModelLifecycleStore } from '@renderer/features/tasks/editor/stores/file-model-lifecycle-store';
@@ -18,6 +12,12 @@ import type { ILifecycle } from '@renderer/lib/stores/lifecycle';
 import { snapshotRegistry } from '@renderer/lib/stores/snapshot-registry';
 import { focusTracker } from '@renderer/utils/focus-tracker';
 import { log } from '@renderer/utils/logger';
+import type { Task } from '@shared/tasks';
+import type {
+  DiffViewSnapshot,
+  TaskViewSnapshot,
+  TerminalDrawerActiveItem,
+} from '@shared/view-state';
 import { conversationRegistry } from './conversation-registry';
 import { PrStore } from './pr-store';
 import type { TaskStore } from './task-store';

@@ -7,7 +7,7 @@ import { DraggableTab } from './draggable-tab';
 
 export function TabDragPreviewShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex cursor-grabbing items-center gap-1.5 bg-background-secondary-1 text-sm shadow-lg px-2 py-1 border border-border rounded-md opacity-80">
+    <div className="flex cursor-grabbing items-center gap-1.5 rounded-md border border-border bg-background-secondary-1 px-2 py-1 text-sm opacity-80 shadow-lg">
       {children}
     </div>
   );

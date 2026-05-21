@@ -97,7 +97,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
               <FieldLabel>Auto-approve permissions</FieldLabel>
             </div>
           </Field>
-          {error && <p className="text-xs text-destructive">{error}</p>}
+          {error && <p className="text-destructive text-xs">{error}</p>}
         </FieldGroup>
       </DialogContentArea>
       <DialogFooter>

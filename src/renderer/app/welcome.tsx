@@ -1,6 +1,6 @@
 import { motion, type Variants } from 'framer-motion';
 import IconLight from '@/assets/images/emdash/icon-light.png';
-import YTBanner from '@/assets/images/ytbanner.png';
+import YTBanner from '@/assets/images/ytbanner.webp';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { Button } from '@renderer/lib/ui/button';
 
@@ -36,7 +36,7 @@ export function WelcomeScreen({ onGetStarted }: WelcomeScreenProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background">
-      <div className="absolute bottom-0 left-0 right-0 h-3/5">
+      <div className="absolute right-0 bottom-0 left-0 h-3/5">
         <div
           className="absolute inset-0 opacity-40"
           style={{
@@ -58,7 +58,7 @@ export function WelcomeScreen({ onGetStarted }: WelcomeScreenProps) {
         animate="visible"
       >
         <motion.div
-          className="rounded-md border border-border/40 bg-white p-1.5 shadow-lg shadow-black/5 ring-1 ring-black/5 dark:shadow-white/5 dark:ring-white/10"
+          className="rounded-md border border-border/40 bg-white p-1.5 shadow-lg ring-1 shadow-black/5 ring-black/5 dark:shadow-white/5 dark:ring-white/10"
           variants={itemVariants}
         >
           <img src={IconLight} alt="Emdash" className="h-12 w-12 rounded-sm" />

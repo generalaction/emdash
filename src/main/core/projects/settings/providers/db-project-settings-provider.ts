@@ -1,3 +1,7 @@
+import type { FileSystemProvider } from '@main/core/fs/types';
+import type { RepositoryGitProvider } from '@main/core/git/repository-git-provider';
+import { appSettingsService } from '@main/core/settings/settings-service';
+import { log } from '@main/lib/logger';
 import { remoteNameFromQualifiedRef } from '@shared/git-utils';
 import {
   baseProjectSettingsSchema,
@@ -12,10 +16,6 @@ import {
 import { SHAREABLE_FIELD_ACCESSORS } from '@shared/project-settings-fields';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import { err, ok, type Result } from '@shared/result';
-import type { FileSystemProvider } from '@main/core/fs/types';
-import type { RepositoryGitProvider } from '@main/core/git/repository-git-provider';
-import { appSettingsService } from '@main/core/settings/settings-service';
-import { log } from '@main/lib/logger';
 import { migrateLegacyProjectSettingsIfNeeded } from '../legacy-project-settings-migration';
 import { serializeShareableProjectSettings } from '../legacy-shareable-migration-marker';
 import { compactUndefined, parseJsonObject, readJson } from '../project-settings-json';
