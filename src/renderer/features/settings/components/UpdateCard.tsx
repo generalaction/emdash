@@ -39,13 +39,13 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
                 type="button"
                 variant="outline"
                 size="icon"
-                className="h-8 w-8"
+                className="bg-transparent"
                 onClick={() => update.check()}
                 disabled={update.state.status === 'checking'}
                 aria-label="Check for updates"
               >
                 <RefreshCw
-                  className={`h-3 w-3 ${update.state.status === 'checking' ? 'animate-spin' : ''}`}
+                  className={`size-3.5 ${update.state.status === 'checking' ? 'animate-spin' : ''}`}
                 />
               </Button>
             )}
