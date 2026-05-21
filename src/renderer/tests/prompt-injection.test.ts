@@ -26,4 +26,14 @@ describe('prompt injection', () => {
 
     expect(sendInput).toHaveBeenCalledWith('\x1b[200~Line one\nLine two\x1b[201~');
   });
+
+  it('can force bracketed paste for single-line file drops', () => {
+    expect(
+      buildPromptInjectionPayload({
+        providerId: undefined,
+        text: '/var/folders/example image.png',
+        forceBracketedPaste: true,
+      })
+    ).toBe('\x1b[200~/var/folders/example image.png\x1b[201~');
+  });
 });

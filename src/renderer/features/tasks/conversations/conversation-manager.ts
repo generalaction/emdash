@@ -178,6 +178,9 @@ export class ConversationManagerStore implements IDisposable {
           )
         );
       }
+      if (params.initialPrompt?.trim()) {
+        this.conversations.get(conversation.id)?.setWorking();
+      }
     });
     return conversation;
   }
