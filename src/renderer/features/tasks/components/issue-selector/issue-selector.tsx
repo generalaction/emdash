@@ -5,6 +5,7 @@ import {
   ISSUE_PROVIDER_META,
   ISSUE_PROVIDER_ORDER,
 } from '@renderer/features/integrations/issue-provider-meta';
+import { PROVIDER_ICON_COMPONENTS } from '@renderer/features/integrations/provider-icons';
 import { rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { Badge } from '@renderer/lib/ui/badge';
@@ -79,10 +80,20 @@ export function ProviderLogo({
   provider: Issue['provider'];
   className?: string;
 }) {
-  const meta = ISSUE_PROVIDER_META[provider];
-  const src = meta.logo;
-  const alt = meta.displayName;
-  return <img src={src} alt={alt} className={className ?? 'h-3.5 w-3.5'} />;
+  const Icon = PROVIDER_ICON_COMPONENTS[provider];
+
+  return (
+    <span
+      role="img"
+      aria-label={ISSUE_PROVIDER_META[provider].displayName}
+      className={cn(
+        'inline-flex shrink-0 items-center justify-center overflow-visible align-middle leading-none',
+        className ?? 'h-3.5 w-3.5'
+      )}
+    >
+      <Icon size="90%" className="size-[90%]" />
+    </span>
+  );
 }
 
 export function LinkedIssueIndicator({ linkedTo }: { linkedTo: LinkedIssueInfo }) {

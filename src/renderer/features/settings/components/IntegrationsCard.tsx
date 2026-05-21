@@ -1,39 +1,13 @@
 import { Check, Loader2, Plus, RefreshCw } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
-import asanaSvg from '@/assets/images/Asana.svg?raw';
-import featurebaseSvg from '@/assets/images/Featurebase.svg?raw';
-import forgejoSvg from '@/assets/images/Forgejo.svg?raw';
-import githubSvg from '@/assets/images/Github.svg?raw';
-import gitlabSvg from '@/assets/images/GitLab.svg?raw';
-import jiraSvg from '@/assets/images/Jira.svg?raw';
-import linearSvg from '@/assets/images/Linear.svg?raw';
-import plainSvg from '@/assets/images/Plain.svg?raw';
 import { useIntegrationsContext } from '@renderer/features/integrations/integrations-provider';
+import { PROVIDER_ICON_COMPONENTS } from '@renderer/features/integrations/provider-icons';
 import { useToast } from '@renderer/lib/hooks/use-toast';
-import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-
-/** Light mode: original SVG colors. Dark / dark-black: primary colour. */
-const SvgLogo = ({ raw }: { raw: string }) => {
-  const { effectiveTheme } = useTheme();
-  const isDark = effectiveTheme === 'emdark';
-
-  const processed = isDark
-    ? raw
-        .replace(/\bfill="[^"]*"/g, 'fill="currentColor"')
-        .replace(/\bstroke="[^"]*"/g, 'stroke="currentColor"')
-    : raw;
-
-  return (
-    <span
-      className={`inline-flex h-8 w-8 items-center justify-center [&_svg]:h-full [&_svg]:w-full [&_svg]:shrink-0 ${isDark ? 'text-primary' : ''}`}
-      dangerouslySetInnerHTML={{ __html: processed }}
-    />
-  );
-};
+import type { IssueProviderType } from '@shared/issue-providers';
 
 function githubAuthSourceLabel(tokenSource: string | null): string {
   switch (tokenSource) {
@@ -51,10 +25,9 @@ function githubAuthSourceLabel(tokenSource: string | null): string {
 }
 
 type IntegrationCardItem = {
-  id: string;
+  id: IssueProviderType;
   name: string;
   description: string;
-  logoSvg: string;
   connected: boolean;
   loading: boolean;
   onConnect?: () => void;
@@ -195,7 +168,6 @@ const IntegrationsCard: React.FC = () => {
       id: 'github',
       name: 'GitHub',
       description: githubDescription,
-      logoSvg: githubSvg,
       connected: authenticated,
       loading: isLoading,
       onConnect: () => showGithubConnect({}),
@@ -208,7 +180,6 @@ const IntegrationsCard: React.FC = () => {
         isLinearConnected && connectionStatus.linear.displayName
           ? connectionStatus.linear.displayName
           : 'Work on Linear tickets',
-      logoSvg: linearSvg,
       connected: !!isLinearConnected,
       loading: isLinearLoading,
       onConnect: () => showIntegrationSetup({ integration: 'linear' }),
@@ -226,7 +197,6 @@ const IntegrationsCard: React.FC = () => {
         isJiraConnected && connectionStatus.jira.displayName
           ? connectionStatus.jira.displayName
           : 'Work on Jira tickets',
-      logoSvg: jiraSvg,
       connected: !!isJiraConnected,
       loading: isJiraLoading,
       onConnect: () => showIntegrationSetup({ integration: 'jira' }),
@@ -244,7 +214,6 @@ const IntegrationsCard: React.FC = () => {
         isGitlabConnected && connectionStatus.gitlab.displayName
           ? connectionStatus.gitlab.displayName
           : 'Work on GitLab issues',
-      logoSvg: gitlabSvg,
       connected: !!isGitlabConnected,
       loading: isGitlabLoading,
       onConnect: () => showIntegrationSetup({ integration: 'gitlab' }),
@@ -259,7 +228,6 @@ const IntegrationsCard: React.FC = () => {
       id: 'plain',
       name: 'Plain',
       description: 'Work on Plain threads',
-      logoSvg: plainSvg,
       connected: !!isPlainConnected,
       loading: isPlainLoading,
       onConnect: () => showIntegrationSetup({ integration: 'plain' }),
@@ -277,7 +245,6 @@ const IntegrationsCard: React.FC = () => {
         isForgejoConnected && connectionStatus.forgejo.displayName
           ? connectionStatus.forgejo.displayName
           : 'Work on Forgejo issues',
-      logoSvg: forgejoSvg,
       connected: !!isForgejoConnected,
       loading: isForgejoLoading,
       onConnect: () => showIntegrationSetup({ integration: 'forgejo' }),
@@ -292,7 +259,6 @@ const IntegrationsCard: React.FC = () => {
       id: 'featurebase',
       name: 'Featurebase',
       description: 'Work on Featurebase posts',
-      logoSvg: featurebaseSvg,
       connected: !!isFeaturebaseConnected,
       loading: isFeaturebaseLoading,
       onConnect: () => showIntegrationSetup({ integration: 'featurebase' }),
@@ -305,7 +271,6 @@ const IntegrationsCard: React.FC = () => {
         isAsanaConnected && connectionStatus.asana.displayName
           ? connectionStatus.asana.displayName
           : 'Work on Asana tasks',
-      logoSvg: asanaSvg,
       connected: !!isAsanaConnected,
       loading: isAsanaLoading,
       onConnect: () => showIntegrationSetup({ integration: 'asana' }),
@@ -327,7 +292,7 @@ const IntegrationsCard: React.FC = () => {
         <div key={integration.id} className="flex h-full min-h-0">
           <div className="border-muted bg-muted/20 flex w-full items-center gap-4 rounded-lg border p-4">
             <div className="bg-muted/50 flex h-12 w-12 shrink-0 items-center justify-center rounded-lg">
-              <SvgLogo raw={integration.logoSvg} />
+              {React.createElement(PROVIDER_ICON_COMPONENTS[integration.id], { size: 32 })}
             </div>
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
               <h3 className="text-sm font-medium text-foreground">{integration.name}</h3>
