@@ -1,6 +1,6 @@
-import { ChevronRight, FolderOpen } from 'lucide-react';
+import { AlertTriangle, ChevronRight, FolderOpen } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   getProjectManagerStore,
   getRepositoryStore,
@@ -10,10 +10,12 @@ import { nextDefaultConversationTitle } from '@renderer/features/tasks/conversat
 import { ProjectSelector } from '@renderer/features/tasks/create-task-modal/project-selector';
 import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
+import { rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 import { AnimatedHeight } from '@renderer/lib/ui/animated-height';
+import { Button } from '@renderer/lib/ui/button';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
@@ -25,6 +27,7 @@ import {
 import { Switch } from '@renderer/lib/ui/switch';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { getPrNumber, isForkPr, type PullRequest } from '@shared/pull-requests';
+import type { CreateTaskLimitDecision } from '@shared/tasks';
 import {
   resolveBranchLikeTaskStrategy,
   resolvePullRequestTaskStrategy,
@@ -67,7 +70,10 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   });
   const [selectedStrategy, setSelectedStrategy] = useState<CreateTaskStrategy>(strategy);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const isCheckingLimitRef = useRef(false);
+  const [isCheckingLimit, setIsCheckingLimit] = useState(false);
   const [useBYOI, setUseBYOI] = useState(false);
+  const [limitWarning, setLimitWarning] = useState<CreateTaskLimitDecision | null>(null);
 
   const projectData = selectedProjectId
     ? mountedProjectData(getProjectManagerStore().projects.get(selectedProjectId))
@@ -76,6 +82,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const autoApproveDefaults = useAgentAutoApproveDefaults();
 
   useEffect(() => setUseBYOI(false), [selectedProjectId]);
+  useEffect(() => setLimitWarning(null), [selectedProjectId, selectedStrategy]);
   useEffect(() => {
     initialConversation.setProvider(null);
     initialConversation.setPrompt('');
@@ -110,7 +117,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   }[selectedStrategy];
   const canCreate = !!selectedProjectId && activeMode.isValid && !fromPrUnavailable;
 
-  const handleCreateTask = useCallback(() => {
+  const createTask = useCallback(() => {
     if (!selectedProjectId) return;
     const id = crypto.randomUUID();
     const projectStore = getProjectManagerStore().projects.get(selectedProjectId);
@@ -211,6 +218,36 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     onClose,
   ]);
 
+  const handleCreateTask = useCallback(async () => {
+    if (!selectedProjectId || isCheckingLimitRef.current) return;
+
+    isCheckingLimitRef.current = true;
+    setIsCheckingLimit(true);
+    try {
+      const decision = await rpc.tasks.getCreateTaskLimitDecision(selectedProjectId);
+      if (decision.kind === 'soft-exceeded') {
+        setLimitWarning(decision);
+        return;
+      }
+    } catch {
+      // Limit checks are advisory; task creation should fail open if usage is unavailable.
+    } finally {
+      isCheckingLimitRef.current = false;
+      setIsCheckingLimit(false);
+    }
+
+    createTask();
+  }, [createTask, selectedProjectId]);
+
+  const continueAfterLimitWarning = useCallback(() => {
+    setLimitWarning(null);
+    createTask();
+  }, [createTask]);
+
+  const openAccountSettings = useCallback(() => {
+    navigate('settings', { tab: 'account' });
+  }, [navigate]);
+
   return (
     <>
       <DialogHeader className="flex items-center gap-2">
@@ -256,6 +293,19 @@ export const CreateTaskModal = observer(function CreateTaskModal({
       </div>
       <DialogContentArea>
         <AnimatedHeight onAnimatingChange={setIsTransitioning}>
+          {limitWarning?.kind === 'soft-exceeded' && (
+            <div className="mb-4 flex gap-3 rounded-lg border border-border bg-background-1 p-3">
+              <AlertTriangle className="mt-0.5 size-4 shrink-0 text-foreground-muted" />
+              <div className="flex flex-col gap-1 text-sm">
+                <p className="font-medium text-foreground">Task limit reached</p>
+                <p className="text-foreground-muted">
+                  You have {limitWarning.current} active tasks, which is at or above the current
+                  limit of {limitWarning.limit}. You can continue for now, but may need to adjust
+                  your plan later.
+                </p>
+              </div>
+            </div>
+          )}
           {selectedStrategy === 'from-branch' && (
             <FromBranchContent
               state={fromBranch}
@@ -296,9 +346,27 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         </AnimatedHeight>
       </DialogContentArea>
       <DialogFooter>
-        <ConfirmButton size="sm" onClick={handleCreateTask} disabled={!canCreate}>
-          Create
-        </ConfirmButton>
+        {limitWarning?.kind === 'soft-exceeded' ? (
+          <>
+            <Button size="sm" variant="outline" onClick={() => setLimitWarning(null)}>
+              Back
+            </Button>
+            <Button size="sm" variant="outline" onClick={openAccountSettings}>
+              Account settings
+            </Button>
+            <ConfirmButton size="sm" onClick={continueAfterLimitWarning} disabled={!canCreate}>
+              Continue anyway
+            </ConfirmButton>
+          </>
+        ) : (
+          <ConfirmButton
+            size="sm"
+            onClick={handleCreateTask}
+            disabled={!canCreate || isCheckingLimit}
+          >
+            Create
+          </ConfirmButton>
+        )}
       </DialogFooter>
     </>
   );

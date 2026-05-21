@@ -3,6 +3,7 @@ import { generateTaskName } from './name-generation/generateTaskName';
 import { archiveTask } from './operations/archiveTask';
 import { createTask } from './operations/createTask';
 import { deleteTask } from './operations/deleteTask';
+import { getCreateTaskLimitDecision } from './operations/getCreateTaskLimitDecision';
 import { getTasks } from './operations/getTasks';
 import { getWorkspaceSettings } from './operations/getWorkspaceSettings';
 import { renameTask } from './operations/renameTask';
@@ -15,6 +16,7 @@ import { provisionTask } from './provisionTask';
 
 export const taskController = createRPCController({
   createTask,
+  getCreateTaskLimitDecision,
   getTasks,
   deleteTask,
   generateTaskName,

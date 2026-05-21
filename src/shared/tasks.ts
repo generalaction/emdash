@@ -78,6 +78,10 @@ export type CreateTaskParams = {
   workspaceProvider?: 'byoi';
 };
 
+export type CreateTaskLimitDecision =
+  | { kind: 'ok' }
+  | { kind: 'soft-exceeded'; current: number; limit: number };
+
 export type CreateTaskError =
   | { type: 'project-not-found' }
   | { type: 'initial-commit-required'; branch: string }
