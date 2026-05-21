@@ -36,9 +36,6 @@ export const taskController = createRPCController({
   async setTaskPinned(taskId: string, isPinned: boolean) {
     return taskService.setTaskPinned(taskId, isPinned);
   },
-  async getWorkspaceSettings(projectId: string, workspaceId: string) {
-    return taskService.getWorkspaceSettings(projectId, workspaceId);
-  },
   async provisionTask(taskId: string) {
     const result = await taskService.provision(taskId);
     if (!result.success) {

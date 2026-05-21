@@ -9,7 +9,6 @@ import { conversations, tasks, terminals, workspaces } from '@main/db/schema';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
 import { mapTerminalRowToTerminal } from '@main/core/terminals/core';
-import { telemetryService } from '@main/lib/telemetry';
 import { resolveAgentAutoApprove } from '@shared/agent-auto-approve-defaults';
 import { err, ok, type Result } from '@shared/result';
 import type {
@@ -28,7 +27,6 @@ import { archiveTask } from './operations/archiveTask';
 import { createTask } from './operations/createTask';
 import { deleteTask } from './operations/deleteTask';
 import { getTasks } from './operations/getTasks';
-import { getWorkspaceSettings } from './operations/getWorkspaceSettings';
 import { renameTask } from './operations/renameTask';
 import { restoreTask } from './operations/restoreTask';
 import { setTaskPinned } from './operations/setTaskPinned';
@@ -88,11 +86,6 @@ export class TaskService implements Hookable<TaskCrudHooks> {
     return result;
   }
 
-  /**
-   * Provisions a task by loading its DB state and delegating to TaskManager.
-   * Handles both initial creation (no existing sessions) and re-provision (restores sessions).
-   * Returns a Result so callers can decide whether to throw or propagate the typed error.
-   */
   async provision(taskId: string): Promise<Result<ProvisionResult, ProvisionTaskError>> {
     const [row] = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
     if (!row) throw new Error(`Task not found: ${taskId}`);
@@ -238,37 +231,8 @@ export class TaskService implements Hookable<TaskCrudHooks> {
   updateTaskStatus = updateTaskStatus;
   setTaskPinned = setTaskPinned;
   getTasks = getTasks;
-  getWorkspaceSettings = getWorkspaceSettings;
 }
 
 export const taskService = new TaskService();
 
-taskService.on('task:created', (task, params) => {
-  const { strategy } = params;
-  const taskCreatedStrategy = (() => {
-    if (strategy.kind === 'from-pull-request') return 'pr';
-    if (params.linkedIssue) return 'issue';
-    if (strategy.kind === 'no-worktree') return 'blank';
-    return 'branch';
-  })();
-  telemetryService.capture('task_created', {
-    strategy: taskCreatedStrategy,
-    has_initial_prompt: Boolean(params.initialConversation?.initialPrompt?.trim()),
-    has_issue: params.linkedIssue?.provider ?? 'none',
-    provider: params.initialConversation?.provider ?? null,
-    project_id: task.projectId,
-    task_id: task.id,
-  });
-  if (params.linkedIssue) {
-    telemetryService.capture('issue_linked_to_task', {
-      provider: params.linkedIssue.provider,
-      project_id: task.projectId,
-      task_id: task.id,
-    });
-  }
-});
-
-taskManager.hooks.on('task:provisioned', ({ projectId, taskId }) => {
-  telemetryService.capture('task_provisioned', { project_id: projectId, task_id: taskId });
-});
 
