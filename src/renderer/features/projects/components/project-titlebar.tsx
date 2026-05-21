@@ -83,7 +83,7 @@ const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
           />
           <Button
             variant="ghost"
-            className="flex items-center gap-1.5 text-foreground-muted text-sm hover:text-foreground group transition-colors"
+            className="group flex items-center gap-1.5 text-sm text-foreground-muted transition-colors hover:text-foreground"
             onClick={() =>
               void rpc.app.openExternal(
                 isGithubUrl ? (repository?.repositoryUrl ?? remoteUrl ?? '') : (remoteUrl ?? '')
