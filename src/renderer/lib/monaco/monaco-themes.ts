@@ -49,6 +49,9 @@ function readMonacoVarsForTheme(cssClass: 'emlight' | 'emdark'): MonacoColors {
     ['--monaco-unchanged-region-bg', 'diffEditor.unchangedRegionBackground'],
     ['--monaco-diff-border', 'diffEditor.border'],
     ['--monaco-diff-diagonal-fill', 'diffEditor.diagonalFill'],
+    ['--monaco-selection-bg', 'editor.selectionBackground'],
+    ['--monaco-selection-fg', 'editor.selectionForeground'],
+    ['--monaco-inactive-selection-bg', 'editor.inactiveSelectionBackground'],
   ];
 
   const colors: MonacoColors = {};
