@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module';
 import type { Configuration } from 'electron-builder';
 import {
   APP_ID,
@@ -6,6 +7,9 @@ import {
   R2_BASE_URL,
   UPDATE_CHANNEL,
 } from './src/shared/app-identity';
+
+const require = createRequire(import.meta.url);
+const dmgConfig = require('./build/dmg-config.cjs') as { title: string };
 
 const config: Configuration = {
   appId: APP_ID,
@@ -43,7 +47,7 @@ const config: Configuration = {
     // Unique volume title — Finder caches window state per-volume-name,
     // and stale state from previous builds otherwise overrides the .DS_Store
     // that electron-builder writes into the DMG.
-    title: 'Install Emdash',
+    title: dmgConfig.title,
     background: 'build/dmg-background.png',
     window: { x: 400, y: 100, width: 660, height: 400 },
     iconSize: 100,

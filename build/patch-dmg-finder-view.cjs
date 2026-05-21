@@ -3,19 +3,32 @@ const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const dmgConfig = require('./dmg-config.cjs');
 
 const dmgPath = path.resolve(process.argv[2] || 'release/emdash-arm64.dmg');
 if (!fs.existsSync(dmgPath)) throw new Error(`DMG not found: ${dmgPath}`);
 
-const cacheRoot = path.join(os.homedir(), 'Library/Caches/electron-builder/dmg-builder@1.2.0');
+const cacheParent = path.join(os.homedir(), 'Library/Caches/electron-builder');
 const bundle = fs
-  .readdirSync(cacheRoot)
-  .map((name) => path.join(cacheRoot, name))
-  .find((entry) => fs.existsSync(path.join(entry, 'python/bin/python3.14')));
-if (!bundle) throw new Error(`Could not find electron-builder dmgbuild bundle in ${cacheRoot}`);
+  .readdirSync(cacheParent)
+  .filter((name) => name.startsWith('dmg-builder@'))
+  .flatMap((name) => fs.readdirSync(path.join(cacheParent, name)).map((entry) => path.join(cacheParent, name, entry)))
+  .find((entry) => fs.existsSync(path.join(entry, 'python/bin')));
+if (!bundle) throw new Error(`Could not find electron-builder dmgbuild bundle in ${cacheParent}`);
 
-const python = path.join(bundle, 'python/bin/python3.14');
-const sitePackages = path.join(bundle, 'python/lib/python3.14/site-packages');
+const pythonBin = path.join(bundle, 'python/bin');
+const python = fs
+  .readdirSync(pythonBin)
+  .map((name) => path.join(pythonBin, name))
+  .find((entry) => path.basename(entry).startsWith('python3'));
+if (!python) throw new Error(`Could not find Python in ${pythonBin}`);
+
+const pythonLib = path.join(bundle, 'python/lib');
+const sitePackages = fs
+  .readdirSync(pythonLib)
+  .map((name) => path.join(pythonLib, name, 'site-packages'))
+  .find((entry) => fs.existsSync(entry));
+if (!sitePackages) throw new Error(`Could not find Python site-packages in ${pythonLib}`);
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-dmg-patch-'));
 const rwDmg = path.join(tmpDir, 'rw.dmg');
 const outDmg = path.join(tmpDir, 'out.dmg');
@@ -38,7 +51,8 @@ hdiutil(['convert', dmgPath, '-format', 'UDRW', '-o', rwDmg]);
 console.log('attaching read/write DMG...');
 const attachOutput = hdiutil(['attach', '-readwrite', '-noverify', '-noautoopen', rwDmg]);
 const device = attachOutput.match(/^(\/dev\/\S+)/m)?.[1];
-const mountPoint = attachOutput.match(/\/Volumes\/Install Emdash[^\n]*/)?.[0];
+const volumeName = dmgConfig.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const mountPoint = attachOutput.match(new RegExp(`/Volumes/${volumeName}[^\\n]*`))?.[0].trim();
 if (!device || !mountPoint) throw new Error(`Could not parse hdiutil attach output:\n${attachOutput}`);
 
 try {
