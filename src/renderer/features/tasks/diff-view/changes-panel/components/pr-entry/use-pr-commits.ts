@@ -5,12 +5,16 @@ import type { PullRequest } from '@shared/pull-requests';
 
 const PAGE_SIZE = 50;
 
-export const prCommitsQueryKey = (workspaceId: string, headRefOid: string) =>
-  [workspaceId, 'pr-commits', headRefOid] as const;
+export const prCommitsQueryKey = (
+  projectId: string,
+  workspaceId: string,
+  baseRefOid: string,
+  headRefOid: string
+) => [projectId, workspaceId, 'pr-commits', baseRefOid, headRefOid] as const;
 
 export function usePrCommits(projectId: string, workspaceId: string, pr: PullRequest | undefined) {
   return useInfiniteQuery({
-    queryKey: prCommitsQueryKey(workspaceId, pr?.headRefOid ?? ''),
+    queryKey: prCommitsQueryKey(projectId, workspaceId, pr?.baseRefOid ?? '', pr?.headRefOid ?? ''),
     queryFn: async ({ pageParam }: { pageParam: number }) => {
       const result = await rpc.git.getLog(
         projectId,
