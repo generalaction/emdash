@@ -113,6 +113,7 @@ export type RenameTaskWarning = {
 };
 
 export type RenameTaskSuccess = {
+  task: Task;
   warning?: RenameTaskWarning;
 };
 

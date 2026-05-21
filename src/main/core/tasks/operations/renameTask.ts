@@ -1,6 +1,5 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
-import { taskEvents } from '@main/core/tasks/task-events';
 import { mapTaskRowToTask } from '@main/core/tasks/utils/utils';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
@@ -92,9 +91,6 @@ export async function renameTask(
     .where(eq(tasks.id, taskId))
     .returning();
 
-  if (updatedRow) {
-    taskEvents._emit('task:updated', mapTaskRowToTask(updatedRow));
-  }
-
-  return ok({ warning });
+  const task = updatedRow ? mapTaskRowToTask(updatedRow) : mapTaskRowToTask({ ...row, name: newName });
+  return ok({ task, warning });
 }

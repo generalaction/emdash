@@ -1,30 +1,53 @@
 import { createRPCController } from '@shared/ipc/rpc';
+import type {
+  CreateTaskParams,
+  Issue,
+  TaskLifecycleStatus,
+} from '@shared/tasks';
 import { generateTaskName } from './name-generation/generateTaskName';
-import { archiveTask } from './operations/archiveTask';
-import { createTask } from './operations/createTask';
-import { deleteTask } from './operations/deleteTask';
-import { getTasks } from './operations/getTasks';
-import { getWorkspaceSettings } from './operations/getWorkspaceSettings';
-import { renameTask } from './operations/renameTask';
-import { restoreTask } from './operations/restoreTask';
-import { setTaskPinned } from './operations/setTaskPinned';
-import { teardownTask } from './operations/teardownTask';
-import { updateLinkedIssue } from './operations/updateLinkedIssue';
-import { updateTaskStatus } from './operations/updateTaskStatus';
-import { provisionTask } from './provisionTask';
+import { formatProvisionTaskError } from './provision-task-error';
+import { taskService } from './task-service';
 
 export const taskController = createRPCController({
-  createTask,
-  getTasks,
-  deleteTask,
+  async createTask(params: CreateTaskParams) {
+    return taskService.createTask(params);
+  },
+  async getTasks(projectId?: string) {
+    return taskService.getTasks(projectId);
+  },
+  async deleteTask(projectId: string, taskId: string) {
+    return taskService.deleteTask(projectId, taskId);
+  },
+  async archiveTask(projectId: string, taskId: string) {
+    return taskService.archiveTask(projectId, taskId);
+  },
+  async restoreTask(id: string) {
+    return taskService.restoreTask(id);
+  },
+  async renameTask(projectId: string, taskId: string, newName: string) {
+    return taskService.renameTask(projectId, taskId, newName);
+  },
+  async updateLinkedIssue(taskId: string, issue?: Issue) {
+    return taskService.updateLinkedIssue(taskId, issue);
+  },
+  async updateTaskStatus(taskId: string, status: TaskLifecycleStatus) {
+    return taskService.updateTaskStatus(taskId, status);
+  },
+  async setTaskPinned(taskId: string, isPinned: boolean) {
+    return taskService.setTaskPinned(taskId, isPinned);
+  },
+  async getWorkspaceSettings(projectId: string, workspaceId: string) {
+    return taskService.getWorkspaceSettings(projectId, workspaceId);
+  },
+  async provisionTask(taskId: string) {
+    const result = await taskService.provision(taskId);
+    if (!result.success) {
+      throw new Error(`Failed to provision task: ${formatProvisionTaskError(result.error)}`);
+    }
+    return result.data;
+  },
+  async teardownTask(_projectId: string, taskId: string) {
+    return taskService.teardown(taskId, 'terminate');
+  },
   generateTaskName,
-  archiveTask,
-  restoreTask,
-  renameTask,
-  provisionTask,
-  teardownTask,
-  getWorkspaceSettings,
-  updateLinkedIssue,
-  updateTaskStatus,
-  setTaskPinned,
 });
