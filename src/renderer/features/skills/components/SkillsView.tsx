@@ -37,12 +37,14 @@ export const SkillsView: React.FC = () => {
   const handleUninstallRequest = useCallback(
     (skillId: string) => {
       const displayName = catalog?.skills.find((s) => s.id === skillId)?.displayName ?? skillId;
-      closeDetail();
       showConfirm({
         title: 'Uninstall skill?',
         description: `This will uninstall "${displayName}" from all agents. This action cannot be undone.`,
         confirmLabel: 'Uninstall',
-        onSuccess: () => void uninstall(skillId),
+        onSuccess: () => {
+          closeDetail();
+          void uninstall(skillId);
+        },
       });
     },
     [catalog, closeDetail, showConfirm, uninstall]
