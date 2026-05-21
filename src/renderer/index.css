@@ -390,7 +390,7 @@
     --xterm-fg: var(--foreground);
     --xterm-cursor: var(--foreground);
     --xterm-cursor-accent: var(--foreground-inverse);
-    --xterm-selection-bg: color-mix(in srgb, var(--blue-6) 30%, transparent);
+    --xterm-selection-bg: color(display-p3 0.004 0.502 0.984 / 0.212);
     --xterm-selection-fg: var(--blue-12);
 
     --foreground-diff-added: var(--green-9);
@@ -668,7 +668,7 @@
     --xterm-fg: var(--foreground);
     --xterm-cursor: var(--foreground);
     --xterm-cursor-accent: var(--foreground-inverse);
-    --xterm-selection-bg: var(--blue-4);
+    --xterm-selection-bg: color(display-p3 0.224 0.557 1 / 0.475);
     --xterm-selection-fg: var(--blue-11);
 
     --foreground-diff-added: var(--green-10);

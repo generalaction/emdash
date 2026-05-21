@@ -1,15 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FolderIcon, RefreshCw, Trash2 } from 'lucide-react';
 import React from 'react';
-import {
-  managedWorktreeRefreshCompleteChannel,
-  managedWorktreeSizeUpdatedChannel,
-} from '@shared/events/worktree-events';
-import { dirnameFromAnyPath } from '@shared/path-name';
-import {
-  WORKTREE_CLEANUP_INTERVAL_MS,
-  type ManagedWorktreesSummary,
-} from '@shared/worktree-cleanup';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { events, rpc } from '@renderer/lib/ipc';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
@@ -19,6 +10,15 @@ import { Switch } from '@renderer/lib/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { formatBytes } from '@renderer/utils/formatBytes';
 import { cn } from '@renderer/utils/utils';
+import {
+  managedWorktreeRefreshCompleteChannel,
+  managedWorktreeSizeUpdatedChannel,
+} from '@shared/events/worktree-events';
+import { dirnameFromAnyPath } from '@shared/path-name';
+import {
+  WORKTREE_CLEANUP_INTERVAL_MS,
+  type ManagedWorktreesSummary,
+} from '@shared/worktree-cleanup';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
 import { SettingRow } from './SettingRow';
 import { SettingsNumberStepper } from './SettingsNumberStepper';
@@ -82,7 +82,7 @@ function groupWorktreesByProject(worktrees: ManagedWorktree[]): WorktreeGroup[] 
 function WorktreeListLoading() {
   return (
     <div
-      className="flex min-h-48 flex-col gap-0 overflow-hidden rounded-lg border border-border bg-muted/10"
+      className="bg-muted/10 flex min-h-48 flex-col gap-0 overflow-hidden rounded-lg border border-border"
       aria-label="Loading managed worktrees"
     >
       {[0, 1, 2].map((row) => (
@@ -345,7 +345,7 @@ export default function WorktreeCleanupSettingsCard() {
         {isLoadingWorktrees && (!summary || summary.worktrees.length === 0) ? (
           <WorktreeListLoading />
         ) : !summary || summary.worktrees.length === 0 ? (
-          <div className="flex min-h-48 flex-col items-center justify-center rounded-lg border border-border bg-muted/10 p-8 text-center">
+          <div className="bg-muted/10 flex min-h-48 flex-col items-center justify-center rounded-lg border border-border p-8 text-center">
             <FolderIcon className="mb-3 size-8 text-foreground-passive" />
             <div className="text-sm text-foreground">No managed worktrees</div>
             <p className="mt-1 max-w-sm text-xs text-foreground-passive">
@@ -357,9 +357,9 @@ export default function WorktreeCleanupSettingsCard() {
             {worktreeGroups.map((group) => (
               <div
                 key={group.key}
-                className="overflow-hidden rounded-lg border border-border bg-muted/10"
+                className="bg-muted/10 overflow-hidden rounded-lg border border-border"
               >
-                <div className="flex items-center justify-between gap-3 bg-muted/20 px-4 py-3">
+                <div className="bg-muted/20 flex items-center justify-between gap-3 px-4 py-3">
                   <div className="min-w-0">
                     <div className="truncate text-sm text-foreground">{group.label}</div>
                     {group.path ? (
@@ -368,7 +368,7 @@ export default function WorktreeCleanupSettingsCard() {
                       </div>
                     ) : null}
                   </div>
-                  <div className="shrink-0 text-right text-xs tabular-nums text-foreground-passive">
+                  <div className="shrink-0 text-right text-xs text-foreground-passive tabular-nums">
                     {group.worktrees.length}{' '}
                     {group.worktrees.length === 1 ? 'worktree' : 'worktrees'} ·{' '}
                     {formatBytes(group.totalSizeBytes)}
@@ -382,7 +382,7 @@ export default function WorktreeCleanupSettingsCard() {
                     return (
                       <div
                         key={worktree.workspaceId}
-                        className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 py-3 pl-8 pr-4"
+                        className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 py-3 pr-4 pl-8"
                       >
                         <div className="min-w-0">
                           <div className="flex min-w-0 items-center gap-2">
@@ -394,7 +394,7 @@ export default function WorktreeCleanupSettingsCard() {
                             {worktree.path}
                           </div>
                         </div>
-                        <div className="shrink-0 text-right text-xs tabular-nums text-foreground-passive">
+                        <div className="shrink-0 text-right text-xs text-foreground-passive tabular-nums">
                           {formatBytes(worktree.sizeBytes)}
                         </div>
                         <Tooltip>

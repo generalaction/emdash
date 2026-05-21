@@ -247,7 +247,7 @@ class AppService implements IInitializable, IDisposable {
 
     const { host, username, port } = connection;
 
-    if (appId === 'vscode' || appId === 'vscodium' || appId === 'cursor') {
+    if (appId === 'vscode' || appId === 'vscodium' || appId === 'cursor' || appId === 'zed') {
       await shell.openExternal(buildRemoteEditorUrl(appId, host, username, target));
       return;
     }
@@ -344,6 +344,25 @@ class AppService implements IInitializable, IDisposable {
       return;
     }
 
+    if (appId === 'kaku') {
+      const remoteExecArgs = buildRemoteTerminalExecArgs({
+        host,
+        username,
+        port,
+        targetPath: target,
+      });
+      const attempts =
+        platform === 'darwin'
+          ? [
+              { file: 'open', args: ['-na', 'Kaku', '--args', 'start', '--', ...remoteExecArgs] },
+              { file: 'kaku', args: ['start', '--', ...remoteExecArgs] },
+            ]
+          : [{ file: 'kaku', args: ['start', '--', ...remoteExecArgs] }];
+
+      await this.launchRemoteTerminal('Kaku', attempts);
+      return;
+    }
+
     if (appConfig?.supportsRemote) {
       throw new Error(`Remote SSH not yet implemented for ${label}`);
     }
@@ -390,7 +409,8 @@ class AppService implements IInitializable, IDisposable {
       );
     }
 
-    const quoted = (p: string) => `'${p.replace(/'/g, "'\\''")}'`;
+    const quoted = (p: string) =>
+      process.platform !== 'win32' ? `'${p.replace(/'/g, "'\\''")}'` : `"${p.replace(/"/g, '""')}"`;
     const commands: string[] = platformConfig?.openCommands ?? [];
     const command = commands
       .map((cmd) => cmd.replace('{{path}}', quoted(target)).replace('{{path_raw}}', target))

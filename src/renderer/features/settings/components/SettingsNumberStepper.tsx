@@ -45,7 +45,7 @@ export function SettingsNumberStepper({
 
   return (
     <div
-      className="flex h-8 w-[148px] flex-shrink-0 items-center rounded-md border border-border bg-background p-0.5 shadow-xs transition-colors focus-within:border-border-primary focus-within:ring-2 focus-within:ring-primary/20 aria-disabled:opacity-60"
+      className="focus-within:ring-primary/20 flex h-8 w-[148px] flex-shrink-0 items-center rounded-md border border-border bg-background p-0.5 shadow-xs transition-colors focus-within:border-border-primary focus-within:ring-2 aria-disabled:opacity-60"
       aria-disabled={disabled || undefined}
     >
       <button
@@ -57,7 +57,7 @@ export function SettingsNumberStepper({
       >
         <Minus className="size-3.5" />
       </button>
-      <div className="flex min-w-0 flex-1 items-baseline justify-center gap-1 text-sm tabular-nums text-foreground">
+      <div className="flex min-w-0 flex-1 items-baseline justify-center gap-1 text-sm text-foreground tabular-nums">
         <input
           type="text"
           inputMode="numeric"

@@ -17,10 +17,7 @@ export async function getCreateTaskLimitDecision(
   const limit = getConfiguredTaskLimit();
   if (limit === null) return { kind: 'ok' };
 
-  const [row] = await db
-    .select({ count: count() })
-    .from(tasks)
-    .where(isNull(tasks.archivedAt));
+  const [row] = await db.select({ count: count() }).from(tasks).where(isNull(tasks.archivedAt));
 
   const current = row?.count ?? 0;
   if (current < limit) return { kind: 'ok' };

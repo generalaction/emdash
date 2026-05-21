@@ -7,7 +7,7 @@ import { LifecycleScriptsStore, LifecycleScriptStore } from './lifecycle-scripts
 
 const eventHandlers = new Map<string, (data: unknown) => void>();
 const offPtyExit = vi.fn();
-const getWorkspaceSettings = vi.hoisted(() => vi.fn());
+const getSettings = vi.hoisted(() => vi.fn());
 const watchSetPaths = vi.hoisted(() => vi.fn(async () => ({ success: true, data: {} })));
 const watchStop = vi.hoisted(() => vi.fn(async () => ({ success: true, data: {} })));
 
@@ -19,8 +19,8 @@ vi.mock('@renderer/lib/ipc', () => ({
     }),
   },
   rpc: {
-    tasks: {
-      getWorkspaceSettings,
+    projectSettings: {
+      getSettings,
     },
     fs: {
       watchSetPaths,
@@ -45,7 +45,7 @@ describe('LifecycleScriptStore', () => {
   beforeEach(() => {
     eventHandlers.clear();
     offPtyExit.mockClear();
-    getWorkspaceSettings.mockReset();
+    getSettings.mockReset();
     watchSetPaths.mockClear();
     watchStop.mockClear();
   });
@@ -85,13 +85,13 @@ describe('LifecycleScriptsStore', () => {
   beforeEach(() => {
     eventHandlers.clear();
     offPtyExit.mockClear();
-    getWorkspaceSettings.mockReset();
+    getSettings.mockReset();
     watchSetPaths.mockClear();
     watchStop.mockClear();
   });
 
   it('uses stable script IDs and reconciles command changes from .emdash.json watch events', async () => {
-    getWorkspaceSettings
+    getSettings
       .mockResolvedValueOnce({ scripts: { run: 'pnpm dev' } })
       .mockResolvedValueOnce({ scripts: { run: 'pnpm start' } });
     const store = new LifecycleScriptsStore('project-1', 'workspace-1');
@@ -122,7 +122,7 @@ describe('LifecycleScriptsStore', () => {
   });
 
   it('reloads lifecycle scripts when project settings change', async () => {
-    getWorkspaceSettings
+    getSettings
       .mockResolvedValueOnce({ scripts: { setup: 'pnpm install' } })
       .mockResolvedValueOnce({ scripts: { setup: 'corepack install', run: 'pnpm dev' } });
     const store = new LifecycleScriptsStore('project-1', 'workspace-1');
@@ -138,7 +138,7 @@ describe('LifecycleScriptsStore', () => {
 
   it('does not recreate script sessions when an in-flight load completes after dispose', async () => {
     let resolveSettings: (settings: unknown) => void = () => {};
-    getWorkspaceSettings.mockReturnValue(
+    getSettings.mockReturnValue(
       new Promise((resolve) => {
         resolveSettings = resolve;
       })

@@ -2,6 +2,9 @@ import { execFile } from 'node:child_process';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
+import { sqlite } from '@main/db/client';
+import { events } from '@main/lib/events';
+import { log } from '@main/lib/logger';
 import {
   managedWorktreeRefreshCompleteChannel,
   managedWorktreeSizeUpdatedChannel,
@@ -14,9 +17,6 @@ import {
   type ManagedWorktree,
   type ManagedWorktreesSummary,
 } from '@shared/worktree-cleanup';
-import { sqlite } from '@main/db/client';
-import { events } from '@main/lib/events';
-import { log } from '@main/lib/logger';
 import { appSettingsService } from '../settings/settings-service';
 
 const execFileAsync = promisify(execFile);
@@ -581,10 +581,9 @@ export class WorktreeCleanupService {
       // Archive every non-archived task pointing at this workspace before nuking the dir.
       // archiveTask tears down PTYs/sessions and emits events so the UI updates.
       const activeTasks = sqlite
-        .prepare<
-          [string],
-          { taskId: string; projectId: string }
-        >('SELECT id AS taskId, project_id AS projectId FROM tasks WHERE workspace_id = ? AND archived_at IS NULL')
+        .prepare<[string], { taskId: string; projectId: string }>(
+          'SELECT id AS taskId, project_id AS projectId FROM tasks WHERE workspace_id = ? AND archived_at IS NULL'
+        )
         .all(workspaceId);
 
       const { archiveTask } = await import('../tasks/operations/archiveTask');

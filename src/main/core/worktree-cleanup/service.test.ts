@@ -367,7 +367,9 @@ describe('WorktreeCleanupService', () => {
     emit.mockClear();
 
     const after = await service.removeWorktreeById('first-workspace');
-    const remaining = after.worktrees.find((worktree) => worktree.workspaceId === 'second-workspace');
+    const remaining = after.worktrees.find(
+      (worktree) => worktree.workspaceId === 'second-workspace'
+    );
 
     expect(emit).not.toHaveBeenCalledWith(managedWorktreeSizeUpdatedChannel, expect.anything());
     expect(remaining?.sizeBytes).toBe(secondSize);

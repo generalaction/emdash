@@ -1,5 +1,4 @@
 import type { CreateConversationParams } from '@shared/conversations';
-import type { ProvisionStep } from '@shared/events/taskEvents';
 import type { Branch, CreateBranchError, FetchPrForReviewError, PushError } from '@shared/git';
 import type { PullRequest } from '@shared/pull-requests';
 
@@ -88,9 +87,7 @@ export type CreateTaskError =
   | { type: 'branch-create-failed'; branch: string; error: CreateBranchError }
   | { type: 'pr-fetch-failed'; error: FetchPrForReviewError; remote: string }
   | { type: 'branch-not-found'; branch: string }
-  | { type: 'worktree-setup-failed'; branch: string; message?: string }
-  | { type: 'provision-failed'; message: string }
-  | { type: 'provision-timeout'; timeoutMs: number; step: ProvisionStep | null };
+  | { type: 'worktree-setup-failed'; branch: string; message?: string };
 
 export type CreateTaskWarning = {
   type: 'branch-publish-failed';
@@ -117,12 +114,32 @@ export type RenameTaskWarning = {
 };
 
 export type RenameTaskSuccess = {
+  task: Task;
   warning?: RenameTaskWarning;
 };
 
 export type ProvisionTaskResult = {
   path: string;
   workspaceId: string;
+};
+
+export type DeleteTaskOptions = {
+  deleteWorktree?: boolean;
+  deleteBranch?: boolean;
+};
+
+export type TaskDeletePreflightItem = {
+  taskId: string;
+  /** taskBranch exists and no sibling task shares it */
+  hasWorktree: boolean;
+  /** staged or unstaged changes exist in the worktree */
+  hasUncommittedChanges: boolean;
+  /** hasWorktree && taskBranch differs from sourceBranch */
+  hasDeletableBranch: boolean;
+};
+
+export type DeletePreflightResult = {
+  tasks: TaskDeletePreflightItem[];
 };
 
 export function formatIssueAsPrompt(issue: Issue, initialPrompt?: string): string {

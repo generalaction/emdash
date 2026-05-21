@@ -35,7 +35,7 @@ export function ConfirmActionDialog({
       <DialogContentArea className="flex flex-col gap-3 pt-0">
         <p className="wrap-anywhere">{description}</p>
         {detail ? (
-          <code className="block max-h-32 overflow-auto wrap-anywhere rounded-md border border-border bg-background-1 px-2.5 py-2 font-mono text-xs text-foreground-passive">
+          <code className="block max-h-32 overflow-auto rounded-md border border-border bg-background-1 px-2.5 py-2 font-mono text-xs wrap-anywhere text-foreground-passive">
             {detail}
           </code>
         ) : null}

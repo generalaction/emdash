@@ -2,11 +2,11 @@ import { CheckIcon, ChevronDownIcon, Github, RefreshCw, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { motion } from 'motion/react';
 import { useState } from 'react';
+import type { UserItem } from '@renderer/features/projects/components/pr-view/pr-filter-items';
 import {
   usePrViewState,
   type LabelItem,
   type StatusFilter,
-  type UserItem,
 } from '@renderer/features/projects/components/pr-view/usePrViewState';
 import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { useNavigate, useParams } from '@renderer/lib/layout/navigation-provider';
