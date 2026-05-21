@@ -271,7 +271,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     cli: 'opencode',
     initialPromptFlag: '--prompt',
     resumeFlag: '--continue',
-    icon: 'opencode.png',
+    icon: 'opencode.svg',
     alt: 'OpenCode CLI',
     invertInDark: true,
     terminalOnly: true,

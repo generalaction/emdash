@@ -23,7 +23,7 @@ import kiroIcon from '@/assets/images/kiro.png';
 import lettaIcon from '@/assets/images/letta.svg?raw';
 import mistralIcon from '@/assets/images/mistral.png';
 import openaiIcon from '@/assets/images/openai.svg?raw';
-import opencodeIcon from '@/assets/images/opencode.png';
+import opencodeIcon from '@/assets/images/opencode.svg';
 import piIcon from '@/assets/images/pi.png';
 import qwenIcon from '@/assets/images/qwen.png';
 import xaiIcon from '@/assets/images/xai.svg?raw';
@@ -35,7 +35,7 @@ const ICONS: Record<string, string> = {
   'Auggie.svg': augmentcodeIcon,
   'qwen.png': qwenIcon,
   'charm.png': charmIcon,
-  'opencode.png': opencodeIcon,
+  'opencode.svg': opencodeIcon,
   'ampcode.png': ampcodeIcon,
   'openai.svg': openaiIcon,
   'antigravity.png': antigravityIcon,

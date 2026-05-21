@@ -24,7 +24,7 @@ import kiroLogo from '../../assets/images/kiro.png';
 import lettaLogoSvg from '../../assets/images/letta.svg?raw';
 import mistralLogo from '../../assets/images/mistral.png';
 import openaiLogoSvg from '../../assets/images/openai.svg?raw';
-import opencodeLogo from '../../assets/images/opencode.png';
+import opencodeLogo from '../../assets/images/opencode.svg';
 import piLogo from '../../assets/images/pi.png';
 import qwenLogo from '../../assets/images/qwen.png';
 import xaiLogoSvg from '../../assets/images/xai.svg?raw';
