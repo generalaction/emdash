@@ -178,10 +178,7 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
       void modelRegistry
         .registerModel(projectId, workspaceId, root, tab.path, language, 'git', tab.originalRef)
         .catch(() => {});
-      const effectiveModifiedRef =
-        tab.diffGroup === 'git' || tab.diffGroup === 'pr'
-          ? (tab.modifiedRef ?? HEAD_REF)
-          : HEAD_REF;
+      const effectiveModifiedRef = tab.modifiedRef ?? HEAD_REF;
       void modelRegistry
         .registerModel(
           projectId,

@@ -181,8 +181,7 @@ const StackedFileSlot = observer(function StackedFileSlot({
         .registerModel(projectId, workspaceId, root, file.path, language, 'git', STAGED_REF)
         .catch(() => {});
     } else if (diffType === 'git' || diffType === 'pr') {
-      const effectiveModifiedRef =
-        diffType === 'git' || diffType === 'pr' ? (modifiedRef ?? HEAD_REF) : HEAD_REF;
+      const effectiveModifiedRef = modifiedRef ?? HEAD_REF;
       void modelRegistry
         .registerModel(projectId, workspaceId, root, file.path, language, 'git', originalRef)
         .catch(() => {});
