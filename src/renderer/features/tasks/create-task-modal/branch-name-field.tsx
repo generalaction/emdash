@@ -1,4 +1,3 @@
-import { GitBranch } from 'lucide-react';
 import { Field, FieldLabel } from '@renderer/lib/ui/field';
 import { Input } from '@renderer/lib/ui/input';
 import type { BranchNameState } from './use-branch-name';
@@ -12,9 +11,7 @@ export function BranchNameField({ state }: BranchNameFieldProps) {
 
   return (
     <Field>
-      <FieldLabel className="flex items-center gap-1.5">
-        Branch name
-      </FieldLabel>
+      <FieldLabel className="flex items-center gap-1.5">Branch name</FieldLabel>
       <Input
         value={branchName}
         onChange={(e) => setBranchName(e.target.value)}
