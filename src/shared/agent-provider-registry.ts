@@ -74,6 +74,7 @@ export type AgentProviderDefinition = {
   planActivateCommand?: string;
   autoStartCommand?: string;
   icon?: string;
+  iconDark?: string;
   /** Accessible alt text for the provider logo. */
   alt?: string;
   /** When true, the logo should be colour-inverted in dark mode. */
@@ -272,8 +273,8 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     initialPromptFlag: '--prompt',
     resumeFlag: '--continue',
     icon: 'opencode.svg',
+    iconDark: 'opencode-dark.svg',
     alt: 'OpenCode CLI',
-    invertInDark: true,
     terminalOnly: true,
   },
   {

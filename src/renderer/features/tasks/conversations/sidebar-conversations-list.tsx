@@ -129,6 +129,7 @@ const ConversationRow = observer(function ConversationRow({
             <span className="shrink-0">
               <AgentLogo
                 logo={config.logo}
+                logoDark={config.logoDark}
                 alt={config.alt}
                 isSvg={config.isSvg}
                 invertInDark={config.invertInDark}

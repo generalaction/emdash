@@ -24,7 +24,8 @@ import kiroLogo from '../../assets/images/kiro.png';
 import lettaLogoSvg from '../../assets/images/letta.svg?raw';
 import mistralLogo from '../../assets/images/mistral.svg';
 import openaiLogoSvg from '../../assets/images/openai.svg?raw';
-import opencodeLogo from '../../assets/images/opencode.svg';
+import opencodeLogoDark from '../../assets/images/opencode-dark.svg?raw';
+import opencodeLogo from '../../assets/images/opencode.svg?raw';
 import piLogo from '../../assets/images/pi.png';
 import qwenLogo from '../../assets/images/qwen.svg';
 import xaiLogoSvg from '../../assets/images/xai.svg?raw';
@@ -32,6 +33,7 @@ import xaiLogoSvg from '../../assets/images/xai.svg?raw';
 export type AgentInfo = {
   name: string;
   logo: string;
+  logoDark?: string;
   alt: string;
   invertInDark?: boolean;
   isSvg?: boolean;
@@ -51,7 +53,13 @@ export const agentConfig: Record<AgentProviderId, AgentInfo> = {
   droid: { name: 'Droid', logo: factoryLogoSvg, alt: 'Factory Droid', isSvg: true },
   pi: { name: 'Pi', logo: piLogo, alt: 'Pi CLI' },
   autohand: { name: 'Autohand Code', logo: autohandLogoSvg, alt: 'Autohand Code CLI', isSvg: true },
-  opencode: { name: 'OpenCode', logo: opencodeLogo, alt: 'OpenCode', invertInDark: true },
+  opencode: {
+    name: 'OpenCode',
+    logo: opencodeLogo,
+    logoDark: opencodeLogoDark,
+    alt: 'OpenCode',
+    isSvg: true,
+  },
   hermes: { name: 'Hermes Agent', logo: hermesLogo, alt: 'Hermes Agent CLI' },
   auggie: { name: 'Auggie', logo: augmentLogoSvg, alt: 'Auggie CLI', isSvg: true },
   goose: { name: 'Goose', logo: gooseLogo, alt: 'Goose CLI' },

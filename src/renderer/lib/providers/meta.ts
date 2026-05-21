@@ -23,6 +23,7 @@ import kiroIcon from '@/assets/images/kiro.png';
 import lettaIcon from '@/assets/images/letta.svg?raw';
 import mistralIcon from '@/assets/images/mistral.svg?raw';
 import openaiIcon from '@/assets/images/openai.svg?raw';
+import opencodeDarkIcon from '@/assets/images/opencode-dark.svg?raw';
 import opencodeIcon from '@/assets/images/opencode.svg?raw';
 import piIcon from '@/assets/images/pi.png';
 import qwenIcon from '@/assets/images/qwen.svg?raw';
@@ -36,6 +37,7 @@ const ICONS: Record<string, string> = {
   'qwen.svg': qwenIcon,
   'charm.png': charmIcon,
   'opencode.svg': opencodeIcon,
+  'opencode-dark.svg': opencodeDarkIcon,
   'ampcode.svg': ampcodeIcon,
   'openai.svg': openaiIcon,
   'antigravity.svg': antigravityIcon,
@@ -66,6 +68,7 @@ const ICONS: Record<string, string> = {
 export type AgentMeta = {
   label: string;
   icon?: string;
+  iconDark?: string;
   /** True when the icon is a raw SVG string rather than an image URL. */
   isSvg?: boolean;
   /** When true, the icon should be colour-inverted in dark mode. */
@@ -88,6 +91,7 @@ export const agentMeta: Record<UiAgent, AgentMeta> = Object.fromEntries(
     {
       label: p.name,
       icon: p.icon ? ICONS[p.icon] : undefined,
+      iconDark: p.iconDark ? ICONS[p.iconDark] : undefined,
       isSvg: p.icon ? p.icon.endsWith('.svg') : undefined,
       invertInDark: p.invertInDark,
       alt: p.alt,

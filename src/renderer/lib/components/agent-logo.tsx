@@ -3,6 +3,7 @@ import { useTheme } from '../hooks/useTheme';
 
 interface AgentLogoProps {
   logo: string;
+  logoDark?: string;
   alt: string;
   isSvg?: boolean;
   invertInDark?: boolean;
@@ -13,6 +14,7 @@ interface AgentLogoProps {
 /** Renders an agent logo — handles both raw SVG strings and image URLs with theme awareness. */
 const AgentLogo: React.FC<AgentLogoProps> = ({
   logo,
+  logoDark,
   alt,
   isSvg,
   invertInDark,
@@ -22,14 +24,16 @@ const AgentLogo: React.FC<AgentLogoProps> = ({
   const { effectiveTheme } = useTheme();
   const isDark = effectiveTheme === 'emdark';
 
-  const resolvedIsSvg = isSvg ?? logo.trimStart().startsWith('<svg');
+  const themedLogo = isDark && logoDark ? logoDark : logo;
+  const resolvedIsSvg = isSvg ?? themedLogo.trimStart().startsWith('<svg');
 
   if (resolvedIsSvg) {
-    const processed = isDark
-      ? logo
-          .replace(/\bfill="[^"]*"/g, 'fill="currentColor"')
-          .replace(/\bstroke="[^"]*"/g, 'stroke="currentColor"')
-      : logo;
+    const processed =
+      isDark && !logoDark
+        ? themedLogo
+            .replace(/\bfill="[^"]*"/g, 'fill="currentColor"')
+            .replace(/\bstroke="[^"]*"/g, 'stroke="currentColor"')
+        : themedLogo;
 
     return (
       <span
@@ -43,7 +47,7 @@ const AgentLogo: React.FC<AgentLogoProps> = ({
 
   return (
     <img
-      src={logo}
+      src={themedLogo}
       alt={alt}
       className={`shrink-0 object-contain ${invertInDark ? 'dark:invert' : ''} ${grayscale ? 'grayscale' : ''} ${className}`}
     />

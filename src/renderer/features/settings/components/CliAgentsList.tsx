@@ -60,7 +60,8 @@ type AgentRowActions = {
 };
 
 const renderAgentRow = (agent: CliAgentStatus, actions: AgentRowActions) => {
-  const logo = agentMeta[agent.id as keyof typeof agentMeta]?.icon;
+  const meta = agentMeta[agent.id as keyof typeof agentMeta];
+  const logo = meta?.icon;
   const providerId = isValidProviderId(agent.id) ? agent.id : null;
 
   const handleNameClick = agent.docUrl
@@ -81,6 +82,7 @@ const renderAgentRow = (agent: CliAgentStatus, actions: AgentRowActions) => {
     <IntegrationRow
       key={agent.id}
       logoSrc={logo}
+      logoSrcDark={meta?.iconDark}
       icon={
         logo ? undefined : (
           <Sparkles className="text-muted-foreground h-3.5 w-3.5" aria-hidden="true" />
