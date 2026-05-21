@@ -229,16 +229,68 @@ function withCodexTrustedProject(rawConfig: string | null, worktreePath: string)
   const existing = isPlainObject(projects[worktreePath]) ? projects[worktreePath] : {};
   if (existing['trust_level'] === 'trusted') return null;
 
-  return toml.stringify({
-    ...config,
-    projects: {
-      ...projects,
-      [worktreePath]: {
-        ...existing,
-        trust_level: 'trusted',
-      },
-    },
+  const trustedProjectConfig = toml.stringify({
+    projects: { [worktreePath]: { trust_level: 'trusted' } },
   });
+  if (!rawConfig || rawConfig.trim() === '') return trustedProjectConfig;
+
+  const header = trustedProjectConfig.split('\n')[0];
+  const section = findTomlTableSection(rawConfig, header);
+  if (!section) return appendTomlTable(rawConfig, trustedProjectConfig);
+
+  const sectionText = rawConfig.slice(section.start, section.end);
+  const trustLevelMatch = /^[ \t]*trust_level[ \t]*=.*$/m.exec(sectionText);
+  if (trustLevelMatch) {
+    return (
+      rawConfig.slice(0, section.start + trustLevelMatch.index) +
+      'trust_level = "trusted"' +
+      rawConfig.slice(section.start + trustLevelMatch.index + trustLevelMatch[0].length)
+    );
+  }
+
+  return (
+    rawConfig.slice(0, section.end) +
+    `${sectionText.endsWith('\n') ? '' : '\n'}trust_level = "trusted"\n` +
+    rawConfig.slice(section.end)
+  );
+}
+
+function findTomlTableSection(
+  rawConfig: string,
+  header: string
+): { start: number; end: number } | null {
+  const tableHeaderPattern = /^[ \t]*\[.*\][ \t]*(?:#.*)?$/;
+  let offset = 0;
+
+  for (const line of rawConfig.matchAll(/^.*(?:\n|$)/gm)) {
+    const text = line[0];
+    if (text === '') break;
+    const lineStart = offset;
+    const lineEnd = lineStart + text.length;
+    offset = lineEnd;
+
+    if (text.trim() !== header) continue;
+
+    let sectionEnd = rawConfig.length;
+    for (const nextLine of rawConfig.slice(lineEnd).matchAll(/^.*(?:\n|$)/gm)) {
+      const nextText = nextLine[0];
+      if (nextText === '') break;
+      if (tableHeaderPattern.test(nextText.trimEnd())) {
+        sectionEnd = lineEnd + nextLine.index;
+        break;
+      }
+    }
+
+    return { start: lineStart, end: sectionEnd };
+  }
+
+  return null;
+}
+
+function appendTomlTable(rawConfig: string, table: string): string {
+  const trailingNewline = rawConfig.endsWith('\n') ? '' : '\n';
+  const separator = rawConfig.trim() === '' || rawConfig.endsWith('\n\n') ? '' : '\n';
+  return `${rawConfig}${trailingNewline}${separator}${table}`;
 }
 
 function parseJsonConfig(raw: string | null, providerName: string): Record<string, unknown> | null {

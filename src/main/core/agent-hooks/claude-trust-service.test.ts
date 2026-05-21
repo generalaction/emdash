@@ -309,6 +309,57 @@ describe('ClaudeTrustService', () => {
     expect(String(mockWriteFile.mock.calls[0][1])).toContain('trust_level = "trusted"');
   });
 
+  it('preserves Codex comments and ordering when adding trusted project entries', async () => {
+    const service = makeService();
+    mockReadFile.mockResolvedValue(`# my custom model
+model = "gpt-5"
+
+# keep provider options nearby
+[providers.openai]
+base_url = "https://api.openai.com/v1"
+`);
+
+    await service.maybeAutoTrustLocal({
+      providerId: 'codex',
+      cwd: '/tmp/worktree',
+      homedir: '/home/local-user',
+    });
+
+    const content = String(mockWriteFile.mock.calls[0][1]);
+    expect(content).toContain('# my custom model');
+    expect(content).toContain('# keep provider options nearby');
+    expect(content.indexOf('model = "gpt-5"')).toBeLessThan(content.indexOf('[providers.openai]'));
+    expect(content).toContain('[projects."/tmp/worktree"]');
+    expect(content).toContain('trust_level = "trusted"');
+  });
+
+  it('preserves Codex comments when updating an existing project section', async () => {
+    const service = makeService();
+    mockReadFile.mockResolvedValue(`# top-level comment
+[projects."/tmp/worktree"]
+# project note
+name = "worktree"
+
+[profiles.default]
+model = "gpt-5"
+`);
+
+    await service.maybeAutoTrustLocal({
+      providerId: 'codex',
+      cwd: '/tmp/worktree',
+      homedir: '/home/local-user',
+    });
+
+    const content = String(mockWriteFile.mock.calls[0][1]);
+    expect(content).toContain('# top-level comment');
+    expect(content).toContain('# project note');
+    expect(content).toContain('name = "worktree"');
+    expect(content).toContain('trust_level = "trusted"');
+    expect(content.indexOf('trust_level = "trusted"')).toBeLessThan(
+      content.indexOf('[profiles.default]')
+    );
+  });
+
   it('uses CODEX_HOME for local Codex config when set', async () => {
     const service = makeService();
     mockReadFile.mockResolvedValue('model = "gpt-5"\n');
