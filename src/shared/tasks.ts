@@ -1,5 +1,4 @@
 import type { CreateConversationParams } from '@shared/conversations';
-import type { ProvisionStep } from '@shared/events/taskEvents';
 import type { Branch, CreateBranchError, FetchPrForReviewError, PushError } from '@shared/git';
 import type { PullRequest } from '@shared/pull-requests';
 
@@ -84,9 +83,7 @@ export type CreateTaskError =
   | { type: 'branch-create-failed'; branch: string; error: CreateBranchError }
   | { type: 'pr-fetch-failed'; error: FetchPrForReviewError; remote: string }
   | { type: 'branch-not-found'; branch: string }
-  | { type: 'worktree-setup-failed'; branch: string; message?: string }
-  | { type: 'provision-failed'; message: string }
-  | { type: 'provision-timeout'; timeoutMs: number; step: ProvisionStep | null };
+  | { type: 'worktree-setup-failed'; branch: string; message?: string };
 
 export type CreateTaskWarning = {
   type: 'branch-publish-failed';

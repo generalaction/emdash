@@ -2,14 +2,13 @@ import { eq, sql } from 'drizzle-orm';
 import { mapConversationRowToConversation } from '@main/core/conversations/utils';
 import { projectManager } from '@main/core/projects/project-manager';
 import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
+import { mapTerminalRowToTerminal } from '@main/core/terminals/core';
 import { workspaceBootstrapService } from '@main/core/workspaces/workspace-bootstrap-service';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { db } from '@main/db/client';
 import { conversations, tasks, terminals, workspaces } from '@main/db/schema';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
-import { mapTerminalRowToTerminal } from '@main/core/terminals/core';
-import { resolveAgentAutoApprove } from '@shared/agent-auto-approve-defaults';
 import { err, ok, type Result } from '@shared/result';
 import type {
   CreateTaskError,
@@ -21,8 +20,6 @@ import type {
   RenameTaskSuccess,
   Task,
 } from '@shared/tasks';
-import { createConversation } from '../conversations/createConversation';
-import { appSettingsService } from '../settings/settings-service';
 import { archiveTask } from './operations/archiveTask';
 import { createTask } from './operations/createTask';
 import { deleteTask } from './operations/deleteTask';
@@ -32,13 +29,9 @@ import { restoreTask } from './operations/restoreTask';
 import { setTaskPinned } from './operations/setTaskPinned';
 import { updateLinkedIssue } from './operations/updateLinkedIssue';
 import { updateTaskStatus } from './operations/updateTaskStatus';
-import {
-  type ProvisionTaskError,
-  type TeardownTaskError,
-} from './provision-task-error';
+import { type ProvisionTaskError, type TeardownTaskError } from './provision-task-error';
 import { taskManager, type WorkspaceHint } from './task-manager';
 import { mapTaskRowToTask } from './utils/utils';
-import { mapProvisionError } from './utils/mapProvisionError';
 
 export type TaskCrudHooks = {
   'task:created': (task: Task, params: CreateTaskParams) => void | Promise<void>;
@@ -58,31 +51,9 @@ export class TaskService implements Hookable<TaskCrudHooks> {
     return this._hooks.on(name, handler);
   }
 
-  async createTask(
-    params: CreateTaskParams
-  ): Promise<Result<CreateTaskSuccess, CreateTaskError>> {
+  async createTask(params: CreateTaskParams): Promise<Result<CreateTaskSuccess, CreateTaskError>> {
     const result = await createTask(params);
-    if (!result.success) return result;
-
-    const agentAutoApproveDefaults = await appSettingsService.get('agentAutoApproveDefaults');
-    const { task } = result.data;
-
-    const provisionResult = await this.provision(task.id);
-    if (!provisionResult.success) return err(mapProvisionError(provisionResult.error));
-
-    if (params.initialConversation) {
-      await createConversation({
-        ...params.initialConversation,
-        isInitialConversation: true,
-        autoApprove: resolveAgentAutoApprove(
-          params.initialConversation.autoApprove,
-          agentAutoApproveDefaults,
-          params.initialConversation.provider
-        ),
-      });
-    }
-
-    this._hooks.callHookBackground('task:created', task, params);
+    if (result.success) this._hooks.callHookBackground('task:created', result.data.task, params);
     return result;
   }
 
@@ -234,5 +205,3 @@ export class TaskService implements Hookable<TaskCrudHooks> {
 }
 
 export const taskService = new TaskService();
-
-

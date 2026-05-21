@@ -1,9 +1,5 @@
 import { createRPCController } from '@shared/ipc/rpc';
-import type {
-  CreateTaskParams,
-  Issue,
-  TaskLifecycleStatus,
-} from '@shared/tasks';
+import type { CreateTaskParams, Issue, TaskLifecycleStatus } from '@shared/tasks';
 import { generateTaskName } from './name-generation/generateTaskName';
 import { formatProvisionTaskError } from './provision-task-error';
 import { taskService } from './task-service';

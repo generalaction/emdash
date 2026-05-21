@@ -91,6 +91,8 @@ export async function renameTask(
     .where(eq(tasks.id, taskId))
     .returning();
 
-  const task = updatedRow ? mapTaskRowToTask(updatedRow) : mapTaskRowToTask({ ...row, name: newName });
+  const task = updatedRow
+    ? mapTaskRowToTask(updatedRow)
+    : mapTaskRowToTask({ ...row, name: newName });
   return ok({ task, warning });
 }
