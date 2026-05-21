@@ -162,7 +162,7 @@ export const InlineIssueSelector = observer(function InlineIssueSelector({
           value={query}
           onChange={handleQueryChange}
           onKeyDown={handleKeyDown}
-          placeholder={`Search ${issueProvider ?? 'issues'}…`}
+          placeholder={`Search ${issueProvider ? ISSUE_PROVIDER_META[issueProvider].displayName : 'issues'}…`}
           autoFocus
         />
       </InputGroup>
@@ -171,7 +171,9 @@ export const InlineIssueSelector = observer(function InlineIssueSelector({
       <div ref={listRef} className="h-52 overflow-x-hidden overflow-y-auto p-1">
         {issues.length === 0 ? (
           <div className="flex h-full items-center justify-center text-center text-sm text-foreground-passive">
-            {query ? 'No issues found' : `No ${issueProvider} issues to show`}
+            {query
+              ? 'No issues found'
+              : `No ${issueProvider ? ISSUE_PROVIDER_META[issueProvider].displayName : 'issues'} issues to show`}
           </div>
         ) : (
           issues.map((issue, index) => {

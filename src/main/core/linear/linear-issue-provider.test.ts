@@ -31,6 +31,7 @@ describe('linearIssueProvider', () => {
               description: 'Use the Linear branch format',
               url: 'https://linear.app/general-action/issue/GEN-626',
               branchName: 'jona/gen-626-linear-issue-branch-name-creation',
+              priorityLabel: 'High',
               state: { name: 'Backlog', type: 'unstarted', color: '#aaa' },
               team: { name: 'General', key: 'GEN' },
               project: { name: 'Refactor (v1)' },
@@ -49,6 +50,9 @@ describe('linearIssueProvider', () => {
     expect(rawRequest).toHaveBeenCalledWith(expect.stringContaining('branchName'), {
       limit: 10,
     });
+    expect(rawRequest).toHaveBeenCalledWith(expect.stringContaining('priorityLabel'), {
+      limit: 10,
+    });
     expect(rawRequest).toHaveBeenCalledWith(expect.not.stringContaining('comments('), {
       limit: 10,
     });
@@ -62,6 +66,7 @@ describe('linearIssueProvider', () => {
           provider: 'linear',
           identifier: 'GEN-626',
           branchName: 'jona/gen-626-linear-issue-branch-name-creation',
+          priority: 'High',
           context: undefined,
         }),
       ],
@@ -80,6 +85,7 @@ describe('linearIssueProvider', () => {
               description: 'Use the Linear branch format',
               url: 'https://linear.app/general-action/issue/GEN-626',
               branchName: 'jona/gen-626-linear-issue-branch-name-creation',
+              priorityLabel: 'Medium',
               state: { name: 'Backlog', type: 'unstarted', color: '#aaa' },
               team: { name: 'General', key: 'GEN' },
               project: { name: 'Refactor (v1)' },
@@ -103,6 +109,10 @@ describe('linearIssueProvider', () => {
       expect.objectContaining({ term: 'GEN-626', limit: 5 })
     );
     expect(rawRequest).toHaveBeenCalledWith(
+      expect.stringContaining('priorityLabel'),
+      expect.objectContaining({ term: 'GEN-626', limit: 5 })
+    );
+    expect(rawRequest).toHaveBeenCalledWith(
       expect.not.stringContaining('comments('),
       expect.objectContaining({ term: 'GEN-626', limit: 5 })
     );
@@ -117,6 +127,7 @@ describe('linearIssueProvider', () => {
           provider: 'linear',
           identifier: 'GEN-626',
           branchName: 'jona/gen-626-linear-issue-branch-name-creation',
+          priority: 'Medium',
         }),
       ],
     });

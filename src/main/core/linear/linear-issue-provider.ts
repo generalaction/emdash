@@ -22,6 +22,7 @@ type LinearIssueSummaryNode = {
   description: string | null;
   url: string;
   branchName: string | null;
+  priorityLabel: string | null;
   state: { name: string; type: string; color: string } | null;
   team: { name: string; key: string } | null;
   project: { name: string } | null;
@@ -39,6 +40,7 @@ const ISSUE_SUMMARY_FRAGMENT = `
     description
     url
     branchName
+    priorityLabel
     state { name type color }
     team { name key }
     project { name }
@@ -73,6 +75,7 @@ const SEARCH_QUERY = `
         description
         url
         branchName
+        priorityLabel
         state { name type color }
         team { name key }
         project { name }
@@ -93,6 +96,7 @@ const ISSUE_CONTEXT_QUERY = `
         description
         url
         branchName
+        priorityLabel
         state { name type color }
         team { name key }
         project { name }
@@ -114,6 +118,7 @@ function toIssue(raw: LinearIssueSummaryNode, context?: string): Issue {
     context,
     branchName: raw.branchName ?? undefined,
     status: raw.state?.name ?? undefined,
+    priority: raw.priorityLabel ?? undefined,
     assignees: raw.assignee
       ? [raw.assignee.name ?? raw.assignee.displayName].filter(Boolean)
       : undefined,

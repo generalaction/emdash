@@ -13,6 +13,7 @@ export type Issue = {
   context?: string;
   branchName?: string;
   status?: string;
+  priority?: string;
   assignees?: string[];
   project?: string;
   updatedAt?: string;

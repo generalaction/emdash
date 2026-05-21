@@ -1,4 +1,4 @@
-import { ExternalLink, Link2, Loader2 } from 'lucide-react';
+import { CircleAlert, ExternalLink, Link2, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { forwardRef, useCallback, useRef, useState } from 'react';
 import {
@@ -28,7 +28,7 @@ import { getLinkedIssueMap, type LinkedIssueInfo } from './use-linked-issue-urls
 import { useIssueSearch } from './useIssueSearch';
 
 function getStatusColorClass(status?: string) {
-  if (!status) return '';
+  if (!status) return 'border-foreground-passive';
   const s = status.toLowerCase();
   if (
     s.includes('done') ||
@@ -36,12 +36,12 @@ function getStatusColorClass(status?: string) {
     s.includes('resolved') ||
     s.includes('completed')
   )
-    return 'bg-foreground-success';
+    return 'border-foreground-success';
   if (s.includes('progress') || s.includes('review') || s.includes('open'))
-    return 'bg-foreground-warning';
+    return 'border-foreground-warning';
   if (s.includes('blocked') || s.includes('cancelled') || s.includes('canceled'))
-    return 'bg-foreground-error';
-  return 'bg-foreground-passive';
+    return 'border-foreground-error';
+  return 'border-foreground-passive';
 }
 
 export function IssueIdentifier({
@@ -67,8 +67,13 @@ export const StatusDot = forwardRef<HTMLSpanElement, { status?: string }>(
       <span
         ref={ref}
         {...props}
-        className={cn('inline-block h-1.5 w-1.5 shrink-0 rounded-full', color)}
-      />
+        className={cn(
+          'inline-flex size-3.5 shrink-0 items-center justify-center rounded-full border-2',
+          color
+        )}
+      >
+        <span className="size-1.5 rounded-full bg-current opacity-0" />
+      </span>
     );
   }
 );
@@ -96,6 +101,62 @@ export function ProviderLogo({
   );
 }
 
+function IssuePriorityIcon({
+  priority,
+  className,
+  reserveSpace = false,
+}: {
+  priority?: string;
+  className?: string;
+  reserveSpace?: boolean;
+}) {
+  if (!priority || priority.toLowerCase() === 'no priority') {
+    return reserveSpace ? <span className={cn('w-3 shrink-0', className)} /> : null;
+  }
+
+  const normalizedPriority = priority.toLowerCase();
+  const activeBars =
+    normalizedPriority === 'urgent' || normalizedPriority === 'high'
+      ? 3
+      : normalizedPriority === 'medium'
+        ? 2
+        : 1;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <span
+            className={cn(
+              'flex h-3 w-3 shrink-0 items-end justify-center gap-px text-foreground-muted',
+              normalizedPriority === 'urgent' && 'text-foreground-error',
+              className
+            )}
+          >
+            {normalizedPriority === 'urgent' ? (
+              <CircleAlert className="size-3" />
+            ) : (
+              [1, 2, 3].map((bar) => (
+                <span
+                  key={bar}
+                  className={cn(
+                    'w-1 rounded-full bg-current',
+                    bar === 1 && 'h-1',
+                    bar === 2 && 'h-2',
+                    bar === 3 && 'h-3',
+                    bar > activeBars && 'opacity-25'
+                  )}
+                />
+              ))
+            )}
+          </span>
+        }
+      />
+      <TooltipContent>Priority: {priority}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 export function LinkedIssueIndicator({ linkedTo }: { linkedTo: LinkedIssueInfo }) {
   return (
     <Tooltip>
@@ -113,12 +174,13 @@ export function LinkedIssueIndicator({ linkedTo }: { linkedTo: LinkedIssueInfo }
 
 export function IssueRow({ issue, linkedTo }: { issue: Issue; linkedTo?: LinkedIssueInfo }) {
   return (
-    <span className="flex w-full min-w-0 items-center gap-2">
+    <span className="flex w-full min-w-0 items-center gap-3">
+      <IssuePriorityIcon priority={issue.priority} reserveSpace />
+      <IssueIdentifier identifier={issue.identifier} provider={issue.provider} />
       <Tooltip>
         <TooltipTrigger render={<StatusDot status={issue.status} />} />
         <TooltipContent>{issue.status}</TooltipContent>
       </Tooltip>
-      <IssueIdentifier identifier={issue.identifier} provider={issue.provider} />
       {issue.title ? <span className="truncate text-foreground">{issue.title}</span> : null}
       {linkedTo ? <LinkedIssueIndicator linkedTo={linkedTo} /> : null}
     </span>
@@ -259,7 +321,7 @@ export const IssueSelector = observer(function IssueSelector({
               inputRef={inputRef}
               showClear={!!value}
               showTrigger={false}
-              placeholder={`Search ${issueProvider ?? 'issues'}…`}
+              placeholder={`Search ${issueProvider ? ISSUE_PROVIDER_META[issueProvider].displayName : 'issues'}…`}
               disabled={!hasAnyIntegration}
             />
             <ComboboxEmpty>
@@ -291,6 +353,7 @@ export function SelectedIssueValue({ issue }: { issue: Issue }) {
         <div className="flex items-center gap-2">
           <ProviderLogo provider={issue.provider} className="h-3.5 w-3.5" />
           <span>{`${ISSUE_PROVIDER_META[issue.provider].displayName} issue`}</span>
+          <IssuePriorityIcon priority={issue.priority} reserveSpace />
           <IssueIdentifier identifier={issue.identifier} provider={issue.provider} />
         </div>
         <Button
@@ -305,11 +368,16 @@ export function SelectedIssueValue({ issue }: { issue: Issue }) {
       {issue.title ? (
         <div className="text-muted-foreground min-w-0 truncate">{issue.title}</div>
       ) : null}
-      <div className="relative flex items-center justify-between gap-2">
-        <Badge variant="outline" className="flex items-center gap-2 rounded-md text-xs font-normal">
-          <StatusDot status={issue.status} />
-          {issue.status}
-        </Badge>
+      <div className="relative flex items-center gap-2">
+        {issue.status ? (
+          <Badge
+            variant="outline"
+            className="flex items-center gap-2 rounded-md text-xs font-normal"
+          >
+            <StatusDot status={issue.status} />
+            {issue.status}
+          </Badge>
+        ) : null}
       </div>
     </div>
   );
