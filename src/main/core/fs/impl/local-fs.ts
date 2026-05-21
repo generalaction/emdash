@@ -3,6 +3,7 @@ import { basename, dirname, extname, join, relative, resolve, sep } from 'node:p
 import { createInterface } from 'node:readline';
 import { glob } from 'glob';
 import ignore from 'ignore';
+import { createWorkspaceFileUrl } from '@main/app/protocol';
 import { log } from '@main/lib/logger';
 import type { FileWatchEvent } from '@shared/fs';
 import {
@@ -713,6 +714,7 @@ export class LocalFileSystem implements FileSystemProvider {
   async readPdf(path: string): Promise<{
     success: boolean;
     dataUrl?: string;
+    fileUrl?: string;
     mimeType?: string;
     size?: number;
     error?: string;
@@ -740,17 +742,14 @@ export class LocalFileSystem implements FileSystemProvider {
       return { success: false, error: `PDF too large: ${stat.size} bytes (max ${maxPdfSize})` };
     }
 
-    try {
-      const buffer = await fs.readFile(fullPath);
-      return {
-        success: true,
-        dataUrl: `data:application/pdf;base64,${buffer.toString('base64')}`,
-        mimeType: 'application/pdf',
-        size: stat.size,
-      };
-    } catch (err: unknown) {
-      return { success: false, error: err instanceof Error ? err.message : String(err) };
-    }
+    const fileUrl = createWorkspaceFileUrl(fullPath);
+
+    return {
+      success: true,
+      fileUrl,
+      mimeType: 'application/pdf',
+      size: stat.size,
+    };
   }
 
   async mkdir(dirPath: string, options?: { recursive?: boolean }): Promise<void> {

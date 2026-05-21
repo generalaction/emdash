@@ -242,6 +242,7 @@ export interface FileSystemProvider {
   readPdf?(path: string): Promise<{
     success: boolean;
     dataUrl?: string;
+    fileUrl?: string;
     mimeType?: string;
     size?: number;
     error?: string;

@@ -11,6 +11,24 @@ import { log } from '@renderer/utils/logger';
 import { HEAD_REF } from '@shared/git';
 import type { EditorViewSnapshot } from '@shared/view-state';
 
+const PREVIEW_LOAD_TIMEOUT_MS = 30_000;
+
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeout = window.setTimeout(() => reject(new Error('Preview load timed out')), timeoutMs);
+    void promise.then(
+      (value) => {
+        window.clearTimeout(timeout);
+        resolve(value);
+      },
+      (error) => {
+        window.clearTimeout(timeout);
+        reject(error);
+      }
+    );
+  });
+}
+
 /**
  * Owns Monaco model lifecycle (register/unregister) and file persistence (save, conflict).
  *
@@ -38,6 +56,7 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
   private readonly workspaceId: string;
   private readonly tabGroupManager: TabGroupManagerStore;
   private readonly disposers: (() => void)[] = [];
+  private readonly pendingPreviewLoads = new Set<string>();
 
   constructor(tabGroupManager: TabGroupManagerStore, projectId: string, workspaceId: string) {
     this.tabGroupManager = tabGroupManager;
@@ -56,12 +75,17 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
     // across ALL panes. A model stays registered as long as any pane has the file open.
     this.disposers.push(
       reaction(
-        () => this.tabGroupManager.allOpenFilePaths,
-        (current, previous = []) => {
+        () => ({
+          paths: this.tabGroupManager.allOpenFilePaths,
+          loadingPreviewPaths: this._loadingPreviewPaths(),
+        }),
+        (currentState, previousState) => {
+          const current = currentState.paths;
+          const previous = previousState?.paths ?? [];
           const prev = new Set(previous);
           const curr = new Set(current);
           for (const path of curr) {
-            if (!prev.has(path)) {
+            if (!prev.has(path) || currentState.loadingPreviewPaths.includes(path)) {
               void this._registerModels(path);
             }
           }
@@ -242,15 +266,27 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
     const kind = getFileKind(filePath);
 
     if (kind === 'image' || kind === 'pdf') {
+      if (this.pendingPreviewLoads.has(filePath)) return;
+      this.pendingPreviewLoads.add(filePath);
       let content = '';
       try {
-        const result =
-          kind === 'image'
-            ? await rpc.fs.readImage(this.projectId, this.workspaceId, filePath)
-            : await rpc.fs.readPdf(this.projectId, this.workspaceId, filePath);
-        content = result.success ? (result.data?.dataUrl ?? '') : '';
+        if (kind === 'image') {
+          const result = await withTimeout(
+            rpc.fs.readImage(this.projectId, this.workspaceId, filePath),
+            PREVIEW_LOAD_TIMEOUT_MS
+          );
+          content = result.success ? (result.data?.dataUrl ?? '') : '';
+        } else {
+          const result = await withTimeout(
+            rpc.fs.readPdf(this.projectId, this.workspaceId, filePath),
+            PREVIEW_LOAD_TIMEOUT_MS
+          );
+          content = result.success ? (result.data?.fileUrl ?? result.data?.dataUrl ?? '') : '';
+        }
       } catch (error) {
         log.warn(`[FileModelLifecycleStore] Failed to load ${kind} preview:`, error);
+      } finally {
+        this.pendingPreviewLoads.delete(filePath);
       }
       runInAction(() => {
         for (const { tabManager } of this.tabGroupManager.groups) {
@@ -318,5 +354,25 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
     modelRegistry.unregisterModel(modelRegistry.toDiskUri(uri));
     modelRegistry.unregisterModel(modelRegistry.toGitUri(uri, HEAD_REF));
     void rpc.editorBuffer.clearBuffer(this.projectId, this.workspaceId, filePath);
+  }
+
+  private _loadingPreviewPaths(): string[] {
+    const paths: string[] = [];
+    const seen = new Set<string>();
+    for (const { tabManager } of this.tabGroupManager.groups) {
+      for (const tabId of tabManager.tabOrder) {
+        const entry = tabManager.entries.get(tabId);
+        if (
+          entry?.kind === 'file' &&
+          entry.isLoading &&
+          (entry.fileKind === 'image' || entry.fileKind === 'pdf') &&
+          !seen.has(entry.path)
+        ) {
+          seen.add(entry.path);
+          paths.push(entry.path);
+        }
+      }
+    }
+    return paths;
   }
 }

@@ -464,14 +464,17 @@ describe('LocalFileSystem', () => {
   });
 
   describe('readPdf', () => {
-    it('should read PDF as data URL', async () => {
+    it('should return a file URL for PDFs', async () => {
       const pdfBuffer = Buffer.from('%PDF-1.4\n%test\n');
-      fs.writeFileSync(path.join(tempDir, 'test.pdf'), pdfBuffer);
+      const pdfPath = path.join(tempDir, 'test.pdf');
+      fs.writeFileSync(pdfPath, pdfBuffer);
 
       const result = await fsService.readPdf('test.pdf');
 
       expect(result.success).toBe(true);
-      expect(result.dataUrl).toBe(`data:application/pdf;base64,${pdfBuffer.toString('base64')}`);
+      expect(result.fileUrl).toMatch(/^app:\/\/emdash\/__workspace_file__\//);
+      expect(result.fileUrl).toContain(encodeURIComponent(path.basename(pdfPath)));
+      expect(result.dataUrl).toBeUndefined();
       expect(result.mimeType).toBe('application/pdf');
       expect(result.size).toBe(pdfBuffer.length);
     });
