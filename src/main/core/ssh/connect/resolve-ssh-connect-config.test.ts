@@ -318,6 +318,48 @@ describe('resolveSshConnectConfig', () => {
     ).resolves.toBeInstanceOf(PassThrough);
   });
 
+  it('does not expose agent getStream when the wrapped agent does not support it', async () => {
+    const result = await resolveSshConnectConfig(
+      {
+        kind: 'transient',
+        config: baseConfig({ sshConfigAlias: 'corp-dev', authType: 'agent' }),
+      },
+      deps({
+        readFile: async () =>
+          'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAILI4wa2zRZoB26D015dsafYmu3jDCI7rh26bFXZrUiAp test-key',
+        createAgent: () =>
+          ({
+            getIdentities: (callback) => callback(undefined, [parseFixturePublicKey()]),
+            sign: (
+              _pubKey,
+              _data,
+              callbackOrOptions?: SignCallback | object,
+              callback?: SignCallback
+            ) => {
+              const cb = typeof callbackOrOptions === 'function' ? callbackOrOptions : callback;
+              cb?.(undefined, Buffer.from('signature'));
+            },
+          }) satisfies BaseAgent,
+        resolveSshConfig: async () => ({
+          hostname: 'dev.internal',
+          user: 'alice',
+          port: 22,
+          identityFile: ['~/.ssh/corp_ed25519'],
+          identityAgent: 'SSH_AUTH_SOCK',
+          identityAgentDisabled: false,
+          identitiesOnly: true,
+          proxyCommand: undefined,
+          proxyJump: undefined,
+          forwardAgent: false,
+        }),
+      })
+    );
+
+    const agent = result.config.agent as BaseAgent;
+    expect('getStream' in agent).toBe(false);
+    expect(agent.getStream).toBeUndefined();
+  });
+
   it('rejects IdentitiesOnly when no IdentityFile public or private keys can be loaded', async () => {
     await expect(
       resolveSshConnectConfig(

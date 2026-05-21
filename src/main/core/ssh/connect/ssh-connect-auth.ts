@@ -43,11 +43,17 @@ function comparablePublicKey(key: AgentPublicKey): ParsedKey | Buffer | string {
 
 class IdentityFilteredAgent implements BaseAgent {
   readonly kind = 'identity-filtered-agent';
+  declare getStream?: BaseAgent['getStream'];
+
   constructor(
     readonly socketPath: string,
     private readonly agent: BaseAgent,
     private readonly allowedKeys: ParsedKey[]
-  ) {}
+  ) {
+    if (agent.getStream) {
+      this.getStream = agent.getStream.bind(agent);
+    }
+  }
 
   getIdentities(callback: IdentityCallback): void {
     this.agent.getIdentities((error, keys) => {
@@ -75,10 +81,6 @@ class IdentityFilteredAgent implements BaseAgent {
       return;
     }
     this.agent.sign(pubKey, data, optionsOrCallback ?? {}, callback);
-  }
-
-  getStream(callback: Parameters<NonNullable<BaseAgent['getStream']>>[0]): void {
-    this.agent.getStream?.(callback);
   }
 }
 
