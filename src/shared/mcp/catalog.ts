@@ -189,11 +189,14 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     config: {
       type: 'http',
       url: 'https://mcp.neon.tech/mcp',
+      headers: {
+        Authorization: 'Bearer YOUR_API_KEY',
+      },
     },
     name: 'Neon',
     description: 'Manage Neon Postgres databases, branches, migrations, and queries',
     docsUrl: 'https://neon.com/docs/ai/neon-mcp-server',
-    credentialKeys: [],
+    credentialKeys: [{ key: 'Authorization', required: true }],
   },
   bigquery: {
     config: {
