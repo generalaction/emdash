@@ -147,6 +147,11 @@ export const InlineIssueSelector = observer(function InlineIssueSelector({
     return <ConnectIssueIntegrationPlaceholder />;
   }
 
+  const reservePrioritySpace = issues.some((i) => {
+    const p = i.priority?.toLowerCase();
+    return !!p && p !== 'no priority';
+  });
+
   return (
     <div
       className={cn(
@@ -192,7 +197,11 @@ export const InlineIssueSelector = observer(function InlineIssueSelector({
                 onMouseEnter={() => setHighlightedIndex(index)}
                 onClick={() => onValueChange(isSelected ? null : issue)}
               >
-                <IssueRow issue={issue} linkedTo={linkedTo} />
+                <IssueRow
+                  issue={issue}
+                  linkedTo={linkedTo}
+                  reservePrioritySpace={reservePrioritySpace}
+                />
                 {isSelected && (
                   <Check className="absolute right-2 size-3.5 shrink-0 text-foreground-muted" />
                 )}

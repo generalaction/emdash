@@ -172,10 +172,18 @@ export function LinkedIssueIndicator({ linkedTo }: { linkedTo: LinkedIssueInfo }
   );
 }
 
-export function IssueRow({ issue, linkedTo }: { issue: Issue; linkedTo?: LinkedIssueInfo }) {
+export function IssueRow({
+  issue,
+  linkedTo,
+  reservePrioritySpace = true,
+}: {
+  issue: Issue;
+  linkedTo?: LinkedIssueInfo;
+  reservePrioritySpace?: boolean;
+}) {
   return (
     <span className="flex w-full min-w-0 items-center gap-3">
-      <IssuePriorityIcon priority={issue.priority} reserveSpace />
+      <IssuePriorityIcon priority={issue.priority} reserveSpace={reservePrioritySpace} />
       <IssueIdentifier identifier={issue.identifier} provider={issue.provider} />
       <Tooltip>
         <TooltipTrigger render={<StatusDot status={issue.status} />} />
@@ -220,6 +228,11 @@ export const IssueSelector = observer(function IssueSelector({
   const [comboboxOpen, setComboboxOpen] = useState(false);
   const providerSelectOpenRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const reservePrioritySpace = issues.some((i) => {
+    const p = i.priority?.toLowerCase();
+    return !!p && p !== 'no priority';
+  });
 
   const handleSelectIssueProvider = useCallback(
     (provider: Issue['provider']) => {
@@ -332,7 +345,11 @@ export const IssueSelector = observer(function IssueSelector({
                 const linkedTo = linkedIssueMap.get(issue.url);
                 return (
                   <ComboboxItem key={issue.identifier} value={issue} className="pr-2">
-                    <IssueRow issue={issue} linkedTo={linkedTo} />
+                    <IssueRow
+                      issue={issue}
+                      linkedTo={linkedTo}
+                      reservePrioritySpace={reservePrioritySpace}
+                    />
                   </ComboboxItem>
                 );
               }}
@@ -353,7 +370,7 @@ export function SelectedIssueValue({ issue }: { issue: Issue }) {
         <div className="flex items-center gap-2">
           <ProviderLogo provider={issue.provider} className="h-3.5 w-3.5" />
           <span>{`${ISSUE_PROVIDER_META[issue.provider].displayName} issue`}</span>
-          <IssuePriorityIcon priority={issue.priority} reserveSpace />
+          <IssuePriorityIcon priority={issue.priority} />
           <IssueIdentifier identifier={issue.identifier} provider={issue.provider} />
         </div>
         <Button
