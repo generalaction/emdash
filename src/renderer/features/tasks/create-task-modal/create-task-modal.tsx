@@ -6,6 +6,7 @@ import {
   getRepositoryStore,
   mountedProjectData,
 } from '@renderer/features/projects/stores/project-selectors';
+import { buildIssueContextText } from '@renderer/features/tasks/conversations/context-actions';
 import { nextDefaultConversationTitle } from '@renderer/features/tasks/conversations/conversation-title-utils';
 import { ProjectSelector } from '@renderer/features/tasks/create-task-modal/project-selector';
 import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
@@ -25,6 +26,7 @@ import {
 import { Switch } from '@renderer/lib/ui/switch';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { getPrNumber, isForkPr, type PullRequest } from '@shared/pull-requests';
+import type { Issue } from '@shared/tasks';
 import {
   resolveBranchLikeTaskStrategy,
   resolvePullRequestTaskStrategy,
@@ -38,6 +40,21 @@ import { useFromIssueMode } from './use-from-issue-mode';
 import { useFromPullRequestMode } from './use-from-pull-request-mode';
 
 type CreateTaskStrategy = 'from-branch' | 'from-issue' | 'from-pull-request';
+
+function composePromptWithIssueContext(
+  prompt: string | undefined,
+  issue: Issue
+): string | undefined {
+  const context = buildIssueContextText(issue);
+  if (!context.trim()) return prompt;
+
+  const userPrompt = prompt?.trim() ?? '';
+  if (userPrompt.includes(issue.identifier)) {
+    return prompt;
+  }
+
+  return userPrompt ? `${userPrompt}\n\n${context}` : context;
+}
 
 export const CreateTaskModal = observer(function CreateTaskModal({
   projectId,
@@ -156,15 +173,26 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           taskBranch: fromIssue.taskName,
           pushBranch: fromIssue.pushBranch,
         });
+        const linkedIssue = fromIssue.linkedIssue ?? undefined;
+        const issueInitialConversation =
+          builtInitialConversation && linkedIssue
+            ? {
+                ...builtInitialConversation,
+                initialPrompt: composePromptWithIssueContext(
+                  builtInitialConversation.initialPrompt,
+                  linkedIssue
+                ),
+              }
+            : builtInitialConversation;
         void projectStore.mountedProject!.taskManager.createTask({
           id,
           projectId: selectedProjectId,
           name: fromIssue.taskName,
           sourceBranch: fromIssue.selectedBranch,
           strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
-          linkedIssue: fromIssue.linkedIssue ?? undefined,
+          linkedIssue,
           workspaceProvider: useBYOI ? 'byoi' : undefined,
-          initialConversation: builtInitialConversation,
+          initialConversation: issueInitialConversation,
         });
         break;
       }
