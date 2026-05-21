@@ -1,3 +1,4 @@
+// DB metadata column serialization for SSH connections.
 import type { SshConnectionRow } from '@main/db/schema';
 import type { SshConfig } from '@shared/ssh';
 

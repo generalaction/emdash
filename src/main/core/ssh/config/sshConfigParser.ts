@@ -1,3 +1,4 @@
+// Best-effort listing of ~/.ssh/config aliases for UI import. Not canonical for connection behavior.
 import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';

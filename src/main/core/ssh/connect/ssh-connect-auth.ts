@@ -1,3 +1,4 @@
+// Auth assembly: password, key, and agent selection with IdentitiesOnly filtering.
 import ssh2, {
   type BaseAgent,
   type ConnectConfig,

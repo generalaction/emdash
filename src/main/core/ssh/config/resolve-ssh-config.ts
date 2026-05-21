@@ -1,3 +1,4 @@
+// Canonical OpenSSH resolution via `ssh -G`. Source of truth at connect time.
 import { execFile } from 'node:child_process';
 
 export interface SshConfigRunnerResult {

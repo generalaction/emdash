@@ -1,3 +1,4 @@
+// ForwardAgent socket resolution and compatibility checks.
 import type { ConnectConfig } from 'ssh2';
 import {
   resolveAgentSocketFromResolved,
