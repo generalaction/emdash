@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { FileWatchEvent } from '@shared/fs';
 import { FilesStore } from './files-store';
 
 const mocks = vi.hoisted(() => ({
@@ -45,6 +46,12 @@ function setupListFiles(entriesByDir: Record<string, Entry[]>): void {
   );
 }
 
+async function flushAsyncWork(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
 describe('FilesStore', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -52,6 +59,8 @@ describe('FilesStore', () => {
     mocks.watchSetPaths.mockReset();
     mocks.watchStop.mockReset();
     mocks.eventOn.mockReset();
+    mocks.watchSetPaths.mockResolvedValue({ success: true, data: { supported: true } });
+    mocks.watchStop.mockResolvedValue({ success: true, data: {} });
   });
 
   afterEach(() => {
@@ -59,7 +68,7 @@ describe('FilesStore', () => {
     vi.useRealTimers();
   });
 
-  it('loads only the root directory on initial load', async () => {
+  it('loads the root directory and warms discovered child directories in the background', async () => {
     setupListFiles({
       '': [
         { path: 'src', type: 'dir' },
@@ -70,15 +79,19 @@ describe('FilesStore', () => {
 
     const store = new FilesStore('project-1', 'workspace-1');
     await store.tree.load();
+    await flushAsyncWork();
     store.dispose();
 
-    expect(mocks.listFiles).toHaveBeenCalledTimes(1);
     expect(mocks.listFiles).toHaveBeenCalledWith('project-1', 'workspace-1', '.', {
       recursive: false,
       includeHidden: true,
     });
+    expect(mocks.listFiles).toHaveBeenCalledWith('project-1', 'workspace-1', 'src', {
+      recursive: false,
+      includeHidden: true,
+    });
     expect(store.loadedPaths.has('')).toBe(true);
-    expect(store.loadedPaths.has('src')).toBe(false);
+    expect(store.loadedPaths.has('src')).toBe(true);
     expect(store.rootNodes.map((node) => node.path)).toEqual(['src', 'README.md']);
   });
 
@@ -103,6 +116,28 @@ describe('FilesStore', () => {
     store.dispose();
   });
 
+  it('sorts loaded directory entries once after applying the batch', async () => {
+    setupListFiles({
+      '': [
+        { path: 'z-file.ts', type: 'file' },
+        { path: 'components', type: 'dir' },
+        { path: 'a-file.ts', type: 'file' },
+        { path: 'alpha', type: 'dir' },
+      ],
+    });
+
+    const store = new FilesStore('project-1', 'workspace-1');
+    await store.tree.load();
+
+    expect(store.rootNodes.map((node) => node.path)).toEqual([
+      'alpha',
+      'components',
+      'a-file.ts',
+      'z-file.ts',
+    ]);
+    store.dispose();
+  });
+
   it('normalizes loaded child paths into the current folder children', async () => {
     setupListFiles({
       '': [{ path: 'src', type: 'dir' }],
@@ -123,6 +158,64 @@ describe('FilesStore', () => {
       'src/index.ts',
     ]);
     expect(store.nodes.has('src\\components')).toBe(false);
+    store.dispose();
+  });
+
+  it('removes stale descendants and loaded markers when a loaded directory becomes a file', async () => {
+    const entriesByDir: Record<string, Entry[]> = {
+      '': [{ path: 'src', type: 'dir' }],
+      src: [{ path: 'src/components', type: 'dir' }],
+      'src/components': [{ path: 'src/components/Button.tsx', type: 'file' }],
+    };
+    setupListFiles(entriesByDir);
+
+    const store = new FilesStore('project-1', 'workspace-1');
+    await store.tree.load();
+    await flushAsyncWork();
+
+    expect(store.nodes.has('src/components/Button.tsx')).toBe(true);
+    expect(store.loadedPaths.has('src/components')).toBe(true);
+
+    entriesByDir.src = [{ path: 'src/components', type: 'file' }];
+    await store.loadDir('src', true);
+    vi.runOnlyPendingTimers();
+
+    expect(store.nodes.get('src/components')?.type).toBe('file');
+    expect(store.nodes.get('src/components')?.children).toEqual([]);
+    expect(store.nodes.has('src/components/Button.tsx')).toBe(false);
+    expect(store.loadedPaths.has('src/components')).toBe(false);
+    expect(store.nodes.get('src')?.children.map((node) => node.path)).toEqual(['src/components']);
+    store.dispose();
+  });
+
+  it('sorts watch-created siblings after processing the event batch', async () => {
+    let emit: ((data: { workspaceId: string; events: FileWatchEvent[] }) => void) | undefined;
+    mocks.eventOn.mockImplementation((_channel: string, handler: typeof emit) => {
+      emit = handler;
+      return vi.fn();
+    });
+    setupListFiles({ '': [] });
+
+    const store = new FilesStore('project-1', 'workspace-1');
+    store.startWatching();
+    await store.tree.load();
+
+    emit?.({
+      workspaceId: 'workspace-1',
+      events: [
+        { type: 'create', entryType: 'file', path: 'z-file.ts' },
+        { type: 'create', entryType: 'directory', path: 'components' },
+        { type: 'create', entryType: 'file', path: 'a-file.ts' },
+        { type: 'create', entryType: 'directory', path: 'alpha' },
+      ],
+    });
+
+    expect(store.rootNodes.map((node) => node.path)).toEqual([
+      'alpha',
+      'components',
+      'a-file.ts',
+      'z-file.ts',
+    ]);
     store.dispose();
   });
 

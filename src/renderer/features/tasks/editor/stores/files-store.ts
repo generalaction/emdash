@@ -134,6 +134,7 @@ export class FilesStore {
   /** Optimistically insert dropped nodes and bump the tree once. */
   addOptimisticNodes(nodes: Array<{ relPath: string; type: 'file' | 'directory' }>): string[] {
     const inserted: string[] = [];
+    const affectedParents = new Set<string | null>();
 
     for (const { relPath, type } of nodes) {
       const path = normalizeFileTreePath(relPath);
@@ -142,11 +143,18 @@ export class FilesStore {
       const parent = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '';
       if (!this._loadedPaths.has(parent)) continue;
 
-      this._addNode(makeNode(path, type));
+      const node = makeNode(path, type);
+      this._addNode(node);
+      affectedParents.add(node.parentPath);
       inserted.push(path);
     }
 
-    if (inserted.length > 0) this._bumpTree();
+    if (inserted.length > 0) {
+      for (const parentPath of affectedParents) {
+        this._sortChildren(parentPath ? this._nodes.get(parentPath) : null);
+      }
+      this._bumpTree();
+    }
     return inserted;
   }
 
@@ -201,6 +209,13 @@ export class FilesStore {
       if (!result.success) return;
 
       this._applyEntries(dirPath, result.data.entries);
+
+      for (const entry of result.data.entries) {
+        const path = normalizeFileTreePath(entry.path);
+        if (entry.type === 'dir' && path && !isExcluded(path)) {
+          void this._loadDirInternal(path);
+        }
+      }
 
       this._bumpTreeDebounced();
     } catch {
@@ -265,12 +280,7 @@ export class FilesStore {
   private _addNode(node: FileNode): void {
     const existing = this._nodes.get(node.path);
     if (existing) {
-      existing.type = node.type;
-      existing.mtime = node.mtime;
-      existing.extension = node.extension;
-      existing.isHidden = node.isHidden;
-      if (node.type === 'file') existing.children = [];
-      this._sortChildren(existing.parentPath ? this._nodes.get(existing.parentPath) : null);
+      this._replaceExistingNode(existing, node);
       return;
     }
 
@@ -278,7 +288,33 @@ export class FilesStore {
     const parent = node.parentPath ? this._nodes.get(node.parentPath) : null;
     const siblings = parent?.children ?? this._rootNodes;
     if (!siblings.some((child) => child.path === node.path)) siblings.push(node);
-    this._sortChildren(parent);
+  }
+
+  private _replaceExistingNode(existing: FileNode, next: FileNode): void {
+    if (existing.type === 'directory' && next.type === 'file') {
+      this._replaceDirectoryWithFile(existing, next);
+      return;
+    }
+
+    existing.type = next.type;
+    existing.mtime = next.mtime;
+    existing.extension = next.extension;
+    existing.isHidden = next.isHidden;
+  }
+
+  private _replaceDirectoryWithFile(existing: FileNode, next: FileNode): void {
+    const parent = existing.parentPath ? this._nodes.get(existing.parentPath) : null;
+    const siblings = parent?.children ?? this._rootNodes;
+    const index = siblings.findIndex((child) => child.path === existing.path);
+
+    this._removeNodeFromMaps(existing);
+    this._nodes.set(next.path, next);
+
+    if (index === -1) {
+      siblings.push(next);
+    } else {
+      siblings[index] = next;
+    }
   }
 
   private _removeNode(path: string): void {
@@ -312,6 +348,7 @@ export class FilesStore {
   /** Mutate the backing maps for watch events. Returns true if anything changed. */
   private _applyWatchEventsInternal(watchEvents: FileWatchEvent[]): boolean {
     let changed = false;
+    const affectedParents = new Set<string | null>();
 
     for (const evt of watchEvents) {
       const path = normalizeFileTreePath(evt.path);
@@ -322,10 +359,13 @@ export class FilesStore {
         const parentLoaded = this._loadedPaths.has(node.parentPath ?? '');
         if (parentLoaded && !this._nodes.has(node.path)) {
           this._addNode(node);
+          affectedParents.add(node.parentPath);
           changed = true;
         }
       } else if (evt.type === 'delete') {
-        if (this._nodes.has(path)) {
+        const existing = this._nodes.get(path);
+        if (existing) {
+          affectedParents.add(existing.parentPath);
           this._removeNode(path);
           changed = true;
         }
@@ -345,9 +385,14 @@ export class FilesStore {
         const parentLoaded = this._loadedPaths.has(node.parentPath ?? '');
         if (parentLoaded) {
           this._addNode(node);
+          affectedParents.add(node.parentPath);
           changed = true;
         }
       }
+    }
+
+    for (const parentPath of affectedParents) {
+      this._sortChildren(parentPath ? this._nodes.get(parentPath) : null);
     }
 
     return changed;
