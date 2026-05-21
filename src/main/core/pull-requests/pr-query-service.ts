@@ -6,6 +6,7 @@ import {
   pullRequestAssignees,
   pullRequestChecks,
   pullRequestLabels,
+  pullRequestReviewers,
   pullRequests,
   pullRequestUsers,
 } from '@main/db/schema';
@@ -24,13 +25,22 @@ async function fetchRelated(rows: PrRow[]): Promise<PullRequest[]> {
 
   const urls = rows.map((r) => r.url);
 
-  const [labelRows, assigneeJoins, checkRows] = await Promise.all([
+  const [labelRows, assigneeJoins, reviewerJoins, checkRows] = await Promise.all([
     db.select().from(pullRequestLabels).where(inArray(pullRequestLabels.pullRequestId, urls)),
     db
       .select({ pullRequestUrl: pullRequestAssignees.pullRequestUrl, user: pullRequestUsers })
       .from(pullRequestAssignees)
       .innerJoin(pullRequestUsers, eq(pullRequestAssignees.userId, pullRequestUsers.userId))
       .where(inArray(pullRequestAssignees.pullRequestUrl, urls)),
+    db
+      .select({
+        pullRequestUrl: pullRequestReviewers.pullRequestUrl,
+        reviewState: pullRequestReviewers.reviewState,
+        user: pullRequestUsers,
+      })
+      .from(pullRequestReviewers)
+      .innerJoin(pullRequestUsers, eq(pullRequestReviewers.userId, pullRequestUsers.userId))
+      .where(inArray(pullRequestReviewers.pullRequestUrl, urls)),
     db.select().from(pullRequestChecks).where(inArray(pullRequestChecks.pullRequestUrl, urls)),
   ]);
 
@@ -61,6 +71,16 @@ async function fetchRelated(rows: PrRow[]): Promise<PullRequest[]> {
     assigneesByUrl.set(a.pullRequestUrl, arr);
   }
 
+  const reviewersByUrl = new Map<
+    string,
+    Array<{ user: typeof pullRequestUsers.$inferSelect; reviewState: string }>
+  >();
+  for (const reviewer of reviewerJoins) {
+    const arr = reviewersByUrl.get(reviewer.pullRequestUrl) ?? [];
+    arr.push({ user: reviewer.user, reviewState: reviewer.reviewState });
+    reviewersByUrl.set(reviewer.pullRequestUrl, arr);
+  }
+
   const checksByUrl = new Map<string, (typeof pullRequestChecks.$inferSelect)[]>();
   for (const c of checkRows) {
     const arr = checksByUrl.get(c.pullRequestUrl) ?? [];
@@ -74,6 +94,7 @@ async function fetchRelated(rows: PrRow[]): Promise<PullRequest[]> {
       row.authorUserId ? (authorMap.get(row.authorUserId) ?? null) : null,
       labelsByUrl.get(row.url) ?? [],
       assigneesByUrl.get(row.url) ?? [],
+      reviewersByUrl.get(row.url) ?? [],
       checksByUrl.get(row.url) ?? []
     )
   );

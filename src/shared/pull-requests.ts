@@ -21,6 +21,12 @@ export type PullRequestUser = {
   userCreatedAt: string | null;
 };
 
+export type PullRequestReviewState = 'approved' | 'pending' | 'changes_requested' | 'commented';
+
+export type PullRequestReviewer = PullRequestUser & {
+  reviewState: PullRequestReviewState;
+};
+
 export type Label = {
   name: string;
   color: string | null;
@@ -85,6 +91,7 @@ export type PullRequest = {
   author: PullRequestUser | null;
   labels: Label[];
   assignees: PullRequestUser[];
+  reviewers: PullRequestReviewer[];
   checks: PullRequestCheck[];
 };
 

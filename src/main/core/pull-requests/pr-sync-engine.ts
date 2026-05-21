@@ -15,6 +15,7 @@ import {
   pullRequestAssignees,
   pullRequestChecks,
   pullRequestLabels,
+  pullRequestReviewers,
   pullRequests,
   pullRequestUsers,
 } from '@main/db/schema';
@@ -35,6 +36,7 @@ import type {
   PullRequest,
   PullRequestComment,
   PullRequestFile,
+  PullRequestReviewState,
   PullRequestStatus,
   PullRequestUser,
 } from '@shared/pull-requests';
@@ -70,6 +72,7 @@ type PrKvSchema = {
 // ---------------------------------------------------------------------------
 
 interface GqlUser {
+  __typename?: string;
   databaseId?: number; // absent for Mannequin actors
   login: string;
   avatarUrl: string;
@@ -80,6 +83,52 @@ interface GqlUser {
 
 function actorUserId(actor: GqlUser): string {
   return actor.databaseId != null ? String(actor.databaseId) : `login:${actor.login}`;
+}
+
+function isGqlUser(value: Partial<GqlUser> | null): value is GqlUser {
+  return typeof value?.login === 'string' && typeof value.avatarUrl === 'string';
+}
+
+function buildReviewerRows(
+  node: GqlPrNode
+): Array<{ user: GqlUser; reviewState: PullRequestReviewState }> {
+  const reviewers = new Map<string, { user: GqlUser; reviewState: PullRequestReviewState }>();
+
+  const reviews = [...node.reviews.nodes].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  for (const review of reviews) {
+    if (!review.author) continue;
+    if (review.state === 'DISMISSED') {
+      reviewers.delete(actorUserId(review.author));
+      continue;
+    }
+
+    const reviewState = reviewStateFromGithub(review.state);
+    if (!reviewState) continue;
+    reviewers.set(actorUserId(review.author), { user: review.author, reviewState });
+  }
+
+  for (const request of node.reviewRequests.nodes) {
+    if (!isGqlUser(request.requestedReviewer)) continue;
+    reviewers.set(actorUserId(request.requestedReviewer), {
+      user: request.requestedReviewer,
+      reviewState: 'pending',
+    });
+  }
+
+  return [...reviewers.values()];
+}
+
+function reviewStateFromGithub(state: string): PullRequestReviewState | null {
+  switch (state) {
+    case 'APPROVED':
+      return 'approved';
+    case 'CHANGES_REQUESTED':
+      return 'changes_requested';
+    case 'COMMENTED':
+      return 'commented';
+    default:
+      return null;
+  }
 }
 
 function restUserToPullRequestUser(user: {
@@ -123,6 +172,18 @@ interface GqlPrNode {
   baseRepository: { url: string } | null;
   labels: { nodes: Array<{ name: string; color: string }> };
   assignees: { nodes: GqlUser[] };
+  reviewRequests: {
+    nodes: Array<{
+      requestedReviewer: Partial<GqlUser> | null;
+    }>;
+  };
+  reviews: {
+    nodes: Array<{
+      state: string;
+      createdAt: string;
+      author: GqlUser | null;
+    }>;
+  };
   reviewDecision: string | null;
 }
 
@@ -765,7 +826,7 @@ export class PrSyncEngine {
 
     if (!prRow) return;
 
-    const [checkRows, labelRows, assigneeJoins] = await Promise.all([
+    const [checkRows, labelRows, assigneeJoins, reviewerJoins] = await Promise.all([
       db
         .select()
         .from(pullRequestChecks)
@@ -779,6 +840,11 @@ export class PrSyncEngine {
         .from(pullRequestAssignees)
         .innerJoin(pullRequestUsers, eq(pullRequestAssignees.userId, pullRequestUsers.userId))
         .where(eq(pullRequestAssignees.pullRequestUrl, pullRequestUrl)),
+      db
+        .select({ user: pullRequestUsers, reviewState: pullRequestReviewers.reviewState })
+        .from(pullRequestReviewers)
+        .innerJoin(pullRequestUsers, eq(pullRequestReviewers.userId, pullRequestUsers.userId))
+        .where(eq(pullRequestReviewers.pullRequestUrl, pullRequestUrl)),
     ]);
 
     let authorRow: typeof pullRequestUsers.$inferSelect | null = null;
@@ -796,6 +862,7 @@ export class PrSyncEngine {
       authorRow,
       labelRows,
       assigneeJoins.map((j) => j.user),
+      reviewerJoins,
       checkRows
     );
     this._notifyPrUpdated(assembled);
@@ -968,6 +1035,39 @@ export class PrSyncEngine {
       });
     }
 
+    await db.delete(pullRequestReviewers).where(eq(pullRequestReviewers.pullRequestUrl, node.url));
+    const reviewerRows = buildReviewerRows(node);
+    for (const reviewer of reviewerRows) {
+      const uid = actorUserId(reviewer.user);
+      await db
+        .insert(pullRequestUsers)
+        .values({
+          userId: uid,
+          userName: reviewer.user.login,
+          displayName: reviewer.user.login,
+          avatarUrl: reviewer.user.avatarUrl || null,
+          url: reviewer.user.url ?? null,
+          userCreatedAt: reviewer.user.createdAt ?? null,
+          userUpdatedAt: reviewer.user.updatedAt ?? null,
+        })
+        .onConflictDoUpdate({
+          target: pullRequestUsers.userId,
+          set: {
+            userName: reviewer.user.login,
+            displayName: reviewer.user.login,
+            avatarUrl: reviewer.user.avatarUrl || null,
+          },
+        });
+
+      await db
+        .insert(pullRequestReviewers)
+        .values({ pullRequestUrl: node.url, userId: uid, reviewState: reviewer.reviewState })
+        .onConflictDoUpdate({
+          target: [pullRequestReviewers.pullRequestUrl, pullRequestReviewers.userId],
+          set: { reviewState: reviewer.reviewState },
+        });
+    }
+
     const authorRow = node.author
       ? {
           userId: actorUserId(node.author),
@@ -991,7 +1091,25 @@ export class PrSyncEngine {
       .from(pullRequestChecks)
       .where(eq(pullRequestChecks.pullRequestUrl, node.url));
 
-    return assemblePullRequest(prRow, authorRow, labelRows, assigneeRows, checkRows);
+    return assemblePullRequest(
+      prRow,
+      authorRow,
+      labelRows,
+      assigneeRows,
+      reviewerRows.map(({ user, reviewState }) => ({
+        user: {
+          userId: actorUserId(user),
+          userName: user.login,
+          displayName: user.login,
+          avatarUrl: user.avatarUrl || null,
+          url: user.url ?? null,
+          userCreatedAt: user.createdAt ?? null,
+          userUpdatedAt: user.updatedAt ?? null,
+        },
+        reviewState,
+      })),
+      checkRows
+    );
   }
 
   private async _archiveOldPrs(repositoryUrl: string): Promise<void> {

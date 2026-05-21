@@ -248,6 +248,24 @@ export const pullRequestAssignees = sqliteTable(
   })
 );
 
+export const pullRequestReviewers = sqliteTable(
+  'pull_request_reviewers',
+  {
+    pullRequestUrl: text('pull_request_url')
+      .notNull()
+      .references(() => pullRequests.url, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => pullRequestUsers.userId, { onDelete: 'cascade' }),
+    reviewState: text('review_state').notNull(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.pullRequestUrl, table.userId] }),
+    pullRequestUrlIdx: index('idx_prr_pull_request_url').on(table.pullRequestUrl),
+    userIdIdx: index('idx_prr_user_id').on(table.userId),
+  })
+);
+
 export const pullRequestChecks = sqliteTable(
   'pull_request_checks',
   {

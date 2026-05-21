@@ -2,6 +2,7 @@ import {
   type pullRequestAssignees,
   type pullRequestChecks,
   type pullRequestLabels,
+  type pullRequestReviewers,
   type pullRequests,
   type pullRequestUsers,
 } from '@main/db/schema';
@@ -11,6 +12,8 @@ import type {
   MergeStateStatus,
   PullRequest,
   PullRequestCheck,
+  PullRequestReviewer,
+  PullRequestReviewState,
   PullRequestStatus,
   PullRequestUser,
 } from '@shared/pull-requests';
@@ -19,6 +22,7 @@ export type PrRow = typeof pullRequests.$inferSelect;
 export type PrUserRow = typeof pullRequestUsers.$inferSelect;
 export type PrLabelRow = typeof pullRequestLabels.$inferSelect;
 export type PrAssigneeRow = typeof pullRequestAssignees.$inferSelect;
+export type PrReviewerRow = typeof pullRequestReviewers.$inferSelect;
 export type PrCheckRow = typeof pullRequestChecks.$inferSelect;
 
 /** Convert a raw DB pull_request_users row to the shared PullRequestUser type. */
@@ -58,6 +62,7 @@ export function assemblePullRequest(
   author: PrUserRow | null,
   labels: PrLabelRow[],
   assignees: PrUserRow[],
+  reviewers: Array<{ user: PrUserRow; reviewState: string }>,
   checks: PrCheckRow[] = []
 ): PullRequest {
   return {
@@ -86,6 +91,25 @@ export function assemblePullRequest(
     author: author ? dbRowToUserRow(author) : null,
     labels: labels.map((l) => ({ name: l.name, color: l.color ?? null }) satisfies Label),
     assignees: assignees.map(dbRowToUserRow),
+    reviewers: reviewers.map(
+      ({ user, reviewState }) =>
+        ({
+          ...dbRowToUserRow(user),
+          reviewState: normalizeReviewState(reviewState),
+        }) satisfies PullRequestReviewer
+    ),
     checks: checks.map(dbRowToCheckRow),
   };
+}
+
+function normalizeReviewState(value: string): PullRequestReviewState {
+  if (
+    value === 'approved' ||
+    value === 'pending' ||
+    value === 'changes_requested' ||
+    value === 'commented'
+  ) {
+    return value;
+  }
+  return 'pending';
 }

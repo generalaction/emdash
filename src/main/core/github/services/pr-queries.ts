@@ -37,6 +37,24 @@ export const PR_SUMMARY_FRAGMENT = `
         ... on User { databaseId createdAt updatedAt }
       }
     }
+    reviewRequests(first: 20) {
+      nodes {
+        requestedReviewer {
+          __typename
+          ... on User { login avatarUrl url databaseId createdAt updatedAt }
+        }
+      }
+    }
+    reviews(last: 50) {
+      nodes {
+        state
+        createdAt
+        author {
+          login avatarUrl url
+          ... on User { databaseId createdAt updatedAt }
+        }
+      }
+    }
     reviewDecision
   }
 `;
