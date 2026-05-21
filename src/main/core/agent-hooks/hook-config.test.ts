@@ -141,6 +141,66 @@ describe('HookConfigWriter', () => {
     expect(config.notify).toBeUndefined();
   });
 
+  it('writes Droid notification and stop hooks and ignores the settings file in git', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/droid');
+    const fs = new MemoryFs();
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('droid');
+
+    const config = JSON.parse(fs.files.get('.factory/settings.json')!);
+    expect(config.hooks.Notification[0].hooks[0].command).toContain(
+      'X-Emdash-Event-Type: notification'
+    );
+    expect(config.hooks.Stop[0].hooks[0].command).toContain('X-Emdash-Event-Type: stop');
+    expect(config.hooks.Stop[0].hooks[0].command).toContain('X-Emdash-Pty-Id');
+    expect(fs.files.get('.gitignore')).toBe('.factory/settings.json\n');
+  });
+
+  it('preserves unrelated Droid hooks while replacing Emdash-managed entries', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/droid');
+    const fs = new MemoryFs();
+    fs.files.set(
+      '.factory/settings.json',
+      JSON.stringify({
+        hooks: {
+          Notification: [
+            { hooks: [{ type: 'command', command: 'echo user notification hook' }] },
+            { hooks: [{ type: 'command', command: 'echo $EMDASH_HOOK_PORT' }] },
+          ],
+          Stop: [
+            { hooks: [{ type: 'command', command: 'echo user hook' }] },
+            { hooks: [{ type: 'command', command: 'echo $EMDASH_HOOK_PORT' }] },
+          ],
+        },
+      })
+    );
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('droid');
+
+    const config = JSON.parse(fs.files.get('.factory/settings.json')!);
+    expect(config.hooks.Notification).toHaveLength(2);
+    expect(config.hooks.Notification[0].hooks[0].command).toBe('echo user notification hook');
+    expect(config.hooks.Notification[1].hooks[0].command).toContain(
+      'X-Emdash-Event-Type: notification'
+    );
+    expect(config.hooks.Stop).toHaveLength(2);
+    expect(config.hooks.Stop[0].hooks[0].command).toBe('echo user hook');
+    expect(config.hooks.Stop[1].hooks[0].command).toContain('X-Emdash-Event-Type: stop');
+  });
+
+  it('skips Droid hooks when droid is unavailable', async () => {
+    mockResolveCommandPath.mockResolvedValue(undefined);
+    const fs = new MemoryFs();
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('droid');
+
+    expect(fs.files.has('.factory/settings.json')).toBe(false);
+    expect(fs.files.has('.gitignore')).toBe(false);
+  });
+
   it('still reports Codex hooks available when legacy notify cleanup fails', async () => {
     mockResolveCommandPath.mockResolvedValue('/usr/local/bin/codex');
     const fs = new MemoryFs();

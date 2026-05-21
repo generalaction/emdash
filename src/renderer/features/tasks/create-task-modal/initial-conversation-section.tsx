@@ -1,19 +1,19 @@
 import { useMemo, useState, type Dispatch, type SetStateAction } from 'react';
-import type { AgentProviderId } from '@shared/agent-provider-registry';
-import type { Issue } from '@shared/tasks';
 import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
 import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
 import {
+  buildContextActionText,
   buildTaskContextActions,
   type ContextAction,
 } from '@renderer/features/tasks/conversations/context-actions';
-import { resolveContextActionText } from '@renderer/features/tasks/conversations/resolve-context-action-text';
 import { useEffectiveProvider } from '@renderer/features/tasks/conversations/use-effective-provider';
 import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
 import { Field, FieldLabel } from '@renderer/lib/ui/field';
 import { Switch } from '@renderer/lib/ui/switch';
 import { Textarea } from '@renderer/lib/ui/textarea';
+import type { AgentProviderId } from '@shared/agent-provider-registry';
+import type { Issue } from '@shared/tasks';
 import { appendInitialConversationText } from './initial-conversation-text';
 import { ModalContextBar } from './modal-context-bar';
 
@@ -44,21 +44,16 @@ interface InitialConversationFieldProps {
   projectId?: string;
 }
 
-export function InitialConversationField({
-  state,
-  linkedIssue,
-  projectId,
-}: InitialConversationFieldProps) {
+export function InitialConversationField({ state, linkedIssue }: InitialConversationFieldProps) {
   const { value: promptLibrary } = usePromptLibrary();
   const autoApproveDefaults = useAgentAutoApproveDefaults();
   const contextActions = useMemo(
-    () => buildTaskContextActions(linkedIssue, undefined, promptLibrary),
+    () => buildTaskContextActions(linkedIssue, [], promptLibrary),
     [linkedIssue, promptLibrary]
   );
 
-  const handleActionClick = async (action: ContextAction) => {
-    const text = await resolveContextActionText({ action, linkedIssue, projectId });
-
+  const handleActionClick = (action: ContextAction) => {
+    const text = buildContextActionText(action);
     state.setPrompt((current) => appendInitialConversationText(current, text));
   };
 
@@ -66,7 +61,7 @@ export function InitialConversationField({
     <>
       <Field>
         <FieldLabel>Initial conversation</FieldLabel>
-        <div className="flex flex-col border border-border rounded-md">
+        <div className="flex flex-col rounded-md border border-border">
           <AgentSelector
             value={state.provider}
             onChange={(provider) => state.setProvider(provider)}
@@ -77,7 +72,7 @@ export function InitialConversationField({
             placeholder="Start with a prompt... (optional)"
             value={state.prompt}
             onChange={(e) => state.setPrompt(e.target.value)}
-            className="min-h-24 max-h-64 resize-none border-0 rounded-none focus-visible:ring-0 focus-visible:border-0"
+            className="max-h-64 min-h-24 resize-none rounded-none border-0 focus-visible:border-0 focus-visible:ring-0"
           />
           <ModalContextBar
             actions={contextActions}

@@ -1,15 +1,15 @@
-import { watch as watchFs, type FSWatcher } from 'node:fs';
 import path from 'node:path';
+import parcelWatcher from '@parcel/watcher';
+import { events } from '@main/lib/events';
+import { HookCore, type Hookable } from '@main/lib/hookable';
+import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
+import { log } from '@main/lib/logger';
 import {
   gitRefChangedChannel,
   gitWorkspaceChangedChannel,
   type GitRefChange,
 } from '@shared/events/gitEvents';
 import { branchRef, remoteRef, toRefString, type GitObjectRef } from '@shared/git';
-import { events } from '@main/lib/events';
-import { HookCore, type Hookable } from '@main/lib/hookable';
-import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
-import { log } from '@main/lib/logger';
 import { projectManager } from '../projects/project-manager';
 import { taskManager } from '../tasks/task-manager';
 
@@ -21,7 +21,7 @@ class GitWatcherRegistry implements Hookable<GitWatcherHooks>, IInitializable, I
   private readonly _hooks = new HookCore<GitWatcherHooks>((name, e) =>
     log.error(`GitWatcherRegistry: ${String(name)} hook error`, e)
   );
-  private readonly _subscriptions = new Map<string, FSWatcher>();
+  private readonly _subscriptions = new Map<string, parcelWatcher.AsyncSubscription>();
   /**
    * Per-project worktree registry.
    * projectId → (workspaceId → relativeGitDir)
@@ -68,9 +68,8 @@ class GitWatcherRegistry implements Hookable<GitWatcherHooks>, IInitializable, I
     const gitDir = path.join(repoPath, '.git');
     this._worktrees.set(projectId, new Map());
     try {
-      const sub = watchFs(gitDir, { recursive: true }, (_eventType, fileName) => {
-        if (!fileName) return;
-        const rel = fileName.toString().replace(/\\/g, '/');
+      const sub = await parcelWatcher.subscribe(gitDir, (_err, rawEvents) => {
+        if (_err) return;
         let emitLocal = false;
         let emitRemote = false;
         let emitConfig = false;
@@ -79,38 +78,42 @@ class GitWatcherRegistry implements Hookable<GitWatcherHooks>, IInitializable, I
 
         const worktrees = this._worktrees.get(projectId) ?? new Map<string, string>();
 
-        // Project-level ref changes
-        if (rel.startsWith('refs/heads/')) {
-          const branch = rel.slice('refs/heads/'.length);
-          const r = branchRef({ type: 'local', branch });
-          changedLocalByKey.set(toRefString(r), r);
-          emitLocal = true;
-        } else if (rel === 'HEAD') {
-          emitLocal = true;
-        }
-        if (rel.startsWith('refs/remotes/')) {
-          const full = rel.slice('refs/remotes/'.length);
-          const idx = full.indexOf('/');
-          if (idx > 0) {
-            const r = remoteRef(full.slice(0, idx), full.slice(idx + 1));
-            changedRemoteByKey.set(toRefString(r), r);
-          }
-          emitRemote = true;
-        }
-        if (rel === 'packed-refs') {
-          emitLocal = true;
-          emitRemote = true;
-        }
-        if (rel === 'config') emitConfig = true;
+        for (const e of rawEvents) {
+          const rel = path.relative(gitDir, e.path).replace(/\\/g, '/');
 
-        // Workspace-level index/HEAD changes (renderer-only, direct IPC emit)
-        for (const [workspaceId, relGitDir] of worktrees) {
-          const prefix = relGitDir ? `${relGitDir}/` : '';
-          if (rel === `${prefix}index`) {
-            events.emit(gitWorkspaceChangedChannel, { projectId, workspaceId, kind: 'index' });
+          // Project-level ref changes
+          if (rel.startsWith('refs/heads/')) {
+            const branch = rel.slice('refs/heads/'.length);
+            const r = branchRef({ type: 'local', branch });
+            changedLocalByKey.set(toRefString(r), r);
+            emitLocal = true;
+          } else if (rel === 'HEAD') {
+            emitLocal = true;
           }
-          if (rel === `${prefix}HEAD`) {
-            events.emit(gitWorkspaceChangedChannel, { projectId, workspaceId, kind: 'head' });
+          if (rel.startsWith('refs/remotes/')) {
+            const full = rel.slice('refs/remotes/'.length);
+            const idx = full.indexOf('/');
+            if (idx > 0) {
+              const r = remoteRef(full.slice(0, idx), full.slice(idx + 1));
+              changedRemoteByKey.set(toRefString(r), r);
+            }
+            emitRemote = true;
+          }
+          if (rel === 'packed-refs') {
+            emitLocal = true;
+            emitRemote = true;
+          }
+          if (rel === 'config') emitConfig = true;
+
+          // Workspace-level index/HEAD changes (renderer-only, direct IPC emit)
+          for (const [workspaceId, relGitDir] of worktrees) {
+            const prefix = relGitDir ? `${relGitDir}/` : '';
+            if (rel === `${prefix}index`) {
+              events.emit(gitWorkspaceChangedChannel, { projectId, workspaceId, kind: 'index' });
+            }
+            if (rel === `${prefix}HEAD`) {
+              events.emit(gitWorkspaceChangedChannel, { projectId, workspaceId, kind: 'head' });
+            }
           }
         }
 
@@ -143,7 +146,7 @@ class GitWatcherRegistry implements Hookable<GitWatcherHooks>, IInitializable, I
   }
 
   private async _stopWatching(projectId: string): Promise<void> {
-    this._subscriptions.get(projectId)?.close();
+    await this._subscriptions.get(projectId)?.unsubscribe();
     this._subscriptions.delete(projectId);
     this._worktrees.delete(projectId);
   }

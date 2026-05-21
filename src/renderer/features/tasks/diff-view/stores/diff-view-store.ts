@@ -1,9 +1,9 @@
 import { action, computed, makeObservable, observable, reaction } from 'mobx';
-import { commitRef, type GitObjectRef } from '@shared/git';
-import type { ActiveFile, DiffViewSnapshot } from '@shared/view-state';
 import { ChangesViewStore } from '@renderer/features/tasks/diff-view/stores/changes-view-store';
 import type { PrStore } from '@renderer/features/tasks/stores/pr-store';
 import { type Snapshottable } from '@renderer/lib/stores/snapshottable';
+import { commitRef, type GitObjectRef } from '@shared/git';
+import type { ActiveFile, DiffViewSnapshot } from '@shared/view-state';
 import { type GitStore } from './git-store';
 
 export const MAX_STACKED_FILES = 8;

@@ -1,6 +1,6 @@
+import { projectManager } from '@main/core/projects/project-manager';
 import type { OpenProjectError } from '@shared/projects';
 import { err, ok, type Result } from '@shared/result';
-import { projectManager } from '@main/core/projects/project-manager';
 import { checkIsValidDirectory } from '../path-utils';
 import { getProjectById } from './getProjects';
 

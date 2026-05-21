@@ -269,6 +269,7 @@ export interface FileSystemProvider {
 
   /**
    * Copy an absolute local file into this filesystem at the given relative path.
+   * Caller must ensure the destination parent directory exists.
    * For SSH: transfers via SFTP fastPut. For local: delegates to fs.copyFile.
    * @param localAbsPath - Absolute path of the source file on the local machine
    * @param destRelPath  - Destination path relative to this filesystem's root

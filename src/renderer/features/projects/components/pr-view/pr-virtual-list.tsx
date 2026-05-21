@@ -1,9 +1,9 @@
 import type { FetchNextPageOptions, InfiniteQueryObserverResult } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useEffect, useRef } from 'react';
-import type { PullRequest } from '@shared/pull-requests';
+import { MultiLineListItem } from '@renderer/lib/components/multi-line-list-item';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
-import { cn } from '@renderer/utils/utils';
+import type { PullRequest } from '@shared/pull-requests';
 import { PrRow } from './pr-row';
 
 interface PrVirtualListProps {
@@ -25,7 +25,6 @@ export function PrVirtualList({
 }: PrVirtualListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
 
-  // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: prs.length,
     getScrollElement: () => parentRef.current,
@@ -46,7 +45,7 @@ export function PrVirtualList({
   }, [virtualItems, prs.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   if (loading && prs.length === 0) {
-    return <p className="text-sm text-muted-foreground text-center py-4">Loading…</p>;
+    return <p className="text-muted-foreground py-4 text-center text-sm">Loading…</p>;
   }
 
   if (prs.length === 0) {
@@ -61,7 +60,7 @@ export function PrVirtualList({
   return (
     <div
       ref={parentRef}
-      className="overflow-y-auto min-h-0 flex-1 "
+      className="min-h-0 flex-1 overflow-y-auto"
       style={{ scrollbarWidth: 'none' }}
     >
       <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
@@ -70,10 +69,6 @@ export function PrVirtualList({
             key={virtualItem.key}
             data-index={virtualItem.index}
             ref={virtualizer.measureElement}
-            className={cn(
-              'border-b border-border py-1',
-              virtualItem.index === prs.length - 1 && 'border-b-0'
-            )}
             style={{
               position: 'absolute',
               top: 0,
@@ -82,12 +77,14 @@ export function PrVirtualList({
               transform: `translateY(${virtualItem.start}px)`,
             }}
           >
-            <PrRow pr={prs[virtualItem.index]!} projectId={projectId} />
+            <MultiLineListItem isLast={virtualItem.index === prs.length - 1}>
+              <PrRow pr={prs[virtualItem.index]!} projectId={projectId} />
+            </MultiLineListItem>
           </div>
         ))}
       </div>
       {isFetchingNextPage && (
-        <p className="text-xs text-muted-foreground text-center py-2">Loading more…</p>
+        <p className="text-muted-foreground py-2 text-center text-xs">Loading more…</p>
       )}
     </div>
   );

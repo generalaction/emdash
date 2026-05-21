@@ -1,8 +1,8 @@
+import { events } from '@main/lib/events';
+import type { IDisposable } from '@main/lib/lifecycle';
 import { ptyExitChannel } from '@shared/events/ptyEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { createLifecycleScriptTerminalId } from '@shared/terminals';
-import { events } from '@main/lib/events';
-import type { IDisposable } from '@main/lib/lifecycle';
 import type { Pty } from '../pty/pty';
 import { ptySessionRegistry } from '../pty/pty-session-registry';
 import type { TerminalProvider } from '../terminals/terminal-provider';

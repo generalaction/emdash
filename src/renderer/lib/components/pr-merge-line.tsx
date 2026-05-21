@@ -1,8 +1,8 @@
 import { GitBranch } from 'lucide-react';
-import { parseGitHubRepository } from '@shared/github-repository';
-import type { PullRequest } from '@shared/pull-requests';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
+import { parseGitHubRepository } from '@shared/github-repository';
+import type { PullRequest } from '@shared/pull-requests';
 
 /**
  * Renders the GitHub-style merge summary line, e.g.:
@@ -18,7 +18,7 @@ export function PrMergeLine({ pr, className }: { pr: PullRequest; className?: st
 
   return (
     <p className={cn('text-xs text-foreground-muted flex items-center gap-1 min-w-0', className)}>
-      {author && <span className="font-medium shrink-0">{author}</span>}
+      {author && <span className="shrink-0 font-medium">{author}</span>}
       {author && ' '}
       <span className="shrink-0">{actionText} </span>
       <PrBranchBadge owner={baseOwner} branch={baseBranch} />
@@ -43,7 +43,7 @@ function PrBranchBadge({ owner, branch }: { owner?: string; branch: string }) {
   return (
     <Tooltip>
       <TooltipTrigger className="min-w-0 overflow-hidden">
-        <span className="font-mono text-[10px] font-medium flex items-center gap-1 min-w-0 bg-background-2 px-1 py-0.5 rounded-md">
+        <span className="flex min-w-0 items-center gap-1 rounded-md bg-background-2 px-1 py-0.5 font-mono text-[10px] font-medium">
           <GitBranch className="size-3 shrink-0" />
           <span className="truncate">
             {owner}:{branch}

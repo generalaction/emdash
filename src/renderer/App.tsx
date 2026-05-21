@@ -44,7 +44,7 @@ function AppContent() {
       if (!session?.isSignedIn) computed.push('sign-in');
       const needsImport = legacyStatus?.hasImportSources && !legacyStatus.portStatus;
       if (needsImport) computed.push('import');
-      setFrozenSteps(computed); // eslint-disable-line react-hooks/set-state-in-effect
+      setFrozenSteps(computed);
     }
   }, [view, isLoading, frozenSteps, session, legacyStatus]);
 

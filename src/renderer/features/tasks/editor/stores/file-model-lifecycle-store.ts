@@ -1,6 +1,4 @@
 import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
-import { HEAD_REF } from '@shared/git';
-import type { EditorViewSnapshot } from '@shared/view-state';
 import type { TabGroupManagerStore } from '@renderer/features/tasks/tabs/tab-group-manager-store';
 import { getFileKind } from '@renderer/lib/editor/fileKind';
 import { rpc } from '@renderer/lib/ipc';
@@ -10,6 +8,8 @@ import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import type { Snapshottable } from '@renderer/lib/stores/snapshottable';
 import { getMonacoLanguageId } from '@renderer/utils/diffUtils';
 import { log } from '@renderer/utils/logger';
+import { HEAD_REF } from '@shared/git';
+import type { EditorViewSnapshot } from '@shared/view-state';
 
 /**
  * Owns Monaco model lifecycle (register/unregister) and file persistence (save, conflict).

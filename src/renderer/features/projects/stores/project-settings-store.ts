@@ -1,3 +1,5 @@
+import { events, rpc } from '@renderer/lib/ipc';
+import { Resource } from '@renderer/lib/stores/resource';
 import { fsWatchEventChannel } from '@shared/events/fsEvents';
 import { projectSettingsChangedChannel } from '@shared/events/projectEvents';
 import {
@@ -13,8 +15,6 @@ import {
 } from '@shared/project-settings';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import type { Result } from '@shared/result';
-import { events, rpc } from '@renderer/lib/ipc';
-import { Resource } from '@renderer/lib/stores/resource';
 
 export class ProjectSettingsStore {
   readonly pageData: Resource<ProjectSettingsPage>;

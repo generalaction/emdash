@@ -7,7 +7,7 @@ import { DraggableTab } from './draggable-tab';
 
 export function TabDragPreviewShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex cursor-grabbing items-center gap-1.5 bg-background-secondary-1 text-sm shadow-lg px-2 py-1 border border-border rounded-md opacity-80">
+    <div className="flex cursor-grabbing items-center gap-1.5 rounded-md border border-border bg-background-secondary-1 px-2 py-1 text-sm opacity-80 shadow-lg">
       {children}
     </div>
   );
@@ -56,10 +56,9 @@ export const TabItemShell = observer(function TabItemShell({
         title={title}
         data-tabid={tabId}
         className={cn(
-          'group relative flex h-full flex-col bg-[var(--task-tab-background)] text-sm hover:bg-muted',
+          'group relative flex h-full flex-col bg-background-secondary hover:bg-background-secondary-1 text-sm hover:bg-muted',
           className,
-          isActive &&
-            'bg-[var(--task-tab-active-background)] hover:bg-[var(--task-tab-active-background)] text-foreground-muted',
+          isActive && 'bg-background-secondary-1 text-foreground-muted',
           isFocused && 'text-foreground'
         )}
       >

@@ -1,13 +1,18 @@
 import { observer } from 'mobx-react-lite';
+import type { DiffTabStore } from '@renderer/features/tasks/tabs/diff-tab-store';
+import { DiffFileRenderer } from './diff-file-renderer';
 import { DiffToolbar } from './diff-toolbar';
-import { FileDiffView } from './file-diff-view';
 
-export const DiffView = observer(function DiffView() {
+interface DiffViewProps {
+  tab: DiffTabStore;
+}
+
+export const DiffView = observer(function DiffView({ tab }: DiffViewProps) {
   return (
     <div className="flex h-full flex-col">
-      <DiffToolbar />
+      <DiffToolbar tab={tab} />
       <div className="min-h-0 flex-1">
-        <FileDiffView />
+        <DiffFileRenderer tab={tab} />
       </div>
     </div>
   );

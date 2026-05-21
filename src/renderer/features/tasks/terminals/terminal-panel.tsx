@@ -14,7 +14,7 @@ import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
-import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
+import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { useIsActiveTask } from '../hooks/use-is-active-task';
 import { TerminalDrawerSidebar } from './terminal-drawer-sidebar';
 import { resolveTerminalPanelActiveItem } from './terminal-panel-selection';
@@ -98,7 +98,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
 
   const emptyState = (
     <EmptyState
-      icon={<Terminal className="h-5 w-5 text-muted-foreground" />}
+      icon={<Terminal className="text-muted-foreground h-5 w-5" />}
       label="No terminals yet"
       description="Add a terminal to run shell commands in this task's working directory."
       action={
@@ -109,7 +109,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
           className="flex items-center gap-2"
         >
           New terminal
-          <ShortcutHint settingsKey="newTerminal" />
+          <BoundShortcut settingsKey="newTerminal" />
         </Button>
       }
     />
@@ -146,7 +146,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
           e.currentTarget.setPointerCapture(e.pointerId);
           panelDragStore.setDragging(true);
         }}
-        className="hover:bg-background-2 bg-transparent"
+        className="bg-transparent hover:bg-background-2"
         onPointerUp={() => panelDragStore.setDragging(false)}
         onPointerCancel={() => panelDragStore.setDragging(false)}
       />

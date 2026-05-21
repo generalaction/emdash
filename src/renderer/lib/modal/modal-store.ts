@@ -2,7 +2,7 @@ import { makeAutoObservable, observable } from 'mobx';
 
 class ModalStore {
   activeModalId: string | null = null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line typescript/no-explicit-any
   activeModalArgs: Record<string, any> | null = null;
   closeGuardActive = false;
   previousFocus: HTMLElement | null = null;
@@ -14,7 +14,7 @@ class ModalStore {
     });
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line typescript/no-explicit-any
   setModal(id: string, args: Record<string, any>) {
     this.previousFocus = document.activeElement as HTMLElement | null;
     this.activeModalId = id;

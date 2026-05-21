@@ -3,8 +3,8 @@ import { basename, dirname, extname, join, relative, resolve, sep } from 'node:p
 import { createInterface } from 'node:readline';
 import { glob } from 'glob';
 import ignore from 'ignore';
-import type { FileWatchEvent } from '@shared/fs';
 import { log } from '@main/lib/logger';
+import type { FileWatchEvent } from '@shared/fs';
 import {
   FileSystemError,
   FileSystemErrorCodes,
@@ -768,6 +768,10 @@ export class LocalFileSystem implements FileSystemProvider {
 
   async copyFile(src: string, dest: string): Promise<void> {
     await fs.copyFile(this.resolvePath(src), this.resolvePath(dest));
+  }
+
+  async copyLocalFile(localAbsPath: string, destRelPath: string): Promise<void> {
+    await fs.copyFile(localAbsPath, this.resolvePath(destRelPath));
   }
 
   watch(

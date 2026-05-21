@@ -1,8 +1,8 @@
-import { ISSUE_PROVIDER_CAPABILITIES, type IssueListResult } from '@shared/issue-providers';
-import type { Issue } from '@shared/tasks';
 import { clampIssueLimit, normalizeSearchTerm } from '@main/core/issues/helpers/provider-inputs';
 import type { IssueProvider } from '@main/core/issues/issue-provider';
 import { log } from '@main/lib/logger';
+import { ISSUE_PROVIDER_CAPABILITIES, type IssueListResult } from '@shared/issue-providers';
+import type { Issue } from '@shared/tasks';
 import {
   featurebaseConnectionService,
   NOT_CONFIGURED_ERROR,

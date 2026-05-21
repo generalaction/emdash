@@ -1,8 +1,8 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
+import { rpc } from '@renderer/lib/ipc';
 import type { IssueProviderType } from '@shared/issue-providers';
 import type { Issue } from '@shared/tasks';
-import { rpc } from '@renderer/lib/ipc';
 
 const INITIAL_FETCH_LIMIT = 50;
 const SEARCH_LIMIT = 20;

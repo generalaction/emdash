@@ -9,9 +9,8 @@ vi.mock('node:child_process', () => ({
   execSync: execSyncMock,
 }));
 
-const { ensureUserBinDirsInPath, ensureWindowsNpmGlobalBinInPath, resolveUserEnv } = await import(
-  './userEnv'
-);
+const { ensureUserBinDirsInPath, ensureWindowsNpmGlobalBinInPath, resolveUserEnv } =
+  await import('./userEnv');
 
 const originalPath = process.env.PATH;
 
