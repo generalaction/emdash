@@ -140,7 +140,7 @@ export class DependencyManager implements IInitializable {
     const pathState = dependencyStateFromProbeResult(descriptor, resolvedPath, null);
     this.updateState(pathState);
 
-    if (pathState.status === 'missing') {
+    if (pathState.status === 'missing' || descriptor.skipVersionProbe) {
       return pathState;
     }
 
