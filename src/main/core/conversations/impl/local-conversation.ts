@@ -16,12 +16,14 @@ import { providerOverrideSettings } from '@main/core/settings/provider-settings-
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
+import { telemetryService } from '@main/lib/telemetry';
 import { getProvider } from '@shared/agent-provider-registry';
 import type { Conversation } from '@shared/conversations';
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { makePtyId } from '@shared/ptyId';
 import { makePtySessionId } from '@shared/ptySessionId';
-import { buildAgentCommand } from './agent-command';
+import { buildAgentSessionCommand } from './agent-command';
+import { scheduleInitialPromptInjection } from './keystroke-injection';
 import { resolveProviderEnv } from './provider-env';
 
 const DEFAULT_COLS = 80;
@@ -87,7 +89,11 @@ export class LocalConversationProvider implements ConversationProvider {
     if (this.sessions.has(sessionId)) return;
 
     const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
-    const providerEnv = resolveProviderEnv(providerConfig);
+    const providerDef = getProvider(conversation.providerId);
+    const providerEnv = resolveProviderEnv(providerConfig, {
+      providerId: conversation.providerId,
+      autoApprove: conversation.autoApprove,
+    });
     const trustEnv = {
       ...buildAgentEnv({ providerVars: providerEnv }),
       ...this.taskEnvVars,
@@ -101,7 +107,7 @@ export class LocalConversationProvider implements ConversationProvider {
     });
     const hooksAvailable = await this.prepareHookConfig(conversation.providerId);
 
-    const { command, args } = buildAgentCommand({
+    const { command, args } = buildAgentSessionCommand({
       providerId: conversation.providerId,
       providerConfig,
       autoApprove: conversation.autoApprove,
@@ -149,8 +155,7 @@ export class LocalConversationProvider implements ConversationProvider {
     });
 
     const hookActive = port > 0;
-    const provider = getProvider(conversation.providerId);
-    const useHooksOnly = hookActive && provider?.supportsHooks && hooksAvailable;
+    const useHooksOnly = hookActive && providerDef?.supportsHooks && hooksAvailable;
 
     if (!useHooksOnly) {
       wireAgentClassifier({
@@ -203,6 +208,13 @@ export class LocalConversationProvider implements ConversationProvider {
       metadata: { providerId: conversation.providerId, title: conversation.title },
     });
     this.sessions.set(sessionId, pty);
+    scheduleInitialPromptInjection({ pty, conversation, initialPrompt, isResuming });
+    telemetryService.capture('agent_run_started', {
+      provider: conversation.providerId,
+      project_id: conversation.projectId,
+      task_id: conversation.taskId,
+      conversation_id: conversation.id,
+    });
   }
 
   private async prepareHookConfig(providerId: Conversation['providerId']): Promise<boolean> {
