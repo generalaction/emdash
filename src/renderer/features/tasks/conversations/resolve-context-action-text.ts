@@ -6,13 +6,19 @@ import {
   type ContextAction,
 } from './context-actions';
 
+const PROVIDERS_WITH_CONTEXT = new Set<Issue['provider']>(['linear', 'plain']);
+
 export async function resolveContextActionText(args: {
   action: ContextAction;
   linkedIssue?: Issue;
   projectId?: string;
 }): Promise<string> {
   const { action, linkedIssue, projectId } = args;
-  if (action.kind !== 'linked-issue' || linkedIssue?.provider !== 'linear') {
+  if (
+    action.kind !== 'linked-issue' ||
+    !linkedIssue ||
+    !PROVIDERS_WITH_CONTEXT.has(linkedIssue.provider)
+  ) {
     return buildContextActionText(action);
   }
 
