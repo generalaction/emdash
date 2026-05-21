@@ -344,6 +344,25 @@ class AppService implements IInitializable, IDisposable {
       return;
     }
 
+    if (appId === 'kaku') {
+      const remoteExecArgs = buildRemoteTerminalExecArgs({
+        host,
+        username,
+        port,
+        targetPath: target,
+      });
+      const attempts =
+        platform === 'darwin'
+          ? [
+              { file: 'open', args: ['-na', 'Kaku', '--args', 'start', '--', ...remoteExecArgs] },
+              { file: 'kaku', args: ['start', '--', ...remoteExecArgs] },
+            ]
+          : [{ file: 'kaku', args: ['start', '--', ...remoteExecArgs] }];
+
+      await this.launchRemoteTerminal('Kaku', attempts);
+      return;
+    }
+
     if (appConfig?.supportsRemote) {
       throw new Error(`Remote SSH not yet implemented for ${label}`);
     }
