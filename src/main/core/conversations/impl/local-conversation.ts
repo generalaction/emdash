@@ -86,14 +86,21 @@ export class LocalConversationProvider implements ConversationProvider {
     this.knownSessionIds.add(sessionId);
     if (this.sessions.has(sessionId)) return;
 
+    const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
+    const providerEnv = resolveProviderEnv(providerConfig);
+    const trustEnv = {
+      ...buildAgentEnv({ providerVars: providerEnv }),
+      ...this.taskEnvVars,
+    };
+
     await providerTrustService.maybeAutoTrustLocal({
       providerId: conversation.providerId,
       cwd: this.taskPath,
       homedir: homedir(),
+      env: trustEnv,
     });
     const hooksAvailable = await this.prepareHookConfig(conversation.providerId);
 
-    const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
     const { command, args } = buildAgentCommand({
       providerId: conversation.providerId,
       providerConfig,
@@ -102,7 +109,6 @@ export class LocalConversationProvider implements ConversationProvider {
       isResuming,
       initialPrompt,
     });
-    const providerEnv = resolveProviderEnv(providerConfig);
 
     const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
 
