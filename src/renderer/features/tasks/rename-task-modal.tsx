@@ -17,6 +17,7 @@ import {
   liveTransformTaskName,
   MAX_TASK_NAME_LENGTH,
   normalizeTaskName,
+  taskNameCollisionKey,
 } from '@renderer/utils/taskNames';
 import type { RenameTaskError } from '@shared/tasks';
 
@@ -56,11 +57,11 @@ export const RenameTaskModal = observer(function RenameTaskModal({
   const siblingNames = new Set(
     Array.from(taskManager?.tasks.values() ?? [])
       .filter((t) => t.state !== 'unregistered' && t.data.id !== taskId)
-      .map((t) => t.data.name)
+      .map((t) => taskNameCollisionKey(t.data.name))
   );
 
   const normalizedName = normalizeTaskName(name);
-  const isDuplicate = siblingNames.has(normalizedName);
+  const isDuplicate = siblingNames.has(taskNameCollisionKey(normalizedName));
   const isUnchanged = normalizedName === currentName;
   const isEmpty = normalizedName.length === 0;
   const isValid = !isEmpty && !isDuplicate && !isUnchanged;
