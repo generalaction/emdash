@@ -1,10 +1,10 @@
 import { eq, sql } from 'drizzle-orm';
-import { taskEvents } from '@main/core/tasks/task-events';
 import { mapTaskRowToTask } from '@main/core/tasks/utils/utils';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
+import type { Task } from '@shared/tasks';
 
-export async function restoreTask(id: string): Promise<void> {
+export async function restoreTask(id: string): Promise<Task | undefined> {
   const [updatedRow] = await db
     .update(tasks)
     .set({
@@ -16,7 +16,5 @@ export async function restoreTask(id: string): Promise<void> {
     .where(eq(tasks.id, id))
     .returning();
 
-  if (updatedRow) {
-    taskEvents._emit('task:updated', mapTaskRowToTask(updatedRow));
-  }
+  return updatedRow ? mapTaskRowToTask(updatedRow) : undefined;
 }

@@ -25,6 +25,7 @@ export function FromBranchContent({
     <div className="flex flex-col gap-4">
       <BranchPickerField
         state={state}
+        branchNameState={state}
         projectId={projectId}
         currentBranch={currentBranch}
         isUnborn={isUnborn}

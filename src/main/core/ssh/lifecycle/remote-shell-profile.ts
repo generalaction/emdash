@@ -1,4 +1,5 @@
 import type { ClientCallback, ClientChannel } from 'ssh2';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import { isValidEnvVarName, quoteShellArg } from '@main/utils/shellEscape';
 import { parseRemoteEnvOutput, SHELL_ENV_CAPTURE_GUARD } from '@main/utils/userEnv';
 
@@ -79,6 +80,15 @@ export function includeRemoteUserBinDirs(env: Record<string, string>): Record<st
     ...env,
     PATH: [userBin, ...pathEntries].join(':'),
   };
+}
+
+export async function resolveRemoteHome(ctx: IExecutionContext): Promise<string> {
+  const { stdout } = await ctx.exec('sh', ['-c', 'printf %s "$HOME"']);
+  const home = stdout.trim();
+  if (!home) {
+    throw new Error('Remote home directory is empty');
+  }
+  return home;
 }
 
 export async function captureRemoteShellProfile(

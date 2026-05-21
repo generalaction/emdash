@@ -22,6 +22,8 @@ vi.mock('@renderer/lib/ipc', () => ({
       getConnections: vi.fn(async () => []),
       getConnectionState: vi.fn(async () => ({})),
       getHealthStates: vi.fn(async () => ({})),
+      getSshConfigHost: vi.fn(async (alias) => ({ host: alias })),
+      getSshConfigHosts: vi.fn(async () => []),
       renameConnection: vi.fn(async () => {}),
       saveConnection: vi.fn(async (config) => ({ ...config, id: 'ssh-1' })),
       testConnection: vi.fn(async () => ({ success: true })),
@@ -90,5 +92,29 @@ describe('SshConnectionStore', () => {
 
     expect(store.healthFor('ssh-1')).toEqual({ status: 'ok' });
     expect(store.healthStates).toEqual({});
+  });
+
+  it('passes SSH config alias and proxy metadata through saveConnection', async () => {
+    const store = new SshConnectionStore();
+
+    await store.saveConnection({
+      name: 'Corp',
+      host: 'corp.example.com',
+      port: 22,
+      username: 'alice',
+      authType: 'agent',
+      useAgent: true,
+      sshConfigAlias: 'corp-dev',
+      forwardAgent: true,
+      proxyJump: 'bastion',
+    });
+
+    expect(rpc.ssh.saveConnection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sshConfigAlias: 'corp-dev',
+        forwardAgent: true,
+        proxyJump: 'bastion',
+      })
+    );
   });
 });
