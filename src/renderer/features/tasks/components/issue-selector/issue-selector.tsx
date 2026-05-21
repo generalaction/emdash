@@ -91,7 +91,7 @@ export function ProviderLogo({
         className ?? 'h-3.5 w-3.5'
       )}
     >
-      <Icon size="90%" className="size-[90%]" />
+      <Icon className="size-[90%]" />
     </span>
   );
 }

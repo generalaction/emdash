@@ -288,72 +288,76 @@ const IntegrationsCard: React.FC = () => {
       className="grid gap-3"
       style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}
     >
-      {integrations.map((integration) => (
-        <div key={integration.id} className="flex h-full min-h-0">
-          <div className="border-muted bg-muted/20 flex w-full items-center gap-4 rounded-lg border p-4">
-            <div className="bg-muted/50 flex h-12 w-12 shrink-0 items-center justify-center rounded-lg">
-              {React.createElement(PROVIDER_ICON_COMPONENTS[integration.id], { size: 32 })}
-            </div>
-            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <h3 className="text-sm font-medium text-foreground">{integration.name}</h3>
-              <p className="text-muted-foreground text-sm">{integration.description}</p>
-            </div>
-            {integration.rightAction ? (
-              integration.rightAction
-            ) : integration.connected ? (
-              integration.disabledTooltip ? (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger
-                      className="border-input inline-flex h-8 w-8 shrink-0 cursor-default items-center justify-center rounded-md border bg-background opacity-70"
-                      aria-label={integration.disabledTooltip}
-                    >
-                      <Check className="h-4 w-4 text-foreground-success" />
-                    </TooltipTrigger>
-                    <TooltipContent side="top">
-                      <p className="text-xs">{integration.disabledTooltip}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+      {integrations.map((integration) => {
+        const Icon = PROVIDER_ICON_COMPONENTS[integration.id];
+
+        return (
+          <div key={integration.id} className="flex h-full min-h-0">
+            <div className="border-muted bg-muted/20 flex w-full items-center gap-4 rounded-lg border p-4">
+              <div className="bg-muted/50 flex h-12 w-12 shrink-0 items-center justify-center rounded-lg">
+                <Icon size={32} />
+              </div>
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <h3 className="text-sm font-medium text-foreground">{integration.name}</h3>
+                <p className="text-muted-foreground text-sm">{integration.description}</p>
+              </div>
+              {integration.rightAction ? (
+                integration.rightAction
+              ) : integration.connected ? (
+                integration.disabledTooltip ? (
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger
+                        className="border-input inline-flex h-8 w-8 shrink-0 cursor-default items-center justify-center rounded-md border bg-background opacity-70"
+                        aria-label={integration.disabledTooltip}
+                      >
+                        <Check className="h-4 w-4 text-foreground-success" />
+                      </TooltipTrigger>
+                      <TooltipContent side="top">
+                        <p className="text-xs">{integration.disabledTooltip}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8 shrink-0"
+                    onClick={integration.onDisconnect}
+                    aria-label={`Disconnect ${integration.name}`}
+                  >
+                    <Check className="h-4 w-4 text-foreground-success" />
+                  </Button>
+                )
               ) : (
                 <Button
                   type="button"
                   variant="outline"
                   size="icon"
                   className="h-8 w-8 shrink-0"
-                  onClick={integration.onDisconnect}
-                  aria-label={`Disconnect ${integration.name}`}
+                  onClick={
+                    integration.loading && integration.onCancel
+                      ? integration.onCancel
+                      : integration.onConnect
+                  }
+                  aria-label={
+                    integration.loading
+                      ? `Cancel connecting ${integration.name}`
+                      : `Connect ${integration.name}`
+                  }
                 >
-                  <Check className="h-4 w-4 text-foreground-success" />
+                  {integration.loading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Plus className="h-4 w-4" />
+                  )}
                 </Button>
-              )
-            ) : (
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="h-8 w-8 shrink-0"
-                onClick={
-                  integration.loading && integration.onCancel
-                    ? integration.onCancel
-                    : integration.onConnect
-                }
-                aria-label={
-                  integration.loading
-                    ? `Cancel connecting ${integration.name}`
-                    : `Connect ${integration.name}`
-                }
-              >
-                {integration.loading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Plus className="h-4 w-4" />
-                )}
-              </Button>
-            )}
+              )}
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 };
