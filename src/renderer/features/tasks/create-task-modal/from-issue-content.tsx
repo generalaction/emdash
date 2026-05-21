@@ -106,6 +106,7 @@ export function FromIssueContent({
 
       <BranchPickerField
         state={state}
+        branchNameState={state}
         projectId={projectId}
         currentBranch={currentBranch}
         isUnborn={isUnborn}

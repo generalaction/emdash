@@ -161,7 +161,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           const taskStrategy = resolveBranchLikeTaskStrategy({
             isUnborn,
             createBranchAndWorktree: fromBranch.createBranchAndWorktree,
-            taskBranch: fromBranch.taskName,
+            taskBranch: fromBranch.branchName,
             pushBranch: fromBranch.pushBranch,
           });
           void projectStore.mountedProject!.taskManager.createTask({
@@ -180,7 +180,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           const taskStrategy = resolveBranchLikeTaskStrategy({
             isUnborn,
             createBranchAndWorktree: fromIssue.createBranchAndWorktree,
-            taskBranch: fromIssue.taskName,
+            taskBranch: fromIssue.branchName,
             pushBranch: fromIssue.pushBranch,
           });
           void projectStore.mountedProject!.taskManager.createTask({
