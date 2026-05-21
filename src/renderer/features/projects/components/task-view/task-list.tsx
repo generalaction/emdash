@@ -128,7 +128,7 @@ export const TaskList = observer(function TaskList() {
   } = useParams('project');
   const store = asMounted(getProjectStore(projectId));
   const taskManager = getTaskManagerStore(projectId);
-  const showConfirm = useShowModal('confirmActionModal');
+  const showDeleteTask = useShowModal('deleteTaskModal');
   const showCreateTaskModal = useShowModal('taskModal');
 
   const taskView = store?.view.taskView ?? null;
@@ -164,14 +164,16 @@ export const TaskList = observer(function TaskList() {
   };
 
   const bulkDelete = () => {
-    const count = taskView.selectedIds.size;
-    showConfirm({
-      title: `Delete ${count} task${count === 1 ? '' : 's'}`,
-      description: 'The selected tasks will be permanently deleted. This action cannot be undone.',
-      confirmLabel: `Delete ${count} task${count === 1 ? '' : 's'}`,
-      onSuccess: () => {
-        const ids = [...taskView.selectedIds];
-        ids.forEach((id) => void taskManager?.deleteTask(id));
+    const selectedTasks = [...taskView.selectedIds]
+      .map((id) => taskManager?.tasks.get(id))
+      .filter((t): t is ReadyTask => !!t)
+      .map((t) => ({ taskId: t.data.id, taskName: t.data.name }));
+
+    showDeleteTask({
+      projectId,
+      tasks: selectedTasks,
+      onSuccess: ({ deleteWorktree, deleteBranch }) => {
+        void taskManager?.deleteTasks([...taskView.selectedIds], { deleteWorktree, deleteBranch });
         clearSelection();
       },
     });

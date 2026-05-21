@@ -32,18 +32,18 @@ export const TaskRow = observer(function TaskRow({
 }) {
   const { navigate } = useNavigate();
   const showRename = useShowModal('renameTaskModal');
-  const showConfirm = useShowModal('confirmActionModal');
+  const showDeleteTask = useShowModal('deleteTaskModal');
   const taskManager = getTaskManagerStore(task.data.projectId);
 
   const handleArchive = () => void taskManager?.archiveTask(task.data.id);
   const handleRestore = () => void taskManager?.restoreTask(task.data.id);
   const handleProvision = () => void taskManager?.provisionTask(task.data.id);
   const handleDelete = () =>
-    showConfirm({
-      title: 'Delete task',
-      description: `"${task.data.name}" will be permanently deleted. This action cannot be undone.`,
-      confirmLabel: 'Delete',
-      onSuccess: () => void taskManager?.deleteTask(task.data.id),
+    showDeleteTask({
+      projectId: task.data.projectId,
+      tasks: [{ taskId: task.data.id, taskName: task.data.name }],
+      onSuccess: ({ deleteWorktree, deleteBranch }) =>
+        void taskManager?.deleteTasks([task.data.id], { deleteWorktree, deleteBranch }),
     });
   const handleRename = () =>
     showRename({

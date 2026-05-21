@@ -1,5 +1,5 @@
 import { createRPCController } from '@shared/ipc/rpc';
-import type { CreateTaskParams, Issue, TaskLifecycleStatus } from '@shared/tasks';
+import type { CreateTaskParams, DeleteTaskOptions, Issue, TaskLifecycleStatus } from '@shared/tasks';
 import { generateTaskName } from './name-generation/generateTaskName';
 import { formatProvisionTaskError } from './provision-task-error';
 import { taskService } from './task-service';
@@ -11,8 +11,14 @@ export const taskController = createRPCController({
   async getTasks(projectId?: string) {
     return taskService.getTasks(projectId);
   },
-  async deleteTask(projectId: string, taskId: string) {
-    return taskService.deleteTask(projectId, taskId);
+  async getDeletePreflight(projectId: string, taskIds: string[]) {
+    return taskService.getDeletePreflight(projectId, taskIds);
+  },
+  async deleteTask(projectId: string, taskId: string, options?: DeleteTaskOptions) {
+    return taskService.deleteTask(projectId, taskId, options);
+  },
+  async deleteTasks(projectId: string, taskIds: string[], options?: DeleteTaskOptions) {
+    return taskService.deleteTasks(projectId, taskIds, options);
   },
   async archiveTask(projectId: string, taskId: string) {
     return taskService.archiveTask(projectId, taskId);
