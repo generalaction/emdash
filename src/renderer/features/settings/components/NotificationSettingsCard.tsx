@@ -162,7 +162,8 @@ const NotificationSettingsCard: React.FC = () => {
                       <Button
                         type="button"
                         variant="outline"
-                        className="text-muted-foreground max-w-56 bg-transparent font-normal"
+                        size="sm"
+                        className="text-muted-foreground max-w-56 font-normal"
                         disabled={loading}
                         onClick={chooseCustomSound}
                         aria-label={customSoundPath ? 'Change custom sound' : 'Choose custom sound'}
