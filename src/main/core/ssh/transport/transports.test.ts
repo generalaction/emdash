@@ -143,6 +143,15 @@ describe('expandProxyCommandTokens', () => {
       })
     ).toBe('ssh bastion -W dest.internal:2222 team/foo%bar@corp');
 
+    expect(
+      expandProxyCommandTokens('ssh unsupported=%C%d%i%k%L%l%T%u -W %h:%p %n %%', {
+        host: 'dest.internal',
+        port: 2222,
+        username: 'alice',
+        originalHost: 'team/foo%bar@corp',
+      })
+    ).toBe('ssh unsupported= -W dest.internal:2222 team/foo%bar@corp %');
+
     expect(() =>
       expandProxyCommandTokens('ssh -W %h:%p bastion', {
         host: 'bad;rm -rf /',

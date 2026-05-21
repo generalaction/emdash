@@ -202,10 +202,20 @@ export function expandProxyCommandTokens(command: string, tokens: ProxyTokens): 
 
   return command
     .replace(/%%/g, '\0')
-    .replace(/%h/g, tokens.host)
-    .replace(/%p/g, String(tokens.port))
-    .replace(/%r/g, tokens.username)
-    .replace(/%n/g, tokens.originalHost ?? tokens.host)
+    .replace(/%([A-Za-z])/g, (_match, token: string) => {
+      switch (token) {
+        case 'h':
+          return tokens.host;
+        case 'p':
+          return String(tokens.port);
+        case 'r':
+          return tokens.username;
+        case 'n':
+          return tokens.originalHost ?? tokens.host;
+        default:
+          return '';
+      }
+    })
     .replace(/\0/g, '%');
 }
 
