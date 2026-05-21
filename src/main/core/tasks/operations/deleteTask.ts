@@ -48,7 +48,12 @@ export async function deleteTask(
 
   if (project && deleteWorktree) {
     const worktreeRemoved = await removeWorktreeIfUnused(task, project, false);
-    if (worktreeRemoved && deleteBranch && sourceBranch && task.taskBranch !== sourceBranch.branch) {
+    if (
+      worktreeRemoved &&
+      deleteBranch &&
+      sourceBranch &&
+      task.taskBranch !== sourceBranch.branch
+    ) {
       const branchDelete = await project.repository.deleteBranch(task.taskBranch!).catch((e) => {
         log.warn('deleteTask: branch deletion failed', { taskId, error: String(e) });
         return null;

@@ -8,9 +8,9 @@ import { ShareProjectConfigModal } from '@renderer/features/projects/components/
 import { GithubConnectModal } from '@renderer/features/settings/components/github-connect-modal';
 import { CreateSkillModal } from '@renderer/features/skills/components/CreateSkillModal';
 import { AddRemoteModal } from '@renderer/features/tasks/add-remote-modal';
-import { DeleteTaskModal } from '@renderer/features/tasks/delete-task-modal';
 import { CreateConversationModal } from '@renderer/features/tasks/conversations/create-conversation-modal';
 import { CreateTaskModal } from '@renderer/features/tasks/create-task-modal/create-task-modal';
+import { DeleteTaskModal } from '@renderer/features/tasks/delete-task-modal';
 import { CreatePrModal } from '@renderer/features/tasks/diff-view/changes-panel/components/pr-entry/create-pr-modal';
 import { ConflictDialog } from '@renderer/features/tasks/editor/conflict-dialog';
 import { RenameTaskModal } from '@renderer/features/tasks/rename-task-modal';
