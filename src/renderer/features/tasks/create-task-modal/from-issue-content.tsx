@@ -1,8 +1,8 @@
 import { useRef, useState } from 'react';
-import type { Issue } from '@shared/tasks';
 import { buildLinkedIssueContextAction } from '@renderer/features/tasks/conversations/context-actions';
 import { resolveContextActionText } from '@renderer/features/tasks/conversations/resolve-context-action-text';
 import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
+import type { Issue } from '@shared/tasks';
 import { InlineIssueSelector } from '../components/issue-selector/inline-issue-selector';
 import { SelectedIssueValue } from '../components/issue-selector/issue-selector';
 import { BranchPickerField } from './branch-picker-field';

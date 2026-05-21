@@ -42,11 +42,9 @@ describe('upsertInitialIssueContext', () => {
     ].join('\n');
 
     expect(upsertInitialIssueContext(prompt, 'Provider: Linear | Identifier: ENG-2')).toBe(
-      [
-        'Existing instructions.',
-        'Provider: Linear | Identifier: ENG-2',
-        'Keep this line.',
-      ].join('\n')
+      ['Existing instructions.', 'Provider: Linear | Identifier: ENG-2', 'Keep this line.'].join(
+        '\n'
+      )
     );
   });
 
@@ -83,7 +81,9 @@ describe('upsertInitialIssueContext', () => {
 
 describe('hasInitialIssueContext', () => {
   it('detects issue context blocks', () => {
-    expect(hasInitialIssueContext('<issue_context>\nProvider: Linear\n</issue_context>')).toBe(true);
+    expect(hasInitialIssueContext('<issue_context>\nProvider: Linear\n</issue_context>')).toBe(
+      true
+    );
     expect(hasInitialIssueContext('Provider: Linear. Identifier: ENG-1')).toBe(true);
     expect(hasInitialIssueContext('Existing instructions.')).toBe(false);
   });

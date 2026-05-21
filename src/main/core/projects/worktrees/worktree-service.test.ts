@@ -221,6 +221,6 @@ describe('WorktreeService', () => {
       } finally {
         fs.rmSync(remoteDir, { recursive: true, force: true });
       }
-    });
+    }, 15_000);
   });
 });

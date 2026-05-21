@@ -1,5 +1,5 @@
-import type { Issue } from '@shared/tasks';
 import { refreshLinkedIssueContext } from '@renderer/features/tasks/issue-context/refresh-linked-issue-context';
+import type { Issue } from '@shared/tasks';
 import {
   buildContextActionText,
   buildLinkedIssueContextAction,

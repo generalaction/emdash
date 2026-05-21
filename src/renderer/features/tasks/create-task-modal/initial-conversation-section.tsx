@@ -13,15 +13,12 @@ import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-sel
 import { Field, FieldLabel } from '@renderer/lib/ui/field';
 import { Switch } from '@renderer/lib/ui/switch';
 import { Textarea } from '@renderer/lib/ui/textarea';
-
+import type { AgentProviderId } from '@shared/agent-provider-registry';
+import type { Issue } from '@shared/tasks';
 import {
   appendInitialConversationText,
   upsertInitialIssueContext,
 } from './initial-conversation-text';
-
-import type { AgentProviderId } from '@shared/agent-provider-registry';
-import type { Issue } from '@shared/tasks';
-
 import { ModalContextBar } from './modal-context-bar';
 
 export type InitialConversationState = {
