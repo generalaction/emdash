@@ -59,11 +59,13 @@ export class ProviderTrustService {
     cwd,
     ctx,
     remoteFs,
+    env = {},
   }: {
     providerId: AgentProviderId;
     cwd?: string;
     ctx: IExecutionContext;
     remoteFs: Pick<FileSystemProvider, 'realPath' | 'read' | 'write'>;
+    env?: Record<string, string | undefined>;
   }): Promise<void> {
     if (!cwd) return;
     if (!(await this.shouldAutoTrust(providerId))) return;
@@ -75,6 +77,8 @@ export class ProviderTrustService {
       readConfig: (configPath) => readRemoteConfig(remoteFs, configPath),
       writeConfig: (configPath, content) =>
         writeRemoteConfigAtomic(remoteFs, ctx, configPath, content),
+      codexHome: env.CODEX_HOME,
+      copilotHome: env.COPILOT_HOME,
     });
   }
 
@@ -201,6 +205,16 @@ function withCopilotTrustedProject(rawConfig: string | null, worktreePath: strin
     ? config.trustedFolders.filter((folder): folder is string => typeof folder === 'string')
     : [];
   if (trustedFolders.includes(worktreePath)) return null;
+
+  if (rawConfig && rawConfig.trim() !== '') {
+    const edits = jsonc.modify(
+      rawConfig,
+      Array.isArray(config.trustedFolders) ? ['trustedFolders', -1] : ['trustedFolders'],
+      Array.isArray(config.trustedFolders) ? worktreePath : [worktreePath],
+      { formattingOptions: { insertSpaces: true, tabSize: 2 } }
+    );
+    return jsonc.applyEdits(rawConfig, edits);
+  }
 
   return (
     JSON.stringify({ ...config, trustedFolders: [...trustedFolders, worktreePath] }, null, 2) + '\n'

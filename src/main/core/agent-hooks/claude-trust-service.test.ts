@@ -1,4 +1,5 @@
 import path from 'node:path';
+import * as jsonc from 'jsonc-parser';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import {
@@ -67,7 +68,6 @@ function makeRemoteFs(
 describe('ClaudeTrustService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    delete process.env.CODEX_HOME;
     mockReadFile.mockRejectedValue(Object.assign(new Error('not found'), { code: 'ENOENT' }));
     mockWriteFile.mockResolvedValue(undefined);
     mockRename.mockResolvedValue(undefined);
@@ -285,7 +285,9 @@ describe('ClaudeTrustService', () => {
     });
 
     expect(mockRename.mock.calls[0][1]).toBe('/home/local-user/.copilot/config.json');
-    const written = JSON.parse(String(mockWriteFile.mock.calls[0][1]));
+    const content = String(mockWriteFile.mock.calls[0][1]);
+    expect(content).toContain('// User settings belong in settings.json.');
+    const written = jsonc.parse(content);
     expect(written).toEqual({
       theme: 'dark',
       trustedFolders: ['/existing', path.resolve('/tmp/worktree')],
@@ -309,7 +311,6 @@ describe('ClaudeTrustService', () => {
 
   it('uses CODEX_HOME for local Codex config when set', async () => {
     const service = makeService();
-    process.env.CODEX_HOME = '/custom/codex-home';
     mockReadFile.mockResolvedValue('model = "gpt-5"\n');
 
     await service.maybeAutoTrustLocal({
@@ -321,6 +322,41 @@ describe('ClaudeTrustService', () => {
 
     expect(mockReadFile).toHaveBeenCalledWith('/custom/codex-home/config.toml', 'utf8');
     expect(mockRename.mock.calls[0][1]).toBe('/custom/codex-home/config.toml');
+  });
+
+  it('uses CODEX_HOME for ssh Codex config when set', async () => {
+    const service = makeService();
+    const remoteFs = makeRemoteFs({
+      realPath: vi.fn().mockResolvedValue('/remote/worktree'),
+      read: vi.fn().mockRejectedValue(notFound('/custom/codex-home/config.toml')),
+    });
+    const ctx: IExecutionContext = {
+      root: undefined,
+      supportsLocalSpawn: false,
+      exec: vi.fn().mockImplementation(async (command: string) => {
+        if (command === 'sh') return { stdout: '/home/remote-user', stderr: '' };
+        return { stdout: '', stderr: '' };
+      }),
+      execStreaming: vi.fn(),
+      dispose: vi.fn(),
+    };
+
+    await service.maybeAutoTrustSsh({
+      providerId: 'codex',
+      cwd: '/remote/worktree',
+      ctx,
+      remoteFs,
+      env: { CODEX_HOME: '/custom/codex-home' },
+    });
+
+    expect(remoteFs.read).toHaveBeenCalledWith(
+      '/custom/codex-home/config.toml',
+      expect.any(Number)
+    );
+    expect(ctx.exec).toHaveBeenCalledWith('mv', [
+      expect.stringContaining('/custom/codex-home/config.toml.'),
+      '/custom/codex-home/config.toml',
+    ]);
   });
 
   it('uses COPILOT_HOME for local Copilot config when set', async () => {

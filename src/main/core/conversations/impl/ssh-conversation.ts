@@ -82,14 +82,20 @@ export class SshConversationProvider implements ConversationProvider {
 
     if (this.sessions.has(sessionId)) return;
 
+    const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
+    const providerEnv = resolveProviderEnv(providerConfig, {
+      providerId: conversation.providerId,
+      autoApprove: conversation.autoApprove,
+    });
+
     await providerTrustService.maybeAutoTrustSsh({
       providerId: conversation.providerId,
       cwd: this.taskPath,
       ctx: this.ctx,
       remoteFs: new SshFileSystem(this.proxy, '/'),
+      env: { ...providerEnv, ...this.taskEnvVars },
     });
 
-    const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
     const { command, args } = buildAgentSessionCommand({
       providerId: conversation.providerId,
       providerConfig,
@@ -98,11 +104,6 @@ export class SshConversationProvider implements ConversationProvider {
       isResuming,
       initialPrompt,
     });
-    const providerEnv = resolveProviderEnv(providerConfig, {
-      providerId: conversation.providerId,
-      autoApprove: conversation.autoApprove,
-    });
-
     const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
 
     const cfg: AgentSessionConfig = {
