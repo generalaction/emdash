@@ -1,6 +1,7 @@
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { usePrefetchDiffModels } from '@renderer/features/tasks/diff-view/changes-panel/hooks/use-prefetch-diff-models';
 import {
   useTaskViewContext,
@@ -15,6 +16,9 @@ import { ChangesListItem } from '../changes-list-item';
 import { useCommitFiles } from './use-commit-files';
 import { usePrCommits } from './use-pr-commits';
 
+const ESTIMATED_COMMIT_ROW_HEIGHT = 43;
+const COMMIT_ROW_GAP = 4;
+
 export const PrCommitsList = observer(function PrCommitsList() {
   const { projectId } = useTaskViewContext();
   const workspaceId = useWorkspaceId();
@@ -28,6 +32,16 @@ export const PrCommitsList = observer(function PrCommitsList() {
   );
 
   const commits = data?.pages.flat() ?? [];
+  const parentRef = useRef<HTMLDivElement>(null);
+  const virtualizer = useVirtualizer({
+    count: commits.length,
+    estimateSize: () => ESTIMATED_COMMIT_ROW_HEIGHT,
+    gap: COMMIT_ROW_GAP,
+    getItemKey: (index) => commits[index]?.hash ?? index,
+    getScrollElement: () => parentRef.current,
+    overscan: 5,
+  });
+
   const toggleExpanded = (hash: string) => {
     setExpandedHashes((current) => {
       const next = new Set(current);
@@ -45,18 +59,33 @@ export const PrCommitsList = observer(function PrCommitsList() {
   }
 
   return (
-    <div className="h-full overflow-x-hidden overflow-y-auto py-2">
-      <div className="flex flex-col gap-1">
-        {commits.map((commit, index) => (
-          <CommitItem
-            key={commit.hash}
-            commit={commit}
-            isExpanded={expandedHashes.has(commit.hash)}
-            isFirst={index === 0}
-            isLast={index === commits.length - 1}
-            onToggleExpanded={() => toggleExpanded(commit.hash)}
-          />
-        ))}
+    <div ref={parentRef} className="h-full overflow-x-hidden overflow-y-auto py-2">
+      <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+        {virtualizer.getVirtualItems().map((virtualItem) => {
+          const commit = commits[virtualItem.index]!;
+          return (
+            <div
+              key={virtualItem.key}
+              data-index={virtualItem.index}
+              ref={virtualizer.measureElement}
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                transform: `translateY(${virtualItem.start}px)`,
+              }}
+            >
+              <CommitItem
+                commit={commit}
+                isExpanded={expandedHashes.has(commit.hash)}
+                isFirst={virtualItem.index === 0}
+                isLast={virtualItem.index === commits.length - 1}
+                onToggleExpanded={() => toggleExpanded(commit.hash)}
+              />
+            </div>
+          );
+        })}
       </div>
       {hasNextPage && (
         <div className="flex justify-center py-2">
@@ -135,10 +164,6 @@ function CommitItem({
   );
 }
 
-const parentRefForCommit = (commit: Commit): GitObjectRef => commitRef(`${commit.hash}^`);
-
-const commitRefForCommit = (commit: Commit): GitObjectRef => commitRef(commit.hash);
-
 const refsMatch = (left: GitObjectRef | undefined, right: GitObjectRef): boolean =>
   left !== undefined && refsEqual(left, right);
 
@@ -146,8 +171,8 @@ const CommitFilesList = observer(function CommitFilesList({ commit }: { commit: 
   const { projectId } = useTaskViewContext();
   const workspaceId = useWorkspaceId();
   const taskView = useWorkspaceViewModel();
-  const originalRef = useMemo(() => parentRefForCommit(commit), [commit]);
-  const modifiedRef = useMemo(() => commitRefForCommit(commit), [commit]);
+  const originalRef = useMemo(() => commitRef(`${commit.hash}^`), [commit.hash]);
+  const modifiedRef = useMemo(() => commitRef(commit.hash), [commit.hash]);
   const filesQuery = useCommitFiles(projectId, workspaceId, commit.hash, true);
   const prefetchDiff = usePrefetchDiffModels(
     projectId,
