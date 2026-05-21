@@ -9,13 +9,17 @@ const ISSUE_CONTEXT_END = '</issue_context>';
 const ISSUE_CONTEXT_BLOCK_PATTERN = new RegExp(
   `${ISSUE_CONTEXT_START}[\\s\\S]*?${ISSUE_CONTEXT_END}`
 );
+const ISSUE_CONTEXT_TEXT_PATTERN = /^Provider: .+\. Identifier: .+/m;
 
 export function formatInitialIssueContextBlock(text: string): string {
-  return `${ISSUE_CONTEXT_START}\n${text.trim()}\n${ISSUE_CONTEXT_END}`;
+  return text.trim();
 }
 
 export function hasInitialIssueContext(currentPrompt: string): boolean {
-  return ISSUE_CONTEXT_BLOCK_PATTERN.test(currentPrompt);
+  return (
+    ISSUE_CONTEXT_BLOCK_PATTERN.test(currentPrompt) ||
+    ISSUE_CONTEXT_TEXT_PATTERN.test(currentPrompt)
+  );
 }
 
 export function upsertInitialIssueContext(currentPrompt: string, text: string): string {

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   appendInitialConversationText,
-  formatInitialIssueContextBlock,
   hasInitialIssueContext,
   upsertInitialIssueContext,
 } from '@renderer/features/tasks/create-task-modal/initial-conversation-text';
@@ -27,43 +26,45 @@ describe('appendInitialConversationText', () => {
 });
 
 describe('upsertInitialIssueContext', () => {
-  it('appends issue context as a replaceable block', () => {
+  it('appends issue context without wrapper tags', () => {
     expect(upsertInitialIssueContext('Existing instructions.', 'Provider: Linear')).toBe(
-      'Existing instructions.\n<issue_context>\nProvider: Linear\n</issue_context>'
+      'Existing instructions.\nProvider: Linear'
     );
   });
 
-  it('replaces an existing issue context block without changing user text', () => {
+  it('replaces an existing legacy issue context block without changing user text', () => {
     const prompt = [
       'Existing instructions.',
-      formatInitialIssueContextBlock('Provider: Linear | Identifier: ENG-1'),
+      '<issue_context>',
+      'Provider: Linear | Identifier: ENG-1',
+      '</issue_context>',
       'Keep this line.',
     ].join('\n');
 
     expect(upsertInitialIssueContext(prompt, 'Provider: Linear | Identifier: ENG-2')).toBe(
       [
         'Existing instructions.',
-        '<issue_context>',
         'Provider: Linear | Identifier: ENG-2',
-        '</issue_context>',
         'Keep this line.',
       ].join('\n')
     );
   });
 
   it('replaces the only issue context block in the prompt', () => {
-    const prompt = upsertInitialIssueContext('', 'Provider: Linear | Identifier: ENG-0');
+    const prompt = '<issue_context>\nProvider: Linear | Identifier: ENG-0\n</issue_context>';
 
     expect(upsertInitialIssueContext(prompt, 'Provider: Linear | Identifier: ENG-1')).toBe(
-      '<issue_context>\nProvider: Linear | Identifier: ENG-1\n</issue_context>'
+      'Provider: Linear | Identifier: ENG-1'
     );
   });
 
-  it('preserves blank lines around an existing issue context block', () => {
+  it('preserves blank lines around an existing legacy issue context block', () => {
     const prompt = [
       'Existing instructions.',
       '',
-      formatInitialIssueContextBlock('Provider: Linear | Identifier: ENG-1'),
+      '<issue_context>',
+      'Provider: Linear | Identifier: ENG-1',
+      '</issue_context>',
       '',
       'Keep this line.',
     ].join('\n');
@@ -72,9 +73,7 @@ describe('upsertInitialIssueContext', () => {
       [
         'Existing instructions.',
         '',
-        '<issue_context>',
         'Provider: Linear | Identifier: ENG-2',
-        '</issue_context>',
         '',
         'Keep this line.',
       ].join('\n')
@@ -84,7 +83,8 @@ describe('upsertInitialIssueContext', () => {
 
 describe('hasInitialIssueContext', () => {
   it('detects issue context blocks', () => {
-    expect(hasInitialIssueContext(formatInitialIssueContextBlock('Provider: Linear'))).toBe(true);
+    expect(hasInitialIssueContext('<issue_context>\nProvider: Linear\n</issue_context>')).toBe(true);
+    expect(hasInitialIssueContext('Provider: Linear. Identifier: ENG-1')).toBe(true);
     expect(hasInitialIssueContext('Existing instructions.')).toBe(false);
   });
 });
