@@ -98,7 +98,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
 
   const emptyState = (
     <EmptyState
-      icon={<Terminal className="h-5 w-5 text-muted-foreground" />}
+      icon={<Terminal className="text-muted-foreground h-5 w-5" />}
       label="No terminals yet"
       description="Add a terminal to run shell commands in this task's working directory."
       action={
@@ -146,7 +146,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
           e.currentTarget.setPointerCapture(e.pointerId);
           panelDragStore.setDragging(true);
         }}
-        className="hover:bg-background-2 bg-transparent"
+        className="bg-transparent hover:bg-background-2"
         onPointerUp={() => panelDragStore.setDragging(false)}
         onPointerCancel={() => panelDragStore.setDragging(false)}
       />

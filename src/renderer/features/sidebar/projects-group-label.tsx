@@ -20,7 +20,7 @@ export const ProjectsGroupLabel = observer(function ProjectsGroupLabel() {
   const showAddProjectModal = useShowModal('addProjectModal');
 
   return (
-    <div className="flex items-center justify-between pl-5 pr-2.5 h-[40px]">
+    <div className="flex h-[40px] items-center justify-between pr-2.5 pl-5">
       <MicroLabel className="text-foreground-tertiary-passive">Projects</MicroLabel>
       <div className="flex items-center gap-1">
         <DropdownMenu>

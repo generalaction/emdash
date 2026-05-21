@@ -1,6 +1,6 @@
 import { quoteShellArg } from './shellEscape';
 
-type RemoteEditorScheme = 'vscode' | 'vscodium' | 'cursor';
+type RemoteEditorScheme = 'vscode' | 'vscodium' | 'cursor' | 'zed';
 
 export function buildRemoteSshAuthority(host: string, username: string): string {
   const normalizedHost = host.trim();
@@ -24,7 +24,13 @@ export function buildRemoteEditorUrl(
   const authority = buildRemoteSshAuthority(host, username);
   const encodedAuthority = encodeURIComponent(authority);
   const normalizedTargetPath = targetPath.startsWith('/') ? targetPath : `/${targetPath}`;
-  return `${scheme}://vscode-remote/ssh-remote+${encodedAuthority}${normalizedTargetPath}`;
+
+  switch (scheme) {
+    case 'zed':
+      return `zed://ssh/${encodedAuthority}${normalizedTargetPath}`;
+    default:
+      return `${scheme}://vscode-remote/ssh-remote+${encodedAuthority}${normalizedTargetPath}`;
+  }
 }
 
 type RemoteTerminalExecInput = {

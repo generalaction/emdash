@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createLifecycleScriptTerminalId } from '@shared/terminals';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
+import { createLifecycleScriptTerminalId } from '@shared/terminals';
 import type { Pty, PtyExitInfo } from '../pty/pty';
 import type { LifecycleScriptSpawnRequest, TerminalProvider } from '../terminals/terminal-provider';
 import { LifecycleScriptService } from './workspace-lifecycle-service';

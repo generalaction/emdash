@@ -1,5 +1,3 @@
-import type { Theme } from '@shared/app-settings';
-import { err, ok, type Result } from '@shared/result';
 import {
   fetchAppSettingsMeta,
   getAllAppSettingsFromCache,
@@ -9,6 +7,8 @@ import {
   setAppSettingsValueInCache,
   updateAppSettingsRequest,
 } from '@renderer/features/settings/app-settings-client';
+import type { Theme } from '@shared/app-settings';
+import { err, ok, type Result } from '@shared/result';
 import { getNextTheme } from './theme-toggle-model';
 
 export type ToggleThemeError = { message: string };

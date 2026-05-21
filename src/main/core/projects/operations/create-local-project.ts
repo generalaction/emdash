@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
-import type { LocalProject, ProjectPathStatus } from '@shared/projects';
 import { GitHubAuthExecutionContext } from '@main/core/execution-context/github-auth-execution-context';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
@@ -10,6 +9,7 @@ import { projectEvents } from '@main/core/projects/project-events';
 import { projectManager } from '@main/core/projects/project-manager';
 import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
+import type { LocalProject, ProjectPathStatus } from '@shared/projects';
 import { checkIsValidDirectory } from '../path-utils';
 import { ensureGitRepository, resolveProjectBaseRef } from './create-project-utils';
 

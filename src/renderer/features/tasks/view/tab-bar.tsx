@@ -1,8 +1,12 @@
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, type ReactNode } from 'react';
 import { useTabGroupContext } from '@renderer/features/tasks/tabs/tab-group-context';
-import { useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
+import {
+  useConversations,
+  useWorkspaceViewModel,
+} from '@renderer/features/tasks/task-view-context';
 import { useTabShortcuts } from '@renderer/lib/hooks/useTabShortcuts';
+import type { ConversationManagerStore } from '../conversations/conversation-manager';
 import type {
   ResolvedConversationTab,
   ResolvedDiffTab,
@@ -15,7 +19,10 @@ import { PaneDropZone } from './tab-bar/draggable-tab';
 import { FileTabItem } from './tab-bar/file-tab-item';
 import { TabBarActions } from './tab-bar/tab-bar-actions';
 
-function makeTabRenderers(tabManager: ReturnType<typeof useTabGroupContext>['tabManager']) {
+function makeTabRenderers(
+  tabManager: ReturnType<typeof useTabGroupContext>['tabManager'],
+  conversations: ConversationManagerStore
+) {
   return {
     conversation: (tab: ResolvedConversationTab): ReactNode => (
       <ConversationTabItem
@@ -24,6 +31,7 @@ function makeTabRenderers(tabManager: ReturnType<typeof useTabGroupContext>['tab
         onSelect={() => tabManager.setActiveTab(tab.tabId)}
         onPin={() => tabManager.openConversation(tab.conversationId)}
         onClose={() => tabManager.closeTab(tab.tabId)}
+        onRenameSubmit={(name) => void conversations.renameConversation(tab.conversationId, name)}
       />
     ),
     diff: (tab: ResolvedDiffTab): ReactNode => (
@@ -51,7 +59,8 @@ export const TabBar = observer(function TabBar() {
   const taskView = useWorkspaceViewModel();
   const { groupId, tabManager } = useTabGroupContext();
   const { tabGroupManager } = taskView;
-  const tabRenderers = makeTabRenderers(tabManager);
+  const conversations = useConversations();
+  const tabRenderers = makeTabRenderers(tabManager, conversations);
 
   const isFocusedPane =
     taskView.focusedRegion === 'main' && tabGroupManager.activeGroupId === groupId;

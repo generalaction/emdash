@@ -1,11 +1,11 @@
+import { db, sqlite } from '@main/db/client';
+import { conversations, projects, tasks } from '@main/db/schema';
+import { log } from '@main/lib/logger';
 import { ALL_COMMAND_DEFS } from '@shared/commands';
 import type { Conversation } from '@shared/conversations';
 import type { Project } from '@shared/projects';
 import type { CommandPaletteQuery, SearchItem, SearchItemKind } from '@shared/search';
 import type { Task } from '@shared/tasks';
-import { db, sqlite } from '@main/db/client';
-import { conversations, projects, tasks } from '@main/db/schema';
-import { log } from '@main/lib/logger';
 import { conversationEvents } from '../conversations/conversation-events';
 import { projectEvents } from '../projects/project-events';
 import { taskEvents } from '../tasks/task-events';

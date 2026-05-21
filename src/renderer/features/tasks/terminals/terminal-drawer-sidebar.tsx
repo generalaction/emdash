@@ -58,7 +58,7 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
           <Tooltip>
             <TooltipTrigger>
               <button
-                className="flex items-center justify-center size-5 rounded hover:bg-background-2 text-foreground-muted hover:text-foreground"
+                className="flex size-5 items-center justify-center rounded text-foreground-muted hover:bg-background-2 hover:text-foreground"
                 onClick={onAddTerminal}
               >
                 <Plus className="size-3" />
@@ -83,7 +83,7 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
               <Tooltip>
                 <TooltipTrigger>
                   <button
-                    className="ml-1 shrink-0 flex items-center justify-center size-5 rounded opacity-0 group-hover:opacity-100 hover:bg-background text-foreground-muted hover:text-foreground"
+                    className="ml-1 flex size-5 shrink-0 items-center justify-center rounded text-foreground-muted opacity-0 group-hover:opacity-100 hover:bg-background hover:text-foreground"
                     onClick={(e) => {
                       e.stopPropagation();
                       onRemoveTerminal(terminal.data.id);
@@ -111,7 +111,7 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
                     navigate('project', { projectId });
                   }}
                   disabled={!project}
-                  className="flex items-center justify-center size-5 rounded hover:bg-background-2 text-foreground-muted hover:text-foreground"
+                  className="flex size-5 items-center justify-center rounded text-foreground-muted hover:bg-background-2 hover:text-foreground"
                 >
                   <Settings className="size-3" />
                 </button>
@@ -255,7 +255,7 @@ function InlineRenameInput({
   return (
     <input
       ref={ref}
-      className="w-full bg-transparent outline-none text-sm border border-border px-1 py-0.5 rounded text-foreground"
+      className="w-full rounded border border-border bg-transparent px-1 py-0.5 text-sm text-foreground outline-none"
       value={value}
       onChange={(e) => setValue(e.target.value)}
       onBlur={() => onConfirm(value)}

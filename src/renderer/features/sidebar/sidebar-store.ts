@@ -12,6 +12,8 @@ import {
   type TaskStore,
 } from '@renderer/features/tasks/stores/task-store';
 import type { Snapshottable } from '@renderer/lib/stores/snapshottable';
+import { type LocalProject, type SshProject } from '@shared/projects';
+import type { SidebarSnapshot, SidebarTaskSortBy } from '@shared/view-state';
 
 function parseSidebarSortBy(value: unknown): SidebarSortBy | undefined {
   return value === 'created-at' || value === 'updated-at' || value === 'project-name'

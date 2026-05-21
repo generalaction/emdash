@@ -1,12 +1,12 @@
 import { EventEmitter } from 'node:events';
 import { eq } from 'drizzle-orm';
 import { Client, type ConnectConfig } from 'ssh2';
-import { sshConnectionEventChannel } from '@shared/events/sshEvents';
-import type { ConnectionState, SshHealthState } from '@shared/ssh';
 import { db } from '@main/db/client';
 import { sshConnections } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
+import { sshConnectionEventChannel } from '@shared/events/sshEvents';
+import type { ConnectionState, SshHealthState } from '@shared/ssh';
 import { buildConnectConfigFromRow } from './build-connect-config';
 import { isSshChannelOpenFailure } from './ssh-channel-open-failure';
 import { SshClientProxy } from './ssh-client-proxy';

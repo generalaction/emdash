@@ -136,7 +136,7 @@ export const EditorProvider = observer(function EditorProvider({
       editorRef.current = null;
       containerRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, []);
 
   // ---------------------------------------------------------------------------
@@ -164,7 +164,7 @@ export const EditorProvider = observer(function EditorProvider({
         modelRegistry.attach(editor, newBufUri, prevBufUriRef.current);
         prevBufUriRef.current = newBufUri;
       }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
     []
   );
 
@@ -174,7 +174,7 @@ export const EditorProvider = observer(function EditorProvider({
   useEffect(() => {
     if (!taskId) return;
     void editorView.restoreBuffers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [taskId]);
 
   // ---------------------------------------------------------------------------
@@ -194,7 +194,7 @@ export const EditorProvider = observer(function EditorProvider({
           },
         });
       }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
     []
   );
 
