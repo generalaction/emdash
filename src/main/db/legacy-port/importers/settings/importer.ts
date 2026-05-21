@@ -1,10 +1,10 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type Database from 'better-sqlite3';
-import { isValidProviderId } from '@shared/agent-provider-registry';
-import type { AppSettings, AppSettingsKey } from '@shared/app-settings';
 import { getDefaultForKey } from '@main/core/settings/settings-registry';
 import { isPlainObject, mergeDeep } from '@main/core/settings/utils';
+import { isValidProviderId } from '@shared/agent-provider-registry';
+import type { AppSettings, AppSettingsKey } from '@shared/app-settings';
 import { tableExists } from '../../sqlite-utils';
 import type { RelationalImportDb } from '../relational/types';
 

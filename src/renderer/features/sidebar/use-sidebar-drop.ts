@@ -1,14 +1,11 @@
 import { useCallback, useRef, useState } from 'react';
-import { basenameFromAnyPath } from '@shared/path-name';
 import { getProjectManagerStore } from '@renderer/features/projects/stores/project-selectors';
+import { getDraggedFilePaths, hasDraggedFiles } from '@renderer/lib/drag-files';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { log } from '@renderer/utils/logger';
-
-function hasFiles(e: React.DragEvent) {
-  return e.dataTransfer.types.includes('Files');
-}
+import { basenameFromAnyPath } from '@shared/path-name';
 
 export function useSidebarDrop() {
   const [isDragOver, setIsDragOver] = useState(false);
@@ -17,20 +14,20 @@ export function useSidebarDrop() {
   const { toast } = useToast();
 
   const onDragOver = useCallback((e: React.DragEvent) => {
-    if (!hasFiles(e)) return;
+    if (!hasDraggedFiles(e.dataTransfer)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
   }, []);
 
   const onDragEnter = useCallback((e: React.DragEvent) => {
-    if (!hasFiles(e)) return;
+    if (!hasDraggedFiles(e.dataTransfer)) return;
     e.preventDefault();
     dragCounter.current++;
     setIsDragOver(true);
   }, []);
 
   const onDragLeave = useCallback((e: React.DragEvent) => {
-    if (!hasFiles(e)) return;
+    if (!hasDraggedFiles(e.dataTransfer)) return;
     e.preventDefault();
     dragCounter.current--;
     if (dragCounter.current <= 0) {
@@ -45,16 +42,13 @@ export function useSidebarDrop() {
       dragCounter.current = 0;
       setIsDragOver(false);
 
-      const files = Array.from(e.dataTransfer.files);
-      if (files.length === 0) return;
+      const filePaths = getDraggedFilePaths(e.dataTransfer);
+      if (filePaths.length === 0) return;
 
       const projectManager = getProjectManagerStore();
 
       void Promise.allSettled(
-        files.map(async (file) => {
-          const filePath = window.electronAPI.getPathForFile(file).trim();
-          if (!filePath) return null;
-
+        filePaths.map(async (filePath) => {
           try {
             const status = await rpc.projects.inspectProjectPath({
               type: 'local',

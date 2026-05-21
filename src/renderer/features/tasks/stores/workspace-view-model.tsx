@@ -1,6 +1,4 @@
 import { computed, makeAutoObservable, observable, reaction, runInAction } from 'mobx';
-import type { Task } from '@shared/tasks';
-import type { DiffViewSnapshot, TaskViewSnapshot } from '@shared/view-state';
 import { DiffTabLifecycleStore } from '@renderer/features/tasks/diff-view/stores/diff-tab-lifecycle-store';
 import { DiffViewStore } from '@renderer/features/tasks/diff-view/stores/diff-view-store';
 import { FileModelLifecycleStore } from '@renderer/features/tasks/editor/stores/file-model-lifecycle-store';
@@ -14,6 +12,12 @@ import type { ILifecycle } from '@renderer/lib/stores/lifecycle';
 import { snapshotRegistry } from '@renderer/lib/stores/snapshot-registry';
 import { focusTracker } from '@renderer/utils/focus-tracker';
 import { log } from '@renderer/utils/logger';
+import type { Task } from '@shared/tasks';
+import type {
+  DiffViewSnapshot,
+  TaskViewSnapshot,
+  TerminalDrawerActiveItem,
+} from '@shared/view-state';
 import { conversationRegistry } from './conversation-registry';
 import { PrStore } from './pr-store';
 import type { TaskStore } from './task-store';
@@ -28,6 +32,7 @@ export class WorkspaceViewModel implements ILifecycle {
   isSidebarCollapsed: boolean;
   focusedRegion: 'main' | 'bottom';
   isTerminalDrawerOpen: boolean;
+  terminalDrawerActiveItem: TerminalDrawerActiveItem | undefined;
 
   /** Stable sub-stores — live for the full WorkspaceViewModel lifetime. */
   readonly tabGroupManager: TabGroupManagerStore;
@@ -74,6 +79,7 @@ export class WorkspaceViewModel implements ILifecycle {
     this.isSidebarCollapsed = true;
     this.focusedRegion = 'main';
     this.isTerminalDrawerOpen = false;
+    this.terminalDrawerActiveItem = undefined;
 
     const workspaceId = taskData.workspaceId ?? taskData.id;
 
@@ -186,6 +192,7 @@ export class WorkspaceViewModel implements ILifecycle {
       isSidebarCollapsed: this.isSidebarCollapsed,
       focusedRegion: this.focusedRegion,
       isTerminalDrawerOpen: this.isTerminalDrawerOpen,
+      terminalDrawerActiveItem: this.terminalDrawerActiveItem,
       tabGroups: this.tabGroupManager.snapshot,
       terminals: this.terminalTabs.snapshot,
       editor: this.editorView.snapshot,
@@ -206,6 +213,7 @@ export class WorkspaceViewModel implements ILifecycle {
     this.isSidebarCollapsed = savedSnapshot.isSidebarCollapsed ?? true;
     this.focusedRegion = savedSnapshot.focusedRegion === 'bottom' ? 'bottom' : 'main';
     this.isTerminalDrawerOpen = savedSnapshot.isTerminalDrawerOpen ?? false;
+    this.terminalDrawerActiveItem = savedSnapshot.terminalDrawerActiveItem;
 
     if (savedSnapshot.tabGroups) {
       // Current format: multi-group snapshot.
@@ -384,6 +392,10 @@ export class WorkspaceViewModel implements ILifecycle {
     this.setFocusedRegion(open ? 'bottom' : 'main');
   }
 
+  setTerminalDrawerActiveItem(item: TerminalDrawerActiveItem): void {
+    this.terminalDrawerActiveItem = item;
+  }
+
   /** Opens the terminal drawer and always creates a new terminal session. */
   async openNewTerminal(): Promise<string | undefined> {
     this.isTerminalDrawerOpen = true;
@@ -391,7 +403,10 @@ export class WorkspaceViewModel implements ILifecycle {
 
     const terminalId = await this._createDefaultTerminal();
     if (!terminalId) return undefined;
-    runInAction(() => this.terminalTabs.setActiveTab(terminalId));
+    runInAction(() => {
+      this.terminalTabs.setActiveTab(terminalId);
+      this.terminalDrawerActiveItem = { kind: 'terminal', id: terminalId };
+    });
     return terminalId;
   }
 

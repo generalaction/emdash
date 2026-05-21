@@ -129,7 +129,9 @@ void app.whenReady().then(async () => {
     log.warn('Failed to load account session token:', e);
   });
 
-  providerTokenRegistry.register('github', (token) => githubConnectionService.storeToken(token));
+  providerTokenRegistry.register('github', (token) =>
+    githubConnectionService.storeToken(token, 'emdash_oauth')
+  );
 
   registerRPCRouter(rpcRouter, ipcMain);
 

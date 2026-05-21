@@ -3,8 +3,6 @@ import { Command } from 'cmdk';
 import { Activity, FolderOpen, GitBranch, MessageSquare, type LucideIcon } from 'lucide-react';
 import { useObserver } from 'mobx-react-lite';
 import React, { useEffect, useMemo, useState } from 'react';
-import { ALL_COMMAND_DEFS, type CommandDef } from '@shared/commands';
-import type { SearchItem } from '@shared/search';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
 import { getTaskStore, getTaskView } from '@renderer/features/tasks/stores/task-selectors';
@@ -15,7 +13,10 @@ import { getEffectiveHotkey } from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { Shortcut } from '@renderer/lib/ui/shortcut';
 import { cn } from '@renderer/utils/utils';
+import { ALL_COMMAND_DEFS, type CommandDef } from '@shared/commands';
+import type { SearchItem } from '@shared/search';
 import { getCommandIcon } from './command-icons';
 import { PaletteConversationItem } from './palette-conversation-item';
 import { PALETTE_ITEM_CLASS } from './palette-item-styles';
@@ -36,7 +37,7 @@ interface PaletteAction {
   id: string;
   title: string;
   subtitle?: string;
-  shortcut?: string;
+  shortcut?: ReturnType<typeof getEffectiveHotkey>;
   icon?: LucideIcon;
   execute: () => void;
 }
@@ -62,16 +63,11 @@ const TASK_SUGGESTED = [
   'task.sidebarFiles',
   'task.sidebarConversations',
   'task.toggleTerminalDrawer',
+  'resource-monitor',
   'app.giveFeedback',
 ];
-const PROJECT_SUGGESTED = ['app.newTask', 'app.settings', 'app.giveFeedback'];
-const APP_SUGGESTED = ['app.newProject', 'app.settings', 'app.giveFeedback'];
-
-/** Converts a TanStack hotkey string (e.g. 'Mod+Shift+C') to a display label. */
-function formatHotkey(hotkey: string | undefined): string | undefined {
-  if (!hotkey) return undefined;
-  return hotkey.replace('Mod', '⌘').replace('Shift', '⇧').replace('Alt', '⌥').replace(/\+/g, '');
-}
+const PROJECT_SUGGESTED = ['app.newTask', 'app.settings', 'resource-monitor', 'app.giveFeedback'];
+const APP_SUGGESTED = ['app.newProject', 'app.settings', 'resource-monitor', 'app.giveFeedback'];
 
 function PaletteItem({
   value,
@@ -90,13 +86,18 @@ function PaletteItem({
     KIND_ICON[item.kind]
   );
   return (
-    <Command.Item value={value} onSelect={onSelect} className={PALETTE_ITEM_CLASS}>
+    <Command.Item value={value} onSelect={onSelect} className={cn(PALETTE_ITEM_CLASS, 'group')}>
       {iconNode}
       <span className="flex-1 truncate">{item.title}</span>
       {action?.shortcut && (
-        <kbd className="shrink-0 rounded bg-background-quaternary px-1.5 py-0.5 text-xs text-foreground/60">
-          {action.shortcut}
-        </kbd>
+        <>
+          <Shortcut hotkey={action.shortcut} className="group-aria-selected:hidden" />
+          <Shortcut
+            hotkey={action.shortcut}
+            variant="badge"
+            className="hidden group-aria-selected:inline-flex"
+          />
+        </>
       )}
     </Command.Item>
   );
@@ -144,7 +145,7 @@ export function CommandPaletteModal({
         rpc.search.commandPalette({ query: '', context: { projectId, taskId, workspaceId } }),
       staleTime: 5_000,
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, []);
 
   const { data: dbResults = [] } = useQuery({
@@ -172,9 +173,7 @@ export function CommandPaletteModal({
           id: cmd.id,
           title: cmd.label,
           subtitle: cmd.description,
-          shortcut: cmd.shortcutKey
-            ? formatHotkey(getEffectiveHotkey(cmd.shortcutKey, keyboard) ?? undefined)
-            : undefined,
+          shortcut: cmd.shortcutKey ? getEffectiveHotkey(cmd.shortcutKey, keyboard) : null,
           icon: getCommandIcon(def?.iconKey),
           execute: () => {
             onClose();
@@ -184,29 +183,44 @@ export function CommandPaletteModal({
       })
   );
 
-  const actions = useMemo(() => {
-    const allActions = [...registryActions];
-    if (resourceMonitor?.enabled) {
-      allActions.push({
-        kind: 'action',
-        id: 'resource-monitor',
-        title: 'Resource Monitor',
-        subtitle: 'Show CPU and memory performance for running agents',
-        icon: Activity,
-        execute: () => setView('resource-monitor'),
-      });
-    }
+  const resourceMonitorAction = useMemo<PaletteAction | null>(
+    () =>
+      resourceMonitor?.enabled
+        ? {
+            kind: 'action',
+            id: 'resource-monitor',
+            title: 'Resource Monitor',
+            subtitle: 'Show CPU and memory performance for running agents',
+            icon: Activity,
+            execute: () => setView('resource-monitor'),
+          }
+        : null,
+    [resourceMonitor?.enabled]
+  );
 
+  const actions = useMemo(() => {
     // Empty state: show the ordered context-specific suggested actions only.
     const suggestedIds = taskId ? TASK_SUGGESTED : projectId ? PROJECT_SUGGESTED : APP_SUGGESTED;
-    return allActions
+    const pool = resourceMonitorAction
+      ? [...registryActions, resourceMonitorAction]
+      : registryActions;
+    return pool
       .filter((a) => suggestedIds.includes(a.id))
       .sort((a, b) => suggestedIds.indexOf(a.id) - suggestedIds.indexOf(b.id))
       .slice(0, 7);
-  }, [registryActions, resourceMonitor?.enabled, projectId, taskId]);
+  }, [registryActions, resourceMonitorAction, projectId, taskId]);
 
   const rankedDb = applyContextAffinity(dbResults, { projectId });
   const actionResults = actions;
+
+  const q = debouncedQuery.toLowerCase();
+  const matchedResourceMonitor =
+    resourceMonitorAction &&
+    q &&
+    (resourceMonitorAction.title.toLowerCase().includes(q) ||
+      resourceMonitorAction.subtitle?.toLowerCase().includes(q))
+      ? resourceMonitorAction
+      : null;
   const taskResults = rankedDb.filter((r): r is SearchItem => r.kind === 'task');
   const conversationResults = rankedDb.filter((r): r is SearchItem => r.kind === 'conversation');
 
@@ -223,7 +237,7 @@ export function CommandPaletteModal({
 
   const handleNavigateToConversation = (item: SearchItem) => {
     if (!item.projectId || !item.taskId) return;
-    getTaskView(item.projectId, item.taskId)?.tabManager.openConversation(item.id);
+    getTaskView(item.projectId, item.taskId)?.tabGroupManager.openConversation(item.id);
     onClose();
     navigate('task', { projectId: item.projectId, taskId: item.taskId });
   };
@@ -261,12 +275,8 @@ export function CommandPaletteModal({
         <ResourceMonitorView onBack={() => setView('search')} />
         <div className="flex items-center gap-4 border-t border-foreground/10 px-3 py-2">
           <span className="flex items-center gap-1 text-xs text-foreground/40">
-            <kbd className="rounded bg-background-secondary px-1.5 py-0.5 font-mono text-[10px] text-foreground/50">
-              Esc
-            </kbd>
-            <kbd className="rounded bg-background-secondary px-1.5 py-0.5 font-mono text-[10px] text-foreground/50">
-              ⌫
-            </kbd>
+            <Shortcut hotkey="Escape" variant="badge" />
+            <Shortcut hotkey="Backspace" variant="badge" />
             Back
           </span>
         </div>
@@ -291,16 +301,23 @@ export function CommandPaletteModal({
             <Command.Empty className="py-8 text-center text-sm text-foreground/40">
               No results for &ldquo;{query}&rdquo;
             </Command.Empty>
+            {matchedResourceMonitor && (
+              <PaletteItem
+                value={matchedResourceMonitor.id}
+                item={matchedResourceMonitor}
+                onSelect={matchedResourceMonitor.execute}
+              />
+            )}
             {rankedDb.map((item) => {
               if (item.kind === 'command') {
                 const live = commandRegistry.findById(item.id);
-                if (!live || live.enabled === false) return null;
+                if (!live || live.enabled === false || live.hideFromPalette) return null;
                 const def = ALL_COMMAND_DEFS.find((d) => d.id === item.id) as
                   | CommandDef
                   | undefined;
                 const shortcut = def?.shortcutKey
-                  ? formatHotkey(getEffectiveHotkey(def.shortcutKey, keyboard) ?? undefined)
-                  : undefined;
+                  ? getEffectiveHotkey(def.shortcutKey, keyboard)
+                  : null;
                 const displayItem: PaletteAction = {
                   kind: 'action',
                   id: item.id,
@@ -446,24 +463,16 @@ export function CommandPaletteModal({
 
       <div className="flex items-center gap-4 border-t border-foreground/10 px-3 py-2">
         <span className="flex items-center gap-1 text-xs text-foreground/40">
-          <kbd className="rounded bg-background-secondary px-1.5 py-0.5 font-mono text-[10px] text-foreground/50">
-            ↑
-          </kbd>
-          <kbd className="rounded bg-background-secondary px-1.5 py-0.5 font-mono text-[10px] text-foreground/50">
-            ↓
-          </kbd>
+          <Shortcut hotkey="ArrowUp" variant="badge" />
+          <Shortcut hotkey="ArrowDown" variant="badge" />
           Navigate
         </span>
         <span className="flex items-center gap-1 text-xs text-foreground/40">
-          <kbd className="rounded bg-background-secondary px-1.5 py-0.5 font-mono text-[10px] text-foreground/50">
-            ↵
-          </kbd>
+          <Shortcut hotkey="Enter" variant="badge" />
           Select
         </span>
         <span className="flex items-center gap-1 text-xs text-foreground/40">
-          <kbd className="rounded bg-background-secondary px-1.5 py-0.5 font-mono text-[10px] text-foreground/50">
-            Esc
-          </kbd>
+          <Shortcut hotkey="Escape" variant="badge" />
           Close
         </span>
       </div>

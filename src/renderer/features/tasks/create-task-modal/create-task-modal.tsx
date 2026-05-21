@@ -1,7 +1,6 @@
 import { ChevronRight, FolderOpen } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useState } from 'react';
-import { getPrNumber, isForkPr, type PullRequest } from '@shared/pull-requests';
 import {
   getProjectManagerStore,
   getRepositoryStore,
@@ -25,6 +24,7 @@ import {
 } from '@renderer/lib/ui/dialog';
 import { Switch } from '@renderer/lib/ui/switch';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
+import { getPrNumber, isForkPr, type PullRequest } from '@shared/pull-requests';
 import {
   resolveBranchLikeTaskStrategy,
   resolvePullRequestTaskStrategy,
@@ -80,7 +80,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     initialConversation.setProvider(null);
     initialConversation.setPrompt('');
     // setProvider and setPrompt are stable useState setters
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [selectedProjectId]);
 
   const isWorkspaceProviderEnabled = useFeatureFlag('workspace-provider');
@@ -218,8 +218,8 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           value={selectedProjectId}
           onChange={setSelectedProjectId}
           trigger={
-            <ComboboxTrigger className="h-6 flex items-center gap-2 border border-border rounded-md px-2.5 py-1 text-sm outline-none">
-              <FolderOpen className="size-3.5 shrink-0 text-muted-foreground" />
+            <ComboboxTrigger className="flex h-6 items-center gap-2 rounded-md border border-border px-2.5 py-1 text-sm outline-none">
+              <FolderOpen className="text-muted-foreground size-3.5 shrink-0" />
               <ComboboxValue placeholder="Select a project" />
             </ComboboxTrigger>
           }
@@ -227,7 +227,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         <ChevronRight className="size-3.5 text-foreground-passive" />
         <DialogTitle>Create Task</DialogTitle>
       </DialogHeader>
-      <div className="flex flex-col gap-4 px-6 pb-4 shrink-0">
+      <div className="flex shrink-0 flex-col gap-4 px-6 pb-4">
         <ToggleGroup
           className="w-full"
           value={[selectedStrategy]}
@@ -250,7 +250,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         {isWorkspaceProviderEnabled && (
           <div className="flex items-center gap-2">
             <Switch size="sm" checked={useBYOI} onCheckedChange={setUseBYOI} />
-            <span className="text-sm text-muted-foreground">Use BYOI infrastructure</span>
+            <span className="text-muted-foreground text-sm">Run on own infrastructure</span>
           </div>
         )}
       </div>
@@ -280,7 +280,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           {selectedStrategy === 'from-pull-request' && (
             <div className="flex flex-col gap-3">
               {!repositoryUrl && (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-muted-foreground text-sm">
                   Pull requests are currently available only for configured GitHub remotes.
                 </p>
               )}

@@ -1,6 +1,4 @@
 import { action, autorun, computed, makeObservable, observable, reaction } from 'mobx';
-import type { GitChangeStatus, GitObjectRef } from '@shared/git';
-import type { ActiveFile, TabDescriptor, TabManagerSnapshot } from '@shared/view-state';
 import type {
   ConversationManagerStore,
   ConversationStore,
@@ -20,6 +18,8 @@ import {
   setTabActiveIndex as tabUtilsSetTabActiveIndex,
 } from '@renderer/lib/stores/tab-utils';
 import { setTelemetryConversationScope } from '@renderer/utils/telemetry-scope';
+import type { GitChangeStatus, GitObjectRef } from '@shared/git';
+import type { ActiveFile, TabDescriptor, TabManagerSnapshot } from '@shared/view-state';
 
 // ---------------------------------------------------------------------------
 // Conversation tab entry — thin reference into ConversationManagerStore

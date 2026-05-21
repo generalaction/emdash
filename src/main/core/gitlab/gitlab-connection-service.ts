@@ -1,5 +1,4 @@
 import { GitbeakerRequestError, Gitlab } from '@gitbeaker/rest';
-import { ISSUE_PROVIDER_CAPABILITIES, type ConnectionStatus } from '@shared/issue-providers';
 import { resolvePreferredRemote } from '@main/core/issues/git-remote-resolver';
 import {
   assertRemoteHostMatchesInstance,
@@ -8,6 +7,7 @@ import {
 } from '@main/core/issues/helpers/hosted-instance';
 import { encryptedAppSecretsStore } from '@main/core/secrets/encrypted-app-secrets-store';
 import { KV } from '@main/db/kv';
+import { ISSUE_PROVIDER_CAPABILITIES, type ConnectionStatus } from '@shared/issue-providers';
 
 interface GitLabConnectionConfig {
   instanceUrl: string;

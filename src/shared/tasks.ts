@@ -11,6 +11,7 @@ export type Issue = {
   title: string;
   identifier: string;
   description?: string;
+  context?: string;
   branchName?: string;
   status?: string;
   assignees?: string[];
@@ -121,9 +122,12 @@ export type ProvisionTaskResult = {
 };
 
 export function formatIssueAsPrompt(issue: Issue, initialPrompt?: string): string {
-  const parts = [`[${issue.identifier}] ${issue.title}`, issue.url, issue.description].filter(
-    Boolean
-  );
+  const parts = [
+    `[${issue.identifier}] ${issue.title}`,
+    issue.url,
+    issue.description,
+    issue.context,
+  ].filter(Boolean);
 
   if (initialPrompt?.trim()) parts.push('', initialPrompt.trim());
   return parts.join('\n');

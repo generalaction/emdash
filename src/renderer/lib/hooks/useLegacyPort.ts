@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { LegacyImportSource, LegacyPortPreview } from '@shared/legacy-port';
 import { rpc } from '@renderer/lib/ipc';
+import type { LegacyImportSource, LegacyPortPreview } from '@shared/legacy-port';
 
 export const LEGACY_PORT_STATUS_KEY = ['legacyPort:status'] as const;
 const LEGACY_PORT_PREVIEW_KEY = ['legacyPort:preview'] as const;

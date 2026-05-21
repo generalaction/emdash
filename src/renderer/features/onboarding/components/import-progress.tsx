@@ -1,10 +1,10 @@
 export function ImportProgress({ progress }: { progress: number }) {
   return (
     <div className="flex shrink-0 flex-col gap-2">
-      <div className="w-full h-2 bg-background-1 rounded-full overflow-hidden">
-        <div className="h-full bg-foreground rounded-full" style={{ width: `${progress}%` }} />
+      <div className="h-2 w-full overflow-hidden rounded-full bg-background-1">
+        <div className="h-full rounded-full bg-foreground" style={{ width: `${progress}%` }} />
       </div>
-      <p className="text-xs text-foreground-muted text-center">{progress}%</p>
+      <p className="text-center text-xs text-foreground-muted">{progress}%</p>
     </div>
   );
 }

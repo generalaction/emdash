@@ -81,7 +81,7 @@ export function PaletteNotificationsGroup({
               conv={item.conv}
               value={`notif:conversation:${item.conv.data.id}`}
               onSelect={() => {
-                getTaskView(item.projectId, item.taskId)?.tabManager.openConversation(
+                getTaskView(item.projectId, item.taskId)?.tabGroupManager.openConversation(
                   item.conv.data.id
                 );
                 if (item.projectId !== currentProjectId || item.taskId !== currentTaskId) {
