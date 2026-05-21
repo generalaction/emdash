@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import * as jsonc from 'jsonc-parser';
 import * as toml from 'smol-toml';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import {
@@ -34,10 +35,12 @@ export class ProviderTrustService {
     providerId,
     cwd,
     homedir,
+    env = process.env,
   }: {
     providerId: AgentProviderId;
     cwd?: string;
     homedir: string;
+    env?: Record<string, string | undefined>;
   }): Promise<void> {
     if (!cwd) return;
     if (!(await this.shouldAutoTrust(providerId))) return;
@@ -46,7 +49,8 @@ export class ProviderTrustService {
     await this.autoTrust(providerId, normalizedPath, homedir, path, {
       readConfig: readLocalConfig,
       writeConfig: writeLocalConfigAtomic,
-      codexHome: process.env.CODEX_HOME,
+      codexHome: env.CODEX_HOME,
+      copilotHome: env.COPILOT_HOME,
     });
   }
 
@@ -85,9 +89,9 @@ export class ProviderTrustService {
     normalizedPath: string,
     homeDir: string,
     pathApi: Pick<typeof path, 'join'>,
-    io: TrustIo & { codexHome?: string }
+    io: TrustIo & { codexHome?: string; copilotHome?: string }
   ): Promise<void> {
-    const configPath = getConfigPath(providerId, homeDir, pathApi, io.codexHome);
+    const configPath = getConfigPath(providerId, homeDir, pathApi, io.codexHome, io.copilotHome);
     if (!configPath) return;
 
     await this.withLock(configPath, () =>
@@ -134,13 +138,16 @@ function getConfigPath(
   providerId: AgentProviderId,
   homeDir: string,
   pathApi: Pick<typeof path, 'join'>,
-  codexHome?: string
+  codexHome?: string,
+  copilotHome?: string
 ): string | null {
   if (providerId === 'claude') return pathApi.join(homeDir, '.claude.json');
   if (providerId === 'codex') {
     return pathApi.join(codexHome || pathApi.join(homeDir, '.codex'), 'config.toml');
   }
-  if (providerId === 'copilot') return pathApi.join(homeDir, '.copilot', 'config.json');
+  if (providerId === 'copilot') {
+    return pathApi.join(copilotHome || pathApi.join(homeDir, '.copilot'), 'config.json');
+  }
   return null;
 }
 
@@ -224,7 +231,9 @@ function parseJsonConfig(raw: string | null, providerName: string): Record<strin
   if (!raw || raw.trim() === '') return {};
 
   try {
-    const parsed = JSON.parse(raw);
+    const errors: jsonc.ParseError[] = [];
+    const parsed = jsonc.parse(raw, errors);
+    if (errors.length > 0) throw new Error(jsonc.printParseErrorCode(errors[0].error));
     if (isPlainObject(parsed)) return parsed;
     log.warn(`ProviderTrustService: refusing to overwrite non-object ${providerName} config root`);
     return null;

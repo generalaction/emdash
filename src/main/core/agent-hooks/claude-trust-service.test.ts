@@ -271,7 +271,11 @@ describe('ClaudeTrustService', () => {
   it('adds Copilot trustedFolders entries', async () => {
     const service = makeService();
     mockReadFile.mockResolvedValue(
-      JSON.stringify({ theme: 'dark', trustedFolders: ['/existing'] })
+      `// User settings belong in settings.json.
+{
+  "theme": "dark",
+  "trustedFolders": ["/existing"]
+}`
     );
 
     await service.maybeAutoTrustLocal({
@@ -312,9 +316,25 @@ describe('ClaudeTrustService', () => {
       providerId: 'codex',
       cwd: '/tmp/worktree',
       homedir: '/home/local-user',
+      env: { CODEX_HOME: '/custom/codex-home' },
     });
 
     expect(mockReadFile).toHaveBeenCalledWith('/custom/codex-home/config.toml', 'utf8');
     expect(mockRename.mock.calls[0][1]).toBe('/custom/codex-home/config.toml');
+  });
+
+  it('uses COPILOT_HOME for local Copilot config when set', async () => {
+    const service = makeService();
+    mockReadFile.mockResolvedValue(JSON.stringify({ trustedFolders: [] }));
+
+    await service.maybeAutoTrustLocal({
+      providerId: 'copilot',
+      cwd: '/tmp/worktree',
+      homedir: '/home/local-user',
+      env: { COPILOT_HOME: '/custom/copilot-home' },
+    });
+
+    expect(mockReadFile).toHaveBeenCalledWith('/custom/copilot-home/config.json', 'utf8');
+    expect(mockRename.mock.calls[0][1]).toBe('/custom/copilot-home/config.json');
   });
 });
