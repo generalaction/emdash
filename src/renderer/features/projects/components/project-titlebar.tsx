@@ -95,7 +95,7 @@ const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
               <span className="truncate">{repoLabel}</span>
             </div>
             <ExternalLink className="size-3.5 shrink-0 text-foreground-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-foreground" />
-          </button>
+          </Button>
         </>
       )}
     </div>
