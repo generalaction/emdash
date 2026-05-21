@@ -12,6 +12,7 @@ const mockReadFile = vi.hoisted(() => vi.fn());
 const mockWriteFile = vi.hoisted(() => vi.fn());
 const mockRename = vi.hoisted(() => vi.fn());
 const mockRm = vi.hoisted(() => vi.fn());
+const mockMkdir = vi.hoisted(() => vi.fn());
 const mockWarn = vi.hoisted(() => vi.fn());
 
 vi.mock('node:fs', () => ({
@@ -20,6 +21,7 @@ vi.mock('node:fs', () => ({
     writeFile: mockWriteFile,
     rename: mockRename,
     rm: mockRm,
+    mkdir: mockMkdir,
   },
 }));
 
@@ -65,17 +67,19 @@ function makeRemoteFs(
 describe('ClaudeTrustService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    delete process.env.CODEX_HOME;
     mockReadFile.mockRejectedValue(Object.assign(new Error('not found'), { code: 'ENOENT' }));
     mockWriteFile.mockResolvedValue(undefined);
     mockRename.mockResolvedValue(undefined);
     mockRm.mockResolvedValue(undefined);
+    mockMkdir.mockResolvedValue(undefined);
   });
 
-  it('skips non-Claude providers', async () => {
+  it('skips providers without directory trust support', async () => {
     const service = makeService();
 
     await service.maybeAutoTrustLocal({
-      providerId: 'codex',
+      providerId: 'opencode',
       cwd: '/tmp/worktree',
       homedir: '/home/local-user',
     });
@@ -161,7 +165,7 @@ describe('ClaudeTrustService', () => {
     expect(mockWriteFile).not.toHaveBeenCalled();
     expect(mockRename).not.toHaveBeenCalled();
     expect(mockWarn).toHaveBeenCalledWith(
-      'ClaudeTrustService: refusing to overwrite corrupt Claude config',
+      'ProviderTrustService: refusing to overwrite corrupt Claude config',
       expect.objectContaining({ error: expect.any(String) })
     );
   });
@@ -178,7 +182,7 @@ describe('ClaudeTrustService', () => {
 
     expect(mockWriteFile).not.toHaveBeenCalled();
     expect(mockWarn).toHaveBeenCalledWith(
-      'ClaudeTrustService: refusing to overwrite non-object Claude config root'
+      'ProviderTrustService: refusing to overwrite non-object Claude config root'
     );
   });
 
@@ -262,5 +266,55 @@ describe('ClaudeTrustService', () => {
       hasCompletedProjectOnboarding: true,
     });
     expect(ctx.exec).toHaveBeenCalledWith('mv', [tmpPath, '/home/remote-user/.claude.json']);
+  });
+
+  it('adds Copilot trustedFolders entries', async () => {
+    const service = makeService();
+    mockReadFile.mockResolvedValue(
+      JSON.stringify({ theme: 'dark', trustedFolders: ['/existing'] })
+    );
+
+    await service.maybeAutoTrustLocal({
+      providerId: 'copilot',
+      cwd: '/tmp/worktree',
+      homedir: '/home/local-user',
+    });
+
+    expect(mockRename.mock.calls[0][1]).toBe('/home/local-user/.copilot/config.json');
+    const written = JSON.parse(String(mockWriteFile.mock.calls[0][1]));
+    expect(written).toEqual({
+      theme: 'dark',
+      trustedFolders: ['/existing', path.resolve('/tmp/worktree')],
+    });
+  });
+
+  it('adds Codex trusted project entries', async () => {
+    const service = makeService();
+    mockReadFile.mockResolvedValue('model = "gpt-5"\n');
+
+    await service.maybeAutoTrustLocal({
+      providerId: 'codex',
+      cwd: '/tmp/worktree',
+      homedir: '/home/local-user',
+    });
+
+    expect(mockRename.mock.calls[0][1]).toBe('/home/local-user/.codex/config.toml');
+    expect(String(mockWriteFile.mock.calls[0][1])).toContain('[projects."/tmp/worktree"]');
+    expect(String(mockWriteFile.mock.calls[0][1])).toContain('trust_level = "trusted"');
+  });
+
+  it('uses CODEX_HOME for local Codex config when set', async () => {
+    const service = makeService();
+    process.env.CODEX_HOME = '/custom/codex-home';
+    mockReadFile.mockResolvedValue('model = "gpt-5"\n');
+
+    await service.maybeAutoTrustLocal({
+      providerId: 'codex',
+      cwd: '/tmp/worktree',
+      homedir: '/home/local-user',
+    });
+
+    expect(mockReadFile).toHaveBeenCalledWith('/custom/codex-home/config.toml', 'utf8');
+    expect(mockRename.mock.calls[0][1]).toBe('/custom/codex-home/config.toml');
   });
 });

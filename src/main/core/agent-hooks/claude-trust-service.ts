@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import * as toml from 'smol-toml';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import {
   FileSystemError,
@@ -12,11 +13,15 @@ import { resolveRemoteHome } from '@main/core/ssh/utils';
 import { log } from '@main/lib/logger';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 
-const CLAUDE_PROVIDER_ID: AgentProviderId = 'claude';
-const CLAUDE_CONFIG_NAME = '.claude.json';
-const CLAUDE_CONFIG_MAX_BYTES = 2 * 1024 * 1024;
+const CONFIG_MAX_BYTES = 2 * 1024 * 1024;
+const TRUSTED_PROVIDERS = new Set<AgentProviderId>(['claude', 'codex', 'copilot']);
 
-export class ClaudeTrustService {
+type TrustIo = {
+  readConfig: (configPath: string) => Promise<string | null>;
+  writeConfig: (configPath: string, content: string) => Promise<void>;
+};
+
+export class ProviderTrustService {
   private readonly configLocks = new Map<string, Promise<void>>();
 
   constructor(
@@ -36,14 +41,13 @@ export class ClaudeTrustService {
   }): Promise<void> {
     if (!cwd) return;
     if (!(await this.shouldAutoTrust(providerId))) return;
+
     const normalizedPath = path.resolve(cwd);
-    const configPath = path.join(homedir, CLAUDE_CONFIG_NAME);
-    await this.withLock(configPath, () =>
-      this.ensureTrusted(normalizedPath, {
-        readConfig: () => readLocalConfig(configPath),
-        writeConfig: (content) => writeLocalConfigAtomic(configPath, content),
-      })
-    );
+    await this.autoTrust(providerId, normalizedPath, homedir, path, {
+      readConfig: readLocalConfig,
+      writeConfig: writeLocalConfigAtomic,
+      codexHome: process.env.CODEX_HOME,
+    });
   }
 
   async maybeAutoTrustSsh({
@@ -62,20 +66,33 @@ export class ClaudeTrustService {
 
     const normalizedPath = await remoteFs.realPath(cwd).catch(() => path.posix.resolve('/', cwd));
     const homeDir = await resolveRemoteHome(ctx);
-    const configPath = path.posix.join(homeDir, CLAUDE_CONFIG_NAME);
 
-    await this.withLock(configPath, () =>
-      this.ensureTrusted(normalizedPath, {
-        readConfig: () => readRemoteConfig(remoteFs, configPath),
-        writeConfig: (content) => writeRemoteConfigAtomic(remoteFs, ctx, configPath, content),
-      })
-    );
+    await this.autoTrust(providerId, normalizedPath, homeDir, path.posix, {
+      readConfig: (configPath) => readRemoteConfig(remoteFs, configPath),
+      writeConfig: (configPath, content) =>
+        writeRemoteConfigAtomic(remoteFs, ctx, configPath, content),
+    });
   }
 
   private async shouldAutoTrust(providerId: AgentProviderId): Promise<boolean> {
-    if (providerId !== CLAUDE_PROVIDER_ID) return false;
+    if (!TRUSTED_PROVIDERS.has(providerId)) return false;
     const { autoTrustWorktrees } = await this.deps.getTaskSettings();
     return autoTrustWorktrees;
+  }
+
+  private async autoTrust(
+    providerId: AgentProviderId,
+    normalizedPath: string,
+    homeDir: string,
+    pathApi: Pick<typeof path, 'join'>,
+    io: TrustIo & { codexHome?: string }
+  ): Promise<void> {
+    const configPath = getConfigPath(providerId, homeDir, pathApi, io.codexHome);
+    if (!configPath) return;
+
+    await this.withLock(configPath, () =>
+      this.ensureTrusted(providerId, normalizedPath, configPath, io)
+    );
   }
 
   private withLock(configPath: string, fn: () => Promise<void>): Promise<void> {
@@ -86,21 +103,19 @@ export class ClaudeTrustService {
   }
 
   private async ensureTrusted(
+    providerId: AgentProviderId,
     normalizedPath: string,
-    io: {
-      readConfig: () => Promise<string | null>;
-      writeConfig: (content: string) => Promise<void>;
-    }
+    configPath: string,
+    io: TrustIo
   ): Promise<void> {
     try {
-      const rawConfig = await io.readConfig();
-      const config = parseConfig(rawConfig);
-      if (!config) return;
-      const nextConfig = withTrustedProject(config, normalizedPath);
-      if (!nextConfig) return;
-      await io.writeConfig(JSON.stringify(nextConfig, null, 2) + '\n');
+      const rawConfig = await io.readConfig(configPath);
+      const nextConfig = withTrustedProject(providerId, rawConfig, normalizedPath);
+      if (nextConfig === null) return;
+      await io.writeConfig(configPath, nextConfig);
     } catch (error: unknown) {
-      log.warn('ClaudeTrustService: failed to auto-trust worktree', {
+      log.warn('ProviderTrustService: failed to auto-trust worktree', {
+        providerId,
         path: normalizedPath,
         error: String(error),
       });
@@ -108,30 +123,42 @@ export class ClaudeTrustService {
   }
 }
 
-export const claudeTrustService = new ClaudeTrustService({
+export const providerTrustService = new ProviderTrustService({
   getTaskSettings: () => appSettingsService.get('tasks'),
 });
 
-function parseConfig(raw: string | null): Record<string, unknown> | null {
-  if (!raw || raw.trim() === '') return {};
+export const claudeTrustService = providerTrustService;
+export { ProviderTrustService as ClaudeTrustService };
 
-  try {
-    const parsed = JSON.parse(raw);
-    if (isPlainObject(parsed)) return parsed;
-    log.warn('ClaudeTrustService: refusing to overwrite non-object Claude config root');
-    return null;
-  } catch (error: unknown) {
-    log.warn('ClaudeTrustService: refusing to overwrite corrupt Claude config', {
-      error: String(error),
-    });
-    return null;
+function getConfigPath(
+  providerId: AgentProviderId,
+  homeDir: string,
+  pathApi: Pick<typeof path, 'join'>,
+  codexHome?: string
+): string | null {
+  if (providerId === 'claude') return pathApi.join(homeDir, '.claude.json');
+  if (providerId === 'codex') {
+    return pathApi.join(codexHome || pathApi.join(homeDir, '.codex'), 'config.toml');
   }
+  if (providerId === 'copilot') return pathApi.join(homeDir, '.copilot', 'config.json');
+  return null;
 }
 
 function withTrustedProject(
-  config: Record<string, unknown>,
+  providerId: AgentProviderId,
+  rawConfig: string | null,
   worktreePath: string
-): Record<string, unknown> | null {
+): string | null {
+  if (providerId === 'claude') return withClaudeTrustedProject(rawConfig, worktreePath);
+  if (providerId === 'codex') return withCodexTrustedProject(rawConfig, worktreePath);
+  if (providerId === 'copilot') return withCopilotTrustedProject(rawConfig, worktreePath);
+  return null;
+}
+
+function withClaudeTrustedProject(rawConfig: string | null, worktreePath: string): string | null {
+  const config = parseJsonConfig(rawConfig, 'Claude');
+  if (!config) return null;
+
   const projects = isPlainObject(config.projects) ? config.projects : {};
   const existing = isPlainObject(projects[worktreePath]) ? projects[worktreePath] : {};
 
@@ -140,17 +167,89 @@ function withTrustedProject(
     existing['hasCompletedProjectOnboarding'] === true;
   if (alreadyTrusted) return null;
 
-  return {
+  return (
+    JSON.stringify(
+      {
+        ...config,
+        projects: {
+          ...projects,
+          [worktreePath]: {
+            ...existing,
+            hasTrustDialogAccepted: true,
+            hasCompletedProjectOnboarding: true,
+          },
+        },
+      },
+      null,
+      2
+    ) + '\n'
+  );
+}
+
+function withCopilotTrustedProject(rawConfig: string | null, worktreePath: string): string | null {
+  const config = parseJsonConfig(rawConfig, 'Copilot');
+  if (!config) return null;
+
+  const trustedFolders = Array.isArray(config.trustedFolders)
+    ? config.trustedFolders.filter((folder): folder is string => typeof folder === 'string')
+    : [];
+  if (trustedFolders.includes(worktreePath)) return null;
+
+  return (
+    JSON.stringify({ ...config, trustedFolders: [...trustedFolders, worktreePath] }, null, 2) + '\n'
+  );
+}
+
+function withCodexTrustedProject(rawConfig: string | null, worktreePath: string): string | null {
+  const config = parseTomlConfig(rawConfig, 'Codex');
+  if (!config) return null;
+
+  const projects = isPlainObject(config.projects) ? config.projects : {};
+  const existing = isPlainObject(projects[worktreePath]) ? projects[worktreePath] : {};
+  if (existing['trust_level'] === 'trusted') return null;
+
+  return toml.stringify({
     ...config,
     projects: {
       ...projects,
       [worktreePath]: {
         ...existing,
-        hasTrustDialogAccepted: true,
-        hasCompletedProjectOnboarding: true,
+        trust_level: 'trusted',
       },
     },
-  };
+  });
+}
+
+function parseJsonConfig(raw: string | null, providerName: string): Record<string, unknown> | null {
+  if (!raw || raw.trim() === '') return {};
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (isPlainObject(parsed)) return parsed;
+    log.warn(`ProviderTrustService: refusing to overwrite non-object ${providerName} config root`);
+    return null;
+  } catch (error: unknown) {
+    log.warn(`ProviderTrustService: refusing to overwrite corrupt ${providerName} config`, {
+      error: String(error),
+    });
+    return null;
+  }
+}
+
+function parseTomlConfig(raw: string | null, providerName: string): Record<string, unknown> | null {
+  if (!raw || raw.trim() === '') return {};
+
+  try {
+    const parsed = toml.parse(raw) as Record<string, unknown>;
+    if (isPlainObject(parsed)) return parsed;
+    log.warn(`ProviderTrustService: refusing to overwrite non-object ${providerName} config root`);
+    return null;
+  } catch (error: unknown) {
+    log.warn(`ProviderTrustService: refusing to overwrite corrupt ${providerName} config`, {
+      error: String(error),
+    });
+    return null;
+  }
 }
 
 async function readLocalConfig(configPath: string): Promise<string | null> {
@@ -165,6 +264,7 @@ async function readLocalConfig(configPath: string): Promise<string | null> {
 async function writeLocalConfigAtomic(configPath: string, content: string): Promise<void> {
   const tmpPath = `${configPath}.${randomUUID()}.tmp`;
   try {
+    await fs.mkdir(path.dirname(configPath), { recursive: true });
     await fs.writeFile(tmpPath, content, 'utf8');
     await fs.rename(tmpPath, configPath);
   } catch (error: unknown) {
@@ -180,7 +280,7 @@ async function readRemoteConfig(
   configPath: string
 ): Promise<string | null> {
   try {
-    const result = await remoteFs.read(configPath, CLAUDE_CONFIG_MAX_BYTES);
+    const result = await remoteFs.read(configPath, CONFIG_MAX_BYTES);
     return result.content;
   } catch (error: unknown) {
     if (isFsNotFound(error)) return null;
@@ -196,6 +296,7 @@ async function writeRemoteConfigAtomic(
 ): Promise<void> {
   const tmpPath = `${configPath}.${randomUUID()}.tmp`;
   try {
+    await ctx.exec('mkdir', ['-p', path.posix.dirname(configPath)]);
     await remoteFs.write(tmpPath, content);
     await ctx.exec('mv', [tmpPath, configPath]);
   } catch (error: unknown) {

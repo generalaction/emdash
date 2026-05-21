@@ -1,5 +1,5 @@
 import { wireAgentClassifier } from '@main/core/agent-hooks/classifier-wiring';
-import { claudeTrustService } from '@main/core/agent-hooks/claude-trust-service';
+import { providerTrustService } from '@main/core/agent-hooks/claude-trust-service';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
@@ -80,7 +80,7 @@ export class SshConversationProvider implements ConversationProvider {
 
     if (this.sessions.has(sessionId)) return;
 
-    await claudeTrustService.maybeAutoTrustSsh({
+    await providerTrustService.maybeAutoTrustSsh({
       providerId: conversation.providerId,
       cwd: this.taskPath,
       ctx: this.ctx,
