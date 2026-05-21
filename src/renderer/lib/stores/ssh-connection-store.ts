@@ -1,7 +1,7 @@
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
+import { events, rpc } from '@renderer/lib/ipc';
 import { sshConnectionEventChannel, type SshConnectionEvent } from '@shared/events/sshEvents';
 import type { ConnectionState, ConnectionTestResult, SshConfig, SshHealthState } from '@shared/ssh';
-import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from './resource';
 
 type SaveConnectionInput = Partial<Pick<SshConfig, 'id'>> &

@@ -55,7 +55,7 @@ export class MonacoCommentManager {
     pinned: boolean,
     onClick: () => void
   ): GlyphWidgetHandle {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // oxlint-disable-next-line typescript/no-explicit-any
     const m = (globalThis as any).__monaco as typeof monaco;
     const domNode = document.createElement('div');
     const root = createRoot(domNode);

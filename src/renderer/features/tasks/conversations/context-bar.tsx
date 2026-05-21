@@ -5,7 +5,12 @@ import {
   getRegisteredTaskData,
   getTaskStore,
 } from '@renderer/features/tasks/stores/task-selectors';
-import { useConversations, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
+import { useTabGroupContext } from '@renderer/features/tasks/tabs/tab-group-context';
+import {
+  useConversations,
+  useTaskViewContext,
+  useWorkspaceViewModel,
+} from '@renderer/features/tasks/task-view-context';
 import { rpc } from '@renderer/lib/ipc';
 import { pastePromptInjection } from '@renderer/lib/pty/prompt-injection';
 import { AddContextPopover } from './add-context-popover';
@@ -17,6 +22,8 @@ interface ContextBarProps {
 
 export const ContextBar = observer(function ContextBar({ conversationId }: ContextBarProps) {
   const { projectId, taskId } = useTaskViewContext();
+  const { groupId } = useTabGroupContext();
+  const taskView = useWorkspaceViewModel();
   const conversations = useConversations();
   const task = getRegisteredTaskData(projectId, taskId);
   const draftComments = getTaskStore(projectId, taskId)?.draftComments;
@@ -35,6 +42,8 @@ export const ContextBar = observer(function ContextBar({ conversationId }: Conte
   );
 
   if (!draftComments || !hasConversation || actions.length === 0) return null;
+
+  const isActivePane = taskView.tabGroupManager.activeGroupId === groupId;
 
   const handleApplyAction = async (
     text: string,
@@ -62,10 +71,11 @@ export const ContextBar = observer(function ContextBar({ conversationId }: Conte
   };
 
   return (
-    <div className="px-4 pb-2 flex justify-center items-center bg-background-secondary-1 w-full">
+    <div className="flex w-full items-center justify-center bg-background-secondary-1 px-4 pb-2">
       <AddContextPopover
         actions={actions}
         disabled={!canApplyContext || isSavingPromptLibrary}
+        isActivePane={isActivePane}
         onApplyAction={handleApplyAction}
       />
     </div>

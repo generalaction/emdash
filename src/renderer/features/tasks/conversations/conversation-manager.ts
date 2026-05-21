@@ -1,4 +1,10 @@
 import { action, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
+import { events, rpc } from '@renderer/lib/ipc';
+import { PtySession } from '@renderer/lib/pty/pty-session';
+import type { IDisposable } from '@renderer/lib/stores/lifecycle';
+import { Resource } from '@renderer/lib/stores/resource';
+import { log } from '@renderer/utils/logger';
+import { soundPlayer } from '@renderer/utils/soundPlayer';
 import { type Conversation, type CreateConversationParams } from '@shared/conversations';
 import {
   agentEventChannel,
@@ -9,12 +15,6 @@ import {
 import { conversationChangedChannel } from '@shared/events/conversationEvents';
 import { conversationRenamedChannel } from '@shared/events/taskEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
-import { events, rpc } from '@renderer/lib/ipc';
-import { PtySession } from '@renderer/lib/pty/pty-session';
-import type { IDisposable } from '@renderer/lib/stores/lifecycle';
-import { Resource } from '@renderer/lib/stores/resource';
-import { log } from '@renderer/utils/logger';
-import { soundPlayer } from '@renderer/utils/soundPlayer';
 
 export type AgentStatus = 'idle' | 'working' | 'awaiting-input' | 'error' | 'completed';
 
@@ -191,6 +191,9 @@ export class ConversationManagerStore implements IDisposable {
             makePtySessionId(conversation.projectId, conversation.taskId, conversation.id)
           )
         );
+      }
+      if (params.initialPrompt?.trim()) {
+        this.conversations.get(conversation.id)?.setWorking();
       }
     });
     return conversation;

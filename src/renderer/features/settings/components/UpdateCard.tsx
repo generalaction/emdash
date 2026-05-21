@@ -1,11 +1,11 @@
 import { AlertCircle, CheckCircle2, Download, Loader2, RefreshCw } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React from 'react';
-import { PRODUCT_NAME } from '@shared/app-identity';
 import { appState } from '@renderer/lib/stores/app-state';
 import { Badge } from '@renderer/lib/ui/badge';
 import { Button } from '@renderer/lib/ui/button';
 import { formatBytes } from '@renderer/utils/formatBytes';
+import { PRODUCT_NAME } from '@shared/app-identity';
 import { SettingRow } from './SettingRow';
 
 export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
@@ -56,14 +56,14 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
 
       {update.state.status === 'downloading' && downloadProgress && (
         <div className="space-y-2">
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+          <div className="bg-muted h-1.5 w-full overflow-hidden rounded-full">
             <div
-              className="h-full bg-primary transition-all duration-300 ease-out"
+              className="bg-primary h-full transition-all duration-300 ease-out"
               style={{ width: `${downloadProgress.percent || 0}%` }}
             />
           </div>
           {hasByteProgress && (
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               {formatBytes(downloadProgress.transferred || 0)} /{' '}
               {formatBytes(downloadProgress.total || 0)}
             </p>
@@ -77,7 +77,7 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
     switch (update.state.status) {
       case 'checking':
         return (
-          <p className="flex items-center gap-1 text-sm text-muted-foreground">
+          <p className="text-muted-foreground flex items-center gap-1 text-sm">
             <Loader2 className="h-3 w-3 animate-spin" />
             Checking for updates...
           </p>
@@ -86,16 +86,16 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
       case 'available':
         if (update.state.info?.version) {
           return (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               Version {update.state.info.version} is available
             </p>
           );
         }
-        return <p className="text-sm text-muted-foreground">An update is available</p>;
+        return <p className="text-muted-foreground text-sm">An update is available</p>;
 
       case 'downloading':
         return (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             Downloading update{update.progressLabel ? ` (${update.progressLabel})` : '...'}
           </p>
         );
@@ -110,7 +110,7 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
 
       case 'installing':
         return (
-          <p className="flex items-center gap-1 text-sm text-muted-foreground">
+          <p className="text-muted-foreground flex items-center gap-1 text-sm">
             <Loader2 className="h-3 w-3 animate-spin" />
             Installing update. {PRODUCT_NAME} will close and restart automatically — this may take a
             few seconds.
@@ -130,7 +130,7 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
 
       default:
         return (
-          <p className="flex items-center gap-1 text-sm text-muted-foreground">
+          <p className="text-muted-foreground flex items-center gap-1 text-sm">
             <CheckCircle2 className="h-3 w-3 text-foreground-success" />
             You're up to date.{' '}
           </p>

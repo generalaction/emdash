@@ -1,5 +1,4 @@
 import { eq } from 'drizzle-orm';
-import { parseGitHubRepository } from '@shared/github-repository';
 import { gitWatcherRegistry } from '@main/core/git/git-watcher-registry';
 import { projectManager } from '@main/core/projects/project-manager';
 import { taskManager } from '@main/core/tasks/task-manager';
@@ -7,6 +6,7 @@ import { db } from '@main/db/client';
 import { projectRemotes } from '@main/db/schema';
 import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
 import { log } from '@main/lib/logger';
+import { parseGitHubRepository } from '@shared/github-repository';
 import { prSyncEngine } from './pr-sync-engine';
 import { syncProjectRemotes } from './project-remotes-service';
 

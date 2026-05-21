@@ -1,11 +1,4 @@
 import path from 'node:path';
-import type { Conversation } from '@shared/conversations';
-import { taskProvisionProgressChannel, type ProvisionStep } from '@shared/events/taskEvents';
-import { makePtySessionId } from '@shared/ptySessionId';
-import { err, ok, type Result } from '@shared/result';
-import type { Task, TaskBootstrapStatus } from '@shared/tasks';
-import type { Terminal } from '@shared/terminals';
-import type { WorkspaceType as SharedWorkspaceType } from '@shared/workspaces';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
@@ -15,6 +8,13 @@ import { events } from '@main/lib/events';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { LifecycleMap } from '@main/lib/lifecycle-map';
 import { log } from '@main/lib/logger';
+import type { Conversation } from '@shared/conversations';
+import { taskProvisionProgressChannel, type ProvisionStep } from '@shared/events/taskEvents';
+import { makePtySessionId } from '@shared/ptySessionId';
+import { err, ok, type Result } from '@shared/result';
+import type { Task, TaskBootstrapStatus } from '@shared/tasks';
+import type { Terminal } from '@shared/terminals';
+import type { WorkspaceType as SharedWorkspaceType } from '@shared/workspaces';
 import type { ProjectProvider, ProvisionResult, TaskProvider } from '../projects/project-provider';
 import { withTimeout } from '../projects/utils';
 import {

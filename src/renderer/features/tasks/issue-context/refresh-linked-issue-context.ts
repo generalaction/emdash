@@ -1,5 +1,5 @@
-import type { Issue } from '@shared/tasks';
 import { rpc } from '@renderer/lib/ipc';
+import type { Issue } from '@shared/tasks';
 
 export async function refreshLinkedIssueContext(
   issue: Issue,

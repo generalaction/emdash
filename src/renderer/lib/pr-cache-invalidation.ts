@@ -1,6 +1,6 @@
-import { prSyncProgressChannel } from '@shared/events/prEvents';
 import { events } from '@renderer/lib/ipc';
 import { queryClient } from '@renderer/lib/query-client';
+import { prSyncProgressChannel } from '@shared/events/prEvents';
 
 export function wirePrCacheInvalidation(): void {
   events.on(prSyncProgressChannel, (progress) => {

@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { type Branch } from '@shared/git';
-import { type Issue } from '@shared/tasks';
 import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
 import { rpc } from '@renderer/lib/ipc';
+import { type Branch } from '@shared/git';
+import { type Issue } from '@shared/tasks';
 import { getIssueTaskName } from './issue-task-name';
 import { useBranchSelection } from './use-branch-selection';
 import { useTaskName } from './use-task-name';

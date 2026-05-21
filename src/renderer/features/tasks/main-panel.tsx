@@ -26,7 +26,7 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center gap-3">
         <Loader2 className="h-5 w-5 animate-spin text-foreground-muted" />
-        <p className="text-xs font-mono text-foreground-muted">Creating task</p>
+        <p className="font-mono text-xs text-foreground-muted">Creating task</p>
       </div>
     );
   }
@@ -34,11 +34,11 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
   if (kind === 'create-error') {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center p-8">
-        <div className="flex max-w-xs flex-col items-center text-center gap-2">
-          <p className="text-sm font-medium font-mono text-foreground-destructive">
+        <div className="flex max-w-xs flex-col items-center gap-2 text-center">
+          <p className="font-mono text-sm font-medium text-foreground-destructive">
             Error creating task
           </p>
-          <p className="text-xs font-mono text-foreground-passive">{taskErrorMessage(taskStore)}</p>
+          <p className="font-mono text-xs text-foreground-passive">{taskErrorMessage(taskStore)}</p>
         </div>
       </div>
     );
@@ -49,7 +49,7 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center gap-3">
         <Loader2 className="h-5 w-5 animate-spin text-foreground-muted" />
-        <p className="text-xs font-mono text-foreground-muted">{progressMessage}</p>
+        <p className="font-mono text-xs text-foreground-muted">{progressMessage}</p>
       </div>
     );
   }
@@ -57,11 +57,11 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
   if (kind === 'provision-error' || kind === 'project-error') {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center p-8">
-        <div className="flex max-w-xs flex-col items-center text-center gap-2">
-          <p className="text-sm font-medium font-mono text-foreground-destructive">
+        <div className="flex max-w-xs flex-col items-center gap-2 text-center">
+          <p className="font-mono text-sm font-medium text-foreground-destructive">
             Failed to set up workspace
           </p>
-          <p className="text-xs font-mono text-foreground-muted">{taskErrorMessage(taskStore)}</p>
+          <p className="font-mono text-xs text-foreground-muted">{taskErrorMessage(taskStore)}</p>
         </div>
       </div>
     );
@@ -72,7 +72,7 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center gap-3">
         <Loader2 className="h-5 w-5 animate-spin text-foreground-muted" />
-        <p className="text-xs font-mono text-foreground-muted">{progressMessage}</p>
+        <p className="font-mono text-xs text-foreground-muted">{progressMessage}</p>
       </div>
     );
   }
@@ -80,11 +80,11 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
   if (kind === 'teardown-error') {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center p-8">
-        <div className="flex max-w-xs flex-col items-center text-center gap-2">
-          <p className="text-sm font-medium font-mono text-foreground-destructive">
+        <div className="flex max-w-xs flex-col items-center gap-2 text-center">
+          <p className="font-mono text-sm font-medium text-foreground-destructive">
             Failed to tear down workspace
           </p>
-          <p className="text-xs font-mono text-foreground-muted">{taskErrorMessage(taskStore)}</p>
+          <p className="font-mono text-xs text-foreground-muted">{taskErrorMessage(taskStore)}</p>
         </div>
       </div>
     );

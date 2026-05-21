@@ -1,7 +1,7 @@
 import { computed, makeObservable, observable, runInAction } from 'mobx';
+import { events, rpc } from '@renderer/lib/ipc';
 import { resourceSnapshotChannel } from '@shared/events/resourceEvents';
 import type { ResourcePtyEntry, ResourceSnapshot } from '@shared/resource-monitor';
-import { events, rpc } from '@renderer/lib/ipc';
 
 export class ResourceMonitorStore {
   snapshot: ResourceSnapshot | null = null;

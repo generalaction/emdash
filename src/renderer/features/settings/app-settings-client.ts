@@ -1,6 +1,6 @@
-import type { AppSettings, AppSettingsKey } from '@shared/app-settings';
 import { rpc } from '@renderer/lib/ipc';
 import { queryClient } from '@renderer/lib/query-client';
+import type { AppSettings, AppSettingsKey } from '@shared/app-settings';
 
 export const APP_SETTINGS_STALE_TIME_MS = 5 * 60_000;
 

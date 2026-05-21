@@ -1,8 +1,8 @@
 import { eq } from 'drizzle-orm';
-import { AppSettingsKeys, type AppSettings, type AppSettingsKey } from '@shared/app-settings';
 import { db } from '@main/db/client';
 import { appSettings } from '@main/db/schema';
 import type { IInitializable } from '@main/lib/lifecycle';
+import { AppSettingsKeys, type AppSettings, type AppSettingsKey } from '@shared/app-settings';
 import { APP_SETTINGS_SCHEMA_MAP } from './schema';
 import { getDefaultForKey } from './settings-registry';
 import { computeDelta, computeTrueOverrides, isDeepEqual, isPlainObject, mergeDeep } from './utils';

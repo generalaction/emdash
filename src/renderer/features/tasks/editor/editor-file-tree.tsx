@@ -3,8 +3,6 @@ import { ChevronDown, ChevronRight, Copy, FileText, Folder, FolderOpen } from 'l
 import { runInAction } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import React, { useRef, useState } from 'react';
-import type { FileNode } from '@shared/fs';
-import { basenameFromAnyPath } from '@shared/path-name';
 import type { FilesStore } from '@renderer/features/tasks/editor/stores/files-store';
 import { buildVisibleRows } from '@renderer/features/tasks/editor/stores/files-store-utils';
 import {
@@ -25,6 +23,8 @@ import {
   ContextMenuTrigger,
 } from '@renderer/lib/ui/context-menu';
 import { cn } from '@renderer/utils/utils';
+import type { FileNode } from '@shared/fs';
+import { basenameFromAnyPath } from '@shared/path-name';
 
 const MAX_COPY_FILE_BYTES = 10 * 1024 * 1024;
 
@@ -281,7 +281,7 @@ const FileTreeRow = observer(function FileTreeRow({
         aria-selected={isSelected}
         aria-expanded={node.type === 'directory' ? isExpanded : undefined}
       >
-        <span className="shrink-0 text-muted-foreground">
+        <span className="text-muted-foreground shrink-0">
           {node.type === 'directory' ? (
             isExpanded ? (
               <ChevronDown className="h-3.5 w-3.5" />
@@ -296,9 +296,9 @@ const FileTreeRow = observer(function FileTreeRow({
         <span className="shrink-0">
           {node.type === 'directory' ? (
             isExpanded ? (
-              <FolderOpen className="h-3.5 w-3.5 text-muted-foreground" />
+              <FolderOpen className="text-muted-foreground h-3.5 w-3.5" />
             ) : (
-              <Folder className="h-3.5 w-3.5 text-muted-foreground" />
+              <Folder className="text-muted-foreground h-3.5 w-3.5" />
             )
           ) : (
             <FileIcon filename={node.name} size={12} />
@@ -389,7 +389,7 @@ export const EditorFileTree = observer(function EditorFileTree() {
 
   if (files?.isLoading) {
     return (
-      <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+      <div className="text-muted-foreground flex h-full items-center justify-center text-xs">
         Loading...
       </div>
     );
@@ -397,7 +397,7 @@ export const EditorFileTree = observer(function EditorFileTree() {
 
   if (files?.error) {
     return (
-      <div className="flex h-full items-center justify-center text-xs text-destructive">
+      <div className="text-destructive flex h-full items-center justify-center text-xs">
         {files.error}
       </div>
     );

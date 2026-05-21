@@ -51,7 +51,7 @@ export function ActionListItem({
         </div>
       </div>
       {!disabled && isSelected && (
-        <Kbd className="text-foreground-muted group-hover:text-foreground bg-background-2 size-6 pt-1">
+        <Kbd className="size-6 bg-background-2 pt-1 text-foreground-muted group-hover:text-foreground">
           ⏎
         </Kbd>
       )}

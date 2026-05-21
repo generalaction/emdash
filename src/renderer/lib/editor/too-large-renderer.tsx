@@ -15,7 +15,7 @@ export function TooLargeRenderer({ file }: TooLargeRendererProps) {
   const fileName = file.path.split('/').pop() ?? file.path;
 
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-3 text-muted-foreground">
+    <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-3">
       <FileX className="h-10 w-10 opacity-30" />
       <div className="text-center">
         <p className="text-sm font-medium">{fileName}</p>

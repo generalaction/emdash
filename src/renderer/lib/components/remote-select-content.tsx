@@ -1,5 +1,5 @@
-import type { Remote } from '@shared/git';
 import { SelectContent, SelectItem } from '@renderer/lib/ui/select';
+import type { Remote } from '@shared/git';
 
 type RemoteSelectContentProps = {
   remotes: Remote[];

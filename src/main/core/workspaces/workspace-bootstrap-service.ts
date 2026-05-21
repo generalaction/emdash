@@ -1,8 +1,8 @@
 import crypto from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
-import type { WorkspaceResolution, WorkspaceType } from '@shared/workspaces';
 import { db as appDb, type AppDb } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
+import type { WorkspaceResolution, WorkspaceType } from '@shared/workspaces';
 import type { WorktreeBootstrapOps } from '../projects/worktrees/worktree-service';
 import { mapWorktreeErrorToProvisionError } from '../tasks/provision-task-error';
 import { computeWorkspaceKey } from './workspace-key';

@@ -1,11 +1,11 @@
 import { SquareArrowRight, SquareDot, SquareMinus, SquarePlus, SquareX } from 'lucide-react';
 import { forwardRef, useMemo, type ButtonHTMLAttributes } from 'react';
-import { type GitChange, type GitChangeStatus } from '@shared/git';
 import { splitPath } from '@renderer/features/tasks/utils';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { Checkbox } from '@renderer/lib/ui/checkbox';
 import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
 import { cn } from '@renderer/utils/utils';
+import { type GitChange, type GitChangeStatus } from '@shared/git';
 
 interface ChangesListItemProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   change: GitChange;
@@ -80,7 +80,7 @@ function DiffLineStats({ additions, deletions }: { additions: number; deletions:
   if (additions === 0 && deletions === 0) return null;
 
   return (
-    <span className="flex shrink-0 items-center gap-1 tabular-nums text-xs leading-none">
+    <span className="flex shrink-0 items-center gap-1 text-xs leading-none tabular-nums">
       {additions > 0 && (
         <span className="text-foreground-diff-added">+{formatDiffLineCount(additions)}</span>
       )}

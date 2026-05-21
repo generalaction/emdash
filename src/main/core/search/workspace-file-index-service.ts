@@ -1,10 +1,10 @@
 import { basename } from 'node:path';
-import { fsWatchEventChannel } from '@shared/events/fsEvents';
 import type { Workspace } from '@main/core/workspaces/workspace';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { sqlite } from '@main/db/client';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
+import { fsWatchEventChannel } from '@shared/events/fsEvents';
 
 const STALE_DAYS = 14;
 const MAX_FILES = 50_000;

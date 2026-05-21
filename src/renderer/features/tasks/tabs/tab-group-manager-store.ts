@@ -1,7 +1,7 @@
 import { action, computed, makeObservable, observable, reaction } from 'mobx';
-import type { TabGroupsSnapshot } from '@shared/view-state';
 import type { ConversationManagerStore } from '@renderer/features/tasks/conversations/conversation-manager';
 import { TabManagerStore } from '@renderer/features/tasks/tabs/tab-manager-store';
+import type { TabGroupsSnapshot } from '@shared/view-state';
 
 const MAX_PANE_COUNT = 8;
 

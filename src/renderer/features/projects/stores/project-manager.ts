@@ -1,11 +1,11 @@
 import { makeObservable, observable, runInAction } from 'mobx';
-import { sshConnectionEventChannel } from '@shared/events/sshEvents';
-import { type LocalProject, type SshProject } from '@shared/projects';
-import type { ProjectViewSnapshot } from '@shared/view-state';
 import { events, rpc } from '@renderer/lib/ipc';
 import { appState } from '@renderer/lib/stores/app-state';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
+import { sshConnectionEventChannel } from '@shared/events/sshEvents';
+import { type LocalProject, type SshProject } from '@shared/projects';
+import type { ProjectViewSnapshot } from '@shared/view-state';
 import {
   createUnmountedProject,
   createUnregisteredProject,
