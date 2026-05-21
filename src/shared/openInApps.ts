@@ -91,7 +91,7 @@ const _OPEN_IN_APPS = {
         appNames: ['Cursor'],
       },
       win32: {
-        openCommands: ['start "" cursor {{path}}'],
+        openCommands: ['cursor {{path}}'],
         checkCommands: ['cursor'],
       },
       linux: {
@@ -118,7 +118,7 @@ const _OPEN_IN_APPS = {
         appNames: ['Visual Studio Code'],
       },
       win32: {
-        openCommands: ['start "" code {{path}}', 'start "" code-insiders {{path}}'],
+        openCommands: ['code {{path}}', 'code-insiders {{path}}'],
         checkCommands: ['code', 'code-insiders'],
       },
       linux: {
@@ -145,7 +145,7 @@ const _OPEN_IN_APPS = {
         appNames: ['VSCodium'],
       },
       win32: {
-        openCommands: ['start "" codium {{path}}'],
+        openCommands: ['codium {{path}}'],
         checkCommands: ['codium'],
       },
       linux: {
@@ -171,7 +171,7 @@ const _OPEN_IN_APPS = {
         appNames: ['Windsurf'],
       },
       win32: {
-        openCommands: ['start "" windsurf {{path}}'],
+        openCommands: ['windsurf {{path}}'],
         checkCommands: ['windsurf'],
       },
       linux: {
@@ -343,6 +343,7 @@ const _OPEN_IN_APPS = {
     label: 'Zed',
     iconPath: ICON_PATHS.zed,
     autoInstall: true,
+    supportsRemote: true,
     platforms: {
       darwin: {
         openCommands: ['command -v zed >/dev/null 2>&1 && zed {{path}}', 'open -a "Zed" {{path}}'],
@@ -351,6 +352,10 @@ const _OPEN_IN_APPS = {
       },
       linux: {
         openCommands: ['zed {{path}}', 'xdg-open {{path}}'],
+        checkCommands: ['zed'],
+      },
+      win32: {
+        openCommands: ['zed {{path}}'],
         checkCommands: ['zed'],
       },
     },
@@ -371,7 +376,7 @@ const _OPEN_IN_APPS = {
         appNames: ['Kiro'],
       },
       win32: {
-        openCommands: ['start "" kiro {{path}}'],
+        openCommands: ['kiro {{path}}'],
         checkCommands: ['kiro'],
       },
       linux: {
@@ -395,7 +400,7 @@ const _OPEN_IN_APPS = {
         appNames: ['Antigravity'],
       },
       win32: {
-        openCommands: ['start "" antigravity {{path}}'],
+        openCommands: ['antigravity {{path}}'],
         checkCommands: ['antigravity'],
       },
       linux: {
@@ -419,7 +424,7 @@ const _OPEN_IN_APPS = {
         appNames: ['Trae'],
       },
       win32: {
-        openCommands: ['start "" trae "{{path_raw}}"'],
+        openCommands: ['trae "{{path_raw}}"'],
         checkCommands: ['trae'],
       },
       linux: {
@@ -443,7 +448,7 @@ const _OPEN_IN_APPS = {
         appNames: ['Trae Solo'],
       },
       win32: {
-        openCommands: ['start "" trae-solo "{{path_raw}}"'],
+        openCommands: ['trae-solo "{{path_raw}}"'],
         checkCommands: ['trae-solo'],
       },
       linux: {
