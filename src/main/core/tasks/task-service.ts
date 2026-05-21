@@ -40,28 +40,16 @@ import {
 } from './provision-task-error';
 import { taskManager, type WorkspaceHint } from './task-manager';
 import { mapTaskRowToTask } from './utils/utils';
+import { mapProvisionError } from './utils/mapProvisionError';
 
 export type TaskCrudHooks = {
-  'task:created': (task: Task) => void | Promise<void>;
+  'task:created': (task: Task, params: CreateTaskParams) => void | Promise<void>;
   'task:updated': (task: Task) => void | Promise<void>;
   'task:archived': (taskId: string, projectId: string) => void | Promise<void>;
   'task:deleted': (taskId: string, projectId: string) => void | Promise<void>;
 };
 
 type ProvisionResult = ProvisionTaskResult & { sshConnectionId?: string };
-
-function mapProvisionError(error: ProvisionTaskError): CreateTaskError {
-  switch (error.type) {
-    case 'branch-not-found':
-      return { type: 'branch-not-found', branch: error.branch };
-    case 'worktree-setup-failed':
-      return { type: 'worktree-setup-failed', branch: error.branch, message: error.message };
-    case 'timeout':
-      return { type: 'provision-timeout', timeoutMs: error.timeout, step: error.step };
-    default:
-      return { type: 'provision-failed', message: error.message };
-  }
-}
 
 export class TaskService implements Hookable<TaskCrudHooks> {
   private readonly _hooks = new HookCore<TaskCrudHooks>((name, e) =>
@@ -96,31 +84,7 @@ export class TaskService implements Hookable<TaskCrudHooks> {
       });
     }
 
-    const { strategy } = params;
-    const taskCreatedStrategy = (() => {
-      if (strategy.kind === 'from-pull-request') return 'pr';
-      if (params.linkedIssue) return 'issue';
-      if (strategy.kind === 'no-worktree') return 'blank';
-      return 'branch';
-    })();
-
-    telemetryService.capture('task_created', {
-      strategy: taskCreatedStrategy,
-      has_initial_prompt: Boolean(params.initialConversation?.initialPrompt?.trim()),
-      has_issue: params.linkedIssue?.provider ?? 'none',
-      provider: params.initialConversation?.provider ?? null,
-      project_id: params.projectId,
-      task_id: params.id,
-    });
-    if (params.linkedIssue) {
-      telemetryService.capture('issue_linked_to_task', {
-        provider: params.linkedIssue.provider,
-        project_id: params.projectId,
-        task_id: params.id,
-      });
-    }
-
-    this._hooks.callHookBackground('task:created', task);
+    this._hooks.callHookBackground('task:created', task, params);
     return result;
   }
 
@@ -226,11 +190,6 @@ export class TaskService implements Hookable<TaskCrudHooks> {
         .where(eq(workspaces.id, workspaceRow.id));
     }
 
-    telemetryService.capture('task_provisioned', {
-      project_id: task.projectId,
-      task_id: task.id,
-    });
-
     return ok({
       path: workspacePath,
       workspaceId: persistData.workspaceId,
@@ -283,4 +242,33 @@ export class TaskService implements Hookable<TaskCrudHooks> {
 }
 
 export const taskService = new TaskService();
+
+taskService.on('task:created', (task, params) => {
+  const { strategy } = params;
+  const taskCreatedStrategy = (() => {
+    if (strategy.kind === 'from-pull-request') return 'pr';
+    if (params.linkedIssue) return 'issue';
+    if (strategy.kind === 'no-worktree') return 'blank';
+    return 'branch';
+  })();
+  telemetryService.capture('task_created', {
+    strategy: taskCreatedStrategy,
+    has_initial_prompt: Boolean(params.initialConversation?.initialPrompt?.trim()),
+    has_issue: params.linkedIssue?.provider ?? 'none',
+    provider: params.initialConversation?.provider ?? null,
+    project_id: task.projectId,
+    task_id: task.id,
+  });
+  if (params.linkedIssue) {
+    telemetryService.capture('issue_linked_to_task', {
+      provider: params.linkedIssue.provider,
+      project_id: task.projectId,
+      task_id: task.id,
+    });
+  }
+});
+
+taskManager.hooks.on('task:provisioned', ({ projectId, taskId }) => {
+  telemetryService.capture('task_provisioned', { project_id: projectId, task_id: taskId });
+});
 
