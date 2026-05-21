@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { basename } from 'node:path';
+import { conversationEvents } from '@main/core/conversations/conversation-events';
+import { log } from '@main/lib/logger';
 import { createRPCController } from '@shared/ipc/rpc';
 import { parsePtySessionId } from '@shared/ptySessionId';
 import { err, ok } from '@shared/result';
-import { log } from '@main/lib/logger';
 import { taskManager } from '../tasks/task-manager';
 import { workspaceRegistry } from '../workspaces/workspace-registry';
 import { ptySessionRegistry } from './pty-session-registry';
@@ -14,6 +15,20 @@ export const ptyController = createRPCController({
     const pty = ptySessionRegistry.get(sessionId);
     if (!pty) return err({ type: 'not_found' as const });
     pty.write(data);
+    if (data.includes('\r')) {
+      const meta = ptySessionRegistry.getMetadata(sessionId);
+      if (meta?.providerId && !meta.isRemote) {
+        const parsed = parsePtySessionId(sessionId);
+        if (parsed) {
+          conversationEvents._emit('conversation:input-submitted', {
+            projectId: parsed.projectId,
+            taskId: parsed.scopeId,
+            conversationId: parsed.leafId,
+            providerId: meta.providerId,
+          });
+        }
+      }
+    }
     return ok();
   },
 

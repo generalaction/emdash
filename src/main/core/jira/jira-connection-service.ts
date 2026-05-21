@@ -1,9 +1,9 @@
 import { request } from 'node:https';
 import { URL } from 'node:url';
-import { ISSUE_PROVIDER_CAPABILITIES, type ConnectionStatus } from '@shared/issue-providers';
 import { encryptedAppSecretsStore } from '@main/core/secrets/encrypted-app-secrets-store';
 import { KV } from '@main/db/kv';
 import { telemetryService } from '@main/lib/telemetry';
+import { ISSUE_PROVIDER_CAPABILITIES, type ConnectionStatus } from '@shared/issue-providers';
 
 type JiraCreds = { siteUrl: string; email: string };
 

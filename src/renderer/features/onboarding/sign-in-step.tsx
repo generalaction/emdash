@@ -1,4 +1,4 @@
-import { CheckCircle, Github, LogIn, User } from 'lucide-react';
+import { AlertCircle, CheckCircle, Github, LogIn, User } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useAccountSession, useAccountSignIn } from '@renderer/lib/hooks/useAccount';
 import { Button } from '@renderer/lib/ui/button';
@@ -45,7 +45,7 @@ export function SignInStep({ onComplete }: { onComplete: () => void }) {
   if (session?.isSignedIn && session.user) {
     const { user } = session;
     return (
-      <div className="flex flex-col space-y-8 max-w-sm">
+      <div className="flex max-w-sm flex-col space-y-8">
         <div className="flex flex-col items-center justify-center gap-6">
           <div className="relative">
             {user.avatarUrl ? (
@@ -59,12 +59,12 @@ export function SignInStep({ onComplete }: { onComplete: () => void }) {
                 <User className="h-7 w-7 text-foreground-muted" />
               </div>
             )}
-            <CheckCircle className="absolute -bottom-1 -right-1 h-5 w-5 text-primary fill-background" />
+            <CheckCircle className="text-primary absolute -right-1 -bottom-1 h-5 w-5 fill-background" />
           </div>
           <div className="flex flex-col items-center justify-center gap-1">
-            <h1 className="text-xl text-center">Connected as @{user.username}</h1>
+            <h1 className="text-center text-xl">Connected as @{user.username}</h1>
             {user.email && (
-              <p className="text-sm text-foreground-muted text-center">{user.email}</p>
+              <p className="text-center text-sm text-foreground-muted">{user.email}</p>
             )}
           </div>
         </div>
@@ -76,24 +76,29 @@ export function SignInStep({ onComplete }: { onComplete: () => void }) {
   }
 
   return (
-    <div className="flex flex-col space-y-8 max-w-sm">
+    <div className="flex max-w-sm flex-col space-y-8">
       <div className="flex flex-col items-center justify-center gap-6">
         <Github className="h-10 w-10" absoluteStrokeWidth strokeWidth={1.5} />
         <div className="flex flex-col items-center justify-center gap-2">
-          <h1 className="text-xl text-center">Connect your GitHub account to Emdash</h1>
-          <p className="text-md text-foreground-muted text-center">
-            This will allow you to work with your GitHub repositories in Emdash
+          <h1 className="text-center text-xl">Connect GitHub</h1>
+          <p className="text-md text-center text-foreground-muted">
+            Emdash uses GitHub for git operations, pull requests and issues.
           </p>
         </div>
       </div>
-      {error && <p className="text-sm text-destructive text-center">{error}</p>}
-      <div className="flex flex-col w-full gap-2">
+      <div className="flex w-full flex-col gap-2">
         <Button size={'lg'} onClick={handleSignIn} disabled={signInMutation.isPending}>
           <LogIn className="h-4 w-4" />
-          {signInMutation.isPending ? 'Signing in...' : 'Sign in with GitHub'}
+          {signInMutation.isPending ? 'Signing in…' : 'Sign in with GitHub'}
         </Button>
-        <Button variant="ghost" onClick={handleSkip}>
-          Skip
+        {error && (
+          <div className="bg-destructive/10 text-destructive flex items-start gap-1.5 rounded-md px-2.5 py-2 text-xs">
+            <AlertCircle className="mt-px h-3.5 w-3.5 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+        <Button size={'lg'} variant="outline" onClick={handleSkip}>
+          Skip for now
         </Button>
       </div>
     </div>

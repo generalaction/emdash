@@ -1,9 +1,8 @@
-import { useMemo, useState } from 'react';
-import type { AgentProviderId } from '@shared/agent-provider-registry';
-import type { Issue } from '@shared/tasks';
+import { useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
 import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
 import {
+  buildContextActionText,
   buildTaskContextActions,
   type ContextAction,
 } from '@renderer/features/tasks/conversations/context-actions';
@@ -13,6 +12,8 @@ import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-sel
 import { Field, FieldLabel } from '@renderer/lib/ui/field';
 import { Switch } from '@renderer/lib/ui/switch';
 import { Textarea } from '@renderer/lib/ui/textarea';
+import type { AgentProviderId } from '@shared/agent-provider-registry';
+import type { Issue } from '@shared/tasks';
 import { appendInitialConversationText } from './initial-conversation-text';
 import { ModalContextBar } from './modal-context-bar';
 
@@ -20,7 +21,7 @@ export type InitialConversationState = {
   provider: AgentProviderId | null;
   setProvider: (provider: AgentProviderId | null) => void;
   prompt: string;
-  setPrompt: (prompt: string) => void;
+  setPrompt: Dispatch<SetStateAction<string>>;
   connectionId?: string;
 };
 
@@ -40,25 +41,27 @@ export function useInitialConversationState(projectId?: string): InitialConversa
 interface InitialConversationFieldProps {
   state: InitialConversationState;
   linkedIssue?: Issue;
+  projectId?: string;
 }
 
 export function InitialConversationField({ state, linkedIssue }: InitialConversationFieldProps) {
   const { value: promptLibrary } = usePromptLibrary();
   const autoApproveDefaults = useAgentAutoApproveDefaults();
   const contextActions = useMemo(
-    () => buildTaskContextActions(linkedIssue, undefined, promptLibrary),
+    () => buildTaskContextActions(linkedIssue, [], promptLibrary),
     [linkedIssue, promptLibrary]
   );
 
   const handleActionClick = (action: ContextAction) => {
-    state.setPrompt(appendInitialConversationText(state.prompt, action.text));
+    const text = buildContextActionText(action);
+    state.setPrompt((current) => appendInitialConversationText(current, text));
   };
 
   return (
     <>
       <Field>
         <FieldLabel>Initial conversation</FieldLabel>
-        <div className="flex flex-col border border-border rounded-md">
+        <div className="flex flex-col rounded-md border border-border">
           <AgentSelector
             value={state.provider}
             onChange={(provider) => state.setProvider(provider)}
@@ -69,9 +72,12 @@ export function InitialConversationField({ state, linkedIssue }: InitialConversa
             placeholder="Start with a prompt... (optional)"
             value={state.prompt}
             onChange={(e) => state.setPrompt(e.target.value)}
-            className="min-h-24 max-h-64 resize-none border-0 rounded-none focus-visible:ring-0 focus-visible:border-0"
+            className="max-h-64 min-h-24 resize-none rounded-none border-0 focus-visible:border-0 focus-visible:ring-0"
           />
-          <ModalContextBar actions={contextActions} onActionClick={handleActionClick} />
+          <ModalContextBar
+            actions={contextActions}
+            onActionClick={(action) => void handleActionClick(action)}
+          />
         </div>
       </Field>
       <Field>

@@ -23,7 +23,7 @@ export function ConflictDialog({ filePath, onSuccess }: Props) {
       <DialogHeader showCloseButton={false}>
         <DialogTitle>File Modified Externally</DialogTitle>
         <DialogDescription>
-          <code className="rounded bg-muted px-1 py-0.5 text-xs">{shortPath}</code> was changed
+          <code className="bg-muted rounded px-1 py-0.5 text-xs">{shortPath}</code> was changed
           outside the editor while you have unsaved edits. What would you like to do?
         </DialogDescription>
       </DialogHeader>

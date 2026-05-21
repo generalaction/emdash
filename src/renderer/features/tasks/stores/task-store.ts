@@ -1,4 +1,8 @@
 import { makeAutoObservable, observable, runInAction } from 'mobx';
+import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
+import { DraftCommentsStore } from '@renderer/features/tasks/diff-view/stores/draft-comments-store';
+import { rpc } from '@renderer/lib/ipc';
+import { log } from '@renderer/utils/logger';
 import { err, type Result } from '@shared/result';
 import type {
   Issue,
@@ -7,10 +11,6 @@ import type {
   Task,
   TaskLifecycleStatus,
 } from '@shared/tasks';
-import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
-import { DraftCommentsStore } from '@renderer/features/tasks/diff-view/stores/draft-comments-store';
-import { rpc } from '@renderer/lib/ipc';
-import { log } from '@renderer/utils/logger';
 import { conversationRegistry } from './conversation-registry';
 import { workspaceRegistry } from './workspace-registry';
 import { WorkspaceViewModel } from './workspace-view-model';

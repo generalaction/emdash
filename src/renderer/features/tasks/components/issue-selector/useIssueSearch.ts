@@ -1,9 +1,9 @@
 import { useCallback, useMemo, useState } from 'react';
-import type { ConnectionStatus } from '@shared/issue-providers';
-import type { Issue } from '@shared/tasks';
 import { useIntegrationsContext } from '@renderer/features/integrations/integrations-provider';
 import { ISSUE_PROVIDER_ORDER } from '@renderer/features/integrations/issue-provider-meta';
 import { useIssues } from '@renderer/features/integrations/use-issues';
+import type { ConnectionStatus } from '@shared/issue-providers';
+import type { Issue } from '@shared/tasks';
 
 export type UseIssueSearchResult = ReturnType<typeof useIssueSearch>;
 

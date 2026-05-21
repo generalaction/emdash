@@ -1,27 +1,30 @@
 import { AlignJustify, Columns2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useMemo } from 'react';
+import type { DiffTabStore } from '@renderer/features/tasks/tabs/diff-tab-store';
 import { useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
 import { MicroLabel } from '@renderer/lib/ui/label';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 
-export const DiffToolbar = observer(function DiffToolbar() {
+interface DiffToolbarProps {
+  tab: DiffTabStore;
+}
+
+export const DiffToolbar = observer(function DiffToolbar({ tab }: DiffToolbarProps) {
   const diffView = useWorkspaceViewModel().diffView;
   const diffStyle = diffView?.diffStyle;
-  const activeFile = diffView?.activeFile;
 
-  const diffSourceLabel = useMemo(() => {
-    if (activeFile?.group === 'staged') return 'Staged';
-    if (activeFile?.group === 'disk') return 'Changed';
-    if (activeFile?.group === 'pr') return 'PR';
-    if (activeFile?.group === 'git') return 'Git';
+  const diffSourceLabel = (() => {
+    if (tab.diffGroup === 'staged') return 'Staged';
+    if (tab.diffGroup === 'disk') return 'Changed';
+    if (tab.diffGroup === 'pr') return 'PR';
+    if (tab.diffGroup === 'git') return 'Git';
     return undefined;
-  }, [activeFile?.group]);
+  })();
 
   if (!diffView || !diffStyle) return null;
 
   return (
-    <div className="flex h-[41px] items-center gap-2 border-b border-border px-2 justify-between bg-background-secondary-1">
+    <div className="flex h-[41px] items-center justify-between gap-2 border-b border-border bg-background-secondary-1 px-2">
       <div className="flex items-center gap-3">
         {diffSourceLabel && <MicroLabel>{diffSourceLabel}</MicroLabel>}
       </div>

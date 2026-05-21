@@ -1,8 +1,8 @@
-import { hostPreviewEventChannel } from '@shared/events/hostPreviewEvents';
-import type { HostPreviewEvent } from '@shared/hostPreview';
 import { events } from '@renderer/lib/ipc';
 import type { IDisposable } from '@renderer/lib/stores/lifecycle';
 import { Resource } from '@renderer/lib/stores/resource';
+import { hostPreviewEventChannel } from '@shared/events/hostPreviewEvents';
+import type { HostPreviewEvent } from '@shared/hostPreview';
 
 export class DevServerStore implements IDisposable {
   /**

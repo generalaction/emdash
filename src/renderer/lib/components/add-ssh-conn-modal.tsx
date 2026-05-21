@@ -9,7 +9,6 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import * as z from 'zod';
-import type { ConnectionTestResult, SshConfig } from '@shared/ssh';
 import type { BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 import { Button } from '@renderer/lib/ui/button';
@@ -32,6 +31,7 @@ import {
 import { Input } from '@renderer/lib/ui/input';
 import { ModalLayout } from '@renderer/lib/ui/modal-layout';
 import { RadioGroup, RadioGroupItem } from '@renderer/lib/ui/radio-group';
+import type { ConnectionTestResult, SshConfig } from '@shared/ssh';
 
 export interface AddSshConnModalProps extends BaseModalProps<{ connectionId: string }> {
   initialConfig?: SshConfig;
@@ -166,12 +166,12 @@ export function AddSshConnModal({
       header={
         <DialogHeader
           showCloseButton={!showBackButton}
-          className="flex-row items-center gap-2 -mt-2 w-full justify-between"
+          className="-mt-2 w-full flex-row items-center justify-between gap-2"
         >
           <div className={`flex items-center gap-2 ${showBackButton ? '-ml-2' : ''}`}>
             {showBackButton && (
               <Button variant="ghost" size="icon-xs" onClick={onClose}>
-                <ArrowLeftIcon className="w-4 h-4" />
+                <ArrowLeftIcon className="h-4 w-4" />
               </Button>
             )}
             <DialogTitle>{isEditing ? 'Edit SSH Connection' : 'Add SSH Connection'}</DialogTitle>
@@ -428,13 +428,15 @@ export function AddSshConnModal({
         </form>
         {/* Test connection result */}
         {testState !== 'idle' && (
-          <div className="rounded-md border border-input px-3 py-2 text-sm">
+          <div className="border-input rounded-md border px-3 py-2 text-sm">
             <div className="flex items-center gap-2">
               {testState === 'testing' && (
-                <LoaderCircle className="size-4 animate-spin text-muted-foreground" />
+                <LoaderCircle className="text-muted-foreground size-4 animate-spin" />
               )}
-              {testState === 'success' && <CheckCircle2 className="size-4 text-green-500" />}
-              {testState === 'error' && <XCircle className="size-4 text-destructive" />}
+              {testState === 'success' && (
+                <CheckCircle2 className="size-4 text-foreground-success" />
+              )}
+              {testState === 'error' && <XCircle className="text-destructive size-4" />}
               <span className="flex-1 font-medium">
                 {testState === 'testing' && 'Testing connection…'}
                 {testState === 'success' &&
@@ -447,7 +449,7 @@ export function AddSshConnModal({
                   <button
                     type="button"
                     onClick={() => setShowDebugLogs((v) => !v)}
-                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                    className="text-muted-foreground flex items-center gap-1 text-xs hover:text-foreground"
                   >
                     {showDebugLogs ? (
                       <ChevronUp className="size-3" />
@@ -459,7 +461,7 @@ export function AddSshConnModal({
                 )}
             </div>
             {showDebugLogs && testResult?.debugLogs && (
-              <pre className="mt-2 max-h-32 overflow-y-auto rounded bg-muted px-2 py-1.5 text-xs text-muted-foreground">
+              <pre className="bg-muted text-muted-foreground mt-2 max-h-32 overflow-y-auto rounded px-2 py-1.5 text-xs">
                 {testResult.debugLogs.join('\n')}
               </pre>
             )}

@@ -1,9 +1,9 @@
+import { events } from '@main/lib/events';
+import { telemetryService } from '@main/lib/telemetry';
 import { gitRefChangedChannel } from '@shared/events/gitEvents';
 import type { BranchesPayload, LocalBranchesPayload, RemoteBranchesPayload } from '@shared/git';
 import { createRPCController } from '@shared/ipc/rpc';
 import { err, ok } from '@shared/result';
-import { events } from '@main/lib/events';
-import { telemetryService } from '@main/lib/telemetry';
 import type { GitRepositoryService } from '../git/repository-service';
 import { projectManager } from '../projects/project-manager';
 import { workspaceRegistry } from '../workspaces/workspace-registry';

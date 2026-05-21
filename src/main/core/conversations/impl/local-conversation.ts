@@ -1,9 +1,4 @@
 import { homedir } from 'node:os';
-import { getProvider } from '@shared/agent-provider-registry';
-import type { Conversation } from '@shared/conversations';
-import { agentSessionExitedChannel } from '@shared/events/agentEvents';
-import { makePtyId } from '@shared/ptyId';
-import { makePtySessionId } from '@shared/ptySessionId';
 import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
 import { wireAgentClassifier } from '@main/core/agent-hooks/classifier-wiring';
 import { claudeTrustService } from '@main/core/agent-hooks/claude-trust-service';
@@ -22,7 +17,13 @@ import { appSettingsService } from '@main/core/settings/settings-service';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
-import { buildAgentCommand } from './agent-command';
+import { getProvider } from '@shared/agent-provider-registry';
+import type { Conversation } from '@shared/conversations';
+import { agentSessionExitedChannel } from '@shared/events/agentEvents';
+import { makePtyId } from '@shared/ptyId';
+import { makePtySessionId } from '@shared/ptySessionId';
+import { buildAgentSessionCommand } from './agent-command';
+import { scheduleInitialPromptInjection } from './keystroke-injection';
 import { resolveProviderEnv } from './provider-env';
 
 const DEFAULT_COLS = 80;
@@ -95,7 +96,8 @@ export class LocalConversationProvider implements ConversationProvider {
     const hooksAvailable = await this.prepareHookConfig(conversation.providerId);
 
     const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
-    const { command, args } = buildAgentCommand({
+    const providerDef = getProvider(conversation.providerId);
+    const { command, args } = buildAgentSessionCommand({
       providerId: conversation.providerId,
       providerConfig,
       autoApprove: conversation.autoApprove,
@@ -103,7 +105,10 @@ export class LocalConversationProvider implements ConversationProvider {
       isResuming,
       initialPrompt,
     });
-    const providerEnv = resolveProviderEnv(providerConfig);
+    const providerEnv = resolveProviderEnv(providerConfig, {
+      providerId: conversation.providerId,
+      autoApprove: conversation.autoApprove,
+    });
 
     const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
 
@@ -144,14 +149,13 @@ export class LocalConversationProvider implements ConversationProvider {
     });
 
     const hookActive = port > 0;
-    const provider = getProvider(conversation.providerId);
     /*
      * Codex hooks can be skipped by the CLI in some live-session edge cases; keep
      * the output classifier active as a fallback so the UI can leave "working".
      */
     const useHooksOnly =
       hookActive &&
-      provider?.supportsHooks &&
+      providerDef?.supportsHooks &&
       hooksAvailable &&
       conversation.providerId !== 'codex';
 
@@ -169,13 +173,6 @@ export class LocalConversationProvider implements ConversationProvider {
       ptySessionRegistry.unregister(sessionId);
       const shouldRespawn = this.sessions.has(sessionId);
       this.sessions.delete(sessionId);
-      telemetryService.capture('agent_run_finished', {
-        provider: conversation.providerId,
-        exit_code: typeof exitCode === 'number' ? exitCode : -1,
-        project_id: conversation.projectId,
-        task_id: conversation.taskId,
-        conversation_id: conversation.id,
-      });
       events.emit(agentSessionExitedChannel, {
         sessionId,
         projectId: conversation.projectId,
@@ -213,6 +210,7 @@ export class LocalConversationProvider implements ConversationProvider {
       metadata: { providerId: conversation.providerId, title: conversation.title },
     });
     this.sessions.set(sessionId, pty);
+    scheduleInitialPromptInjection({ pty, conversation, initialPrompt, isResuming });
     telemetryService.capture('agent_run_started', {
       provider: conversation.providerId,
       project_id: conversation.projectId,

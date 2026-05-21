@@ -1,6 +1,4 @@
 import { and, asc, desc, eq, inArray, isNotNull, like, or } from 'drizzle-orm';
-import { parseGitHubRepository } from '@shared/github-repository';
-import type { Label, ListPrOptions, PrFilterOptions, PullRequest } from '@shared/pull-requests';
 import { projectManager } from '@main/core/projects/project-manager';
 import { db } from '@main/db/client';
 import {
@@ -11,6 +9,8 @@ import {
   pullRequests,
   pullRequestUsers,
 } from '@main/db/schema';
+import { parseGitHubRepository } from '@shared/github-repository';
+import type { Label, ListPrOptions, PrFilterOptions, PullRequest } from '@shared/pull-requests';
 import { assemblePullRequest, type PrRow } from './pr-utils';
 
 /** Internal capability type — not exposed to the renderer. */

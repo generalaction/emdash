@@ -33,6 +33,7 @@ import { terminalsController } from './core/terminals/controller';
 import { updateController } from './core/updates/controller';
 import { viewStateController } from './core/view-state/controller';
 import { workspaceController } from './core/workspaces/controller';
+import { projectSettingsController } from './core/workspaces/project-settings-controller';
 import { legacyPortController } from './db/legacy-port/controller';
 
 export const rpcRouter = createRPCRouter({
@@ -71,6 +72,7 @@ export const rpcRouter = createRPCRouter({
   viewState: viewStateController,
   search: searchController,
   workspaces: workspaceController,
+  projectSettings: projectSettingsController,
 });
 
 export type RpcRouter = typeof rpcRouter;
