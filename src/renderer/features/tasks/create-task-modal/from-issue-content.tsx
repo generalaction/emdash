@@ -1,4 +1,8 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { buildLinkedIssueContextAction } from '@renderer/features/tasks/conversations/context-actions';
+import { resolveContextActionText } from '@renderer/features/tasks/conversations/resolve-context-action-text';
+import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
+import type { Issue } from '@shared/tasks';
 import { InlineIssueSelector } from '../components/issue-selector/inline-issue-selector';
 import { SelectedIssueValue } from '../components/issue-selector/issue-selector';
 import { BranchPickerField } from './branch-picker-field';
@@ -6,6 +10,7 @@ import {
   InitialConversationField,
   type InitialConversationState,
 } from './initial-conversation-section';
+import { upsertInitialIssueContext } from './initial-conversation-text';
 import { TaskNameField } from './task-name-field';
 import { type FromIssueModeState } from './use-from-issue-mode';
 
@@ -31,10 +36,45 @@ export function FromIssueContent({
   initialConversation,
 }: FromIssueContentProps) {
   const [isSelecting, setIsSelecting] = useState(!state.linkedIssue);
+  const [isAddingIssueContext, setIsAddingIssueContext] = useState(false);
+  const issueContextRequestId = useRef(0);
+  const taskSettings = useTaskSettings();
 
-  const handleValueChange = (issue: Parameters<typeof state.setLinkedIssue>[0]) => {
+  const handleValueChange = (issue: Issue | null) => {
     state.setLinkedIssue(issue);
-    if (issue) setIsSelecting(false);
+    const requestId = ++issueContextRequestId.current;
+
+    if (!issue) {
+      setIsAddingIssueContext(false);
+      return;
+    }
+
+    setIsSelecting(false);
+
+    if (!taskSettings.includeIssueContextByDefault) {
+      setIsAddingIssueContext(false);
+      return;
+    }
+
+    const action = buildLinkedIssueContextAction(issue);
+    if (!action) {
+      setIsAddingIssueContext(false);
+      return;
+    }
+
+    setIsAddingIssueContext(true);
+
+    void resolveContextActionText({ action, linkedIssue: issue, projectId })
+      .then((issueContext) => {
+        if (requestId !== issueContextRequestId.current) return;
+
+        initialConversation.setPrompt((current) =>
+          upsertInitialIssueContext(current, issueContext)
+        );
+      })
+      .finally(() => {
+        if (requestId === issueContextRequestId.current) setIsAddingIssueContext(false);
+      });
   };
 
   return (
@@ -76,6 +116,7 @@ export function FromIssueContent({
         state={initialConversation}
         linkedIssue={state.linkedIssue ?? undefined}
         projectId={projectId}
+        issueActionPending={isAddingIssueContext}
       />
     </div>
   );
