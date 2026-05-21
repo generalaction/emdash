@@ -4,7 +4,7 @@ import { utils } from 'ssh2';
 import { describe, expect, it } from 'vitest';
 import type { SshConnectionRow } from '@main/db/schema';
 import type { SshConfig } from '@shared/ssh';
-import { serializeSshConnectionMetadata } from './connection-metadata';
+import { serializeSshConnectionMetadata } from '../config/connection-metadata';
 import {
   createSshConnectConfigResolver,
   resolveSshConnectConfig,

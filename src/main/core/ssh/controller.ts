@@ -24,12 +24,12 @@ import {
   serializeSshConnectionMetadata,
   type SshConnectionMetadata,
   sshConfigFromRow,
-} from './connection-metadata';
-import { sshConnectionManager } from './production-ssh-connection-manager';
-import { testProductionSshConnection } from './production-test-connection';
-import { resolveSshConfig } from './resolve-ssh-config';
-import { sshCredentialService } from './ssh-credential-service';
-import { parseSshConfigFile } from './sshConfigParser';
+} from './config/connection-metadata';
+import { resolveSshConfig } from './config/resolve-ssh-config';
+import { parseSshConfigFile } from './config/sshConfigParser';
+import { testProductionSshConnection } from './connect/production-test-connection';
+import { sshCredentialService } from './credentials/ssh-credential-service';
+import { sshConnectionManager } from './lifecycle/production-ssh-connection-manager';
 
 export const sshController = createRPCController({
   /** List all saved SSH connections (no secrets). */

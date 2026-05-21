@@ -4,7 +4,7 @@ import { sshConnections } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { sshConnectionEventChannel } from '@shared/events/sshEvents';
-import { resolveProductionSshConnectConfig } from './production-connect-config';
+import { resolveProductionSshConnectConfig } from '../connect/production-connect-config';
 import { SshConnectionManager } from './ssh-connection-manager';
 
 export const sshConnectionManager = new SshConnectionManager({

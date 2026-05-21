@@ -1,7 +1,7 @@
 import { eq, sql } from 'drizzle-orm';
 import { mapConversationRowToConversation } from '@main/core/conversations/utils';
 import { projectManager } from '@main/core/projects/project-manager';
-import { sshConnectionManager } from '@main/core/ssh/production-ssh-connection-manager';
+import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import { formatProvisionTaskError } from '@main/core/tasks/provision-task-error';
 import { taskManager, type WorkspaceHint } from '@main/core/tasks/task-manager';
 import { mapTerminalRowToTerminal } from '@main/core/terminals/core';

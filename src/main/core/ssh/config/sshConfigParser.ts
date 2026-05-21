@@ -3,7 +3,6 @@ import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { glob } from 'glob';
 import type { SshConfigHost } from '@shared/ssh';
-import { resolveIdentityAgentFromSshConfig } from './resolve-ssh-config';
 
 /**
  * Strips surrounding quotes (single or double) from a value string.
@@ -214,6 +213,3 @@ export function findSshConfigHostByHostName(
  * both the Host alias and the HostName value. Returns the expanded
  * IdentityAgent path if found, or undefined.
  */
-export async function resolveIdentityAgent(hostname: string): Promise<string | undefined> {
-  return await resolveIdentityAgentFromSshConfig(hostname).catch(() => undefined);
-}

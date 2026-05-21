@@ -1,14 +1,14 @@
 import { readFile } from 'node:fs/promises';
 import ssh2 from 'ssh2';
-import { sshCredentialService } from '@main/core/ssh/ssh-credential-service';
-import { resolveSshConfig } from './resolve-ssh-config';
+import { sshCredentialService } from '@main/core/ssh/credentials/ssh-credential-service';
+import { resolveSshConfig } from '../config/resolve-ssh-config';
+import { findSshConfigHostByHostName, parseSshConfigFile } from '../config/sshConfigParser';
+import { spawnProxyCommand, spawnProxyJump } from '../transport/transports';
 import {
   createSshConnectConfigResolver,
   type SshConnectInput,
   type SshConnectResult,
 } from './resolve-ssh-connect-config';
-import { findSshConfigHostByHostName, parseSshConfigFile } from './sshConfigParser';
-import { spawnProxyCommand, spawnProxyJump } from './transports';
 
 const { createAgent } = ssh2;
 

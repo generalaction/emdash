@@ -175,6 +175,13 @@ export async function resolveIdentityAgentFromSshConfig(
   return resolved.identityAgent;
 }
 
+export async function resolveIdentityAgentByAlias(
+  alias: string,
+  options: ResolveSshConfigOptions = {}
+): Promise<string | undefined> {
+  return await resolveIdentityAgentFromSshConfig(alias, options).catch(() => undefined);
+}
+
 function expandIdentityAgentPath(
   value: string,
   env: Record<string, string | undefined>

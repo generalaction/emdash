@@ -3,7 +3,7 @@ import ssh2, { type Client, type ConnectConfig } from 'ssh2';
 import type { SshConnectionRow } from '@main/db/schema';
 import type { SshConnectionEvent } from '@shared/events/sshEvents';
 import type { ConnectionState, SshHealthState } from '@shared/ssh';
-import type { SshConnectResult } from './resolve-ssh-connect-config';
+import type { SshConnectResult } from '../connect/resolve-ssh-connect-config';
 import { isSshChannelOpenFailure } from './ssh-channel-open-failure';
 import { SshClientProxy } from './ssh-client-proxy';
 
