@@ -1,7 +1,7 @@
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal, type ITerminalOptions } from '@xterm/xterm';
 import { events, rpc } from '@renderer/lib/ipc';
-import { cssVar } from '@renderer/utils/cssVars';
+import { cssColorToHex, cssVar } from '@renderer/utils/cssVars';
 import { log } from '@renderer/utils/logger';
 import { ptyDataChannel } from '@shared/events/ptyEvents';
 import { buildTerminalFontFamily } from './terminal-font';
@@ -16,13 +16,14 @@ export interface SessionTheme {
 }
 
 export function readXtermCssVars(): ITerminalOptions['theme'] {
+  const color = (name: string) => cssColorToHex(cssVar(name));
   return {
-    background: cssVar('--xterm-bg'),
-    foreground: cssVar('--xterm-fg'),
-    cursor: cssVar('--xterm-cursor'),
-    cursorAccent: cssVar('--xterm-cursor-accent'),
-    selectionBackground: cssVar('--xterm-selection-bg'),
-    selectionForeground: cssVar('--xterm-selection-fg'),
+    background: color('--xterm-bg'),
+    foreground: color('--xterm-fg'),
+    cursor: color('--xterm-cursor'),
+    cursorAccent: color('--xterm-cursor-accent'),
+    selectionBackground: color('--xterm-selection-bg'),
+    selectionForeground: color('--xterm-selection-fg'),
   };
 }
 
