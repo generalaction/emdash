@@ -41,6 +41,9 @@ export const SETTINGS_DEFAULTS = {
     autoCopyOnSelection: false,
   },
   theme: null,
+  appIcon: {
+    icon: 'default' as const,
+  },
   defaultAgent: DEFAULT_AGENT_ID,
   keyboard: {},
   openIn: {

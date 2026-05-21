@@ -1,5 +1,6 @@
 import z from 'zod';
 import { AGENT_PROVIDER_IDS, AGENT_PROVIDERS } from '@shared/agent-provider-registry';
+import { APP_ICON_IDS } from '@shared/app-icons';
 import { openInAppIdSchema } from '@shared/openInApps';
 import { APP_SHORTCUTS } from '@shared/shortcuts';
 import { TERMINAL_FONT_SIZE_MAX, TERMINAL_FONT_SIZE_MIN } from '@shared/terminal-settings';
@@ -48,6 +49,10 @@ export const themeSchema = z
   .catch(null)
   .optional()
   .default(null);
+
+export const appIconSettingsSchema = z.object({
+  icon: z.enum(APP_ICON_IDS),
+});
 
 export const defaultAgentSchema = z.optional(z.enum(AGENT_PROVIDER_IDS)).default(DEFAULT_AGENT_ID);
 
@@ -113,6 +118,7 @@ export const APP_SETTINGS_SCHEMA_MAP = {
   keyboard: keyboardSettingsSchema,
   notifications: notificationSettingsSchema,
   theme: themeSchema,
+  appIcon: appIconSettingsSchema,
   openIn: openInSettingsSchema,
   interface: interfaceSettingsSchema,
   terminal: terminalSettingsSchema,
@@ -129,6 +135,7 @@ export const appSettingsSchema = z.object({
   keyboard: keyboardSettingsSchema,
   notifications: notificationSettingsSchema,
   theme: themeSchema,
+  appIcon: appIconSettingsSchema,
   openIn: openInSettingsSchema,
   interface: interfaceSettingsSchema,
   terminal: terminalSettingsSchema,

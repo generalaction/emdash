@@ -1,9 +1,11 @@
+import { useQuery } from '@tanstack/react-query';
 import { ExternalLink } from 'lucide-react';
 import React, { useCallback } from 'react';
 import { PageHeader } from '@renderer/lib/components/page-header';
 import { rpc } from '@renderer/lib/ipc';
 import { cn } from '@renderer/utils/utils';
 import { AccountTab } from './AccountTab';
+import AppIconSettingsCard from './AppIconSettingsCard';
 import { CliAgentsList } from './CliAgentsList';
 import DefaultAgentSettingsCard from './DefaultAgentSettingsCard';
 import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
@@ -32,6 +34,7 @@ export type SettingsPageTab =
   | 'connections'
   | 'repository'
   | 'interface'
+  | 'app-icon'
   | 'docs';
 
 interface SectionConfig {
@@ -51,6 +54,12 @@ export function SettingsPage({
     void rpc.app.openExternal('https://docs.emdash.sh');
   }, []);
 
+  const { data: platform } = useQuery({
+    queryKey: ['app', 'platform'],
+    queryFn: () => rpc.app.getPlatform(),
+  });
+  const showAppIconSettings = platform === 'darwin';
+
   const tabs: Array<{
     id: SettingsPageTab;
     label: string;
@@ -63,6 +72,7 @@ export function SettingsPage({
     { id: 'connections', label: 'Connections' },
     { id: 'repository', label: 'Repository' },
     { id: 'interface', label: 'Interface' },
+    ...(showAppIconSettings ? ([{ id: 'app-icon', label: 'App Icon' }] as const) : []),
     { id: 'docs', label: 'Docs', isExternal: true },
   ];
 
@@ -145,6 +155,11 @@ export function SettingsPage({
           component: <HiddenToolsSettingsCard />,
         },
       ],
+    },
+    'app-icon': {
+      title: 'App Icon',
+      description: 'Choose the app icon Emdash uses on macOS.',
+      sections: [{ component: <AppIconSettingsCard /> }],
     },
   };
 

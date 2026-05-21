@@ -1,7 +1,6 @@
 import { join } from 'node:path';
 import { config as dotenvConfig } from 'dotenv';
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
-import dockIcon from '@/assets/images/emdash/icon-dock.png?asset';
 import { PRODUCT_NAME } from '@shared/app-identity';
 import { registerRPCRouter } from '@shared/ipc/rpc';
 import { setupApplicationMenu } from './app/menu';
@@ -10,6 +9,7 @@ import { createMainWindow } from './app/window';
 import { providerTokenRegistry } from './core/account/provider-token-registry';
 import { emdashAccountService } from './core/account/services/emdash-account-service';
 import { agentHookService } from './core/agent-hooks/agent-hook-service';
+import { appIconService } from './core/app-icon/service';
 import { appService } from './core/app/service';
 import { localDependencyManager } from './core/dependencies/dependency-manager';
 import { editorBufferService } from './core/editor/editor-buffer-service';
@@ -56,14 +56,6 @@ app.on('second-instance', () => {
 if (!import.meta.env.DEV && !app.requestSingleInstanceLock()) {
   app.quit();
   process.exit(0);
-}
-
-if (import.meta.env.DEV) {
-  try {
-    app.dock?.setIcon(dockIcon);
-  } catch (err) {
-    log.warn('Failed to set dock icon:', err);
-  }
 }
 
 app.on('window-all-closed', () => {
@@ -119,6 +111,7 @@ void app.whenReady().then(async () => {
   prSyncScheduler.initialize();
   appService.initialize();
   await appSettingsService.initialize();
+  appIconService.apply((await appSettingsService.get('appIcon')).icon);
   await promptLibraryService.initialize();
 
   agentHookService.initialize().catch((e) => {
