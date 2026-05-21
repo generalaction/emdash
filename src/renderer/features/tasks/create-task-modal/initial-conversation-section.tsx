@@ -16,6 +16,8 @@ import type { AgentProviderId } from '@shared/agent-provider-registry';
 import type { Issue } from '@shared/tasks';
 import { appendInitialConversationText } from './initial-conversation-text';
 import { ModalContextBar } from './modal-context-bar';
+import { Button } from '@renderer/lib/ui/button';
+import { CheckCheckIcon, PlusIcon } from 'lucide-react';
 
 export type InitialConversationState = {
   provider: AgentProviderId | null;
@@ -60,38 +62,45 @@ export function InitialConversationField({ state, linkedIssue }: InitialConversa
   return (
     <>
       <Field>
-        <FieldLabel>Initial conversation</FieldLabel>
+
         <div className="flex flex-col rounded-md border border-border">
-          <AgentSelector
-            value={state.provider}
-            onChange={(provider) => state.setProvider(provider)}
-            connectionId={state.connectionId}
-            className="rounded-none border-0 border-b"
-          />
+            
           <Textarea
             placeholder="Start with a prompt... (optional)"
             value={state.prompt}
             onChange={(e) => state.setPrompt(e.target.value)}
             className="max-h-64 min-h-24 resize-none rounded-none border-0 focus-visible:border-0 focus-visible:ring-0"
           />
-          <ModalContextBar
-            actions={contextActions}
-            onActionClick={(action) => void handleActionClick(action)}
+          <div className="flex items-center gap-2 w-full justify-between py-1 px-2 border-b">
+
+          <AgentSelector
+            value={state.provider}
+            onChange={(provider) => state.setProvider(provider)}
+            connectionId={state.connectionId}
+            className="rounded-none border-0 w-fit p-0! h-6! text-sm!"
           />
+          <div className="flex items-center gap-2">
+
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            onClick={() => {}}
+          >
+            <PlusIcon className="size-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            onClick={() => {}}
+          >
+            <CheckCheckIcon className="size-4" />
+          </Button>
+          </div>
+
+          </div>
         </div>
       </Field>
-      <Field>
-        <div className="flex items-center gap-2">
-          <Switch
-            checked={state.provider ? autoApproveDefaults.getDefault(state.provider) : false}
-            disabled={!state.provider || autoApproveDefaults.loading || autoApproveDefaults.saving}
-            onCheckedChange={(checked) => {
-              if (state.provider) autoApproveDefaults.setDefault(state.provider, checked);
-            }}
-          />
-          <FieldLabel>Auto-approve permissions</FieldLabel>
-        </div>
-      </Field>
+
     </>
   );
 }

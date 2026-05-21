@@ -18,7 +18,7 @@ export interface InlinePrSelectorProps {
   disabled?: boolean;
 }
 
-function PrRow({ pr }: { pr: PullRequest }) {
+export function PrRow({ pr }: { pr: PullRequest }) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5">
       <div className="flex min-w-0 items-center gap-1.5">
