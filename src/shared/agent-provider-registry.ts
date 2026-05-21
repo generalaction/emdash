@@ -539,7 +539,6 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     docUrl: 'https://docs.letta.com/letta-code/cli',
     installCommand: 'npm install -g @letta-ai/letta-code',
     commands: ['letta'],
-    versionArgs: ['--version'],
     skipVersionProbe: true,
     cli: 'letta',
     autoApproveFlag: '--yolo',
