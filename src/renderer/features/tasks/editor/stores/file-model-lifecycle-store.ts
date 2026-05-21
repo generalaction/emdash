@@ -35,13 +35,20 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
   expandedPaths = observable.set<string>();
 
   private readonly projectId: string;
+  private readonly taskId: string;
   private readonly workspaceId: string;
   private readonly tabGroupManager: TabGroupManagerStore;
   private readonly disposers: (() => void)[] = [];
 
-  constructor(tabGroupManager: TabGroupManagerStore, projectId: string, workspaceId: string) {
+  constructor(
+    tabGroupManager: TabGroupManagerStore,
+    projectId: string,
+    taskId: string,
+    workspaceId: string
+  ) {
     this.tabGroupManager = tabGroupManager;
     this.projectId = projectId;
+    this.taskId = taskId;
     this.workspaceId = workspaceId;
     this.modelRootPath = `workspace:${workspaceId}`;
 
@@ -87,6 +94,18 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
             if (modelRegistry.isDirty(uri)) {
               const result = await this._confirmClose(entry.path);
               if (result === 'cancel') return;
+            }
+          } else if (entry.kind === 'conversation') {
+            const stillOpen = this.tabGroupManager.groups.some(
+              (g) =>
+                g.tabManager !== tabManager && g.tabManager.hasConversationTab(entry.conversationId)
+            );
+            if (!stillOpen) {
+              await rpc.conversations.stopConversationSession(
+                this.projectId,
+                this.taskId,
+                entry.conversationId
+              );
             }
           }
           tabManager.closeTab(tabId);

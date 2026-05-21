@@ -221,7 +221,21 @@ export class TabGroupManagerStore {
         return;
       }
     }
+
+    const previousPreviewConversationId = this.focusedGroup.previewConversationId;
+    const shouldStopPreviousPreview =
+      previousPreviewConversationId !== undefined &&
+      previousPreviewConversationId !== conversationId &&
+      !this.groups.some(
+        ({ tabManager }) =>
+          tabManager !== this.focusedGroup &&
+          tabManager.hasConversationTab(previousPreviewConversationId)
+      );
+
     this.focusedGroup.openConversationPreview(conversationId);
+    if (shouldStopPreviousPreview) {
+      void this._getConversations()?.stopSession(previousPreviewConversationId);
+    }
   }
 
   get snapshot(): TabGroupsSnapshot {

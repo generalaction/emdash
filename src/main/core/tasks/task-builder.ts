@@ -10,16 +10,19 @@ import type { Conversation } from '@shared/conversations';
 import { taskProvisionProgressChannel } from '@shared/events/taskEvents';
 import type { Task } from '@shared/tasks';
 import type { Terminal } from '@shared/terminals';
+import type { TaskViewSnapshot } from '@shared/view-state';
 import type { ProvisionResult, TaskProvider } from '../projects/project-provider';
 import type { ProjectSettingsProvider } from '../projects/settings/provider';
 import { resolveTaskWorkDir } from '../projects/worktrees/utils';
 import type { WorktreeService } from '../projects/worktrees/worktree-service';
+import { viewStateService } from '../view-state/view-state-service';
 import {
   buildTaskProviders,
   createWorkspaceFactory,
   resolveTaskEnv,
   type WorkspaceType,
 } from '../workspaces/workspace-factory';
+import { pickConversationsForHydration, pickTerminalsForHydration } from './hydration';
 
 export type BuildTaskResult = {
   taskProvider: TaskProvider;
@@ -182,8 +185,17 @@ export async function buildTaskFromWorkspace(
     terminals: terminalProvider,
   };
 
+  const taskViewSnapshot = (await viewStateService.get(
+    `task:${task.id}`
+  )) as Partial<TaskViewSnapshot> | null;
+  const conversationsToHydrate = pickConversationsForHydration(
+    hydrate.conversations,
+    taskViewSnapshot
+  );
+  const terminalsToHydrate = pickTerminalsForHydration(hydrate.terminals, taskViewSnapshot);
+
   void Promise.all(
-    hydrate.terminals.map((term) =>
+    terminalsToHydrate.map((term) =>
       terminalProvider.spawnTerminal(term).catch((e) => {
         log.error(`${logPrefix}: failed to hydrate terminal`, {
           terminalId: term.id,
@@ -194,7 +206,7 @@ export async function buildTaskFromWorkspace(
   );
 
   void Promise.all(
-    hydrate.conversations.map((conv) =>
+    conversationsToHydrate.map((conv) =>
       conversationProvider.startSession(conv, undefined, true).catch((e) => {
         log.error(`${logPrefix}: failed to hydrate conversation`, {
           conversationId: conv.id,

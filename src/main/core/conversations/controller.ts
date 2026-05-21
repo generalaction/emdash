@@ -4,6 +4,7 @@ import { deleteConversation } from './deleteConversation';
 import { getConversations } from './getConversations';
 import { getConversationsForTask } from './getConversationsForTask';
 import { renameConversation } from './renameConversation';
+import { startConversationSession, stopConversationSession } from './sessionLifecycle';
 
 export const conversationController = createRPCController({
   getConversations,
@@ -11,4 +12,6 @@ export const conversationController = createRPCController({
   deleteConversation,
   renameConversation,
   getConversationsForTask,
+  startConversationSession,
+  stopConversationSession,
 });

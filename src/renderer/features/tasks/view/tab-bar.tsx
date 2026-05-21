@@ -23,7 +23,7 @@ function makeTabRenderers(tabManager: ReturnType<typeof useTabGroupContext>['tab
         tab={tab}
         onSelect={() => tabManager.setActiveTab(tab.tabId)}
         onPin={() => tabManager.openConversation(tab.conversationId)}
-        onClose={() => tabManager.closeTab(tab.tabId)}
+        onClose={() => tabManager.closeTabWithGuard(tab.tabId)}
       />
     ),
     diff: (tab: ResolvedDiffTab): ReactNode => (

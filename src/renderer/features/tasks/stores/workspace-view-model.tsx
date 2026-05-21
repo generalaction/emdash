@@ -91,6 +91,7 @@ export class WorkspaceViewModel implements ILifecycle {
     this.editorView = new FileModelLifecycleStore(
       this.tabGroupManager,
       taskData.projectId,
+      taskData.id,
       workspaceId
     );
 

@@ -222,6 +222,15 @@ export class ConversationManagerStore implements IDisposable {
     }
   }
 
+  async startSession(conversationId: string): Promise<void> {
+    if (!this.conversations.has(conversationId)) return;
+    await rpc.conversations.startConversationSession(this.projectId, this.taskId, conversationId);
+  }
+
+  async stopSession(conversationId: string): Promise<void> {
+    await rpc.conversations.stopConversationSession(this.projectId, this.taskId, conversationId);
+  }
+
   async renameConversation(conversationId: string, name: string): Promise<void> {
     const store = this.conversations.get(conversationId);
     if (!store) return;
