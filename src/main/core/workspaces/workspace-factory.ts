@@ -13,7 +13,7 @@ import { RemoteStatusFingerprintPoller } from '@main/core/git/remote-status-fing
 import { GitRepositoryService } from '@main/core/git/repository-service';
 import { githubConnectionService } from '@main/core/github/services/github-connection-service';
 import { workspaceFileIndexService } from '@main/core/search/workspace-file-index-service';
-import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
+import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { LocalTerminalProvider } from '@main/core/terminals/impl/local-terminal-provider';
 import { SshTerminalProvider } from '@main/core/terminals/impl/ssh-terminal-provider';
 import type { TerminalProvider } from '@main/core/terminals/terminal-provider';
