@@ -115,12 +115,7 @@ function IssuePriorityIcon({
   }
 
   const normalizedPriority = priority.toLowerCase();
-  const activeBars =
-    normalizedPriority === 'urgent' || normalizedPriority === 'high'
-      ? 3
-      : normalizedPriority === 'medium'
-        ? 2
-        : 1;
+  const activeBars = normalizedPriority === 'high' ? 3 : normalizedPriority === 'medium' ? 2 : 1;
 
   return (
     <Tooltip>
@@ -155,6 +150,11 @@ function IssuePriorityIcon({
       <TooltipContent>Priority: {priority}</TooltipContent>
     </Tooltip>
   );
+}
+
+export function hasMeaningfulPriority(issue: Issue): boolean {
+  const priority = issue.priority?.toLowerCase();
+  return !!priority && priority !== 'no priority';
 }
 
 export function LinkedIssueIndicator({ linkedTo }: { linkedTo: LinkedIssueInfo }) {
@@ -229,10 +229,7 @@ export const IssueSelector = observer(function IssueSelector({
   const providerSelectOpenRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const reservePrioritySpace = issues.some((i) => {
-    const p = i.priority?.toLowerCase();
-    return !!p && p !== 'no priority';
-  });
+  const reservePrioritySpace = issues.some(hasMeaningfulPriority);
 
   const handleSelectIssueProvider = useCallback(
     (provider: Issue['provider']) => {

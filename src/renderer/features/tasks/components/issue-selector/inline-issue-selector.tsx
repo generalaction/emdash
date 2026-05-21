@@ -10,7 +10,12 @@ import { Kbd } from '@renderer/lib/ui/kbd';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/ui/select';
 import { cn } from '@renderer/utils/utils';
 import type { Issue } from '@shared/tasks';
-import { ConnectIssueIntegrationPlaceholder, IssueRow, ProviderLogo } from './issue-selector';
+import {
+  ConnectIssueIntegrationPlaceholder,
+  hasMeaningfulPriority,
+  IssueRow,
+  ProviderLogo,
+} from './issue-selector';
 import { getLinkedIssueMap } from './use-linked-issue-urls';
 import { useIssueSearch } from './useIssueSearch';
 
@@ -147,10 +152,7 @@ export const InlineIssueSelector = observer(function InlineIssueSelector({
     return <ConnectIssueIntegrationPlaceholder />;
   }
 
-  const reservePrioritySpace = issues.some((i) => {
-    const p = i.priority?.toLowerCase();
-    return !!p && p !== 'no priority';
-  });
+  const reservePrioritySpace = issues.some(hasMeaningfulPriority);
 
   return (
     <div
