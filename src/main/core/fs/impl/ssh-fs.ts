@@ -255,18 +255,15 @@ export class SshFileSystem implements FileSystemProvider {
             return;
           }
 
-          const buffer = Buffer.alloc(readSize);
-
-          sftp.read(handle, buffer, 0, readSize, 0, (readErr, bytesRead) => {
+          this.readSftpFully(sftp, handle, fullPath, readSize, (readErr, buffer) => {
             sftp.close(handle, () => {});
 
             if (readErr) {
-              reject(this.mapSftpError(readErr, fullPath));
+              reject(readErr);
               return;
             }
 
-            // Convert buffer to string, handling only the bytes actually read
-            const content = buffer.subarray(0, bytesRead).toString('utf-8');
+            const content = buffer.toString('utf-8');
 
             resolve({
               content,
@@ -826,12 +823,11 @@ export class SshFileSystem implements FileSystemProvider {
             return;
           }
 
-          const buffer = Buffer.alloc(stats.size);
-          sftp.read(handle, buffer, 0, stats.size, 0, (readErr) => {
+          this.readSftpFully(sftp, handle, fullPath, stats.size, (readErr, buffer) => {
             sftp.close(handle, () => {});
 
             if (readErr) {
-              reject(this.mapSftpError(readErr, fullPath));
+              reject(readErr);
               return;
             }
 
@@ -848,6 +844,46 @@ export class SshFileSystem implements FileSystemProvider {
   }
 
   // ─── Private utilities ────────────────────────────────────────────────────
+
+  private readSftpFully(
+    sftp: SFTPWrapper,
+    handle: Buffer,
+    fullPath: string,
+    size: number,
+    callback: (error: FileSystemError | null, buffer: Buffer) => void
+  ): void {
+    const buffer = Buffer.alloc(size);
+
+    const readNext = (offset: number) => {
+      if (offset >= size) {
+        callback(null, buffer);
+        return;
+      }
+
+      sftp.read(handle, buffer, offset, size - offset, offset, (err, bytesRead) => {
+        if (err) {
+          callback(this.mapSftpError(err, fullPath), buffer);
+          return;
+        }
+
+        if (bytesRead === 0) {
+          callback(
+            new FileSystemError(
+              `Unexpected end of file while reading: ${fullPath}`,
+              FileSystemErrorCodes.UNKNOWN,
+              fullPath
+            ),
+            buffer
+          );
+          return;
+        }
+
+        readNext(offset + bytesRead);
+      });
+    };
+
+    readNext(0);
+  }
 
   /**
    * Build absolute remote path from relative path

@@ -1,6 +1,7 @@
 import { createReadStream, promises as fs, statSync, watch as watchFs, type Stats } from 'node:fs';
 import { basename, dirname, extname, join, relative, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline';
+import { watch as watchChokidar } from 'chokidar';
 import { glob } from 'glob';
 import ignore from 'ignore';
 import { createWorkspaceFileUrl } from '@main/app/protocol';
@@ -780,28 +781,6 @@ export class LocalFileSystem implements FileSystemProvider {
     const stabilityMs = options.debounceMs ?? 200;
     let pending: FileWatchEvent[] = [];
     let flushTimer: ReturnType<typeof setTimeout> | null = null;
-    const watcher = watchFs(
-      this.projectPath,
-      { recursive: true },
-      (eventType, fileName: string | Buffer | null) => {
-        if (!fileName) return;
-        const rel = fileName.toString().replace(/\\/g, '/');
-        if (rel.startsWith('..')) return;
-        if (rel.split('/').some((part) => WATCH_IGNORED_NAMES.includes(part))) return;
-        const fullPath = join(this.projectPath, rel);
-
-        let entryType: 'file' | 'directory' = 'file';
-        if (eventType !== 'rename') {
-          try {
-            entryType = statSync(fullPath).isDirectory() ? 'directory' : 'file';
-          } catch {
-            // File removed between the event and the stat — treat as file.
-          }
-        }
-        const type = eventType === 'rename' ? ('modify' as const) : ('modify' as const);
-        enqueue({ type, entryType, path: rel });
-      }
-    );
 
     const flush = () => {
       if (pending.length) {
@@ -815,6 +794,77 @@ export class LocalFileSystem implements FileSystemProvider {
       if (flushTimer) clearTimeout(flushTimer);
       flushTimer = setTimeout(flush, stabilityMs);
     };
+
+    const shouldIgnore = (rel: string) =>
+      rel.startsWith('..') || rel.split('/').some((part) => WATCH_IGNORED_NAMES.includes(part));
+
+    if (process.platform !== 'darwin' && process.platform !== 'win32') {
+      const watcher = watchChokidar(this.projectPath, {
+        ignoreInitial: true,
+        ignored: (filePath) =>
+          shouldIgnore(relative(this.projectPath, filePath).replace(/\\/g, '/')),
+      });
+
+      watcher.on('all', (eventName, filePath) => {
+        const rel = relative(this.projectPath, filePath).replace(/\\/g, '/');
+        if (!rel || shouldIgnore(rel)) return;
+
+        if (eventName === 'add' || eventName === 'addDir') {
+          enqueue({
+            type: 'create',
+            entryType: eventName === 'addDir' ? 'directory' : 'file',
+            path: rel,
+          });
+        } else if (eventName === 'unlink' || eventName === 'unlinkDir') {
+          enqueue({
+            type: 'delete',
+            entryType: eventName === 'unlinkDir' ? 'directory' : 'file',
+            path: rel,
+          });
+        } else if (eventName === 'change') {
+          enqueue({ type: 'modify', entryType: 'file', path: rel });
+        }
+      });
+
+      return {
+        update(_paths: string[]) {},
+        close() {
+          if (flushTimer) clearTimeout(flushTimer);
+          void watcher.close();
+        },
+      };
+    }
+
+    const watcher = watchFs(
+      this.projectPath,
+      { recursive: true },
+      (eventType, fileName: string | Buffer | null) => {
+        if (!fileName) return;
+        const rel = fileName.toString().replace(/\\/g, '/');
+        if (shouldIgnore(rel)) return;
+        const fullPath = join(this.projectPath, rel);
+
+        let type: 'create' | 'delete' | 'modify' = 'modify';
+        let entryType: 'file' | 'directory' = 'file';
+
+        if (eventType === 'rename') {
+          try {
+            entryType = statSync(fullPath).isDirectory() ? 'directory' : 'file';
+            type = 'create';
+          } catch {
+            type = 'delete';
+          }
+        } else {
+          try {
+            entryType = statSync(fullPath).isDirectory() ? 'directory' : 'file';
+          } catch {
+            // File removed between the event and the stat — treat as file.
+          }
+        }
+
+        enqueue({ type, entryType, path: rel });
+      }
+    );
 
     return {
       // No-op: the recursive subscription already covers the entire worktree.

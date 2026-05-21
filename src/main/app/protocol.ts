@@ -41,7 +41,9 @@ export function setupAppProtocol(rendererRoot: string): void {
       const token = relPath.split('/')[1];
       const filePath = token ? workspaceFileUrls.get(token) : undefined;
       if (!filePath) return new Response(null, { status: 404 });
-      return net.fetch(pathToFileURL(filePath).toString());
+      const response = await net.fetch(pathToFileURL(filePath).toString());
+      workspaceFileUrls.delete(token);
+      return response;
     }
 
     const resolved = normalize(join(root, relPath || 'index.html'));
