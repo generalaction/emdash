@@ -47,7 +47,7 @@ export function PrBadge({ variant = 'default', pr, className, hoverDelay }: PrBa
       <PopoverTrigger openOnHover delay={hoverDelay}>
         {renderBadge()}
       </PopoverTrigger>
-      <PopoverContent>
+      <PopoverContent className="w-auto max-w-sm min-w-72">
         <div className="flex flex-col gap-2">
           <div className="no-wrap flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
