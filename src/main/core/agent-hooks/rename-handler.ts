@@ -1,10 +1,10 @@
 import { eq } from 'drizzle-orm';
-import { parsePtyId } from '@shared/ptyId';
 import { renameConversation } from '@main/core/conversations/renameConversation';
 import { renameTask } from '@main/core/tasks/operations/renameTask';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
 import { log } from '@main/lib/logger';
+import { parsePtyId } from '@shared/ptyId';
 import type { RawHookRequest } from './hook-server';
 
 export interface ConversationRenameResult {

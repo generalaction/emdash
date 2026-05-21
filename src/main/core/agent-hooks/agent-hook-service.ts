@@ -1,11 +1,11 @@
-import { agentEventChannel, type AgentEvent } from '@shared/events/agentEvents';
-import { conversationChangedChannel } from '@shared/events/conversationEvents';
-import { conversationRenamedChannel, taskRenamedChannel } from '@shared/events/taskEvents';
 import { conversationEvents } from '@main/core/conversations/conversation-events';
 import { touchConversation } from '@main/core/conversations/touchConversation';
 import { events } from '@main/lib/events';
 import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
 import { telemetryService } from '@main/lib/telemetry';
+import { agentEventChannel, type AgentEvent } from '@shared/events/agentEvents';
+import { conversationChangedChannel } from '@shared/events/conversationEvents';
+import { conversationRenamedChannel, taskRenamedChannel } from '@shared/events/taskEvents';
 import { enrichEvent } from './event-enricher';
 import { HookServer } from './hook-server';
 import { isAppFocused, maybeShowNotification } from './notification';

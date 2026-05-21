@@ -1,11 +1,13 @@
 import { homedir } from 'node:os';
 import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
 import { wireAgentClassifier } from '@main/core/agent-hooks/classifier-wiring';
-import { claudeTrustService } from '@main/core/agent-hooks/claude-trust-service';
-import { HookConfigWriter } from '@main/core/agent-hooks/hook-config';
 import type { ConversationProvider } from '@main/core/conversations/types';
+import { resolveCommandPath } from '@main/core/dependencies/probe';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
+import { ensureGitIgnored } from '@main/core/providers/internal/gitignore';
+import { createPlugin, createClassifier } from '@main/core/providers/registry';
+import type { ProviderPlugin, ProviderPluginDeps } from '@main/core/providers/types';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import type { Pty } from '@main/core/pty/pty';
 import { buildAgentEnv } from '@main/core/pty/pty-env';
@@ -41,7 +43,8 @@ export class LocalConversationProvider implements ConversationProvider {
   private readonly shellSetup?: string;
   private readonly ctx: IExecutionContext;
   private readonly taskEnvVars: Record<string, string>;
-  private readonly hookConfigWriter: HookConfigWriter;
+  private readonly pluginDeps: ProviderPluginDeps;
+  private readonly pluginCache = new Map<string, ProviderPlugin>();
   private readonly preparedHookProviders = new Map<
     string,
     { writeGitIgnoreEntries: boolean; hooksAvailable: boolean }
@@ -71,7 +74,33 @@ export class LocalConversationProvider implements ConversationProvider {
     this.shellSetup = shellSetup;
     this.ctx = ctx;
     this.taskEnvVars = taskEnvVars;
-    this.hookConfigWriter = new HookConfigWriter(new LocalFileSystem(taskPath), ctx);
+
+    const projectFs = new LocalFileSystem(taskPath);
+    const userFs = new LocalFileSystem(homedir());
+    this.pluginDeps = {
+      readProjectFile: (rel) =>
+        projectFs
+          .read(rel)
+          .then((r) => r.content)
+          .catch(() => undefined),
+      writeProjectFile: async (rel, content) => void (await projectFs.write(rel, content)),
+      readUserFile: (rel) =>
+        userFs
+          .read(rel)
+          .then((r) => r.content)
+          .catch(() => undefined),
+      writeUserFile: async (rel, content) => void (await userFs.write(rel, content)),
+      platform: process.platform,
+    };
+  }
+
+  private getPlugin(providerId: Conversation['providerId']): ProviderPlugin | undefined {
+    let plugin = this.pluginCache.get(providerId);
+    if (!plugin) {
+      plugin = createPlugin(providerId, this.pluginDeps);
+      if (plugin) this.pluginCache.set(providerId, plugin);
+    }
+    return plugin;
   }
 
   async startSession(
@@ -88,15 +117,11 @@ export class LocalConversationProvider implements ConversationProvider {
     this.knownSessionIds.add(sessionId);
     if (this.sessions.has(sessionId)) return;
 
-    await claudeTrustService.maybeAutoTrustLocal({
-      providerId: conversation.providerId,
-      cwd: this.taskPath,
-      homedir: homedir(),
-    });
-    const hooksAvailable = await this.prepareHookConfig(conversation.providerId);
+    const plugin = this.getPlugin(conversation.providerId);
+    await plugin?.prepareSession?.({ projectPath: this.taskPath, homedir: homedir() });
+    const hooksAvailable = await this.prepareHookConfig(conversation.providerId, plugin);
 
     const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
-    const providerDef = getProvider(conversation.providerId);
     const { command, args } = buildAgentSessionCommand({
       providerId: conversation.providerId,
       providerConfig,
@@ -149,11 +174,12 @@ export class LocalConversationProvider implements ConversationProvider {
     });
 
     const hookActive = port > 0;
-    const useHooksOnly = hookActive && providerDef?.supportsHooks && hooksAvailable;
+    const useHooksOnly = hookActive && plugin?.supportsHooks && hooksAvailable;
 
     if (!useHooksOnly) {
       wireAgentClassifier({
         pty,
+        classifier: createClassifier(conversation.providerId, plugin),
         providerId: conversation.providerId,
         projectId: conversation.projectId,
         taskId: conversation.taskId,
@@ -211,18 +237,36 @@ export class LocalConversationProvider implements ConversationProvider {
     });
   }
 
-  private async prepareHookConfig(providerId: Conversation['providerId']): Promise<boolean> {
+  private async prepareHookConfig(
+    providerId: Conversation['providerId'],
+    plugin: ProviderPlugin | undefined
+  ): Promise<boolean> {
+    if (!plugin?.writeHookConfig) return false;
     try {
       const localProjectSettings = await appSettingsService.get('localProject');
       const writeGitIgnoreEntries = localProjectSettings.writeAgentConfigToGitIgnore ?? true;
       const previous = this.preparedHookProviders.get(providerId);
-      const shouldPrepareHookConfig =
+      const shouldPrepare =
         previous === undefined || (!previous.writeGitIgnoreEntries && writeGitIgnoreEntries);
-      if (!shouldPrepareHookConfig) return previous?.hooksAvailable ?? false;
+      if (!shouldPrepare) return previous?.hooksAvailable ?? false;
 
-      const hooksAvailable = await this.hookConfigWriter.writeForProvider(providerId, {
-        writeGitIgnoreEntries,
-      });
+      const providerDef = getProvider(providerId);
+      const cliFound = providerDef?.cli
+        ? await resolveCommandPath(providerDef.cli, this.ctx).then(Boolean)
+        : false;
+
+      let hooksAvailable = false;
+      if (cliFound) {
+        hooksAvailable = await plugin.writeHookConfig();
+        if (hooksAvailable && writeGitIgnoreEntries && plugin.gitIgnorePaths?.length) {
+          await ensureGitIgnored(
+            this.pluginDeps.readProjectFile,
+            this.pluginDeps.writeProjectFile,
+            plugin.gitIgnorePaths
+          );
+        }
+      }
+
       this.preparedHookProviders.set(providerId, { writeGitIgnoreEntries, hooksAvailable });
       return hooksAvailable;
     } catch (error) {

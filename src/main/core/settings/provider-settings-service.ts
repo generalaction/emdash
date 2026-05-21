@@ -1,9 +1,10 @@
+import { getProviderConfigDefaults } from '@shared/agent-provider-registry';
 import type { ProviderCustomConfig } from '@shared/app-settings';
 import { OverrideSettings } from './override-settings';
-import { providerConfigDefaults, providerCustomConfigEntrySchema } from './schema';
+import { providerCustomConfigEntrySchema } from './schema';
 
 export const providerOverrideSettings = new OverrideSettings<ProviderCustomConfig>(
   'providerConfigs',
-  () => providerConfigDefaults as Record<string, ProviderCustomConfig>,
+  () => getProviderConfigDefaults() as Record<string, ProviderCustomConfig>,
   providerCustomConfigEntrySchema
 );
