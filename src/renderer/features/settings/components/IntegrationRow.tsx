@@ -97,16 +97,16 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
       <span className="text-muted-foreground truncate text-sm">{accountLabel}</span>
     ) : null;
 
-  const isSvg = themedLogoSrc?.trim().startsWith('<svg');
+  const isSvg = themedLogoSrc?.trimStart().startsWith('<svg');
 
-  // Process SVG to use currentColor for theme-aware colors (primary)
+  // Match AgentLogo: only strip colors when a light logo is reused in dark mode.
   const processedSvg =
     isSvg && themedLogoSrc
-      ? logoSrcDark
+      ? isDark && !logoSrcDark
         ? themedLogoSrc
-        : themedLogoSrc
             .replace(/\bfill="[^"]*"/g, 'fill="currentColor"')
             .replace(/\bstroke="[^"]*"/g, 'stroke="currentColor"')
+        : themedLogoSrc
       : null;
 
   const avatar = (
@@ -114,7 +114,7 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
       {themedLogoSrc ? (
         isSvg ? (
           <span
-            className="text-primary inline-flex h-5 w-5 items-center justify-center [&_svg]:h-full [&_svg]:w-full [&_svg]:shrink-0"
+            className={`${isDark ? 'text-primary' : ''} inline-flex h-5 w-5 items-center justify-center [&_svg]:h-full [&_svg]:w-full [&_svg]:shrink-0`}
             dangerouslySetInnerHTML={{ __html: processedSvg ?? '' }}
           />
         ) : (
