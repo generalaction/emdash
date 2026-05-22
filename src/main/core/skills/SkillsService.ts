@@ -13,6 +13,7 @@ const EMDASH_META = path.join(SKILLS_ROOT, '.emdash');
 const CATALOG_INDEX_PATH = path.join(EMDASH_META, 'catalog-index.json');
 
 const MAX_REDIRECTS = 5;
+const SKILLSH_SEARCH_CACHE_TTL_MS = 5 * 60 * 1000;
 
 function httpsGet(url: string, redirectCount = 0): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -52,6 +53,7 @@ function httpsGet(url: string, redirectCount = 0): Promise<string> {
 export class SkillsService {
   private static readonly CATALOG_VERSION = 2;
   private catalogCache: CatalogIndex | null = null;
+  private skillShSearchCache = new Map<string, { expiresAt: number; skills: CatalogSkill[] }>();
 
   async initialize(): Promise<void> {
     await fs.promises.mkdir(SKILLS_ROOT, { recursive: true });
@@ -185,7 +187,7 @@ export class SkillsService {
 
   async getSkillDetail(skillId: string): Promise<CatalogSkill | null> {
     const catalog = await this.getCatalogIndex();
-    const skill = catalog.skills.find((s) => s.id === skillId);
+    const skill = catalog.skills.find((s) => s.id === skillId) ?? this.parseSkillShId(skillId);
     if (!skill) return null;
 
     // If installed, load the full SKILL.md from disk
@@ -201,8 +203,12 @@ export class SkillsService {
     // For uninstalled catalog skills, fetch SKILL.md from GitHub
     if (!skill.installed && !skill.skillMdContent) {
       try {
-        const mdUrl = this.getSkillMdUrl(skill);
-        if (mdUrl) {
+        if (skill.source === 'skillssh') {
+          const content = await this.fetchSkillShSkillMd(skill);
+          return { ...skill, skillMdContent: content };
+        } else {
+          const mdUrl = this.getSkillMdUrl(skill);
+          if (!mdUrl) return skill;
           const content = await httpsGet(mdUrl);
           return { ...skill, skillMdContent: content };
         }
@@ -215,6 +221,9 @@ export class SkillsService {
   }
 
   private getSkillMdUrl(skill: CatalogSkill): string | null {
+    if (skill.source === 'skillssh' && skill.sourceRef && skill.catalogSkillId) {
+      return null;
+    }
     if (skill.source === 'openai' && skill.sourceUrl) {
       // e.g. https://github.com/openai/skills/tree/main/skills/.curated/linear
       // → https://raw.githubusercontent.com/openai/skills/main/skills/.curated/linear/SKILL.md
@@ -235,43 +244,61 @@ export class SkillsService {
   async installSkill(skillId: string): Promise<CatalogSkill> {
     await this.initialize();
     const catalog = await this.getCatalogIndex();
-    const skill = catalog.skills.find((s) => s.id === skillId);
+    const skill = catalog.skills.find((s) => s.id === skillId) ?? this.parseSkillShId(skillId);
     if (!skill) throw new Error(`Skill "${skillId}" not found in catalog`);
     if (skill.installed) throw new Error(`Skill "${skillId}" is already installed`);
 
-    const skillDir = path.join(SKILLS_ROOT, skillId);
+    const installName = this.getInstallName(skill);
+    if (!isValidSkillName(installName)) {
+      throw new Error(`Invalid skill install name "${installName}"`);
+    }
+    const skillDir = path.resolve(SKILLS_ROOT, installName);
+    if (!this.isPathInsideSkillsRoot(skillDir)) {
+      throw new Error(`Invalid skill install path for "${installName}"`);
+    }
     const tmpDir = `${skillDir}.tmp-${Date.now()}`;
+    let finalDirCreated = false;
     try {
+      try {
+        await fs.promises.access(skillDir);
+        throw new Error(`Skill "${installName}" is already installed`);
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+      }
+
       await fs.promises.mkdir(tmpDir, { recursive: true });
 
       // Try to download the real SKILL.md from GitHub; fall back to generated stub
       let content: string;
-      try {
-        const mdUrl = this.getSkillMdUrl(skill);
-        if (mdUrl) {
-          content = await httpsGet(mdUrl);
-        } else {
+      if (skill.source === 'skillssh') {
+        content = await this.fetchSkillShSkillMd(skill);
+      } else {
+        try {
+          const mdUrl = this.getSkillMdUrl(skill);
+          if (mdUrl) {
+            content = await httpsGet(mdUrl);
+          } else {
+            content = generateSkillMd(skill.displayName, skill.description);
+          }
+        } catch {
           content = generateSkillMd(skill.displayName, skill.description);
         }
-      } catch {
-        content = generateSkillMd(skill.displayName, skill.description);
       }
       await fs.promises.writeFile(path.join(tmpDir, 'SKILL.md'), content);
 
-      // Remove stale target dir if present (e.g. from a previous failed install)
-      await fs.promises.rm(skillDir, { recursive: true, force: true }).catch(() => {});
-
       // Atomic move: rename tmp dir to final location
       await fs.promises.rename(tmpDir, skillDir);
+      finalDirCreated = true;
 
       // Sync to agents
-      await this.syncToAgents(skillId);
+      await this.syncToAgents(installName);
 
       // Invalidate cache
       this.catalogCache = null;
 
       return {
         ...skill,
+        id: installName,
         installed: true,
         localPath: skillDir,
         skillMdContent: content,
@@ -279,7 +306,9 @@ export class SkillsService {
     } catch (error) {
       // Clean up partial install
       await fs.promises.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
-      await fs.promises.rm(skillDir, { recursive: true, force: true }).catch(() => {});
+      if (finalDirCreated) {
+        await fs.promises.rm(skillDir, { recursive: true, force: true }).catch(() => {});
+      }
       throw error;
     }
   }
@@ -429,7 +458,153 @@ export class SkillsService {
     return agents;
   }
 
+  async searchSkillSh(query: string): Promise<CatalogSkill[]> {
+    const trimmed = query.trim().toLowerCase();
+    if (!trimmed) return [];
+
+    const cached = this.skillShSearchCache.get(trimmed);
+    if (cached && cached.expiresAt > Date.now()) return cached.skills;
+
+    const url = `https://skills.sh/api/search?q=${encodeURIComponent(trimmed)}`;
+    try {
+      const data = await httpsGet(url);
+      const result = JSON.parse(data) as {
+        skills?: Array<{
+          id: string;
+          skillId: string;
+          name?: string;
+          source: string;
+          installs?: number;
+          isDuplicate?: boolean;
+        }>;
+      };
+
+      const skills = (result.skills ?? [])
+        .filter((entry) => this.isSkillShGithubSource(entry.source))
+        .slice(0, 24)
+        .map((entry) => {
+          const catalogSkillId = this.normalizeSkillShSkillId(entry.skillId);
+          const displayName = entry.name || catalogSkillId;
+          const sourceUrl = this.getSkillShUrl(entry.source, catalogSkillId);
+          return {
+            id: this.toSkillShId(entry.source, catalogSkillId),
+            displayName,
+            description: `${entry.source}${entry.installs ? ` • ${entry.installs.toLocaleString()} installs` : ''}`,
+            source: 'skillssh',
+            sourceRef: entry.source,
+            sourceUrl,
+            catalogSkillId,
+            installs: entry.installs,
+            iconUrl: this.getSkillShIconUrl(entry.source),
+            brandColor: '#000000',
+            frontmatter: { name: catalogSkillId, description: displayName },
+            installed: false,
+          } satisfies CatalogSkill;
+        });
+
+      this.skillShSearchCache.set(trimmed, {
+        expiresAt: Date.now() + SKILLSH_SEARCH_CACHE_TTL_MS,
+        skills,
+      });
+      return skills;
+    } catch (error) {
+      if (cached) {
+        log.warn(`Skills.SH search failed for "${trimmed}", using stale cache`, error);
+        return cached.skills;
+      }
+      log.warn(`Skills.SH search failed for "${trimmed}"`, error);
+      return [];
+    }
+  }
+
   // --- Private helpers ---
+
+  private toSkillShId(sourceRef: string, skillId: string): string {
+    return `skillssh:${sourceRef}/${this.normalizeSkillShSkillId(skillId)}`;
+  }
+
+  private normalizeSkillShSkillId(skillId: string): string {
+    const normalized = skillId.replace(/\\/g, '/').replace(/\/+$/, '');
+    const withoutSkillMd = normalized.endsWith('/SKILL.md')
+      ? normalized.slice(0, -'/SKILL.md'.length)
+      : normalized;
+    return path.posix.basename(withoutSkillMd);
+  }
+
+  private isSkillShGithubSource(sourceRef: string): boolean {
+    const parts = sourceRef.split('/');
+    return parts.length === 2 && Boolean(parts[0]) && Boolean(parts[1]);
+  }
+
+  private parseSkillShId(skillId: string): CatalogSkill | null {
+    if (!skillId.startsWith('skillssh:')) return null;
+    const fullId = skillId.slice('skillssh:'.length);
+    const parts = fullId.split('/');
+    if (parts.length < 3) return null;
+    const sourceRef = parts.slice(0, 2).join('/');
+    if (!this.isSkillShGithubSource(sourceRef)) return null;
+    const catalogSkillId = this.normalizeSkillShSkillId(parts.slice(2).join('/'));
+    if (!catalogSkillId) return null;
+    return {
+      id: skillId,
+      displayName: catalogSkillId,
+      description: sourceRef,
+      source: 'skillssh',
+      sourceRef,
+      sourceUrl: this.getSkillShUrl(sourceRef, catalogSkillId),
+      catalogSkillId,
+      iconUrl: this.getSkillShIconUrl(sourceRef),
+      brandColor: '#000000',
+      frontmatter: { name: catalogSkillId, description: sourceRef },
+      installed: false,
+    };
+  }
+
+  private getInstallName(skill: CatalogSkill): string {
+    return skill.source === 'skillssh' && skill.catalogSkillId
+      ? this.normalizeSkillShSkillId(skill.catalogSkillId)
+      : skill.id;
+  }
+
+  private getSkillShUrl(sourceRef: string, skillId: string): string {
+    return `https://skills.sh/${sourceRef}/${skillId}`;
+  }
+
+  private getSkillShIconUrl(sourceRef: string): string | undefined {
+    const [owner, repo] = sourceRef.split('/');
+    if (!owner || !repo || sourceRef.split('/').length !== 2) return undefined;
+    return `https://github.com/${owner}.png?size=80`;
+  }
+
+  private async fetchSkillShSkillMd(skill: CatalogSkill): Promise<string> {
+    if (!skill.sourceRef || !skill.catalogSkillId) {
+      throw new Error('Invalid Skills.SH skill reference');
+    }
+    const [owner, repo] = skill.sourceRef.split('/');
+    if (!owner || !repo || skill.sourceRef.split('/').length !== 2) {
+      throw new Error(`Skills.SH source "${skill.sourceRef}" is not a GitHub repository`);
+    }
+
+    const treeData = await httpsGet(
+      `https://api.github.com/repos/${owner}/${repo}/git/trees/HEAD?recursive=1`
+    );
+    const tree = JSON.parse(treeData) as { tree?: Array<{ path: string; type: string }> };
+    const skillMdEntries =
+      tree.tree?.filter((entry) => entry.type === 'blob' && entry.path.endsWith('/SKILL.md')) ?? [];
+    const skillMd =
+      skillMdEntries.find((entry) => entry.path.split('/').at(-2) === skill.catalogSkillId) ??
+      skillMdEntries.find((entry) => {
+        const directoryName = entry.path.split('/').at(-2);
+        return Boolean(directoryName && skill.catalogSkillId?.endsWith(`-${directoryName}`));
+      });
+    if (!skillMd) {
+      throw new Error(`Could not find SKILL.md for ${skill.sourceRef}/${skill.catalogSkillId}`);
+    }
+
+    return httpsGet(
+      `https://raw.githubusercontent.com/${owner}/${repo}/HEAD/${encodeURI(skillMd.path)}`
+    );
+  }
 
   private isPathInsideSkillsRoot(candidatePath: string): boolean {
     const relativePath = path.relative(SKILLS_ROOT, candidatePath);

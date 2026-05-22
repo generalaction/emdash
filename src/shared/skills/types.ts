@@ -15,7 +15,7 @@ export interface CatalogSkill {
   /** Short description */
   description: string;
   /** Catalog source */
-  source: 'openai' | 'anthropic' | 'local';
+  source: 'openai' | 'anthropic' | 'skillssh' | 'local';
   /** GitHub URL */
   sourceUrl?: string;
   /** Icon URL (OpenAI skills have SVG/PNG) */
@@ -24,6 +24,12 @@ export interface CatalogSkill {
   brandColor?: string;
   /** Example prompt */
   defaultPrompt?: string;
+  /** Skills.SH source repository, e.g. owner/repo */
+  sourceRef?: string;
+  /** Original skill id inside the source repository */
+  catalogSkillId?: string;
+  /** Public install count when provided by a catalog */
+  installs?: number;
   /** Full SKILL.md content (loaded lazily) */
   skillMdContent?: string;
   /** Parsed frontmatter */
