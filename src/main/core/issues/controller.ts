@@ -21,6 +21,14 @@ const DEFAULT_CAPABILITIES = {
 const CONNECTION_CHECK_TIMEOUT_MS = 8_000;
 const lastSuccessfulConnectionStatus = new Map<IssueProviderType, ConnectionStatus>();
 
+function rememberConnectionStatus(provider: IssueProvider, status: ConnectionStatus): void {
+  if (status.connected) {
+    lastSuccessfulConnectionStatus.set(provider.type, status);
+  } else {
+    lastSuccessfulConnectionStatus.delete(provider.type);
+  }
+}
+
 function transientFailureStatus(provider: IssueProvider, error: string): ConnectionStatus {
   const lastSuccessfulStatus = lastSuccessfulConnectionStatus.get(provider.type);
   if (lastSuccessfulStatus) {
@@ -44,9 +52,11 @@ function failureStatus(provider: IssueProvider, error: unknown): ConnectionStatu
 
 async function checkProviderConnection(provider: IssueProvider): Promise<ConnectionStatus> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  let timedOut = false;
 
   const timeoutPromise = new Promise<ConnectionStatus>((resolve) => {
     timeoutId = setTimeout(() => {
+      timedOut = true;
       resolve(
         transientFailureStatus(
           provider,
@@ -57,11 +67,15 @@ async function checkProviderConnection(provider: IssueProvider): Promise<Connect
   });
 
   try {
-    const status = await Promise.race([provider.checkConnection(), timeoutPromise]);
-    if (status.connected) {
-      lastSuccessfulConnectionStatus.set(provider.type, status);
-    } else {
-      lastSuccessfulConnectionStatus.delete(provider.type);
+    const connectionPromise = provider.checkConnection();
+    connectionPromise.then(
+      (status) => rememberConnectionStatus(provider, status),
+      () => {}
+    );
+
+    const status = await Promise.race([connectionPromise, timeoutPromise]);
+    if (!timedOut) {
+      rememberConnectionStatus(provider, status);
     }
     return status;
   } catch (error) {
