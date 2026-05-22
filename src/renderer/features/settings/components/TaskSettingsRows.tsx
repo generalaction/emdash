@@ -14,7 +14,7 @@ function InfoTooltip({ label, content }: { label: string; content: React.ReactNo
         <TooltipTrigger>
           <button
             type="button"
-            className="inline-flex h-4 w-4 items-center justify-center text-muted-foreground hover:text-foreground"
+            className="text-muted-foreground inline-flex h-4 w-4 items-center justify-center hover:text-foreground"
             aria-label={label}
           >
             <Info className="h-3.5 w-3.5" />
@@ -107,6 +107,32 @@ export const CreateBranchAndWorktreeRow: React.FC = () => {
             checked={taskSettings.createBranchAndWorktree}
             disabled={taskSettings.loading || taskSettings.saving}
             onCheckedChange={taskSettings.updateCreateBranchAndWorktree}
+          />
+        </>
+      }
+    />
+  );
+};
+
+export const IncludeIssueContextByDefaultRow: React.FC = () => {
+  const taskSettings = useTaskSettings();
+
+  return (
+    <SettingRow
+      title="Include issue context by default"
+      description="Add the selected issue to the initial agent prompt when creating a task from an issue."
+      control={
+        <>
+          <ResetToDefaultButton
+            visible={taskSettings.isFieldOverridden('includeIssueContextByDefault')}
+            defaultLabel="on"
+            onReset={taskSettings.resetIncludeIssueContextByDefault}
+            disabled={taskSettings.loading || taskSettings.saving}
+          />
+          <Switch
+            checked={taskSettings.includeIssueContextByDefault}
+            disabled={taskSettings.loading || taskSettings.saving}
+            onCheckedChange={taskSettings.updateIncludeIssueContextByDefault}
           />
         </>
       }

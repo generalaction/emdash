@@ -27,11 +27,13 @@ export const SETTINGS_DEFAULTS = {
     autoGenerateName: true,
     autoTrustWorktrees: true,
     createBranchAndWorktree: true,
+    includeIssueContextByDefault: true,
   },
   agentAutoApproveDefaults: {},
   notifications: {
     enabled: true,
     sound: true,
+    customSoundPath: '',
     osNotifications: true,
     soundFocusMode: 'always' as const,
   },

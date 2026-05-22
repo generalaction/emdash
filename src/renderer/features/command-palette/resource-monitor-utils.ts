@@ -1,13 +1,13 @@
+import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
+import { agentMeta } from '@renderer/lib/providers/meta';
+import { appState } from '@renderer/lib/stores/app-state';
+import { formatBytes } from '@renderer/utils/formatBytes';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 import type {
   ResourceAppProcess,
   ResourcePtyEntry,
   ResourceSnapshot,
 } from '@shared/resource-monitor';
-import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
-import { agentMeta } from '@renderer/lib/providers/meta';
-import { appState } from '@renderer/lib/stores/app-state';
-import { formatBytes } from '@renderer/utils/formatBytes';
 
 export type Entry = ResourcePtyEntry & {
   taskName?: string;

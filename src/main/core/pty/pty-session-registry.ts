@@ -1,11 +1,12 @@
+import { events } from '@main/lib/events';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 import { ptyDataChannel, ptyExitChannel, ptyInputChannel } from '@shared/events/ptyEvents';
-import { events } from '@main/lib/events';
 import type { Pty } from './pty';
 
 export interface PtySessionMetadata {
   providerId?: AgentProviderId;
   title?: string;
+  isRemote?: boolean;
 }
 
 const FLUSH_INTERVAL_MS = 16; // ~60 fps
@@ -114,6 +115,10 @@ export class PtySessionRegistry {
    */
   unsubscribe(sessionId: string): void {
     this.activeConsumers.delete(sessionId);
+  }
+
+  getMetadata(sessionId: string): PtySessionMetadata | undefined {
+    return this.metadata.get(sessionId);
   }
 
   /** Active PTYs with local OS PID; SSH entries have `pid: undefined`. */

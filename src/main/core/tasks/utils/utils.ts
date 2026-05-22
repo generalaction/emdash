@@ -1,6 +1,6 @@
+import type { TaskRow } from '@main/db/schema';
 import type { PullRequest } from '@shared/pull-requests';
 import type { Issue, Task, TaskLifecycleStatus } from '@shared/tasks';
-import type { TaskRow } from '@main/db/schema';
 import { fromStoredBranch } from '../stored-branch';
 
 export function mapTaskRowToTask(

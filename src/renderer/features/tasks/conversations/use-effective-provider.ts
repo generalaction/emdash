@@ -1,11 +1,11 @@
 import { useState } from 'react';
+import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { appState } from '@renderer/lib/stores/app-state';
 import {
   AGENT_PROVIDER_IDS,
   isValidProviderId,
   type AgentProviderId,
 } from '@shared/agent-provider-registry';
-import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
-import { appState } from '@renderer/lib/stores/app-state';
 import { resolveConversationProviderSelection } from './provider-selection';
 
 export type EffectiveProvider = {

@@ -44,6 +44,7 @@ export const DiffTabItem = observer(function DiffTabItem({
       }
       onSelect={onSelect}
       onPin={onPin}
+      onClose={onClose}
     >
       <span className="shrink-0 [&>svg]:h-3 [&>svg]:w-3">
         <FileIcon filename={fileName} />

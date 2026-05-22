@@ -1,7 +1,5 @@
 import { FolderOpen, Trash2 } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
-import type { CatalogSkill } from '@shared/skills/types';
-import { parseFrontmatter } from '@shared/skills/validation';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
@@ -13,18 +11,20 @@ import {
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
 import { MarkdownRenderer } from '@renderer/lib/ui/markdown-renderer';
-import SkillIconRenderer from './SkillIconRenderer';
+import type { CatalogSkill } from '@shared/skills/types';
+import { parseFrontmatter } from '@shared/skills/validation';
+import { SkillIconRenderer } from './SkillIconRenderer';
 
 interface SkillDetailModalProps {
   skill: CatalogSkill | null;
   isOpen: boolean;
   onClose: () => void;
   onInstall: (skillId: string) => Promise<boolean>;
-  onUninstall: (skillId: string) => Promise<boolean>;
+  onUninstall: (skillId: string) => void;
   onOpenTerminal?: (skillPath: string) => void;
 }
 
-const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
+export const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
   skill,
   isOpen,
   onClose,
@@ -45,16 +45,10 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
     }
   }, [skill, onInstall, onClose]);
 
-  const handleUninstall = useCallback(async () => {
+  const handleUninstall = useCallback(() => {
     if (!skill) return;
-    setIsProcessing(true);
-    try {
-      const success = await onUninstall(skill.id);
-      if (success) onClose();
-    } finally {
-      setIsProcessing(false);
-    }
-  }, [skill, onUninstall, onClose]);
+    onUninstall(skill.id);
+  }, [skill, onUninstall]);
 
   const handleOpen = useCallback(() => {
     if (skill?.localPath && onOpenTerminal) {
@@ -71,13 +65,13 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <div className="flex items-center gap-3">
-            <SkillIconRenderer skill={skill} size="md" />
+            <SkillIconRenderer skill={skill} />
             <div className="min-w-0 flex-1">
-              <DialogTitle className="text-base font-sans normal-case tracking-normal text-foreground">
+              <DialogTitle className="font-sans text-base tracking-normal text-foreground normal-case">
                 {skill.displayName}
               </DialogTitle>
               {skill.source !== 'local' && (
-                <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                <div className="text-muted-foreground mt-0.5 flex items-center gap-1.5 text-xs">
                   <img
                     src={
                       skill.source === 'openai'
@@ -97,9 +91,9 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
         </DialogHeader>
         <DialogContentArea>
           {skill.defaultPrompt && (
-            <div className="space-y-1 rounded-md bg-muted/40 pb-2">
-              <p className="text-xs font-medium text-muted-foreground">Example prompt</p>
-              <pre className="whitespace-pre-wrap wrap-break-word text-xs text-foreground">
+            <div className="bg-muted/40 space-y-1 rounded-md pb-2">
+              <p className="text-muted-foreground text-xs font-medium">Example prompt</p>
+              <pre className="text-xs wrap-break-word whitespace-pre-wrap text-foreground">
                 {skill.defaultPrompt}
               </pre>
             </div>
@@ -109,7 +103,7 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
             <MarkdownRenderer
               content={body}
               variant="compact"
-              className="rounded-md bg-muted/20 px-3 py-2 text-xs text-muted-foreground"
+              className="bg-muted/20 text-muted-foreground rounded-md px-3 py-2 text-xs"
             />
           )}
         </DialogContentArea>
@@ -145,5 +139,3 @@ const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
     </Dialog>
   );
 };
-
-export default SkillDetailModal;

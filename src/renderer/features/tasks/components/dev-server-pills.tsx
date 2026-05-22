@@ -32,11 +32,11 @@ export const DevServerPills = observer(function DevServerPills({
             <button
               type="button"
               onClick={() => rpc.app.openExternal(url)}
-              className="flex h-7 rounded-md items-center gap-1.5 border border-green-300 bg-green-50 px-2 py-1 text-xs text-foreground-muted transition-colors hover:border-green-400 hover:text-foreground"
+              className="flex h-7 items-center gap-1.5 rounded-lg bg-background-info px-2 text-xs text-foreground-muted transition-colors hover:border-border-info hover:bg-background-info-hover hover:text-foreground"
             >
-              <Globe className="size-3 shrink-0 text-green-700" />
-              <span className="text-green-700">{formatUrl(url)}</span>
-              <ExternalLink className="size-3 shrink-0 text-green-700" />
+              <Globe className="size-3 shrink-0 text-foreground-info" />
+              <span className="text-foreground-info">{formatUrl(url)}</span>
+              <ExternalLink className="size-3 shrink-0 text-foreground-info" />
             </button>
           </TooltipTrigger>
           <TooltipContent side="bottom" className="text-xs">

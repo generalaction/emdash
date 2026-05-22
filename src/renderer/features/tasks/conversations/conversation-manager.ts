@@ -1,4 +1,10 @@
 import { action, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
+import { events, rpc } from '@renderer/lib/ipc';
+import { PtySession } from '@renderer/lib/pty/pty-session';
+import type { IDisposable } from '@renderer/lib/stores/lifecycle';
+import { Resource } from '@renderer/lib/stores/resource';
+import { log } from '@renderer/utils/logger';
+import { soundPlayer } from '@renderer/utils/soundPlayer';
 import { type Conversation, type CreateConversationParams } from '@shared/conversations';
 import {
   agentEventChannel,
@@ -6,19 +12,15 @@ import {
   isAttentionNotification,
   type NotificationType,
 } from '@shared/events/agentEvents';
+import { conversationChangedChannel } from '@shared/events/conversationEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
-import { events, rpc } from '@renderer/lib/ipc';
-import { PtySession } from '@renderer/lib/pty/pty-session';
-import type { IDisposable } from '@renderer/lib/stores/lifecycle';
-import { Resource } from '@renderer/lib/stores/resource';
-import { log } from '@renderer/utils/logger';
-import { soundPlayer } from '@renderer/utils/soundPlayer';
 
 export type AgentStatus = 'idle' | 'working' | 'awaiting-input' | 'error' | 'completed';
 
 export class ConversationManagerStore implements IDisposable {
   private offAgentEvents: (() => void) | null = null;
   private offSessionExited: (() => void) | null = null;
+  private offConversationChanges: (() => void) | null = null;
   private readonly _disposeReaction: () => void;
 
   /** Data layer: plain Conversation records loaded from the main process. */
@@ -96,6 +98,7 @@ export class ConversationManagerStore implements IDisposable {
 
     this.offAgentEvents = this.listenToAgentEvents();
     this.offSessionExited = this.listenToSessionExited();
+    this.offConversationChanges = this.listenToConversationChanges();
   }
 
   private listenToAgentEvents(): () => void {
@@ -103,6 +106,10 @@ export class ConversationManagerStore implements IDisposable {
       if (event.taskId !== this.taskId) return;
       const conversationStore = this.conversations.get(event.conversationId);
       if (!conversationStore) return;
+      if (event.type === 'start') {
+        conversationStore.setWorking();
+        return;
+      }
       if (event.type === 'notification') {
         const nt = event.payload.notificationType;
         if (!isAttentionNotification(nt)) return;
@@ -127,6 +134,17 @@ export class ConversationManagerStore implements IDisposable {
       const conversationStore = this.conversations.get(event.conversationId);
       if (!conversationStore) return;
       conversationStore.clearWorking();
+    });
+  }
+
+  private listenToConversationChanges(): () => void {
+    return events.on(conversationChangedChannel, (event) => {
+      if (event.taskId !== this.taskId) return;
+      const store = this.conversations.get(event.conversationId);
+      if (!store) return;
+      runInAction(() => {
+        Object.assign(store.data, event.changes);
+      });
     });
   }
 
@@ -159,6 +177,9 @@ export class ConversationManagerStore implements IDisposable {
             makePtySessionId(conversation.projectId, conversation.taskId, conversation.id)
           )
         );
+      }
+      if (params.initialPrompt?.trim()) {
+        this.conversations.get(conversation.id)?.setWorking();
       }
     });
     return conversation;
@@ -224,22 +245,14 @@ export class ConversationManagerStore implements IDisposable {
     }
   }
 
-  async touchConversation(conversationId: string): Promise<void> {
-    const store = this.conversations.get(conversationId);
-    if (!store) return;
-    const now = new Date().toISOString();
-    runInAction(() => {
-      store.data.lastInteractedAt = now;
-    });
-    await rpc.conversations.touchConversation(conversationId, now);
-  }
-
   dispose(): void {
     this._disposeReaction();
     this.offAgentEvents?.();
     this.offAgentEvents = null;
     this.offSessionExited?.();
     this.offSessionExited = null;
+    this.offConversationChanges?.();
+    this.offConversationChanges = null;
     for (const session of this.sessions.values()) {
       session.dispose();
     }

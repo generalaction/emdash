@@ -139,7 +139,6 @@ export function useTerminalSelection(options: UseTerminalSelectionOptions): Term
     if (newValue !== null && newValue !== selectedValue) {
       setSelectedValue(newValue);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     task?.id,
     selectedValue,
@@ -163,7 +162,6 @@ export function useTerminalSelection(options: UseTerminalSelectionOptions): Term
         globalTerminals.setActiveTerminal(p.id);
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [taskTerminals.setActiveTerminal, globalTerminals.setActiveTerminal]
   );
 

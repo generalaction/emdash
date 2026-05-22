@@ -1,4 +1,6 @@
 import z from 'zod';
+import type { FileSystemProvider } from '@main/core/fs/types';
+import { log } from '@main/lib/logger';
 import {
   type MigrateProjectConfigRequest,
   type ProjectConfigMigration,
@@ -8,8 +10,6 @@ import {
 import { mergeShareableProjectSettings } from '@shared/project-settings-fields';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import { err, ok, type Result } from '@shared/result';
-import type { FileSystemProvider } from '@main/core/fs/types';
-import { log } from '@main/lib/logger';
 import type { ProjectProvider } from '../../project-provider';
 import { parseJsonObject } from '../project-settings-json';
 import type { ProjectConfigMigrator } from './config-migration';

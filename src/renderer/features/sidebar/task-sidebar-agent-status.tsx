@@ -32,7 +32,7 @@ export const TaskSidebarAgentStatus = observer(function TaskSidebarAgentStatus({
     return (
       <Tooltip>
         <TooltipTrigger>
-          <span className="size-6 flex justify-center items-center">
+          <span className="flex size-6 items-center justify-center">
             <CLISpinner variant="2" />
           </span>
         </TooltipTrigger>
@@ -50,7 +50,7 @@ export const TaskSidebarAgentStatus = observer(function TaskSidebarAgentStatus({
   return (
     <RelativeTime
       value={getSortInstant(task, sortKind)}
-      className="text-xs text-foreground-passive font-mono pr-1 h-full flex items-center"
+      className="flex h-full items-center pr-1 font-mono text-xs text-foreground-passive"
       compact
     />
   );
