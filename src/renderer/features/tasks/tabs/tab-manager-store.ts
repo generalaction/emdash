@@ -550,11 +550,18 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
    * Do NOT use for programmatic/internal closes (use closeTab instead).
    */
   closeTabWithGuard(id: string): void {
-    this._markConversationTabSeen(id);
+    const conversationId = this._getConversationIdForTab(id);
     if (this._closeHandler) {
-      void this._closeHandler(id);
+      void this._closeHandler(id).then(() => {
+        if (conversationId && !this.entries.has(id)) {
+          this._markConversationSeen(conversationId);
+        }
+      });
     } else {
       this._removeTab(id);
+      if (conversationId) {
+        this._markConversationSeen(conversationId);
+      }
     }
   }
 
@@ -715,9 +722,12 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     removeTabId(this, id);
   }
 
-  private _markConversationTabSeen(id: string): void {
+  private _getConversationIdForTab(id: string): string | undefined {
     const entry = this.entries.get(id);
-    if (entry?.kind !== 'conversation') return;
-    this._getConversations()?.conversations.get(entry.conversationId)?.markSeen();
+    return entry?.kind === 'conversation' ? entry.conversationId : undefined;
+  }
+
+  private _markConversationSeen(conversationId: string): void {
+    this._getConversations()?.conversations.get(conversationId)?.markSeen();
   }
 }
