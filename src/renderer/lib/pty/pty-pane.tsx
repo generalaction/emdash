@@ -3,6 +3,7 @@ import { getDraggedFilePaths } from '@renderer/lib/drag-files';
 import { rpc } from '@renderer/lib/ipc';
 import { log } from '@renderer/utils/logger';
 import { cn } from '@renderer/utils/utils';
+import type { AgentProviderId } from '@shared/agent-provider-registry';
 import { pastePromptInjection } from './prompt-injection';
 import type { FrontendPty, SessionTheme } from './pty';
 import { usePty } from './use-pty';
@@ -17,7 +18,7 @@ type Props = {
   className?: string;
   contentFilter?: string;
   mapShiftEnterToCtrlJ?: boolean;
-  providerId?: string;
+  providerId?: AgentProviderId;
   /** SSH connection ID — used for remote file drag-and-drop only. */
   remoteConnectionId?: string;
   themeOverride?: SessionTheme['override'];

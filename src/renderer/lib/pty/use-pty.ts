@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import { events, rpc } from '@renderer/lib/ipc';
 import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
 import { log } from '@renderer/utils/logger';
+import type { AgentProviderId } from '@shared/agent-provider-registry';
 import type { AppSettings } from '@shared/app-settings';
 import { appPasteChannel } from '@shared/events/appEvents';
 import { ptyDataChannel, ptyExitChannel } from '@shared/events/ptyEvents';
@@ -68,10 +69,10 @@ export interface UsePtyOptions {
   theme?: SessionTheme;
   mapShiftEnterToCtrlJ?: boolean;
   /**
-   * Provider running inside the PTY (e.g. 'claude'). Used to pick the correct
-   * clipboard-paste format — some agents do not handle bracketed paste.
+   * Provider running inside the PTY. Used to pick the correct clipboard-paste
+   * format — some agents (Claude Code) do not handle bracketed paste.
    */
-  providerId?: string;
+  providerId?: AgentProviderId;
   onActivity?: () => void;
   onExit?: (info: { exitCode: number | undefined; signal?: number }) => void;
   onFirstMessage?: (message: string) => void;
@@ -307,14 +308,16 @@ export function usePty(
       .readText()
       .then((text) => {
         if (!text) return;
-        void pastePromptInjection({
+        return pastePromptInjection({
           providerId: providerIdRef.current,
           text,
           sendInput: async (data) => sendInput(data),
         });
       })
-      .catch(() => {});
-  }, [sendInput]);
+      .catch((error) => {
+        log.warn('useTerminal: pasteFromClipboard failed', { sessionId, error });
+      });
+  }, [sendInput, sessionId]);
 
   // ─── Main effect: mount terminal once per sessionId ────────────────────────
 

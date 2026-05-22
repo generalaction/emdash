@@ -119,8 +119,7 @@ describe('TerminalSessionManager - Shift+Enter to Ctrl+J mapping', () => {
     // Ctrl+V triggers paste on Windows (native Windows shortcut)
     expect(shouldPasteToTerminal(makeEvent({ key: 'v', ctrlKey: true }), ...win)).toBe(true);
 
-    // Ctrl+V on Linux should NOT trigger — Linux convention is Ctrl+Shift+V,
-    // and bare Ctrl+V is "quoted-insert" in readline shells
+    // Ctrl+V on Linux is readline's quoted-insert, not paste
     expect(shouldPasteToTerminal(makeEvent({ key: 'v', ctrlKey: true }), ...linux)).toBe(false);
 
     // Ctrl+V on macOS should NOT trigger (routed via Cmd+V menu accelerator)
