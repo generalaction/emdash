@@ -1,6 +1,5 @@
 // ---------------------------------------------------------------------------
-// Excluded directory/file names — kept in sync with DEFAULT_TREE_EXCLUDE in
-// editor-file-tree.tsx so the flat tree and renderer agree on visibility.
+// Excluded directory/file names for the task editor file tree.
 // ---------------------------------------------------------------------------
 
 import { type FileNode } from '@shared/fs';
@@ -54,19 +53,25 @@ export function isExcluded(path: string): boolean {
 // Helpers for building FileNode from a raw entry path
 // ---------------------------------------------------------------------------
 
+export function normalizeFileTreePath(path: string): string {
+  return path.replace(/\\/g, '/').split('/').filter(Boolean).join('/');
+}
+
 export function makeNode(relPath: string, type: 'file' | 'directory', mtime?: Date): FileNode {
-  const parts = relPath.split('/').filter(Boolean);
-  const name = parts[parts.length - 1] ?? relPath;
+  const path = normalizeFileTreePath(relPath);
+  const parts = path.split('/').filter(Boolean);
+  const name = parts[parts.length - 1] ?? path;
   const parentPath = parts.length > 1 ? parts.slice(0, -1).join('/') : null;
   const depth = parts.length - 1;
   const extension = type === 'file' && name.includes('.') ? name.split('.').pop() : undefined;
 
   return {
-    path: relPath,
+    path,
     name,
     parentPath,
     depth,
     type,
+    children: [],
     isHidden: name.startsWith('.'),
     extension,
     mtime,
@@ -74,17 +79,14 @@ export function makeNode(relPath: string, type: 'file' | 'directory', mtime?: Da
 }
 
 // ---------------------------------------------------------------------------
-// Sorted insertion into childIndex
+// Sibling sorting
 // Directories come before files; within each group, alphabetical order.
 // ---------------------------------------------------------------------------
 
-export function sortedChildPaths(paths: string[], nodes: Map<string, FileNode>): string[] {
-  return [...paths].sort((a, b) => {
-    const na = nodes.get(a);
-    const nb = nodes.get(b);
-    if (!na || !nb) return 0;
-    if (na.type !== nb.type) return na.type === 'directory' ? -1 : 1;
-    return na.name.localeCompare(nb.name);
+export function sortFileNodes(nodes: readonly FileNode[]): FileNode[] {
+  return [...nodes].sort((a, b) => {
+    if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
+    return a.name.localeCompare(b.name);
   });
 }
 
@@ -93,23 +95,20 @@ export function sortedChildPaths(paths: string[], nodes: Map<string, FileNode>):
 // ---------------------------------------------------------------------------
 
 export function buildVisibleRows(
-  nodes: Map<string, FileNode>,
-  childIndex: Map<string | null, string[]>,
+  rootNodes: readonly FileNode[],
   expandedPaths: Set<string>
 ): FileNode[] {
   const rows: FileNode[] = [];
 
-  function walk(parent: string | null) {
-    for (const path of childIndex.get(parent) ?? []) {
-      const node = nodes.get(path);
-      if (!node) continue;
+  function walk(nodes: readonly FileNode[]) {
+    for (const node of nodes) {
       rows.push(node);
-      if (node.type === 'directory' && expandedPaths.has(path)) {
-        walk(path);
+      if (node.type === 'directory' && expandedPaths.has(node.path)) {
+        walk(node.children);
       }
     }
   }
 
-  walk(null);
+  walk(rootNodes);
   return rows;
 }

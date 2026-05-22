@@ -6,10 +6,13 @@ import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
 import { Field, FieldLabel } from '@renderer/lib/ui/field';
 import { Switch } from '@renderer/lib/ui/switch';
 import { cn } from '@renderer/utils/utils';
+import { BranchNameField } from './branch-name-field';
+import { type BranchNameState } from './use-branch-name';
 import { type BranchSelectionState } from './use-branch-selection';
 
 interface BranchPickerFieldProps {
   state: BranchSelectionState;
+  branchNameState?: BranchNameState;
   projectId?: string;
   currentBranch?: string | null;
   label?: string;
@@ -19,6 +22,7 @@ interface BranchPickerFieldProps {
 
 export function BranchPickerField({
   state,
+  branchNameState,
   projectId,
   currentBranch,
   label = 'From Branch',
@@ -72,10 +76,13 @@ export function BranchPickerField({
                 <FieldLabel>Create task branch and worktree</FieldLabel>
               </Field>
               {createBranchAndWorktree && (
-                <Field orientation="horizontal">
-                  <Switch checked={pushBranch} onCheckedChange={setPushBranch} />
-                  <FieldLabel>Push branch to remote</FieldLabel>
-                </Field>
+                <>
+                  {branchNameState && <BranchNameField state={branchNameState} />}
+                  <Field orientation="horizontal">
+                    <Switch checked={pushBranch} onCheckedChange={setPushBranch} />
+                    <FieldLabel>Push branch to remote</FieldLabel>
+                  </Field>
+                </>
               )}
             </div>
           </CollapsibleContent>

@@ -82,13 +82,13 @@ export const APP_SHORTCUTS = defineShortcuts({
     category: 'Task View',
   },
   sidebarConversations: {
-    defaultHotkey: 'Mod+Shift+2',
+    defaultHotkey: 'Mod+Shift+3',
     label: 'View Conversations',
     description: 'Open the right sidebar to the Conversations panel',
     category: 'Task View',
   },
   sidebarFiles: {
-    defaultHotkey: 'Mod+Shift+3',
+    defaultHotkey: 'Mod+Shift+2',
     label: 'View Files',
     description: 'Open the right sidebar to the Files panel',
     category: 'Task View',

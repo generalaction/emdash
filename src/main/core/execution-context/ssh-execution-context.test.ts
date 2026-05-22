@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { RemoteShellProfile } from '@main/core/ssh/remote-shell-profile';
+import type { RemoteShellProfile } from '@main/core/ssh/lifecycle/remote-shell-profile';
 import { buildSshCommand } from './ssh-execution-context';
 
 describe('buildSshCommand', () => {

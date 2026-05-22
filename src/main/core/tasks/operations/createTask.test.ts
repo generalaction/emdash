@@ -6,12 +6,9 @@ const mocks = vi.hoisted(() => ({
   insert: vi.fn(),
   update: vi.fn(),
   getProject: vi.fn(),
-  provisionTask: vi.fn(),
   getAppSetting: vi.fn(),
   getProjectRemoteInfo: vi.fn(),
   getTaskPullRequests: vi.fn(),
-  createConversation: vi.fn(),
-  telemetryCapture: vi.fn(),
   findBranchAnywhere: vi.fn(),
   fetchPrForReview: vi.fn(),
   getConfiguredRemotes: vi.fn(),
@@ -30,12 +27,6 @@ vi.mock('@main/core/projects/project-manager', () => ({
   },
 }));
 
-vi.mock('@main/core/tasks/task-manager', () => ({
-  taskManager: {
-    provisionTask: mocks.provisionTask,
-  },
-}));
-
 vi.mock('../../settings/settings-service', () => ({
   appSettingsService: {
     get: mocks.getAppSetting,
@@ -46,16 +37,6 @@ vi.mock('../../pull-requests/pr-query-service', () => ({
   prQueryService: {
     getProjectRemoteInfo: mocks.getProjectRemoteInfo,
     getTaskPullRequests: mocks.getTaskPullRequests,
-  },
-}));
-
-vi.mock('../../conversations/createConversation', () => ({
-  createConversation: mocks.createConversation,
-}));
-
-vi.mock('@main/lib/telemetry', () => ({
-  telemetryService: {
-    capture: mocks.telemetryCapture,
   },
 }));
 
@@ -88,9 +69,6 @@ describe('createTask', () => {
       if (key === 'project') {
         return Promise.resolve({ branchPrefix: 'emdash', appendRandomBranchSuffix: true });
       }
-      if (key === 'agentAutoApproveDefaults') {
-        return Promise.resolve({});
-      }
       return Promise.resolve(undefined);
     });
 
@@ -108,7 +86,6 @@ describe('createTask', () => {
       },
     });
     mocks.getProjectRemoteInfo.mockResolvedValue({ status: 'unavailable' });
-    mocks.provisionTask.mockResolvedValue({ success: true, data: undefined });
 
     const updateWhere = vi.fn().mockResolvedValue(undefined);
     const updateSet = vi.fn(() => ({ where: updateWhere }));
@@ -150,16 +127,6 @@ describe('createTask', () => {
         taskBranch: 'claude/add-french-translations-ud2fs',
         sourceBranch: { type: 'local', branch: 'claude/add-french-translations-ud2fs' },
       })
-    );
-    expect(mocks.provisionTask).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        taskBranch: 'claude/add-french-translations-ud2fs',
-        sourceBranch: { type: 'local', branch: 'claude/add-french-translations-ud2fs' },
-      }),
-      [],
-      [],
-      expect.objectContaining({ type: 'local' })
     );
   });
 

@@ -9,14 +9,16 @@ import { resolveSshCommand } from '@main/core/pty/spawn-utils';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
-import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
+import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
+import { telemetryService } from '@main/lib/telemetry';
 import type { AgentSessionConfig } from '@shared/agent-session';
 import type { Conversation } from '@shared/conversations';
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
-import { buildAgentCommand } from './agent-command';
+import { buildAgentSessionCommand } from './agent-command';
+import { scheduleInitialPromptInjection } from './keystroke-injection';
 import { resolveProviderEnv } from './provider-env';
 
 const DEFAULT_COLS = 80;
@@ -88,7 +90,7 @@ export class SshConversationProvider implements ConversationProvider {
     });
 
     const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
-    const { command, args } = buildAgentCommand({
+    const { command, args } = buildAgentSessionCommand({
       providerId: conversation.providerId,
       providerConfig,
       autoApprove: conversation.autoApprove,
@@ -96,7 +98,10 @@ export class SshConversationProvider implements ConversationProvider {
       isResuming,
       initialPrompt,
     });
-    const providerEnv = resolveProviderEnv(providerConfig);
+    const providerEnv = resolveProviderEnv(providerConfig, {
+      providerId: conversation.providerId,
+      autoApprove: conversation.autoApprove,
+    });
 
     const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
 
@@ -188,6 +193,13 @@ export class SshConversationProvider implements ConversationProvider {
       metadata: { providerId: conversation.providerId, title: conversation.title, isRemote: true },
     });
     this.sessions.set(sessionId, pty);
+    scheduleInitialPromptInjection({ pty, conversation, initialPrompt, isResuming });
+    telemetryService.capture('agent_run_started', {
+      provider: conversation.providerId,
+      project_id: conversation.projectId,
+      task_id: conversation.taskId,
+      conversation_id: conversation.id,
+    });
   }
 
   async stopSession(conversationId: string): Promise<void> {

@@ -34,7 +34,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
 }: SidebarTaskItemProps) {
   const { navigate } = useNavigate();
   const showRename = useShowModal('renameTaskModal');
-  const showConfirm = useShowModal('confirmActionModal');
+  const showDeleteTask = useShowModal('deleteTaskModal');
 
   const { currentView } = useWorkspaceSlots();
   const { params } = useParams('task');
@@ -64,12 +64,11 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
   const handleRename = () => showRename({ projectId, taskId, currentName: taskName });
 
   const handleDelete = () =>
-    showConfirm({
-      title: 'Delete task',
-      description: `"${taskName}" will be permanently deleted. This action cannot be undone.`,
-      confirmLabel: 'Delete',
-      onSuccess: () => {
-        void taskManager?.deleteTask(taskId);
+    showDeleteTask({
+      projectId,
+      tasks: [{ taskId, taskName }],
+      onSuccess: ({ deleteWorktree, deleteBranch }) => {
+        void taskManager?.deleteTasks([taskId], { deleteWorktree, deleteBranch });
         if (isActive) navigate('project', { projectId });
       },
     });
