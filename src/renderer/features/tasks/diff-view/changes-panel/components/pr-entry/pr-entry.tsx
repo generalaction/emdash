@@ -5,6 +5,7 @@ import { useWorkspaceViewModel } from '@renderer/features/tasks/task-view-contex
 import { PrMergeLine } from '@renderer/lib/components/pr-merge-line';
 import { PrNumberBadge } from '@renderer/lib/components/pr-number-badge';
 import { StatusIcon } from '@renderer/lib/components/pr-status-icon';
+import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { type SplitButtonAction } from '@renderer/lib/ui/split-button';
@@ -219,7 +220,13 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
             setIsMarkingReady(true);
             prStore
               .markReadyForReview(pr.url)
-              .catch(() => {})
+              .catch(() => {
+                toast({
+                  title: 'Failed to mark pull request ready',
+                  description: 'Refresh PR status and try again.',
+                  variant: 'destructive',
+                });
+              })
               .finally(() => setIsMarkingReady(false));
           }}
         />

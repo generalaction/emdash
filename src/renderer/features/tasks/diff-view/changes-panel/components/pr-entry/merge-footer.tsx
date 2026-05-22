@@ -47,7 +47,13 @@ export function MergeFooter({
           </div>
           <div className="flex items-center gap-1.5">
             {isDraft ? (
-              <Button variant="outline" size="xs" onClick={onMarkReady} disabled={isMarkingReady}>
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={onMarkReady}
+                disabled={isMarkingReady}
+                aria-label={isMarkingReady ? 'Marking ready...' : 'Mark ready'}
+              >
                 <span
                   aria-hidden
                   className={cn(
