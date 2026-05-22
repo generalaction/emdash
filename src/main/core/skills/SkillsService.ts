@@ -545,11 +545,13 @@ export class SkillsService {
         skills.push(skill);
       }
 
-      const mergedSkills = (await this.mergeInstalledState({
-        version: SkillsService.CATALOG_VERSION,
-        lastUpdated: new Date().toISOString(),
-        skills,
-      })).skills;
+      const mergedSkills = (
+        await this.mergeInstalledState({
+          version: SkillsService.CATALOG_VERSION,
+          lastUpdated: new Date().toISOString(),
+          skills,
+        })
+      ).skills;
 
       this.skillShSearchCache.set(trimmed, {
         expiresAt: Date.now() + SKILLSH_SEARCH_CACHE_TTL_MS,
