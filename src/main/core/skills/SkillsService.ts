@@ -205,7 +205,8 @@ export class SkillsService {
 
   async getSkillDetail(skillId: string): Promise<CatalogSkill | null> {
     const catalog = await this.getCatalogIndex();
-    const skill = catalog.skills.find((s) => s.id === skillId) ?? this.parseSkillShId(skillId);
+    const skill =
+      catalog.skills.find((s) => s.id === skillId) ?? (await this.resolveSkillShId(skillId));
     if (!skill) return null;
 
     // If installed, load the full SKILL.md from disk
@@ -222,7 +223,7 @@ export class SkillsService {
     if (!skill.installed && !skill.skillMdContent) {
       try {
         if (skill.source === 'skillssh') {
-          const content = await this.fetchSkillShSkillMd(skill);
+          const content = await this.fetchSkillShContent(skill);
           return { ...skill, skillMdContent: content };
         } else {
           const mdUrl = this.getSkillMdUrl(skill);
@@ -262,7 +263,8 @@ export class SkillsService {
   async installSkill(skillId: string): Promise<CatalogSkill> {
     await this.initialize();
     const catalog = await this.getCatalogIndex();
-    const skill = catalog.skills.find((s) => s.id === skillId) ?? this.parseSkillShId(skillId);
+    const skill =
+      catalog.skills.find((s) => s.id === skillId) ?? (await this.resolveSkillShId(skillId));
     if (!skill) throw new Error(`Skill "${skillId}" not found in catalog`);
     if (skill.installed) throw new Error(`Skill "${skillId}" is already installed`);
 
@@ -289,7 +291,7 @@ export class SkillsService {
       // Try to download the real SKILL.md from GitHub; fall back to generated stub
       let content: string;
       if (skill.source === 'skillssh') {
-        content = await this.fetchSkillShSkillMd(skill);
+        content = await this.fetchSkillShContent(skill);
       } else {
         try {
           const mdUrl = this.getSkillMdUrl(skill);
@@ -477,7 +479,7 @@ export class SkillsService {
   }
 
   async searchSkillSh(query: string): Promise<CatalogSkill[]> {
-    const trimmed = query.trim().toLowerCase();
+    const trimmed = this.normalizeSkillShSearchQuery(query);
     if (!trimmed) return [];
 
     const cached = this.skillShSearchCache.get(trimmed);
@@ -549,6 +551,23 @@ export class SkillsService {
     return `skillssh:${sourceRef}/${this.normalizeSkillShSkillId(skillId)}`;
   }
 
+  private normalizeSkillShSearchQuery(query: string): string {
+    const trimmed = query.trim().toLowerCase();
+    if (!trimmed) return '';
+
+    try {
+      const url = new URL(trimmed);
+      if (url.hostname === 'skills.sh' || url.hostname === 'www.skills.sh') {
+        const parts = url.pathname.split('/').filter(Boolean);
+        return parts.at(-1) ?? '';
+      }
+    } catch {
+      // Not a URL; use the plain search query.
+    }
+
+    return trimmed;
+  }
+
   private normalizeSkillShSkillId(skillId: string): string {
     const normalized = skillId.replace(/\\/g, '/').replace(/\/+$/, '');
     const withoutSkillMd = normalized.endsWith('/SKILL.md')
@@ -569,6 +588,43 @@ export class SkillsService {
 
   private parseSkillShId(skillId: string): CatalogSkill | null {
     return this.skillShSkillCache.get(skillId) ?? null;
+  }
+
+  private async resolveSkillShId(skillId: string): Promise<CatalogSkill | null> {
+    const cached = this.parseSkillShId(skillId);
+    if (cached) return cached;
+    if (!skillId.startsWith('skillssh:')) return null;
+
+    const fullId = skillId.slice('skillssh:'.length);
+    const parts = fullId.split('/');
+    if (parts.length < 3) return null;
+
+    const sourceRef = parts.slice(0, 2).join('/');
+    if (!this.isSkillShGithubSource(sourceRef)) return null;
+
+    const catalogSkillId = this.normalizeSkillShSkillId(parts.slice(2).join('/'));
+    if (!isValidSkillName(catalogSkillId)) return null;
+
+    const sourceUrl = this.getSkillShUrl(sourceRef, catalogSkillId);
+    const pageDescription = await this.fetchSkillShPageDescription(sourceUrl).catch(() => null);
+    if (!pageDescription) return null;
+
+    const skill: CatalogSkill = {
+      id: skillId,
+      displayName: catalogSkillId,
+      description: `${sourceRef}`,
+      source: 'skillssh',
+      sourceRef,
+      sourceUrl,
+      catalogSkillId,
+      skillShPath: catalogSkillId,
+      iconUrl: this.getSkillShIconUrl(sourceRef),
+      brandColor: '#000000',
+      frontmatter: { name: catalogSkillId, description: pageDescription },
+      installed: false,
+    };
+    this.skillShSkillCache.set(skill.id, skill);
+    return skill;
   }
 
   private getInstallName(skill: CatalogSkill): string {
@@ -600,9 +656,92 @@ export class SkillsService {
       throw new Error(`Could not find SKILL.md for ${skill.sourceRef}/${skill.catalogSkillId}`);
     }
 
-    const skillMdPath = `${skill.skillShPath}/SKILL.md`;
-    const encodedPath = skillMdPath.split('/').map(encodeURIComponent).join('/');
-    return httpsGet(`https://raw.githubusercontent.com/${owner}/${repo}/HEAD/${encodedPath}`);
+    const candidatePaths = [`${skill.skillShPath}/SKILL.md`];
+    if (!skill.skillShPath.startsWith('skills/')) {
+      candidatePaths.push(`skills/${skill.skillShPath}/SKILL.md`);
+    }
+
+    for (const skillMdPath of candidatePaths) {
+      const encodedPath = skillMdPath.split('/').map(encodeURIComponent).join('/');
+      try {
+        return await httpsGet(
+          `https://raw.githubusercontent.com/${owner}/${repo}/HEAD/${encodedPath}`
+        );
+      } catch (error) {
+        if (!String(error).includes('HTTP 404')) throw error;
+      }
+    }
+
+    const treePath = await this.findSkillShSkillMdPath(owner, repo, skill.skillShPath);
+    if (treePath) {
+      const encodedPath = treePath.split('/').map(encodeURIComponent).join('/');
+      return httpsGet(`https://raw.githubusercontent.com/${owner}/${repo}/HEAD/${encodedPath}`);
+    }
+
+    throw new Error(`Could not fetch SKILL.md for ${skill.sourceRef}/${skill.catalogSkillId}`);
+  }
+
+  private async findSkillShSkillMdPath(
+    owner: string,
+    repo: string,
+    skillPath: string
+  ): Promise<string | null> {
+    const treeData = await httpsGet(
+      `https://api.github.com/repos/${owner}/${repo}/git/trees/HEAD?recursive=1`
+    );
+    const tree = JSON.parse(treeData) as { tree?: Array<{ path: string; type: string }> };
+    const candidates =
+      tree.tree?.filter((entry) => {
+        if (entry.type !== 'blob') return false;
+        if (entry.path === `${skillPath}/SKILL.md`) return true;
+        if (entry.path.endsWith(`/skills/${skillPath}/SKILL.md`)) return true;
+        return entry.path.endsWith(`/${skillPath}/SKILL.md`);
+      }) ?? [];
+
+    return candidates[0]?.path ?? null;
+  }
+
+  private async fetchSkillShContent(skill: CatalogSkill): Promise<string> {
+    try {
+      return await this.fetchSkillShSkillMd(skill);
+    } catch (error) {
+      log.warn(`Failed to fetch Skills.SH SKILL.md for ${skill.id}, using page metadata`, error);
+      const description = await this.fetchSkillShDescription(skill).catch(() => skill.description);
+      return generateSkillMd(skill.displayName, description);
+    }
+  }
+
+  private async fetchSkillShDescription(skill: CatalogSkill): Promise<string> {
+    if (!skill.sourceUrl) return skill.description;
+
+    return this.fetchSkillShPageDescription(skill.sourceUrl);
+  }
+
+  private async fetchSkillShPageDescription(sourceUrl: string): Promise<string> {
+    const html = await httpsGet(sourceUrl);
+    const description =
+      this.extractHtmlMetaContent(html, 'description') ??
+      this.extractHtmlMetaContent(html, 'og:description') ??
+      '';
+    return this.decodeHtmlEntities(description).trim();
+  }
+
+  private extractHtmlMetaContent(html: string, name: string): string | null {
+    const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = new RegExp(
+      `<meta[^>]+(?:name|property)=["']${escapedName}["'][^>]+content=["']([^"']*)["'][^>]*>`,
+      'i'
+    );
+    return html.match(pattern)?.[1] ?? null;
+  }
+
+  private decodeHtmlEntities(value: string): string {
+    return value
+      .replace(/&quot;/g, '"')
+      .replace(/&#x27;|&#39;/g, "'")
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>');
   }
 
   private isPathInsideSkillsRoot(candidatePath: string): boolean {

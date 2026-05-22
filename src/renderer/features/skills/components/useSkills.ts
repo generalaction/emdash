@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo, useState } from 'react';
 import { useToast } from '@renderer/lib/hooks/use-toast';
+import { useDebounce } from '@renderer/lib/hooks/useDebounce';
 import { rpc } from '@renderer/lib/ipc';
 import { log } from '@renderer/utils/logger';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
@@ -122,7 +123,7 @@ export function useSkills() {
     enabled: !!selectedSkillId && showDetailModal,
   });
 
-  const skillShQuery = searchQuery.trim();
+  const skillShQuery = useDebounce(searchQuery.trim(), 300);
   const { data: skillShSkills = [], isFetching: isSearchingSkillSh } = useQuery({
     queryKey: ['skills', 'skillssh-search', skillShQuery],
     queryFn: async () => {
@@ -177,12 +178,8 @@ export function useSkills() {
   );
 
   const skillShSearchSkills = useMemo(() => {
-    const installedIds = new Set(catalog?.skills.filter((s) => s.installed).map((s) => s.id));
     const installedNames = new Set(catalog?.skills.filter((s) => s.installed).map((s) => s.id));
-    return skillShSkills.filter(
-      (skill) =>
-        !installedIds.has(skill.id) && !installedNames.has(skill.catalogSkillId ?? skill.id)
-    );
+    return skillShSkills.filter((skill) => !installedNames.has(skill.catalogSkillId ?? skill.id));
   }, [catalog, skillShSkills]);
 
   return {
