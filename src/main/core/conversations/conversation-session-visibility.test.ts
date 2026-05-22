@@ -95,6 +95,21 @@ describe('ConversationSessionVisibilityService', () => {
     expect(stopSession).toHaveBeenCalledWith('conv-1');
   });
 
+  it('stops a hidden conversation PTY that starts after an empty visibility update', () => {
+    const service = new ConversationSessionVisibilityService();
+    const sessionId = makePtySessionId('project-1', 'task-1', 'conv-1');
+
+    service.updateVisibleConversations('project-1', 'task-1', []);
+    ptySessionRegistry.register(sessionId, new FakePty(), {
+      metadata: { providerId: 'codex', title: 'Agent' },
+    });
+    service.onConversationSessionStarted('project-1', 'task-1', 'conv-1');
+
+    vi.advanceTimersByTime(30_000);
+
+    expect(stopSession).toHaveBeenCalledWith('conv-1');
+  });
+
   it('uses the scheduled task stop handler if the task is removed before the timer fires', () => {
     const service = new ConversationSessionVisibilityService();
     const sessionId = makePtySessionId('project-1', 'task-1', 'conv-1');

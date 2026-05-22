@@ -8,10 +8,12 @@ const HIDDEN_SESSION_GRACE_MS = 30_000;
 export class ConversationSessionVisibilityService {
   private readonly killTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private readonly visibleConversationsByTask = new Map<string, Set<string>>();
+  private readonly trackedTasks = new Set<string>();
 
   updateVisibleConversations(projectId: string, taskId: string, visibleConversationIds: string[]) {
     const visible = new Set(visibleConversationIds);
     const taskKey = this.taskKey(projectId, taskId);
+    this.trackedTasks.add(taskKey);
     if (visible.size === 0) {
       this.visibleConversationsByTask.delete(taskKey);
     } else {
@@ -32,11 +34,13 @@ export class ConversationSessionVisibilityService {
   }
 
   onConversationSessionStarted(projectId: string, taskId: string, conversationId: string) {
-    const visible = this.visibleConversationsByTask.get(this.taskKey(projectId, taskId));
-    if (!visible) return;
+    const taskKey = this.taskKey(projectId, taskId);
+    if (!this.trackedTasks.has(taskKey)) return;
+
+    const visible = this.visibleConversationsByTask.get(taskKey);
 
     const sessionId = makePtySessionId(projectId, taskId, conversationId);
-    if (visible.has(conversationId)) {
+    if (visible?.has(conversationId)) {
       this.cancel(sessionId);
       return;
     }
