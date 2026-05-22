@@ -8,10 +8,7 @@ import {
   type TaskStore,
 } from '@renderer/features/tasks/stores/task-store';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
-import { sidebarStore } from '@renderer/lib/stores/app-state';
-import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import { getSortInstant } from './sidebar-store';
 
 /**
  * Sidebar tail: spinner while bootstrapping, otherwise aggregate agent status indicator.
@@ -45,13 +42,5 @@ export const TaskSidebarAgentStatus = observer(function TaskSidebarAgentStatus({
     return <AgentStatusIndicator status={status} />;
   }
 
-  const sortKind = sidebarStore.taskSortBy === 'created-at' ? 'created' : 'updated';
-
-  return (
-    <RelativeTime
-      value={getSortInstant(task, sortKind)}
-      className="flex h-full items-center pr-1 font-mono text-xs text-foreground-passive"
-      compact
-    />
-  );
+  return null;
 });

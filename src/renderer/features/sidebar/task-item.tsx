@@ -108,19 +108,19 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
           navigate('task', { projectId, taskId });
         }}
       >
-        <div className="flex min-w-0 flex-1 items-center gap-1 self-stretch overflow-hidden">
-          <span
-            className={cn(
-              'min-w-0 truncate text-left transition-colors',
-              isBootstrapping && 'text-foreground/40'
-            )}
-          >
-            {taskName}
-          </span>
-          <TaskGitDiffStats task={task} className="flex h-full shrink-0 items-center pr-1 pl-1" />
+        <span
+          className={cn(
+            'min-w-0 flex-1 truncate text-left transition-colors',
+            isBootstrapping && 'text-foreground/40'
+          )}
+        >
+          {taskName}
+        </span>
+        <div className="flex shrink-0 items-center justify-end gap-2">
+          <TaskGitDiffStats task={task} className="min-w-[7ch] justify-end" />
+          <TaskSidebarAgentStatus task={task} />
           <RenderPrBadge task={task} />
         </div>
-        <TaskSidebarAgentStatus task={task} />
       </SidebarMenuRow>
     </TaskContextMenu>
   );
