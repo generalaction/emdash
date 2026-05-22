@@ -1,22 +1,20 @@
-import type { GeneralSessionConfig } from '@shared/general-session';
-import { makePtySessionId } from '@shared/ptySessionId';
-import type { Terminal } from '@shared/terminals';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { Pty } from '@main/core/pty/pty';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { resolveSshCommand } from '@main/core/pty/spawn-utils';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
-import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
-import {
-  sshConnectionManager,
-  type SshConnectionManagerEvent,
-} from '@main/core/ssh/ssh-connection-manager';
+import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
+import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
+import type { SshConnectionManagerEvent } from '@main/core/ssh/lifecycle/ssh-connection-manager';
 import {
   type LifecycleScriptSpawnRequest,
   type TerminalProvider,
 } from '@main/core/terminals/terminal-provider';
 import { log } from '@main/lib/logger';
+import type { GeneralSessionConfig } from '@shared/general-session';
+import { makePtySessionId } from '@shared/ptySessionId';
+import type { Terminal } from '@shared/terminals';
 import { wireTerminalDevServerWatcher } from '../dev-server-watcher';
 
 const DEFAULT_COLS = 80;

@@ -1,11 +1,11 @@
+import type { FileSystemProvider } from '@main/core/fs/types';
+import { log } from '@main/lib/logger';
 import {
   defaultShareableProjectSettings,
   shareableProjectSettingsSchema,
   type ProjectSettings,
 } from '@shared/project-settings';
 import { mergeShareableProjectSettings } from '@shared/project-settings-fields';
-import type { FileSystemProvider } from '@main/core/fs/types';
-import { log } from '@main/lib/logger';
 import type { ProjectSettingsProvider } from './provider';
 
 export async function getEffectiveTaskSettings(args: {

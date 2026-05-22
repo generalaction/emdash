@@ -2,10 +2,10 @@ import * as fs from 'node:fs';
 import * as https from 'node:https';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { log } from '@main/lib/logger';
 import { agentTargets, skillScanPaths } from '@shared/skills/agentTargets';
 import type { CatalogIndex, CatalogSkill, DetectedAgent } from '@shared/skills/types';
 import { generateSkillMd, isValidSkillName, parseFrontmatter } from '@shared/skills/validation';
-import { log } from '@main/lib/logger';
 import bundledCatalog from './bundled-catalog.json';
 
 const SKILLS_ROOT = path.join(os.homedir(), '.agentskills');

@@ -1,4 +1,8 @@
 import { makeAutoObservable } from 'mobx';
+import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
+import { events, rpc } from '@renderer/lib/ipc';
+import { Resource } from '@renderer/lib/stores/resource';
+import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import { gitRefChangedChannel, gitWorkspaceChangedChannel } from '@shared/events/gitEvents';
 import { commitRef, mergeBaseRange, refsEqual, remoteRef, type GitChange } from '@shared/git';
 import { parseGitHubRepository } from '@shared/github-repository';
@@ -9,10 +13,6 @@ import {
   type PullRequest,
 } from '@shared/pull-requests';
 import type { Task } from '@shared/tasks';
-import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
-import { events, rpc } from '@renderer/lib/ipc';
-import { Resource } from '@renderer/lib/stores/resource';
-import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import { isRegistered, type TaskStore } from './task-store';
 
 type MergeMode = 'merge' | 'squash' | 'rebase';

@@ -1,12 +1,5 @@
 import { createOAuthDeviceAuth } from '@octokit/auth-oauth-device';
 import { Octokit } from '@octokit/rest';
-import {
-  githubAuthCancelledChannel,
-  githubAuthDeviceCodeChannel,
-  githubAuthErrorChannel,
-  githubAuthSuccessChannel,
-} from '@shared/events/githubEvents';
-import type { GitHubConnectResponse, GitHubUser } from '@shared/github';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import { encryptedAppSecretsStore } from '@main/core/secrets/encrypted-app-secrets-store';
 import { executeOAuthFlow } from '@main/core/shared/oauth-flow';
@@ -14,6 +7,13 @@ import { TTLCache } from '@main/core/utils/ttl-cache';
 import { KV } from '@main/db/kv';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
+import {
+  githubAuthCancelledChannel,
+  githubAuthDeviceCodeChannel,
+  githubAuthErrorChannel,
+  githubAuthSuccessChannel,
+} from '@shared/events/githubEvents';
+import type { GitHubConnectResponse, GitHubStatusOptions, GitHubUser } from '@shared/github';
 import { extractGhCliToken } from './gh-cli-token';
 
 // ---------------------------------------------------------------------------
@@ -34,14 +34,14 @@ export interface DeviceCodeResult {
 
 /**
  * Manages GitHub authentication tokens regardless of how they were obtained
- * (Emdash Account OAuth, Device Flow, PAT, or extracted from gh CLI).
+ * (Emdash Account OAuth, Device Flow, or extracted from gh CLI).
  */
-export type TokenSource = 'secure_storage' | 'cli' | null;
+export type TokenSource = 'secure_storage' | 'cli' | 'emdash_oauth' | 'device_flow' | null;
 
 export interface GitHubConnectionService {
   getToken(): Promise<string | null>;
   getTokenSource(): Promise<TokenSource>;
-  getStatus(): Promise<{
+  getStatus(options?: GitHubStatusOptions): Promise<{
     authenticated: boolean;
     user: GitHubUser | null;
     tokenSource: TokenSource;
@@ -51,7 +51,7 @@ export interface GitHubConnectionService {
   getUserInfo(token: string): Promise<GitHubUser | null>;
   startOAuthFlow(authServerBaseUrl: string): Promise<AuthResult>;
   startDeviceFlowAuth(): Promise<DeviceCodeResult>;
-  storeToken(token: string): Promise<void>;
+  storeToken(token: string, source?: Exclude<TokenSource, null>): Promise<void>;
   cancelAuth(): void;
   logout(): Promise<void>;
 }
@@ -78,7 +78,12 @@ export class GitHubConnectionServiceImpl implements GitHubConnectionService {
   }>(5 * 60 * 1000);
 
   private parseTokenSource(raw: unknown): Exclude<TokenSource, null> | null {
-    return raw === 'cli' || raw === 'secure_storage' ? raw : null;
+    return raw === 'cli' ||
+      raw === 'secure_storage' ||
+      raw === 'emdash_oauth' ||
+      raw === 'device_flow'
+      ? raw
+      : null;
   }
 
   private async getStoredTokenSource(): Promise<Exclude<TokenSource, null> | null> {
@@ -124,6 +129,11 @@ export class GitHubConnectionServiceImpl implements GitHubConnectionService {
 
   private resolveTokenRecord(): Promise<{ token: string | null; source: TokenSource }> {
     return this._tokenRecordCache.get(() => this._doResolveTokenRecord());
+  }
+
+  private async forceRefreshTokenRecord(): Promise<{ token: string | null; source: TokenSource }> {
+    this._invalidateTokenCache();
+    return this.resolveTokenRecord();
   }
 
   private async _doResolveTokenRecord(): Promise<{ token: string | null; source: TokenSource }> {
@@ -177,12 +187,14 @@ export class GitHubConnectionServiceImpl implements GitHubConnectionService {
     return source ?? 'secure_storage';
   }
 
-  async getStatus(): Promise<{
+  async getStatus(options: GitHubStatusOptions = {}): Promise<{
     authenticated: boolean;
     user: GitHubUser | null;
     tokenSource: TokenSource;
   }> {
-    const { token, source } = await this.resolveTokenRecord();
+    const { token, source } = options.refresh
+      ? await this.forceRefreshTokenRecord()
+      : await this.resolveTokenRecord();
     if (!token) {
       return { authenticated: false, user: null, tokenSource: null };
     }
@@ -236,7 +248,7 @@ export class GitHubConnectionServiceImpl implements GitHubConnectionService {
         return { success: false, error: 'No access token in response' };
       }
 
-      await this.storeToken(accessToken);
+      await this.storeToken(accessToken, 'emdash_oauth');
       const user = await this.getUserInfo(accessToken);
       return { success: true, token: accessToken, user: user || undefined };
     } catch (error) {
@@ -277,7 +289,7 @@ export class GitHubConnectionServiceImpl implements GitHubConnectionService {
       const result = await Promise.race([authPromise, cancelPromise]);
       const token = result.token;
 
-      await this.storeToken(token);
+      await this.storeToken(token, 'device_flow');
 
       const user = await this.getUserInfo(token);
 

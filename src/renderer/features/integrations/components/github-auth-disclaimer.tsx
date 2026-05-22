@@ -7,7 +7,7 @@ export function GithubAuthDisclaimer({
   onOpenAccountSettings: () => void;
 }) {
   return (
-    <div className="flex w-full flex-col items-center justify-center gap-5 rounded-md border border-border border-dashed p-8">
+    <div className="flex w-full flex-col items-center justify-center gap-5 rounded-md border border-dashed border-border p-8">
       <span className="relative flex size-8 items-center justify-center overflow-hidden rounded-full bg-background-2">
         <Github className="size-4 text-foreground-muted" />
       </span>

@@ -152,4 +152,50 @@ describe('GitHubConnectionServiceImpl token caching', () => {
 
     expect(mockGetSecret).toHaveBeenCalledTimes(1);
   });
+
+  it('keeps CLI-sourced getToken() cached while the TTL is warm', async () => {
+    mockGetSecret.mockResolvedValue('gho_cached_cli');
+    mockKvGet.mockResolvedValue('cli');
+    mockExtractGhCliToken.mockResolvedValue('gho_cached_cli');
+
+    const first = await service.getToken();
+    const second = await service.getToken();
+
+    expect(first).toBe('gho_cached_cli');
+    expect(second).toBe('gho_cached_cli');
+    expect(mockExtractGhCliToken).toHaveBeenCalledTimes(1);
+  });
+
+  it('force-refreshes CLI-sourced status when requested', async () => {
+    mockGetSecret.mockResolvedValue('gho_stale_cli');
+    mockKvGet.mockResolvedValue('cli');
+    mockExtractGhCliToken.mockResolvedValueOnce('gho_stale_cli').mockResolvedValueOnce(null);
+
+    await service.getToken();
+    const status = await service.getStatus({ refresh: true });
+
+    expect(status).toEqual({ authenticated: false, user: null, tokenSource: null });
+    expect(mockExtractGhCliToken).toHaveBeenCalledTimes(2);
+    expect(mockDeleteSecret).toHaveBeenCalledWith('emdash-github-token');
+    expect(mockKvDel).toHaveBeenCalledWith('tokenSource');
+  });
+
+  it('getStatus({ refresh: true }) detects GitHub CLI after a cached miss', async () => {
+    const user = {
+      id: 1,
+      login: 'octocat',
+      name: 'Octocat',
+      email: '',
+      avatar_url: 'https://github.com/octocat.png',
+    };
+    mockExtractGhCliToken.mockResolvedValueOnce(null).mockResolvedValueOnce('gho_cli');
+    vi.spyOn(service, 'getUserInfo').mockResolvedValue(user);
+
+    await service.getToken();
+    const status = await service.getStatus({ refresh: true });
+
+    expect(status).toEqual({ authenticated: true, user, tokenSource: 'cli' });
+    expect(mockSetSecret).toHaveBeenCalledWith('emdash-github-token', 'gho_cli');
+    expect(mockKvSet).toHaveBeenCalledWith('tokenSource', 'cli');
+  });
 });

@@ -26,6 +26,29 @@ describe('getIssueTaskName', () => {
     ).toBeNull();
   });
 
+  it('prefixes Plain task names with the synthesized thread ref branch name', () => {
+    expect(
+      getIssueTaskName({
+        provider: 'plain',
+        url: '',
+        title: 'Fix login bug',
+        identifier: 'T-1070',
+        branchName: 'T-1070-Fix login bug',
+      })
+    ).toBe('t-1070-fix-login-bug');
+  });
+
+  it('returns null for Plain issues without a synthesized branch name', () => {
+    expect(
+      getIssueTaskName({
+        provider: 'plain',
+        url: '',
+        title: 'Fix login bug',
+        identifier: 'T-1070',
+      })
+    ).toBeNull();
+  });
+
   it('returns null when Linear did not provide a branch name', () => {
     expect(
       getIssueTaskName({

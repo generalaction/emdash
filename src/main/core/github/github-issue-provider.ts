@@ -1,8 +1,8 @@
+import { normalizeSearchTerm } from '@main/core/issues/helpers/provider-inputs';
+import type { IssueProvider } from '@main/core/issues/issue-provider';
 import { parseGitHubRepository, type GitHubRepositoryRef } from '@shared/github-repository';
 import { ISSUE_PROVIDER_CAPABILITIES, type IssueListResult } from '@shared/issue-providers';
 import type { Issue } from '@shared/tasks';
-import { normalizeSearchTerm } from '@main/core/issues/helpers/provider-inputs';
-import type { IssueProvider } from '@main/core/issues/issue-provider';
 import { githubConnectionService } from './services/github-connection-service';
 import { issueService } from './services/issue-service';
 

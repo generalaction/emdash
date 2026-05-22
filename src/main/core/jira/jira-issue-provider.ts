@@ -1,9 +1,9 @@
 import { request } from 'node:https';
 import { URL } from 'node:url';
-import { ISSUE_PROVIDER_CAPABILITIES, type IssueListResult } from '@shared/issue-providers';
-import type { Issue } from '@shared/tasks';
 import { normalizeSearchTerm } from '@main/core/issues/helpers/provider-inputs';
 import type { IssueProvider } from '@main/core/issues/issue-provider';
+import { ISSUE_PROVIDER_CAPABILITIES, type IssueListResult } from '@shared/issue-providers';
+import type { Issue } from '@shared/tasks';
 import { jiraConnectionService } from './jira-connection-service';
 
 interface RawJiraIssueFields {

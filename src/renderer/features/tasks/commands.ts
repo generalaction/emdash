@@ -1,4 +1,3 @@
-import { TASK_COMMAND_DEFS, type CommandDef, type TaskCommandId } from '@shared/commands';
 import {
   getRegisteredTaskData,
   getTaskGitStore,
@@ -8,6 +7,7 @@ import {
 import type { CommandProvider } from '@renderer/lib/commands/types';
 import { showModal } from '@renderer/lib/modal/modal-provider';
 import { appState, sidebarStore } from '@renderer/lib/stores/app-state';
+import { TASK_COMMAND_DEFS, type CommandDef, type TaskCommandId } from '@shared/commands';
 
 function taskDef(id: TaskCommandId): CommandDef {
   return TASK_COMMAND_DEFS.find((d) => d.id === id)!;
@@ -30,7 +30,6 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
       if (taskStore?.state !== 'provisioned') return [];
 
       const taskView = getTaskView(projectId, taskId);
-      const tabManager = taskView?.tabManager;
 
       const taskIds = sidebarStore.visibleTaskIdsForProject(projectId);
       const currentIdx = taskIds.indexOf(taskId);
@@ -66,7 +65,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
               projectId,
               taskId,
               onSuccess: ({ conversationId }) => {
-                tabManager?.openConversation(conversationId);
+                taskView?.tabGroupManager.openConversation(conversationId);
                 taskView?.setFocusedRegion('main');
               },
             });
@@ -148,7 +147,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           shortcutKey: newTerminalDef.shortcutKey,
           group: newTerminalDef.group,
           execute() {
-            taskView?.openNewTerminal();
+            void taskView?.openNewTerminal();
           },
         },
 

@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
+import AsanaSetupForm from './AsanaSetupForm';
 import FeaturebaseSetupForm from './FeaturebaseSetupForm';
 import ForgejoSetupForm from './ForgejoSetupForm';
 import GitLabSetupForm from './GitLabSetupForm';
@@ -19,7 +20,7 @@ import JiraSetupForm from './JiraSetupForm';
 import LinearSetupForm from './LinearSetupForm';
 import PlainSetupForm from './PlainSetupForm';
 
-type IntegrationType = 'linear' | 'jira' | 'gitlab' | 'plain' | 'forgejo' | 'featurebase';
+type IntegrationType = 'linear' | 'jira' | 'gitlab' | 'plain' | 'forgejo' | 'featurebase' | 'asana';
 
 type IntegrationSetupModalArgs = {
   integration: IntegrationType;
@@ -52,6 +53,10 @@ const descriptions: Record<IntegrationType, { title: string; subtitle: string }>
     title: 'Connect Featurebase',
     subtitle: 'Enter your Featurebase API key to connect your workspace.',
   },
+  asana: {
+    title: 'Connect Asana',
+    subtitle: 'Enter your Asana personal access token to connect your workspace.',
+  },
 };
 
 export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props) {
@@ -62,12 +67,14 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
     connectPlain,
     connectForgejo,
     connectFeaturebase,
+    connectAsana,
     isLinearLoading,
     isJiraLoading,
     isGitlabLoading,
     isPlainLoading,
     isForgejoLoading,
     isFeaturebaseLoading,
+    isAsanaLoading,
   } = useIntegrationsContext();
   const { toast } = useToast();
 
@@ -93,6 +100,9 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
   // Featurebase state
   const [featurebaseKey, setFeaturebaseKey] = useState('');
 
+  // Asana state
+  const [asanaKey, setAsanaKey] = useState('');
+
   const [error, setError] = useState<string | null>(null);
 
   const isLoading =
@@ -101,7 +111,8 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
     (integration === 'gitlab' && isGitlabLoading) ||
     (integration === 'plain' && isPlainLoading) ||
     (integration === 'forgejo' && isForgejoLoading) ||
-    (integration === 'featurebase' && isFeaturebaseLoading);
+    (integration === 'featurebase' && isFeaturebaseLoading) ||
+    (integration === 'asana' && isAsanaLoading);
 
   const canSubmit =
     (integration === 'linear' && !!linearKey.trim()) ||
@@ -109,7 +120,8 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
     (integration === 'gitlab' && !!(gitlabInstanceUrl.trim() && gitlabToken.trim())) ||
     (integration === 'plain' && !!plainKey.trim()) ||
     (integration === 'forgejo' && !!(forgejoInstanceUrl.trim() && forgejoToken.trim())) ||
-    (integration === 'featurebase' && !!featurebaseKey.trim());
+    (integration === 'featurebase' && !!featurebaseKey.trim()) ||
+    (integration === 'asana' && !!asanaKey.trim());
 
   const handleSubmit = useCallback(async () => {
     setError(null);
@@ -143,6 +155,9 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
         case 'featurebase':
           await connectFeaturebase(featurebaseKey.trim());
           break;
+        case 'asana':
+          await connectAsana(asanaKey.trim());
+          break;
       }
       toast({
         title: 'Integration connected',
@@ -164,12 +179,14 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
     forgejoInstanceUrl,
     forgejoToken,
     featurebaseKey,
+    asanaKey,
     connectLinear,
     connectJira,
     connectGitlab,
     connectPlain,
     connectForgejo,
     connectFeaturebase,
+    connectAsana,
     toast,
     onSuccess,
   ]);
@@ -178,11 +195,11 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
 
   return (
     <>
-      <DialogHeader showCloseButton={false}>
+      <DialogHeader className="flex-col items-start gap-1" showCloseButton={false}>
         <DialogTitle>{title}</DialogTitle>
         <DialogDescription className="text-xs">{subtitle}</DialogDescription>
       </DialogHeader>
-      <DialogContentArea>
+      <DialogContentArea className="pt-1">
         {integration === 'linear' && (
           <LinearSetupForm apiKey={linearKey} onChange={setLinearKey} error={error} />
         )}
@@ -230,6 +247,9 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
             onChange={setFeaturebaseKey}
             error={error}
           />
+        )}
+        {integration === 'asana' && (
+          <AsanaSetupForm apiKey={asanaKey} onChange={setAsanaKey} error={error} />
         )}
       </DialogContentArea>
       <DialogFooter>

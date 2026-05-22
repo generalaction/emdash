@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
-import type { ProjectPathStatus, SshProject } from '@shared/projects';
 import { GitHubAuthExecutionContext } from '@main/core/execution-context/github-auth-execution-context';
 import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
@@ -8,9 +7,10 @@ import { GitService } from '@main/core/git/impl/git-service';
 import { githubConnectionService } from '@main/core/github/services/github-connection-service';
 import { projectEvents } from '@main/core/projects/project-events';
 import { projectManager } from '@main/core/projects/project-manager';
-import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
+import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
+import type { ProjectPathStatus, SshProject } from '@shared/projects';
 import { ensureGitRepository, resolveProjectBaseRef } from './create-project-utils';
 
 export type CreateSshProjectParams = {

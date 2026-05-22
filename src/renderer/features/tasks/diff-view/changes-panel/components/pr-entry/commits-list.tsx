@@ -1,7 +1,6 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { observer } from 'mobx-react-lite';
 import { useRef } from 'react';
-import type { Commit } from '@shared/git';
 import {
   useTaskViewContext,
   useWorkspaceId,
@@ -10,6 +9,7 @@ import {
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { cn } from '@renderer/utils/utils';
+import type { Commit } from '@shared/git';
 import { usePrCommits } from './use-pr-commits';
 
 const ITEM_HEIGHT = 43;
@@ -40,7 +40,7 @@ export const PrCommitsList = observer(function PrCommitsList() {
   }
 
   return (
-    <div ref={parentRef} className="h-full overflow-y-auto overflow-x-hidden py-2">
+    <div ref={parentRef} className="h-full overflow-x-hidden overflow-y-auto py-2">
       <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
         {virtualizer.getVirtualItems().map((virtualItem) => {
           const commit = commits[virtualItem.index]!;
@@ -67,7 +67,7 @@ export const PrCommitsList = observer(function PrCommitsList() {
       {hasNextPage && (
         <div className="flex justify-center py-2">
           <button
-            className="text-xs text-foreground-muted hover:text-foreground px-3 py-1 rounded-md hover:bg-surface-raised transition-colors"
+            className="hover:bg-surface-raised rounded-md px-3 py-1 text-xs text-foreground-muted transition-colors hover:text-foreground"
             onClick={() => void fetchNextPage()}
             disabled={isFetchingNextPage}
           >
@@ -97,10 +97,10 @@ function CommitItem({
         <div className="size-1.5 shrink-0 rounded-full bg-foreground-passive" />
         <div className={cn('w-px flex-1 bg-border', isLast && 'invisible')} />
       </div>
-      <div className="min-w-0 flex-1 py-1 px-2 rounded-md">
+      <div className="min-w-0 flex-1 rounded-md px-2 py-1">
         <div className="truncate text-sm">{commit.subject}</div>
-        <div className="flex items-center  gap-1 text-xs text-foreground-muted min-w-0">
-          <span className="truncate font-medium min-w-0">{commit.author}</span>
+        <div className="flex min-w-0 items-center gap-1 text-xs text-foreground-muted">
+          <span className="min-w-0 truncate font-medium">{commit.author}</span>
           {'·'}
           <RelativeTime compact value={commit.date} className="text-foreground-muted" />
           {'·'}

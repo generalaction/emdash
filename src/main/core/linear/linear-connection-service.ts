@@ -1,8 +1,8 @@
 import { LinearClient } from '@linear/sdk';
-import { ISSUE_PROVIDER_CAPABILITIES, type ConnectionStatus } from '@shared/issue-providers';
 import { encryptedAppSecretsStore } from '@main/core/secrets/encrypted-app-secrets-store';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
+import { ISSUE_PROVIDER_CAPABILITIES, type ConnectionStatus } from '@shared/issue-providers';
 
 export class LinearConnectionService {
   private readonly LINEAR_TOKEN_SECRET_KEY = 'emdash-linear-token';

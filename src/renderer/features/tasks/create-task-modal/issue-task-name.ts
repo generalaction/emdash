@@ -1,8 +1,10 @@
-import type { Issue } from '@shared/tasks';
 import { normalizeTaskName } from '@renderer/utils/taskNames';
+import type { Issue } from '@shared/tasks';
+
+const PROVIDERS_WITH_BRANCH_NAMES = new Set<Issue['provider']>(['linear', 'plain']);
 
 export function getIssueTaskName(issue: Issue | null | undefined): string | null {
-  if (issue?.provider !== 'linear') {
+  if (!issue || !PROVIDERS_WITH_BRANCH_NAMES.has(issue.provider)) {
     return null;
   }
 

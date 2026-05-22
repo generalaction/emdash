@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
-import type { AgentProviderId } from '@shared/agent-provider-registry';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import { appState } from '@renderer/lib/stores/app-state';
 import { agentConfig } from '@renderer/utils/agentConfig';
+import type { AgentProviderId } from '@shared/agent-provider-registry';
 import { getAgentInstallErrorMessage } from './agent-install';
 import { buildAgentGroups, getAssumedInstalledAgents } from './agent-selector-options';
 
@@ -34,18 +34,13 @@ export function useAgentAvailability({
     [value, dependencyData]
   );
 
-  const groups = useMemo(
-    () => buildAgentGroups(installedAgents, assumedInstalledAgents),
-    [installedAgents, assumedInstalledAgents]
-  );
   const installingAgents = new Set<AgentProviderId>();
-  for (const group of groups) {
-    for (const item of group.items) {
-      if (appState.dependencies.isInstalling(item.agentId, connectionId)) {
-        installingAgents.add(item.agentId);
-      }
+  for (const id of Object.keys(agentConfig) as AgentProviderId[]) {
+    if (appState.dependencies.isInstalling(id, connectionId)) {
+      installingAgents.add(id);
     }
   }
+  const groups = buildAgentGroups(installedAgents, assumedInstalledAgents, installingAgents);
 
   async function installAgent(agentId: AgentProviderId): Promise<void> {
     if (appState.dependencies.isInstalling(agentId, connectionId)) return;

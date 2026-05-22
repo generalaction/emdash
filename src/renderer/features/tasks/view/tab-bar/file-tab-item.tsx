@@ -54,6 +54,7 @@ export const FileTabItem = observer(function FileTabItem({
       title={tabTitle}
       onSelect={onSelect}
       onPin={onPin}
+      onClose={onClose}
     >
       <span className="shrink-0 [&>svg]:h-3 [&>svg]:w-3">
         {showSpinner ? (

@@ -1,7 +1,7 @@
 import { action, computed, makeObservable, observable, reaction } from 'mobx';
-import type { TabGroupsSnapshot } from '@shared/view-state';
 import type { ConversationManagerStore } from '@renderer/features/tasks/conversations/conversation-manager';
 import { TabManagerStore } from '@renderer/features/tasks/tabs/tab-manager-store';
+import type { TabGroupsSnapshot } from '@shared/view-state';
 
 const MAX_PANE_COUNT = 8;
 
@@ -55,6 +55,8 @@ export class TabGroupManagerStore {
       setActiveGroup: action,
       setPaneSizes: action,
       restoreSnapshot: action,
+      openConversation: action,
+      openConversationPreview: action,
     });
   }
 
@@ -198,6 +200,28 @@ export class TabGroupManagerStore {
     if (sizes.length === this.groups.length) {
       this.paneSizes = sizes;
     }
+  }
+
+  openConversation(conversationId: string): void {
+    for (const { groupId, tabManager } of this.groups) {
+      if (tabManager.hasConversationTab(conversationId)) {
+        this.activeGroupId = groupId;
+        tabManager.openConversation(conversationId);
+        return;
+      }
+    }
+    this.focusedGroup.openConversation(conversationId);
+  }
+
+  openConversationPreview(conversationId: string): void {
+    for (const { groupId, tabManager } of this.groups) {
+      if (tabManager.hasConversationTab(conversationId)) {
+        this.activeGroupId = groupId;
+        tabManager.openConversationPreview(conversationId);
+        return;
+      }
+    }
+    this.focusedGroup.openConversationPreview(conversationId);
   }
 
   get snapshot(): TabGroupsSnapshot {

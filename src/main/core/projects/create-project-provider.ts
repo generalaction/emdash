@@ -1,7 +1,5 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { safePathSegment } from '@shared/path-name';
-import type { LocalProject, SshProject } from '@shared/projects';
 import { GitHubAuthExecutionContext } from '@main/core/execution-context/github-auth-execution-context';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
@@ -12,11 +10,11 @@ import { GitFetchService } from '@main/core/git/git-fetch-service';
 import { GitService } from '@main/core/git/impl/git-service';
 import { GitRepositoryService } from '@main/core/git/repository-service';
 import { githubConnectionService } from '@main/core/github/services/github-connection-service';
-import {
-  sshConnectionManager,
-  type SshConnectionManagerEvent,
-} from '@main/core/ssh/ssh-connection-manager';
+import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
+import type { SshConnectionManagerEvent } from '@main/core/ssh/lifecycle/ssh-connection-manager';
 import { log } from '@main/lib/logger';
+import { safePathSegment } from '@shared/path-name';
+import type { LocalProject, SshProject } from '@shared/projects';
 import { ProjectProvider, type ProjectProviderTransport } from './project-provider';
 import type { ProjectSettingsProvider } from './settings/provider';
 import { LocalProjectSettingsProvider } from './settings/providers/local-project-settings-provider';
@@ -127,6 +125,7 @@ async function createSshProvider(project: SshProject): Promise<ProjectProvider> 
       projectId: project.id,
       error: error instanceof Error ? error.message : String(error),
     });
+    sshConnectionManager.reportChannelError(project.connectionId, error);
     throw error;
   }
 }

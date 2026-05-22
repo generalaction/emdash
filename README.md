@@ -33,7 +33,7 @@
 
 Emdash is a provider-agnostic desktop app that lets you run multiple coding agents in parallel, each isolated in its own git worktree, either locally or over SSH on a remote machine. We call it an Agentic Development Environment (ADE).
 
-Emdash supports 27 CLI agents, including Claude Code, Codex, OpenCode, Gemini and Amp. Users can directly pass Linear, GitHub, or Jira tickets to an agent, review diffs, test changes, create PRs, see CI/CD checks, and merge.
+Emdash supports 27 CLI agents, including Claude Code, Codex, OpenCode, Gemini and Amp. Users can directly pass Linear, GitHub, Jira, or Asana tickets to an agent, review diffs, test changes, create PRs, see CI/CD checks, and merge.
 
 **Develop on remote servers via SSH**
 
@@ -114,6 +114,7 @@ Emdash allows you to pass issues, tickets, and support threads straight to your 
 | [Jira](https://www.atlassian.com/software/jira) | ✅ Supported | Provide your site URL, email, and Atlassian API token. |
 | [GitHub Issues](https://docs.github.com/en/issues) | ✅ Supported | Connect your GitHub account or authenticate via GitHub CLI (`gh auth login`). |
 | [GitLab Issues](https://docs.gitlab.com/user/project/issues/) | ✅ Supported | Provide your GitLab instance URL and a personal access token with `read_api` scope. |
+| [Asana](https://asana.com/) | ✅ Supported | Connect with an Asana personal access token. |
 | [Forgejo Issues](https://forgejo.org/) | ✅ Supported | Provide your Forgejo instance URL and API token. |
 | [Plain Threads](https://www.plain.com/) | ✅ Supported | Connect with a Plain API key. |
 
