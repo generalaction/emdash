@@ -87,6 +87,11 @@ try {
   execFileSync('Rez', ['-append', rezFile, '-o', applicationsPath], { stdio: 'inherit' });
   execFileSync('SetFile', ['-a', 'C', applicationsPath], { stdio: 'inherit' });
 
+  const appPath = path.join(mountPoint, `${dmgConfig.appName}.app`);
+  if (fs.existsSync(appPath)) {
+    execFileSync('SetFile', ['-a', 'E', appPath], { stdio: 'inherit' });
+  }
+
   console.log(`patching Finder view at ${mountPoint}...`);
   execFileSync(
     python,

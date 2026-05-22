@@ -53,7 +53,7 @@ const config: Configuration = {
     iconSize: 100,
     iconTextSize: 12,
     contents: [
-      // Emdash.app — moved up from Paper's y=190 to compensate for Finder's
+      // Emdash — moved up from Paper's y=190 to compensate for Finder's
       // bottom chrome reservation, which would otherwise push everything down.
       { x: 140, y: 145, type: 'file' },
       // /Applications symlink — right icon slot; macOS renders the alias arrow
