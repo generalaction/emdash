@@ -112,7 +112,7 @@ export function useSkills() {
     [uninstallMutation]
   );
 
-  const { data: detailData } = useQuery({
+  const { data: detailData, isFetching: isLoadingDetail } = useQuery({
     queryKey: ['skills', 'detail', selectedSkillId],
     queryFn: async () => {
       const result = await rpc.skills.getDetail({ skillId: selectedSkillId! });
@@ -122,10 +122,27 @@ export function useSkills() {
     enabled: !!selectedSkillId && showDetailModal,
   });
 
+  const skillShQuery = searchQuery.trim();
+  const { data: skillShSkills = [], isFetching: isSearchingSkillSh } = useQuery({
+    queryKey: ['skills', 'skillssh-search', skillShQuery],
+    queryFn: async () => {
+      const result = await rpc.skills.searchSkillSh({ query: skillShQuery });
+      if (result.success && result.data) return result.data;
+      throw new Error(result.error ?? 'Failed to search Skills.SH');
+    },
+    enabled: skillShQuery.length >= 2,
+    staleTime: 60_000,
+  });
+
   const selectedSkill = useMemo<CatalogSkill | null>(() => {
     if (!selectedSkillId || !showDetailModal) return null;
-    return detailData ?? catalog?.skills.find((s) => s.id === selectedSkillId) ?? null;
-  }, [selectedSkillId, showDetailModal, detailData, catalog]);
+    return (
+      detailData ??
+      catalog?.skills.find((s) => s.id === selectedSkillId) ??
+      skillShSkills.find((s) => s.id === selectedSkillId) ??
+      null
+    );
+  }, [selectedSkillId, showDetailModal, detailData, catalog, skillShSkills]);
 
   const openDetail = useCallback((skill: CatalogSkill) => {
     setSelectedSkillId(skill.id);
@@ -159,6 +176,15 @@ export function useSkills() {
     [filteredSkills]
   );
 
+  const skillShSearchSkills = useMemo(() => {
+    const installedIds = new Set(catalog?.skills.filter((s) => s.installed).map((s) => s.id));
+    const installedNames = new Set(catalog?.skills.filter((s) => s.installed).map((s) => s.id));
+    return skillShSkills.filter(
+      (skill) =>
+        !installedIds.has(skill.id) && !installedNames.has(skill.catalogSkillId ?? skill.id)
+    );
+  }, [catalog, skillShSkills]);
+
   return {
     catalog,
     isLoading,
@@ -166,10 +192,13 @@ export function useSkills() {
     searchQuery,
     setSearchQuery,
     selectedSkill,
+    isLoadingDetail,
     showDetailModal,
     filteredSkills,
     installedSkills,
     recommendedSkills,
+    skillShSearchSkills,
+    isSearchingSkillSh,
     refresh,
     install,
     uninstall,
