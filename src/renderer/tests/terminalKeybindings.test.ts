@@ -99,7 +99,6 @@ describe('TerminalSessionManager - Shift+Enter to Ctrl+J mapping', () => {
   });
 
   it('detects paste shortcuts per platform', () => {
-    // (isMac, isWindows) — Linux is (false, false).
     const mac: [boolean, boolean] = [true, false];
     const win: [boolean, boolean] = [false, true];
     const linux: [boolean, boolean] = [false, false];

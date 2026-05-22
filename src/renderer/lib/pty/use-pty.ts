@@ -120,13 +120,9 @@ export function usePty(
     onInterruptPress,
   } = options;
 
-  // providerId may change when a user swaps agents within a session, so we
-  // read it through a ref to keep the long-lived paste callback in sync
-  // without re-mounting the terminal.
+  // Stable refs for callbacks so the effect doesn't re-run on every render.
   const providerIdRef = useRef(providerId);
   providerIdRef.current = providerId;
-
-  // Stable refs for callbacks so the effect doesn't re-run on every render.
   const onActivityRef = useRef(onActivity);
   onActivityRef.current = onActivity;
   const onExitRef = useRef(onExit);
@@ -311,8 +307,6 @@ export function usePty(
       .readText()
       .then((text) => {
         if (!text) return;
-        // Route through pastePromptInjection so provider-specific paste
-        // formatting (bracketed paste vs raw) is applied consistently.
         void pastePromptInjection({
           providerId: providerIdRef.current,
           text,
