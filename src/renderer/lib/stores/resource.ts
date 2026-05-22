@@ -61,14 +61,14 @@ export class Resource<T, TEventData = void> {
   constructor(
     fetch: (() => Promise<T>) | null,
     strategies: ResourceStrategy<T, TEventData>[],
-    options?: { init?: T }
+    options?: { init?: T; refData?: boolean }
   ) {
     this._fetch = fetch;
     this._strategies = strategies;
     this.data = options?.init ?? null;
 
     makeObservable(this, {
-      data: observable,
+      data: options?.refData ? observable.ref : observable,
       loading: observable,
       error: observable,
       lastUpdatedAt: observable,
