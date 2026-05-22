@@ -31,6 +31,7 @@ export const taskSettingsSchema = z.object({
   autoTrustWorktrees: z.boolean(),
   createBranchAndWorktree: z.boolean(),
   preserveNameCapitalization: z.boolean(),
+  includeIssueContextByDefault: z.boolean(),
 });
 
 export const agentAutoApproveDefaultsSchema = z

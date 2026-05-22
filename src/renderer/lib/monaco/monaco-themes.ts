@@ -1,23 +1,7 @@
 import type { Monaco } from '@monaco-editor/react';
+import { cssColorToHex } from '@renderer/utils/cssVars';
 
 type MonacoColors = Record<string, string>;
-
-/**
- * Converts any CSS color string (hex, hsl, color(display-p3 ...), etc.) to a
- * Monaco-compatible hex string by painting a 1×1 canvas pixel and reading back
- * the sRGB bytes. Out-of-gamut p3 values are clamped to sRGB, which is
- * imperceptible for editor chrome colors.
- */
-function cssColorToHex(cssColor: string): string {
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = 1;
-  const ctx = canvas.getContext('2d')!;
-  ctx.fillStyle = cssColor.trim();
-  ctx.fillRect(0, 0, 1, 1);
-  const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
-  const hex = (n: number) => n.toString(16).padStart(2, '0');
-  return a < 255 ? `#${hex(r)}${hex(g)}${hex(b)}${hex(a)}` : `#${hex(r)}${hex(g)}${hex(b)}`;
-}
 
 /**
  * Reads all --monaco-* CSS custom properties from an element bearing the given
@@ -49,6 +33,9 @@ function readMonacoVarsForTheme(cssClass: 'emlight' | 'emdark'): MonacoColors {
     ['--monaco-unchanged-region-bg', 'diffEditor.unchangedRegionBackground'],
     ['--monaco-diff-border', 'diffEditor.border'],
     ['--monaco-diff-diagonal-fill', 'diffEditor.diagonalFill'],
+    ['--monaco-selection-bg', 'editor.selectionBackground'],
+    ['--monaco-selection-fg', 'editor.selectionForeground'],
+    ['--monaco-inactive-selection-bg', 'editor.inactiveSelectionBackground'],
   ];
 
   const colors: MonacoColors = {};

@@ -1,8 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { eq } from 'drizzle-orm';
-import { Client } from 'ssh2';
 import { createRPCController } from '@/shared/ipc/rpc';
 import { db } from '@main/db/client';
 import {
@@ -17,28 +14,48 @@ import type {
   ConnectionTestResult,
   FileEntry,
   SshConfig,
+  SshConfigHost,
   SshConnectionUsage,
   SshHealthState,
 } from '@shared/ssh';
-import { sshConnectionManager } from './ssh-connection-manager';
-import { sshCredentialService } from './ssh-credential-service';
-import { resolveIdentityAgent } from './utils';
+import {
+  mergeSshConnectionMetadata,
+  parseSshConnectionMetadata,
+  serializeSshConnectionMetadata,
+  type SshConnectionMetadata,
+  sshConfigFromRow,
+} from './config/connection-metadata';
+import { resolveSshConfig } from './config/resolve-ssh-config';
+import { parseSshConfigFile } from './config/sshConfigParser';
+import { testProductionSshConnection } from './connect/production-test-connection';
+import { sshCredentialService } from './credentials/ssh-credential-service';
+import { sshConnectionManager } from './lifecycle/production-ssh-connection-manager';
 
 export const sshController = createRPCController({
   /** List all saved SSH connections (no secrets). */
   getConnections: async (): Promise<SshConfig[]> => {
     const rows = await db.select().from(sshConnectionsTable);
-    return rows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      host: row.host,
-      port: row.port,
-      worktreesDir: row.metadata ? JSON.parse(row.metadata).worktreesDir : undefined,
-      username: row.username,
-      authType: row.authType as 'password' | 'key' | 'agent',
-      privateKeyPath: row.privateKeyPath ?? undefined,
-      useAgent: row.useAgent === 1,
-    }));
+    return rows.map(sshConfigFromRow);
+  },
+
+  getSshConfigHosts: async (): Promise<SshConfigHost[]> => {
+    return await parseSshConfigFile();
+  },
+
+  getSshConfigHost: async (alias: string): Promise<SshConfigHost> => {
+    const resolved = await resolveSshConfig(alias);
+    return {
+      host: alias,
+      hostname: resolved.hostname,
+      user: resolved.user,
+      port: resolved.port,
+      identityFile: resolved.identityFile[0],
+      identityAgent: resolved.identityAgent,
+      proxyJump: resolved.proxyJump,
+      proxyCommand: resolved.proxyCommand,
+      forwardAgent: resolved.forwardAgent,
+      forwardAgentValue: resolved.forwardAgentValue,
+    };
   },
 
   /** List projects currently using each saved SSH connection. */
@@ -78,16 +95,40 @@ export const sshController = createRPCController({
 
     const { password: _p, passphrase: _pp, ...dbConfig } = config;
 
-    const metadata: Record<string, unknown> = {
-      worktreesDir: config.worktreesDir,
-    };
+    const existingMetadata =
+      config.id === undefined
+        ? {}
+        : parseSshConnectionMetadata(
+            (
+              await db
+                .select({ metadata: sshConnectionsTable.metadata })
+                .from(sshConnectionsTable)
+                .where(eq(sshConnectionsTable.id, connectionId))
+                .limit(1)
+            )[0]?.metadata ?? null
+          );
+
+    const metadataUpdate: SshConnectionMetadata = {};
+    if (Object.prototype.hasOwnProperty.call(config, 'worktreesDir')) {
+      metadataUpdate.worktreesDir = config.worktreesDir;
+    }
+    if (Object.prototype.hasOwnProperty.call(config, 'sshConfigAlias')) {
+      metadataUpdate.sshConfigAlias = config.sshConfigAlias;
+    }
+    if (Object.prototype.hasOwnProperty.call(config, 'forwardAgent')) {
+      metadataUpdate.forwardAgent = config.forwardAgent;
+    }
+    if (Object.prototype.hasOwnProperty.call(config, 'proxyJump')) {
+      metadataUpdate.proxyJump = config.proxyJump;
+    }
+    const metadata = mergeSshConnectionMetadata(existingMetadata, metadataUpdate);
 
     const insertData: SshConnectionInsert = {
       id: connectionId,
       name: dbConfig.name,
       host: dbConfig.host,
       port: dbConfig.port,
-      metadata: JSON.stringify(metadata),
+      metadata: serializeSshConnectionMetadata(metadata),
       username: dbConfig.username,
       authType: dbConfig.authType,
       privateKeyPath: dbConfig.privateKeyPath ?? null,
@@ -112,7 +153,14 @@ export const sshController = createRPCController({
         },
       });
 
-    return { ...dbConfig, id: connectionId, worktreesDir: config.worktreesDir };
+    return {
+      ...dbConfig,
+      id: connectionId,
+      worktreesDir: metadata.worktreesDir,
+      sshConfigAlias: metadata.sshConfigAlias,
+      forwardAgent: metadata.forwardAgent,
+      proxyJump: metadata.proxyJump,
+    };
   },
 
   /** Delete a saved SSH connection and its stored credentials. */
@@ -127,7 +175,7 @@ export const sshController = createRPCController({
       throw new Error(`SSH connection is used by ${projectNames}`);
     }
 
-    if (sshConnectionManager.isConnected(id)) {
+    if (sshConnectionManager.getConnectionState(id) !== 'disconnected') {
       await sshConnectionManager.disconnect(id).catch((e) => {
         log.warn('sshController.deleteConnection: error disconnecting', {
           connectionId: id,
@@ -143,54 +191,9 @@ export const sshController = createRPCController({
   testConnection: async (
     config: SshConfig & { password?: string; passphrase?: string }
   ): Promise<ConnectionTestResult> => {
-    let identityAgent: string | undefined;
-    if (config.authType === 'agent') {
-      identityAgent = await resolveIdentityAgent(config.host);
-    }
-
-    return new Promise((resolve) => {
-      const client = new Client();
-      const debugLogs: string[] = [];
-      const startTime = Date.now();
-
-      client.on('ready', () => {
-        const latency = Date.now() - startTime;
-        client.end();
-        telemetryService.capture('ssh_connection_attempted', { success: true });
-        resolve({ success: true, latency, debugLogs });
-      });
-
-      client.on('error', (err: Error) => {
-        telemetryService.capture('ssh_connection_attempted', { success: false });
-        resolve({ success: false, error: err.message, debugLogs });
-      });
-
-      try {
-        const connectConfig: Parameters<Client['connect']>[0] = {
-          host: config.host,
-          port: config.port,
-          username: config.username,
-          readyTimeout: 10_000,
-          debug: (info: string) => debugLogs.push(info),
-        };
-
-        if (config.authType === 'password') {
-          connectConfig.password = config.password;
-        } else if (config.authType === 'key' && config.privateKeyPath) {
-          let keyPath = config.privateKeyPath;
-          if (keyPath.startsWith('~/')) keyPath = keyPath.replace('~', homedir());
-          connectConfig.privateKey = readFileSync(keyPath);
-          if (config.passphrase) connectConfig.passphrase = config.passphrase;
-        } else if (config.authType === 'agent') {
-          connectConfig.agent = identityAgent || process.env.SSH_AUTH_SOCK;
-        }
-
-        client.connect(connectConfig);
-      } catch (e) {
-        telemetryService.capture('ssh_connection_attempted', { success: false });
-        resolve({ success: false, error: (e as Error).message, debugLogs });
-      }
-    });
+    const result = await testProductionSshConnection(config);
+    telemetryService.capture('ssh_connection_attempted', { success: result.success });
+    return result;
   },
 
   /** Intentionally close a connection and stop auto-reconnect. */

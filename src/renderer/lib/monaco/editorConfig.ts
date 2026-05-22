@@ -29,7 +29,6 @@ export const DIFF_EDITOR_BASE_OPTIONS: editor.IDiffEditorConstructionOptions = {
     verticalSliderSize: 4,
     horizontalSliderSize: 4,
   },
-  hideUnchangedRegions: { enabled: true },
   diffWordWrap: 'on',
   enableSplitViewResizing: false,
   smoothScrolling: true,
