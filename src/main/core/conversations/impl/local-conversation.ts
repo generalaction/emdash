@@ -3,6 +3,7 @@ import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
 import { wireAgentClassifier } from '@main/core/agent-hooks/classifier-wiring';
 import { claudeTrustService } from '@main/core/agent-hooks/claude-trust-service';
 import { HookConfigWriter } from '@main/core/agent-hooks/hook-config';
+import { conversationSessionVisibilityService } from '@main/core/conversations/conversation-session-visibility';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
@@ -201,6 +202,11 @@ export class LocalConversationProvider implements ConversationProvider {
     ptySessionRegistry.register(sessionId, pty, {
       metadata: { providerId: conversation.providerId, title: conversation.title },
     });
+    conversationSessionVisibilityService.onConversationSessionStarted(
+      conversation.projectId,
+      conversation.taskId,
+      conversation.id
+    );
     this.sessions.set(sessionId, pty);
     scheduleInitialPromptInjection({ pty, conversation, initialPrompt, isResuming });
     telemetryService.capture('agent_run_started', {

@@ -1,5 +1,6 @@
 import { wireAgentClassifier } from '@main/core/agent-hooks/classifier-wiring';
 import { claudeTrustService } from '@main/core/agent-hooks/claude-trust-service';
+import { conversationSessionVisibilityService } from '@main/core/conversations/conversation-session-visibility';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
@@ -192,6 +193,11 @@ export class SshConversationProvider implements ConversationProvider {
     ptySessionRegistry.register(sessionId, pty, {
       metadata: { providerId: conversation.providerId, title: conversation.title, isRemote: true },
     });
+    conversationSessionVisibilityService.onConversationSessionStarted(
+      conversation.projectId,
+      conversation.taskId,
+      conversation.id
+    );
     this.sessions.set(sessionId, pty);
     scheduleInitialPromptInjection({ pty, conversation, initialPrompt, isResuming });
     telemetryService.capture('agent_run_started', {
