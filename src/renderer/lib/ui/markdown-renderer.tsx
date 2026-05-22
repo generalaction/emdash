@@ -274,10 +274,12 @@ function useCompactComponents(isDark: boolean) {
       ),
       p: ({ children }: WithChildren) => <p className="mb-2 leading-relaxed">{children}</p>,
       ul: ({ children }: WithChildren) => (
-        <ul className="mb-2 ml-4 list-disc space-y-0.5">{children}</ul>
+        <ul className="marker:text-muted-foreground mb-2 ml-4 list-disc space-y-1">{children}</ul>
       ),
       ol: ({ children }: WithChildren) => (
-        <ol className="mb-2 ml-4 list-decimal space-y-0.5">{children}</ol>
+        <ol className="marker:text-muted-foreground mb-2 ml-4 list-decimal space-y-1">
+          {children}
+        </ol>
       ),
       li: ({ children }: WithChildren) => <li className="leading-relaxed">{children}</li>,
       code: ({ children, className }: WithChildrenAndClass) => {
@@ -287,12 +289,16 @@ function useCompactComponents(isDark: boolean) {
         const { isBlock } = getCodeBlock(children, className);
         if (isBlock) {
           return (
-            <code className="bg-muted/60 block overflow-x-auto rounded p-2 text-[11px]">
+            <code className="bg-muted/60 block overflow-x-auto rounded-md border border-border p-2 text-[11px] leading-relaxed">
               {children}
             </code>
           );
         }
-        return <code className="bg-muted/60 rounded px-1 py-0.5 text-[11px]">{children}</code>;
+        return (
+          <code className="bg-muted/60 rounded px-1 py-0.5 font-mono text-[0.92em]">
+            {children}
+          </code>
+        );
       },
       pre: ({ children }: WithChildren) =>
         isOnlyMermaidDiagramChild(children) ? (
@@ -300,6 +306,32 @@ function useCompactComponents(isDark: boolean) {
         ) : (
           <pre className="mb-2 overflow-x-auto">{children}</pre>
         ),
+      blockquote: ({ children }: WithChildren) => (
+        <blockquote className="text-muted-foreground mb-2 border-l-2 border-border pl-3 italic">
+          {children}
+        </blockquote>
+      ),
+      table: ({ children }: WithChildren) => (
+        <div className="my-3 overflow-x-auto rounded-md border border-border">
+          <table className="w-full min-w-max border-collapse text-left text-[11px] leading-snug">
+            {children}
+          </table>
+        </div>
+      ),
+      thead: ({ children }: WithChildren) => (
+        <thead className="bg-muted/50 border-b border-border text-foreground">{children}</thead>
+      ),
+      th: ({ children }: WithChildren) => (
+        <th className="border-r border-border px-2.5 py-1.5 font-semibold last:border-r-0">
+          {children}
+        </th>
+      ),
+      td: ({ children }: WithChildren) => (
+        <td className="border-t border-r border-border px-2.5 py-1.5 align-top last:border-r-0">
+          {children}
+        </td>
+      ),
+      hr: () => <hr className="my-4 border-border" />,
       strong: ({ children }: WithChildren) => (
         <strong className="font-semibold text-foreground">{children}</strong>
       ),
