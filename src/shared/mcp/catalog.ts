@@ -174,7 +174,7 @@ export const catalogData: Record<string, CatalogEntryDef> = {
       },
     },
     name: 'Notra',
-    description: 'Manage posts, brand identities, integrations, and schedules',
+    description: 'Create & manage posts, brand identities, integrations, and schedules',
     docsUrl: 'https://docs.usenotra.com/devtools/mcp',
     credentialKeys: [{ key: 'Authorization', required: true }],
   },
