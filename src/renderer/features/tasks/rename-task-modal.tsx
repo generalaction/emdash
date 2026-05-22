@@ -1,6 +1,7 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback, useState } from 'react';
 import { toast } from 'sonner';
+import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
 import { getTaskManagerStore } from '@renderer/features/tasks/stores/task-selectors';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
@@ -52,6 +53,7 @@ export const RenameTaskModal = observer(function RenameTaskModal({
   const [name, setName] = useState(currentName);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { preserveNameCapitalization } = useTaskSettings();
 
   const taskManager = getTaskManagerStore(projectId);
   const siblingNames = new Set(
@@ -60,7 +62,9 @@ export const RenameTaskModal = observer(function RenameTaskModal({
       .map((t) => taskNameCollisionKey(t.data.name))
   );
 
-  const normalizedName = normalizeTaskName(name);
+  const normalizedName = normalizeTaskName(name, {
+    preserveCapitalization: preserveNameCapitalization,
+  });
   const isDuplicate = siblingNames.has(taskNameCollisionKey(normalizedName));
   const isUnchanged = normalizedName === currentName;
   const isEmpty = normalizedName.length === 0;
@@ -72,10 +76,13 @@ export const RenameTaskModal = observer(function RenameTaskModal({
       ? 'Task name cannot be empty.'
       : undefined;
 
-  const handleNameChange = useCallback((value: string) => {
-    setName(liveTransformTaskName(value));
-    setError(null);
-  }, []);
+  const handleNameChange = useCallback(
+    (value: string) => {
+      setName(liveTransformTaskName(value, { preserveCapitalization: preserveNameCapitalization }));
+      setError(null);
+    },
+    [preserveNameCapitalization]
+  );
 
   const handleSubmit = useCallback(async () => {
     if (!isValid) return;

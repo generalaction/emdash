@@ -18,6 +18,7 @@ import {
   AutoTrustWorktreesRow,
   CreateBranchAndWorktreeRow,
   EnableTmuxRow,
+  PreserveTaskNameCapitalizationRow,
 } from './TaskSettingsRows';
 import TelemetryCard from './TelemetryCard';
 import TerminalSettingsCard from './TerminalSettingsCard';
@@ -85,6 +86,9 @@ export function SettingsPage({
         },
         {
           component: <CreateBranchAndWorktreeRow />,
+        },
+        {
+          component: <PreserveTaskNameCapitalizationRow />,
         },
         {
           component: <EnableTmuxRow />,

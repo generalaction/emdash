@@ -28,8 +28,10 @@ export function useFromIssueMode(
     setPrevProjectId(selectedProjectId);
     setLinkedIssue(null);
   }
-  const { autoGenerateName } = useTaskSettings();
-  const generatedTaskNameFromIssue = getIssueTaskName(linkedIssue);
+  const { autoGenerateName, preserveNameCapitalization } = useTaskSettings();
+  const generatedTaskNameFromIssue = getIssueTaskName(linkedIssue, {
+    preserveCapitalization: preserveNameCapitalization,
+  });
 
   const shouldGenerate =
     autoGenerateName && linkedIssue !== null && generatedTaskNameFromIssue === null;
