@@ -11,6 +11,9 @@ vi.mock('@renderer/lib/ipc', () => ({
       getConnectionState: async () => ({}),
       getHealthStates: async () => ({}),
     },
+    conversations: {
+      updateVisibleConversations: async () => ({ success: true }),
+    },
   },
 }));
 

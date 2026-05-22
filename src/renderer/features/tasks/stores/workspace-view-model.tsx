@@ -7,6 +7,7 @@ import { TabGroupManagerStore } from '@renderer/features/tasks/tabs/tab-group-ma
 import type { TabManagerStore } from '@renderer/features/tasks/tabs/tab-manager-store';
 import { TerminalTabViewStore } from '@renderer/features/tasks/terminals/terminal-tab-view-store';
 import { type SidebarTab } from '@renderer/features/tasks/types';
+import { rpc } from '@renderer/lib/ipc';
 import { appState } from '@renderer/lib/stores/app-state';
 import type { ILifecycle } from '@renderer/lib/stores/lifecycle';
 import { snapshotRegistry } from '@renderer/lib/stores/snapshot-registry';
@@ -134,6 +135,36 @@ export class WorkspaceViewModel implements ILifecycle {
             tabManager.setVisible(isActive);
             tabManager.setFocused(isActive && groupId === activeGroupId);
           }
+        },
+        { fireImmediately: true }
+      )
+    );
+
+    this._disposers.push(
+      reaction(
+        () => {
+          const taskData = this._taskStore.data as Task;
+          const isActive =
+            appState.navigation.currentViewId === 'task' &&
+            (appState.navigation.viewParamsStore['task'] as { taskId?: string } | undefined)
+              ?.taskId === this.taskId;
+          const visibleConversationIds = isActive
+            ? this.tabGroupManager.groups.flatMap(({ tabManager }) =>
+                tabManager.activeConversationId ? [tabManager.activeConversationId] : []
+              )
+            : [];
+          return {
+            projectId: taskData.projectId,
+            taskId: this.taskId,
+            visibleConversationIds,
+          };
+        },
+        ({ projectId, taskId, visibleConversationIds }) => {
+          void rpc.conversations.updateVisibleConversations(
+            projectId,
+            taskId,
+            visibleConversationIds
+          );
         },
         { fireImmediately: true }
       )
@@ -351,6 +382,11 @@ export class WorkspaceViewModel implements ILifecycle {
    */
   dispose(): void {
     this.suspend();
+    void rpc.conversations.updateVisibleConversations(
+      (this._taskStore.data as Task).projectId,
+      this.taskId,
+      []
+    );
     appState.history.prune((e) => e.kind === 'tab' && e.taskId === this.taskId);
     for (const d of this._disposers) d();
     this.tabGroupManager.dispose();
