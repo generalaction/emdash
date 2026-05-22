@@ -633,6 +633,9 @@ export class SkillsService {
         installedMap.delete(skill.id);
         return {
           ...skill,
+          displayName: local.displayName || skill.displayName,
+          description: local.description || skill.description,
+          frontmatter: { ...skill.frontmatter, ...local.frontmatter },
           installed: true,
           localPath: local.localPath,
           skillMdContent: local.skillMdContent,
