@@ -1,12 +1,5 @@
-import {
-  Check,
-  Clock3,
-  ExternalLink,
-  MessageCircle,
-  ScanSearch,
-  TriangleAlert,
-} from 'lucide-react';
-import { memo, type ComponentType } from 'react';
+import { ExternalLink, ScanSearch } from 'lucide-react';
+import { memo } from 'react';
 import { PrMergeLine } from '@renderer/lib/components/pr-merge-line';
 import { PrNumberBadge } from '@renderer/lib/components/pr-number-badge';
 import { StatusIcon } from '@renderer/lib/components/pr-status-icon';
@@ -17,7 +10,12 @@ import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
 import { cn } from '@renderer/utils/utils';
-import { getPrNumber, type PullRequest, type PullRequestReviewer } from '@shared/pull-requests';
+import {
+  getPrNumber,
+  type PullRequest,
+  type PullRequestReviewer,
+  type PullRequestReviewState,
+} from '@shared/pull-requests';
 
 export const PrRow = memo(function PrRow({
   pr,
@@ -29,7 +27,7 @@ export const PrRow = memo(function PrRow({
   const showCreateTaskModal = useShowModal('taskModal');
 
   return (
-    <div className="relative flex w-full items-start gap-3">
+    <div className="flex w-full items-start gap-3">
       <div className="shrink-0 pt-0.5">
         <StatusIcon pr={pr} />
       </div>
@@ -40,39 +38,58 @@ export const PrRow = memo(function PrRow({
               {pr.title}
             </span>
             <PrNumberBadge number={getPrNumber(pr) ?? 0} />
-            <Tooltip>
-              <TooltipTrigger>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  className="opacity-0 transition-opacity group-hover:opacity-100"
-                  onClick={() => rpc.app.openExternal(pr.url)}
-                >
-                  <ExternalLink className="size-3.5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Open PR on github</TooltipContent>
-            </Tooltip>
           </div>
-          <RelativeTime value={pr.createdAt} className="text-xs text-foreground-passive" compact />
+          <div className="flex shrink-0 items-center">
+            <RelativeTime
+              value={pr.createdAt}
+              className="text-xs text-foreground-passive group-hover:hidden"
+              compact
+            />
+            <div className="hidden items-center gap-0.5 group-hover:flex">
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={() => rpc.app.openExternal(pr.url)}
+                    >
+                      <ExternalLink className="size-3.5" />
+                    </Button>
+                  }
+                />
+                <TooltipContent>Open PR on GitHub</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={() =>
+                        showCreateTaskModal({
+                          projectId,
+                          strategy: 'from-pull-request',
+                          initialPR: pr,
+                        })
+                      }
+                    >
+                      <ScanSearch className="size-3.5" />
+                    </Button>
+                  }
+                />
+                <TooltipContent>Review in Task</TooltipContent>
+              </Tooltip>
+            </div>
+          </div>
         </div>
         <div className="flex min-w-0 items-center gap-2">
           <PrMergeLine pr={pr} className="flex-1" />
-          <PrReviewerBadges reviewers={pr.reviewers} />
-          <PrDiffStat pr={pr} />
+          <div className="flex shrink-0 items-center gap-3">
+            <PrReviewerBadges reviewers={pr.reviewers} />
+            <PrDiffStat pr={pr} />
+          </div>
         </div>
-      </div>
-      <div className="absolute top-0 right-3 flex h-full shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() =>
-            showCreateTaskModal({ projectId, strategy: 'from-pull-request', initialPR: pr })
-          }
-        >
-          <ScanSearch className="size-3.5" />
-          Review in Task
-        </Button>
       </div>
     </div>
   );
@@ -80,58 +97,48 @@ export const PrRow = memo(function PrRow({
 
 const REVIEWER_LIMIT = 3;
 
-const REVIEW_STATE_META = {
-  approved: {
-    label: 'Approved',
-    Icon: Check,
-    className: 'border-foreground-success/25 bg-background-success text-foreground-success',
-  },
-  pending: {
-    label: 'Pending',
-    Icon: Clock3,
-    className: 'border-border bg-background-2 text-foreground-muted',
-  },
-  changes_requested: {
-    label: 'Changes requested',
-    Icon: TriangleAlert,
-    className: 'border-foreground-error/25 bg-background-error text-foreground-error',
-  },
-  commented: {
-    label: 'Commented',
-    Icon: MessageCircle,
-    className: 'border-foreground-warning/25 bg-background-warning text-foreground-warning',
-  },
-} satisfies Record<
-  PullRequestReviewer['reviewState'],
-  { label: string; Icon: ComponentType<{ className?: string }>; className: string }
->;
+const REVIEW_STATE_META: Record<
+  PullRequestReviewState,
+  { label: string; dotClass: string | null }
+> = {
+  approved: { label: 'Approved', dotClass: 'bg-foreground-success' },
+  changes_requested: { label: 'Changes requested', dotClass: 'bg-foreground-error' },
+  commented: { label: 'Commented', dotClass: 'bg-foreground-warning' },
+  pending: { label: 'Pending', dotClass: null },
+};
 
 function PrReviewerBadges({ reviewers }: { reviewers: PullRequestReviewer[] }) {
-  if (reviewers.length === 0) return null;
+  const assigned = reviewers.filter((r) => r.reviewState !== 'commented');
+  if (assigned.length === 0) return null;
 
-  const visible = reviewers.slice(0, REVIEWER_LIMIT);
-  const overflow = reviewers.slice(REVIEWER_LIMIT);
+  const visible = assigned.slice(0, REVIEWER_LIMIT);
+  const overflow = assigned.slice(REVIEWER_LIMIT);
 
   return (
-    <div className="flex min-w-0 shrink items-center gap-1">
-      {visible.map((reviewer) => (
-        <ReviewerBadge key={reviewer.userId} reviewer={reviewer} />
+    <div className="flex shrink-0 items-center" aria-label="Reviewers">
+      {visible.map((reviewer, i) => (
+        <ReviewerAvatar
+          key={reviewer.userId}
+          reviewer={reviewer}
+          className={i > 0 ? '-ml-1.5' : ''}
+        />
       ))}
       {overflow.length > 0 && (
         <Tooltip>
-          <TooltipTrigger className="shrink-0 rounded-full border border-border bg-background-2 px-1.5 py-0.5 text-[10px] leading-none font-medium text-foreground-muted">
+          <TooltipTrigger
+            className={cn(
+              '-ml-1.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-background-2 text-[10px] leading-none font-medium text-foreground-muted ring-2 ring-background'
+            )}
+          >
             +{overflow.length}
           </TooltipTrigger>
           <TooltipContent className="max-w-56">
             <div className="flex flex-col gap-1">
-              {overflow.map((reviewer) => {
-                const meta = REVIEW_STATE_META[reviewer.reviewState];
-                return (
-                  <span key={reviewer.userId}>
-                    {reviewerLabel(reviewer)}: {meta.label}
-                  </span>
-                );
-              })}
+              {overflow.map((reviewer) => (
+                <span key={reviewer.userId}>
+                  {reviewerLabel(reviewer)}: {REVIEW_STATE_META[reviewer.reviewState].label}
+                </span>
+              ))}
             </div>
           </TooltipContent>
         </Tooltip>
@@ -140,25 +147,40 @@ function PrReviewerBadges({ reviewers }: { reviewers: PullRequestReviewer[] }) {
   );
 }
 
-function ReviewerBadge({ reviewer }: { reviewer: PullRequestReviewer }) {
+function ReviewerAvatar({
+  reviewer,
+  className,
+}: {
+  reviewer: PullRequestReviewer;
+  className?: string;
+}) {
   const meta = REVIEW_STATE_META[reviewer.reviewState];
-  const Icon = meta.Icon;
+  const isPending = reviewer.reviewState === 'pending';
 
   return (
     <Tooltip>
       <TooltipTrigger
-        className={cn(
-          'inline-flex max-w-32 shrink items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium leading-none',
-          meta.className
-        )}
+        className={cn('relative shrink-0 rounded-full ring-2 ring-background', className)}
       >
         {reviewer.avatarUrl ? (
-          <img src={reviewer.avatarUrl} alt="" className="size-3 rounded-full" />
+          <img
+            src={reviewer.avatarUrl}
+            alt=""
+            className={cn('size-5 rounded-full', isPending && 'opacity-50 grayscale')}
+          />
         ) : (
-          <span className="bg-muted-foreground/20 size-3 rounded-full" />
+          <span
+            className={cn('block size-5 rounded-full bg-background-2', isPending && 'opacity-50')}
+          />
         )}
-        <span className="truncate">{reviewer.userName}</span>
-        <Icon className="size-3 shrink-0" />
+        {meta.dotClass && (
+          <span
+            className={cn(
+              'absolute -right-0.5 -bottom-0.5 size-2 rounded-full ring-2 ring-background',
+              meta.dotClass
+            )}
+          />
+        )}
       </TooltipTrigger>
       <TooltipContent>
         {reviewerLabel(reviewer)}: {meta.label}
