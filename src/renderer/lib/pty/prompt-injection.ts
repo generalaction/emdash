@@ -14,6 +14,7 @@ export async function pastePromptInjection(args: InjectPromptArgs): Promise<void
   const payload = buildPromptInjectionPayload({
     providerId: args.providerId,
     text: args.text,
+    mode: 'paste',
     forceBracketedPaste: args.forceBracketedPaste,
   });
   if (!payload) return;

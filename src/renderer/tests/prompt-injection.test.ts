@@ -5,13 +5,26 @@ import {
 } from '@renderer/lib/pty/prompt-injection';
 
 describe('prompt injection', () => {
-  it('keeps Claude multiline input unwrapped by default', () => {
+  it("keeps Claude's initial prompt unwrapped because its TUI mishandles bracketed paste at session start", () => {
     expect(
       buildPromptInjectionPayload({
         providerId: 'claude',
         text: 'Line one\nLine two',
+        mode: 'initial-prompt',
       })
     ).toBe('Line one\nLine two');
+  });
+
+  it('wraps multiline clipboard pastes into Claude so internal newlines do not submit each line early (regression for #1901)', () => {
+    const lorem =
+      'Contrary to popular belief, Lorem Ipsum is not simply random text.\n\nIt has roots in a piece of classical Latin literature from 45 BC.';
+    expect(
+      buildPromptInjectionPayload({
+        providerId: 'claude',
+        text: lorem,
+        mode: 'paste',
+      })
+    ).toBe(`\x1b[200~${lorem}\x1b[201~`);
   });
 
   it('can force bracketed paste for multiline context blobs', async () => {
@@ -32,6 +45,7 @@ describe('prompt injection', () => {
       buildPromptInjectionPayload({
         providerId: undefined,
         text: '/var/folders/example image.png',
+        mode: 'paste',
         forceBracketedPaste: true,
       })
     ).toBe('\x1b[200~/var/folders/example image.png\x1b[201~');
@@ -42,6 +56,7 @@ describe('prompt injection', () => {
       buildPromptInjectionPayload({
         providerId: undefined,
         text: 'ls -la\n',
+        mode: 'paste',
       })
     ).toBe('ls -la\n');
   });
@@ -51,6 +66,7 @@ describe('prompt injection', () => {
       buildPromptInjectionPayload({
         providerId: undefined,
         text: '    def hello():\n        return 1',
+        mode: 'paste',
       })
     ).toBe('\x1b[200~    def hello():\n        return 1\x1b[201~');
   });

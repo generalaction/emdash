@@ -24,6 +24,7 @@ export function scheduleInitialPromptInjection(args: {
   const payload = buildPromptInjectionPayload({
     providerId: args.conversation.providerId,
     text: args.initialPrompt,
+    mode: 'initial-prompt',
   });
 
   let injected = false;
