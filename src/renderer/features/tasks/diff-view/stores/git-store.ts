@@ -1,12 +1,12 @@
 import { computed, makeObservable } from 'mobx';
 import { toast } from 'sonner';
+import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
+import { events, rpc } from '@renderer/lib/ipc';
+import { Resource } from '@renderer/lib/stores/resource';
 import { fsWatchEventChannel } from '@shared/events/fsEvents';
 import { gitWorkspaceChangedChannel } from '@shared/events/gitEvents';
 import type { FullGitStatus, GitChange } from '@shared/git';
 import { err, ok } from '@shared/result';
-import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
-import { events, rpc } from '@renderer/lib/ipc';
-import { Resource } from '@renderer/lib/stores/resource';
 
 const TOO_MANY_FILES_MSG = 'Too many files changed to display';
 

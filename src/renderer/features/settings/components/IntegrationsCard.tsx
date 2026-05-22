@@ -325,13 +325,13 @@ const IntegrationsCard: React.FC = () => {
     >
       {integrations.map((integration) => (
         <div key={integration.id} className="flex h-full min-h-0">
-          <div className="flex w-full items-center gap-4 rounded-lg border border-muted bg-muted/20 p-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-muted/50">
+          <div className="border-muted bg-muted/20 flex w-full items-center gap-4 rounded-lg border p-4">
+            <div className="bg-muted/50 flex h-12 w-12 shrink-0 items-center justify-center rounded-lg">
               <SvgLogo raw={integration.logoSvg} />
             </div>
             <div className="flex min-w-0 flex-1 flex-col gap-0.5">
               <h3 className="text-sm font-medium text-foreground">{integration.name}</h3>
-              <p className="text-sm text-muted-foreground">{integration.description}</p>
+              <p className="text-muted-foreground text-sm">{integration.description}</p>
             </div>
             {integration.rightAction ? (
               integration.rightAction
@@ -340,7 +340,7 @@ const IntegrationsCard: React.FC = () => {
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger
-                      className="inline-flex h-8 w-8 shrink-0 cursor-default items-center justify-center rounded-md border border-input bg-background opacity-70"
+                      className="border-input inline-flex h-8 w-8 shrink-0 cursor-default items-center justify-center rounded-md border bg-background opacity-70"
                       aria-label={integration.disabledTooltip}
                     >
                       <Check className="h-4 w-4 text-foreground-success" />

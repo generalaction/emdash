@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { type PromptLibraryPrompt } from '@shared/prompt-library';
 import { rpc } from '@renderer/lib/ipc';
+import { type PromptLibraryPrompt } from '@shared/prompt-library';
 
 const promptLibraryQueryKey = ['promptLibrary'] as const;
 

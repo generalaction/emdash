@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import type { CatalogSkill } from '@shared/skills/types';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
+import type { CatalogSkill } from '@shared/skills/types';
 import { resolveSkillIcon } from './skillIcons';
 
 function processSvg(raw: string, fillColor: string): string {
@@ -43,7 +43,7 @@ export const SkillIconRenderer: React.FC<SkillIconRendererProps> = ({ skill }) =
   };
 
   return (
-    <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-background-2 p-2 font-semibold text-foreground/60 group-hover:bg-background-3 transition-colors">
+    <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-background-2 p-2 font-semibold text-foreground/60 transition-colors group-hover:bg-background-3">
       {renderIcon()}
     </div>
   );

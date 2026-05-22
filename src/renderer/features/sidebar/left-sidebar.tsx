@@ -46,19 +46,19 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
       onDrop={onDrop}
     >
       {isDragOver && (
-        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-2 bg-background-tertiary/80 backdrop-blur-sm pointer-events-none">
+        <div className="pointer-events-none absolute inset-0 z-50 flex flex-col items-center justify-center gap-2 bg-background-tertiary/80 backdrop-blur-sm">
           <FolderInput className="size-8 text-foreground" />
           <span className="text-xs font-medium text-foreground">Drop to add project</span>
         </div>
       )}
       <SidebarSpace />
-      <SidebarContainer className="w-full border-r-0 flex-1 min-h-0">
+      <SidebarContainer className="min-h-0 w-full flex-1 border-r-0">
         <SidebarContent className="flex flex-col">
           <SidebarPinnedTaskList />
-          <SidebarGroup className="mb-0 min-h-0 flex-1 flex flex-col">
+          <SidebarGroup className="mb-0 flex min-h-0 flex-1 flex-col">
             <ProjectsGroupLabel />
-            <SidebarGroupContent className="min-h-0 flex-1 flex flex-col">
-              <SidebarMenu className="flex-1 min-h-0 flex flex-col">
+            <SidebarGroupContent className="flex min-h-0 flex-1 flex-col">
+              <SidebarMenu className="flex min-h-0 flex-1 flex-col">
                 <SidebarVirtualList />
               </SidebarMenu>
             </SidebarGroupContent>
@@ -110,10 +110,10 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
             </SidebarMenuButton>
           </SidebarMenu>
         </SidebarFooter>
-        <div className="flex items-center gap-2 justify-between px-3 py-2 border-t border-border">
+        <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2">
           <button
             type="button"
-            className="flex h-6 items-center min-w-0 w-full cursor-pointer gap-2 rounded-lg px-3 text-sm text-foreground-muted focus:outline-none focus-visible:outline-none"
+            className="flex h-6 w-full min-w-0 cursor-pointer items-center gap-2 rounded-lg px-3 text-sm text-foreground-muted focus:outline-none focus-visible:outline-none"
             onClick={() => showFeedbackModal({})}
           >
             <MessageSquareShare className="size-4 shrink-0" />

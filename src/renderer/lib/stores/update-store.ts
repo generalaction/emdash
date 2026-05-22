@@ -1,5 +1,6 @@
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
 import { toast } from 'sonner';
+import { events, rpc } from '@renderer/lib/ipc';
 import { menuCheckForUpdatesChannel } from '@shared/events/appEvents';
 import {
   updateAvailableEvent,
@@ -11,7 +12,6 @@ import {
   updateNotAvailableEvent,
   updateProgressEvent,
 } from '@shared/events/updateEvents';
-import { events, rpc } from '@renderer/lib/ipc';
 
 const LAST_NOTIFIED_KEY = 'emdash:update:lastNotified';
 const SNOOZE_HOURS = 6;

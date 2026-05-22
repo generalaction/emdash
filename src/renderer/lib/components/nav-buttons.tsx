@@ -22,7 +22,7 @@ export function applyHistoryEntry(entry: HistoryEntry): void {
 export const NavButtons = observer(function NavButtons() {
   const { canGoBack, canGoForward } = appState.history;
   return (
-    <div className="[-webkit-app-region:no-drag] flex items-center gap-0.5">
+    <div className="flex items-center gap-0.5 [-webkit-app-region:no-drag]">
       <Tooltip>
         <TooltipTrigger>
           <Button

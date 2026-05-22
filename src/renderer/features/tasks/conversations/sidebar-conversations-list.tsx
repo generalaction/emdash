@@ -35,7 +35,7 @@ const ConversationRow = observer(function ConversationRow({
   const pendingRenameRef = useRef(false);
   const taskView = useWorkspaceViewModel();
   const conversations = useConversations();
-  const { tabManager } = taskView;
+  const { tabManager, tabGroupManager } = taskView;
   const showConfirm = useShowModal('confirmActionModal');
 
   const handleRenameInputRef = useCallback((input: HTMLInputElement | null) => {
@@ -87,7 +87,7 @@ const ConversationRow = observer(function ConversationRow({
       <div className="flex h-full w-full items-center px-2">
         <input
           ref={handleRenameInputRef}
-          className="w-full rounded bg-background-1 px-1.5 py-0.5 text-sm text-foreground outline-none ring-1 ring-foreground/20 focus:ring-foreground/40"
+          className="w-full rounded bg-background-1 px-1.5 py-0.5 text-sm text-foreground ring-1 ring-foreground/20 outline-none focus:ring-foreground/40"
           defaultValue={rawTitle}
           onBlur={(e) => {
             const value = e.target.value.trim();
@@ -118,8 +118,8 @@ const ConversationRow = observer(function ConversationRow({
     <ContextMenu onOpenChangeComplete={handleContextMenuOpenChangeComplete}>
       <ContextMenuTrigger>
         <button
-          onClick={() => tabManager.openConversationPreview(conversationId)}
-          onDoubleClick={() => tabManager.openConversation(conversationId)}
+          onClick={() => tabGroupManager.openConversationPreview(conversationId)}
+          onDoubleClick={() => tabGroupManager.openConversation(conversationId)}
           className={cn(
             'flex w-full items-center gap-2 h-8 rounded-md px-2 text-left text-sm text-foreground-muted transition-colors hover:bg-background-1 hover:text-foreground',
             isActive && 'bg-background-2 text-foreground hover:bg-background-2'
@@ -143,7 +143,7 @@ const ConversationRow = observer(function ConversationRow({
             ) : (
               <RelativeTime
                 value={conversation.data.lastInteractedAt ?? ''}
-                className="text-xs text-foreground-passive font-mono pr-1 h-full flex items-center"
+                className="flex h-full items-center pr-1 font-mono text-xs text-foreground-passive"
                 compact
               />
             )}
@@ -169,7 +169,7 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
   const { projectId, taskId } = useTaskViewContext();
   const taskView = useWorkspaceViewModel();
   const conversations = useConversations();
-  const { tabManager } = taskView;
+  const { tabGroupManager } = taskView;
   const showCreateConversationModal = useShowModal('createConversationModal');
   const conversationIds = Array.from(conversations.conversations.values())
     .sort((a, b) => {
@@ -193,14 +193,14 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
       projectId,
       taskId,
       onSuccess: ({ conversationId }) => {
-        tabManager.openConversation(conversationId);
+        tabGroupManager.openConversation(conversationId);
       },
     });
   };
 
   return (
-    <div className="flex h-full flex-col w-full">
-      <div className="shrink-0 pl-4 pr-2 pt-2 pb-1 flex items-center justify-between">
+    <div className="flex h-full w-full flex-col">
+      <div className="flex shrink-0 items-center justify-between pt-2 pr-2 pb-1 pl-4">
         <MicroLabel>Conversations</MicroLabel>
         <Button size="icon-sm" variant="ghost" onClick={handleCreate}>
           <Plus className="size-3.5" />

@@ -1,23 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Octokit } from '@octokit/rest';
 import { and, eq, inArray, lt, ne } from 'drizzle-orm';
-import { prSyncProgressChannel, prUpdatedChannel } from '@shared/events/prEvents';
-import {
-  parseGitHubRepository,
-  parseGitHubRepositoryResult,
-  type GitHubRepositoryParseError,
-} from '@shared/github-repository';
-import type {
-  MergeableState,
-  MergeStateStatus,
-  PrSyncProgress,
-  PullRequest,
-  PullRequestComment,
-  PullRequestFile,
-  PullRequestStatus,
-  PullRequestUser,
-} from '@shared/pull-requests';
-import { ok, type Result } from '@shared/result';
 import { getOctokit } from '@main/core/github/services/octokit-provider';
 import {
   GET_PR_BY_NUMBER_QUERY,
@@ -39,6 +22,23 @@ import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { githubRateLimiter } from '@main/lib/rate-limiter';
 import { withRetry } from '@main/lib/retry';
+import { prSyncProgressChannel, prUpdatedChannel } from '@shared/events/prEvents';
+import {
+  parseGitHubRepository,
+  parseGitHubRepositoryResult,
+  type GitHubRepositoryParseError,
+} from '@shared/github-repository';
+import type {
+  MergeableState,
+  MergeStateStatus,
+  PrSyncProgress,
+  PullRequest,
+  PullRequestComment,
+  PullRequestFile,
+  PullRequestStatus,
+  PullRequestUser,
+} from '@shared/pull-requests';
+import { ok, type Result } from '@shared/result';
 import { assemblePullRequest } from './pr-utils';
 
 const PR_SYNC_MAX_COUNT = 300;

@@ -1,6 +1,6 @@
-import type { Project } from '@shared/projects';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
+import type { Project } from '@shared/projects';
 
 export type ProjectCrudHooks = {
   'project:created': (project: Project) => void | Promise<void>;

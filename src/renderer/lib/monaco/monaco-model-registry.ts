@@ -1,7 +1,7 @@
 import { observable, runInAction } from 'mobx';
 import type * as monaco from 'monaco-editor';
-import { gitRefToString, HEAD_REF, refsEqual, type GitRef } from '@shared/git';
 import { rpc } from '@renderer/lib/ipc';
+import { gitRefToString, HEAD_REF, refsEqual, type GitRef } from '@shared/git';
 import { buildMonacoModelPath } from './monacoModelPath';
 
 const BUFFER_DEBOUNCE_MS = 2000;
@@ -126,7 +126,7 @@ export class MonacoModelRegistry {
    * register the same file concurrently before either resolves.
    * Key: `{projectId}:{workspaceId}:{filePath}:disk` or `…:git:{ref}`
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line typescript/no-explicit-any
   private pendingFetches = new Map<string, Promise<any>>();
 
   // ---------------------------------------------------------------------------

@@ -1,10 +1,10 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { events } from '@main/lib/events';
 import { planEventChannel } from '@shared/events/appEvents';
 import { fsWatchEventChannel } from '@shared/events/fsEvents';
 import { createRPCController } from '@shared/ipc/rpc';
 import { err, ok } from '@shared/result';
-import { events } from '@main/lib/events';
 import { resolveWorkspace } from '../projects/utils';
 import {
   FileSystemErrorCodes,

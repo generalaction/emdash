@@ -1,14 +1,5 @@
 import { Check, Loader2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import type {
-  MigrateProjectConfigRequest,
-  MigrateProjectConfigResult,
-  ProjectConfigMigration,
-  ProjectConfigMigrationDestination,
-  ProjectConfigMigrationProvider,
-} from '@shared/project-settings';
-import type { UpdateProjectSettingsError } from '@shared/projects';
-import { err, type Result } from '@shared/result';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
@@ -21,6 +12,15 @@ import {
 import { Field, FieldGroup } from '@renderer/lib/ui/field';
 import { RadioGroup, RadioGroupItem } from '@renderer/lib/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/ui/select';
+import type {
+  MigrateProjectConfigRequest,
+  MigrateProjectConfigResult,
+  ProjectConfigMigration,
+  ProjectConfigMigrationDestination,
+  ProjectConfigMigrationProvider,
+} from '@shared/project-settings';
+import type { UpdateProjectSettingsError } from '@shared/projects';
+import { err, type Result } from '@shared/result';
 import { SHAREABLE_FIELD_DESCRIPTOR_BY_ID } from './shareable-project-settings-fields';
 
 type ImportStatus = 'idle' | 'importing' | 'imported' | 'error';

@@ -1,5 +1,12 @@
 import crypto from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
+import { projectManager } from '@main/core/projects/project-manager';
+import { taskEvents } from '@main/core/tasks/task-events';
+import { taskManager } from '@main/core/tasks/task-manager';
+import { db } from '@main/db/client';
+import { tasks, workspaces } from '@main/db/schema';
+import { events } from '@main/lib/events';
+import { telemetryService } from '@main/lib/telemetry';
 import { resolveAgentAutoApprove } from '@shared/agent-auto-approve-defaults';
 import { taskCreatedChannel } from '@shared/events/taskEvents';
 import { err, ok, type Result } from '@shared/result';
@@ -10,13 +17,6 @@ import type {
   CreateTaskWarning,
   TaskLifecycleStatus,
 } from '@shared/tasks';
-import { projectManager } from '@main/core/projects/project-manager';
-import { taskEvents } from '@main/core/tasks/task-events';
-import { taskManager } from '@main/core/tasks/task-manager';
-import { db } from '@main/db/client';
-import { tasks, workspaces } from '@main/db/schema';
-import { events } from '@main/lib/events';
-import { telemetryService } from '@main/lib/telemetry';
 import { createConversation } from '../../conversations/createConversation';
 import { prQueryService } from '../../pull-requests/pr-query-service';
 import { appSettingsService } from '../../settings/settings-service';

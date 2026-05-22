@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron';
-import { createEventEmitter, type EmitterAdapter } from '@shared/ipc/events';
 import { getMainWindow } from '@main/app/window';
 import { log } from '@main/lib/logger';
+import { createEventEmitter, type EmitterAdapter } from '@shared/ipc/events';
 
 function createMainAdapter(): EmitterAdapter {
   const localListeners = new Map<string, Set<(data: unknown) => void>>();

@@ -1,10 +1,10 @@
 import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
-import { makePtySessionId } from '@shared/ptySessionId';
-import { type CreateTerminalParams, type Terminal } from '@shared/terminals';
 import { rpc } from '@renderer/lib/ipc';
 import { PtySession } from '@renderer/lib/pty/pty-session';
 import type { IDisposable } from '@renderer/lib/stores/lifecycle';
 import { Resource } from '@renderer/lib/stores/resource';
+import { makePtySessionId } from '@shared/ptySessionId';
+import { type CreateTerminalParams, type Terminal } from '@shared/terminals';
 import { nextTerminalName } from './terminal-tabs';
 
 export class TerminalManagerStore implements IDisposable {

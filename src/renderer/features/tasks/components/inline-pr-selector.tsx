@@ -1,12 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { Check, ChevronDown } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { pullRequestErrorMessage, type PullRequest } from '@shared/pull-requests';
 import { rpc } from '@renderer/lib/ipc';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@renderer/lib/ui/input-group';
 import { Kbd } from '@renderer/lib/ui/kbd';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
 import { cn } from '@renderer/utils/utils';
+import { pullRequestErrorMessage, type PullRequest } from '@shared/pull-requests';
 
 type StatusFilter = 'open' | 'not-open';
 
@@ -20,13 +20,13 @@ export interface InlinePrSelectorProps {
 
 function PrRow({ pr }: { pr: PullRequest }) {
   return (
-    <div className="flex flex-col min-w-0 gap-0.5">
-      <div className="flex items-center gap-1.5 min-w-0">
-        <span className="font-mono text-xs text-foreground-muted shrink-0">
+    <div className="flex min-w-0 flex-col gap-0.5">
+      <div className="flex min-w-0 items-center gap-1.5">
+        <span className="shrink-0 font-mono text-xs text-foreground-muted">
           {pr.identifier ?? ''}
         </span>
         {pr.isDraft && (
-          <span className="text-xs text-foreground-muted border border-border rounded px-1 shrink-0">
+          <span className="shrink-0 rounded border border-border px-1 text-xs text-foreground-muted">
             Draft
           </span>
         )}
@@ -140,7 +140,7 @@ export function InlinePrSelector({
         disabled && 'pointer-events-none'
       )}
     >
-      <InputGroup className="rounded-none border-0 border-b border-input shadow-none has-[[data-slot=input-group-control]:focus-visible]:ring-0 has-[[data-slot=input-group-control]:focus-visible]:border-input">
+      <InputGroup className="border-input has-[[data-slot=input-group-control]:focus-visible]:border-input rounded-none border-0 border-b shadow-none has-[[data-slot=input-group-control]:focus-visible]:ring-0">
         <InputGroupInput
           ref={inputRef}
           value={query}
@@ -160,7 +160,7 @@ export function InlinePrSelector({
                 <button
                   key={s}
                   type="button"
-                  className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted"
+                  className="hover:bg-muted flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm"
                   onClick={() => {
                     setStatusFilter(s);
                     setQuery('');
@@ -176,9 +176,9 @@ export function InlinePrSelector({
         </InputGroupAddon>
       </InputGroup>
 
-      <div ref={listRef} className="overflow-y-auto overflow-x-hidden h-52 p-1">
+      <div ref={listRef} className="h-52 overflow-x-hidden overflow-y-auto p-1">
         {filteredPrs.length === 0 ? (
-          <div className="py-6 text-center text-sm text-muted-foreground">
+          <div className="text-muted-foreground py-6 text-center text-sm">
             {query
               ? 'No pull requests found'
               : statusFilter === 'open'
@@ -211,7 +211,7 @@ export function InlinePrSelector({
         )}
       </div>
 
-      <div className="flex items-center justify-between h-6 px-2 text-xs bg-background-1 border-t border-border">
+      <div className="flex h-6 items-center justify-between border-t border-border bg-background-1 px-2 text-xs">
         <div className="text-foreground-muted">Navigate with arrow keys</div>
         <div className="text-foreground-muted">
           <button className="flex items-center gap-2">

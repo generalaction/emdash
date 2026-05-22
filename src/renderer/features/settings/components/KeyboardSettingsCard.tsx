@@ -91,11 +91,11 @@ const KeyboardSettingsCard: React.FC = () => {
   };
 
   return (
-    <div className="rounded-xl border border-border/60 bg-muted/10 p-4">
+    <div className="bg-muted/10 rounded-xl border border-border/60 p-4">
       <div className="space-y-6">
         {Object.entries(SHORTCUTS_BY_CATEGORY).map(([category, shortcuts]) => (
           <div key={category}>
-            <div className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            <div className="text-muted-foreground mb-3 text-xs font-medium tracking-wide uppercase">
               {category}
             </div>
             <div className="space-y-3">
@@ -114,8 +114,8 @@ const KeyboardSettingsCard: React.FC = () => {
                     className="group/shortcut flex min-w-0 flex-wrap items-start justify-between gap-x-2 gap-y-2"
                   >
                     <div className="min-w-0 flex-1 basis-64 space-y-1">
-                      <div className="break-words text-sm">{def.label}</div>
-                      <div className="break-words text-xs text-muted-foreground">
+                      <div className="text-sm break-words">{def.label}</div>
+                      <div className="text-muted-foreground text-xs break-words">
                         {def.description}
                       </div>
                     </div>

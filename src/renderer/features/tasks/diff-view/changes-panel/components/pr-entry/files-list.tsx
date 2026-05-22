@@ -1,6 +1,4 @@
 import { observer } from 'mobx-react-lite';
-import { commitRef, remoteRef, type GitChange } from '@shared/git';
-import { getPrNumber, type PullRequest } from '@shared/pull-requests';
 import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { usePrefetchDiffModels } from '@renderer/features/tasks/diff-view/changes-panel/hooks/use-prefetch-diff-models';
 import {
@@ -8,6 +6,8 @@ import {
   useWorkspaceId,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
+import { commitRef, remoteRef, type GitChange } from '@shared/git';
+import { getPrNumber, type PullRequest } from '@shared/pull-requests';
 import { VirtualizedChangesList } from '../virtualized-changes-list';
 
 export const PrFilesList = observer(function PrFilesList({ pr }: { pr: PullRequest }) {

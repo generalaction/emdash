@@ -1,5 +1,11 @@
 import { makeObservable, observable, reaction, runInAction, toJS } from 'mobx';
 import { toast } from 'sonner';
+import { getProjectManagerStore } from '@renderer/features/projects/stores/project-selectors';
+import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
+import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
+import { events, rpc } from '@renderer/lib/ipc';
+import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
+import { log } from '@renderer/utils/logger';
 import { prSyncProgressChannel, prUpdatedChannel } from '@shared/events/prEvents';
 import {
   taskCreatedChannel,
@@ -14,12 +20,6 @@ import type {
   TaskLifecycleStatus,
 } from '@shared/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
-import { getProjectManagerStore } from '@renderer/features/projects/stores/project-selectors';
-import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
-import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
-import { events, rpc } from '@renderer/lib/ipc';
-import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
-import { log } from '@renderer/utils/logger';
 import { conversationRegistry } from './conversation-registry';
 import {
   createUnprovisionedTask,

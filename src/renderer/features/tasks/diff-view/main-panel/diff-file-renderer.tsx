@@ -1,8 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import type * as monaco from 'monaco-editor';
 import { useCallback, useEffect, useState } from 'react';
-import { HEAD_REF, STAGED_REF } from '@shared/git';
-import type { ActiveFile } from '@shared/view-state';
 import { useDiffEditorComments } from '@renderer/features/tasks/diff-view/comments/use-diff-editor-comments';
 import { ImageDiffView } from '@renderer/features/tasks/diff-view/main-panel/image-diff-view';
 import { isMissingFileError } from '@renderer/features/tasks/diff-view/main-panel/missing-file-error';
@@ -17,6 +15,8 @@ import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import { StickyDiffEditor } from '@renderer/lib/monaco/sticky-diff-editor';
 import { getLanguageFromPath } from '@renderer/utils/languageUtils';
+import { HEAD_REF, STAGED_REF } from '@shared/git';
+import type { ActiveFile } from '@shared/view-state';
 
 interface DiffFileRendererProps {
   tab: DiffTabStore;
@@ -46,7 +46,7 @@ export const DiffFileRenderer = observer(function DiffFileRenderer({ tab }: Diff
     }
     case 'binary':
       return (
-        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+        <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
           Binary file — no diff available
         </div>
       );

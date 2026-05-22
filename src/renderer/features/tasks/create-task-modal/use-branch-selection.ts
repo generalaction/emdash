@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
-import type { Branch } from '@shared/git';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import type { Branch } from '@shared/git';
 
 export type BranchSelectionState = ReturnType<typeof useBranchSelection>;
 
