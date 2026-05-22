@@ -203,7 +203,9 @@ const TerminalSettingsCard: React.FC = () => {
                       <ComboboxCollection>
                         {(item: FontOption) => (
                           <ComboboxItem key={item.value || '__default__'} value={item}>
-                            {item.label}
+                            <span style={{ fontFamily: item.value ? `"${item.value}"` : 'Menlo' }}>
+                              {item.label}
+                            </span>
                           </ComboboxItem>
                         )}
                       </ComboboxCollection>
