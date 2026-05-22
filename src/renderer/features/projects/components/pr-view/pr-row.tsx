@@ -103,7 +103,7 @@ const REVIEW_STATE_META: Record<
 > = {
   approved: { label: 'Approved', dotClass: 'bg-foreground-success' },
   changes_requested: { label: 'Changes requested', dotClass: 'bg-foreground-error' },
-  commented: { label: 'Commented', dotClass: 'bg-foreground-warning' },
+  commented: { label: 'Commented', dotClass: null },
   pending: { label: 'Pending', dotClass: null },
 };
 

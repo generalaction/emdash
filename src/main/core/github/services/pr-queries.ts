@@ -37,7 +37,8 @@ export const PR_SUMMARY_FRAGMENT = `
         ... on User { databaseId createdAt updatedAt }
       }
     }
-    reviewRequests(first: 20) {
+    reviewRequests(first: 100) {
+      pageInfo { hasNextPage }
       nodes {
         requestedReviewer {
           __typename
@@ -45,7 +46,8 @@ export const PR_SUMMARY_FRAGMENT = `
         }
       }
     }
-    reviews(last: 50) {
+    reviews: latestReviews(first: 100) {
+      pageInfo { hasNextPage }
       nodes {
         state
         createdAt

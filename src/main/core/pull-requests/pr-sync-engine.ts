@@ -94,6 +94,14 @@ function buildReviewerRows(
 ): Array<{ user: GqlUser; reviewState: PullRequestReviewState }> {
   const reviewers = new Map<string, { user: GqlUser; reviewState: PullRequestReviewState }>();
 
+  if (node.reviews.pageInfo.hasNextPage || node.reviewRequests.pageInfo.hasNextPage) {
+    log.warn('PrSyncEngine: PR reviewer data exceeded GitHub GraphQL page size', {
+      pullRequestUrl: node.url,
+      reviewsTruncated: node.reviews.pageInfo.hasNextPage,
+      reviewRequestsTruncated: node.reviewRequests.pageInfo.hasNextPage,
+    });
+  }
+
   const reviews = [...node.reviews.nodes].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   for (const review of reviews) {
     if (!review.author) continue;
@@ -173,11 +181,13 @@ interface GqlPrNode {
   labels: { nodes: Array<{ name: string; color: string }> };
   assignees: { nodes: GqlUser[] };
   reviewRequests: {
+    pageInfo: { hasNextPage: boolean };
     nodes: Array<{
       requestedReviewer: Partial<GqlUser> | null;
     }>;
   };
   reviews: {
+    pageInfo: { hasNextPage: boolean };
     nodes: Array<{
       state: string;
       createdAt: string;
