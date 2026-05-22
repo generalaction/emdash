@@ -18,18 +18,18 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from '@renderer/lib/ui/context-menu';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from '@renderer/lib/ui/dropdown-menu';
 import { Input } from '@renderer/lib/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
 import { SearchInput } from '@renderer/lib/ui/search-input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@renderer/lib/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
-import type { PrSortField } from '@shared/pull-requests';
+import type { PrSortField, ReviewStateFilter } from '@shared/pull-requests';
 import { PrSyncStatusCard } from './pr-sync-status-card';
 import { PrVirtualList } from './pr-virtual-list';
 
@@ -39,25 +39,66 @@ const SORT_OPTIONS: { value: PrSortField; label: string }[] = [
   { value: 'recently-updated', label: 'Recently Updated' },
 ];
 
+const REVIEW_FILTER_OPTIONS: {
+  value: ReviewStateFilter;
+  label: string;
+  requiresUser?: boolean;
+}[] = [
+  { value: 'no_reviews', label: 'No reviews' },
+  { value: 'review_required', label: 'Review required' },
+  { value: 'approved', label: 'Approved review' },
+  { value: 'changes_requested', label: 'Changes requested' },
+  { value: 'reviewed_by_you', label: 'Reviewed by you', requiresUser: true },
+  { value: 'not_reviewed_by_you', label: 'Not reviewed by you', requiresUser: true },
+  { value: 'awaiting_review_from_you', label: 'Awaiting review from you', requiresUser: true },
+];
+
 function FilterButton({
   label,
-  active,
+  value,
+  onClear,
   disabled,
   children,
 }: {
   label: string;
-  active: boolean;
+  value?: string | null;
+  onClear?: () => void;
   disabled?: boolean;
   children: React.ReactNode;
 }) {
+  const active = value != null && value !== '';
+
+  if (active) {
+    return (
+      <div className="inline-flex items-stretch rounded-md border border-border bg-background-1 text-xs">
+        <Popover>
+          <PopoverTrigger className="flex items-center gap-1 px-2 py-1 hover:text-foreground">
+            <span className="text-foreground-passive">{label}</span>
+            <span className="font-medium text-foreground">{value}</span>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="w-56 gap-0 p-2">
+            {children}
+          </PopoverContent>
+        </Popover>
+        {onClear && (
+          <button
+            type="button"
+            onClick={onClear}
+            className="border-l border-border px-1.5 text-foreground-muted hover:text-foreground"
+            aria-label={`Clear ${label} filter`}
+          >
+            <X className="size-3" />
+          </button>
+        )}
+      </div>
+    );
+  }
+
   return (
     <Popover>
       <PopoverTrigger
         disabled={disabled}
-        className={
-          'flex items-center gap-1 text-sm hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40' +
-          (active ? 'font-medium text-foreground' : 'text-foreground-muted')
-        }
+        className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground-muted transition-colors hover:bg-background-1 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
       >
         {label}
         <ChevronDownIcon className="size-3.5" />
@@ -82,9 +123,15 @@ function UserFilterPopover({
 }) {
   const [search, setSearch] = useState('');
   const filtered = items.filter((i) => i.label.toLowerCase().includes(search.toLowerCase()));
+  const selectedItem = items.find((i) => i.value === selected) ?? null;
 
   return (
-    <FilterButton label={label} active={selected !== null} disabled={items.length === 0}>
+    <FilterButton
+      label={label}
+      value={selectedItem?.label}
+      onClear={() => onChange(null)}
+      disabled={items.length === 0}
+    >
       <Input
         className="mb-1 h-7 text-xs"
         placeholder={`Search ${label.toLowerCase()}…`}
@@ -138,8 +185,21 @@ function LabelFilterPopover({
   const toggle = (value: string) =>
     onChange(selected.includes(value) ? selected.filter((v) => v !== value) : [...selected, value]);
 
+  const selectedItems = items.filter((i) => selected.includes(i.value));
+  const value =
+    selectedItems.length === 0
+      ? null
+      : selectedItems.length === 1
+        ? selectedItems[0]!.label
+        : `${selectedItems.length} labels`;
+
   return (
-    <FilterButton label="Label" active={selected.length > 0} disabled={items.length === 0}>
+    <FilterButton
+      label="Label"
+      value={value}
+      onClear={() => onChange([])}
+      disabled={items.length === 0}
+    >
       <Input
         className="mb-1 h-7 text-xs"
         placeholder="Search labels…"
@@ -177,32 +237,69 @@ function LabelFilterPopover({
   );
 }
 
-function FilterPill({
-  avatarUrl,
-  color,
-  label,
-  onRemove,
+function ReviewsFilterDropdown({
+  value,
+  onChange,
+  hasCurrentUser,
 }: {
-  avatarUrl?: string;
-  color?: string;
-  label: string;
-  onRemove: () => void;
+  value: ReviewStateFilter | null;
+  onChange: (next: ReviewStateFilter | null) => void;
+  hasCurrentUser: boolean;
 }) {
+  const activeLabel = value
+    ? (REVIEW_FILTER_OPTIONS.find((o) => o.value === value)?.label ?? value)
+    : null;
+
+  const dropdown = (
+    <DropdownMenuContent align="end" className="min-w-52">
+      <DropdownMenuRadioGroup value={value ?? ''}>
+        {REVIEW_FILTER_OPTIONS.map((option) => {
+          const disabled = option.requiresUser && !hasCurrentUser;
+          return (
+            <DropdownMenuRadioItem
+              key={option.value}
+              value={option.value}
+              disabled={disabled}
+              onClick={() => onChange(value === option.value ? null : option.value)}
+            >
+              {option.label}
+            </DropdownMenuRadioItem>
+          );
+        })}
+      </DropdownMenuRadioGroup>
+    </DropdownMenuContent>
+  );
+
+  if (activeLabel) {
+    return (
+      <div className="inline-flex items-stretch rounded-md border border-border bg-background-1 text-xs">
+        <DropdownMenu>
+          <DropdownMenuTrigger className="flex items-center gap-1 px-2 py-1 hover:text-foreground">
+            <span className="text-foreground-passive">Reviews</span>
+            <span className="font-medium text-foreground">{activeLabel}</span>
+          </DropdownMenuTrigger>
+          {dropdown}
+        </DropdownMenu>
+        <button
+          type="button"
+          onClick={() => onChange(null)}
+          className="border-l border-border px-1.5 text-foreground-muted hover:text-foreground"
+          aria-label="Clear Reviews filter"
+        >
+          <X className="size-3" />
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <span className="bg-muted inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs">
-      {avatarUrl && <img src={avatarUrl} alt={label} className="size-3.5 rounded-full" />}
-      {color && (
-        <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: `#${color}` }} />
-      )}
-      {label}
-      <button
-        className="text-muted-foreground ml-0.5 rounded-full hover:text-foreground"
-        onClick={onRemove}
-        aria-label={`Remove ${label} filter`}
-      >
-        <X className="size-2.5" />
-      </button>
-    </span>
+    <DropdownMenu>
+      <DropdownMenuTrigger className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground-muted transition-colors hover:bg-background-1 hover:text-foreground">
+        Reviews
+        <ChevronDownIcon className="size-3.5" />
+      </DropdownMenuTrigger>
+      {dropdown}
+    </DropdownMenu>
   );
 }
 
@@ -226,11 +323,13 @@ export const PullRequestView = observer(function PullRequestView() {
     setSelectedLabelNames,
     selectedAssigneeLogin,
     setSelectedAssigneeLogin,
+    reviewStateFilter,
+    setReviewStateFilter,
+    hasCurrentUser,
     handleStatusChange,
     handleSortChange,
     handleRefresh,
     handleForceFullSync,
-    removeLabel,
     prs,
     loading,
     fetchNextPage,
@@ -239,10 +338,6 @@ export const PullRequestView = observer(function PullRequestView() {
     authorItems,
     assigneeItems,
     labelItems,
-    selectedAuthorItem,
-    selectedAssigneeItem,
-    selectedLabelItems,
-    hasPills,
   } = usePrViewState(projectId, repositoryUrl);
 
   if (!repositoryUrl) {
@@ -302,6 +397,7 @@ export const PullRequestView = observer(function PullRequestView() {
 
           <div className="flex items-center gap-2">
             <SearchInput
+              className="w-80"
               placeholder="Search by title, branch, or number..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -328,76 +424,56 @@ export const PullRequestView = observer(function PullRequestView() {
         </div>
 
         {/* ── Sort + filter row ── */}
-        <div className="flex flex-col flex-wrap gap-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5">
-              <span className="text-sm text-foreground-passive">Sort</span>
-              <Select value={sortFilter} onValueChange={handleSortChange}>
-                <SelectTrigger
-                  size="sm"
-                  className="w-auto gap-1 border-none p-0 text-foreground-muted hover:text-foreground"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex items-stretch rounded-md border border-border bg-background-1 text-xs">
+            <DropdownMenu>
+              <DropdownMenuTrigger className="flex items-center gap-1 px-2 py-1 hover:text-foreground">
+                <span className="text-foreground-passive">Sort</span>
+                <span className="font-medium text-foreground">
+                  {(SORT_OPTIONS.find((o) => o.value === sortFilter) ?? SORT_OPTIONS[0]).label}
+                </span>
+                <ChevronDownIcon className="size-3.5 text-foreground-muted" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="min-w-44">
+                <DropdownMenuRadioGroup value={sortFilter}>
                   {SORT_OPTIONS.map(({ value, label }) => (
-                    <SelectItem key={value} value={value}>
+                    <DropdownMenuRadioItem
+                      key={value}
+                      value={value}
+                      onClick={() => handleSortChange(value)}
+                    >
                       {label}
-                    </SelectItem>
+                    </DropdownMenuRadioItem>
                   ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-foreground-passive">Filter by</span>
-              <UserFilterPopover
-                label="Author"
-                items={authorItems}
-                selected={selectedAuthorLogin}
-                onChange={setSelectedAuthorLogin}
-              />
-              <LabelFilterPopover
-                items={labelItems}
-                selected={selectedLabelNames}
-                onChange={setSelectedLabelNames}
-              />
-              <UserFilterPopover
-                label="Assignee"
-                items={assigneeItems}
-                selected={selectedAssigneeLogin}
-                onChange={setSelectedAssigneeLogin}
-              />
-            </div>
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
-          {/* ── Active filter pills ── */}
-          {hasPills && (
-            <div className="flex flex-wrap items-center gap-1.5">
-              {selectedAuthorItem && (
-                <FilterPill
-                  label={selectedAuthorItem.label}
-                  avatarUrl={selectedAuthorItem.avatarUrl}
-                  onRemove={() => setSelectedAuthorLogin(null)}
-                />
-              )}
-              {selectedLabelItems.map((l) => (
-                <FilterPill
-                  key={l.value}
-                  label={l.label}
-                  color={l.color}
-                  onRemove={() => removeLabel(l.value)}
-                />
-              ))}
-              {selectedAssigneeItem && (
-                <FilterPill
-                  label={selectedAssigneeItem.label}
-                  avatarUrl={selectedAssigneeItem.avatarUrl}
-                  onRemove={() => setSelectedAssigneeLogin(null)}
-                />
-              )}
-            </div>
-          )}
+          <div className="mx-1 h-4 w-px bg-border" aria-hidden />
+
+          <UserFilterPopover
+            label="Author"
+            items={authorItems}
+            selected={selectedAuthorLogin}
+            onChange={setSelectedAuthorLogin}
+          />
+          <LabelFilterPopover
+            items={labelItems}
+            selected={selectedLabelNames}
+            onChange={setSelectedLabelNames}
+          />
+          <UserFilterPopover
+            label="Assignee"
+            items={assigneeItems}
+            selected={selectedAssigneeLogin}
+            onChange={setSelectedAssigneeLogin}
+          />
+          <ReviewsFilterDropdown
+            value={reviewStateFilter}
+            onChange={setReviewStateFilter}
+            hasCurrentUser={hasCurrentUser}
+          />
         </div>
       </div>
       <PrVirtualList

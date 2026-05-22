@@ -7,6 +7,7 @@ import type {
   PullRequestComment,
   PullRequestError,
   PullRequestFile,
+  PullRequestStatusFilter,
 } from '@shared/pull-requests';
 import { err, ok } from '@shared/result';
 import { prQueryService } from './pr-query-service';
@@ -28,9 +29,9 @@ export const pullRequestController = createRPCController({
     }
   },
 
-  getFilterOptions: async (projectId: string) => {
+  getFilterOptions: async (projectId: string, status?: PullRequestStatusFilter) => {
     try {
-      const options = await prQueryService.getFilterOptions(projectId);
+      const options = await prQueryService.getFilterOptions(projectId, status);
       return ok(options);
     } catch (error) {
       log.error('Failed to get PR filter options:', error);

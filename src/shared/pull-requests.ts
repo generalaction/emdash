@@ -110,11 +110,23 @@ export type PrSyncProgress = {
 
 export type PullRequestStatusFilter = PullRequestStatus | 'all' | 'not-open';
 
+export type ReviewStateFilter =
+  | 'no_reviews'
+  | 'review_required'
+  | 'approved'
+  | 'changes_requested'
+  | 'reviewed_by_you'
+  | 'not_reviewed_by_you'
+  | 'awaiting_review_from_you';
+
 export type PrFilters = {
   status?: PullRequestStatusFilter;
   authorUserIds?: string[];
   labelNames?: string[];
   assigneeUserIds?: string[];
+  reviewState?: ReviewStateFilter;
+  /** Current GitHub user id — required for *_by_you / awaiting_review_from_you filters. */
+  currentUserId?: string;
 };
 
 export type PrSortField = 'newest' | 'oldest' | 'recently-updated';

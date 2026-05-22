@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNotNull, like, or } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, like, not, or } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
 import { db } from '@main/db/client';
 import {
@@ -11,7 +11,14 @@ import {
   pullRequestUsers,
 } from '@main/db/schema';
 import { parseGitHubRepository } from '@shared/github-repository';
-import type { Label, ListPrOptions, PrFilterOptions, PullRequest } from '@shared/pull-requests';
+import type {
+  Label,
+  ListPrOptions,
+  PrFilterOptions,
+  PullRequest,
+  PullRequestStatusFilter,
+  ReviewStateFilter,
+} from '@shared/pull-requests';
 import { assemblePullRequest, type PrRow } from './pr-utils';
 
 /** Internal capability type — not exposed to the renderer. */
@@ -100,6 +107,77 @@ async function fetchRelated(rows: PrRow[]): Promise<PullRequest[]> {
   );
 }
 
+function buildReviewStateCondition(filter: ReviewStateFilter, currentUserId: string | undefined) {
+  switch (filter) {
+    case 'approved':
+      return eq(pullRequests.reviewDecision, 'APPROVED');
+    case 'changes_requested':
+      return eq(pullRequests.reviewDecision, 'CHANGES_REQUESTED');
+    case 'review_required':
+      return eq(pullRequests.reviewDecision, 'REVIEW_REQUIRED');
+    case 'no_reviews': {
+      // "No reviews" = no reviewer has submitted a review yet.
+      // We don't gate on pullRequests.reviewDecision because GitHub sets it to
+      // REVIEW_REQUIRED when required reviewers are assigned but haven't reviewed —
+      // those PRs still have zero submitted reviews and should match this filter.
+      const hasActiveReview = db
+        .select({ url: pullRequestReviewers.pullRequestUrl })
+        .from(pullRequestReviewers)
+        .where(
+          inArray(pullRequestReviewers.reviewState, ['approved', 'changes_requested', 'commented'])
+        );
+      return not(inArray(pullRequests.url, hasActiveReview));
+    }
+    case 'reviewed_by_you': {
+      if (!currentUserId) return undefined;
+      const reviewedSub = db
+        .select({ url: pullRequestReviewers.pullRequestUrl })
+        .from(pullRequestReviewers)
+        .where(
+          and(
+            eq(pullRequestReviewers.userId, currentUserId),
+            inArray(pullRequestReviewers.reviewState, [
+              'approved',
+              'changes_requested',
+              'commented',
+            ])
+          )
+        );
+      return inArray(pullRequests.url, reviewedSub);
+    }
+    case 'not_reviewed_by_you': {
+      if (!currentUserId) return undefined;
+      const reviewedSub = db
+        .select({ url: pullRequestReviewers.pullRequestUrl })
+        .from(pullRequestReviewers)
+        .where(
+          and(
+            eq(pullRequestReviewers.userId, currentUserId),
+            inArray(pullRequestReviewers.reviewState, [
+              'approved',
+              'changes_requested',
+              'commented',
+            ])
+          )
+        );
+      return not(inArray(pullRequests.url, reviewedSub));
+    }
+    case 'awaiting_review_from_you': {
+      if (!currentUserId) return undefined;
+      const pendingSub = db
+        .select({ url: pullRequestReviewers.pullRequestUrl })
+        .from(pullRequestReviewers)
+        .where(
+          and(
+            eq(pullRequestReviewers.userId, currentUserId),
+            eq(pullRequestReviewers.reviewState, 'pending')
+          )
+        );
+      return inArray(pullRequests.url, pendingSub);
+    }
+  }
+}
+
 export class PrQueryService {
   async listPullRequests(projectId: string, options: ListPrOptions = {}): Promise<PullRequest[]> {
     let repositoryUrls: string[];
@@ -147,6 +225,11 @@ export class PrQueryService {
       conditions.push(inArray(pullRequests.url, assigneeSub));
     }
 
+    if (filters?.reviewState) {
+      const reviewCondition = buildReviewStateCondition(filters.reviewState, filters.currentUserId);
+      if (reviewCondition) conditions.push(reviewCondition);
+    }
+
     if (options.searchQuery?.trim()) {
       const pattern = `%${options.searchQuery.trim()}%`;
       conditions.push(
@@ -189,7 +272,10 @@ export class PrQueryService {
     return fetchRelated(rows);
   }
 
-  async getFilterOptions(projectId: string): Promise<PrFilterOptions> {
+  async getFilterOptions(
+    projectId: string,
+    status?: PullRequestStatusFilter
+  ): Promise<PrFilterOptions> {
     const remoteRows = await db
       .select({ remoteUrl: projectRemotes.remoteUrl })
       .from(projectRemotes)
@@ -200,10 +286,19 @@ export class PrQueryService {
     }
 
     const repositoryUrls = remoteRows.map((r) => r.remoteUrl);
+
+    const prUrlConditions = [inArray(pullRequests.repositoryUrl, repositoryUrls)];
+    if (status && status !== 'all') {
+      if (status === 'not-open') {
+        prUrlConditions.push(inArray(pullRequests.status, ['closed', 'merged']));
+      } else {
+        prUrlConditions.push(eq(pullRequests.status, status));
+      }
+    }
     const prUrlsSub = db
       .select({ url: pullRequests.url })
       .from(pullRequests)
-      .where(inArray(pullRequests.repositoryUrl, repositoryUrls));
+      .where(and(...prUrlConditions));
 
     const authorUserIdsSub = db
       .select({ userId: pullRequests.authorUserId })

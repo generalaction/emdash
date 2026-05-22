@@ -4,7 +4,7 @@ import { getPrSyncStore } from '@renderer/features/projects/stores/project-selec
 import { useDebounce } from '@renderer/lib/hooks/useDebounce';
 import { rpc } from '@renderer/lib/ipc';
 import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
-import type { PrFilters, PrSortField } from '@shared/pull-requests';
+import type { PrFilters, PrSortField, ReviewStateFilter } from '@shared/pull-requests';
 import { toUserItem, usersWithLoginFirst, type UserItem } from './pr-filter-items';
 import { useFilterOptions, usePullRequests } from './usePullRequests';
 
@@ -20,15 +20,20 @@ export function usePrViewState(projectId: string, repositoryUrl: string | null) 
   const [selectedAuthorUserId, setSelectedAuthorUserId] = useState<string | null>(null);
   const [selectedLabelNames, setSelectedLabelNames] = useState<string[]>([]);
   const [selectedAssigneeUserId, setSelectedAssigneeUserId] = useState<string | null>(null);
+  const [reviewStateFilter, setReviewStateFilter] = useState<ReviewStateFilter | null>(null);
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebounce(query, 200);
   const [syncing, setSyncing] = useState(false);
+
+  const currentUserId = user?.id != null ? String(user.id) : undefined;
 
   const filters: PrFilters = {
     status: statusFilter,
     ...(selectedAuthorUserId ? { authorUserIds: [selectedAuthorUserId] } : {}),
     ...(selectedLabelNames.length > 0 ? { labelNames: selectedLabelNames } : {}),
     ...(selectedAssigneeUserId ? { assigneeUserIds: [selectedAssigneeUserId] } : {}),
+    ...(reviewStateFilter ? { reviewState: reviewStateFilter } : {}),
+    ...(currentUserId ? { currentUserId } : {}),
   };
 
   const { prs, refresh, loading, dataUpdatedAt, fetchNextPage, hasNextPage, isFetchingNextPage } =
@@ -44,7 +49,11 @@ export function usePrViewState(projectId: string, repositoryUrl: string | null) 
     }
   }, [dataUpdatedAt, repositoryUrl, queryClient]);
 
-  const { data: filterOptions } = useFilterOptions(projectId, repositoryUrl ?? undefined);
+  const { data: filterOptions } = useFilterOptions(
+    projectId,
+    repositoryUrl ?? undefined,
+    statusFilter
+  );
 
   const authorItems: UserItem[] = useMemo(
     () =>
@@ -77,10 +86,18 @@ export function usePrViewState(projectId: string, repositoryUrl: string | null) 
   );
 
   const hasPills = Boolean(
-    selectedAuthorUserId || selectedAssigneeUserId || selectedLabelNames.length > 0
+    selectedAuthorUserId ||
+    selectedAssigneeUserId ||
+    selectedLabelNames.length > 0 ||
+    reviewStateFilter
   );
 
-  const handleStatusChange = (value: StatusFilter) => setStatusFilter(value);
+  const handleStatusChange = (value: StatusFilter) => {
+    setStatusFilter(value);
+    setSelectedAuthorUserId(null);
+    setSelectedLabelNames([]);
+    setSelectedAssigneeUserId(null);
+  };
 
   const handleSortChange = (value: string | null) => {
     if (value) setSortFilter(value as PrSortField);
@@ -127,6 +144,9 @@ export function usePrViewState(projectId: string, repositoryUrl: string | null) 
     setSelectedLabelNames,
     selectedAssigneeLogin: selectedAssigneeUserId,
     setSelectedAssigneeLogin: setSelectedAssigneeUserId,
+    reviewStateFilter,
+    setReviewStateFilter,
+    hasCurrentUser: currentUserId != null,
     // handlers
     handleStatusChange,
     handleSortChange,

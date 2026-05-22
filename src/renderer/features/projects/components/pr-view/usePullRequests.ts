@@ -7,6 +7,7 @@ import {
   type PrFilterOptions,
   type PrFilters,
   type PrSortField,
+  type PullRequestStatusFilter,
 } from '@shared/pull-requests';
 
 const PAGE_SIZE = 50;
@@ -21,7 +22,8 @@ export const prQueryKeys = {
     sort?: PrSortField,
     searchQuery?: string
   ) => ['pull-requests', projectId, repositoryUrl, filters, sort, searchQuery] as const,
-  filterOptions: (repositoryUrl: string) => ['pr-filter-options', repositoryUrl] as const,
+  filterOptions: (repositoryUrl: string, status?: PullRequestStatusFilter) =>
+    ['pr-filter-options', repositoryUrl, status] as const,
 };
 
 export interface UsePullRequestsOptions {
@@ -74,9 +76,7 @@ export function usePullRequests(
     if (!projectId || !repositoryUrl) return;
     await rpc.pullRequests.syncPullRequests(projectId);
     await queryClient.invalidateQueries({ queryKey: prQueryKeys.list(projectId, repositoryUrl) });
-    await queryClient.invalidateQueries({
-      queryKey: prQueryKeys.filterOptions(repositoryUrl),
-    });
+    await queryClient.invalidateQueries({ queryKey: ['pr-filter-options', repositoryUrl] });
   }, [queryClient, projectId, repositoryUrl]);
 
   return {
@@ -95,11 +95,15 @@ export function usePullRequests(
   };
 }
 
-export function useFilterOptions(projectId?: string, repositoryUrl?: string) {
+export function useFilterOptions(
+  projectId?: string,
+  repositoryUrl?: string,
+  status?: PullRequestStatusFilter
+) {
   return useQuery<PrFilterOptions>({
-    queryKey: prQueryKeys.filterOptions(repositoryUrl!),
+    queryKey: prQueryKeys.filterOptions(repositoryUrl!, status),
     queryFn: async () => {
-      const response = await rpc.pullRequests.getFilterOptions(projectId!);
+      const response = await rpc.pullRequests.getFilterOptions(projectId!, status);
       if (!response?.success) {
         throw new Error(
           response ? pullRequestErrorMessage(response.error) : 'Failed to load filter options'
