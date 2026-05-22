@@ -1,4 +1,4 @@
-import { computed, makeAutoObservable, observable, reaction, runInAction } from 'mobx';
+import { comparer, computed, makeAutoObservable, observable, reaction, runInAction } from 'mobx';
 import { DiffTabLifecycleStore } from '@renderer/features/tasks/diff-view/stores/diff-tab-lifecycle-store';
 import { DiffViewStore } from '@renderer/features/tasks/diff-view/stores/diff-view-store';
 import { FileModelLifecycleStore } from '@renderer/features/tasks/editor/stores/file-model-lifecycle-store';
@@ -166,7 +166,7 @@ export class WorkspaceViewModel implements ILifecycle {
             visibleConversationIds
           );
         },
-        { fireImmediately: true }
+        { fireImmediately: true, equals: comparer.structural }
       )
     );
 

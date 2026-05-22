@@ -11,7 +11,12 @@ export class ConversationSessionVisibilityService {
 
   updateVisibleConversations(projectId: string, taskId: string, visibleConversationIds: string[]) {
     const visible = new Set(visibleConversationIds);
-    this.visibleConversationsByTask.set(this.taskKey(projectId, taskId), visible);
+    const taskKey = this.taskKey(projectId, taskId);
+    if (visible.size === 0) {
+      this.visibleConversationsByTask.delete(taskKey);
+    } else {
+      this.visibleConversationsByTask.set(taskKey, visible);
+    }
 
     for (const conversationId of visible) {
       this.cancel(makePtySessionId(projectId, taskId, conversationId));
@@ -50,13 +55,16 @@ export class ConversationSessionVisibilityService {
   private schedule(projectId: string, taskId: string, conversationId: string, sessionId: string) {
     if (this.killTimers.has(sessionId)) return;
 
+    const task = resolveTask(projectId, taskId);
+    if (!task) return;
+    const stopSession = task.conversations.stopSession.bind(task.conversations);
+
     const timer = setTimeout(() => {
       this.killTimers.delete(sessionId);
       const active = ptySessionRegistry.get(sessionId);
       if (!active) return;
 
-      const task = resolveTask(projectId, taskId);
-      task?.conversations.stopSession(conversationId).catch((error: unknown) => {
+      stopSession(conversationId).catch((error: unknown) => {
         log.warn('ConversationSessionVisibilityService: failed to stop hidden session', {
           projectId,
           taskId,
