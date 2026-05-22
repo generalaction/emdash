@@ -1,15 +1,21 @@
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
-import { workspaceFileIndexService } from '@main/core/search/workspace-file-index-service';
-import { taskEvents } from '@main/core/tasks/task-events';
 import { taskManager } from '@main/core/tasks/task-manager';
 import { viewStateService } from '@main/core/view-state/view-state-service';
 import { db } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
+import type { DeleteTaskOptions } from '@shared/tasks';
+import { removeWorktreeIfUnused } from './task-lifecycle-utils';
 
-export async function deleteTask(projectId: string, taskId: string): Promise<void> {
+export async function deleteTask(
+  projectId: string,
+  taskId: string,
+  options: DeleteTaskOptions = {}
+): Promise<void> {
+  const { deleteWorktree = true, deleteBranch = false } = options;
+
   const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
   if (!task) return;
   const sourceBranch = task.sourceBranch ?? undefined;
@@ -34,35 +40,26 @@ export async function deleteTask(projectId: string, taskId: string): Promise<voi
       .catch((e) => {
         log.warn('deleteTask: workspace row deletion failed', { taskId, error: String(e) });
       });
-    workspaceFileIndexService.deleteIndex(task.workspaceId);
   }
 
   await db.delete(tasks).where(eq(tasks.id, taskId));
   void viewStateService.del(`task:${taskId}`);
-  taskEvents._emit('task:deleted', taskId, projectId);
   telemetryService.capture('task_deleted', { project_id: projectId, task_id: taskId });
 
-  if (project) {
-    if (task.taskBranch) {
-      const siblings = await db
-        .select({ id: tasks.id })
-        .from(tasks)
-        .where(and(eq(tasks.projectId, task.projectId), eq(tasks.taskBranch, task.taskBranch)))
-        .limit(1);
-
-      if (siblings.length === 0) {
-        await project.removeTaskWorktree(task.taskBranch).catch((e) => {
-          log.warn('deleteTask: worktree removal failed', { taskId, error: String(e) });
-        });
-        if (sourceBranch && task.taskBranch !== sourceBranch.branch) {
-          const branchDelete = await project.repository.deleteBranch(task.taskBranch).catch((e) => {
-            log.warn('deleteTask: branch deletion failed', { taskId, error: String(e) });
-            return null;
-          });
-          if (branchDelete && !branchDelete.success) {
-            log.warn('deleteTask: branch deletion failed', { taskId, error: branchDelete.error });
-          }
-        }
+  if (project && deleteWorktree) {
+    const worktreeRemoved = await removeWorktreeIfUnused(task, project, false);
+    if (
+      worktreeRemoved &&
+      deleteBranch &&
+      sourceBranch &&
+      task.taskBranch !== sourceBranch.branch
+    ) {
+      const branchDelete = await project.repository.deleteBranch(task.taskBranch!).catch((e) => {
+        log.warn('deleteTask: branch deletion failed', { taskId, error: String(e) });
+        return null;
+      });
+      if (branchDelete && !branchDelete.success) {
+        log.warn('deleteTask: branch deletion failed', { taskId, error: branchDelete.error });
       }
     }
   }

@@ -1,5 +1,5 @@
 import type { ClientChannel } from 'ssh2';
-import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
+import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { log } from '@main/lib/logger';
 import { err, ok, type Result } from '@shared/result';
 import { normalizeSignal } from './exit-signals';

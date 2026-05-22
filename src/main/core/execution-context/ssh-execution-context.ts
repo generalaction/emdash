@@ -2,8 +2,8 @@ import {
   buildRemoteShellCommand,
   FALLBACK_REMOTE_SHELL_PROFILE,
   type RemoteShellProfile,
-} from '@main/core/ssh/remote-shell-profile';
-import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
+} from '@main/core/ssh/lifecycle/remote-shell-profile';
+import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { quoteShellArg } from '@main/utils/shellEscape';
 import type { ExecOptions, ExecResult, IExecutionContext } from './types';
 

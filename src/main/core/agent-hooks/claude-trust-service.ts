@@ -8,7 +8,7 @@ import {
   type FileSystemProvider,
 } from '@main/core/fs/types';
 import { appSettingsService } from '@main/core/settings/settings-service';
-import { resolveRemoteHome } from '@main/core/ssh/utils';
+import { resolveRemoteHome } from '@main/core/ssh/lifecycle/remote-shell-profile';
 import { log } from '@main/lib/logger';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 

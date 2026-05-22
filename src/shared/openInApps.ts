@@ -38,6 +38,7 @@ const ICON_PATHS = {
   windsurf: 'windsurf.png',
   xcode: 'xcode.png',
   terminal: 'terminal.png',
+  kaku: 'terminal.png',
   alacritty: 'alacritty.svg',
   warp: 'warp.svg',
   iterm2: 'iterm2.png',
@@ -214,6 +215,26 @@ const _OPEN_IN_APPS = {
           'gnome-terminal --working-directory={{path}}',
           'konsole --workdir {{path}}',
         ],
+      },
+    },
+  },
+  kaku: {
+    id: 'kaku',
+    label: 'Kaku',
+    iconPath: ICON_PATHS.kaku,
+    supportsRemote: true,
+    platforms: {
+      darwin: {
+        openCommands: [
+          'command -v kaku >/dev/null 2>&1 && kaku start --cwd {{path}}',
+          'open -na "Kaku" --args start --cwd {{path}}',
+        ],
+        checkCommands: ['kaku'],
+        appNames: ['Kaku'],
+      },
+      linux: {
+        openCommands: ['kaku start --cwd {{path}}'],
+        checkCommands: ['kaku'],
       },
     },
   },

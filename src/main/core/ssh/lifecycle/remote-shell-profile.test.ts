@@ -1,11 +1,23 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import {
   buildRemoteShellCommand,
   FALLBACK_REMOTE_SHELL_PROFILE,
   includeRemoteUserBinDirs,
   normalizeRemoteShell,
+  resolveRemoteHome,
   type RemoteShellProfile,
 } from './remote-shell-profile';
+
+function makeCtx(stdout: string): IExecutionContext {
+  return {
+    root: undefined,
+    supportsLocalSpawn: false,
+    exec: vi.fn().mockResolvedValue({ stdout, stderr: '' }),
+    execStreaming: vi.fn(),
+    dispose: vi.fn(),
+  } as unknown as IExecutionContext;
+}
 
 describe('remote shell profile command building', () => {
   it('runs commands through the captured remote shell and exports captured PATH', () => {
@@ -96,5 +108,18 @@ describe('remote shell profile command building', () => {
     expect(buildRemoteShellCommand({ shell: '/usr/local/bin/fish', env: {} }, 'echo ok')).toBe(
       "'/bin/sh' -c 'echo ok'"
     );
+  });
+});
+
+describe('resolveRemoteHome', () => {
+  it('returns trimmed remote home', async () => {
+    const ctx = makeCtx(' /home/ubuntu \n');
+    await expect(resolveRemoteHome(ctx)).resolves.toBe('/home/ubuntu');
+    expect(ctx.exec).toHaveBeenCalledWith('sh', ['-c', 'printf %s "$HOME"']);
+  });
+
+  it('throws when remote home is empty', async () => {
+    const ctx = makeCtx('   ');
+    await expect(resolveRemoteHome(ctx)).rejects.toThrow('Remote home directory is empty');
   });
 });
