@@ -125,6 +125,7 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
   const diffView = taskView.diffView;
   const showConfirm = useShowModal('confirmActionModal');
   const [isMerging, setIsMerging] = useState(false);
+  const [isMarkingReady, setIsMarkingReady] = useState(false);
   if (!diffView) return null;
   const tab = diffView.effectivePrTab;
   const isOpen = pr.status === 'open';
@@ -213,8 +214,13 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
           uiState={uiState}
           mergeActions={mergeActions}
           isMerging={isMerging}
+          isMarkingReady={isMarkingReady}
           onMarkReady={() => {
-            prStore.markReadyForReview(pr.url).catch(() => {});
+            setIsMarkingReady(true);
+            prStore
+              .markReadyForReview(pr.url)
+              .catch(() => {})
+              .finally(() => setIsMarkingReady(false));
           }}
         />
       )}
