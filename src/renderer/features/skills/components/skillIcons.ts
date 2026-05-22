@@ -105,6 +105,7 @@ const keywordRules: Array<{ test: (id: string) => boolean; icon: string }> = [
 const sourceIcons: Record<string, string> = {
   openai: 'openai',
   anthropic: 'anthropic',
+  skillssh: 'vercel',
 };
 
 export function resolveSkillIcon(skillId: string, source: string): string | undefined {

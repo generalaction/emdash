@@ -15,6 +15,17 @@ const CATALOG_INDEX_PATH = path.join(EMDASH_META, 'catalog-index.json');
 const MAX_REDIRECTS = 5;
 const MAX_HTTP_RESPONSE_BYTES = 2 * 1024 * 1024;
 const SKILLSH_SEARCH_CACHE_TTL_MS = 5 * 60 * 1000;
+const SKILLSH_SKILL_CACHE_MAX_ENTRIES = 200;
+
+class HttpStatusError extends Error {
+  constructor(
+    public readonly statusCode: number,
+    url: string
+  ) {
+    super(`HTTP ${statusCode} for ${url}`);
+    this.name = 'HttpStatusError';
+  }
+}
 
 function httpsGet(
   url: string,
@@ -42,7 +53,7 @@ function httpsGet(
           }
         }
         if (res.statusCode && res.statusCode >= 400) {
-          reject(new Error(`HTTP ${res.statusCode} for ${url}`));
+          reject(new HttpStatusError(res.statusCode, url));
           return;
         }
         let data = '';
@@ -334,11 +345,13 @@ export class SkillsService {
   }
 
   async uninstallSkill(skillId: string): Promise<void> {
-    const skillDir = path.join(SKILLS_ROOT, skillId);
+    const skill = await this.resolveSkillShId(skillId);
+    const installName = skill ? this.getInstallName(skill) : skillId;
+    const skillDir = path.join(SKILLS_ROOT, installName);
 
     // Remove agent symlinks first. Never delete real directories from agent config paths —
     // those may be user-managed skills that Emdash only discovered.
-    await this.unsyncFromAgents(skillId);
+    await this.unsyncFromAgents(installName);
 
     try {
       const stat = await fs.promises.lstat(skillDir);
@@ -501,19 +514,23 @@ export class SkillsService {
 
       const skills: CatalogSkill[] = [];
       for (const entry of result.skills ?? []) {
+        if (entry.isDuplicate) continue;
         if (!this.isSkillShGithubSource(entry.source)) continue;
         if (skills.length >= 24) break;
 
         const catalogSkillId = this.normalizeSkillShSkillId(entry.skillId);
         if (!isValidSkillName(catalogSkillId)) continue;
+        const skillId = this.toSkillShId(entry.source, catalogSkillId);
+        if (skills.some((skill) => skill.id === skillId)) continue;
         const skillShPath = this.normalizeSkillShPath(entry.skillId);
         const displayName = entry.name || catalogSkillId;
+        const description = entry.source;
         const sourceUrl = this.getSkillShUrl(entry.source, catalogSkillId);
 
-        skills.push({
-          id: this.toSkillShId(entry.source, catalogSkillId),
+        const skill: CatalogSkill = {
+          id: skillId,
           displayName,
-          description: `${entry.source}${entry.installs ? ` • ${entry.installs.toLocaleString()} installs` : ''}`,
+          description,
           source: 'skillssh',
           sourceRef: entry.source,
           sourceUrl,
@@ -522,19 +539,26 @@ export class SkillsService {
           installs: entry.installs,
           iconUrl: this.getSkillShIconUrl(entry.source),
           brandColor: '#000000',
-          frontmatter: { name: catalogSkillId, description: displayName },
+          frontmatter: { name: catalogSkillId, description },
           installed: false,
-        });
+        };
+        skills.push(skill);
       }
+
+      const mergedSkills = (await this.mergeInstalledState({
+        version: SkillsService.CATALOG_VERSION,
+        lastUpdated: new Date().toISOString(),
+        skills,
+      })).skills;
 
       this.skillShSearchCache.set(trimmed, {
         expiresAt: Date.now() + SKILLSH_SEARCH_CACHE_TTL_MS,
-        skills,
+        skills: mergedSkills,
       });
-      for (const skill of skills) {
-        this.skillShSkillCache.set(skill.id, skill);
+      for (const skill of mergedSkills) {
+        this.setSkillShSkillCache(skill.id, skill);
       }
-      return skills;
+      return mergedSkills;
     } catch (error) {
       if (cached) {
         log.warn(`Skills.SH search failed for "${trimmed}", using stale cache`, error);
@@ -552,12 +576,13 @@ export class SkillsService {
   }
 
   private normalizeSkillShSearchQuery(query: string): string {
-    const trimmed = query.trim().toLowerCase();
+    const trimmed = query.trim();
     if (!trimmed) return '';
 
     try {
       const url = new URL(trimmed);
-      if (url.hostname === 'skills.sh' || url.hostname === 'www.skills.sh') {
+      const hostname = url.hostname.toLowerCase();
+      if (hostname === 'skills.sh' || hostname === 'www.skills.sh') {
         const parts = url.pathname.split('/').filter(Boolean);
         return parts.at(-1) ?? '';
       }
@@ -565,7 +590,7 @@ export class SkillsService {
       // Not a URL; use the plain search query.
     }
 
-    return trimmed;
+    return trimmed.toLowerCase();
   }
 
   private normalizeSkillShSkillId(skillId: string): string {
@@ -588,6 +613,18 @@ export class SkillsService {
 
   private parseSkillShId(skillId: string): CatalogSkill | null {
     return this.skillShSkillCache.get(skillId) ?? null;
+  }
+
+  private setSkillShSkillCache(skillId: string, skill: CatalogSkill): void {
+    if (this.skillShSkillCache.has(skillId)) {
+      this.skillShSkillCache.delete(skillId);
+    }
+    this.skillShSkillCache.set(skillId, skill);
+    while (this.skillShSkillCache.size > SKILLSH_SKILL_CACHE_MAX_ENTRIES) {
+      const oldestKey = this.skillShSkillCache.keys().next().value;
+      if (!oldestKey) break;
+      this.skillShSkillCache.delete(oldestKey);
+    }
   }
 
   private async resolveSkillShId(skillId: string): Promise<CatalogSkill | null> {
@@ -623,14 +660,15 @@ export class SkillsService {
       frontmatter: { name: catalogSkillId, description: pageDescription },
       installed: false,
     };
-    this.skillShSkillCache.set(skill.id, skill);
+    this.setSkillShSkillCache(skill.id, skill);
     return skill;
   }
 
   private getInstallName(skill: CatalogSkill): string {
-    return skill.source === 'skillssh' && skill.catalogSkillId
-      ? this.normalizeSkillShSkillId(skill.catalogSkillId)
-      : skill.id;
+    if (skill.source !== 'skillssh' || !skill.sourceRef || !skill.catalogSkillId) return skill.id;
+
+    const [owner, repo] = skill.sourceRef.split('/');
+    return `skillssh-${owner}-${repo}-${this.normalizeSkillShSkillId(skill.catalogSkillId)}`;
   }
 
   private getSkillShUrl(sourceRef: string, skillId: string): string {
@@ -668,7 +706,7 @@ export class SkillsService {
           `https://raw.githubusercontent.com/${owner}/${repo}/HEAD/${encodedPath}`
         );
       } catch (error) {
-        if (!String(error).includes('HTTP 404')) throw error;
+        if (!(error instanceof HttpStatusError) || error.statusCode !== 404) throw error;
       }
     }
 
@@ -766,9 +804,10 @@ export class SkillsService {
     });
 
     const mergedSkills = dedupedSkills.map((skill) => {
-      const local = installedMap.get(skill.id);
+      const installName = this.getInstallName(skill);
+      const local = installedMap.get(skill.id) ?? installedMap.get(installName);
       if (local) {
-        installedMap.delete(skill.id);
+        installedMap.delete(local.id);
         return {
           ...skill,
           displayName: local.displayName || skill.displayName,
