@@ -21,6 +21,10 @@ export class GitHubAuthExecutionContext implements IExecutionContext {
     return this.inner.exec(command, args, opts);
   }
 
+  refreshShellEnv(): Promise<void> {
+    return this.inner.refreshShellEnv?.() ?? Promise.resolve();
+  }
+
   execStreaming(
     command: string,
     args: string[],

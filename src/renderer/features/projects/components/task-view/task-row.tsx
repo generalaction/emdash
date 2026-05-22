@@ -1,14 +1,13 @@
 import { observer } from 'mobx-react-lite';
-import { selectCurrentPr } from '@shared/pull-requests';
-import { type Task } from '@shared/tasks';
 import { AgentStatusIndicator } from '@renderer/features/tasks/components/agent-status-indicator';
 import { TaskContextMenu } from '@renderer/features/tasks/components/task-context-menu';
 import { TaskGitDiffStats } from '@renderer/features/tasks/components/task-git-diff-stats';
-import { type TaskStore } from '@renderer/features/tasks/stores/task';
 import {
+  getTaskGitStore,
   getTaskManagerStore,
   taskAgentStatus,
 } from '@renderer/features/tasks/stores/task-selectors';
+import { type TaskStore } from '@renderer/features/tasks/stores/task-store';
 import AgentLogo from '@renderer/lib/components/agent-logo';
 import { PrBadge } from '@renderer/lib/components/pr-badge';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
@@ -17,6 +16,8 @@ import { Checkbox } from '@renderer/lib/ui/checkbox';
 import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { agentConfig } from '@renderer/utils/agentConfig';
 import { cn } from '@renderer/utils/utils';
+import { selectCurrentPr } from '@shared/pull-requests';
+import { type Task } from '@shared/tasks';
 
 export type ReadyTask = TaskStore & { data: Task };
 
@@ -31,18 +32,18 @@ export const TaskRow = observer(function TaskRow({
 }) {
   const { navigate } = useNavigate();
   const showRename = useShowModal('renameTaskModal');
-  const showConfirm = useShowModal('confirmActionModal');
+  const showDeleteTask = useShowModal('deleteTaskModal');
   const taskManager = getTaskManagerStore(task.data.projectId);
 
   const handleArchive = () => void taskManager?.archiveTask(task.data.id);
   const handleRestore = () => void taskManager?.restoreTask(task.data.id);
   const handleProvision = () => void taskManager?.provisionTask(task.data.id);
   const handleDelete = () =>
-    showConfirm({
-      title: 'Delete task',
-      description: `"${task.data.name}" will be permanently deleted. This action cannot be undone.`,
-      confirmLabel: 'Delete',
-      onSuccess: () => void taskManager?.deleteTask(task.data.id),
+    showDeleteTask({
+      projectId: task.data.projectId,
+      tasks: [{ taskId: task.data.id, taskName: task.data.name }],
+      onSuccess: ({ deleteWorktree, deleteBranch }) =>
+        void taskManager?.deleteTasks([task.data.id], { deleteWorktree, deleteBranch }),
     });
   const handleRename = () =>
     showRename({
@@ -55,12 +56,15 @@ export const TaskRow = observer(function TaskRow({
   const canPin = task.state !== 'unregistered';
   const agentAttention = taskAgentStatus(task);
   const currentPr = task.data.prs ? selectCurrentPr(task.data.prs) : undefined;
+  const branchName =
+    getTaskGitStore(task.data.projectId, task.data.id)?.branchName ?? task.data.taskBranch;
 
   return (
     <TaskContextMenu
       isPinned={task.data.isPinned}
       canPin={canPin}
       isArchived={isArchived}
+      branchName={branchName}
       onPin={() => void task.setPinned(true)}
       onUnpin={() => void task.setPinned(false)}
       onRename={handleRename}
@@ -74,7 +78,7 @@ export const TaskRow = observer(function TaskRow({
           handleProvision();
           navigate('task', { projectId: task.data.projectId, taskId: task.data.id });
         }}
-        className="group flex items-center gap-2 rounded-lg p-3  hover:bg-background-1 transition-colors w-full"
+        className="group flex w-full items-center gap-2 rounded-lg p-3 transition-colors hover:bg-background-1"
       >
         <div
           onClick={(e) => e.stopPropagation()}
@@ -91,19 +95,19 @@ export const TaskRow = observer(function TaskRow({
         </div>
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <div className="flex min-w-0 flex-1 items-center gap-2">
-            <span className="min-w-0 text-left text-sm truncate">{task.data.name}</span>
-            <TaskGitDiffStats task={task} className="text-xs shrink-0" />
+            <span className="min-w-0 truncate text-left text-sm">{task.data.name}</span>
+            <TaskGitDiffStats task={task} className="shrink-0 text-xs" />
             {currentPr && <PrBadge pr={currentPr} />}
           </div>
         </div>
-        <div className="flex items-center shrink-0 [&>span]:ring-2 [&>span]:ring-background [&>span:not(:first-child)]:-ml-1.5">
+        <div className="flex shrink-0 items-center [&>span]:ring-2 [&>span]:ring-background [&>span:not(:first-child)]:-ml-1.5">
           {Object.entries(task.conversationStats).map(([providerId, count]) => {
             const config = agentConfig[providerId as keyof typeof agentConfig];
             if (!config) return null;
             return (
               <span
                 key={providerId}
-                className="relative flex items-center justify-center h-5 w-5 rounded-sm bg-background-2 overflow-hidden"
+                className="relative flex h-5 w-5 items-center justify-center overflow-hidden rounded-sm bg-background-2"
                 title={`${config.name}: ${String(count)}`}
               >
                 <AgentLogo
@@ -114,7 +118,7 @@ export const TaskRow = observer(function TaskRow({
                   className="h-3.5 w-3.5"
                 />
                 {count > 1 && (
-                  <span className="absolute -bottom-px -right-px text-[8px] leading-none font-semibold bg-background text-foreground-passive px-px rounded-tl">
+                  <span className="absolute -right-px -bottom-px rounded-tl bg-background px-px text-[8px] leading-none font-semibold text-foreground-passive">
                     {count}
                   </span>
                 )}
@@ -133,7 +137,7 @@ export const TaskRow = observer(function TaskRow({
           ) : (
             <RelativeTime
               value={task.data.createdAt}
-              className="text-xs text-foreground-passive font-mono pr-1"
+              className="pr-1 font-mono text-xs text-foreground-passive"
               compact
             />
           )}

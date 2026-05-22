@@ -1,12 +1,12 @@
 import type Database from 'better-sqlite3';
 import { eq } from 'drizzle-orm';
+import { projectRemotes, projects, sshConnections, tasks } from '@main/db/schema';
 import type {
   LegacyImportSource,
   LegacyPortPreview,
   LegacyProjectConflict,
   SourceProjectInfo,
 } from '@shared/legacy-port';
-import { projectRemotes, projects, sshConnections, tasks } from '@main/db/schema';
 import {
   legacyTableExists,
   readLegacyRows,

@@ -1,14 +1,14 @@
 import { eq } from 'drizzle-orm';
 import { BrowserWindow, Notification } from 'electron';
-import { getProvider, type AgentProviderId } from '@shared/agent-provider-registry';
-import { isAttentionNotification, type AgentEvent } from '@shared/events/agentEvents';
-import { notificationFocusTaskChannel } from '@shared/events/appEvents';
 import { getMainWindow } from '@main/app/window';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
+import { getProvider, type AgentProviderId } from '@shared/agent-provider-registry';
+import { isAttentionNotification, type AgentEvent } from '@shared/events/agentEvents';
+import { notificationFocusTaskChannel } from '@shared/events/appEvents';
 
 function getNotificationBody(event: AgentEvent): string | null {
   if (event.type === 'stop') return 'Your agent has finished working';
@@ -52,7 +52,13 @@ export async function maybeShowNotification(event: AgentEvent, appFocused: boole
       if (win.isMinimized()) win.restore();
       win.show();
       win.focus();
-      if (event.taskId) events.emit(notificationFocusTaskChannel, { taskId: event.taskId });
+      if (event.taskId) {
+        events.emit(notificationFocusTaskChannel, {
+          projectId: event.projectId,
+          taskId: event.taskId,
+          conversationId: event.conversationId,
+        });
+      }
     });
 
     notification.show();

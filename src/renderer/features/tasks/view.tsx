@@ -1,18 +1,15 @@
 import { observer } from 'mobx-react-lite';
 import { useEffect, type ReactNode } from 'react';
-import { type ViewDefinition } from '@renderer/app/view-registry';
+import { type GuardResult, type ViewDefinition } from '@renderer/app/view-registry';
 import {
   getTaskManagerStore,
   getTaskStore,
   taskViewKind,
 } from '@renderer/features/tasks/stores/task-selectors';
-import {
-  ProvisionedTaskProvider,
-  TaskViewWrapper,
-} from '@renderer/features/tasks/task-view-context';
-import { EditorProvider } from './editor/editor-provider';
+import { TaskViewWrapper } from '@renderer/features/tasks/task-view-context';
+import { appState } from '@renderer/lib/stores/app-state';
+import { createTaskCommandProvider } from './commands';
 import { TaskMainPanel } from './main-panel';
-import { TaskRightSidebar } from './right-panel';
 import { TaskTitlebar } from './task-titlebar';
 
 const TaskViewWrapperWithProviders = observer(function TaskViewWrapperWithProviders({
@@ -49,11 +46,7 @@ const TaskViewWrapperWithProviders = observer(function TaskViewWrapperWithProvid
 
   return (
     <TaskViewWrapper projectId={projectId} taskId={taskId}>
-      <ProvisionedTaskProvider projectId={projectId} taskId={taskId}>
-        <EditorProvider key={taskId} taskId={taskId} projectId={projectId}>
-          {children}
-        </EditorProvider>
-      </ProvisionedTaskProvider>
+      {children}
     </TaskViewWrapper>
   );
 });
@@ -62,5 +55,30 @@ export const taskView = {
   WrapView: TaskViewWrapperWithProviders,
   TitlebarSlot: TaskTitlebar,
   MainPanel: TaskMainPanel,
-  RightPanel: TaskRightSidebar,
+  commandProvider: ({ projectId, taskId }: { projectId: string; taskId: string }) =>
+    createTaskCommandProvider(projectId, taskId),
+  canActivate: (params: unknown): GuardResult => {
+    const projectId =
+      typeof params === 'object' && params !== null
+        ? (params as { projectId?: unknown }).projectId
+        : undefined;
+    const taskId =
+      typeof params === 'object' && params !== null
+        ? (params as { taskId?: unknown }).taskId
+        : undefined;
+    if (typeof projectId !== 'string' || typeof taskId !== 'string') {
+      return { ok: false, redirect: 'home' };
+    }
+    if (
+      !appState.projects.projects.has(projectId) &&
+      !appState.projects.pendingCreationIds.has(projectId)
+    ) {
+      return { ok: false, redirect: 'home' };
+    }
+    const taskManager = getTaskManagerStore(projectId);
+    if (taskManager && !taskManager.tasks.has(taskId)) {
+      return { ok: false, redirect: 'project', params: { projectId } };
+    }
+    return { ok: true };
+  },
 } satisfies ViewDefinition<{ projectId: string; taskId: string }>;

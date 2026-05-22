@@ -1,4 +1,4 @@
-import { FolderPlus, MessageSquareShare, Plug, Puzzle, Settings } from 'lucide-react';
+import { FolderInput, Library, MessageSquareShare, Settings } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React from 'react';
 import {
@@ -7,7 +7,8 @@ import {
   useWorkspaceSlots,
 } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
-import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
+import { BoundShortcut } from '@renderer/lib/ui/shortcut';
+import { cn } from '@renderer/utils/utils';
 import { SidebarPinnedTaskList } from './pinned-task-list';
 import { ProjectsGroupLabel } from './projects-group-label';
 import {
@@ -19,27 +20,44 @@ import {
   SidebarMenu,
   SidebarMenuButton,
 } from './sidebar-primitives';
+import { SidebarSearchTrigger } from './sidebar-search-trigger';
 import { SidebarSpace } from './sidebar-space';
 import { SidebarVirtualList } from './sidebar-virtual-list';
 import { UpdateSection } from './update-section';
+import { useSidebarDrop } from './use-sidebar-drop';
 
 export const LeftSidebar: React.FC = observer(function LeftSidebar() {
   const { navigate } = useNavigate();
   const { currentView } = useWorkspaceSlots();
 
-  const showAddProjectModal = useShowModal('addProjectModal');
   const showFeedbackModal = useShowModal('feedbackModal');
+  const { isDragOver, onDragOver, onDragEnter, onDragLeave, onDrop } = useSidebarDrop();
 
   return (
-    <div className="flex flex-col h-full bg-background-tertiary text-foreground-tertiary-muted">
+    <div
+      className={cn(
+        'relative flex flex-col h-full bg-background-tertiary text-foreground-tertiary-muted transition-colors',
+        isDragOver && 'bg-accent/10 ring-2 ring-inset ring-accent/50'
+      )}
+      onDragOver={onDragOver}
+      onDragEnter={onDragEnter}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
+    >
+      {isDragOver && (
+        <div className="pointer-events-none absolute inset-0 z-50 flex flex-col items-center justify-center gap-2 bg-background-tertiary/80 backdrop-blur-sm">
+          <FolderInput className="size-8 text-foreground" />
+          <span className="text-xs font-medium text-foreground">Drop to add project</span>
+        </div>
+      )}
       <SidebarSpace />
-      <SidebarContainer className="w-full border-r-0 flex-1 min-h-0">
+      <SidebarContainer className="min-h-0 w-full flex-1 border-r-0">
         <SidebarContent className="flex flex-col">
           <SidebarPinnedTaskList />
-          <SidebarGroup className="mb-0 min-h-0 flex-1 flex flex-col">
+          <SidebarGroup className="mb-0 flex min-h-0 flex-1 flex-col">
             <ProjectsGroupLabel />
-            <SidebarGroupContent className="min-h-0 flex-1 flex flex-col">
-              <SidebarMenu className="flex-1 min-h-0 flex flex-col">
+            <SidebarGroupContent className="flex min-h-0 flex-1 flex-col">
+              <SidebarMenu className="flex min-h-0 flex-1 flex-col">
                 <SidebarVirtualList />
               </SidebarMenu>
             </SidebarGroupContent>
@@ -47,35 +65,21 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
         </SidebarContent>
         <SidebarFooter>
           <SidebarMenu>
+            <SidebarSearchTrigger />
             <SidebarMenuButton
-              isActive={false}
-              onClick={() => showAddProjectModal({})}
-              aria-label="Add Project"
-              className="w-full justify-between"
+              isActive={
+                isCurrentView(currentView, 'library') ||
+                isCurrentView(currentView, 'skills') ||
+                isCurrentView(currentView, 'mcp')
+              }
+              onClick={() => navigate('library')}
+              aria-label="Library"
+              className="w-full justify-start"
             >
-              <span className="flex items-center gap-2 min-w-0 w-full">
-                <FolderPlus className="h-5 w-5 sm:h-4 sm:w-4 shrink-0" />
-                <span className="truncate min-w-0">Add Project</span>
+              <span className="flex items-center gap-2">
+                <Library className="h-5 w-5 sm:h-4 sm:w-4" />
+                Library
               </span>
-              <ShortcutHint settingsKey="newProject" />
-            </SidebarMenuButton>
-            <SidebarMenuButton
-              isActive={isCurrentView(currentView, 'skills')}
-              onClick={() => navigate('skills')}
-              aria-label="Skills"
-              className="w-full justify-start"
-            >
-              <Puzzle className="h-5 w-5 sm:h-4 sm:w-4" />
-              Skills
-            </SidebarMenuButton>
-            <SidebarMenuButton
-              isActive={isCurrentView(currentView, 'mcp')}
-              onClick={() => navigate('mcp')}
-              aria-label="MCP"
-              className="w-full justify-start"
-            >
-              <Plug className="h-5 w-5 sm:h-4 sm:w-4" />
-              MCP
             </SidebarMenuButton>
             <SidebarMenuButton
               isActive={isCurrentView(currentView, 'settings')}
@@ -87,14 +91,14 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
                 <Settings className="h-5 w-5 sm:h-4 sm:w-4" />
                 Settings
               </span>
-              <ShortcutHint settingsKey="settings" />
+              <BoundShortcut settingsKey="settings" />
             </SidebarMenuButton>
           </SidebarMenu>
         </SidebarFooter>
-        <div className="flex items-center gap-2 justify-between px-3 py-2 border-t border-border">
+        <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2">
           <button
             type="button"
-            className="flex h-6 items-center min-w-0 w-full cursor-pointer gap-2 rounded-lg px-3 text-sm text-foreground-muted focus:outline-none focus-visible:outline-none"
+            className="flex h-6 w-full min-w-0 cursor-pointer items-center gap-2 rounded-lg px-3 text-sm text-foreground-muted focus:outline-none focus-visible:outline-none"
             onClick={() => showFeedbackModal({})}
           >
             <MessageSquareShare className="size-4 shrink-0" />

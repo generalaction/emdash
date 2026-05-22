@@ -2,63 +2,142 @@ import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { canonicalizeWorktreeDirectory, normalizeWorktreeDirectory } from './worktree-directory';
 
+const invalidWorktreeDirectory = {
+  success: false,
+  error: { type: 'invalid-worktree-directory' },
+} as const;
+
 describe('worktree-directory', () => {
   describe('normalizeWorktreeDirectory', () => {
-    it('resolves local relative paths from project path', async () => {
+    it('rejects posix relative paths', async () => {
       await expect(
         normalizeWorktreeDirectory('worktrees', {
-          projectPath: '/repo',
-          pathApi: path,
+          pathApi: path.posix,
+          pathPlatform: 'posix',
+          homeDirectory: '/Users/test',
+        })
+      ).resolves.toEqual(invalidWorktreeDirectory);
+    });
+
+    it('accepts posix absolute paths', async () => {
+      await expect(
+        normalizeWorktreeDirectory('/Users/test/worktrees', {
+          pathApi: path.posix,
+          pathPlatform: 'posix',
           homeDirectory: '/Users/test',
         })
       ).resolves.toEqual({
         success: true,
-        data: path.resolve('/repo', 'worktrees'),
+        data: '/Users/test/worktrees',
       });
     });
 
-    it('expands local tilde paths from home', async () => {
+    it('expands posix tilde paths from home', async () => {
       await expect(
         normalizeWorktreeDirectory('~/worktrees', {
-          projectPath: '/repo',
-          pathApi: path,
+          pathApi: path.posix,
+          pathPlatform: 'posix',
           homeDirectory: '/Users/test',
         })
       ).resolves.toEqual({
         success: true,
-        data: path.resolve('/Users/test', 'worktrees'),
+        data: '/Users/test/worktrees',
       });
     });
 
-    it('resolves ssh relative paths with posix semantics', async () => {
+    it('rejects windows absolute paths in posix mode', async () => {
+      await expect(
+        normalizeWorktreeDirectory('C:\\worktrees', {
+          pathApi: path.posix,
+          pathPlatform: 'posix',
+          homeDirectory: '/Users/test',
+        })
+      ).resolves.toEqual(invalidWorktreeDirectory);
+    });
+
+    it('rejects windows UNC paths in posix mode', async () => {
+      await expect(
+        normalizeWorktreeDirectory('\\\\server\\share\\worktrees', {
+          pathApi: path.posix,
+          pathPlatform: 'posix',
+          homeDirectory: '/Users/test',
+        })
+      ).resolves.toEqual(invalidWorktreeDirectory);
+    });
+
+    it('rejects win32 relative paths', async () => {
       await expect(
         normalizeWorktreeDirectory('worktrees', {
-          projectPath: '/remote/repo',
-          pathApi: path.posix,
+          pathApi: path.win32,
+          pathPlatform: 'win32',
+          homeDirectory: 'C:\\Users\\test',
+        })
+      ).resolves.toEqual(invalidWorktreeDirectory);
+    });
+
+    it('accepts win32 drive absolute paths', async () => {
+      await expect(
+        normalizeWorktreeDirectory('D:\\worktrees', {
+          pathApi: path.win32,
+          pathPlatform: 'win32',
+          homeDirectory: 'C:\\Users\\test',
         })
       ).resolves.toEqual({
         success: true,
-        data: '/remote/repo/worktrees',
+        data: 'D:\\worktrees',
       });
+    });
+
+    it('accepts win32 UNC paths', async () => {
+      await expect(
+        normalizeWorktreeDirectory('\\\\server\\share\\worktrees', {
+          pathApi: path.win32,
+          pathPlatform: 'win32',
+          homeDirectory: 'C:\\Users\\test',
+        })
+      ).resolves.toEqual({
+        success: true,
+        data: '\\\\server\\share\\worktrees',
+      });
+    });
+
+    it('expands win32 tilde paths from home', async () => {
+      await expect(
+        normalizeWorktreeDirectory('~\\worktrees', {
+          pathApi: path.win32,
+          pathPlatform: 'win32',
+          homeDirectory: 'C:\\Users\\test',
+        })
+      ).resolves.toEqual({
+        success: true,
+        data: 'C:\\Users\\test\\worktrees',
+      });
+    });
+
+    it('rejects posix absolute paths in win32 mode', async () => {
+      await expect(
+        normalizeWorktreeDirectory('/Users/test/worktrees', {
+          pathApi: path.win32,
+          pathPlatform: 'win32',
+          homeDirectory: 'C:\\Users\\test',
+        })
+      ).resolves.toEqual(invalidWorktreeDirectory);
     });
 
     it('rejects tilde paths when home cannot be resolved', async () => {
       await expect(
         normalizeWorktreeDirectory('~/worktrees', {
-          projectPath: '/remote/repo',
           pathApi: path.posix,
+          pathPlatform: 'posix',
         })
-      ).resolves.toEqual({
-        success: false,
-        error: { type: 'invalid-worktree-directory' },
-      });
+      ).resolves.toEqual(invalidWorktreeDirectory);
     });
 
     it('expands ssh tilde paths with async home resolver', async () => {
       await expect(
         normalizeWorktreeDirectory('~/worktrees', {
-          projectPath: '/remote/repo',
           pathApi: path.posix,
+          pathPlatform: 'posix',
           resolveHomeDirectory: async () => '/home/ubuntu',
         })
       ).resolves.toEqual({
@@ -82,6 +161,18 @@ describe('worktree-directory', () => {
       });
       expect(fs.mkdir).toHaveBeenCalledWith('/input/path', { recursive: true });
       expect(fs.realPath).toHaveBeenCalledWith('/input/path');
+    });
+
+    it('rejects inaccessible directories', async () => {
+      const fs = {
+        mkdir: vi.fn().mockRejectedValue(new Error('permission denied')),
+        realPath: vi.fn(),
+      };
+
+      await expect(canonicalizeWorktreeDirectory('/input/path', fs)).resolves.toEqual(
+        invalidWorktreeDirectory
+      );
+      expect(fs.realPath).not.toHaveBeenCalled();
     });
   });
 });

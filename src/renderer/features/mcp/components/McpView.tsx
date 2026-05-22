@@ -1,8 +1,10 @@
-import { Loader2, Plus, RefreshCw, Search } from 'lucide-react';
+import { Loader2, Plus, RefreshCw } from 'lucide-react';
 import React, { useState } from 'react';
+import { CardGridSection } from '@renderer/lib/components/card-grid';
+import { PageHeader } from '@renderer/lib/components/page-header';
 import { useModalContext, useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
-import { Input } from '@renderer/lib/ui/input';
+import { SearchInput } from '@renderer/lib/ui/search-input';
 import { McpCard } from './McpCard';
 import type { McpModalMode } from './McpModal';
 import { useMcps } from './useMcps';
@@ -61,55 +63,47 @@ export const McpView: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center bg-background text-foreground">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="flex h-full flex-col overflow-y-auto bg-background text-foreground">
+    <div className="flex h-full flex-col overflow-y-auto text-foreground">
       <div className="mx-auto w-full max-w-3xl px-8 py-8">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-lg font-semibold">MCP</h1>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Connect your agents with external data sources and tools
-          </p>
-        </div>
-
-        {/* Toolbar */}
-        <div className="mb-6 flex items-center gap-2">
-          <div className="relative flex-1">
-            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
+        <PageHeader
+          title="MCP"
+          description="Connect your agents with external data sources and tools"
+        >
+          <div className="flex w-full items-center justify-between gap-2">
+            <SearchInput
+              placeholder="Search servers..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search servers..."
-              className="pl-9"
             />
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={refresh}
+                disabled={isRefreshing}
+                aria-label="Refresh providers"
+              >
+                <RefreshCw
+                  className={`text-muted-foreground h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
+                />
+              </Button>
+              <Button onClick={() => openModal({ type: 'add-custom' })}>
+                <Plus className="size-4" />
+                Custom MCP
+              </Button>
+            </div>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={refresh}
-            disabled={isRefreshing}
-            aria-label="Refresh providers"
-          >
-            <RefreshCw
-              className={`h-4 w-4 text-muted-foreground ${isRefreshing ? 'animate-spin' : ''}`}
-            />
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => openModal({ type: 'add-custom' })}>
-            <Plus className="mr-1.5 h-3.5 w-3.5" />
-            Custom MCP
-          </Button>
-        </div>
+        </PageHeader>
 
-        {/* Installed */}
-        {filteredInstalled.length > 0 && (
-          <div className="mb-6">
-            <h2 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground">Added</h2>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="flex flex-col gap-8 py-8">
+          {filteredInstalled.length > 0 && (
+            <CardGridSection title="Added">
               {filteredInstalled.map((server) => (
                 <McpCard
                   key={server.name}
@@ -118,17 +112,11 @@ export const McpView: React.FC = () => {
                   onEdit={(s) => openModal({ type: 'edit', server: s })}
                 />
               ))}
-            </div>
-          </div>
-        )}
+            </CardGridSection>
+          )}
 
-        {/* Recommended */}
-        {filteredCatalog.length > 0 && (
-          <div className="mb-6">
-            <h2 className="mb-3 text-xs font-medium tracking-wide text-muted-foreground">
-              Recommended
-            </h2>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {filteredCatalog.length > 0 && (
+            <CardGridSection title="Recommended">
               {filteredCatalog.map((entry) => (
                 <McpCard
                   key={entry.key}
@@ -137,17 +125,17 @@ export const McpView: React.FC = () => {
                   onAdd={(e) => openModal({ type: 'add-catalog', entry: e })}
                 />
               ))}
-            </div>
-          </div>
-        )}
+            </CardGridSection>
+          )}
 
-        {filteredInstalled.length === 0 && filteredCatalog.length === 0 && (
-          <div className="py-12 text-center">
-            <p className="text-sm text-muted-foreground">
-              {search ? 'No servers match your search.' : 'No servers available.'}
-            </p>
-          </div>
-        )}
+          {filteredInstalled.length === 0 && filteredCatalog.length === 0 && (
+            <div className="py-12 text-center">
+              <p className="text-muted-foreground text-sm">
+                {search ? 'No servers match your search.' : 'No servers available.'}
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

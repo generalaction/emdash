@@ -10,9 +10,10 @@ import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { SearchInput } from '@renderer/lib/ui/search-input';
-import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
+import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { cn } from '@renderer/utils/utils';
+import { TaskListEmptyState } from './task-list-empty-state';
 import { TaskRow, type ReadyTask } from './task-row';
 
 function TaskVirtualList({
@@ -26,7 +27,6 @@ function TaskVirtualList({
 }) {
   const parentRef = useRef<HTMLDivElement>(null);
 
-  // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: tasks.length,
     getScrollElement: () => parentRef.current,
@@ -44,7 +44,7 @@ function TaskVirtualList({
   return (
     <div
       ref={parentRef}
-      className="overflow-y-auto min-h-0 flex-1 py-3"
+      className="min-h-0 flex-1 overflow-y-auto py-3"
       style={{ scrollbarWidth: 'none' }}
     >
       <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
@@ -96,7 +96,7 @@ function SelectionBar({
 
   return (
     <ListPopoverCard className="justify-between">
-      <span className="text-foreground-muted whitespace-nowrap">{count} selected</span>
+      <span className="whitespace-nowrap text-foreground-muted">{count} selected</span>
       <div className="flex items-center gap-2">
         {tab === 'active' && (
           <Button variant="outline" size="sm" onClick={onArchive}>
@@ -114,7 +114,7 @@ function SelectionBar({
           <Trash2 className="size-3.5" />
           Delete
         </Button>
-        <Button variant="ghost" size="icon-sm" onClick={onClear} aria-label="Clear selection">
+        <Button variant="ghost" size="icon-xs" onClick={onClear} aria-label="Clear selection">
           <X className="size-3.5" />
         </Button>
       </div>
@@ -128,7 +128,7 @@ export const TaskList = observer(function TaskList() {
   } = useParams('project');
   const store = asMounted(getProjectStore(projectId));
   const taskManager = getTaskManagerStore(projectId);
-  const showConfirm = useShowModal('confirmActionModal');
+  const showDeleteTask = useShowModal('deleteTaskModal');
   const showCreateTaskModal = useShowModal('taskModal');
 
   const taskView = store?.view.taskView ?? null;
@@ -164,23 +164,25 @@ export const TaskList = observer(function TaskList() {
   };
 
   const bulkDelete = () => {
-    const count = taskView.selectedIds.size;
-    showConfirm({
-      title: `Delete ${count} task${count === 1 ? '' : 's'}`,
-      description: 'The selected tasks will be permanently deleted. This action cannot be undone.',
-      confirmLabel: `Delete ${count} task${count === 1 ? '' : 's'}`,
-      onSuccess: () => {
-        const ids = [...taskView.selectedIds];
-        ids.forEach((id) => void taskManager?.deleteTask(id));
+    const selectedTasks = [...taskView.selectedIds]
+      .map((id) => taskManager?.tasks.get(id))
+      .filter((t): t is ReadyTask => !!t)
+      .map((t) => ({ taskId: t.data.id, taskName: t.data.name }));
+
+    showDeleteTask({
+      projectId,
+      tasks: selectedTasks,
+      onSuccess: ({ deleteWorktree, deleteBranch }) => {
+        void taskManager?.deleteTasks([...taskView.selectedIds], { deleteWorktree, deleteBranch });
         clearSelection();
       },
     });
   };
 
   return (
-    <div className="relative flex flex-col max-w-3xl mx-auto w-full h-full pt-6 px-6 min-h-0">
-      <div className="flex flex-col gap-4 border-b border-border pb-3 shrink-0">
-        <div className="flex items-center gap-2 flex-wrap justify-between">
+    <div className="relative flex h-full min-h-0 w-full flex-col">
+      <div className="flex shrink-0 flex-col gap-4 border-b border-border pb-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <ToggleGroup
             multiple={false}
             value={[taskView.tab]}
@@ -199,17 +201,21 @@ export const TaskList = observer(function TaskList() {
               className="flex-1"
             />
             <Button onClick={() => showCreateTaskModal({ projectId })}>
-              Create Task <ShortcutHint settingsKey="newTask" />
+              Create Task <BoundShortcut settingsKey="newTask" />
             </Button>
           </div>
         </div>
       </div>
 
-      <TaskVirtualList
-        tasks={filteredTasks}
-        selectedIds={taskView.selectedIds}
-        onToggleSelect={(id) => taskView.toggleSelect(id)}
-      />
+      {filteredTasks.length === 0 && taskView.tab === 'active' ? (
+        <TaskListEmptyState projectId={projectId} />
+      ) : (
+        <TaskVirtualList
+          tasks={filteredTasks}
+          selectedIds={taskView.selectedIds}
+          onToggleSelect={(id) => taskView.toggleSelect(id)}
+        />
+      )}
 
       <SelectionBar
         count={taskView.selectedIds.size}

@@ -1,7 +1,7 @@
 import { observable, runInAction } from 'mobx';
 import type * as monaco from 'monaco-editor';
-import { gitRefToString, HEAD_REF, refsEqual, type GitRef } from '@shared/git';
 import { rpc } from '@renderer/lib/ipc';
+import { gitRefToString, HEAD_REF, refsEqual, type GitRef } from '@shared/git';
 import { buildMonacoModelPath } from './monacoModelPath';
 
 const BUFFER_DEBOUNCE_MS = 2000;
@@ -46,7 +46,7 @@ interface GitModelEntry {
 
 type ModelEntry = BufferModelEntry | DiskModelEntry | GitModelEntry;
 export type ModelType = 'buffer' | 'disk' | 'git';
-export type ModelStatus = 'loading' | 'ready' | 'error';
+export type ModelStatus = 'loading' | 'ready' | 'error' | 'too-large';
 
 /**
  * Manages up to three Monaco ITextModel instances per open file using a single
@@ -126,7 +126,8 @@ export class MonacoModelRegistry {
    * register the same file concurrently before either resolves.
    * Key: `{projectId}:{workspaceId}:{filePath}:disk` or `…:git:{ref}`
    */
-  private pendingFetches = new Map<string, Promise<string | null>>();
+  // oxlint-disable-next-line typescript/no-explicit-any
+  private pendingFetches = new Map<string, Promise<any>>();
 
   // ---------------------------------------------------------------------------
   // MobX reactive state
@@ -136,6 +137,12 @@ export class MonacoModelRegistry {
    * Model loading status — observable. Drives useModelStatus() in observer() components.
    */
   readonly modelStatus = observable.map<string, ModelStatus>();
+
+  /**
+   * Total file size in bytes for disk:// URIs where the file was too large to load into Monaco.
+   * Keyed by disk:// URI. Used to display file size in the tab bar tooltip and TooLargeRenderer.
+   */
+  readonly modelTotalSizes = observable.map<string, number>();
 
   /**
    * Set of buffer URIs (file://) that have unsaved changes relative to disk.
@@ -190,8 +197,8 @@ export class MonacoModelRegistry {
   // Dedup fetch
   // ---------------------------------------------------------------------------
 
-  private dedupFetch(key: string, fn: () => Promise<string | null>): Promise<string | null> {
-    const existing = this.pendingFetches.get(key);
+  private dedupFetch<T>(key: string, fn: () => Promise<T>): Promise<T> {
+    const existing = this.pendingFetches.get(key) as Promise<T> | undefined;
     if (existing) return existing;
     const p = fn().finally(() => this.pendingFetches.delete(key));
     this.pendingFetches.set(key, p);
@@ -263,17 +270,30 @@ export class MonacoModelRegistry {
     let m: typeof monaco;
     try {
       const fetchKey = `${projectId}:${workspaceId}:${filePath}:disk`;
-      [content, m] = await Promise.all([
-        this.dedupFetch(fetchKey, async () => {
+      type DiskFetchResult = { content: string; truncated: boolean; totalSize: number };
+      const [fetchResult, monaco_] = await Promise.all([
+        this.dedupFetch<DiskFetchResult>(fetchKey, async () => {
           const res = await rpc.fs.readFile(projectId, workspaceId, filePath);
           if (!res.success)
             throw new Error(`registerModel(disk): readFile failed for ${filePath}: ${res.error}`);
           const result = res.data.content;
           if (result === null) throw new Error(`registerModel(disk): null content for ${filePath}`);
-          return result;
-        }) as Promise<string>,
+          return { content: result, truncated: res.data.truncated, totalSize: res.data.totalSize };
+        }),
         this.monacoReadyPromise,
       ]);
+
+      // File too large to load into Monaco — mark status and bail out without creating a model.
+      if (fetchResult.truncated) {
+        runInAction(() => {
+          this.modelStatus.set(diskUri, 'too-large');
+          this.modelTotalSizes.set(diskUri, fetchResult.totalSize);
+        });
+        return uri;
+      }
+
+      content = fetchResult.content;
+      m = monaco_;
     } catch (err) {
       this.modelStatus.set(diskUri, 'error');
       throw err;
@@ -495,7 +515,17 @@ export class MonacoModelRegistry {
    */
   unregisterModel(uri: string): void {
     const entry = this.modelMap.get(uri);
-    if (!entry) return;
+    if (!entry) {
+      // No Monaco model was created — this can happen for too-large disk models.
+      // Clean up status and size immediately since there is nothing else to evict.
+      if (this.modelStatus.get(uri) === 'too-large') {
+        runInAction(() => {
+          this.modelStatus.delete(uri);
+          this.modelTotalSizes.delete(uri);
+        });
+      }
+      return;
+    }
 
     entry.refs -= 1;
     if (entry.refs > 0) return;
@@ -509,6 +539,7 @@ export class MonacoModelRegistry {
       if (!e.model.isDisposed()) e.model.dispose();
       this.modelMap.delete(uri);
       this.modelStatus.delete(uri);
+      if (e.type === 'disk') this.modelTotalSizes.delete(uri);
       if (e.type === 'buffer') {
         this.bufferContentDisposables.get(uri)?.dispose();
         this.bufferContentDisposables.delete(uri);

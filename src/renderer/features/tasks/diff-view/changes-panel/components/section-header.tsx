@@ -3,6 +3,7 @@ import { type SelectionState } from '@renderer/features/tasks/diff-view/stores/c
 import { Badge } from '@renderer/lib/ui/badge';
 import { Button } from '@renderer/lib/ui/button';
 import { Checkbox } from '@renderer/lib/ui/checkbox';
+import { SplitButton, type SplitButtonAction } from '@renderer/lib/ui/split-button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 
@@ -26,10 +27,10 @@ export function SectionHeader({
   onToggleCollapsed,
 }: SectionHeaderProps) {
   return (
-    <div className="shrink-0 flex items-center justify-between px-2.5 h-10">
-      <div className="flex items-center gap-2 justify-between w-full">
+    <div className="flex h-10 shrink-0 items-center justify-between px-3.5">
+      <div className="flex w-full items-center justify-between gap-2">
         <button onClick={onToggleCollapsed}>
-          <span className="text-sm text-foreground-muted flex items-center gap-2">
+          <span className="flex items-center gap-2 text-sm text-foreground-muted">
             <span>{label}</span> <Badge variant="secondary">{count}</Badge>{' '}
             <span className="p-2 text-foreground-muted hover:text-foreground">
               <ChevronDown
@@ -60,6 +61,7 @@ export function PullRequestSectionHeader({
   onToggleCollapsed,
   hasOpenPr,
   onCreatePr,
+  onCreateDraftPr,
   onRefresh,
   isRefreshing,
 }: {
@@ -68,14 +70,28 @@ export function PullRequestSectionHeader({
   onToggleCollapsed?: () => void;
   hasOpenPr: boolean;
   onCreatePr?: () => void;
+  onCreateDraftPr?: () => void;
   onRefresh?: () => void;
   isRefreshing?: boolean;
 }) {
+  const prActions: SplitButtonAction[] = [
+    {
+      value: 'create-pr',
+      label: 'Create PR',
+      action: () => onCreatePr?.(),
+    },
+    {
+      value: 'create-draft-pr',
+      label: 'Create draft PR',
+      action: () => onCreateDraftPr?.(),
+    },
+  ];
+
   return (
-    <div className="shrink-0 flex items-center justify-between px-2.5 h-10">
-      <div className="flex items-center gap-2 justify-between w-full min-w-0">
+    <div className="flex h-10 shrink-0 items-center justify-between px-3.5">
+      <div className="flex w-full min-w-0 items-center justify-between gap-2">
         <button onClick={onToggleCollapsed} className="min-w-0">
-          <span className="text-sm text-foreground-muted flex items-center gap-2 min-w-0">
+          <span className="flex min-w-0 items-center gap-2 text-sm text-foreground-muted">
             <span className="truncate">Pull Requests</span>{' '}
             <Badge variant="secondary" className="shrink-0">
               {count}
@@ -93,10 +109,13 @@ export function PullRequestSectionHeader({
         <div className="flex items-center gap-1.5">
           <Tooltip>
             <TooltipTrigger>
-              <Button variant="outline" size="xs" onClick={onCreatePr} disabled={hasOpenPr}>
-                <Plus className="size-3" />
-                Create PR
-              </Button>
+              <SplitButton
+                variant="outline"
+                size="xs"
+                actions={prActions}
+                disabled={hasOpenPr || !onCreatePr || !onCreateDraftPr}
+                icon={<Plus className="size-3" />}
+              />
             </TooltipTrigger>
             <TooltipContent>
               {hasOpenPr ? 'A pull request is already open' : 'Create a pull request'}

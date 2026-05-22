@@ -1,9 +1,4 @@
 import { homedir } from 'node:os';
-import { getProvider } from '@shared/agent-provider-registry';
-import type { Conversation } from '@shared/conversations';
-import { agentSessionExitedChannel } from '@shared/events/agentEvents';
-import { makePtyId } from '@shared/ptyId';
-import { makePtySessionId } from '@shared/ptySessionId';
 import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
 import { wireAgentClassifier } from '@main/core/agent-hooks/classifier-wiring';
 import { claudeTrustService } from '@main/core/agent-hooks/claude-trust-service';
@@ -17,11 +12,19 @@ import { buildAgentEnv } from '@main/core/pty/pty-env';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { logLocalPtySpawnWarnings, resolveLocalPtySpawn } from '@main/core/pty/pty-spawn-platform';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
+import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
-import { buildAgentCommand } from './agent-command';
+import { getProvider } from '@shared/agent-provider-registry';
+import type { Conversation } from '@shared/conversations';
+import { agentSessionExitedChannel } from '@shared/events/agentEvents';
+import { makePtyId } from '@shared/ptyId';
+import { makePtySessionId } from '@shared/ptySessionId';
+import { buildAgentSessionCommand } from './agent-command';
+import { scheduleInitialPromptInjection } from './keystroke-injection';
+import { resolveProviderEnv } from './provider-env';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
@@ -39,7 +42,10 @@ export class LocalConversationProvider implements ConversationProvider {
   private readonly ctx: IExecutionContext;
   private readonly taskEnvVars: Record<string, string>;
   private readonly hookConfigWriter: HookConfigWriter;
-  private readonly preparedHookProviders = new Map<string, boolean>();
+  private readonly preparedHookProviders = new Map<
+    string,
+    { writeGitIgnoreEntries: boolean; hooksAvailable: boolean }
+  >();
 
   constructor({
     projectId,
@@ -87,14 +93,21 @@ export class LocalConversationProvider implements ConversationProvider {
       cwd: this.taskPath,
       homedir: homedir(),
     });
-    await this.prepareHookConfig(conversation.providerId);
+    const hooksAvailable = await this.prepareHookConfig(conversation.providerId);
 
-    const { command, args } = await buildAgentCommand({
+    const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
+    const providerDef = getProvider(conversation.providerId);
+    const { command, args } = buildAgentSessionCommand({
       providerId: conversation.providerId,
+      providerConfig,
       autoApprove: conversation.autoApprove,
       sessionId: conversation.id,
       isResuming,
       initialPrompt,
+    });
+    const providerEnv = resolveProviderEnv(providerConfig, {
+      providerId: conversation.providerId,
+      autoApprove: conversation.autoApprove,
     });
 
     const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
@@ -127,6 +140,7 @@ export class LocalConversationProvider implements ConversationProvider {
       env: {
         ...buildAgentEnv({
           hook: port > 0 ? { port, ptyId, token } : undefined,
+          providerVars: providerEnv,
         }),
         ...this.taskEnvVars,
       },
@@ -135,8 +149,7 @@ export class LocalConversationProvider implements ConversationProvider {
     });
 
     const hookActive = port > 0;
-    const provider = getProvider(conversation.providerId);
-    const useHooksOnly = hookActive && provider?.supportsHooks;
+    const useHooksOnly = hookActive && providerDef?.supportsHooks && hooksAvailable;
 
     if (!useHooksOnly) {
       wireAgentClassifier({
@@ -152,13 +165,6 @@ export class LocalConversationProvider implements ConversationProvider {
       ptySessionRegistry.unregister(sessionId);
       const shouldRespawn = this.sessions.has(sessionId);
       this.sessions.delete(sessionId);
-      telemetryService.capture('agent_run_finished', {
-        provider: conversation.providerId,
-        exit_code: typeof exitCode === 'number' ? exitCode : -1,
-        project_id: conversation.projectId,
-        task_id: conversation.taskId,
-        conversation_id: conversation.id,
-      });
       events.emit(agentSessionExitedChannel, {
         sessionId,
         projectId: conversation.projectId,
@@ -192,8 +198,11 @@ export class LocalConversationProvider implements ConversationProvider {
       }
     });
 
-    ptySessionRegistry.register(sessionId, pty);
+    ptySessionRegistry.register(sessionId, pty, {
+      metadata: { providerId: conversation.providerId, title: conversation.title },
+    });
     this.sessions.set(sessionId, pty);
+    scheduleInitialPromptInjection({ pty, conversation, initialPrompt, isResuming });
     telemetryService.capture('agent_run_started', {
       provider: conversation.providerId,
       project_id: conversation.projectId,
@@ -202,26 +211,27 @@ export class LocalConversationProvider implements ConversationProvider {
     });
   }
 
-  private async prepareHookConfig(providerId: Conversation['providerId']): Promise<void> {
+  private async prepareHookConfig(providerId: Conversation['providerId']): Promise<boolean> {
     try {
       const localProjectSettings = await appSettingsService.get('localProject');
       const writeGitIgnoreEntries = localProjectSettings.writeAgentConfigToGitIgnore ?? true;
-      const previousWriteGitIgnoreEntries = this.preparedHookProviders.get(providerId);
+      const previous = this.preparedHookProviders.get(providerId);
       const shouldPrepareHookConfig =
-        previousWriteGitIgnoreEntries === undefined ||
-        (!previousWriteGitIgnoreEntries && writeGitIgnoreEntries);
-      if (!shouldPrepareHookConfig) return;
+        previous === undefined || (!previous.writeGitIgnoreEntries && writeGitIgnoreEntries);
+      if (!shouldPrepareHookConfig) return previous?.hooksAvailable ?? false;
 
-      await this.hookConfigWriter.writeForProvider(providerId, {
+      const hooksAvailable = await this.hookConfigWriter.writeForProvider(providerId, {
         writeGitIgnoreEntries,
       });
-      this.preparedHookProviders.set(providerId, writeGitIgnoreEntries);
+      this.preparedHookProviders.set(providerId, { writeGitIgnoreEntries, hooksAvailable });
+      return hooksAvailable;
     } catch (error) {
       log.warn('LocalConversationProvider: failed to prepare hook config', {
         providerId,
         taskPath: this.taskPath,
         error: String(error),
       });
+      return false;
     }
   }
 

@@ -1,17 +1,29 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { providerConfigDefaults } from '@main/core/settings/schema';
-import { buildAgentCommand } from './agent-command';
+import type { AgentProviderId } from '@shared/agent-provider-registry';
+import type { ProviderCustomConfig } from '@shared/app-settings';
+import {
+  buildAgentCommand,
+  buildAgentSessionCommand,
+  wrapAgentCommandWithStdinPipe,
+} from './agent-command';
 
-vi.mock('@main/core/settings/provider-settings-service', () => ({
-  providerOverrideSettings: {
-    getItem: vi.fn(async (providerId: string) => providerConfigDefaults[providerId]),
-  },
-}));
+function makeConfig(overrides: Partial<ProviderCustomConfig> = {}): ProviderCustomConfig {
+  return {
+    cli: 'claude',
+    resumeFlag: '--resume',
+    autoApproveFlag: '--dangerously-skip-permissions',
+    initialPromptFlag: '',
+    sessionIdFlag: '--session-id',
+    ...overrides,
+  };
+}
 
 describe('buildAgentCommand', () => {
-  it('uses the current Codex bypass flag when auto-approve is enabled', async () => {
-    const command = await buildAgentCommand({
+  it('uses the current Codex bypass flag when auto-approve is enabled', () => {
+    const command = buildAgentCommand({
       providerId: 'codex',
+      providerConfig: providerConfigDefaults.codex,
       autoApprove: true,
       initialPrompt: 'Fix the issue',
       sessionId: 'session-1',
@@ -21,5 +33,283 @@ describe('buildAgentCommand', () => {
       command: 'codex',
       args: ['--dangerously-bypass-approvals-and-sandbox', 'Fix the issue'],
     });
+  });
+
+  it('uses the Antigravity skip-permissions flag when auto-approve is enabled', () => {
+    const command = buildAgentCommand({
+      providerId: 'antigravity',
+      providerConfig: providerConfigDefaults.antigravity,
+      autoApprove: true,
+      initialPrompt: 'Fix the issue',
+      sessionId: 'session-1',
+    });
+
+    expect(command).toEqual({
+      command: 'agy',
+      args: ['--conversation=session-1', '--dangerously-skip-permissions', '-i', 'Fix the issue'],
+    });
+  });
+
+  it('supports custom CLI command prefixes and appends managed provider args', () => {
+    const result = buildAgentCommand({
+      providerId: 'claude',
+      providerConfig: makeConfig({
+        cli: 'caffeinate -i direnv exec . claude',
+      }),
+      autoApprove: true,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+    });
+
+    expect(result).toEqual({
+      command: 'caffeinate',
+      args: [
+        '-i',
+        'direnv',
+        'exec',
+        '.',
+        'claude',
+        '--session-id',
+        'conv-1',
+        '--dangerously-skip-permissions',
+        'Fix the bug',
+      ],
+    });
+  });
+
+  it('preserves quoted custom CLI and flag arguments', () => {
+    const result = buildAgentCommand({
+      providerId: 'claude',
+      providerConfig: makeConfig({
+        cli: '"/opt/Claude Code/bin/claude"',
+        resumeFlag: '--resume "existing session"',
+      }),
+      sessionId: 'conv-1',
+      isResuming: true,
+    });
+
+    expect(result.command).toBe('/opt/Claude Code/bin/claude');
+    expect(result.args).toEqual(['--resume', 'existing session', 'conv-1']);
+  });
+
+  it('parses multi-token session id flags', () => {
+    const result = buildAgentCommand({
+      providerId: 'claude',
+      providerConfig: makeConfig({ sessionIdFlag: '--session id' }),
+      sessionId: 'conv-1',
+    });
+
+    expect(result.args).toEqual(['--session', 'id', 'conv-1']);
+  });
+
+  it('appends equals-style session id flags when resuming', () => {
+    const result = buildAgentCommand({
+      providerId: 'claude',
+      providerConfig: makeConfig({ resumeFlag: '--resume=' }),
+      sessionId: 'conv-1',
+      isResuming: true,
+    });
+
+    expect(result.args).toEqual(['--resume=conv-1']);
+  });
+
+  it('puts default args before resume flags for CLIs with subcommands', () => {
+    const result = buildAgentCommand({
+      providerId: 'goose',
+      providerConfig: providerConfigDefaults.goose,
+      sessionId: 'conv-1',
+      isResuming: true,
+    });
+
+    expect(result.args).toEqual(['run', '-s', '--resume']);
+  });
+
+  it('does not pass Droid session id on fresh sessions', () => {
+    const result = buildAgentCommand({
+      providerId: 'droid',
+      providerConfig: providerConfigDefaults.droid,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+    });
+
+    expect(result.args).toEqual(['Fix the bug']);
+  });
+
+  it('does not pass stdin-piped prompts as CLI args', () => {
+    const result = buildAgentCommand({
+      providerId: 'amp',
+      providerConfig: providerConfigDefaults.amp,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+    });
+
+    expect(result).toEqual({
+      command: 'amp',
+      args: [],
+    });
+  });
+
+  it('passes Droid session id when resuming', () => {
+    const result = buildAgentCommand({
+      providerId: 'droid',
+      providerConfig: providerConfigDefaults.droid,
+      sessionId: 'conv-1',
+      isResuming: true,
+    });
+
+    expect(result.args).toEqual(['--session-id', 'conv-1']);
+  });
+
+  it.each<{
+    providerId: AgentProviderId;
+    freshArgs: string[];
+    resumeArgs: string[];
+  }>([
+    { providerId: 'cursor', freshArgs: ['Fix the bug'], resumeArgs: ['--resume'] },
+    {
+      providerId: 'opencode',
+      freshArgs: ['--prompt', 'Fix the bug'],
+      resumeArgs: ['--continue'],
+    },
+    { providerId: 'grok', freshArgs: [], resumeArgs: ['-r'] },
+    { providerId: 'copilot', freshArgs: ['Fix the bug'], resumeArgs: ['--resume'] },
+    {
+      providerId: 'auggie',
+      freshArgs: ['--allow-indexing', 'Fix the bug'],
+      resumeArgs: ['--allow-indexing', '--continue'],
+    },
+    {
+      providerId: 'goose',
+      freshArgs: ['run', '-s', '-t', 'Fix the bug'],
+      resumeArgs: ['run', '-s', '--resume'],
+    },
+    { providerId: 'kimi', freshArgs: ['-c', 'Fix the bug'], resumeArgs: ['--continue'] },
+    { providerId: 'codebuff', freshArgs: ['Fix the bug'], resumeArgs: [] },
+    { providerId: 'freebuff', freshArgs: ['Fix the bug'], resumeArgs: [] },
+    { providerId: 'mistral', freshArgs: ['Fix the bug'], resumeArgs: [] },
+    {
+      providerId: 'antigravity',
+      freshArgs: ['--conversation=conv-1', '-i', 'Fix the bug'],
+      resumeArgs: ['--conversation=conv-1'],
+    },
+  ])('builds fresh and resume args for $providerId', ({ providerId, freshArgs, resumeArgs }) => {
+    const fresh = buildAgentCommand({
+      providerId,
+      providerConfig: providerConfigDefaults[providerId],
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+    });
+
+    const resume = buildAgentCommand({
+      providerId,
+      providerConfig: providerConfigDefaults[providerId],
+      sessionId: 'conv-1',
+      isResuming: true,
+    });
+
+    expect(fresh.args).toEqual(freshArgs);
+    expect(resume.args).toEqual(resumeArgs);
+  });
+
+  it('appends extra args', () => {
+    const result = buildAgentCommand({
+      providerId: 'claude',
+      providerConfig: makeConfig({
+        extraArgs: '--model "Claude Sonnet"',
+      }),
+      sessionId: 'conv-1',
+    });
+
+    expect(result.args).toContain('--model');
+    expect(result.args).toContain('Claude Sonnet');
+  });
+
+  it('rejects shell control syntax that makes managed args ambiguous', () => {
+    expect(() =>
+      buildAgentCommand({
+        providerId: 'claude',
+        providerConfig: makeConfig({ cli: 'claude | tee log' }),
+        sessionId: 'conv-1',
+      })
+    ).toThrow(/executable command prefixes/);
+  });
+
+  it('rejects shell setup in the CLI command field', () => {
+    expect(() =>
+      buildAgentCommand({
+        providerId: 'claude',
+        providerConfig: makeConfig({ cli: 'source ~/.zshrc && claude' }),
+        sessionId: 'conv-1',
+      })
+    ).toThrow(/executable command prefixes/);
+  });
+
+  it('rejects inline environment assignment in the CLI command field', () => {
+    expect(() =>
+      buildAgentCommand({
+        providerId: 'claude',
+        providerConfig: makeConfig({ cli: 'FOO=bar claude' }),
+        sessionId: 'conv-1',
+      })
+    ).toThrow(/executable command prefixes/);
+  });
+});
+
+describe('wrapAgentCommandWithStdinPipe', () => {
+  it('pipes the prompt into the agent', () => {
+    const result = wrapAgentCommandWithStdinPipe(
+      { command: 'amp', args: ['--dangerously-allow-all'] },
+      'Fix the bug'
+    );
+
+    expect(result.command).toBe('bash');
+    expect(result.args).toEqual([
+      '-c',
+      "printf '%s\\n' 'Fix the bug' | 'amp' '--dangerously-allow-all'",
+    ]);
+  });
+
+  it('escapes prompts containing single quotes', () => {
+    const result = wrapAgentCommandWithStdinPipe({ command: 'amp', args: [] }, "it's broken");
+
+    expect(result.args[1]).toContain("'it'\\''s broken'");
+  });
+
+  it('preserves multi-line prompts so the agent receives them verbatim', () => {
+    const result = wrapAgentCommandWithStdinPipe(
+      { command: 'amp', args: [] },
+      'line one\nline two'
+    );
+
+    expect(result.args[1]).toContain("'line one\nline two'");
+  });
+});
+
+describe('buildAgentSessionCommand', () => {
+  it('wraps stdin-piped providers after managed args are built', () => {
+    const result = buildAgentSessionCommand({
+      providerId: 'amp',
+      providerConfig: providerConfigDefaults.amp,
+      autoApprove: true,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+    });
+
+    expect(result).toEqual({
+      command: 'bash',
+      args: ['-c', "printf '%s\\n' 'Fix the bug' | 'amp' '--dangerously-allow-all'"],
+    });
+  });
+
+  it('does not wrap when resuming', () => {
+    const result = buildAgentSessionCommand({
+      providerId: 'amp',
+      providerConfig: providerConfigDefaults.amp,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+      isResuming: true,
+    });
+
+    expect(result).toEqual({ command: 'amp', args: [] });
   });
 });

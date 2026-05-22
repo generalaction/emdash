@@ -1,10 +1,10 @@
 import { BrowserWindow } from 'electron';
-import { type AgentProviderId } from '@shared/agent-provider-registry';
-import { agentEventChannel, type AgentEvent } from '@shared/events/agentEvents';
-import { makePtyId } from '@shared/ptyId';
 import { type Pty } from '@main/core/pty/pty';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
+import { type AgentProviderId } from '@shared/agent-provider-registry';
+import { agentEventChannel, type AgentEvent } from '@shared/events/agentEvents';
+import { makePtyId } from '@shared/ptyId';
 import { createClassifier } from './classifiers';
 import { stripAnsi, type ClassificationResult } from './classifiers/base';
 import { maybeShowNotification } from './notification';

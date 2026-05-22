@@ -25,7 +25,7 @@ function InlineEditInput({
   return (
     <input
       ref={ref}
-      className="max-w-16 bg-transparent outline-none text-sm border border-border p-1 rounded-md text-foreground"
+      className="max-w-16 rounded-md border border-border bg-transparent p-1 text-sm text-foreground outline-none"
       value={value}
       onChange={(e) => setValue(e.target.value)}
       onBlur={() => onConfirm(value)}
@@ -107,7 +107,7 @@ export const TabBar = observer(function TabBar<TEntity>({
               )}
             </span>
             {onRemove && (
-              <div className="relative size-5 flex items-center justify-center">
+              <div className="relative flex size-5 items-center justify-center">
                 {renderTabSuffix && (
                   <span className="transition-opacity group-hover:opacity-0">
                     {renderTabSuffix(entity)}
@@ -115,7 +115,7 @@ export const TabBar = observer(function TabBar<TEntity>({
                 )}
                 <button
                   disabled={isEditing}
-                  className="absolute inset-0 hover:bg-background-2 text-foreground-muted flex items-center justify-center rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="absolute inset-0 flex items-center justify-center rounded-md text-foreground-muted opacity-0 transition-opacity group-hover:opacity-100 hover:bg-background-2"
                   onClick={(e) => {
                     e.stopPropagation();
                     onRemove(id);
@@ -143,20 +143,20 @@ export const TabBar = observer(function TabBar<TEntity>({
   };
 
   return (
-    <div className="flex items-center justify-between h-[41px] border-b border-border bg-background-secondary">
+    <div className="flex h-[41px] items-center justify-between border-b border-border bg-background-secondary">
       {onReorder ? (
         <ReorderList
           items={tabs}
           onReorder={handleReorder}
           axis="x"
-          className="flex overflow-x-auto w-full h-full"
+          className="flex h-full w-full overflow-x-auto"
           itemClassName="list-none flex h-full"
           getKey={(item) => getId(item)}
         >
           {(entity) => <Observer>{() => renderTab(entity)}</Observer>}
         </ReorderList>
       ) : (
-        <div className="flex overflow-x-auto h-full">{tabs.map((entity) => renderTab(entity))}</div>
+        <div className="flex h-full overflow-x-auto">{tabs.map((entity) => renderTab(entity))}</div>
       )}
       {actions && <div className="shrink-0">{actions}</div>}
     </div>

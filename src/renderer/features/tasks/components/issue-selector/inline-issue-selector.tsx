@@ -1,15 +1,17 @@
 import { Check, Loader2 } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Issue } from '@shared/tasks';
 import {
   ISSUE_PROVIDER_META,
   ISSUE_PROVIDER_ORDER,
 } from '@renderer/features/integrations/issue-provider-meta';
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@renderer/lib/ui/input-group';
+import { Kbd } from '@renderer/lib/ui/kbd';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/ui/select';
-import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
 import { cn } from '@renderer/utils/utils';
+import type { Issue } from '@shared/tasks';
 import { ConnectIssueIntegrationPlaceholder, IssueRow, ProviderLogo } from './issue-selector';
+import { getLinkedIssueMap } from './use-linked-issue-urls';
 import { useIssueSearch } from './useIssueSearch';
 
 export interface InlineIssueSelectorProps {
@@ -19,16 +21,20 @@ export interface InlineIssueSelectorProps {
   repositoryUrl?: string;
   projectPath?: string;
   disabled?: boolean;
+  /** Skip "already linked" indicator for this task — useful when re-selecting the same task's issue. */
+  excludeTaskId?: string;
 }
 
-export function InlineIssueSelector({
+export const InlineIssueSelector = observer(function InlineIssueSelector({
   value,
   onValueChange,
   projectId,
   repositoryUrl = '',
   projectPath = '',
   disabled,
+  excludeTaskId,
 }: InlineIssueSelectorProps) {
+  const linkedIssueMap = getLinkedIssueMap(projectId, excludeTaskId);
   const {
     issues,
     issueProvider,
@@ -90,7 +96,8 @@ export function InlineIssueSelector({
         case 'Enter': {
           e.preventDefault();
           const issue = issues[highlightedIndex];
-          if (issue) onValueChange(issue === value ? null : issue);
+          if (!issue) break;
+          onValueChange(issue === value ? null : issue);
           break;
         }
         case 'Escape':
@@ -115,8 +122,8 @@ export function InlineIssueSelector({
         onValueChange={(v) => v && handleProviderChange(v as Issue['provider'])}
       >
         <SelectTrigger
-          showChevron={false}
-          className="h-6 gap-0 border-none bg-transparent px-1.5 shadow-none focus:ring-0"
+          aria-label="Select issue provider"
+          className="h-6 gap-1 border-none bg-transparent px-1.5 shadow-none focus:ring-0"
         >
           <ProviderLogo provider={issueProvider} className="h-3.5 w-3.5" />
         </SelectTrigger>
@@ -148,7 +155,7 @@ export function InlineIssueSelector({
       )}
     >
       {/* Search row */}
-      <InputGroup className="rounded-none border-0 border-b border-input shadow-none has-[[data-slot=input-group-control]:focus-visible]:ring-0 has-[[data-slot=input-group-control]:focus-visible]:border-input">
+      <InputGroup className="border-input has-[[data-slot=input-group-control]:focus-visible]:border-input rounded-none border-0 border-b shadow-none has-[[data-slot=input-group-control]:focus-visible]:ring-0">
         {providerAddon && <InputGroupAddon align="inline-start">{providerAddon}</InputGroupAddon>}
         <InputGroupInput
           ref={inputRef}
@@ -161,15 +168,16 @@ export function InlineIssueSelector({
       </InputGroup>
 
       {/* Issue list */}
-      <div ref={listRef} className="overflow-y-auto overflow-x-hidden h-52 p-1">
+      <div ref={listRef} className="h-52 overflow-x-hidden overflow-y-auto p-1">
         {issues.length === 0 ? (
-          <div className="text-center text-sm text-foreground-passive flex items-center justify-center h-full">
+          <div className="flex h-full items-center justify-center text-center text-sm text-foreground-passive">
             {query ? 'No issues found' : `No ${issueProvider} issues to show`}
           </div>
         ) : (
           issues.map((issue, index) => {
             const isSelected = value?.identifier === issue.identifier;
             const isHighlighted = index === highlightedIndex;
+            const linkedTo = linkedIssueMap.get(issue.url);
             return (
               <button
                 key={issue.identifier}
@@ -182,7 +190,7 @@ export function InlineIssueSelector({
                 onMouseEnter={() => setHighlightedIndex(index)}
                 onClick={() => onValueChange(isSelected ? null : issue)}
               >
-                <IssueRow issue={issue} />
+                <IssueRow issue={issue} linkedTo={linkedTo} />
                 {isSelected && (
                   <Check className="absolute right-2 size-3.5 shrink-0 text-foreground-muted" />
                 )}
@@ -191,14 +199,14 @@ export function InlineIssueSelector({
           })
         )}
       </div>
-      <div className="flex items-center justify-between h-6 px-2 text-xs bg-background-1 border-t border-border">
+      <div className="flex h-6 items-center justify-between border-t border-border bg-background-1 px-2 text-xs">
         <div className="text-foreground-muted">Navigate with arrow keys</div>
         <div className="text-foreground-muted">
           <button className="flex items-center gap-2">
-            Select Issue <ShortcutHint settingsKey="confirm" />
+            Select Issue <Kbd>⏎</Kbd>
           </button>{' '}
         </div>
       </div>
     </div>
   );
-}
+});

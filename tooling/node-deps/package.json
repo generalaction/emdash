@@ -1,0 +1,8 @@
+{
+  "name": "emdash-tooling-node-deps",
+  "private": true,
+  "description": "Isolated better-sqlite3 compiled for system Node (not Electron). Used by Vitest fixture and migration tests so the root node_modules/better-sqlite3 can stay Electron-compiled at all times.",
+  "dependencies": {
+    "better-sqlite3": "^12.6.0"
+  }
+}

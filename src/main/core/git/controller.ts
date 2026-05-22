@@ -1,10 +1,10 @@
-import type { DiffMode, GitObjectRef, GitRef, MergeBaseRange } from '@shared/git';
-import { createRPCController } from '@shared/ipc/rpc';
-import { err, ok } from '@shared/result';
 import { TooManyFilesChangedError } from '@main/core/git/impl/status-parser';
 import { resolveWorkspace } from '@main/core/projects/utils';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
+import type { DiffMode, GitObjectRef, GitRef, MergeBaseRange } from '@shared/git';
+import { createRPCController } from '@shared/ipc/rpc';
+import { err, ok } from '@shared/result';
 
 export const gitController = createRPCController({
   getFullStatus: async (projectId: string, workspaceId: string) => {
@@ -121,6 +121,36 @@ export const gitController = createRPCController({
       return ok({ content });
     } catch (e) {
       log.error('gitCtrl.getFileAtIndex failed', { projectId, workspaceId, filePath, error: e });
+      return err({ type: 'git_error' as const, message: String(e) });
+    }
+  },
+
+  getImageAtRef: async (projectId: string, workspaceId: string, filePath: string, ref: string) => {
+    try {
+      const env = resolveWorkspace(projectId, workspaceId);
+      if (!env) return err({ type: 'not_found' as const });
+      const result = await env.git.getImageAtRef(filePath, ref);
+      return ok({ result });
+    } catch (e) {
+      log.error('gitCtrl.getImageAtRef failed', {
+        projectId,
+        workspaceId,
+        filePath,
+        ref,
+        error: e,
+      });
+      return err({ type: 'git_error' as const, message: String(e) });
+    }
+  },
+
+  getImageAtIndex: async (projectId: string, workspaceId: string, filePath: string) => {
+    try {
+      const env = resolveWorkspace(projectId, workspaceId);
+      if (!env) return err({ type: 'not_found' as const });
+      const result = await env.git.getImageAtIndex(filePath);
+      return ok({ result });
+    } catch (e) {
+      log.error('gitCtrl.getImageAtIndex failed', { projectId, workspaceId, filePath, error: e });
       return err({ type: 'git_error' as const, message: String(e) });
     }
   },

@@ -1,13 +1,17 @@
 import { ChevronRight, FolderOpen } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useState } from 'react';
-import { getPrNumber, isForkPr, type PullRequest } from '@shared/pull-requests';
 import {
   getProjectManagerStore,
   getRepositoryStore,
   mountedProjectData,
 } from '@renderer/features/projects/stores/project-selectors';
+import { buildLinkedIssueContextAction } from '@renderer/features/tasks/conversations/context-actions';
+import { nextDefaultConversationTitle } from '@renderer/features/tasks/conversations/conversation-title-utils';
+import { resolveContextActionText } from '@renderer/features/tasks/conversations/resolve-context-action-text';
 import { ProjectSelector } from '@renderer/features/tasks/create-task-modal/project-selector';
+import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
+import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
@@ -23,6 +27,7 @@ import {
 } from '@renderer/lib/ui/dialog';
 import { Switch } from '@renderer/lib/ui/switch';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
+import { getPrNumber, isForkPr, type PullRequest } from '@shared/pull-requests';
 import {
   resolveBranchLikeTaskStrategy,
   resolvePullRequestTaskStrategy,
@@ -31,6 +36,7 @@ import { FromBranchContent } from './from-branch-content';
 import { FromIssueContent } from './from-issue-content';
 import { FromPrContent } from './from-pr-content';
 import { useInitialConversationState } from './initial-conversation-section';
+import { hasInitialIssueContext, upsertInitialIssueContext } from './initial-conversation-text';
 import { useFromBranchMode } from './use-from-branch-mode';
 import { useFromIssueMode } from './use-from-issue-mode';
 import { useFromPullRequestMode } from './use-from-pull-request-mode';
@@ -65,21 +71,22 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   });
   const [selectedStrategy, setSelectedStrategy] = useState<CreateTaskStrategy>(strategy);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
   const [useBYOI, setUseBYOI] = useState(false);
 
   const projectData = selectedProjectId
     ? mountedProjectData(getProjectManagerStore().projects.get(selectedProjectId))
     : null;
-  const connectionId = projectData?.type === 'ssh' ? projectData.connectionId : undefined;
-
-  const initialConversation = useInitialConversationState(connectionId);
+  const initialConversation = useInitialConversationState(selectedProjectId);
+  const autoApproveDefaults = useAgentAutoApproveDefaults();
+  const taskSettings = useTaskSettings();
 
   useEffect(() => setUseBYOI(false), [selectedProjectId]);
   useEffect(() => {
     initialConversation.setProvider(null);
     initialConversation.setPrompt('');
     // setProvider and setPrompt are stable useState setters
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [selectedProjectId]);
 
   const isWorkspaceProviderEnabled = useFeatureFlag('workspace-provider');
@@ -107,94 +114,119 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     'from-issue': fromIssue,
     'from-pull-request': fromPR,
   }[selectedStrategy];
-  const canCreate = !!selectedProjectId && activeMode.isValid && !fromPrUnavailable;
+  const canCreate = !!selectedProjectId && activeMode.isValid && !fromPrUnavailable && !isCreating;
 
-  const handleCreateTask = useCallback(() => {
+  const handleCreateTask = useCallback(async () => {
     if (!selectedProjectId) return;
     const id = crypto.randomUUID();
     const projectStore = getProjectManagerStore().projects.get(selectedProjectId);
     if (projectStore?.state !== 'mounted') return;
 
-    const builtInitialConversation = initialConversation.provider
-      ? {
-          id: crypto.randomUUID(),
-          projectId: selectedProjectId,
-          taskId: id,
-          provider: initialConversation.provider,
-          title: activeMode.taskName,
-          initialPrompt: initialConversation.prompt.trim() || undefined,
+    setIsCreating(true);
+    try {
+      let initialPrompt = initialConversation.prompt;
+
+      if (
+        selectedStrategy === 'from-issue' &&
+        taskSettings.includeIssueContextByDefault &&
+        fromIssue.linkedIssue &&
+        !hasInitialIssueContext(initialPrompt)
+      ) {
+        const action = buildLinkedIssueContextAction(fromIssue.linkedIssue);
+        if (action) {
+          const issueContext = await resolveContextActionText({
+            action,
+            linkedIssue: fromIssue.linkedIssue,
+            projectId: selectedProjectId,
+          });
+          initialPrompt = upsertInitialIssueContext(initialPrompt, issueContext);
         }
-      : undefined;
+      }
 
-    switch (selectedStrategy) {
-      case 'from-branch': {
-        if (!fromBranch.selectedBranch) return;
-        const taskStrategy = resolveBranchLikeTaskStrategy({
-          isUnborn,
-          createBranchAndWorktree: fromBranch.createBranchAndWorktree,
-          taskBranch: fromBranch.taskName,
-          pushBranch: fromBranch.pushBranch,
-        });
-        void projectStore.mountedProject!.taskManager.createTask({
-          id,
-          projectId: selectedProjectId,
-          name: fromBranch.taskName,
-          sourceBranch: fromBranch.selectedBranch,
-          strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
-          workspaceProvider: useBYOI ? 'byoi' : undefined,
-          initialConversation: builtInitialConversation,
-        });
-        break;
+      const builtInitialConversation = initialConversation.provider
+        ? {
+            id: crypto.randomUUID(),
+            projectId: selectedProjectId,
+            taskId: id,
+            provider: initialConversation.provider,
+            title: nextDefaultConversationTitle(initialConversation.provider, []),
+            initialPrompt: initialPrompt.trim() || undefined,
+            autoApprove: autoApproveDefaults.getDefault(initialConversation.provider),
+          }
+        : undefined;
+
+      switch (selectedStrategy) {
+        case 'from-branch': {
+          if (!fromBranch.selectedBranch) return;
+          const taskStrategy = resolveBranchLikeTaskStrategy({
+            isUnborn,
+            createBranchAndWorktree: fromBranch.createBranchAndWorktree,
+            taskBranch: fromBranch.branchName,
+            pushBranch: fromBranch.pushBranch,
+          });
+          void projectStore.mountedProject!.taskManager.createTask({
+            id,
+            projectId: selectedProjectId,
+            name: fromBranch.taskName,
+            sourceBranch: fromBranch.selectedBranch,
+            strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
+            workspaceProvider: useBYOI ? 'byoi' : undefined,
+            initialConversation: builtInitialConversation,
+          });
+          break;
+        }
+        case 'from-issue': {
+          if (!fromIssue.selectedBranch) return;
+          const taskStrategy = resolveBranchLikeTaskStrategy({
+            isUnborn,
+            createBranchAndWorktree: fromIssue.createBranchAndWorktree,
+            taskBranch: fromIssue.branchName,
+            pushBranch: fromIssue.pushBranch,
+          });
+          void projectStore.mountedProject!.taskManager.createTask({
+            id,
+            projectId: selectedProjectId,
+            name: fromIssue.taskName,
+            sourceBranch: fromIssue.selectedBranch,
+            strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
+            linkedIssue: fromIssue.linkedIssue ?? undefined,
+            workspaceProvider: useBYOI ? 'byoi' : undefined,
+            initialConversation: builtInitialConversation,
+          });
+          break;
+        }
+        case 'from-pull-request': {
+          if (!fromPR.linkedPR) return;
+          const reviewBranch = fromPR.linkedPR.headRefName;
+          const taskStrategy = resolvePullRequestTaskStrategy({
+            checkoutMode: fromPR.checkoutMode,
+            prNumber: getPrNumber(fromPR.linkedPR) ?? 0,
+            headBranch: reviewBranch,
+            headRepositoryUrl: fromPR.linkedPR.headRepositoryUrl,
+            isFork: isForkPr(fromPR.linkedPR),
+            taskBranch: fromPR.taskName,
+            pushBranch: fromPR.branchSelection.pushBranch,
+          });
+          void projectStore.mountedProject!.taskManager.createTask({
+            id,
+            projectId: selectedProjectId,
+            name: fromPR.taskName,
+            sourceBranch: { type: 'local', branch: reviewBranch },
+            initialStatus:
+              fromPR.linkedPR.status === 'open' && !fromPR.linkedPR.isDraft ? 'review' : undefined,
+            strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
+            workspaceProvider: useBYOI ? 'byoi' : undefined,
+            initialConversation: builtInitialConversation,
+          });
+          break;
+        }
       }
-      case 'from-issue': {
-        if (!fromIssue.selectedBranch) return;
-        const taskStrategy = resolveBranchLikeTaskStrategy({
-          isUnborn,
-          createBranchAndWorktree: fromIssue.createBranchAndWorktree,
-          taskBranch: fromIssue.taskName,
-          pushBranch: fromIssue.pushBranch,
-        });
-        void projectStore.mountedProject!.taskManager.createTask({
-          id,
-          projectId: selectedProjectId,
-          name: fromIssue.taskName,
-          sourceBranch: fromIssue.selectedBranch,
-          strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
-          linkedIssue: fromIssue.linkedIssue ?? undefined,
-          workspaceProvider: useBYOI ? 'byoi' : undefined,
-          initialConversation: builtInitialConversation,
-        });
-        break;
-      }
-      case 'from-pull-request': {
-        if (!fromPR.linkedPR) return;
-        const reviewBranch = fromPR.linkedPR.headRefName;
-        const taskStrategy = resolvePullRequestTaskStrategy({
-          checkoutMode: fromPR.checkoutMode,
-          prNumber: getPrNumber(fromPR.linkedPR) ?? 0,
-          headBranch: reviewBranch,
-          headRepositoryUrl: fromPR.linkedPR.headRepositoryUrl,
-          isFork: isForkPr(fromPR.linkedPR),
-          taskBranch: fromPR.taskName,
-          pushBranch: fromPR.branchSelection.pushBranch,
-        });
-        void projectStore.mountedProject!.taskManager.createTask({
-          id,
-          projectId: selectedProjectId,
-          name: fromPR.taskName,
-          sourceBranch: { type: 'local', branch: reviewBranch },
-          initialStatus:
-            fromPR.linkedPR.status === 'open' && !fromPR.linkedPR.isDraft ? 'review' : undefined,
-          strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
-          workspaceProvider: useBYOI ? 'byoi' : undefined,
-          initialConversation: builtInitialConversation,
-        });
-        break;
-      }
+
+      navigate('task', { projectId: selectedProjectId, taskId: id });
+      onClose();
+    } finally {
+      setIsCreating(false);
     }
-
-    navigate('task', { projectId: selectedProjectId, taskId: id });
-    onClose();
   }, [
     selectedProjectId,
     selectedStrategy,
@@ -204,7 +236,8 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     isUnborn,
     useBYOI,
     initialConversation,
-    activeMode.taskName,
+    autoApproveDefaults,
+    taskSettings.includeIssueContextByDefault,
     navigate,
     onClose,
   ]);
@@ -216,8 +249,8 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           value={selectedProjectId}
           onChange={setSelectedProjectId}
           trigger={
-            <ComboboxTrigger className="h-6 flex items-center gap-2 border border-border rounded-md px-2.5 py-1 text-sm outline-none">
-              <FolderOpen className="size-3.5 shrink-0 text-muted-foreground" />
+            <ComboboxTrigger className="flex h-6 items-center gap-2 rounded-md border border-border px-2.5 py-1 text-sm outline-none">
+              <FolderOpen className="text-muted-foreground size-3.5 shrink-0" />
               <ComboboxValue placeholder="Select a project" />
             </ComboboxTrigger>
           }
@@ -225,7 +258,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         <ChevronRight className="size-3.5 text-foreground-passive" />
         <DialogTitle>Create Task</DialogTitle>
       </DialogHeader>
-      <DialogContentArea className="gap-4">
+      <div className="flex shrink-0 flex-col gap-4 px-6 pb-4">
         <ToggleGroup
           className="w-full"
           value={[selectedStrategy]}
@@ -248,9 +281,11 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         {isWorkspaceProviderEnabled && (
           <div className="flex items-center gap-2">
             <Switch size="sm" checked={useBYOI} onCheckedChange={setUseBYOI} />
-            <span className="text-sm text-muted-foreground">Use BYOI infrastructure</span>
+            <span className="text-muted-foreground text-sm">Run on own infrastructure</span>
           </div>
         )}
+      </div>
+      <DialogContentArea>
         <AnimatedHeight onAnimatingChange={setIsTransitioning}>
           {selectedStrategy === 'from-branch' && (
             <FromBranchContent
@@ -259,7 +294,6 @@ export const CreateTaskModal = observer(function CreateTaskModal({
               currentBranch={currentBranch}
               isUnborn={isUnborn}
               initialConversation={initialConversation}
-              connectionId={connectionId}
             />
           )}
           {selectedStrategy === 'from-issue' && (
@@ -272,13 +306,12 @@ export const CreateTaskModal = observer(function CreateTaskModal({
               disabled={isTransitioning}
               isUnborn={isUnborn}
               initialConversation={initialConversation}
-              connectionId={connectionId}
             />
           )}
           {selectedStrategy === 'from-pull-request' && (
             <div className="flex flex-col gap-3">
               {!repositoryUrl && (
-                <p className="text-sm text-muted-foreground">
+                <p className="text-muted-foreground text-sm">
                   Pull requests are currently available only for configured GitHub remotes.
                 </p>
               )}
@@ -288,7 +321,6 @@ export const CreateTaskModal = observer(function CreateTaskModal({
                 repositoryUrl={repositoryUrl}
                 disabled={isTransitioning || fromPrUnavailable}
                 initialConversation={initialConversation}
-                connectionId={connectionId}
               />
             </div>
           )}
@@ -296,7 +328,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
       </DialogContentArea>
       <DialogFooter>
         <ConfirmButton size="sm" onClick={handleCreateTask} disabled={!canCreate}>
-          Create
+          {isCreating ? 'Creating...' : 'Create'}
         </ConfirmButton>
       </DialogFooter>
     </>

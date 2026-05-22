@@ -1,10 +1,12 @@
 export const AGENT_PROVIDER_IDS = [
   'codex',
   'claude',
+  'grok',
   'devin',
   'qwen',
   'droid',
   'gemini',
+  'antigravity',
   'cursor',
   'copilot',
   'amp',
@@ -20,9 +22,12 @@ export const AGENT_PROVIDER_IDS = [
   'cline',
   'continue',
   'codebuff',
+  'freebuff',
   'mistral',
+  'jules',
   'junie',
   'pi',
+  'letta',
   'autohand',
 ] as const;
 
@@ -47,6 +52,13 @@ export type AgentProviderDefinition = {
    * Use for agents whose CLI has no flag for interactive-mode prompt delivery.
    */
   useKeystrokeInjection?: boolean;
+  /**
+   * When true, the initial prompt is piped to the agent via stdin and the
+   * spawn becomes `bash -c 'printf ... | <agent...>'`.
+   * Use for agents that read an initial message from stdin then continue
+   * interactively (e.g. amp's `echo "msg" | amp`).
+   */
+  initialPromptViaStdinPipe?: boolean;
   resumeFlag?: string;
   /**
    * CLI flag to assign a unique session ID per chat instance.
@@ -56,6 +68,8 @@ export type AgentProviderDefinition = {
    * e.g. '--session-id' for Claude Code.
    */
   sessionIdFlag?: string;
+  newConversationFlag?: string;
+  sessionIdOnResumeOnly?: boolean;
   defaultArgs?: string[];
   planActivateCommand?: string;
   autoStartCommand?: string;
@@ -108,6 +122,23 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     supportsHooks: true,
   },
   {
+    id: 'grok',
+    name: 'Grok',
+    description:
+      "xAI's Grok CLI for terminal-first coding sessions with plans, subagents, and parallel work.",
+    docUrl: 'https://x.ai/cli',
+    installCommand: 'curl -fsSL https://x.ai/cli/install.sh | bash',
+    commands: ['grok'],
+    versionArgs: ['--version'],
+    cli: 'grok',
+    autoApproveFlag: '--always-approve',
+    useKeystrokeInjection: true,
+    resumeFlag: '-r',
+    icon: 'xai.svg',
+    alt: 'Grok CLI',
+    terminalOnly: true,
+  },
+  {
     id: 'devin',
     name: 'Devin',
     description:
@@ -137,6 +168,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     cli: 'cursor-agent',
     autoApproveFlag: '-f',
     initialPromptFlag: '',
+    resumeFlag: '--resume',
     icon: 'cursor.svg',
     alt: 'Cursor CLI',
     terminalOnly: true,
@@ -156,6 +188,24 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     resumeFlag: '--resume',
     icon: 'gemini.png',
     alt: 'Gemini CLI',
+    terminalOnly: true,
+  },
+  {
+    id: 'antigravity',
+    name: 'Antigravity',
+    description:
+      'Google Antigravity CLI for terminal-first agent sessions with shared Antigravity settings and conversation history.',
+    docUrl: 'https://antigravity.google/docs/cli-overview',
+    installCommand: 'curl -fsSL https://antigravity.google/cli/install.sh | bash',
+    commands: ['agy', 'antigravity'],
+    versionArgs: ['--version'],
+    cli: 'agy',
+    autoApproveFlag: '--dangerously-skip-permissions',
+    initialPromptFlag: '-i',
+    sessionIdFlag: '--conversation=',
+    planActivateCommand: '/plan',
+    icon: 'antigravity.png',
+    alt: 'Antigravity CLI',
     terminalOnly: true,
   },
   {
@@ -185,10 +235,12 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     versionArgs: ['--version'],
     cli: 'droid',
     initialPromptFlag: '',
-    resumeFlag: '-r',
+    sessionIdFlag: '--session-id',
+    sessionIdOnResumeOnly: true,
     icon: 'droid.svg',
     alt: 'Factory Droid',
     terminalOnly: true,
+    supportsHooks: true,
   },
   {
     id: 'amp',
@@ -202,7 +254,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     cli: 'amp',
     autoApproveFlag: '--dangerously-allow-all',
     initialPromptFlag: '',
-    useKeystrokeInjection: true,
+    initialPromptViaStdinPipe: true,
     icon: 'ampcode.png',
     alt: 'Amp CLI',
     terminalOnly: true,
@@ -217,8 +269,8 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     commands: ['opencode'],
     versionArgs: ['--version'],
     cli: 'opencode',
-    initialPromptFlag: '',
-    useKeystrokeInjection: true,
+    initialPromptFlag: '--prompt',
+    resumeFlag: '--continue',
     icon: 'opencode.png',
     alt: 'OpenCode CLI',
     invertInDark: true,
@@ -254,6 +306,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     versionArgs: ['--version'],
     cli: 'copilot',
     autoApproveFlag: '--allow-all-tools',
+    resumeFlag: '--resume',
     icon: 'gh-copilot.svg',
     alt: 'GitHub Copilot CLI',
     terminalOnly: true,
@@ -284,6 +337,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     versionArgs: ['--version'],
     cli: 'auggie',
     initialPromptFlag: '',
+    resumeFlag: '--continue',
     // otherwise user is prompted each time before prompt is passed
     defaultArgs: ['--allow-indexing'],
     icon: 'Auggie.svg',
@@ -303,6 +357,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     // run subcommand with -s for interactive mode after initial prompt
     defaultArgs: ['run', '-s'],
     initialPromptFlag: '-t',
+    resumeFlag: '--resume',
     icon: 'goose.png',
     alt: 'Goose CLI',
     terminalOnly: true,
@@ -319,6 +374,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     cli: 'kimi',
     autoApproveFlag: '--yolo',
     initialPromptFlag: '-c',
+    resumeFlag: '--continue',
     icon: 'kimi.png',
     alt: 'Kimi CLI',
     terminalOnly: true,
@@ -351,6 +407,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     versionArgs: ['--version'],
     cli: 'kiro-cli',
     defaultArgs: ['chat'],
+    autoApproveFlag: '--trust-all-tools',
     initialPromptFlag: '',
     icon: 'kiro.png',
     alt: 'Kiro CLI',
@@ -419,6 +476,21 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     terminalOnly: true,
   },
   {
+    id: 'freebuff',
+    name: 'Freebuff',
+    description:
+      'Freebuff is a standalone Codebuff package for project-directory assistance and day-to-day development tasks.',
+    docUrl: 'https://freebuff.com',
+    installCommand: 'npm install -g freebuff',
+    commands: ['freebuff'],
+    versionArgs: ['--version'],
+    cli: 'freebuff',
+    initialPromptFlag: '',
+    icon: 'codebuff.png',
+    alt: 'Freebuff CLI',
+    terminalOnly: true,
+  },
+  {
     id: 'mistral',
     name: 'Mistral Vibe',
     description:
@@ -429,14 +501,30 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     versionArgs: ['-h'],
     cli: 'vibe',
     autoApproveFlag: '--auto-approve',
-    initialPromptFlag: '--prompt',
+    initialPromptFlag: '',
     icon: 'mistral.png',
     alt: 'Mistral Vibe CLI',
     terminalOnly: true,
   },
   {
+    id: 'jules',
+    name: 'Jules',
+    description:
+      "Google's Jules CLI for managing asynchronous remote coding sessions and a terminal dashboard.",
+    docUrl: 'https://jules.google/docs/cli/reference/',
+    installCommand: 'npm install -g @google/jules',
+    commands: ['jules'],
+    versionArgs: ['version'],
+    cli: 'jules',
+    initialPromptFlag: '',
+    useKeystrokeInjection: true,
+    icon: 'jules.svg',
+    alt: 'Jules CLI',
+    terminalOnly: true,
+  },
+  {
     id: 'junie',
-    name: 'Junie CLI',
+    name: 'Junie',
     description:
       'JetBrains agentic coding CLI for interactive terminal and headless project workflows.',
     docUrl: 'https://junie.jetbrains.com/docs/junie-cli.html',
@@ -464,6 +552,27 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     resumeFlag: '-c',
     icon: 'pi.png',
     alt: 'Pi CLI',
+    terminalOnly: true,
+  },
+  {
+    id: 'letta',
+    name: 'Letta',
+    description:
+      'Memory-first coding agent CLI with persistent agents that learn across sessions and portable memory across models.',
+    docUrl: 'https://docs.letta.com/letta-code/cli',
+    installCommand: 'npm install -g @letta-ai/letta-code',
+    commands: ['letta'],
+    versionArgs: ['--version'],
+    cli: 'letta',
+    autoApproveFlag: '--yolo',
+    initialPromptFlag: '',
+    // Bare `letta` auto-resumes the cwd's last conversation; `--new` is
+    // required to start a fresh one when emdash spins up a new chat.
+    newConversationFlag: '--new',
+    useKeystrokeInjection: true,
+    icon: 'letta.svg',
+    alt: 'Letta Code CLI',
+    invertInDark: true,
     terminalOnly: true,
   },
   {

@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
-import type { Branch } from '@shared/git';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import type { Branch } from '@shared/git';
 
 export type BranchSelectionState = ReturnType<typeof useBranchSelection>;
 
@@ -8,14 +8,19 @@ export function useBranchSelection(
   selectedProjectId: string | undefined,
   defaultBranch: Branch | undefined,
   isUnborn: boolean,
-  currentBranchName?: string | null
+  currentBranchName?: string | null,
+  createBranchAndWorktreeByDefault = true
 ) {
-  const { value: localProject } = useAppSettingsKey('localProject');
-  const pushOnCreateByDefault = localProject?.pushOnCreate ?? true;
+  const { value: project } = useAppSettingsKey('project');
+  const pushOnCreateByDefault = project?.pushOnCreate ?? true;
 
-  const [createBranchAndWorktreePreference, setCreateBranchAndWorktreePreference] = useState(true);
+  const [createBranchAndWorktreeOverride, setCreateBranchAndWorktreeOverride] = useState<
+    boolean | undefined
+  >(undefined);
   const [pushBranchOverride, setPushBranchOverride] = useState<boolean | undefined>(undefined);
   const pushBranch = pushBranchOverride ?? pushOnCreateByDefault;
+  const createBranchAndWorktreePreference =
+    createBranchAndWorktreeOverride ?? createBranchAndWorktreeByDefault;
   const createBranchAndWorktree = isUnborn ? false : createBranchAndWorktreePreference;
 
   // Store the user's branch override alongside the project it belongs to.
@@ -48,7 +53,7 @@ export function useBranchSelection(
   const setCreateBranchAndWorktree = useCallback(
     (value: boolean) => {
       if (isUnborn) return;
-      setCreateBranchAndWorktreePreference(value);
+      setCreateBranchAndWorktreeOverride(value);
     },
     [isUnborn]
   );

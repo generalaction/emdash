@@ -1,4 +1,4 @@
-import { getEffectiveTaskSettings } from '../projects/settings/task-settings';
+import { getEffectiveTaskSettings } from '../projects/settings/effective-task-settings';
 import { resolveWorkspace } from '../projects/utils';
 
 export async function runLifecycleScript({
@@ -19,5 +19,8 @@ export async function runLifecycleScript({
   });
   const script = settings.scripts?.[type];
   if (!script) return;
-  await workspace.lifecycleService.runLifecycleScript({ type, script }, { exit: true });
+  await workspace.lifecycleService.runLifecycleScript(
+    { type, script, shellSetup: settings.shellSetup },
+    { exit: true }
+  );
 }

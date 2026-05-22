@@ -12,9 +12,13 @@ export function TaskNameField({ state }: TaskNameFieldProps) {
   return (
     <Field>
       <FieldLabel>Task name</FieldLabel>
-      <Input value={taskName} onChange={(e) => handleTaskNameChange(e.target.value)} />
+      <Input
+        data-autofocus
+        value={taskName}
+        onChange={(e) => handleTaskNameChange(e.target.value)}
+      />
       {showSlugHint && (
-        <p className="text-xs text-muted-foreground mt-1">
+        <p className="text-muted-foreground mt-1 text-xs">
           Task names only allow lowercase letters, numbers, and hyphens.
         </p>
       )}

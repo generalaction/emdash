@@ -3,9 +3,10 @@ import os from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { AppSettings, AppSettingsKey } from '@shared/app-settings';
 import { getDefaultForKey } from '@main/core/settings/settings-registry';
 import { computeDelta, isDeepEqual, isPlainObject, mergeDeep } from '@main/core/settings/utils';
+import type { AppSettings, AppSettingsKey } from '@shared/app-settings';
+import type { PromptLibraryPrompt } from '@shared/prompt-library';
 import { createDrizzleClient } from '../../../drizzleClient';
 import { portLegacySettings } from './importer';
 
@@ -171,16 +172,22 @@ describe('portLegacySettings', () => {
     appSqlite
       .prepare('INSERT INTO app_settings (key, value) VALUES (?, ?)')
       .run('providerConfigs', JSON.stringify({ codex: { defaultArgs: ['--legacy-arg'] } }));
+    const promptLibrary: PromptLibraryPrompt[] = [];
 
     const summary = await portLegacySettings(userDataDir, {
       appDb,
       appSqlite,
       settingsStore: createSettingsStoreStub(appSqlite),
+      promptLibraryStore: {
+        async upsertReviewPrompt(prompt) {
+          promptLibrary.unshift({ id: 'review-prompt', title: 'Review prompt', prompt });
+        },
+      },
     });
 
     expect(summary.imported).toEqual([
-      'localProject.branchPrefix',
-      'localProject.pushOnCreate',
+      'project.branchPrefix',
+      'project.pushOnCreate',
       'tasks.autoGenerateName',
       'tasks.autoApproveByDefault',
       'tasks.autoTrustWorktrees',
@@ -196,8 +203,9 @@ describe('portLegacySettings', () => {
 
     const localProject = readRawSetting(appSqlite, 'localProject') as Record<string, unknown>;
     expect(localProject.defaultProjectsDirectory).toBe('/beta/projects');
-    expect(localProject.branchPrefix).toBe('legacy-prefix');
-    expect(localProject.pushOnCreate).toBe(false);
+    const project = readRawSetting(appSqlite, 'project') as Record<string, unknown>;
+    expect(project.branchPrefix).toBe('legacy-prefix');
+    expect(project.pushOnCreate).toBe(false);
 
     expect(readRawSetting(appSqlite, 'tasks')).toEqual({
       autoGenerateName: false,
@@ -211,7 +219,14 @@ describe('portLegacySettings', () => {
       soundFocusMode: 'unfocused',
     });
     expect(readRawSetting(appSqlite, 'defaultAgent')).toBe('codex');
-    expect(readRawSetting(appSqlite, 'reviewPrompt')).toBe('Review this worktree carefully.');
+    expect(readRawSetting(appSqlite, 'reviewPrompt')).toBeNull();
+    expect(promptLibrary).toEqual([
+      {
+        id: 'review-prompt',
+        title: 'Review prompt',
+        prompt: 'Review this worktree carefully.',
+      },
+    ]);
     expect(readRawSetting(appSqlite, 'theme')).toBe('emdark');
 
     const terminal = readRawSetting(appSqlite, 'terminal') as Record<string, unknown>;

@@ -2,12 +2,10 @@ import {
   ArrowDown,
   ArrowUp,
   ChevronDown,
+  Clock,
   FileDiff,
-  Files,
+  FolderOpen,
   GitBranch,
-  GitCommit,
-  ListTree,
-  MessageSquare,
   Pin,
   RefreshCcw,
   Terminal,
@@ -24,24 +22,31 @@ import {
   taskDisplayName,
   taskViewKind,
 } from '@renderer/features/tasks/stores/task-selectors';
-import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
-import type { RightPanelView } from '@renderer/features/tasks/types';
+import {
+  useTaskViewContext,
+  useWorkspace,
+  useWorkspaceViewModel,
+} from '@renderer/features/tasks/task-view-context';
 import { ConnectionStatusDot } from '@renderer/lib/components/connection-status-dot';
 import { OpenInMenu } from '@renderer/lib/components/titlebar/open-in-menu';
 import { Titlebar } from '@renderer/lib/components/titlebar/Titlebar';
-import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
+import { rpc } from '@renderer/lib/ipc';
+import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { Badge } from '@renderer/lib/ui/badge';
 import { Button } from '@renderer/lib/ui/button';
 import { MicroLabel } from '@renderer/lib/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
-import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
+import { Separator } from '@renderer/lib/ui/separator';
+import { BoundShortcut } from '@renderer/lib/ui/shortcut';
+import { Toggle } from '@renderer/lib/ui/toggle';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
 import { cn } from '@renderer/utils/utils';
+import type { Issue } from '@shared/tasks';
 import { DevServerPills } from './components/dev-server-pills';
-import { IssueSelector } from './components/issue-selector/issue-selector';
-import { useTaskViewNavigation } from './hooks/use-task-view-navigation';
-import { useTaskViewShortcuts } from './hooks/use-task-view-shortcuts';
+import { IssueSelector, ProviderLogo } from './components/issue-selector/issue-selector';
+import { type SidebarTab } from './types';
 import { useGitActions } from './use-git-actions';
 
 export const TaskTitlebar = observer(function TaskTitlebar() {
@@ -63,16 +68,23 @@ const PendingTaskTitlebar = observer(function PendingTaskTitlebar({
   taskId: string;
   projectId: string;
 }) {
-  const taskStore = getTaskStore(projectId, taskId)!;
+  const taskStore = getTaskStore(projectId, taskId);
   const projectName = projectDisplayName(getProjectStore(projectId));
   const name = taskDisplayName(taskStore);
+  const { navigate } = useNavigate();
 
   return (
     <Titlebar
       leftSlot={
         <div className="flex items-center gap-1 px-2 text-sm text-foreground-muted">
           <span className="flex items-center gap-1">
-            <span className="text-sm text-foreground-passive">{projectName}</span>
+            <button
+              type="button"
+              className="text-sm text-foreground-passive hover:text-foreground"
+              onClick={() => navigate('project', { projectId })}
+            >
+              {projectName}
+            </button>
             <span className="text-sm text-foreground-passive">/</span>
             {name}
           </span>
@@ -89,14 +101,10 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
   projectId: string;
   taskId: string;
 }) {
-  const taskStore = getTaskStore(projectId, taskId)!;
-  const taskPayload = getRegisteredTaskData(projectId, taskId)!;
-  const provisionedTask = useProvisionedTask();
-  const { taskView } = provisionedTask;
-  const { view, rightPanelView } = taskView;
-  const { openAgentsView, openEditorView, openDiffView, isPending } = useTaskViewNavigation();
-  const delayedIsPending = useDelayedBoolean(isPending, 200);
-  useTaskViewShortcuts();
+  const taskStore = getTaskStore(projectId, taskId);
+  const taskPayload = getRegisteredTaskData(projectId, taskId);
+  const workspace = useWorkspace();
+  const taskView = useWorkspaceViewModel();
 
   const {
     hasUpstream,
@@ -112,37 +120,54 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
     isPushing,
   } = useGitActions(projectId, taskId);
 
+  const linesAdded = workspace.git.totalLinesAdded;
+  const linesDeleted = workspace.git.totalLinesDeleted;
+  const hasDiffStats = linesAdded > 0 || linesDeleted > 0;
+
   const projectStore = asMounted(getProjectStore(projectId));
 
   const projectName = projectDisplayName(getProjectStore(projectId));
+  const { navigate } = useNavigate();
+
+  if (!taskStore || !taskPayload) return null;
 
   const isRemoteProject = projectStore?.data.type === 'ssh';
   return (
     <Titlebar
       leftSlot={
         <div className="flex items-center gap-1 px-2">
+          <button
+            type="button"
+            className="text-sm text-foreground-passive hover:text-foreground"
+            onClick={() => navigate('project', { projectId })}
+          >
+            {projectName}
+          </button>
+          <span className="text-sm text-foreground-passive">/</span>
           <Popover>
-            <PopoverTrigger className="flex items-center gap-1 text-sm text-foreground-muted hover:text-foreground">
-              <span className="flex items-center gap-1">
-                <span className="text-sm text-foreground-passive">{projectName}</span>
-                <span className="text-sm text-foreground-passive">/</span>
-                <span className="flex items-center gap-1.5">
-                  {taskDisplayName(taskStore)}
-                  <ConnectionStatusDot state={provisionedTask.workspace.connectionState} />
-                </span>
-              </span>
-              <ChevronDown className="size-3.5 shrink-0" />
-            </PopoverTrigger>
-            <PopoverContent align="start" className="w-96 p-4 flex flex-col gap-2">
-              <div className="flex flex-col gap-1 w-full">
-                <MicroLabel className="text-foreground-passive items-center flex">Task</MicroLabel>
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <PopoverTrigger className="flex items-center gap-1 text-sm text-foreground-muted hover:text-foreground">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className="max-w-56 truncate">{taskDisplayName(taskStore)}</span>
+                      <ConnectionStatusDot state={workspace.connectionState} />
+                    </span>
+                    <ChevronDown className="size-3.5 shrink-0" />
+                  </PopoverTrigger>
+                }
+              />
+              <TooltipContent>Link to issue</TooltipContent>
+            </Tooltip>
+            <PopoverContent align="start" className="flex w-96 flex-col gap-2 p-4">
+              <div className="flex w-full flex-col gap-1">
+                <MicroLabel className="flex items-center text-foreground-passive">Task</MicroLabel>
                 <span className="text-sm tracking-tight">{taskDisplayName(taskStore)}</span>
               </div>
-              <OpenInMenu path={provisionedTask.path} />
-              <div className="flex flex-col gap-1 border border-border rounded-md p-2">
+              <div className="flex flex-col gap-1 rounded-md border border-border p-2">
                 <span className="flex items-center gap-1 text-foreground-muted">
                   <GitBranch className="size-3.5" />
-                  <span>{provisionedTask.workspace.git.branchName}</span>
+                  <span>{workspace.git.branchName}</span>
                 </span>
                 {taskPayload.sourceBranch && (
                   <span className="flex items-center gap-2 text-foreground-passive">
@@ -152,7 +177,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                     </span>
                   </span>
                 )}
-                <div className="flex items-center gap-1 w-full">
+                <div className="flex w-full items-center gap-1">
                   {hasUpstream ? (
                     <>
                       <Tooltip>
@@ -260,11 +285,13 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                   void taskStore.updateLinkedIssue(issue ?? undefined);
                 }}
                 projectId={projectId}
-                repositoryUrl={provisionedTask.repositoryStore.repositoryUrl ?? ''}
-                projectPath={provisionedTask.path}
+                repositoryUrl={workspace.repository.repositoryUrl ?? ''}
+                projectPath={workspace.path}
+                excludeTaskId={taskId}
               />
             </PopoverContent>
           </Popover>
+          {taskPayload.linkedIssue ? <LinkedIssueBadge issue={taskPayload.linkedIssue} /> : null}
           <button
             className={cn(
               'text-foreground-muted ml-1',
@@ -280,95 +307,93 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
         </div>
       }
       rightSlot={
-        <div className="flex items-center gap-2 mr-2">
+        <div className="flex items-center gap-2">
           <DevServerPills projectId={projectId} taskId={taskId} />
           {!isRemoteProject && (
-            <OpenInMenu path={provisionedTask.path} className="h-7  bg-background" />
+            <OpenInMenu path={workspace.path} className="h-7 bg-transparent" borderless />
           )}
+          <Separator orientation="vertical" className="h-5 self-center!" />
+          <Tooltip>
+            <TooltipTrigger>
+              <Toggle
+                size="sm"
+                pressed={taskView.isTerminalDrawerOpen}
+                className="border-none"
+                onPressedChange={() =>
+                  taskView.setTerminalDrawerOpen(!taskView.isTerminalDrawerOpen)
+                }
+              >
+                <Terminal className="size-3.5" />
+              </Toggle>
+            </TooltipTrigger>
+            <TooltipContent>
+              Toggle terminal <BoundShortcut settingsKey="toggleTerminalDrawer" variant="badge" />
+            </TooltipContent>
+          </Tooltip>
+          <Separator orientation="vertical" className="h-5 self-center!" />
           <ToggleGroup
-            disabled={delayedIsPending}
-            variant="outline"
-            value={[view]}
-            size="sm"
-            onValueChange={([value]) => {
-              if (value === 'agents') openAgentsView();
-              if (value === 'editor') openEditorView();
-              if (value === 'diff') openDiffView();
+            value={taskView.isSidebarCollapsed ? [] : [taskView.sidebarTab]}
+            onValueChange={([tab]) => {
+              if (!tab) {
+                taskView.setSidebarCollapsed(true);
+              } else {
+                taskView.setSidebarTab(tab as SidebarTab);
+                taskView.setSidebarCollapsed(false);
+              }
             }}
+            size="icon-sm"
+            className="border-none bg-transparent"
           >
             <Tooltip>
               <TooltipTrigger>
-                <ToggleGroupItem value="agents" size="sm">
-                  <MessageSquare className="size-3.5" />
-                </ToggleGroupItem>
-              </TooltipTrigger>
-              <TooltipContent>
-                <div className="flex flex-col gap-1">
-                  <span>Conversations view</span>
-                  <ShortcutHint settingsKey="taskViewAgents" />
-                </div>
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger>
-                <ToggleGroupItem value="diff" size="sm">
+                <ToggleGroupItem
+                  value="changes"
+                  aria-label="Changes"
+                  className={cn('w-auto! min-w-7! gap-0', hasDiffStats && 'w-full px-2!')}
+                >
                   <FileDiff className="size-3.5" />
+                  <span
+                    className={cn(
+                      'overflow-hidden transition-[max-width,padding-left] duration-500 ease-in-out flex items-center tabular-nums text-xs leading-none gap-1',
+                      hasDiffStats ? 'max-w-20 pl-1' : 'max-w-0 pl-0'
+                    )}
+                  >
+                    {linesAdded > 0 && (
+                      <span className="text-foreground-diff-added">
+                        +{formatDiffLineCount(linesAdded)}
+                      </span>
+                    )}
+                    {linesDeleted > 0 && (
+                      <span className="text-foreground-diff-deleted">
+                        -{formatDiffLineCount(linesDeleted)}
+                      </span>
+                    )}
+                  </span>
                 </ToggleGroupItem>
               </TooltipTrigger>
               <TooltipContent>
-                <div className="flex flex-col gap-1">
-                  <span>Diff view</span>
-                  <ShortcutHint settingsKey="taskViewDiff" />
-                </div>
+                Changes <BoundShortcut settingsKey="sidebarChanges" variant="badge" />
               </TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger>
-                <ToggleGroupItem value="editor" size="sm">
-                  <Files className="size-3.5" />
+                <ToggleGroupItem size="icon-sm" value="files" aria-label="Files">
+                  <FolderOpen className="size-3.5" />
                 </ToggleGroupItem>
               </TooltipTrigger>
               <TooltipContent>
-                <div className="flex flex-col gap-1">
-                  <span>File view</span>
-                  <ShortcutHint settingsKey="taskViewEditor" />
-                </div>
+                Files <BoundShortcut settingsKey="sidebarFiles" variant="badge" />
               </TooltipContent>
             </Tooltip>
-          </ToggleGroup>
-          <ToggleGroup
-            disabled={delayedIsPending}
-            variant="outline"
-            value={[rightPanelView]}
-            size="sm"
-            onValueChange={([value]) => {
-              if (!value) return;
-              taskView.setRightPanelView(value as RightPanelView);
-            }}
-          >
             <Tooltip>
               <TooltipTrigger>
-                <ToggleGroupItem value="changes" size="sm">
-                  <GitCommit className="size-3.5" />
+                <ToggleGroupItem size="icon-sm" value="conversations" aria-label="Conversations">
+                  <Clock className="size-3.5" />
                 </ToggleGroupItem>
               </TooltipTrigger>
-              <TooltipContent>Git changes</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger>
-                <ToggleGroupItem value="terminals" size="sm">
-                  <Terminal className="size-3.5" />
-                </ToggleGroupItem>
-              </TooltipTrigger>
-              <TooltipContent>Terminals</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger>
-                <ToggleGroupItem value="files" size="sm">
-                  <ListTree className="size-3.5" />
-                </ToggleGroupItem>
-              </TooltipTrigger>
-              <TooltipContent>File explorer</TooltipContent>
+              <TooltipContent>
+                Conversations <BoundShortcut settingsKey="sidebarConversations" variant="badge" />
+              </TooltipContent>
             </Tooltip>
           </ToggleGroup>
         </div>
@@ -376,3 +401,30 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
     />
   );
 });
+
+function LinkedIssueBadge({ issue }: { issue: Issue }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            disabled={!issue.url}
+            onClick={() => {
+              if (issue.url) void rpc.app.openExternal(issue.url);
+            }}
+            className="hover:bg-muted/30 flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-xs text-foreground-muted disabled:cursor-default disabled:opacity-60"
+          >
+            <ProviderLogo provider={issue.provider} className="h-3 w-3" />
+            {issue.provider === 'asana' ? (
+              <span className="max-w-[180px] truncate">{issue.title || 'Asana task'}</span>
+            ) : (
+              <span className="font-mono">{issue.identifier}</span>
+            )}
+          </button>
+        }
+      />
+      <TooltipContent>{issue.title || issue.identifier}</TooltipContent>
+    </Tooltip>
+  );
+}

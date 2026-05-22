@@ -3,8 +3,8 @@ import os from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
-import { makePtySessionId } from '@shared/ptySessionId';
 import { makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
+import { makePtySessionId } from '@shared/ptySessionId';
 import { createDrizzleClient } from '../../../drizzleClient';
 import { portConversations } from './conversations';
 import { portProjects } from './projects';
@@ -71,7 +71,9 @@ function createAppDb(): {
       provider TEXT,
       config TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      last_interacted_at TEXT,
+      is_initial_conversation INTEGER
     );
   `);
 

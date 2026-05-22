@@ -7,6 +7,7 @@ import {
   useAccountSignIn,
   useAccountSignOut,
 } from '@renderer/lib/hooks/useAccount';
+import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { ServerUnavailableMessage } from './ServerUnavailableMessage';
 
@@ -16,6 +17,7 @@ export function AccountTab() {
   const signInMutation = useAccountSignIn();
   const signOutMutation = useAccountSignOut();
   const { toast } = useToast();
+  const showConfirmSignOut = useShowModal('confirmActionModal');
 
   const [error, setError] = useState<string | null>(null);
 
@@ -39,7 +41,7 @@ export function AccountTab() {
       }
       toast({
         title: 'Signed in to Emdash',
-        description: result.user ? `Connected as @${result.user.username}` : 'Signed in',
+        description: result.user ? `Connected as ${result.user.username}` : 'Signed in',
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Sign in failed';
@@ -52,13 +54,32 @@ export function AccountTab() {
     }
   };
 
-  const handleSignOut = async () => {
-    await signOutMutation.mutateAsync();
+  const performSignOut = async () => {
+    try {
+      await signOutMutation.mutateAsync();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Sign out failed';
+      toast({
+        title: 'Sign out failed',
+        description: message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleSignOut = () => {
+    showConfirmSignOut({
+      title: 'Sign out of Emdash?',
+      description: 'You will need to sign in again to reconnect your Emdash account.',
+      confirmLabel: 'Sign Out',
+      variant: 'default',
+      onSuccess: () => void performSignOut(),
+    });
   };
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12 text-sm text-muted-foreground">
+      <div className="text-muted-foreground flex items-center justify-center py-12 text-sm">
         Loading account...
       </div>
     );
@@ -66,7 +87,7 @@ export function AccountTab() {
 
   if (isSignedIn && user) {
     return (
-      <div className="rounded-xl border border-border/60 bg-muted/10 p-4">
+      <div className="bg-muted/10 rounded-xl border border-border/60 p-4">
         <div className="flex items-center gap-4">
           {user.avatarUrl ? (
             <img
@@ -75,15 +96,13 @@ export function AccountTab() {
               className="h-12 w-12 rounded-full border border-border/60"
             />
           ) : (
-            <div className="flex h-12 w-12 items-center justify-center rounded-full border border-border/60 bg-muted">
-              <User className="h-6 w-6 text-muted-foreground" />
+            <div className="bg-muted flex h-12 w-12 items-center justify-center rounded-full border border-border/60">
+              <User className="text-muted-foreground h-6 w-6" />
             </div>
           )}
           <div className="flex-1">
-            <p className="text-sm font-medium text-foreground">
-              Connected as <span className="font-semibold">@{user.username}</span>
-            </p>
-            {user.email && <p className="text-xs text-muted-foreground">{user.email}</p>}
+            <p className="text-sm font-semibold text-foreground">{user.username}</p>
+            {user.email && <p className="text-muted-foreground text-xs">{user.email}</p>}
           </div>
           <Button
             type="button"
@@ -101,15 +120,15 @@ export function AccountTab() {
 
   if (hasAccount && !isSignedIn) {
     return (
-      <div className="rounded-xl border border-border/60 bg-muted/10 p-4">
+      <div className="bg-muted/10 rounded-xl border border-border/60 p-4">
         <div className="flex flex-col gap-3">
           <div>
             <p className="text-sm font-medium text-foreground">Session expired</p>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-muted-foreground text-xs">
               Sign in again to reconnect your Emdash account.
             </p>
           </div>
-          {error && <p className="text-xs text-destructive">{error}</p>}
+          {error && <p className="text-destructive text-xs">{error}</p>}
           {serverAvailable === false ? (
             <ServerUnavailableMessage />
           ) : (
@@ -129,15 +148,15 @@ export function AccountTab() {
   }
 
   return (
-    <div className="rounded-xl border border-border/60 bg-muted/10 p-4">
+    <div className="bg-muted/10 rounded-xl border border-border/60 p-4">
       <div className="flex flex-col gap-3">
         <div>
           <p className="text-sm font-medium text-foreground">Emdash Account</p>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-muted-foreground text-xs">
             Create an Emdash account to automatically connect GitHub using OAuth2.
           </p>
         </div>
-        {error && <p className="text-xs text-destructive">{error}</p>}
+        {error && <p className="text-destructive text-xs">{error}</p>}
         {serverAvailable === false ? (
           <ServerUnavailableMessage />
         ) : (

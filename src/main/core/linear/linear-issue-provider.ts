@@ -1,12 +1,21 @@
-import { LinearGraphQLClient, type LinearClient, type LinearRawResponse } from '@linear/sdk';
-import { ISSUE_PROVIDER_CAPABILITIES, type IssueListResult } from '@shared/issue-providers';
-import type { Issue } from '@shared/tasks';
 import { clampIssueLimit, normalizeSearchTerm } from '@main/core/issues/helpers/provider-inputs';
 import type { IssueProvider } from '@main/core/issues/issue-provider';
 import { log } from '@main/lib/logger';
+import {
+  ISSUE_PROVIDER_CAPABILITIES,
+  type IssueContextResult,
+  type IssueListResult,
+} from '@shared/issue-providers';
+import type { Issue } from '@shared/tasks';
 import { linearConnectionService } from './linear-connection-service';
+import {
+  formatLinearContext,
+  hydrateIssueActivity,
+  LINEAR_ISSUE_ACTIVITY_FIELDS,
+  type LinearIssueWithActivity,
+} from './linear-issue-activity';
 
-type LinearIssueNode = {
+type LinearIssueSummaryNode = {
   id: string;
   identifier: string;
   title: string;
@@ -20,7 +29,27 @@ type LinearIssueNode = {
   updatedAt: string;
 };
 
+type LinearIssueContextNode = LinearIssueWithActivity<LinearIssueSummaryNode>;
+
+const ISSUE_SUMMARY_FRAGMENT = `
+  fragment IssueSummary on Issue {
+    id
+    identifier
+    title
+    description
+    url
+    branchName
+    state { name type color }
+    team { name key }
+    project { name }
+    assignee { displayName name }
+    updatedAt
+  }
+`;
+
 const ISSUES_QUERY = `
+  ${ISSUE_SUMMARY_FRAGMENT}
+
   query ListIssues($limit: Int!) {
     issues(
       first: $limit,
@@ -28,17 +57,7 @@ const ISSUES_QUERY = `
       filter: { state: { type: { nin: ["completed", "cancelled"] } } }
     ) {
       nodes {
-        id
-        identifier
-        title
-        description
-        url
-        branchName
-        state { name type color }
-        team { name key }
-        project { name }
-        assignee { displayName name }
-        updatedAt
+        ...IssueSummary
       }
     }
   }
@@ -64,23 +83,35 @@ const SEARCH_QUERY = `
   }
 `;
 
-type RawRequest = <Data, Variables extends Record<string, unknown>>(
-  query: string,
-  variables?: Variables
-) => Promise<LinearRawResponse<Data>>;
+const ISSUE_CONTEXT_QUERY = `
+  query IssueContext($term: String!, $limit: Int!) {
+    searchIssues(term: $term, first: $limit) {
+      nodes {
+        id
+        identifier
+        title
+        description
+        url
+        branchName
+        state { name type color }
+        team { name key }
+        project { name }
+        assignee { displayName name }
+        updatedAt
+        ${LINEAR_ISSUE_ACTIVITY_FIELDS}
+      }
+    }
+  }
+`;
 
-function createRawRequest(client: LinearClient): RawRequest {
-  const rawClient = new LinearGraphQLClient(client.options.apiUrl, client.options);
-  return rawClient.rawRequest.bind(rawClient);
-}
-
-function toIssue(raw: LinearIssueNode): Issue {
+function toIssue(raw: LinearIssueSummaryNode, context?: string): Issue {
   return {
     provider: 'linear',
     identifier: raw.identifier,
     title: raw.title,
     url: raw.url ?? '',
     description: raw.description ?? undefined,
+    context,
     branchName: raw.branchName ?? undefined,
     status: raw.state?.name ?? undefined,
     assignees: raw.assignee
@@ -101,14 +132,14 @@ async function listIssues(limit = 50): Promise<IssueListResult> {
   const sanitizedLimit = clampIssueLimit(limit, 50, 200);
 
   try {
-    const { data } = await createRawRequest(client)<
-      { issues: { nodes: LinearIssueNode[] } },
+    const { data } = await client.client.rawRequest<
+      { issues: { nodes: LinearIssueSummaryNode[] } },
       { limit: number }
     >(ISSUES_QUERY, { limit: sanitizedLimit });
 
     return {
       success: true,
-      issues: (data?.issues?.nodes ?? []).map(toIssue),
+      issues: (data?.issues?.nodes ?? []).map((issue) => toIssue(issue)),
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unable to fetch Linear issues.';
@@ -130,8 +161,8 @@ async function searchIssues(searchTerm: string, limit = 20): Promise<IssueListRe
   const sanitizedLimit = clampIssueLimit(limit, 20, 200);
 
   try {
-    const { data } = await createRawRequest(client)<
-      { searchIssues: { nodes: LinearIssueNode[] } },
+    const { data } = await client.client.rawRequest<
+      { searchIssues: { nodes: LinearIssueSummaryNode[] } },
       { term: string; limit: number }
     >(SEARCH_QUERY, {
       term,
@@ -140,11 +171,60 @@ async function searchIssues(searchTerm: string, limit = 20): Promise<IssueListRe
 
     return {
       success: true,
-      issues: (data?.searchIssues?.nodes ?? []).map(toIssue),
+      issues: (data?.searchIssues?.nodes ?? []).map((issue) => toIssue(issue)),
     };
   } catch (error) {
     log.error('[Linear] searchIssues error:', error);
-    return { success: true, issues: [] };
+    const message = error instanceof Error ? error.message : 'Unable to search Linear issues.';
+    return { success: false, error: message };
+  }
+}
+
+async function getIssueContext(identifier: string): Promise<IssueContextResult> {
+  const term = normalizeSearchTerm(identifier);
+  if (!term) {
+    return { success: false, error: 'Linear issue identifier is required.' };
+  }
+
+  const client = await linearConnectionService.getClient();
+  if (!client) {
+    return { success: false, error: 'Linear token not set. Connect Linear in settings first.' };
+  }
+
+  try {
+    const { data } = await client.client.rawRequest<
+      { searchIssues: { nodes: LinearIssueContextNode[] } },
+      { term: string; limit: number }
+    >(ISSUE_CONTEXT_QUERY, {
+      term,
+      limit: 3,
+    });
+    const exactIssue = (data?.searchIssues?.nodes ?? []).find((issue) => issue.identifier === term);
+
+    if (!exactIssue) {
+      return { success: false, error: `Linear issue not found: ${term}` };
+    }
+
+    let hydratedIssue = exactIssue;
+    try {
+      hydratedIssue = await hydrateIssueActivity(client, exactIssue);
+    } catch (error) {
+      log.warn('[Linear] failed to hydrate issue activity:', {
+        issueId: exactIssue.id,
+        identifier: exactIssue.identifier,
+        error,
+      });
+    }
+
+    return {
+      success: true,
+      issue: toIssue(hydratedIssue, formatLinearContext(hydratedIssue)),
+    };
+  } catch (error) {
+    log.error('[Linear] getIssueContext error:', error);
+    const message =
+      error instanceof Error ? error.message : 'Unable to fetch Linear issue context.';
+    return { success: false, error: message };
   }
 }
 
@@ -157,4 +237,6 @@ export const linearIssueProvider: IssueProvider = {
   listIssues: async (opts) => listIssues(opts.limit ?? 50),
 
   searchIssues: async (opts) => searchIssues(opts.searchTerm, opts.limit ?? 20),
+
+  getIssueContext: async (opts) => getIssueContext(opts.identifier),
 };

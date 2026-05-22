@@ -32,12 +32,12 @@ const JiraSetupForm: React.FC<Props> = ({ site, email, token, onChange, error })
         onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange({ token: e.target.value })}
         className="h-9 w-full"
       />
-      <p className="text-xs text-muted-foreground">
+      <p className="text-muted-foreground text-xs">
         Create an API token at{' '}
         <span className="font-medium">id.atlassian.com/manage-profile/security/api-tokens</span>
       </p>
       {error ? (
-        <p className="text-xs text-destructive" role="alert">
+        <p className="text-destructive text-xs" role="alert">
           {error}
         </p>
       ) : null}

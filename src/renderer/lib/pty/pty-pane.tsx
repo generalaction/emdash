@@ -1,6 +1,9 @@
 import React, { forwardRef, useImperativeHandle, useRef } from 'react';
+import { getDraggedFilePaths } from '@renderer/lib/drag-files';
 import { rpc } from '@renderer/lib/ipc';
 import { log } from '@renderer/utils/logger';
+import { cn } from '@renderer/utils/utils';
+import { pastePromptInjection } from './prompt-injection';
 import type { FrontendPty, SessionTheme } from './pty';
 import { usePty } from './use-pty';
 
@@ -12,11 +15,11 @@ type Props = {
   /** Pre-connected FrontendPty owned by the entity's PtySession store. */
   pty: FrontendPty;
   className?: string;
-  themeOverride?: SessionTheme['override'];
   contentFilter?: string;
   mapShiftEnterToCtrlJ?: boolean;
   /** SSH connection ID — used for remote file drag-and-drop only. */
   remoteConnectionId?: string;
+  themeOverride?: SessionTheme['override'];
   onActivity?: () => void;
   onExit?: (info: { exitCode: number | undefined; signal?: number }) => void;
   onFirstMessage?: (message: string) => void;
@@ -30,10 +33,10 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
       sessionId,
       pty,
       className,
-      themeOverride,
       contentFilter,
       mapShiftEnterToCtrlJ,
       remoteConnectionId,
+      themeOverride,
       onActivity,
       onExit,
       onFirstMessage,
@@ -70,14 +73,7 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
     const handleDrop: React.DragEventHandler<HTMLDivElement> = (event) => {
       try {
         event.preventDefault();
-        const dt = event.dataTransfer;
-        if (!dt?.files?.length) return;
-
-        const paths: string[] = [];
-        for (const file of Array.from(dt.files)) {
-          const path = window.electronAPI.getPathForFile(file).trim();
-          if (path) paths.push(path);
-        }
+        const paths = getDraggedFilePaths(event.dataTransfer);
         if (paths.length === 0) return;
 
         void (async () => {
@@ -86,17 +82,23 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
               try {
                 const result = await rpc.pty.uploadFiles({ sessionId, localPaths: paths });
                 if (result.success && result.data?.remotePaths) {
-                  const escaped = result.data.remotePaths
-                    .map((p: string) => `'${p.replace(/'/g, "'\\''")}'`)
-                    .join(' ');
-                  sendInput(`${escaped} `);
+                  await pastePromptInjection({
+                    providerId: undefined,
+                    text: formatDroppedPaths(result.data.remotePaths),
+                    forceBracketedPaste: true,
+                    sendInput: async (data) => sendInput(`${data} `),
+                  });
                 }
               } catch (error) {
                 log.warn('SSH file transfer failed', { error });
               }
             } else {
-              const escaped = paths.map((p) => `'${p.replace(/'/g, "'\\''")}'`).join(' ');
-              sendInput(`${escaped} `);
+              await pastePromptInjection({
+                providerId: undefined,
+                text: formatDroppedPaths(paths),
+                forceBracketedPaste: true,
+                sendInput: async (data) => sendInput(`${data} `),
+              });
             }
             focus();
           } catch (error) {
@@ -110,25 +112,22 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
 
     return (
       <div
-        className={['terminal-pane flex h-full w-full min-w-0', className]
-          .filter(Boolean)
-          .join(' ')}
+        className={cn('terminal-pane flex h-full w-full min-w-0 bg', className)}
         style={{
           width: '100%',
           height: '100%',
           minHeight: 0,
-          backgroundColor: themeOverride?.background ?? 'var(--background)',
           boxSizing: 'border-box',
+          backgroundColor: themeOverride?.background ?? 'var(--background-secondary)',
         }}
       >
         <div
           ref={containerRef}
           data-terminal-container
-          className="p-2 bg-background-secondary-1"
+          className={cn('p-2 ', themeOverride?.background ? '' : 'bg-background-secondary-1')}
           style={{
             width: '100%',
             height: '100%',
-
             minHeight: 0,
             overflow: 'hidden',
             filter: contentFilter || undefined,
@@ -142,6 +141,10 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
     );
   }
 );
+
+function formatDroppedPaths(paths: string[]): string {
+  return paths.map((path) => `'${path.replace(/'/g, "'\\''")}'`).join(' ');
+}
 
 PtyPaneComponent.displayName = 'TerminalPane';
 

@@ -1,6 +1,5 @@
 import { ChevronDown, Ellipsis, ExternalLink, GithubIcon, Globe, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { parseGitHubRepository } from '@shared/github-repository';
 import {
   asMounted,
   getProjectManagerStore,
@@ -9,7 +8,6 @@ import {
   projectDisplayName,
   projectViewKind,
 } from '@renderer/features/projects/stores/project-selectors';
-import type { ProjectView } from '@renderer/features/projects/stores/project-view';
 import { OpenInMenu } from '@renderer/lib/components/titlebar/open-in-menu';
 import { Titlebar } from '@renderer/lib/components/titlebar/Titlebar';
 import { rpc } from '@renderer/lib/ipc';
@@ -22,7 +20,7 @@ import {
   DropdownMenuTrigger,
 } from '@renderer/lib/ui/dropdown-menu';
 import { Separator } from '@renderer/lib/ui/separator';
-import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
+import { parseGitHubRepository } from '@shared/github-repository';
 
 const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
   projectId,
@@ -35,8 +33,8 @@ const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
   const showConfirmDeleteProject = useShowModal('confirmActionModal');
 
   const repo = getRepositoryStore(projectId);
-  const configuredRemote = repo?.configuredRemote;
-  const remoteUrl = configuredRemote?.url;
+  const baseRemote = repo?.baseRemote;
+  const remoteUrl = baseRemote?.url;
   const repositoryUrl = repo?.repositoryUrl;
   const repository = parseGitHubRepository(repositoryUrl);
 
@@ -44,11 +42,11 @@ const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
   const repoLabel = repository?.nameWithOwner ?? remoteUrl?.replace(/^https?:\/\//, '');
 
   return (
-    <div className="flex items-center px-2 gap-2 h-full">
+    <div className="flex h-full items-center gap-2 px-2">
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
-            <button className="flex items-center gap-1.5 text-foreground-muted text-sm hover:text-foreground group">
+            <button className="group flex items-center gap-1.5 text-sm text-foreground-muted hover:text-foreground">
               <span className="text-sm">{displayName}</span>
               <ChevronDown className="size-3.5" />
             </button>
@@ -71,7 +69,7 @@ const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
               });
             }}
           >
-            <Trash2 className="size-4 " />
+            <Trash2 className="size-4" />
             Remove Project
           </DropdownMenuItem>
         </DropdownMenuContent>
@@ -83,14 +81,14 @@ const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
             className="h-4 data-[orientation=vertical]:self-center"
           />
           <button
-            className="flex items-center gap-1.5 text-foreground-muted text-sm hover:text-foreground group transition-colors"
+            className="group flex items-center gap-1.5 text-sm text-foreground-muted transition-colors hover:text-foreground"
             onClick={() => void rpc.app.openExternal(remoteUrl ?? '')}
           >
-            <div className="text-sm flex items-center gap-1">
+            <div className="flex items-center gap-1 text-sm">
               {isGithubUrl ? <GithubIcon className="size-3.5" /> : <Globe className="size-3.5" />}
               <span className="truncate">{repoLabel}</span>
             </div>
-            <ExternalLink className="size-3.5 shrink-0 opacity-0 group-hover:opacity-100 text-foreground-muted hover:text-foreground transition-opacity" />
+            <ExternalLink className="size-3.5 shrink-0 text-foreground-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-foreground" />
           </button>
         </>
       )}
@@ -106,7 +104,7 @@ const ProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
   const store = getProjectStore(projectId);
   const displayName = projectDisplayName(store);
   return (
-    <div className="flex items-center px-2 gap-2">
+    <div className="flex items-center gap-2 px-2">
       <span className="text-sm text-foreground-muted">{displayName}</span>
     </div>
   );
@@ -127,41 +125,16 @@ export const ProjectTitlebar = observer(function ProjectTitlebar() {
   if (!mounted) return <Titlebar leftSlot={<ProjectTitlebarLeft projectId={projectId} />} />;
 
   const isRemote = mounted.data.type === 'ssh';
-  const sshConnectionId = mounted.data.type === 'ssh' ? mounted.data.connectionId : null;
 
   return (
     <Titlebar
       leftSlot={<MountedProjectTitlebarLeft projectId={projectId} />}
       rightSlot={
-        <div className="flex items-center gap-2 mr-2">
-          {!isRemote && (
-            <OpenInMenu
-              path={mounted.data.path}
-              isRemote={isRemote}
-              sshConnectionId={sshConnectionId}
-              className="h-7 bg-background"
-            />
-          )}
-          <ToggleGroup
-            variant="outline"
-            size="sm"
-            value={[mounted.view.activeView]}
-            className="rounded-lg overflow-hidden shadow-none h-7 border border-border mx-1"
-            onValueChange={([value]) => {
-              if (value) mounted.view.setProjectView(value as ProjectView);
-            }}
-          >
-            <ToggleGroupItem value="tasks" size="sm">
-              Tasks
-            </ToggleGroupItem>
-            <ToggleGroupItem value="pull-request" size="sm">
-              Pull Requests
-            </ToggleGroupItem>
-            <ToggleGroupItem value="settings" size="sm">
-              Settings
-            </ToggleGroupItem>
-          </ToggleGroup>
-        </div>
+        !isRemote ? (
+          <div className="mr-2 flex items-center gap-2">
+            <OpenInMenu path={mounted.data.path} className="h-7 bg-background" />
+          </div>
+        ) : undefined
       }
     />
   );

@@ -130,7 +130,7 @@ export function ComboboxPopover<T extends ComboboxSelectOption>({
               items={group.items}
               className={
                 group.value === 'actions'
-                  ? 'sticky bottom-0 -mx-1 px-1 border-t border-border bg-popover pt-1 pb-1 rounded-b-md'
+                  ? 'bg-popover sticky bottom-0 -mx-1 rounded-b-md border-t border-border px-1 pt-1 pb-1'
                   : 'py-1'
               }
             >

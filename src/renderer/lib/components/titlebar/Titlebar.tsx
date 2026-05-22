@@ -1,20 +1,19 @@
-import { PanelLeft, PanelRight } from 'lucide-react';
+import { PanelLeft } from 'lucide-react';
 import { type ReactNode } from 'react';
+import { NavButtons } from '@renderer/lib/components/nav-buttons';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
-import { useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
-import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
-import { Toggle } from '@renderer/lib/ui/toggle';
+import { Button } from '@renderer/lib/ui/button';
+import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 
 export function Titlebar({ leftSlot, rightSlot }: { leftSlot?: ReactNode; rightSlot?: ReactNode }) {
-  const { isRightOpen, setCollapsed, isLeftOpen } = useWorkspaceLayoutContext();
-  const { RightPanel } = useWorkspaceSlots();
+  const { setCollapsed, isLeftOpen } = useWorkspaceLayoutContext();
   return (
     <header
       className={cn(
         'flex h-10 shrink-0 items-center bg-background-secondary pr-2 border-b border-border [-webkit-app-region:drag] dark:bg-background',
-        !isLeftOpen && 'pl-17'
+        !isLeftOpen && 'pl-18'
       )}
     >
       <div className="pointer-events-auto flex w-full items-center gap-1">
@@ -22,45 +21,30 @@ export function Titlebar({ leftSlot, rightSlot }: { leftSlot?: ReactNode; rightS
         <div className="flex w-full items-center justify-between">
           <div className="flex items-center justify-start [-webkit-app-region:no-drag]">
             {!isLeftOpen && (
-              <Tooltip>
-                <TooltipTrigger>
-                  <Toggle
-                    pressed={isLeftOpen}
-                    variant="outline"
-                    size="sm"
-                    className="ml-2 size-7"
-                    onPressedChange={() => setCollapsed('left', isLeftOpen)}
-                  >
-                    <PanelLeft className="h-4 w-4" />
-                  </Toggle>
-                </TooltipTrigger>
-                <TooltipContent>
-                  Toggle left sidebar
-                  <ShortcutHint settingsKey="toggleLeftSidebar" />
-                </TooltipContent>
-              </Tooltip>
+              <div className="ml-2 flex items-center gap-0.5 [-webkit-app-region:no-drag]">
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="size-7 p-0"
+                      onClick={() => setCollapsed('left', isLeftOpen)}
+                    >
+                      <PanelLeft className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Toggle left sidebar
+                    <BoundShortcut settingsKey="toggleLeftSidebar" variant="badge" />
+                  </TooltipContent>
+                </Tooltip>
+                <NavButtons />
+              </div>
             )}
             {leftSlot}
           </div>
           <div className="flex items-center justify-end [-webkit-app-region:no-drag]">
             {rightSlot}
-            <Tooltip>
-              <TooltipTrigger>
-                <Toggle
-                  disabled={!RightPanel}
-                  pressed={isRightOpen}
-                  size="sm"
-                  variant="outline"
-                  onPressedChange={() => setCollapsed('right', isRightOpen)}
-                >
-                  <PanelRight className="size-3.5" />
-                </Toggle>
-              </TooltipTrigger>
-              <TooltipContent>
-                Toggle right sidebar
-                <ShortcutHint settingsKey="toggleRightSidebar" />
-              </TooltipContent>
-            </Tooltip>
           </div>
         </div>
       </div>

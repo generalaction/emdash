@@ -8,10 +8,13 @@ export interface SshConfig {
   host: string;
   port: number;
   username: string;
+  sshConfigAlias?: string;
   authType: 'password' | 'key' | 'agent';
   privateKeyPath?: string;
   useAgent?: boolean;
   worktreesDir?: string;
+  forwardAgent?: boolean;
+  proxyJump?: string;
 }
 
 /**
@@ -25,6 +28,8 @@ export type ConnectionState =
   | 'disconnected'
   | 'error';
 
+export type SshHealthState = { status: 'ok' } | { status: 'degraded' };
+
 /**
  * SSH Connection with metadata
  * Extends SshConfig with runtime connection information
@@ -35,6 +40,8 @@ export interface SshConnection extends SshConfig {
   lastError?: string;
   connectedAt?: Date;
 }
+
+export type SshConnectionUsage = Record<string, Array<{ id: string; name: string }>>;
 
 /**
  * Command execution result
@@ -123,4 +130,8 @@ export interface SshConfigHost {
   port?: number;
   identityFile?: string;
   identityAgent?: string;
+  proxyJump?: string;
+  proxyCommand?: string;
+  forwardAgent?: boolean;
+  forwardAgentValue?: string;
 }

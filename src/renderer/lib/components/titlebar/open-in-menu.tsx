@@ -1,7 +1,6 @@
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { ChevronDown } from 'lucide-react';
 import React, { useCallback, useMemo } from 'react';
-import { getAppById, isValidOpenInAppId, type OpenInAppId } from '@shared/openInApps';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import {
@@ -11,23 +10,18 @@ import {
 import { useOpenInApps } from '@renderer/lib/hooks/useOpenInApps';
 import { rpc } from '@renderer/lib/ipc';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/ui/select';
-import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
+import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
+import { getAppById, isValidOpenInAppId, type OpenInAppId } from '@shared/openInApps';
 
 interface OpenInMenuProps {
   path: string;
-  isRemote?: boolean;
-  sshConnectionId?: string | null;
   className?: string;
+  borderless?: boolean;
 }
 
-export const OpenInMenu: React.FC<OpenInMenuProps> = ({
-  path,
-  className,
-  isRemote = false,
-  sshConnectionId = null,
-}) => {
+export const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, className, borderless = false }) => {
   const { toast } = useToast();
   const { icons, labels, installedApps, availability, loading } = useOpenInApps();
   const { value: openIn, update } = useAppSettingsKey('openIn');
@@ -51,8 +45,6 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
         const res = await rpc.app.openIn({
           app: appId,
           path,
-          isRemote,
-          sshConnectionId: sshConnectionId ?? undefined,
         });
         if (!res?.success) {
           toast({
@@ -69,7 +61,7 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
         });
       }
     },
-    [labels, path, isRemote, sshConnectionId, toast]
+    [labels, path, toast]
   );
 
   const sortedApps = useMemo(() => {
@@ -104,21 +96,23 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
     { enabled: !!buttonAppId && !loading && openInHotkey !== null }
   );
 
-  const shortenedPath = useMemo(() => path.split('/').slice(-2).join('/'), [path]);
-
   return (
     <div
       className={cn(
         'border border-border rounded-md h-6 flex items-center text-foreground-muted overflow-hidden',
+        borderless && 'border-none',
         className
       )}
     >
       <TooltipProvider delay={0}>
         <Tooltip>
-          <TooltipTrigger className="flex-1 flex min-w-0">
+          <TooltipTrigger className="flex min-w-0 flex-1">
             <button
               type="button"
-              className="group flex items-center w-full min-w-0 gap-1.5 border-r border-border truncate rounded-r-none px-2 text-xs transition-colors hover:bg-background-1 hover:text-foreground"
+              className={cn(
+                'group flex items-center w-full border-r border-border rounded-r-none px-2 text-xs transition-colors hover:bg-background-1 hover:text-foreground min-w-0',
+                borderless && 'border-none  pr-1'
+              )}
               onClick={() => {
                 if (!buttonAppId) return;
                 void triggerOpenIn(buttonAppId);
@@ -135,13 +129,12 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
                   }`}
                 />
               )}
-              <span>{shortenedPath}</span>
             </button>
           </TooltipTrigger>
           <TooltipContent side="bottom">
             <div className="flex flex-col gap-1">
               <span>Open in {buttonAppLabel || 'editor'}</span>
-              <ShortcutHint settingsKey="openInEditor" />
+              <BoundShortcut settingsKey="openInEditor" variant="badge" />
             </div>
           </TooltipContent>
         </Tooltip>
@@ -159,7 +152,7 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
             render={
               <SelectTrigger
                 showChevron={false}
-                className="group shrink-0 size-6 border-none bg-transparent flex items-center justify-center transition-colors hover:bg-background-1 hover:text-foreground"
+                className="group flex size-6 shrink-0 items-center justify-center border-none bg-transparent transition-colors hover:bg-background-1 hover:text-foreground"
                 aria-label="Open in options"
               >
                 <ChevronDown className="size-3.5" />

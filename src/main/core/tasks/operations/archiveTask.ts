@@ -1,11 +1,11 @@
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
-import { taskEvents } from '@main/core/tasks/task-events';
 import { taskManager } from '@main/core/tasks/task-manager';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
+import { deleteIndexIfUnused, removeWorktreeIfUnused } from './task-lifecycle-utils';
 
 export async function archiveTask(projectId: string, taskId: string): Promise<void> {
   const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
@@ -22,7 +22,6 @@ export async function archiveTask(projectId: string, taskId: string): Promise<vo
       statusChangedAt: sql`CURRENT_TIMESTAMP`,
     })
     .where(eq(tasks.id, taskId));
-  taskEvents._emit('task:archived', taskId, projectId);
   telemetryService.capture('task_archived', { project_id: projectId, task_id: taskId });
 
   if (!project) return;
@@ -38,23 +37,9 @@ export async function archiveTask(projectId: string, taskId: string): Promise<vo
       log.warn('archiveTask: teardown failed', { taskId, error: String(e) });
     });
 
-  if (task.taskBranch) {
-    const siblings = await db
-      .select({ id: tasks.id })
-      .from(tasks)
-      .where(
-        and(
-          eq(tasks.projectId, task.projectId),
-          eq(tasks.taskBranch, task.taskBranch),
-          isNull(tasks.archivedAt)
-        )
-      )
-      .limit(1);
+  await removeWorktreeIfUnused(task, project, true);
 
-    if (siblings.length === 0) {
-      await project.removeTaskWorktree(task.taskBranch).catch((e) => {
-        log.warn('archiveTask: worktree removal failed', { taskId, error: String(e) });
-      });
-    }
+  if (task.workspaceId) {
+    await deleteIndexIfUnused(task.workspaceId);
   }
 }

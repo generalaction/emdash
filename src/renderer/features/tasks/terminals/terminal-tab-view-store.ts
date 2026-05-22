@@ -16,11 +16,11 @@ export class TerminalTabViewStore
   tabOrder: string[] = [];
   activeTabId: string | undefined = undefined;
 
-  private readonly resource: TerminalManagerStore;
+  private readonly _getResource: () => TerminalManagerStore | null;
   private readonly disposers: (() => void)[] = [];
 
-  constructor(resource: TerminalManagerStore) {
-    this.resource = resource;
+  constructor(getResource: () => TerminalManagerStore | null) {
+    this._getResource = getResource;
     makeObservable(this, {
       tabOrder: observable,
       activeTabId: observable,
@@ -39,7 +39,7 @@ export class TerminalTabViewStore
 
     this.disposers.push(
       reaction(
-        () => Array.from(this.resource.terminals.keys()),
+        () => Array.from(this._getResource()?.terminals.keys() ?? []),
         action((ids: string[]) => {
           const idSet = new Set(ids);
           // Remove deleted IDs
@@ -68,13 +68,13 @@ export class TerminalTabViewStore
   }
 
   get tabs(): TerminalStore[] {
-    return this.tabOrder
-      .map((id) => this.resource.terminals.get(id))
-      .filter(Boolean) as TerminalStore[];
+    const resource = this._getResource();
+    if (!resource) return [];
+    return this.tabOrder.map((id) => resource.terminals.get(id)).filter(Boolean) as TerminalStore[];
   }
 
   get activeTab(): TerminalStore | undefined {
-    return this.activeTabId ? this.resource.terminals.get(this.activeTabId) : undefined;
+    return this.activeTabId ? this._getResource()?.terminals.get(this.activeTabId) : undefined;
   }
 
   get snapshot(): TabViewSnapshot {
@@ -110,7 +110,7 @@ export class TerminalTabViewStore
   addTab(_args: never): void {}
 
   removeTab(id: string): void {
-    void this.resource.deleteTerminal(id);
+    void this._getResource()?.deleteTerminal(id);
   }
 
   closeActiveTab(): void {

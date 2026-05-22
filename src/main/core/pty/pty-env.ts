@@ -3,8 +3,14 @@ import { detectSshAuthSock } from '@main/utils/shellEnv';
 import { getWindowsEnvValue } from '@main/utils/windows-env';
 
 export const AGENT_ENV_VARS = [
+  'ALL_PROXY',
   'AMP_API_KEY',
+  'AMP_TOOLBOX',
   'ANTHROPIC_API_KEY',
+  'ANTHROPIC_AUTH_TOKEN',
+  'ANTHROPIC_BASE_URL',
+  'ANTHROPIC_MODEL',
+  'ANTHROPIC_SMALL_FAST_MODEL',
   'AUTOHAND_API_KEY',
   'AUGMENT_SESSION_AUTH',
   'AWS_ACCESS_KEY_ID',
@@ -16,18 +22,42 @@ export const AGENT_ENV_VARS = [
   'AZURE_OPENAI_API_ENDPOINT',
   'AZURE_OPENAI_API_KEY',
   'AZURE_OPENAI_KEY',
+  'BAILIAN_CODING_PLAN_API_KEY',
+  'CLAUDE_CODE_USE_BEDROCK',
+  'CLAUDE_CODE_USE_VERTEX',
+  'CLAUDE_CONFIG_DIR',
   'CODEBUFF_API_KEY',
+  'CODEX_HOME',
   'COPILOT_CLI_TOKEN',
   'CURSOR_API_KEY',
   'DASHSCOPE_API_KEY',
   'FACTORY_API_KEY',
   'GEMINI_API_KEY',
+  'GEMINI_MODEL',
   'GH_TOKEN',
   'GITHUB_TOKEN',
   'GOOGLE_API_KEY',
   'GOOGLE_APPLICATION_CREDENTIALS',
   'GOOGLE_CLOUD_LOCATION',
   'GOOGLE_CLOUD_PROJECT',
+  'GOOGLE_GEMINI_BASE_URL',
+  'GOOGLE_GENAI_API_VERSION',
+  'GOOGLE_VERTEX_BASE_URL',
+  'GOOSE_CONTEXT_LIMIT',
+  'GOOSE_LEAD_MODEL',
+  'GOOSE_LEAD_PROVIDER',
+  'GOOSE_MODE',
+  'GOOSE_MODEL',
+  'GOOSE_PLANNER_MODEL',
+  'GOOSE_PLANNER_PROVIDER',
+  'GOOSE_PROVIDER',
+  'GOOSE_PROVIDER__API_KEY',
+  'GOOSE_PROVIDER__HOST',
+  'GOOSE_PROVIDER__TYPE',
+  'GROK_CODE_XAI_API_KEY',
+  'GROK_DEPLOYMENT_KEY',
+  'GROK_PROXY_URL',
+  'GROK_SANDBOX',
   'HTTP_PROXY',
   'HTTPS_PROXY',
   'KIMI_API_KEY',
@@ -36,8 +66,13 @@ export const AGENT_ENV_VARS = [
   'NO_PROXY',
   'OPENAI_API_KEY',
   'OPENAI_BASE_URL',
+  'OPENAI_MODEL',
+  'OPENAI_ORGANIZATION',
+  'OPENAI_PROJECT',
+  'OPENCODE_MODEL',
   'OPENROUTER_API_KEY',
   'OPENROUTER_BASE_URL',
+  'XAI_API_KEY',
 ] as const;
 
 const DISPLAY_ENV_VARS = [
@@ -116,10 +151,9 @@ export interface AgentEnvOptions {
   };
 
   /**
-   * Per-provider custom env vars configured by the user.
-   * Keys are validated against ^[A-Za-z_][A-Za-z0-9_]*$.
+   * Per-provider variables configured in custom execution settings.
    */
-  customVars?: Record<string, string>;
+  providerVars?: Record<string, string>;
 }
 
 /**
@@ -175,7 +209,7 @@ export function buildTerminalEnv(): Record<string, string> {
  * find its own dependencies.
  */
 export function buildAgentEnv(options: AgentEnvOptions = {}): Record<string, string> {
-  const { agentApiVars = true, includeShellVar = false, hook, customVars } = options;
+  const { agentApiVars = true, includeShellVar = false, hook, providerVars } = options;
 
   // process.env.PATH is enriched at startup by resolveUserEnv() so it already
   // contains the full login-shell PATH (Homebrew, nvm, npm globals, etc.).
@@ -212,18 +246,14 @@ export function buildAgentEnv(options: AgentEnvOptions = {}): Record<string, str
     }
   }
 
+  if (providerVars) {
+    Object.assign(env, providerVars);
+  }
+
   if (hook && hook.port > 0) {
     env.EMDASH_HOOK_PORT = String(hook.port);
     env.EMDASH_PTY_ID = hook.ptyId;
     env.EMDASH_HOOK_TOKEN = hook.token;
-  }
-
-  if (customVars) {
-    for (const [key, val] of Object.entries(customVars)) {
-      if (typeof val === 'string' && /^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
-        env[key] = val;
-      }
-    }
   }
 
   return env;

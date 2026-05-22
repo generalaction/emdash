@@ -27,21 +27,13 @@
     <img src="https://emdash.sh/media/readme/downloadforlinux.png" alt="Download for Linux" height="40">
   </a>
 
-  <h3>
-    <a href="https://emdash.sh/download">Download Emdash v1</a>
-  </h3>
-  <p>
-    Stable v1 is now available for macOS, Windows, and Linux ·
-    <a href="https://emdash.sh/blog/emdash-v1-stable">Read the launch post</a>
-  </p>
-
 </div>
 
 <br />
 
 Emdash is a provider-agnostic desktop app that lets you run multiple coding agents in parallel, each isolated in its own git worktree, either locally or over SSH on a remote machine. We call it an Agentic Development Environment (ADE).
 
-Emdash supports 24 CLI agents, including Claude Code, Codex, OpenCode, Gemini and Amp. Users can directly pass Linear, GitHub, or Jira tickets to an agent, review diffs, test changes, create PRs, see CI/CD checks, and merge.
+Emdash supports 27 CLI agents, including Claude Code, Codex, OpenCode, Gemini and Amp. Users can directly pass Linear, GitHub, Jira, or Asana tickets to an agent, review diffs, test changes, create PRs, see CI/CD checks, and merge.
 
 **Develop on remote servers via SSH**
 
@@ -58,6 +50,7 @@ Connect to remote machines via SSH/SFTP to work with remote codebases. Emdash su
 # Installation
 
 ### macOS
+- Homebrew: `brew install --cask emdash`
 - Apple Silicon: https://releases.emdash.sh/emdash-arm64.dmg
 - Intel x64: https://releases.emdash.sh/emdash-x64.dmg
 
@@ -79,9 +72,9 @@ Connect to remote machines via SSH/SFTP to work with remote codebases. Emdash su
 
 ### Supported CLI Providers
 
-Emdash currently supports 24 CLI providers, and we are adding new ones regularly. If you miss one, let us know or create a PR.
+Emdash currently supports 27 CLI providers, and we are adding new ones regularly. If you miss one, let us know or create a PR.
 
-| CLI Provider | Status | Install |
+| CLI Provider | Status | Install / Setup |
 | ----------- | ------ | ----------- |
 | [Amp](https://ampcode.com/manual#install) | ✅ Supported | <code>npm install -g @sourcegraph/amp@latest</code> |
 | [Auggie](https://docs.augmentcode.com/cli/overview) | ✅ Supported | <code>npm install -g @augmentcode/auggie</code> |
@@ -98,9 +91,13 @@ Emdash currently supports 24 CLI providers, and we are adding new ones regularly
 | [Gemini](https://github.com/google-gemini/gemini-cli) | ✅ Supported | <code>npm install -g @google/gemini-cli</code> |
 | [GitHub Copilot](https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-cli) | ✅ Supported | <code>npm install -g @github/copilot</code> |
 | [Goose](https://block.github.io/goose/docs/quickstart/) | ✅ Supported | <code>curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh &#124; bash</code> |
+| [Hermes Agent](https://hermes-agent.nousresearch.com/docs/) | ✅ Supported | <code>curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh &#124; bash</code> |
+| [Jules](https://jules.google/docs/cli/reference/) | ✅ Supported | <code>npm install -g @google/jules</code> |
+| [Junie](https://junie.jetbrains.com/docs/junie-cli.html) | ✅ Supported | <code>curl -fsSL https://junie.jetbrains.com/install.sh &#124; bash</code> |
 | [Kilocode](https://kilo.ai/docs/cli) | ✅ Supported | <code>npm install -g @kilocode/cli</code> |
 | [Kimi](https://www.kimi.com/code/docs/en/kimi-cli/guides/getting-started.html) | ✅ Supported | <code>uv tool install kimi-cli</code> |
 | [Kiro (AWS)](https://kiro.dev/docs/cli/) | ✅ Supported | <code>curl -fsSL https://cli.kiro.dev/install &#124; bash</code> |
+| [Letta](https://docs.letta.com/letta-code/cli) | ✅ Supported | <code>npm install -g @letta-ai/letta-code</code> |
 | [Mistral Vibe](https://github.com/mistralai/mistral-vibe) | ✅ Supported | <code>curl -LsSf https://mistral.ai/vibe/install.sh &#124; bash</code> |
 | [OpenCode](https://opencode.ai/docs/cli/) | ✅ Supported | <code>npm install -g opencode-ai</code> |
 | [Pi](https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent) | ✅ Supported | <code>npm install -g @mariozechner/pi-coding-agent</code> |
@@ -117,6 +114,7 @@ Emdash allows you to pass issues, tickets, and support threads straight to your 
 | [Jira](https://www.atlassian.com/software/jira) | ✅ Supported | Provide your site URL, email, and Atlassian API token. |
 | [GitHub Issues](https://docs.github.com/en/issues) | ✅ Supported | Connect your GitHub account or authenticate via GitHub CLI (`gh auth login`). |
 | [GitLab Issues](https://docs.gitlab.com/user/project/issues/) | ✅ Supported | Provide your GitLab instance URL and a personal access token with `read_api` scope. |
+| [Asana](https://asana.com/) | ✅ Supported | Connect with an Asana personal access token. |
 | [Forgejo Issues](https://forgejo.org/) | ✅ Supported | Provide your Forgejo instance URL and API token. |
 | [Plain Threads](https://www.plain.com/) | ✅ Supported | Connect with a Plain API key. |
 

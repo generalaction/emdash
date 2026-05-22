@@ -36,13 +36,13 @@ export function ImportHeader({ isLoading, singleSource = null }: ImportHeaderPro
       <div className="flex flex-col items-center justify-center gap-5">
         <Import className="h-10 w-10" absoluteStrokeWidth strokeWidth={1.5} />
         <div className="flex flex-col items-center justify-center gap-2">
-          <h1 className="text-xl text-center">{title}</h1>
+          <h1 className="text-center text-xl">{title}</h1>
           {isLoading ? (
-            <p className="text-md text-foreground-muted text-center">
+            <p className="text-md text-center text-foreground-muted">
               Scanning existing Emdash data...
             </p>
           ) : (
-            <p className="text-md text-foreground-muted text-center">{description}</p>
+            <p className="text-md text-center text-foreground-muted">{description}</p>
           )}
         </div>
       </div>

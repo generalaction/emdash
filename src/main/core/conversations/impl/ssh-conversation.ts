@@ -1,22 +1,25 @@
-import type { AgentSessionConfig } from '@shared/agent-session';
-import { type Conversation } from '@shared/conversations';
-import { agentSessionExitedChannel } from '@shared/events/agentEvents';
-import { makePtySessionId } from '@shared/ptySessionId';
 import { wireAgentClassifier } from '@main/core/agent-hooks/classifier-wiring';
 import { claudeTrustService } from '@main/core/agent-hooks/claude-trust-service';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
-import { type Pty } from '@main/core/pty/pty';
+import type { Pty } from '@main/core/pty/pty';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { resolveSshCommand } from '@main/core/pty/spawn-utils';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
-import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
+import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
+import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
-import { buildAgentCommand } from './agent-command';
+import type { AgentSessionConfig } from '@shared/agent-session';
+import type { Conversation } from '@shared/conversations';
+import { agentSessionExitedChannel } from '@shared/events/agentEvents';
+import { makePtySessionId } from '@shared/ptySessionId';
+import { buildAgentSessionCommand } from './agent-command';
+import { scheduleInitialPromptInjection } from './keystroke-injection';
+import { resolveProviderEnv } from './provider-env';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
@@ -86,12 +89,18 @@ export class SshConversationProvider implements ConversationProvider {
       remoteFs: new SshFileSystem(this.proxy, '/'),
     });
 
-    const { command, args } = await buildAgentCommand({
+    const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
+    const { command, args } = buildAgentSessionCommand({
       providerId: conversation.providerId,
+      providerConfig,
       autoApprove: conversation.autoApprove,
       sessionId: conversation.id,
       isResuming,
       initialPrompt,
+    });
+    const providerEnv = resolveProviderEnv(providerConfig, {
+      providerId: conversation.providerId,
+      autoApprove: conversation.autoApprove,
     });
 
     const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
@@ -109,9 +118,15 @@ export class SshConversationProvider implements ConversationProvider {
       resume: isResuming,
     };
 
-    const sshCommand = resolveSshCommand('agent', cfg, this.taskEnvVars);
+    const profile = await this.proxy.getRemoteShellProfile();
+    const sshCommand = resolveSshCommand(
+      'agent',
+      cfg,
+      { ...providerEnv, ...this.taskEnvVars },
+      profile
+    );
 
-    const result = await openSsh2Pty(this.proxy.client, {
+    const result = await openSsh2Pty(this.proxy, {
       id: sessionId,
       command: sshCommand,
       cols: initialSize.cols,
@@ -123,7 +138,7 @@ export class SshConversationProvider implements ConversationProvider {
         sessionId,
         error: result.error.message,
       });
-      return;
+      throw new Error(result.error.message);
     }
 
     const pty = result.data;
@@ -141,13 +156,6 @@ export class SshConversationProvider implements ConversationProvider {
       ptySessionRegistry.unregister(sessionId);
       const shouldRespawn = this.sessions.has(sessionId);
       this.sessions.delete(sessionId);
-      telemetryService.capture('agent_run_finished', {
-        provider: conversation.providerId,
-        exit_code: typeof exitCode === 'number' ? exitCode : -1,
-        project_id: conversation.projectId,
-        task_id: conversation.taskId,
-        conversation_id: conversation.id,
-      });
       events.emit(agentSessionExitedChannel, {
         sessionId,
         projectId: conversation.projectId,
@@ -181,8 +189,11 @@ export class SshConversationProvider implements ConversationProvider {
       }
     });
 
-    ptySessionRegistry.register(sessionId, pty);
+    ptySessionRegistry.register(sessionId, pty, {
+      metadata: { providerId: conversation.providerId, title: conversation.title, isRemote: true },
+    });
     this.sessions.set(sessionId, pty);
+    scheduleInitialPromptInjection({ pty, conversation, initialPrompt, isResuming });
     telemetryService.capture('agent_run_started', {
       provider: conversation.providerId,
       project_id: conversation.projectId,

@@ -1,6 +1,6 @@
 import { type IpcMain } from 'electron';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// oxlint-disable-next-line typescript/no-explicit-any
 type ProcedureMap = Record<string, (...args: any[]) => unknown>;
 
 export function createRPCController<T extends ProcedureMap>(handlers: T): T {

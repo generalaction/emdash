@@ -2,41 +2,47 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { AppSettings, AppSettingsKey } from '@shared/app-settings';
 import type { OpenInAppId } from '@shared/openInApps';
+import { TERMINAL_FONT_SIZE_DEFAULT } from '@shared/terminal-settings';
 import { getDefaultLocalWorktreeDirectory } from './worktree-defaults';
 
 export const DEFAULT_AGENT_ID = 'claude';
-export const DEFAULT_REVIEW_PROMPT =
-  'Review all changes in this worktree. Focus on correctness, regressions, edge cases, and missing tests. List concrete issues first, then note residual risks.';
 
 type SettingsDefaultsMap = {
   [K in AppSettingsKey]: AppSettings[K] | (() => AppSettings[K]);
 };
 
 export const SETTINGS_DEFAULTS = {
+  project: {
+    pushOnCreate: true,
+    branchPrefix: 'emdash',
+    appendRandomBranchSuffix: true,
+    tmuxByDefault: false,
+  },
   localProject: () => ({
     defaultProjectsDirectory: join(homedir(), 'emdash', 'repositories'),
     defaultWorktreeDirectory: getDefaultLocalWorktreeDirectory(),
-    branchPrefix: 'emdash',
-    pushOnCreate: true,
     writeAgentConfigToGitIgnore: true,
   }),
   tasks: {
     autoGenerateName: true,
     autoTrustWorktrees: true,
+    createBranchAndWorktree: true,
+    includeIssueContextByDefault: true,
   },
   agentAutoApproveDefaults: {},
   notifications: {
     enabled: true,
     sound: true,
+    customSoundPath: '',
     osNotifications: true,
     soundFocusMode: 'always' as const,
   },
   terminal: {
+    fontSize: TERMINAL_FONT_SIZE_DEFAULT,
     autoCopyOnSelection: false,
   },
   theme: null,
   defaultAgent: DEFAULT_AGENT_ID,
-  reviewPrompt: DEFAULT_REVIEW_PROMPT,
   keyboard: {},
   openIn: {
     default: 'terminal' as const,
@@ -48,6 +54,9 @@ export const SETTINGS_DEFAULTS = {
   },
   browserPreview: {
     enabled: true,
+  },
+  resourceMonitor: {
+    enabled: false,
   },
 } satisfies SettingsDefaultsMap;
 

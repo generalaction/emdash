@@ -1,9 +1,9 @@
+import { events } from '@main/lib/events';
+import { telemetryService } from '@main/lib/telemetry';
 import { gitRefChangedChannel } from '@shared/events/gitEvents';
 import type { BranchesPayload, LocalBranchesPayload, RemoteBranchesPayload } from '@shared/git';
 import { createRPCController } from '@shared/ipc/rpc';
 import { err, ok } from '@shared/result';
-import { events } from '@main/lib/events';
-import { telemetryService } from '@main/lib/telemetry';
 import type { GitRepositoryService } from '../git/repository-service';
 import { projectManager } from '../projects/project-manager';
 import { workspaceRegistry } from '../workspaces/workspace-registry';
@@ -104,12 +104,14 @@ export const repositoryController = createRPCController({
   ) => {
     const project = projectManager.getProject(projectId);
     if (!project) return err({ type: 'not_found' as const });
+    const baseRemote = await project.repository.getBaseRemote();
     const result = await project.repository.fetchPrForReview(
       prNumber,
       headRefName,
       headRepositoryUrl,
       headRefName,
-      isFork
+      isFork,
+      baseRemote
     );
     if (!result.success) return err(result.error);
     return ok({ localBranch: headRefName });

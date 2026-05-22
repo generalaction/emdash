@@ -1,15 +1,21 @@
 import { Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { Activity } from 'react';
+import { useEffect } from 'react';
+import { usePanelRef } from 'react-resizable-panels';
 import {
   getTaskStore,
   taskErrorMessage,
   taskViewKind,
 } from '@renderer/features/tasks/stores/task-selectors';
-import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
-import { ConversationsPanel } from './conversations/conversations-panel';
-import { DiffView } from './diff-view/main-panel/diff-view';
-import { EditorMainPanel } from './editor/editor-main-panel';
+import {
+  useTaskViewContext,
+  useWorkspaceViewModel,
+} from '@renderer/features/tasks/task-view-context';
+import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
+import { ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
+import { DraggableResizeHandle, TaskMainColumn } from './view/task-main-column';
+import { TaskSidebar } from './view/task-sidebar';
+import { WorkspaceResolutionView } from './workspace-resolution-view';
 
 export const TaskMainPanel = observer(function TaskMainPanel() {
   const { projectId, taskId } = useTaskViewContext();
@@ -20,7 +26,7 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center gap-3">
         <Loader2 className="h-5 w-5 animate-spin text-foreground-muted" />
-        <p className="text-xs font-mono text-foreground-muted">Creating task</p>
+        <p className="font-mono text-xs text-foreground-muted">Creating task</p>
       </div>
     );
   }
@@ -28,11 +34,11 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
   if (kind === 'create-error') {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center p-8">
-        <div className="flex max-w-xs flex-col items-center text-center gap-2">
-          <p className="text-sm font-medium font-mono text-foreground-destructive">
+        <div className="flex max-w-xs flex-col items-center gap-2 text-center">
+          <p className="font-mono text-sm font-medium text-foreground-destructive">
             Error creating task
           </p>
-          <p className="text-xs font-mono text-foreground-passive">{taskErrorMessage(taskStore)}</p>
+          <p className="font-mono text-xs text-foreground-passive">{taskErrorMessage(taskStore)}</p>
         </div>
       </div>
     );
@@ -43,7 +49,7 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center gap-3">
         <Loader2 className="h-5 w-5 animate-spin text-foreground-muted" />
-        <p className="text-xs font-mono text-foreground-muted">{progressMessage}</p>
+        <p className="font-mono text-xs text-foreground-muted">{progressMessage}</p>
       </div>
     );
   }
@@ -51,11 +57,11 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
   if (kind === 'provision-error' || kind === 'project-error') {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center p-8">
-        <div className="flex max-w-xs flex-col items-center text-center gap-2">
-          <p className="text-sm font-medium font-mono text-foreground-destructive">
+        <div className="flex max-w-xs flex-col items-center gap-2 text-center">
+          <p className="font-mono text-sm font-medium text-foreground-destructive">
             Failed to set up workspace
           </p>
-          <p className="text-xs font-mono text-foreground-muted">{taskErrorMessage(taskStore)}</p>
+          <p className="font-mono text-xs text-foreground-muted">{taskErrorMessage(taskStore)}</p>
         </div>
       </div>
     );
@@ -66,7 +72,7 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center gap-3">
         <Loader2 className="h-5 w-5 animate-spin text-foreground-muted" />
-        <p className="text-xs font-mono text-foreground-muted">{progressMessage}</p>
+        <p className="font-mono text-xs text-foreground-muted">{progressMessage}</p>
       </div>
     );
   }
@@ -74,11 +80,11 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
   if (kind === 'teardown-error') {
     return (
       <div className="flex h-full w-full flex-col items-center justify-center p-8">
-        <div className="flex max-w-xs flex-col items-center text-center gap-2">
-          <p className="text-sm font-medium font-mono text-foreground-destructive">
+        <div className="flex max-w-xs flex-col items-center gap-2 text-center">
+          <p className="font-mono text-sm font-medium text-foreground-destructive">
             Failed to tear down workspace
           </p>
-          <p className="text-xs font-mono text-foreground-muted">{taskErrorMessage(taskStore)}</p>
+          <p className="font-mono text-xs text-foreground-muted">{taskErrorMessage(taskStore)}</p>
         </div>
       </div>
     );
@@ -88,23 +94,48 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
     return null;
   }
 
+  if (kind === 'needs-resolution') {
+    return <WorkspaceResolutionView />;
+  }
+
   return <ReadyTaskMainPanel />;
 });
 
+const SIDEBAR_COLLAPSED_SIZE = '0px';
+
 const ReadyTaskMainPanel = observer(function ReadyTaskMainPanel() {
-  const { taskView } = useProvisionedTask();
+  const taskView = useWorkspaceViewModel();
+  const sidebarPanelRef = usePanelRef();
+
+  useEffect(() => {
+    panelDragStore.suppressFor(140);
+    if (taskView.isSidebarCollapsed) {
+      sidebarPanelRef.current?.collapse();
+    } else {
+      sidebarPanelRef.current?.expand();
+    }
+  }, [taskView.isSidebarCollapsed, sidebarPanelRef]);
 
   return (
-    <>
-      <Activity mode={taskView.view === 'agents' ? 'visible' : 'hidden'}>
-        <ConversationsPanel />
-      </Activity>
-      <Activity mode={taskView.view === 'editor' ? 'visible' : 'hidden'}>
-        <EditorMainPanel />
-      </Activity>
-      <Activity mode={taskView.view === 'diff' ? 'visible' : 'hidden'}>
-        <DiffView />
-      </Activity>
-    </>
+    <ResizablePanelGroup orientation="horizontal" id="task-sidebar-layout">
+      <ResizablePanel id="task-main-area">
+        <TaskMainColumn />
+      </ResizablePanel>
+      <DraggableResizeHandle />
+      <ResizablePanel
+        id="task-sidebar"
+        panelRef={sidebarPanelRef}
+        defaultSize="25%"
+        minSize="280px"
+        maxSize="50%"
+        collapsible
+        collapsedSize={SIDEBAR_COLLAPSED_SIZE}
+        onResize={() =>
+          taskView.setSidebarCollapsed(sidebarPanelRef.current?.isCollapsed() ?? false)
+        }
+      >
+        <TaskSidebar />
+      </ResizablePanel>
+    </ResizablePanelGroup>
   );
 });
