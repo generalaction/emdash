@@ -15,6 +15,8 @@ interface SectionHeaderProps {
   actions?: React.ReactNode;
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
 }
 
 export function SectionHeader({
@@ -25,6 +27,8 @@ export function SectionHeader({
   actions,
   collapsed,
   onToggleCollapsed,
+  onRefresh,
+  isRefreshing,
 }: SectionHeaderProps) {
   return (
     <div className="flex h-10 shrink-0 items-center justify-between px-3.5">
@@ -42,13 +46,30 @@ export function SectionHeader({
             </span>
           </span>
         </button>
-        <Checkbox
-          checked={selectionState === 'all'}
-          indeterminate={selectionState === 'partial'}
-          onCheckedChange={onToggleAll}
-          aria-label={`Select all ${label.toLowerCase()}`}
-          className="mr-0.5"
-        />
+        <div className="flex items-center gap-1.5">
+          <Checkbox
+            checked={selectionState === 'all'}
+            indeterminate={selectionState === 'partial'}
+            onCheckedChange={onToggleAll}
+            aria-label={`Select all ${label.toLowerCase()}`}
+            className="mr-0.5"
+          />
+          {onRefresh && (
+            <Tooltip>
+              <TooltipTrigger>
+                <Button
+                  variant="outline"
+                  size="icon-xs"
+                  onClick={onRefresh}
+                  disabled={isRefreshing}
+                >
+                  <RefreshCw className={cn('size-3', isRefreshing && 'animate-spin')} />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Refresh {label.toLowerCase()}</TooltipContent>
+            </Tooltip>
+          )}
+        </div>
       </div>
       {actions}
     </div>

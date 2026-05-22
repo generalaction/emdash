@@ -100,6 +100,8 @@ export const UnstagedSection = observer(function UnstagedSection() {
         selectionState={changesView.unstagedSelectionState}
         onToggleAll={() => changesView.toggleAllUnstaged()}
         actions={undefined}
+        onRefresh={() => git.fullStatus.invalidate()}
+        isRefreshing={git.isLoading}
       />
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {!hasChanges && (
