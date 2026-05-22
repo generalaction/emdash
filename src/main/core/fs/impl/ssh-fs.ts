@@ -102,7 +102,7 @@ export class SshFileSystem implements FileSystemProvider {
         if (err) return reject(err);
         let stdout = '';
         let stderr = '';
-        stream.on('close', (code: number | null) => {
+        stream.once('close', (code: number | null) => {
           resolve({ stdout: stdout.trim(), stderr: stderr.trim(), exitCode: code ?? -1 });
         });
         stream.on('data', (d: Buffer) => {
@@ -111,7 +111,7 @@ export class SshFileSystem implements FileSystemProvider {
         stream.stderr.on('data', (d: Buffer) => {
           stderr += d.toString('utf-8');
         });
-        stream.on('error', reject);
+        stream.once('error', reject);
       });
     });
   }

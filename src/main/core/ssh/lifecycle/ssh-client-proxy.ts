@@ -19,6 +19,8 @@ type SftpState =
  * (including after reconnect) and invalidate() when the connection drops.
  * Callers that access proxy.client at call time therefore always get the
  * current live Client without needing to be rebuilt or replaced.
+ * The optional healthReporter (constructor) receives reportChannelError and
+ * reportChannelRecovered notifications for channel health tracking.
  *
  * See sftp() for the shared SFTPWrapper ownership contract.
  */
@@ -131,6 +133,10 @@ export class SshClientProxy {
    * @see https://github.com/mscdex/ssh2 (SFTP channel lifecycle)
    */
   sftp(callback: ClientSFTPCallback): void {
+    if (!this.isConnected) {
+      callback(new Error('SSH connection is not available'), undefined as unknown as SFTPWrapper);
+      return;
+    }
     const client = this.client;
     const state = this._sftpState;
 
@@ -152,7 +158,9 @@ export class SshClientProxy {
     client.sftp((err, sftp) => {
       const isCurrentClient = this._client === client;
       if (isCurrentClient) this.reportChannelResult(err);
-      const callbacks = loadingState.callbacks.splice(0);
+      // Explicit drain avoids subtle in-place mutation of the loadingState's callbacks array
+      const callbacks = [...loadingState.callbacks];
+      loadingState.callbacks.length = 0;
 
       if (err || !sftp) {
         if (isCurrentClient && this._sftpState === loadingState) {

@@ -56,10 +56,18 @@ function buildRemoteShellProcessEnvPrefix(env: Record<string, string>): string {
   return assignments.length > 0 ? `env ${assignments.join(' ')} ` : '';
 }
 
+/**
+ * Quote an arg for passing through the remote user's login shell (which may be fish).
+ *
+ * The SSH server hands the command line to the login shell; outer double-quotes
+ * with selective escaping of ["\`$] work for both fish and POSIX shells.
+ *
+ * Assumptions / limitations (for minimal bootstrap surface):
+ * - arg is a trusted command fragment (no arbitrary/untrusted input)
+ * - only prevents unwanted expansion by the login shell; NOT a general shell escaper
+ * - intended only for the shell binary + the inner script passed to -c/-lc
+ */
 function quoteRemoteLoginShellArg(arg: string): string {
-  // The SSH server first hands this text to the user's login shell, which may
-  // be fish. Double quotes with escaped expansion characters are accepted by
-  // both fish and POSIX shells while preserving the inner POSIX shell script.
   return `"${arg.replace(/["\\$`]/g, '\\$&')}"`;
 }
 
@@ -106,6 +114,10 @@ export async function captureRemoteShellProfile(
   return { shell, env };
 }
 
+// NOTE: These discovery commands (resolveRemoteShell, captureRemoteEnv, fallback 'env')
+// are the only remaining fish-quoting surface. They bypass quoteRemoteLoginShellArg /
+// buildRemoteShellCommand because the profile (incl. which login shell) is not yet known.
+// They use direct client.exec + simple portable strings; full quoting applies post-capture.
 async function resolveRemoteShell(client: RemoteShellExecClient): Promise<string> {
   try {
     const { stdout } = await execRaw(client, 'printf %s "$SHELL"', SHELL_TIMEOUT_MS);
