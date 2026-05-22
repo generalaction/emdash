@@ -76,11 +76,20 @@ export function shouldKillLineFromTerminal(event: KeyEventLike, isMacPlatform: b
 }
 
 /**
- * Detect Ctrl+Shift+V paste shortcut on Linux.
- * Linux terminals use Ctrl+Shift+V as the standard paste shortcut,
- * unlike Windows/macOS which use Ctrl+V/Cmd+V.
+ * Detect clipboard-paste shortcuts in the terminal pane.
+ *
+ * - Ctrl+Shift+V on Linux/Windows: standard terminal paste shortcut.
+ * - Ctrl+V on Windows: native Windows paste shortcut. Intercepted here so
+ *   paste flows through our provider-aware pipeline instead of xterm.js's
+ *   built-in (bracketed) paste, which some CLI agents (e.g. Claude Code)
+ *   do not handle correctly.
+ * - Cmd+V on macOS: routed via the Electron Edit menu, not handled here.
  */
-export function shouldPasteToTerminal(event: KeyEventLike, isMacPlatform: boolean): boolean {
+export function shouldPasteToTerminal(
+  event: KeyEventLike,
+  isMacPlatform: boolean,
+  isWindowsPlatform: boolean
+): boolean {
   if (event.type !== 'keydown') return false;
   if (event.key.toLowerCase() !== 'v') return false;
 
@@ -89,9 +98,11 @@ export function shouldPasteToTerminal(event: KeyEventLike, isMacPlatform: boolea
   const alt = event.altKey === true;
   const shift = event.shiftKey === true;
 
-  // Ctrl+Shift+V is the standard paste shortcut in Linux terminals
-  // Only apply on non-Mac platforms (Linux/Windows with Linux-style terminals)
   if (!isMacPlatform && ctrl && shift && !meta && !alt) {
+    return true;
+  }
+
+  if (isWindowsPlatform && ctrl && !shift && !meta && !alt) {
     return true;
   }
 

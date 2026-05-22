@@ -8,6 +8,7 @@ import { appPasteChannel } from '@shared/events/appEvents';
 import { ptyDataChannel, ptyExitChannel } from '@shared/events/ptyEvents';
 import { TERMINAL_FONT_SIZE_DEFAULT } from '@shared/terminal-settings';
 import { usePaneSizingContext } from './pane-sizing-context';
+import { pastePromptInjection } from './prompt-injection';
 import type { FrontendPty, SessionTheme } from './pty';
 import { measureDimensions } from './pty-dimensions';
 import { isRealTaskInput, SubmittedInputBuffer } from './pty-input-buffer';
@@ -57,6 +58,7 @@ const MIN_TERMINAL_COLS = 2;
 const MIN_TERMINAL_ROWS = 1;
 const IS_MAC_PLATFORM =
   typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+const IS_WINDOWS_PLATFORM = typeof navigator !== 'undefined' && /Win/.test(navigator.platform);
 
 export interface UsePtyOptions {
   /** Deterministic PTY session ID: makePtySessionId(projectId, scopeId, leafId). */
@@ -65,6 +67,11 @@ export interface UsePtyOptions {
   pty: FrontendPty;
   theme?: SessionTheme;
   mapShiftEnterToCtrlJ?: boolean;
+  /**
+   * Provider running inside the PTY (e.g. 'claude'). Used to pick the correct
+   * clipboard-paste format — some agents do not handle bracketed paste.
+   */
+  providerId?: string;
   onActivity?: () => void;
   onExit?: (info: { exitCode: number | undefined; signal?: number }) => void;
   onFirstMessage?: (message: string) => void;
@@ -105,12 +112,19 @@ export function usePty(
     pty,
     theme,
     mapShiftEnterToCtrlJ,
+    providerId,
     onActivity,
     onExit,
     onFirstMessage,
     onEnterPress,
     onInterruptPress,
   } = options;
+
+  // providerId may change when a user swaps agents within a session, so we
+  // read it through a ref to keep the long-lived paste callback in sync
+  // without re-mounting the terminal.
+  const providerIdRef = useRef(providerId);
+  providerIdRef.current = providerId;
 
   // Stable refs for callbacks so the effect doesn't re-run on every render.
   const onActivityRef = useRef(onActivity);
@@ -296,7 +310,14 @@ export function usePty(
     navigator.clipboard
       .readText()
       .then((text) => {
-        if (text) sendInput(text);
+        if (!text) return;
+        // Route through pastePromptInjection so provider-specific paste
+        // formatting (bracketed paste vs raw) is applied consistently.
+        void pastePromptInjection({
+          providerId: providerIdRef.current,
+          text,
+          sendInput: async (data) => sendInput(data),
+        });
       })
       .catch(() => {});
   }, [sendInput]);
@@ -412,7 +433,7 @@ export function usePty(
           return false;
         }
 
-        if (shouldPasteToTerminal(event, IS_MAC_PLATFORM)) {
+        if (shouldPasteToTerminal(event, IS_MAC_PLATFORM, IS_WINDOWS_PLATFORM)) {
           event.preventDefault();
           event.stopImmediatePropagation();
           event.stopPropagation();

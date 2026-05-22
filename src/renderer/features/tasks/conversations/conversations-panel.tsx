@@ -118,6 +118,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
                     className="h-full w-full"
                     onInterruptPress={onInterruptPress}
                     mapShiftEnterToCtrlJ
+                    providerId={activeConversation?.data.providerId}
                     remoteConnectionId={remoteConnectionId}
                   />
                 </div>

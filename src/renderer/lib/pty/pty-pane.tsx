@@ -17,6 +17,12 @@ type Props = {
   className?: string;
   contentFilter?: string;
   mapShiftEnterToCtrlJ?: boolean;
+  /**
+   * Provider running inside the PTY (e.g. 'claude'). When set, clipboard
+   * pastes are formatted for that provider — Claude receives raw text rather
+   * than bracketed-paste sequences, which it does not handle reliably.
+   */
+  providerId?: string;
   /** SSH connection ID — used for remote file drag-and-drop only. */
   remoteConnectionId?: string;
   themeOverride?: SessionTheme['override'];
@@ -35,6 +41,7 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
       className,
       contentFilter,
       mapShiftEnterToCtrlJ,
+      providerId,
       remoteConnectionId,
       themeOverride,
       onActivity,
@@ -55,6 +62,7 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
         pty,
         theme,
         mapShiftEnterToCtrlJ,
+        providerId,
         onActivity,
         onExit,
         onFirstMessage,
