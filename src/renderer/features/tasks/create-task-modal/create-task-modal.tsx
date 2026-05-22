@@ -1,4 +1,3 @@
-
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useState } from 'react';
 import {
@@ -31,11 +30,9 @@ import {
 } from './initial-conversation-section';
 import { IssueComboboxField } from './issue-combobox-field';
 import { PrComboboxField } from './pr-combobox-field';
-
 import { TaskNameField } from './task-name-field';
 import { type LinkedType, useCreateTaskState } from './use-create-task-state';
 import { WorkspaceSettingsSection } from './workspace-settings-section';
-import { Separator } from '@renderer/lib/ui/separator';
 
 type SectionTab = 'conversation' | 'workspace';
 
@@ -183,7 +180,16 @@ export const CreateTaskModal = observer(function CreateTaskModal({
 
     navigate('task', { projectId: selectedProjectId, taskId: id });
     onClose();
-  }, [selectedProjectId, state, isUnborn, useBYOI, initialConversation, autoApproveDefaults, navigate, onClose]);
+  }, [
+    selectedProjectId,
+    state,
+    isUnborn,
+    useBYOI,
+    initialConversation,
+    autoApproveDefaults,
+    navigate,
+    onClose,
+  ]);
 
   return (
     <>
@@ -192,31 +198,33 @@ export const CreateTaskModal = observer(function CreateTaskModal({
       </DialogHeader>
 
       <DialogContentArea>
-        <div className="flex flex-col gap-4 w-full">
+        <div className="flex w-full flex-col gap-5">
           {/* Task name */}
           <TaskNameField state={state.taskName} />
-
-          <div className="flex flex-col w-full justify-between border rounded-lg">
-            <div className="flex items-center gap-2 w-full justify-between py-1 px-2 border-b">
-              <span className="text-foreground-muted text-sm shrink-0">
-          Based on
-              </span>
-            <ToggleGroup
-              className="border-none bg-transparent gap-1! p-0!"
-              value={[state.linkedType]}
-              onValueChange={([v]) => {
-                if (v) state.setLinkedType(v as LinkedType);
-              }}
-            >
-              <ToggleGroupItem className="text-xs rounded-lg! px-2! py-0.5! h-6! min-w-0!" value="issue">
-                Issue
-              </ToggleGroupItem>
-              <ToggleGroupItem className="text-xs rounded-lg! px-2! py-0.5! h-6! min-w-0!" value="pr">
-                Pull Request
-              </ToggleGroupItem>
-            </ToggleGroup>
+          <div className="flex w-full flex-col justify-between rounded-lg border">
+            <div className="flex w-full items-center justify-between gap-2 border-b px-2 py-1">
+              <span className="shrink-0 text-sm text-foreground-muted">Based on</span>
+              <ToggleGroup
+                className="gap-1! border-none bg-transparent p-0!"
+                value={[state.linkedType]}
+                onValueChange={([v]) => {
+                  if (v) state.setLinkedType(v as LinkedType);
+                }}
+              >
+                <ToggleGroupItem
+                  className="h-6! min-w-0! rounded-lg! px-2! py-0.5! text-xs"
+                  value="issue"
+                >
+                  Issue
+                </ToggleGroupItem>
+                <ToggleGroupItem
+                  className="h-6! min-w-0! rounded-lg! px-2! py-0.5! text-xs"
+                  value="pr"
+                >
+                  Pull Request
+                </ToggleGroupItem>
+              </ToggleGroup>
             </div>
-
             {state.linkedType === 'issue' && (
               <IssueComboboxField
                 value={state.linkedIssue}
@@ -224,7 +232,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
                 projectId={selectedProjectId}
                 repositoryUrl={repositoryUrl}
                 projectPath={projectData?.path}
-                className="px-2 border-none"
+                className="border-none px-2"
               />
             )}
 
@@ -245,28 +253,31 @@ export const CreateTaskModal = observer(function CreateTaskModal({
               </>
             )}
           </div>
-
-<Separator className="my-2" />
           {/* Section tabs */}
-          <div className="flex flex-col gap-0">
-            <div className="flex items-center gap-2 w-full justify-between">
-            <ToggleGroup
-              className="border-none bg-transparent gap-1 shrink-0 w-full"
-              value={[sectionTab]}
-              onValueChange={([v]) => {
-                if (v) setSectionTab(v as SectionTab);
-              }}
-            >
-              <ToggleGroupItem className="flex-1 text-xs rounded-lg! px-2! py-0.5! h-6!" value="conversation">
-                Initial Conversation
-              </ToggleGroupItem>
-              <ToggleGroupItem className="flex-1 text-xs rounded-lg! px-2! py-0.5! h-6!" value="workspace">
-                Workspace Settings
-              </ToggleGroupItem>
-            </ToggleGroup>
+          <div className="flex flex-col gap-2">
+            <div className="flex w-full items-center justify-between gap-2">
+              <ToggleGroup
+                className="w-full shrink-0 gap-1 border-none bg-transparent"
+                value={[sectionTab]}
+                onValueChange={([v]) => {
+                  if (v) setSectionTab(v as SectionTab);
+                }}
+              >
+                <ToggleGroupItem
+                  className="h-6! flex-1 rounded-lg! px-2! py-0.5! text-xs"
+                  value="conversation"
+                >
+                  Initial Conversation
+                </ToggleGroupItem>
+                <ToggleGroupItem
+                  className="h-6! flex-1 rounded-lg! px-2! py-0.5! text-xs"
+                  value="workspace"
+                >
+                  Workspace Settings
+                </ToggleGroupItem>
+              </ToggleGroup>
             </div>
-
-            <div className="pt-3">
+            <div className="">
               {sectionTab === 'conversation' && (
                 <InitialConversationField
                   state={initialConversation}

@@ -150,11 +150,10 @@ export const InlineIssueSelector = observer(function InlineIssueSelector({
   return (
     <div
       className={cn(
-        'flex flex-col min-w-0 rounded-md border border-input overflow-hidden',
+        'flex flex-col min-w-0 rounded-md overflow-hidden',
         disabled && 'pointer-events-none'
       )}
     >
-      {/* Search row */}
       <InputGroup className="border-input has-[[data-slot=input-group-control]:focus-visible]:border-input rounded-none border-0 border-b shadow-none has-[[data-slot=input-group-control]:focus-visible]:ring-0">
         {providerAddon && <InputGroupAddon align="inline-start">{providerAddon}</InputGroupAddon>}
         <InputGroupInput

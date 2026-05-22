@@ -40,5 +40,12 @@ export function useTaskName(opts?: {
   const placeholder = generatedName ?? '';
   const effectiveTaskName = taskName.trim() || generatedName || '';
 
-  return { taskName, placeholder, effectiveTaskName, handleTaskNameChange, showSlugHint, isPending };
+  return {
+    taskName,
+    placeholder,
+    effectiveTaskName,
+    handleTaskNameChange,
+    showSlugHint,
+    isPending,
+  };
 }

@@ -44,8 +44,7 @@ export function useCreateTaskState(
 
   // Random name query — used when no issue/PR is selected yet.
   const hasLinkedEntity =
-    (linkedType === 'issue' && linkedIssue !== null) ||
-    (linkedType === 'pr' && linkedPR !== null);
+    (linkedType === 'issue' && linkedIssue !== null) || (linkedType === 'pr' && linkedPR !== null);
   const { data: randomName, isPending: isRandomPending } = useQuery({
     queryKey: ['generateTaskName', 'random', randomKey],
     queryFn: () => rpc.tasks.generateTaskName({}),

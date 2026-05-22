@@ -16,7 +16,7 @@ export function TaskNameField({ state }: TaskNameFieldProps) {
         data-autofocus
         value={taskName}
         placeholder={placeholder || 'Task name...'}
-        className="px-0 border-none focus-visible:ring-0 text-lg!"
+        className="border-none px-0 text-lg! focus-visible:ring-0"
         onChange={(e) => handleTaskNameChange(e.target.value)}
       />
       {showSlugHint && (
