@@ -28,6 +28,8 @@ export interface CatalogSkill {
   sourceRef?: string;
   /** Original skill id inside the source repository */
   catalogSkillId?: string;
+  /** Exact SKILL.md-relative directory path from Skills.SH */
+  skillShPath?: string;
   /** Public install count when provided by a catalog */
   installs?: number;
   /** Full SKILL.md content (loaded lazily) */

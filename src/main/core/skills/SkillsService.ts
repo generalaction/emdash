@@ -13,10 +13,15 @@ const EMDASH_META = path.join(SKILLS_ROOT, '.emdash');
 const CATALOG_INDEX_PATH = path.join(EMDASH_META, 'catalog-index.json');
 
 const MAX_REDIRECTS = 5;
+const MAX_HTTP_RESPONSE_BYTES = 2 * 1024 * 1024;
 const SKILLSH_SEARCH_CACHE_TTL_MS = 5 * 60 * 1000;
 
-function httpsGet(url: string, redirectCount = 0): Promise<string> {
+function httpsGet(
+  url: string,
+  options: { maxBytes?: number; redirectCount?: number } = {}
+): Promise<string> {
   return new Promise((resolve, reject) => {
+    const redirectCount = options.redirectCount ?? 0;
     if (redirectCount >= MAX_REDIRECTS) {
       reject(new Error(`Too many redirects (>${MAX_REDIRECTS}) for ${url}`));
       return;
@@ -29,7 +34,10 @@ function httpsGet(url: string, redirectCount = 0): Promise<string> {
           const location = res.headers.location;
           if (location) {
             const resolved = new URL(location, url).href;
-            httpsGet(resolved, redirectCount + 1).then(resolve, reject);
+            httpsGet(resolved, { ...options, redirectCount: redirectCount + 1 }).then(
+              resolve,
+              reject
+            );
             return;
           }
         }
@@ -38,7 +46,16 @@ function httpsGet(url: string, redirectCount = 0): Promise<string> {
           return;
         }
         let data = '';
-        res.on('data', (chunk) => (data += chunk));
+        let bytes = 0;
+        const maxBytes = options.maxBytes ?? MAX_HTTP_RESPONSE_BYTES;
+        res.on('data', (chunk: Buffer | string) => {
+          bytes += Buffer.byteLength(chunk);
+          if (bytes > maxBytes) {
+            req.destroy(new Error(`Response too large for ${url}`));
+            return;
+          }
+          data += chunk;
+        });
         res.on('end', () => resolve(data));
         res.on('error', reject);
       }
@@ -54,6 +71,7 @@ export class SkillsService {
   private static readonly CATALOG_VERSION = 2;
   private catalogCache: CatalogIndex | null = null;
   private skillShSearchCache = new Map<string, { expiresAt: number; skills: CatalogSkill[] }>();
+  private skillShSkillCache = new Map<string, CatalogSkill>();
 
   async initialize(): Promise<void> {
     await fs.promises.mkdir(SKILLS_ROOT, { recursive: true });
@@ -479,33 +497,41 @@ export class SkillsService {
         }>;
       };
 
-      const skills = (result.skills ?? [])
-        .filter((entry) => this.isSkillShGithubSource(entry.source))
-        .slice(0, 24)
-        .map((entry) => {
-          const catalogSkillId = this.normalizeSkillShSkillId(entry.skillId);
-          const displayName = entry.name || catalogSkillId;
-          const sourceUrl = this.getSkillShUrl(entry.source, catalogSkillId);
-          return {
-            id: this.toSkillShId(entry.source, catalogSkillId),
-            displayName,
-            description: `${entry.source}${entry.installs ? ` • ${entry.installs.toLocaleString()} installs` : ''}`,
-            source: 'skillssh',
-            sourceRef: entry.source,
-            sourceUrl,
-            catalogSkillId,
-            installs: entry.installs,
-            iconUrl: this.getSkillShIconUrl(entry.source),
-            brandColor: '#000000',
-            frontmatter: { name: catalogSkillId, description: displayName },
-            installed: false,
-          } satisfies CatalogSkill;
+      const skills: CatalogSkill[] = [];
+      for (const entry of result.skills ?? []) {
+        if (!this.isSkillShGithubSource(entry.source)) continue;
+        if (skills.length >= 24) break;
+
+        const catalogSkillId = this.normalizeSkillShSkillId(entry.skillId);
+        if (!isValidSkillName(catalogSkillId)) continue;
+        const skillShPath = this.normalizeSkillShPath(entry.skillId);
+        const displayName = entry.name || catalogSkillId;
+        const sourceUrl = this.getSkillShUrl(entry.source, catalogSkillId);
+
+        skills.push({
+          id: this.toSkillShId(entry.source, catalogSkillId),
+          displayName,
+          description: `${entry.source}${entry.installs ? ` • ${entry.installs.toLocaleString()} installs` : ''}`,
+          source: 'skillssh',
+          sourceRef: entry.source,
+          sourceUrl,
+          catalogSkillId,
+          skillShPath,
+          installs: entry.installs,
+          iconUrl: this.getSkillShIconUrl(entry.source),
+          brandColor: '#000000',
+          frontmatter: { name: catalogSkillId, description: displayName },
+          installed: false,
         });
+      }
 
       this.skillShSearchCache.set(trimmed, {
         expiresAt: Date.now() + SKILLSH_SEARCH_CACHE_TTL_MS,
         skills,
       });
+      for (const skill of skills) {
+        this.skillShSkillCache.set(skill.id, skill);
+      }
       return skills;
     } catch (error) {
       if (cached) {
@@ -531,33 +557,18 @@ export class SkillsService {
     return path.posix.basename(withoutSkillMd);
   }
 
+  private normalizeSkillShPath(skillId: string): string {
+    const normalized = skillId.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+    return normalized.endsWith('/SKILL.md') ? normalized.slice(0, -'/SKILL.md'.length) : normalized;
+  }
+
   private isSkillShGithubSource(sourceRef: string): boolean {
     const parts = sourceRef.split('/');
     return parts.length === 2 && Boolean(parts[0]) && Boolean(parts[1]);
   }
 
   private parseSkillShId(skillId: string): CatalogSkill | null {
-    if (!skillId.startsWith('skillssh:')) return null;
-    const fullId = skillId.slice('skillssh:'.length);
-    const parts = fullId.split('/');
-    if (parts.length < 3) return null;
-    const sourceRef = parts.slice(0, 2).join('/');
-    if (!this.isSkillShGithubSource(sourceRef)) return null;
-    const catalogSkillId = this.normalizeSkillShSkillId(parts.slice(2).join('/'));
-    if (!catalogSkillId) return null;
-    return {
-      id: skillId,
-      displayName: catalogSkillId,
-      description: sourceRef,
-      source: 'skillssh',
-      sourceRef,
-      sourceUrl: this.getSkillShUrl(sourceRef, catalogSkillId),
-      catalogSkillId,
-      iconUrl: this.getSkillShIconUrl(sourceRef),
-      brandColor: '#000000',
-      frontmatter: { name: catalogSkillId, description: sourceRef },
-      installed: false,
-    };
+    return this.skillShSkillCache.get(skillId) ?? null;
   }
 
   private getInstallName(skill: CatalogSkill): string {
@@ -585,25 +596,13 @@ export class SkillsService {
       throw new Error(`Skills.SH source "${skill.sourceRef}" is not a GitHub repository`);
     }
 
-    const treeData = await httpsGet(
-      `https://api.github.com/repos/${owner}/${repo}/git/trees/HEAD?recursive=1`
-    );
-    const tree = JSON.parse(treeData) as { tree?: Array<{ path: string; type: string }> };
-    const skillMdEntries =
-      tree.tree?.filter((entry) => entry.type === 'blob' && entry.path.endsWith('/SKILL.md')) ?? [];
-    const skillMd =
-      skillMdEntries.find((entry) => entry.path.split('/').at(-2) === skill.catalogSkillId) ??
-      skillMdEntries.find((entry) => {
-        const directoryName = entry.path.split('/').at(-2);
-        return Boolean(directoryName && skill.catalogSkillId?.endsWith(`-${directoryName}`));
-      });
-    if (!skillMd) {
+    if (!skill.skillShPath) {
       throw new Error(`Could not find SKILL.md for ${skill.sourceRef}/${skill.catalogSkillId}`);
     }
 
-    return httpsGet(
-      `https://raw.githubusercontent.com/${owner}/${repo}/HEAD/${encodeURI(skillMd.path)}`
-    );
+    const skillMdPath = `${skill.skillShPath}/SKILL.md`;
+    const encodedPath = skillMdPath.split('/').map(encodeURIComponent).join('/');
+    return httpsGet(`https://raw.githubusercontent.com/${owner}/${repo}/HEAD/${encodedPath}`);
   }
 
   private isPathInsideSkillsRoot(candidatePath: string): boolean {
