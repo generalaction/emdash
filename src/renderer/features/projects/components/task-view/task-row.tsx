@@ -83,7 +83,10 @@ export const TaskRow = observer(function TaskRow({
         className="group flex w-full items-center gap-2 rounded-lg p-3 transition-colors hover:bg-background-1"
       >
         <div
-          onClickCapture={(e) => {
+          onPointerDownCapture={(e) => {
+            shiftKeyRef.current = e.shiftKey;
+          }}
+          onKeyDownCapture={(e) => {
             shiftKeyRef.current = e.shiftKey;
           }}
           onClick={(e) => e.stopPropagation()}
