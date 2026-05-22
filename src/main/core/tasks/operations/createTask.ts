@@ -25,6 +25,8 @@ import { resolveTaskBranchName } from '../resolveTaskBranchName';
 import { toStoredBranch } from '../stored-branch';
 import { mapTaskRowToTask } from '../utils/utils';
 
+type TaskCreateDb = Pick<typeof db, 'insert' | 'update'>;
+
 function mapProvisionError(error: ProvisionTaskError): CreateTaskError {
   switch (error.type) {
     case 'branch-not-found':
@@ -43,7 +45,8 @@ function mapProvisionError(error: ProvisionTaskError): CreateTaskError {
 }
 
 export async function createTask(
-  params: CreateTaskParams
+  params: CreateTaskParams,
+  database: TaskCreateDb = db
 ): Promise<Result<CreateTaskSuccess, CreateTaskError>> {
   const { strategy } = params;
   const suffix = Math.random().toString(36).slice(2, 7);
@@ -187,7 +190,7 @@ export async function createTask(
 
   const initialStatus: TaskLifecycleStatus = params.initialStatus ?? 'in_progress';
 
-  const [taskRow] = await db
+  const [taskRow] = await database
     .insert(tasks)
     .values({
       id: params.id,
@@ -222,8 +225,8 @@ export async function createTask(
     return 'local';
   })();
   const workspaceId = crypto.randomUUID();
-  await db.insert(workspaces).values({ id: workspaceId, type: workspaceType });
-  await db.update(tasks).set({ workspaceId }).where(eq(tasks.id, params.id));
+  await database.insert(workspaces).values({ id: workspaceId, type: workspaceType });
+  await database.update(tasks).set({ workspaceId }).where(eq(tasks.id, params.id));
   const task = {
     ...mapTaskRowToTask(taskRow, prs),
     automationId: params.automationId,

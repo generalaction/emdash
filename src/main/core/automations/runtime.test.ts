@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Automation, AutomationRun } from '@shared/automations/types';
 import { executeTaskCreate } from './actions/taskCreate';
+import { automationEvents } from './automation-events';
 import { updateRun } from './repo';
 import { runQueuedAutomation } from './runtime';
 
 vi.mock('@main/lib/events', () => ({ events: { emit: vi.fn() } }));
 vi.mock('@main/lib/logger', () => ({ log: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
 vi.mock('./actions/taskCreate', () => ({ executeTaskCreate: vi.fn() }));
+vi.mock('./automation-events', () => ({ automationEvents: { _emit: vi.fn() } }));
 vi.mock('./repo', () => ({ updateAutomationSchedule: vi.fn(), updateRun: vi.fn() }));
 
 const automation: Automation = {
@@ -23,6 +25,8 @@ const automation: Automation = {
   lastRunAt: null,
   nextRunAt: null,
   builtinTemplateId: null,
+  deadlinePolicy: 'next-interval',
+  deadlineMs: null,
   createdAt: 0,
   updatedAt: 0,
 };
@@ -48,6 +52,27 @@ describe('runQueuedAutomation', () => {
     vi.mocked(updateRun).mockResolvedValue(null);
   });
 
+  it('skips orphan automations before executing actions', async () => {
+    const skippedRun = {
+      ...run,
+      status: 'skipped' as const,
+      finishedAt: Date.now(),
+      error: 'no_project_attached',
+    };
+    vi.mocked(updateRun).mockResolvedValue(skippedRun);
+
+    const result = await runQueuedAutomation({ ...automation, projectId: null }, run);
+
+    expect(result).toEqual({ success: false, error: 'no_project_attached' });
+    expect(executeTaskCreate).not.toHaveBeenCalled();
+    expect(updateRun).toHaveBeenCalledWith(run.id, {
+      status: 'skipped',
+      finishedAt: expect.any(Number),
+      error: 'no_project_attached',
+    });
+    expect(automationEvents._emit).toHaveBeenCalledWith('automation:run:skipped', skippedRun);
+  });
+
   it('does not attach a task id when task creation fails before a task exists', async () => {
     vi.mocked(executeTaskCreate).mockResolvedValue({
       success: false,
@@ -58,6 +83,14 @@ describe('runQueuedAutomation', () => {
 
     expect(result).toEqual({ success: false, error: 'project_not_found' });
     expect(updateRun).toHaveBeenCalledWith(run.id, {
+      status: 'failed',
+      finishedAt: expect.any(Number),
+      taskId: null,
+      createdTaskId: null,
+      error: 'project_not_found',
+    });
+    expect(automationEvents._emit).toHaveBeenCalledWith('automation:run:failed', {
+      ...run,
       status: 'failed',
       finishedAt: expect.any(Number),
       taskId: null,

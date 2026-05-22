@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Automation } from '@shared/automations/types';
-import { automationRunDeadline, AutomationScheduler } from './automation-scheduler';
+import { automationEvents } from './automation-events';
+import { AutomationScheduler } from './automation-scheduler';
 import {
   claimQueuedRun,
   dueCronAutomations,
@@ -19,6 +20,7 @@ import { emitRunUpdated, runQueuedAutomation } from './runtime';
 vi.mock('./automation-events', () => ({
   automationEvents: {
     on: vi.fn(() => vi.fn()),
+    _emit: vi.fn(),
   },
 }));
 
@@ -55,6 +57,8 @@ const baseAutomation: Automation = {
   lastRunAt: null,
   nextRunAt: null,
   builtinTemplateId: null,
+  deadlinePolicy: 'next-interval',
+  deadlineMs: null,
   createdAt: 0,
   updatedAt: 0,
 };
@@ -108,7 +112,7 @@ describe('AutomationScheduler missed runs', () => {
     expect(enqueueAutomationRun).toHaveBeenCalledWith({
       automationId: automation.id,
       scheduledAt: missedScheduledAt,
-      deadlineAt: automationRunDeadline(now),
+      deadlineAt: nextFutureRunAt,
       triggerKind: 'cron',
     });
     expect(updateAutomationSchedule).toHaveBeenCalledWith(automation.id, {
@@ -130,6 +134,45 @@ describe('AutomationScheduler missed runs', () => {
     expect(enqueueAutomationRun).toHaveBeenCalledTimes(1);
     expect(updateAutomationSchedule).toHaveBeenCalledTimes(1);
     expect(getNextRunAt).toHaveBeenCalledWith(automation.trigger, now);
+  });
+
+  it('skips orphan automations without claiming a worker', async () => {
+    const queuedRun = {
+      id: 'run-1',
+      automationId: baseAutomation.id,
+      scheduledAt: Date.now(),
+      deadlineAt: Date.now() + 60_000,
+      startedAt: null,
+      finishedAt: null,
+      status: 'queued' as const,
+      taskId: null,
+      createdTaskId: null,
+      error: null,
+      triggerKind: 'manual' as const,
+      workerId: null,
+    };
+    const skippedRun = {
+      ...queuedRun,
+      status: 'skipped' as const,
+      finishedAt: Date.now(),
+      error: 'no_project_attached',
+    };
+    vi.mocked(listQueuedRuns).mockResolvedValueOnce([
+      { run: queuedRun, automation: { ...baseAutomation, projectId: null } },
+    ]);
+    vi.mocked(updateRun).mockResolvedValue(skippedRun);
+
+    await new AutomationScheduler().drainQueue();
+
+    expect(updateRun).toHaveBeenCalledWith(queuedRun.id, {
+      status: 'skipped',
+      finishedAt: expect.any(Number),
+      error: 'no_project_attached',
+    });
+    expect(claimQueuedRun).not.toHaveBeenCalled();
+    expect(runQueuedAutomation).not.toHaveBeenCalled();
+    expect(emitRunUpdated).toHaveBeenCalledWith(skippedRun);
+    expect(automationEvents._emit).toHaveBeenCalledWith('automation:run:skipped', skippedRun);
   });
 
   it('marks a claimed run failed when the worker throws', async () => {
@@ -175,6 +218,8 @@ describe('AutomationScheduler missed runs', () => {
       });
     });
 
+    expect(automationEvents._emit).toHaveBeenCalledWith('automation:run:start', runningRun);
+    expect(automationEvents._emit).toHaveBeenCalledWith('automation:run:failed', failedRun);
     expect(emitRunUpdated).toHaveBeenCalledWith(failedRun);
   });
 });

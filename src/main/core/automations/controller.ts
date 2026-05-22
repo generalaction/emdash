@@ -113,16 +113,26 @@ export const automationsController = createRPCController({
     });
   },
 
+  setProject(id: string, projectId: string): Promise<Result<Automation, string>> {
+    return safe(async () => {
+      const automation = await updateAutomation(id, { projectId });
+      if (!automation) return err('automation_not_found');
+      emitChanged();
+      return ok(automation);
+    });
+  },
+
   runNow(id: string): Promise<Result<AutomationRun, string>> {
     return safe(async () => {
       const automation = await getAutomation(id);
       if (!automation) return err('automation_not_found');
       if (automation.isDraft) return err('automation_is_draft');
+      if (automation.projectId == null) return err('no_project_attached');
       const scheduledAt = Date.now();
       const run = await enqueueAutomationRun({
         automationId: automation.id,
         scheduledAt,
-        deadlineAt: automationRunDeadline(scheduledAt),
+        deadlineAt: automationRunDeadline(automation, scheduledAt, 'manual'),
         triggerKind: 'manual',
       });
       if (!run) return err('automation_run_already_queued');

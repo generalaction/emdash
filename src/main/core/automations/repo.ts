@@ -5,6 +5,7 @@ import type { TaskCreateAction } from '@shared/automations/actions';
 import { getLocalTimeZone } from '@shared/automations/timezone';
 import type {
   Automation,
+  AutomationDeadlinePolicy,
   AutomationRun,
   AutomationRunStatus,
   AutomationRunTriggerKind,
@@ -19,6 +20,7 @@ import {
   automationRuns,
   automations,
   projects,
+  tasks,
   type AutomationRow,
   type AutomationRunRow,
 } from '@main/db/schema';
@@ -79,6 +81,11 @@ const RUN_STATUSES: ReadonlySet<AutomationRunStatus> = new Set([
   'skipped',
 ]);
 const RUN_TRIGGER_KINDS: ReadonlySet<AutomationRunTriggerKind> = new Set(['cron', 'manual']);
+const DEADLINE_POLICIES: ReadonlySet<AutomationDeadlinePolicy> = new Set([
+  'next-interval',
+  'fixed',
+  'none',
+]);
 
 function asRunStatus(value: string): AutomationRunStatus {
   if (RUN_STATUSES.has(value as AutomationRunStatus)) return value as AutomationRunStatus;
@@ -90,6 +97,13 @@ function asRunTriggerKind(value: string): AutomationRunTriggerKind {
     return value as AutomationRunTriggerKind;
   }
   throw new Error(`automation_run_invalid_trigger_kind:${value}`);
+}
+
+function asDeadlinePolicy(value: string): AutomationDeadlinePolicy {
+  if (DEADLINE_POLICIES.has(value as AutomationDeadlinePolicy)) {
+    return value as AutomationDeadlinePolicy;
+  }
+  throw new Error(`automation_invalid_deadline_policy:${value}`);
 }
 
 function mapAutomationRow(row: AutomationRow): Automation {
@@ -113,6 +127,8 @@ function mapAutomationRow(row: AutomationRow): Automation {
     lastRunAt: row.lastRunAt,
     nextRunAt: row.nextRunAt,
     builtinTemplateId: row.builtinTemplateId,
+    deadlinePolicy: asDeadlinePolicy(row.deadlinePolicy),
+    deadlineMs: row.deadlineMs,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -197,6 +213,8 @@ export async function createAutomation(input: CreateAutomationInput): Promise<Au
       isDraft: input.isDraft ? 1 : 0,
       lastRunAt: null,
       builtinTemplateId: input.builtinTemplateId ?? null,
+      deadlinePolicy: input.deadlinePolicy ?? 'next-interval',
+      deadlineMs: input.deadlineMs ?? null,
       createdAt: now,
       updatedAt: now,
     })
@@ -221,6 +239,8 @@ export async function updateAutomation(
   if (patch.enabled !== undefined) values.enabled = patch.enabled ? 1 : 0;
   if (patch.isDraft !== undefined) values.isDraft = patch.isDraft ? 1 : 0;
   if (patch.builtinTemplateId !== undefined) values.builtinTemplateId = patch.builtinTemplateId;
+  if (patch.deadlinePolicy !== undefined) values.deadlinePolicy = patch.deadlinePolicy;
+  if (patch.deadlineMs !== undefined) values.deadlineMs = patch.deadlineMs;
   if (patch.trigger !== undefined) Object.assign(values, rowValuesFromTrigger(patch.trigger));
   if (patch.actions !== undefined) {
     values.promptTemplate = firstTaskCreatePrompt(patch.actions);
@@ -232,6 +252,15 @@ export async function updateAutomation(
 
   const [row] = await db.update(automations).set(values).where(eq(automations.id, id)).returning();
   return row ? mapAutomationRow(row) : null;
+}
+
+export async function detachProject(projectId: string): Promise<number> {
+  const rows = await db
+    .update(automations)
+    .set({ projectId: null, enabled: 0, nextRunAt: null, updatedAt: Date.now() })
+    .where(eq(automations.projectId, projectId))
+    .returning({ id: automations.id });
+  return rows.length;
 }
 
 export async function removeAutomation(id: string): Promise<boolean> {
@@ -250,6 +279,9 @@ export async function setAutomationEnabled(
   if (!existing) return null;
   if (existing.isDraft && enabled) {
     throw new Error('automation_is_draft');
+  }
+  if (existing.projectId == null && enabled) {
+    throw new Error('no_project_attached');
   }
   const nextRunAt = enabled ? getNextRunAt(existing.trigger) : existing.nextRunAt;
   const [row] = await db
@@ -305,7 +337,7 @@ export async function hasRunningRuns(automationId: string): Promise<boolean> {
 export async function enqueueAutomationRun(input: {
   automationId: string;
   scheduledAt: number;
-  deadlineAt: number;
+  deadlineAt: number | null;
   triggerKind: AutomationRunTriggerKind;
 }): Promise<AutomationRun | null> {
   const existing = await db
@@ -375,16 +407,42 @@ export async function claimQueuedRun(
 }
 
 export async function markRunningRunsInterrupted(now = Date.now()): Promise<number> {
-  const rows = await db
-    .update(automationRuns)
-    .set({
-      status: 'failed',
-      finishedAt: now,
-      error: 'interrupted_by_restart',
-    })
-    .where(eq(automationRuns.status, 'running'))
-    .returning({ id: automationRuns.id });
-  return rows.length;
+  const runningRuns = await db
+    .select({ id: automationRuns.id, taskId: automationRuns.taskId })
+    .from(automationRuns)
+    .where(eq(automationRuns.status, 'running'));
+
+  for (const run of runningRuns) {
+    if (run.taskId) {
+      const [task] = await db
+        .select({ id: tasks.id })
+        .from(tasks)
+        .where(eq(tasks.id, run.taskId))
+        .limit(1);
+      await db
+        .update(automationRuns)
+        .set({
+          status: 'failed',
+          finishedAt: now,
+          error: task
+            ? 'interrupted_by_restart_task_preserved'
+            : 'interrupted_by_restart_task_missing',
+        })
+        .where(eq(automationRuns.id, run.id));
+      continue;
+    }
+
+    await db
+      .update(automationRuns)
+      .set({
+        status: 'failed',
+        finishedAt: now,
+        error: 'interrupted_by_restart',
+      })
+      .where(eq(automationRuns.id, run.id));
+  }
+
+  return runningRuns.length;
 }
 
 export async function recoverQueuedRuns(): Promise<number> {

@@ -1,6 +1,10 @@
 import { slugFromRunId } from '@shared/automations/run-slug';
 import { dayTokenIndex, isWeekdaysToken, isWeekendToken } from '@shared/automations/schedule';
-import type { AutomationRunStatus, AutomationRunTriggerKind } from '@shared/automations/types';
+import type {
+  AutomationRunStatus,
+  AutomationRunTriggerKind,
+  CronTrigger,
+} from '@shared/automations/types';
 
 const dayNames = [
   'Sundays',
@@ -131,6 +135,10 @@ export function formatCronLabel(expr: string): string {
   }
 
   return expr;
+}
+
+export function formatTriggerLabel(trigger: CronTrigger): string {
+  return formatCronLabel(trigger.expr);
 }
 
 export function formatRunStatusLabel(status: AutomationRunStatus): string | null {

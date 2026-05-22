@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { automationEvents } from '@main/core/automations/automation-events';
+import { detachProject } from '@main/core/automations/repo';
 import { projectEvents } from '@main/core/projects/project-events';
 import { projectManager } from '@main/core/projects/project-manager';
 import { getTasks } from '@main/core/tasks/operations/getTasks';
@@ -19,6 +20,7 @@ export async function deleteProject(id: string): Promise<void> {
     ]);
   }
 
+  await detachProject(id);
   await db.delete(projects).where(eq(projects.id, id));
   automationEvents._emit('automation:changed');
   void viewStateService.del(`project:${id}`);

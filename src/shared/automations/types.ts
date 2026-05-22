@@ -5,6 +5,8 @@ export const AUTOMATION_NAME_MAX_LENGTH = 120;
 
 export type CronTrigger = { expr: string; tz: string };
 
+export type AutomationDeadlinePolicy = 'next-interval' | 'fixed' | 'none';
+
 export type Automation = {
   id: string;
   name: string;
@@ -13,12 +15,14 @@ export type Automation = {
   trigger: CronTrigger;
   actions: TaskCreateAction[];
   taskConfig: CreateTaskParams | null;
-  projectId: string;
+  projectId: string | null;
   enabled: boolean;
   isDraft: boolean;
   lastRunAt: number | null;
   nextRunAt: number | null;
   builtinTemplateId: string | null;
+  deadlinePolicy: AutomationDeadlinePolicy;
+  deadlineMs: number | null;
   createdAt: number;
   updatedAt: number;
 };
@@ -43,7 +47,7 @@ export type AutomationRun = {
 
 export type AutomationRunWithContext = AutomationRun & {
   automationName: string;
-  projectId: string;
+  projectId: string | null;
 };
 
 export type BuiltinAutomationTemplate = {
@@ -67,11 +71,21 @@ export type CreateAutomationInput = {
   enabled?: boolean;
   isDraft?: boolean;
   builtinTemplateId?: string | null;
+  deadlinePolicy?: AutomationDeadlinePolicy;
+  deadlineMs?: number | null;
 };
 
 export type UpdateAutomationPatch = Partial<
   Pick<
     CreateAutomationInput,
-    'name' | 'description' | 'category' | 'trigger' | 'actions' | 'projectId' | 'builtinTemplateId'
+    | 'name'
+    | 'description'
+    | 'category'
+    | 'trigger'
+    | 'actions'
+    | 'projectId'
+    | 'builtinTemplateId'
+    | 'deadlinePolicy'
+    | 'deadlineMs'
   > & { taskConfig: CreateTaskParams | null; enabled: boolean; isDraft: boolean }
 >;

@@ -21,10 +21,20 @@ const TICK_MS = 60_000;
 const MISSED_GRACE_MS = 5 * 60_000;
 const MAX_DUE_ENQUEUE = 100;
 const MAX_CONCURRENT_RUNS = 100;
-const QUEUE_DEADLINE_MS = 5 * 60_000;
+const DEFAULT_QUEUE_DEADLINE_MS = 5 * 60_000;
 
-export function automationRunDeadline(scheduledAt: number): number {
-  return scheduledAt + QUEUE_DEADLINE_MS;
+export function automationRunDeadline(
+  automation: Automation,
+  scheduledAt: number,
+  triggerKind: 'cron' | 'manual' = 'cron'
+): number | null {
+  if (automation.deadlinePolicy === 'none') return null;
+
+  if (automation.deadlinePolicy === 'fixed' || triggerKind !== 'cron') {
+    return scheduledAt + (automation.deadlineMs ?? DEFAULT_QUEUE_DEADLINE_MS);
+  }
+
+  return getNextRunAt(automation.trigger, scheduledAt);
 }
 
 export class AutomationScheduler {
@@ -83,7 +93,7 @@ export class AutomationScheduler {
       rows.map(async (automation) => {
         const isMissed = automation.nextRunAt != null && automation.nextRunAt < missedBefore;
         if (isMissed) {
-          await this.enqueueCronAutomation(automation, automation.nextRunAt!, now);
+          await this.enqueueCronAutomation(automation, automation.nextRunAt!);
         }
         if (!automation.nextRunAt || isMissed) {
           await this.advanceNextRun(automation, now);
@@ -100,8 +110,7 @@ export class AutomationScheduler {
       const now = Date.now();
       const due = await dueCronAutomations(now);
       for (const automation of due.slice(0, MAX_DUE_ENQUEUE)) {
-        const enqueueStartedAt = Date.now();
-        await this.enqueueCronAutomation(automation, automation.nextRunAt ?? now, enqueueStartedAt);
+        await this.enqueueCronAutomation(automation, automation.nextRunAt ?? now);
         await this.advanceNextRun(automation, Date.now());
       }
       await this.drainQueue();
@@ -117,15 +126,11 @@ export class AutomationScheduler {
     await updateAutomationSchedule(automation.id, { nextRunAt });
   }
 
-  private async enqueueCronAutomation(
-    automation: Automation,
-    scheduledAt: number,
-    queuedAt = scheduledAt
-  ): Promise<void> {
+  private async enqueueCronAutomation(automation: Automation, scheduledAt: number): Promise<void> {
     const run = await enqueueAutomationRun({
       automationId: automation.id,
       scheduledAt,
-      deadlineAt: automationRunDeadline(queuedAt),
+      deadlineAt: automationRunDeadline(automation, scheduledAt, 'cron'),
       triggerKind: 'cron',
     });
     if (run) {
@@ -150,6 +155,11 @@ export class AutomationScheduler {
             continue;
           }
 
+          if (entry.automation.projectId == null) {
+            await this.markRunSkipped(entry.run.id, 'no_project_attached');
+            continue;
+          }
+
           if (entry.run.triggerKind === 'cron' && (await hasRunningRuns(entry.automation.id))) {
             await this.markRunSkipped(entry.run.id, 'previous_still_running');
             continue;
@@ -159,6 +169,7 @@ export class AutomationScheduler {
           if (!run) continue;
 
           this.activeWorkers += 1;
+          automationEvents._emit('automation:run:start', run);
           void runQueuedAutomation(entry.automation, run)
             .catch(async (error) => {
               const message = error instanceof Error ? error.message : String(error);
@@ -172,7 +183,10 @@ export class AutomationScheduler {
                 finishedAt: Date.now(),
                 error: message,
               });
-              if (failed) emitRunUpdated(failed);
+              if (failed) {
+                emitRunUpdated(failed);
+                automationEvents._emit('automation:run:failed', failed);
+              }
             })
             .finally(() => {
               this.activeWorkers -= 1;
@@ -191,7 +205,10 @@ export class AutomationScheduler {
       finishedAt: Date.now(),
       error: reason,
     });
-    if (skipped) emitRunUpdated(skipped);
+    if (skipped) {
+      emitRunUpdated(skipped);
+      automationEvents._emit('automation:run:skipped', skipped);
+    }
   }
 }
 

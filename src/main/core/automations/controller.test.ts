@@ -21,7 +21,7 @@ vi.mock('./automation-events', () => ({
 }));
 
 vi.mock('./automation-scheduler', () => ({
-  automationRunDeadline: vi.fn((scheduledAt: number) => scheduledAt + 1),
+  automationRunDeadline: vi.fn((_automation: Automation, scheduledAt: number) => scheduledAt + 1),
   automationScheduler: { drainQueue: vi.fn() },
 }));
 
@@ -57,6 +57,8 @@ const draftAutomation: Automation = {
   lastRunAt: null,
   nextRunAt: null,
   builtinTemplateId: null,
+  deadlinePolicy: 'next-interval',
+  deadlineMs: null,
   createdAt: 0,
   updatedAt: 0,
 };

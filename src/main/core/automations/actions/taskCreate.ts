@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { eq } from 'drizzle-orm';
 import type { TaskCreateAction } from '@shared/automations/actions';
 import { bareRefName } from '@shared/git-utils';
 import { makePtySessionId } from '@shared/ptySessionId';
@@ -10,6 +11,8 @@ import { DEFAULT_AGENT_ID } from '@main/core/settings/settings-registry';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { generateTaskName } from '@main/core/tasks/name-generation/generateTaskName';
 import { createTask } from '@main/core/tasks/operations/createTask';
+import { db } from '@main/db/client';
+import { automationRuns } from '@main/db/schema';
 import type { ActionContext, ActionError, ActionOutcome } from './types';
 
 function taskExistsForCreateTaskError(error: CreateTaskError): boolean {
@@ -82,58 +85,66 @@ export async function executeTaskCreate(
   if (!prompt) return err({ message: 'task_create_prompt_empty' });
 
   const projectId = ctx.automation.projectId;
-  const storedConfig = ctx.automation.taskConfig;
-  const taskId = randomUUID();
-  const conversationId = randomUUID();
-
-  let taskConfig: CreateTaskParams;
-  if (storedConfig?.initialConversation) {
-    taskConfig = {
-      ...storedConfig,
-      id: taskId,
-      projectId,
-      automationId: ctx.automation.id,
-      initialConversation: {
-        ...storedConfig.initialConversation,
-        id: conversationId,
-        projectId,
-        taskId,
-        initialPrompt: prompt,
-        autoApprove: true,
-      },
-    };
-  } else {
-    const taskName = generateTaskName({ title: ctx.automation.name });
-    const defaults = await resolveProjectDefaults(projectId, taskName);
-    if (!defaults.success) return err({ message: defaults.error });
-    const provider = (await appSettingsService.get('defaultAgent')) ?? DEFAULT_AGENT_ID;
-    taskConfig = {
-      ...storedConfig,
-      id: taskId,
-      projectId,
-      name: storedConfig?.name?.trim() || taskName,
-      sourceBranch: storedConfig?.sourceBranch ?? defaults.data.sourceBranch,
-      strategy: storedConfig?.strategy ?? defaults.data.strategy,
-      automationId: ctx.automation.id,
-      initialConversation: {
-        id: conversationId,
-        projectId,
-        taskId,
-        provider,
-        title: ctx.automation.name,
-        initialPrompt: prompt,
-        autoApprove: true,
-      },
-    };
-  }
+  if (!projectId) return err({ message: 'no_project_attached' });
 
   try {
+    const storedConfig = ctx.automation.taskConfig;
+    const taskId = randomUUID();
+    const conversationId = randomUUID();
+
+    let taskConfig: CreateTaskParams;
+    if (storedConfig?.initialConversation) {
+      taskConfig = {
+        ...storedConfig,
+        id: taskId,
+        projectId,
+        automationId: ctx.automation.id,
+        initialConversation: {
+          ...storedConfig.initialConversation,
+          id: conversationId,
+          projectId,
+          taskId,
+          initialPrompt: prompt,
+          autoApprove: true,
+        },
+      };
+    } else {
+      const taskName = generateTaskName({ title: ctx.automation.name });
+      const defaults = await resolveProjectDefaults(projectId, taskName);
+      if (!defaults.success) return err({ message: defaults.error });
+      const provider = (await appSettingsService.get('defaultAgent')) ?? DEFAULT_AGENT_ID;
+      taskConfig = {
+        ...storedConfig,
+        id: taskId,
+        projectId,
+        name: storedConfig?.name?.trim() || taskName,
+        sourceBranch: storedConfig?.sourceBranch ?? defaults.data.sourceBranch,
+        strategy: storedConfig?.strategy ?? defaults.data.strategy,
+        automationId: ctx.automation.id,
+        initialConversation: {
+          id: conversationId,
+          projectId,
+          taskId,
+          provider,
+          title: ctx.automation.name,
+          initialPrompt: prompt,
+          autoApprove: true,
+        },
+      };
+    }
+
     const result = await createTask(taskConfig);
     if (!result.success) {
       return err({
         message: stringifyCreateTaskError(result.error),
         taskId: taskExistsForCreateTaskError(result.error) ? taskId : undefined,
       });
+    }
+    if (ctx.run) {
+      db.update(automationRuns)
+        .set({ taskId, createdTaskId: taskId })
+        .where(eq(automationRuns.id, ctx.run.id))
+        .run();
     }
     return ok({
       taskId,

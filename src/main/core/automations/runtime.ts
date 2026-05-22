@@ -5,6 +5,7 @@ import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { executeTaskCreate } from './actions/taskCreate';
 import type { ActionError, ActionOutcome } from './actions/types';
+import { automationEvents } from './automation-events';
 import { updateAutomationSchedule, updateRun } from './repo';
 
 export function emitRunUpdated(run: AutomationRun, sessionId?: string): void {
@@ -26,7 +27,20 @@ export async function runQueuedAutomation(
   let run = initialRun;
   let firstTaskId: string | null = null;
   let firstSessionId: string | undefined;
-  const ctx = { automation };
+  const ctx = { automation, run };
+
+  if (automation.projectId == null) {
+    const message = 'no_project_attached';
+    const finishedAt = Date.now();
+    run = (await updateRun(run.id, {
+      status: 'skipped',
+      finishedAt,
+      error: message,
+    })) ?? { ...run, status: 'skipped', finishedAt, error: message };
+    emitRunUpdated(run);
+    automationEvents._emit('automation:run:skipped', run);
+    return err(message);
+  }
 
   if (automation.actions.length === 0) {
     const message = 'no_actions_configured';
@@ -34,19 +48,20 @@ export async function runQueuedAutomation(
       automationId: automation.id,
       runId: run.id,
     });
-    run =
-      (await updateRun(run.id, {
-        status: 'failed',
-        finishedAt: Date.now(),
-        error: message,
-      })) ?? run;
+    const finishedAt = Date.now();
+    run = (await updateRun(run.id, {
+      status: 'failed',
+      finishedAt,
+      error: message,
+    })) ?? { ...run, status: 'failed', finishedAt, error: message };
     emitRunUpdated(run);
+    automationEvents._emit('automation:run:failed', run);
     return err(message);
   }
 
   for (let i = 0; i < automation.actions.length; i++) {
     const action = automation.actions[i];
-    const result = await executeTaskCreate(action, ctx).catch(
+    const result = await executeTaskCreate(action, { ...ctx, run }).catch(
       (error): Result<ActionOutcome, ActionError> => ({
         success: false,
         error: { message: error instanceof Error ? error.message : String(error) },
@@ -61,31 +76,47 @@ export async function runQueuedAutomation(
         actionIndex: i,
         error: message,
       });
-      run =
-        (await updateRun(run.id, {
-          status: 'failed',
-          finishedAt: Date.now(),
-          taskId: failedTaskId,
-          createdTaskId: failedTaskId,
-          error: message,
-        })) ?? run;
+      const finishedAt = Date.now();
+      run = (await updateRun(run.id, {
+        status: 'failed',
+        finishedAt,
+        taskId: failedTaskId,
+        createdTaskId: failedTaskId,
+        error: message,
+      })) ?? {
+        ...run,
+        status: 'failed',
+        finishedAt,
+        taskId: failedTaskId,
+        createdTaskId: failedTaskId,
+        error: message,
+      };
       emitRunUpdated(run);
+      automationEvents._emit('automation:run:failed', run);
       return err(message);
     }
     if (firstTaskId == null && result.data.taskId) {
       firstTaskId = result.data.taskId;
       firstSessionId = result.data.sessionId;
+      run = { ...run, taskId: firstTaskId, createdTaskId: firstTaskId };
     }
   }
 
-  run =
-    (await updateRun(run.id, {
-      status: 'success',
-      finishedAt: Date.now(),
-      taskId: firstTaskId,
-      createdTaskId: firstTaskId,
-    })) ?? run;
+  const finishedAt = Date.now();
+  run = (await updateRun(run.id, {
+    status: 'success',
+    finishedAt,
+    taskId: firstTaskId,
+    createdTaskId: firstTaskId,
+  })) ?? {
+    ...run,
+    status: 'success',
+    finishedAt,
+    taskId: firstTaskId,
+    createdTaskId: firstTaskId,
+  };
   await updateAutomationSchedule(automation.id, { lastRunAt: run.startedAt ?? Date.now() });
   emitRunUpdated(run, firstSessionId);
+  automationEvents._emit('automation:run:finish', run);
   return ok(run);
 }
