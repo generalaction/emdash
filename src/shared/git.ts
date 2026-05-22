@@ -216,6 +216,7 @@ export function tagRef(name: string): GitObjectRef {
 
 export type Commit = {
   hash: string;
+  parents: string[];
   subject: string;
   body: string;
   author: string;

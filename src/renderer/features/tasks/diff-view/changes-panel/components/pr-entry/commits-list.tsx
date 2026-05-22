@@ -164,6 +164,13 @@ function CommitItem({
   );
 }
 
+const parentShaForCommit = (commit: Commit): string | null => commit.parents[0] ?? null;
+
+const parentRefForCommit = (commit: Commit): GitObjectRef =>
+  commitRef(parentShaForCommit(commit) ?? `${commit.hash}^`);
+
+const commitRefForCommit = (commit: Commit): GitObjectRef => commitRef(commit.hash);
+
 const refsMatch = (left: GitObjectRef | undefined, right: GitObjectRef): boolean =>
   left !== undefined && refsEqual(left, right);
 
@@ -171,8 +178,9 @@ const CommitFilesList = observer(function CommitFilesList({ commit }: { commit: 
   const { projectId } = useTaskViewContext();
   const workspaceId = useWorkspaceId();
   const taskView = useWorkspaceViewModel();
-  const originalRef = useMemo(() => commitRef(`${commit.hash}^`), [commit.hash]);
-  const modifiedRef = useMemo(() => commitRef(commit.hash), [commit.hash]);
+  const originalRef = useMemo(() => parentRefForCommit(commit), [commit]);
+  const modifiedRef = useMemo(() => commitRefForCommit(commit), [commit]);
+  const originalSha = useMemo(() => parentShaForCommit(commit), [commit]);
   const filesQuery = useCommitFiles(projectId, workspaceId, commit.hash, true);
   const prefetchDiff = usePrefetchDiffModels(
     projectId,
@@ -198,6 +206,8 @@ const CommitFilesList = observer(function CommitFilesList({ commit }: { commit: 
         group: 'git',
         originalRef,
         modifiedRef,
+        commitOriginalSha: originalSha,
+        commitModifiedSha: commit.hash,
       },
       change.status
     );
@@ -211,6 +221,8 @@ const CommitFilesList = observer(function CommitFilesList({ commit }: { commit: 
         group: 'git',
         originalRef,
         modifiedRef,
+        commitOriginalSha: originalSha,
+        commitModifiedSha: commit.hash,
       },
       change.status
     );

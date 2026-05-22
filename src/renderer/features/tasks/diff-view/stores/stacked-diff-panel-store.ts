@@ -16,6 +16,11 @@ interface SlotContext {
   diffType: DiffType;
   originalRef: GitObjectRef;
   modifiedRef?: GitObjectRef;
+  prNumber?: number;
+  prBaseOid?: string;
+  prHeadOid?: string;
+  commitOriginalSha?: string | null;
+  commitModifiedSha?: string;
 }
 
 export class DiffSlotStore {
@@ -23,6 +28,11 @@ export class DiffSlotStore {
   diffType: DiffType = 'disk';
   originalRef: GitObjectRef = commitRef('HEAD');
   modifiedRef: GitObjectRef | undefined = undefined;
+  prNumber: number | undefined = undefined;
+  prBaseOid: string | undefined = undefined;
+  prHeadOid: string | undefined = undefined;
+  commitOriginalSha: string | null | undefined = undefined;
+  commitModifiedSha: string | undefined = undefined;
 
   constructor(
     readonly projectId: string,
@@ -33,6 +43,11 @@ export class DiffSlotStore {
       diffType: observable,
       originalRef: observable.ref,
       modifiedRef: observable.ref,
+      prNumber: observable,
+      prBaseOid: observable,
+      prHeadOid: observable,
+      commitOriginalSha: observable,
+      commitModifiedSha: observable,
       uri: computed,
       originalUri: computed,
       modifiedUri: computed,
@@ -162,11 +177,21 @@ export class StackedDiffPanelStore {
         diffType: 'pr',
         originalRef: activeFile.originalRef,
         modifiedRef: activeFile.modifiedRef,
+        prNumber: activeFile.prNumber,
+        prBaseOid: activeFile.prBaseOid,
+        prHeadOid: activeFile.prHeadOid,
       };
     }
 
     if (activeFile.group === 'git') {
-      return { files: [], diffType: 'git', originalRef: activeFile.originalRef };
+      return {
+        files: [],
+        diffType: 'git',
+        originalRef: activeFile.originalRef,
+        modifiedRef: activeFile.modifiedRef,
+        commitOriginalSha: activeFile.commitOriginalSha,
+        commitModifiedSha: activeFile.commitModifiedSha,
+      };
     }
 
     const isStaged = activeFile.group === 'staged';
@@ -177,7 +202,17 @@ export class StackedDiffPanelStore {
     };
   }
 
-  private _applyContext({ files, diffType, originalRef, modifiedRef }: SlotContext): void {
+  private _applyContext({
+    files,
+    diffType,
+    originalRef,
+    modifiedRef,
+    prNumber,
+    prBaseOid,
+    prHeadOid,
+    commitOriginalSha,
+    commitModifiedSha,
+  }: SlotContext): void {
     const count = Math.min(files.length, MAX_STACKED_FILES);
     this._count = count;
 
@@ -187,6 +222,11 @@ export class StackedDiffPanelStore {
       slot.diffType = diffType;
       slot.originalRef = originalRef;
       slot.modifiedRef = modifiedRef;
+      slot.prNumber = prNumber;
+      slot.prBaseOid = prBaseOid;
+      slot.prHeadOid = prHeadOid;
+      slot.commitOriginalSha = commitOriginalSha;
+      slot.commitModifiedSha = commitModifiedSha;
     }
 
     const currentPaths = new Set(files.map((f) => f.path));

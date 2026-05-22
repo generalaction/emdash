@@ -16,6 +16,10 @@ export type TabDescriptor =
       originalRef: GitObjectRef;
       modifiedRef?: GitObjectRef;
       prNumber?: number;
+      prBaseOid?: string;
+      prHeadOid?: string;
+      commitOriginalSha?: string | null;
+      commitModifiedSha?: string;
       status?: GitChangeStatus;
       isPreview: boolean;
     };
@@ -70,6 +74,12 @@ export interface ActiveFile {
   modifiedRef?: GitObjectRef;
   /** Set only when group === 'pr'. Identifies the PR for store lookups. */
   prNumber?: number;
+  /** Exact PR base/head OIDs for comment scoping and stable target identity. */
+  prBaseOid?: string;
+  prHeadOid?: string;
+  /** Exact commit diff endpoints for comment scoping. Root commits use null original. */
+  commitOriginalSha?: string | null;
+  commitModifiedSha?: string;
 }
 
 export type TaskViewSnapshot = {

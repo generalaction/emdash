@@ -85,6 +85,10 @@ export type ResolvedDiffTab = {
   originalRef: GitObjectRef;
   modifiedRef?: GitObjectRef;
   prNumber?: number;
+  prBaseOid?: string;
+  prHeadOid?: string;
+  commitOriginalSha?: string | null;
+  commitModifiedSha?: string;
   status?: GitChangeStatus;
   isPreview: boolean;
   isActive: boolean;
@@ -310,6 +314,10 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
           originalRef: entry.originalRef,
           modifiedRef: entry.modifiedRef,
           prNumber: entry.prNumber,
+          prBaseOid: entry.prBaseOid,
+          prHeadOid: entry.prHeadOid,
+          commitOriginalSha: entry.commitOriginalSha,
+          commitModifiedSha: entry.commitModifiedSha,
           status: entry.status,
           isPreview: entry.isPreview,
           isActive: effectiveActiveId === entry.tabId,
@@ -351,6 +359,10 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
           originalRef: entry.originalRef,
           modifiedRef: entry.modifiedRef,
           prNumber: entry.prNumber,
+          prBaseOid: entry.prBaseOid,
+          prHeadOid: entry.prHeadOid,
+          commitOriginalSha: entry.commitOriginalSha,
+          commitModifiedSha: entry.commitModifiedSha,
           status: entry.status,
           isPreview: entry.isPreview,
         });
@@ -641,6 +653,10 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
               originalRef: t.originalRef,
               modifiedRef: t.modifiedRef,
               prNumber: t.prNumber,
+              prBaseOid: t.prBaseOid,
+              prHeadOid: t.prHeadOid,
+              commitOriginalSha: t.commitOriginalSha,
+              commitModifiedSha: t.commitModifiedSha,
             },
             t.isPreview,
             t.tabId,

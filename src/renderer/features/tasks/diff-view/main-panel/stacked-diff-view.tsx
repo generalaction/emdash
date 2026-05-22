@@ -121,6 +121,11 @@ const StackedDiffPanel = observer(function StackedDiffPanel({ panelStore }: Stac
         originalRef: slot.originalRef,
         modifiedRef:
           slot.diffType === 'git' || slot.diffType === 'pr' ? slot.modifiedRef : undefined,
+        prNumber: slot.prNumber,
+        prBaseOid: slot.prBaseOid,
+        prHeadOid: slot.prHeadOid,
+        commitOriginalSha: slot.commitOriginalSha,
+        commitModifiedSha: slot.commitModifiedSha,
       });
     }, 150);
   }
