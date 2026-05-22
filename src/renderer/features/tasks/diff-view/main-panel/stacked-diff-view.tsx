@@ -119,7 +119,13 @@ const StackedDiffPanel = observer(function StackedDiffPanel({ panelStore }: Stac
         type: slot.diffType === 'disk' ? 'disk' : 'git',
         group: slot.diffType,
         originalRef: slot.originalRef,
-        modifiedRef: slot.diffType === 'pr' ? slot.modifiedRef : undefined,
+        modifiedRef:
+          slot.diffType === 'git' || slot.diffType === 'pr' ? slot.modifiedRef : undefined,
+        prNumber: slot.prNumber,
+        prBaseOid: slot.prBaseOid,
+        prHeadOid: slot.prHeadOid,
+        commitOriginalSha: slot.commitOriginalSha,
+        commitModifiedSha: slot.commitModifiedSha,
       });
     }, 150);
   }
@@ -180,7 +186,7 @@ const StackedFileSlot = observer(function StackedFileSlot({
         .registerModel(projectId, workspaceId, root, file.path, language, 'git', STAGED_REF)
         .catch(() => {});
     } else if (diffType === 'git' || diffType === 'pr') {
-      const effectiveModifiedRef = diffType === 'pr' ? modifiedRef : HEAD_REF;
+      const effectiveModifiedRef = modifiedRef ?? HEAD_REF;
       void modelRegistry
         .registerModel(projectId, workspaceId, root, file.path, language, 'git', originalRef)
         .catch(() => {});
