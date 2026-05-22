@@ -56,37 +56,6 @@ const mountPoint = attachOutput.match(new RegExp(`/Volumes/${volumeName}[^\\n]*`
 if (!device || !mountPoint) throw new Error(`Could not parse hdiutil attach output:\n${attachOutput}`);
 
 try {
-  console.log(`replacing Applications symlink with custom-icon Finder alias at ${mountPoint}...`);
-  const applicationsPath = path.join(mountPoint, 'Applications');
-  try {
-    fs.unlinkSync(applicationsPath);
-  } catch {
-    fs.rmSync(applicationsPath, { force: true, recursive: true });
-  }
-  execFileSync(
-    'osascript',
-    [
-      '-e',
-      `tell application "Finder" to make new alias file to POSIX file "/Applications" at POSIX file "${mountPoint}" with properties {name:"Applications"}`,
-    ],
-    { stdio: 'inherit' },
-  );
-
-  const customIcon = path.resolve('build/applications-alias.icns');
-  if (!fs.existsSync(customIcon)) {
-    execFileSync(process.execPath, ['build/create-applications-alias-icon.cjs', customIcon], { stdio: 'inherit' });
-  }
-  const rezFile = path.join(tmpDir, 'applications-icon.r');
-  const iconHex = fs
-    .readFileSync(customIcon)
-    .toString('hex')
-    .match(/.{1,64}/g)
-    .map((line) => `    $\"${line}\"`)
-    .join('\n');
-  fs.writeFileSync(rezFile, `data 'icns' (-16455) {\n${iconHex}\n};\n`);
-  execFileSync('Rez', ['-append', rezFile, '-o', applicationsPath], { stdio: 'inherit' });
-  execFileSync('SetFile', ['-a', 'C', applicationsPath], { stdio: 'inherit' });
-
   const appPath = path.join(mountPoint, `${dmgConfig.appName}.app`);
   if (fs.existsSync(appPath)) {
     execFileSync('SetFile', ['-a', 'E', appPath], { stdio: 'inherit' });
