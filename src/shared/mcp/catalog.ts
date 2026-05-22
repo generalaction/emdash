@@ -165,6 +165,19 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     docsUrl: 'https://developers.notion.com/docs/mcp',
     credentialKeys: [],
   },
+  notra: {
+    config: {
+      type: 'http',
+      url: 'https://mcp.usenotra.com/mcp',
+      headers: {
+        Authorization: 'Bearer YOUR_API_KEY',
+      },
+    },
+    name: 'Notra',
+    description: 'Manage posts, brand identities, integrations, and schedules',
+    docsUrl: 'https://docs.usenotra.com/devtools/mcp',
+    credentialKeys: [{ key: 'Authorization', required: true }],
+  },
   clerk: {
     config: {
       type: 'http',
