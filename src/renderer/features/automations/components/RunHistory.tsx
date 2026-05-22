@@ -22,7 +22,7 @@ export function RunHistory({ automation }: RunHistoryProps) {
     [runs.data, visibleLimit]
   );
   const hasMore = Boolean(runs.data && runs.data.length > visibleLimit);
-  const canRerun = !automation.isDraft;
+  const canRerun = !automation.isDraft && automation.projectId != null;
 
   return (
     <section className="flex flex-col gap-2">

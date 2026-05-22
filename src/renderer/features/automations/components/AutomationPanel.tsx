@@ -211,6 +211,10 @@ export const AutomationPanel = observer(function AutomationPanel({
     };
   }
 
+  function handleProjectChange(nextProjectId: string | undefined) {
+    setProjectId(nextProjectId);
+  }
+
   async function handleSave() {
     if (!effectiveProjectId || !canSave) return;
     setError(null);
@@ -267,7 +271,11 @@ export const AutomationPanel = observer(function AutomationPanel({
         automation={automation}
         scheduleLabel={formatCronLabel(cronExpr)}
         onClose={onClose}
-        onRunNow={onRunNow ? () => automation && onRunNow(automation) : undefined}
+        onRunNow={
+          onRunNow && automation && !automation.isDraft && automation.projectId
+            ? () => onRunNow(automation)
+            : undefined
+        }
         onToggleEnabled={
           onToggleEnabled
             ? (enabled) => automation && onToggleEnabled(automation, enabled)
@@ -341,7 +349,7 @@ export const AutomationPanel = observer(function AutomationPanel({
               <RowField label="Project">
                 <ProjectSelector
                   value={effectiveProjectId}
-                  onChange={setProjectId}
+                  onChange={handleProjectChange}
                   trigger={
                     <ComboboxTrigger className="flex h-8 w-full items-center justify-between gap-2 rounded-md border border-border bg-background px-2.5 text-xs outline-none hover:bg-muted/40 data-popup-open:bg-muted/40">
                       <span className="inline-flex min-w-0 items-center gap-2">

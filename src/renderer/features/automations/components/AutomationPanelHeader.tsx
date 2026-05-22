@@ -91,12 +91,14 @@ export function AutomationPanelHeader({
             <Tooltip>
               <TooltipTrigger
                 onClick={() => onToggleEnabled(!enabled)}
-                aria-label={enabled ? 'Pause' : 'Resume'}
+                aria-label={enabled ? 'Pause schedule' : 'Resume schedule'}
                 className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
                 {enabled ? <CirclePause className="size-4" /> : <CirclePlay className="size-4" />}
               </TooltipTrigger>
-              <TooltipContent>{enabled ? 'Pause' : 'Resume'}</TooltipContent>
+              <TooltipContent>
+                {enabled ? 'Pause schedule (no new runs)' : 'Resume schedule'}
+              </TooltipContent>
             </Tooltip>
           ) : null}
           {onDelete ? (

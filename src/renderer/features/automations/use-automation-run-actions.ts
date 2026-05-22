@@ -26,6 +26,28 @@ export function useAutomationRunActions() {
     });
   }
 
+  function bulkDeleteRuns(runIds: ReadonlyArray<string>, onDone?: () => void) {
+    if (runIds.length === 0) return;
+    showConfirmDelete({
+      title: `Delete ${runIds.length} run${runIds.length === 1 ? '' : 's'}`,
+      description: 'The selected runs will be permanently removed from history.',
+      confirmLabel: `Delete ${runIds.length} run${runIds.length === 1 ? '' : 's'}`,
+      onSuccess: () => {
+        for (const id of runIds) {
+          removeRun.mutate(id, {
+            onError: (error) =>
+              toast({
+                title: 'Failed to delete run',
+                description: error instanceof Error ? error.message : String(error),
+                variant: 'destructive',
+              }),
+          });
+        }
+        onDone?.();
+      },
+    });
+  }
+
   function rerunFrom(automationId: string) {
     runNow.mutate(automationId, {
       onError: (error) =>
@@ -39,6 +61,7 @@ export function useAutomationRunActions() {
 
   return {
     deleteRun,
+    bulkDeleteRuns,
     rerunFrom,
     runNowPending: runNow.isPending,
     runNowVariables: runNow.variables,
