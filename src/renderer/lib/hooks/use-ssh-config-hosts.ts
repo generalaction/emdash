@@ -27,5 +27,6 @@ export function useDefaultPrivateKeyPath() {
   return useQuery({
     queryKey: ['default-private-key-path'],
     queryFn: () => sshConnections.getDefaultPrivateKeyPath(),
+    staleTime: Infinity,
   });
 }

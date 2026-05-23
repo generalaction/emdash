@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { constants } from 'node:fs';
 import { access } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -39,7 +40,7 @@ const DEFAULT_PRIVATE_KEY_FILES = ['id_ed25519', 'id_ecdsa', 'id_rsa', 'id_dsa']
 async function getDefaultPrivateKeyPath(): Promise<string | null> {
   for (const fileName of DEFAULT_PRIVATE_KEY_FILES) {
     try {
-      await access(join(homedir(), '.ssh', fileName));
+      await access(join(homedir(), '.ssh', fileName), constants.R_OK);
       return `~/.ssh/${fileName}`;
     } catch {
       // Keep looking for the next OpenSSH default identity file.
