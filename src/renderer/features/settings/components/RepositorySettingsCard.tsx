@@ -38,7 +38,7 @@ const RepositorySettingsCard: React.FC = () => {
             key={branchPrefix}
             defaultValue={branchPrefix}
             onBlur={(e) => {
-              const next = e.target.value.trim();
+              const next = e.target.value;
               if (next !== branchPrefix) {
                 updateProject({ branchPrefix: next });
               }
