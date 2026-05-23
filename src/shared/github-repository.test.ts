@@ -49,6 +49,16 @@ describe('parseGitHubRepository', () => {
     expect(parseGitHubRepository('git@ghe.example.com:org/service.git')).toEqual(expected);
   });
 
+  it('preserves a leading www. on Enterprise hosts (only github.com is collapsed)', () => {
+    expect(parseGitHubRepository('https://www.ghe.example.com/org/service')).toEqual({
+      host: 'www.ghe.example.com',
+      owner: 'org',
+      repo: 'service',
+      nameWithOwner: 'org/service',
+      repositoryUrl: 'https://www.ghe.example.com/org/service',
+    });
+  });
+
   it('preserves a non-default port in the host', () => {
     expect(parseGitHubRepository('https://ghe.example.com:8443/org/service')).toEqual({
       host: 'ghe.example.com:8443',

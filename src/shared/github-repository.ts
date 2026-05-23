@@ -21,12 +21,20 @@ function stripGitSuffix(value: string): string {
   return value.endsWith('.git') ? value.slice(0, -4) : value;
 }
 
+// Only the public `www.github.com` redirect is collapsed to its canonical host.
+// Enterprise instances whose DNS legitimately starts with `www.` (e.g. `www.ghe.corp.com`)
+// keep the prefix so API calls hit the address that actually resolves.
+function normalizeHost(rawHost: string): string {
+  const lower = rawHost.trim().toLowerCase();
+  return lower === `www.${GITHUB_DOT_COM_HOST}` ? GITHUB_DOT_COM_HOST : lower;
+}
+
 function toRepositoryRef(
   host: string | undefined,
   owner: string | undefined,
   repo: string | undefined
 ): GitHubRepositoryRef | null {
-  const normalizedHost = (host ?? GITHUB_DOT_COM_HOST).trim().toLowerCase();
+  const normalizedHost = normalizeHost(host ?? GITHUB_DOT_COM_HOST);
   const normalizedOwner = owner?.trim();
   const normalizedRepo = stripGitSuffix(repo?.trim() ?? '');
   if (!normalizedHost || !normalizedOwner || !normalizedRepo) return null;
@@ -52,7 +60,7 @@ export function parseGitHubRepository(input?: string | null): GitHubRepositoryRe
   if (sshMatch) return toRepositoryRef(sshMatch[1], sshMatch[2], sshMatch[3]);
 
   const urlMatch = value.match(
-    /^https?:\/\/(?:www\.)?([^/\s]+)\/([^/\s]+)\/([^/\s?#]+?)(?:\.git)?(?:[/?#].*)?$/i
+    /^https?:\/\/([^/\s]+)\/([^/\s]+)\/([^/\s?#]+?)(?:\.git)?(?:[/?#].*)?$/i
   );
   if (urlMatch) return toRepositoryRef(urlMatch[1], urlMatch[2], urlMatch[3]);
 

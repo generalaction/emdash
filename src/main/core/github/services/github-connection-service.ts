@@ -84,6 +84,12 @@ export class GitHubConnectionServiceImpl implements GitHubConnectionService {
     source: TokenSource;
   }>(5 * 60 * 1000);
 
+  // Per-host TTL cache for Enterprise tokens (github.com uses the richer
+  // `_tokenRecordCache` above). Bypassing this would shell out to
+  // `gh auth token --hostname …` on every getOctokit call.
+  private readonly _enterpriseTokenCache = new Map<string, { token: string; expiresAt: number }>();
+  private static readonly ENTERPRISE_TOKEN_TTL_MS = 5 * 60 * 1000;
+
   private parseTokenSource(raw: unknown): Exclude<TokenSource, null> | null {
     return raw === 'cli' ||
       raw === 'secure_storage' ||
@@ -132,6 +138,7 @@ export class GitHubConnectionServiceImpl implements GitHubConnectionService {
 
   private _invalidateTokenCache(): void {
     this._tokenRecordCache.invalidate();
+    this._enterpriseTokenCache.clear();
   }
 
   private resolveTokenRecord(): Promise<{ token: string | null; source: TokenSource }> {
@@ -185,11 +192,26 @@ export class GitHubConnectionServiceImpl implements GitHubConnectionService {
 
   async getToken(host: string = GITHUB_DOT_COM_HOST): Promise<string | null> {
     if (host !== GITHUB_DOT_COM_HOST) {
-      // Enterprise hosts: read directly from gh CLI per-host auth. We don't cache because
-      // the existing TTL cache holds the github.com token under a single key.
-      return extractGhCliToken(new LocalExecutionContext(), host);
+      return this.resolveEnterpriseToken(host);
     }
     const { token } = await this.resolveTokenRecord();
+    return token;
+  }
+
+  private async resolveEnterpriseToken(host: string): Promise<string | null> {
+    const cached = this._enterpriseTokenCache.get(host);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.token;
+    }
+    const token = await extractGhCliToken(new LocalExecutionContext(), host);
+    if (token) {
+      this._enterpriseTokenCache.set(host, {
+        token,
+        expiresAt: Date.now() + GitHubConnectionServiceImpl.ENTERPRISE_TOKEN_TTL_MS,
+      });
+    } else {
+      this._enterpriseTokenCache.delete(host);
+    }
     return token;
   }
 
