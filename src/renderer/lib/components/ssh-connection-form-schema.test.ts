@@ -21,6 +21,55 @@ const baseValues: SshConnectionFormValues = {
 };
 
 describe('sshConnectionFormSchema', () => {
+  it.each([
+    ['name', ' Conn', 'Connection name cannot start or end with spaces'],
+    ['host', 'dev.internal ', 'Host cannot start or end with spaces'],
+    ['username', ' alice', 'Username cannot start or end with spaces'],
+    ['privateKeyPath', '~/.ssh/id_rsa ', 'Private key path cannot start or end with spaces'],
+    ['sshConfigAlias', ' corp-dev', 'SSH config alias cannot start or end with spaces'],
+    ['proxyJump', 'bastion ', 'ProxyJump cannot start or end with spaces'],
+  ] as const)('rejects leading or trailing spaces in %s', (field, value, message) => {
+    const result = sshConnectionFormSchema.safeParse({
+      ...baseValues,
+      authType: field === 'privateKeyPath' ? 'key' : baseValues.authType,
+      privateKeyPath: field === 'privateKeyPath' ? value : baseValues.privateKeyPath,
+      [field]: value,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error?.issues).toEqual(
+      expect.arrayContaining([expect.objectContaining({ path: [field], message })])
+    );
+  });
+
+  it('allows spaces inside fields that can contain composite values', () => {
+    expect(
+      sshConnectionFormSchema.safeParse({
+        ...baseValues,
+        name: 'Staging Server',
+        proxyJump: 'alice@bastion:2222,bob@internal-bastion:2222',
+      }).success
+    ).toBe(true);
+  });
+
+  it('does not reject leading or trailing spaces in password credentials', () => {
+    expect(
+      sshConnectionFormSchema.safeParse({
+        ...baseValues,
+        authType: 'password',
+        password: ' secret ',
+      }).success
+    ).toBe(true);
+    expect(
+      sshConnectionFormSchema.safeParse({
+        ...baseValues,
+        authType: 'key',
+        privateKeyPath: '~/.ssh/id_rsa',
+        passphrase: ' secret ',
+      }).success
+    ).toBe(true);
+  });
+
   it('allows alias-backed key auth without a manually entered private key path', () => {
     expect(
       sshConnectionFormSchema.safeParse({
