@@ -76,14 +76,45 @@ export class WorktreeService {
     }
   }
 
-  private async resolveAvailableTargetPath(targetPath: string): Promise<string> {
+  private async branchForWorktreePath(worktreePath: string): Promise<string | undefined> {
+    const expectedPath = this.ctx.supportsLocalSpawn
+      ? await fsPromises.realpath(worktreePath).catch(() => worktreePath)
+      : worktreePath;
+    const { stdout } = await this.ctx.exec('git', ['worktree', 'list', '--porcelain']);
+    for (const block of stdout.split('\n\n')) {
+      const match = /^worktree (.+)$/m.exec(block);
+      const listedPath = match?.[1];
+      if (!listedPath) continue;
+      const realListedPath = this.ctx.supportsLocalSpawn
+        ? await fsPromises.realpath(listedPath).catch(() => listedPath)
+        : listedPath;
+      if (realListedPath !== expectedPath) continue;
+      return /^branch refs\/heads\/(.+)$/m.exec(block)?.[1];
+    }
+    return undefined;
+  }
+
+  private async resolveAvailableTargetPath(
+    targetPath: string,
+    branchName: string
+  ): Promise<string> {
     if (!(await this.targetPathExists(targetPath))) return targetPath;
-    if (await this.isValidWorktree(targetPath)) return targetPath;
+    if (
+      (await this.isValidWorktree(targetPath)) &&
+      (await this.branchForWorktreePath(targetPath)) === branchName
+    ) {
+      return targetPath;
+    }
 
     for (let i = 2; i < 1000; i++) {
       const candidate = `${targetPath}-${i}`;
       if (!(await this.targetPathExists(candidate))) return candidate;
-      if (await this.isValidWorktree(candidate)) return candidate;
+      if (
+        (await this.isValidWorktree(candidate)) &&
+        (await this.branchForWorktreePath(candidate)) === branchName
+      ) {
+        return candidate;
+      }
     }
 
     throw new Error(`No available worktree path found for ${targetPath}`);
@@ -156,12 +187,6 @@ export class WorktreeService {
   }
 
   async getWorktree(branchName: string): Promise<string | undefined> {
-    const worktreePath = path.join(this.worktreePoolPath, branchName);
-    if (await this.host.existsAbsolute(worktreePath)) {
-      if (await this.isValidWorktree(worktreePath)) return worktreePath;
-      await this.host.removeAbsolute(worktreePath, { recursive: true }).catch(() => {});
-    }
-
     try {
       const realPoolPath = await this.host.realPathAbsolute(this.worktreePoolPath);
       const { stdout } = await this.ctx.exec('git', ['worktree', 'list', '--porcelain']);
@@ -197,7 +222,7 @@ export class WorktreeService {
     }
 
     let targetPath = path.join(this.worktreePoolPath, branchName);
-    targetPath = await this.resolveAvailableTargetPath(targetPath);
+    targetPath = await this.resolveAvailableTargetPath(targetPath, branchName);
     if (await this.isValidWorktree(targetPath)) return ok(targetPath);
 
     try {
@@ -248,7 +273,7 @@ export class WorktreeService {
     let targetPath = path.join(this.worktreePoolPath, branchName);
     const remoteCandidates = await this.getRemoteCandidates();
 
-    targetPath = await this.resolveAvailableTargetPath(targetPath);
+    targetPath = await this.resolveAvailableTargetPath(targetPath, branchName);
     if (await this.isValidWorktree(targetPath)) return ok(targetPath);
 
     try {

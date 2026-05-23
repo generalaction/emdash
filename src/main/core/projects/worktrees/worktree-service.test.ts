@@ -125,6 +125,26 @@ describe('WorktreeService', () => {
       expect(fs.readFileSync(path.join(targetPath, 'stale.txt'), 'utf8')).toBe('stale');
     });
 
+    it('does not reuse a suffix worktree checked out for a different branch', async () => {
+      await git(['branch', 'task/collision'], { cwd: repoDir });
+      await git(['branch', 'task/collision-2'], { cwd: repoDir });
+      const targetPath = path.join(poolDir, 'task', 'collision');
+      fs.mkdirSync(targetPath, { recursive: true });
+      await git(['worktree', 'add', `${targetPath}-2`, 'task/collision-2'], { cwd: repoDir });
+      const svc = makeService();
+
+      const result = await svc.checkoutBranchWorktree(
+        { type: 'local', branch: 'main' },
+        'task/collision'
+      );
+
+      expect(result.success).toBe(true);
+      if (!result.success) throw new Error('expected success');
+      expect(result.data).toBe(`${targetPath}-3`);
+      const { stdout } = await git(['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: result.data });
+      expect(stdout.trim()).toBe('task/collision');
+    });
+
     it('creates a worktree from a remote source branch when branch is not local', async () => {
       const remoteDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-remote-'));
       try {
