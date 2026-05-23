@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { modalStore } from '@renderer/lib/modal/modal-store';
 
 export function useArrowKeyNavigation(count: number, onEnter: (index: number) => void) {
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -15,6 +16,8 @@ export function useArrowKeyNavigation(count: number, onEnter: (index: number) =>
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (modalStore.isOpen) return;
+
       if (e.key === 'ArrowDown') {
         e.preventDefault();
         setSelectedIndex((i) => (i + 1) % count);

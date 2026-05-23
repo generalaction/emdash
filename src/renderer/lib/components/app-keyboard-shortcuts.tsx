@@ -2,6 +2,7 @@ import { useHotkey } from '@tanstack/react-hotkeys';
 import { useObserver } from 'mobx-react-lite';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { getRegisteredTaskData } from '@renderer/features/tasks/stores/task-selectors';
+import { useAppShortcutsEnabled } from '@renderer/lib/hooks/use-app-shortcuts-enabled';
 import {
   getEffectiveHotkey,
   getHotkeyRegistration,
@@ -20,6 +21,7 @@ export function AppKeyboardShortcuts() {
   const showCommandPalette = useShowModal('commandPaletteModal');
   const { toggleLeft } = useWorkspaceLayoutContext();
   const { navigate } = useNavigate();
+  const appShortcutsEnabled = useAppShortcutsEnabled();
 
   const commandPaletteHotkey = getEffectiveHotkey('commandPalette', keyboard);
   const closeModalHotkey = getEffectiveHotkey('closeModal', keyboard);
@@ -50,7 +52,7 @@ export function AppKeyboardShortcuts() {
         taskId: currentTaskId,
         workspaceId: currentWorkspaceId,
       }),
-    { enabled: commandPaletteHotkey !== null }
+    { enabled: appShortcutsEnabled && commandPaletteHotkey !== null }
   );
 
   useHotkey(
@@ -64,7 +66,7 @@ export function AppKeyboardShortcuts() {
   );
 
   useHotkey(getHotkeyRegistration('toggleLeftSidebar', keyboard), () => toggleLeft(), {
-    enabled: toggleLeftSidebarHotkey !== null,
+    enabled: appShortcutsEnabled && toggleLeftSidebarHotkey !== null,
   });
 
   return null;

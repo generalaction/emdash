@@ -1,18 +1,20 @@
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { Search } from 'lucide-react';
 import * as React from 'react';
+import { useAppShortcutsEnabled } from '@renderer/lib/hooks/use-app-shortcuts-enabled';
 import { Input } from '@renderer/lib/ui/input';
 import { cn } from '@renderer/utils/utils';
 
 function SearchInput({ className, ...props }: React.ComponentProps<'input'>) {
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const appShortcutsEnabled = useAppShortcutsEnabled();
 
   useHotkey(
     'Mod+F',
     () => {
       inputRef.current?.focus();
     },
-    { enabled: true }
+    { enabled: appShortcutsEnabled }
   );
   return (
     <div className="relative flex items-center">

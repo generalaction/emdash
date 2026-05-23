@@ -1,6 +1,7 @@
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { observer } from 'mobx-react-lite';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { useAppShortcutsEnabled } from '@renderer/lib/hooks/use-app-shortcuts-enabled';
 import {
   APP_SHORTCUTS,
   getEffectiveHotkey,
@@ -16,6 +17,7 @@ import { commandRegistry } from './registry';
  */
 function SingleKeyBinder({ shortcutKey }: { shortcutKey: ShortcutSettingsKey }) {
   const { value: keyboard } = useAppSettingsKey('keyboard');
+  const appShortcutsEnabled = useAppShortcutsEnabled();
   const isAllow = APP_SHORTCUTS[shortcutKey].conflictBehavior === 'allow';
 
   useHotkey(
@@ -25,7 +27,7 @@ function SingleKeyBinder({ shortcutKey }: { shortcutKey: ShortcutSettingsKey }) 
       commandRegistry.dispatch(shortcutKey);
     },
     {
-      enabled: getEffectiveHotkey(shortcutKey, keyboard) !== null,
+      enabled: appShortcutsEnabled && getEffectiveHotkey(shortcutKey, keyboard) !== null,
       ...(isAllow ? { conflictBehavior: 'allow' as const } : {}),
     }
   );

@@ -2,6 +2,7 @@ import { useHotkey } from '@tanstack/react-hotkeys';
 import { Columns2, FileSearch, MessageSquarePlus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { useAppShortcutsEnabled } from '@renderer/lib/hooks/use-app-shortcuts-enabled';
 import {
   getEffectiveHotkey,
   getHotkeyRegistration,
@@ -24,6 +25,7 @@ export const TabBarActions = observer(function TabBarActions() {
   const isFocusedPane =
     taskView.focusedRegion === 'main' && tabGroupManager.activeGroupId === groupId;
   const { value: keyboard } = useAppSettingsKey('keyboard');
+  const appShortcutsEnabled = useAppShortcutsEnabled();
   const canSplit = tabManager.resolvedTabs.length >= 2 && tabGroupManager.groups.length < 3;
 
   useHotkey(
@@ -33,7 +35,11 @@ export const TabBarActions = observer(function TabBarActions() {
       tabGroupManager.splitRight();
     },
     {
-      enabled: isFocusedPane && canSplit && getEffectiveHotkey('splitPane', keyboard) !== null,
+      enabled:
+        appShortcutsEnabled &&
+        isFocusedPane &&
+        canSplit &&
+        getEffectiveHotkey('splitPane', keyboard) !== null,
       conflictBehavior: 'allow',
     }
   );

@@ -1,6 +1,7 @@
 import { useHotkey, type Hotkey } from '@tanstack/react-hotkeys';
 import { ChevronDown, ChevronUp, MessageSquare, TextInitial } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { useAppShortcutsEnabled } from '@renderer/lib/hooks/use-app-shortcuts-enabled';
 import {
   Combobox,
   ComboboxCollection,
@@ -92,6 +93,7 @@ export function AddContextPopover({
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<ContextAction | null>(null);
   const [query, setQuery] = useState('');
+  const appShortcutsEnabled = useAppShortcutsEnabled();
 
   const filteredActions = useMemo(() => {
     if (!query) return actions;
@@ -114,7 +116,9 @@ export function AddContextPopover({
     });
   }, [query, actions]);
 
-  useHotkey(ADD_CONTEXT_HOTKEY, () => setOpen((v) => !v), { enabled: !disabled && isActivePane });
+  useHotkey(ADD_CONTEXT_HOTKEY, () => setOpen((v) => !v), {
+    enabled: appShortcutsEnabled && !disabled && isActivePane,
+  });
 
   const handleConfirm = (action: ContextAction | null, opts?: { andSend?: boolean }) => {
     if (!action) return;

@@ -2,6 +2,7 @@ import { useHotkey } from '@tanstack/react-hotkeys';
 import { ChevronDown } from 'lucide-react';
 import React, { useCallback, useMemo } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { useAppShortcutsEnabled } from '@renderer/lib/hooks/use-app-shortcuts-enabled';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import {
   getEffectiveHotkey,
@@ -26,6 +27,7 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, className, borderl
   const { icons, labels, installedApps, availability, loading } = useOpenInApps();
   const { value: openIn, update } = useAppSettingsKey('openIn');
   const { value: keyboard } = useAppSettingsKey('keyboard');
+  const appShortcutsEnabled = useAppShortcutsEnabled();
   const openInHotkey = getEffectiveHotkey('openInEditor', keyboard);
 
   const defaultApp: OpenInAppId | null =
@@ -93,7 +95,7 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, className, borderl
       if (!buttonAppId) return;
       void triggerOpenIn(buttonAppId);
     },
-    { enabled: !!buttonAppId && !loading && openInHotkey !== null }
+    { enabled: appShortcutsEnabled && !!buttonAppId && !loading && openInHotkey !== null }
   );
 
   return (

@@ -1,5 +1,6 @@
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { useAppShortcutsEnabled } from './use-app-shortcuts-enabled';
 import { getEffectiveHotkey, getHotkeyRegistration } from './useKeyboardShortcuts';
 
 /**
@@ -58,7 +59,8 @@ export function useTabShortcuts(
   options?: UseTabShortcutsOptions
 ): void {
   const { value: keyboard } = useAppSettingsKey('keyboard');
-  const enabled = !!store && (options?.focused ?? true);
+  const appShortcutsEnabled = useAppShortcutsEnabled();
+  const enabled = appShortcutsEnabled && !!store && (options?.focused ?? true);
   const tabNextHotkey = getEffectiveHotkey('tabNext', keyboard);
   const tabPrevHotkey = getEffectiveHotkey('tabPrev', keyboard);
   const tabCloseHotkey = getEffectiveHotkey('tabClose', keyboard);
