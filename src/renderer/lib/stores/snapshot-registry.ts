@@ -1,6 +1,16 @@
-import { comparer, reaction } from 'mobx';
+import { comparer, reaction, toJS } from 'mobx';
 import { rpc } from '@renderer/lib/ipc';
+import { log } from '@renderer/utils/logger';
 import { viewStateCache } from './view-state-cache';
+
+function toCloneableSnapshot(key: string, snapshot: unknown): unknown | undefined {
+  try {
+    return structuredClone(toJS(snapshot));
+  } catch (error) {
+    log.warn('[SnapshotRegistry] Skipping uncloneable snapshot', { key, error });
+    return undefined;
+  }
+}
 
 export class SnapshotRegistry {
   private readonly disposers = new Map<string, () => void>();
@@ -24,11 +34,13 @@ export class SnapshotRegistry {
     this.disposers.get(key)?.();
 
     // Warm the cache with the current snapshot value immediately on register.
-    viewStateCache.set(key, getSnapshot());
+    const initialSnapshot = toCloneableSnapshot(key, getSnapshot());
+    if (initialSnapshot !== undefined) viewStateCache.set(key, initialSnapshot);
 
     const disposer = reaction(
-      () => getSnapshot(),
+      () => toCloneableSnapshot(key, getSnapshot()),
       (snapshot) => {
+        if (snapshot === undefined) return;
         viewStateCache.set(key, snapshot);
         void rpc.viewState.save(key, snapshot);
       },
