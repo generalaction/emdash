@@ -71,6 +71,7 @@ export interface UsePtyOptions {
   onFirstMessage?: (message: string) => void;
   onEnterPress?: (message: string) => void;
   onInterruptPress?: () => void;
+  onPasteFromClipboard?: PasteFromClipboardHandler;
 }
 
 export interface UseTerminalReturn {
@@ -78,6 +79,11 @@ export interface UseTerminalReturn {
   setTheme: (theme: SessionTheme) => void;
   sendInput: (data: string, options?: { track?: boolean }) => void;
 }
+
+export type PasteFromClipboardHandler = (helpers: {
+  focus: UseTerminalReturn['focus'];
+  sendInput: UseTerminalReturn['sendInput'];
+}) => void;
 
 /**
  * React hook that manages a full xterm.js terminal instance attached to
@@ -111,6 +117,7 @@ export function usePty(
     onFirstMessage,
     onEnterPress,
     onInterruptPress,
+    onPasteFromClipboard,
   } = options;
 
   // Stable refs for callbacks so the effect doesn't re-run on every render.
@@ -124,6 +131,8 @@ export function usePty(
   onEnterPressRef.current = onEnterPress;
   const onInterruptPressRef = useRef(onInterruptPress);
   onInterruptPressRef.current = onInterruptPress;
+  const onPasteFromClipboardRef = useRef(onPasteFromClipboard);
+  onPasteFromClipboardRef.current = onPasteFromClipboard;
   const themeRef = useRef(theme);
   themeRef.current = theme;
 
@@ -294,13 +303,21 @@ export function usePty(
   );
 
   const pasteFromClipboard = useCallback(() => {
-    navigator.clipboard
-      .readText()
-      .then((text) => {
+    const customPasteFromClipboard = onPasteFromClipboardRef.current;
+    if (customPasteFromClipboard) {
+      customPasteFromClipboard({ focus, sendInput });
+      return;
+    }
+
+    void (async () => {
+      try {
+        const text = await navigator.clipboard.readText();
         if (text) sendInput(text);
-      })
-      .catch(() => {});
-  }, [sendInput]);
+      } catch {
+        // Clipboard read denied or unavailable.
+      }
+    })();
+  }, [focus, sendInput]);
 
   // ─── Main effect: mount terminal once per sessionId ────────────────────────
 
