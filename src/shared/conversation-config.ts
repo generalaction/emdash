@@ -1,4 +1,4 @@
-const OPENCODE_SESSION_ID_PATTERN = /^ses_/;
+const OPENCODE_SESSION_ID_PATTERN = /^ses_.+/;
 
 export function isOpenCodeProviderSessionId(value: string): boolean {
   return OPENCODE_SESSION_ID_PATTERN.test(value);

@@ -24,6 +24,7 @@ describe('isOpenCodeProviderSessionId', () => {
 
   it('rejects non-OpenCode ids', () => {
     expect(isOpenCodeProviderSessionId('conv-1')).toBe(false);
+    expect(isOpenCodeProviderSessionId('ses_')).toBe(false);
   });
 });
 
