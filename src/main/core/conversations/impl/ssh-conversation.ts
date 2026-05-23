@@ -3,6 +3,7 @@ import { claudeTrustService } from '@main/core/agent-hooks/claude-trust-service'
 import type { ConversationProvider } from '@main/core/conversations/types';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
+import { createClassifier } from '@main/core/providers/registry';
 import type { Pty } from '@main/core/pty/pty';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { resolveSshCommand } from '@main/core/pty/spawn-utils';
@@ -143,9 +144,10 @@ export class SshConversationProvider implements ConversationProvider {
 
     const pty = result.data;
 
-    // hooks not supported yet, rely on classifier for visual indicator
+    // hooks not supported yet for SSH sessions; always use the classifier
     wireAgentClassifier({
       pty,
+      classifier: createClassifier(conversation.providerId, undefined),
       providerId: conversation.providerId,
       projectId: conversation.projectId,
       taskId: conversation.taskId,

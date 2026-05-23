@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { providerConfigDefaults } from '@main/core/settings/schema';
+import { getProviderConfigDefaults } from '@shared/agent-provider-registry';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 import type { ProviderCustomConfig } from '@shared/app-settings';
+
+const providerConfigDefaults = getProviderConfigDefaults() as Record<string, ProviderCustomConfig>;
 import {
   buildAgentCommand,
   buildAgentSessionCommand,

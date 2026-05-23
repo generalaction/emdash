@@ -5,15 +5,37 @@ import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
 import { telemetryService } from '@main/lib/telemetry';
 import { agentEventChannel, type AgentEvent } from '@shared/events/agentEvents';
 import { conversationChangedChannel } from '@shared/events/conversationEvents';
+import { conversationRenamedChannel, taskRenamedChannel } from '@shared/events/taskEvents';
 import { enrichEvent } from './event-enricher';
 import { HookServer } from './hook-server';
 import { isAppFocused, maybeShowNotification } from './notification';
+import { handleConversationRename, handleTaskRename } from './rename-handler';
 
 class AgentHookService implements IInitializable, IDisposable {
   private server = new HookServer();
 
   async initialize(): Promise<void> {
     await this.server.start(async (raw) => {
+      if (raw.type === 'rename-conversation') {
+        const result = await handleConversationRename(raw);
+        events.emit(conversationRenamedChannel, {
+          conversationId: result.conversationId,
+          taskId: result.taskId,
+          projectId: result.projectId,
+          title: result.title,
+        });
+        return;
+      }
+      if (raw.type === 'rename-task') {
+        const result = await handleTaskRename(raw);
+        events.emit(taskRenamedChannel, {
+          taskId: result.taskId,
+          projectId: result.projectId,
+          name: result.name,
+        });
+        return;
+      }
+
       const event = await enrichEvent(raw);
       event.source = 'hook';
       const appFocused = isAppFocused();

@@ -79,7 +79,6 @@ export type AgentProviderDefinition = {
   /** When true, the logo should be colour-inverted in dark mode. */
   invertInDark?: boolean;
   terminalOnly?: boolean;
-  supportsHooks?: boolean;
 };
 
 export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
@@ -99,7 +98,6 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'openai.svg',
     alt: 'Codex',
     terminalOnly: true,
-    supportsHooks: true,
   },
   {
     id: 'claude',
@@ -119,7 +117,6 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'claude.png',
     alt: 'Claude Code',
     terminalOnly: true,
-    supportsHooks: true,
   },
   {
     id: 'grok',
@@ -240,7 +237,6 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'droid.svg',
     alt: 'Factory Droid',
     terminalOnly: true,
-    supportsHooks: true,
   },
   {
     id: 'amp',
@@ -625,5 +621,39 @@ export function getDocUrlForProvider(id: AgentProviderId): string | null {
 export function listDetectableProviders(): AgentProviderDefinition[] {
   return AGENT_PROVIDERS.filter(
     (provider) => provider.detectable !== false && provider.commands?.length
+  );
+}
+
+type ProviderConfigDefault = {
+  cli?: string;
+  resumeFlag?: string;
+  autoApproveFlag?: string;
+  initialPromptFlag?: string;
+  defaultArgs?: string[];
+  sessionIdFlag?: string;
+  sessionIdOnResumeOnly?: boolean;
+};
+
+/**
+ * Projects the CLI-invocation defaults from AGENT_PROVIDERS into a keyed map
+ * suitable for seeding the provider config settings store.
+ * Kept here so schema.ts does not need to iterate the registry itself.
+ */
+export function getProviderConfigDefaults(): Record<string, ProviderConfigDefault> {
+  return Object.fromEntries(
+    AGENT_PROVIDERS.filter(
+      (p) => p.cli || p.resumeFlag || p.autoApproveFlag || p.initialPromptFlag || p.defaultArgs
+    ).map((p) => [
+      p.id,
+      {
+        ...(p.cli ? { cli: p.cli } : {}),
+        ...(p.resumeFlag ? { resumeFlag: p.resumeFlag } : {}),
+        ...(p.autoApproveFlag ? { autoApproveFlag: p.autoApproveFlag } : {}),
+        ...(p.initialPromptFlag !== undefined ? { initialPromptFlag: p.initialPromptFlag } : {}),
+        ...(p.defaultArgs ? { defaultArgs: p.defaultArgs } : {}),
+        ...(p.sessionIdFlag ? { sessionIdFlag: p.sessionIdFlag } : {}),
+        ...(p.sessionIdOnResumeOnly ? { sessionIdOnResumeOnly: p.sessionIdOnResumeOnly } : {}),
+      },
+    ])
   );
 }

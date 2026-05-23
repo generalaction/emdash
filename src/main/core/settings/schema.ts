@@ -1,5 +1,5 @@
 import z from 'zod';
-import { AGENT_PROVIDER_IDS, AGENT_PROVIDERS } from '@shared/agent-provider-registry';
+import { AGENT_PROVIDER_IDS } from '@shared/agent-provider-registry';
 import { openInAppIdSchema } from '@shared/openInApps';
 import { APP_SHORTCUTS } from '@shared/shortcuts';
 import { TERMINAL_FONT_SIZE_MAX, TERMINAL_FONT_SIZE_MIN } from '@shared/terminal-settings';
@@ -73,23 +73,6 @@ export const providerCustomConfigEntrySchema = z.object({
   extraArgs: z.string().optional(),
   env: z.record(z.string(), z.string()).optional(),
 });
-
-export const providerConfigDefaults = Object.fromEntries(
-  AGENT_PROVIDERS.filter(
-    (p) => p.cli || p.resumeFlag || p.autoApproveFlag || p.initialPromptFlag || p.defaultArgs
-  ).map((p) => [
-    p.id,
-    {
-      ...(p.cli ? { cli: p.cli } : {}),
-      ...(p.resumeFlag ? { resumeFlag: p.resumeFlag } : {}),
-      ...(p.autoApproveFlag ? { autoApproveFlag: p.autoApproveFlag } : {}),
-      ...(p.initialPromptFlag !== undefined ? { initialPromptFlag: p.initialPromptFlag } : {}),
-      ...(p.defaultArgs ? { defaultArgs: p.defaultArgs } : {}),
-      ...(p.sessionIdFlag ? { sessionIdFlag: p.sessionIdFlag } : {}),
-      ...(p.sessionIdOnResumeOnly ? { sessionIdOnResumeOnly: p.sessionIdOnResumeOnly } : {}),
-    },
-  ])
-);
 
 export const interfaceSettingsSchema = z.object({
   taskHoverAction: z.enum(['delete', 'archive']),

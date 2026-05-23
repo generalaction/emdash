@@ -5,8 +5,7 @@ import { log } from '@main/lib/logger';
 import { type AgentProviderId } from '@shared/agent-provider-registry';
 import { agentEventChannel, type AgentEvent } from '@shared/events/agentEvents';
 import { makePtyId } from '@shared/ptyId';
-import { createClassifier } from './classifiers';
-import { stripAnsi, type ClassificationResult } from './classifiers/base';
+import { type ProviderClassifier, stripAnsi, type ClassificationResult } from './classifiers/base';
 import { maybeShowNotification } from './notification';
 
 const IDLE_THRESHOLD_MS = 2500;
@@ -66,18 +65,19 @@ function createEmissionGuard() {
 
 export function wireAgentClassifier({
   pty,
+  classifier,
   providerId,
   projectId,
   taskId,
   conversationId,
 }: {
   pty: Pty;
+  classifier: ProviderClassifier;
   providerId: AgentProviderId;
   projectId: string;
   taskId: string;
   conversationId: string;
 }): void {
-  const classifier = createClassifier(providerId);
   const ptyId = makePtyId(providerId, conversationId);
   const guard = createEmissionGuard();
 
