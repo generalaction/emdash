@@ -66,6 +66,9 @@ describe('makeOpenCodePluginContent', () => {
     const content = makeOpenCodePluginContent();
 
     expect(content).toContain('EMDASH_HOOK_PORT');
+    expect(content).toContain("event.type === 'session.created'");
+    expect(content).toContain('event.properties?.info?.parentID');
+    expect(content).toContain('event.properties?.info?.id');
     expect(content).toContain("event.type === 'session.idle'");
     expect(content).toContain("event.type === 'session.error'");
     expect(content).toContain("'X-Emdash-Event-Type': payload.type");

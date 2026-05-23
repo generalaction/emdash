@@ -169,7 +169,7 @@ describe('buildAgentCommand', () => {
     {
       providerId: 'opencode',
       freshArgs: ['--prompt', 'Fix the bug'],
-      resumeArgs: ['--continue'],
+      resumeArgs: ['--session', 'conv-1'],
     },
     { providerId: 'grok', freshArgs: [], resumeArgs: ['-r'] },
     { providerId: 'copilot', freshArgs: ['Fix the bug'], resumeArgs: ['--resume'] },

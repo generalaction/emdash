@@ -9,6 +9,8 @@ export type Conversation = {
   lastInteractedAt: string | null;
   resume?: boolean;
   autoApprove?: boolean;
+  /** OpenCode `ses_*` id captured from the provider for per-chat resume. */
+  providerSessionId?: string;
   isInitialConversation: boolean | null;
 };
 

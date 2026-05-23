@@ -28,6 +28,18 @@ export const EmdashNotifications = async () => ({
 });
 
 function toEmdashPayload(event) {
+  if (event.type === 'session.created') {
+    if (event.properties?.info?.parentID) return;
+    const sessionID = event.properties?.info?.id;
+    if (typeof sessionID !== 'string' || sessionID.length === 0) return;
+    return {
+      type: 'session',
+      body: {
+        provider_session_id: sessionID,
+      },
+    };
+  }
+
   if (event.type === 'session.idle') {
     return {
       type: 'notification',
