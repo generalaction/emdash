@@ -1,5 +1,16 @@
 import { CalendarClock, ChevronDown } from 'lucide-react';
 import { useMemo, useState, type ChangeEvent } from 'react';
+import { Input } from '@renderer/lib/ui/input';
+import { Label } from '@renderer/lib/ui/label';
+import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@renderer/lib/ui/select';
+import { cn } from '@renderer/utils/utils';
 import { formatCronLabel } from '@shared/automations/format';
 import {
   DEFAULT_SCHEDULE,
@@ -14,17 +25,6 @@ import {
   type ScheduleSpec,
   type WeekdayToken,
 } from '@shared/automations/schedule';
-import { Input } from '@renderer/lib/ui/input';
-import { Label } from '@renderer/lib/ui/label';
-import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@renderer/lib/ui/select';
-import { cn } from '@renderer/utils/utils';
 import { PILL_TRIGGER_CLASS } from './pill-trigger';
 
 function clampInt(n: number, min: number, max: number): number {

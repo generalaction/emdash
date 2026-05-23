@@ -1,7 +1,7 @@
-import { formatAutomationError, formatRunName } from '@shared/automations/format';
-import type { AutomationRun } from '@shared/automations/types';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { formatAutomationError, formatRunName } from '@shared/automations/format';
+import type { AutomationRun } from '@shared/automations/types';
 import { useAutomations } from './useAutomations';
 
 export function useAutomationRunActions() {

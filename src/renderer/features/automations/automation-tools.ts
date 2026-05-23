@@ -1,5 +1,5 @@
-import type { Automation } from '@shared/automations/types';
 import { agentConfig } from '@renderer/utils/agentConfig';
+import type { Automation } from '@shared/automations/types';
 
 export type AutomationTool = {
   id: string;

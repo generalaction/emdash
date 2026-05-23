@@ -1,25 +1,11 @@
-import {
-  Bot,
-  CheckCircle2,
-  CheckIcon,
-  Clock,
-  Loader2,
-  MinusCircle,
-  RotateCcw,
-  Trash2,
-  XCircle,
-  type LucideIcon,
-} from 'lucide-react';
+import { Bot, CheckIcon, RotateCcw, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
-import {
-  formatRunError,
-  formatRunName,
-  formatRunTriggerKindLabel,
-} from '@shared/automations/format';
-import type { Automation, AutomationRun, AutomationRunStatus } from '@shared/automations/types';
 import { automationTool } from '@renderer/features/automations/automation-tools';
-import { isActiveStatus } from '@renderer/features/automations/run-status-styles';
+import {
+  isActiveStatus,
+  statusIndicatorConfig,
+} from '@renderer/features/automations/run-status-styles';
 import {
   getProjectStore,
   projectDisplayName,
@@ -27,6 +13,7 @@ import {
 import { getRegisteredTaskData, getTaskView } from '@renderer/features/tasks/stores/task-selectors';
 import AgentLogo from '@renderer/lib/components/agent-logo';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
+import { AbsoluteTime } from '@renderer/lib/ui/absolute-time';
 import { Badge } from '@renderer/lib/ui/badge';
 import {
   ContextMenu,
@@ -34,58 +21,14 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from '@renderer/lib/ui/context-menu';
-import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
-
-interface StatusIndicatorConfig {
-  Icon: LucideIcon;
-  label: string;
-  dotClass: string;
-  textClass: string;
-  spin?: boolean;
-}
-
-function statusIndicatorConfig(status: AutomationRunStatus): StatusIndicatorConfig {
-  switch (status) {
-    case 'success':
-      return {
-        Icon: CheckCircle2,
-        label: 'Success',
-        dotClass: 'bg-emerald-500',
-        textClass: 'text-emerald-700 dark:text-emerald-300',
-      };
-    case 'failed':
-      return {
-        Icon: XCircle,
-        label: 'Failed',
-        dotClass: 'bg-destructive',
-        textClass: 'text-destructive',
-      };
-    case 'running':
-      return {
-        Icon: Loader2,
-        label: 'Running',
-        dotClass: 'bg-blue-500',
-        textClass: 'text-blue-700 dark:text-blue-300',
-        spin: true,
-      };
-    case 'queued':
-      return {
-        Icon: Clock,
-        label: 'Queued',
-        dotClass: 'bg-amber-500',
-        textClass: 'text-amber-700 dark:text-amber-300',
-      };
-    case 'skipped':
-      return {
-        Icon: MinusCircle,
-        label: 'Skipped',
-        dotClass: 'bg-muted-foreground/50',
-        textClass: 'text-muted-foreground',
-      };
-  }
-}
+import {
+  formatRunError,
+  formatRunName,
+  formatRunTriggerKindLabel,
+} from '@shared/automations/format';
+import type { Automation, AutomationRun } from '@shared/automations/types';
 
 interface AutomationRunRowProps {
   run: AutomationRun;
@@ -195,7 +138,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
             onToggleSelect?.();
           }}
           className={cn(
-            'relative flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg outline-none focus-visible:ring-1 focus-visible:ring-ring',
+            'relative flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg outline-none transition-[background-color,border-color,box-shadow] duration-150 ease-out focus-visible:ring-1 focus-visible:ring-ring',
             !isSelected &&
               'border border-border bg-background-1 text-foreground shadow-sm group-hover:border-transparent group-hover:bg-transparent group-hover:shadow-none'
           )}
@@ -203,7 +146,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
           {isSelected ? (
             <span
               aria-hidden
-              className="flex size-4 items-center justify-center rounded-[4px] border border-primary bg-background-neutral text-foreground-neutral"
+              className="border-primary flex size-4 items-center justify-center rounded-[4px] border bg-background-neutral text-foreground-neutral"
             >
               <CheckIcon absoluteStrokeWidth strokeWidth={3} className="size-3" />
             </span>
@@ -211,7 +154,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
             <>
               <span
                 aria-hidden
-                className="absolute inset-0 flex items-center justify-center group-hover:hidden"
+                className="blur-0 pointer-events-none absolute inset-0 flex scale-100 items-center justify-center opacity-100 transition-[opacity,scale,filter] duration-150 ease-out group-hover:scale-[0.25] group-hover:opacity-0 group-hover:blur-[4px]"
               >
                 {tool ? (
                   <AgentLogo
@@ -228,14 +171,14 @@ export const AutomationRunRow = observer(function AutomationRunRow({
               <span
                 aria-hidden
                 className={cn(
-                  'absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full ring-2 ring-background group-hover:hidden',
+                  'pointer-events-none absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full opacity-100 ring-2 ring-background transition-opacity duration-150 ease-out group-hover:opacity-0',
                   status.dotClass,
                   status.spin && 'animate-pulse'
                 )}
               />
               <span
                 aria-hidden
-                className="hidden size-4 items-center justify-center rounded-[4px] border border-border-1 group-hover:flex"
+                className="group-hover:blur-0 pointer-events-none absolute inset-0 m-auto flex size-4 scale-[0.25] items-center justify-center rounded-[4px] border border-border-1 opacity-0 blur-[4px] transition-[opacity,scale,filter] duration-150 ease-out group-hover:scale-100 group-hover:opacity-100"
               />
             </>
           )}
@@ -283,13 +226,13 @@ export const AutomationRunRow = observer(function AutomationRunRow({
           {missedDeadline ? <Badge variant="destructive">Missed deadline</Badge> : null}
         </div>
         {subtitle ? (
-          <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+          <div className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
             <span className="truncate">{subtitle}</span>
           </div>
         ) : null}
       </div>
 
-      <div className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
+      <div className="text-muted-foreground flex shrink-0 items-center gap-1 text-xs">
         <span className={cn('inline-flex items-center gap-1', status.textClass)}>
           <StatusIcon className={cn('size-3 shrink-0', status.spin && 'animate-spin')} />
           <span>{status.label}</span>
@@ -302,11 +245,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
           </span>
         ))}
         <span className="text-muted-foreground/40">·</span>
-        <RelativeTime
-          value={run.startedAt ?? run.scheduledAt ?? run.finishedAt ?? Date.now()}
-          compact
-          ago
-        />
+        <AbsoluteTime value={run.startedAt ?? run.scheduledAt ?? run.finishedAt ?? Date.now()} />
       </div>
     </div>
   );

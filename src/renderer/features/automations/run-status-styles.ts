@@ -1,17 +1,52 @@
+import { CheckCircle2, Clock, Loader2, MinusCircle, XCircle, type LucideIcon } from 'lucide-react';
 import type { AutomationRunStatus } from '@shared/automations/types';
 
-export function runStatusBarClass(status: AutomationRunStatus): string {
+export interface StatusIndicatorConfig {
+  Icon: LucideIcon;
+  label: string;
+  dotClass: string;
+  textClass: string;
+  spin?: boolean;
+}
+
+export function statusIndicatorConfig(status: AutomationRunStatus): StatusIndicatorConfig {
   switch (status) {
     case 'success':
-      return 'bg-emerald-500';
+      return {
+        Icon: CheckCircle2,
+        label: 'Success',
+        dotClass: 'bg-emerald-500',
+        textClass: 'text-emerald-700 dark:text-emerald-300',
+      };
     case 'failed':
-      return 'bg-red-500';
+      return {
+        Icon: XCircle,
+        label: 'Failed',
+        dotClass: 'bg-destructive',
+        textClass: 'text-destructive',
+      };
     case 'running':
-      return 'bg-blue-500';
+      return {
+        Icon: Loader2,
+        label: 'Running',
+        dotClass: 'bg-blue-500',
+        textClass: 'text-blue-700 dark:text-blue-300',
+        spin: true,
+      };
     case 'queued':
-      return 'bg-amber-500';
+      return {
+        Icon: Clock,
+        label: 'Queued',
+        dotClass: 'bg-amber-500',
+        textClass: 'text-amber-700 dark:text-amber-300',
+      };
     case 'skipped':
-      return 'bg-muted-foreground/40';
+      return {
+        Icon: MinusCircle,
+        label: 'Skipped',
+        dotClass: 'bg-muted-foreground/50',
+        textClass: 'text-muted-foreground',
+      };
   }
 }
 

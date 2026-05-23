@@ -1,14 +1,14 @@
 import { useMemo } from 'react';
+import {
+  getProjectStore,
+  projectDisplayName,
+} from '@renderer/features/projects/stores/project-selectors';
 import { formatRunStatusLabel, formatRunTriggerKindLabel } from '@shared/automations/format';
 import type {
   Automation,
   AutomationRun,
   AutomationRunWithContext,
 } from '@shared/automations/types';
-import {
-  getProjectStore,
-  projectDisplayName,
-} from '@renderer/features/projects/stores/project-selectors';
 
 export interface AutomationsFilterResult {
   query: string;

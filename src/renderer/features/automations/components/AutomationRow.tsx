@@ -1,6 +1,5 @@
 import {
   Bot,
-  CheckIcon,
   CirclePause,
   CirclePlay,
   Clock,
@@ -12,14 +11,13 @@ import {
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { formatRunStatusLabel, formatTriggerLabel } from '@shared/automations/format';
-import type { Automation, AutomationRun } from '@shared/automations/types';
 import {
   getProjectStore,
   projectDisplayName,
 } from '@renderer/features/projects/stores/project-selectors';
 import AgentLogo from '@renderer/lib/components/agent-logo';
 import { AbsoluteTime } from '@renderer/lib/ui/absolute-time';
+import { Checkbox } from '@renderer/lib/ui/checkbox';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -29,6 +27,8 @@ import {
 } from '@renderer/lib/ui/context-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
+import { formatRunStatusLabel, formatTriggerLabel } from '@shared/automations/format';
+import type { Automation, AutomationRun } from '@shared/automations/types';
 import { useAutomationRunStatus } from '../automation-run-status-store';
 import { automationTool } from '../automation-tools';
 import { isActiveStatus } from '../run-status-styles';
@@ -106,65 +106,46 @@ export const AutomationRow = observer(function AutomationRow({
       }}
       aria-label={`Edit ${automation.name}`}
       className={cn(
-        'group flex min-h-14 cursor-pointer items-center gap-3 px-1 py-2.5 text-left transition-colors hover:bg-muted/20 focus:outline-none focus-visible:outline-none',
+        'group flex min-h-14 cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-background-1 focus:outline-none focus-visible:outline-none',
         dimmed && 'opacity-60'
       )}
     >
       {selectable ? (
-        <button
-          type="button"
-          role="checkbox"
-          aria-checked={isSelected ?? false}
-          aria-label={`Select ${automation.name}`}
-          onClick={(event) => {
-            event.stopPropagation();
-            onToggleSelect?.();
-          }}
-          onPointerDown={(event) => event.stopPropagation()}
-          onKeyDown={(event) => {
-            if (event.key !== ' ' && event.key !== 'Enter') return;
-            event.preventDefault();
-            event.stopPropagation();
-            onToggleSelect?.();
-          }}
-          className={cn(
-            'relative flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg outline-none focus-visible:ring-1 focus-visible:ring-ring',
-            !isSelected &&
-              'border border-border bg-background-1 text-foreground shadow-sm group-hover:border-transparent group-hover:bg-transparent group-hover:shadow-none'
-          )}
-        >
-          {isSelected ? (
-            <span
-              aria-hidden
-              className="flex size-4 items-center justify-center rounded-[4px] border border-primary bg-background-neutral text-foreground-neutral"
-            >
-              <CheckIcon absoluteStrokeWidth strokeWidth={3} className="size-3" />
-            </span>
-          ) : (
-            <>
-              <span
-                aria-hidden
-                className="absolute inset-0 flex items-center justify-center group-hover:hidden"
-              >
-                {primaryTool ? (
-                  <AgentLogo
-                    logo={primaryTool.logo}
-                    alt={primaryTool.label}
-                    isSvg={primaryTool.isSvg}
-                    invertInDark={primaryTool.invertInDark}
-                    className="size-5 rounded-sm"
-                  />
-                ) : (
-                  <Bot className="size-5" />
-                )}
-              </span>
-              <span
-                aria-hidden
-                className="hidden size-4 items-center justify-center rounded-[4px] border border-border-1 group-hover:flex"
+        <div className="relative flex size-9 shrink-0 items-center justify-center">
+          <span
+            aria-hidden
+            className={cn(
+              'pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg border border-border bg-background-1 text-foreground shadow-sm transition-opacity duration-150 ease-out',
+              isSelected ? 'opacity-0' : 'opacity-100 group-hover:opacity-0'
+            )}
+          >
+            {primaryTool ? (
+              <AgentLogo
+                logo={primaryTool.logo}
+                alt={primaryTool.label}
+                isSvg={primaryTool.isSvg}
+                invertInDark={primaryTool.invertInDark}
+                className="size-5 rounded-sm"
               />
-            </>
-          )}
-        </button>
+            ) : (
+              <Bot className="size-5" />
+            )}
+          </span>
+          <div
+            onClick={(event) => event.stopPropagation()}
+            onPointerDown={(event) => event.stopPropagation()}
+            className={cn(
+              'relative transition-opacity duration-150 ease-out',
+              isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+            )}
+          >
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={() => onToggleSelect?.()}
+              aria-label={`Select ${automation.name}`}
+            />
+          </div>
+        </div>
       ) : (
         <Tooltip>
           <TooltipTrigger>
@@ -198,7 +179,7 @@ export const AutomationRow = observer(function AutomationRow({
             >
               {automation.name}
               {automation.isDraft ? (
-                <span className="ml-2 rounded-full border border-border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                <span className="text-muted-foreground ml-2 rounded-full border border-border px-1.5 py-0.5 text-[10px] font-medium tracking-wide uppercase">
                   Draft
                 </span>
               ) : null}
@@ -207,13 +188,13 @@ export const AutomationRow = observer(function AutomationRow({
           </Tooltip>
           {isActiveRun ? (
             <Loader2
-              className="size-3.5 shrink-0 animate-spin text-muted-foreground"
+              className="text-muted-foreground size-3.5 shrink-0 animate-spin"
               aria-label={isRunning ? 'Running' : 'Queued'}
             />
           ) : null}
         </div>
 
-        <div className="flex min-w-0 items-center gap-3 text-xs text-muted-foreground">
+        <div className="text-muted-foreground flex min-w-0 items-center gap-3 text-xs">
           <span className="inline-flex min-w-0 items-center gap-1.5">
             <Folder className="size-3 shrink-0" />
             <span className={cn('truncate', isDetached && 'text-destructive/80')}>
@@ -244,7 +225,7 @@ export const AutomationRow = observer(function AutomationRow({
             ) : null}
           </span>
         ) : (
-          <span className="text-xs text-muted-foreground">
+          <span className="text-muted-foreground text-xs">
             {automation.isDraft ? 'Draft' : 'No runs yet'}
           </span>
         )}

@@ -1,9 +1,9 @@
 import { RotateCcw, Trash2, X } from 'lucide-react';
 import { useMemo } from 'react';
-import type { Automation, AutomationRunWithContext } from '@shared/automations/types';
 import { useMultiSelect } from '@renderer/lib/hooks/use-multi-select';
 import { Button } from '@renderer/lib/ui/button';
 import { Spinner } from '@renderer/lib/ui/spinner';
+import type { Automation, AutomationRunWithContext } from '@shared/automations/types';
 import { useAutomationRunActions } from '../use-automation-run-actions';
 import { AutomationRunRow } from './AutomationRunRow';
 
@@ -47,7 +47,7 @@ export function RecentRunsList({
   if (!runs || runs.length === 0) {
     return (
       <div className="py-12 text-center">
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           {searchActive ? 'No runs match your search.' : 'No automation runs yet.'}
         </p>
       </div>
@@ -102,7 +102,7 @@ export function RecentRunsList({
       {selectedCount > 0 ? (
         <div className="sticky bottom-4 z-10 mt-2 flex justify-center">
           <div className="flex items-center gap-2 rounded-md border border-border bg-background-1 px-3 py-2 text-sm shadow-md">
-            <span className="text-foreground-muted whitespace-nowrap">
+            <span className="whitespace-nowrap text-foreground-muted">
               {selectedCount} selected
             </span>
             {rerunnableSelectedRuns.length > 0 ? (

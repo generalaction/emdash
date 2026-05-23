@@ -73,11 +73,11 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
               aria-label="Automations"
               className="w-full justify-between"
             >
-              <span className="flex items-center gap-2 min-w-0">
-                <Clock className="h-5 w-5 sm:h-4 sm:w-4 shrink-0" />
+              <span className="flex min-w-0 items-center gap-2">
+                <Clock className="h-5 w-5 shrink-0 sm:h-4 sm:w-4" />
                 <span className="truncate">Automations</span>
               </span>
-              <Badge variant="secondary" className="h-4 px-1.5 text-[9px] uppercase tracking-wide">
+              <Badge variant="secondary" className="h-4 px-1.5 text-[9px] tracking-wide uppercase">
                 Beta
               </Badge>
             </SidebarMenuButton>

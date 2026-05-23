@@ -40,7 +40,7 @@ function Section({
   if (items.length === 0) return null;
   return (
     <section>
-      <h2 className="mb-2 text-xs font-medium tracking-wide text-muted-foreground">{title}</h2>
+      <h2 className="text-muted-foreground mb-2 text-xs font-medium tracking-wide">{title}</h2>
       <div>
         {items.map((automation) => (
           <AutomationRow

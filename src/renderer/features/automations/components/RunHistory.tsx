@@ -1,8 +1,8 @@
 import { History } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import type { Automation } from '@shared/automations/types';
 import { Button } from '@renderer/lib/ui/button';
 import { Spinner } from '@renderer/lib/ui/spinner';
+import type { Automation } from '@shared/automations/types';
 import { useAutomationRunActions } from '../use-automation-run-actions';
 import { useAutomationRuns } from '../useAutomations';
 import { AutomationRunRow } from './AutomationRunRow';
@@ -27,8 +27,8 @@ export function RunHistory({ automation }: RunHistoryProps) {
   return (
     <section className="flex flex-col gap-2">
       <div className="flex items-center gap-1.5">
-        <History className="size-3 text-muted-foreground" />
-        <h3 className="text-xs font-medium text-muted-foreground">Run history</h3>
+        <History className="text-muted-foreground size-3" />
+        <h3 className="text-muted-foreground text-xs font-medium">Run history</h3>
       </div>
       {runs.isPending ? (
         <div className="flex h-24 items-center justify-center">
@@ -50,7 +50,7 @@ export function RunHistory({ automation }: RunHistoryProps) {
           ))}
         </div>
       ) : (
-        <div className="rounded-md border border-dashed border-border px-3 py-6 text-center text-xs text-muted-foreground">
+        <div className="text-muted-foreground rounded-md border border-dashed border-border px-3 py-6 text-center text-xs">
           No runs yet.
         </div>
       )}
@@ -60,7 +60,7 @@ export function RunHistory({ automation }: RunHistoryProps) {
           size="sm"
           disabled={runs.isFetching}
           onClick={() => setVisibleLimit((limit) => limit + RUNS_PAGE_SIZE)}
-          className="text-xs text-muted-foreground hover:text-foreground"
+          className="text-muted-foreground text-xs hover:text-foreground"
         >
           {runs.isFetching ? 'Loading older runs…' : 'Load older runs'}
         </Button>

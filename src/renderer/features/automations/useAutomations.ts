@@ -1,4 +1,5 @@
 import { keepPreviousData, useMutation, useQuery } from '@tanstack/react-query';
+import { rpc } from '@renderer/lib/ipc';
 import type {
   Automation,
   AutomationRun,
@@ -6,7 +7,6 @@ import type {
   CreateAutomationInput,
   UpdateAutomationPatch,
 } from '@shared/automations/types';
-import { rpc } from '@renderer/lib/ipc';
 
 const automationsKey = (projectId?: string) => ['automations', projectId ?? 'all'] as const;
 const runsKey = (automationId: string, limit: number) =>

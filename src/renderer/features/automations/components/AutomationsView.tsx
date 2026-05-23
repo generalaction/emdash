@@ -1,10 +1,10 @@
 import { CirclePause, CirclePlay, Loader2, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Automation } from '@shared/automations/types';
 import { useAutomationsTab } from '@renderer/features/automations/automations-view';
 import { ListPopoverCard } from '@renderer/lib/components/list-popover-card';
 import { useMultiSelect } from '@renderer/lib/hooks/use-multi-select';
 import { Button } from '@renderer/lib/ui/button';
+import type { Automation } from '@shared/automations/types';
 import { useAutomationsActions } from '../use-automations-actions';
 import { useAutomationsFilter } from '../use-automations-filter';
 import { useAutomationsPanel } from '../use-automations-panel';
@@ -91,6 +91,7 @@ export function AutomationsView() {
       const target = event.target as HTMLElement | null;
       if (target?.closest('[role="dialog"], [data-radix-popper-content-wrapper]')) return;
       event.preventDefault();
+      event.stopPropagation();
       closePanel();
     }
     window.addEventListener('keydown', handleKeyDown);
@@ -108,7 +109,7 @@ export function AutomationsView() {
   if (automations.isPending) {
     return (
       <div className="flex h-full items-center justify-center bg-background text-foreground">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
       </div>
     );
   }
@@ -195,7 +196,7 @@ export function AutomationsView() {
 
             {tab === 'all' && selectedCount > 0 ? (
               <ListPopoverCard className="justify-between">
-                <span className="text-foreground-muted whitespace-nowrap">
+                <span className="whitespace-nowrap text-foreground-muted">
                   {selectedCount} selected
                 </span>
                 <div className="flex items-center gap-2">

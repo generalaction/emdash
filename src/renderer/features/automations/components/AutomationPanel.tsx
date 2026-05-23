@@ -1,20 +1,6 @@
 import { ChevronDown, FolderOpen } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState, type ReactNode } from 'react';
-import { isValidProviderId, type AgentProviderId } from '@shared/agent-provider-registry';
-import type { TaskCreateAction } from '@shared/automations/actions';
-import { automationCatalogCategories } from '@shared/automations/builtin-catalog';
-import { formatAutomationError, formatCronLabel } from '@shared/automations/format';
-import { DEFAULT_SCHEDULE, scheduleToCron } from '@shared/automations/schedule';
-import { getLocalTimeZone } from '@shared/automations/timezone';
-import {
-  AUTOMATION_NAME_MAX_LENGTH,
-  type Automation,
-  type BuiltinAutomationTemplate,
-  type CronTrigger,
-} from '@shared/automations/types';
-import type { Branch } from '@shared/git';
-import type { CreateTaskParams } from '@shared/tasks';
 import {
   asMounted,
   firstMountedProjectId,
@@ -37,6 +23,20 @@ import { Input } from '@renderer/lib/ui/input';
 import { Label } from '@renderer/lib/ui/label';
 import { Switch } from '@renderer/lib/ui/switch';
 import { cn } from '@renderer/utils/utils';
+import { isValidProviderId, type AgentProviderId } from '@shared/agent-provider-registry';
+import type { TaskCreateAction } from '@shared/automations/actions';
+import { automationCatalogCategories } from '@shared/automations/builtin-catalog';
+import { formatAutomationError, formatCronLabel } from '@shared/automations/format';
+import { DEFAULT_SCHEDULE, scheduleToCron } from '@shared/automations/schedule';
+import { getLocalTimeZone } from '@shared/automations/timezone';
+import {
+  AUTOMATION_NAME_MAX_LENGTH,
+  type Automation,
+  type BuiltinAutomationTemplate,
+  type CronTrigger,
+} from '@shared/automations/types';
+import type { Branch } from '@shared/git';
+import type { CreateTaskParams } from '@shared/tasks';
 import { useAutomations } from '../useAutomations';
 import { AutomationPanelHeader } from './AutomationPanelHeader';
 import { AgentPicker } from './pickers/AgentPicker';
@@ -297,7 +297,7 @@ export const AutomationPanel = observer(function AutomationPanel({
       <div className="flex-1 overflow-y-auto">
         <div className="flex flex-col gap-5 px-5 py-5">
           <section className="flex flex-col gap-2">
-            <Label className="text-xs font-medium text-muted-foreground">Name</Label>
+            <Label className="text-muted-foreground text-xs font-medium">Name</Label>
             <Input
               autoFocus={!isEdit && name.trim().length === 0}
               value={name}
@@ -315,7 +315,7 @@ export const AutomationPanel = observer(function AutomationPanel({
           </section>
 
           <section className="flex flex-col gap-2">
-            <Label className="text-xs font-medium text-muted-foreground">Prompt</Label>
+            <Label className="text-muted-foreground text-xs font-medium">Prompt</Label>
             <textarea
               value={prompt}
               onChange={(event) => setPrompt(event.target.value)}
@@ -335,8 +335,8 @@ export const AutomationPanel = observer(function AutomationPanel({
           </section>
 
           <section className="flex flex-col gap-2">
-            <h3 className="text-xs font-medium text-muted-foreground">Schedule</h3>
-            <div className="rounded-md border border-border bg-muted/10">
+            <h3 className="text-muted-foreground text-xs font-medium">Schedule</h3>
+            <div className="bg-muted/10 rounded-md border border-border">
               <RowField label="Runs">
                 <SchedulePicker value={cronExpr} onChange={setCronExpr} />
               </RowField>
@@ -344,16 +344,16 @@ export const AutomationPanel = observer(function AutomationPanel({
           </section>
 
           <section className="flex flex-col gap-2">
-            <h3 className="text-xs font-medium text-muted-foreground">Execution</h3>
-            <div className="rounded-md border border-border bg-muted/10">
+            <h3 className="text-muted-foreground text-xs font-medium">Execution</h3>
+            <div className="bg-muted/10 rounded-md border border-border">
               <RowField label="Project">
                 <ProjectSelector
                   value={effectiveProjectId}
                   onChange={handleProjectChange}
                   trigger={
-                    <ComboboxTrigger className="flex h-8 w-full items-center justify-between gap-2 rounded-md border border-border bg-background px-2.5 text-xs outline-none hover:bg-muted/40 data-popup-open:bg-muted/40">
+                    <ComboboxTrigger className="hover:bg-muted/40 data-popup-open:bg-muted/40 flex h-8 w-full items-center justify-between gap-2 rounded-md border border-border bg-background px-2.5 text-xs outline-none">
                       <span className="inline-flex min-w-0 items-center gap-2">
-                        <FolderOpen className="size-3.5 shrink-0 text-muted-foreground" />
+                        <FolderOpen className="text-muted-foreground size-3.5 shrink-0" />
                         <ComboboxValue placeholder="Select a project" />
                       </span>
                       <ChevronDown className="size-3 shrink-0 text-foreground-passive" />
@@ -369,7 +369,7 @@ export const AutomationPanel = observer(function AutomationPanel({
             {isWorkspaceProviderEnabled ? (
               <div className="flex items-center gap-2 pt-1">
                 <Switch size="sm" checked={useBYOI} onCheckedChange={setUseBYOI} />
-                <span className="text-sm text-muted-foreground">Use BYOI infrastructure</span>
+                <span className="text-muted-foreground text-sm">Use BYOI infrastructure</span>
               </div>
             ) : null}
 
@@ -381,7 +381,7 @@ export const AutomationPanel = observer(function AutomationPanel({
             />
           </section>
 
-          {error && <p className="text-xs text-destructive">{error}</p>}
+          {error && <p className="text-destructive text-xs">{error}</p>}
 
           {isEdit && automation ? <RunHistory automation={automation} /> : null}
         </div>
@@ -407,7 +407,7 @@ export const AutomationPanel = observer(function AutomationPanel({
 
 function RowField({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex min-h-11 items-center gap-3 border-b border-border last:border-b-0 px-3 py-2">
+    <div className="flex min-h-11 items-center gap-3 border-b border-border px-3 py-2 last:border-b-0">
       <span className="w-20 shrink-0 text-xs font-medium text-foreground">{label}</span>
       <div className="min-w-0 flex-1">{children}</div>
     </div>

@@ -1,6 +1,5 @@
 import { ChevronDown } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { AGENT_PROVIDER_IDS, type AgentProviderId } from '@shared/agent-provider-registry';
 import AgentLogo from '@renderer/lib/components/agent-logo';
 import {
   Combobox,
@@ -13,6 +12,7 @@ import {
 } from '@renderer/lib/ui/combobox';
 import { agentConfig } from '@renderer/utils/agentConfig';
 import { cn } from '@renderer/utils/utils';
+import { AGENT_PROVIDER_IDS, type AgentProviderId } from '@shared/agent-provider-registry';
 import { PILL_TRIGGER_CLASS } from './pill-trigger';
 
 interface PillItem<V> {

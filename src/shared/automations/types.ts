@@ -16,6 +16,7 @@ export type Automation = {
   actions: TaskCreateAction[];
   taskConfig: CreateTaskParams | null;
   projectId: string | null;
+  /** Controls cron scheduling only. Manual runs are allowed while false. */
   enabled: boolean;
   isDraft: boolean;
   lastRunAt: number | null;

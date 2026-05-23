@@ -1,8 +1,8 @@
 import { CirclePause, CirclePlay, Loader2, Play, Trash2, X } from 'lucide-react';
 import type { ReactNode } from 'react';
-import type { Automation } from '@shared/automations/types';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
+import type { Automation } from '@shared/automations/types';
 
 interface AutomationPanelHeaderProps {
   isEdit: boolean;
@@ -37,7 +37,7 @@ export function AutomationPanelHeader({
           type="button"
           onClick={onClose}
           aria-label="Close panel"
-          className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="text-muted-foreground hover:bg-muted rounded-md p-1 transition-colors hover:text-foreground"
         >
           <X className="size-4" />
         </button>
@@ -61,7 +61,7 @@ export function AutomationPanelHeader({
             ) : null}
           </div>
           {showSubtitle ? (
-            <span className="truncate text-[11px] text-muted-foreground">{scheduleLabel}</span>
+            <span className="text-muted-foreground truncate text-[11px]">{scheduleLabel}</span>
           ) : null}
         </div>
       </div>
@@ -76,7 +76,7 @@ export function AutomationPanelHeader({
                 onClick={onRunNow}
                 disabled={runNowPending}
                 aria-label="Run now"
-                className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+                className="text-muted-foreground hover:bg-muted rounded-md p-1.5 transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
               >
                 {runNowPending ? (
                   <Loader2 className="size-4 animate-spin" />
@@ -92,7 +92,7 @@ export function AutomationPanelHeader({
               <TooltipTrigger
                 onClick={() => onToggleEnabled(!enabled)}
                 aria-label={enabled ? 'Pause schedule' : 'Resume schedule'}
-                className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                className="text-muted-foreground hover:bg-muted rounded-md p-1.5 transition-colors hover:text-foreground"
               >
                 {enabled ? <CirclePause className="size-4" /> : <CirclePlay className="size-4" />}
               </TooltipTrigger>
@@ -108,7 +108,7 @@ export function AutomationPanelHeader({
                 <TooltipTrigger
                   onClick={onDelete}
                   aria-label="Delete automation"
-                  className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                  className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive rounded-md p-1.5 transition-colors"
                 >
                   <Trash2 className="size-4" />
                 </TooltipTrigger>

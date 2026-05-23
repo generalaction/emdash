@@ -1,8 +1,6 @@
 import { Bot, ChevronDown, FileDiff, FolderOpen, MessageSquare, Terminal } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
-import { formatRunName } from '@shared/automations/format';
-import type { Automation, AutomationRun } from '@shared/automations/types';
 import { automationTool } from '@renderer/features/automations/automation-tools';
 import { useAutomationRuns, useAutomations } from '@renderer/features/automations/useAutomations';
 import {
@@ -26,9 +24,9 @@ import AgentLogo from '@renderer/lib/components/agent-logo';
 import { OpenInMenu } from '@renderer/lib/components/titlebar/open-in-menu';
 import { Titlebar } from '@renderer/lib/components/titlebar/Titlebar';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
+import { AbsoluteTime } from '@renderer/lib/ui/absolute-time';
 import { MicroLabel } from '@renderer/lib/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
-import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { Separator } from '@renderer/lib/ui/separator';
 import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Spinner } from '@renderer/lib/ui/spinner';
@@ -36,11 +34,14 @@ import { Toggle } from '@renderer/lib/ui/toggle';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
+import { formatRunName } from '@shared/automations/format';
+import type { Automation, AutomationRun } from '@shared/automations/types';
 
 const AUTOMATION_RUNS_POPOVER_LIMIT = 50;
 
 export const AutomationTaskTitlebar = observer(function AutomationTaskTitlebar() {
   const { projectId, taskId } = useTaskViewContext();
+  const { navigate } = useNavigate();
   const { automations } = useAutomations();
   const taskStore = getTaskStore(projectId, taskId);
   const kind = taskViewKind(taskStore, projectId);
@@ -49,18 +50,30 @@ export const AutomationTaskTitlebar = observer(function AutomationTaskTitlebar()
 
   const ready = kind === 'ready';
   const automation = automations.data?.find((entry) => entry.id === automationId);
-  const automationName = automation?.name ?? 'Automation';
   const projectName = projectDisplayName(getProjectStore(projectId));
 
   return (
     <Titlebar
       leftSlot={
         <div className="flex items-center gap-1 px-2 text-sm text-foreground-muted">
-          <span className="text-sm text-foreground-passive">{projectName}</span>
+          <button
+            type="button"
+            className="text-sm text-foreground-passive hover:text-foreground"
+            onClick={() => navigate('project', { projectId })}
+          >
+            {projectName}
+          </button>
+          <span className="text-sm text-foreground-passive">/</span>
+          <button
+            type="button"
+            className="text-sm text-foreground-passive hover:text-foreground"
+            onClick={() => navigate('automations', { selectedAutomationId: automationId })}
+          >
+            Automations
+          </button>
           <span className="text-sm text-foreground-passive">/</span>
           <AutomationRunsPopover
             automationId={automationId}
-            automationName={automationName}
             automation={automation}
             projectId={projectId}
             currentTaskId={taskId}
@@ -76,13 +89,11 @@ export const AutomationTaskTitlebar = observer(function AutomationTaskTitlebar()
 
 function AutomationRunsPopover({
   automationId,
-  automationName,
   automation,
   projectId,
   currentTaskId,
 }: {
   automationId: string;
-  automationName: string;
   automation: Automation | undefined;
   projectId: string;
   currentTaskId: string;
@@ -91,6 +102,7 @@ function AutomationRunsPopover({
   const { navigate } = useNavigate();
   const runs = useAutomationRuns(automationId, AUTOMATION_RUNS_POPOVER_LIMIT);
   const tool = automationTool(automation);
+  const currentRun = runs.data?.find((run) => (run.taskId ?? run.createdTaskId) === currentTaskId);
 
   function handleSelectRun(run: AutomationRun) {
     setOpen(false);
@@ -110,7 +122,9 @@ function AutomationRunsPopover({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger className="flex items-center gap-1 text-sm text-foreground-muted hover:text-foreground focus:outline-none">
-        <span className="truncate max-w-64">{automationName}</span>
+        <span className="max-w-64 truncate">
+          {currentRun ? formatRunName(currentRun.id) : 'Run'}
+        </span>
         <ChevronDown className="size-3.5 shrink-0" />
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80 gap-0 p-0">
@@ -129,7 +143,7 @@ function AutomationRunsPopover({
             <Spinner />
           </div>
         ) : items.length === 0 ? (
-          <div className="px-3 py-6 text-center text-xs text-muted-foreground">No runs yet.</div>
+          <div className="text-muted-foreground px-3 py-6 text-center text-xs">No runs yet.</div>
         ) : (
           <div className="max-h-80 overflow-y-auto py-1">
             {items.map((run) => (
@@ -179,7 +193,7 @@ const AutomationRunPopoverItem = observer(function AutomationRunPopoverItem({
         isCurrent && 'bg-muted/30'
       )}
     >
-      <span className="flex size-5 shrink-0 items-center justify-center rounded-sm border border-border/70 bg-background text-muted-foreground">
+      <span className="text-muted-foreground flex size-5 shrink-0 items-center justify-center rounded-sm border border-border/70 bg-background">
         {tool ? (
           <AgentLogo
             logo={tool.logo}
@@ -199,10 +213,10 @@ const AutomationRunPopoverItem = observer(function AutomationRunPopoverItem({
         )}
       >
         {formatRunName(run.id)}
-        {isCurrent ? <span className="ml-1.5 text-muted-foreground">(current)</span> : null}
+        {isCurrent ? <span className="text-muted-foreground ml-1.5">(current)</span> : null}
       </span>
       {timestamp != null ? (
-        <RelativeTime value={timestamp} compact ago className="shrink-0 text-muted-foreground" />
+        <AbsoluteTime value={timestamp} className="text-muted-foreground shrink-0" />
       ) : null}
     </button>
   );

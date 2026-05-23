@@ -1,6 +1,4 @@
 import { ChevronDown } from 'lucide-react';
-import { builtinAutomationCatalog } from '@shared/automations/builtin-catalog';
-import type { BuiltinAutomationTemplate } from '@shared/automations/types';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,6 +8,8 @@ import {
   DropdownMenuTrigger,
 } from '@renderer/lib/ui/dropdown-menu';
 import { cn } from '@renderer/utils/utils';
+import { builtinAutomationCatalog } from '@shared/automations/builtin-catalog';
+import type { BuiltinAutomationTemplate } from '@shared/automations/types';
 
 const PINNED_TEMPLATES = builtinAutomationCatalog.slice(0, 5);
 
@@ -38,7 +38,7 @@ export function UseTemplateButton({ open, onOpenChange, onSelect }: UseTemplateB
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-80">
         <DropdownMenuGroup>
-          <DropdownMenuLabel className="px-2 py-1 text-[11px] uppercase tracking-wider">
+          <DropdownMenuLabel className="px-2 py-1 text-[11px] tracking-wider uppercase">
             Templates
           </DropdownMenuLabel>
           {PINNED_TEMPLATES.map((template) => (

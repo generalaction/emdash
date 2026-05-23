@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
-import type { Automation } from '@shared/automations/types';
 import { useParams } from '@renderer/lib/layout/navigation-provider';
+import type { Automation } from '@shared/automations/types';
 
 export type AutomationsPanelState =
   | { kind: 'create' }

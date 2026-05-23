@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { Plus, Search } from 'lucide-react';
-import { type Ref } from 'react';
+import { useEffect, useRef, useState, type Ref } from 'react';
 import { Button } from '@renderer/lib/ui/button';
 import { SearchInput } from '@renderer/lib/ui/search-input';
 import { cn } from '@renderer/utils/utils';
@@ -24,6 +24,7 @@ interface AutomationsHeaderProps {
 
 const TRANSITION = { duration: 0.22, ease: [0.22, 1, 0.36, 1] as const };
 const ACTION_TRANSITION = { duration: 0.18, ease: [0.22, 1, 0.36, 1] as const };
+const COLLAPSE_WIDTH_THRESHOLD = 520;
 
 export function AutomationsHeader({
   title,
@@ -41,13 +42,28 @@ export function AutomationsHeader({
   createPending,
   onNewAutomation,
 }: AutomationsHeaderProps) {
-  const collapsed = panelOpen && !searchExpanded && !search;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isNarrow, setIsNarrow] = useState(false);
+
+  useEffect(() => {
+    const node = containerRef.current;
+    if (!node) return;
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setIsNarrow(entry.contentRect.width < COLLAPSE_WIDTH_THRESHOLD);
+      }
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  const collapsed = isNarrow && !searchExpanded && !search;
 
   return (
-    <div className="mb-6 flex items-start justify-between gap-4">
+    <div ref={containerRef} className="mb-6 flex items-start justify-between gap-4">
       <div className="min-w-0">
         <h1 className="truncate text-lg font-semibold">{title}</h1>
-        <p className="mt-1 max-w-md text-pretty text-xs text-muted-foreground">{subtitle}</p>
+        <p className="text-muted-foreground mt-1 max-w-md text-xs text-pretty">{subtitle}</p>
       </div>
 
       {showActions && (

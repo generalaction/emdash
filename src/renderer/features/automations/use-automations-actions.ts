@@ -1,9 +1,9 @@
 import { useCallback } from 'react';
-import { formatAutomationError } from '@shared/automations/format';
-import type { Automation } from '@shared/automations/types';
 import { firstMountedProjectId } from '@renderer/features/projects/stores/project-selectors';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { formatAutomationError } from '@shared/automations/format';
+import type { Automation } from '@shared/automations/types';
 import { useAutomations } from './useAutomations';
 
 interface UseAutomationsActionsOptions {

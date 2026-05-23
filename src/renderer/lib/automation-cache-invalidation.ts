@@ -1,11 +1,11 @@
+import { updateAutomationRunStatus } from '@renderer/features/automations/automation-run-status-store';
+import { events } from '@renderer/lib/ipc';
+import { queryClient } from '@renderer/lib/query-client';
 import type { Automation } from '@shared/automations/types';
 import {
   automationRunUpdatedChannel,
   automationsChangedChannel,
 } from '@shared/events/automationEvents';
-import { updateAutomationRunStatus } from '@renderer/features/automations/automation-run-status-store';
-import { events } from '@renderer/lib/ipc';
-import { queryClient } from '@renderer/lib/query-client';
 
 export function wireAutomationCacheInvalidation(): void {
   events.on(automationsChangedChannel, () => {
