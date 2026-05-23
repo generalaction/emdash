@@ -8,7 +8,8 @@ import type { PrFilters, PrSortField, ReviewStateFilter } from '@shared/pull-req
 import { toUserItem, usersWithLoginFirst, type UserItem } from './pr-filter-items';
 import { useFilterOptions, usePullRequests } from './usePullRequests';
 
-const VIEWER_TEAMS_QUERY_KEY = ['github:viewer-teams'] as const;
+const viewerTeamsQueryKey = (currentUserId: string | undefined) =>
+  ['github:viewer-teams', currentUserId] as const;
 
 export type StatusFilter = 'open' | 'not-open';
 
@@ -30,9 +31,9 @@ export function usePrViewState(projectId: string, repositoryUrl: string | null) 
   const currentUserId = user?.id != null ? String(user.id) : undefined;
 
   const { data: viewerTeams = [] } = useQuery({
-    queryKey: VIEWER_TEAMS_QUERY_KEY,
+    queryKey: viewerTeamsQueryKey(currentUserId),
     queryFn: () => rpc.github.getViewerTeams(),
-    enabled: authenticated,
+    enabled: authenticated && currentUserId != null,
     staleTime: 5 * 60_000,
   });
 
