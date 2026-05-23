@@ -7,6 +7,12 @@ describe('normalizeBranchPrefix', () => {
     expect(normalizeBranchPrefix('emdash///')).toBe('emdash');
   });
 
+  it('strips leading slashes', () => {
+    expect(normalizeBranchPrefix('/emdash')).toBe('emdash');
+    expect(normalizeBranchPrefix('///emdash')).toBe('emdash');
+    expect(normalizeBranchPrefix('/team/emdash/')).toBe('team/emdash');
+  });
+
   it('trims whitespace', () => {
     expect(normalizeBranchPrefix('  emdash/  ')).toBe('emdash');
   });
