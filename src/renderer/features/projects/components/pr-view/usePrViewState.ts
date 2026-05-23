@@ -47,9 +47,13 @@ export function usePrViewState(projectId: string, repositoryUrl: string | null) 
     ...(selectedAuthorUserId ? { authorUserIds: [selectedAuthorUserId] } : {}),
     ...(selectedLabelNames.length > 0 ? { labelNames: selectedLabelNames } : {}),
     ...(selectedAssigneeUserId ? { assigneeUserIds: [selectedAssigneeUserId] } : {}),
-    ...(reviewStateFilter ? { reviewState: reviewStateFilter } : {}),
-    ...(currentUserId ? { currentUserId } : {}),
-    ...(currentUserTeamIds ? { currentUserTeamIds } : {}),
+    ...(reviewStateFilter
+      ? {
+          reviewState: reviewStateFilter,
+          ...(currentUserId ? { currentUserId } : {}),
+          ...(currentUserTeamIds ? { currentUserTeamIds } : {}),
+        }
+      : {}),
   };
 
   const { prs, refresh, loading, dataUpdatedAt, fetchNextPage, hasNextPage, isFetchingNextPage } =
@@ -113,6 +117,7 @@ export function usePrViewState(projectId: string, repositoryUrl: string | null) 
     setSelectedAuthorUserId(null);
     setSelectedLabelNames([]);
     setSelectedAssigneeUserId(null);
+    setReviewStateFilter(null);
   };
 
   const handleSortChange = (value: string | null) => {
