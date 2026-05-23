@@ -3,7 +3,7 @@
 // drop/paste completes, before Claude/Codex can read them.
 export function isUnstableDropPath(path: string): boolean {
   if (!path) return true;
-  if (/^\/(?:private\/)?var\/folders\//.test(path)) return true;
+  if (/^\/(?:private\/)?var\/folders\/.*\/T\/Drops\//.test(path)) return true;
   if (/[\\/](?:tmp|temp)[\\/]/i.test(path) && /(?:drop|chromium|electron)/i.test(path)) {
     return true;
   }
@@ -63,10 +63,7 @@ export function wrapAsBracketedPaste(text: string): string {
   return `\x1b[200~${text}\x1b[201~`;
 }
 
-export async function buildTerminalImageInjection(
-  paths: string[],
-  platform: NodeJS.Platform
-): Promise<string> {
+export function buildTerminalImageInjection(paths: string[], platform: NodeJS.Platform): string {
   const formatted = formatTerminalImagePaths(paths, platform);
   return wrapAsBracketedPaste(formatted);
 }

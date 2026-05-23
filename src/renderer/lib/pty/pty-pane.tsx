@@ -56,8 +56,8 @@ async function injectTerminalImagePaths(args: {
   const platform = args.remoteConnectionId
     ? 'linux'
     : ((await rpc.app.getPlatform()) as NodeJS.Platform);
-  const payload = await buildTerminalImageInjection(paths, platform);
-  args.sendInput(`${payload} `);
+  const payload = buildTerminalImageInjection(paths, platform);
+  args.sendInput(`${payload} `, { track: false });
   args.focus();
 }
 
@@ -67,7 +67,20 @@ async function pasteClipboardImageOrText(args: {
   sendInput: TerminalInputHelpers['sendInput'];
   focus: TerminalInputHelpers['focus'];
   fallbackText?: string;
+  preferText?: boolean;
 }): Promise<void> {
+  if (args.preferText) {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        args.sendInput(text);
+        return;
+      }
+    } catch {
+      // Clipboard text read denied or unavailable; try the image path below.
+    }
+  }
+
   try {
     const result = await rpc.pty.persistClipboardImage();
     if (result.success && result.data.path) {
@@ -120,6 +133,7 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
           remoteConnectionId,
           focus,
           sendInput,
+          preferText: true,
         });
       },
       [remoteConnectionId, sessionId]
@@ -257,7 +271,7 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
           }}
           onClick={handleFocus}
           onMouseDown={handleFocus}
-          onPaste={handlePaste}
+          onPasteCapture={handlePaste}
           onDragOver={(event) => event.preventDefault()}
           onDrop={handleDrop}
         />

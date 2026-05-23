@@ -1,13 +1,18 @@
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { rmSync } from 'node:fs';
+import { mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
 import { promisify } from 'node:util';
 import { app, clipboard, nativeImage } from 'electron';
 
 export const MAX_DROPPED_BLOB_BYTES = 50 * 1024 * 1024;
+export const DROPPED_BLOB_FILENAME_PREFIX = 'emdash-drop-';
+export const DROPPED_BLOB_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 const execFileAsync = promisify(execFile);
+const persistedDroppedBlobPaths = new Set<string>();
+let cleanupRegistered = false;
 
 const MIME_TO_EXT: Record<string, string> = {
   'image/png': '.png',
@@ -104,10 +109,52 @@ export async function persistDroppedBlobBytes(args: {
     mimeType: args.mimeType,
   });
   const safe = sanitizeDroppedBlobName(args.name?.replace(/\.[^.]+$/, ''));
-  const filename = `emdash-drop-${randomUUID()}${safe ? `-${safe}` : ''}${normalized.ext}`;
+  const filename = `${DROPPED_BLOB_FILENAME_PREFIX}${randomUUID()}${safe ? `-${safe}` : ''}${normalized.ext}`;
   const fullPath = join(app.getPath('temp'), filename);
   await writeFile(fullPath, normalized.bytes);
+  trackPersistedDroppedBlob(fullPath);
   return fullPath;
+}
+
+function trackPersistedDroppedBlob(path: string): void {
+  persistedDroppedBlobPaths.add(path);
+  if (cleanupRegistered) return;
+  cleanupRegistered = true;
+  app.once('will-quit', () => {
+    cleanupPersistedDroppedBlobsSync();
+  });
+}
+
+function cleanupPersistedDroppedBlobsSync(): void {
+  for (const path of persistedDroppedBlobPaths) {
+    rmSync(path, { force: true });
+    persistedDroppedBlobPaths.delete(path);
+  }
+}
+
+export async function cleanupPersistedDroppedBlobs(): Promise<void> {
+  const paths = [...persistedDroppedBlobPaths];
+  await Promise.all(
+    paths.map(async (path) => {
+      await rm(path, { force: true });
+      persistedDroppedBlobPaths.delete(path);
+    })
+  );
+}
+
+export async function cleanupExpiredDroppedBlobs(now = Date.now()): Promise<void> {
+  const tempDir = app.getPath('temp');
+  const entries = await readdir(tempDir);
+  await Promise.all(
+    entries.map(async (entry) => {
+      if (!entry.startsWith(DROPPED_BLOB_FILENAME_PREFIX)) return;
+      const path = join(tempDir, entry);
+      const info = await stat(path).catch(() => null);
+      if (!info?.isFile()) return;
+      if (now - info.mtimeMs < DROPPED_BLOB_MAX_AGE_MS) return;
+      await rm(path, { force: true });
+    })
+  );
 }
 
 /** Read a raster image from the OS clipboard and persist it as PNG. */

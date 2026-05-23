@@ -7,8 +7,16 @@ import { parsePtySessionId } from '@shared/ptySessionId';
 import { err, ok } from '@shared/result';
 import { taskManager } from '../tasks/task-manager';
 import { workspaceRegistry } from '../workspaces/workspace-registry';
-import { persistClipboardImagePath, persistDroppedBlobBytes } from './persist-dropped-blob';
+import {
+  cleanupExpiredDroppedBlobs,
+  persistClipboardImagePath,
+  persistDroppedBlobBytes,
+} from './persist-dropped-blob';
 import { ptySessionRegistry } from './pty-session-registry';
+
+void cleanupExpiredDroppedBlobs().catch((error) => {
+  log.warn('pty:cleanupExpiredDroppedBlobs failed', { error });
+});
 
 export const ptyController = createRPCController({
   /** Send raw input data to a PTY session. */
