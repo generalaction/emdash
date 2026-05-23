@@ -18,7 +18,7 @@ import type { Conversation } from '@shared/conversations';
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { buildAgentCommand } from './agent-command';
-import { scheduleInitialPromptInjection } from './keystroke-injection';
+import { createInitialPromptDelivery } from './initial-prompt-delivery';
 import { resolveProviderEnv } from './provider-env';
 
 const DEFAULT_COLS = 80;
@@ -90,13 +90,20 @@ export class SshConversationProvider implements ConversationProvider {
     });
 
     const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
+    const initialPromptDelivery = createInitialPromptDelivery({
+      providerId: conversation.providerId,
+      conversationId: conversation.id,
+      providerConfig,
+      initialPrompt,
+      isResuming,
+    });
     const { command, args } = buildAgentCommand({
       providerId: conversation.providerId,
       providerConfig,
       autoApprove: conversation.autoApprove,
       sessionId: conversation.id,
       isResuming,
-      initialPrompt,
+      extraInitialArgs: initialPromptDelivery.argvAddition(),
     });
     const providerEnv = resolveProviderEnv(providerConfig);
 
@@ -190,7 +197,7 @@ export class SshConversationProvider implements ConversationProvider {
       metadata: { providerId: conversation.providerId, title: conversation.title, isRemote: true },
     });
     this.sessions.set(sessionId, pty);
-    scheduleInitialPromptInjection({ pty, conversation, initialPrompt, isResuming });
+    initialPromptDelivery.afterSpawn(pty);
     telemetryService.capture('agent_run_started', {
       provider: conversation.providerId,
       project_id: conversation.projectId,

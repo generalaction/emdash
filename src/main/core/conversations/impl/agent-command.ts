@@ -70,7 +70,7 @@ export function parseShellWords(
   return { ok: true, words };
 }
 
-function parseArgField(value: string | undefined): string[] {
+export function parseArgField(value: string | undefined): string[] {
   if (!value) return [];
   const parsed = parseShellWords(value);
   if (!parsed.ok) throw new Error(parsed.reason);
@@ -95,14 +95,14 @@ export function buildAgentCommand({
   providerId,
   providerConfig,
   autoApprove,
-  initialPrompt,
+  extraInitialArgs,
   sessionId,
   isResuming,
 }: {
   providerId: AgentProviderId;
   providerConfig: ProviderCustomConfig | undefined;
   autoApprove?: boolean;
-  initialPrompt?: string;
+  extraInitialArgs?: readonly string[];
   sessionId: string;
   isResuming?: boolean;
 }): AgentCommand {
@@ -129,8 +129,8 @@ export function buildAgentCommand({
     args.push(...parseArgField(providerConfig.autoApproveFlag));
   }
 
-  if (!isResuming && initialPrompt && !providerDef?.useKeystrokeInjection) {
-    args.push(...parseArgField(providerConfig?.initialPromptFlag), initialPrompt);
+  if (!isResuming && extraInitialArgs?.length) {
+    args.push(...extraInitialArgs);
   }
 
   args.push(...parseArgField(providerConfig?.extraArgs));

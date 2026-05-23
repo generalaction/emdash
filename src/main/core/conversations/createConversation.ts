@@ -10,9 +10,14 @@ import { resolveTask } from '../projects/utils';
 import { conversationEvents } from './conversation-events';
 import { mapConversationRowToConversation } from './utils';
 
-export async function createConversation(params: CreateConversationParams): Promise<Conversation> {
+type ConversationCreateDb = Pick<typeof db, 'delete' | 'insert' | 'select'>;
+
+export async function createConversation(
+  params: CreateConversationParams,
+  database: ConversationCreateDb = db
+): Promise<Conversation> {
   const id = params.id ?? randomUUID();
-  const [existingConversation] = await db
+  const [existingConversation] = await database
     .select({ id: conversations.id })
     .from(conversations)
     .where(eq(conversations.taskId, params.taskId))
@@ -23,7 +28,7 @@ export async function createConversation(params: CreateConversationParams): Prom
       ? undefined
       : JSON.stringify({ autoApprove: params.autoApprove });
 
-  const [row] = await db
+  const [row] = await database
     .insert(conversations)
     .values({
       id,
@@ -55,7 +60,7 @@ export async function createConversation(params: CreateConversationParams): Prom
         params.initialPrompt
       ),
     compensate: async () => {
-      await db.delete(conversations).where(eq(conversations.id, row.id)).execute();
+      await database.delete(conversations).where(eq(conversations.id, row.id)).execute();
     },
     onCompensationError: (error) => {
       log.error('createConversation: failed to roll back conversation row after spawn failure', {

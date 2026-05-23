@@ -3,6 +3,7 @@ import { providerConfigDefaults } from '@main/core/settings/schema';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 import type { ProviderCustomConfig } from '@shared/app-settings';
 import { buildAgentCommand } from './agent-command';
+import { createInitialPromptDelivery } from './initial-prompt-delivery';
 
 function makeConfig(overrides: Partial<ProviderCustomConfig> = {}): ProviderCustomConfig {
   return {
@@ -15,13 +16,33 @@ function makeConfig(overrides: Partial<ProviderCustomConfig> = {}): ProviderCust
   };
 }
 
+function initialArgsFor(
+  providerId: AgentProviderId,
+  providerConfig: ProviderCustomConfig | undefined,
+  initialPrompt: string | undefined,
+  isResuming: boolean
+): readonly string[] {
+  return createInitialPromptDelivery({
+    providerId,
+    conversationId: 'test',
+    providerConfig,
+    initialPrompt,
+    isResuming,
+  }).argvAddition();
+}
+
 describe('buildAgentCommand', () => {
   it('uses the current Codex bypass flag when auto-approve is enabled', () => {
     const command = buildAgentCommand({
       providerId: 'codex',
       providerConfig: providerConfigDefaults.codex,
       autoApprove: true,
-      initialPrompt: 'Fix the issue',
+      extraInitialArgs: initialArgsFor(
+        'codex',
+        providerConfigDefaults.codex,
+        'Fix the issue',
+        false
+      ),
       sessionId: 'session-1',
     });
 
@@ -32,13 +53,14 @@ describe('buildAgentCommand', () => {
   });
 
   it('supports custom CLI command prefixes and appends managed provider args', () => {
+    const providerConfig = makeConfig({
+      cli: 'caffeinate -i direnv exec . claude',
+    });
     const result = buildAgentCommand({
       providerId: 'claude',
-      providerConfig: makeConfig({
-        cli: 'caffeinate -i direnv exec . claude',
-      }),
+      providerConfig,
       autoApprove: true,
-      initialPrompt: 'Fix the bug',
+      extraInitialArgs: initialArgsFor('claude', providerConfig, 'Fix the bug', false),
       sessionId: 'conv-1',
     });
 
@@ -98,7 +120,7 @@ describe('buildAgentCommand', () => {
     const result = buildAgentCommand({
       providerId: 'droid',
       providerConfig: providerConfigDefaults.droid,
-      initialPrompt: 'Fix the bug',
+      extraInitialArgs: initialArgsFor('droid', providerConfigDefaults.droid, 'Fix the bug', false),
       sessionId: 'conv-1',
     });
 
@@ -140,16 +162,17 @@ describe('buildAgentCommand', () => {
     { providerId: 'freebuff', freshArgs: ['Fix the bug'], resumeArgs: [] },
     { providerId: 'mistral', freshArgs: ['Fix the bug'], resumeArgs: [] },
   ])('builds fresh and resume args for $providerId', ({ providerId, freshArgs, resumeArgs }) => {
+    const providerConfig = providerConfigDefaults[providerId];
     const fresh = buildAgentCommand({
       providerId,
-      providerConfig: providerConfigDefaults[providerId],
-      initialPrompt: 'Fix the bug',
+      providerConfig,
+      extraInitialArgs: initialArgsFor(providerId, providerConfig, 'Fix the bug', false),
       sessionId: 'conv-1',
     });
 
     const resume = buildAgentCommand({
       providerId,
-      providerConfig: providerConfigDefaults[providerId],
+      providerConfig,
       sessionId: 'conv-1',
       isResuming: true,
     });

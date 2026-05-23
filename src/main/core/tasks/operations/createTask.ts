@@ -25,7 +25,7 @@ import { resolveTaskBranchName } from '../resolveTaskBranchName';
 import { toStoredBranch } from '../stored-branch';
 import { mapTaskRowToTask } from '../utils/utils';
 
-type TaskCreateDb = Pick<typeof db, 'insert' | 'update'>;
+type TaskCreateDb = Pick<typeof db, 'insert' | 'update' | 'select' | 'delete'>;
 
 function mapProvisionError(error: ProvisionTaskError): CreateTaskError {
   switch (error.type) {
@@ -247,15 +247,18 @@ export async function createTask(
     task_id: params.id,
   });
   if (params.initialConversation) {
-    await createConversation({
-      ...params.initialConversation,
-      isInitialConversation: true,
-      autoApprove: resolveAgentAutoApprove(
-        params.initialConversation.autoApprove,
-        agentAutoApproveDefaults,
-        params.initialConversation.provider
-      ),
-    });
+    await createConversation(
+      {
+        ...params.initialConversation,
+        isInitialConversation: true,
+        autoApprove: resolveAgentAutoApprove(
+          params.initialConversation.autoApprove,
+          agentAutoApproveDefaults,
+          params.initialConversation.provider
+        ),
+      },
+      database
+    );
   }
 
   events.emit(taskCreatedChannel, { task });
