@@ -20,3 +20,12 @@ export function useSshConfigHost(alias: string) {
     enabled: trimmedAlias.length > 0,
   });
 }
+
+export function useDefaultPrivateKeyPath() {
+  const sshConnections = appState.sshConnections;
+
+  return useQuery({
+    queryKey: ['default-private-key-path'],
+    queryFn: () => sshConnections.getDefaultPrivateKeyPath(),
+  });
+}

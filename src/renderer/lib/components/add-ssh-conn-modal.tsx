@@ -8,7 +8,11 @@ import {
   XCircle,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSshConfigHost, useSshConfigHosts } from '@renderer/lib/hooks/use-ssh-config-hosts';
+import {
+  useDefaultPrivateKeyPath,
+  useSshConfigHost,
+  useSshConfigHosts,
+} from '@renderer/lib/hooks/use-ssh-config-hosts';
 import type { BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 import { Button } from '@renderer/lib/ui/button';
@@ -145,6 +149,7 @@ export function AddSshConnModal({
   };
 
   const sshConfigHostsQuery = useSshConfigHosts();
+  const defaultPrivateKeyPathQuery = useDefaultPrivateKeyPath();
   const resolvedSshConfigHostQuery = useSshConfigHost(selectedSshConfigAlias);
   const sshConfigHosts = sshConfigHostsQuery.data ?? EMPTY_SSH_CONFIG_HOSTS;
   const sshConfigLoadError = sshConfigHostsQuery.error
@@ -180,6 +185,16 @@ export function AddSshConnModal({
     applySshConfigHostFields(selectedSshConfigHost);
   }, [applySshConfigHostFields, form, selectedSshConfigAlias, selectedSshConfigHost]);
 
+  useEffect(() => {
+    const defaultPrivateKeyPath = defaultPrivateKeyPathQuery.data;
+    if (!defaultPrivateKeyPath) return;
+    if (form.state.values.authType !== 'key') return;
+    if (form.state.values.sshConfigAlias) return;
+    if (form.state.values.privateKeyPath.trim()) return;
+
+    form.setFieldValue('privateKeyPath', defaultPrivateKeyPath);
+  }, [defaultPrivateKeyPathQuery.data, form]);
+
   const shouldShowSshConfigField =
     sshConfigHosts.length > 0 || !!selectedSshConfigAlias || !!sshConfigLoadError;
 
@@ -189,6 +204,17 @@ export function AddSshConnModal({
     form.setFieldValue('name', form.state.values.name || host.host);
     applySshConfigHostFields(host);
     setIsAdvancedOpen(true);
+  };
+
+  const handleAuthTypeChange = (authType: AuthType) => {
+    form.setFieldValue('authType', authType);
+
+    if (authType !== 'key') return;
+    if (form.state.values.sshConfigAlias) return;
+    if (form.state.values.privateKeyPath.trim()) return;
+
+    const defaultPrivateKeyPath = defaultPrivateKeyPathQuery.data;
+    if (defaultPrivateKeyPath) form.setFieldValue('privateKeyPath', defaultPrivateKeyPath);
   };
 
   const handleTestConnection = async () => {
@@ -434,7 +460,7 @@ export function AddSshConnModal({
                   <FieldLegend variant="label">Authentication</FieldLegend>
                   <RadioGroup
                     value={field.state.value}
-                    onValueChange={(v) => field.handleChange(v as AuthType)}
+                    onValueChange={(v) => handleAuthTypeChange(v as AuthType)}
                     className="grid-cols-3"
                   >
                     {(['password', 'key', 'agent'] as const).map((type) => (

@@ -1,4 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { access } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { createRPCController } from '@/shared/ipc/rpc';
 import { db } from '@main/db/client';
@@ -31,6 +34,21 @@ import { testProductionSshConnection } from './connect/production-test-connectio
 import { sshCredentialService } from './credentials/ssh-credential-service';
 import { sshConnectionManager } from './lifecycle/production-ssh-connection-manager';
 
+const DEFAULT_PRIVATE_KEY_FILES = ['id_ed25519', 'id_ecdsa', 'id_rsa', 'id_dsa'];
+
+async function getDefaultPrivateKeyPath(): Promise<string | null> {
+  for (const fileName of DEFAULT_PRIVATE_KEY_FILES) {
+    try {
+      await access(join(homedir(), '.ssh', fileName));
+      return `~/.ssh/${fileName}`;
+    } catch {
+      // Keep looking for the next OpenSSH default identity file.
+    }
+  }
+
+  return null;
+}
+
 export const sshController = createRPCController({
   /** List all saved SSH connections (no secrets). */
   getConnections: async (): Promise<SshConfig[]> => {
@@ -57,6 +75,8 @@ export const sshController = createRPCController({
       forwardAgentValue: resolved.forwardAgentValue,
     };
   },
+
+  getDefaultPrivateKeyPath,
 
   /** List projects currently using each saved SSH connection. */
   getConnectionUsage: async (): Promise<SshConnectionUsage> => {

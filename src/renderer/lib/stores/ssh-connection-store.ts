@@ -173,6 +173,10 @@ export class SshConnectionStore {
     return await rpc.ssh.getSshConfigHost(alias);
   }
 
+  async getDefaultPrivateKeyPath(): Promise<string | null> {
+    return await rpc.ssh.getDefaultPrivateKeyPath();
+  }
+
   async renameConnection(id: string, name: string): Promise<void> {
     await this.withMutation(async () => {
       await rpc.ssh.renameConnection(id, name);
