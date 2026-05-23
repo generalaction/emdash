@@ -3,9 +3,7 @@ import { modalStore } from '@renderer/lib/modal/modal-store';
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
-  return (
-    target.closest('input, textarea, select, [contenteditable], [role="textbox"]') !== null
-  );
+  return target.closest('input, textarea, select, [contenteditable], [role="textbox"]') !== null;
 }
 
 function isInteractiveTarget(target: EventTarget | null): boolean {
