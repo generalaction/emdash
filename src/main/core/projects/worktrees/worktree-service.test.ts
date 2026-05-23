@@ -106,6 +106,25 @@ describe('WorktreeService', () => {
       expect(fs.existsSync(result.data)).toBe(true);
     });
 
+    it('uses a suffixed path when the target directory already exists', async () => {
+      await git(['branch', 'task/stale-target'], { cwd: repoDir });
+      const targetPath = path.join(poolDir, 'task', 'stale-target');
+      fs.mkdirSync(targetPath, { recursive: true });
+      fs.writeFileSync(path.join(targetPath, 'stale.txt'), 'stale');
+      const svc = makeService();
+
+      const result = await svc.checkoutBranchWorktree(
+        { type: 'local', branch: 'main' },
+        'task/stale-target'
+      );
+
+      expect(result.success).toBe(true);
+      if (!result.success) throw new Error('expected success');
+      expect(result.data).toBe(`${targetPath}-2`);
+      expect(fs.existsSync(path.join(result.data, '.git'))).toBe(true);
+      expect(fs.readFileSync(path.join(targetPath, 'stale.txt'), 'utf8')).toBe('stale');
+    });
+
     it('creates a worktree from a remote source branch when branch is not local', async () => {
       const remoteDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-remote-'));
       try {
@@ -222,5 +241,21 @@ describe('WorktreeService', () => {
         fs.rmSync(remoteDir, { recursive: true, force: true });
       }
     }, 15_000);
+
+    it('uses a suffixed path when the target directory exists for existing branches', async () => {
+      await git(['branch', 'feature/stale-existing'], { cwd: repoDir });
+      const targetPath = path.join(poolDir, 'feature', 'stale-existing');
+      fs.mkdirSync(targetPath, { recursive: true });
+      fs.writeFileSync(path.join(targetPath, 'stale.txt'), 'stale');
+      const svc = makeService();
+
+      const result = await svc.checkoutExistingBranch('feature/stale-existing');
+
+      expect(result.success).toBe(true);
+      if (!result.success) throw new Error('expected success');
+      expect(result.data).toBe(`${targetPath}-2`);
+      expect(fs.existsSync(path.join(result.data, '.git'))).toBe(true);
+      expect(fs.readFileSync(path.join(targetPath, 'stale.txt'), 'utf8')).toBe('stale');
+    });
   });
 });

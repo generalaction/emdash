@@ -64,6 +64,31 @@ export class WorktreeService {
     await this.host.mkdirAbsolute(this.worktreePoolPath, { recursive: true });
   }
 
+  private async targetPathExists(targetPath: string): Promise<boolean> {
+    if (!this.ctx.supportsLocalSpawn) return this.host.existsAbsolute(targetPath);
+    try {
+      await fsPromises.lstat(targetPath);
+      return true;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code === 'ENOENT' || code === 'ENOTDIR') return false;
+      throw error;
+    }
+  }
+
+  private async resolveAvailableTargetPath(targetPath: string): Promise<string> {
+    if (!(await this.targetPathExists(targetPath))) return targetPath;
+    if (await this.isValidWorktree(targetPath)) return targetPath;
+
+    for (let i = 2; i < 1000; i++) {
+      const candidate = `${targetPath}-${i}`;
+      if (!(await this.targetPathExists(candidate))) return candidate;
+      if (await this.isValidWorktree(candidate)) return candidate;
+    }
+
+    throw new Error(`No available worktree path found for ${targetPath}`);
+  }
+
   private async getRemoteCandidates(): Promise<string[]> {
     const baseRemote = (await this.projectSettings.getBaseRemote().catch(() => '')).trim();
     if (!baseRemote || baseRemote === DEFAULT_REMOTE_NAME) {
@@ -171,12 +196,9 @@ export class WorktreeService {
       return ok(checkedOutPath);
     }
 
-    const targetPath = path.join(this.worktreePoolPath, branchName);
-    if (await this.host.existsAbsolute(targetPath)) {
-      if (await this.isValidWorktree(targetPath)) return ok(targetPath);
-      await this.host.removeAbsolute(targetPath, { recursive: true }).catch(() => {});
-      await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
-    }
+    let targetPath = path.join(this.worktreePoolPath, branchName);
+    targetPath = await this.resolveAvailableTargetPath(targetPath);
+    if (await this.isValidWorktree(targetPath)) return ok(targetPath);
 
     try {
       let localExists = false;
@@ -223,14 +245,11 @@ export class WorktreeService {
       return ok(checkedOutPath);
     }
 
-    const targetPath = path.join(this.worktreePoolPath, branchName);
+    let targetPath = path.join(this.worktreePoolPath, branchName);
     const remoteCandidates = await this.getRemoteCandidates();
 
-    if (await this.host.existsAbsolute(targetPath)) {
-      if (await this.isValidWorktree(targetPath)) return ok(targetPath);
-      await this.host.removeAbsolute(targetPath, { recursive: true });
-      await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
-    }
+    targetPath = await this.resolveAvailableTargetPath(targetPath);
+    if (await this.isValidWorktree(targetPath)) return ok(targetPath);
 
     try {
       await this.host.mkdirAbsolute(path.dirname(targetPath), { recursive: true });
