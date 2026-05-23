@@ -51,6 +51,11 @@ const REVIEW_FILTER_OPTIONS: {
   { value: 'reviewed_by_you', label: 'Reviewed by you', requiresUser: true },
   { value: 'not_reviewed_by_you', label: 'Not reviewed by you', requiresUser: true },
   { value: 'awaiting_review_from_you', label: 'Awaiting review from you', requiresUser: true },
+  {
+    value: 'awaiting_review_from_you_or_your_team',
+    label: 'Awaiting review from you or your team',
+    requiresUser: true,
+  },
 ];
 
 function FilterButton({

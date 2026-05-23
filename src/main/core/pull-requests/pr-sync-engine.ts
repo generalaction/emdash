@@ -40,6 +40,7 @@ import type {
   PullRequestStatus,
   PullRequestUser,
 } from '@shared/pull-requests';
+import { teamReviewerId } from '@shared/pull-requests';
 import { ok, type Result } from '@shared/result';
 import { assemblePullRequest } from './pr-utils';
 
@@ -72,7 +73,7 @@ type PrKvSchema = {
 // ---------------------------------------------------------------------------
 
 interface GqlUser {
-  __typename?: string;
+  __typename?: 'User';
   databaseId?: number; // absent for Mannequin actors
   login: string;
   avatarUrl: string;
@@ -81,18 +82,73 @@ interface GqlUser {
   url?: string;
 }
 
+interface GqlTeam {
+  __typename: 'Team';
+  databaseId: number;
+  slug: string;
+  name: string;
+  avatarUrl: string;
+  url?: string;
+  organization: { login: string };
+}
+
+type GqlRequestedReviewer = GqlUser | GqlTeam | null;
+
+type StoredReviewerRow = {
+  userId: string;
+  userName: string;
+  displayName: string;
+  avatarUrl: string | null;
+  url: string | null;
+  userCreatedAt: string | null;
+  userUpdatedAt: string | null;
+  reviewState: PullRequestReviewState;
+};
+
 function actorUserId(actor: GqlUser): string {
   return actor.databaseId != null ? String(actor.databaseId) : `login:${actor.login}`;
 }
 
-function isGqlUser(value: Partial<GqlUser> | null): value is GqlUser {
-  return typeof value?.login === 'string' && typeof value.avatarUrl === 'string';
+function isGqlUser(value: GqlRequestedReviewer): value is GqlUser {
+  return value != null && value.__typename !== 'Team' && 'login' in value;
 }
 
-function buildReviewerRows(
-  node: GqlPrNode
-): Array<{ user: GqlUser; reviewState: PullRequestReviewState }> {
-  const reviewers = new Map<string, { user: GqlUser; reviewState: PullRequestReviewState }>();
+function isGqlTeam(value: GqlRequestedReviewer): value is GqlTeam {
+  return value?.__typename === 'Team';
+}
+
+function teamCombinedSlug(team: GqlTeam): string {
+  return `${team.organization.login}/${team.slug}`;
+}
+
+function gqlUserToStoredRow(user: GqlUser, reviewState: PullRequestReviewState): StoredReviewerRow {
+  return {
+    userId: actorUserId(user),
+    userName: user.login,
+    displayName: user.login,
+    avatarUrl: user.avatarUrl || null,
+    url: user.url ?? null,
+    userCreatedAt: user.createdAt ?? null,
+    userUpdatedAt: user.updatedAt ?? null,
+    reviewState,
+  };
+}
+
+function gqlTeamToStoredRow(team: GqlTeam, reviewState: PullRequestReviewState): StoredReviewerRow {
+  return {
+    userId: teamReviewerId(team.databaseId),
+    userName: teamCombinedSlug(team),
+    displayName: team.name,
+    avatarUrl: team.avatarUrl || null,
+    url: team.url ?? null,
+    userCreatedAt: null,
+    userUpdatedAt: null,
+    reviewState,
+  };
+}
+
+function buildReviewerRows(node: GqlPrNode): StoredReviewerRow[] {
+  const reviewers = new Map<string, StoredReviewerRow>();
 
   if (node.reviews.pageInfo.hasNextPage || node.reviewRequests.pageInfo.hasNextPage) {
     log.warn('PrSyncEngine: PR reviewer data exceeded GitHub GraphQL page size', {
@@ -112,15 +168,25 @@ function buildReviewerRows(
 
     const reviewState = reviewStateFromGithub(review.state);
     if (!reviewState) continue;
-    reviewers.set(actorUserId(review.author), { user: review.author, reviewState });
+    reviewers.set(actorUserId(review.author), gqlUserToStoredRow(review.author, reviewState));
   }
 
   for (const request of node.reviewRequests.nodes) {
-    if (!isGqlUser(request.requestedReviewer)) continue;
-    reviewers.set(actorUserId(request.requestedReviewer), {
-      user: request.requestedReviewer,
-      reviewState: 'pending',
-    });
+    const requestedReviewer = request.requestedReviewer;
+    if (isGqlUser(requestedReviewer)) {
+      reviewers.set(
+        actorUserId(requestedReviewer),
+        gqlUserToStoredRow(requestedReviewer, 'pending')
+      );
+      continue;
+    }
+
+    if (isGqlTeam(requestedReviewer)) {
+      reviewers.set(
+        teamReviewerId(requestedReviewer.databaseId),
+        gqlTeamToStoredRow(requestedReviewer, 'pending')
+      );
+    }
   }
 
   return [...reviewers.values()];
@@ -183,7 +249,7 @@ interface GqlPrNode {
   reviewRequests: {
     pageInfo: { hasNextPage: boolean };
     nodes: Array<{
-      requestedReviewer: Partial<GqlUser> | null;
+      requestedReviewer: GqlRequestedReviewer;
     }>;
   };
   reviews: {
@@ -1048,30 +1114,33 @@ export class PrSyncEngine {
     await db.delete(pullRequestReviewers).where(eq(pullRequestReviewers.pullRequestUrl, node.url));
     const reviewerRows = buildReviewerRows(node);
     for (const reviewer of reviewerRows) {
-      const uid = actorUserId(reviewer.user);
       await db
         .insert(pullRequestUsers)
         .values({
-          userId: uid,
-          userName: reviewer.user.login,
-          displayName: reviewer.user.login,
-          avatarUrl: reviewer.user.avatarUrl || null,
-          url: reviewer.user.url ?? null,
-          userCreatedAt: reviewer.user.createdAt ?? null,
-          userUpdatedAt: reviewer.user.updatedAt ?? null,
+          userId: reviewer.userId,
+          userName: reviewer.userName,
+          displayName: reviewer.displayName,
+          avatarUrl: reviewer.avatarUrl,
+          url: reviewer.url,
+          userCreatedAt: reviewer.userCreatedAt,
+          userUpdatedAt: reviewer.userUpdatedAt,
         })
         .onConflictDoUpdate({
           target: pullRequestUsers.userId,
           set: {
-            userName: reviewer.user.login,
-            displayName: reviewer.user.login,
-            avatarUrl: reviewer.user.avatarUrl || null,
+            userName: reviewer.userName,
+            displayName: reviewer.displayName,
+            avatarUrl: reviewer.avatarUrl,
           },
         });
 
       await db
         .insert(pullRequestReviewers)
-        .values({ pullRequestUrl: node.url, userId: uid, reviewState: reviewer.reviewState })
+        .values({
+          pullRequestUrl: node.url,
+          userId: reviewer.userId,
+          reviewState: reviewer.reviewState,
+        })
         .onConflictDoUpdate({
           target: [pullRequestReviewers.pullRequestUrl, pullRequestReviewers.userId],
           set: { reviewState: reviewer.reviewState },
@@ -1106,18 +1175,29 @@ export class PrSyncEngine {
       authorRow,
       labelRows,
       assigneeRows,
-      reviewerRows.map(({ user, reviewState }) => ({
-        user: {
-          userId: actorUserId(user),
-          userName: user.login,
-          displayName: user.login,
-          avatarUrl: user.avatarUrl || null,
-          url: user.url ?? null,
-          userCreatedAt: user.createdAt ?? null,
-          userUpdatedAt: user.updatedAt ?? null,
-        },
-        reviewState,
-      })),
+      reviewerRows.map(
+        ({
+          userId,
+          reviewState,
+          userName,
+          displayName,
+          avatarUrl,
+          url,
+          userCreatedAt,
+          userUpdatedAt,
+        }) => ({
+          user: {
+            userId,
+            userName,
+            displayName,
+            avatarUrl,
+            url,
+            userCreatedAt,
+            userUpdatedAt,
+          },
+          reviewState,
+        })
+      ),
       checkRows
     );
   }

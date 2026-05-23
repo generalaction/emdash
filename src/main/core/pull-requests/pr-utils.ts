@@ -17,6 +17,7 @@ import type {
   PullRequestStatus,
   PullRequestUser,
 } from '@shared/pull-requests';
+import { isTeamReviewerId } from '@shared/pull-requests';
 
 export type PrRow = typeof pullRequests.$inferSelect;
 export type PrUserRow = typeof pullRequestUsers.$inferSelect;
@@ -96,6 +97,7 @@ export function assemblePullRequest(
         ({
           ...dbRowToUserRow(user),
           reviewState: normalizeReviewState(reviewState),
+          isTeam: isTeamReviewerId(user.userId),
         }) satisfies PullRequestReviewer
     ),
     checks: checks.map(dbRowToCheckRow),

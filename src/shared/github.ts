@@ -34,3 +34,12 @@ export interface GitHubConnectResponse {
   user?: GitHubUser;
   error?: string;
 }
+
+export type GitHubViewerTeam = {
+  teamId: string;
+  slug: string;
+  name: string;
+  organizationLogin: string;
+  avatarUrl: string | null;
+  url: string | null;
+};

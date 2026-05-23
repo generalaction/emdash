@@ -23,8 +23,19 @@ export type PullRequestUser = {
 
 export type PullRequestReviewState = 'approved' | 'pending' | 'changes_requested' | 'commented';
 
+export const TEAM_REVIEWER_ID_PREFIX = 'team:';
+
+export function teamReviewerId(databaseId: number): string {
+  return `${TEAM_REVIEWER_ID_PREFIX}${databaseId}`;
+}
+
+export function isTeamReviewerId(userId: string): boolean {
+  return userId.startsWith(TEAM_REVIEWER_ID_PREFIX);
+}
+
 export type PullRequestReviewer = PullRequestUser & {
   reviewState: PullRequestReviewState;
+  isTeam: boolean;
 };
 
 export type Label = {
@@ -117,7 +128,8 @@ export type ReviewStateFilter =
   | 'changes_requested'
   | 'reviewed_by_you'
   | 'not_reviewed_by_you'
-  | 'awaiting_review_from_you';
+  | 'awaiting_review_from_you'
+  | 'awaiting_review_from_you_or_your_team';
 
 export type PrFilters = {
   status?: PullRequestStatusFilter;
@@ -127,6 +139,8 @@ export type PrFilters = {
   reviewState?: ReviewStateFilter;
   /** Current GitHub user id — required for *_by_you / awaiting_review_from_you filters. */
   currentUserId?: string;
+  /** GitHub team reviewer ids (`team:<databaseId>`) for team-aware review filters. */
+  currentUserTeamIds?: string[];
 };
 
 export type PrSortField = 'newest' | 'oldest' | 'recently-updated';

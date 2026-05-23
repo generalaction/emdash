@@ -1,4 +1,4 @@
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { getPrSyncStore } from '@renderer/features/projects/stores/project-selectors';
 import { useDebounce } from '@renderer/lib/hooks/useDebounce';
@@ -8,13 +8,15 @@ import type { PrFilters, PrSortField, ReviewStateFilter } from '@shared/pull-req
 import { toUserItem, usersWithLoginFirst, type UserItem } from './pr-filter-items';
 import { useFilterOptions, usePullRequests } from './usePullRequests';
 
+const VIEWER_TEAMS_QUERY_KEY = ['github:viewer-teams'] as const;
+
 export type StatusFilter = 'open' | 'not-open';
 
 export type LabelItem = { value: string; label: string; color?: string };
 
 export function usePrViewState(projectId: string, repositoryUrl: string | null) {
   const queryClient = useQueryClient();
-  const { user } = useGithubContext();
+  const { user, authenticated } = useGithubContext();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('open');
   const [sortFilter, setSortFilter] = useState<PrSortField>('newest');
   const [selectedAuthorUserId, setSelectedAuthorUserId] = useState<string | null>(null);
@@ -27,6 +29,18 @@ export function usePrViewState(projectId: string, repositoryUrl: string | null) 
 
   const currentUserId = user?.id != null ? String(user.id) : undefined;
 
+  const { data: viewerTeams = [] } = useQuery({
+    queryKey: VIEWER_TEAMS_QUERY_KEY,
+    queryFn: () => rpc.github.getViewerTeams(),
+    enabled: authenticated,
+    staleTime: 5 * 60_000,
+  });
+
+  const currentUserTeamIds = useMemo(
+    () => (viewerTeams.length > 0 ? viewerTeams.map((team) => team.teamId) : undefined),
+    [viewerTeams]
+  );
+
   const filters: PrFilters = {
     status: statusFilter,
     ...(selectedAuthorUserId ? { authorUserIds: [selectedAuthorUserId] } : {}),
@@ -34,6 +48,7 @@ export function usePrViewState(projectId: string, repositoryUrl: string | null) 
     ...(selectedAssigneeUserId ? { assigneeUserIds: [selectedAssigneeUserId] } : {}),
     ...(reviewStateFilter ? { reviewState: reviewStateFilter } : {}),
     ...(currentUserId ? { currentUserId } : {}),
+    ...(currentUserTeamIds ? { currentUserTeamIds } : {}),
   };
 
   const { prs, refresh, loading, dataUpdatedAt, fetchNextPage, hasNextPage, isFetchingNextPage } =

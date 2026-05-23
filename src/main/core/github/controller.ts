@@ -10,6 +10,7 @@ import type { FileSystemProvider } from '@main/core/fs/types';
 import { cloneRepository, initializeNewProject } from '@main/core/git/impl/git-repo-utils';
 import { githubConnectionService } from '@main/core/github/services/github-connection-service';
 import { repoService } from '@main/core/github/services/repo-service';
+import { getViewerTeams } from '@main/core/github/services/viewer-teams-service';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
@@ -94,6 +95,17 @@ export const githubController = createRPCController({
     } catch (error) {
       log.error('Failed to get user info:', error);
       return null;
+    }
+  },
+
+  getViewerTeams: async () => {
+    try {
+      const authenticated = await githubConnectionService.isAuthenticated();
+      if (!authenticated) return [];
+      return await getViewerTeams();
+    } catch (error) {
+      log.error('Failed to get viewer teams:', error);
+      return [];
     }
   },
 

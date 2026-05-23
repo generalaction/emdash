@@ -107,7 +107,11 @@ async function fetchRelated(rows: PrRow[]): Promise<PullRequest[]> {
   );
 }
 
-function buildReviewStateCondition(filter: ReviewStateFilter, currentUserId: string | undefined) {
+function buildReviewStateCondition(
+  filter: ReviewStateFilter,
+  currentUserId: string | undefined,
+  currentUserTeamIds: string[] | undefined
+) {
   switch (filter) {
     case 'approved':
       return eq(pullRequests.reviewDecision, 'APPROVED');
@@ -175,6 +179,20 @@ function buildReviewStateCondition(filter: ReviewStateFilter, currentUserId: str
         );
       return inArray(pullRequests.url, pendingSub);
     }
+    case 'awaiting_review_from_you_or_your_team': {
+      if (!currentUserId) return undefined;
+      const reviewerIds = [currentUserId, ...(currentUserTeamIds ?? [])];
+      const pendingSub = db
+        .select({ url: pullRequestReviewers.pullRequestUrl })
+        .from(pullRequestReviewers)
+        .where(
+          and(
+            inArray(pullRequestReviewers.userId, reviewerIds),
+            eq(pullRequestReviewers.reviewState, 'pending')
+          )
+        );
+      return inArray(pullRequests.url, pendingSub);
+    }
   }
 }
 
@@ -226,7 +244,11 @@ export class PrQueryService {
     }
 
     if (filters?.reviewState) {
-      const reviewCondition = buildReviewStateCondition(filters.reviewState, filters.currentUserId);
+      const reviewCondition = buildReviewStateCondition(
+        filters.reviewState,
+        filters.currentUserId,
+        filters.currentUserTeamIds
+      );
       if (reviewCondition) conditions.push(reviewCondition);
     }
 

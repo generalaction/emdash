@@ -1,4 +1,4 @@
-import { ExternalLink, ScanSearch } from 'lucide-react';
+import { ExternalLink, ScanSearch, Users } from 'lucide-react';
 import { memo } from 'react';
 import { PrMergeLine } from '@renderer/lib/components/pr-merge-line';
 import { PrNumberBadge } from '@renderer/lib/components/pr-number-badge';
@@ -39,13 +39,13 @@ export const PrRow = memo(function PrRow({
             </span>
             <PrNumberBadge number={getPrNumber(pr) ?? 0} />
           </div>
-          <div className="flex shrink-0 items-center">
+          <div className="relative h-6 w-[4.5rem] shrink-0">
             <RelativeTime
               value={pr.createdAt}
-              className="text-xs text-foreground-passive group-hover:hidden"
+              className="absolute top-1/2 right-0 -translate-y-1/2 text-xs whitespace-nowrap text-foreground-passive transition-opacity group-hover:pointer-events-none group-hover:opacity-0"
               compact
             />
-            <div className="hidden items-center gap-0.5 group-hover:flex">
+            <div className="pointer-events-none absolute top-1/2 right-0 flex -translate-y-1/2 items-center gap-0.5 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100">
               <Tooltip>
                 <TooltipTrigger
                   render={
@@ -160,14 +160,30 @@ function ReviewerAvatar({
   return (
     <Tooltip>
       <TooltipTrigger
-        className={cn('relative shrink-0 rounded-full ring-2 ring-background', className)}
+        className={cn('relative shrink-0 ring-2 ring-background', className, {
+          'rounded-full': !reviewer.isTeam,
+          'rounded-md': reviewer.isTeam,
+        })}
       >
         {reviewer.avatarUrl ? (
           <img
             src={reviewer.avatarUrl}
             alt=""
-            className={cn('size-5 rounded-full', isPending && 'opacity-50 grayscale')}
+            className={cn(
+              'size-5',
+              reviewer.isTeam ? 'rounded-md' : 'rounded-full',
+              isPending && 'opacity-50 grayscale'
+            )}
           />
+        ) : reviewer.isTeam ? (
+          <span
+            className={cn(
+              'flex size-5 items-center justify-center rounded-md bg-background-2 text-foreground-muted',
+              isPending && 'opacity-50'
+            )}
+          >
+            <Users className="size-3" />
+          </span>
         ) : (
           <span
             className={cn('block size-5 rounded-full bg-background-2', isPending && 'opacity-50')}
@@ -190,6 +206,9 @@ function ReviewerAvatar({
 }
 
 function reviewerLabel(reviewer: PullRequestReviewer): string {
+  if (reviewer.isTeam) {
+    return reviewer.userName.startsWith('@') ? reviewer.userName : `@${reviewer.userName}`;
+  }
   return reviewer.displayName || reviewer.userName;
 }
 

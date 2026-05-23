@@ -43,6 +43,14 @@ export const PR_SUMMARY_FRAGMENT = `
         requestedReviewer {
           __typename
           ... on User { login avatarUrl url databaseId createdAt updatedAt }
+          ... on Team {
+            databaseId
+            slug
+            name
+            avatarUrl
+            url
+            organization { login }
+          }
         }
       }
     }
