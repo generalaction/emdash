@@ -58,6 +58,7 @@ const expectedIssue = {
 };
 
 const repository = {
+  host: 'github.com',
   owner: 'owner',
   repo: 'repo',
   nameWithOwner: 'owner/repo',

@@ -162,7 +162,7 @@ export class PrSyncEngine {
   private readonly _singleInflight = new Map<string, Promise<void>>();
   private readonly _checksInflight = new Map<string, Promise<void>>();
 
-  constructor(private readonly getOctokit: () => Promise<Octokit>) {}
+  constructor(private readonly getOctokit: (host: string) => Promise<Octokit>) {}
 
   // ── Public sync API ────────────────────────────────────────────────────────
 
@@ -276,8 +276,8 @@ export class PrSyncEngine {
       });
       return;
     }
-    const { owner, repo } = repository.data;
-    const octokit = await this.getOctokit().catch((e: unknown) => {
+    const { owner, repo, host } = repository.data;
+    const octokit = await this.getOctokit(host).catch((e: unknown) => {
       log.warn('PrSyncEngine: runFullSync — failed to get Octokit (not authenticated?)', {
         repositoryUrl,
         error: String(e),
@@ -380,8 +380,8 @@ export class PrSyncEngine {
       });
       return;
     }
-    const { owner, repo } = repository.data;
-    const octokit = await this.getOctokit().catch((e: unknown) => {
+    const { owner, repo, host } = repository.data;
+    const octokit = await this.getOctokit(host).catch((e: unknown) => {
       log.warn('PrSyncEngine: runIncrementalSync — failed to get Octokit (not authenticated?)', {
         repositoryUrl,
         error: String(e),
@@ -552,8 +552,8 @@ export class PrSyncEngine {
 
     const repository = parseGitHubRepositoryResult(repositoryUrl);
     if (!repository.success) return null;
-    const { owner, repo } = repository.data;
-    const octokit = await this.getOctokit();
+    const { owner, repo, host } = repository.data;
+    const octokit = await this.getOctokit(host);
 
     const response = await withRetry(() =>
       githubRateLimiter.acquire().then(() =>
@@ -643,8 +643,8 @@ export class PrSyncEngine {
 
     const repository = parseGitHubRepository(pr[0].repositoryUrl);
     if (!repository) return false;
-    const { owner, repo } = repository;
-    const octokit = await this.getOctokit();
+    const { owner, repo, host } = repository;
+    const octokit = await this.getOctokit(host);
 
     type CheckNode = GqlCheckRunNode | GqlStatusContextNode;
     const allNodes: CheckNode[] = [];
@@ -1032,8 +1032,8 @@ export class PrSyncEngine {
   }): Promise<Result<{ url: string; number: number }, GitHubRepositoryParseError>> {
     const repository = parseGitHubRepositoryResult(params.repositoryUrl);
     if (!repository.success) return repository;
-    const { owner, repo } = repository.data;
-    const octokit = await this.getOctokit();
+    const { owner, repo, host } = repository.data;
+    const octokit = await this.getOctokit(host);
     const response = await octokit.rest.pulls.create({
       owner,
       repo,
@@ -1054,8 +1054,8 @@ export class PrSyncEngine {
   ): Promise<Result<{ sha: string | null; merged: boolean }, GitHubRepositoryParseError>> {
     const repository = parseGitHubRepositoryResult(repositoryUrl);
     if (!repository.success) return repository;
-    const { owner, repo } = repository.data;
-    const octokit = await this.getOctokit();
+    const { owner, repo, host } = repository.data;
+    const octokit = await this.getOctokit(host);
     const response = await octokit.rest.pulls.merge({
       owner,
       repo,
@@ -1072,8 +1072,8 @@ export class PrSyncEngine {
   ): Promise<Result<void, GitHubRepositoryParseError>> {
     const repository = parseGitHubRepositoryResult(repositoryUrl);
     if (!repository.success) return repository;
-    const { owner, repo } = repository.data;
-    const octokit = await this.getOctokit();
+    const { owner, repo, host } = repository.data;
+    const octokit = await this.getOctokit(host);
     const { data } = await octokit.rest.pulls.get({ owner, repo, pull_number: prNumber });
     await octokit.graphql(
       `mutation MarkReadyForReview($id: ID!) {
@@ -1092,8 +1092,8 @@ export class PrSyncEngine {
   ): Promise<Result<PullRequestComment[], GitHubRepositoryParseError>> {
     const repository = parseGitHubRepositoryResult(repositoryUrl);
     if (!repository.success) return repository;
-    const { owner, repo } = repository.data;
-    const octokit = await this.getOctokit();
+    const { owner, repo, host } = repository.data;
+    const octokit = await this.getOctokit(host);
     const pullRequestUrl = `${repository.data.repositoryUrl}/pull/${prNumber}`;
 
     const [issueComments, reviewComments, reviews] = await Promise.all([
@@ -1184,8 +1184,8 @@ export class PrSyncEngine {
   ): Promise<Result<PullRequestFile[], GitHubRepositoryParseError>> {
     const repository = parseGitHubRepositoryResult(repositoryUrl);
     if (!repository.success) return repository;
-    const { owner, repo } = repository.data;
-    const octokit = await this.getOctokit();
+    const { owner, repo, host } = repository.data;
+    const octokit = await this.getOctokit(host);
     const files = await octokit.paginate(octokit.rest.pulls.listFiles, {
       owner,
       repo,

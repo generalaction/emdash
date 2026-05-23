@@ -1,4 +1,5 @@
 import type { Octokit } from '@octokit/rest';
+import { GITHUB_DOT_COM_HOST } from '@shared/github-repository';
 import { getOctokit } from './octokit-provider';
 
 // ---------------------------------------------------------------------------
@@ -90,10 +91,10 @@ const RESERVED_NAMES = new Set([
 ]);
 
 export class GitHubRepositoryServiceImpl implements GitHubRepositoryService {
-  constructor(private readonly getOctokit: () => Promise<Octokit>) {}
+  constructor(private readonly getOctokit: (host: string) => Promise<Octokit>) {}
 
   async listRepositories(): Promise<GitHubRepo[]> {
-    const octokit = await this.getOctokit();
+    const octokit = await this.getOctokit(GITHUB_DOT_COM_HOST);
     const { data } = await octokit.rest.repos.listForAuthenticatedUser({
       per_page: 100,
       sort: 'updated',
@@ -103,7 +104,7 @@ export class GitHubRepositoryServiceImpl implements GitHubRepositoryService {
   }
 
   async getOwners(): Promise<GitHubOwner[]> {
-    const octokit = await this.getOctokit();
+    const octokit = await this.getOctokit(GITHUB_DOT_COM_HOST);
     const { data: user } = await octokit.rest.users.getAuthenticated();
     const owners: GitHubOwner[] = [{ login: user.login, type: 'User' }];
 
@@ -123,7 +124,7 @@ export class GitHubRepositoryServiceImpl implements GitHubRepositoryService {
     owner: string;
     isPrivate: boolean;
   }): Promise<{ url: string; defaultBranch: string; nameWithOwner: string }> {
-    const octokit = await this.getOctokit();
+    const octokit = await this.getOctokit(GITHUB_DOT_COM_HOST);
     const { data: user } = await octokit.rest.users.getAuthenticated();
     const isCurrentUser = params.owner === user.login;
 
@@ -145,12 +146,12 @@ export class GitHubRepositoryServiceImpl implements GitHubRepositoryService {
   }
 
   async deleteRepository(owner: string, name: string): Promise<void> {
-    const octokit = await this.getOctokit();
+    const octokit = await this.getOctokit(GITHUB_DOT_COM_HOST);
     await octokit.rest.repos.delete({ owner, repo: name });
   }
 
   async checkRepositoryExists(owner: string, name: string): Promise<boolean> {
-    const octokit = await this.getOctokit();
+    const octokit = await this.getOctokit(GITHUB_DOT_COM_HOST);
     try {
       await octokit.rest.repos.get({ owner, repo: name });
       return true;

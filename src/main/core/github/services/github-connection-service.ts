@@ -14,6 +14,7 @@ import {
   githubAuthSuccessChannel,
 } from '@shared/events/githubEvents';
 import type { GitHubConnectResponse, GitHubStatusOptions, GitHubUser } from '@shared/github';
+import { apiBaseUrlForHost, GITHUB_DOT_COM_HOST } from '@shared/github-repository';
 import { extractGhCliToken } from './gh-cli-token';
 
 // ---------------------------------------------------------------------------
@@ -39,7 +40,13 @@ export interface DeviceCodeResult {
 export type TokenSource = 'secure_storage' | 'cli' | 'emdash_oauth' | 'device_flow' | null;
 
 export interface GitHubConnectionService {
-  getToken(): Promise<string | null>;
+  /**
+   * Returns a token usable against the given host's API. Defaults to github.com.
+   * For non-github.com hosts (GitHub Enterprise), the token is read directly from
+   * the `gh` CLI's per-host auth state — emdash's encrypted secure storage only
+   * holds the github.com token.
+   */
+  getToken(host?: string): Promise<string | null>;
   getTokenSource(): Promise<TokenSource>;
   getStatus(options?: GitHubStatusOptions): Promise<{
     authenticated: boolean;
@@ -48,7 +55,7 @@ export interface GitHubConnectionService {
   }>;
   isAuthenticated(): Promise<boolean>;
   getCurrentUser(): Promise<GitHubUser | null>;
-  getUserInfo(token: string): Promise<GitHubUser | null>;
+  getUserInfo(token: string, host?: string): Promise<GitHubUser | null>;
   startOAuthFlow(authServerBaseUrl: string): Promise<AuthResult>;
   startDeviceFlowAuth(): Promise<DeviceCodeResult>;
   storeToken(token: string, source?: Exclude<TokenSource, null>): Promise<void>;
@@ -176,7 +183,12 @@ export class GitHubConnectionServiceImpl implements GitHubConnectionService {
     return { token: cliToken, source: 'cli' };
   }
 
-  async getToken(): Promise<string | null> {
+  async getToken(host: string = GITHUB_DOT_COM_HOST): Promise<string | null> {
+    if (host !== GITHUB_DOT_COM_HOST) {
+      // Enterprise hosts: read directly from gh CLI per-host auth. We don't cache because
+      // the existing TTL cache holds the github.com token under a single key.
+      return extractGhCliToken(new LocalExecutionContext(), host);
+    }
     const { token } = await this.resolveTokenRecord();
     return token;
   }
@@ -218,9 +230,9 @@ export class GitHubConnectionServiceImpl implements GitHubConnectionService {
     return this.getUserInfo(token);
   }
 
-  async getUserInfo(token: string): Promise<GitHubUser | null> {
+  async getUserInfo(token: string, host: string = GITHUB_DOT_COM_HOST): Promise<GitHubUser | null> {
     try {
-      const octokit = new Octokit({ auth: token });
+      const octokit = new Octokit({ auth: token, baseUrl: apiBaseUrlForHost(host) });
       const { data } = await octokit.rest.users.getAuthenticated();
       return {
         id: data.id,

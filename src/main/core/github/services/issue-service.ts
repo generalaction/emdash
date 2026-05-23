@@ -57,12 +57,12 @@ interface RestIssue {
 // ---------------------------------------------------------------------------
 
 export class GitHubIssueServiceImpl implements GitHubIssueService {
-  constructor(private readonly getOctokit: () => Promise<Octokit>) {}
+  constructor(private readonly getOctokit: (host: string) => Promise<Octokit>) {}
 
   async listIssues(repository: GitHubRepositoryRef, limit: number = 50): Promise<GitHubIssue[]> {
-    const { owner, repo } = repository;
+    const { owner, repo, host } = repository;
     try {
-      const octokit = await this.getOctokit();
+      const octokit = await this.getOctokit(host);
       const { data } = await octokit.rest.issues.listForRepo({
         owner,
         repo,
@@ -86,9 +86,9 @@ export class GitHubIssueServiceImpl implements GitHubIssueService {
   ): Promise<GitHubIssue[]> {
     const term = searchTerm.trim();
     if (!term) return [];
-    const { owner, repo } = repository;
+    const { owner, repo, host } = repository;
     try {
-      const octokit = await this.getOctokit();
+      const octokit = await this.getOctokit(host);
       const { data } = await octokit.rest.search.issuesAndPullRequests({
         q: `${term} repo:${owner}/${repo} is:issue is:open`,
         per_page: Math.min(Math.max(limit, 1), 100),
@@ -105,9 +105,9 @@ export class GitHubIssueServiceImpl implements GitHubIssueService {
     repository: GitHubRepositoryRef,
     issueNumber: number
   ): Promise<GitHubIssueDetail | null> {
-    const { owner, repo } = repository;
+    const { owner, repo, host } = repository;
     try {
-      const octokit = await this.getOctokit();
+      const octokit = await this.getOctokit(host);
       const { data } = await octokit.rest.issues.get({
         owner,
         repo,

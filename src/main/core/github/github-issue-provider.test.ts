@@ -32,6 +32,7 @@ describe('githubIssueProvider', () => {
 
     expect(mockIssueService.listIssues).toHaveBeenCalledWith(
       {
+        host: 'github.com',
         owner: 'owner',
         repo: 'repo',
         nameWithOwner: 'owner/repo',
@@ -52,6 +53,7 @@ describe('githubIssueProvider', () => {
 
     expect(mockIssueService.searchIssues).toHaveBeenCalledWith(
       {
+        host: 'github.com',
         owner: 'owner',
         repo: 'repo',
         nameWithOwner: 'owner/repo',
