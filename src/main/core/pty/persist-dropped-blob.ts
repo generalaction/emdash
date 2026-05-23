@@ -108,6 +108,10 @@ export async function persistDroppedBlobBytes(args: {
     name: args.name,
     mimeType: args.mimeType,
   });
+  if (normalized.bytes.byteLength > MAX_DROPPED_BLOB_BYTES) {
+    throw new Error(`Dropped file is too large (${normalized.bytes.byteLength} bytes)`);
+  }
+
   const safe = sanitizeDroppedBlobName(args.name?.replace(/\.[^.]+$/, ''));
   const filename = `${DROPPED_BLOB_FILENAME_PREFIX}${randomUUID()}${safe ? `-${safe}` : ''}${normalized.ext}`;
   const fullPath = join(app.getPath('temp'), filename);
