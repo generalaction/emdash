@@ -1,6 +1,7 @@
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog';
 import { reaction } from 'mobx';
 import { observer } from 'mobx-react-lite';
+import type { KeyboardEvent } from 'react';
 import { useCallback, useEffect, useRef } from 'react';
 import {
   modalRegistry,
@@ -23,6 +24,16 @@ const POSITION_CLASSES: Record<ModalPosition, string> = {
   center: 'top-1/2 -translate-y-1/2',
   top: 'top-[15%] translate-y-0',
 };
+
+function preventModifiedEnterDefault(e: KeyboardEvent) {
+  if ((e.metaKey || e.ctrlKey || e.altKey) && e.key === 'Enter') {
+    e.preventDefault();
+  }
+}
+
+function containModalKeyDown(e: KeyboardEvent) {
+  e.stopPropagation();
+}
 
 export const ModalRenderer = observer(function ModalRenderer() {
   const entry = (
@@ -100,11 +111,8 @@ export const ModalRenderer = observer(function ModalRenderer() {
           finalFocus={false}
           initialFocus={initialFocus}
           data-slot="dialog-content"
-          onKeyDownCapture={(e) => {
-            if ((e.metaKey || e.ctrlKey || e.altKey) && e.key === 'Enter') {
-              e.preventDefault();
-            }
-          }}
+          onKeyDownCapture={preventModifiedEnterDefault}
+          onKeyDown={containModalKeyDown}
           className={cn(
             'fixed left-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 flex-col overflow-hidden rounded-xl bg-background-quaternary text-sm ring-1 ring-foreground/10 duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95',
             POSITION_CLASSES[displayEntry?.position ?? 'center'],

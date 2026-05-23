@@ -4,6 +4,16 @@ import * as React from 'react';
 import { Button } from '@renderer/lib/ui/button';
 import { cn } from '@renderer/utils/utils';
 
+function preventModifiedEnterDefault(e: React.KeyboardEvent) {
+  if ((e.metaKey || e.ctrlKey || e.altKey) && e.key === 'Enter') {
+    e.preventDefault();
+  }
+}
+
+function containDialogKeyDown(e: React.KeyboardEvent) {
+  e.stopPropagation();
+}
+
 function Dialog({ ...props }: DialogPrimitive.Root.Props) {
   return <DialogPrimitive.Root data-slot="dialog" {...props} />;
 }
@@ -36,6 +46,8 @@ function DialogOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) 
 function DialogContent({
   className,
   children,
+  onKeyDown,
+  onKeyDownCapture,
   ...props
 }: DialogPrimitive.Popup.Props & { showCloseButton?: boolean }) {
   return (
@@ -45,9 +57,12 @@ function DialogContent({
         finalFocus={false}
         data-slot="dialog-content"
         onKeyDownCapture={(e) => {
-          if ((e.metaKey || e.ctrlKey || e.altKey) && e.key === 'Enter') {
-            e.preventDefault();
-          }
+          preventModifiedEnterDefault(e);
+          onKeyDownCapture?.(e);
+        }}
+        onKeyDown={(e) => {
+          onKeyDown?.(e);
+          containDialogKeyDown(e);
         }}
         className={cn(
           'fixed top-1/2 left-1/2 z-50 flex max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-xl bg-background text-sm ring-1 ring-foreground/10 duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 sm:max-w-lg',
