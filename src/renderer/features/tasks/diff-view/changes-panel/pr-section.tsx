@@ -32,7 +32,7 @@ export const PullRequestsSection = observer(function PullRequestsSection({
   const workspace = useWorkspace();
   const taskView = useWorkspaceViewModel();
   const prStore = taskView.prStore;
-  const repositoryUrl = workspace.repository.repositoryUrl;
+  const repositoryUrl = workspace.repository.pullRequestRepositoryUrl;
   const taskBranch = getRegisteredTaskData(projectId, taskId)?.taskBranch;
   const pullRequests = prStore?.pullRequests ?? [];
   const currentPr = prStore?.currentPr;
@@ -43,31 +43,33 @@ export const PullRequestsSection = observer(function PullRequestsSection({
     ? (getPrSyncStore(projectId)?.isSyncing(repositoryUrl) ?? false)
     : false;
 
-  const onCreatePr = taskBranch
-    ? () =>
-        showCreatePrModal({
-          projectId,
-          taskId,
-          repositoryUrl: repositoryUrl ?? '',
-          branchName: taskBranch,
-          draft: false,
-          workspaceId,
-          onSuccess: () => {},
-        })
-    : undefined;
+  const onCreatePr =
+    taskBranch && repositoryUrl
+      ? () =>
+          showCreatePrModal({
+            projectId,
+            taskId,
+            repositoryUrl: repositoryUrl ?? '',
+            branchName: taskBranch,
+            draft: false,
+            workspaceId,
+            onSuccess: () => {},
+          })
+      : undefined;
 
-  const onCreateDraftPr = taskBranch
-    ? () =>
-        showCreatePrModal({
-          projectId,
-          taskId,
-          repositoryUrl: repositoryUrl ?? '',
-          branchName: taskBranch,
-          draft: true,
-          workspaceId,
-          onSuccess: () => {},
-        })
-    : undefined;
+  const onCreateDraftPr =
+    taskBranch && repositoryUrl
+      ? () =>
+          showCreatePrModal({
+            projectId,
+            taskId,
+            repositoryUrl: repositoryUrl ?? '',
+            branchName: taskBranch,
+            draft: true,
+            workspaceId,
+            onSuccess: () => {},
+          })
+      : undefined;
 
   const prActions: SplitButtonAction[] = [
     { value: 'create-pr', label: 'Create PR', action: () => onCreatePr?.() },

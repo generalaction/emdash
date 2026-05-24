@@ -1,15 +1,13 @@
 import { EventEmitter } from 'node:events';
-import { eq } from 'drizzle-orm';
-import { Client, type ConnectConfig } from 'ssh2';
-import { db } from '@main/db/client';
-import { sshConnections } from '@main/db/schema';
-import { events } from '@main/lib/events';
-import { log } from '@main/lib/logger';
-import { sshConnectionEventChannel } from '@shared/events/sshEvents';
+import ssh2, { type Client, type ConnectConfig } from 'ssh2';
+import type { SshConnectionRow } from '@main/db/schema';
+import type { SshConnectionEvent } from '@shared/events/sshEvents';
 import type { ConnectionState, SshHealthState } from '@shared/ssh';
-import { buildConnectConfigFromRow } from './build-connect-config';
+import type { SshConnectResult } from '../connect/resolve-ssh-connect-config';
 import { isSshChannelOpenFailure } from './ssh-channel-open-failure';
 import { SshClientProxy } from './ssh-client-proxy';
+
+const { Client: Ssh2Client } = ssh2;
 
 // ─── Error classes ────────────────────────────────────────────────────────────
 
@@ -53,9 +51,45 @@ interface ReconnectState {
   timer: NodeJS.Timeout | undefined;
 }
 
+type SshConnectionManagerLog = {
+  info: (message: string, metadata?: Record<string, unknown>) => void;
+  warn: (message: string, metadata?: Record<string, unknown>) => void;
+  error: (message: string, metadata?: Record<string, unknown>) => void;
+};
+
+export interface SshConnectionManagerDeps {
+  loadConnectionRow?: (id: string) => Promise<SshConnectionRow | undefined>;
+  resolveConnectConfig?: (row: SshConnectionRow) => Promise<SshConnectResult>;
+  createClient?: () => Client;
+  publishEvent?: (event: SshConnectionEvent) => void;
+  log?: SshConnectionManagerLog;
+}
+
+const noopLog: SshConnectionManagerLog = {
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+};
+
 // ─── Implementation ──────────────────────────────────────────────────────────
 
 export class SshConnectionManager extends EventEmitter {
+  private readonly deps: Required<
+    Pick<SshConnectionManagerDeps, 'createClient' | 'publishEvent' | 'log'>
+  > &
+    Pick<SshConnectionManagerDeps, 'loadConnectionRow' | 'resolveConnectConfig'>;
+
+  constructor(deps: SshConnectionManagerDeps = {}) {
+    super();
+    this.deps = {
+      loadConnectionRow: deps.loadConnectionRow,
+      resolveConnectConfig: deps.resolveConnectConfig,
+      createClient: deps.createClient ?? (() => new Ssh2Client()),
+      publishEvent: deps.publishEvent ?? (() => {}),
+      log: deps.log ?? noopLog,
+    };
+  }
+
   /** One stable proxy per connection ID — survives reconnects. */
   private proxies: Map<string, SshClientProxy> = new Map();
 
@@ -63,6 +97,12 @@ export class SshConnectionManager extends EventEmitter {
 
   /** Tracks ongoing reconnect backoff state per connection. */
   private reconnecting: Map<string, ReconnectState> = new Map();
+
+  private connectionCleanups: Map<string, () => void> = new Map();
+
+  private activeClients: Map<string, Client> = new Map();
+
+  private connectionGenerations: Map<string, number> = new Map();
 
   private healthStates: Map<string, SshHealthState> = new Map();
 
@@ -90,24 +130,49 @@ export class SshConnectionManager extends EventEmitter {
     const pending = this.pendingConnections.get(id);
     if (pending) return await pending;
 
-    const [row] = await db.select().from(sshConnections).where(eq(sshConnections.id, id)).limit(1);
+    const generation = this.nextConnectionGeneration(id);
+    this.emitConnecting(id);
+    const connectionPromise = this.connectPersisted(id, generation);
+    this.pendingConnections.set(id, connectionPromise);
+    try {
+      return await connectionPromise;
+    } finally {
+      if (this.pendingConnections.get(id) === connectionPromise) {
+        this.pendingConnections.delete(id);
+      }
+    }
+  }
+
+  private async connectPersisted(id: string, generation: number): Promise<SshClientProxy> {
+    if (!this.deps.loadConnectionRow || !this.deps.resolveConnectConfig) {
+      throw new SshConnectionError('SSH connection manager is missing production dependencies');
+    }
+
+    const row = await this.deps.loadConnectionRow(id);
+    if (
+      !this.isCurrentConnectionGeneration(id, generation) ||
+      this.intentionalDisconnects.has(id)
+    ) {
+      throw new SshConnectionError(`SSH connection '${id}' was disconnected before connecting`);
+    }
 
     if (!row) {
       throw new SshConnectionError(`SSH connection '${id}' not found`);
     }
 
-    const config = await buildConnectConfigFromRow(row);
-    if (!config) {
-      throw new SshConnectionError(`SSH connection '${id}' has unsupported auth configuration`);
+    const resolved = await this.deps.resolveConnectConfig(row);
+    if (
+      !this.isCurrentConnectionGeneration(id, generation) ||
+      this.intentionalDisconnects.has(id)
+    ) {
+      resolved.cleanup();
+      throw new SshConnectionError(`SSH connection '${id}' was disconnected before connecting`);
     }
-    const connectionPromise = this.createConnection(id, config);
-    this.pendingConnections.set(id, connectionPromise);
-
-    try {
-      return await connectionPromise;
-    } finally {
-      this.pendingConnections.delete(id);
-    }
+    const connectionPromise = this.createConnection(id, resolved.config, resolved.cleanup, {
+      emitConnecting: false,
+      generation,
+    });
+    return await connectionPromise;
   }
 
   /** Get the stable SshClientProxy for a connection, or undefined. */
@@ -139,6 +204,9 @@ export class SshConnectionManager extends EventEmitter {
     for (const id of this.proxies.keys()) {
       result[id] = this.getConnectionState(id);
     }
+    for (const id of this.pendingConnections.keys()) {
+      result[id] = this.getConnectionState(id);
+    }
     return result;
   }
 
@@ -163,25 +231,39 @@ export class SshConnectionManager extends EventEmitter {
    */
   async disconnect(id: string): Promise<void> {
     this.intentionalDisconnects.add(id);
+    this.nextConnectionGeneration(id);
     this.cancelReconnect(id);
 
     const proxy = this.proxies.get(id);
     if (!proxy?.isConnected) {
-      log.warn('SshConnectionManager: disconnect called for unknown/inactive connection', {
-        connectionId: id,
-      });
+      this.deps.log.warn(
+        'SshConnectionManager: disconnect called for unknown/inactive connection',
+        {
+          connectionId: id,
+        }
+      );
+      const client = this.activeClients.get(id);
+      if (client) {
+        client.destroy();
+      }
+      this.runConnectionCleanup(id);
       this.proxies.delete(id);
+      this.pendingConnections.delete(id);
       return;
     }
 
-    log.info('SshConnectionManager: disconnecting', { connectionId: id });
+    this.deps.log.info('SshConnectionManager: disconnecting', { connectionId: id });
 
     const client = proxy.client;
     return new Promise<void>((resolve) => {
       const timeout = setTimeout(() => {
-        log.warn('SshConnectionManager: disconnect timed out, forcing close', { connectionId: id });
+        this.deps.log.warn('SshConnectionManager: disconnect timed out, forcing close', {
+          connectionId: id,
+        });
+        client.destroy();
         proxy.invalidate();
         this.proxies.delete(id);
+        this.runConnectionCleanup(id);
         resolve();
       }, 5_000);
 
@@ -189,6 +271,7 @@ export class SshConnectionManager extends EventEmitter {
         clearTimeout(timeout);
         proxy.invalidate();
         this.proxies.delete(id);
+        this.runConnectionCleanup(id);
         resolve();
       });
 
@@ -198,8 +281,10 @@ export class SshConnectionManager extends EventEmitter {
 
   /** Gracefully close all connections. */
   async disconnectAll(): Promise<void> {
-    const ids = Array.from(this.proxies.keys());
-    log.info('SshConnectionManager: disconnecting all connections', { count: ids.length });
+    const ids = Array.from(new Set([...this.proxies.keys(), ...this.pendingConnections.keys()]));
+    this.deps.log.info('SshConnectionManager: disconnecting all connections', {
+      count: ids.length,
+    });
     await Promise.all(ids.map((id) => this.disconnect(id)));
   }
 
@@ -209,9 +294,14 @@ export class SshConnectionManager extends EventEmitter {
    * never schedules a reconnect — callers are responsible for teardown via
    * `disconnect(id)`.
    */
-  async connectFromConfig(id: string, config: ConnectConfig): Promise<SshClientProxy> {
+  async connectFromConfig(
+    id: string,
+    config: ConnectConfig,
+    cleanup: () => void = () => {}
+  ): Promise<SshClientProxy> {
     this.intentionalDisconnects.add(id);
-    const connectionPromise = this.createConnection(id, config);
+    const generation = this.nextConnectionGeneration(id);
+    const connectionPromise = this.createConnection(id, config, cleanup, { generation });
     this.pendingConnections.set(id, connectionPromise);
     try {
       return await connectionPromise;
@@ -222,8 +312,13 @@ export class SshConnectionManager extends EventEmitter {
 
   // ─── Private ─────────────────────────────────────────────────────────────
 
-  private createConnection(id: string, config: ConnectConfig): Promise<SshClientProxy> {
-    log.info('SshConnectionManager: creating connection', {
+  private createConnection(
+    id: string,
+    config: ConnectConfig,
+    cleanup: () => void,
+    options: { emitConnecting?: boolean; generation?: number } = {}
+  ): Promise<SshClientProxy> {
+    this.deps.log.info('SshConnectionManager: creating connection', {
       connectionId: id,
       host: config.host,
       username: config.username,
@@ -233,29 +328,46 @@ export class SshConnectionManager extends EventEmitter {
     const proxy = this.proxies.get(id) ?? new SshClientProxy(id, this);
     this.proxies.set(id, proxy);
 
-    const client = new Client();
+    const client = this.deps.createClient();
+    let cleanupCalled = false;
+    const cleanupOnce = () => {
+      if (cleanupCalled) return;
+      cleanupCalled = true;
+      this.connectionCleanups.delete(id);
+      if (this.activeClients.get(id) === client) {
+        this.activeClients.delete(id);
+      }
+      cleanup();
+    };
+    this.activeClients.set(id, client);
+    this.connectionCleanups.set(id, cleanupOnce);
 
     return new Promise((resolve, reject) => {
-      this.emit('connection-event', {
-        type: 'connecting',
-        connectionId: id,
-      } satisfies SshConnectionManagerEvent);
-
-      events.emit(sshConnectionEventChannel, {
-        type: 'connecting',
-        connectionId: id,
-      });
+      if (options.emitConnecting !== false) {
+        this.emitConnecting(id);
+      }
 
       let resolved = false;
+      let connectedBeforeClose = false;
+      let disconnectedEmitted = false;
       const resolveOnce = (p: SshClientProxy) => {
         if (!resolved) {
           resolved = true;
           resolve(p);
         }
       };
+      const emitDisconnectedOnce = () => {
+        if (disconnectedEmitted) return;
+        disconnectedEmitted = true;
+        this.emit('connection-event', {
+          type: 'disconnected',
+          connectionId: id,
+        } satisfies SshConnectionManagerEvent);
+        this.deps.publishEvent({ type: 'disconnected', connectionId: id });
+      };
 
       client.on('error', (error: Error) => {
-        log.error('SshConnectionManager: connection error', {
+        this.deps.log.error('SshConnectionManager: connection error', {
           connectionId: id,
           error: error.message,
         });
@@ -266,39 +378,62 @@ export class SshConnectionManager extends EventEmitter {
           error,
         } satisfies SshConnectionManagerEvent);
 
-        events.emit(sshConnectionEventChannel, {
+        this.deps.publishEvent({
           type: 'error',
           connectionId: id,
           errorMessage: error.message,
         });
 
+        if (proxy.isConnected && proxy.client === client) {
+          connectedBeforeClose = true;
+          proxy.invalidate();
+          emitDisconnectedOnce();
+        }
+        cleanupOnce();
         reject(classifyError(error));
       });
 
       client.on('close', () => {
-        log.info('SshConnectionManager: connection closed', { connectionId: id });
+        this.deps.log.info('SshConnectionManager: connection closed', { connectionId: id });
+
+        if (!resolved) {
+          cleanupOnce();
+          reject(new SshConnectionError('SSH connection closed before ready'));
+          return;
+        }
 
         // Only react if this client is still the one backing the proxy.
-        if (proxy.isConnected && proxy.client === client) {
+        if ((proxy.isConnected && proxy.client === client) || connectedBeforeClose) {
+          const wasConnected = proxy.isConnected && proxy.client === client;
           proxy.invalidate();
 
-          this.emit('connection-event', {
-            type: 'disconnected',
-            connectionId: id,
-          } satisfies SshConnectionManagerEvent);
-
-          events.emit(sshConnectionEventChannel, { type: 'disconnected', connectionId: id });
+          emitDisconnectedOnce();
+          cleanupOnce();
 
           // Auto-reconnect unless this was an intentional disconnect or the
           // initial handshake never succeeded (resolved = false still).
-          if (!this.intentionalDisconnects.has(id) && resolved) {
+          if (
+            !this.intentionalDisconnects.has(id) &&
+            resolved &&
+            (wasConnected || connectedBeforeClose)
+          ) {
             this.scheduleReconnect(id);
           }
         }
       });
 
       client.on('ready', () => {
-        log.info('SshConnectionManager: connection ready', { connectionId: id });
+        this.deps.log.info('SshConnectionManager: connection ready', { connectionId: id });
+
+        if (
+          options.generation !== undefined &&
+          !this.isCurrentConnectionGeneration(id, options.generation)
+        ) {
+          cleanupOnce();
+          client.end();
+          reject(new SshConnectionError(`SSH connection '${id}' was disconnected before ready`));
+          return;
+        }
 
         proxy.update(client);
         this.clearHealthState(id);
@@ -306,7 +441,7 @@ export class SshConnectionManager extends EventEmitter {
         // Capture the remote login-shell profile once, non-blocking. Failures are
         // warned but do not prevent the connection from being used.
         proxy.getRemoteShellProfile().catch((err: unknown) => {
-          log.warn('SshConnectionManager: remote shell profile capture failed', {
+          this.deps.log.warn('SshConnectionManager: remote shell profile capture failed', {
             connectionId: id,
             error: err instanceof Error ? err.message : String(err),
           });
@@ -321,7 +456,7 @@ export class SshConnectionManager extends EventEmitter {
           proxy,
         } satisfies SshConnectionManagerEvent);
 
-        events.emit(sshConnectionEventChannel, {
+        this.deps.publishEvent({
           type: isReconnect ? 'reconnected' : 'connected',
           connectionId: id,
         });
@@ -329,7 +464,12 @@ export class SshConnectionManager extends EventEmitter {
         resolveOnce(proxy);
       });
 
-      client.connect(config);
+      try {
+        client.connect(config);
+      } catch (error) {
+        cleanupOnce();
+        reject(error instanceof Error ? error : new Error(String(error)));
+      }
     });
   }
 
@@ -338,19 +478,21 @@ export class SshConnectionManager extends EventEmitter {
     const attempt = state.attempt + 1;
 
     if (attempt > RECONNECT_DELAYS_MS.length) {
-      log.error('SshConnectionManager: max reconnect attempts reached', { connectionId: id });
+      this.deps.log.error('SshConnectionManager: max reconnect attempts reached', {
+        connectionId: id,
+      });
       this.reconnecting.delete(id);
       this.emit('connection-event', {
         type: 'reconnect-failed',
         connectionId: id,
       } satisfies SshConnectionManagerEvent);
-      events.emit(sshConnectionEventChannel, { type: 'reconnect-failed', connectionId: id });
+      this.deps.publishEvent({ type: 'reconnect-failed', connectionId: id });
       return;
     }
 
     const delayMs = RECONNECT_DELAYS_MS[attempt - 1]!;
 
-    log.info('SshConnectionManager: scheduling reconnect', {
+    this.deps.log.info('SshConnectionManager: scheduling reconnect', {
       connectionId: id,
       attempt,
       delayMs,
@@ -363,7 +505,7 @@ export class SshConnectionManager extends EventEmitter {
       delayMs,
     } satisfies SshConnectionManagerEvent);
 
-    events.emit(sshConnectionEventChannel, {
+    this.deps.publishEvent({
       type: 'reconnecting',
       connectionId: id,
       attempt,
@@ -387,7 +529,7 @@ export class SshConnectionManager extends EventEmitter {
           this.pendingConnections.delete(id);
           // Auth failures won't resolve with retries — stop immediately.
           if (error instanceof SshAuthError) {
-            log.error('SshConnectionManager: reconnect stopped — auth failure', {
+            this.deps.log.error('SshConnectionManager: reconnect stopped — auth failure', {
               connectionId: id,
             });
             this.reconnecting.delete(id);
@@ -395,7 +537,9 @@ export class SshConnectionManager extends EventEmitter {
               type: 'reconnect-failed',
               connectionId: id,
             } satisfies SshConnectionManagerEvent);
-            events.emit(sshConnectionEventChannel, { type: 'reconnect-failed', connectionId: id });
+            this.deps.publishEvent({ type: 'reconnect-failed', connectionId: id });
+          } else if (this.intentionalDisconnects.has(id)) {
+            this.reconnecting.delete(id);
           } else {
             this.scheduleReconnect(id);
           }
@@ -413,6 +557,32 @@ export class SshConnectionManager extends EventEmitter {
     this.reconnecting.delete(id);
   }
 
+  private runConnectionCleanup(id: string): void {
+    this.connectionCleanups.get(id)?.();
+  }
+
+  private emitConnecting(id: string): void {
+    this.emit('connection-event', {
+      type: 'connecting',
+      connectionId: id,
+    } satisfies SshConnectionManagerEvent);
+
+    this.deps.publishEvent({
+      type: 'connecting',
+      connectionId: id,
+    });
+  }
+
+  private nextConnectionGeneration(id: string): number {
+    const next = (this.connectionGenerations.get(id) ?? 0) + 1;
+    this.connectionGenerations.set(id, next);
+    return next;
+  }
+
+  private isCurrentConnectionGeneration(id: string, generation: number): boolean {
+    return this.connectionGenerations.get(id) === generation;
+  }
+
   private clearHealthState(connectionId: string): SshHealthState {
     const health: SshHealthState = { status: 'ok' };
     if (this.healthStates.delete(connectionId)) {
@@ -422,15 +592,13 @@ export class SshConnectionManager extends EventEmitter {
   }
 
   private emitHealthChanged(connectionId: string, health: SshHealthState): void {
-    events.emit(sshConnectionEventChannel, {
+    this.deps.publishEvent({
       type: 'health-changed',
       connectionId,
       health,
     });
   }
 }
-
-export const sshConnectionManager = new SshConnectionManager();
 
 function classifyError(error: Error): SshAuthError | SshTimeoutError | SshConnectionError {
   const msg = error.message.toLowerCase();

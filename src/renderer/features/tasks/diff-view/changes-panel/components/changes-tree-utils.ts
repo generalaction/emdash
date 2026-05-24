@@ -1,31 +1,18 @@
-import {
-  makeNode,
-  sortedChildPaths,
-} from '@renderer/features/tasks/editor/stores/files-store-utils';
+import { makeNode, sortFileNodes } from '@renderer/features/tasks/editor/stores/files-store-utils';
 import { type FileNode } from '@shared/fs';
 import { type GitChange } from '@shared/git';
 
 export interface ChangesTree {
-  nodes: Map<string, FileNode>;
-  childIndex: Map<string | null, string[]>;
+  rootNodes: FileNode[];
   changeByPath: Map<string, GitChange>;
   directoryPaths: Set<string>;
 }
 
 export function buildChangesTree(changes: GitChange[]): ChangesTree {
-  const nodes = new Map<string, FileNode>();
-  const rawChildIndex = new Map<string | null, Set<string>>();
+  const nodesByPath = new Map<string, FileNode>();
   const changeByPath = new Map<string, GitChange>();
   const directoryPaths = new Set<string>();
-
-  const addChild = (parent: string | null, child: string) => {
-    let set = rawChildIndex.get(parent);
-    if (!set) {
-      set = new Set();
-      rawChildIndex.set(parent, set);
-    }
-    set.add(child);
-  };
+  const rootNodes: FileNode[] = [];
 
   for (const change of changes) {
     changeByPath.set(change.path, change);
@@ -34,24 +21,40 @@ export function buildChangesTree(changes: GitChange[]): ChangesTree {
     if (parts.length === 0) continue;
 
     let prefix = '';
+    let parentNode: FileNode | null = null;
     for (let i = 0; i < parts.length; i++) {
       const segment = parts[i]!;
       prefix = prefix ? `${prefix}/${segment}` : segment;
       const isLeaf = i === parts.length - 1;
-      const parentPath = i === 0 ? null : parts.slice(0, i).join('/');
 
-      if (!nodes.has(prefix)) {
-        nodes.set(prefix, makeNode(prefix, isLeaf ? 'file' : 'directory'));
+      let node = nodesByPath.get(prefix);
+      if (!node) {
+        node = makeNode(prefix, isLeaf ? 'file' : 'directory');
+        nodesByPath.set(prefix, node);
         if (!isLeaf) directoryPaths.add(prefix);
+        if (parentNode) {
+          parentNode.children.push(node);
+        } else {
+          rootNodes.push(node);
+        }
       }
-      addChild(parentPath, prefix);
+      parentNode = node;
     }
   }
 
-  const childIndex = new Map<string | null, string[]>();
-  for (const [parent, set] of rawChildIndex) {
-    childIndex.set(parent, sortedChildPaths([...set], nodes));
-  }
+  return {
+    rootNodes: sortRecursively(rootNodes),
+    changeByPath,
+    directoryPaths,
+  };
+}
 
-  return { nodes, childIndex, changeByPath, directoryPaths };
+function sortRecursively(nodes: FileNode[]): FileNode[] {
+  const sorted = sortFileNodes(nodes);
+  for (const node of sorted) {
+    if (node.children.length > 0) {
+      node.children = sortRecursively(node.children);
+    }
+  }
+  return sorted;
 }

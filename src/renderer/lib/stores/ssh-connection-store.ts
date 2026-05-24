@@ -1,7 +1,13 @@
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
 import { events, rpc } from '@renderer/lib/ipc';
 import { sshConnectionEventChannel, type SshConnectionEvent } from '@shared/events/sshEvents';
-import type { ConnectionState, ConnectionTestResult, SshConfig, SshHealthState } from '@shared/ssh';
+import type {
+  ConnectionState,
+  ConnectionTestResult,
+  SshConfig,
+  SshConfigHost,
+  SshHealthState,
+} from '@shared/ssh';
 import { Resource } from './resource';
 
 type SaveConnectionInput = Partial<Pick<SshConfig, 'id'>> &
@@ -157,6 +163,14 @@ export class SshConnectionStore {
       this.connectionsResource.setValue(this.upsertConnection(savedConnection));
       return savedConnection;
     });
+  }
+
+  async getSshConfigHosts(): Promise<SshConfigHost[]> {
+    return await rpc.ssh.getSshConfigHosts();
+  }
+
+  async getSshConfigHost(alias: string): Promise<SshConfigHost> {
+    return await rpc.ssh.getSshConfigHost(alias);
   }
 
   async renameConnection(id: string, name: string): Promise<void> {

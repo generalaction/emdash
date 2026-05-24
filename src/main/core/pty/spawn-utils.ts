@@ -2,7 +2,7 @@ import {
   buildRemoteShellCommand,
   FALLBACK_REMOTE_SHELL_PROFILE,
   type RemoteShellProfile,
-} from '@main/core/ssh/remote-shell-profile';
+} from '@main/core/ssh/lifecycle/remote-shell-profile';
 import { quoteShellArg } from '@main/utils/shellEscape';
 import type { AgentSessionConfig } from '@shared/agent-session';
 import type { GeneralSessionConfig } from '@shared/general-session';

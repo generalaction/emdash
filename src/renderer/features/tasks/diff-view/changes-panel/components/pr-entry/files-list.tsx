@@ -1,12 +1,11 @@
 import { observer } from 'mobx-react-lite';
-import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { usePrefetchDiffModels } from '@renderer/features/tasks/diff-view/changes-panel/hooks/use-prefetch-diff-models';
 import {
   useTaskViewContext,
   useWorkspaceId,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
-import { commitRef, remoteRef, type GitChange } from '@shared/git';
+import { commitRef, refsEqual, type GitChange } from '@shared/git';
 import { getPrNumber, type PullRequest } from '@shared/pull-requests';
 import { useChangesViewMode } from '../../hooks/use-changes-view-mode';
 import { ChangesListOrTree } from '../changes-list-or-tree';
@@ -18,8 +17,8 @@ export const PrFilesList = observer(function PrFilesList({ pr }: { pr: PullReque
   const prStore = taskView.prStore!;
   const { mode: viewMode } = useChangesViewMode('pr');
 
-  const repo = getRepositoryStore(projectId);
-  const baseRef = remoteRef(repo?.baseRemote ?? 'origin', pr.baseRefName);
+  const prNumber = getPrNumber(pr) ?? undefined;
+  const baseRef = commitRef(pr.baseRefOid);
   const modifiedRef = commitRef(pr.headRefOid);
   const prFiles = prStore.getFiles(pr).data ?? [];
 
@@ -27,7 +26,10 @@ export const PrFilesList = observer(function PrFilesList({ pr }: { pr: PullReque
 
   const activePath =
     taskView.tabManager.activeDescriptor?.kind === 'diff' &&
-    taskView.tabManager.activeDescriptor.diffGroup === 'pr'
+    taskView.tabManager.activeDescriptor.diffGroup === 'pr' &&
+    taskView.tabManager.activeDescriptor.prNumber === prNumber &&
+    refsEqual(taskView.tabManager.activeDescriptor.originalRef, baseRef) &&
+    refsEqual(taskView.tabManager.activeDescriptor.modifiedRef ?? modifiedRef, modifiedRef)
       ? taskView.tabManager.activeDescriptor.path
       : undefined;
 
@@ -39,7 +41,9 @@ export const PrFilesList = observer(function PrFilesList({ pr }: { pr: PullReque
         group: 'pr',
         originalRef: baseRef,
         modifiedRef,
-        prNumber: getPrNumber(pr) ?? undefined,
+        prNumber,
+        prBaseOid: pr.baseRefOid,
+        prHeadOid: pr.headRefOid,
       },
       change.status
     );
@@ -53,7 +57,9 @@ export const PrFilesList = observer(function PrFilesList({ pr }: { pr: PullReque
         group: 'pr',
         originalRef: baseRef,
         modifiedRef,
-        prNumber: getPrNumber(pr) ?? undefined,
+        prNumber,
+        prBaseOid: pr.baseRefOid,
+        prHeadOid: pr.headRefOid,
       },
       change.status
     );

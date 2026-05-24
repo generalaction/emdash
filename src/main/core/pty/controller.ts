@@ -7,7 +7,16 @@ import { parsePtySessionId } from '@shared/ptySessionId';
 import { err, ok } from '@shared/result';
 import { taskManager } from '../tasks/task-manager';
 import { workspaceRegistry } from '../workspaces/workspace-registry';
+import {
+  cleanupExpiredDroppedBlobs,
+  persistClipboardImagePath,
+  persistDroppedBlobBytes,
+} from './persist-dropped-blob';
 import { ptySessionRegistry } from './pty-session-registry';
+
+void cleanupExpiredDroppedBlobs().catch((error) => {
+  log.warn('pty:cleanupExpiredDroppedBlobs failed', { error });
+});
 
 export const ptyController = createRPCController({
   /** Send raw input data to a PTY session. */
@@ -109,6 +118,35 @@ export const ptyController = createRPCController({
         error: (e as Error)?.message || e,
       });
       return err({ type: 'upload_failed' as const, message: String((e as Error)?.message || e) });
+    }
+  },
+
+  /**
+   * Persist a dropped or pasted in-memory image to a stable temp file.
+   * HEIC/HEIF bytes are converted to PNG so Claude Code can inline them.
+   */
+  persistDroppedBlob: async (args: { bytes: Uint8Array; name?: string; mimeType?: string }) => {
+    try {
+      const path = await persistDroppedBlobBytes(args);
+      return ok({ path });
+    } catch (e: unknown) {
+      log.error('pty:persistDroppedBlob failed', {
+        error: (e as Error)?.message || e,
+      });
+      return err({ type: 'persist_failed' as const, message: String((e as Error)?.message || e) });
+    }
+  },
+
+  /** Persist the OS clipboard image (macOS HEIC paste, screenshots, etc.). */
+  persistClipboardImage: async () => {
+    try {
+      const path = await persistClipboardImagePath();
+      return ok({ path });
+    } catch (e: unknown) {
+      log.error('pty:persistClipboardImage failed', {
+        error: (e as Error)?.message || e,
+      });
+      return err({ type: 'persist_failed' as const, message: String((e as Error)?.message || e) });
     }
   },
 });

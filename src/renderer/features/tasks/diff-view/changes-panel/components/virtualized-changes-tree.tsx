@@ -46,7 +46,7 @@ export function VirtualizedChangesTree({
   }, [tree.directoryPaths, collapsedPaths]);
 
   const visibleRows = useMemo(
-    () => buildVisibleRows(tree.nodes, tree.childIndex, expandedPaths),
+    () => buildVisibleRows(tree.rootNodes, expandedPaths),
     [tree, expandedPaths]
   );
 
