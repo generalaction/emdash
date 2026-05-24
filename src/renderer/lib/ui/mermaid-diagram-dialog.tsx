@@ -1,4 +1,4 @@
-import { Maximize2, Minus, Plus, X } from 'lucide-react';
+import { Minus, Plus, RotateCcw, X } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import {
   TransformComponent,
@@ -121,7 +121,7 @@ function MermaidToolbar({ controls, onFit, onClose }: MermaidToolbarProps) {
           <Minus className="size-4" />
         </ToolbarButton>
         <ToolbarButton label="Fit to view" onClick={onFit}>
-          <Maximize2 className="size-4" />
+          <RotateCcw className="size-4" />
         </ToolbarButton>
         <ToolbarButton label="Close" onClick={onClose}>
           <X className="size-4" />

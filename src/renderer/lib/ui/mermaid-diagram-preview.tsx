@@ -11,12 +11,7 @@ interface MermaidDiagramPreviewProps {
 
 export function MermaidDiagramPreview({ svg, compact, onExpand }: MermaidDiagramPreviewProps) {
   return (
-    <div
-      className={cn(
-        'group relative my-3 overflow-x-auto rounded-md border border-border bg-background',
-        compact && 'my-2'
-      )}
-    >
+    <div className="group relative overflow-x-auto rounded-md border border-border bg-background">
       <Tooltip>
         <TooltipTrigger
           render={
