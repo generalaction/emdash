@@ -2,9 +2,14 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronRight, Copy, FileText, Folder, FolderOpen } from 'lucide-react';
 import { runInAction } from 'mobx';
 import { observer } from 'mobx-react-lite';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { CompactedPathLabel } from '@renderer/features/tasks/editor/compacted-path-label';
 import type { FilesStore } from '@renderer/features/tasks/editor/stores/files-store';
-import { buildVisibleRows } from '@renderer/features/tasks/editor/stores/files-store-utils';
+import {
+  buildVisibleRows,
+  isChainExpanded,
+  type TreeRow,
+} from '@renderer/features/tasks/editor/stores/files-store-utils';
 import {
   useTaskViewContext,
   useWorkspace,
@@ -23,7 +28,6 @@ import {
   ContextMenuTrigger,
 } from '@renderer/lib/ui/context-menu';
 import { cn } from '@renderer/utils/utils';
-import type { FileNode } from '@shared/fs';
 import { basenameFromAnyPath } from '@shared/path-name';
 
 const MAX_COPY_FILE_BYTES = 10 * 1024 * 1024;
@@ -113,10 +117,10 @@ async function importLocalFiles(args: {
 }
 
 const FileTreeRow = observer(function FileTreeRow({
-  node,
+  row,
   style,
 }: {
-  node: FileNode;
+  row: TreeRow;
   style: React.CSSProperties;
 }) {
   const taskView = useWorkspaceViewModel();
@@ -125,18 +129,25 @@ const FileTreeRow = observer(function FileTreeRow({
   const workspace = useWorkspace();
   const editorView = taskView.editorView;
 
-  const isExpanded = editorView.expandedPaths.has(node.path);
+  const node = row.node;
+  const isExpanded = isChainExpanded(row.chain, editorView.expandedPaths);
   const isSelected = taskView.tabManager.activeFilePath === node.path;
   const fileStatus = workspace.git.fileChanges?.find((c) => c.path === node.path)?.status;
-  const paddingLeft = node.depth * 12 + 4;
+  const paddingLeft = row.renderDepth * 12 + 4;
   const targetDirPath = node.type === 'directory' ? node.path : (node.parentPath ?? '');
+  const chainPath = row.chain.length > 1 ? row.chain.map((n) => n.name).join('/') : null;
+  const isHidden = row.chain.some((n) => n.isHidden);
 
   const toggleExpand = () => {
     runInAction(() => {
-      if (editorView.expandedPaths.has(node.path)) {
-        editorView.expandedPaths.delete(node.path);
+      if (isChainExpanded(row.chain, editorView.expandedPaths)) {
+        for (const segment of row.chain) {
+          editorView.expandedPaths.delete(segment.path);
+        }
       } else {
-        editorView.expandedPaths.add(node.path);
+        for (const segment of row.chain) {
+          editorView.expandedPaths.add(segment.path);
+        }
         if (!workspace.files.loadedPaths.has(node.path)) {
           void workspace.files.loadDir(node.path);
         }
@@ -242,9 +253,11 @@ const FileTreeRow = observer(function FileTreeRow({
     void (async () => {
       // Expand and load the target directory so optimistic nodes can be inserted immediately.
       if (node.type === 'directory') {
-        if (!editorView.expandedPaths.has(node.path)) {
-          runInAction(() => editorView.expandedPaths.add(node.path));
-        }
+        runInAction(() => {
+          for (const segment of row.chain) {
+            editorView.expandedPaths.add(segment.path);
+          }
+        });
         if (!workspace.files.loadedPaths.has(node.path)) {
           await workspace.files.loadDir(node.path);
         }
@@ -268,7 +281,7 @@ const FileTreeRow = observer(function FileTreeRow({
           'flex h-7 cursor-pointer select-none items-center gap-1.5 rounded-md pr-2 hover:bg-background-1',
           isSelected && 'bg-background-2 hover:bg-background-2',
           isDropTarget && 'bg-blue-500/15 outline outline-1 outline-blue-500/60',
-          node.isHidden && 'opacity-60'
+          isHidden && 'opacity-60'
         )}
         tabIndex={0}
         onClick={handleClick}
@@ -314,7 +327,7 @@ const FileTreeRow = observer(function FileTreeRow({
             fileStatus === 'renamed' && 'text-blue-500'
           )}
         >
-          {node.name}
+          {chainPath !== null ? <CompactedPathLabel path={chainPath} /> : node.name}
         </span>
       </ContextMenuTrigger>
       <ContextMenuContent>
@@ -347,6 +360,25 @@ export const EditorFileTree = observer(function EditorFileTree() {
   const [isDragOverRoot, setIsDragOverRoot] = useState(false);
 
   const visibleRows = files ? buildVisibleRows(files.rootNodes, editorView.expandedPaths) : [];
+
+  const prefetchKey = files
+    ? visibleRows
+        .filter(
+          (row) =>
+            row.node.type === 'directory' &&
+            !files.loadedPaths.has(row.node.path) &&
+            !files.pendingPaths.has(row.node.path)
+        )
+        .map((row) => row.node.path)
+        .join('\0')
+    : '';
+
+  useEffect(() => {
+    if (!files || !prefetchKey) return;
+    for (const path of prefetchKey.split('\0')) {
+      void files.loadDir(path);
+    }
+  }, [prefetchKey, files]);
 
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -427,11 +459,11 @@ export const EditorFileTree = observer(function EditorFileTree() {
       <div ref={parentRef} className="flex-1 overflow-y-auto px-2 py-2" role="tree">
         <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
           {virtualizer.getVirtualItems().map((vItem) => {
-            const node = visibleRows[vItem.index] as FileNode;
+            const row = visibleRows[vItem.index];
             return (
               <FileTreeRow
-                key={node.path}
-                node={node}
+                key={row.node.path}
+                row={row}
                 style={{
                   position: 'absolute',
                   top: vItem.start,
