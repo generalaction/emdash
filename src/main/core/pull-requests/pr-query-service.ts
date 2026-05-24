@@ -1,5 +1,4 @@
 import { and, asc, desc, eq, inArray, isNotNull, like, or } from 'drizzle-orm';
-import { projectManager } from '@main/core/projects/project-manager';
 import { db } from '@main/db/client';
 import {
   projectRemotes,
@@ -9,15 +8,8 @@ import {
   pullRequests,
   pullRequestUsers,
 } from '@main/db/schema';
-import { parseGitHubRepository } from '@shared/github-repository';
 import type { Label, ListPrOptions, PrFilterOptions, PullRequest } from '@shared/pull-requests';
 import { assemblePullRequest, type PrRow } from './pr-utils';
-
-/** Internal capability type — not exposed to the renderer. */
-export type ProjectRemoteCapability =
-  | { status: 'ready'; repositoryUrl: string }
-  | { status: 'no_remote' }
-  | { status: 'unsupported_remote' };
 
 async function fetchRelated(rows: PrRow[]): Promise<PullRequest[]> {
   if (rows.length === 0) return [];
@@ -231,23 +223,6 @@ export class PrQueryService {
         userUpdatedAt: r.userUpdatedAt ?? null,
         userCreatedAt: r.userCreatedAt ?? null,
       })),
-    };
-  }
-
-  async getProjectRemoteInfo(projectId: string): Promise<ProjectRemoteCapability> {
-    const project = projectManager.getProject(projectId);
-    if (!project) return { status: 'no_remote' };
-
-    const remoteState = await project.getRemoteState();
-    if (!remoteState.hasRemote) return { status: 'no_remote' };
-    if (!remoteState.selectedRemoteUrl) return { status: 'unsupported_remote' };
-
-    const repository = parseGitHubRepository(remoteState.selectedRemoteUrl);
-    if (!repository) return { status: 'unsupported_remote' };
-
-    return {
-      status: 'ready',
-      repositoryUrl: repository.repositoryUrl,
     };
   }
 }

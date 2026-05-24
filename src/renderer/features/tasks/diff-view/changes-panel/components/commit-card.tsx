@@ -42,13 +42,13 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
   const isInFlight = phase !== 'idle';
 
   const showCreatePrModal = useShowModal('createPrModal');
+  const repositoryUrl = workspace.repository.pullRequestRepositoryUrl;
 
   if (!diffView || !changesView) return null;
 
   const taskData = getRegisteredTaskData(projectId, taskId);
   const hasOpenPr = taskView.prStore?.pullRequests.some((p) => p.status === 'open') ?? false;
-  const canCreatePr =
-    Boolean(workspace.repository.repositoryUrl) && Boolean(taskData?.taskBranch) && !hasOpenPr;
+  const canCreatePr = Boolean(repositoryUrl) && Boolean(taskData?.taskBranch) && !hasOpenPr;
 
   const doCommit = async () => {
     setPhase('committing');
@@ -120,7 +120,7 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
     showCreatePrModal({
       projectId,
       taskId,
-      repositoryUrl: workspace.repository.repositoryUrl ?? '',
+      repositoryUrl: repositoryUrl ?? '',
       branchName: taskData?.taskBranch ?? '',
       draft: false,
       workspaceId,

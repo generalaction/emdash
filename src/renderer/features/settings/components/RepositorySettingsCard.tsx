@@ -2,6 +2,7 @@ import React from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { Input } from '@renderer/lib/ui/input';
 import { Switch } from '@renderer/lib/ui/switch';
+import { normalizeBranchPrefix } from '@shared/branch-prefix';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
 import { SettingRow } from './SettingRow';
 
@@ -38,7 +39,8 @@ const RepositorySettingsCard: React.FC = () => {
             key={branchPrefix}
             defaultValue={branchPrefix}
             onBlur={(e) => {
-              const next = e.target.value.trim();
+              const next = normalizeBranchPrefix(e.currentTarget.value);
+              e.currentTarget.value = next;
               if (next !== branchPrefix) {
                 updateProject({ branchPrefix: next });
               }

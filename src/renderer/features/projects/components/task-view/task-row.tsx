@@ -1,4 +1,5 @@
 import { observer } from 'mobx-react-lite';
+import { useRef } from 'react';
 import { AgentStatusIndicator } from '@renderer/features/tasks/components/agent-status-indicator';
 import { TaskContextMenu } from '@renderer/features/tasks/components/task-context-menu';
 import { TaskGitDiffStats } from '@renderer/features/tasks/components/task-git-diff-stats';
@@ -28,22 +29,23 @@ export const TaskRow = observer(function TaskRow({
 }: {
   task: ReadyTask;
   isSelected: boolean;
-  onToggleSelect: () => void;
+  onToggleSelect: (shiftKey: boolean) => void;
 }) {
   const { navigate } = useNavigate();
   const showRename = useShowModal('renameTaskModal');
-  const showConfirm = useShowModal('confirmActionModal');
+  const showDeleteTask = useShowModal('deleteTaskModal');
   const taskManager = getTaskManagerStore(task.data.projectId);
+  const shiftKeyRef = useRef(false);
 
   const handleArchive = () => void taskManager?.archiveTask(task.data.id);
   const handleRestore = () => void taskManager?.restoreTask(task.data.id);
   const handleProvision = () => void taskManager?.provisionTask(task.data.id);
   const handleDelete = () =>
-    showConfirm({
-      title: 'Delete task',
-      description: `"${task.data.name}" will be permanently deleted. This action cannot be undone.`,
-      confirmLabel: 'Delete',
-      onSuccess: () => void taskManager?.deleteTask(task.data.id),
+    showDeleteTask({
+      projectId: task.data.projectId,
+      tasks: [{ taskId: task.data.id, taskName: task.data.name }],
+      onSuccess: ({ deleteWorktree, deleteBranch }) =>
+        void taskManager?.deleteTasks([task.data.id], { deleteWorktree, deleteBranch }),
     });
   const handleRename = () =>
     showRename({
@@ -81,6 +83,12 @@ export const TaskRow = observer(function TaskRow({
         className="group flex w-full items-center gap-2 rounded-lg p-3 transition-colors hover:bg-background-1"
       >
         <div
+          onPointerDownCapture={(e) => {
+            shiftKeyRef.current = e.shiftKey;
+          }}
+          onKeyDownCapture={(e) => {
+            shiftKeyRef.current = e.shiftKey;
+          }}
           onClick={(e) => e.stopPropagation()}
           className={cn(
             'transition-opacity',
@@ -89,7 +97,11 @@ export const TaskRow = observer(function TaskRow({
         >
           <Checkbox
             checked={isSelected}
-            onCheckedChange={onToggleSelect}
+            onCheckedChange={() => {
+              const shift = shiftKeyRef.current;
+              shiftKeyRef.current = false;
+              onToggleSelect(shift);
+            }}
             aria-label="Select task"
           />
         </div>

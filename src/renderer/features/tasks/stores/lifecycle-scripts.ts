@@ -178,7 +178,7 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
   private async reload(): Promise<void> {
     if (this._disposed) return;
     const refreshSeq = ++this._refreshSeq;
-    const settings = await rpc.tasks.getWorkspaceSettings(this.projectId, this.workspaceId);
+    const settings = await rpc.projectSettings.getSettings(this.workspaceId);
     if (this._disposed) return;
 
     const entries: { type: ScriptType; command: string; label: string }[] = [];

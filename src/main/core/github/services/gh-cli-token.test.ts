@@ -39,6 +39,13 @@ describe('extractGhCliToken', () => {
     expect(await extractGhCliToken(ctx)).toBe('gho_abc123');
   });
 
+  it('passes hostname for enterprise token lookup', async () => {
+    const ctx = makeCtx({
+      'gh auth token --hostname ghe.example.com': { stdout: 'ghes_abc123\n', stderr: '' },
+    });
+    expect(await extractGhCliToken(ctx, { hostname: 'ghe.example.com' })).toBe('ghes_abc123');
+  });
+
   it('returns null when gh auth token fails', async () => {
     const ctx = makeCtx({}, new Error('no token'));
     expect(await extractGhCliToken(ctx)).toBeNull();

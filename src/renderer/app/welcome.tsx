@@ -1,8 +1,15 @@
+import { detectPlatform, matchesKeyboardEvent } from '@tanstack/react-hotkeys';
 import { motion, type Variants } from 'framer-motion';
+import { useEffect } from 'react';
 import IconLight from '@/assets/images/emdash/icon-light.png';
 import YTBanner from '@/assets/images/ytbanner.webp';
+import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { getEffectiveHotkey } from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { Button } from '@renderer/lib/ui/button';
+import { BoundShortcut } from '@renderer/lib/ui/shortcut';
+
+const PLATFORM = detectPlatform();
 
 interface WelcomeScreenProps {
   onGetStarted: () => void;
@@ -10,6 +17,24 @@ interface WelcomeScreenProps {
 
 export function WelcomeScreen({ onGetStarted }: WelcomeScreenProps) {
   const { effectiveTheme } = useTheme();
+  const { value: keyboard } = useAppSettingsKey('keyboard');
+  const confirmHotkey = getEffectiveHotkey('confirm', keyboard);
+
+  useEffect(() => {
+    if (confirmHotkey === null) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!matchesKeyboardEvent(event, confirmHotkey, PLATFORM)) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      onGetStarted();
+    };
+
+    document.addEventListener('keydown', handleKeyDown, { capture: true });
+    return () => document.removeEventListener('keydown', handleKeyDown, { capture: true });
+  }, [confirmHotkey, onGetStarted]);
 
   const containerVariants: Variants = {
     hidden: { opacity: 0 },
@@ -84,7 +109,10 @@ export function WelcomeScreen({ onGetStarted }: WelcomeScreenProps) {
               effectiveTheme === 'emdark' ? 'bg-gray-200 text-gray-900 hover:bg-gray-300' : ''
             }
           >
-            Start shipping
+            <span className="flex items-center gap-2">
+              Start shipping
+              <BoundShortcut settingsKey="confirm" />
+            </span>
           </Button>
         </motion.div>
       </motion.div>

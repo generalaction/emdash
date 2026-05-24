@@ -25,7 +25,7 @@ export const PullRequestsSection = observer(function PullRequestsSection({
   const workspace = useWorkspace();
   const taskView = useWorkspaceViewModel();
   const prStore = taskView.prStore;
-  const repositoryUrl = workspace.repository.repositoryUrl;
+  const repositoryUrl = workspace.repository.pullRequestRepositoryUrl;
   const taskBranch = getRegisteredTaskData(projectId, taskId)?.taskBranch;
   const pullRequests = prStore?.pullRequests ?? [];
   const currentPr = prStore?.currentPr;
@@ -44,7 +44,7 @@ export const PullRequestsSection = observer(function PullRequestsSection({
         onToggleCollapsed={onToggleCollapsed}
         hasOpenPr={hasOpenPr}
         onCreatePr={
-          taskBranch
+          taskBranch && repositoryUrl
             ? () =>
                 showCreatePrModal({
                   projectId,
@@ -58,7 +58,7 @@ export const PullRequestsSection = observer(function PullRequestsSection({
             : undefined
         }
         onCreateDraftPr={
-          taskBranch
+          taskBranch && repositoryUrl
             ? () =>
                 showCreatePrModal({
                   projectId,

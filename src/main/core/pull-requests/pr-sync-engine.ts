@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Octokit } from '@octokit/rest';
 import { and, eq, inArray, lt, ne } from 'drizzle-orm';
+import type { GitHubApiAuthError } from '@main/core/github/services/github-api-auth-errors';
 import { getOctokit } from '@main/core/github/services/octokit-provider';
 import {
   GET_PR_BY_NUMBER_QUERY,
@@ -23,11 +24,6 @@ import { log } from '@main/lib/logger';
 import { githubRateLimiter } from '@main/lib/rate-limiter';
 import { withRetry } from '@main/lib/retry';
 import { prSyncProgressChannel, prUpdatedChannel } from '@shared/events/prEvents';
-import {
-  parseGitHubRepository,
-  parseGitHubRepositoryResult,
-  type GitHubRepositoryParseError,
-} from '@shared/github-repository';
 import type {
   MergeableState,
   MergeStateStatus,
@@ -38,7 +34,9 @@ import type {
   PullRequestStatus,
   PullRequestUser,
 } from '@shared/pull-requests';
-import { ok, type Result } from '@shared/result';
+import { parseRepositoryRef, parseRepositoryRefResult } from '@shared/repository-ref';
+import { err, ok, type Result } from '@shared/result';
+import { prSyncEngineErrorMessage, toPrApiError, type PrSyncEngineError } from './pr-sync-errors';
 import { assemblePullRequest } from './pr-utils';
 
 const PR_SYNC_MAX_COUNT = 300;
@@ -159,10 +157,15 @@ export class PrSyncEngine {
   private readonly _inflight = new Map<string, Promise<void>>();
   private readonly _controllers = new Map<string, AbortController>();
   // Per-operation deduplication for single-PR and check-run syncs
-  private readonly _singleInflight = new Map<string, Promise<void>>();
-  private readonly _checksInflight = new Map<string, Promise<void>>();
+  private readonly _singleInflight = new Map<
+    string,
+    Promise<Result<PullRequest | null, PrSyncEngineError>>
+  >();
+  private readonly _checksInflight = new Map<string, Promise<Result<boolean, PrSyncEngineError>>>();
 
-  constructor(private readonly getOctokit: () => Promise<Octokit>) {}
+  constructor(
+    private readonly getOctokit: (host: string) => Promise<Result<Octokit, GitHubApiAuthError>>
+  ) {}
 
   // ── Public sync API ────────────────────────────────────────────────────────
 
@@ -266,24 +269,31 @@ export class PrSyncEngine {
    */
   private async _runFullSync(repositoryUrl: string, signal: AbortSignal): Promise<void> {
     log.info('PrSyncEngine: runFullSync start', { repositoryUrl });
-    const repository = parseGitHubRepositoryResult(repositoryUrl);
+    const repository = parseRepositoryRefResult(repositoryUrl);
     if (!repository.success) {
       this._emitProgress({
         remoteUrl: repositoryUrl,
         kind: 'full',
         status: 'error',
-        error: `Invalid GitHub repository URL: "${repository.error.input}"`,
+        error: prSyncEngineErrorMessage(repository.error),
       });
       return;
     }
     const { owner, repo } = repository.data;
-    const octokit = await this.getOctokit().catch((e: unknown) => {
-      log.warn('PrSyncEngine: runFullSync — failed to get Octokit (not authenticated?)', {
+    const octokit = await this.getOctokit(repository.data.host);
+    if (!octokit.success) {
+      log.warn('PrSyncEngine: runFullSync — failed to get Octokit', {
         repositoryUrl,
-        error: String(e),
+        error: octokit.error,
       });
-      throw e;
-    });
+      this._emitProgress({
+        remoteUrl: repositoryUrl,
+        kind: 'full',
+        status: 'error',
+        error: prSyncEngineErrorMessage(octokit.error),
+      });
+      return;
+    }
 
     // Resume from an existing cursor if available
     const existing = (await this.kv.get(`fullsync:${repositoryUrl}`)) as FullSyncCursor | null;
@@ -300,7 +310,7 @@ export class PrSyncEngine {
         const response = await withRetry(
           () =>
             githubRateLimiter.acquire().then(() =>
-              octokit.graphql<{
+              octokit.data.graphql<{
                 repository: {
                   pullRequests: {
                     totalCount: number;
@@ -350,11 +360,12 @@ export class PrSyncEngine {
         this._emitProgress({ remoteUrl: repositoryUrl, kind: 'full', status: 'cancelled' });
         return;
       }
+      const error = toPrApiError(e, 'Unable to sync pull requests', repository.data.host);
       this._emitProgress({
         remoteUrl: repositoryUrl,
         kind: 'full',
         status: 'error',
-        error: e instanceof Error ? e.message : String(e),
+        error: prSyncEngineErrorMessage(error),
       });
       throw e;
     }
@@ -370,24 +381,31 @@ export class PrSyncEngine {
   private async _runIncrementalSync(repositoryUrl: string, signal: AbortSignal): Promise<void> {
     log.info('PrSyncEngine: runIncrementalSync started', { repositoryUrl });
 
-    const repository = parseGitHubRepositoryResult(repositoryUrl);
+    const repository = parseRepositoryRefResult(repositoryUrl);
     if (!repository.success) {
       this._emitProgress({
         remoteUrl: repositoryUrl,
         kind: 'incremental',
         status: 'error',
-        error: `Invalid GitHub repository URL: "${repository.error.input}"`,
+        error: prSyncEngineErrorMessage(repository.error),
       });
       return;
     }
     const { owner, repo } = repository.data;
-    const octokit = await this.getOctokit().catch((e: unknown) => {
-      log.warn('PrSyncEngine: runIncrementalSync — failed to get Octokit (not authenticated?)', {
+    const octokit = await this.getOctokit(repository.data.host);
+    if (!octokit.success) {
+      log.warn('PrSyncEngine: runIncrementalSync — failed to get Octokit', {
         repositoryUrl,
-        error: String(e),
+        error: octokit.error,
       });
-      throw e;
-    });
+      this._emitProgress({
+        remoteUrl: repositoryUrl,
+        kind: 'incremental',
+        status: 'error',
+        error: prSyncEngineErrorMessage(octokit.error),
+      });
+      return;
+    }
 
     const fullCursor = (await this.kv.get(`fullsync:${repositoryUrl}`)) as FullSyncCursor | null;
     const incrementalCursor = (await this.kv.get(
@@ -416,7 +434,7 @@ export class PrSyncEngine {
         const response = await withRetry(
           () =>
             githubRateLimiter.acquire().then(() =>
-              octokit.graphql<{
+              octokit.data.graphql<{
                 repository: {
                   pullRequests: {
                     pageInfo: { hasNextPage: boolean; endCursor: string | null };
@@ -498,11 +516,12 @@ export class PrSyncEngine {
         this._emitProgress({ remoteUrl: repositoryUrl, kind: 'incremental', status: 'cancelled' });
         return;
       }
+      const error = toPrApiError(e, 'Unable to sync pull requests', repository.data.host);
       this._emitProgress({
         remoteUrl: repositoryUrl,
         kind: 'incremental',
         status: 'error',
-        error: e instanceof Error ? e.message : String(e),
+        error: prSyncEngineErrorMessage(error),
       });
       throw e;
     }
@@ -511,20 +530,18 @@ export class PrSyncEngine {
   // ── Single PR sync ─────────────────────────────────────────────────────────
 
   /** Sync a single PR by number. Deduplicated — awaits any in-flight call for the same PR. */
-  async syncSingle(repositoryUrl: string, prNumber: number): Promise<PullRequest | null> {
+  async syncSingle(
+    repositoryUrl: string,
+    prNumber: number
+  ): Promise<Result<PullRequest | null, PrSyncEngineError>> {
     const key = `single:${repositoryUrl}:${prNumber}`;
     if (this._singleInflight.has(key)) {
-      await this._singleInflight.get(key);
-      return null;
+      return await this._singleInflight.get(key)!;
     }
 
     const ctrl = new AbortController();
-    let result: PullRequest | null = null;
 
     const promise = this._runSyncSingle(repositoryUrl, prNumber, ctrl.signal)
-      .then((pr) => {
-        result = pr;
-      })
       .catch((e: unknown) => {
         if ((e as { name?: string }).name !== 'AbortError') {
           log.error('PrSyncEngine: syncSingle failed', {
@@ -532,39 +549,46 @@ export class PrSyncEngine {
             prNumber,
             error: String(e),
           });
+          return err(toPrApiError(e, 'Unable to refresh pull request'));
         }
+        return ok(null);
       })
       .finally(() => {
         this._singleInflight.delete(key);
       });
 
     this._singleInflight.set(key, promise);
-    await promise;
-    return result;
+    return await promise;
   }
 
   private async _runSyncSingle(
     repositoryUrl: string,
     prNumber: number,
     signal: AbortSignal
-  ): Promise<PullRequest | null> {
-    if (signal.aborted) return null;
+  ): Promise<Result<PullRequest | null, PrSyncEngineError>> {
+    if (signal.aborted) return ok(null);
 
-    const repository = parseGitHubRepositoryResult(repositoryUrl);
-    if (!repository.success) return null;
+    const repository = parseRepositoryRefResult(repositoryUrl);
+    if (!repository.success) return err(repository.error);
     const { owner, repo } = repository.data;
-    const octokit = await this.getOctokit();
+    const octokit = await this.getOctokit(repository.data.host);
+    if (!octokit.success) return err(octokit.error);
 
-    const response = await withRetry(() =>
-      githubRateLimiter.acquire().then(() =>
-        octokit.graphql<{
-          repository: { pullRequest: GqlPrNode | null };
-        }>(GET_PR_BY_NUMBER_QUERY, { owner, repo, number: prNumber })
-      )
-    );
+    let response: { repository: { pullRequest: GqlPrNode | null } };
+    try {
+      response = await withRetry(() =>
+        githubRateLimiter.acquire().then(() =>
+          octokit.data.graphql<{
+            repository: { pullRequest: GqlPrNode | null };
+          }>(GET_PR_BY_NUMBER_QUERY, { owner, repo, number: prNumber })
+        )
+      );
+    } catch (error) {
+      return err(toPrApiError(error, 'Unable to refresh pull request', repository.data.host));
+    }
 
     const node = response.repository.pullRequest;
-    if (!node) return null;
+    if (!node) return ok(null);
 
     const [pr] = await this._upsertBatch(repositoryUrl, [node]);
     if (pr) {
@@ -572,7 +596,7 @@ export class PrSyncEngine {
     }
 
     this._emitProgress({ remoteUrl: repositoryUrl, kind: 'single', status: 'done', synced: 1 });
-    return pr ?? null;
+    return ok(pr ?? null);
   }
 
   // ── Check runs sync ────────────────────────────────────────────────────────
@@ -581,40 +605,39 @@ export class PrSyncEngine {
    * Fetch and store check runs for a PR. Deduplicated — awaits any in-flight call.
    * Returns true if any check is still running (caller should re-invoke soon).
    */
-  async syncChecks(pullRequestUrl: string, headRefOid: string): Promise<boolean> {
+  async syncChecks(
+    pullRequestUrl: string,
+    headRefOid: string
+  ): Promise<Result<boolean, PrSyncEngineError>> {
     const key = `checks:${pullRequestUrl}:${headRefOid}`;
     if (this._checksInflight.has(key)) {
-      await this._checksInflight.get(key);
-      return false;
+      return await this._checksInflight.get(key)!;
     }
 
     const ctrl = new AbortController();
-    let result = false;
 
     const promise = this._runSyncChecks(pullRequestUrl, headRefOid, ctrl.signal)
-      .then((r) => {
-        result = r;
-      })
       .catch((e: unknown) => {
         if ((e as { name?: string }).name !== 'AbortError') {
           log.error('PrSyncEngine: syncChecks failed', { pullRequestUrl, error: String(e) });
+          return err(toPrApiError(e, 'Unable to sync check runs'));
         }
+        return ok(false);
       })
       .finally(() => {
         this._checksInflight.delete(key);
       });
 
     this._checksInflight.set(key, promise);
-    await promise;
-    return result;
+    return await promise;
   }
 
   private async _runSyncChecks(
     pullRequestUrl: string,
     headRefOid: string,
     signal: AbortSignal
-  ): Promise<boolean> {
-    if (signal.aborted) return false;
+  ): Promise<Result<boolean, PrSyncEngineError>> {
+    if (signal.aborted) return ok(false);
 
     // Detect stale checks: delete if commitSha changed
     const existing = await db
@@ -636,24 +659,25 @@ export class PrSyncEngine {
       .where(eq(pullRequests.url, pullRequestUrl))
       .limit(1);
 
-    if (!pr[0]) return false;
+    if (!pr[0]) return ok(false);
 
     const prNumber = pr[0].identifier ? parseInt(pr[0].identifier.replace('#', ''), 10) : NaN;
-    if (isNaN(prNumber)) return false;
+    if (isNaN(prNumber)) return ok(false);
 
-    const repository = parseGitHubRepository(pr[0].repositoryUrl);
-    if (!repository) return false;
-    const { owner, repo } = repository;
-    const octokit = await this.getOctokit();
+    const repository = parseRepositoryRefResult(pr[0].repositoryUrl);
+    if (!repository.success) return err(repository.error);
+    const { owner, repo } = repository.data;
+    const octokit = await this.getOctokit(repository.data.host);
+    if (!octokit.success) return err(octokit.error);
 
     type CheckNode = GqlCheckRunNode | GqlStatusContextNode;
     const allNodes: CheckNode[] = [];
     let cursor: string | undefined;
 
     for (;;) {
-      if (signal.aborted) return false;
+      if (signal.aborted) return ok(false);
 
-      const response: {
+      let response: {
         repository: {
           pullRequest: {
             commits: {
@@ -671,16 +695,21 @@ export class PrSyncEngine {
             };
           } | null;
         };
-      } = await withRetry(() =>
-        githubRateLimiter.acquire().then(() =>
-          octokit.graphql(GET_PR_CHECK_RUNS_BY_URL_QUERY, {
-            owner,
-            repo,
-            number: prNumber,
-            cursor: cursor ?? null,
-          })
-        )
-      );
+      };
+      try {
+        response = await withRetry(() =>
+          githubRateLimiter.acquire().then(() =>
+            octokit.data.graphql(GET_PR_CHECK_RUNS_BY_URL_QUERY, {
+              owner,
+              repo,
+              number: prNumber,
+              cursor: cursor ?? null,
+            })
+          )
+        );
+      } catch (error) {
+        return err(toPrApiError(error, 'Unable to sync check runs', repository.data.host));
+      }
 
       const contexts =
         response.repository.pullRequest?.commits.nodes[0]?.commit?.statusCheckRollup?.contexts;
@@ -753,7 +782,7 @@ export class PrSyncEngine {
     // Notify the renderer with the fully-assembled PR so checks appear reactively.
     await this._notifyPrWithChecks(pullRequestUrl);
 
-    return hasRunning;
+    return ok(hasRunning);
   }
 
   private async _notifyPrWithChecks(pullRequestUrl: string): Promise<void> {
@@ -834,10 +863,10 @@ export class PrSyncEngine {
       node.state === 'MERGED' ? 'merged' : node.state === 'CLOSED' ? 'closed' : 'open';
 
     const headRepositoryUrl =
-      parseGitHubRepository(node.headRepository?.url)?.repositoryUrl ?? repositoryUrl;
+      parseRepositoryRef(node.headRepository?.url)?.repositoryUrl ?? repositoryUrl;
 
     const baseRepositoryUrl =
-      parseGitHubRepository(node.baseRepository?.url)?.repositoryUrl ?? repositoryUrl;
+      parseRepositoryRef(node.baseRepository?.url)?.repositoryUrl ?? repositoryUrl;
 
     // Upsert author
     let authorUserId: string | null = null;
@@ -1024,183 +1053,209 @@ export class PrSyncEngine {
 
   async createPullRequest(params: {
     repositoryUrl: string;
+    headRepositoryUrl?: string;
     head: string;
     base: string;
     title: string;
     body?: string;
     draft: boolean;
-  }): Promise<Result<{ url: string; number: number }, GitHubRepositoryParseError>> {
-    const repository = parseGitHubRepositoryResult(params.repositoryUrl);
-    if (!repository.success) return repository;
+  }): Promise<Result<{ url: string; number: number }, PrSyncEngineError>> {
+    const repository = parseRepositoryRefResult(params.repositoryUrl);
+    if (!repository.success) return err(repository.error);
     const { owner, repo } = repository.data;
-    const octokit = await this.getOctokit();
-    const response = await octokit.rest.pulls.create({
-      owner,
-      repo,
-      head: params.head,
-      base: params.base,
-      title: params.title,
-      body: params.body,
-      draft: params.draft,
-    });
-    const { html_url: url, number } = response.data;
-    return ok({ url, number });
+    const octokit = await this.getOctokit(repository.data.host);
+    if (!octokit.success) return err(octokit.error);
+    try {
+      const response = await octokit.data.rest.pulls.create({
+        owner,
+        repo,
+        head: params.head,
+        base: params.base,
+        title: params.title,
+        body: params.body,
+        draft: params.draft,
+      });
+      const { html_url: url, number } = response.data;
+      return ok({ url, number });
+    } catch (error) {
+      return err(toPrApiError(error, 'Unable to create pull request', repository.data.host));
+    }
   }
 
   async mergePullRequest(
     repositoryUrl: string,
     prNumber: number,
     options: { strategy: 'merge' | 'squash' | 'rebase'; commitHeadOid?: string }
-  ): Promise<Result<{ sha: string | null; merged: boolean }, GitHubRepositoryParseError>> {
-    const repository = parseGitHubRepositoryResult(repositoryUrl);
-    if (!repository.success) return repository;
+  ): Promise<Result<{ sha: string | null; merged: boolean }, PrSyncEngineError>> {
+    const repository = parseRepositoryRefResult(repositoryUrl);
+    if (!repository.success) return err(repository.error);
     const { owner, repo } = repository.data;
-    const octokit = await this.getOctokit();
-    const response = await octokit.rest.pulls.merge({
-      owner,
-      repo,
-      pull_number: prNumber,
-      merge_method: options.strategy,
-      sha: options.commitHeadOid,
-    });
-    return ok({ sha: response.data.sha ?? null, merged: response.data.merged });
+    const octokit = await this.getOctokit(repository.data.host);
+    if (!octokit.success) return err(octokit.error);
+    try {
+      const response = await octokit.data.rest.pulls.merge({
+        owner,
+        repo,
+        pull_number: prNumber,
+        merge_method: options.strategy,
+        sha: options.commitHeadOid,
+      });
+      return ok({ sha: response.data.sha ?? null, merged: response.data.merged });
+    } catch (error) {
+      return err(toPrApiError(error, 'Unable to merge pull request', repository.data.host));
+    }
   }
 
   async markReadyForReview(
     repositoryUrl: string,
     prNumber: number
-  ): Promise<Result<void, GitHubRepositoryParseError>> {
-    const repository = parseGitHubRepositoryResult(repositoryUrl);
-    if (!repository.success) return repository;
+  ): Promise<Result<void, PrSyncEngineError>> {
+    const repository = parseRepositoryRefResult(repositoryUrl);
+    if (!repository.success) return err(repository.error);
     const { owner, repo } = repository.data;
-    const octokit = await this.getOctokit();
-    const { data } = await octokit.rest.pulls.get({ owner, repo, pull_number: prNumber });
-    await octokit.graphql(
-      `mutation MarkReadyForReview($id: ID!) {
+    const octokit = await this.getOctokit(repository.data.host);
+    if (!octokit.success) return err(octokit.error);
+    try {
+      const { data } = await octokit.data.rest.pulls.get({ owner, repo, pull_number: prNumber });
+      await octokit.data.graphql(
+        `mutation MarkReadyForReview($id: ID!) {
         markPullRequestReadyForReview(input: { pullRequestId: $id }) {
           pullRequest { isDraft }
         }
       }`,
-      { id: data.node_id }
-    );
-    return ok();
+        { id: data.node_id }
+      );
+      return ok();
+    } catch (error) {
+      return err(toPrApiError(error, 'Unable to mark PR ready for review', repository.data.host));
+    }
   }
 
   async getPullRequestComments(
     repositoryUrl: string,
     prNumber: number
-  ): Promise<Result<PullRequestComment[], GitHubRepositoryParseError>> {
-    const repository = parseGitHubRepositoryResult(repositoryUrl);
-    if (!repository.success) return repository;
+  ): Promise<Result<PullRequestComment[], PrSyncEngineError>> {
+    const repository = parseRepositoryRefResult(repositoryUrl);
+    if (!repository.success) return err(repository.error);
     const { owner, repo } = repository.data;
-    const octokit = await this.getOctokit();
+    const octokit = await this.getOctokit(repository.data.host);
+    if (!octokit.success) return err(octokit.error);
     const pullRequestUrl = `${repository.data.repositoryUrl}/pull/${prNumber}`;
 
-    const [issueComments, reviewComments, reviews] = await Promise.all([
-      withRetry(() =>
-        githubRateLimiter.acquire().then(() =>
-          octokit.paginate(octokit.rest.issues.listComments, {
-            owner,
-            repo,
-            issue_number: prNumber,
-            per_page: 100,
-          })
-        )
-      ),
-      withRetry(() =>
-        githubRateLimiter.acquire().then(() =>
-          octokit.paginate(octokit.rest.pulls.listReviewComments, {
-            owner,
-            repo,
-            pull_number: prNumber,
-            per_page: 100,
-          })
-        )
-      ),
-      withRetry(() =>
-        githubRateLimiter.acquire().then(() =>
-          octokit.paginate(octokit.rest.pulls.listReviews, {
-            owner,
-            repo,
-            pull_number: prNumber,
-            per_page: 100,
-          })
-        )
-      ),
-    ]);
+    try {
+      const [issueComments, reviewComments, reviews] = await Promise.all([
+        withRetry(() =>
+          githubRateLimiter.acquire().then(() =>
+            octokit.data.paginate(octokit.data.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number: prNumber,
+              per_page: 100,
+            })
+          )
+        ),
+        withRetry(() =>
+          githubRateLimiter.acquire().then(() =>
+            octokit.data.paginate(octokit.data.rest.pulls.listReviewComments, {
+              owner,
+              repo,
+              pull_number: prNumber,
+              per_page: 100,
+            })
+          )
+        ),
+        withRetry(() =>
+          githubRateLimiter.acquire().then(() =>
+            octokit.data.paginate(octokit.data.rest.pulls.listReviews, {
+              owner,
+              repo,
+              pull_number: prNumber,
+              per_page: 100,
+            })
+          )
+        ),
+      ]);
 
-    return ok([
-      ...issueComments.map((comment) => ({
-        id: `issue-comment:${comment.id}`,
-        pullRequestUrl,
-        kind: 'issue' as const,
-        body: comment.body ?? '',
-        url: comment.html_url,
-        author: comment.user ? restUserToPullRequestUser(comment.user) : null,
-        path: null,
-        line: null,
-        isResolved: false,
-        isOutdated: false,
-        createdAt: comment.created_at,
-        updatedAt: comment.updated_at,
-      })),
-      ...reviews.flatMap((review) => {
-        if (!review.body?.trim() || !review.submitted_at) return [];
-        return {
-          id: `review:${review.id}`,
+      return ok([
+        ...issueComments.map((comment) => ({
+          id: `issue-comment:${comment.id}`,
           pullRequestUrl,
-          kind: 'review' as const,
-          body: review.body,
-          url: review.html_url,
-          author: review.user ? restUserToPullRequestUser(review.user) : null,
+          kind: 'issue' as const,
+          body: comment.body ?? '',
+          url: comment.html_url,
+          author: comment.user ? restUserToPullRequestUser(comment.user) : null,
           path: null,
           line: null,
           isResolved: false,
           isOutdated: false,
-          createdAt: review.submitted_at,
-          updatedAt: review.submitted_at,
-        };
-      }),
-      ...reviewComments.map((comment) => ({
-        id: `review-comment:${comment.id}`,
-        pullRequestUrl,
-        kind: 'review' as const,
-        body: comment.body ?? '',
-        url: comment.html_url,
-        author: comment.user ? restUserToPullRequestUser(comment.user) : null,
-        path: comment.path ?? null,
-        line: comment.line ?? comment.original_line ?? null,
-        isResolved: false,
-        isOutdated: comment.position == null,
-        createdAt: comment.created_at,
-        updatedAt: comment.updated_at,
-      })),
-    ]);
+          createdAt: comment.created_at,
+          updatedAt: comment.updated_at,
+        })),
+        ...reviews.flatMap((review) => {
+          if (!review.body?.trim() || !review.submitted_at) return [];
+          return {
+            id: `review:${review.id}`,
+            pullRequestUrl,
+            kind: 'review' as const,
+            body: review.body,
+            url: review.html_url,
+            author: review.user ? restUserToPullRequestUser(review.user) : null,
+            path: null,
+            line: null,
+            isResolved: false,
+            isOutdated: false,
+            createdAt: review.submitted_at,
+            updatedAt: review.submitted_at,
+          };
+        }),
+        ...reviewComments.map((comment) => ({
+          id: `review-comment:${comment.id}`,
+          pullRequestUrl,
+          kind: 'review' as const,
+          body: comment.body ?? '',
+          url: comment.html_url,
+          author: comment.user ? restUserToPullRequestUser(comment.user) : null,
+          path: comment.path ?? null,
+          line: comment.line ?? comment.original_line ?? null,
+          isResolved: false,
+          isOutdated: comment.position == null,
+          createdAt: comment.created_at,
+          updatedAt: comment.updated_at,
+        })),
+      ]);
+    } catch (error) {
+      return err(toPrApiError(error, 'Unable to get pull request comments', repository.data.host));
+    }
   }
 
   async getPullRequestFiles(
     repositoryUrl: string,
     prNumber: number
-  ): Promise<Result<PullRequestFile[], GitHubRepositoryParseError>> {
-    const repository = parseGitHubRepositoryResult(repositoryUrl);
-    if (!repository.success) return repository;
+  ): Promise<Result<PullRequestFile[], PrSyncEngineError>> {
+    const repository = parseRepositoryRefResult(repositoryUrl);
+    if (!repository.success) return err(repository.error);
     const { owner, repo } = repository.data;
-    const octokit = await this.getOctokit();
-    const files = await octokit.paginate(octokit.rest.pulls.listFiles, {
-      owner,
-      repo,
-      pull_number: prNumber,
-      per_page: 100,
-    });
-    return ok(
-      files.map((f) => ({
-        filename: f.filename,
-        status: f.status,
-        additions: f.additions,
-        deletions: f.deletions,
-        patch: f.patch,
-      }))
-    );
+    const octokit = await this.getOctokit(repository.data.host);
+    if (!octokit.success) return err(octokit.error);
+    try {
+      const files = await octokit.data.paginate(octokit.data.rest.pulls.listFiles, {
+        owner,
+        repo,
+        pull_number: prNumber,
+        per_page: 100,
+      });
+      return ok(
+        files.map((f) => ({
+          filename: f.filename,
+          status: f.status,
+          additions: f.additions,
+          deletions: f.deletions,
+          patch: f.patch,
+        }))
+      );
+    } catch (error) {
+      return err(toPrApiError(error, 'Unable to get pull request files', repository.data.host));
+    }
   }
 
   private async _getFullSyncCursor(repositoryUrl: string): Promise<{ done: boolean } | null> {

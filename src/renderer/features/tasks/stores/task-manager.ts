@@ -12,6 +12,7 @@ import type {
   CreateTaskError,
   CreateTaskParams,
   CreateTaskWarning,
+  DeleteTaskOptions,
   Task,
   TaskLifecycleStatus,
 } from '@shared/tasks';
@@ -28,24 +29,6 @@ import {
 } from './task-store';
 import { terminalRegistry } from './terminal-registry';
 import { workspaceRegistry } from './workspace-registry';
-
-export async function markInitialConversationWorkingAfterProvision(
-  task: TaskStore | undefined,
-  initialConversation: CreateTaskParams['initialConversation']
-): Promise<void> {
-  if (!initialConversation?.initialPrompt?.trim()) return;
-  if (!task || !isProvisioned(task)) return;
-  try {
-    const mgr = conversationRegistry.get(task.data.id);
-    await mgr?.markConversationWorking(initialConversation.id);
-  } catch (error) {
-    log.warn('TaskManagerStore: failed to mark initial conversation as working', {
-      conversationId: initialConversation.id,
-      taskId: initialConversation.taskId,
-      error,
-    });
-  }
-}
 
 function formatCreateTaskError(error: CreateTaskError): string {
   switch (error.type) {
@@ -75,32 +58,6 @@ function formatCreateTaskError(error: CreateTaskError): string {
       return error.message
         ? `Could not set up the worktree for branch "${error.branch}": ${error.message}`
         : `Could not set up the worktree for branch "${error.branch}".`;
-    case 'provision-failed':
-      return `Task could not be provisioned: ${error.message}`;
-    case 'provision-timeout': {
-      const seconds = Math.round(error.timeoutMs / 1000);
-      const stepLabel = (() => {
-        switch (error.step) {
-          case 'resolving-worktree':
-            return 'resolving the worktree';
-          case 'initialising-workspace':
-            return 'initialising the workspace';
-          case 'running-provision-script':
-            return 'running the provision script';
-          case 'connecting':
-            return 'connecting to the workspace';
-          case 'setting-up-workspace':
-            return 'setting up the workspace';
-          case 'starting-sessions':
-            return 'starting sessions';
-          case null:
-            return null;
-        }
-      })();
-      return stepLabel
-        ? `Task setup timed out after ${seconds}s while ${stepLabel}.`
-        : `Task setup timed out after ${seconds}s before any step started.`;
-    }
   }
 }
 
@@ -168,7 +125,7 @@ export class TaskManagerStore {
     );
 
     this._unsubPrUpdated = events.on(prUpdatedChannel, ({ prs }) => {
-      const repoUrl = this._repository.repositoryUrl;
+      const repoUrl = this._repository.pullRequestRepositoryUrl;
       if (!repoUrl) return;
       for (const pr of prs) {
         if (pr.repositoryUrl !== repoUrl) continue;
@@ -190,7 +147,7 @@ export class TaskManagerStore {
 
     this._unsubPrSyncProgress = events.on(prSyncProgressChannel, (progress) => {
       if (progress.status !== 'done') return;
-      const repoUrl = this._repository.repositoryUrl;
+      const repoUrl = this._repository.pullRequestRepositoryUrl;
       if (!repoUrl || progress.remoteUrl !== repoUrl) return;
       for (const [, store] of this.tasks) {
         if (isRegistered(store)) {
@@ -200,7 +157,7 @@ export class TaskManagerStore {
     });
 
     this._disposeRepositoryReaction = reaction(
-      () => this._repository.repositoryUrl,
+      () => this._repository.pullRequestRepositoryUrl,
       () => {
         for (const [, store] of this.tasks) {
           if (isRegistered(store)) {
@@ -308,10 +265,21 @@ export class TaskManagerStore {
     }
 
     await this.provisionTask(params.id);
-    await markInitialConversationWorkingAfterProvision(
-      this.tasks.get(params.id),
-      params.initialConversation
-    );
+
+    if (params.initialConversation) {
+      try {
+        await conversationRegistry.get(params.id)?.createConversation({
+          ...params.initialConversation,
+          isInitialConversation: true,
+        });
+      } catch (error) {
+        log.warn('TaskManagerStore: failed to create initial conversation after provision', {
+          conversationId: params.initialConversation.id,
+          taskId: params.id,
+          error,
+        });
+      }
+    }
   }
 
   async provisionTask(taskId: string): Promise<void> {
@@ -597,23 +565,34 @@ export class TaskManagerStore {
     }
   }
 
-  async deleteTask(taskId: string): Promise<void> {
-    const task = this.tasks.get(taskId);
-    if (!task) return;
+  async deleteTask(taskId: string, opts?: DeleteTaskOptions): Promise<void> {
+    return this.deleteTasks([taskId], opts);
+  }
+
+  async deleteTasks(taskIds: string[], opts?: DeleteTaskOptions): Promise<void> {
+    const removed = new Map<string, TaskStore>();
 
     runInAction(() => {
-      this.tasks.delete(taskId);
+      for (const id of taskIds) {
+        const t = this.tasks.get(id);
+        if (t) {
+          removed.set(id, t);
+          this.tasks.delete(id);
+        }
+      }
     });
 
     try {
-      // Release conversation and terminal registries before disposing the task.
-      conversationRegistry.release(taskId);
-      terminalRegistry.release(taskId);
-      task.dispose();
-      await rpc.tasks.deleteTask(this.projectId, taskId);
+      // Release conversation and terminal registries before disposing each task.
+      removed.forEach((t, id) => {
+        conversationRegistry.release(id);
+        terminalRegistry.release(id);
+        t.dispose();
+      });
+      await rpc.tasks.deleteTasks(this.projectId, taskIds, opts);
     } catch (e) {
       runInAction(() => {
-        this.tasks.set(taskId, task);
+        removed.forEach((t, id) => this.tasks.set(id, t));
       });
       throw e;
     }

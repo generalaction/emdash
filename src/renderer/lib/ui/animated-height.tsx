@@ -12,6 +12,11 @@ export function AnimatedHeight({
   onAnimatingChange?: (isAnimating: boolean) => void;
 }) {
   const contentRef = useRef<HTMLDivElement>(null);
+  // Track the last observed height in a ref so the ResizeObserver callback
+  // can detect actual changes without putting a side effect (setIsAnimating)
+  // inside setHeight's updater function — pure-updater violations are
+  // fragile in React StrictMode where updaters run twice.
+  const lastHeightRef = useRef<number | undefined>(undefined);
   const [height, setHeight] = useState<number | undefined>(undefined);
   const [isAnimating, setIsAnimating] = useState(false);
 
@@ -21,7 +26,9 @@ export function AnimatedHeight({
   useLayoutEffect(() => {
     const el = contentRef.current;
     if (!el) return;
-    setHeight(el.offsetHeight);
+    const initial = el.offsetHeight;
+    lastHeightRef.current = initial;
+    setHeight(initial);
   }, []);
 
   useEffect(() => {
@@ -35,7 +42,10 @@ export function AnimatedHeight({
         isFirstCallback = false;
         return;
       }
-      setHeight(el.offsetHeight);
+      const next = el.offsetHeight;
+      if (lastHeightRef.current === next) return;
+      lastHeightRef.current = next;
+      setHeight(next);
       setIsAnimating(true);
     });
     ro.observe(el);
