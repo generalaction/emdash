@@ -67,7 +67,8 @@ export class FilesStore {
             if (changed) ctx.set({ nodes: this._nodes, rootNodes: this._rootNodes });
           },
         },
-      ]
+      ],
+      { refData: true }
     );
   }
 

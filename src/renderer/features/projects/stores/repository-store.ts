@@ -42,7 +42,7 @@ export class RepositoryStore {
           subscribe: (handler) =>
             events.on(gitRefChangedChannel, (p) => {
               if (p.projectId !== projectId) return;
-              if (workspaceId ? p.workspaceId !== workspaceId : p.workspaceId !== undefined) return;
+              if (p.workspaceId !== undefined && p.workspaceId !== workspaceId) return;
               if (p.kind === 'local-refs') handler(p);
             }),
           onEvent: 'reload',
@@ -60,7 +60,7 @@ export class RepositoryStore {
           subscribe: (handler) =>
             events.on(gitRefChangedChannel, (p) => {
               if (p.projectId !== projectId) return;
-              if (workspaceId ? p.workspaceId !== workspaceId : p.workspaceId !== undefined) return;
+              if (p.workspaceId !== undefined && p.workspaceId !== workspaceId) return;
               if (p.kind === 'remote-refs' || p.kind === 'config') handler(p);
             }),
           onEvent: 'reload',

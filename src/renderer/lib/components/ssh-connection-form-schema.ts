@@ -3,6 +3,22 @@ import * as z from 'zod';
 const manualHostPattern = /^[a-zA-Z0-9._\-[\]:]+$/;
 const sshAliasPattern = /^[A-Za-z0-9._@%+:/[\]-]+$/;
 
+function hasLeadingOrTrailingWhitespace(value: string): boolean {
+  return value !== value.trim();
+}
+
+function addWhitespaceIssue(
+  ctx: z.RefinementCtx,
+  path: 'name' | 'host' | 'username' | 'privateKeyPath' | 'sshConfigAlias' | 'proxyJump',
+  label: string
+): void {
+  ctx.addIssue({
+    code: z.ZodIssueCode.custom,
+    message: `${label} cannot start or end with spaces`,
+    path: [path],
+  });
+}
+
 export const sshConnectionFormSchema = z
   .object({
     name: z.string().min(1, 'Name is required'),
@@ -24,15 +40,37 @@ export const sshConnectionFormSchema = z
     isEditing: z.boolean(),
   })
   .superRefine((val, ctx) => {
+    if (hasLeadingOrTrailingWhitespace(val.name)) {
+      addWhitespaceIssue(ctx, 'name', 'Connection name');
+    }
+    if (hasLeadingOrTrailingWhitespace(val.host)) {
+      addWhitespaceIssue(ctx, 'host', 'Host');
+    }
+    if (hasLeadingOrTrailingWhitespace(val.username)) {
+      addWhitespaceIssue(ctx, 'username', 'Username');
+    }
+    if (hasLeadingOrTrailingWhitespace(val.privateKeyPath)) {
+      addWhitespaceIssue(ctx, 'privateKeyPath', 'Private key path');
+    }
+    if (hasLeadingOrTrailingWhitespace(val.sshConfigAlias)) {
+      addWhitespaceIssue(ctx, 'sshConfigAlias', 'SSH config alias');
+    }
+    if (hasLeadingOrTrailingWhitespace(val.proxyJump)) {
+      addWhitespaceIssue(ctx, 'proxyJump', 'ProxyJump');
+    }
+
     if (val.sshConfigAlias) {
-      if (val.sshConfigAlias.startsWith('-') || !sshAliasPattern.test(val.sshConfigAlias)) {
+      if (
+        !hasLeadingOrTrailingWhitespace(val.sshConfigAlias) &&
+        (val.sshConfigAlias.startsWith('-') || !sshAliasPattern.test(val.sshConfigAlias))
+      ) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: 'Invalid SSH config alias',
           path: ['sshConfigAlias'],
         });
       }
-    } else if (!manualHostPattern.test(val.host)) {
+    } else if (!hasLeadingOrTrailingWhitespace(val.host) && !manualHostPattern.test(val.host)) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: 'Invalid hostname or IP address',

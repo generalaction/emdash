@@ -144,6 +144,12 @@ export function AddSshConnModal({
     };
   };
 
+  const validateConnectionForm = async (): Promise<boolean> => {
+    await form.validateAllFields('submit');
+    await form.validate('submit');
+    return form.state.isValid;
+  };
+
   const sshConfigHostsQuery = useSshConfigHosts();
   const resolvedSshConfigHostQuery = useSshConfigHost(selectedSshConfigAlias);
   const sshConfigHosts = sshConfigHostsQuery.data ?? EMPTY_SSH_CONFIG_HOSTS;
@@ -192,9 +198,15 @@ export function AddSshConnModal({
   };
 
   const handleTestConnection = async () => {
-    setTestState('testing');
     setTestResult(null);
     setShowDebugLogs(false);
+    const isValid = await validateConnectionForm();
+    if (!isValid) {
+      setTestState('idle');
+      return;
+    }
+
+    setTestState('testing');
     try {
       const result = await sshConnections.testConnection(buildTestConfig());
       setTestResult(result);
