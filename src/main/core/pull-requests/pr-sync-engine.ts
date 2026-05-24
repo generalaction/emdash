@@ -573,11 +573,15 @@ export class PrSyncEngine {
         const { nodes, pageInfo } = response.repository.pullRequests;
         let reachedBoundary = false;
         const batch: GqlPrNode[] = [];
+        // Reviewer requests and latest review state are nested PR data and do not
+        // always advance PullRequest.updatedAt. Refresh the hot page on each poll
+        // so recently visible PR reviewer badges do not stay stale.
+        const shouldRefreshFirstPage = pageCursor == null;
 
         for (const node of nodes) {
           if (node.updatedAt < sinceUpdatedAt) {
             reachedBoundary = true;
-            break;
+            if (!shouldRefreshFirstPage) break;
           }
           batch.push(node);
         }
@@ -585,7 +589,9 @@ export class PrSyncEngine {
         if (batch.length > 0) {
           await this._upsertBatch(repositoryUrl, batch);
           synced += batch.length;
-          lastUpdatedAt = batch[0].updatedAt; // most recent first
+          if (batch[0].updatedAt > lastUpdatedAt) {
+            lastUpdatedAt = batch[0].updatedAt; // most recent first
+          }
         }
 
         // If we've processed too many PRs, the cursor is too stale — reset to a full sync.
