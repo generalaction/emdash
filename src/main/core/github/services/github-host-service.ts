@@ -76,6 +76,7 @@ export class GitHubHostService {
     } catch (error) {
       if (error && typeof error === 'object' && 'status' in error) {
         const status = Number((error as { status: unknown }).status);
+        if (status === 401 || status === 403) return ok({ host });
         return status === 404
           ? err({ type: 'not_github', host, reason: 'meta endpoint returned 404' })
           : err({ type: 'host_error', host, reason: `meta endpoint returned ${status}` });

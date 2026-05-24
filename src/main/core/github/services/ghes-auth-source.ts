@@ -1,4 +1,5 @@
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import { normalizeRepositoryHost } from '@shared/repository-ref';
 import { extractGhCliToken } from './gh-cli-token';
 
@@ -14,7 +15,7 @@ export class GhCliGitHubEnterpriseAuthSource {
   private readonly inflight = new Map<string, Promise<string | null>>();
 
   constructor(
-    private readonly ctxFactory: () => LocalExecutionContext = () => new LocalExecutionContext()
+    private readonly ctxFactory: () => IExecutionContext = () => new LocalExecutionContext()
   ) {}
 
   async getToken(host: string): Promise<string | null> {
@@ -43,7 +44,9 @@ export class GhCliGitHubEnterpriseAuthSource {
   private async fetchToken(host: string): Promise<string | null> {
     const ctx = this.ctxFactory();
     const token = await extractGhCliToken(ctx, { hostname: host });
-    this.cache.set(host, { token, expiresAt: Date.now() + TOKEN_TTL_MS });
+    if (token) {
+      this.cache.set(host, { token, expiresAt: Date.now() + TOKEN_TTL_MS });
+    }
     return token;
   }
 }

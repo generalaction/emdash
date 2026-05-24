@@ -1,6 +1,6 @@
 import type { Octokit } from '@octokit/rest';
 import type { IssueListError } from '@shared/issue-providers';
-import type { RepositoryRef } from '@shared/repository-ref';
+import { isGitHubDotComHost, type RepositoryRef } from '@shared/repository-ref';
 import { err, ok, type Result } from '@shared/result';
 import type { GitHubApiAuthError } from './github-api-auth-service';
 import { getOctokit } from './octokit-provider';
@@ -93,7 +93,7 @@ export class GitHubIssueServiceImpl implements GitHubIssueService {
           .map((item) => this.mapIssue(item as unknown as RestIssue))
       );
     } catch (error) {
-      return err(this.mapUnknownError(error, 'Unable to list GitHub issues'));
+      return err(this.mapApiError(error, 'Unable to list GitHub issues', host));
     }
   }
 
@@ -117,7 +117,7 @@ export class GitHubIssueServiceImpl implements GitHubIssueService {
       });
       return ok(data.items.map((item) => this.mapIssue(item as unknown as RestIssue)));
     } catch (error) {
-      return err(this.mapUnknownError(error, 'Unable to search GitHub issues'));
+      return err(this.mapApiError(error, 'Unable to search GitHub issues', host));
     }
   }
 
@@ -137,7 +137,7 @@ export class GitHubIssueServiceImpl implements GitHubIssueService {
       });
       return ok(this.mapIssueDetail(data as unknown as RestIssue));
     } catch (error) {
-      return err(this.mapUnknownError(error, 'Unable to get GitHub issue'));
+      return err(this.mapApiError(error, 'Unable to get GitHub issue', host));
     }
   }
 
@@ -171,7 +171,23 @@ export class GitHubIssueServiceImpl implements GitHubIssueService {
     return { type: 'auth_required', host: error.host, message: error.message };
   }
 
-  private mapUnknownError(error: unknown, fallback: string): IssueListError {
+  private mapApiError(error: unknown, fallback: string, host: string): IssueListError {
+    if (error && typeof error === 'object' && 'status' in error) {
+      const status = Number((error as { status: unknown }).status);
+      if (status === 401 || status === 403) {
+        const hint = isGitHubDotComHost(host)
+          ? 'Connect GitHub from account settings.'
+          : `Run: gh auth login --hostname ${host}`;
+        return {
+          type: 'auth_required',
+          host,
+          message: isGitHubDotComHost(host)
+            ? `GitHub authentication required. ${hint}`
+            : `GitHub Enterprise authentication required for ${host}. ${hint}`,
+        };
+      }
+    }
+
     return {
       type: 'generic',
       message: error instanceof Error ? error.message : fallback,

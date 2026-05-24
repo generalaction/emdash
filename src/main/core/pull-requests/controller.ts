@@ -8,17 +8,20 @@ import type {
   PullRequestError,
   PullRequestFile,
 } from '@shared/pull-requests';
-import { parseRepositoryRef } from '@shared/repository-ref';
+import { isGitHubDotComHost, parseRepositoryRef } from '@shared/repository-ref';
 import { err, ok } from '@shared/result';
 import { prQueryService } from './pr-query-service';
-import { prSyncEngine, type PrSyncEngineError } from './pr-sync-engine';
+import { prSyncEngine } from './pr-sync-engine';
+import { type PrSyncEngineError } from './pr-sync-errors';
 
 type PrControllerFailureType =
   | 'create_failed'
   | 'merge_failed'
   | 'mark_ready_failed'
   | 'files_failed'
-  | 'comments_failed';
+  | 'comments_failed'
+  | 'refresh_failed'
+  | 'checks_failed';
 
 function mapPrSyncEngineError(
   error: PrSyncEngineError,
@@ -28,11 +31,17 @@ function mapPrSyncEngineError(
     case 'invalid-repository-ref':
       return { type: 'invalid_repository', input: error.input };
     case 'auth_required':
-      return {
-        type: 'ghes_auth_required',
-        host: error.host,
-        hint: error.hint ?? 'Connect GitHub from account settings.',
-      };
+      return isGitHubDotComHost(error.host)
+        ? {
+            type: 'github_auth_required',
+            host: error.host,
+            hint: error.hint ?? 'Connect GitHub from account settings.',
+          }
+        : {
+            type: 'ghes_auth_required',
+            host: error.host,
+            hint: error.hint ?? `Run: gh auth login --hostname ${error.host}`,
+          };
     case 'api_error':
       return { type: fallbackType, message: error.message };
   }
@@ -149,8 +158,11 @@ export const pullRequestController = createRPCController({
 
   refreshPullRequest: async (repositoryUrl: string, prNumber: number) => {
     try {
-      const pr = await prSyncEngine.syncSingle(repositoryUrl, prNumber);
-      return ok({ pr });
+      const result = await prSyncEngine.syncSingle(repositoryUrl, prNumber);
+      if (!result.success) {
+        return err<PullRequestError>(mapPrSyncEngineError(result.error, 'refresh_failed'));
+      }
+      return ok({ pr: result.data });
     } catch (error) {
       log.error('Failed to refresh pull request:', error);
       return err<PullRequestError>({
@@ -162,8 +174,11 @@ export const pullRequestController = createRPCController({
 
   syncChecks: async (pullRequestUrl: string, headRefOid: string) => {
     try {
-      const hasRunning = await prSyncEngine.syncChecks(pullRequestUrl, headRefOid);
-      return ok({ hasRunning });
+      const result = await prSyncEngine.syncChecks(pullRequestUrl, headRefOid);
+      if (!result.success) {
+        return err<PullRequestError>(mapPrSyncEngineError(result.error, 'checks_failed'));
+      }
+      return ok({ hasRunning: result.data });
     } catch (error) {
       log.error('Failed to sync checks:', error);
       return err<PullRequestError>({

@@ -34,12 +34,9 @@ import type {
   PullRequestStatus,
   PullRequestUser,
 } from '@shared/pull-requests';
-import {
-  parseRepositoryRef,
-  parseRepositoryRefResult,
-  type RepositoryRefParseError,
-} from '@shared/repository-ref';
+import { parseRepositoryRef, parseRepositoryRefResult } from '@shared/repository-ref';
 import { err, ok, type Result } from '@shared/result';
+import { prSyncEngineErrorMessage, toPrApiError, type PrSyncEngineError } from './pr-sync-errors';
 import { assemblePullRequest } from './pr-utils';
 
 const PR_SYNC_MAX_COUNT = 300;
@@ -65,25 +62,6 @@ type IncrementalSyncCursor = {
 type PrKvSchema = {
   [key: string]: FullSyncCursor | IncrementalSyncCursor | string;
 };
-
-export type PrSyncEngineError =
-  | RepositoryRefParseError
-  | GitHubApiAuthError
-  | { type: 'api_error'; message: string };
-
-function toPrApiError(error: unknown, fallback: string): PrSyncEngineError {
-  const ghErrors =
-    error &&
-    typeof error === 'object' &&
-    'response' in error &&
-    Array.isArray((error.response as { data?: { errors?: unknown[] } } | undefined)?.data?.errors)
-      ? (error.response as { data: { errors: { message?: string }[] } }).data.errors
-      : undefined;
-  return {
-    type: 'api_error',
-    message: ghErrors?.[0]?.message ?? (error instanceof Error ? error.message : fallback),
-  };
-}
 
 // ---------------------------------------------------------------------------
 // GQL node shapes
@@ -179,8 +157,11 @@ export class PrSyncEngine {
   private readonly _inflight = new Map<string, Promise<void>>();
   private readonly _controllers = new Map<string, AbortController>();
   // Per-operation deduplication for single-PR and check-run syncs
-  private readonly _singleInflight = new Map<string, Promise<void>>();
-  private readonly _checksInflight = new Map<string, Promise<void>>();
+  private readonly _singleInflight = new Map<
+    string,
+    Promise<Result<PullRequest | null, PrSyncEngineError>>
+  >();
+  private readonly _checksInflight = new Map<string, Promise<Result<boolean, PrSyncEngineError>>>();
 
   constructor(
     private readonly getOctokit: (host: string) => Promise<Result<Octokit, GitHubApiAuthError>>
@@ -294,7 +275,7 @@ export class PrSyncEngine {
         remoteUrl: repositoryUrl,
         kind: 'full',
         status: 'error',
-        error: `Invalid GitHub repository URL: "${repository.error.input}"`,
+        error: prSyncEngineErrorMessage(repository.error),
       });
       return;
     }
@@ -309,7 +290,7 @@ export class PrSyncEngine {
         remoteUrl: repositoryUrl,
         kind: 'full',
         status: 'error',
-        error: octokit.error.message,
+        error: prSyncEngineErrorMessage(octokit.error),
       });
       return;
     }
@@ -379,11 +360,12 @@ export class PrSyncEngine {
         this._emitProgress({ remoteUrl: repositoryUrl, kind: 'full', status: 'cancelled' });
         return;
       }
+      const error = toPrApiError(e, 'Unable to sync pull requests', repository.data.host);
       this._emitProgress({
         remoteUrl: repositoryUrl,
         kind: 'full',
         status: 'error',
-        error: e instanceof Error ? e.message : String(e),
+        error: prSyncEngineErrorMessage(error),
       });
       throw e;
     }
@@ -405,7 +387,7 @@ export class PrSyncEngine {
         remoteUrl: repositoryUrl,
         kind: 'incremental',
         status: 'error',
-        error: `Invalid GitHub repository URL: "${repository.error.input}"`,
+        error: prSyncEngineErrorMessage(repository.error),
       });
       return;
     }
@@ -420,7 +402,7 @@ export class PrSyncEngine {
         remoteUrl: repositoryUrl,
         kind: 'incremental',
         status: 'error',
-        error: octokit.error.message,
+        error: prSyncEngineErrorMessage(octokit.error),
       });
       return;
     }
@@ -534,11 +516,12 @@ export class PrSyncEngine {
         this._emitProgress({ remoteUrl: repositoryUrl, kind: 'incremental', status: 'cancelled' });
         return;
       }
+      const error = toPrApiError(e, 'Unable to sync pull requests', repository.data.host);
       this._emitProgress({
         remoteUrl: repositoryUrl,
         kind: 'incremental',
         status: 'error',
-        error: e instanceof Error ? e.message : String(e),
+        error: prSyncEngineErrorMessage(error),
       });
       throw e;
     }
@@ -547,20 +530,18 @@ export class PrSyncEngine {
   // ── Single PR sync ─────────────────────────────────────────────────────────
 
   /** Sync a single PR by number. Deduplicated — awaits any in-flight call for the same PR. */
-  async syncSingle(repositoryUrl: string, prNumber: number): Promise<PullRequest | null> {
+  async syncSingle(
+    repositoryUrl: string,
+    prNumber: number
+  ): Promise<Result<PullRequest | null, PrSyncEngineError>> {
     const key = `single:${repositoryUrl}:${prNumber}`;
     if (this._singleInflight.has(key)) {
-      await this._singleInflight.get(key);
-      return null;
+      return await this._singleInflight.get(key)!;
     }
 
     const ctrl = new AbortController();
-    let result: PullRequest | null = null;
 
     const promise = this._runSyncSingle(repositoryUrl, prNumber, ctrl.signal)
-      .then((pr) => {
-        result = pr;
-      })
       .catch((e: unknown) => {
         if ((e as { name?: string }).name !== 'AbortError') {
           log.error('PrSyncEngine: syncSingle failed', {
@@ -568,40 +549,46 @@ export class PrSyncEngine {
             prNumber,
             error: String(e),
           });
+          return err(toPrApiError(e, 'Unable to refresh pull request'));
         }
+        return ok(null);
       })
       .finally(() => {
         this._singleInflight.delete(key);
       });
 
     this._singleInflight.set(key, promise);
-    await promise;
-    return result;
+    return await promise;
   }
 
   private async _runSyncSingle(
     repositoryUrl: string,
     prNumber: number,
     signal: AbortSignal
-  ): Promise<PullRequest | null> {
-    if (signal.aborted) return null;
+  ): Promise<Result<PullRequest | null, PrSyncEngineError>> {
+    if (signal.aborted) return ok(null);
 
     const repository = parseRepositoryRefResult(repositoryUrl);
-    if (!repository.success) return null;
+    if (!repository.success) return err(repository.error);
     const { owner, repo } = repository.data;
     const octokit = await this.getOctokit(repository.data.host);
-    if (!octokit.success) return null;
+    if (!octokit.success) return err(octokit.error);
 
-    const response = await withRetry(() =>
-      githubRateLimiter.acquire().then(() =>
-        octokit.data.graphql<{
-          repository: { pullRequest: GqlPrNode | null };
-        }>(GET_PR_BY_NUMBER_QUERY, { owner, repo, number: prNumber })
-      )
-    );
+    let response: { repository: { pullRequest: GqlPrNode | null } };
+    try {
+      response = await withRetry(() =>
+        githubRateLimiter.acquire().then(() =>
+          octokit.data.graphql<{
+            repository: { pullRequest: GqlPrNode | null };
+          }>(GET_PR_BY_NUMBER_QUERY, { owner, repo, number: prNumber })
+        )
+      );
+    } catch (error) {
+      return err(toPrApiError(error, 'Unable to refresh pull request', repository.data.host));
+    }
 
     const node = response.repository.pullRequest;
-    if (!node) return null;
+    if (!node) return ok(null);
 
     const [pr] = await this._upsertBatch(repositoryUrl, [node]);
     if (pr) {
@@ -609,7 +596,7 @@ export class PrSyncEngine {
     }
 
     this._emitProgress({ remoteUrl: repositoryUrl, kind: 'single', status: 'done', synced: 1 });
-    return pr ?? null;
+    return ok(pr ?? null);
   }
 
   // ── Check runs sync ────────────────────────────────────────────────────────
@@ -618,40 +605,39 @@ export class PrSyncEngine {
    * Fetch and store check runs for a PR. Deduplicated — awaits any in-flight call.
    * Returns true if any check is still running (caller should re-invoke soon).
    */
-  async syncChecks(pullRequestUrl: string, headRefOid: string): Promise<boolean> {
+  async syncChecks(
+    pullRequestUrl: string,
+    headRefOid: string
+  ): Promise<Result<boolean, PrSyncEngineError>> {
     const key = `checks:${pullRequestUrl}:${headRefOid}`;
     if (this._checksInflight.has(key)) {
-      await this._checksInflight.get(key);
-      return false;
+      return await this._checksInflight.get(key)!;
     }
 
     const ctrl = new AbortController();
-    let result = false;
 
     const promise = this._runSyncChecks(pullRequestUrl, headRefOid, ctrl.signal)
-      .then((r) => {
-        result = r;
-      })
       .catch((e: unknown) => {
         if ((e as { name?: string }).name !== 'AbortError') {
           log.error('PrSyncEngine: syncChecks failed', { pullRequestUrl, error: String(e) });
+          return err(toPrApiError(e, 'Unable to sync check runs'));
         }
+        return ok(false);
       })
       .finally(() => {
         this._checksInflight.delete(key);
       });
 
     this._checksInflight.set(key, promise);
-    await promise;
-    return result;
+    return await promise;
   }
 
   private async _runSyncChecks(
     pullRequestUrl: string,
     headRefOid: string,
     signal: AbortSignal
-  ): Promise<boolean> {
-    if (signal.aborted) return false;
+  ): Promise<Result<boolean, PrSyncEngineError>> {
+    if (signal.aborted) return ok(false);
 
     // Detect stale checks: delete if commitSha changed
     const existing = await db
@@ -673,25 +659,25 @@ export class PrSyncEngine {
       .where(eq(pullRequests.url, pullRequestUrl))
       .limit(1);
 
-    if (!pr[0]) return false;
+    if (!pr[0]) return ok(false);
 
     const prNumber = pr[0].identifier ? parseInt(pr[0].identifier.replace('#', ''), 10) : NaN;
-    if (isNaN(prNumber)) return false;
+    if (isNaN(prNumber)) return ok(false);
 
-    const repository = parseRepositoryRef(pr[0].repositoryUrl);
-    if (!repository) return false;
-    const { owner, repo } = repository;
-    const octokit = await this.getOctokit(repository.host);
-    if (!octokit.success) return false;
+    const repository = parseRepositoryRefResult(pr[0].repositoryUrl);
+    if (!repository.success) return err(repository.error);
+    const { owner, repo } = repository.data;
+    const octokit = await this.getOctokit(repository.data.host);
+    if (!octokit.success) return err(octokit.error);
 
     type CheckNode = GqlCheckRunNode | GqlStatusContextNode;
     const allNodes: CheckNode[] = [];
     let cursor: string | undefined;
 
     for (;;) {
-      if (signal.aborted) return false;
+      if (signal.aborted) return ok(false);
 
-      const response: {
+      let response: {
         repository: {
           pullRequest: {
             commits: {
@@ -709,16 +695,21 @@ export class PrSyncEngine {
             };
           } | null;
         };
-      } = await withRetry(() =>
-        githubRateLimiter.acquire().then(() =>
-          octokit.data.graphql(GET_PR_CHECK_RUNS_BY_URL_QUERY, {
-            owner,
-            repo,
-            number: prNumber,
-            cursor: cursor ?? null,
-          })
-        )
-      );
+      };
+      try {
+        response = await withRetry(() =>
+          githubRateLimiter.acquire().then(() =>
+            octokit.data.graphql(GET_PR_CHECK_RUNS_BY_URL_QUERY, {
+              owner,
+              repo,
+              number: prNumber,
+              cursor: cursor ?? null,
+            })
+          )
+        );
+      } catch (error) {
+        return err(toPrApiError(error, 'Unable to sync check runs', repository.data.host));
+      }
 
       const contexts =
         response.repository.pullRequest?.commits.nodes[0]?.commit?.statusCheckRollup?.contexts;
@@ -791,7 +782,7 @@ export class PrSyncEngine {
     // Notify the renderer with the fully-assembled PR so checks appear reactively.
     await this._notifyPrWithChecks(pullRequestUrl);
 
-    return hasRunning;
+    return ok(hasRunning);
   }
 
   private async _notifyPrWithChecks(pullRequestUrl: string): Promise<void> {
@@ -1087,7 +1078,7 @@ export class PrSyncEngine {
       const { html_url: url, number } = response.data;
       return ok({ url, number });
     } catch (error) {
-      return err(toPrApiError(error, 'Unable to create pull request'));
+      return err(toPrApiError(error, 'Unable to create pull request', repository.data.host));
     }
   }
 
@@ -1111,7 +1102,7 @@ export class PrSyncEngine {
       });
       return ok({ sha: response.data.sha ?? null, merged: response.data.merged });
     } catch (error) {
-      return err(toPrApiError(error, 'Unable to merge pull request'));
+      return err(toPrApiError(error, 'Unable to merge pull request', repository.data.host));
     }
   }
 
@@ -1136,7 +1127,7 @@ export class PrSyncEngine {
       );
       return ok();
     } catch (error) {
-      return err(toPrApiError(error, 'Unable to mark PR ready for review'));
+      return err(toPrApiError(error, 'Unable to mark PR ready for review', repository.data.host));
     }
   }
 
@@ -1233,7 +1224,7 @@ export class PrSyncEngine {
         })),
       ]);
     } catch (error) {
-      return err(toPrApiError(error, 'Unable to get pull request comments'));
+      return err(toPrApiError(error, 'Unable to get pull request comments', repository.data.host));
     }
   }
 
@@ -1263,7 +1254,7 @@ export class PrSyncEngine {
         }))
       );
     } catch (error) {
-      return err(toPrApiError(error, 'Unable to get pull request files'));
+      return err(toPrApiError(error, 'Unable to get pull request files', repository.data.host));
     }
   }
 
