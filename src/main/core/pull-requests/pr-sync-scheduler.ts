@@ -165,15 +165,10 @@ export class PrSyncScheduler implements IInitializable, IDisposable {
       .from(projectRemotes)
       .where(eq(projectRemotes.projectId, projectId));
 
-    const resolved = await Promise.all(
-      rows.map(async (r) => {
-        const repository = parseRepositoryRef(r.remoteUrl);
-        return repository ? githubRepositoryResolver.resolve(repository.repositoryUrl) : null;
-      })
-    );
-    return resolved.flatMap((repository) =>
-      repository?.success ? [repository.data.repositoryUrl] : []
-    );
+    return rows.flatMap((r) => {
+      const repository = parseRepositoryRef(r.remoteUrl);
+      return repository ? [repository.repositoryUrl] : [];
+    });
   }
 
   private async _findPrNumberForBranch(
