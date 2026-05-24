@@ -18,7 +18,7 @@ import { Input } from '@renderer/lib/ui/input';
 import { Spinner } from '@renderer/lib/ui/spinner';
 import { Textarea } from '@renderer/lib/ui/textarea';
 import { cn } from '@renderer/utils/utils';
-import { EMDASH_ISSUES_URL } from '@shared/urls';
+import { EMDASH_ISSUES_NEW_URL } from '@shared/urls';
 import { useFeedbackSubmit } from './use-feedback-submit';
 
 type FeedbackModalArgs = {
@@ -124,8 +124,8 @@ export function FeedbackModal({ onSuccess, blurb }: Props) {
             type="button"
             variant="link"
             size="sm"
-            className="group text-muted-foreground inline-flex h-auto w-fit items-center gap-1 px-0 text-xs font-normal tracking-normal normal-case hover:text-foreground hover:no-underline focus-visible:ring-0 focus-visible:outline-none"
-            onClick={() => void rpc.app.openExternal(EMDASH_ISSUES_URL)}
+            className="group text-muted-foreground inline-flex h-auto w-fit items-center gap-1 px-0 text-xs font-normal tracking-normal normal-case hover:text-foreground hover:no-underline"
+            onClick={() => void rpc.app.openExternal(EMDASH_ISSUES_NEW_URL)}
           >
             <span className="transition-colors group-hover:text-foreground">GitHub issues</span>
             <ExternalLink className="size-3" aria-hidden="true" />
