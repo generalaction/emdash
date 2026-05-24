@@ -4,27 +4,7 @@ import { conversations } from '@main/db/schema';
 import type { AgentEvent } from '@shared/events/agentEvents';
 import { parsePtyId } from '@shared/ptyId';
 import type { RawHookRequest } from './hook-server';
-
-function normalizePayload(
-  providerId: string,
-  body: Record<string, unknown>
-): AgentEvent['payload'] {
-  const payload: AgentEvent['payload'] = {
-    notificationType: (body.notification_type ??
-      body.notificationType) as AgentEvent['payload']['notificationType'],
-    lastAssistantMessage: (body.last_assistant_message ?? body.lastAssistantMessage) as
-      | string
-      | undefined,
-    title: body.title as string | undefined,
-    message: body.message as string | undefined,
-  };
-
-  if (!payload.notificationType && providerId === 'codex' && body.type === 'agent-turn-complete') {
-    payload.notificationType = 'idle_prompt';
-  }
-
-  return payload;
-}
+import { normalizePayload } from './payload-normalizer';
 
 export async function enrichEvent(raw: RawHookRequest): Promise<AgentEvent> {
   const parsed = parsePtyId(raw.ptyId);
@@ -41,7 +21,7 @@ export async function enrichEvent(raw: RawHookRequest): Promise<AgentEvent> {
   const taskId = convRows.taskId;
   const projectId = convRows.projectId;
   const body = raw.body ? JSON.parse(raw.body) : {};
-  const payload = normalizePayload(parsed.providerId, body);
+  const payload = normalizePayload(parsed.providerId, raw.type, body);
 
   return {
     type: raw.type as AgentEvent['type'],

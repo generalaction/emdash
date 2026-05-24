@@ -107,7 +107,7 @@ export class ConversationManagerStore implements IDisposable {
       const conversationStore = this.conversations.get(event.conversationId);
       if (!conversationStore) return;
       if (event.type === 'start') {
-        conversationStore.setWorking();
+        conversationStore.setWorking({ clearPermissionPrompt: true });
         return;
       }
       if (event.type === 'notification') {
@@ -308,8 +308,12 @@ export class ConversationStore {
     this.setStatus('awaiting-input');
   }
 
-  setWorking() {
-    if (this.status === 'awaiting-input' && this.lastNotificationType === 'permission_prompt') {
+  setWorking(options: { clearPermissionPrompt?: boolean } = {}) {
+    if (
+      this.status === 'awaiting-input' &&
+      this.lastNotificationType === 'permission_prompt' &&
+      !options.clearPermissionPrompt
+    ) {
       return;
     }
     this.lastNotificationType = null;

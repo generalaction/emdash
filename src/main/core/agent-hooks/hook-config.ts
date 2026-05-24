@@ -26,9 +26,13 @@ type HookConfigWriteOptions = { writeGitIgnoreEntries?: boolean };
 type CodexHookEvent = 'Stop' | 'PermissionRequest';
 type DroidHookEvent = 'Notification' | 'Stop';
 
-const HOOK_EVENT_MAP = [
+// Claude Code event map. PreToolUse → 'start' lets emdash detect that Claude
+// resumed work after a permission prompt (which it cannot infer from
+// Stop/Notification alone).
+const CLAUDE_HOOK_EVENT_MAP = [
   { eventType: 'notification', hookKey: 'Notification' },
   { eventType: 'stop', hookKey: 'Stop' },
+  { eventType: 'start', hookKey: 'PreToolUse' },
 ] satisfies { eventType: string; hookKey: string }[];
 
 const CODEX_HOOK_EVENT_MAP = [
@@ -79,7 +83,7 @@ export class HookConfigWriter {
 
     const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
 
-    for (const { eventType, hookKey } of HOOK_EVENT_MAP) {
+    for (const { eventType, hookKey } of CLAUDE_HOOK_EVENT_MAP) {
       const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
       hooks[hookKey] = this.buildHookEntries(
         existing,

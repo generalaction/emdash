@@ -141,6 +141,46 @@ describe('HookConfigWriter', () => {
     expect(config.notify).toBeUndefined();
   });
 
+  it('writes Claude Notification, Stop, and PreToolUse hooks and ignores settings in git', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/claude');
+    const fs = new MemoryFs();
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('claude');
+
+    const config = JSON.parse(fs.files.get('.claude/settings.local.json')!);
+    expect(config.hooks.Notification[0].hooks[0].command).toContain(
+      'X-Emdash-Event-Type: notification'
+    );
+    expect(config.hooks.Stop[0].hooks[0].command).toContain('X-Emdash-Event-Type: stop');
+    expect(config.hooks.PreToolUse[0].hooks[0].command).toContain('X-Emdash-Event-Type: start');
+    expect(fs.files.get('.gitignore')).toBe('.claude/settings.local.json\n');
+  });
+
+  it('preserves unrelated Claude hooks while replacing Emdash-managed entries', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/claude');
+    const fs = new MemoryFs();
+    fs.files.set(
+      '.claude/settings.local.json',
+      JSON.stringify({
+        hooks: {
+          PreToolUse: [
+            { hooks: [{ type: 'command', command: 'echo user pretool hook' }] },
+            { hooks: [{ type: 'command', command: 'echo $EMDASH_HOOK_PORT' }] },
+          ],
+        },
+      })
+    );
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('claude');
+
+    const config = JSON.parse(fs.files.get('.claude/settings.local.json')!);
+    expect(config.hooks.PreToolUse).toHaveLength(2);
+    expect(config.hooks.PreToolUse[0].hooks[0].command).toBe('echo user pretool hook');
+    expect(config.hooks.PreToolUse[1].hooks[0].command).toContain('X-Emdash-Event-Type: start');
+  });
+
   it('writes Droid notification and stop hooks and ignores the settings file in git', async () => {
     mockResolveCommandPath.mockResolvedValue('/usr/local/bin/droid');
     const fs = new MemoryFs();
