@@ -34,7 +34,6 @@ export function AutomationsView() {
     openEdit,
     openCreate,
     close,
-    setEdited,
   } = useAutomationsPanel(automationItems);
 
   const closePanel = useCallback(() => {
@@ -98,12 +97,8 @@ export function AutomationsView() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [panelOpen, closePanel]);
 
-  function handleSaved(automation: Automation) {
-    if (panel?.kind === 'create') {
-      closePanel();
-      return;
-    }
-    setEdited(automation);
+  function handleSaved() {
+    closePanel();
   }
 
   if (automations.isPending) {

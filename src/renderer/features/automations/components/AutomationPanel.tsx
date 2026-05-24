@@ -15,6 +15,7 @@ import {
   useFromBranchMode,
   type FromBranchModeInitial,
 } from '@renderer/features/tasks/create-task-modal/use-from-branch-mode';
+import { useToast } from '@renderer/lib/hooks/use-toast';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { Button } from '@renderer/lib/ui/button';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
@@ -172,6 +173,7 @@ export const AutomationPanel = observer(function AutomationPanel({
   );
 
   const { create, update } = useAutomations();
+  const { toast } = useToast();
   const isPending = create.isPending || update.isPending;
   const isWorkspaceProviderEnabled = useFeatureFlag('workspace-provider');
   const effectiveUseBYOI = isWorkspaceProviderEnabled && useBYOI;
@@ -247,6 +249,7 @@ export const AutomationPanel = observer(function AutomationPanel({
             projectId: effectiveProjectId,
             builtinTemplateId: appliedTemplate?.id ?? null,
           });
+      toast({ title: automation ? 'Automation saved' : 'Automation created' });
       onSaved?.(saved);
     } catch (saveError) {
       setError(formatAutomationError(saveError));

@@ -50,6 +50,7 @@ export const AutomationTaskTitlebar = observer(function AutomationTaskTitlebar()
 
   const ready = kind === 'ready';
   const automation = automations.data?.find((entry) => entry.id === automationId);
+  const automationName = automation?.name ?? 'Automation';
   const projectName = projectDisplayName(getProjectStore(projectId));
 
   return (
@@ -66,10 +67,11 @@ export const AutomationTaskTitlebar = observer(function AutomationTaskTitlebar()
           <span className="text-sm text-foreground-passive">/</span>
           <button
             type="button"
-            className="text-sm text-foreground-passive hover:text-foreground"
+            title={automation?.name}
+            className="max-w-[14rem] truncate text-sm text-foreground-passive hover:text-foreground"
             onClick={() => navigate('automations', { selectedAutomationId: automationId })}
           >
-            Automations
+            {automationName}
           </button>
           <span className="text-sm text-foreground-passive">/</span>
           <AutomationRunsPopover

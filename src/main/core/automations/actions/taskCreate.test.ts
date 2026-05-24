@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { openProject } from '@main/core/projects/operations/openProject';
+import { projectManager } from '@main/core/projects/project-manager';
 import { generateTaskName } from '@main/core/tasks/name-generation/generateTaskName';
 import { createTask } from '@main/core/tasks/operations/createTask';
 import type { Automation, AutomationRun } from '@shared/automations/types';
@@ -79,7 +81,22 @@ describe('executeTaskCreate', () => {
     vi.clearAllMocks();
   });
 
+  it('opens the project before creating a task from stored config', async () => {
+    vi.mocked(projectManager.getProject)
+      .mockReturnValueOnce(undefined)
+      .mockReturnValueOnce({} as never);
+    vi.mocked(openProject).mockResolvedValueOnce({ success: true, data: undefined });
+    vi.mocked(createTask).mockResolvedValueOnce({ success: true, data: { task: {} as never } });
+
+    const result = await executeTaskCreate(automation.actions[0]!, { automation, run });
+
+    expect(result.success).toBe(true);
+    expect(openProject).toHaveBeenCalledWith('project-1');
+    expect(createTask).toHaveBeenCalledOnce();
+  });
+
   it('creates a task even when a previous action already created one for the run', async () => {
+    vi.mocked(projectManager.getProject).mockReturnValue({} as never);
     vi.mocked(createTask).mockResolvedValueOnce({ success: true, data: { task: {} as never } });
 
     await executeTaskCreate(automation.actions[0]!, {
