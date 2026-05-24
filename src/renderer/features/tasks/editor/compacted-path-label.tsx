@@ -93,7 +93,7 @@ export function CompactedPathLabel({ path }: { path: string }) {
       observer.disconnect();
       cancelAnimationFrame(frame);
     };
-  }, [path]);
+  }, [segments]);
 
   return (
     <span ref={ref} className="block overflow-hidden whitespace-nowrap" title={path}>
