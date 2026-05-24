@@ -4,6 +4,7 @@ import { normalizeRepositoryHost } from '@shared/repository-ref';
 import { extractGhCliToken } from './gh-cli-token';
 
 const TOKEN_TTL_MS = 2 * 60 * 1000;
+const MISSING_TOKEN_TTL_MS = 30 * 1000;
 
 type TokenCacheEntry = {
   token: string | null;
@@ -44,9 +45,10 @@ export class GhCliGitHubEnterpriseAuthSource {
   private async fetchToken(host: string): Promise<string | null> {
     const ctx = this.ctxFactory();
     const token = await extractGhCliToken(ctx, { hostname: host });
-    if (token) {
-      this.cache.set(host, { token, expiresAt: Date.now() + TOKEN_TTL_MS });
-    }
+    this.cache.set(host, {
+      token,
+      expiresAt: Date.now() + (token ? TOKEN_TTL_MS : MISSING_TOKEN_TTL_MS),
+    });
     return token;
   }
 }

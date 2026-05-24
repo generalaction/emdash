@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { GhCliGitHubEnterpriseAuthSource } from './ghes-auth-source';
 
@@ -22,7 +22,12 @@ function makeCtx(
 }
 
 describe('GhCliGitHubEnterpriseAuthSource', () => {
-  it('does not cache failed token lookups', async () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('caches missing token lookups for a short TTL', async () => {
+    vi.useFakeTimers();
     const contexts = [
       makeCtx({}, new Error('not authenticated')),
       makeCtx({
@@ -32,6 +37,9 @@ describe('GhCliGitHubEnterpriseAuthSource', () => {
     const source = new GhCliGitHubEnterpriseAuthSource(() => contexts.shift()!);
 
     await expect(source.getToken('ghe.example.com')).resolves.toBeNull();
+    await expect(source.getToken('ghe.example.com')).resolves.toBeNull();
+
+    vi.advanceTimersByTime(30_001);
     await expect(source.getToken('ghe.example.com')).resolves.toBe('ghes_token');
   });
 
