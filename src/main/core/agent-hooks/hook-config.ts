@@ -24,7 +24,7 @@ const OPENCODE_PLUGIN_PATH = '.opencode/plugins/emdash-notifications.js';
 const GITIGNORE_PATH = '.gitignore';
 type HookConfigWriteOptions = { writeGitIgnoreEntries?: boolean };
 type CodexHookEvent = 'Stop' | 'PermissionRequest';
-type DroidHookEvent = 'Notification' | 'Stop';
+type DroidHookEvent = 'Notification' | 'Stop' | 'SessionStart';
 
 const HOOK_EVENT_MAP = [
   { eventType: 'notification', hookKey: 'Notification' },
@@ -39,7 +39,8 @@ const CODEX_HOOK_EVENT_MAP = [
 const DROID_HOOK_EVENT_MAP = [
   { hookKey: 'Notification', eventType: 'notification' },
   { hookKey: 'Stop', eventType: 'stop' },
-] satisfies { hookKey: DroidHookEvent; eventType: 'notification' | 'stop' }[];
+  { hookKey: 'SessionStart', eventType: 'session' },
+] satisfies { hookKey: DroidHookEvent; eventType: 'notification' | 'stop' | 'session' }[];
 
 const LEGACY_CODEX_NOTIFY_COMMAND = [
   'bash',

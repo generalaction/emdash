@@ -6,6 +6,7 @@ import { telemetryService } from '@main/lib/telemetry';
 import { agentEventChannel, type AgentEvent } from '@shared/events/agentEvents';
 import { conversationChangedChannel } from '@shared/events/conversationEvents';
 import { enrichEvent } from './event-enricher';
+import { handleProviderSessionHook } from './handle-provider-session-hook';
 import { HookServer } from './hook-server';
 import { isAppFocused, maybeShowNotification } from './notification';
 
@@ -14,6 +15,11 @@ class AgentHookService implements IInitializable, IDisposable {
 
   async initialize(): Promise<void> {
     await this.server.start(async (raw) => {
+      if (raw.type === 'session') {
+        await handleProviderSessionHook(raw);
+        return;
+      }
+
       const event = await enrichEvent(raw);
       event.source = 'hook';
       const appFocused = isAppFocused();
