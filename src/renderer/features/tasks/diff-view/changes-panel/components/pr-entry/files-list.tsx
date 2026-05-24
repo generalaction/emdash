@@ -8,13 +8,15 @@ import {
 } from '@renderer/features/tasks/task-view-context';
 import { commitRef, remoteRef, type GitChange } from '@shared/git';
 import { getPrNumber, type PullRequest } from '@shared/pull-requests';
-import { VirtualizedChangesList } from '../virtualized-changes-list';
+import { useChangesViewMode } from '../../hooks/use-changes-view-mode';
+import { ChangesListOrTree } from '../changes-list-or-tree';
 
 export const PrFilesList = observer(function PrFilesList({ pr }: { pr: PullRequest }) {
   const { projectId } = useTaskViewContext();
   const workspaceId = useWorkspaceId();
   const taskView = useWorkspaceViewModel();
   const prStore = taskView.prStore!;
+  const { mode: viewMode } = useChangesViewMode('pr');
 
   const repo = getRepositoryStore(projectId);
   const baseRef = remoteRef(repo?.baseRemote ?? 'origin', pr.baseRefName);
@@ -58,7 +60,8 @@ export const PrFilesList = observer(function PrFilesList({ pr }: { pr: PullReque
   };
 
   return (
-    <VirtualizedChangesList
+    <ChangesListOrTree
+      viewMode={viewMode}
       className="py-3"
       changes={prFiles}
       activePath={activePath}

@@ -95,6 +95,12 @@ export const interfaceSettingsSchema = z.object({
   autoRightSidebarBehavior: z.boolean(),
 });
 
+export const changesViewModeSchema = z.object({
+  unstaged: z.enum(['flat', 'tree']),
+  staged: z.enum(['flat', 'tree']),
+  pr: z.enum(['flat', 'tree']),
+});
+
 export const browserPreviewSettingsSchema = z.object({ enabled: z.boolean() });
 
 export const resourceMonitorSettingsSchema = z.object({ enabled: z.boolean() });
@@ -118,6 +124,7 @@ export const APP_SETTINGS_SCHEMA_MAP = {
   terminal: terminalSettingsSchema,
   browserPreview: browserPreviewSettingsSchema,
   resourceMonitor: resourceMonitorSettingsSchema,
+  changesViewMode: changesViewModeSchema,
 } as const;
 
 export const appSettingsSchema = z.object({
@@ -134,4 +141,5 @@ export const appSettingsSchema = z.object({
   terminal: terminalSettingsSchema,
   browserPreview: browserPreviewSettingsSchema,
   resourceMonitor: resourceMonitorSettingsSchema,
+  changesViewMode: changesViewModeSchema,
 });

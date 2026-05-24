@@ -57,6 +57,11 @@ export const SETTINGS_DEFAULTS = {
   resourceMonitor: {
     enabled: false,
   },
+  changesViewMode: {
+    unstaged: 'flat' as const,
+    staged: 'flat' as const,
+    pr: 'flat' as const,
+  },
 } satisfies SettingsDefaultsMap;
 
 export function getDefaultForKey<K extends AppSettingsKey>(key: K): AppSettings[K] {
