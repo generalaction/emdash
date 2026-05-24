@@ -1,6 +1,6 @@
-import type { AutomationRun } from '@shared/automations/types';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
+import type { AutomationRun } from '@shared/automations/types';
 
 export type AutomationHooks = {
   'automation:changed': () => void | Promise<void>;

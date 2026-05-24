@@ -284,14 +284,14 @@ export const automations = sqliteTable(
     promptTemplate: text('prompt_template').notNull().default(''),
     actions: text('actions').notNull().default('[]'),
     taskConfig: text('task_config'),
-    projectId: text('project_id')
-      .notNull()
-      .references(() => projects.id, { onDelete: 'cascade' }),
+    projectId: text('project_id').references(() => projects.id, { onDelete: 'set null' }),
     enabled: integer('enabled').notNull().default(1),
     isDraft: integer('is_draft').notNull().default(0),
     lastRunAt: integer('last_run_at'),
     nextRunAt: integer('next_run_at'),
     builtinTemplateId: text('builtin_template_id'),
+    deadlinePolicy: text('deadline_policy').notNull().default('next-interval'),
+    deadlineMs: integer('deadline_ms'),
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
   },
@@ -332,6 +332,7 @@ export const automationRuns = sqliteTable(
       table.automationId,
       table.status
     ),
+    statusIdx: index('idx_automation_runs_status').on(table.status),
     createdTaskIdIdx: index('idx_automation_runs_created_task_id').on(table.createdTaskId),
   })
 );

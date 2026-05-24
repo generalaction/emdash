@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import type { Automation } from '@shared/automations/types';
 import { log } from '@main/lib/logger';
+import type { Automation } from '@shared/automations/types';
 import { automationEvents } from './automation-events';
 import {
   claimQueuedRun,

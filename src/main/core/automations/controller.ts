@@ -1,4 +1,8 @@
 import { eq } from 'drizzle-orm';
+import { deleteTask } from '@main/core/tasks/operations/deleteTask';
+import { db } from '@main/db/client';
+import { tasks } from '@main/db/schema';
+import { log } from '@main/lib/logger';
 import { isValidAction } from '@shared/automations/actions';
 import {
   AUTOMATION_NAME_MAX_LENGTH,
@@ -10,10 +14,6 @@ import {
 } from '@shared/automations/types';
 import { createRPCController } from '@shared/ipc/rpc';
 import { err, ok, type Result } from '@shared/result';
-import { deleteTask } from '@main/core/tasks/operations/deleteTask';
-import { db } from '@main/db/client';
-import { tasks } from '@main/db/schema';
-import { log } from '@main/lib/logger';
 import { automationEvents } from './automation-events';
 import { automationRunDeadline, automationScheduler } from './automation-scheduler';
 import {
@@ -115,8 +115,17 @@ export const automationsController = createRPCController({
 
   setProject(id: string, projectId: string): Promise<Result<Automation, string>> {
     return safe(async () => {
-      const automation = await updateAutomation(id, { projectId });
-      if (!automation) return err('automation_not_found');
+      const existing = await getAutomation(id);
+      if (!existing) return err('automation_not_found');
+      const wasDetached = existing.projectId == null;
+      const updated = await updateAutomation(id, { projectId });
+      if (!updated) return err('automation_not_found');
+      // When re-attaching a previously active detached automation, restore its schedule.
+      // Paused automations remain paused across detach/reattach.
+      const automation =
+        wasDetached && existing.enabled && !updated.isDraft
+          ? ((await setAutomationEnabled(id, true)) ?? updated)
+          : updated;
       emitChanged();
       return ok(automation);
     });
@@ -128,6 +137,7 @@ export const automationsController = createRPCController({
       if (!automation) return err('automation_not_found');
       if (automation.isDraft) return err('automation_is_draft');
       if (automation.projectId == null) return err('no_project_attached');
+      // `enabled` only controls cron scheduling; paused automations can still run manually.
       const scheduledAt = Date.now();
       const run = await enqueueAutomationRun({
         automationId: automation.id,

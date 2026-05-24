@@ -30,7 +30,6 @@ describe('automations repo', () => {
     expect(dbMock.update).toHaveBeenCalledWith(automations);
     expect(dbMock.set).toHaveBeenCalledWith({
       projectId: null,
-      enabled: 0,
       nextRunAt: null,
       updatedAt: expect.any(Number),
     });

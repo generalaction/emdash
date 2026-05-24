@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Automation, AutomationRun } from '@shared/automations/types';
 import { generateTaskName } from '@main/core/tasks/name-generation/generateTaskName';
 import { createTask } from '@main/core/tasks/operations/createTask';
+import type { Automation, AutomationRun } from '@shared/automations/types';
 import { executeTaskCreate } from './taskCreate';
 
 vi.mock('@main/core/projects/operations/openProject', () => ({ openProject: vi.fn() }));

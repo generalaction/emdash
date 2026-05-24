@@ -25,20 +25,23 @@ CREATE TABLE `automations` (
 	`prompt_template` text DEFAULT '' NOT NULL,
 	`actions` text DEFAULT '[]' NOT NULL,
 	`task_config` text,
-	`project_id` text NOT NULL,
+	`project_id` text,
 	`enabled` integer DEFAULT 1 NOT NULL,
 	`is_draft` integer DEFAULT 0 NOT NULL,
 	`last_run_at` integer,
 	`next_run_at` integer,
 	`builtin_template_id` text,
+	`deadline_policy` text DEFAULT 'next-interval' NOT NULL,
+	`deadline_ms` integer,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
-	FOREIGN KEY (`project_id`) REFERENCES `projects`(`id`) ON UPDATE no action ON DELETE cascade
+	FOREIGN KEY (`project_id`) REFERENCES `projects`(`id`) ON UPDATE no action ON DELETE set null
 );
 --> statement-breakpoint
 CREATE INDEX `idx_automation_runs_automation_started` ON `automation_runs` (`automation_id`,`started_at`);--> statement-breakpoint
 CREATE INDEX `idx_automation_runs_automation_scheduled` ON `automation_runs` (`automation_id`,`scheduled_at`);--> statement-breakpoint
 CREATE INDEX `idx_automation_runs_automation_status` ON `automation_runs` (`automation_id`,`status`);--> statement-breakpoint
+CREATE INDEX `idx_automation_runs_status` ON `automation_runs` (`status`);--> statement-breakpoint
 CREATE INDEX `idx_automation_runs_created_task_id` ON `automation_runs` (`created_task_id`);--> statement-breakpoint
 CREATE INDEX `idx_automations_enabled_next_run` ON `automations` (`enabled`,`next_run_at`);--> statement-breakpoint
 CREATE INDEX `idx_automations_project_id` ON `automations` (`project_id`);

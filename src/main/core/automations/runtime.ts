@@ -1,8 +1,8 @@
+import { events } from '@main/lib/events';
+import { log } from '@main/lib/logger';
 import type { Automation, AutomationRun } from '@shared/automations/types';
 import { automationRunUpdatedChannel } from '@shared/events/automationEvents';
 import { err, ok, type Result } from '@shared/result';
-import { events } from '@main/lib/events';
-import { log } from '@main/lib/logger';
 import { executeTaskCreate } from './actions/taskCreate';
 import type { ActionError, ActionOutcome } from './actions/types';
 import { automationEvents } from './automation-events';

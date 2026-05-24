@@ -1,12 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Automation, AutomationRun } from '@shared/automations/types';
 import { automationsController } from './controller';
-import { getAutomation, getRun, removeRun as removeRunFromDb, updateAutomation } from './repo';
+import {
+  enqueueAutomationRun,
+  getAutomation,
+  getRun,
+  removeRun as removeRunFromDb,
+  updateAutomation,
+} from './repo';
+import { emitRunUpdated } from './runtime';
 
-const { dbSelectMock, deleteTaskMock } = vi.hoisted(() => ({
+const { automationSchedulerMock, dbSelectMock, deleteTaskMock } = vi.hoisted(() => ({
+  automationSchedulerMock: { drainQueue: vi.fn() },
   dbSelectMock: vi.fn(),
   deleteTaskMock: vi.fn(),
 }));
+
 vi.mock('@main/db/client', () => ({
   db: {
     select: (...args: unknown[]) => dbSelectMock(...args),
@@ -22,7 +31,7 @@ vi.mock('./automation-events', () => ({
 
 vi.mock('./automation-scheduler', () => ({
   automationRunDeadline: vi.fn((_automation: Automation, scheduledAt: number) => scheduledAt + 1),
-  automationScheduler: { drainQueue: vi.fn() },
+  automationScheduler: automationSchedulerMock,
 }));
 
 vi.mock('./repo', () => ({
@@ -90,6 +99,49 @@ describe('automationsController.update', () => {
 
     expect(result).toEqual({ success: true, data: automation });
     expect(updateAutomation).toHaveBeenCalledWith(draftAutomation.id, { isDraft: false });
+  });
+});
+
+describe('automationsController.runNow', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('allows manually running an automation whose schedule is paused', async () => {
+    const automation: Automation = {
+      ...draftAutomation,
+      actions: [{ kind: 'task.create' as const, prompt: 'Do the thing' }],
+      enabled: false,
+      isDraft: false,
+    };
+    const run: AutomationRun = {
+      id: 'run-1',
+      automationId: automation.id,
+      scheduledAt: 123,
+      deadlineAt: 124,
+      startedAt: null,
+      finishedAt: null,
+      status: 'queued',
+      taskId: null,
+      createdTaskId: null,
+      error: null,
+      triggerKind: 'manual',
+      workerId: null,
+    };
+    vi.mocked(getAutomation).mockResolvedValue(automation);
+    vi.mocked(enqueueAutomationRun).mockResolvedValue(run);
+
+    const result = await automationsController.runNow(automation.id);
+
+    expect(result).toEqual({ success: true, data: run });
+    expect(enqueueAutomationRun).toHaveBeenCalledWith(
+      expect.objectContaining({
+        automationId: automation.id,
+        triggerKind: 'manual',
+      })
+    );
+    expect(emitRunUpdated).toHaveBeenCalledWith(run);
+    expect(automationSchedulerMock.drainQueue).toHaveBeenCalled();
   });
 });
 

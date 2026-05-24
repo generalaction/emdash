@@ -1,6 +1,16 @@
 import { randomUUID } from 'node:crypto';
 import { Cron } from 'croner';
 import { and, asc, desc, eq, isNotNull, lte, or, sql } from 'drizzle-orm';
+import { db } from '@main/db/client';
+import {
+  automationRuns,
+  automations,
+  projects,
+  tasks,
+  type AutomationRow,
+  type AutomationRunRow,
+} from '@main/db/schema';
+import { log } from '@main/lib/logger';
 import type { TaskCreateAction } from '@shared/automations/actions';
 import { getLocalTimeZone } from '@shared/automations/timezone';
 import type {
@@ -15,16 +25,6 @@ import type {
   UpdateAutomationPatch,
 } from '@shared/automations/types';
 import type { CreateTaskParams } from '@shared/tasks';
-import { db } from '@main/db/client';
-import {
-  automationRuns,
-  automations,
-  projects,
-  tasks,
-  type AutomationRow,
-  type AutomationRunRow,
-} from '@main/db/schema';
-import { log } from '@main/lib/logger';
 
 const DEFAULT_TZ = getLocalTimeZone();
 
@@ -87,23 +87,40 @@ const DEADLINE_POLICIES: ReadonlySet<AutomationDeadlinePolicy> = new Set([
   'none',
 ]);
 
-function asRunStatus(value: string): AutomationRunStatus {
+function asRunStatus(value: string, runId: string): AutomationRunStatus {
   if (RUN_STATUSES.has(value as AutomationRunStatus)) return value as AutomationRunStatus;
-  throw new Error(`automation_run_invalid_status:${value}`);
+  log.warn('automations.repo: invalid run status, falling back to failed', {
+    runId,
+    value,
+  });
+  return 'failed';
 }
 
-function asRunTriggerKind(value: string): AutomationRunTriggerKind {
+function asRunTriggerKind(value: string, runId: string): AutomationRunTriggerKind {
   if (RUN_TRIGGER_KINDS.has(value as AutomationRunTriggerKind)) {
     return value as AutomationRunTriggerKind;
   }
-  throw new Error(`automation_run_invalid_trigger_kind:${value}`);
+  log.warn('automations.repo: invalid run trigger_kind, falling back to manual', {
+    runId,
+    value,
+  });
+  return 'manual';
 }
 
-function asDeadlinePolicy(value: string): AutomationDeadlinePolicy {
-  if (DEADLINE_POLICIES.has(value as AutomationDeadlinePolicy)) {
+function asDeadlinePolicy(
+  value: string | null | undefined,
+  automationId: string
+): AutomationDeadlinePolicy {
+  if (value && DEADLINE_POLICIES.has(value as AutomationDeadlinePolicy)) {
     return value as AutomationDeadlinePolicy;
   }
-  throw new Error(`automation_invalid_deadline_policy:${value}`);
+  if (value) {
+    log.warn('automations.repo: invalid deadline_policy, falling back to next-interval', {
+      automationId,
+      value,
+    });
+  }
+  return 'next-interval';
 }
 
 function mapAutomationRow(row: AutomationRow): Automation {
@@ -127,7 +144,7 @@ function mapAutomationRow(row: AutomationRow): Automation {
     lastRunAt: row.lastRunAt,
     nextRunAt: row.nextRunAt,
     builtinTemplateId: row.builtinTemplateId,
-    deadlinePolicy: asDeadlinePolicy(row.deadlinePolicy),
+    deadlinePolicy: asDeadlinePolicy(row.deadlinePolicy, row.id),
     deadlineMs: row.deadlineMs,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -142,11 +159,11 @@ function mapAutomationRunRow(row: AutomationRunRow): AutomationRun {
     deadlineAt: row.deadlineAt,
     startedAt: row.startedAt,
     finishedAt: row.finishedAt,
-    status: asRunStatus(row.status),
+    status: asRunStatus(row.status, row.id),
     taskId: row.taskId,
     createdTaskId: row.createdTaskId,
     error: row.error,
-    triggerKind: asRunTriggerKind(row.triggerKind),
+    triggerKind: asRunTriggerKind(row.triggerKind, row.id),
     workerId: row.workerId,
   };
 }
@@ -257,7 +274,7 @@ export async function updateAutomation(
 export async function detachProject(projectId: string): Promise<number> {
   const rows = await db
     .update(automations)
-    .set({ projectId: null, enabled: 0, nextRunAt: null, updatedAt: Date.now() })
+    .set({ projectId: null, nextRunAt: null, updatedAt: Date.now() })
     .where(eq(automations.projectId, projectId))
     .returning({ id: automations.id });
   return rows.length;
@@ -310,6 +327,7 @@ export async function dueCronAutomations(now = Date.now()): Promise<Automation[]
       and(
         eq(automations.enabled, 1),
         eq(automations.isDraft, 0),
+        isNotNull(automations.projectId),
         isNotNull(automations.nextRunAt),
         lte(automations.nextRunAt, now)
       )
@@ -321,7 +339,9 @@ export async function enabledCronAutomations(): Promise<Automation[]> {
   const rows = await db
     .select()
     .from(automations)
-    .where(and(eq(automations.enabled, 1), eq(automations.isDraft, 0)));
+    .where(
+      and(eq(automations.enabled, 1), eq(automations.isDraft, 0), isNotNull(automations.projectId))
+    );
   return rows.map(mapAutomationRow);
 }
 

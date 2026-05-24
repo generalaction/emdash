@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "e81dcfec-92d9-4f33-8246-1c8ff55bf0f7",
+  "id": "62258eb7-6e18-4449-9ddb-27e5b9587bb7",
   "prevId": "8e1285fa-dd0b-4ae5-a673-2399129231cd",
   "tables": {
     "app_secrets": {
@@ -174,6 +174,11 @@
           "columns": ["automation_id", "status"],
           "isUnique": false
         },
+        "idx_automation_runs_status": {
+          "name": "idx_automation_runs_status",
+          "columns": ["status"],
+          "isUnique": false
+        },
         "idx_automation_runs_created_task_id": {
           "name": "idx_automation_runs_created_task_id",
           "columns": ["created_task_id"],
@@ -275,7 +280,7 @@
           "name": "project_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true,
+          "notNull": false,
           "autoincrement": false
         },
         "enabled": {
@@ -315,6 +320,21 @@
           "notNull": false,
           "autoincrement": false
         },
+        "deadline_policy": {
+          "name": "deadline_policy",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'next-interval'"
+        },
+        "deadline_ms": {
+          "name": "deadline_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -349,7 +369,7 @@
           "tableTo": "projects",
           "columnsFrom": ["project_id"],
           "columnsTo": ["id"],
-          "onDelete": "cascade",
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },

@@ -1,10 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import type { TaskCreateAction } from '@shared/automations/actions';
-import { bareRefName } from '@shared/git-utils';
-import { makePtySessionId } from '@shared/ptySessionId';
-import { err, ok, type Result } from '@shared/result';
-import type { CreateTaskError, CreateTaskParams } from '@shared/tasks';
 import { openProject } from '@main/core/projects/operations/openProject';
 import { projectManager } from '@main/core/projects/project-manager';
 import { DEFAULT_AGENT_ID } from '@main/core/settings/settings-registry';
@@ -13,6 +8,11 @@ import { generateTaskName } from '@main/core/tasks/name-generation/generateTaskN
 import { createTask } from '@main/core/tasks/operations/createTask';
 import { db } from '@main/db/client';
 import { automationRuns } from '@main/db/schema';
+import type { TaskCreateAction } from '@shared/automations/actions';
+import { bareRefName } from '@shared/git-utils';
+import { makePtySessionId } from '@shared/ptySessionId';
+import { err, ok, type Result } from '@shared/result';
+import type { CreateTaskError, CreateTaskParams } from '@shared/tasks';
 import type { ActionContext, ActionError, ActionOutcome } from './types';
 
 function taskExistsForCreateTaskError(error: CreateTaskError): boolean {
@@ -40,7 +40,7 @@ function stringifyCreateTaskError(error: CreateTaskError): string {
   }
 }
 
-async function resolveProjectDefaults(projectId: string, taskName: string) {
+async function ensureProjectOpen(projectId: string) {
   let project = projectManager.getProject(projectId);
   if (!project) {
     const openResult = await openProject(projectId);
@@ -48,6 +48,14 @@ async function resolveProjectDefaults(projectId: string, taskName: string) {
     project = projectManager.getProject(projectId);
     if (!project) return err('project_not_found');
   }
+
+  return ok(project);
+}
+
+async function resolveProjectDefaults(projectId: string, taskName: string) {
+  const projectResult = await ensureProjectOpen(projectId);
+  if (!projectResult.success) return projectResult;
+  const project = projectResult.data;
 
   const [branchesPayload, repoInfo, configuredRemotes] = await Promise.all([
     project.repository.getBranchesPayload(),
@@ -94,6 +102,9 @@ export async function executeTaskCreate(
 
     let taskConfig: CreateTaskParams;
     if (storedConfig?.initialConversation) {
+      const projectResult = await ensureProjectOpen(projectId);
+      if (!projectResult.success) return err({ message: projectResult.error });
+
       taskConfig = {
         ...storedConfig,
         id: taskId,
