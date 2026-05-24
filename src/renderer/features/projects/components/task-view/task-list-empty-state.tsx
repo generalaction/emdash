@@ -24,7 +24,7 @@ export const TaskListEmptyState = observer(function TaskListEmptyState({
 }) {
   const showTaskModal = useShowModal('taskModal');
   const { connectionStatus } = useIntegrationsContext();
-  const repositoryUrl = getRepositoryStore(projectId)?.repositoryUrl ?? null;
+  const supportsPullRequests = getRepositoryStore(projectId)?.pullRequestRepositoryUrl !== null;
   const hasAnyIntegration = Object.values(connectionStatus).some((s) => s.connected);
 
   const actions: TaskAction[] = [
@@ -48,7 +48,7 @@ export const TaskListEmptyState = observer(function TaskListEmptyState({
       description: 'Create a task from a pull request',
       icon: GitPullRequest,
       strategy: 'from-pull-request',
-      disabled: !repositoryUrl,
+      disabled: !supportsPullRequests,
       disabledReason: 'No remote repository connected',
     },
   ];

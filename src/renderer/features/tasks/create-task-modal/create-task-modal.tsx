@@ -100,20 +100,19 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const currentBranch = repo?.currentBranch ?? null;
   const { navigate } = useNavigate();
 
-  const repositoryUrl = selectedProjectId
-    ? (getRepositoryStore(selectedProjectId)?.repositoryUrl ?? undefined)
-    : undefined;
+  const issueRepositoryUrl = repo?.issueRepositoryUrl ?? undefined;
+  const pullRequestRepositoryUrl = repo?.pullRequestRepositoryUrl ?? undefined;
 
   const fromBranch = useFromBranchMode(selectedProjectId, defaultBranch, isUnborn, currentBranch);
   const fromIssue = useFromIssueMode(selectedProjectId, defaultBranch, isUnborn, currentBranch);
   const fromPR = useFromPullRequestMode(selectedProjectId, defaultBranch, isUnborn, initialPR);
-  const fromPrUnavailable = selectedStrategy === 'from-pull-request' && !repositoryUrl;
 
   const activeMode = {
     'from-branch': fromBranch,
     'from-issue': fromIssue,
     'from-pull-request': fromPR,
   }[selectedStrategy];
+  const fromPrUnavailable = selectedStrategy === 'from-pull-request' && !pullRequestRepositoryUrl;
   const canCreate = !!selectedProjectId && activeMode.isValid && !fromPrUnavailable && !isCreating;
 
   const handleCreateTask = useCallback(async () => {
@@ -301,7 +300,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
               state={fromIssue}
               projectId={selectedProjectId}
               currentBranch={currentBranch}
-              repositoryUrl={repositoryUrl}
+              repositoryUrl={issueRepositoryUrl}
               projectPath={projectData?.path}
               disabled={isTransitioning}
               isUnborn={isUnborn}
@@ -310,7 +309,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           )}
           {selectedStrategy === 'from-pull-request' && (
             <div className="flex flex-col gap-3">
-              {!repositoryUrl && (
+              {!pullRequestRepositoryUrl && (
                 <p className="text-muted-foreground text-sm">
                   Pull requests are currently available only for configured GitHub remotes.
                 </p>
@@ -318,7 +317,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
               <FromPrContent
                 state={fromPR}
                 projectId={selectedProjectId}
-                repositoryUrl={repositoryUrl}
+                repositoryUrl={pullRequestRepositoryUrl}
                 disabled={isTransitioning || fromPrUnavailable}
                 initialConversation={initialConversation}
               />

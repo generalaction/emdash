@@ -210,7 +210,7 @@ export const PullRequestView = observer(function PullRequestView() {
   const {
     params: { projectId },
   } = useParams('project');
-  const repositoryUrl = getRepositoryStore(projectId)?.repositoryUrl ?? null;
+  const repositoryUrl = getRepositoryStore(projectId)?.pullRequestRepositoryUrl ?? null;
   const { needsGhAuth } = useGithubContext();
   const { navigate } = useNavigate();
 
