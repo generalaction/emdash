@@ -16,8 +16,15 @@ import { editorBufferService } from './core/editor/editor-buffer-service';
 import { gitWatcherRegistry } from './core/git/git-watcher-registry';
 import { githubConnectionService } from './core/github/services/github-connection-service';
 import { projectManager } from './core/projects/project-manager';
+import { projectSettingsService } from './core/projects/settings/project-settings-service';
+import { promptLibraryService } from './core/prompt-library/service';
 import { prSyncScheduler } from './core/pull-requests/pr-sync-scheduler';
+import {
+  reconcileResourceSampler,
+  stopResourceSampler,
+} from './core/resource-monitor/resource-sampler';
 import { searchService } from './core/search/search-service';
+import { workspaceFileIndexService } from './core/search/workspace-file-index-service';
 import { appSettingsService } from './core/settings/settings-service';
 import { updateService } from './core/updates/update-service';
 import { viewStateService } from './core/view-state/view-state-service';
@@ -77,6 +84,7 @@ void app.whenReady().then(async () => {
   try {
     await initializeDatabase();
     searchService.initialize();
+    workspaceFileIndexService.initialize();
     void editorBufferService.pruneStale();
     try {
       viewStateService.pruneOrphans();
@@ -107,9 +115,11 @@ void app.whenReady().then(async () => {
   });
 
   gitWatcherRegistry.initialize();
+  projectSettingsService.initialize();
   prSyncScheduler.initialize();
   appService.initialize();
   await appSettingsService.initialize();
+  await promptLibraryService.initialize();
 
   agentHookService.initialize().catch((e) => {
     log.error('Failed to start agent event service:', e);
@@ -119,9 +129,13 @@ void app.whenReady().then(async () => {
     log.warn('Failed to load account session token:', e);
   });
 
-  providerTokenRegistry.register('github', (token) => githubConnectionService.storeToken(token));
+  providerTokenRegistry.register('github', (token) =>
+    githubConnectionService.storeToken(token, 'emdash_oauth')
+  );
 
   registerRPCRouter(rpcRouter, ipcMain);
+
+  void reconcileResourceSampler();
 
   localDependencyManager.probeAll().catch((e) => {
     log.error('Failed to probe dependencies:', e);
@@ -145,6 +159,7 @@ app.on('before-quit', (event) => {
   telemetryService.capture('app_closed');
   void telemetryService.dispose().finally(() => {
     agentHookService.dispose();
+    stopResourceSampler();
     updateService.dispose();
     prSyncScheduler.dispose();
     void gitWatcherRegistry.dispose();

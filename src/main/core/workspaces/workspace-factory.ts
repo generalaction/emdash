@@ -1,5 +1,4 @@
-import { getTaskEnvVars } from '@shared/task/envVars';
-import type { Task } from '@shared/tasks';
+import { eq } from 'drizzle-orm';
 import { LocalConversationProvider } from '@main/core/conversations/impl/local-conversation';
 import { SshConversationProvider } from '@main/core/conversations/impl/ssh-conversation';
 import type { ConversationProvider } from '@main/core/conversations/types';
@@ -10,18 +9,24 @@ import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import { GitFetchService } from '@main/core/git/git-fetch-service';
 import { GitService } from '@main/core/git/impl/git-service';
+import { RemoteStatusFingerprintPoller } from '@main/core/git/remote-status-fingerprint-poller';
 import { GitRepositoryService } from '@main/core/git/repository-service';
 import { githubConnectionService } from '@main/core/github/services/github-connection-service';
-import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
+import { workspaceFileIndexService } from '@main/core/search/workspace-file-index-service';
+import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { LocalTerminalProvider } from '@main/core/terminals/impl/local-terminal-provider';
 import { SshTerminalProvider } from '@main/core/terminals/impl/ssh-terminal-provider';
 import type { TerminalProvider } from '@main/core/terminals/terminal-provider';
 import type { Workspace } from '@main/core/workspaces/workspace';
 import { LifecycleScriptService } from '@main/core/workspaces/workspace-lifecycle-service';
 import { type WorkspaceFactoryResult } from '@main/core/workspaces/workspace-registry';
+import { db } from '@main/db/client';
+import { workspaces as workspacesTable } from '@main/db/schema';
 import { log } from '@main/lib/logger';
-import type { ProjectSettingsProvider } from '../projects/settings/schema';
-import { getEffectiveTaskSettings } from '../projects/settings/task-settings';
+import { getTaskEnvVars } from '@shared/task/envVars';
+import type { Task } from '@shared/tasks';
+import { getEffectiveTaskSettings } from '../projects/settings/effective-task-settings';
+import type { ProjectSettingsProvider } from '../projects/settings/provider';
 import { TimeoutSignal, withTimeout } from '../projects/utils';
 import { TEARDOWN_SCRIPT_WAIT_MS } from '../tasks/provision-task-error';
 
@@ -134,8 +139,13 @@ export function createWorkspaceFactory(
       context.fetchService ??
       new GitFetchService(
         gitService,
-        async () => (await githubConnectionService.getToken()) !== null
+        async () => (await githubConnectionService.getToken()) !== null,
+        () => repository.getBaseRemote()
       );
+    const statusPoller =
+      type.kind === 'ssh'
+        ? new RemoteStatusFingerprintPoller(context.projectId, workspaceId, gitService)
+        : null;
 
     const workspace: Workspace = {
       id: workspaceId,
@@ -154,22 +164,50 @@ export function createWorkspaceFactory(
       workspace,
 
       onCreateSideEffect: (ws) => {
+        ws.git.on('status:updated', async (status) => {
+          let unstagedAdded = 0;
+          let unstagedDeleted = 0;
+          for (const c of status.unstaged) {
+            unstagedAdded += c.additions;
+            unstagedDeleted += c.deletions;
+          }
+          try {
+            await db
+              .update(workspacesTable)
+              .set({
+                linesAdded: status.totalAdded + unstagedAdded,
+                linesDeleted: status.totalDeleted + unstagedDeleted,
+              })
+              .where(eq(workspacesTable.id, workspaceId));
+          } catch (e) {
+            log.warn('Failed to cache workspace git stats', { workspaceId, error: String(e) });
+          }
+        });
+
         if (ownsFetchService) {
           fetchService.start();
         }
+        statusPoller?.start();
+        void workspaceFileIndexService.onWorkspaceCreated(workspaceId, ws);
         if (scripts?.setup) {
           void ws.lifecycleService.prepareAndRunLifecycleScript({
             type: 'setup',
             script: scripts.setup,
+            shellSetup,
           });
         }
         if (scripts?.run) {
-          void ws.lifecycleService.prepareLifecycleScript({ type: 'run', script: scripts.run });
+          void ws.lifecycleService.prepareLifecycleScript({
+            type: 'run',
+            script: scripts.run,
+            shellSetup,
+          });
         }
         if (scripts?.teardown) {
           void ws.lifecycleService.prepareLifecycleScript({
             type: 'teardown',
             script: scripts.teardown,
+            shellSetup,
           });
         }
       },
@@ -177,14 +215,24 @@ export function createWorkspaceFactory(
       onCreate: context.extraHooks?.onCreate,
 
       onDestroy: async (ws) => {
+        statusPoller?.stop();
         if (ownsFetchService) {
           fetchService.stop();
         }
-        if (scripts?.teardown) {
+        workspaceFileIndexService.onWorkspaceDestroyed(workspaceId);
+        const latestTaskSettings = await getEffectiveTaskSettings({
+          projectSettings: context.settings,
+          taskFs: ws.fs,
+        });
+        const latestProjectSettings = await context.settings.get();
+        const latestShellSetup = latestTaskSettings.shellSetup ?? latestProjectSettings.shellSetup;
+        const teardownScript = latestTaskSettings.scripts?.teardown;
+
+        if (teardownScript) {
           try {
             await withTimeout(
               ws.lifecycleService.runLifecycleScript(
-                { type: 'teardown', script: scripts.teardown },
+                { type: 'teardown', script: teardownScript, shellSetup: latestShellSetup },
                 { waitForExit: true, exit: true }
               ),
               TEARDOWN_SCRIPT_WAIT_MS
@@ -206,9 +254,10 @@ export function createWorkspaceFactory(
         await context.extraHooks?.onDestroy?.(ws);
       },
 
-      onDetach: context.extraHooks?.onDetach
-        ? (ws) => context.extraHooks!.onDetach!(ws)
-        : undefined,
+      onDetach: async (ws) => {
+        statusPoller?.stop();
+        await context.extraHooks?.onDetach?.(ws);
+      },
     };
   };
 }

@@ -1,11 +1,11 @@
-import { CanvasAddon } from '@xterm/addon-canvas';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal, type ITerminalOptions } from '@xterm/xterm';
-import { ptyDataChannel } from '@shared/events/ptyEvents';
 import { events, rpc } from '@renderer/lib/ipc';
-import { cssVar } from '@renderer/utils/cssVars';
+import { cssColorToHex, cssVar } from '@renderer/utils/cssVars';
 import { log } from '@renderer/utils/logger';
+import { ptyDataChannel } from '@shared/events/ptyEvents';
 import { FileLinkProvider } from './file-link-provider';
+import { buildTerminalFontFamily } from './terminal-font';
 import { ensureXtermHost } from './xterm-host';
 
 const SCROLLBACK_LINES = 100_000;
@@ -17,13 +17,14 @@ export interface SessionTheme {
 }
 
 export function readXtermCssVars(): ITerminalOptions['theme'] {
+  const color = (name: string) => cssColorToHex(cssVar(name));
   return {
-    background: cssVar('--xterm-bg'),
-    foreground: cssVar('--xterm-fg'),
-    cursor: cssVar('--xterm-cursor'),
-    cursorAccent: cssVar('--xterm-cursor-accent'),
-    selectionBackground: cssVar('--xterm-selection-bg'),
-    selectionForeground: cssVar('--xterm-selection-fg'),
+    background: color('--xterm-bg'),
+    foreground: color('--xterm-fg'),
+    cursor: color('--xterm-cursor'),
+    cursorAccent: color('--xterm-cursor-accent'),
+    selectionBackground: color('--xterm-selection-bg'),
+    selectionForeground: color('--xterm-selection-fg'),
   };
 }
 
@@ -57,6 +58,7 @@ export class FrontendPty {
   static readonly all = new Set<FrontendPty>();
   readonly terminal: Terminal;
   readonly ownedContainer: HTMLDivElement;
+  private theme?: SessionTheme;
   private offData: (() => void) | null = null;
   /** Last { cols, rows } sent to rpc.pty.resize(). Used by PaneSizingContext to skip redundant IPC calls. */
   lastSentDims: { cols: number; rows: number } | null = null;
@@ -67,6 +69,7 @@ export class FrontendPty {
     onOpenFile?: (filePath: string) => void,
     onOpenExternal?: (filePath: string) => void
   ) {
+    this.theme = theme;
     this.ownedContainer = document.createElement('div');
     Object.assign(this.ownedContainer.style, {
       width: '100%',
@@ -78,6 +81,7 @@ export class FrontendPty {
       rows: 32,
       scrollback: SCROLLBACK_LINES,
       convertEol: true,
+      fontFamily: buildTerminalFontFamily(),
       fontSize: 13,
       lineHeight: 1.2,
       letterSpacing: 0,
@@ -93,13 +97,14 @@ export class FrontendPty {
       theme: buildTheme(theme),
     });
 
-    const canvasAddon = new CanvasAddon();
+    // Keep xterm on its DOM renderer: CanvasAddon repaints the full canvas on resize,
+    // which makes panel/sidebar transitions visibly flicker.
+
     const webLinksAddon = new WebLinksAddon((event, uri) => {
       event.preventDefault();
       rpc.app.openExternal(uri).catch(() => {});
     });
 
-    this.terminal.loadAddon(canvasAddon);
     this.terminal.loadAddon(webLinksAddon);
     if (onOpenFile && onOpenExternal) {
       this.terminal.registerLinkProvider(
@@ -117,6 +122,15 @@ export class FrontendPty {
 
     ensureXtermHost().appendChild(this.ownedContainer);
     FrontendPty.all.add(this);
+  }
+
+  setTheme(theme?: SessionTheme): void {
+    this.theme = theme;
+    this.terminal.options.theme = buildTheme(theme);
+  }
+
+  refreshTheme(): void {
+    this.terminal.options.theme = buildTheme(this.theme);
   }
 
   /**
@@ -196,9 +210,12 @@ export class FrontendPty {
 
 /** Apply a theme to all live terminals. Called on app-level theme change. */
 export function applyThemeToAll(theme?: SessionTheme): void {
-  const xTermTheme = buildTheme(theme);
   for (const pty of FrontendPty.all) {
-    pty.terminal.options.theme = xTermTheme;
+    if (theme) {
+      pty.setTheme(theme);
+    } else {
+      pty.refreshTheme();
+    }
   }
 }
 

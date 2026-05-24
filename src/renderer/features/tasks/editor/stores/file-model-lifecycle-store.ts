@@ -1,14 +1,15 @@
 import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
-import { HEAD_REF } from '@shared/git';
-import type { EditorViewSnapshot } from '@shared/view-state';
-import type { TabManagerStore } from '@renderer/features/tasks/tabs/tab-manager-store';
+import type { TabGroupManagerStore } from '@renderer/features/tasks/tabs/tab-group-manager-store';
 import { getFileKind } from '@renderer/lib/editor/fileKind';
 import { rpc } from '@renderer/lib/ipc';
+import { showModal } from '@renderer/lib/modal/modal-provider';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import type { Snapshottable } from '@renderer/lib/stores/snapshottable';
 import { getMonacoLanguageId } from '@renderer/utils/diffUtils';
 import { log } from '@renderer/utils/logger';
+import { HEAD_REF } from '@shared/git';
+import type { EditorViewSnapshot } from '@shared/view-state';
 
 /**
  * Owns Monaco model lifecycle (register/unregister) and file persistence (save, conflict).
@@ -35,11 +36,11 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
 
   private readonly projectId: string;
   private readonly workspaceId: string;
-  private readonly tabManager: TabManagerStore;
+  private readonly tabGroupManager: TabGroupManagerStore;
   private readonly disposers: (() => void)[] = [];
 
-  constructor(tabManager: TabManagerStore, projectId: string, workspaceId: string) {
-    this.tabManager = tabManager;
+  constructor(tabGroupManager: TabGroupManagerStore, projectId: string, workspaceId: string) {
+    this.tabGroupManager = tabGroupManager;
     this.projectId = projectId;
     this.workspaceId = workspaceId;
     this.modelRootPath = `workspace:${workspaceId}`;
@@ -47,15 +48,15 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
     makeObservable(this, {
       isSaving: observable,
       pendingConflictUri: observable,
-      activeBufferUri: computed,
       openFilePaths: computed,
       snapshot: computed,
     });
 
-    // Reactive model lifecycle: register/unregister Monaco models as file tabs open/close.
+    // Reactive model lifecycle: register/unregister Monaco models as file tabs open/close
+    // across ALL panes. A model stays registered as long as any pane has the file open.
     this.disposers.push(
       reaction(
-        () => this.tabManager.openFilePaths,
+        () => this.tabGroupManager.allOpenFilePaths,
         (current, previous = []) => {
           const prev = new Set(previous);
           const curr = new Set(current);
@@ -71,21 +72,37 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
         { fireImmediately: true }
       )
     );
+
+    // Register as the close coordinator for all panes. For dirty file tabs this
+    // shows the unsaved-changes dialog before proceeding. All other tab kinds
+    // and clean file tabs close immediately. The handler is propagated to all
+    // current and future groups via TabGroupManagerStore.
+    tabGroupManager.registerCloseHandler(async (tabId) => {
+      // Find which group owns this tab.
+      for (const { tabManager } of tabGroupManager.groups) {
+        const entry = tabManager.entries.get(tabId);
+        if (entry !== undefined) {
+          if (entry.kind === 'file') {
+            const uri = buildMonacoModelPath(this.modelRootPath, entry.path);
+            if (modelRegistry.isDirty(uri)) {
+              const result = await this._confirmClose(entry.path);
+              if (result === 'cancel') return;
+            }
+          }
+          tabManager.closeTab(tabId);
+          return;
+        }
+      }
+    });
   }
 
   // ---------------------------------------------------------------------------
   // Computed
   // ---------------------------------------------------------------------------
 
-  /** Buffer URI of the active file tab, or null if no file tab is active. */
-  get activeBufferUri(): string | null {
-    const entry = this.tabManager.activeFileEntry;
-    if (!entry) return null;
-    return buildMonacoModelPath(this.modelRootPath, entry.path);
-  }
-
+  /** Union of all open file paths across all panes (deduplicated). */
   get openFilePaths(): string[] {
-    return this.tabManager.openFilePaths;
+    return this.tabGroupManager.allOpenFilePaths;
   }
 
   // ---------------------------------------------------------------------------
@@ -200,6 +217,24 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
   }
 
   // ---------------------------------------------------------------------------
+  // Private — close guard
+  // ---------------------------------------------------------------------------
+
+  private _confirmClose(path: string): Promise<'proceed' | 'cancel'> {
+    const fileName = path.split('/').pop() ?? path;
+    return new Promise((resolve) =>
+      showModal('unsavedChangesModal', {
+        fileName,
+        onSuccess: (result) => {
+          const savePromise = result === 'save' ? this.saveFile(path) : Promise.resolve();
+          void savePromise.then(() => resolve('proceed'));
+        },
+        onClose: () => resolve('cancel'),
+      })
+    );
+  }
+
+  // ---------------------------------------------------------------------------
   // Private — model registration
   // ---------------------------------------------------------------------------
 
@@ -209,11 +244,15 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
     if (kind === 'image') {
       const result = await rpc.fs.readImage(this.projectId, this.workspaceId, filePath);
       const imageContent = result.success ? (result.data?.dataUrl ?? '') : '';
-      runInAction(() => this.tabManager.setImageContent(filePath, imageContent));
+      runInAction(() => {
+        for (const { tabManager } of this.tabGroupManager.groups) {
+          tabManager.setImageContent(filePath, imageContent);
+        }
+      });
       return;
     }
 
-    if (kind === 'text' || kind === 'markdown' || kind === 'svg') {
+    if (kind === 'text' || kind === 'markdown' || kind === 'svg' || kind === 'html') {
       const language = getMonacoLanguageId(filePath);
       try {
         await modelRegistry.registerModel(
@@ -226,7 +265,9 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
         );
       } catch {
         runInAction(() => {
-          this.tabManager.updateRenderer(filePath, () => ({ kind: 'file-error' as const }));
+          for (const { tabManager } of this.tabGroupManager.groups) {
+            tabManager.updateRenderer(filePath, () => ({ kind: 'file-error' as const }));
+          }
         });
         return;
       }
@@ -236,8 +277,10 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
       if (modelRegistry.modelStatus.get(diskUri) === 'too-large') {
         const totalSize = modelRegistry.modelTotalSizes.get(diskUri);
         runInAction(() => {
-          this.tabManager.updateRenderer(filePath, () => ({ kind: 'too-large' as const }));
-          if (totalSize != null) this.tabManager.setFileTotalSize(filePath, totalSize);
+          for (const { tabManager } of this.tabGroupManager.groups) {
+            tabManager.updateRenderer(filePath, () => ({ kind: 'too-large' as const }));
+            if (totalSize != null) tabManager.setFileTotalSize(filePath, totalSize);
+          }
         });
         return;
       }

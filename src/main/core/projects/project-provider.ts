@@ -1,17 +1,17 @@
-import type { Branch, FetchError } from '@shared/git';
-import type { ProjectRemoteState } from '@shared/projects';
-import type { Result } from '@shared/result';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import type { GitFetchService } from '@main/core/git/git-fetch-service';
 import type { GitRepositoryService } from '@main/core/git/repository-service';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import type { IDisposable } from '@main/lib/lifecycle';
+import type { Branch, FetchError } from '@shared/git';
+import type { ProjectRemoteState } from '@shared/projects';
+import type { Result } from '@shared/result';
 import type { ConversationProvider } from '../conversations/types';
 import { taskManager } from '../tasks/task-manager';
 import type { TerminalProvider } from '../terminals/terminal-provider';
 import type { WorkspaceType } from '../workspaces/workspace-factory';
-import type { ProjectSettingsProvider } from './settings/schema';
+import type { ProjectSettingsProvider } from './settings/provider';
 import type { WorktreeHost } from './worktrees/hosts/worktree-host';
 import type { WorktreeService } from './worktrees/worktree-service';
 

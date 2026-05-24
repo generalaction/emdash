@@ -1,6 +1,4 @@
 import { action, autorun, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
-import type { GitChangeStatus, GitObjectRef } from '@shared/git';
-import type { ActiveFile, TabDescriptor, TabManagerSnapshot } from '@shared/view-state';
 import type {
   ConversationManagerStore,
   ConversationStore,
@@ -21,6 +19,8 @@ import {
   setTabActiveIndex as tabUtilsSetTabActiveIndex,
 } from '@renderer/lib/stores/tab-utils';
 import { setTelemetryConversationScope } from '@renderer/utils/telemetry-scope';
+import { refsEqual, type GitChangeStatus, type GitObjectRef } from '@shared/git';
+import type { ActiveFile, TabDescriptor, TabManagerSnapshot } from '@shared/view-state';
 
 // ---------------------------------------------------------------------------
 // Conversation tab entry — thin reference into ConversationManagerStore
@@ -49,6 +49,11 @@ export class ConversationTabEntry {
 }
 
 export type TabEntry = FileTabStore | DiffTabStore | ConversationTabEntry;
+
+function optionalRefsEqual(left: GitObjectRef | undefined, right: GitObjectRef | undefined) {
+  if (left === undefined || right === undefined) return left === right;
+  return refsEqual(left, right);
+}
 
 // ---------------------------------------------------------------------------
 // Resolved tabs — enriched with live store references and derived state
@@ -82,6 +87,10 @@ export type ResolvedDiffTab = {
   originalRef: GitObjectRef;
   modifiedRef?: GitObjectRef;
   prNumber?: number;
+  prBaseOid?: string;
+  prHeadOid?: string;
+  commitOriginalSha?: string | null;
+  commitModifiedSha?: string;
   status?: GitChangeStatus;
   isPreview: boolean;
   isActive: boolean;
@@ -106,21 +115,25 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
   tabOrder: string[] = [];
   activeTabId: string | undefined = undefined;
   isVisible = false;
+  /** True when this pane is the active/focused pane AND the task is the active view. */
+  isFocused = false;
 
   /** Used by resolvedTabs and FileModelLifecycleStore to build buffer URIs. */
   readonly modelRootPath: string;
 
-  private readonly conversations: ConversationManagerStore;
+  private readonly _getConversations: () => ConversationManagerStore | null;
   private readonly disposers: (() => void)[] = [];
+  private _closeHandler?: (tabId: string) => Promise<void>;
 
-  constructor(conversations: ConversationManagerStore, workspaceId: string) {
-    this.conversations = conversations;
+  constructor(getConversations: () => ConversationManagerStore | null, workspaceId: string) {
+    this._getConversations = getConversations;
     this.modelRootPath = `workspace:${workspaceId}`;
 
     makeObservable(this, {
       tabOrder: observable,
       activeTabId: observable,
       isVisible: observable,
+      isFocused: observable,
       resolvedActiveTabId: computed,
       activeDescriptor: computed,
       activeConversation: computed,
@@ -148,6 +161,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       setPreviousTabActive: action,
       setTabActiveIndex: action,
       setVisible: action,
+      setFocused: action,
       updateRenderer: action,
       setImageContent: action,
       setFileTotalSize: action,
@@ -160,7 +174,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     // Auto-close conversation tabs when the conversation is deleted from the manager.
     this.disposers.push(
       reaction(
-        () => Array.from(conversations.conversations.keys()),
+        () => Array.from(this._getConversations()?.conversations.keys() ?? []),
         action((ids: string[]) => {
           const idSet = new Set(ids);
           const toRemove: string[] = [];
@@ -176,21 +190,22 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       )
     );
 
-    // Mark conversation as seen when it becomes the active visible tab.
+    // Mark conversation as seen when it becomes the active tab in the focused pane.
     this.disposers.push(
       autorun(() => {
-        if (this.isVisible && this.activeConversation && !this.activeConversation.seen) {
-          this.activeConversation.markSeen();
+        const conv = this.activeConversation;
+        if (this.isFocused && conv && !conv.seen) {
+          conv.markSeen();
         }
       })
     );
 
-    // Update telemetry scope when the active conversation changes.
+    // Update telemetry scope when the active conversation changes in the focused pane.
     this.disposers.push(
       reaction(
         () => this.activeConversation?.data.id ?? null,
         (conversationId) => {
-          if (this.isVisible) {
+          if (this.isFocused) {
             setTelemetryConversationScope(conversationId);
           }
         }
@@ -222,7 +237,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
   get activeConversation(): ConversationStore | undefined {
     const desc = this.activeDescriptor;
     if (!desc || desc.kind !== 'conversation') return undefined;
-    return this.conversations.conversations.get(desc.conversationId);
+    return this._getConversations()?.conversations.get(desc.conversationId);
   }
 
   get activeConversationId(): string | undefined {
@@ -283,7 +298,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       if (!entry) continue;
 
       if (entry.kind === 'conversation') {
-        const store = this.conversations.conversations.get(entry.conversationId);
+        const store = this._getConversations()?.conversations.get(entry.conversationId);
         if (!store) continue;
         result.push({
           kind: 'conversation',
@@ -302,6 +317,10 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
           originalRef: entry.originalRef,
           modifiedRef: entry.modifiedRef,
           prNumber: entry.prNumber,
+          prBaseOid: entry.prBaseOid,
+          prHeadOid: entry.prHeadOid,
+          commitOriginalSha: entry.commitOriginalSha,
+          commitModifiedSha: entry.commitModifiedSha,
           status: entry.status,
           isPreview: entry.isPreview,
           isActive: effectiveActiveId === entry.tabId,
@@ -346,6 +365,10 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
           originalRef: entry.originalRef,
           modifiedRef: entry.modifiedRef,
           prNumber: entry.prNumber,
+          prBaseOid: entry.prBaseOid,
+          prHeadOid: entry.prHeadOid,
+          commitOriginalSha: entry.commitOriginalSha,
+          commitModifiedSha: entry.commitModifiedSha,
           status: entry.status,
           isPreview: entry.isPreview,
         });
@@ -469,7 +492,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
   // ---------------------------------------------------------------------------
 
   openDiff(activeFile: ActiveFile, status?: GitChangeStatus): void {
-    const existing = this._findDiffEntryByKey(activeFile.path, activeFile.group);
+    const existing = this._findDiffEntry(activeFile);
     if (existing) {
       existing.isPreview = false;
       if (status !== undefined) existing.status = status;
@@ -483,7 +506,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
   }
 
   openDiffPreview(activeFile: ActiveFile, status?: GitChangeStatus): void {
-    const existing = this._findDiffEntryByKey(activeFile.path, activeFile.group);
+    const existing = this._findDiffEntry(activeFile);
     if (existing) {
       this.activeTabId = existing.tabId;
       return;
@@ -557,9 +580,31 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     this._removeTab(id);
   }
 
+  /**
+   * Registers an async handler that is called for user-initiated tab closes.
+   * The handler is responsible for calling closeTab when it is ready to proceed.
+   * Force-closes via closeTab bypass this handler entirely.
+   */
+  registerCloseHandler(handler: (tabId: string) => Promise<void>): void {
+    this._closeHandler = handler;
+  }
+
+  /**
+   * User-initiated close — delegates to the registered close handler if present,
+   * falling back to a direct _removeTab. Use this for all UI and keyboard closes.
+   * Do NOT use for programmatic/internal closes (use closeTab instead).
+   */
+  closeTabWithGuard(id: string): void {
+    if (this._closeHandler) {
+      void this._closeHandler(id);
+    } else {
+      this._removeTab(id);
+    }
+  }
+
   closeActiveTab(): void {
     if (!this.activeTabId) return;
-    this.closeTab(this.activeTabId);
+    this.closeTabWithGuard(this.activeTabId);
   }
 
   setActiveTab(id: string): void {
@@ -602,6 +647,10 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     }
   }
 
+  setFocused(focused: boolean): void {
+    this.isFocused = focused;
+  }
+
   // ---------------------------------------------------------------------------
   // Helpers for sidebar
   // ---------------------------------------------------------------------------
@@ -632,6 +681,10 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
               originalRef: t.originalRef,
               modifiedRef: t.modifiedRef,
               prNumber: t.prNumber,
+              prBaseOid: t.prBaseOid,
+              prHeadOid: t.prHeadOid,
+              commitOriginalSha: t.commitOriginalSha,
+              commitModifiedSha: t.commitModifiedSha,
             },
             t.isPreview,
             t.tabId,
@@ -654,7 +707,9 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
   }
 
   initializeDefault(): void {
-    for (const [id, store] of this.conversations.conversations) {
+    const conversations = this._getConversations();
+    if (!conversations) return;
+    for (const [id, store] of conversations.conversations) {
       if (store.isInitialConversation) {
         this.openConversation(id);
         return;
@@ -714,10 +769,20 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     return undefined;
   }
 
-  private _findDiffEntryByKey(path: string, group: string): DiffTabStore | undefined {
+  private _findDiffEntry(activeFile: ActiveFile): DiffTabStore | undefined {
     for (const id of this.tabOrder) {
       const entry = this.entries.get(id);
-      if (entry?.kind === 'diff' && entry.path === path && entry.diffGroup === group) return entry;
+      if (
+        entry?.kind !== 'diff' ||
+        entry.path !== activeFile.path ||
+        entry.diffGroup !== activeFile.group
+      ) {
+        continue;
+      }
+      if (activeFile.group === 'disk' || activeFile.group === 'staged') return entry;
+      if (!refsEqual(entry.originalRef, activeFile.originalRef)) continue;
+      if (!optionalRefsEqual(entry.modifiedRef, activeFile.modifiedRef)) continue;
+      return entry;
     }
     return undefined;
   }

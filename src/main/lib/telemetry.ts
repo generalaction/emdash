@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { app } from 'electron';
-import type { TelemetryEnvelope, TelemetryEvent, TelemetryProperties } from '@shared/telemetry';
 import { KV } from '@main/db/kv';
 import { env as appEnv } from '@main/lib/env';
 import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
+import type { TelemetryEnvelope, TelemetryEvent, TelemetryProperties } from '@shared/telemetry';
 
 interface InitOptions {
   installSource?: string;
@@ -450,6 +450,10 @@ class TelemetryService implements IInitializable, IDisposable {
       session_id: this.sessionId ?? null,
       instance_id: this.instanceId ?? null,
     };
+  }
+
+  getInstanceId(): string | undefined {
+    return this.instanceId;
   }
 
   setTelemetryEnabledViaUser(enabledFlag: boolean): void {

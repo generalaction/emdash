@@ -1,5 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback, useState } from 'react';
+import { toast } from 'sonner';
 import { getTaskManagerStore } from '@renderer/features/tasks/stores/task-selectors';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
@@ -17,6 +18,7 @@ import {
   MAX_TASK_NAME_LENGTH,
   normalizeTaskName,
 } from '@renderer/utils/taskNames';
+import type { RenameTaskError } from '@shared/tasks';
 
 type RenameTaskModalArgs = {
   projectId: string;
@@ -25,6 +27,19 @@ type RenameTaskModalArgs = {
 };
 
 type Props = BaseModalProps<void> & RenameTaskModalArgs;
+
+function formatRenameTaskError(error: RenameTaskError): string {
+  switch (error.type) {
+    case 'task-not-found':
+      return 'Task not found.';
+    case 'project-not-found':
+      return 'Project not found.';
+    case 'branch-already-exists':
+      return `Branch "${error.branch}" already exists. Try a different task name.`;
+    case 'branch-rename-failed':
+      return `Could not rename branch "${error.branch}": ${error.message}`;
+  }
+}
 
 export const RenameTaskModal = observer(function RenameTaskModal({
   projectId,
@@ -68,7 +83,17 @@ export const RenameTaskModal = observer(function RenameTaskModal({
     setIsSubmitting(true);
     setError(null);
     try {
-      await task.rename(normalizedName);
+      const result = await task.rename(normalizedName);
+      if (!result.success) {
+        setError(formatRenameTaskError(result.error));
+        setIsSubmitting(false);
+        return;
+      }
+      if (result.data.warning) {
+        toast.error(
+          `Branch was renamed locally to "${result.data.warning.branch}", but could not be pushed to the remote: ${result.data.warning.message}`
+        );
+      }
       onSuccess();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to rename task');
@@ -95,9 +120,9 @@ export const RenameTaskModal = observer(function RenameTaskModal({
               autoFocus
             />
             {validationMessage && !isUnchanged && (
-              <p className="text-xs text-destructive mt-1">{validationMessage}</p>
+              <p className="text-destructive mt-1 text-xs">{validationMessage}</p>
             )}
-            {error && <p className="text-xs text-destructive mt-1">{error}</p>}
+            {error && <p className="text-destructive mt-1 text-xs">{error}</p>}
           </Field>
         </FieldGroup>
       </DialogContentArea>

@@ -1,58 +1,63 @@
 import { observer } from 'mobx-react-lite';
-import { commitRef, remoteRef, type GitChange } from '@shared/git';
-import { getPrNumber, type PullRequest } from '@shared/pull-requests';
-import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { usePrefetchDiffModels } from '@renderer/features/tasks/diff-view/changes-panel/hooks/use-prefetch-diff-models';
-import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
+import {
+  useTaskViewContext,
+  useWorkspaceId,
+  useWorkspaceViewModel,
+} from '@renderer/features/tasks/task-view-context';
+import { commitRef, refsEqual, type GitChange } from '@shared/git';
+import { getPrNumber, type PullRequest } from '@shared/pull-requests';
 import { VirtualizedChangesList } from '../virtualized-changes-list';
 
 export const PrFilesList = observer(function PrFilesList({ pr }: { pr: PullRequest }) {
   const { projectId } = useTaskViewContext();
-  const provisioned = useProvisionedTask();
-  const prStore = provisioned.workspace.pr;
+  const workspaceId = useWorkspaceId();
+  const taskView = useWorkspaceViewModel();
+  const prStore = taskView.prStore!;
 
-  const repo = getRepositoryStore(projectId);
-  const baseRef = remoteRef(repo?.configuredRemote ?? 'origin', pr.baseRefName);
+  const prNumber = getPrNumber(pr) ?? undefined;
+  const baseRef = commitRef(pr.baseRefOid);
   const modifiedRef = commitRef(pr.headRefOid);
   const prFiles = prStore.getFiles(pr).data ?? [];
 
-  const prefetchPrDiff = usePrefetchDiffModels(
-    projectId,
-    provisioned.workspaceId,
-    'pr',
-    baseRef,
-    modifiedRef
-  );
+  const prefetchPrDiff = usePrefetchDiffModels(projectId, workspaceId, 'pr', baseRef, modifiedRef);
 
   const activePath =
-    provisioned.taskView.tabManager.activeDescriptor?.kind === 'diff' &&
-    provisioned.taskView.tabManager.activeDescriptor.diffGroup === 'pr'
-      ? provisioned.taskView.tabManager.activeDescriptor.path
+    taskView.tabManager.activeDescriptor?.kind === 'diff' &&
+    taskView.tabManager.activeDescriptor.diffGroup === 'pr' &&
+    taskView.tabManager.activeDescriptor.prNumber === prNumber &&
+    refsEqual(taskView.tabManager.activeDescriptor.originalRef, baseRef) &&
+    refsEqual(taskView.tabManager.activeDescriptor.modifiedRef ?? modifiedRef, modifiedRef)
+      ? taskView.tabManager.activeDescriptor.path
       : undefined;
 
   const handleSelectChange = (change: GitChange) => {
-    provisioned.taskView.tabManager.openDiffPreview(
+    taskView.tabManager.openDiffPreview(
       {
         path: change.path,
         type: 'git',
         group: 'pr',
         originalRef: baseRef,
         modifiedRef,
-        prNumber: getPrNumber(pr) ?? undefined,
+        prNumber,
+        prBaseOid: pr.baseRefOid,
+        prHeadOid: pr.headRefOid,
       },
       change.status
     );
   };
 
   const handleDoubleClickChange = (change: GitChange) => {
-    provisioned.taskView.tabManager.openDiff(
+    taskView.tabManager.openDiff(
       {
         path: change.path,
         type: 'git',
         group: 'pr',
         originalRef: baseRef,
         modifiedRef,
-        prNumber: getPrNumber(pr) ?? undefined,
+        prNumber,
+        prBaseOid: pr.baseRefOid,
+        prHeadOid: pr.headRefOid,
       },
       change.status
     );

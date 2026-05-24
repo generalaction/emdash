@@ -70,7 +70,7 @@ function DialogHeader({
   return (
     <div
       data-slot="dialog-header"
-      className="flex items-center gap-2 p-6 justify-between"
+      className="flex items-center justify-between gap-2 p-6"
       {...props}
     >
       <div className={cn('flex items-center gap-2', className)}>{children}</div>
@@ -78,7 +78,7 @@ function DialogHeader({
         <DialogPrimitive.Close
           data-slot="dialog-close"
           render={
-            <button className="p-0  text-foreground-tertiary-muted hover:text-foreground-tertiary hover:bg-transparent bg-transparent" />
+            <button className="bg-transparent p-0 text-foreground-tertiary-muted hover:bg-transparent hover:text-foreground-tertiary" />
           }
         >
           <XIcon className="size-4" />
@@ -143,12 +143,19 @@ function DialogDescription({ className, ...props }: DialogPrimitive.Description.
 export function DialogContentArea({
   className,
   children,
+  ...props
 }: {
   className?: string;
   children: React.ReactNode;
-}) {
+} & React.ComponentProps<'div'>) {
   return (
-    <div className={cn('flex flex-col gap-2 w-full min-h-0 overflow-y-auto p-6 pt-0', className)}>
+    <div
+      className={cn(
+        'flex flex-col gap-2 w-full min-h-0 overflow-y-auto p-6 pt-0 focus-visible:outline-none',
+        className
+      )}
+      {...props}
+    >
       {children}
     </div>
   );

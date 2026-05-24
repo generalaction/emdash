@@ -1,8 +1,7 @@
 import { Info, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { AGENT_PROVIDERS, type AgentProviderDefinition } from '@shared/agent-provider-registry';
-import type { ProviderCustomConfig } from '@shared/app-settings';
 import { useProviderSettings } from '@renderer/features/settings/use-provider-settings';
+import { parseEnvAssignmentPaste, replaceEnvEntryWithPaste } from '@renderer/lib/env-paste';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@renderer/lib/ui/dialog';
@@ -10,6 +9,8 @@ import { Input } from '@renderer/lib/ui/input';
 import { Label } from '@renderer/lib/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { log } from '@renderer/utils/logger';
+import { AGENT_PROVIDERS, type AgentProviderDefinition } from '@shared/agent-provider-registry';
+import type { ProviderCustomConfig } from '@shared/app-settings';
 
 interface CustomCommandModalProps {
   isOpen: boolean;
@@ -95,6 +96,17 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
     setForm((prev) => ({
       ...prev,
       envEntries: prev.envEntries.filter((_, i) => i !== index),
+    }));
+  }, []);
+
+  const handleEnvPaste = useCallback((index: number, e: React.ClipboardEvent<HTMLInputElement>) => {
+    const pasted = parseEnvAssignmentPaste(e.clipboardData.getData('text'));
+    if (pasted.length === 0) return;
+
+    e.preventDefault();
+    setForm((prev) => ({
+      ...prev,
+      envEntries: replaceEnvEntryWithPaste(prev.envEntries, index, pasted),
     }));
   }, []);
 
@@ -195,7 +207,7 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
-              <div className="text-sm text-muted-foreground">Loading...</div>
+              <div className="text-muted-foreground text-sm">Loading...</div>
             </div>
           ) : (
             <div className="space-y-4">
@@ -281,6 +293,7 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
                         onChange={(e) => setEnvEntry(i, { key: e.target.value })}
                         placeholder="KEY"
                         className="min-w-0 flex-1 font-mono text-sm"
+                        onPaste={(e) => handleEnvPaste(i, e)}
                       />
                       <Input
                         value={entry.value}
@@ -313,13 +326,13 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
                 </div>
               </div>
 
-              {/* Auto-approve Flag */}
+              {/* Auto-approve CLI flag */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <Label htmlFor="autoApproveFlag" className="text-sm font-medium">
-                    Auto-approve Flag
+                    Auto-approve CLI flag
                   </Label>
-                  <FieldTooltip content="Flag used in auto-approve mode" />
+                  <FieldTooltip content="Passed only when Auto-approve permissions is enabled for a conversation" />
                 </div>
                 <Input
                   id="autoApproveFlag"
@@ -348,17 +361,17 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
               </div>
 
               {/* Preview */}
-              <div className="mt-6 rounded-lg border border-border/60 bg-muted/30 p-4">
-                <div className="mb-2 text-xs font-medium text-muted-foreground">
+              <div className="bg-muted/30 mt-6 rounded-lg border border-border/60 p-4">
+                <div className="text-muted-foreground mb-2 text-xs font-medium">
                   Command Preview
                 </div>
-                <code className="block break-all font-mono text-sm text-foreground">
+                <code className="block font-mono text-sm break-all text-foreground">
                   {previewCommand}
                 </code>
               </div>
 
               {isOverridden && (
-                <div className="rounded-md border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-600 dark:text-yellow-400">
+                <div className="rounded-md border border-border-warning bg-background-warning px-3 py-2 text-xs text-foreground-warning">
                   Custom configuration is applied
                 </div>
               )}

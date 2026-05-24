@@ -1,7 +1,7 @@
 import net from 'node:net';
-import { hostPreviewEventChannel } from '@shared/events/hostPreviewEvents';
 import { stripAnsi } from '@main/core/agent-hooks/classifiers/base';
 import { events } from '@main/lib/events';
+import { hostPreviewEventChannel } from '@shared/events/hostPreviewEvents';
 import type { Pty } from '../pty/pty';
 
 const PROBE_INTERVAL_MS = 1000;

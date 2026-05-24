@@ -5,6 +5,10 @@ import type {
   ExpandedSections,
 } from '@renderer/features/tasks/diff-view/stores/changes-view-store';
 
+// Unreachable in practice: callers guard with `if (!changesView) return null` before calling this
+// hook, so changesView is always non-null here. React Hooks rules prevent a conditional call.
+const DEFAULT_EXPANDED: ExpandedSections = { unstaged: true, staged: true, pullRequests: true };
+
 // Matches the SectionHeader height: outer py-2 (8+8px) + button p-2 (8+8px) + size-4 icon (16px) = 48px
 export const SECTION_HEADER_HEIGHT = '40px';
 
@@ -24,7 +28,7 @@ type usePanelLayoutReturn = {
   spacerRef: ReturnType<typeof usePanelRef>;
 };
 
-export function usePanelLayout(changesView: ChangesViewStore): usePanelLayoutReturn {
+export function usePanelLayout(changesView: ChangesViewStore | null): usePanelLayoutReturn {
   const unstagedRef = usePanelRef();
   const stagedRef = usePanelRef();
   const prRef = usePanelRef();
@@ -42,7 +46,7 @@ export function usePanelLayout(changesView: ChangesViewStore): usePanelLayoutRet
     onPointerCancel: () => setIsDragging(false),
   };
 
-  const expanded = changesView.expandedSections;
+  const expanded = changesView?.expandedSections ?? DEFAULT_EXPANDED;
 
   useLayoutEffect(() => {
     const sections = [
@@ -67,8 +71,8 @@ export function usePanelLayout(changesView: ChangesViewStore): usePanelLayoutRet
 
   return {
     expanded,
-    toggleExpanded: (section) => changesView.toggleExpanded(section),
-    setExpanded: (next) => changesView.setExpanded(next),
+    toggleExpanded: (section) => changesView?.toggleExpanded(section),
+    setExpanded: (next) => changesView?.setExpanded(next),
     panelTransitionClass,
     pointerHandlers,
     unstagedRef,

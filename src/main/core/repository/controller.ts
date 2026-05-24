@@ -1,12 +1,13 @@
+import { events } from '@main/lib/events';
+import { telemetryService } from '@main/lib/telemetry';
 import { gitRefChangedChannel } from '@shared/events/gitEvents';
 import type { BranchesPayload, LocalBranchesPayload, RemoteBranchesPayload } from '@shared/git';
 import { createRPCController } from '@shared/ipc/rpc';
 import { err, ok } from '@shared/result';
-import { events } from '@main/lib/events';
-import { telemetryService } from '@main/lib/telemetry';
 import type { GitRepositoryService } from '../git/repository-service';
 import { projectManager } from '../projects/project-manager';
 import { workspaceRegistry } from '../workspaces/workspace-registry';
+import { providerRepositoryService } from './provider-repository-service';
 
 function resolveRepository(projectId: string, workspaceId?: string): GitRepositoryService {
   const project = projectManager.getProject(projectId);
@@ -47,6 +48,10 @@ export const repositoryController = createRPCController({
       throw new Error('Project not found');
     }
     return project.repository.getRemotes();
+  },
+
+  resolveProviderRepository: async (projectId: string) => {
+    return providerRepositoryService.resolveProject(projectId);
   },
 
   addRemote: async (projectId: string, name: string, url: string) => {
@@ -104,12 +109,14 @@ export const repositoryController = createRPCController({
   ) => {
     const project = projectManager.getProject(projectId);
     if (!project) return err({ type: 'not_found' as const });
+    const baseRemote = await project.repository.getBaseRemote();
     const result = await project.repository.fetchPrForReview(
       prNumber,
       headRefName,
       headRepositoryUrl,
       headRefName,
-      isFork
+      isFork,
+      baseRemote
     );
     if (!result.success) return err(result.error);
     return ok({ localBranch: headRefName });

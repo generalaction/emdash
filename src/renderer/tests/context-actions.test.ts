@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import type { Issue } from '@shared/tasks';
 import {
   buildDraftCommentsContextAction,
+  buildIssueContextText,
   buildLinkedIssueContextAction,
-  buildReviewPromptContextAction,
+  buildPromptLibraryContextActions,
   buildTaskContextActions,
 } from '@renderer/features/tasks/conversations/context-actions';
+import type { DraftComment } from '@renderer/features/tasks/diff-view/stores/draft-comments-store';
+import { getDraftCommentTargetKey, type DraftCommentTarget } from '@shared/lineComments';
+import type { Issue } from '@shared/tasks';
 
 function makeIssue(overrides: Partial<Issue> = {}): Issue {
   return {
@@ -23,107 +26,174 @@ function makeIssue(overrides: Partial<Issue> = {}): Issue {
   };
 }
 
+function makeDraftComment(overrides: Partial<DraftComment> = {}): DraftComment {
+  const target: DraftCommentTarget = overrides.target ?? {
+    kind: 'working-tree',
+    group: 'disk',
+    path: overrides.filePath ?? 'src/foo.ts',
+  };
+  return {
+    id: crypto.randomUUID(),
+    taskId: 'task-1',
+    filePath: target.path,
+    target,
+    targetKey: getDraftCommentTargetKey(target),
+    lineNumber: 10,
+    lineContent: 'const x = 1;',
+    content: 'This looks wrong.',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+describe('buildIssueContextText', () => {
+  it('normalizes field whitespace and produces a newline-free string for basic fields', () => {
+    const text = buildIssueContextText(
+      makeIssue({ description: 'Line one.\nLine two.\n\nLine three.' })
+    );
+
+    expect(text).toContain('Provider: GitHub');
+    expect(text).toContain('Identifier: EMD-123');
+    expect(text).toContain('Title: Fix task context injection behavior');
+    expect(text).toContain('URL: https://example.com/issues/EMD-123');
+    expect(text).toContain('Description: Line one. Line two. Line three.');
+    expect(text).toContain('Status: In Progress');
+    expect(text).toContain('Assignees: alice, bob');
+    expect(text).toContain('Project: Infra');
+    expect(text).not.toMatch(/\r|\n/);
+  });
+
+  it('does not truncate long descriptions', () => {
+    const longDescription = 'A'.repeat(500);
+    const text = buildIssueContextText(makeIssue({ description: longDescription }));
+    expect(text).toContain(`Description: ${longDescription}`);
+  });
+
+  it('appends provider-specific context with preserved newlines', () => {
+    const text = buildIssueContextText(
+      makeIssue({
+        provider: 'linear',
+        context: 'Linear issue activity\n\nComments:\n- 2026-04-17 by Jona: Looks good',
+      })
+    );
+
+    expect(text).toContain(
+      'Context:\nLinear issue activity\n\nComments:\n- 2026-04-17 by Jona: Looks good'
+    );
+  });
+});
+
 describe('buildLinkedIssueContextAction', () => {
   it('returns null when no issue is linked', () => {
     expect(buildLinkedIssueContextAction(undefined)).toBeNull();
   });
 
-  it('builds an inject action with provider metadata and compact label', () => {
-    const action = buildLinkedIssueContextAction(makeIssue());
+  it('builds an action with the correct id, kind, provider and issue', () => {
+    const issue = makeIssue();
+    const action = buildLinkedIssueContextAction(issue);
 
     expect(action).not.toBeNull();
     expect(action?.id).toBe('linked-issue:github:EMD-123');
+    expect(action?.kind).toBe('linked-issue');
     expect(action?.provider).toBe('github');
-    expect(action?.label).toContain('EMD-123');
-    expect(action?.label).toContain('Fix task context');
+    expect(action?.issue).toBe(issue);
   });
 
-  it('formats injected text as one line so it does not auto-submit', () => {
+  it('uses the issue provider and identifier in the id', () => {
     const action = buildLinkedIssueContextAction(
-      makeIssue({ description: 'Line one.\nLine two.\n\nLine three.' })
+      makeIssue({ provider: 'linear', identifier: 'LIN-42' })
     );
 
-    expect(action).not.toBeNull();
-    expect(action?.text).toContain('Provider: GitHub');
-    expect(action?.text).toContain('Identifier: EMD-123');
-    expect(action?.text).toContain('Title: Fix task context injection behavior');
-    expect(action?.text).toContain('URL: https://example.com/issues/EMD-123');
-    expect(action?.text).toContain('Description: Line one. Line two. Line three.');
-    expect(action?.text).toContain('Status: In Progress');
-    expect(action?.text).toContain('Assignees: alice, bob');
-    expect(action?.text).toContain('Project: Infra');
-    expect(action?.text).not.toMatch(/\r|\n/);
-  });
-
-  it('does not truncate long descriptions when building injected text', () => {
-    const longDescription = 'A'.repeat(500);
-    const action = buildLinkedIssueContextAction(makeIssue({ description: longDescription }));
-
-    expect(action).not.toBeNull();
-    expect(action?.text).toContain(`Description: ${longDescription}`);
+    expect(action?.id).toBe('linked-issue:linear:LIN-42');
+    expect(action?.provider).toBe('linear');
   });
 });
 
-describe('buildReviewPromptContextAction', () => {
-  it('returns null for empty review prompt', () => {
-    expect(buildReviewPromptContextAction('   ')).toBeNull();
+describe('buildPromptLibraryContextActions', () => {
+  it('builds one action per non-empty prompt', () => {
+    const actions = buildPromptLibraryContextActions([
+      { id: 'one', title: 'Security review', prompt: 'Check auth boundaries.' },
+      { id: 'two', title: 'Empty', prompt: '   ' },
+    ]);
+
+    expect(actions).toHaveLength(1);
+    expect(actions[0]?.id).toBe('prompt:one');
+    expect(actions[0]?.kind).toBe('prompt');
+    expect(actions[0]?.prompt).toEqual({
+      id: 'one',
+      title: 'Security review',
+      prompt: 'Check auth boundaries.',
+    });
   });
 
-  it('builds review prompt action', () => {
-    const action = buildReviewPromptContextAction('Review this worktree for issues.');
-    expect(action).not.toBeNull();
-    expect(action).toMatchObject({
-      id: 'review-prompt',
-      kind: 'review-prompt',
-      label: 'Review prompt',
-      text: 'Review this worktree for issues.',
-    });
+  it('returns an empty array when all prompts are blank', () => {
+    const actions = buildPromptLibraryContextActions([{ id: 'x', title: 'X', prompt: '  ' }]);
+    expect(actions).toHaveLength(0);
   });
 });
 
 describe('buildDraftCommentsContextAction', () => {
-  it('returns null when there are no comments', () => {
-    expect(
-      buildDraftCommentsContextAction({
-        count: 0,
-        formattedComments: '<user_comments>...</user_comments>',
-      })
-    ).toBeNull();
+  it('returns null when the comments array is empty', () => {
+    expect(buildDraftCommentsContextAction([])).toBeNull();
   });
 
-  it('returns null when formatted comments are empty', () => {
-    expect(
-      buildDraftCommentsContextAction({
-        count: 2,
-        formattedComments: '   ',
-      })
-    ).toBeNull();
+  it('builds an action with commentCount and fileCount', () => {
+    const comments = [
+      makeDraftComment({ filePath: 'src/a.ts', lineNumber: 1 }),
+      makeDraftComment({ filePath: 'src/a.ts', lineNumber: 5 }),
+      makeDraftComment({ filePath: 'src/b.ts', lineNumber: 2 }),
+    ];
+    const action = buildDraftCommentsContextAction(comments);
+
+    expect(action).not.toBeNull();
+    expect(action?.id).toBe('draft-comments');
+    expect(action?.kind).toBe('draft-comments');
+    expect(action?.commentCount).toBe(3);
+    expect(action?.fileCount).toBe(2);
+    expect(action?.comments).toBe(comments);
   });
 
-  it('builds an action with count label', () => {
-    const action = buildDraftCommentsContextAction({
-      count: 2,
-      formattedComments: '<user_comments>test</user_comments>',
-    });
+  it('counts each unique filePath as one file', () => {
+    const comments = [
+      makeDraftComment({ filePath: 'src/x.ts' }),
+      makeDraftComment({ filePath: 'src/x.ts' }),
+      makeDraftComment({ filePath: 'src/y.ts' }),
+    ];
+    const action = buildDraftCommentsContextAction(comments);
 
-    expect(action).toEqual({
-      id: 'draft-comments',
-      kind: 'draft-comments',
-      label: 'Comments (2)',
-      text: '<user_comments>test</user_comments>',
-    });
+    expect(action?.fileCount).toBe(2);
   });
 });
 
 describe('buildTaskContextActions', () => {
-  it('includes linked issue context, then draft comments, then review prompt', () => {
-    const actions = buildTaskContextActions(makeIssue(), 'Review this worktree for issues.', {
-      count: 1,
-      formattedComments: '<user_comments>test</user_comments>',
-    });
-    expect(actions).toHaveLength(3);
+  it('includes linked issue context, draft comments, then prompt library actions', () => {
+    const comments = [makeDraftComment()];
+    const actions = buildTaskContextActions(makeIssue(), comments, [
+      { id: 'review-prompt', title: 'Review prompt', prompt: 'Review this worktree.' },
+      { id: 'custom', title: 'Perf review', prompt: 'Look for slow paths.' },
+    ]);
+
+    expect(actions).toHaveLength(4);
     expect(actions[0]?.id).toBe('linked-issue:github:EMD-123');
     expect(actions[1]?.id).toBe('draft-comments');
-    expect(actions[2]?.id).toBe('review-prompt');
+    expect(actions[2]?.id).toBe('prompt:review-prompt');
+    expect(actions[3]?.id).toBe('prompt:custom');
+  });
+
+  it('omits the linked issue action when issue is undefined', () => {
+    const actions = buildTaskContextActions(
+      undefined,
+      [],
+      [{ id: 'p', title: 'P', prompt: 'Do it.' }]
+    );
+    expect(actions).toHaveLength(1);
+    expect(actions[0]?.kind).toBe('prompt');
+  });
+
+  it('omits the draft-comments action when comments array is empty', () => {
+    const actions = buildTaskContextActions(makeIssue(), [], []);
+    expect(actions).toHaveLength(1);
+    expect(actions[0]?.kind).toBe('linked-issue');
   });
 });

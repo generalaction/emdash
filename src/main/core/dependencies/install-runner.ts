@@ -1,14 +1,14 @@
 import os from 'node:os';
-import type { InstallCommandError } from '@shared/dependencies';
-import { err, ok, type Result } from '@shared/result';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import type { Pty } from '@main/core/pty/pty';
 import { logLocalPtySpawnWarnings, resolveLocalPtySpawn } from '@main/core/pty/pty-spawn-platform';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
-import { buildRemoteShellCommand } from '@main/core/ssh/remote-shell-profile';
-import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
+import { buildRemoteShellCommand } from '@main/core/ssh/lifecycle/remote-shell-profile';
+import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { log } from '@main/lib/logger';
 import { ensureUserBinDirsInPath } from '@main/utils/userEnv';
+import type { InstallCommandError } from '@shared/dependencies';
+import { err, ok, type Result } from '@shared/result';
 
 export type InstallCommandRunner<TData = void, TError = InstallCommandError> = (
   command: string
@@ -101,7 +101,7 @@ export function runLocalInstallCommand(
 export function createSshInstallCommandRunner(proxy: SshClientProxy): InstallCommandRunner {
   return async (command: string) => {
     const profile = await proxy.getRemoteShellProfile();
-    const result = await openSsh2Pty(proxy.client, {
+    const result = await openSsh2Pty(proxy, {
       id: `install:${crypto.randomUUID()}`,
       command: buildRemoteShellCommand(profile, command),
       cols: 80,

@@ -1,0 +1,23 @@
+import { observer } from 'mobx-react-lite';
+import { type ReactNode } from 'react';
+import { appState } from '@renderer/lib/stores/app-state';
+import { getProjectStore } from '../stores/project-selectors';
+import { SshChannelUnavailablePanel } from './ssh-channel-unavailable-panel';
+
+export const ProjectSshHealthGate = observer(function ProjectSshHealthGate({
+  children,
+  projectId,
+}: {
+  children: ReactNode;
+  projectId: string;
+}) {
+  const data = getProjectStore(projectId)?.data;
+  const sshConnectionId = data?.type === 'ssh' ? data.connectionId : undefined;
+  const sshHealth = sshConnectionId ? appState.sshConnections.healthFor(sshConnectionId) : null;
+
+  if (sshConnectionId && sshHealth?.status === 'degraded') {
+    return <SshChannelUnavailablePanel />;
+  }
+
+  return <>{children}</>;
+});

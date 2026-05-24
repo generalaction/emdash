@@ -5,9 +5,9 @@ import {
   PlainError,
   RateLimitError,
 } from '@team-plain/graphql';
-import { ISSUE_PROVIDER_CAPABILITIES, type ConnectionStatus } from '@shared/issue-providers';
 import { encryptedAppSecretsStore } from '@main/core/secrets/encrypted-app-secrets-store';
 import { log } from '@main/lib/logger';
+import { ISSUE_PROVIDER_CAPABILITIES, type ConnectionStatus } from '@shared/issue-providers';
 
 const NOT_CONFIGURED_ERROR = 'Plain is not configured. Connect Plain in settings.';
 
@@ -16,10 +16,7 @@ export function toPlainErrorMessage(error: unknown, fallback: string): string {
     return error.message || 'Plain authentication failed. Check your API key.';
   }
   if (error instanceof ForbiddenError) {
-    return (
-      error.message ||
-      'Plain API key was accepted but is missing required permissions. Create a key with thread read permissions.'
-    );
+    return error.message || 'Plain API key was accepted but is missing required permissions.';
   }
   if (error instanceof RateLimitError) {
     return 'Plain API rate limit exceeded. Please try again shortly.';
@@ -151,15 +148,12 @@ export class PlainConnectionService {
     try {
       await client.query.threads({ first: 1 });
     } catch (error) {
-      if (error instanceof ForbiddenError) {
-        throw new ForbiddenError(
-          'Insufficient permissions: this key cannot read threads. Ensure thread read permissions are enabled.'
-        );
-      }
-      if (error instanceof AuthenticationError || error instanceof RateLimitError) {
-        throw error;
-      }
-      if (error instanceof PlainError) {
+      if (
+        error instanceof ForbiddenError ||
+        error instanceof AuthenticationError ||
+        error instanceof RateLimitError ||
+        error instanceof PlainError
+      ) {
         throw error;
       }
       if (error instanceof Error) {

@@ -1,6 +1,9 @@
 import { autorun, isObservableMap } from 'mobx';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { DraftCommentsStore } from '@renderer/features/tasks/diff-view/stores/draft-comments-store';
+import type { DraftCommentTarget } from '@shared/lineComments';
+
+const target: DraftCommentTarget = { kind: 'working-tree', group: 'disk', path: 'a.ts' };
 
 describe('DraftCommentsStore reactivity', () => {
   beforeEach(() => {
@@ -24,7 +27,7 @@ describe('DraftCommentsStore reactivity', () => {
       seen.push(store.count);
     });
 
-    store.addComment({ filePath: 'a.ts', lineNumber: 1, content: 'note' });
+    store.addComment({ target, lineNumber: 1, content: 'note' });
     store.deleteComment('11111111-1111-1111-1111-111111111111');
     dispose();
 

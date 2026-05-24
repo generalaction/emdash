@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { basenameFromAnyPath } from '@shared/path-name';
 import { rpc } from '@renderer/lib/ipc';
 import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
 import type { ComboboxSelectOption } from '@renderer/lib/ui/combobox-popover';
+import { basenameFromAnyPath } from '@shared/path-name';
 
 export function usePickMode() {
   const [path, setPath] = useState('');

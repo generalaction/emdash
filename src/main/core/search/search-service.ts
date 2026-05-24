@@ -1,13 +1,15 @@
+import { db, sqlite } from '@main/db/client';
+import { conversations, projects, tasks } from '@main/db/schema';
+import { log } from '@main/lib/logger';
+import { ALL_COMMAND_DEFS } from '@shared/commands';
 import type { Conversation } from '@shared/conversations';
 import type { Project } from '@shared/projects';
 import type { CommandPaletteQuery, SearchItem, SearchItemKind } from '@shared/search';
 import type { Task } from '@shared/tasks';
-import { db, sqlite } from '@main/db/client';
-import { conversations, projects, tasks } from '@main/db/schema';
-import { log } from '@main/lib/logger';
 import { conversationEvents } from '../conversations/conversation-events';
 import { projectEvents } from '../projects/project-events';
-import { taskEvents } from '../tasks/task-events';
+import { taskService } from '../tasks/task-service';
+import { workspaceFileIndexService } from './workspace-file-index-service';
 
 type FtsRow = {
   item_type: string;
@@ -33,10 +35,10 @@ type RecentConversationRow = {
 
 class SearchService {
   initialize(): void {
-    taskEvents.on('task:created', (task) => this.upsertTask(task));
-    taskEvents.on('task:updated', (task) => this.upsertTask(task));
-    taskEvents.on('task:archived', (taskId) => this.removeByType('task', taskId));
-    taskEvents.on('task:deleted', (taskId) => this.removeByType('task', taskId));
+    taskService.on('task:created', (task) => this.upsertTask(task));
+    taskService.on('task:updated', (task) => this.upsertTask(task));
+    taskService.on('task:archived', (taskId) => this.removeByType('task', taskId));
+    taskService.on('task:deleted', (taskId) => this.removeByType('task', taskId));
 
     projectEvents.on('project:created', (project) => this.upsertProject(project));
     projectEvents.on('project:deleted', (projectId) => this.removeByType('project', projectId));
@@ -52,17 +54,23 @@ class SearchService {
     );
 
     this.backfill();
+    this.seedCommands();
   }
 
   search({ query, context }: CommandPaletteQuery): SearchItem[] {
     if (!query.trim()) return this.recents(context);
 
-    const ftsQuery = query
+    // Trigram tokenizer requires each term to be at least 3 characters.
+    // Terms shorter than 3 chars are dropped; if nothing survives, fall back
+    // to recents rather than sending an invalid query to SQLite.
+    const terms = query
       .trim()
       .split(/[\s\-_]+/)
-      .filter(Boolean)
-      .map((t) => `${t}*`)
-      .join(' AND ');
+      .filter((t) => t.length >= 3);
+
+    if (terms.length === 0) return this.recents(context);
+
+    const ftsQuery = terms.map((t) => `"${t}"`).join(' AND ');
 
     let rows: FtsRow[];
     try {
@@ -94,7 +102,7 @@ class SearchService {
       return [];
     }
 
-    return rows.map((r) => ({
+    const results: SearchItem[] = rows.map((r) => ({
       kind: r.item_type as SearchItemKind,
       id: r.item_id,
       projectId: r.project_id,
@@ -103,6 +111,23 @@ class SearchService {
       subtitle: '',
       score: r.rank,
     }));
+
+    if (context?.workspaceId) {
+      const fileHits = workspaceFileIndexService.search(context.workspaceId, query);
+      for (const h of fileHits) {
+        results.push({
+          kind: 'file',
+          id: h.path,
+          projectId: context.projectId ?? null,
+          taskId: context.taskId ?? null,
+          title: h.filename,
+          subtitle: h.path,
+          score: 0,
+        });
+      }
+    }
+
+    return results;
   }
 
   private recents(context?: CommandPaletteQuery['context']): SearchItem[] {
@@ -240,6 +265,24 @@ class SearchService {
         .run(itemId, itemType);
     } catch (e) {
       log.warn('SearchService: removeByType failed', { itemType, itemId, error: String(e) });
+    }
+  }
+
+  private seedCommands(): void {
+    try {
+      sqlite.transaction(() => {
+        sqlite.prepare(`DELETE FROM search_index WHERE item_type = 'command'`).run();
+        const stmt = sqlite.prepare(
+          `INSERT INTO search_index (item_type, item_id, project_id, task_id, title, keywords)
+           VALUES ('command', ?, NULL, NULL, ?, ?)`
+        );
+        for (const def of ALL_COMMAND_DEFS) {
+          stmt.run(def.id, def.label, def.description ?? '');
+        }
+      })();
+      log.info('SearchService: seeded commands', { count: ALL_COMMAND_DEFS.length });
+    } catch (e) {
+      log.warn('SearchService: seedCommands failed', { error: String(e) });
     }
   }
 

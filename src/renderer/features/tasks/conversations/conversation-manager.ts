@@ -1,4 +1,11 @@
-import { action, computed, makeObservable, observable, onBecomeObserved, runInAction } from 'mobx';
+import { action, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
+import { makeFileLinkHandlers } from '@renderer/features/tasks/stores/open-file-in-file-editor';
+import { events, rpc } from '@renderer/lib/ipc';
+import { PtySession } from '@renderer/lib/pty/pty-session';
+import type { IDisposable } from '@renderer/lib/stores/lifecycle';
+import { Resource } from '@renderer/lib/stores/resource';
+import { log } from '@renderer/utils/logger';
+import { soundPlayer } from '@renderer/utils/soundPlayer';
 import { type Conversation, type CreateConversationParams } from '@shared/conversations';
 import {
   agentEventChannel,
@@ -6,21 +13,23 @@ import {
   isAttentionNotification,
   type NotificationType,
 } from '@shared/events/agentEvents';
+import { conversationChangedChannel } from '@shared/events/conversationEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
-import { makeFileLinkHandlers } from '@renderer/features/tasks/stores/open-file-in-file-editor';
-import { events, rpc } from '@renderer/lib/ipc';
-import { PtySession } from '@renderer/lib/pty/pty-session';
-import { log } from '@renderer/utils/logger';
-import { soundPlayer } from '@renderer/utils/soundPlayer';
 
 export type AgentStatus = 'idle' | 'working' | 'awaiting-input' | 'error' | 'completed';
 
-export class ConversationManagerStore {
-  private _loaded = false;
-  private _loadPromise: Promise<void> | null = null;
+export class ConversationManagerStore implements IDisposable {
   private offAgentEvents: (() => void) | null = null;
   private offSessionExited: (() => void) | null = null;
+  private offConversationChanges: (() => void) | null = null;
+  private readonly _disposeReaction: () => void;
+
+  /** Data layer: plain Conversation records loaded from the main process. */
+  readonly list: Resource<Conversation[]>;
+  /** Runtime state stores keyed by conversation id — populated by reaction on list.data. */
   conversations = observable.map<string, ConversationStore>();
+  /** Session layer keyed by conversation id — created alongside data, connected lazily. */
+  sessions = observable.map<string, PtySession>();
 
   constructor(
     private readonly projectId: string,
@@ -29,22 +38,74 @@ export class ConversationManagerStore {
   ) {
     makeObservable(this, {
       conversations: observable,
+      sessions: observable,
       taskStatus: computed,
     });
-    if (preloaded && preloaded.length > 0) {
-      this._loaded = true;
-      for (const conversation of preloaded) {
-        const store = new ConversationStore(conversation);
-        this.conversations.set(conversation.id, store);
-        void store.session.connect();
-      }
+
+    const hasPreloaded = preloaded !== undefined;
+    this.list = new Resource<Conversation[]>(
+      hasPreloaded ? null : () => rpc.conversations.getConversationsForTask(projectId, taskId),
+      hasPreloaded ? [] : [{ kind: 'demand' }],
+      hasPreloaded ? { init: preloaded } : undefined
+    );
+
+    // When preloaded data is available, populate the maps synchronously so
+    // they are accessible immediately — even when this constructor is called
+    // from within a MobX action, where reaction callbacks (including
+    // fireImmediately) are deferred until the outermost action completes.
+    if (preloaded) {
+      runInAction(() => {
+        for (const conversation of preloaded) {
+          if (!this.conversations.has(conversation.id)) {
+            this.conversations.set(conversation.id, new ConversationStore(conversation));
+          }
+          if (!this.sessions.has(conversation.id)) {
+            const handlers = makeFileLinkHandlers(conversation.projectId, conversation.taskId);
+            this.sessions.set(
+              conversation.id,
+              new PtySession(
+                makePtySessionId(conversation.projectId, conversation.taskId, conversation.id),
+                handlers.onOpenFile,
+                handlers.onOpenExternal
+              )
+            );
+          }
+        }
+      });
     }
-    onBecomeObserved(this, 'conversations', () => {
-      if (this._loaded) return;
-      void this.load();
-    });
+
+    // Sync conversations and sessions maps whenever resource data changes.
+    // fireImmediately handles the non-preloaded case; for preloaded data the
+    // maps are already populated above so this is a no-op on first run.
+    this._disposeReaction = reaction(
+      () => this.list.data,
+      (data) => {
+        if (!data) return;
+        runInAction(() => {
+          for (const conversation of data) {
+            if (!this.conversations.has(conversation.id)) {
+              this.conversations.set(conversation.id, new ConversationStore(conversation));
+            }
+            if (!this.sessions.has(conversation.id)) {
+              const handlers = makeFileLinkHandlers(conversation.projectId, conversation.taskId);
+              this.sessions.set(
+                conversation.id,
+                new PtySession(
+                  makePtySessionId(conversation.projectId, conversation.taskId, conversation.id),
+                  handlers.onOpenFile,
+                  handlers.onOpenExternal
+                )
+              );
+            }
+          }
+        });
+      },
+      { fireImmediately: true }
+    );
+
     this.offAgentEvents = this.listenToAgentEvents();
     this.offSessionExited = this.listenToSessionExited();
+    this.offConversationChanges = this.listenToConversationChanges();
   }
 
   private listenToAgentEvents(): () => void {
@@ -52,6 +113,10 @@ export class ConversationManagerStore {
       if (event.taskId !== this.taskId) return;
       const conversationStore = this.conversations.get(event.conversationId);
       if (!conversationStore) return;
+      if (event.type === 'start') {
+        conversationStore.setWorking();
+        return;
+      }
       if (event.type === 'notification') {
         const nt = event.payload.notificationType;
         if (!isAttentionNotification(nt)) return;
@@ -66,7 +131,6 @@ export class ConversationManagerStore {
       }
       if (event.type === 'error') {
         conversationStore.setStatus('error');
-        return;
       }
     });
   }
@@ -77,6 +141,17 @@ export class ConversationManagerStore {
       const conversationStore = this.conversations.get(event.conversationId);
       if (!conversationStore) return;
       conversationStore.clearWorking();
+    });
+  }
+
+  private listenToConversationChanges(): () => void {
+    return events.on(conversationChangedChannel, (event) => {
+      if (event.taskId !== this.taskId) return;
+      const store = this.conversations.get(event.conversationId);
+      if (!store) return;
+      runInAction(() => {
+        Object.assign(store.data, event.changes);
+      });
     });
   }
 
@@ -96,45 +171,33 @@ export class ConversationManagerStore {
     return null;
   }
 
-  async load(): Promise<void> {
-    if (this._loadPromise) return this._loadPromise;
-    if (this._loaded) return;
-
-    this._loaded = true;
-    this._loadPromise = rpc.conversations
-      .getConversationsForTask(this.projectId, this.taskId)
-      .then((conversations) => {
-        runInAction(() => {
-          for (const conversation of conversations) {
-            const store = new ConversationStore(conversation);
-            this.conversations.set(conversation.id, store);
-            void store.session.connect();
-          }
-        });
-      })
-      .catch((error: unknown) => {
-        this._loaded = false;
-        throw error;
-      })
-      .finally(() => {
-        this._loadPromise = null;
-      });
-    return this._loadPromise;
-  }
-
   async createConversation(params: CreateConversationParams): Promise<Conversation> {
     const conversation = await rpc.conversations.createConversation(params);
     runInAction(() => {
-      const store = new ConversationStore(conversation);
-      this.conversations.set(conversation.id, store);
-      void store.session.connect();
+      if (!this.conversations.has(conversation.id)) {
+        this.conversations.set(conversation.id, new ConversationStore(conversation));
+      }
+      if (!this.sessions.has(conversation.id)) {
+        const handlers = makeFileLinkHandlers(conversation.projectId, conversation.taskId);
+        this.sessions.set(
+          conversation.id,
+          new PtySession(
+            makePtySessionId(conversation.projectId, conversation.taskId, conversation.id),
+            handlers.onOpenFile,
+            handlers.onOpenExternal
+          )
+        );
+      }
+      if (params.initialPrompt?.trim()) {
+        this.conversations.get(conversation.id)?.setWorking();
+      }
     });
     return conversation;
   }
 
   async markConversationWorking(conversationId: string): Promise<void> {
-    if (!this._loaded || this._loadPromise) {
-      await this.load();
+    if (!this.list.data) {
+      await this.list.load();
     }
 
     runInAction(() => {
@@ -151,19 +214,22 @@ export class ConversationManagerStore {
   }
 
   async deleteConversation(conversationId: string): Promise<void> {
-    const snapshot = this.conversations.get(conversationId);
-    if (!snapshot) return;
+    const store = this.conversations.get(conversationId);
+    const session = this.sessions.get(conversationId);
+    if (!store) return;
 
     runInAction(() => {
       this.conversations.delete(conversationId);
+      this.sessions.delete(conversationId);
     });
 
     try {
       await rpc.conversations.deleteConversation(this.projectId, this.taskId, conversationId);
-      snapshot.dispose();
+      session?.dispose();
     } catch (err) {
       runInAction(() => {
-        this.conversations.set(conversationId, snapshot);
+        this.conversations.set(conversationId, store);
+        if (session) this.sessions.set(conversationId, session);
       });
       throw err;
     }
@@ -189,45 +255,30 @@ export class ConversationManagerStore {
     }
   }
 
-  async touchConversation(conversationId: string): Promise<void> {
-    const store = this.conversations.get(conversationId);
-    if (!store) return;
-    const now = new Date().toISOString();
-    runInAction(() => {
-      store.data.lastInteractedAt = now;
-    });
-    await rpc.conversations.touchConversation(conversationId, now);
-  }
-
   dispose(): void {
+    this._disposeReaction();
     this.offAgentEvents?.();
     this.offAgentEvents = null;
     this.offSessionExited?.();
     this.offSessionExited = null;
-    for (const conversation of this.conversations.values()) {
-      conversation.dispose();
+    this.offConversationChanges?.();
+    this.offConversationChanges = null;
+    for (const session of this.sessions.values()) {
+      session.dispose();
     }
   }
 }
 
 export class ConversationStore {
   data: Conversation;
-  session: PtySession;
   status: AgentStatus = 'idle';
   seen = true;
   lastNotificationType: NotificationType | null = null;
 
   constructor(conversation: Conversation) {
     this.data = conversation;
-    const handlers = makeFileLinkHandlers(conversation.projectId, conversation.taskId);
-    this.session = new PtySession(
-      makePtySessionId(conversation.projectId, conversation.taskId, conversation.id),
-      handlers.onOpenFile,
-      handlers.onOpenExternal
-    );
     makeObservable(this, {
       data: observable,
-      session: observable,
       status: observable,
       seen: observable,
       lastNotificationType: observable,
@@ -286,6 +337,6 @@ export class ConversationStore {
   }
 
   dispose() {
-    this.session.dispose();
+    // Session is managed by ConversationManagerStore.sessions — nothing to do here.
   }
 }

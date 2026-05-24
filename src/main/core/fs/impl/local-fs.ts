@@ -4,10 +4,9 @@ import { createInterface } from 'node:readline';
 import parcelWatcher from '@parcel/watcher';
 import { glob } from 'glob';
 import ignore from 'ignore';
-import type { FileWatchEvent } from '@shared/fs';
 import { log } from '@main/lib/logger';
+import type { FileWatchEvent } from '@shared/fs';
 import {
-  DEFAULT_EMDASH_CONFIG,
   FileSystemError,
   FileSystemErrorCodes,
   type FileEntry,
@@ -191,7 +190,7 @@ export class LocalFileSystem implements FileSystemProvider {
    * Get relative path from absolute path
    */
   private relPath(fullPath: string): string {
-    return relative(this.projectPath, fullPath);
+    return relative(this.projectPath, fullPath).replace(/\\/g, '/');
   }
 
   /**
@@ -598,39 +597,6 @@ export class LocalFileSystem implements FileSystemProvider {
     }
   }
 
-  async getProjectConfig(): Promise<{ success: boolean; content?: string; error?: string }> {
-    const configPath = join(this.projectPath, '.emdash.json');
-    try {
-      try {
-        const content = await fs.readFile(configPath, 'utf-8');
-        return { success: true, content };
-      } catch (err: unknown) {
-        const code = (err as NodeJS.ErrnoException).code;
-        if (code !== 'ENOENT') throw err;
-        // File doesn't exist — create with defaults
-        await fs.writeFile(configPath, DEFAULT_EMDASH_CONFIG, 'utf-8');
-        return { success: true, content: DEFAULT_EMDASH_CONFIG };
-      }
-    } catch (err: unknown) {
-      return { success: false, error: err instanceof Error ? err.message : String(err) };
-    }
-  }
-
-  async saveProjectConfig(content: string): Promise<{ success: boolean; error?: string }> {
-    try {
-      JSON.parse(content);
-    } catch {
-      return { success: false, error: 'Invalid JSON format' };
-    }
-    const configPath = join(this.projectPath, '.emdash.json');
-    try {
-      await fs.writeFile(configPath, content, 'utf-8');
-      return { success: true };
-    } catch (err: unknown) {
-      return { success: false, error: err instanceof Error ? err.message : String(err) };
-    }
-  }
-
   async saveAttachment(
     srcPath: string,
     subdir?: string
@@ -763,6 +729,10 @@ export class LocalFileSystem implements FileSystemProvider {
 
   async copyFile(src: string, dest: string): Promise<void> {
     await fs.copyFile(this.resolvePath(src), this.resolvePath(dest));
+  }
+
+  async copyLocalFile(localAbsPath: string, destRelPath: string): Promise<void> {
+    await fs.copyFile(localAbsPath, this.resolvePath(destRelPath));
   }
 
   watch(

@@ -1,5 +1,5 @@
 import type { Octokit } from '@octokit/rest';
-import { getOctokit } from './octokit-provider';
+import { GitHubApiAuthErrorException, getOctokit } from './octokit-provider';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -215,4 +215,8 @@ export class GitHubRepositoryServiceImpl implements GitHubRepositoryService {
   }
 }
 
-export const repoService = new GitHubRepositoryServiceImpl(getOctokit);
+export const repoService = new GitHubRepositoryServiceImpl(async () => {
+  const octokit = await getOctokit('github.com');
+  if (!octokit.success) throw new GitHubApiAuthErrorException(octokit.error);
+  return octokit.data;
+});

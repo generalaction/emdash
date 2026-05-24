@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import type { RemoteShellProfile } from '@main/core/ssh/lifecycle/remote-shell-profile';
 import type { AgentSessionConfig } from '@shared/agent-session';
 import type { GeneralSessionConfig } from '@shared/general-session';
-import type { RemoteShellProfile } from '@main/core/ssh/remote-shell-profile';
 import { resolveSshCommand } from './spawn-utils';
 
 function makeAgentConfig(overrides: Partial<AgentSessionConfig> = {}): AgentSessionConfig {
@@ -93,9 +93,10 @@ describe('resolveSshCommand', () => {
       zshProfile
     );
 
-    expect(result).toContain('tmux has-session -t "agent-session"');
-    expect(result).toContain('tmux new-session -d -s "agent-session"');
-    expect(result).toContain('tmux attach-session -t "agent-session"');
+    expect(result).toContain('tmux has-session -t \\"agent-session\\"');
+    expect(result).toContain('tmux new-session -d -s \\"agent-session\\"');
+    expect(result).toContain('tmux attach-session -t \\"agent-session\\"');
+    expect(result).toContain('/bin/sh -c');
     expect(result).toContain("'\\''claude'\\'' '\\''--resume'\\'' '\\''conv-1'\\''");
   });
 

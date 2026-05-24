@@ -16,6 +16,10 @@ export type TabDescriptor =
       originalRef: GitObjectRef;
       modifiedRef?: GitObjectRef;
       prNumber?: number;
+      prBaseOid?: string;
+      prHeadOid?: string;
+      commitOriginalSha?: string | null;
+      commitModifiedSha?: string;
       status?: GitChangeStatus;
       isPreview: boolean;
     };
@@ -23,6 +27,16 @@ export type TabDescriptor =
 export type TabManagerSnapshot = {
   tabs: TabDescriptor[];
   activeTabId: string | undefined;
+};
+
+export type TabGroupsSnapshot = {
+  groups: Array<{
+    groupId: string;
+    tabManager: TabManagerSnapshot;
+  }>;
+  activeGroupId: string;
+  /** Percentage sizes parallel to groups[]. */
+  paneSizes: number[];
 };
 
 export type EditorViewSnapshot = {
@@ -37,9 +51,13 @@ export type DiffViewSnapshot = {
   diffStyle: 'unified' | 'split';
   viewMode: 'file';
   activeFile?: ActiveFile;
-  commitAction: 'commit' | 'commit-push' | null;
+  commitAction: 'commit' | 'commit-push' | 'commit-pr' | null;
   prTab?: 'files' | 'commits' | 'checks';
 };
+
+export type TerminalDrawerActiveItem =
+  | { kind: 'terminal'; id: string }
+  | { kind: 'script'; id: string };
 
 export interface ActiveFile {
   path: string;
@@ -55,11 +73,17 @@ export interface ActiveFile {
    *  'pr'     = PR diff (originalRef is remote-tracking base) */
   group: 'disk' | 'staged' | 'git' | 'pr';
   originalRef: GitObjectRef;
-  /** PR head SHA for the modified side of a 'pr' group diff.
-   *  When absent the diff stack falls back to HEAD_REF. */
+  /** Fixed modified-side ref for 'git' and 'pr' diffs.
+   *  When absent the diff viewer falls back to HEAD_REF. */
   modifiedRef?: GitObjectRef;
   /** Set only when group === 'pr'. Identifies the PR for store lookups. */
   prNumber?: number;
+  /** Exact PR base/head OIDs for comment scoping and stable target identity. */
+  prBaseOid?: string;
+  prHeadOid?: string;
+  /** Exact commit diff endpoints for comment scoping. Root commits use null original. */
+  commitOriginalSha?: string | null;
+  commitModifiedSha?: string;
 }
 
 export type TaskViewSnapshot = {
@@ -67,6 +91,10 @@ export type TaskViewSnapshot = {
   isSidebarCollapsed?: boolean;
   focusedRegion: 'main' | 'bottom';
   isTerminalDrawerOpen?: boolean;
+  terminalDrawerActiveItem?: TerminalDrawerActiveItem;
+  /** Takes precedence over tabManager when present. */
+  tabGroups?: TabGroupsSnapshot;
+  /** @deprecated Use tabGroups. Kept for migration from single-pane snapshots. */
   tabManager?: TabManagerSnapshot;
   /** @deprecated Legacy field from before the unified tab refactor. Used only for migration. */
   conversations?: TabViewSnapshot;

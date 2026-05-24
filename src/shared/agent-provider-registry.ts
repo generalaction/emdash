@@ -1,10 +1,12 @@
 export const AGENT_PROVIDER_IDS = [
   'codex',
   'claude',
+  'grok',
   'devin',
   'qwen',
   'droid',
   'gemini',
+  'antigravity',
   'cursor',
   'copilot',
   'amp',
@@ -20,6 +22,7 @@ export const AGENT_PROVIDER_IDS = [
   'cline',
   'continue',
   'codebuff',
+  'freebuff',
   'mistral',
   'jules',
   'junie',
@@ -49,6 +52,13 @@ export type AgentProviderDefinition = {
    * Use for agents whose CLI has no flag for interactive-mode prompt delivery.
    */
   useKeystrokeInjection?: boolean;
+  /**
+   * When true, the initial prompt is piped to the agent via stdin and the
+   * spawn becomes `bash -c 'printf ... | <agent...>'`.
+   * Use for agents that read an initial message from stdin then continue
+   * interactively (e.g. amp's `echo "msg" | amp`).
+   */
+  initialPromptViaStdinPipe?: boolean;
   resumeFlag?: string;
   /**
    * CLI flag to assign a unique session ID per chat instance.
@@ -112,6 +122,23 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     supportsHooks: true,
   },
   {
+    id: 'grok',
+    name: 'Grok',
+    description:
+      "xAI's Grok CLI for terminal-first coding sessions with plans, subagents, and parallel work.",
+    docUrl: 'https://x.ai/cli',
+    installCommand: 'curl -fsSL https://x.ai/cli/install.sh | bash',
+    commands: ['grok'],
+    versionArgs: ['--version'],
+    cli: 'grok',
+    autoApproveFlag: '--always-approve',
+    useKeystrokeInjection: true,
+    resumeFlag: '-r',
+    icon: 'xai.svg',
+    alt: 'Grok CLI',
+    terminalOnly: true,
+  },
+  {
     id: 'devin',
     name: 'Devin',
     description:
@@ -164,6 +191,24 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     terminalOnly: true,
   },
   {
+    id: 'antigravity',
+    name: 'Antigravity',
+    description:
+      'Google Antigravity CLI for terminal-first agent sessions with shared Antigravity settings and conversation history.',
+    docUrl: 'https://antigravity.google/docs/cli-overview',
+    installCommand: 'curl -fsSL https://antigravity.google/cli/install.sh | bash',
+    commands: ['agy', 'antigravity'],
+    versionArgs: ['--version'],
+    cli: 'agy',
+    autoApproveFlag: '--dangerously-skip-permissions',
+    initialPromptFlag: '-i',
+    sessionIdFlag: '--conversation=',
+    planActivateCommand: '/plan',
+    icon: 'antigravity.png',
+    alt: 'Antigravity CLI',
+    terminalOnly: true,
+  },
+  {
     id: 'qwen',
     name: 'Qwen Code',
     description:
@@ -195,6 +240,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'droid.svg',
     alt: 'Factory Droid',
     terminalOnly: true,
+    supportsHooks: true,
   },
   {
     id: 'amp',
@@ -208,7 +254,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     cli: 'amp',
     autoApproveFlag: '--dangerously-allow-all',
     initialPromptFlag: '',
-    useKeystrokeInjection: true,
+    initialPromptViaStdinPipe: true,
     icon: 'ampcode.png',
     alt: 'Amp CLI',
     terminalOnly: true,
@@ -223,8 +269,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     commands: ['opencode'],
     versionArgs: ['--version'],
     cli: 'opencode',
-    initialPromptFlag: '',
-    useKeystrokeInjection: true,
+    initialPromptFlag: '--prompt',
     resumeFlag: '--continue',
     icon: 'opencode.png',
     alt: 'OpenCode CLI',
@@ -362,6 +407,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     versionArgs: ['--version'],
     cli: 'kiro-cli',
     defaultArgs: ['chat'],
+    autoApproveFlag: '--trust-all-tools',
     initialPromptFlag: '',
     icon: 'kiro.png',
     alt: 'Kiro CLI',
@@ -427,6 +473,21 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     initialPromptFlag: '',
     icon: 'codebuff.png',
     alt: 'Codebuff CLI',
+    terminalOnly: true,
+  },
+  {
+    id: 'freebuff',
+    name: 'Freebuff',
+    description:
+      'Freebuff is a standalone Codebuff package for project-directory assistance and day-to-day development tasks.',
+    docUrl: 'https://freebuff.com',
+    installCommand: 'npm install -g freebuff',
+    commands: ['freebuff'],
+    versionArgs: ['--version'],
+    cli: 'freebuff',
+    initialPromptFlag: '',
+    icon: 'codebuff.png',
+    alt: 'Freebuff CLI',
     terminalOnly: true,
   },
   {

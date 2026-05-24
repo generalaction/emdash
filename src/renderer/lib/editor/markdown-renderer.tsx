@@ -2,7 +2,11 @@ import { Eye, Pencil } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback } from 'react';
 import type { FileTabStore } from '@renderer/features/tasks/tabs/file-tab-store';
-import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
+import {
+  useTaskViewContext,
+  useWorkspaceId,
+  useWorkspaceViewModel,
+} from '@renderer/features/tasks/task-view-context';
 import { useDelayedBoolean } from '@renderer/lib/hooks/use-delay-boolean';
 import { rpc } from '@renderer/lib/ipc';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
@@ -23,9 +27,9 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
   filePath,
 }: MarkdownEditorRendererProps) {
   const { projectId } = useTaskViewContext();
-  const provisioned = useProvisionedTask();
-  const { workspaceId } = provisioned;
-  const { editorView, tabManager } = provisioned.taskView;
+  const workspaceId = useWorkspaceId();
+  const taskView = useWorkspaceViewModel();
+  const { editorView, tabManager } = taskView;
   const tab = Array.from(tabManager.entries.values()).find(
     (entry): entry is FileTabStore => entry.kind === 'file' && entry.path === filePath
   );
@@ -75,7 +79,7 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
           </div>
         ) : null
       ) : tab?.isExternal && tab.externalError ? (
-        <div className="px-8 py-8 text-sm text-destructive">
+        <div className="text-destructive px-8 py-8 text-sm">
           Could not load file: {tab.externalError}
         </div>
       ) : (

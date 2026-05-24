@@ -1,5 +1,9 @@
 import { toast } from 'sonner';
-import { asProvisioned, getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
+import {
+  asProvisioned,
+  getTaskStore,
+  getTaskView,
+} from '@renderer/features/tasks/stores/task-selectors';
 import { rpc } from '@renderer/lib/ipc';
 import { focusTracker } from '@renderer/utils/focus-tracker';
 
@@ -21,7 +25,7 @@ export async function openFileInTaskEditor(
   }
 
   focusTracker.transition({ mainPanel: 'editor' }, 'panel_switch');
-  provisioned.taskView.tabManager.openFile(filePath);
+  provisioned.viewModel?.tabManager.openFile(filePath);
 }
 
 export async function openExternalFilePath(
@@ -33,7 +37,7 @@ export async function openExternalFilePath(
     const provisioned = asProvisioned(getTaskStore(projectId, taskId));
     if (!provisioned) return;
     focusTracker.transition({ mainPanel: 'editor' }, 'panel_switch');
-    void provisioned.taskView.tabManager.openExternalFile(filePath);
+    void getTaskView(projectId, taskId)?.tabManager.openExternalFile(filePath);
     return;
   }
   const result = await rpc.app.openPath(filePath);

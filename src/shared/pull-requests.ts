@@ -41,6 +41,23 @@ export type PullRequestCheck = {
   appLogoUrl: string | null;
 };
 
+export type PullRequestCommentKind = 'issue' | 'review';
+
+export type PullRequestComment = {
+  id: string;
+  pullRequestUrl: string;
+  kind: PullRequestCommentKind;
+  body: string;
+  url: string;
+  author: PullRequestUser | null;
+  path: string | null;
+  line: number | null;
+  isResolved: boolean;
+  isOutdated: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 /** Fully denormalised PR view used throughout the renderer. */
 export type PullRequest = {
   url: string;
@@ -113,12 +130,17 @@ export type PrFilterOptions = {
 export type PullRequestError =
   | { type: 'invalid_repository'; input: string }
   | { type: 'remote_not_ready'; status: string }
+  | { type: 'github_auth_required'; host: string; hint: string }
+  | { type: 'ghes_auth_required'; host: string; hint: string }
+  | { type: 'cross_host_pr'; baseHost: string; headHost: string }
+  | { type: 'host_unreachable'; host: string; reason: string }
   | { type: 'list_failed'; message: string }
   | { type: 'filter_options_failed'; message: string }
   | { type: 'task_pull_requests_failed'; message: string }
   | { type: 'sync_failed'; message: string }
   | { type: 'refresh_failed'; message: string }
   | { type: 'checks_failed'; message: string }
+  | { type: 'comments_failed'; message: string }
   | { type: 'create_failed'; message: string }
   | { type: 'merge_failed'; message: string }
   | { type: 'mark_ready_failed'; message: string }
@@ -140,6 +162,14 @@ export function pullRequestErrorMessage(error: PullRequestError): string {
       return `Invalid GitHub repository URL: "${error.input}"`;
     case 'remote_not_ready':
       return `Remote not ready: ${error.status}`;
+    case 'github_auth_required':
+      return `GitHub authentication required. ${error.hint}`;
+    case 'ghes_auth_required':
+      return `GitHub Enterprise authentication required for ${error.host}. ${error.hint}`;
+    case 'cross_host_pr':
+      return `Cannot create a pull request across different GitHub hosts (${error.headHost} -> ${error.baseHost}). Push and base remotes must use the same GitHub or GitHub Enterprise host.`;
+    case 'host_unreachable':
+      return `Unable to reach GitHub Enterprise host ${error.host}: ${error.reason}`;
     default:
       return error.message;
   }

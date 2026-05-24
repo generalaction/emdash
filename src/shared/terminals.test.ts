@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createScriptTerminalId } from './terminals';
+import { createLifecycleScriptTerminalId, createScriptTerminalId } from './terminals';
 
 describe('createScriptTerminalId', () => {
   it('is deterministic for the same project/scope/script tuple', async () => {
@@ -51,5 +51,13 @@ describe('createScriptTerminalId', () => {
     });
 
     expect(viaScopeId).toBe(viaTaskId);
+  });
+});
+
+describe('createLifecycleScriptTerminalId', () => {
+  it('returns stable delimiter-safe lifecycle script terminal ids', () => {
+    expect(createLifecycleScriptTerminalId('setup')).toBe('script-lifecycle-setup');
+    expect(createLifecycleScriptTerminalId('run')).toBe('script-lifecycle-run');
+    expect(createLifecycleScriptTerminalId('teardown')).toBe('script-lifecycle-teardown');
   });
 });
