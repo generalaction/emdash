@@ -19,13 +19,19 @@ export function normalizePayload(
     payload.notificationType = 'idle_prompt';
   }
 
-  // Claude Code's Notification hook payload has no notification_type field —
-  // distinguish permission prompts from idle prompts by inspecting the message.
+  // Claude Code's Notification hook payload has no notification_type field.
   if (!payload.notificationType && providerId === 'claude' && eventType === 'notification') {
-    payload.notificationType = /\bpermission\b/i.test(payload.message ?? '')
+    payload.notificationType = isClaudePermissionPrompt(payload.message)
       ? 'permission_prompt'
       : 'idle_prompt';
   }
 
   return payload;
+}
+
+function isClaudePermissionPrompt(message: string | undefined): boolean {
+  if (!message) return false;
+  return [/\ballow\s+.+\?/i, /\bgrant\s+.+\baccess\b/i, /\bneeds?\s+your\s+permission\b/i].some(
+    (pattern) => pattern.test(message)
+  );
 }

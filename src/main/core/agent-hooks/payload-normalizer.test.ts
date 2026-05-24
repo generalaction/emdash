@@ -2,15 +2,27 @@ import { describe, expect, it } from 'vitest';
 import { normalizePayload } from './payload-normalizer';
 
 describe('normalizePayload', () => {
-  it('classifies Claude Notification with "permission" in message as permission_prompt', () => {
-    const payload = normalizePayload('claude', 'notification', {
-      message: 'Claude needs your permission to use Bash',
-    });
-    expect(payload.notificationType).toBe('permission_prompt');
-    expect(payload.message).toBe('Claude needs your permission to use Bash');
+  it('classifies Claude Notification approval prompts as permission_prompt', () => {
+    for (const message of [
+      'Allow Bash to run?',
+      'Do you want to grant Bash access?',
+      'Claude needs your permission to use Bash',
+    ]) {
+      const payload = normalizePayload('claude', 'notification', { message });
+
+      expect(payload.notificationType).toBe('permission_prompt');
+      expect(payload.message).toBe(message);
+    }
   });
 
-  it('classifies Claude Notification without "permission" as idle_prompt', () => {
+  it('does not classify incidental permission mentions as permission_prompt', () => {
+    const payload = normalizePayload('claude', 'notification', {
+      message: 'Claude is waiting for your input about permission handling',
+    });
+    expect(payload.notificationType).toBe('idle_prompt');
+  });
+
+  it('classifies Claude Notification without an approval prompt as idle_prompt', () => {
     const payload = normalizePayload('claude', 'notification', {
       message: 'Claude is waiting for your input',
     });

@@ -179,7 +179,7 @@ export class ConversationManagerStore implements IDisposable {
         );
       }
       if (params.initialPrompt?.trim()) {
-        this.conversations.get(conversation.id)?.setWorking();
+        this.conversations.get(conversation.id)?.setWorking({ clearPermissionPrompt: true });
       }
     });
     return conversation;
@@ -199,7 +199,7 @@ export class ConversationManagerStore implements IDisposable {
         });
         return;
       }
-      store.setWorking();
+      store.setWorking({ clearPermissionPrompt: true });
     });
   }
 
