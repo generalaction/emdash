@@ -1,6 +1,6 @@
 import type { Octokit } from '@octokit/rest';
 import { describe, expect, it, vi } from 'vitest';
-import type { GitHubApiAuthError } from '@main/core/github/services/github-api-auth-service';
+import type { GitHubApiAuthError } from '@main/core/github/services/github-api-auth-errors';
 import { err, ok } from '@shared/result';
 import type { Result } from '@shared/result';
 import { PrSyncEngine } from './pr-sync-engine';

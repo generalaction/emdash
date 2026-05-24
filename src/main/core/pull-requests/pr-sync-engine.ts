@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Octokit } from '@octokit/rest';
 import { and, eq, inArray, lt, ne } from 'drizzle-orm';
-import type { GitHubApiAuthError } from '@main/core/github/services/github-api-auth-service';
+import type { GitHubApiAuthError } from '@main/core/github/services/github-api-auth-errors';
 import { getOctokit } from '@main/core/github/services/octokit-provider';
 import {
   GET_PR_BY_NUMBER_QUERY,

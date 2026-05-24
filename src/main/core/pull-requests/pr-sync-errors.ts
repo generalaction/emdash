@@ -1,5 +1,8 @@
-import type { GitHubApiAuthError } from '@main/core/github/services/github-api-auth-service';
-import { isGitHubDotComHost, type RepositoryRefParseError } from '@shared/repository-ref';
+import {
+  githubApiAuthRequired,
+  type GitHubApiAuthError,
+} from '@main/core/github/services/github-api-auth-errors';
+import type { RepositoryRefParseError } from '@shared/repository-ref';
 
 export type PrSyncEngineError =
   | RepositoryRefParseError
@@ -12,21 +15,8 @@ function isAuthStatus(error: unknown): boolean {
   return status === 401 || status === 403;
 }
 
-function authRequiredForHost(host: string): GitHubApiAuthError {
-  if (isGitHubDotComHost(host)) {
-    return { type: 'auth_required', host, message: 'GitHub authentication required.' };
-  }
-  const hint = `Run: gh auth login --hostname ${host}`;
-  return {
-    type: 'auth_required',
-    host,
-    message: `GitHub Enterprise authentication required for ${host}. ${hint}`,
-    hint,
-  };
-}
-
 export function toPrApiError(error: unknown, fallback: string, host?: string): PrSyncEngineError {
-  if (host && isAuthStatus(error)) return authRequiredForHost(host);
+  if (host && isAuthStatus(error)) return githubApiAuthRequired(host);
 
   const ghErrors =
     error &&
