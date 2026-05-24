@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ok } from '@shared/result';
 import { githubIssueProvider } from './github-issue-provider';
 import { issueService } from './services/issue-service';
 
@@ -23,7 +24,7 @@ describe('githubIssueProvider', () => {
   });
 
   it('uses repositoryUrl to resolve the GitHub repository before listing issues', async () => {
-    mockIssueService.listIssues.mockResolvedValue([]);
+    mockIssueService.listIssues.mockResolvedValue(ok([]));
 
     await githubIssueProvider.listIssues({
       repositoryUrl: 'https://github.com/owner/repo',
@@ -32,6 +33,7 @@ describe('githubIssueProvider', () => {
 
     expect(mockIssueService.listIssues).toHaveBeenCalledWith(
       {
+        host: 'github.com',
         owner: 'owner',
         repo: 'repo',
         nameWithOwner: 'owner/repo',
@@ -42,7 +44,7 @@ describe('githubIssueProvider', () => {
   });
 
   it('falls back to the resolved remote when repositoryUrl is not provided', async () => {
-    mockIssueService.searchIssues.mockResolvedValue([]);
+    mockIssueService.searchIssues.mockResolvedValue(ok([]));
 
     await githubIssueProvider.searchIssues({
       remote: 'git@github.com:owner/repo.git',
@@ -52,6 +54,7 @@ describe('githubIssueProvider', () => {
 
     expect(mockIssueService.searchIssues).toHaveBeenCalledWith(
       {
+        host: 'github.com',
         owner: 'owner',
         repo: 'repo',
         nameWithOwner: 'owner/repo',
