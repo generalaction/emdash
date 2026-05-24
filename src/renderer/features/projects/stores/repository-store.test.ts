@@ -57,6 +57,15 @@ async function flushAsyncWork(): Promise<void> {
   await Promise.resolve();
 }
 
+function createWorkspaceStore(): RepositoryStore {
+  return new RepositoryStore(
+    'project-1',
+    { settings: undefined } as unknown as ProjectSettingsStore,
+    'main',
+    'workspace-1'
+  );
+}
+
 describe('RepositoryStore', () => {
   let gitRefHandlers: Array<(event: GitRefChange) => void>;
 
@@ -78,29 +87,72 @@ describe('RepositoryStore', () => {
     vi.useRealTimers();
   });
 
+  function emitGitRefChange(event: GitRefChange): void {
+    for (const handler of gitRefHandlers) {
+      handler(event);
+    }
+  }
+
   it('refreshes task branch divergence when the project branch ref changes', async () => {
     mocks.getLocalBranches
       .mockResolvedValueOnce(localPayload(0))
       .mockResolvedValue(localPayload(1));
 
-    const store = new RepositoryStore(
-      'project-1',
-      { settings: undefined } as unknown as ProjectSettingsStore,
-      'main',
-      'workspace-1'
-    );
+    const store = createWorkspaceStore();
     await flushAsyncWork();
 
     expect(store.getBranchDivergence('feature/push-button')?.ahead).toBe(0);
 
-    for (const handler of gitRefHandlers) {
-      handler({ projectId: 'project-1', kind: 'local-refs' });
-    }
+    emitGitRefChange({ projectId: 'project-1', kind: 'local-refs' });
     vi.advanceTimersByTime(250);
     await flushAsyncWork();
 
     expect(mocks.getLocalBranches).toHaveBeenCalledTimes(2);
     expect(store.getBranchDivergence('feature/push-button')?.ahead).toBe(1);
+
+    store.dispose();
+  });
+
+  it('refreshes task branch divergence when its workspace branch ref changes', async () => {
+    mocks.getLocalBranches
+      .mockResolvedValueOnce(localPayload(0))
+      .mockResolvedValue(localPayload(2));
+
+    const store = createWorkspaceStore();
+    await flushAsyncWork();
+
+    expect(store.getBranchDivergence('feature/push-button')?.ahead).toBe(0);
+
+    emitGitRefChange({
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      kind: 'local-refs',
+    });
+    vi.advanceTimersByTime(250);
+    await flushAsyncWork();
+
+    expect(mocks.getLocalBranches).toHaveBeenCalledTimes(2);
+    expect(store.getBranchDivergence('feature/push-button')?.ahead).toBe(2);
+
+    store.dispose();
+  });
+
+  it('ignores branch ref changes from other workspaces', async () => {
+    mocks.getLocalBranches.mockResolvedValue(localPayload(0));
+
+    const store = createWorkspaceStore();
+    await flushAsyncWork();
+
+    emitGitRefChange({
+      projectId: 'project-1',
+      workspaceId: 'workspace-2',
+      kind: 'local-refs',
+    });
+    vi.advanceTimersByTime(250);
+    await flushAsyncWork();
+
+    expect(mocks.getLocalBranches).toHaveBeenCalledTimes(1);
+    expect(store.getBranchDivergence('feature/push-button')?.ahead).toBe(0);
 
     store.dispose();
   });
