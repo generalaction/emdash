@@ -1,10 +1,13 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronRight, Folder, FolderOpen } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { buildVisibleRows } from '@renderer/features/tasks/editor/stores/files-store-utils';
+import {
+  buildVisibleRows,
+  isChainExpanded,
+  type TreeRow,
+} from '@renderer/features/tasks/editor/stores/files-store-utils';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { cn } from '@renderer/utils/utils';
-import { type FileNode } from '@shared/fs';
 import { type GitChange } from '@shared/git';
 import { ChangeStatusAffordance } from './changes-list-item';
 import { buildChangesTree } from './changes-tree-utils';
@@ -50,11 +53,13 @@ export function VirtualizedChangesTree({
     [tree, expandedPaths]
   );
 
-  const toggleDir = useCallback((path: string) => {
+  const toggleChain = useCallback((chain: readonly { path: string }[], expanded: boolean) => {
     setCollapsedPaths((prev) => {
       const next = new Set(prev);
-      if (next.has(path)) next.delete(path);
-      else next.add(path);
+      for (const segment of chain) {
+        if (expanded) next.add(segment.path);
+        else next.delete(segment.path);
+      }
       return next;
     });
   }, []);
@@ -74,7 +79,8 @@ export function VirtualizedChangesTree({
     >
       <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
         {virtualizer.getVirtualItems().map((virtualItem) => {
-          const node = visibleRows[virtualItem.index]!;
+          const row = visibleRows[virtualItem.index]!;
+          const node = row.node;
           const style: React.CSSProperties = {
             position: 'absolute',
             top: virtualItem.start,
@@ -83,12 +89,13 @@ export function VirtualizedChangesTree({
             height: ITEM_HEIGHT,
           };
           if (node.type === 'directory') {
+            const expanded = isChainExpanded(row.chain, expandedPaths);
             return (
               <DirectoryRow
                 key={node.path}
-                node={node}
-                isExpanded={expandedPaths.has(node.path)}
-                onToggle={() => toggleDir(node.path)}
+                row={row}
+                isExpanded={expanded}
+                onToggle={() => toggleChain(row.chain, expanded)}
                 style={style}
               />
             );
@@ -98,7 +105,7 @@ export function VirtualizedChangesTree({
           return (
             <FileRow
               key={node.path}
-              node={node}
+              row={row}
               change={change}
               isSelected={isSelected?.(change.path) ?? false}
               isActive={change.path === activePath}
@@ -116,17 +123,19 @@ export function VirtualizedChangesTree({
 }
 
 function DirectoryRow({
-  node,
+  row,
   isExpanded,
   onToggle,
   style,
 }: {
-  node: FileNode;
+  row: TreeRow;
   isExpanded: boolean;
   onToggle: () => void;
   style: React.CSSProperties;
 }) {
-  const paddingLeft = node.depth * 12 + 4;
+  const paddingLeft = row.renderDepth * 12 + 4;
+  const displayName =
+    row.chain.length > 1 ? row.chain.map((segment) => segment.name).join('/') : row.node.name;
   return (
     <button
       type="button"
@@ -144,13 +153,13 @@ function DirectoryRow({
       <span className="shrink-0 text-foreground-muted">
         {isExpanded ? <FolderOpen className="h-3.5 w-3.5" /> : <Folder className="h-3.5 w-3.5" />}
       </span>
-      <span className="min-w-0 flex-1 truncate text-left text-sm">{node.name}</span>
+      <span className="min-w-0 flex-1 truncate text-left text-sm">{displayName}</span>
     </button>
   );
 }
 
 function FileRow({
-  node,
+  row,
   change,
   isSelected,
   isActive,
@@ -160,7 +169,7 @@ function FileRow({
   onMouseEnter,
   style,
 }: {
-  node: FileNode;
+  row: TreeRow;
   change: GitChange;
   isSelected: boolean;
   isActive: boolean;
@@ -170,7 +179,8 @@ function FileRow({
   onMouseEnter: () => void;
   style: React.CSSProperties;
 }) {
-  const paddingLeft = node.depth * 12 + 4;
+  const paddingLeft = row.renderDepth * 12 + 4;
+  const node = row.node;
   return (
     <button
       type="button"
