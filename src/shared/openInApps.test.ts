@@ -6,7 +6,7 @@ describe('OPEN_IN_APPS', () => {
     expect(isValidOpenInAppId('kaku')).toBe(true);
     expect(OPEN_IN_APPS.kaku).toMatchObject({
       id: 'kaku',
-      iconPath: 'terminal.png',
+      iconPath: 'kaku.png',
       label: 'Kaku',
       supportsRemote: true,
     });

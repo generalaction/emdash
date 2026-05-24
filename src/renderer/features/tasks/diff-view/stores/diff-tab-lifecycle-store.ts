@@ -42,6 +42,10 @@ export class DiffTabLifecycleStore {
               originalRef: tab.originalRef,
               modifiedRef: tab.modifiedRef,
               prNumber: tab.prNumber,
+              prBaseOid: tab.prBaseOid,
+              prHeadOid: tab.prHeadOid,
+              commitOriginalSha: tab.commitOriginalSha,
+              commitModifiedSha: tab.commitModifiedSha,
             };
             this.diffView.setActiveFile(activeFile);
           }

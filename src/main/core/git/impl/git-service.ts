@@ -24,6 +24,7 @@ import {
   type FetchPrForReviewError,
   type FullGitStatus,
   type GitChange,
+  type GitChangeStatus,
   type GitHeadState,
   type GitInfo,
   type GitObjectRef,
@@ -816,7 +817,7 @@ export class GitService implements GitProvider, IDisposable {
 
     const FIELD_SEP = '---FIELD_SEP---';
     const RECORD_SEP = '---RECORD_SEP---';
-    const format = `${RECORD_SEP}%H${FIELD_SEP}%s${FIELD_SEP}%an${FIELD_SEP}%aI${FIELD_SEP}%D${FIELD_SEP}%b`;
+    const format = `${RECORD_SEP}%H${FIELD_SEP}%P${FIELD_SEP}%s${FIELD_SEP}%an${FIELD_SEP}%aI${FIELD_SEP}%D${FIELD_SEP}%b`;
     // When base is provided (PR view), use a range so only commits between
     // base and head are returned — not a raw linear walk from head.
     const rangeArg = base ? `${toRefString(base)}..${headStr}` : headStr;
@@ -836,7 +837,7 @@ export class GitService implements GitProvider, IDisposable {
       .filter((entry) => entry.trim())
       .map((entry, index) => {
         const parts = entry.trim().split(FIELD_SEP);
-        const refs = parts[4] || '';
+        const refs = parts[5] || '';
         const tags = refs
           .split(',')
           .map((r) => r.trim())
@@ -844,10 +845,11 @@ export class GitService implements GitProvider, IDisposable {
           .map((r) => r.slice(5));
         return {
           hash: parts[0] || '',
-          subject: parts[1] || '',
-          body: (parts[5] || '').trim(),
-          author: parts[2] || '',
-          date: parts[3] || '',
+          parents: (parts[1] || '').split(' ').filter(Boolean),
+          subject: parts[2] || '',
+          body: (parts[6] || '').trim(),
+          author: parts[3] || '',
+          date: parts[4] || '',
           isPushed: skip + index >= aheadCount,
           tags,
         };
@@ -946,7 +948,7 @@ export class GitService implements GitProvider, IDisposable {
     const statLines = stdout.trim().split('\n').filter(Boolean);
     const statusLines = nameStatus.trim().split('\n').filter(Boolean);
 
-    const statusMap = new Map<string, string>();
+    const statusMap = new Map<string, GitChangeStatus>();
     for (const line of statusLines) {
       const [code, ...pathParts] = line.split('\t');
       const filePath = pathParts[pathParts.length - 1] || '';
