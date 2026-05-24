@@ -16,14 +16,17 @@ export class SshWorktreeHost implements WorktreeHost {
   constructor(private readonly fs: SshWorktreeFs) {}
 
   private validateAbsolute(input: string): string {
-    if (!path.posix.isAbsolute(input)) {
+    // Normalize Windows backslash separators to POSIX forward slashes.
+    // On Windows, path.join produces backslash paths even for remote SSH targets.
+    const normalized = input.replaceAll('\\', '/');
+    if (!path.posix.isAbsolute(normalized)) {
       throw new FileSystemError(
         `Expected absolute POSIX path: ${input}`,
         FileSystemErrorCodes.INVALID_PATH,
         input
       );
     }
-    return input;
+    return normalized;
   }
 
   async existsAbsolute(filePath: string): Promise<boolean> {

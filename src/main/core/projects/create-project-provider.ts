@@ -168,6 +168,7 @@ function buildProvider(
     ctx,
     host: worktreeHost,
     resolveWorktreePoolPath,
+    pathApi: transportMeta.kind === 'ssh' ? path.posix : path,
   });
   const gitFetchService = new GitFetchService(repoGit, hasGitHubToken, () =>
     repository.getBaseRemote()
