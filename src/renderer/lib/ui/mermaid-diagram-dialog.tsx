@@ -1,5 +1,5 @@
-import { Minus, Plus, RotateCcw, X } from 'lucide-react';
-import React, { useState } from 'react';
+import { Maximize2, Minus, Plus, X } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 import {
   TransformComponent,
   TransformWrapper,
@@ -39,6 +39,10 @@ const MAX_ZOOM = 64;
 const MAX_INITIAL_ZOOM = 12;
 const MIN_ZOOM_OUT_FACTOR = 0.5;
 const MAX_ZOOM_IN_FACTOR = 10;
+const DEFAULT_ZOOM_BOUNDS: ZoomBounds = {
+  minScale: MIN_ZOOM,
+  maxScale: MAX_ZOOM,
+};
 
 const toolbarButtonClassName =
   'size-7 rounded-none border-0 bg-transparent text-foreground-muted hover:bg-background-1 hover:text-foreground first:rounded-l-md last:rounded-r-md';
@@ -117,7 +121,7 @@ function MermaidToolbar({ controls, onFit, onClose }: MermaidToolbarProps) {
           <Minus className="size-4" />
         </ToolbarButton>
         <ToolbarButton label="Fit to view" onClick={onFit}>
-          <RotateCcw className="size-4" />
+          <Maximize2 className="size-4" />
         </ToolbarButton>
         <ToolbarButton label="Close" onClick={onClose}>
           <X className="size-4" />
@@ -133,10 +137,15 @@ export function MermaidDiagramDialog({
   renderKey,
   onOpenChange,
 }: MermaidDiagramDialogProps) {
-  const [zoomBounds, setZoomBounds] = useState<ZoomBounds>({
-    minScale: MIN_ZOOM,
-    maxScale: MAX_ZOOM,
-  });
+  const [zoomBounds, setZoomBounds] = useState<ZoomBounds>(DEFAULT_ZOOM_BOUNDS);
+  const [openSession, setOpenSession] = useState(0);
+
+  useEffect(() => {
+    if (!open) return;
+
+    setZoomBounds(DEFAULT_ZOOM_BOUNDS);
+    setOpenSession((session) => session + 1);
+  }, [open, renderKey]);
 
   const fitToView = (controls: ReactZoomPanPinchContentRef, animationTime = 0) => {
     const fitScale = fitDiagramToView(controls, animationTime);
@@ -150,7 +159,7 @@ export function MermaidDiagramDialog({
         className="top-[calc(50%+1rem)] h-[calc(100dvh-4rem)] max-h-[calc(100dvh-4rem)] max-w-[calc(100vw-2rem)] sm:max-w-[calc(100vw-2rem)]"
       >
         <TransformWrapper
-          key={renderKey}
+          key={`${renderKey}:${openSession}`}
           limitToBounds={false}
           minScale={zoomBounds.minScale}
           maxScale={zoomBounds.maxScale}
