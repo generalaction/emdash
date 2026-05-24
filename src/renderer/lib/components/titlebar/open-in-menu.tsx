@@ -170,7 +170,7 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, className, borderl
                   <img
                     src={icons[app.id]}
                     alt={labels[app.id] || app.label}
-                    className={`h-4 w-4 rounded ${app.invertInDark ? 'dark:invert' : ''}`}
+                    className={`size-4 rounded ${app.invertInDark ? 'dark:invert' : ''}`}
                   />
                 )}
                 {labels[app.id] || app.label}

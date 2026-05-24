@@ -79,7 +79,7 @@ export const McpCard: React.FC<McpCardProps> = ({ server, catalogEntry, onEdit, 
                 alt={p.alt}
                 isSvg={p.isSvg}
                 invertInDark={p.invertInDark}
-                className="h-3.5 w-3.5 rounded-sm"
+                className="size-3.5 rounded-sm"
               />
             ))}
           </div>
@@ -99,7 +99,7 @@ export const McpCard: React.FC<McpCardProps> = ({ server, catalogEntry, onEdit, 
                 }}
                 aria-label={`View ${name} docs`}
               >
-                <ExternalLink className="h-4 w-4" />
+                <ExternalLink className="size-4" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>View docs</TooltipContent>
@@ -120,7 +120,7 @@ export const McpCard: React.FC<McpCardProps> = ({ server, catalogEntry, onEdit, 
               }}
               aria-label={isInstalled ? `Edit ${name}` : `Add ${name}`}
             >
-              {isInstalled ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+              {isInstalled ? <Pencil className="size-4" /> : <Plus className="size-4" />}
             </Button>
           </TooltipTrigger>
           <TooltipContent>{isInstalled ? 'Edit' : 'Add'}</TooltipContent>

@@ -40,10 +40,10 @@ export const DiffToolbar = observer(function DiffToolbar({ tab }: DiffToolbarPro
           }}
         >
           <ToggleGroupItem value="unified">
-            <AlignJustify className="h-3.5 w-3.5" />
+            <AlignJustify className="size-3.5" />
           </ToggleGroupItem>
           <ToggleGroupItem value="split">
-            <Columns2 className="h-3.5 w-3.5" />
+            <Columns2 className="size-3.5" />
           </ToggleGroupItem>
         </ToggleGroup>
       </div>

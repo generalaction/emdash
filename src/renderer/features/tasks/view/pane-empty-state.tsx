@@ -71,6 +71,7 @@ function PaneEmptyStateAction({
 }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       onMouseEnter={onMouseEnter}
       className={cn(

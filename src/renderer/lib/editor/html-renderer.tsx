@@ -96,7 +96,7 @@ export const HtmlRenderer = observer(function HtmlRenderer({ filePath }: HtmlRen
   }, [fileDir, tabManager]);
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-background-secondary-1">
+    <div className="relative size-full overflow-hidden bg-background-secondary-1">
       {processedHtml !== null ? (
         <iframe
           ref={iframeRef}
@@ -106,7 +106,7 @@ export const HtmlRenderer = observer(function HtmlRenderer({ filePath }: HtmlRen
           // No allow-same-origin: keeps the iframe an opaque origin so it can't read
           // host cookies / localStorage. Resources are inlined, so no network needed.
           sandbox="allow-scripts"
-          className="h-full w-full border-0 bg-white"
+          className="size-full border-0 bg-white"
         />
       ) : (
         <div className="flex h-full items-center justify-center text-xs text-foreground-passive">

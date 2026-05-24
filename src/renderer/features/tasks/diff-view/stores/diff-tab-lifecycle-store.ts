@@ -61,10 +61,11 @@ export class DiffTabLifecycleStore {
           const valid = new Set<string>();
           for (const c of this.git.unstagedFileChanges) valid.add(`disk:${c.path}`);
           for (const c of this.git.stagedFileChanges) valid.add(`staged:${c.path}`);
+          const prByNumber = new Map(this.pr.pullRequests.map((p) => [getPrNumber(p), p]));
           for (const id of this.tabManager.tabOrder) {
             const t = this.tabManager.entries.get(id);
             if (!t || t.kind !== 'diff' || t.diffGroup !== 'pr' || t.prNumber == null) continue;
-            const matchedPr = this.pr.pullRequests.find((p) => getPrNumber(p) === t.prNumber);
+            const matchedPr = prByNumber.get(t.prNumber);
             if (matchedPr) {
               for (const f of this.pr.getFiles(matchedPr).data ?? []) valid.add(`pr:${f.path}`);
             }

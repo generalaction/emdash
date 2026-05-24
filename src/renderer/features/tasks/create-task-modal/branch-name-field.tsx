@@ -20,7 +20,7 @@ export function BranchNameField({ state }: BranchNameFieldProps) {
       />
       {branchAlreadyExists && (
         <p className="text-muted-foreground mt-1 text-xs">
-          This branch already exists — the task will check it out instead of creating a new one.
+          This branch already exists, so the task will check it out instead of creating a new one.
         </p>
       )}
     </Field>

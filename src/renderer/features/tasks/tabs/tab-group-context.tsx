@@ -1,4 +1,4 @@
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, use, type ReactNode } from 'react';
 import { EditorProvider } from '@renderer/features/tasks/editor/editor-provider';
 import type { TabManagerStore } from '@renderer/features/tasks/tabs/tab-manager-store';
 import type { TabGroupEntry } from './tab-group-manager-store';
@@ -15,7 +15,7 @@ export const TabGroupContext = createContext<TabGroupContextValue | null>(null);
  * Must be used inside a TabGroupProvider (i.e. within SplitPaneLayout).
  */
 export function useTabGroupContext(): TabGroupContextValue {
-  const ctx = useContext(TabGroupContext);
+  const ctx = use(TabGroupContext);
   if (!ctx) {
     throw new Error('useTabGroupContext must be used within a TabGroupProvider');
   }

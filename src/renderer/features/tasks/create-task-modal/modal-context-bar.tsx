@@ -45,7 +45,7 @@ export function ModalContextBar({
                 className="h-7 max-w-full rounded-md bg-background-1 px-2 text-xs font-normal hover:bg-background-1/80"
               >
                 {issueAction.provider ? (
-                  <ProviderLogo provider={issueAction.provider} className="h-3.5 w-3.5" />
+                  <ProviderLogo provider={issueAction.provider} className="size-3.5" />
                 ) : null}
                 <span className="max-w-72 truncate">
                   {issueActionPending

@@ -133,15 +133,15 @@ const IntegrationsCard: React.FC = () => {
             type="button"
             variant="outline"
             size="icon"
-            className="h-8 w-8 shrink-0"
+            className="size-8 shrink-0"
             disabled={githubCliRefreshing}
             onClick={() => void refreshGithubCliStatus()}
             aria-label="Refresh GitHub CLI status"
           >
             {githubCliRefreshing ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Loader2 className="size-4 animate-spin" />
             ) : (
-              <RefreshCw className="h-4 w-4" />
+              <RefreshCw className="size-4" />
             )}
           </Button>
         </TooltipTrigger>
@@ -155,11 +155,11 @@ const IntegrationsCard: React.FC = () => {
       type="button"
       variant="outline"
       size="icon"
-      className="h-8 w-8 shrink-0"
+      className="size-8 shrink-0"
       onClick={() => confirmDisconnect({ name: 'GitHub', onDisconnect: logout })}
       aria-label="Disconnect GitHub"
     >
-      <Check className="h-4 w-4 text-foreground-success" />
+      <Check className="size-4 text-foreground-success" />
     </Button>
   ) : undefined;
 
@@ -294,7 +294,7 @@ const IntegrationsCard: React.FC = () => {
         return (
           <div key={integration.id} className="flex h-full min-h-0">
             <div className="border-muted bg-muted/20 flex w-full items-center gap-4 rounded-lg border p-4">
-              <div className="bg-muted/50 flex h-12 w-12 shrink-0 items-center justify-center rounded-lg">
+              <div className="bg-muted/50 flex size-12 shrink-0 items-center justify-center rounded-lg">
                 <Icon size={32} />
               </div>
               <div className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -308,10 +308,10 @@ const IntegrationsCard: React.FC = () => {
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger
-                        className="border-input inline-flex h-8 w-8 shrink-0 cursor-default items-center justify-center rounded-md border bg-background opacity-70"
+                        className="border-input inline-flex size-8 shrink-0 cursor-default items-center justify-center rounded-md border bg-background opacity-70"
                         aria-label={integration.disabledTooltip}
                       >
-                        <Check className="h-4 w-4 text-foreground-success" />
+                        <Check className="size-4 text-foreground-success" />
                       </TooltipTrigger>
                       <TooltipContent side="top">
                         <p className="text-xs">{integration.disabledTooltip}</p>
@@ -323,11 +323,11 @@ const IntegrationsCard: React.FC = () => {
                     type="button"
                     variant="outline"
                     size="icon"
-                    className="h-8 w-8 shrink-0"
+                    className="size-8 shrink-0"
                     onClick={integration.onDisconnect}
                     aria-label={`Disconnect ${integration.name}`}
                   >
-                    <Check className="h-4 w-4 text-foreground-success" />
+                    <Check className="size-4 text-foreground-success" />
                   </Button>
                 )
               ) : (
@@ -335,7 +335,7 @@ const IntegrationsCard: React.FC = () => {
                   type="button"
                   variant="outline"
                   size="icon"
-                  className="h-8 w-8 shrink-0"
+                  className="size-8 shrink-0"
                   onClick={
                     integration.loading && integration.onCancel
                       ? integration.onCancel
@@ -348,9 +348,9 @@ const IntegrationsCard: React.FC = () => {
                   }
                 >
                   {integration.loading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <Loader2 className="size-4 animate-spin" />
                   ) : (
-                    <Plus className="h-4 w-4" />
+                    <Plus className="size-4" />
                   )}
                 </Button>
               )}

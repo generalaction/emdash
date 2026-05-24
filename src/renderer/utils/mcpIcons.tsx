@@ -41,12 +41,12 @@ export const McpServerIcon: React.FC<{ name: string; iconKey?: string }> = ({ na
         <img
           src={icon.url}
           alt={name}
-          className="h-full w-full object-contain brightness-0 dark:invert"
+          className="size-full object-contain brightness-0 dark:invert"
         />
       );
     }
 
-    return <Server className="text-muted-foreground h-5 w-5" />;
+    return <Server className="text-muted-foreground size-5" />;
   };
 
   return (

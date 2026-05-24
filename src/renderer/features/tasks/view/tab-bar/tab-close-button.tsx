@@ -13,6 +13,7 @@ export function TabCloseButton({
     <div className="relative flex size-5 shrink-0 items-center justify-center">
       {statusIndicator}
       <button
+        type="button"
         className="absolute inset-0 flex items-center justify-center rounded-md text-foreground-muted opacity-0 transition-opacity group-hover:opacity-100 hover:bg-background-2"
         onClick={(e) => {
           e.stopPropagation();

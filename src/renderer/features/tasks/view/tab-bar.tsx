@@ -82,7 +82,7 @@ export const TabBar = observer(function TabBar() {
 
   return (
     <div className="task-tab-bar flex h-[41px] shrink-0 items-center justify-between border-b border-border bg-background-secondary">
-      <div ref={scrollContainerRef} className="flex h-full w-full overflow-x-auto">
+      <div ref={scrollContainerRef} className="flex size-full overflow-x-auto">
         {resolvedTabs.map((tab) => tabRenderers[tab.kind](tab as never))}
         <PaneDropZone groupId={groupId} />
       </div>

@@ -48,7 +48,7 @@ export const DiffFileRenderer = observer(function DiffFileRenderer({ tab }: Diff
     case 'binary':
       return (
         <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
-          Binary file — no diff available
+          Binary file (no diff available)
         </div>
       );
   }

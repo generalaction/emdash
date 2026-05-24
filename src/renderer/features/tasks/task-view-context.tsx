@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import { createContext, useContext, type ReactNode } from 'react';
+import { createContext, use, type ReactNode } from 'react';
 import { ProjectViewWrapper } from '@renderer/features/projects/components/project-view-wrapper';
 import type { ConversationManagerStore } from '@renderer/features/tasks/conversations/conversation-manager';
 import type { DevServerStore } from '@renderer/features/tasks/stores/dev-server-store';
@@ -44,7 +44,7 @@ export const TaskViewWrapper = observer(function TaskViewWrapper({
 });
 
 export function useTaskViewContext(): TaskViewContext {
-  const context = useContext(TaskViewContext);
+  const context = use(TaskViewContext);
   if (!context) {
     throw new Error('useTaskViewContext must be used within a TaskViewContextProvider');
   }

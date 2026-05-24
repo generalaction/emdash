@@ -46,7 +46,10 @@ const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
-            <button className="group flex items-center gap-1.5 text-sm text-foreground-muted hover:text-foreground">
+            <button
+              type="button"
+              className="group flex items-center gap-1.5 text-sm text-foreground-muted hover:text-foreground"
+            >
               <span className="text-sm">{displayName}</span>
               <ChevronDown className="size-3.5" />
             </button>
@@ -81,6 +84,7 @@ const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
             className="h-4 data-[orientation=vertical]:self-center"
           />
           <button
+            type="button"
             className="group flex items-center gap-1.5 text-sm text-foreground-muted transition-colors hover:text-foreground"
             onClick={() => void rpc.app.openExternal(remoteUrl ?? '')}
           >

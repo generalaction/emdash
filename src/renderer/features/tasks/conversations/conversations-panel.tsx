@@ -115,7 +115,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
                     ref={terminalRef}
                     sessionId={activeSessionId}
                     pty={activeSession.pty}
-                    className="h-full w-full"
+                    className="size-full"
                     onInterruptPress={onInterruptPress}
                     mapShiftEnterToCtrlJ
                     remoteConnectionId={remoteConnectionId}

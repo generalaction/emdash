@@ -31,7 +31,7 @@ export const FileRenderer = observer(function FileRenderer({ tab }: FileRenderer
     kind === 'markdown-source';
 
   return (
-    <div className="relative h-full w-full overflow-hidden">
+    <div className="relative size-full overflow-hidden">
       <ShowHide visible={monacoActive}>
         <MonacoFileRenderer />
       </ShowHide>

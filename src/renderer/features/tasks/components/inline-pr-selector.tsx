@@ -214,7 +214,7 @@ export function InlinePrSelector({
       <div className="flex h-6 items-center justify-between border-t border-border bg-background-1 px-2 text-xs">
         <div className="text-foreground-muted">Navigate with arrow keys</div>
         <div className="text-foreground-muted">
-          <button className="flex items-center gap-2">
+          <button type="button" className="flex items-center gap-2">
             Select PR <Kbd>⏎</Kbd>
           </button>
         </div>

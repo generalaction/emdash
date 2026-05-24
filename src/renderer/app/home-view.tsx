@@ -54,7 +54,7 @@ export function HomeMainPanel() {
       animate={{ opacity: 1 }}
       transition={{ duration: 0.5, ease: 'easeOut' }}
     >
-      <div className="container mx-auto flex min-h-full max-w-6xl flex-1 flex-col justify-center px-8 py-8">
+      <div className="container mx-auto flex min-h-full max-w-6xl flex-1 flex-col justify-center p-8">
         <div className="mb-3 text-center">
           <div className="mb-3 flex items-center justify-center">
             <EmdashShimmerLogo

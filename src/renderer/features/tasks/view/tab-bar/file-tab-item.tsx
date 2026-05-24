@@ -58,7 +58,7 @@ export const FileTabItem = observer(function FileTabItem({
     >
       <span className="shrink-0 [&>svg]:h-3 [&>svg]:w-3">
         {showSpinner ? (
-          <Loader2 className="h-3 w-3 animate-spin" />
+          <Loader2 className="size-3 animate-spin" />
         ) : (
           <FileIcon filename={fileName} />
         )}

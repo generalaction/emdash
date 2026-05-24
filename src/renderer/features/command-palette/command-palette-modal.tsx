@@ -306,7 +306,7 @@ export function CommandPaletteModal({
           value={query}
           onValueChange={setQuery}
           placeholder="Search tasks, projects, actions…"
-          className="w-full bg-transparent px-3 py-3 text-sm outline-none placeholder:text-foreground/40"
+          className="w-full bg-transparent p-3 text-sm outline-none placeholder:text-foreground/40"
           autoFocus
         />
       </div>

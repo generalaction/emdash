@@ -29,10 +29,10 @@ export function PreviewSourceToggle({
       className={className}
     >
       <ToggleGroupItem value="preview" aria-label="View rendered">
-        <Eye className="h-3.5 w-3.5" />
+        <Eye className="size-3.5" />
       </ToggleGroupItem>
       <ToggleGroupItem value="source" aria-label="Edit source">
-        <Pencil className="h-3.5 w-3.5" />
+        <Pencil className="size-3.5" />
       </ToggleGroupItem>
     </ToggleGroup>
   );

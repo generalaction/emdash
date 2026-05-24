@@ -14,10 +14,10 @@ function InfoTooltip({ label, content }: { label: string; content: React.ReactNo
         <TooltipTrigger>
           <button
             type="button"
-            className="text-muted-foreground inline-flex h-4 w-4 items-center justify-center hover:text-foreground"
+            className="text-muted-foreground inline-flex size-4 items-center justify-center hover:text-foreground"
             aria-label={label}
           >
-            <Info className="h-3.5 w-3.5" />
+            <Info className="size-3.5" />
           </button>
         </TooltipTrigger>
         <TooltipContent side="top" className="max-w-xs text-xs">

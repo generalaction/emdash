@@ -102,7 +102,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
       <Tooltip>
         <TooltipTrigger>
           <SidebarItemMiniButton type="button" disabled aria-label="Loading">
-            <Loader2 className="h-4 w-4 animate-spin text-foreground/60" />
+            <Loader2 className="size-4 animate-spin text-foreground/60" />
           </SidebarItemMiniButton>
         </TooltipTrigger>
         <TooltipContent>{label}</TooltipContent>
@@ -132,10 +132,10 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
                   sidebarStore.toggleProjectExpanded(projectId);
                 }}
               >
-                <ProjectIcon className="absolute h-4 w-4 opacity-100 transition-opacity duration-150 group-hover/row:opacity-0" />
+                <ProjectIcon className="absolute size-4 opacity-100 transition-opacity duration-150 group-hover/row:opacity-0" />
                 <ChevronRight
                   className={cn(
-                    'absolute h-4 w-4 transition-all duration-150 opacity-0 group-hover/row:opacity-100',
+                    'absolute size-4 transition-all duration-150 opacity-0 group-hover/row:opacity-100',
                     isExpanded && 'rotate-90'
                   )}
                 />
@@ -159,7 +159,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
                   {projectViewKind(project) === 'path_not_found' && (
                     <Tooltip>
                       <TooltipTrigger>
-                        <TriangleAlert className="h-3.5 w-3.5 shrink-0 text-foreground-destructive" />
+                        <TriangleAlert className="size-3.5 shrink-0 text-foreground-destructive" />
                       </TooltipTrigger>
                       <TooltipContent>Project not found at path</TooltipContent>
                     </Tooltip>
@@ -184,7 +184,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
                   }}
                   disabled={project.state === 'unregistered'}
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus className="size-4" />
                 </SidebarItemMiniButton>
               }
             />
@@ -251,7 +251,7 @@ interface BaseProjectItemProps extends React.ButtonHTMLAttributes<HTMLButtonElem
 export function BaseProjectItem({ isActive, className, ...props }: BaseProjectItemProps) {
   return (
     <SidebarMenuButton
-      className={cn('justify-between flex item px-1 py-1', className)}
+      className={cn('justify-between flex item p-1', className)}
       isActive={isActive}
       {...props}
     />

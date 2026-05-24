@@ -63,14 +63,14 @@ export const McpView: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center bg-background text-foreground">
-        <Loader2 className="text-muted-foreground h-6 w-6 animate-spin" />
+        <Loader2 className="text-muted-foreground size-6 animate-spin" />
       </div>
     );
   }
 
   return (
     <div className="flex h-full flex-col overflow-y-auto text-foreground">
-      <div className="mx-auto w-full max-w-3xl px-8 py-8">
+      <div className="mx-auto w-full max-w-3xl p-8">
         <PageHeader
           title="MCP"
           description="Connect your agents with external data sources and tools"
@@ -90,7 +90,7 @@ export const McpView: React.FC = () => {
                 aria-label="Refresh providers"
               >
                 <RefreshCw
-                  className={`text-muted-foreground h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`}
+                  className={`text-muted-foreground size-4 ${isRefreshing ? 'animate-spin' : ''}`}
                 />
               </Button>
               <Button onClick={() => openModal({ type: 'add-custom' })}>

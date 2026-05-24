@@ -23,15 +23,7 @@
  * changes required.
  */
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  type ReactNode,
-} from 'react';
+import { createContext, use, useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { rpc } from '@renderer/lib/ipc';
 import { measureDimensions, type TerminalDimensions } from './pty-dimensions';
 
@@ -90,7 +82,7 @@ const PaneSizingContext = createContext<PaneSizingContextValue | null>(null);
  * not inside a PaneSizingProvider (e.g. standalone chat terminals).
  */
 export function usePaneSizingContext(): PaneSizingContextValue | null {
-  return useContext(PaneSizingContext);
+  return use(PaneSizingContext);
 }
 
 // ── Provider ──────────────────────────────────────────────────────────────────

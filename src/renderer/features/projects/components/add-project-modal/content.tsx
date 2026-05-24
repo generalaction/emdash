@@ -113,7 +113,10 @@ export function CreateNewPanel({
             trigger={
               <ComboboxTrigger
                 render={
-                  <button className="flex h-9 w-full min-w-0 items-center justify-between rounded-md border border-border px-2.5 py-1 text-left text-sm outline-none">
+                  <button
+                    type="button"
+                    className="flex h-9 w-full min-w-0 items-center justify-between rounded-md border border-border px-2.5 py-1 text-left text-sm outline-none"
+                  >
                     <ComboboxValue />
                     <ChevronsUpDownIcon className="text-muted-foreground size-4 shrink-0" />
                   </button>

@@ -32,7 +32,7 @@ export const NavButtons = observer(function NavButtons() {
             disabled={!canGoBack}
             onClick={() => appState.history.back(applyHistoryEntry)}
           >
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="size-4" />
           </Button>
         </TooltipTrigger>
         <TooltipContent>
@@ -49,7 +49,7 @@ export const NavButtons = observer(function NavButtons() {
             disabled={!canGoForward}
             onClick={() => appState.history.forward(applyHistoryEntry)}
           >
-            <ArrowRight className="h-4 w-4" />
+            <ArrowRight className="size-4" />
           </Button>
         </TooltipTrigger>
         <TooltipContent>

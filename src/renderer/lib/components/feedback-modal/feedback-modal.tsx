@@ -215,7 +215,7 @@ export function FeedbackModal({ onSuccess, blurb }: Props) {
           className="gap-2"
           disabled={submitting}
         >
-          <Paperclip className="h-4 w-4" aria-hidden="true" />
+          <Paperclip className="size-4" aria-hidden="true" />
           <span>Attach image</span>
         </Button>
         <ConfirmButton
@@ -228,7 +228,7 @@ export function FeedbackModal({ onSuccess, blurb }: Props) {
           {submitting ? (
             <>
               <Spinner size="sm" />
-              <span>Sending...</span>
+              <span>Sending…</span>
             </>
           ) : (
             <span>Send Feedback</span>

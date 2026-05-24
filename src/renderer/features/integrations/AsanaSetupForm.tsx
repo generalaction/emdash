@@ -22,7 +22,7 @@ const AsanaSetupForm: React.FC<Props> = ({ apiKey, onChange, error }) => {
       />
       <div className="bg-muted/40 rounded-md border border-dashed border-border/70 p-2">
         <div className="flex items-start gap-2">
-          <Info className="text-muted-foreground mt-0.5 h-4 w-4" aria-hidden="true" />
+          <Info className="text-muted-foreground mt-0.5 size-4" aria-hidden="true" />
           <div className="text-muted-foreground text-xs leading-snug">
             <p className="font-medium text-foreground">How to get an Asana access token</p>
             <ol className="mt-1 list-decimal pl-4">

@@ -170,6 +170,7 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
       <div className="flex w-full flex-col gap-2 p-2.5">
         <div className="flex items-center justify-between gap-2">
           <button
+            type="button"
             className="group relative flex min-w-0 items-center gap-2"
             onClick={() => rpc.app.openExternal(pr.url)}
           >

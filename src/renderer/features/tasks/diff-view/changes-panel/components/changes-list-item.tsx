@@ -19,6 +19,7 @@ export const ChangesListItem = forwardRef<HTMLButtonElement, ChangesListItemProp
     const { filename, directory } = useMemo(() => splitPath(change.path), [change.path]);
     return (
       <button
+        type="button"
         className={cn(
           'group/item w-full flex items-center gap-2 justify-between px-2 py-1 hover:bg-background-1 h-7 rounded-md',
           isActive && 'bg-background-2 hover:bg-background-2',

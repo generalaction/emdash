@@ -49,8 +49,8 @@ export const ProjectMainPanel = observer(function ProjectMainPanel() {
 
 function ProjectBootstrappingPanel() {
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center gap-3">
-      <Loader2 className="h-5 w-5 animate-spin text-foreground-passive" />
+    <div className="flex size-full flex-col items-center justify-center gap-3">
+      <Loader2 className="size-5 animate-spin text-foreground-passive" />
       <p className="font-mono text-xs text-foreground-passive">Setting up project…</p>
     </div>
   );
@@ -58,7 +58,7 @@ function ProjectBootstrappingPanel() {
 
 function ProjectBootstrapErrorPanel({ message }: { message: string }) {
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center p-8">
+    <div className="flex size-full flex-col items-center justify-center p-8">
       <div className="flex max-w-xs flex-col items-center gap-2 text-center">
         <p className="font-mono text-sm font-medium text-foreground-destructive">
           Failed to set up project
@@ -84,9 +84,9 @@ function ProjectSshDisconnectedPanel({
   };
 
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center p-8">
+    <div className="flex size-full flex-col items-center justify-center p-8">
       <div className="flex max-w-sm flex-col items-center gap-3 text-center">
-        <Unplug className="h-6 w-6 text-foreground-passive" />
+        <Unplug className="size-6 text-foreground-passive" />
         <p className="font-mono text-sm font-medium text-foreground">SSH not connected</p>
         <p className="text-xs text-foreground-passive">
           The SSH connection for this project is unavailable.
@@ -105,9 +105,9 @@ function ProjectSshDisconnectedPanel({
 
 function ProjectPathNotFoundPanel({ path, projectId }: { path: string; projectId: string }) {
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center p-8">
+    <div className="flex size-full flex-col items-center justify-center p-8">
       <div className="flex max-w-sm flex-col items-center gap-3 text-center">
-        <TriangleAlert className="h-6 w-6 text-foreground-destructive" />
+        <TriangleAlert className="size-6 text-foreground-destructive" />
         <p className="font-mono text-sm font-medium text-foreground-destructive">
           Project not found
         </p>

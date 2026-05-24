@@ -284,9 +284,9 @@ const FileTreeRow = observer(function FileTreeRow({
         <span className="text-muted-foreground shrink-0">
           {node.type === 'directory' ? (
             isExpanded ? (
-              <ChevronDown className="h-3.5 w-3.5" />
+              <ChevronDown className="size-3.5" />
             ) : (
-              <ChevronRight className="h-3.5 w-3.5" />
+              <ChevronRight className="size-3.5" />
             )
           ) : (
             <span className="inline-block w-3.5" />
@@ -296,9 +296,9 @@ const FileTreeRow = observer(function FileTreeRow({
         <span className="shrink-0">
           {node.type === 'directory' ? (
             isExpanded ? (
-              <FolderOpen className="text-muted-foreground h-3.5 w-3.5" />
+              <FolderOpen className="text-muted-foreground size-3.5" />
             ) : (
-              <Folder className="text-muted-foreground h-3.5 w-3.5" />
+              <Folder className="text-muted-foreground size-3.5" />
             )
           ) : (
             <FileIcon filename={node.name} size={12} />
@@ -388,7 +388,7 @@ export const EditorFileTree = observer(function EditorFileTree() {
   if (files?.isLoading) {
     return (
       <div className="text-muted-foreground flex h-full items-center justify-center text-xs">
-        Loading...
+        Loading…
       </div>
     );
   }
@@ -424,7 +424,7 @@ export const EditorFileTree = observer(function EditorFileTree() {
       onDragLeave={handleRootDragLeave}
       onDrop={handleRootDrop}
     >
-      <div ref={parentRef} className="flex-1 overflow-y-auto px-2 py-2" role="tree">
+      <div ref={parentRef} className="flex-1 overflow-y-auto p-2" role="tree">
         <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
           {virtualizer.getVirtualItems().map((vItem) => {
             const node = visibleRows[vItem.index] as FileNode;

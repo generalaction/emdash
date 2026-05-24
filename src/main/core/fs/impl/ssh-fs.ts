@@ -1020,8 +1020,9 @@ export class SshFileSystem implements FileSystemProvider {
     return {
       update(paths: string[]) {
         watched = paths;
+        const pathSet = new Set(paths);
         for (const p of snapshots.keys()) {
-          if (!paths.includes(p)) snapshots.delete(p);
+          if (!pathSet.has(p)) snapshots.delete(p);
         }
       },
       close() {

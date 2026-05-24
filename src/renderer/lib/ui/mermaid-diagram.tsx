@@ -79,7 +79,7 @@ export const MermaidDiagram: React.FC<MermaidDiagramProps> = ({ chart, isDark, c
           compact && 'my-2 p-2 text-[11px]'
         )}
       >
-        Rendering diagram...
+        Rendering diagram…
       </div>
     );
   }

@@ -25,7 +25,7 @@ export function WorkspaceLayout({ leftSidebar, mainContent }: WorkspaceLayoutPro
     <ResizablePanelGroup
       id="workspace-outer"
       orientation="horizontal"
-      className="h-full w-full overflow-hidden"
+      className="size-full overflow-hidden"
       defaultLayout={defaultLayout}
       onLayoutChanged={onLayoutChanged}
     >

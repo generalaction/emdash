@@ -54,10 +54,10 @@ const ICON_BUTTON =
   'rounded-md p-1.5 text-muted-foreground transition hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background';
 
 const ICON_WRAPPER =
-  'flex h-6 w-6 items-center justify-center rounded-md bg-muted/40 text-muted-foreground';
+  'flex size-6 items-center justify-center rounded-md bg-muted/40 text-muted-foreground';
 
 /** Logo wrapper without background - logos render directly. */
-const LOGO_WRAPPER = 'flex h-6 w-6 items-center justify-center';
+const LOGO_WRAPPER = 'flex size-6 items-center justify-center';
 
 const IntegrationRow: React.FC<IntegrationRowProps> = ({
   logoSrc,
@@ -106,11 +106,11 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
       {logoSrc ? (
         isSvg ? (
           <span
-            className="text-primary inline-flex h-5 w-5 items-center justify-center [&_svg]:h-full [&_svg]:w-full [&_svg]:shrink-0"
+            className="text-primary inline-flex size-5 items-center justify-center [&_svg]:h-full [&_svg]:w-full [&_svg]:shrink-0"
             dangerouslySetInnerHTML={{ __html: processedSvg ?? '' }}
           />
         ) : (
-          <img src={logoSrc} alt="" className="h-5 w-5 object-contain" />
+          <img src={logoSrc} alt="" className="size-5 object-contain" />
         )
       ) : icon ? (
         icon
@@ -182,7 +182,7 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
                   className={ICON_BUTTON}
                   aria-label={copied ? 'Command copied' : `Copy install command for ${name}`}
                 >
-                  <CopyIcon className="h-4 w-4" aria-hidden="true" />
+                  <CopyIcon className="size-4" aria-hidden="true" />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="top">
@@ -215,7 +215,7 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
             className={ICON_BUTTON}
             aria-label={`Open ${name} settings`}
           >
-            <ExternalLink className="h-4 w-4" aria-hidden="true" />
+            <ExternalLink className="size-4" aria-hidden="true" />
           </button>
         ) : null}
 
@@ -226,7 +226,7 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
             className={ICON_BUTTON}
             aria-label={`Disconnect ${name}`}
           >
-            <Trash2 className="h-4 w-4" aria-hidden="true" />
+            <Trash2 className="size-4" aria-hidden="true" />
           </button>
         ) : null}
 

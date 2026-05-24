@@ -15,7 +15,7 @@ const ThemeCard: React.FC = () => {
   };
 
   const buttonBase =
-    'flex min-h-24 flex-col items-center justify-center gap-2 rounded-lg border px-2 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:px-3';
+    'flex min-h-24 flex-col items-center justify-center gap-2 rounded-lg border p-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:px-3';
   const activeClass = 'bg-background-2';
   const inactiveClass =
     'border-border/60 bg-background text-foreground-muted hover:bg-background-1';
@@ -34,7 +34,7 @@ const ThemeCard: React.FC = () => {
           aria-pressed={theme === null}
           aria-label="Set theme to system preference"
         >
-          <Monitor className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <Monitor className="size-4 shrink-0" aria-hidden="true" />
           <span className="text-centert">System</span>
         </button>
         <button
@@ -44,7 +44,7 @@ const ThemeCard: React.FC = () => {
           aria-pressed={theme === 'emlight'}
           aria-label="Set theme to Emdash Light"
         >
-          <Sun className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <Sun className="size-4 shrink-0" aria-hidden="true" />
           <span className="text-center">Emdash Light</span>
         </button>
         <button
@@ -54,7 +54,7 @@ const ThemeCard: React.FC = () => {
           aria-pressed={theme === 'emdark'}
           aria-label="Set theme to Emdash Dark"
         >
-          <Moon className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <Moon className="size-4 shrink-0" aria-hidden="true" />
           <span className="text-center">Emdash Dark</span>
         </button>
       </div>

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, type ReactNode } from 'react';
+import { createContext, use, useCallback, type ReactNode } from 'react';
 import { McpView } from '@renderer/features/mcp/components/McpView';
 import { SkillsView } from '@renderer/features/skills/components/SkillsView';
 import { Titlebar } from '@renderer/lib/components/titlebar/Titlebar';
@@ -42,7 +42,7 @@ export function LibraryViewWrapper({
 }
 
 function useLibraryTab() {
-  const context = useContext(LibraryTabContext);
+  const context = use(LibraryTabContext);
   if (!context) {
     throw new Error('useLibraryTab must be used within a LibraryViewWrapper');
   }

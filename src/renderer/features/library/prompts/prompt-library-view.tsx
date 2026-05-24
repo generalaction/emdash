@@ -128,7 +128,7 @@ export function PromptLibraryView() {
 
   return (
     <div className="flex h-full flex-col overflow-y-auto bg-background text-foreground">
-      <div className="mx-auto w-full max-w-3xl px-8 py-8">
+      <div className="mx-auto w-full max-w-3xl p-8">
         <PageHeader
           title="Prompts"
           description="Manage reusable prompts that can be sent from task prompt menus."

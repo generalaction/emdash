@@ -42,6 +42,7 @@ export const TabItemShell = observer(function TabItemShell({
   return (
     <DraggableTab id={tabId}>
       <button
+        type="button"
         onClick={onSelect}
         onDoubleClick={onPin}
         onMouseDown={(e) => {

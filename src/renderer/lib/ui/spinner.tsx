@@ -8,9 +8,9 @@ const Spinner = React.forwardRef<
   }
 >(({ className, size = 'md', ...props }, ref) => {
   const sizeClasses = {
-    sm: 'h-4 w-4',
-    md: 'h-5 w-5',
-    lg: 'h-6 w-6',
+    sm: 'size-4',
+    md: 'size-5',
+    lg: 'size-6',
   };
 
   return (

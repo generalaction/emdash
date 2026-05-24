@@ -223,7 +223,7 @@ const TerminalSettingsCard: React.FC = () => {
                     <div className="px-2 py-1.5 text-xs text-foreground-muted">Installed</div>
                     <div className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-foreground-muted">
                       <LoaderCircle className="size-3.5 shrink-0 animate-spin" />
-                      <span className="truncate">Loading fonts...</span>
+                      <span className="truncate">Loading fonts…</span>
                     </div>
                   </div>
                 ) : null}

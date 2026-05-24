@@ -63,7 +63,7 @@ export const FileTabs: React.FC<FileTabsProps> = ({
           items={tabs}
           onReorder={handleReorder}
           axis="x"
-          className="flex h-full w-full overflow-x-auto"
+          className="flex size-full overflow-x-auto"
           itemClassName="list-none flex h-full"
           getKey={(item) => item.tabId}
         >
@@ -99,6 +99,7 @@ const FileTab: React.FC<FileTabProps> = observer(function FileTab({
   return (
     <>
       <button
+        type="button"
         className={cn(
           'group relative flex flex-col h-full text-sm hover:bg-muted',
           isActive &&
@@ -111,7 +112,7 @@ const FileTab: React.FC<FileTabProps> = observer(function FileTab({
         <div className="flex h-full items-center gap-1.5 pr-2 pl-3">
           <span className="shrink-0 [&>svg]:h-3 [&>svg]:w-3">
             {showSpinner ? (
-              <Loader2 className="h-3 w-3 animate-spin" />
+              <Loader2 className="size-3 animate-spin" />
             ) : (
               <FileIcon filename={fileName} />
             )}
@@ -127,6 +128,7 @@ const FileTab: React.FC<FileTabProps> = observer(function FileTab({
               />
             )}
             <button
+              type="button"
               className="absolute inset-0 flex items-center justify-center rounded-md text-foreground-muted opacity-0 group-hover:opacity-100 hover:bg-background-2"
               onClick={onClose}
               aria-label={`Close ${fileName}`}

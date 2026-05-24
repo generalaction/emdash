@@ -9,6 +9,7 @@ interface AddCommentButtonProps {
 export function AddCommentButton({ pinned, onClick }: AddCommentButtonProps) {
   return (
     <button
+      type="button"
       className={cn(
         'flex h-[22px] w-[22px] cursor-pointer items-center justify-center rounded-md border transition-colors',
         pinned
@@ -21,7 +22,7 @@ export function AddCommentButton({ pinned, onClick }: AddCommentButtonProps) {
         onClick();
       }}
     >
-      <Plus className="h-3 w-3" />
+      <Plus className="size-3" />
     </button>
   );
 }

@@ -1,7 +1,7 @@
 import { autorun } from 'mobx';
 import { observer } from 'mobx-react-lite';
 import type * as monacoNS from 'monaco-editor';
-import { createContext, useCallback, useContext, useEffect, useRef, type ReactNode } from 'react';
+import { createContext, use, useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { useTabGroupContext } from '@renderer/features/tasks/tabs/tab-group-context';
 import { useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
 import { registerActiveCodeEditor } from '@renderer/lib/editor/activeCodeEditor';
@@ -35,7 +35,7 @@ interface EditorContextValue {
 const EditorContext = createContext<EditorContextValue | null>(null);
 
 export function useEditorContext(): EditorContextValue {
-  const ctx = useContext(EditorContext);
+  const ctx = use(EditorContext);
   if (!ctx) throw new Error('useEditorContext must be used within EditorProvider');
   return ctx;
 }

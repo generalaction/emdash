@@ -115,7 +115,7 @@ export const TerminalPtyContent = observer(function TerminalPtyContent({
                   ref={terminalRef}
                   sessionId={activeSessionId}
                   pty={activeSession.pty}
-                  className="h-full w-full"
+                  className="size-full"
                   themeOverride={{
                     background: cssVar('--background'),
                   }}

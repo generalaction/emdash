@@ -39,7 +39,7 @@ export function SelectedPrCard({ pr, onDeselect }: SelectedPrCardProps) {
       <div className="flex h-6 items-center justify-between border-t border-border bg-background-1 px-2 text-xs">
         <div className="text-foreground-muted"></div>
         <div className="text-foreground-muted">
-          <button className="flex items-center gap-2" onClick={onDeselect}>
+          <button type="button" className="flex items-center gap-2" onClick={onDeselect}>
             Select another PR
           </button>
         </div>

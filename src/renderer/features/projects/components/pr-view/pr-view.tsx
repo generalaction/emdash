@@ -97,6 +97,7 @@ function UserFilterPopover({
         {filtered.map((item) => (
           <li key={item.value}>
             <button
+              type="button"
               className="hover:bg-muted flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm"
               onClick={() => onChange(selected === item.value ? null : item.value)}
             >
@@ -152,6 +153,7 @@ function LabelFilterPopover({
         {filtered.map((item) => (
           <li key={item.value}>
             <button
+              type="button"
               className="hover:bg-muted flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm"
               onClick={() => toggle(item.value)}
             >
@@ -197,6 +199,7 @@ function FilterPill({
       )}
       {label}
       <button
+        type="button"
         className="text-muted-foreground ml-0.5 rounded-full hover:text-foreground"
         onClick={onRemove}
         aria-label={`Remove ${label} filter`}

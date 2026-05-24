@@ -6,7 +6,7 @@ import { resolveSkillIcon } from './skillIcons';
 function processSvg(raw: string, fillColor: string): string {
   let svg = raw.replace(/\bwidth="[^"]*"/g, '').replace(/\bheight="[^"]*"/g, '');
   svg = svg.replace('<svg ', `<svg fill="${fillColor}" `);
-  return svg.replace('<svg ', '<svg class="h-full w-full" ');
+  return svg.replace('<svg ', '<svg class="size-full" ');
 }
 
 interface SkillIconRendererProps {
@@ -32,7 +32,7 @@ export const SkillIconRenderer: React.FC<SkillIconRendererProps> = ({ skill }) =
         <img
           src={skill.iconUrl}
           alt=""
-          className="h-full w-full rounded-lg object-contain"
+          className="size-full rounded-lg object-contain"
           style={{ filter }}
           onError={() => setImgError(true)}
           loading="lazy"

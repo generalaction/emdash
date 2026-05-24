@@ -67,7 +67,7 @@ export const StatusDot = forwardRef<HTMLSpanElement, { status?: string }>(
       <span
         ref={ref}
         {...props}
-        className={cn('inline-block h-1.5 w-1.5 shrink-0 rounded-full', color)}
+        className={cn('inline-block size-1.5 shrink-0 rounded-full', color)}
       />
     );
   }
@@ -88,7 +88,7 @@ export function ProviderLogo({
       aria-label={ISSUE_PROVIDER_META[provider].displayName}
       className={cn(
         'inline-flex shrink-0 items-center justify-center overflow-visible align-middle leading-none',
-        className ?? 'h-3.5 w-3.5'
+        className ?? 'size-3.5'
       )}
     >
       <Icon className="size-[90%]" />
@@ -171,7 +171,7 @@ export const IssueSelector = observer(function IssueSelector({
 
   const leftAddon = issueProvider ? (
     isProviderLoading ? (
-      <Loader2 className="h-3.5 w-3.5 animate-spin text-foreground/60" />
+      <Loader2 className="size-3.5 animate-spin text-foreground/60" />
     ) : connectedProviderCount > 1 ? (
       <Select
         value={issueProvider}
@@ -189,12 +189,12 @@ export const IssueSelector = observer(function IssueSelector({
           aria-label="Select issue provider"
           className="h-6 gap-1 border-none bg-transparent px-1.5 shadow-none focus:ring-0"
         >
-          <ProviderLogo provider={issueProvider} className="h-3.5 w-3.5" />
+          <ProviderLogo provider={issueProvider} className="size-3.5" />
         </SelectTrigger>
         <SelectContent>
           {ISSUE_PROVIDER_ORDER.map((p) => (
             <SelectItem key={p} value={p} disabled={isProviderDisabled(p)}>
-              <ProviderLogo provider={p} className="h-3.5 w-3.5" />
+              <ProviderLogo provider={p} className="size-3.5" />
               <span>{ISSUE_PROVIDER_META[p].displayName}</span>
             </SelectItem>
           ))}
@@ -202,7 +202,7 @@ export const IssueSelector = observer(function IssueSelector({
       </Select>
     ) : (
       <span className="mx-1.5 flex items-center">
-        <ProviderLogo provider={issueProvider} className="h-3.5 w-3.5" />
+        <ProviderLogo provider={issueProvider} className="size-3.5" />
       </span>
     )
   ) : null;
@@ -232,6 +232,7 @@ export const IssueSelector = observer(function IssueSelector({
           <ComboboxTrigger
             render={
               <button
+                type="button"
                 className={cn(
                   'flex min-w-0 w-full items-start border border-border hover:bg-muted/30 hover:shadow-xs rounded-md p-3 text-left text-sm outline-none',
                   !value && 'border-dashed'
@@ -289,7 +290,7 @@ export function SelectedIssueValue({ issue }: { issue: Issue }) {
     <div className="flex w-full flex-col gap-2">
       <div className="flex w-full items-center justify-between">
         <div className="flex items-center gap-2">
-          <ProviderLogo provider={issue.provider} className="h-3.5 w-3.5" />
+          <ProviderLogo provider={issue.provider} className="size-3.5" />
           <span>{`${ISSUE_PROVIDER_META[issue.provider].displayName} issue`}</span>
           <IssueIdentifier identifier={issue.identifier} provider={issue.provider} />
         </div>

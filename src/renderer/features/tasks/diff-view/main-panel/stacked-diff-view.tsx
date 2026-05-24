@@ -287,13 +287,14 @@ const StackedFileSlot = observer(function StackedFileSlot({
         )}
       >
         <button
+          type="button"
           className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-foreground-muted"
           onClick={() => panelStore.toggleExpanded(file.path)}
         >
           {expanded ? (
-            <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+            <ChevronDown className="size-3.5 shrink-0" />
           ) : (
-            <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+            <ChevronRight className="size-3.5 shrink-0" />
           )}
           <span className="flex items-center gap-1.5">
             <FileIcon filename={fileName} size={12} />
@@ -319,6 +320,7 @@ const StackedFileSlot = observer(function StackedFileSlot({
                 Large diff ({formatDiffLineCount(totalDiffLines)} lines). Loading may be slow.
               </span>
               <button
+                type="button"
                 className="rounded-md border border-border px-3 py-1 text-xs font-medium hover:bg-background-1"
                 onClick={() => panelStore.setForceLoad(file.path)}
               >

@@ -130,7 +130,7 @@ const KeyboardSettingsCard: React.FC = () => {
                             onClick={() => recorder.cancelRecording()}
                             disabled={saving}
                           >
-                            Press keys...
+                            Press keys…
                           </Button>
                           <Button
                             type="button"
@@ -159,7 +159,7 @@ const KeyboardSettingsCard: React.FC = () => {
                                         disabled={loading || saving}
                                         aria-label="Reset to default"
                                       >
-                                        <RotateCcw className="h-3.5 w-3.5" />
+                                        <RotateCcw className="size-3.5" />
                                       </Button>
                                     </TooltipTrigger>
                                     <TooltipContent side="top">Reset to default</TooltipContent>
@@ -177,7 +177,7 @@ const KeyboardSettingsCard: React.FC = () => {
                                         disabled={loading || saving}
                                         aria-label="Remove shortcut"
                                       >
-                                        <X className="h-3.5 w-3.5" />
+                                        <X className="size-3.5" />
                                       </Button>
                                     </TooltipTrigger>
                                     <TooltipContent side="top">Remove shortcut</TooltipContent>

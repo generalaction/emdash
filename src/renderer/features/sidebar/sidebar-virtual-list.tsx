@@ -345,7 +345,7 @@ function InsertionIndicator({ pointerY }: { pointerY: number | null }) {
         height: 3,
         borderRadius: 2,
         pointerEvents: 'none',
-        zIndex: 9999,
+        zIndex: 50,
       }}
     />,
     document.body

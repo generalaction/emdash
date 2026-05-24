@@ -34,7 +34,7 @@ function ConflictChoice({
         <span className="truncate text-sm font-medium">
           {sourceLabel(source)} · {formatCount(details.taskCount, 'task')}
         </span>
-        {selected && <Check className="h-4 w-4 shrink-0" />}
+        {selected && <Check className="size-4 shrink-0" />}
       </span>
       <span className="truncate text-xs text-foreground-muted" title={details.path}>
         {details.path}

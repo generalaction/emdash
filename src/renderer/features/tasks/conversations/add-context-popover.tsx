@@ -45,7 +45,7 @@ export function ActionItemRow({ action }: { action: ContextAction }) {
       return (
         <ActionItemBaseRow
           icon={
-            <ProviderLogo provider={action.provider || 'linear'} className="h-3.5 w-3.5 shrink-0" />
+            <ProviderLogo provider={action.provider || 'linear'} className="size-3.5 shrink-0" />
           }
           label={action.issue.title}
           text={action.issue.identifier}

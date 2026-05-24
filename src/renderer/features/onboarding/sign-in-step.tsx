@@ -37,7 +37,7 @@ export function SignInStep({ onComplete }: { onComplete: () => void }) {
   if (sessionLoading) {
     return (
       <div className="flex items-center justify-center py-12 text-sm text-foreground-muted">
-        Loading...
+        Loading…
       </div>
     );
   }
@@ -45,21 +45,21 @@ export function SignInStep({ onComplete }: { onComplete: () => void }) {
   if (session?.isSignedIn && session.user) {
     const { user } = session;
     return (
-      <div className="flex max-w-sm flex-col space-y-8">
+      <div className="flex max-w-sm flex-col gap-y-8">
         <div className="flex flex-col items-center justify-center gap-6">
           <div className="relative">
             {user.avatarUrl ? (
               <img
                 src={user.avatarUrl}
                 alt={user.username}
-                className="h-14 w-14 rounded-full border border-border"
+                className="size-14 rounded-full border border-border"
               />
             ) : (
-              <div className="flex h-14 w-14 items-center justify-center rounded-full border border-border bg-background-1">
-                <User className="h-7 w-7 text-foreground-muted" />
+              <div className="flex size-14 items-center justify-center rounded-full border border-border bg-background-1">
+                <User className="size-7 text-foreground-muted" />
               </div>
             )}
-            <CheckCircle className="text-primary absolute -right-1 -bottom-1 h-5 w-5 fill-background" />
+            <CheckCircle className="text-primary absolute -right-1 -bottom-1 size-5 fill-background" />
           </div>
           <div className="flex flex-col items-center justify-center gap-1">
             <h1 className="text-center text-xl">Connected as @{user.username}</h1>
@@ -76,9 +76,9 @@ export function SignInStep({ onComplete }: { onComplete: () => void }) {
   }
 
   return (
-    <div className="flex max-w-sm flex-col space-y-8">
+    <div className="flex max-w-sm flex-col gap-y-8">
       <div className="flex flex-col items-center justify-center gap-6">
-        <Github className="h-10 w-10" absoluteStrokeWidth strokeWidth={1.5} />
+        <Github className="size-10" absoluteStrokeWidth strokeWidth={1.5} />
         <div className="flex flex-col items-center justify-center gap-2">
           <h1 className="text-center text-xl">Connect GitHub</h1>
           <p className="text-md text-center text-foreground-muted">
@@ -88,12 +88,12 @@ export function SignInStep({ onComplete }: { onComplete: () => void }) {
       </div>
       <div className="flex w-full flex-col gap-2">
         <Button size={'lg'} onClick={handleSignIn} disabled={signInMutation.isPending}>
-          <LogIn className="h-4 w-4" />
+          <LogIn className="size-4" />
           {signInMutation.isPending ? 'Signing in…' : 'Sign in with GitHub'}
         </Button>
         {error && (
           <div className="bg-destructive/10 text-destructive flex items-start gap-1.5 rounded-md px-2.5 py-2 text-xs">
-            <AlertCircle className="mt-px h-3.5 w-3.5 shrink-0" />
+            <AlertCircle className="mt-px size-3.5 shrink-0" />
             <span>{error}</span>
           </div>
         )}

@@ -80,7 +80,7 @@ export function AccountTab() {
   if (isLoading) {
     return (
       <div className="text-muted-foreground flex items-center justify-center py-12 text-sm">
-        Loading account...
+        Loading account…
       </div>
     );
   }
@@ -93,11 +93,11 @@ export function AccountTab() {
             <img
               src={user.avatarUrl}
               alt={user.username}
-              className="h-12 w-12 rounded-full border border-border/60"
+              className="size-12 rounded-full border border-border/60"
             />
           ) : (
-            <div className="bg-muted flex h-12 w-12 items-center justify-center rounded-full border border-border/60">
-              <User className="text-muted-foreground h-6 w-6" />
+            <div className="bg-muted flex size-12 items-center justify-center rounded-full border border-border/60">
+              <User className="text-muted-foreground size-6" />
             </div>
           )}
           <div className="flex-1">
@@ -110,7 +110,7 @@ export function AccountTab() {
             onClick={handleSignOut}
             disabled={signOutMutation.isPending}
           >
-            <LogOut className="h-3.5 w-3.5" />
+            <LogOut className="size-3.5" />
             Sign Out
           </Button>
         </div>
@@ -138,7 +138,7 @@ export function AccountTab() {
               onClick={handleSignIn}
               disabled={signInMutation.isPending}
             >
-              <LogIn className="h-3.5 w-3.5" />
+              <LogIn className="size-3.5" />
               {signInMutation.isPending ? 'Signing in...' : 'Sign In'}
             </Button>
           )}
@@ -166,7 +166,7 @@ export function AccountTab() {
             onClick={handleSignIn}
             disabled={signInMutation.isPending}
           >
-            <LogIn className="h-3.5 w-3.5" />
+            <LogIn className="size-3.5" />
             {signInMutation.isPending ? 'Creating account...' : 'Create Account'}
           </Button>
         )}

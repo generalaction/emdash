@@ -69,6 +69,7 @@ function CommentItem({ comment }: { comment: PullRequestComment }) {
         </div>
       </div>
       <button
+        type="button"
         className="absolute top-2 right-3 hidden items-center justify-center rounded bg-background-1 px-1 py-0.5 text-foreground-muted group-hover:flex hover:text-foreground"
         onClick={() => void rpc.app.openExternal(comment.url)}
       >
@@ -96,7 +97,7 @@ export function CommentsList({
   );
 
   if (isLoading) {
-    return <div className="px-3 py-2 text-xs text-foreground-passive">Loading comments...</div>;
+    return <div className="px-3 py-2 text-xs text-foreground-passive">Loading comments…</div>;
   }
 
   if (error) {

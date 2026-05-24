@@ -48,7 +48,7 @@ export default function HiddenToolsSettingsCard() {
               showStatusPill={false}
               middle={
                 <span className="text-muted-foreground flex items-center gap-2 text-sm">
-                  <span className={`h-1.5 w-1.5 rounded-full ${indicatorClass}`} />
+                  <span className={`size-1.5 rounded-full ${indicatorClass}`} />
                   {statusLabel}
                 </span>
               }

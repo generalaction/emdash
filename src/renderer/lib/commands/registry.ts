@@ -58,7 +58,7 @@ class CommandRegistry {
   }
 
   private get sortedScopes(): CommandProvider[] {
-    return [...this.scopes.values()].sort(
+    return Array.from(this.scopes.values()).sort(
       (a, b) => SCOPE_LEVELS[b.scopeId] - SCOPE_LEVELS[a.scopeId]
     );
   }

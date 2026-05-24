@@ -251,9 +251,9 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
 
         {success ? (
           // Success State
-          <div className="flex animate-in flex-col items-center space-y-6 duration-300 fade-in zoom-in">
-            <div className="flex h-16 w-16 animate-in items-center justify-center rounded-full bg-foreground-success duration-500 zoom-in">
-              <Check className="h-8 w-8 text-white" strokeWidth={3} />
+          <div className="flex animate-in flex-col items-center gap-y-6 duration-300 fade-in zoom-in">
+            <div className="flex size-16 animate-in items-center justify-center rounded-full bg-foreground-success duration-500 zoom-in">
+              <Check className="size-8 text-white" strokeWidth={3} />
             </div>
             <div className="space-y-2 text-center">
               <h2 className="text-2xl font-semibold">Success!</h2>
@@ -261,7 +261,7 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
               {user && (
                 <div className="mt-4 flex items-center justify-center gap-2">
                   {user.avatar_url && (
-                    <img src={user.avatar_url} alt={user.name} className="h-10 w-10 rounded-full" />
+                    <img src={user.avatar_url} alt={user.name} className="size-10 rounded-full" />
                   )}
                   <div className="text-left">
                     <p className="text-sm font-medium">{user.name || user.login}</p>
@@ -273,9 +273,9 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
           </div>
         ) : error ? (
           // Error State
-          <div className="flex w-full flex-col items-center space-y-6">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-background-error">
-              <AlertCircle className="h-8 w-8 text-foreground-error" />
+          <div className="flex w-full flex-col items-center gap-y-6">
+            <div className="flex size-16 items-center justify-center rounded-full bg-background-error">
+              <AlertCircle className="size-8 text-foreground-error" />
             </div>
             <div className="space-y-2 text-center">
               <h2 className="text-xl font-semibold">Authentication Failed</h2>
@@ -287,7 +287,7 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
           </div>
         ) : (
           // Waiting State
-          <div className="flex w-full flex-col items-center space-y-6">
+          <div className="flex w-full flex-col items-center gap-y-6">
             <div className="space-y-2 text-center">
               <h2 className="text-2xl font-semibold">Connect to GitHub</h2>
               <p className="text-muted-foreground text-sm">
@@ -312,12 +312,12 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
                 >
                   {copied ? (
                     <>
-                      <Check className="mr-2 h-4 w-4" />
+                      <Check className="mr-2 size-4" />
                       Copied!
                     </>
                   ) : (
                     <>
-                      <Copy className="mr-2 h-4 w-4" />
+                      <Copy className="mr-2 size-4" />
                       Copy Code
                     </>
                   )}
@@ -327,7 +327,7 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
 
             <div className="w-full space-y-3 text-sm">
               <div className="flex items-start gap-3">
-                <div className="bg-primary/10 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold">
+                <div className="bg-primary/10 flex size-6 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold">
                   1
                 </div>
                 <p className="text-muted-foreground">
@@ -336,7 +336,7 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
                 </p>
               </div>
               <div className="flex items-start gap-3">
-                <div className="bg-primary/10 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold">
+                <div className="bg-primary/10 flex size-6 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold">
                   2
                 </div>
                 <p className="text-muted-foreground">Click Authorize</p>
@@ -346,14 +346,14 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
             {browserOpening && (
               <div className="w-full rounded-lg border border-border-info bg-background-info p-4">
                 <p className="text-center text-sm text-foreground-info">
-                  Opening GitHub in {browserOpenCountdown}s...
+                  Opening GitHub in {browserOpenCountdown}s…
                 </p>
               </div>
             )}
 
             <div className="flex flex-col items-center gap-2 text-center">
-              <Spinner className="text-muted-foreground h-5 w-5" />
-              <p className="text-muted-foreground text-sm">Waiting for authorization...</p>
+              <Spinner className="text-muted-foreground size-5" />
+              <p className="text-muted-foreground text-sm">Waiting for authorization…</p>
               {timeRemaining > 0 && (
                 <p className="text-muted-foreground text-xs">
                   Code expires in {formatTime(timeRemaining)}
@@ -363,7 +363,7 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
 
             {verificationUri && !browserOpening && (
               <Button onClick={openGitHub} className="w-full" size="lg">
-                <ExternalLink className="mr-2 h-4 w-4" />
+                <ExternalLink className="mr-2 size-4" />
                 Open GitHub
               </Button>
             )}
@@ -372,6 +372,7 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
               <p className="text-muted-foreground text-center text-xs">
                 Having{' '}
                 <button
+                  type="button"
                   onClick={() =>
                     rpc.app.openExternal('https://github.com/generalaction/emdash/issues')
                   }

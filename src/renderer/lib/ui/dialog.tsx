@@ -78,7 +78,10 @@ function DialogHeader({
         <DialogPrimitive.Close
           data-slot="dialog-close"
           render={
-            <button className="bg-transparent p-0 text-foreground-tertiary-muted hover:bg-transparent hover:text-foreground-tertiary" />
+            <button
+              type="button"
+              className="bg-transparent p-0 text-foreground-tertiary-muted hover:bg-transparent hover:text-foreground-tertiary"
+            />
           }
         >
           <XIcon className="size-4" />

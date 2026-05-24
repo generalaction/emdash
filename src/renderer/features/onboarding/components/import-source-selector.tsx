@@ -34,11 +34,11 @@ function SourceCard({
         <span className="text-base font-medium">{sourceLabel(source)}</span>
         <span
           className={cn(
-            'flex h-5 w-5 items-center justify-center border',
+            'flex size-5 items-center justify-center border',
             selected ? 'border-primary bg-primary text-primary-foreground' : 'border-border'
           )}
         >
-          {selected && <Check className="h-3.5 w-3.5" />}
+          {selected && <Check className="size-3.5" />}
         </span>
       </span>
       <span className="text-sm text-foreground-muted">

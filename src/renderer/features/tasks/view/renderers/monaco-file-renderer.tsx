@@ -33,7 +33,7 @@ export const MonacoFileRenderer = observer(function MonacoFileRenderer() {
   }, [triggerLayout]);
 
   return (
-    <div className="relative h-full w-full">
+    <div className="relative size-full">
       <div ref={setEditorHost} className="absolute inset-0 flex" />
       <SourceModeToggleOverlay />
     </div>

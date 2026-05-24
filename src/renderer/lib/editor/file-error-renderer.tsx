@@ -10,7 +10,7 @@ export function FileErrorRenderer({ file }: FileErrorRendererProps) {
 
   return (
     <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-3 bg-background-secondary-1">
-      <FileX2 className="h-10 w-10 opacity-30" />
+      <FileX2 className="size-10 opacity-30" />
       <div className="text-center">
         <p className="text-sm font-medium">{fileName}</p>
         <p className="mt-1 text-xs opacity-70">File not found or could not be read</p>

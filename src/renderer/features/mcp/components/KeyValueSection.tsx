@@ -83,10 +83,10 @@ export const KeyValueSection: React.FC<KeyValueSectionProps> = ({
                 type="button"
                 variant="ghost"
                 size="icon"
-                className="text-muted-foreground hover:text-destructive h-8 w-8 shrink-0"
+                className="text-muted-foreground hover:text-destructive size-8 shrink-0"
                 onClick={() => onChange(entries.filter((_, j) => j !== i))}
               >
-                <X className="h-3 w-3" />
+                <X className="size-3" />
               </Button>
             </div>
           );

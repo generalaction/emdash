@@ -56,7 +56,7 @@ export function AgentInstallButton({
             className={cn('ml-auto cursor-pointer', className)}
           >
             <InstallIcon
-              className={cn('h-3 w-3', state.installing && 'animate-spin')}
+              className={cn('size-3', state.installing && 'animate-spin')}
               aria-hidden="true"
             />
           </Button>

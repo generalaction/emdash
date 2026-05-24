@@ -35,8 +35,9 @@ export const ResourceMonitorView = observer(function ResourceMonitorView({
 
   return (
     <>
-      <div className="flex items-center gap-2 border-b border-foreground/10 px-2 py-2">
+      <div className="flex items-center gap-2 border-b border-foreground/10 p-2">
         <button
+          type="button"
           onClick={onBack}
           className="flex size-7 shrink-0 items-center justify-center rounded-md text-foreground/50 transition-colors hover:bg-background-2 hover:text-foreground"
           aria-label="Back to search"
@@ -52,7 +53,7 @@ export const ResourceMonitorView = observer(function ResourceMonitorView({
         </div>
       </div>
 
-      <div className="max-h-[24rem] min-h-[14rem] overflow-y-auto px-1.5 py-1.5">
+      <div className="max-h-[24rem] min-h-[14rem] overflow-y-auto p-1.5">
         {hasProcesses && (
           <Section heading="Application">
             <div className="flex flex-col">
@@ -172,7 +173,7 @@ function AgentRow({ entry }: { entry: Entry }) {
             alt={meta.label ?? meta.alt ?? ''}
             isSvg={meta.isSvg}
             invertInDark={meta.invertInDark}
-            className="h-3.5 w-3.5"
+            className="size-3.5"
           />
         </span>
       ) : (
@@ -232,6 +233,7 @@ function CopyReportButton({
     <Tooltip>
       <TooltipTrigger>
         <button
+          type="button"
           disabled={!snapshot}
           onClick={handleCopy}
           className="flex size-6 shrink-0 items-center justify-center rounded-md text-foreground/50 transition-colors hover:bg-background-2 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-30"

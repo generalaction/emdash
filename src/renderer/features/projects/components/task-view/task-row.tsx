@@ -75,6 +75,7 @@ export const TaskRow = observer(function TaskRow({
       onDelete={handleDelete}
     >
       <button
+        type="button"
         onClick={() => {
           if (isArchived) return;
           handleProvision();
@@ -119,7 +120,7 @@ export const TaskRow = observer(function TaskRow({
             return (
               <span
                 key={providerId}
-                className="relative flex h-5 w-5 items-center justify-center overflow-hidden rounded-sm bg-background-2"
+                className="relative flex size-5 items-center justify-center overflow-hidden rounded-sm bg-background-2"
                 title={`${config.name}: ${String(count)}`}
               >
                 <AgentLogo
@@ -127,7 +128,7 @@ export const TaskRow = observer(function TaskRow({
                   alt={config.alt}
                   isSvg={config.isSvg}
                   invertInDark={config.invertInDark}
-                  className="h-3.5 w-3.5"
+                  className="size-3.5"
                 />
                 {count > 1 && (
                   <span className="absolute -right-px -bottom-px rounded-tl bg-background px-px text-[8px] leading-none font-semibold text-foreground-passive">

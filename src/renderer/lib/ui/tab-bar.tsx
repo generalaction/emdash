@@ -79,6 +79,7 @@ export const TabBar = observer(function TabBar<TEntity>({
       <>
         <button
           key={id}
+          type="button"
           onClick={() => onSelect(id)}
           onDoubleClick={() => onRename && setEditingId(id)}
           className={cn(
@@ -114,6 +115,7 @@ export const TabBar = observer(function TabBar<TEntity>({
                   </span>
                 )}
                 <button
+                  type="button"
                   disabled={isEditing}
                   className="absolute inset-0 flex items-center justify-center rounded-md text-foreground-muted opacity-0 transition-opacity group-hover:opacity-100 hover:bg-background-2"
                   onClick={(e) => {
@@ -149,7 +151,7 @@ export const TabBar = observer(function TabBar<TEntity>({
           items={tabs}
           onReorder={handleReorder}
           axis="x"
-          className="flex h-full w-full overflow-x-auto"
+          className="flex size-full overflow-x-auto"
           itemClassName="list-none flex h-full"
           getKey={(item) => getId(item)}
         >

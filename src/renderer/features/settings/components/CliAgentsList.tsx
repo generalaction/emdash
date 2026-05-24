@@ -83,7 +83,7 @@ const renderAgentRow = (agent: CliAgentStatus, actions: AgentRowActions) => {
       logoSrc={logo}
       icon={
         logo ? undefined : (
-          <Sparkles className="text-muted-foreground h-3.5 w-3.5" aria-hidden="true" />
+          <Sparkles className="text-muted-foreground size-3.5" aria-hidden="true" />
         )
       }
       name={agent.name}
@@ -94,7 +94,7 @@ const renderAgentRow = (agent: CliAgentStatus, actions: AgentRowActions) => {
       installCommand={agent.installCommand}
       middle={
         <span className="text-muted-foreground flex items-center gap-2 text-sm">
-          <span className={`h-1.5 w-1.5 rounded-full ${indicatorClass}`} />
+          <span className={`size-1.5 rounded-full ${indicatorClass}`} />
           {statusLabel}
         </span>
       }
@@ -109,7 +109,7 @@ const renderAgentRow = (agent: CliAgentStatus, actions: AgentRowActions) => {
                   className={ICON_BUTTON}
                   aria-label={`${agent.name} execution settings`}
                 >
-                  <Settings2 className="h-4 w-4" aria-hidden="true" />
+                  <Settings2 className="size-4" aria-hidden="true" />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="top" className="text-xs">

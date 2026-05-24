@@ -84,7 +84,7 @@ const ConversationRow = observer(function ConversationRow({
 
   if (isEditing) {
     return (
-      <div className="flex h-full w-full items-center px-2">
+      <div className="flex size-full items-center px-2">
         <input
           ref={handleRenameInputRef}
           className="w-full rounded bg-background-1 px-1.5 py-0.5 text-sm text-foreground ring-1 ring-foreground/20 outline-none focus:ring-foreground/40"
@@ -118,6 +118,7 @@ const ConversationRow = observer(function ConversationRow({
     <ContextMenu onOpenChangeComplete={handleContextMenuOpenChangeComplete}>
       <ContextMenuTrigger>
         <button
+          type="button"
           onClick={() => tabGroupManager.openConversationPreview(conversationId)}
           onDoubleClick={() => tabGroupManager.openConversation(conversationId)}
           className={cn(
@@ -199,7 +200,7 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
   };
 
   return (
-    <div className="flex h-full w-full flex-col">
+    <div className="flex size-full flex-col">
       <div className="flex shrink-0 items-center justify-between pt-2 pr-2 pb-1 pl-4">
         <MicroLabel>Conversations</MicroLabel>
         <Button size="icon-sm" variant="ghost" onClick={handleCreate}>

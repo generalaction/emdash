@@ -49,11 +49,7 @@ SidebarGroupContent.displayName = 'SidebarGroupContent';
 
 export const SidebarFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div
-      ref={ref}
-      className={cn('mt-auto flex flex-col border-t px-3 py-3', className)}
-      {...props}
-    />
+    <div ref={ref} className={cn('mt-auto flex flex-col border-t p-3', className)} {...props} />
   )
 );
 SidebarFooter.displayName = 'SidebarFooter';
@@ -68,9 +64,10 @@ export const SidebarItemMiniButton = React.forwardRef<
   React.ButtonHTMLAttributes<HTMLButtonElement>
 >(({ className, ...props }, ref) => (
   <button
+    type="button"
     ref={ref}
     className={cn(
-      'w-6 h-6 flex items-center justify-center text-foreground-tertiary-muted hover:text-foreground-tertiary rounded-md hover:bg-background-tertiary-2 group-data-[active=true]/row:hover:bg-background-tertiary-3',
+      'size-6 flex items-center justify-center text-foreground-tertiary-muted hover:text-foreground-tertiary rounded-md hover:bg-background-tertiary-2 group-data-[active=true]/row:hover:bg-background-tertiary-3',
       className
     )}
     onMouseDown={(e) => e.preventDefault()}
@@ -89,6 +86,7 @@ interface SidebarMenuButtonProps extends React.ButtonHTMLAttributes<HTMLButtonEl
 export const SidebarMenuButton = React.forwardRef<HTMLButtonElement, SidebarMenuButtonProps>(
   ({ className, isActive, ...props }, ref) => (
     <button
+      type="button"
       ref={ref}
       data-active={isActive || undefined}
       className={cn(sidebarMenuItemClass, className)}

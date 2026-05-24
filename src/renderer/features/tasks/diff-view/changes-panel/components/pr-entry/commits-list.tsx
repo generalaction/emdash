@@ -90,6 +90,7 @@ export const PrCommitsList = observer(function PrCommitsList() {
       {hasNextPage && (
         <div className="flex justify-center py-2">
           <button
+            type="button"
             className="hover:bg-surface-raised rounded-md px-3 py-1 text-xs text-foreground-muted transition-colors hover:text-foreground"
             onClick={() => void fetchNextPage()}
             disabled={isFetchingNextPage}
@@ -136,6 +137,7 @@ function CommitItem({
       </div>
       <div className="min-w-0 flex-1">
         <button
+          type="button"
           className={cn(
             'group flex w-full rounded-md px-1.5 py-1 text-left hover:bg-background-1',
             isExpanded && 'bg-background-1'
@@ -229,7 +231,7 @@ const CommitFilesList = observer(function CommitFilesList({ commit }: { commit: 
   };
 
   if (filesQuery.isLoading) {
-    return <div className="px-6 py-2 text-xs text-foreground-passive">Loading files...</div>;
+    return <div className="px-6 py-2 text-xs text-foreground-passive">Loading files…</div>;
   }
 
   if (filesQuery.isError) {

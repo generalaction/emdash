@@ -58,6 +58,7 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
           <Tooltip>
             <TooltipTrigger>
               <button
+                type="button"
                 className="flex size-5 items-center justify-center rounded text-foreground-muted hover:bg-background-2 hover:text-foreground"
                 onClick={onAddTerminal}
               >
@@ -83,6 +84,7 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
               <Tooltip>
                 <TooltipTrigger>
                   <button
+                    type="button"
                     className="ml-1 flex size-5 shrink-0 items-center justify-center rounded text-foreground-muted opacity-0 group-hover:opacity-100 hover:bg-background hover:text-foreground"
                     onClick={(e) => {
                       e.stopPropagation();
@@ -105,6 +107,7 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
             <Tooltip>
               <TooltipTrigger>
                 <button
+                  type="button"
                   onClick={() => {
                     if (!project) return;
                     project.view.setProjectView('settings');
@@ -133,6 +136,7 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
                   <Tooltip>
                     <TooltipTrigger>
                       <button
+                        type="button"
                         className={cn(
                           'ml-1 shrink-0 flex items-center justify-center size-5 rounded hover:bg-background text-foreground-muted hover:text-foreground',
                           !isActive && 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'

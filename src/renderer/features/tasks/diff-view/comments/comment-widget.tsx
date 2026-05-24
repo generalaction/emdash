@@ -63,23 +63,23 @@ export const CommentWidget: React.FC<CommentWidgetProps> = ({ comment, onEdit, o
               <Button
                 variant="ghost"
                 size="icon-xs"
-                className="h-8 w-8"
+                className="size-8"
                 onClick={handleCancel}
                 title="Cancel (Esc)"
                 aria-label="Cancel edit comment"
               >
-                <X className="h-4 w-4" />
+                <X className="size-4" />
               </Button>
               <Button
                 variant="ghost"
                 size="icon-xs"
-                className="h-8 w-8"
+                className="size-8"
                 onClick={handleSave}
                 disabled={!editContent.trim()}
                 title="Save (Cmd/Ctrl+Enter)"
                 aria-label="Save comment"
               >
-                <Check className="h-4 w-4 text-foreground-success" />
+                <Check className="size-4 text-foreground-success" />
               </Button>
             </>
           ) : (
@@ -87,22 +87,22 @@ export const CommentWidget: React.FC<CommentWidgetProps> = ({ comment, onEdit, o
               <Button
                 variant="ghost"
                 size="icon-xs"
-                className="h-8 w-8"
+                className="size-8"
                 onClick={handleStartEditing}
                 title="Edit"
                 aria-label="Edit comment"
               >
-                <Pencil className="h-4 w-4" />
+                <Pencil className="size-4" />
               </Button>
               <Button
                 variant="ghost"
                 size="icon-xs"
-                className="text-destructive hover:text-destructive h-8 w-8"
+                className="text-destructive hover:text-destructive size-8"
                 onClick={() => void onDelete()}
                 title="Delete"
                 aria-label="Delete comment"
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="size-4" />
               </Button>
             </>
           )}

@@ -278,7 +278,7 @@ export function RemoteDirectorySelector({
     if (isBrowsing && fileEntries.length === 0) {
       return (
         <div className="flex flex-1 items-center justify-center">
-          <Loader2 className="text-muted-foreground h-5 w-5 animate-spin" />
+          <Loader2 className="text-muted-foreground size-5 animate-spin" />
         </div>
       );
     }
@@ -318,14 +318,14 @@ export function RemoteDirectorySelector({
               )}
             >
               {isDirectory ? (
-                <Folder className="text-muted-foreground h-4 w-4 shrink-0" />
+                <Folder className="text-muted-foreground size-4 shrink-0" />
               ) : entry.type === 'symlink' ? (
-                <Folder className="text-muted-foreground h-4 w-4 shrink-0 opacity-60" />
+                <Folder className="text-muted-foreground size-4 shrink-0 opacity-60" />
               ) : (
-                <FileCode className="text-muted-foreground h-4 w-4 shrink-0" />
+                <FileCode className="text-muted-foreground size-4 shrink-0" />
               )}
               <span className="min-w-0 flex-1 truncate">{entry.name}</span>
-              {isSelectedPath && <Check className="text-primary h-4 w-4 shrink-0" />}
+              {isSelectedPath && <Check className="text-primary size-4 shrink-0" />}
               {entry.type === 'file' && (
                 <span className="text-muted-foreground text-xs">
                   {(entry.size / 1024).toFixed(1)} KB
@@ -385,7 +385,7 @@ export function RemoteDirectorySelector({
               onClick={() => void navigateBack()}
               disabled={history.index === 0 || isBrowsing}
             >
-              <ChevronLeft className="h-4 w-4" />
+              <ChevronLeft className="size-4" />
             </Button>
             <Button
               type="button"
@@ -395,7 +395,7 @@ export function RemoteDirectorySelector({
               onClick={() => void navigateForward()}
               disabled={history.index >= history.entries.length - 1 || isBrowsing}
             >
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight className="size-4" />
             </Button>
             <Button
               type="button"
@@ -405,7 +405,7 @@ export function RemoteDirectorySelector({
               onClick={navigateUp}
               disabled={currentPath === '/' || isBrowsing}
             >
-              <ChevronUp className="h-4 w-4" />
+              <ChevronUp className="size-4" />
             </Button>
             <Button
               type="button"
@@ -415,7 +415,7 @@ export function RemoteDirectorySelector({
               onClick={refreshCurrentPath}
               disabled={isBrowsing}
             >
-              <RefreshCw className={cn('h-4 w-4', isBrowsing && 'animate-spin')} />
+              <RefreshCw className={cn('size-4', isBrowsing && 'animate-spin')} />
             </Button>
             <Input
               className="ml-2 h-7 flex-1"

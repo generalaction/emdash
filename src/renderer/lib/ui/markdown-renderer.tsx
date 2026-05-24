@@ -97,9 +97,7 @@ const ResolvedImage: React.FC<{
     );
   }
   if (!dataUrl) {
-    return (
-      <span className="text-muted-foreground my-3 inline-block text-xs">Loading image...</span>
-    );
+    return <span className="text-muted-foreground my-3 inline-block text-xs">Loading image…</span>;
   }
   return <ContainedImage src={dataUrl} alt={alt} className="my-3 max-w-full rounded" />;
 };
@@ -250,6 +248,7 @@ function useFullComponents(
         <input
           type="checkbox"
           checked={checked}
+          readOnly
           disabled
           className="mr-2 align-middle"
           {...props}

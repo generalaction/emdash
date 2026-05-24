@@ -227,7 +227,7 @@ export function AddSshConnModal({
           <div className={`flex items-center gap-2 ${showBackButton ? '-ml-2' : ''}`}>
             {showBackButton && (
               <Button variant="ghost" size="icon-xs" onClick={onClose}>
-                <ArrowLeftIcon className="h-4 w-4" />
+                <ArrowLeftIcon className="size-4" />
               </Button>
             )}
             <DialogTitle>{isEditing ? 'Edit SSH Connection' : 'Add SSH Connection'}</DialogTitle>

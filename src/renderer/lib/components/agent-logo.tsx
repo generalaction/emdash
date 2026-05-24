@@ -16,7 +16,7 @@ const AgentLogo: React.FC<AgentLogoProps> = ({
   alt,
   isSvg,
   invertInDark,
-  className = 'h-4 w-4',
+  className = 'size-4',
   grayscale,
 }) => {
   const { effectiveTheme } = useTheme();

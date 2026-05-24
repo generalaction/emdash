@@ -43,7 +43,7 @@ export const SkillCard: React.FC<SkillCardProps> = ({
                 }
               }}
             >
-              {isInstalled ? <Trash2 className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+              {isInstalled ? <Trash2 className="size-4" /> : <Plus className="size-4" />}
             </Button>
           </TooltipTrigger>
           <TooltipContent>{isInstalled ? 'Uninstall' : 'Install'}</TooltipContent>

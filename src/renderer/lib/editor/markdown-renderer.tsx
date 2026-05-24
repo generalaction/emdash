@@ -57,16 +57,16 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
         className="sticky top-3 z-10 float-right mr-3"
       >
         <ToggleGroupItem value="markdown" aria-label="Preview">
-          <Eye className="h-3.5 w-3.5" />
+          <Eye className="size-3.5" />
         </ToggleGroupItem>
         <ToggleGroupItem value="markdown-source" aria-label="Edit source">
-          <Pencil className="h-3.5 w-3.5" />
+          <Pencil className="size-3.5" />
         </ToggleGroupItem>
       </ToggleGroup>
       <MarkdownRenderer
         content={content}
         variant="full"
-        className="w-full max-w-3xl px-8 py-8"
+        className="w-full max-w-3xl p-8"
         resolveImage={resolveImage}
       />
     </div>

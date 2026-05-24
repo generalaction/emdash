@@ -77,7 +77,7 @@ export function WelcomeScreen({ onGetStarted }: WelcomeScreenProps) {
       </div>
 
       <motion.div
-        className="relative z-10 flex flex-col items-center justify-center space-y-4 p-8"
+        className="relative z-10 flex flex-col items-center justify-center gap-y-4 p-8"
         variants={containerVariants}
         initial="hidden"
         animate="visible"
@@ -86,7 +86,7 @@ export function WelcomeScreen({ onGetStarted }: WelcomeScreenProps) {
           className="rounded-md border border-border/40 bg-white p-1.5 shadow-lg ring-1 shadow-black/5 ring-black/5 dark:shadow-white/5 dark:ring-white/10"
           variants={itemVariants}
         >
-          <img src={IconLight} alt="Emdash" className="h-12 w-12 rounded-sm" />
+          <img src={IconLight} alt="Emdash" className="size-12 rounded-sm" />
         </motion.div>
 
         <motion.h1

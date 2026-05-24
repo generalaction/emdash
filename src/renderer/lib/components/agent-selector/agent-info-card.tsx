@@ -64,7 +64,7 @@ export const AgentInfoCard: React.FC<Props> = ({ id }) => {
           alt={config.alt}
           isSvg={config.isSvg}
           invertInDark={config.invertInDark}
-          className="h-5 w-5 rounded-sm"
+          className="size-5 rounded-sm"
         />
         <div className="flex items-baseline gap-1 text-sm leading-none">
           <span className="text-foreground-muted">{config.name}</span>
@@ -86,7 +86,7 @@ export const AgentInfoCard: React.FC<Props> = ({ id }) => {
             className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-foreground hover:bg-background-1"
           >
             <span>Docs</span>
-            <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+            <ArrowUpRight className="size-3.5" aria-hidden="true" />
           </a>
         </div>
       ) : null}
@@ -99,7 +99,7 @@ export const AgentInfoCard: React.FC<Props> = ({ id }) => {
           className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-foreground hover:bg-background-1"
         >
           <span>Compare agents</span>
-          <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
+          <ArrowUpRight className="size-3.5" aria-hidden="true" />
         </a>
       </div>
 
@@ -117,7 +117,7 @@ export const AgentInfoCard: React.FC<Props> = ({ id }) => {
           aria-label={`Copy install command for ${title}`}
           title={copied ? 'Copied' : 'Copy command'}
         >
-          <CopyIndicatorIcon className="h-3.5 w-3.5" aria-hidden="true" />
+          <CopyIndicatorIcon className="size-3.5" aria-hidden="true" />
         </Button>
       </div>
     </div>

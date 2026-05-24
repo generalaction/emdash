@@ -249,7 +249,7 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
 
     return (
       <div
-        className={cn('terminal-pane flex h-full w-full min-w-0 bg', className)}
+        className={cn('terminal-pane flex size-full min-w-0 bg', className)}
         style={{
           width: '100%',
           height: '100%',

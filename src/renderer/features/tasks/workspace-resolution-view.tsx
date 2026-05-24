@@ -30,7 +30,7 @@ export const WorkspaceResolutionView = observer(function WorkspaceResolutionView
 
   if (resolution.kind === 'branch_elsewhere') {
     return (
-      <div className="flex h-full w-full flex-col items-center justify-center p-8">
+      <div className="flex size-full flex-col items-center justify-center p-8">
         <div className="flex max-w-sm flex-col items-center gap-4 text-center">
           <p className="font-mono text-sm font-medium">Workspace path has moved</p>
           <p className="font-mono text-xs text-foreground-muted">
@@ -50,7 +50,7 @@ export const WorkspaceResolutionView = observer(function WorkspaceResolutionView
               disabled={busy}
               onClick={() => void handle('adopt', resolution.candidatePath)}
             >
-              {busy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+              {busy ? <Loader2 className="mr-1 size-3.5 animate-spin" /> : null}
               Use existing location
             </Button>
             <Button
@@ -69,7 +69,7 @@ export const WorkspaceResolutionView = observer(function WorkspaceResolutionView
 
   if (resolution.kind === 'path_missing') {
     return (
-      <div className="flex h-full w-full flex-col items-center justify-center p-8">
+      <div className="flex size-full flex-col items-center justify-center p-8">
         <div className="flex max-w-sm flex-col items-center gap-4 text-center">
           <p className="font-mono text-sm font-medium">Workspace path not found</p>
           <p className="font-mono text-xs text-foreground-muted">
@@ -94,7 +94,7 @@ export const WorkspaceResolutionView = observer(function WorkspaceResolutionView
                 disabled={busy}
                 onClick={() => void handle('create')}
               >
-                {busy ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+                {busy ? <Loader2 className="mr-1 size-3.5 animate-spin" /> : null}
                 Create new worktree
               </Button>
             )}

@@ -20,5 +20,5 @@ export function prepareInlineSvgMarkup(svgContent: string): string {
     .replace(/\swidth="[^"]*"/g, '')
     .replace(/\sheight="[^"]*"/g, '')
     .replace(/<style>[\s\S]*?<\/style>/g, '')
-    .replace('<svg ', '<svg fill="currentColor" class="h-full w-full" ');
+    .replace('<svg ', '<svg fill="currentColor" class="size-full" ');
 }

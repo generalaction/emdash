@@ -18,7 +18,7 @@ export const ResetToDefaultButton: React.FC<ResetToDefaultButtonProps> = ({
   visible = true,
 }) => {
   if (!visible) {
-    return <span aria-hidden="true" className="h-7 w-7 shrink-0" />;
+    return <span aria-hidden="true" className="size-7 shrink-0" />;
   }
 
   return (
@@ -29,12 +29,12 @@ export const ResetToDefaultButton: React.FC<ResetToDefaultButtonProps> = ({
             type="button"
             variant="ghost"
             size="icon"
-            className="text-muted-foreground h-7 w-7 shrink-0 hover:text-foreground"
+            className="text-muted-foreground size-7 shrink-0 hover:text-foreground"
             onClick={onReset}
             disabled={disabled}
             aria-label="Reset to default"
           >
-            <RotateCcw className="h-3.5 w-3.5" />
+            <RotateCcw className="size-3.5" />
           </Button>
         </TooltipTrigger>
         <TooltipContent side="top">

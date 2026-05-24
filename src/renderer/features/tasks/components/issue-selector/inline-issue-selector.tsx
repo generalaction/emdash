@@ -115,7 +115,7 @@ export const InlineIssueSelector = observer(function InlineIssueSelector({
 
   const providerAddon = issueProvider ? (
     isProviderLoading ? (
-      <Loader2 className="h-3.5 w-3.5 animate-spin text-foreground/60" />
+      <Loader2 className="size-3.5 animate-spin text-foreground/60" />
     ) : connectedProviderCount > 1 ? (
       <Select
         value={issueProvider}
@@ -125,12 +125,12 @@ export const InlineIssueSelector = observer(function InlineIssueSelector({
           aria-label="Select issue provider"
           className="h-6 gap-1 border-none bg-transparent px-1.5 shadow-none focus:ring-0"
         >
-          <ProviderLogo provider={issueProvider} className="h-3.5 w-3.5" />
+          <ProviderLogo provider={issueProvider} className="size-3.5" />
         </SelectTrigger>
         <SelectContent>
           {ISSUE_PROVIDER_ORDER.map((p) => (
             <SelectItem key={p} value={p} disabled={isProviderDisabled(p)}>
-              <ProviderLogo provider={p} className="h-3.5 w-3.5" />
+              <ProviderLogo provider={p} className="size-3.5" />
               <span>{ISSUE_PROVIDER_META[p].displayName}</span>
             </SelectItem>
           ))}
@@ -138,7 +138,7 @@ export const InlineIssueSelector = observer(function InlineIssueSelector({
       </Select>
     ) : (
       <span className="mx-1.5 flex items-center">
-        <ProviderLogo provider={issueProvider} className="h-3.5 w-3.5" />
+        <ProviderLogo provider={issueProvider} className="size-3.5" />
       </span>
     )
   ) : null;
@@ -202,7 +202,7 @@ export const InlineIssueSelector = observer(function InlineIssueSelector({
       <div className="flex h-6 items-center justify-between border-t border-border bg-background-1 px-2 text-xs">
         <div className="text-foreground-muted">Navigate with arrow keys</div>
         <div className="text-foreground-muted">
-          <button className="flex items-center gap-2">
+          <button type="button" className="flex items-center gap-2">
             Select Issue <Kbd>⏎</Kbd>
           </button>{' '}
         </div>

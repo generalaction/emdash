@@ -1,6 +1,5 @@
 import { Eye, Pencil } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useMemo } from 'react';
 import { useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
@@ -23,10 +22,7 @@ export const SvgRenderer = observer(function SvgRenderer({ filePath }: SvgRender
   // populated — otherwise the preview can stick on an empty src.
   void modelRegistry.bufferVersions.get(bufferUri);
   const content = modelRegistry.getValue(bufferUri) ?? '';
-  const svgUrl = useMemo(
-    () => (content ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(content)}` : ''),
-    [content]
-  );
+  const svgUrl = content ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(content)}` : '';
   const fileName = filePath.split('/').pop() ?? filePath;
 
   return (
@@ -47,10 +43,10 @@ export const SvgRenderer = observer(function SvgRenderer({ filePath }: SvgRender
         className="absolute top-3 right-3 z-10"
       >
         <ToggleGroupItem value="svg" aria-label="View rendered">
-          <Eye className="h-3.5 w-3.5" />
+          <Eye className="size-3.5" />
         </ToggleGroupItem>
         <ToggleGroupItem value="svg-source" aria-label="Edit source">
-          <Pencil className="h-3.5 w-3.5" />
+          <Pencil className="size-3.5" />
         </ToggleGroupItem>
       </ToggleGroup>
     </div>
