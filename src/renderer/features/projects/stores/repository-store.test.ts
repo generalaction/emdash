@@ -1,0 +1,107 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { gitRefChangedChannel, type GitRefChange } from '@shared/events/gitEvents';
+import type { LocalBranchesPayload, RemoteBranchesPayload } from '@shared/git';
+import type { ProjectSettingsStore } from './project-settings-store';
+import { RepositoryStore } from './repository-store';
+
+const mocks = vi.hoisted(() => ({
+  getLocalBranches: vi.fn(),
+  getRemoteBranches: vi.fn(),
+  eventOn: vi.fn(),
+}));
+
+vi.mock('@renderer/lib/ipc', () => ({
+  rpc: {
+    repository: {
+      getLocalBranches: mocks.getLocalBranches,
+      getRemoteBranches: mocks.getRemoteBranches,
+    },
+  },
+  events: {
+    on: mocks.eventOn,
+  },
+}));
+
+function localPayload(ahead: number): LocalBranchesPayload {
+  return {
+    currentBranch: 'feature/push-button',
+    isUnborn: false,
+    localBranches: [
+      {
+        type: 'local',
+        branch: 'feature/push-button',
+        remote: { name: 'origin', url: 'git@github.com:owner/repo.git' },
+        divergence: { ahead, behind: 0 },
+      },
+    ],
+  };
+}
+
+function remotePayload(): RemoteBranchesPayload {
+  return {
+    remotes: [{ name: 'origin', url: 'git@github.com:owner/repo.git' }],
+    gitDefaultBranch: 'main',
+    remoteBranches: [
+      {
+        type: 'remote',
+        remote: { name: 'origin', url: 'git@github.com:owner/repo.git' },
+        branch: 'feature/push-button',
+      },
+    ],
+  };
+}
+
+async function flushAsyncWork(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
+describe('RepositoryStore', () => {
+  let gitRefHandlers: Array<(event: GitRefChange) => void>;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    gitRefHandlers = [];
+    mocks.getLocalBranches.mockReset();
+    mocks.getRemoteBranches.mockReset();
+    mocks.eventOn.mockReset();
+    mocks.eventOn.mockImplementation((channel, handler) => {
+      if (channel === gitRefChangedChannel) gitRefHandlers.push(handler);
+      return vi.fn();
+    });
+    mocks.getRemoteBranches.mockResolvedValue(remotePayload());
+  });
+
+  afterEach(() => {
+    vi.clearAllTimers();
+    vi.useRealTimers();
+  });
+
+  it('refreshes task branch divergence when the project branch ref changes', async () => {
+    mocks.getLocalBranches
+      .mockResolvedValueOnce(localPayload(0))
+      .mockResolvedValue(localPayload(1));
+
+    const store = new RepositoryStore(
+      'project-1',
+      { settings: undefined } as unknown as ProjectSettingsStore,
+      'main',
+      'workspace-1'
+    );
+    await flushAsyncWork();
+
+    expect(store.getBranchDivergence('feature/push-button')?.ahead).toBe(0);
+
+    for (const handler of gitRefHandlers) {
+      handler({ projectId: 'project-1', kind: 'local-refs' });
+    }
+    vi.advanceTimersByTime(250);
+    await flushAsyncWork();
+
+    expect(mocks.getLocalBranches).toHaveBeenCalledTimes(2);
+    expect(store.getBranchDivergence('feature/push-button')?.ahead).toBe(1);
+
+    store.dispose();
+  });
+});
