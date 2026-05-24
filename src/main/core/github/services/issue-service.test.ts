@@ -109,6 +109,26 @@ describe('GitHubIssueServiceImpl', () => {
       );
     });
 
+    it('maps post-token auth errors to typed auth failures', async () => {
+      const listForRepo = vi.fn().mockRejectedValue({ status: 403 });
+      mockGetOctokit.mockResolvedValue(ok(makeOctokit({ listForRepo })));
+
+      await expect(
+        issueService.listIssues({
+          ...repository,
+          host: 'ghe.example.com',
+          repositoryUrl: 'https://ghe.example.com/owner/repo',
+        })
+      ).resolves.toEqual(
+        err({
+          type: 'auth_required',
+          host: 'ghe.example.com',
+          message:
+            'GitHub Enterprise authentication required for ghe.example.com. Run: gh auth login --hostname ghe.example.com',
+        })
+      );
+    });
+
     it('clamps limit to 1-100', async () => {
       const listForRepo = vi.fn().mockResolvedValue({ data: [] });
       mockGetOctokit.mockResolvedValue(ok(makeOctokit({ listForRepo })));
