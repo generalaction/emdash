@@ -1,4 +1,6 @@
 import { RequestError } from '@octokit/request-error';
+import { GitHubApiAuthErrorException } from '@main/core/github/services/octokit-provider';
+import { providerRepositoryService } from '@main/core/repository/provider-repository-service';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { createRPCController } from '@shared/ipc/rpc';
@@ -8,6 +10,7 @@ import type {
   PullRequestError,
   PullRequestFile,
 } from '@shared/pull-requests';
+import { parseRepositoryRef } from '@shared/repository-ref';
 import { err, ok } from '@shared/result';
 import { prQueryService } from './pr-query-service';
 import { prSyncEngine } from './pr-sync-engine';
@@ -43,8 +46,8 @@ export const pullRequestController = createRPCController({
 
   getPullRequestsForTask: async (projectId: string, taskId: string) => {
     try {
-      const capability = await prQueryService.getProjectRemoteInfo(projectId);
-      if (capability.status !== 'ready') {
+      const capability = await providerRepositoryService.resolveProject(projectId);
+      if (!capability.success) {
         return ok({ prs: [], taskBranch: null });
       }
 
@@ -64,7 +67,7 @@ export const pullRequestController = createRPCController({
       const prs = await prQueryService.getTaskPullRequests(
         projectId,
         taskRow.taskBranch,
-        capability.repositoryUrl
+        capability.data.repositoryUrl
       );
       return ok({ prs, taskBranch: taskRow.taskBranch });
     } catch (error) {
@@ -80,11 +83,11 @@ export const pullRequestController = createRPCController({
 
   forceFullSyncPullRequests: async (projectId: string) => {
     try {
-      const capability = await prQueryService.getProjectRemoteInfo(projectId);
-      if (capability.status !== 'ready') {
-        return err<PullRequestError>({ type: 'remote_not_ready', status: capability.status });
+      const capability = await providerRepositoryService.resolveProject(projectId);
+      if (!capability.success) {
+        return err<PullRequestError>({ type: 'remote_not_ready', status: capability.error.type });
       }
-      prSyncEngine.forceFullSync(capability.repositoryUrl);
+      prSyncEngine.forceFullSync(capability.data.repositoryUrl);
       return ok();
     } catch (error) {
       log.error('Failed to force full sync:', error);
@@ -98,19 +101,19 @@ export const pullRequestController = createRPCController({
   syncPullRequests: async (projectId: string) => {
     try {
       log.info('PrController: syncPullRequests called', { projectId });
-      const capability = await prQueryService.getProjectRemoteInfo(projectId);
-      if (capability.status !== 'ready') {
+      const capability = await providerRepositoryService.resolveProject(projectId);
+      if (!capability.success) {
         log.warn('PrController: remote not ready, skipping sync', {
           projectId,
-          status: capability.status,
+          status: capability.error.type,
         });
-        return err<PullRequestError>({ type: 'remote_not_ready', status: capability.status });
+        return err<PullRequestError>({ type: 'remote_not_ready', status: capability.error.type });
       }
       log.info('PrController: triggering sync', {
         projectId,
-        repositoryUrl: capability.repositoryUrl,
+        repositoryUrl: capability.data.repositoryUrl,
       });
-      prSyncEngine.sync(capability.repositoryUrl);
+      prSyncEngine.sync(capability.data.repositoryUrl);
       return ok();
     } catch (error) {
       log.error('Failed to trigger sync:', error);
@@ -156,6 +159,7 @@ export const pullRequestController = createRPCController({
 
   createPullRequest: async (params: {
     repositoryUrl: string;
+    headRepositoryUrl?: string;
     head: string;
     base: string;
     title: string;
@@ -163,6 +167,18 @@ export const pullRequestController = createRPCController({
     draft: boolean;
   }) => {
     try {
+      if (params.headRepositoryUrl) {
+        const baseRef = parseRepositoryRef(params.repositoryUrl);
+        const headRef = parseRepositoryRef(params.headRepositoryUrl);
+        if (baseRef && headRef && baseRef.host !== headRef.host) {
+          return err<PullRequestError>({
+            type: 'cross_host_pr',
+            baseHost: baseRef.host,
+            headHost: headRef.host,
+          });
+        }
+      }
+
       const result = await prSyncEngine.createPullRequest(params);
       if (!result.success) {
         return err<PullRequestError>({ type: 'invalid_repository', input: result.error.input });
@@ -176,6 +192,13 @@ export const pullRequestController = createRPCController({
       telemetryService.capture('pr_creation_failed', {
         error_type: error instanceof Error ? error.name || 'error' : 'unknown_error',
       });
+      if (error instanceof GitHubApiAuthErrorException) {
+        return err<PullRequestError>({
+          type: 'ghes_auth_required',
+          host: error.authError.host,
+          hint: error.authError.hint ?? 'Connect GitHub from account settings.',
+        });
+      }
       const ghErrors =
         error instanceof RequestError &&
         Array.isArray((error.response?.data as { errors?: unknown[] } | undefined)?.errors)

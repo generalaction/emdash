@@ -25,10 +25,10 @@ import { SplitButton } from '@renderer/lib/ui/split-button';
 import { Textarea } from '@renderer/lib/ui/textarea';
 import { log } from '@renderer/utils/logger';
 import type { Branch } from '@shared/git';
-import { parseGitHubRepository } from '@shared/github-repository';
 import { pullRequestErrorMessage } from '@shared/pull-requests';
+import { parseRepositoryRef } from '@shared/repository-ref';
 import { resolveInitialBaseBranch } from './base-branch';
-import { getGitHubTargetRemotes, resolveCreatePrTargetRemote } from './target-remote';
+import { getTargetRemotes, resolveCreatePrTargetRemote } from './target-remote';
 
 export type CreatePrModalArgs = {
   projectId: string;
@@ -63,12 +63,13 @@ export const CreatePrModal = observer(function CreatePrModal({
   const aheadCount = repo?.getBranchDivergence(branchName)?.ahead ?? 0;
   const needsPush = !isOnRemote || aheadCount > 0;
   const projectRemoteName = repo?.baseRemote.name ?? 'origin';
-  const githubTargetRemotes = useMemo(
-    () => getGitHubTargetRemotes(repo?.remotes ?? []),
-    [repo?.remotes]
+  const fallbackRepository = parseRepositoryRef(repositoryUrl);
+  const targetRemotes = useMemo(
+    () => getTargetRemotes(repo?.remotes ?? [], { host: fallbackRepository?.host }),
+    [fallbackRepository?.host, repo?.remotes]
   );
   const targetRemote = resolveCreatePrTargetRemote({
-    options: githubTargetRemotes,
+    options: targetRemotes,
     projectRemoteName,
     selectedRemoteName: selectedTargetRemoteName,
     fallbackRepositoryUrl: repositoryUrl,
@@ -115,10 +116,8 @@ export const CreatePrModal = observer(function CreatePrModal({
         }
       }
 
-      const baseRepository = parseGitHubRepository(targetRepositoryUrl);
-      const headRepository = repo?.pushRemote.url
-        ? parseGitHubRepository(repo.pushRemote.url)
-        : null;
+      const baseRepository = parseRepositoryRef(targetRepositoryUrl);
+      const headRepository = repo?.pushRemote.url ? parseRepositoryRef(repo.pushRemote.url) : null;
       const head =
         baseRepository &&
         headRepository &&
@@ -128,6 +127,7 @@ export const CreatePrModal = observer(function CreatePrModal({
 
       const result = await rpc.pullRequests.createPullRequest({
         repositoryUrl: targetRepositoryUrl,
+        headRepositoryUrl: headRepository?.repositoryUrl,
         head,
         base: selectedBase.branch,
         title: title.trim(),
@@ -162,7 +162,7 @@ export const CreatePrModal = observer(function CreatePrModal({
             branchName={branchName}
             className="rounded-md border border-border"
           />
-          {githubTargetRemotes.length > 1 && targetRemote ? (
+          {targetRemotes.length > 1 && targetRemote ? (
             <Select value={targetRemote.remote.name} onValueChange={handleTargetRemoteChange}>
               <SelectTrigger
                 showChevron={false}
@@ -181,7 +181,7 @@ export const CreatePrModal = observer(function CreatePrModal({
                 </div>
                 <ChevronDown className="size-4 shrink-0 text-foreground-muted" />
               </SelectTrigger>
-              <RemoteSelectContent remotes={githubTargetRemotes.map(({ remote }) => remote)} />
+              <RemoteSelectContent remotes={targetRemotes.map(({ remote }) => remote)} />
             </Select>
           ) : null}
           <ProjectBranchSelector
