@@ -26,11 +26,13 @@ export function buildChangesTree(changes: GitChange[]): ChangesTree {
       const segment = parts[i]!;
       prefix = prefix ? `${prefix}/${segment}` : segment;
       const isLeaf = i === parts.length - 1;
+      const type = isLeaf ? 'file' : 'directory';
+      const key = `${type}:${prefix}`;
 
-      let node = nodesByPath.get(prefix);
+      let node = nodesByPath.get(key);
       if (!node) {
-        node = makeNode(prefix, isLeaf ? 'file' : 'directory');
-        nodesByPath.set(prefix, node);
+        node = makeNode(prefix, type);
+        nodesByPath.set(key, node);
         if (!isLeaf) directoryPaths.add(prefix);
         if (parentNode) {
           parentNode.children.push(node);
