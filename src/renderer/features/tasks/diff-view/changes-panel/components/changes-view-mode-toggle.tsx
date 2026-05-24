@@ -13,7 +13,7 @@ interface ChangesViewModeToggleProps {
 export function ChangesViewModeToggle({ value, onChange, label }: ChangesViewModeToggleProps) {
   const nextMode: ChangesListViewMode = value === 'flat' ? 'tree' : 'flat';
   const Icon = value === 'flat' ? AlignJustify : ListTree;
-  const tooltip = value === 'flat' ? 'Flat list' : 'Tree view';
+  const tooltip = value === 'flat' ? 'Switch to tree view' : 'Switch to flat list';
   const [open, setOpen] = useState(false);
 
   return (
