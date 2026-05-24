@@ -125,7 +125,7 @@ export class TaskManagerStore {
     );
 
     this._unsubPrUpdated = events.on(prUpdatedChannel, ({ prs }) => {
-      const repoUrl = this._repository.repositoryUrl;
+      const repoUrl = this._repository.pullRequestRepositoryUrl;
       if (!repoUrl) return;
       for (const pr of prs) {
         if (pr.repositoryUrl !== repoUrl) continue;
@@ -147,7 +147,7 @@ export class TaskManagerStore {
 
     this._unsubPrSyncProgress = events.on(prSyncProgressChannel, (progress) => {
       if (progress.status !== 'done') return;
-      const repoUrl = this._repository.repositoryUrl;
+      const repoUrl = this._repository.pullRequestRepositoryUrl;
       if (!repoUrl || progress.remoteUrl !== repoUrl) return;
       for (const [, store] of this.tasks) {
         if (isRegistered(store)) {
@@ -157,7 +157,7 @@ export class TaskManagerStore {
     });
 
     this._disposeRepositoryReaction = reaction(
-      () => this._repository.repositoryUrl,
+      () => this._repository.pullRequestRepositoryUrl,
       () => {
         for (const [, store] of this.tasks) {
           if (isRegistered(store)) {

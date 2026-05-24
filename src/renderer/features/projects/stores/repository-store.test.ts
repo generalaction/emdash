@@ -1,12 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { gitRefChangedChannel, type GitRefChange } from '@shared/events/gitEvents';
 import type { LocalBranchesPayload, RemoteBranchesPayload } from '@shared/git';
+import { err, ok } from '@shared/result';
 import type { ProjectSettingsStore } from './project-settings-store';
 import { RepositoryStore } from './repository-store';
 
 const mocks = vi.hoisted(() => ({
   getLocalBranches: vi.fn(),
   getRemoteBranches: vi.fn(),
+  resolveProviderRepository: vi.fn(),
   eventOn: vi.fn(),
 }));
 
@@ -15,6 +17,7 @@ vi.mock('@renderer/lib/ipc', () => ({
     repository: {
       getLocalBranches: mocks.getLocalBranches,
       getRemoteBranches: mocks.getRemoteBranches,
+      resolveProviderRepository: mocks.resolveProviderRepository,
     },
   },
   events: {
@@ -74,12 +77,14 @@ describe('RepositoryStore', () => {
     gitRefHandlers = [];
     mocks.getLocalBranches.mockReset();
     mocks.getRemoteBranches.mockReset();
+    mocks.resolveProviderRepository.mockReset();
     mocks.eventOn.mockReset();
     mocks.eventOn.mockImplementation((channel, handler) => {
       if (channel === gitRefChangedChannel) gitRefHandlers.push(handler);
       return vi.fn();
     });
     mocks.getRemoteBranches.mockResolvedValue(remotePayload());
+    mocks.resolveProviderRepository.mockResolvedValue(err({ type: 'no_remote' }));
   });
 
   afterEach(() => {
@@ -153,6 +158,45 @@ describe('RepositoryStore', () => {
 
     expect(mocks.getLocalBranches).toHaveBeenCalledTimes(1);
     expect(store.getBranchDivergence('feature/push-button')?.ahead).toBe(0);
+
+    store.dispose();
+  });
+
+  it('exposes PR and issue repository URLs from provider capabilities', async () => {
+    mocks.getLocalBranches.mockResolvedValue(localPayload(0));
+    mocks.resolveProviderRepository.mockResolvedValue(
+      ok({
+        provider: 'github',
+        host: 'ghe.example.com',
+        repositoryUrl: 'https://ghe.example.com/acme/repo',
+        nameWithOwner: 'acme/repo',
+        capabilities: {
+          pullRequests: true,
+          issues: true,
+        },
+      })
+    );
+
+    const store = createWorkspaceStore();
+    await store.providerRepositoryInfo.load();
+
+    expect(store.providerRepository?.host).toBe('ghe.example.com');
+    expect(store.pullRequestRepositoryUrl).toBe('https://ghe.example.com/acme/repo');
+    expect(store.issueRepositoryUrl).toBe('https://ghe.example.com/acme/repo');
+
+    store.dispose();
+  });
+
+  it('clears PR and issue repository URLs when provider resolution fails', async () => {
+    mocks.getLocalBranches.mockResolvedValue(localPayload(0));
+    mocks.resolveProviderRepository.mockResolvedValue(err({ type: 'no_remote' }));
+
+    const store = createWorkspaceStore();
+    await store.providerRepositoryInfo.load();
+
+    expect(store.providerRepository).toBeNull();
+    expect(store.pullRequestRepositoryUrl).toBeNull();
+    expect(store.issueRepositoryUrl).toBeNull();
 
     store.dispose();
   });

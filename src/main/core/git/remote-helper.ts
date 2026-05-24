@@ -1,9 +1,11 @@
+import { isGitHubDotComHost, parseRepositoryRef } from '@shared/repository-ref';
+
 export function isSshRemoteUrl(remoteUrl: string): boolean {
   return /^git@[^:]+:/i.test(remoteUrl) || /^ssh:\/\//i.test(remoteUrl);
 }
 
 export function isGitHubSshRemoteUrl(remoteUrl: string): boolean {
-  return (
-    /^git@github\.com:/i.test(remoteUrl) || /^ssh:\/\/git@github\.com(?::\d+)?\//i.test(remoteUrl)
-  );
+  if (!isSshRemoteUrl(remoteUrl)) return false;
+  const ref = parseRepositoryRef(remoteUrl);
+  return ref ? isGitHubDotComHost(ref.host) : false;
 }

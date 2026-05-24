@@ -5,13 +5,13 @@ import { Resource } from '@renderer/lib/stores/resource';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import { gitRefChangedChannel, gitWorkspaceChangedChannel } from '@shared/events/gitEvents';
 import { commitRef, mergeBaseRange, refsEqual, remoteRef, type GitChange } from '@shared/git';
-import { parseGitHubRepository } from '@shared/github-repository';
 import {
   isForkPr,
   pullRequestErrorMessage,
   selectCurrentPr,
   type PullRequest,
 } from '@shared/pull-requests';
+import { parseRepositoryRef } from '@shared/repository-ref';
 import type { Task } from '@shared/tasks';
 import { isRegistered, type TaskStore } from './task-store';
 
@@ -80,7 +80,7 @@ export class PrStore {
                 if (p.projectId !== this.projectId || p.kind !== 'remote-refs') return;
                 const sameRepoRef = remoteRef(this.repositoryStore.baseRemote, pr.headRefName);
                 const forkOwner = isForkPr(pr)
-                  ? (parseGitHubRepository(pr.headRepositoryUrl)?.owner ?? null)
+                  ? (parseRepositoryRef(pr.headRepositoryUrl)?.owner ?? null)
                   : null;
                 const forkRef = forkOwner ? remoteRef(forkOwner, pr.headRefName) : null;
                 const relevant =

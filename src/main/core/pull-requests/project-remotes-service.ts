@@ -2,7 +2,7 @@ import { and, eq, notInArray } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { projectRemotes } from '@main/db/schema';
 import type { Remote } from '@shared/git';
-import { parseGitHubRepository } from '@shared/github-repository';
+import { parseRepositoryRef } from '@shared/repository-ref';
 
 /**
  * Upsert all git remotes for a project into the `project_remotes` table and
@@ -12,7 +12,7 @@ import { parseGitHubRepository } from '@shared/github-repository';
  */
 export async function syncProjectRemotes(projectId: string, remotes: Remote[]): Promise<void> {
   for (const r of remotes) {
-    const remoteUrl = parseGitHubRepository(r.url)?.repositoryUrl ?? r.url;
+    const remoteUrl = parseRepositoryRef(r.url)?.repositoryUrl ?? r.url;
     await db
       .insert(projectRemotes)
       .values({ projectId, remoteName: r.name, remoteUrl })

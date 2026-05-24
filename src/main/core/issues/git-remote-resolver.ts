@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { DEFAULT_REMOTE_NAME } from '@shared/git-utils';
+import { parseRepositoryRef } from '@shared/repository-ref';
 
 const execFileAsync = promisify(execFile);
 
@@ -26,46 +27,8 @@ export async function getRemoteUrl(projectPath: string, remoteName: string): Pro
 }
 
 export function parseGitRemoteUrl(remoteUrl: string): ParsedGitRemote | null {
-  const raw = String(remoteUrl || '').trim();
-  if (!raw) return null;
-
-  const scpLike = /^git@([^:]+):(.+?)(?:\.git)?$/.exec(raw);
-  if (scpLike) {
-    return {
-      host: scpLike[1].toLowerCase(),
-      slug: scpLike[2].replace(/\/+$/, ''),
-    };
-  }
-
-  if (raw.startsWith('ssh://')) {
-    try {
-      const parsed = new URL(raw);
-      const slug = parsed.pathname
-        .replace(/^\/+/, '')
-        .replace(/\.git$/, '')
-        .replace(/\/+$/, '');
-      if (!slug) return null;
-      return { host: parsed.hostname.toLowerCase(), slug };
-    } catch {
-      return null;
-    }
-  }
-
-  if (raw.startsWith('http://') || raw.startsWith('https://')) {
-    try {
-      const parsed = new URL(raw);
-      const slug = parsed.pathname
-        .replace(/^\/+/, '')
-        .replace(/\.git$/, '')
-        .replace(/\/+$/, '');
-      if (!slug) return null;
-      return { host: parsed.hostname.toLowerCase(), slug };
-    } catch {
-      return null;
-    }
-  }
-
-  return null;
+  const ref = parseRepositoryRef(remoteUrl);
+  return ref ? { host: ref.host, slug: ref.nameWithOwner } : null;
 }
 
 export async function resolvePreferredRemote(
