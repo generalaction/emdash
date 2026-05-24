@@ -4,15 +4,15 @@
 
 /**
  * Detect programming language from file path extension.
- * Returns a language identifier compatible with syntax highlighters (e.g., Prism).
+ * Returns a language identifier compatible with Monaco Editor.
  */
 export function getLanguageFromPath(path: string): string {
   const ext = path.split('.').pop()?.toLowerCase() || '';
   const langMap: Record<string, string> = {
     js: 'javascript',
-    jsx: 'jsx',
+    jsx: 'javascript',
     ts: 'typescript',
-    tsx: 'tsx',
+    tsx: 'typescript',
     py: 'python',
     java: 'java',
     c: 'c',
