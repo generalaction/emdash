@@ -44,7 +44,7 @@ export const PullRequestsSection = observer(function PullRequestsSection({
         onToggleCollapsed={onToggleCollapsed}
         hasOpenPr={hasOpenPr}
         onCreatePr={
-          taskBranch
+          taskBranch && repositoryUrl
             ? () =>
                 showCreatePrModal({
                   projectId,
@@ -58,7 +58,7 @@ export const PullRequestsSection = observer(function PullRequestsSection({
             : undefined
         }
         onCreateDraftPr={
-          taskBranch
+          taskBranch && repositoryUrl
             ? () =>
                 showCreatePrModal({
                   projectId,

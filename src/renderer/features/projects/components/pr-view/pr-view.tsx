@@ -30,6 +30,7 @@ import {
 } from '@renderer/lib/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import type { PrSortField } from '@shared/pull-requests';
+import { isGitHubDotComHost } from '@shared/repository-ref';
 import { PrSyncStatusCard } from './pr-sync-status-card';
 import { PrVirtualList } from './pr-virtual-list';
 
@@ -210,7 +211,9 @@ export const PullRequestView = observer(function PullRequestView() {
   const {
     params: { projectId },
   } = useParams('project');
-  const repositoryUrl = getRepositoryStore(projectId)?.pullRequestRepositoryUrl ?? null;
+  const repositoryStore = getRepositoryStore(projectId);
+  const repositoryUrl = repositoryStore?.pullRequestRepositoryUrl ?? null;
+  const repositoryHost = repositoryStore?.providerRepository?.host ?? null;
   const { needsGhAuth } = useGithubContext();
   const { navigate } = useNavigate();
 
@@ -256,7 +259,7 @@ export const PullRequestView = observer(function PullRequestView() {
     );
   }
 
-  if (needsGhAuth) {
+  if (needsGhAuth && repositoryHost && isGitHubDotComHost(repositoryHost)) {
     return (
       <div className="flex h-full min-h-0 w-full flex-col">
         <div className="mt-4 flex w-full flex-col items-center justify-center gap-5 rounded-md border border-dashed border-border p-8">

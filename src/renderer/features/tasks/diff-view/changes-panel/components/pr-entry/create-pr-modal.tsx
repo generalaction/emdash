@@ -63,10 +63,13 @@ export const CreatePrModal = observer(function CreatePrModal({
   const aheadCount = repo?.getBranchDivergence(branchName)?.ahead ?? 0;
   const needsPush = !isOnRemote || aheadCount > 0;
   const projectRemoteName = repo?.baseRemote.name ?? 'origin';
-  const fallbackRepository = parseRepositoryRef(repositoryUrl);
+  const fallbackRepository = useMemo(() => parseRepositoryRef(repositoryUrl), [repositoryUrl]);
   const targetRemotes = useMemo(
-    () => getTargetRemotes(repo?.remotes ?? [], { host: fallbackRepository?.host }),
-    [fallbackRepository?.host, repo?.remotes]
+    () =>
+      fallbackRepository
+        ? getTargetRemotes(repo?.remotes ?? [], { host: fallbackRepository.host })
+        : [],
+    [fallbackRepository, repo?.remotes]
   );
   const targetRemote = resolveCreatePrTargetRemote({
     options: targetRemotes,
@@ -74,7 +77,8 @@ export const CreatePrModal = observer(function CreatePrModal({
     selectedRemoteName: selectedTargetRemoteName,
     fallbackRepositoryUrl: repositoryUrl,
   });
-  const targetRepositoryUrl = targetRemote?.repository.repositoryUrl ?? repositoryUrl;
+  const targetRepositoryUrl =
+    targetRemote?.repository.repositoryUrl ?? fallbackRepository?.repositoryUrl ?? null;
 
   const hasGitHubRemote = Boolean(targetRepositoryUrl);
   const selectedBase =

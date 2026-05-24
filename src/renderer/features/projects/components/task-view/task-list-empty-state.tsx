@@ -5,6 +5,7 @@ import { getRepositoryStore } from '@renderer/features/projects/stores/project-s
 import { useArrowKeyNavigation } from '@renderer/lib/hooks/use-arrow-key-navigation';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { ActionListItem } from '@renderer/lib/ui/action-list-item';
+import { isGitHubDotComHost } from '@shared/repository-ref';
 
 type TaskStrategy = 'from-branch' | 'from-issue' | 'from-pull-request';
 
@@ -24,8 +25,15 @@ export const TaskListEmptyState = observer(function TaskListEmptyState({
 }) {
   const showTaskModal = useShowModal('taskModal');
   const { connectionStatus } = useIntegrationsContext();
-  const supportsPullRequests = getRepositoryStore(projectId)?.pullRequestRepositoryUrl !== null;
-  const hasAnyIntegration = Object.values(connectionStatus).some((s) => s.connected);
+  const repositoryStore = getRepositoryStore(projectId);
+  const supportsPullRequests = Boolean(repositoryStore?.pullRequestRepositoryUrl);
+  const supportsGhesIssues = Boolean(
+    repositoryStore?.issueRepositoryUrl &&
+    repositoryStore.providerRepository?.host &&
+    !isGitHubDotComHost(repositoryStore.providerRepository.host)
+  );
+  const hasAnyIntegration =
+    supportsGhesIssues || Object.values(connectionStatus).some((s) => s.connected);
 
   const actions: TaskAction[] = [
     {
