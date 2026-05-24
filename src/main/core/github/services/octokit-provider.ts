@@ -30,12 +30,6 @@ export async function getOctokit(host: string): Promise<Result<Octokit, GitHubAp
   return ok(octokit);
 }
 
-export async function requireOctokit(host: string): Promise<Octokit> {
-  const result = await getOctokit(host);
-  if (!result.success) throw new GitHubApiAuthErrorException(result.error);
-  return result.data;
-}
-
 export function clearOctokitCache(host?: string): void {
   if (host) {
     cachedOctokits.delete(normalizeRepositoryHost(host));
