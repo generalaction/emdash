@@ -32,6 +32,15 @@ describe('resolveAgentSessionCommandArgs', () => {
     });
   });
 
+  it('keeps resume enabled when provider session ids are unavailable', () => {
+    expect(
+      resolveAgentSessionCommandArgs(makeConversation(), true, { requireProviderSessionId: false })
+    ).toEqual({
+      sessionId: 'conv-1',
+      isResuming: true,
+    });
+  });
+
   it('passes through for non-Droid providers', () => {
     expect(
       resolveAgentSessionCommandArgs(

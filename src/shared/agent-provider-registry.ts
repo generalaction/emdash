@@ -236,6 +236,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     cli: 'droid',
     initialPromptFlag: '',
     resumeFlag: '--resume',
+    /** Value is unused; presence signals that the session ID is passed as an argument to resumeFlag. */
     sessionIdFlag: '--resume',
     sessionIdOnResumeOnly: true,
     icon: 'droid.svg',

@@ -9,7 +9,10 @@ describe('conversation-config', () => {
   it('parses autoApprove and providerSessionId', () => {
     expect(
       parseConversationConfig(
-        JSON.stringify({ autoApprove: true, providerSessionId: '31477a03-961a-4451-82d4-efded56947fc' })
+        JSON.stringify({
+          autoApprove: true,
+          providerSessionId: '31477a03-961a-4451-82d4-efded56947fc',
+        })
       )
     ).toEqual({
       autoApprove: true,
