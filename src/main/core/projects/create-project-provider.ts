@@ -46,11 +46,15 @@ async function createLocalProvider(project: LocalProject): Promise<ProjectProvid
   });
   const worktreeDirectory = await settings.getWorktreeDirectory();
   await fs.promises.mkdir(worktreeDirectory, { recursive: true });
-  const worktreePoolPath = path.join(worktreeDirectory, safePathSegment(project.name, project.id));
-  const resolveWorktreePoolPath = async () => worktreePoolPath;
   const worktreeHost = await LocalWorktreeHost.create({
     allowedRoots: [project.path, worktreeDirectory],
   });
+  const resolveWorktreePoolPath = async () => {
+    const directory = await settings.getWorktreeDirectory();
+    await fs.promises.mkdir(directory, { recursive: true });
+    await worktreeHost.allowRoot(directory);
+    return path.join(directory, safePathSegment(project.name, project.id));
+  };
 
   return buildProvider(
     project.id,

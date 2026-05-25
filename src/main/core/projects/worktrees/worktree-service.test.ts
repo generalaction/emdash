@@ -110,11 +110,9 @@ describe('WorktreeService', () => {
 
     it('uses the current resolved pool path when creating a worktree', async () => {
       await git(['branch', 'task/dynamic-pool'], { cwd: repoDir });
-      const initialPool = path.join(poolDir, 'initial');
       const updatedPool = path.join(poolDir, 'updated');
-      let currentPool = initialPool;
+      let currentPool = path.join(poolDir, 'initial');
       const svc = makeService({
-        worktreePoolPath: initialPool,
         resolveWorktreePoolPath: async () => currentPool,
       });
 

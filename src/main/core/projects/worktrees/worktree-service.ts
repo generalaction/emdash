@@ -44,10 +44,6 @@ export class WorktreeService {
     return result as Promise<T>;
   }
 
-  private async getWorktreePoolPath(): Promise<string> {
-    return this.resolveWorktreePoolPath();
-  }
-
   private async isValidWorktree(worktreePath: string): Promise<boolean> {
     // A linked worktree contains a .git FILE pointing to the main repo's worktrees
     // directory. For local execution we bypass host path-restriction checks and use
@@ -65,7 +61,7 @@ export class WorktreeService {
   }
 
   private async ensureWorktreePoolDirExists(): Promise<void> {
-    await this.host.mkdirAbsolute(await this.getWorktreePoolPath(), { recursive: true });
+    await this.host.mkdirAbsolute(await this.resolveWorktreePoolPath(), { recursive: true });
   }
 
   private async getRemoteCandidates(): Promise<string[]> {
@@ -135,7 +131,7 @@ export class WorktreeService {
   }
 
   async getWorktree(branchName: string): Promise<string | undefined> {
-    const worktreePoolPath = await this.getWorktreePoolPath();
+    const worktreePoolPath = await this.resolveWorktreePoolPath();
     const worktreePath = path.join(worktreePoolPath, branchName);
     if (await this.host.existsAbsolute(worktreePath)) {
       if (await this.isValidWorktree(worktreePath)) return worktreePath;
@@ -176,7 +172,7 @@ export class WorktreeService {
       return ok(checkedOutPath);
     }
 
-    const targetPath = path.join(await this.getWorktreePoolPath(), branchName);
+    const targetPath = path.join(await this.resolveWorktreePoolPath(), branchName);
     if (await this.host.existsAbsolute(targetPath)) {
       if (await this.isValidWorktree(targetPath)) return ok(targetPath);
       await this.host.removeAbsolute(targetPath, { recursive: true }).catch(() => {});
@@ -228,7 +224,7 @@ export class WorktreeService {
       return ok(checkedOutPath);
     }
 
-    const targetPath = path.join(await this.getWorktreePoolPath(), branchName);
+    const targetPath = path.join(await this.resolveWorktreePoolPath(), branchName);
     const remoteCandidates = await this.getRemoteCandidates();
 
     if (await this.host.existsAbsolute(targetPath)) {
