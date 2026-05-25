@@ -11,6 +11,7 @@ import type { PluggableList } from 'unified';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { rpc } from '@renderer/lib/ipc';
 import { cn } from '@renderer/utils/utils';
+import { ContainedImage } from './contained-image';
 import { normalizeLatexDelimiters } from './markdown-latex';
 import { MermaidDiagram } from './mermaid-diagram';
 
@@ -90,17 +91,17 @@ const ResolvedImage: React.FC<{
 
   if (error) {
     return (
-      <span className="my-3 inline-block text-xs text-muted-foreground">
+      <span className="text-muted-foreground my-3 inline-block text-xs">
         [Image not found: {src}]
       </span>
     );
   }
   if (!dataUrl) {
     return (
-      <span className="my-3 inline-block text-xs text-muted-foreground">Loading image...</span>
+      <span className="text-muted-foreground my-3 inline-block text-xs">Loading image...</span>
     );
   }
-  return <img src={dataUrl} alt={alt} className="my-3 max-w-full rounded" />;
+  return <ContainedImage src={dataUrl} alt={alt} className="my-3 max-w-full rounded" />;
 };
 
 type WithChildren = { children?: React.ReactNode };
@@ -138,26 +139,26 @@ function useFullComponents(
   return useMemo(
     () => ({
       h1: ({ children }: WithChildren) => (
-        <h1 className="mb-4 mt-6 border-b border-border pb-2 text-2xl font-semibold text-foreground first:mt-0">
+        <h1 className="mt-6 mb-4 border-b border-border pb-2 text-2xl font-semibold text-foreground first:mt-0">
           {children}
         </h1>
       ),
       h2: ({ children }: WithChildren) => (
-        <h2 className="mb-3 mt-6 border-b border-border pb-2 text-xl font-semibold text-foreground first:mt-0">
+        <h2 className="mt-6 mb-3 border-b border-border pb-2 text-xl font-semibold text-foreground first:mt-0">
           {children}
         </h2>
       ),
       h3: ({ children }: WithChildren) => (
-        <h3 className="mb-2 mt-4 text-lg font-semibold text-foreground">{children}</h3>
+        <h3 className="mt-4 mb-2 text-lg font-semibold text-foreground">{children}</h3>
       ),
       h4: ({ children }: WithChildren) => (
-        <h4 className="mb-2 mt-4 text-base font-semibold text-foreground">{children}</h4>
+        <h4 className="mt-4 mb-2 text-base font-semibold text-foreground">{children}</h4>
       ),
       h5: ({ children }: WithChildren) => (
-        <h5 className="mb-1 mt-3 text-sm font-semibold text-foreground">{children}</h5>
+        <h5 className="mt-3 mb-1 text-sm font-semibold text-foreground">{children}</h5>
       ),
       h6: ({ children }: WithChildren) => (
-        <h6 className="mb-1 mt-3 text-sm font-semibold text-muted-foreground">{children}</h6>
+        <h6 className="text-muted-foreground mt-3 mb-1 text-sm font-semibold">{children}</h6>
       ),
       p: ({ children }: WithChildren) => (
         <p className="mb-3 text-sm leading-relaxed text-foreground">{children}</p>
@@ -187,7 +188,7 @@ function useFullComponents(
           );
         }
 
-        return <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{children}</code>;
+        return <code className="bg-muted rounded px-1.5 py-0.5 text-xs">{children}</code>;
       },
       pre: ({ children }: WithChildren) =>
         isOnlyMermaidDiagramChild(children) ? (
@@ -206,7 +207,7 @@ function useFullComponents(
         return (
           <a
             href={href}
-            className="text-primary underline decoration-primary/50 hover:decoration-primary"
+            className="text-primary decoration-primary/50 hover:decoration-primary underline"
             target="_blank"
             rel="noopener noreferrer"
             onClick={handleClick}
@@ -216,7 +217,7 @@ function useFullComponents(
         );
       },
       blockquote: ({ children }: WithChildren) => (
-        <blockquote className="mb-3 border-l-4 border-border bg-muted/30 py-1 pl-4 text-sm italic text-muted-foreground">
+        <blockquote className="bg-muted/30 text-muted-foreground mb-3 border-l-4 border-border py-1 pl-4 text-sm italic">
           {children}
         </blockquote>
       ),
@@ -226,7 +227,7 @@ function useFullComponents(
         </div>
       ),
       thead: ({ children }: WithChildren) => (
-        <thead className="border-b border-border bg-muted/30">{children}</thead>
+        <thead className="bg-muted/30 border-b border-border">{children}</thead>
       ),
       th: ({ children }: WithChildren) => (
         <th className="px-3 py-2 text-left font-semibold text-foreground">{children}</th>
@@ -240,7 +241,7 @@ function useFullComponents(
         if (!isExternal && resolveImage && src) {
           return <ResolvedImage src={src} alt={alt || ''} resolveImage={resolveImage} />;
         }
-        return <img src={src} alt={alt || ''} className="my-3 max-w-full rounded" />;
+        return <ContainedImage src={src} alt={alt || ''} className="my-3 max-w-full rounded" />;
       },
       strong: ({ children }: WithChildren) => (
         <strong className="font-semibold text-foreground">{children}</strong>
@@ -263,13 +264,13 @@ function useCompactComponents(isDark: boolean) {
   return useMemo(
     () => ({
       h1: ({ children }: WithChildren) => (
-        <h2 className="mb-1 mt-3 text-sm font-semibold text-foreground first:mt-0">{children}</h2>
+        <h2 className="mt-3 mb-1 text-sm font-semibold text-foreground first:mt-0">{children}</h2>
       ),
       h2: ({ children }: WithChildren) => (
-        <h3 className="mb-1 mt-3 text-sm font-semibold text-foreground first:mt-0">{children}</h3>
+        <h3 className="mt-3 mb-1 text-sm font-semibold text-foreground first:mt-0">{children}</h3>
       ),
       h3: ({ children }: WithChildren) => (
-        <h4 className="mb-1 mt-2 text-xs font-semibold text-foreground">{children}</h4>
+        <h4 className="mt-2 mb-1 text-xs font-semibold text-foreground">{children}</h4>
       ),
       p: ({ children }: WithChildren) => <p className="mb-2 leading-relaxed">{children}</p>,
       ul: ({ children }: WithChildren) => (
@@ -286,12 +287,12 @@ function useCompactComponents(isDark: boolean) {
         const { isBlock } = getCodeBlock(children, className);
         if (isBlock) {
           return (
-            <code className="block overflow-x-auto rounded bg-muted/60 p-2 text-[11px]">
+            <code className="bg-muted/60 block overflow-x-auto rounded p-2 text-[11px]">
               {children}
             </code>
           );
         }
-        return <code className="rounded bg-muted/60 px-1 py-0.5 text-[11px]">{children}</code>;
+        return <code className="bg-muted/60 rounded px-1 py-0.5 text-[11px]">{children}</code>;
       },
       pre: ({ children }: WithChildren) =>
         isOnlyMermaidDiagramChild(children) ? (
@@ -322,6 +323,13 @@ function useCompactComponents(isDark: boolean) {
           </a>
         );
       },
+      img: ({ src, alt }: ImgProps) => (
+        <ContainedImage
+          src={src}
+          alt={alt || ''}
+          className="my-2 h-auto max-h-80 max-w-full rounded"
+        />
+      ),
     }),
     [isDark]
   );

@@ -1,12 +1,22 @@
 import { randomUUID } from 'node:crypto';
 import { basename } from 'node:path';
+import { conversationEvents } from '@main/core/conversations/conversation-events';
+import { log } from '@main/lib/logger';
 import { createRPCController } from '@shared/ipc/rpc';
 import { parsePtySessionId } from '@shared/ptySessionId';
 import { err, ok } from '@shared/result';
-import { log } from '@main/lib/logger';
 import { taskManager } from '../tasks/task-manager';
 import { workspaceRegistry } from '../workspaces/workspace-registry';
+import {
+  cleanupExpiredDroppedBlobs,
+  persistClipboardImagePath,
+  persistDroppedBlobBytes,
+} from './persist-dropped-blob';
 import { ptySessionRegistry } from './pty-session-registry';
+
+void cleanupExpiredDroppedBlobs().catch((error) => {
+  log.warn('pty:cleanupExpiredDroppedBlobs failed', { error });
+});
 
 export const ptyController = createRPCController({
   /** Send raw input data to a PTY session. */
@@ -14,6 +24,20 @@ export const ptyController = createRPCController({
     const pty = ptySessionRegistry.get(sessionId);
     if (!pty) return err({ type: 'not_found' as const });
     pty.write(data);
+    if (data.includes('\r')) {
+      const meta = ptySessionRegistry.getMetadata(sessionId);
+      if (meta?.providerId && !meta.isRemote) {
+        const parsed = parsePtySessionId(sessionId);
+        if (parsed) {
+          conversationEvents._emit('conversation:input-submitted', {
+            projectId: parsed.projectId,
+            taskId: parsed.scopeId,
+            conversationId: parsed.leafId,
+            providerId: meta.providerId,
+          });
+        }
+      }
+    }
     return ok();
   },
 
@@ -94,6 +118,35 @@ export const ptyController = createRPCController({
         error: (e as Error)?.message || e,
       });
       return err({ type: 'upload_failed' as const, message: String((e as Error)?.message || e) });
+    }
+  },
+
+  /**
+   * Persist a dropped or pasted in-memory image to a stable temp file.
+   * HEIC/HEIF bytes are converted to PNG so Claude Code can inline them.
+   */
+  persistDroppedBlob: async (args: { bytes: Uint8Array; name?: string; mimeType?: string }) => {
+    try {
+      const path = await persistDroppedBlobBytes(args);
+      return ok({ path });
+    } catch (e: unknown) {
+      log.error('pty:persistDroppedBlob failed', {
+        error: (e as Error)?.message || e,
+      });
+      return err({ type: 'persist_failed' as const, message: String((e as Error)?.message || e) });
+    }
+  },
+
+  /** Persist the OS clipboard image (macOS HEIC paste, screenshots, etc.). */
+  persistClipboardImage: async () => {
+    try {
+      const path = await persistClipboardImagePath();
+      return ok({ path });
+    } catch (e: unknown) {
+      log.error('pty:persistClipboardImage failed', {
+        error: (e as Error)?.message || e,
+      });
+      return err({ type: 'persist_failed' as const, message: String((e as Error)?.message || e) });
     }
   },
 });

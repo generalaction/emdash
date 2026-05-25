@@ -59,6 +59,22 @@ describe('LocalWorktreeHost', () => {
     });
   });
 
+  it('allows adding a new trusted worktree root', async () => {
+    const host = await makeHost();
+    const nextWorktreeDir = path.join(outsideDir, 'next-worktrees');
+    fs.mkdirSync(nextWorktreeDir);
+    const target = path.join(nextWorktreeDir, 'task-1');
+
+    await expect(host.mkdirAbsolute(target, { recursive: true })).rejects.toMatchObject({
+      code: FileSystemErrorCodes.PATH_ESCAPE,
+    });
+
+    await host.allowRoot(nextWorktreeDir);
+    await host.mkdirAbsolute(target, { recursive: true });
+
+    expect(fs.existsSync(target)).toBe(true);
+  });
+
   it('rejects symlink escapes outside the allowed roots', async () => {
     if (process.platform === 'win32') {
       return;

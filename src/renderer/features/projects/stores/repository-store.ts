@@ -1,4 +1,6 @@
 import { computed, makeObservable, reaction } from 'mobx';
+import { events, rpc } from '@renderer/lib/ipc';
+import { Resource } from '@renderer/lib/stores/resource';
 import { gitRefChangedChannel, type GitRefChange } from '@shared/events/gitEvents';
 import type {
   Branch,
@@ -14,14 +16,14 @@ import {
   resolveDefaultBranch,
   type ConfiguredRemotes,
 } from '@shared/git-utils';
-import { parseGitHubRepository } from '@shared/github-repository';
-import { events, rpc } from '@renderer/lib/ipc';
-import { Resource } from '@renderer/lib/stores/resource';
+import type { ProviderRepository, ProviderRepositoryResult } from '@shared/provider-repository';
+import { parseRepositoryRef } from '@shared/repository-ref';
 import type { ProjectSettingsStore } from './project-settings-store';
 
 export class RepositoryStore {
   readonly localData: Resource<LocalBranchesPayload, GitRefChange>;
   readonly remoteData: Resource<RemoteBranchesPayload, GitRefChange>;
+  readonly providerRepositoryInfo: Resource<ProviderRepositoryResult, GitRefChange>;
 
   private _settingsDisposer: (() => void) | null = null;
 
@@ -40,7 +42,7 @@ export class RepositoryStore {
           subscribe: (handler) =>
             events.on(gitRefChangedChannel, (p) => {
               if (p.projectId !== projectId) return;
-              if (workspaceId ? p.workspaceId !== workspaceId : p.workspaceId !== undefined) return;
+              if (p.workspaceId !== undefined && p.workspaceId !== workspaceId) return;
               if (p.kind === 'local-refs') handler(p);
             }),
           onEvent: 'reload',
@@ -58,8 +60,26 @@ export class RepositoryStore {
           subscribe: (handler) =>
             events.on(gitRefChangedChannel, (p) => {
               if (p.projectId !== projectId) return;
-              if (workspaceId ? p.workspaceId !== workspaceId : p.workspaceId !== undefined) return;
+              if (p.workspaceId !== undefined && p.workspaceId !== workspaceId) return;
               if (p.kind === 'remote-refs' || p.kind === 'config') handler(p);
+            }),
+          onEvent: 'reload',
+          debounceMs: 300,
+        },
+      ]
+    );
+
+    this.providerRepositoryInfo = new Resource<ProviderRepositoryResult, GitRefChange>(
+      () => rpc.repository.resolveProviderRepository(projectId),
+      [
+        { kind: 'demand' },
+        {
+          kind: 'event',
+          subscribe: (handler) =>
+            events.on(gitRefChangedChannel, (p) => {
+              if (p.projectId !== projectId) return;
+              if (workspaceId ? p.workspaceId !== workspaceId : p.workspaceId !== undefined) return;
+              if (p.kind === 'config') handler(p);
             }),
           onEvent: 'reload',
           debounceMs: 300,
@@ -70,6 +90,7 @@ export class RepositoryStore {
     // Activate event strategies — demand is wired in Resource constructor, event strategies are not.
     this.localData.start();
     this.remoteData.start();
+    this.providerRepositoryInfo.start();
 
     // Invalidate remote data when settings that affect remote resolution change.
     this._settingsDisposer = reaction(
@@ -78,7 +99,10 @@ export class RepositoryStore {
         settingsStore.settings?.pushRemote,
         settingsStore.settings?.defaultBranch,
       ],
-      () => this.remoteData.invalidate()
+      () => {
+        this.remoteData.invalidate();
+        this.providerRepositoryInfo.invalidate();
+      }
     );
 
     makeObservable<this, 'configuredRemotes' | 'defaultBranchPreference'>(this, {
@@ -94,8 +118,10 @@ export class RepositoryStore {
       defaultBranch: computed,
       remotes: computed,
       loading: computed,
-      isGitHubRemote: computed,
-      repositoryUrl: computed,
+      canonicalRepositoryUrl: computed,
+      providerRepository: computed,
+      pullRequestRepositoryUrl: computed,
+      issueRepositoryUrl: computed,
       pushRepositoryUrl: computed,
     });
   }
@@ -145,24 +171,33 @@ export class RepositoryStore {
     return this.remoteData.data?.remotes ?? [];
   }
 
-  /** True when the base remote points to a GitHub.com repository. */
-  get isGitHubRemote(): boolean {
+  /**
+   * The normalised HTTPS repository URL for the base remote
+   * (e.g. `https://github.com/owner/repo`), or `null` if not parseable.
+   */
+  get canonicalRepositoryUrl(): string | null {
     const url = this.baseRemote.url;
-    return parseGitHubRepository(url) !== null;
+    return parseRepositoryRef(url)?.repositoryUrl ?? null;
   }
 
-  /**
-   * The normalised HTTPS GitHub URL for the base remote
-   * (e.g. `https://github.com/owner/repo`), or `null` if not a GitHub remote.
-   */
-  get repositoryUrl(): string | null {
-    const url = this.baseRemote.url;
-    return parseGitHubRepository(url)?.repositoryUrl ?? null;
+  get providerRepository(): ProviderRepository | null {
+    const result = this.providerRepositoryInfo.data;
+    return result?.success ? result.data : null;
+  }
+
+  get pullRequestRepositoryUrl(): string | null {
+    const repository = this.providerRepository;
+    return repository?.capabilities.pullRequests ? repository.repositoryUrl : null;
+  }
+
+  get issueRepositoryUrl(): string | null {
+    const repository = this.providerRepository;
+    return repository?.capabilities.issues ? repository.repositoryUrl : null;
   }
 
   get pushRepositoryUrl(): string | null {
     const url = this.pushRemote.url;
-    return parseGitHubRepository(url)?.repositoryUrl ?? null;
+    return parseRepositoryRef(url)?.repositoryUrl ?? null;
   }
 
   private get defaultBranchPreference(): Branch | undefined {
@@ -212,17 +247,20 @@ export class RepositoryStore {
 
   refreshRemote(): void {
     this.remoteData.invalidate();
+    this.providerRepositoryInfo.invalidate();
   }
 
   /** Refresh both — for call-sites that don't know which half changed. */
   refresh(): void {
     this.localData.invalidate();
     this.remoteData.invalidate();
+    this.providerRepositoryInfo.invalidate();
   }
 
   dispose(): void {
     this.localData.dispose();
     this.remoteData.dispose();
+    this.providerRepositoryInfo.dispose();
     this._settingsDisposer?.();
     this._settingsDisposer = null;
   }

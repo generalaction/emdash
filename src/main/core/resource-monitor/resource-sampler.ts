@@ -1,6 +1,10 @@
 import os from 'node:os';
 import { app } from 'electron';
 import pidusage from 'pidusage';
+import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
+import { appSettingsService } from '@main/core/settings/settings-service';
+import { events } from '@main/lib/events';
+import { log } from '@main/lib/logger';
 import { resourceSnapshotChannel } from '@shared/events/resourceEvents';
 import { parsePtySessionId } from '@shared/ptySessionId';
 import type {
@@ -9,10 +13,6 @@ import type {
   ResourcePtyEntry,
   ResourceSnapshot,
 } from '@shared/resource-monitor';
-import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
-import { appSettingsService } from '@main/core/settings/settings-service';
-import { events } from '@main/lib/events';
-import { log } from '@main/lib/logger';
 
 const SAMPLE_INTERVAL_MS = 1500;
 const CPU_COUNT = os.cpus().length;
@@ -114,6 +114,8 @@ function sampleAppUsage(): { usage: ResourceAppUsage; processes: ResourceAppProc
 }
 
 let timer: NodeJS.Timeout | null = null;
+const openSubscriptions = new Set<string>();
+const latestSequenceByClient = new Map<string, number>();
 
 export function startResourceSampler(): void {
   if (timer) return;
@@ -141,10 +143,28 @@ export function stopResourceSampler(): void {
   }
 }
 
+export function setResourceMonitorOpen(
+  clientId: string,
+  subscriptionId: string,
+  open: boolean,
+  sequence: number
+): void {
+  const latestSequence = latestSequenceByClient.get(clientId) ?? 0;
+  if (sequence <= latestSequence) return;
+  latestSequenceByClient.set(clientId, sequence);
+  if (open) {
+    openSubscriptions.add(subscriptionId);
+  } else {
+    openSubscriptions.delete(subscriptionId);
+    latestSequenceByClient.delete(clientId);
+  }
+  void reconcileResourceSampler();
+}
+
 export async function reconcileResourceSampler(): Promise<void> {
   try {
     const { enabled } = await appSettingsService.get('resourceMonitor');
-    if (enabled) startResourceSampler();
+    if (enabled && openSubscriptions.size > 0) startResourceSampler();
     else stopResourceSampler();
   } catch (err) {
     log.warn('resource-sampler: failed to read settings', err);

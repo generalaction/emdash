@@ -1,6 +1,5 @@
 import { Minus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { commitRef, HEAD_REF, type GitChange } from '@shared/git';
 import {
   useTaskViewContext,
   useWorkspace,
@@ -9,10 +8,13 @@ import {
 } from '@renderer/features/tasks/task-view-context';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
+import { commitRef, type GitChange, HEAD_REF } from '@shared/git';
 import { ActionCard } from './components/action-card';
+import { ChangesListOrTree } from './components/changes-list-or-tree';
+import { ChangesViewModeToggle } from './components/changes-view-mode-toggle';
 import { CommitCard } from './components/commit-card';
 import { SectionHeader } from './components/section-header';
-import { VirtualizedChangesList } from './components/virtualized-changes-list';
+import { useChangesViewMode } from './hooks/use-changes-view-mode';
 import { usePrefetchDiffModels } from './hooks/use-prefetch-diff-models';
 
 export const StagedSection = observer(function StagedSection() {
@@ -35,18 +37,30 @@ export const StagedSection = observer(function StagedSection() {
 
   const prefetch = usePrefetchDiffModels(projectId, workspaceId, 'staged', HEAD_REF);
 
+  const { mode: viewMode, setMode: setViewMode } = useChangesViewMode('staged');
+
   if (!diffView || !changesView) return null;
 
   const handleSelectChange = (change: GitChange) => {
     taskView.tabManager.openDiffPreview(
-      { path: change.path, type: 'git', group: 'staged', originalRef: commitRef('HEAD') },
+      {
+        path: change.path,
+        type: 'git',
+        group: 'staged',
+        originalRef: commitRef('HEAD'),
+      },
       change.status
     );
   };
 
   const handleDoubleClickChange = (change: GitChange) => {
     taskView.tabManager.openDiff(
-      { path: change.path, type: 'git', group: 'staged', originalRef: commitRef('HEAD') },
+      {
+        path: change.path,
+        type: 'git',
+        group: 'staged',
+        originalRef: commitRef('HEAD'),
+      },
       change.status
     );
   };
@@ -68,7 +82,7 @@ export const StagedSection = observer(function StagedSection() {
         count={changes.length}
         selectionState={changesView.stagedSelectionState}
         onToggleAll={() => changesView.toggleAllStaged()}
-        actions={undefined}
+        actions={<ChangesViewModeToggle value={viewMode} onChange={setViewMode} label="Staged" />}
         collapsed={!changesView.expandedSections.staged}
         onToggleCollapsed={() => changesView.toggleExpanded('staged')}
       />
@@ -108,7 +122,8 @@ export const StagedSection = observer(function StagedSection() {
           />
         )}
         <div className="min-h-0 flex-1 px-1">
-          <VirtualizedChangesList
+          <ChangesListOrTree
+            viewMode={viewMode}
             changes={changes}
             isSelected={(path) => changesView.stagedSelection.has(path)}
             onToggleSelect={(path) => changesView.toggleStagedItem(path)}

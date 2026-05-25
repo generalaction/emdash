@@ -1,18 +1,17 @@
 import { eq } from 'drizzle-orm';
-import { type Issue } from '@shared/tasks';
-import { taskEvents } from '@main/core/tasks/task-events';
 import { mapTaskRowToTask } from '@main/core/tasks/utils/utils';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
 import { telemetryService } from '@main/lib/telemetry';
+import type { Issue, Task } from '@shared/tasks';
 
-export async function updateLinkedIssue(taskId: string, issue?: Issue) {
+export async function updateLinkedIssue(taskId: string, issue?: Issue): Promise<Task | undefined> {
   const [existingRow] = await db
     .select({ id: tasks.id, projectId: tasks.projectId })
     .from(tasks)
     .where(eq(tasks.id, taskId))
     .limit(1);
-  if (!existingRow) return;
+  if (!existingRow) return undefined;
 
   const [updatedRow] = await db
     .update(tasks)
@@ -22,10 +21,6 @@ export async function updateLinkedIssue(taskId: string, issue?: Issue) {
     .where(eq(tasks.id, taskId))
     .returning();
 
-  if (updatedRow) {
-    taskEvents._emit('task:updated', mapTaskRowToTask(updatedRow));
-  }
-
   if (issue) {
     telemetryService.capture('issue_linked_to_task', {
       provider: issue.provider,
@@ -33,4 +28,6 @@ export async function updateLinkedIssue(taskId: string, issue?: Issue) {
       task_id: existingRow.id,
     });
   }
+
+  return updatedRow ? mapTaskRowToTask(updatedRow) : undefined;
 }

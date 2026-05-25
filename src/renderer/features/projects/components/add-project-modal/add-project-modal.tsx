@@ -363,19 +363,23 @@ export const AddProjectModal = observer(function AddProjectModal({
             }}
           >
             <Tooltip>
-              <TooltipTrigger>
-                <ToggleGroupItem value="local" aria-label="Local" className="rounded-l-md">
-                  <Home className="size-3.5" />
-                </ToggleGroupItem>
-              </TooltipTrigger>
+              <TooltipTrigger
+                render={
+                  <ToggleGroupItem value="local" aria-label="Local">
+                    <Home className="size-3.5" />
+                  </ToggleGroupItem>
+                }
+              />
               <TooltipContent>Local</TooltipContent>
             </Tooltip>
             <Tooltip>
-              <TooltipTrigger>
-                <ToggleGroupItem value="ssh" aria-label="SSH" className="rounded-r-md">
-                  <Server className="size-3.5" />
-                </ToggleGroupItem>
-              </TooltipTrigger>
+              <TooltipTrigger
+                render={
+                  <ToggleGroupItem value="ssh" aria-label="SSH">
+                    <Server className="size-3.5" />
+                  </ToggleGroupItem>
+                }
+              />
               <TooltipContent>SSH</TooltipContent>
             </Tooltip>
           </ToggleGroup>

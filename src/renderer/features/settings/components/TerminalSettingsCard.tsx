@@ -1,10 +1,5 @@
 import { ChevronsUpDownIcon, LoaderCircle, Minus, Plus } from 'lucide-react';
 import React, { useCallback, useMemo, useState } from 'react';
-import {
-  TERMINAL_FONT_SIZE_DEFAULT,
-  TERMINAL_FONT_SIZE_MAX,
-  TERMINAL_FONT_SIZE_MIN,
-} from '@shared/terminal-settings';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { useInstalledFonts } from '@renderer/features/settings/use-installed-fonts';
 import { Button } from '@renderer/lib/ui/button';
@@ -22,6 +17,11 @@ import {
   ComboboxValue,
 } from '@renderer/lib/ui/combobox';
 import { Switch } from '@renderer/lib/ui/switch';
+import {
+  TERMINAL_FONT_SIZE_DEFAULT,
+  TERMINAL_FONT_SIZE_MAX,
+  TERMINAL_FONT_SIZE_MIN,
+} from '@shared/terminal-settings';
 import { SettingRow } from './SettingRow';
 
 type FontOption = {
@@ -46,9 +46,11 @@ const POPULAR_FONTS = [
   'MesloLGS NF',
 ];
 
+const DEFAULT_FONT_FAMILY = 'Menlo';
+
 const DEFAULT_OPTION: FontOption = {
   value: '',
-  label: 'Default (Menlo)',
+  label: `Default (${DEFAULT_FONT_FAMILY})`,
 };
 
 const clampFontSize = (size: number) =>
@@ -203,7 +205,13 @@ const TerminalSettingsCard: React.FC = () => {
                       <ComboboxCollection>
                         {(item: FontOption) => (
                           <ComboboxItem key={item.value || '__default__'} value={item}>
-                            {item.label}
+                            <span
+                              style={{
+                                fontFamily: item.value ? `"${item.value}"` : DEFAULT_FONT_FAMILY,
+                              }}
+                            >
+                              {item.label}
+                            </span>
                           </ComboboxItem>
                         )}
                       </ComboboxCollection>
@@ -240,9 +248,9 @@ const TerminalSettingsCard: React.FC = () => {
             >
               <Minus />
             </Button>
-            <div className="flex min-w-14 items-baseline justify-center gap-1 text-sm tabular-nums text-foreground">
+            <div className="flex min-w-14 items-baseline justify-center gap-1 text-sm text-foreground tabular-nums">
               <span>{fontSize}</span>
-              <span className="text-xs text-muted-foreground">px</span>
+              <span className="text-muted-foreground text-xs">px</span>
             </div>
             <Button
               type="button"

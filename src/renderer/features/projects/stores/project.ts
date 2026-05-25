@@ -1,8 +1,8 @@
 import { makeAutoObservable, observable } from 'mobx';
-import type { LocalProject, SshProject } from '@shared/projects';
-import type { ProjectViewSnapshot } from '@shared/view-state';
 import { TaskManagerStore } from '@renderer/features/tasks/stores/task-manager';
 import { snapshotRegistry } from '@renderer/lib/stores/snapshot-registry';
+import type { LocalProject, SshProject } from '@shared/projects';
+import type { ProjectViewSnapshot } from '@shared/view-state';
 import { PrSyncStore } from './pr-sync-store';
 import { ProjectSettingsStore } from './project-settings-store';
 import { ProjectViewStore } from './project-view';

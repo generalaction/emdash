@@ -36,6 +36,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@renderer/lib/ui/context-menu';
+import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 import { SidebarItemMiniButton, SidebarMenuButton, SidebarMenuRow } from './sidebar-primitives';
@@ -119,7 +120,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
           onMouseDown={(e) => e.preventDefault()}
           onClick={() => navigate('project', { projectId })}
         >
-          <div className="flex items-center gap-1 flex-1 min-w-0">
+          <div className="flex min-w-0 flex-1 items-center gap-1">
             {project.state === 'unregistered' ? (
               renderSpinnerWithTooltip()
             ) : (
@@ -131,7 +132,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
                   sidebarStore.toggleProjectExpanded(projectId);
                 }}
               >
-                <ProjectIcon className="absolute h-4 w-4 transition-opacity duration-150 opacity-100 group-hover/row:opacity-0" />
+                <ProjectIcon className="absolute h-4 w-4 opacity-100 transition-opacity duration-150 group-hover/row:opacity-0" />
                 <ChevronRight
                   className={cn(
                     'absolute h-4 w-4 transition-all duration-150 opacity-0 group-hover/row:opacity-100',
@@ -148,12 +149,12 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
               )}
             >
               {isSshProject ? (
-                <span className="min-w-0 flex items-center gap-2">
+                <span className="flex min-w-0 items-center gap-2">
                   <span className="truncate">{project.name}</span>
                   <ConnectionStatusDot state={sshConnectionState} />
                 </span>
               ) : (
-                <span className="min-w-0 flex items-center gap-1.5">
+                <span className="flex min-w-0 items-center gap-1.5">
                   <span className="truncate">{project.name}</span>
                   {projectViewKind(project) === 'path_not_found' && (
                     <Tooltip>
@@ -167,18 +168,31 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
               )}
             </span>
           </div>
-          <SidebarItemMiniButton
-            type="button"
-            className={'opacity-0 group-hover/row:opacity-100 transition-opacity duration-150'}
-            onPointerEnter={() => prefetchRepository()}
-            onClick={(e) => {
-              e.stopPropagation();
-              showCreateTaskModal({ projectId });
-            }}
-            disabled={project.state === 'unregistered'}
-          >
-            <Plus className="h-4 w-4" />
-          </SidebarItemMiniButton>
+          <Tooltip>
+            <TooltipTrigger
+              className="h-6"
+              render={
+                <SidebarItemMiniButton
+                  type="button"
+                  className={
+                    'opacity-0 transition-opacity duration-150 group-hover/row:opacity-100'
+                  }
+                  onPointerEnter={() => prefetchRepository()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    showCreateTaskModal({ projectId });
+                  }}
+                  disabled={project.state === 'unregistered'}
+                >
+                  <Plus className="h-4 w-4" />
+                </SidebarItemMiniButton>
+              }
+            />
+            <TooltipContent>
+              New Task
+              <BoundShortcut settingsKey="newTask" variant="badge" />
+            </TooltipContent>
+          </Tooltip>
         </SidebarMenuRow>
       </ContextMenuTrigger>
       <ContextMenuContent>

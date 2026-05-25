@@ -1,9 +1,9 @@
 import { ExternalLink } from 'lucide-react';
-import { getPrNumber, type PullRequest } from '@shared/pull-requests';
 import { PrMergeLine } from '@renderer/lib/components/pr-merge-line';
 import { useRefreshOpenPullRequest } from '@renderer/lib/hooks/use-refresh-open-pull-request';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
 import { cn } from '@renderer/utils/utils';
+import { getPrNumber, type PullRequest } from '@shared/pull-requests';
 import { rpc } from '../ipc';
 import { Button } from '../ui/button';
 import { RelativeTime } from '../ui/relative-time';
@@ -32,15 +32,15 @@ export function PrBadge({ variant = 'default', pr, className, hoverDelay }: PrBa
               className
             )}
           >
-            <StatusIcon className="size-3" status={pr.status} disableTooltip />
+            <StatusIcon className="size-3" pr={pr} disableTooltip />
             <PrNumberBadge number={prNumber ?? 0} className="text-[10px]" />
-            <span className="text-xs text-foreground-muted truncate">{pr.title}</span>
+            <span className="truncate text-xs text-foreground-muted">{pr.title}</span>
           </div>
         );
       case 'compact':
         return (
           <div className={cn('px-1 flex items-center justify-center', className)}>
-            <StatusIcon className="size-3" status={pr.status} disableTooltip />
+            <StatusIcon className="size-3" pr={pr} disableTooltip />
           </div>
         );
     }
@@ -51,12 +51,12 @@ export function PrBadge({ variant = 'default', pr, className, hoverDelay }: PrBa
       <PopoverTrigger openOnHover delay={hoverDelay}>
         {renderBadge()}
       </PopoverTrigger>
-      <PopoverContent>
+      <PopoverContent className="w-auto max-w-sm min-w-72">
         <div className="flex flex-col gap-2">
-          <div className="flex items-center gap-2 justify-between no-wrap">
-            <div className="flex items-center gap-2  min-w-0">
-              <StatusIcon status={pr.status} className="size-3" />
-              <span className="text-sm text-foreground leading-snug truncate min-w-0">
+          <div className="no-wrap flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <StatusIcon pr={pr} className="size-3" />
+              <span className="min-w-0 truncate text-sm leading-snug text-foreground">
                 {pr.title}
               </span>
               <PrNumberBadge number={prNumber ?? 0} />

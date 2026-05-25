@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { type TaskLifecycleStatus } from '@shared/tasks';
 import {
   Combobox,
   ComboboxCollection,
@@ -10,6 +9,7 @@ import {
   ComboboxTrigger,
 } from '@renderer/lib/ui/combobox';
 import { cn } from '@renderer/utils/utils';
+import { type TaskLifecycleStatus } from '@shared/tasks';
 
 type StatusOption = { value: TaskLifecycleStatus; label: string };
 
@@ -129,7 +129,7 @@ export function LifecycleStatusIndicator({
       autoHighlight
     >
       <ComboboxTrigger
-        className="w-6 h-6 flex items-center justify-center rounded-md hover:bg-background-tertiary-2 group-data-[active=true]/row:hover:bg-background-tertiary-3"
+        className="flex h-6 w-6 items-center justify-center rounded-md hover:bg-background-tertiary-2 group-data-[active=true]/row:hover:bg-background-tertiary-3"
         onMouseDown={(e) => e.preventDefault()}
       >
         <StatusIcon status={lifecycleStatus} />

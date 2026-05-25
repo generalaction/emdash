@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import { log } from '@renderer/utils/logger';
+import { FEEDBACK_EMAIL_SCHEMA } from './schemas/feedback-email';
 
 const DISCORD_WEBHOOK_URL =
   'https://discord.com/api/webhooks/1473390363388416230/eRIo1UhylapH94KpqUUp5PDzkLhjBvcnjjyE_JezfHiAyfN3QEbRyEIJaSl8QQUz7Mak';
@@ -66,10 +67,15 @@ export function useFeedbackSubmit({ githubUser, appVersion, onSuccess }: Feedbac
   const [contactEmail, setContactEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [contactEmailError, setContactEmailError] = useState<string | null>(null);
   const { toast } = useToast();
 
   const clearError = useCallback(() => {
     setErrorMessage(null);
+  }, []);
+
+  const clearContactEmailError = useCallback(() => {
+    setContactEmailError(null);
   }, []);
 
   const reset = useCallback(() => {
@@ -77,22 +83,31 @@ export function useFeedbackSubmit({ githubUser, appVersion, onSuccess }: Feedbac
     setContactEmail('');
     setSubmitting(false);
     setErrorMessage(null);
+    setContactEmailError(null);
   }, []);
 
   const handleSubmit = useCallback(
     async (attachments: File[]) => {
       const trimmedFeedback = feedbackDetails.trim();
+      const trimmedContactEmail = contactEmail.trim();
       if (!trimmedFeedback) {
         setErrorMessage('Please enter some feedback before sending.');
         return;
       }
 
+      const emailValidation = FEEDBACK_EMAIL_SCHEMA.safeParse(trimmedContactEmail);
+      if (!emailValidation.success) {
+        setContactEmailError(emailValidation.error.issues[0]?.message ?? 'Invalid email address.');
+        return;
+      }
+
       setSubmitting(true);
       setErrorMessage(null);
+      setContactEmailError(null);
 
       const content = buildFeedbackContent({
         feedback: trimmedFeedback,
-        contactEmail,
+        contactEmail: trimmedContactEmail,
         githubUser,
         appVersion,
       });
@@ -142,9 +157,11 @@ export function useFeedbackSubmit({ githubUser, appVersion, onSuccess }: Feedbac
     setContactEmail,
     submitting,
     errorMessage,
+    contactEmailError,
     clearError,
+    clearContactEmailError,
     reset,
     handleSubmit,
-    canSubmit: feedbackDetails.trim().length > 0 && !submitting,
+    canSubmit: feedbackDetails.trim().length > 0 && !submitting && !contactEmailError,
   };
 }

@@ -46,10 +46,10 @@ export const TaskGitDiffStats = observer(function TaskGitDiffStats({
       )}
       aria-label={`${linesAdded} lines added, ${linesDeleted} lines removed`}
     >
-      <span className="min-w-[3ch] inline-block text-right text-foreground-diff-added">
+      <span className="inline-block min-w-[3ch] text-right text-foreground-diff-added">
         {linesAdded > 0 ? `+${formatDiffLineCount(linesAdded)}` : null}
       </span>
-      <span className="min-w-[3ch] inline-block text-right text-foreground-diff-deleted">
+      <span className="inline-block min-w-[3ch] text-right text-foreground-diff-deleted">
         {linesDeleted > 0 ? `-${formatDiffLineCount(linesDeleted)}` : null}
       </span>
     </span>

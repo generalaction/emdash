@@ -1,14 +1,14 @@
+import { db, sqlite } from '@main/db/client';
+import { conversations, projects, tasks } from '@main/db/schema';
+import { log } from '@main/lib/logger';
 import { ALL_COMMAND_DEFS } from '@shared/commands';
 import type { Conversation } from '@shared/conversations';
 import type { Project } from '@shared/projects';
 import type { CommandPaletteQuery, SearchItem, SearchItemKind } from '@shared/search';
 import type { Task } from '@shared/tasks';
-import { db, sqlite } from '@main/db/client';
-import { conversations, projects, tasks } from '@main/db/schema';
-import { log } from '@main/lib/logger';
 import { conversationEvents } from '../conversations/conversation-events';
 import { projectEvents } from '../projects/project-events';
-import { taskEvents } from '../tasks/task-events';
+import { taskService } from '../tasks/task-service';
 import { workspaceFileIndexService } from './workspace-file-index-service';
 
 type FtsRow = {
@@ -35,10 +35,10 @@ type RecentConversationRow = {
 
 class SearchService {
   initialize(): void {
-    taskEvents.on('task:created', (task) => this.upsertTask(task));
-    taskEvents.on('task:updated', (task) => this.upsertTask(task));
-    taskEvents.on('task:archived', (taskId) => this.removeByType('task', taskId));
-    taskEvents.on('task:deleted', (taskId) => this.removeByType('task', taskId));
+    taskService.on('task:created', (task) => this.upsertTask(task));
+    taskService.on('task:updated', (task) => this.upsertTask(task));
+    taskService.on('task:archived', (taskId) => this.removeByType('task', taskId));
+    taskService.on('task:deleted', (taskId) => this.removeByType('task', taskId));
 
     projectEvents.on('project:created', (project) => this.upsertProject(project));
     projectEvents.on('project:deleted', (projectId) => this.removeByType('project', projectId));

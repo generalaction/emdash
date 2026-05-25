@@ -1,11 +1,11 @@
 import { ExternalLink, Link2, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { forwardRef, useCallback, useRef, useState } from 'react';
-import type { Issue } from '@shared/tasks';
 import {
   ISSUE_PROVIDER_META,
   ISSUE_PROVIDER_ORDER,
 } from '@renderer/features/integrations/issue-provider-meta';
+import { PROVIDER_ICON_COMPONENTS } from '@renderer/features/integrations/provider-icons';
 import { rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { Badge } from '@renderer/lib/ui/badge';
@@ -23,6 +23,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/ui/select';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
+import type { Issue } from '@shared/tasks';
 import { getLinkedIssueMap, type LinkedIssueInfo } from './use-linked-issue-urls';
 import { useIssueSearch } from './useIssueSearch';
 
@@ -35,16 +36,24 @@ function getStatusColorClass(status?: string) {
     s.includes('resolved') ||
     s.includes('completed')
   )
-    return 'bg-emerald-500 ';
-  if (s.includes('progress') || s.includes('review') || s.includes('open')) return 'bg-yellow-500';
+    return 'bg-foreground-success';
+  if (s.includes('progress') || s.includes('review') || s.includes('open'))
+    return 'bg-foreground-warning';
   if (s.includes('blocked') || s.includes('cancelled') || s.includes('canceled'))
-    return 'bg-red-500';
-  return 'bg-gray-300';
+    return 'bg-foreground-error';
+  return 'bg-foreground-passive';
 }
 
-export function IssueIdentifier({ identifier }: { identifier: string }) {
+export function IssueIdentifier({
+  identifier,
+  provider,
+}: {
+  identifier: string;
+  provider?: Issue['provider'];
+}) {
+  if (provider === 'asana') return null;
   return (
-    <span className="shrink-0 whitespace-nowrap font-medium text-muted-foreground group-hover:text-muted-foreground text-xs font-mono">
+    <span className="text-muted-foreground group-hover:text-muted-foreground shrink-0 font-mono text-xs font-medium whitespace-nowrap">
       {identifier}
     </span>
   );
@@ -71,10 +80,20 @@ export function ProviderLogo({
   provider: Issue['provider'];
   className?: string;
 }) {
-  const meta = ISSUE_PROVIDER_META[provider];
-  const src = meta.logo;
-  const alt = meta.displayName;
-  return <img src={src} alt={alt} className={className ?? 'h-3.5 w-3.5'} />;
+  const Icon = PROVIDER_ICON_COMPONENTS[provider];
+
+  return (
+    <span
+      role="img"
+      aria-label={ISSUE_PROVIDER_META[provider].displayName}
+      className={cn(
+        'inline-flex shrink-0 items-center justify-center overflow-visible align-middle leading-none',
+        className ?? 'h-3.5 w-3.5'
+      )}
+    >
+      <Icon className="size-[90%]" />
+    </span>
+  );
 }
 
 export function LinkedIssueIndicator({ linkedTo }: { linkedTo: LinkedIssueInfo }) {
@@ -94,12 +113,12 @@ export function LinkedIssueIndicator({ linkedTo }: { linkedTo: LinkedIssueInfo }
 
 export function IssueRow({ issue, linkedTo }: { issue: Issue; linkedTo?: LinkedIssueInfo }) {
   return (
-    <span className="flex min-w-0 items-center gap-2 w-full">
+    <span className="flex w-full min-w-0 items-center gap-2">
       <Tooltip>
         <TooltipTrigger render={<StatusDot status={issue.status} />} />
         <TooltipContent>{issue.status}</TooltipContent>
       </Tooltip>
-      <IssueIdentifier identifier={issue.identifier} />
+      <IssueIdentifier identifier={issue.identifier} provider={issue.provider} />
       {issue.title ? <span className="truncate text-foreground">{issue.title}</span> : null}
       {linkedTo ? <LinkedIssueIndicator linkedTo={linkedTo} /> : null}
     </span>
@@ -167,8 +186,8 @@ export const IssueSelector = observer(function IssueSelector({
         }}
       >
         <SelectTrigger
-          showChevron={false}
-          className="h-6 gap-0 border-none bg-transparent px-1.5 shadow-none focus:ring-0"
+          aria-label="Select issue provider"
+          className="h-6 gap-1 border-none bg-transparent px-1.5 shadow-none focus:ring-0"
         >
           <ProviderLogo provider={issueProvider} className="h-3.5 w-3.5" />
         </SelectTrigger>
@@ -189,7 +208,7 @@ export const IssueSelector = observer(function IssueSelector({
   ) : null;
 
   return (
-    <div className="min-w-0 max-w-full overflow-hidden">
+    <div className="max-w-full min-w-0 overflow-hidden">
       {hasAnyIntegration ? (
         <Combobox
           autoHighlight
@@ -220,7 +239,7 @@ export const IssueSelector = observer(function IssueSelector({
               >
                 <ComboboxValue
                   placeholder={
-                    <div className="text-foreground-passive justify-center w-full text-sm text-center flex items-center gap-1 h-6">
+                    <div className="flex h-6 w-full items-center justify-center gap-1 text-center text-sm text-foreground-passive">
                       Click to link an issue
                     </div>
                   }
@@ -267,12 +286,12 @@ export const IssueSelector = observer(function IssueSelector({
 
 export function SelectedIssueValue({ issue }: { issue: Issue }) {
   return (
-    <div className="flex flex-col gap-2 w-full">
-      <div className="flex items-center justify-between w-full ">
+    <div className="flex w-full flex-col gap-2">
+      <div className="flex w-full items-center justify-between">
         <div className="flex items-center gap-2">
           <ProviderLogo provider={issue.provider} className="h-3.5 w-3.5" />
           <span>{`${ISSUE_PROVIDER_META[issue.provider].displayName} issue`}</span>
-          <IssueIdentifier identifier={issue.identifier} />
+          <IssueIdentifier identifier={issue.identifier} provider={issue.provider} />
         </div>
         <Button
           variant="ghost"
@@ -284,10 +303,10 @@ export function SelectedIssueValue({ issue }: { issue: Issue }) {
         </Button>
       </div>
       {issue.title ? (
-        <div className="min-w-0 truncate text-muted-foreground">{issue.title}</div>
+        <div className="text-muted-foreground min-w-0 truncate">{issue.title}</div>
       ) : null}
-      <div className="flex items-center justify-between gap-2 relative">
-        <Badge variant="outline" className="flex items-center gap-2 rounded-md font-normal text-xs">
+      <div className="relative flex items-center justify-between gap-2">
+        <Badge variant="outline" className="flex items-center gap-2 rounded-md text-xs font-normal">
           <StatusDot status={issue.status} />
           {issue.status}
         </Badge>
@@ -300,18 +319,18 @@ export function ConnectIssueIntegrationPlaceholder() {
   const { navigate } = useNavigate();
 
   return (
-    <div className="flex flex-col gap-5 w-full border border-border border-dashed items-center justify-center rounded-md p-8">
+    <div className="flex w-full flex-col items-center justify-center gap-5 rounded-md border border-dashed border-border p-8">
       <div className="flex items-center justify-center [&>span]:ring-2 [&>span]:ring-background-quaternary [&>span:not(:first-child)]:-ml-1.5">
         {ISSUE_PROVIDER_ORDER.map((provider) => (
           <span
             key={provider}
-            className="relative flex items-center justify-center size-8 rounded-full bg-background-quaternary-2 overflow-hidden"
+            className="relative flex size-8 items-center justify-center overflow-hidden rounded-full bg-background-quaternary-2"
           >
             <ProviderLogo provider={provider} className="size-4" />
           </span>
         ))}
       </div>
-      <p className="text-foreground-muted font-nomral text-sm text-center">
+      <p className="font-nomral text-center text-sm text-foreground-muted">
         Connect with one of our issue integrations to link your issues to your tasks and use them as
         context in your conversations.
       </p>

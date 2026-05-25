@@ -1,16 +1,16 @@
 import { when } from 'mobx';
 import { useEffect } from 'react';
+import { getTaskView } from '@renderer/features/tasks/stores/task-selectors';
+import { events, rpc } from '@renderer/lib/ipc';
+import { useNavigate, useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
+import { toggleSettingsView } from '@renderer/lib/layout/settings-toggle';
+import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import {
   menuGiveFeedbackChannel,
   menuOpenSettingsChannel,
   menuQuitRequestedChannel,
   notificationFocusTaskChannel,
 } from '@shared/events/appEvents';
-import { getTaskView } from '@renderer/features/tasks/stores/task-selectors';
-import { events, rpc } from '@renderer/lib/ipc';
-import { useNavigate, useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
-import { toggleSettingsView } from '@renderer/lib/layout/settings-toggle';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
 
 export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boolean | void }) {
   const { navigate } = useNavigate();
@@ -61,7 +61,7 @@ export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boole
         const dispose = when(
           () => !!getTaskView(projectId, taskId),
           () => {
-            getTaskView(projectId, taskId)?.tabManager.openConversation(conversationId);
+            getTaskView(projectId, taskId)?.tabGroupManager.openConversation(conversationId);
           },
           {
             timeout: 10_000,
