@@ -36,6 +36,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
 
       const git = getTaskGitStore(projectId, taskId);
       const taskData = getRegisteredTaskData(projectId, taskId);
+      const isAutomationTask = Boolean(taskData?.automationId);
 
       const newConversationDef = taskDef('task.newConversation');
       const sidebarChangesDef = taskDef('task.sidebarChanges');
@@ -199,9 +200,9 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
             ? 'Remove this task from pinned'
             : 'Pin this task to keep it at the top',
           group: pinDef.group,
-          enabled: taskData != null,
+          enabled: taskData != null && !isAutomationTask,
           execute() {
-            if (taskData) void taskStore?.setPinned(!taskData.isPinned);
+            if (taskData && !isAutomationTask) void taskStore?.setPinned(!taskData.isPinned);
           },
         },
 
