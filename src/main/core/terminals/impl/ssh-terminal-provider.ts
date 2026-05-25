@@ -88,6 +88,10 @@ export class SshTerminalProvider implements TerminalProvider {
     sshConnectionManager.on('connection-event', this._handleReconnect);
   }
 
+  private removeReconnectListener(): void {
+    sshConnectionManager.off('connection-event', this._handleReconnect);
+  }
+
   async spawnTerminal(
     terminal: Terminal,
     initialSize: { cols: number; rows: number } = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS },
@@ -250,7 +254,7 @@ export class SshTerminalProvider implements TerminalProvider {
   }
 
   async destroyAll(): Promise<void> {
-    sshConnectionManager.off('connection-event', this._handleReconnect);
+    this.removeReconnectListener();
     const sessionIds = Array.from(this.knownSessionIds);
     await this.detachAll();
     if (this.tmux) {
@@ -261,6 +265,7 @@ export class SshTerminalProvider implements TerminalProvider {
   }
 
   async detachAll(): Promise<void> {
+    this.removeReconnectListener();
     for (const [sessionId, pty] of this.sessions) {
       try {
         pty.kill();
@@ -268,5 +273,7 @@ export class SshTerminalProvider implements TerminalProvider {
       ptySessionRegistry.unregister(sessionId);
     }
     this.sessions.clear();
+    this.knownSessionIds.clear();
+    this.terminals.clear();
   }
 }

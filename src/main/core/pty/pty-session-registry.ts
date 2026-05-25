@@ -7,6 +7,7 @@ export interface PtySessionMetadata {
   providerId?: AgentProviderId;
   title?: string;
   isRemote?: boolean;
+  tmuxSessionName?: string;
 }
 
 const FLUSH_INTERVAL_MS = 16; // ~60 fps

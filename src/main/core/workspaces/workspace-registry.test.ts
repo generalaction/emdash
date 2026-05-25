@@ -5,9 +5,11 @@ import { WorkspaceRegistry } from './workspace-registry';
 function makeWorkspace(id: string): {
   workspace: Workspace;
   dispose: ReturnType<typeof vi.fn>;
+  detach: ReturnType<typeof vi.fn>;
   gitDispose: ReturnType<typeof vi.fn>;
 } {
   const dispose = vi.fn(async () => {});
+  const detach = vi.fn(async () => {});
   const gitDispose = vi.fn();
 
   return {
@@ -19,11 +21,13 @@ function makeWorkspace(id: string): {
       settings: {} as Workspace['settings'],
       lifecycleService: {
         dispose,
+        detach,
       } as unknown as Workspace['lifecycleService'],
       repository: {} as Workspace['repository'],
       fetchService: {} as Workspace['fetchService'],
     },
     dispose,
+    detach,
     gitDispose,
   };
 }
@@ -178,7 +182,7 @@ describe('WorkspaceRegistry', () => {
     expect(onDestroy).toHaveBeenCalledWith(workspace);
   });
 
-  it('calls onDestroy before git.dispose and lifecycleService.dispose', async () => {
+  it('disposes git before onDestroy and lifecycleService on terminate', async () => {
     const registry = new WorkspaceRegistry();
     const { workspace, dispose, gitDispose } = makeWorkspace('branch:main');
     const order: string[] = [];
@@ -200,7 +204,7 @@ describe('WorkspaceRegistry', () => {
     await registry.acquire('branch:main', 'test-project', factory);
     await registry.release('branch:main');
 
-    expect(order).toEqual(['onDestroy', 'gitDispose', 'lifecycleDispose']);
+    expect(order).toEqual(['gitDispose', 'onDestroy', 'lifecycleDispose']);
   });
 
   it('calls onDestroy for each entry in releaseAll', async () => {
@@ -289,5 +293,22 @@ describe('WorkspaceRegistry', () => {
 
     expect(onDetach).toHaveBeenCalledTimes(1);
     expect(onDestroy).not.toHaveBeenCalled();
+  });
+
+  it('releaseAllForProject force releases shared workspaces in detach mode', async () => {
+    const registry = new WorkspaceRegistry();
+    const { workspace, detach, gitDispose } = makeWorkspace('branch:main');
+    const onDetach = vi.fn(async () => {});
+
+    await registry.acquire('branch:main', 'test-project', async () => ({ workspace, onDetach }));
+    await registry.acquire('branch:main', 'test-project', async () => ({ workspace, onDetach }));
+
+    await registry.releaseAllForProject('test-project', 'detach');
+
+    expect(registry.get('branch:main')).toBeUndefined();
+    expect(registry.refCount('branch:main')).toBe(0);
+    expect(gitDispose).toHaveBeenCalledTimes(1);
+    expect(detach).toHaveBeenCalledTimes(1);
+    expect(onDetach).toHaveBeenCalledTimes(1);
   });
 });

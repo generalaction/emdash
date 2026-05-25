@@ -126,4 +126,25 @@ describe('WorkspaceLifecycleService', () => {
     expect(requests).toHaveLength(2);
     expect(requests[1].shellSetup).toBe('source new-env');
   });
+
+  it('detach calls terminal detachAll instead of destroyAll', async () => {
+    const detachAll = vi.fn(async () => {});
+    const destroyAll = vi.fn(async () => {});
+    const service = new LifecycleScriptService({
+      projectId: 'project-4',
+      workspaceId: 'branch:feature',
+      terminals: {
+        async spawnTerminal() {},
+        async spawnLifecycleScript() {},
+        async killTerminal() {},
+        detachAll,
+        destroyAll,
+      },
+    });
+
+    await service.detach();
+
+    expect(detachAll).toHaveBeenCalledTimes(1);
+    expect(destroyAll).not.toHaveBeenCalled();
+  });
 });

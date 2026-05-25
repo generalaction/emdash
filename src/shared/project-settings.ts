@@ -75,6 +75,13 @@ export function defaultShareableProjectSettings(): ShareableProjectSettings {
 
 export type ProjectSettings = z.infer<typeof projectSettingsSchema>;
 
+export function resolveProjectTmuxEnabled(
+  projectSettings: Pick<ProjectSettings, 'tmux'>,
+  tmuxByDefault: boolean
+): boolean {
+  return projectSettings.tmux ?? tmuxByDefault;
+}
+
 export type ProjectSettingsPage = {
   settings: ProjectSettings;
   defaults: {

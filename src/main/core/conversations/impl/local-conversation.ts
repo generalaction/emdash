@@ -6,6 +6,7 @@ import { HookConfigWriter } from '@main/core/agent-hooks/hook-config';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
+import { canUseTmuxForAgentSessions } from '@main/core/pty/agent-session-persistence';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import type { Pty } from '@main/core/pty/pty';
 import { buildAgentEnv } from '@main/core/pty/pty-env';
@@ -37,10 +38,10 @@ export class LocalConversationProvider implements ConversationProvider {
   private readonly projectId: string;
   private readonly taskPath: string;
   private readonly taskId: string;
-  private readonly tmux: boolean;
   private readonly shellSetup?: string;
   private readonly ctx: IExecutionContext;
   private readonly taskEnvVars: Record<string, string>;
+  private tmuxAvailability: Promise<boolean> | undefined;
   private readonly hookConfigWriter: HookConfigWriter;
   private readonly preparedHookProviders = new Map<
     string,
@@ -51,7 +52,6 @@ export class LocalConversationProvider implements ConversationProvider {
     projectId,
     taskPath,
     taskId,
-    tmux = false,
     shellSetup,
     ctx,
     taskEnvVars = {},
@@ -59,7 +59,6 @@ export class LocalConversationProvider implements ConversationProvider {
     projectId: string;
     taskPath: string;
     taskId: string;
-    tmux?: boolean;
     shellSetup?: string;
     ctx: IExecutionContext;
     taskEnvVars?: Record<string, string>;
@@ -67,11 +66,15 @@ export class LocalConversationProvider implements ConversationProvider {
     this.projectId = projectId;
     this.taskPath = taskPath;
     this.taskId = taskId;
-    this.tmux = tmux;
     this.shellSetup = shellSetup;
     this.ctx = ctx;
     this.taskEnvVars = taskEnvVars;
     this.hookConfigWriter = new HookConfigWriter(new LocalFileSystem(taskPath), ctx);
+  }
+
+  private canPersistWithTmux(): Promise<boolean> {
+    this.tmuxAvailability ??= canUseTmuxForAgentSessions(this.ctx);
+    return this.tmuxAvailability;
   }
 
   async startSession(
@@ -110,7 +113,8 @@ export class LocalConversationProvider implements ConversationProvider {
       autoApprove: conversation.autoApprove,
     });
 
-    const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
+    const persistWithTmux = await this.canPersistWithTmux();
+    const tmuxSessionName = persistWithTmux ? makeTmuxSessionName(sessionId) : undefined;
 
     const resolved = resolveLocalPtySpawn({
       platform: process.platform,
@@ -172,7 +176,7 @@ export class LocalConversationProvider implements ConversationProvider {
         taskId: conversation.taskId,
         exitCode,
       });
-      if (shouldRespawn && !this.tmux) {
+      if (shouldRespawn && !persistWithTmux) {
         const count = (this.respawnCounts.get(sessionId) ?? 0) + 1;
         this.respawnCounts.set(sessionId, count);
 
@@ -199,7 +203,7 @@ export class LocalConversationProvider implements ConversationProvider {
     });
 
     ptySessionRegistry.register(sessionId, pty, {
-      metadata: { providerId: conversation.providerId, title: conversation.title },
+      metadata: { providerId: conversation.providerId, title: conversation.title, tmuxSessionName },
     });
     this.sessions.set(sessionId, pty);
     scheduleInitialPromptInjection({ pty, conversation, initialPrompt, isResuming });
@@ -248,7 +252,7 @@ export class LocalConversationProvider implements ConversationProvider {
       this.sessions.delete(sessionId);
       ptySessionRegistry.unregister(sessionId);
     }
-    if (this.tmux) {
+    if (await this.canPersistWithTmux()) {
       await killTmuxSession(this.ctx, makeTmuxSessionName(sessionId));
     }
   }
@@ -256,7 +260,7 @@ export class LocalConversationProvider implements ConversationProvider {
   async destroyAll(): Promise<void> {
     const sessionIds = Array.from(this.knownSessionIds);
     await this.detachAll();
-    if (this.tmux) {
+    if (await this.canPersistWithTmux()) {
       await Promise.all(sessionIds.map((id) => killTmuxSession(this.ctx, makeTmuxSessionName(id))));
     }
     this.knownSessionIds.clear();

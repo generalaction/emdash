@@ -160,6 +160,14 @@ export class LifecycleScriptService implements IDisposable {
     await this.runLifecycleScript(script, { initialSize, ...executeOptions });
   }
 
+  /** Detach lifecycle PTYs without killing tmux-backed sessions. Used on app shutdown. */
+  async detach(): Promise<void> {
+    this.disposed = true;
+    this.sessionsWithRespawnHandler.clear();
+    this.latestRespawnRequest.clear();
+    await this.terminals.detachAll();
+  }
+
   async dispose(): Promise<void> {
     this.disposed = true;
     this.sessionsWithRespawnHandler.clear();

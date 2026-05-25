@@ -80,14 +80,7 @@ export class WorkspaceRegistry {
     }
 
     this.entries.delete(key);
-    if (mode === 'terminate') {
-      await entry.onDestroy?.(entry.workspace);
-    }
-    entry.workspace.git.dispose();
-    await entry.workspace.lifecycleService.dispose();
-    if (mode === 'detach') {
-      await entry.onDetach?.(entry.workspace);
-    }
+    await this.teardownEntry(entry, mode);
   }
 
   get(key: string): Workspace | undefined {
@@ -105,27 +98,28 @@ export class WorkspaceRegistry {
   }
 
   async releaseAllForProject(projectId: string, mode: TeardownMode = 'terminate'): Promise<void> {
-    const keys = Array.from(this.entries.entries())
-      .filter(([, e]) => e.projectId === projectId)
-      .map(([k]) => k);
-    await Promise.all(keys.map((k) => this.release(k, mode)));
+    const entries = Array.from(this.entries.entries()).filter(([, e]) => e.projectId === projectId);
+    for (const [key] of entries) {
+      this.entries.delete(key);
+    }
+    await Promise.all(entries.map(([, entry]) => this.teardownEntry(entry, mode)));
   }
 
   async releaseAll(mode: TeardownMode = 'terminate'): Promise<void> {
     const entries = Array.from(this.entries.values());
     this.entries.clear();
-    await Promise.all(
-      entries.map(async (entry) => {
-        if (mode === 'terminate') {
-          await entry.onDestroy?.(entry.workspace);
-        }
-        entry.workspace.git.dispose();
-        await entry.workspace.lifecycleService.dispose();
-        if (mode === 'detach') {
-          await entry.onDetach?.(entry.workspace);
-        }
-      })
-    );
+    await Promise.all(entries.map((entry) => this.teardownEntry(entry, mode)));
+  }
+
+  private async teardownEntry(entry: WorkspaceEntry, mode: TeardownMode): Promise<void> {
+    entry.workspace.git.dispose();
+    if (mode === 'terminate') {
+      await entry.onDestroy?.(entry.workspace);
+      await entry.workspace.lifecycleService.dispose();
+    } else {
+      await entry.workspace.lifecycleService.detach();
+      await entry.onDetach?.(entry.workspace);
+    }
   }
 }
 

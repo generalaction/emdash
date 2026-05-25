@@ -27,6 +27,7 @@ import { getTaskEnvVars } from '@shared/task/envVars';
 import type { Task } from '@shared/tasks';
 import { getEffectiveTaskSettings } from '../projects/settings/effective-task-settings';
 import type { ProjectSettingsProvider } from '../projects/settings/provider';
+import { getProjectTmuxEnabled } from '../projects/settings/tmux-enabled';
 import { TimeoutSignal, withTimeout } from '../projects/utils';
 import { TEARDOWN_SCRIPT_WAIT_MS } from '../tasks/provision-task-error';
 
@@ -85,7 +86,7 @@ export function createWorkspaceFactory(
       defaultBranch,
       portSeed: workDir,
     });
-    const tmuxEnabled = projectSettings.tmux ?? false;
+    const tmuxEnabled = await getProjectTmuxEnabled(projectSettings);
     const taskLevelSettings = await getEffectiveTaskSettings({
       projectSettings: context.settings,
       taskFs: workspaceFs,
@@ -286,7 +287,6 @@ export function buildTaskProviders(
         projectId: opts.projectId,
         taskPath: opts.taskPath,
         taskId: opts.taskId,
-        tmux: opts.tmuxEnabled,
         shellSetup: opts.shellSetup,
         ctx,
         proxy: type.proxy,
@@ -312,7 +312,6 @@ export function buildTaskProviders(
       projectId: opts.projectId,
       taskPath: opts.taskPath,
       taskId: opts.taskId,
-      tmux: opts.tmuxEnabled,
       shellSetup: opts.shellSetup,
       ctx,
       taskEnvVars: opts.taskEnvVars,
@@ -358,7 +357,7 @@ export async function resolveTaskEnv(
       defaultBranch,
       portSeed: workspace.path,
     }),
-    tmuxEnabled: projectSettings.tmux ?? false,
+    tmuxEnabled: await getProjectTmuxEnabled(projectSettings),
     shellSetup: taskLevelSettings.shellSetup ?? projectSettings.shellSetup,
   };
 }
