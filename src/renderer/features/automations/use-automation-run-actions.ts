@@ -1,6 +1,7 @@
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
-import { formatAutomationError, formatRunName } from '@shared/automations/format';
+import { formatAutomationError } from '@shared/automations/format';
+import { slugFromRunId } from '@shared/automations/run-slug';
 import type { AutomationRun } from '@shared/automations/types';
 import { useAutomations } from './useAutomations';
 
@@ -12,7 +13,7 @@ export function useAutomationRunActions() {
   function deleteRun(run: AutomationRun) {
     showConfirmDelete({
       title: 'Delete run',
-      description: `Run “${formatRunName(run.id)}” will be permanently removed from history. Any task or worktree created by this run will be kept.`,
+      description: `Run “${slugFromRunId(run.id)}” will be permanently removed from history. Any task or worktree created by this run will be kept.`,
       confirmLabel: 'Delete',
       onSuccess: () =>
         removeRun.mutate(run.id, {

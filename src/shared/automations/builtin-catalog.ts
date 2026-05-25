@@ -109,7 +109,7 @@ export const builtinAutomationCatalog: BuiltinAutomationTemplate[] = [
     description:
       'Review recent changes and add tests for high-risk logic that lacks adequate coverage',
     icon: 'FlaskConical',
-    defaultTrigger: { expr: '0 10 * * TUE,THU', tz: 'UTC' },
+    defaultTrigger: { expr: '0 10 * * TUE', tz: 'UTC' },
     defaultActions: [{ kind: 'task.create', prompt: TEST_COVERAGE_PROMPT }],
   },
   {
@@ -134,7 +134,7 @@ export const builtinAutomationCatalog: BuiltinAutomationTemplate[] = [
     description:
       'Investigate bug reports you provide in issues, docs, or prompt notes and fix with a PR',
     icon: 'Wrench',
-    defaultTrigger: { expr: '*/30 * * * MON-FRI', tz: 'UTC' },
+    defaultTrigger: { expr: '*/30 * * * *', tz: 'UTC' },
     defaultActions: [
       {
         kind: 'task.create',

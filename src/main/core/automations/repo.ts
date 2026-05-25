@@ -51,6 +51,14 @@ function firstTaskCreatePrompt(actions: TaskCreateAction[]): string {
   return actions[0]?.prompt ?? '';
 }
 
+function assertPublishableActions(actions: TaskCreateAction[]): void {
+  if (!Array.isArray(actions) || actions.length === 0) {
+    throw new Error('actions_required');
+  }
+  const invalidIndex = actions.findIndex((action) => !isValidAction(action));
+  if (invalidIndex >= 0) throw new Error(`action_invalid:${invalidIndex}`);
+}
+
 function parseTaskConfig(raw: string | null): CreateTaskParams | null {
   if (!raw) return null;
   try {
@@ -210,8 +218,11 @@ export async function getAutomation(id: string): Promise<Automation | null> {
   return row ? mapAutomationRowSafely(row) : null;
 }
 
-async function skipQueuedCronRuns(automationId: string, reason: string): Promise<void> {
-  await db
+export async function skipQueuedCronRuns(
+  automationId: string,
+  reason: string
+): Promise<AutomationRun[]> {
+  const rows = await db
     .update(automationRuns)
     .set({ status: 'skipped', finishedAt: Date.now(), error: reason, workerId: null })
     .where(
@@ -220,7 +231,10 @@ async function skipQueuedCronRuns(automationId: string, reason: string): Promise
         eq(automationRuns.status, 'queued'),
         eq(automationRuns.triggerKind, 'cron')
       )
-    );
+    )
+    .returning();
+
+  return rows.map(mapAutomationRunRow);
 }
 
 async function projectExists(projectId: string): Promise<boolean> {
@@ -267,42 +281,65 @@ export async function updateAutomation(
   id: string,
   patch: UpdateAutomationPatch
 ): Promise<Automation | null> {
-  const values: Partial<typeof automations.$inferInsert> = { updatedAt: Date.now() };
-  if (patch.name !== undefined) values.name = patch.name.trim();
-  if (patch.description !== undefined) values.description = patch.description?.trim() || null;
-  if (patch.category !== undefined) values.category = patch.category;
-  if (patch.projectId !== undefined) {
-    if (!(await projectExists(patch.projectId))) {
-      throw new Error('project_not_found');
-    }
-    values.projectId = patch.projectId;
-  }
-  if (patch.enabled !== undefined) values.enabled = patch.enabled ? 1 : 0;
-  if (patch.isDraft !== undefined) values.isDraft = patch.isDraft ? 1 : 0;
-  if (patch.builtinTemplateId !== undefined) values.builtinTemplateId = patch.builtinTemplateId;
-  if (patch.deadlinePolicy !== undefined) values.deadlinePolicy = patch.deadlinePolicy;
-  if (patch.deadlineMs !== undefined) values.deadlineMs = patch.deadlineMs;
-  if (patch.trigger !== undefined) Object.assign(values, rowValuesFromTrigger(patch.trigger));
-  if (patch.actions !== undefined) {
-    values.promptTemplate = firstTaskCreatePrompt(patch.actions);
-    values.actions = JSON.stringify(patch.actions);
-  }
-  if (patch.taskConfig !== undefined) {
-    values.taskConfig = patch.taskConfig ? JSON.stringify(patch.taskConfig) : null;
+  if (patch.projectId !== undefined && !(await projectExists(patch.projectId))) {
+    throw new Error('project_not_found');
   }
 
-  const [row] = await db.update(automations).set(values).where(eq(automations.id, id)).returning();
-  return row ? mapAutomationRow(row) : null;
+  return await db.transaction(async (tx) => {
+    const [existingRow] = await tx
+      .select()
+      .from(automations)
+      .where(eq(automations.id, id))
+      .limit(1);
+    if (!existingRow) return null;
+
+    const existing = mapAutomationRow(existingRow);
+    const finalIsDraft = patch.isDraft ?? existing.isDraft;
+    const finalActions = patch.actions ?? existing.actions;
+    if (!finalIsDraft) assertPublishableActions(finalActions);
+
+    const values: Partial<typeof automations.$inferInsert> = { updatedAt: Date.now() };
+    if (patch.name !== undefined) values.name = patch.name.trim();
+    if (patch.description !== undefined) values.description = patch.description?.trim() || null;
+    if (patch.category !== undefined) values.category = patch.category;
+    if (patch.projectId !== undefined) {
+      values.projectId = patch.projectId;
+    }
+    if (patch.enabled !== undefined) values.enabled = patch.enabled ? 1 : 0;
+    if (patch.isDraft !== undefined) values.isDraft = patch.isDraft ? 1 : 0;
+    if (patch.builtinTemplateId !== undefined) values.builtinTemplateId = patch.builtinTemplateId;
+    if (patch.deadlinePolicy !== undefined) values.deadlinePolicy = patch.deadlinePolicy;
+    if (patch.deadlineMs !== undefined) values.deadlineMs = patch.deadlineMs;
+    if (patch.trigger !== undefined) Object.assign(values, rowValuesFromTrigger(patch.trigger));
+    if (patch.actions !== undefined) {
+      values.promptTemplate = firstTaskCreatePrompt(patch.actions);
+      values.actions = JSON.stringify(patch.actions);
+    }
+    if (patch.taskConfig !== undefined) {
+      values.taskConfig = patch.taskConfig ? JSON.stringify(patch.taskConfig) : null;
+    }
+
+    const [row] = await tx
+      .update(automations)
+      .set(values)
+      .where(eq(automations.id, id))
+      .returning();
+    return row ? mapAutomationRow(row) : null;
+  });
 }
 
 export async function detachProject(projectId: string): Promise<number> {
+  const rows = await detachProjectAutomations(projectId);
+  return rows.length;
+}
+
+export async function detachProjectAutomations(projectId: string): Promise<Array<{ id: string }>> {
   const rows = await db
     .update(automations)
     .set({ projectId: null, nextRunAt: null, updatedAt: Date.now() })
     .where(eq(automations.projectId, projectId))
     .returning({ id: automations.id });
-  await Promise.all(rows.map(({ id }) => skipQueuedCronRuns(id, 'no_project_attached')));
-  return rows.length;
+  return rows;
 }
 
 export async function removeAutomation(id: string): Promise<boolean> {
@@ -331,9 +368,6 @@ export async function setAutomationEnabled(
     .set({ enabled: enabled ? 1 : 0, nextRunAt, updatedAt: Date.now() })
     .where(eq(automations.id, id))
     .returning();
-  if (row && !enabled) {
-    await skipQueuedCronRuns(id, 'automation_disabled');
-  }
   return row ? mapAutomationRow(row) : null;
 }
 
@@ -347,30 +381,29 @@ export async function updateAutomationSchedule(
     .where(eq(automations.id, id));
 }
 
-export async function dueCronAutomations(now = Date.now()): Promise<Automation[]> {
+async function activeCronAutomations(whereNextRunDue?: number): Promise<Automation[]> {
+  const predicates = [
+    eq(automations.enabled, 1),
+    eq(automations.isDraft, 0),
+    isNotNull(automations.projectId),
+  ];
+  if (whereNextRunDue !== undefined) {
+    predicates.push(isNotNull(automations.nextRunAt), lte(automations.nextRunAt, whereNextRunDue));
+  }
+
   const rows = await db
     .select()
     .from(automations)
-    .where(
-      and(
-        eq(automations.enabled, 1),
-        eq(automations.isDraft, 0),
-        isNotNull(automations.projectId),
-        isNotNull(automations.nextRunAt),
-        lte(automations.nextRunAt, now)
-      )
-    );
+    .where(and(...predicates));
   return mapAutomationRows(rows);
 }
 
+export async function dueCronAutomations(now = Date.now()): Promise<Automation[]> {
+  return activeCronAutomations(now);
+}
+
 export async function enabledCronAutomations(): Promise<Automation[]> {
-  const rows = await db
-    .select()
-    .from(automations)
-    .where(
-      and(eq(automations.enabled, 1), eq(automations.isDraft, 0), isNotNull(automations.projectId))
-    );
-  return mapAutomationRows(rows);
+  return activeCronAutomations();
 }
 
 export async function hasRunningRuns(automationId: string): Promise<boolean> {
@@ -456,43 +489,18 @@ export async function claimQueuedRun(
   return row ? mapAutomationRunRow(row) : null;
 }
 
-export async function markRunningRunsInterrupted(now = Date.now()): Promise<number> {
-  const runningRuns = await db
+export async function listRunningRunsForRecovery(): Promise<
+  Array<Pick<AutomationRun, 'id' | 'taskId'>>
+> {
+  return db
     .select({ id: automationRuns.id, taskId: automationRuns.taskId })
     .from(automationRuns)
     .where(eq(automationRuns.status, 'running'));
+}
 
-  for (const run of runningRuns) {
-    if (run.taskId) {
-      const [task] = await db
-        .select({ id: tasks.id })
-        .from(tasks)
-        .where(eq(tasks.id, run.taskId))
-        .limit(1);
-      await db
-        .update(automationRuns)
-        .set({
-          status: 'failed',
-          finishedAt: now,
-          error: task
-            ? 'interrupted_by_restart_task_preserved'
-            : 'interrupted_by_restart_task_missing',
-        })
-        .where(eq(automationRuns.id, run.id));
-      continue;
-    }
-
-    await db
-      .update(automationRuns)
-      .set({
-        status: 'failed',
-        finishedAt: now,
-        error: 'interrupted_by_restart',
-      })
-      .where(eq(automationRuns.id, run.id));
-  }
-
-  return runningRuns.length;
+export async function taskExists(taskId: string): Promise<boolean> {
+  const rows = await db.select({ id: tasks.id }).from(tasks).where(eq(tasks.id, taskId)).limit(1);
+  return rows.length > 0;
 }
 
 export async function recoverQueuedRuns(): Promise<number> {

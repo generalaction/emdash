@@ -136,7 +136,7 @@ export async function executeTaskCreate(
         },
       };
     } else {
-      const taskName = generateTaskName({ title: ctx.automation.name, description: ctx.run?.id });
+      const taskName = generateTaskName({ title: ctx.automation.name, description: ctx.run.id });
       const defaults = await resolveProjectDefaults(projectId, taskName);
       if (!defaults.success) return err({ message: defaults.error });
       const provider = (await appSettingsService.get('defaultAgent')) ?? DEFAULT_AGENT_ID;
@@ -166,7 +166,7 @@ export async function executeTaskCreate(
         taskId: createTaskErrorLeavesTask(result.error) ? taskId : undefined,
       });
     }
-    if (ctx.run) await updateRun(ctx.run.id, { taskId, createdTaskId: taskId });
+    await updateRun(ctx.run.id, { taskId, createdTaskId: taskId });
 
     try {
       const provision = await taskService.provision(taskId);

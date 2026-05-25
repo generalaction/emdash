@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { log } from '@main/lib/logger';
+import { QUEUE_DEADLINE_EXCEEDED_ERROR } from '@shared/automations/format';
 import type { Automation } from '@shared/automations/types';
 import { automationEvents } from './automation-events';
 import {
@@ -9,9 +10,10 @@ import {
   enqueueAutomationRun,
   getNextRunAt,
   hasRunningRuns,
+  listRunningRunsForRecovery,
   listQueuedRuns,
-  markRunningRunsInterrupted,
   recoverQueuedRuns,
+  taskExists,
   updateAutomationSchedule,
   updateRun,
 } from './repo';
@@ -78,7 +80,7 @@ export class AutomationScheduler {
   private async recoverAndBootstrap(): Promise<void> {
     const [recoveredQueued, recovered] = await Promise.all([
       recoverQueuedRuns(),
-      markRunningRunsInterrupted(),
+      this.markRunningRunsInterrupted(),
     ]);
     if (recoveredQueued > 0) {
       log.info('AutomationScheduler recovered queued runs', { recovered: recoveredQueued });
@@ -87,6 +89,19 @@ export class AutomationScheduler {
       log.warn('AutomationScheduler recovered interrupted runs', { recovered });
     }
     await this.bootstrap();
+  }
+
+  private async markRunningRunsInterrupted(now = Date.now()): Promise<number> {
+    const runningRuns = await listRunningRunsForRecovery();
+    for (const run of runningRuns) {
+      const error = run.taskId
+        ? (await taskExists(run.taskId))
+          ? 'interrupted_by_restart_task_preserved'
+          : 'interrupted_by_restart_task_missing'
+        : 'interrupted_by_restart';
+      await updateRun(run.id, { status: 'failed', finishedAt: now, error });
+    }
+    return runningRuns.length;
   }
 
   private async bootstrap(): Promise<void> {
@@ -182,7 +197,7 @@ export class AutomationScheduler {
             if (this.activeWorkers >= MAX_CONCURRENT_RUNS) break;
 
             if (entry.run.deadlineAt != null && entry.run.deadlineAt <= Date.now()) {
-              await this.markRunSkipped(entry.run.id, 'queue_deadline_exceeded');
+              await this.markRunSkipped(entry.run.id, QUEUE_DEADLINE_EXCEEDED_ERROR);
               continue;
             }
 

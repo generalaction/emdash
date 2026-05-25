@@ -34,7 +34,7 @@ import { Toggle } from '@renderer/lib/ui/toggle';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
-import { formatRunName } from '@shared/automations/format';
+import { slugFromRunId } from '@shared/automations/run-slug';
 import type { Automation, AutomationRun } from '@shared/automations/types';
 
 const AUTOMATION_RUNS_POPOVER_LIMIT = 50;
@@ -125,7 +125,7 @@ function AutomationRunsPopover({
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger className="flex items-center gap-1 text-sm text-foreground-muted hover:text-foreground focus:outline-none">
         <span className="max-w-64 truncate">
-          {currentRun ? formatRunName(currentRun.id) : 'Run'}
+          {currentRun ? slugFromRunId(currentRun.id) : 'Run'}
         </span>
         <ChevronDown className="size-3.5 shrink-0" />
       </PopoverTrigger>
@@ -214,7 +214,7 @@ const AutomationRunPopoverItem = observer(function AutomationRunPopoverItem({
           isFailed ? 'text-destructive' : 'text-foreground'
         )}
       >
-        {formatRunName(run.id)}
+        {slugFromRunId(run.id)}
         {isCurrent ? <span className="text-muted-foreground ml-1.5">(current)</span> : null}
       </span>
       {timestamp != null ? (

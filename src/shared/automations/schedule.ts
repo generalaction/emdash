@@ -73,6 +73,7 @@ export function isWeekendToken(token: string): boolean {
     upper === 'SUN,SAT' ||
     upper === '0,6' ||
     upper === '6,0' ||
+    // Some cron parsers accept both 0 and 7 as Sunday, so 6-7 means Saturday-Sunday.
     upper === '6-7'
   );
 }
@@ -86,6 +87,14 @@ function parseWeekdayToken(token: string): WeekdayToken | null {
   return upper in dayTokenIndex ? (upper as WeekdayToken) : null;
 }
 
+function isValidMinute(minute: number): boolean {
+  return Number.isInteger(minute) && minute >= 0 && minute <= 59;
+}
+
+function isValidHour(hour: number): boolean {
+  return Number.isInteger(hour) && hour >= 0 && hour <= 23;
+}
+
 export function parseCronToSchedule(expr: string): ScheduleSpec | null {
   const parts = expr.trim().split(/\s+/);
   if (parts.length !== 5) return null;
@@ -94,17 +103,18 @@ export function parseCronToSchedule(expr: string): ScheduleSpec | null {
   const everyN = min.match(/^\*\/(\d+)$/);
   if (everyN && hour === '*' && dom === '*' && mon === '*' && dow === '*') {
     const n = parseInt(everyN[1], 10);
-    return n > 0 ? { kind: 'interval', intervalMinutes: n } : null;
+    return n >= 1 && n <= 59 ? { kind: 'interval', intervalMinutes: n } : null;
   }
 
   const minNum = /^\d+$/.test(min) ? parseInt(min, 10) : null;
   const hourNum = /^\d+$/.test(hour) ? parseInt(hour, 10) : null;
 
   if (minNum !== null && hour === '*' && dom === '*' && mon === '*' && dow === '*') {
-    return { kind: 'hourly', minute: minNum };
+    return isValidMinute(minNum) ? { kind: 'hourly', minute: minNum } : null;
   }
 
   if (minNum !== null && hourNum !== null && dom === '*' && mon === '*') {
+    if (!isValidMinute(minNum) || !isValidHour(hourNum)) return null;
     if (dow === '*') return { kind: 'daily', hour: hourNum, minute: minNum };
     if (isWeekdaysToken(dow)) return { kind: 'weekdays', hour: hourNum, minute: minNum };
     if (isWeekendToken(dow)) return { kind: 'weekends', hour: hourNum, minute: minNum };

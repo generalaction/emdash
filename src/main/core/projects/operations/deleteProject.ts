@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { automationEvents } from '@main/core/automations/automation-events';
-import { detachProject } from '@main/core/automations/repo';
+import { detachProject } from '@main/core/automations/service';
 import { projectEvents } from '@main/core/projects/project-events';
 import { projectManager } from '@main/core/projects/project-manager';
 import { prSyncEngine } from '@main/core/pull-requests/pr-sync-engine';

@@ -21,10 +21,10 @@ import {
   listRuns,
   removeAutomation,
   removeRun as removeRunFromDb,
-  setAutomationEnabled,
   updateAutomation,
 } from './repo';
 import { emitRunUpdated } from './runtime';
+import { setAutomationEnabled } from './service';
 
 function emitChanged(): void {
   automationEvents._emit('automation:changed');
@@ -72,17 +72,6 @@ export const automationsController = createRPCController({
     return safe(async () => {
       const nameError = validateName(patch.name);
       if (nameError) return err(nameError);
-      const shouldValidateActions =
-        patch.isDraft === false || (patch.actions !== undefined && !patch.isDraft);
-      if (shouldValidateActions) {
-        const actions = patch.actions ?? (await getAutomation(id))?.actions;
-        if (!actions) return err('automation_not_found');
-        if (!Array.isArray(actions) || actions.length === 0) {
-          return err('actions_required');
-        }
-        const invalidIndex = actions.findIndex((action) => !isValidAction(action));
-        if (invalidIndex >= 0) return err(`action_invalid:${invalidIndex}`);
-      }
       const automation = await updateAutomation(id, patch);
       if (!automation) return err('automation_not_found');
       emitChanged();

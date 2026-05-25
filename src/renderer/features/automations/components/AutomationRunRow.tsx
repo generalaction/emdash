@@ -26,10 +26,10 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/toolti
 import { cn } from '@renderer/utils/utils';
 import {
   formatRunError,
-  formatRunName,
   formatRunTriggerKindLabel,
   isQueueDeadlineExceededRun,
 } from '@shared/automations/format';
+import { slugFromRunId } from '@shared/automations/run-slug';
 import type { Automation, AutomationRun } from '@shared/automations/types';
 
 const automationListRowClassName =
@@ -86,7 +86,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
       : 'No project'
     : undefined;
 
-  const runName = formatRunName(run.id);
+  const runName = slugFromRunId(run.id);
   const automationLabel = title;
   const promptSubtitle = errorMessage ? undefined : title;
   const subtitleParts = [errorMessage, promptSubtitle].filter((part): part is string =>

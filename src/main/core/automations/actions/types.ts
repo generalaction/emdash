@@ -2,7 +2,7 @@ import type { Automation, AutomationRun } from '@shared/automations/types';
 
 export type ActionContext = {
   automation: Automation;
-  run?: AutomationRun;
+  run: AutomationRun;
 };
 
 export type ActionOutcome = {

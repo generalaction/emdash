@@ -1,4 +1,3 @@
-import { slugFromRunId } from '@shared/automations/run-slug';
 import { dayTokenIndex, isWeekdaysToken, isWeekendToken } from '@shared/automations/schedule';
 import type {
   AutomationRun,
@@ -6,6 +5,8 @@ import type {
   AutomationRunTriggerKind,
   CronTrigger,
 } from '@shared/automations/types';
+
+export const QUEUE_DEADLINE_EXCEEDED_ERROR = 'queue_deadline_exceeded' as const;
 
 const dayNames = [
   'Sundays',
@@ -158,7 +159,7 @@ export function formatRunStatusLabel(status: AutomationRunStatus): string | null
 }
 
 export function isQueueDeadlineExceededRun(run: Pick<AutomationRun, 'status' | 'error'>): boolean {
-  return run.status === 'skipped' && run.error === 'queue_deadline_exceeded';
+  return run.status === 'skipped' && run.error === QUEUE_DEADLINE_EXCEEDED_ERROR;
 }
 
 const ERROR_MESSAGES = {
@@ -167,7 +168,7 @@ const ERROR_MESSAGES = {
   no_actions_configured: 'This automation has no actions yet',
   interrupted_by_restart: 'The run was interrupted because the app restarted',
   previous_still_running: 'Skipped because the previous run is still in progress',
-  queue_deadline_exceeded: 'Skipped because it waited in the queue for too long',
+  [QUEUE_DEADLINE_EXCEEDED_ERROR]: 'Skipped because it waited in the queue for too long',
   no_project_attached: 'Skipped because the automation is not attached to a project',
   automation_disabled: 'Skipped because the automation schedule was paused',
   name_required: 'Give the automation a name',
@@ -209,9 +210,7 @@ function knownErrorMessage(raw: string): string | undefined {
 }
 
 export function formatRunError(raw: string): string {
-  const legacyActionMatch = raw.match(/^action_\d+_[^:]+:(.+)$/);
-  const normalized = legacyActionMatch?.[1] ?? raw;
-  const exact = knownErrorMessage(normalized);
+  const exact = knownErrorMessage(raw);
   if (exact) return exact;
 
   for (const { prefix, format } of PREFIXED_ERROR_MESSAGES) {
@@ -238,8 +237,4 @@ export function formatRunTriggerKindLabel(kind: AutomationRunTriggerKind): strin
     case 'manual':
       return 'Manual';
   }
-}
-
-export function formatRunName(id: string): string {
-  return slugFromRunId(id);
 }

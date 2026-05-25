@@ -34,8 +34,11 @@ vi.mock('./repo', () => ({
   listRuns: vi.fn(),
   removeAutomation: vi.fn(),
   removeRun: vi.fn(),
-  setAutomationEnabled: vi.fn(),
   updateAutomation: vi.fn(),
+}));
+
+vi.mock('./service', () => ({
+  setAutomationEnabled: vi.fn(),
 }));
 
 vi.mock('./runtime', () => ({
@@ -68,12 +71,13 @@ describe('automationsController.update', () => {
   });
 
   it('rejects publishing a draft when existing actions are empty', async () => {
-    vi.mocked(getAutomation).mockResolvedValue(draftAutomation);
+    vi.mocked(updateAutomation).mockRejectedValue(new Error('actions_required'));
 
     const result = await automationsController.update(draftAutomation.id, { isDraft: false });
 
     expect(result).toEqual({ success: false, error: 'actions_required' });
-    expect(updateAutomation).not.toHaveBeenCalled();
+    expect(getAutomation).not.toHaveBeenCalled();
+    expect(updateAutomation).toHaveBeenCalledWith(draftAutomation.id, { isDraft: false });
   });
 
   it('validates existing actions when publishing without an actions patch', async () => {
@@ -82,12 +86,12 @@ describe('automationsController.update', () => {
       actions: [{ kind: 'task.create' as const, prompt: 'Do the thing' }],
       isDraft: false,
     };
-    vi.mocked(getAutomation).mockResolvedValue({ ...automation, isDraft: true });
     vi.mocked(updateAutomation).mockResolvedValue(automation);
 
     const result = await automationsController.update(draftAutomation.id, { isDraft: false });
 
     expect(result).toEqual({ success: true, data: automation });
+    expect(getAutomation).not.toHaveBeenCalled();
     expect(updateAutomation).toHaveBeenCalledWith(draftAutomation.id, { isDraft: false });
   });
 

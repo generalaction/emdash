@@ -7,7 +7,7 @@ import {
 } from '@renderer/features/projects/stores/project-selectors';
 import { useNavigate, useParams } from '@renderer/lib/layout/navigation-provider';
 import { cn } from '@renderer/utils/utils';
-import { formatRunName } from '@shared/automations/format';
+import { slugFromRunId } from '@shared/automations/run-slug';
 import { useAutomations } from '../useAutomations';
 
 interface Crumb {
@@ -71,7 +71,7 @@ export const AutomationsBreadcrumb = observer(function AutomationsBreadcrumb() {
     crumbs.push({ key: 'automation', label: selected.name });
   }
   if (params.selectedRunId) {
-    crumbs.push({ key: 'run', label: formatRunName(params.selectedRunId) });
+    crumbs.push({ key: 'run', label: slugFromRunId(params.selectedRunId) });
   }
 
   return (

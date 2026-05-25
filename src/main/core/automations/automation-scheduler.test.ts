@@ -9,9 +9,10 @@ import {
   enqueueAutomationRun,
   getNextRunAt,
   hasRunningRuns,
+  listRunningRunsForRecovery,
   listQueuedRuns,
-  markRunningRunsInterrupted,
   recoverQueuedRuns,
+  taskExists,
   updateAutomationSchedule,
   updateRun,
 } from './repo';
@@ -31,9 +32,10 @@ vi.mock('./repo', () => ({
   enabledCronAutomations: vi.fn(),
   enqueueAutomationRun: vi.fn(),
   getNextRunAt: vi.fn(),
+  listRunningRunsForRecovery: vi.fn(),
   listQueuedRuns: vi.fn(),
-  markRunningRunsInterrupted: vi.fn(),
   recoverQueuedRuns: vi.fn(),
+  taskExists: vi.fn(),
   updateAutomationSchedule: vi.fn(),
   updateRun: vi.fn(),
 }));
@@ -68,7 +70,8 @@ describe('AutomationScheduler missed runs', () => {
     vi.useFakeTimers();
     vi.clearAllMocks();
     vi.mocked(recoverQueuedRuns).mockResolvedValue(0);
-    vi.mocked(markRunningRunsInterrupted).mockResolvedValue(0);
+    vi.mocked(listRunningRunsForRecovery).mockResolvedValue([]);
+    vi.mocked(taskExists).mockResolvedValue(false);
     vi.mocked(enabledCronAutomations).mockResolvedValue([]);
     vi.mocked(dueCronAutomations).mockResolvedValue([]);
     vi.mocked(listQueuedRuns).mockResolvedValue([]);
