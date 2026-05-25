@@ -67,7 +67,7 @@ export function PrBadge({ variant = 'default', pr, className, hoverDelay }: PrBa
                     <ExternalLink className="size-3.5" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Open PR on github</TooltipContent>
+                <TooltipContent>Open PR on GitHub</TooltipContent>
               </Tooltip>
             </div>
             <RelativeTime
