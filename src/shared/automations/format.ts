@@ -1,6 +1,7 @@
 import { slugFromRunId } from '@shared/automations/run-slug';
 import { dayTokenIndex, isWeekdaysToken, isWeekendToken } from '@shared/automations/schedule';
 import type {
+  AutomationRun,
   AutomationRunStatus,
   AutomationRunTriggerKind,
   CronTrigger,
@@ -154,6 +155,10 @@ export function formatRunStatusLabel(status: AutomationRunStatus): string | null
     case 'success':
       return null;
   }
+}
+
+export function isQueueDeadlineExceededRun(run: Pick<AutomationRun, 'status' | 'error'>): boolean {
+  return run.status === 'skipped' && run.error === 'queue_deadline_exceeded';
 }
 
 const ERROR_MESSAGES = {

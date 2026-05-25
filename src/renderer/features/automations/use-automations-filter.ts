@@ -11,7 +11,11 @@ import {
   projectDisplayName,
 } from '@renderer/features/projects/stores/project-selectors';
 import type { ListFilterOption } from '@renderer/lib/components/list-filters/types';
-import { formatRunName, formatRunTriggerKindLabel } from '@shared/automations/format';
+import {
+  formatRunName,
+  formatRunTriggerKindLabel,
+  isQueueDeadlineExceededRun,
+} from '@shared/automations/format';
 import type {
   Automation,
   AutomationRun,
@@ -70,6 +74,7 @@ export function useAutomationsFilter({
   const runsByAutomation = useMemo(() => {
     const map = new Map<string, AutomationRun[]>();
     for (const run of runs ?? []) {
+      if (isQueueDeadlineExceededRun(run)) continue;
       const list = map.get(run.automationId);
       if (list) list.push(run);
       else map.set(run.automationId, [run]);
@@ -87,6 +92,9 @@ export function useAutomationsFilter({
   const visibleRuns = useMemo(() => {
     if (!runs) return undefined;
     let matched = runs;
+    if (!query && !hasRunFacetFilters) {
+      matched = matched.filter((run) => !isQueueDeadlineExceededRun(run));
+    }
     if (facetFilters && hasRunFacetFilters) {
       matched = matched.filter((run) => runMatchesFacetFilters(run, facetFilters));
     }

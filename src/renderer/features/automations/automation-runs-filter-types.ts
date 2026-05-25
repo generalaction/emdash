@@ -28,10 +28,10 @@ export const AUTOMATION_RUNS_TIME_RANGE_OPTIONS: ReadonlyArray<{
   value: AutomationRunsTimeRange;
   label: string;
 }> = [
-  { value: 'last-24-hours', label: 'Letzte 24 Stunden' },
-  { value: 'today', label: 'Heute' },
-  { value: 'yesterday', label: 'Gestern' },
-  { value: 'this-week', label: 'Diese Woche' },
-  { value: 'last-7-days', label: 'Letzte 7 Tage' },
-  { value: 'last-30-days', label: 'Letzte 30 Tage' },
+  { value: 'last-24-hours', label: 'Last 24 hours' },
+  { value: 'today', label: 'Today' },
+  { value: 'yesterday', label: 'Yesterday' },
+  { value: 'this-week', label: 'This week' },
+  { value: 'last-7-days', label: 'Last 7 days' },
+  { value: 'last-30-days', label: 'Last 30 days' },
 ];

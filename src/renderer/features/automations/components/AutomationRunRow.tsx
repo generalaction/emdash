@@ -28,6 +28,7 @@ import {
   formatRunError,
   formatRunName,
   formatRunTriggerKindLabel,
+  isQueueDeadlineExceededRun,
 } from '@shared/automations/format';
 import type { Automation, AutomationRun } from '@shared/automations/types';
 
@@ -68,7 +69,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
   const tool = useMemo(() => automationTool(automation), [automation]);
   const isFailed = run.status === 'failed';
   const isActive = isActiveStatus(run.status);
-  const missedDeadline = run.status === 'skipped' && run.error === 'queue_deadline_exceeded';
+  const missedDeadline = isQueueDeadlineExceededRun(run);
   const errorMessage = run.error ? formatRunError(run.error) : undefined;
   const status = statusIndicatorConfig(run.status);
   const StatusIcon = status.Icon;

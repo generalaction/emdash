@@ -23,10 +23,10 @@ export function AutomationRunsFilterBar({
   onChange,
 }: AutomationRunsFilterBarProps) {
   const timeRangeLabel = useMemo(() => {
-    if (!filters.timeRange) return 'Zeitraum';
+    if (!filters.timeRange) return 'Time range';
     return (
       AUTOMATION_RUNS_TIME_RANGE_OPTIONS.find((option) => option.value === filters.timeRange)
-        ?.label ?? 'Zeitraum'
+        ?.label ?? 'Time range'
     );
   }, [filters.timeRange]);
 
@@ -43,7 +43,7 @@ export function AutomationRunsFilterBar({
         items={AUTOMATION_RUNS_TIME_RANGE_OPTIONS}
         selected={filters.timeRange}
         onChange={(timeRange) => onChange({ ...filters, timeRange })}
-        clearLabel="Alle Zeiträume"
+        clearLabel="All time ranges"
       />
       <ListFilterMultiSelect<AutomationRunStatus>
         label="Status"
