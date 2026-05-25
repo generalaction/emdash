@@ -26,10 +26,20 @@ describe('shouldInvalidatePrListQuery', () => {
     const key = [
       'pull-requests-inline',
       'project-1',
-      'https://github.com/user/fork',
+      'https://github.com/acme/repo',
       'open',
     ] as const;
     expect(shouldInvalidatePrListQuery(key, progress())).toBe(true);
+  });
+
+  it('does not invalidate inline PR picker queries for unrelated remotes', () => {
+    const key = [
+      'pull-requests-inline',
+      'project-1',
+      'https://github.com/other/repo',
+      'open',
+    ] as const;
+    expect(shouldInvalidatePrListQuery(key, progress())).toBe(false);
   });
 
   it('does not invalidate inline PR picker queries while sync is still running', () => {

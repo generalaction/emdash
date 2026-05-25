@@ -20,6 +20,10 @@ export type PrRow = typeof pullRequests.$inferSelect;
 
 /** Match PRs owned by or targeting a project remote (base or fork head). */
 export function pullRequestRepositoryScope(repositoryUrls: string[]): SQL {
+  if (repositoryUrls.length === 0) {
+    throw new Error('pullRequestRepositoryScope requires at least one repository URL');
+  }
+
   return or(
     inArray(pullRequests.repositoryUrl, repositoryUrls),
     inArray(pullRequests.headRepositoryUrl, repositoryUrls)

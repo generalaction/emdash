@@ -54,10 +54,16 @@ export function InlinePrSelector({
 }: InlinePrSelectorProps) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('open');
 
-  useEffect(() => {
-    if (!projectId || !repositoryUrl) return;
-    void rpc.pullRequests.syncPullRequests(projectId);
-  }, [projectId, repositoryUrl]);
+  useQuery({
+    queryKey: ['pull-requests-inline-sync', projectId, repositoryUrl],
+    queryFn: async () => {
+      await rpc.pullRequests.syncPullRequests(projectId!);
+      return null;
+    },
+    enabled: !!projectId && !!repositoryUrl,
+    staleTime: 60_000,
+    retry: false,
+  });
 
   const { data } = useQuery({
     queryKey: ['pull-requests-inline', projectId, repositoryUrl, statusFilter],

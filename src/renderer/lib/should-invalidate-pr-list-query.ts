@@ -8,7 +8,7 @@ export function shouldInvalidatePrListQuery(
 
   const root = queryKey[0];
   if (root === 'pull-requests-inline') {
-    return progress.status === 'done';
+    return progress.status === 'done' && queryKey[2] === progress.remoteUrl;
   }
   if (root === 'pull-requests') {
     return queryKey[2] === progress.remoteUrl;
