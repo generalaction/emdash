@@ -46,6 +46,7 @@ export class ProjectManagerStore {
   projects = observable.map<string, ProjectStore>();
   pendingCreationIds = observable.set<string>();
   private _projectMountPromises = new Map<string, Promise<void>>();
+  private _pendingCreationsByPath = new Map<string, Promise<string | undefined>>();
   private _loadPromise: Promise<void> | null = null;
 
   constructor() {
@@ -91,13 +92,32 @@ export class ProjectManagerStore {
     data: ModeData,
     id?: string
   ): Promise<string | undefined> {
+    // Dedupe by target path: a laggy / double-clicked submit can fire two
+    // creations for the same path. They mint different random ids (so the
+    // pendingCreationIds guard misses them) and both pass the read-before-write
+    // inspectProjectPath check, then collide on the projects.path unique index.
+    const pathKey = this._creationPathKey(data);
+    const inflight = this._pendingCreationsByPath.get(pathKey);
+    if (inflight) return inflight;
+
     const projectId = id ?? crypto.randomUUID();
     runInAction(() => this.pendingCreationIds.add(projectId));
-    try {
-      return await this._doCreateProject(projectType, data, projectId);
-    } finally {
+    const promise = this._doCreateProject(projectType, data, projectId).finally(() => {
       runInAction(() => this.pendingCreationIds.delete(projectId));
-    }
+      this._pendingCreationsByPath.delete(pathKey);
+    });
+    this._pendingCreationsByPath.set(pathKey, promise);
+    return promise;
+  }
+
+  private _creationPathKey(data: ModeData): string {
+    // The projects table currently has a global unique index on path, so the
+    // in-flight key must use the same identity instead of splitting by type.
+    return this._effectiveProjectPath(data);
+  }
+
+  private _effectiveProjectPath(data: ModeData): string {
+    return data.mode === 'pick' ? data.path : `${data.path}/${data.name}`;
   }
 
   private async _doCreateProject(
@@ -106,10 +126,11 @@ export class ProjectManagerStore {
     projectId: string
   ): Promise<string | undefined> {
     const isSsh = projectType.type === 'ssh';
+    const projectPath = this._effectiveProjectPath(data);
     const inspection = await rpc.projects.inspectProjectPath(
       isSsh
-        ? { type: 'ssh', path: data.path, connectionId: projectType.connectionId }
-        : { type: 'local', path: data.path }
+        ? { type: 'ssh', path: projectPath, connectionId: projectType.connectionId }
+        : { type: 'local', path: projectPath }
     );
     if (inspection.existingProject) return inspection.existingProject.id;
 

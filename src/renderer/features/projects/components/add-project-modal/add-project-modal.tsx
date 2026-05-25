@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Home, Server } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { SshConnectionSelector } from '@renderer/features/projects/components/add-project-modal/ssh-connection-selector';
 import {
   getProjectManagerStore,
@@ -248,12 +248,28 @@ export const AddProjectModal = observer(function AddProjectModal({
     !isCheckingPickPathStatus &&
     (!requiresGitInitialization || pickState.initGitRepository);
 
+  const isSubmittingRef = useRef(false);
+
   const handleSubmit = async () => {
+    // Guard against a double submit (e.g. a laggy machine registering two
+    // clicks before onClose fires). Each submit mints its own random id and
+    // navigates to it, so a second pass would navigate to a project that the
+    // deduped creation never produces. The modal always closes after a submit,
+    // so this one-shot guard never needs resetting.
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+
     try {
+      const projectPath =
+        mode === 'pick'
+          ? pickState.path
+          : mode === 'new'
+            ? `${newState.path}/${newState.name}`
+            : `${cloneState.path}/${cloneState.name}`;
       const inspection = await rpc.projects.inspectProjectPath(
         strategy === 'ssh'
-          ? { type: 'ssh', path: pickState.path, connectionId: selectedConnectionId! }
-          : { type: 'local', path: pickState.path }
+          ? { type: 'ssh', path: projectPath, connectionId: selectedConnectionId! }
+          : { type: 'local', path: projectPath }
       );
       if (inspection.existingProject) {
         navigate('project', { projectId: inspection.existingProject.id });
