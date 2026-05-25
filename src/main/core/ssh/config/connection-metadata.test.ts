@@ -7,16 +7,14 @@ import {
 } from './connection-metadata';
 
 describe('SSH connection metadata', () => {
-  it('round-trips alias, forward agent, proxy jump, and worktrees directory', () => {
+  it('round-trips alias, forward agent, and proxy jump', () => {
     const serialized = serializeSshConnectionMetadata({
-      worktreesDir: '/srv/worktrees',
       sshConfigAlias: 'corp-dev',
       forwardAgent: true,
       proxyJump: 'bastion.example.com',
     });
 
     expect(parseSshConnectionMetadata(serialized)).toEqual({
-      worktreesDir: '/srv/worktrees',
       sshConfigAlias: 'corp-dev',
       forwardAgent: true,
       proxyJump: 'bastion.example.com',
@@ -27,7 +25,6 @@ describe('SSH connection metadata', () => {
     expect(
       parseSshConnectionMetadata(
         serializeSshConnectionMetadata({
-          worktreesDir: ' ',
           sshConfigAlias: '',
           proxyJump: '\t',
         })
@@ -73,7 +70,6 @@ describe('SSH connection metadata', () => {
         privateKeyPath: null,
         useAgent: 1,
         metadata: serializeSshConnectionMetadata({
-          worktreesDir: '/srv/worktrees',
           sshConfigAlias: 'corp-dev',
           forwardAgent: true,
           proxyJump: 'bastion',
@@ -90,7 +86,6 @@ describe('SSH connection metadata', () => {
       authType: 'agent',
       privateKeyPath: undefined,
       useAgent: true,
-      worktreesDir: '/srv/worktrees',
       sshConfigAlias: 'corp-dev',
       forwardAgent: true,
       proxyJump: 'bastion',
@@ -101,7 +96,6 @@ describe('SSH connection metadata', () => {
     expect(
       mergeSshConnectionMetadata(
         {
-          worktreesDir: '/srv/worktrees',
           sshConfigAlias: 'corp-dev',
           forwardAgent: true,
           proxyJump: 'bastion',
@@ -109,7 +103,6 @@ describe('SSH connection metadata', () => {
         {}
       )
     ).toEqual({
-      worktreesDir: '/srv/worktrees',
       sshConfigAlias: 'corp-dev',
       forwardAgent: true,
       proxyJump: 'bastion',
@@ -120,7 +113,6 @@ describe('SSH connection metadata', () => {
     expect(
       mergeSshConnectionMetadata(
         {
-          worktreesDir: '/srv/worktrees',
           sshConfigAlias: 'corp-dev',
           forwardAgent: true,
           proxyJump: 'bastion',
@@ -131,8 +123,20 @@ describe('SSH connection metadata', () => {
         }
       )
     ).toEqual({
-      worktreesDir: '/srv/worktrees',
       forwardAgent: true,
+    });
+  });
+
+  it('ignores legacy worktreesDir metadata', () => {
+    expect(
+      parseSshConnectionMetadata(
+        JSON.stringify({
+          worktreesDir: '/srv/worktrees',
+          sshConfigAlias: 'corp-dev',
+        })
+      )
+    ).toEqual({
+      sshConfigAlias: 'corp-dev',
     });
   });
 });
