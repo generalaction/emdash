@@ -32,6 +32,7 @@ export function createInitialPromptDelivery(args: {
   if (provider?.useKeystrokeInjection) {
     return new KeystrokeDelivery(args.providerId, args.conversationId, args.initialPrompt);
   }
+  if (provider?.initialPromptViaStdinPipe) return NO_OP_DELIVERY;
 
   return new ArgvDelivery(args.providerConfig?.initialPromptFlag, args.initialPrompt);
 }

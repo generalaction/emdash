@@ -45,8 +45,6 @@ import { SchedulePicker } from './pickers/SchedulePicker';
 import { UseTemplateButton } from './pickers/UseTemplateButton';
 import { RunHistory } from './RunHistory';
 
-export { AutomationPanelShell } from './AutomationPanelShell';
-
 const DEFAULT_CRON = scheduleToCron(DEFAULT_SCHEDULE);
 
 export type AutomationPanelMode =

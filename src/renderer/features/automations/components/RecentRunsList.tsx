@@ -62,6 +62,7 @@ export function RecentRunsList({
             projectId={run.projectId}
             title={run.automationName}
             showProjectName
+            variant="card"
             onDelete={deleteRun}
             onRerun={canRerun ? () => rerunFrom(run.automationId) : undefined}
             isSelected={isSelected(run.id)}

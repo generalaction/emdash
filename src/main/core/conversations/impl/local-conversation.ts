@@ -23,6 +23,7 @@ import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { makePtyId } from '@shared/ptyId';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { buildAgentSessionCommand } from './agent-command';
+import { createInitialPromptDelivery } from './initial-prompt-delivery';
 import { scheduleInitialPromptInjection } from './keystroke-injection';
 import { resolveProviderEnv } from './provider-env';
 
@@ -97,10 +98,18 @@ export class LocalConversationProvider implements ConversationProvider {
 
     const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
     const providerDef = getProvider(conversation.providerId);
+    const initialPromptDelivery = createInitialPromptDelivery({
+      providerId: conversation.providerId,
+      conversationId: conversation.id,
+      providerConfig,
+      initialPrompt,
+      isResuming,
+    });
     const { command, args } = buildAgentSessionCommand({
       providerId: conversation.providerId,
       providerConfig,
       autoApprove: conversation.autoApprove,
+      extraInitialArgs: initialPromptDelivery.argvAddition(),
       initialPrompt,
       sessionId: conversation.id,
       isResuming,

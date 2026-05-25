@@ -1,4 +1,4 @@
-import { Bot, RotateCcw, Trash2 } from 'lucide-react';
+import { Bot, Clock, Folder, Loader2, RotateCcw, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
 import { automationTool } from '@renderer/features/automations/automation-tools';
@@ -32,12 +32,18 @@ import {
 } from '@shared/automations/format';
 import type { Automation, AutomationRun } from '@shared/automations/types';
 
+const automationListRowClassName =
+  'group flex min-h-14 items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors focus:outline-none focus-visible:outline-none';
+
+type AutomationRunRowVariant = 'row' | 'card';
+
 interface AutomationRunRowProps {
   run: AutomationRun;
   automation?: Automation;
   projectId: string | null;
   title: string;
   showProjectName?: boolean;
+  variant?: AutomationRunRowVariant;
   onDelete?: (run: AutomationRun) => void;
   onRerun?: (run: AutomationRun) => void;
   isSelected?: boolean;
@@ -50,6 +56,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
   projectId,
   title,
   showProjectName = false,
+  variant = 'row',
   onDelete,
   onRerun,
   isSelected,
@@ -80,8 +87,10 @@ export const AutomationRunRow = observer(function AutomationRunRow({
     : undefined;
 
   const runName = formatRunName(run.id);
-  const subtitleParts = [errorMessage, !errorMessage ? title : undefined].filter(
-    (part): part is string => Boolean(part)
+  const automationLabel = title;
+  const promptSubtitle = errorMessage ? undefined : title;
+  const subtitleParts = [errorMessage, promptSubtitle].filter((part): part is string =>
+    Boolean(part)
   );
   const subtitle = subtitleParts[0];
 
@@ -89,6 +98,8 @@ export const AutomationRunRow = observer(function AutomationRunRow({
     (part): part is string => Boolean(part)
   );
   const displayTime = run.startedAt ?? run.scheduledAt ?? run.finishedAt;
+  const triggerLabel = formatRunTriggerKindLabel(run.triggerKind);
+  const isListLayout = variant === 'card';
 
   function handleOpenTask() {
     if (!taskId || !projectId || !interactive) return;
@@ -98,6 +109,104 @@ export const AutomationRunRow = observer(function AutomationRunRow({
   }
 
   const selectable = Boolean(onToggleSelect);
+
+  const agentIconWithStatusDot = (
+    <>
+      {tool ? (
+        <AgentLogo
+          logo={tool.logo}
+          alt={tool.label}
+          isSvg={tool.isSvg}
+          invertInDark={tool.invertInDark}
+          className="size-5 rounded-sm"
+        />
+      ) : (
+        <Bot className="size-5" />
+      )}
+      <span
+        aria-hidden
+        className={cn(
+          'absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full ring-2 ring-background',
+          status.dotClass,
+          status.spin && 'animate-pulse'
+        )}
+      />
+    </>
+  );
+
+  const listIconSlot = selectable ? (
+    <div className="relative flex size-9 shrink-0 items-center justify-center">
+      <span
+        aria-hidden
+        className={cn(
+          'pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg border border-border bg-background-1 text-foreground shadow-sm transition-opacity duration-150 ease-out',
+          isSelected ? 'opacity-0' : 'opacity-100 group-hover:opacity-0'
+        )}
+      >
+        {agentIconWithStatusDot}
+      </span>
+      <div
+        onClick={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+        className={cn(
+          'relative transition-opacity duration-150 ease-out',
+          isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100'
+        )}
+      >
+        <Checkbox
+          checked={isSelected}
+          onCheckedChange={() => onToggleSelect?.()}
+          aria-label="Select run"
+        />
+      </div>
+    </div>
+  ) : (
+    <Tooltip>
+      <TooltipTrigger>
+        <span className="relative flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-background-1 text-foreground shadow-sm">
+          {agentIconWithStatusDot}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{status.label}</TooltipContent>
+    </Tooltip>
+  );
+
+  const historyIconSlot = selectable ? (
+    <div className="relative flex size-9 shrink-0 items-center justify-center">
+      <span
+        aria-hidden
+        className={cn(
+          'pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg border border-border bg-background-1 text-foreground shadow-sm transition-opacity duration-150 ease-out',
+          isSelected ? 'opacity-0' : 'opacity-100 group-hover:opacity-0'
+        )}
+      >
+        {agentIconWithStatusDot}
+      </span>
+      <div
+        onClick={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+        className={cn(
+          'relative transition-opacity duration-150 ease-out',
+          isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100'
+        )}
+      >
+        <Checkbox
+          checked={isSelected}
+          onCheckedChange={() => onToggleSelect?.()}
+          aria-label="Select run"
+        />
+      </div>
+    </div>
+  ) : (
+    <Tooltip>
+      <TooltipTrigger>
+        <span className="relative flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-background-1 text-foreground shadow-sm">
+          {agentIconWithStatusDot}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{status.label}</TooltipContent>
+    </Tooltip>
+  );
 
   const rowContent = (
     <div
@@ -116,120 +225,95 @@ export const AutomationRunRow = observer(function AutomationRunRow({
       aria-label={`Open run ${runName}`}
       aria-disabled={!interactive}
       className={cn(
-        'group flex min-h-14 items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors focus:outline-none focus-visible:outline-none',
+        automationListRowClassName,
         interactive ? 'cursor-pointer hover:bg-background-1' : 'cursor-default opacity-70'
       )}
     >
-      {selectable ? (
-        <div className="relative flex size-9 shrink-0 items-center justify-center">
-          <span
-            aria-hidden
-            className={cn(
-              'pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg border border-border bg-background-1 text-foreground shadow-sm transition-opacity duration-150 ease-out',
-              isSelected ? 'opacity-0' : 'opacity-100 group-hover:opacity-0'
-            )}
-          >
-            {tool ? (
-              <AgentLogo
-                logo={tool.logo}
-                alt={tool.label}
-                isSvg={tool.isSvg}
-                invertInDark={tool.invertInDark}
-                className="size-5 rounded-sm"
-              />
-            ) : (
-              <Bot className="size-5" />
-            )}
-            <span
-              aria-hidden
-              className={cn(
-                'absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full ring-2 ring-background',
-                status.dotClass,
-                status.spin && 'animate-pulse'
-              )}
-            />
-          </span>
-          <div
-            onClick={(event) => event.stopPropagation()}
-            onPointerDown={(event) => event.stopPropagation()}
-            className={cn(
-              'relative transition-opacity duration-150 ease-out',
-              isSelected
-                ? 'opacity-100'
-                : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100'
-            )}
-          >
-            <Checkbox
-              checked={isSelected}
-              onCheckedChange={() => onToggleSelect?.()}
-              aria-label="Select run"
-            />
-          </div>
-        </div>
-      ) : (
-        <Tooltip>
-          <TooltipTrigger>
-            <span className="relative flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-background-1 text-foreground shadow-sm">
-              {tool ? (
-                <AgentLogo
-                  logo={tool.logo}
-                  alt={tool.label}
-                  isSvg={tool.isSvg}
-                  invertInDark={tool.invertInDark}
-                  className="size-5 rounded-sm"
-                />
-              ) : (
-                <Bot className="size-5" />
-              )}
+      {isListLayout ? listIconSlot : historyIconSlot}
+
+      {isListLayout ? (
+        <>
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <div className="flex min-w-0 items-center gap-2">
               <span
-                aria-hidden
                 className={cn(
-                  'absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full ring-2 ring-background',
-                  status.dotClass,
-                  status.spin && 'animate-pulse'
+                  'block min-w-0 max-w-full truncate text-left text-sm font-medium text-foreground',
+                  isActive && 'text-shimmer'
                 )}
-              />
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>{status.label}</TooltipContent>
-        </Tooltip>
-      )}
+              >
+                {automationLabel}
+              </span>
+              {missedDeadline ? <Badge variant="destructive">Missed deadline</Badge> : null}
+            </div>
 
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <div className="flex min-w-0 items-center gap-2">
-          <span
-            className={cn(
-              'block min-w-0 max-w-full truncate text-left text-sm font-medium',
-              isFailed ? 'text-destructive' : 'text-foreground',
-              isActive && !isFailed && 'text-shimmer'
-            )}
-          >
-            {runName}
-          </span>
-          {missedDeadline ? <Badge variant="destructive">Missed deadline</Badge> : null}
-        </div>
-        {subtitle ? (
-          <div className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
-            <span className="truncate">{subtitle}</span>
+            <div className="text-muted-foreground flex min-w-0 items-center gap-3 text-xs">
+              <span className="inline-flex min-w-0 items-center gap-1.5">
+                <span className="truncate">{runName}</span>
+              </span>
+              <span className="inline-flex shrink-0 items-center gap-1.5">
+                <Clock className="size-3 shrink-0" />
+                <span className="truncate">{triggerLabel}</span>
+              </span>
+            </div>
+
+            {errorMessage ? (
+              <p className="text-destructive line-clamp-2 text-xs">{errorMessage}</p>
+            ) : null}
           </div>
-        ) : null}
-      </div>
 
-      <div className="text-muted-foreground flex shrink-0 items-center gap-1 text-xs">
-        <span className={cn('inline-flex items-center gap-1', status.textClass)}>
-          <StatusIcon className={cn('size-3 shrink-0', status.spin && 'animate-spin')} />
-          <span>{status.label}</span>
-        </span>
-        {metaParts.length > 0 ? <span className="text-muted-foreground/40">·</span> : null}
-        {metaParts.map((part, index) => (
-          <span key={`${part}-${index}`} className="flex items-center gap-1">
-            {index > 0 ? <span className="text-muted-foreground/40">·</span> : null}
-            <span className="truncate">{part}</span>
-          </span>
-        ))}
-        <span className="text-muted-foreground/40">·</span>
-        {displayTime == null ? <span>—</span> : <AbsoluteTime value={displayTime} />}
-      </div>
+          <div className="flex max-w-[42%] shrink-0 flex-col items-end gap-0.5 text-right">
+            {displayTime == null ? (
+              <span className="text-xs text-muted-foreground">—</span>
+            ) : (
+              <AbsoluteTime value={displayTime} className="text-xs text-muted-foreground" />
+            )}
+            {projectName ? (
+              <span className="inline-flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                <Folder className="size-3 shrink-0" />
+                <span className="truncate">{projectName}</span>
+              </span>
+            ) : null}
+          </div>
+        </>
+      ) : (
+        <>
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <div className="flex min-w-0 items-center gap-2">
+              <span
+                className={cn(
+                  'block min-w-0 max-w-full truncate text-left text-sm font-medium',
+                  isFailed ? 'text-destructive' : 'text-foreground',
+                  isActive && !isFailed && 'text-shimmer'
+                )}
+              >
+                {runName}
+              </span>
+              {missedDeadline ? <Badge variant="destructive">Missed deadline</Badge> : null}
+            </div>
+            {subtitle ? (
+              <div className="text-muted-foreground flex min-w-0 items-center gap-1.5 text-xs">
+                <span className="truncate">{subtitle}</span>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="text-muted-foreground flex shrink-0 items-center gap-1 text-xs">
+            <span className={cn('inline-flex items-center gap-1', status.textClass)}>
+              <StatusIcon className={cn('size-3 shrink-0', status.spin && 'animate-spin')} />
+              <span>{status.label}</span>
+            </span>
+            {metaParts.length > 0 ? <span className="text-muted-foreground/40">·</span> : null}
+            {metaParts.map((part, index) => (
+              <span key={`${part}-${index}`} className="flex items-center gap-1">
+                {index > 0 ? <span className="text-muted-foreground/40">·</span> : null}
+                <span className="truncate">{part}</span>
+              </span>
+            ))}
+            <span className="text-muted-foreground/40">·</span>
+            {displayTime == null ? <span>—</span> : <AbsoluteTime value={displayTime} />}
+          </div>
+        </>
+      )}
     </div>
   );
 
