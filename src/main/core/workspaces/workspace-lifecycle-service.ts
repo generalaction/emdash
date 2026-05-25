@@ -5,10 +5,11 @@ import { makePtySessionId } from '@shared/ptySessionId';
 import { createLifecycleScriptTerminalId } from '@shared/terminals';
 import type { Pty } from '../pty/pty';
 import { ptySessionRegistry } from '../pty/pty-session-registry';
-import { formatLifecycleScriptInput } from '../terminals/format-lifecycle-script-input';
+import {
+  formatLifecycleScriptInput,
+  type LifecycleScriptShellKind,
+} from '../terminals/format-lifecycle-script-input';
 import type { TerminalProvider } from '../terminals/terminal-provider';
-
-type LifecycleScriptShellKind = 'cmd' | 'posix';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;

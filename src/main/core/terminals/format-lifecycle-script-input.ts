@@ -1,6 +1,8 @@
+export type LifecycleScriptShellKind = 'cmd' | 'posix';
+
 export type LifecycleScriptInputOptions = {
   exit?: boolean;
-  shellKind?: 'cmd' | 'posix';
+  shellKind?: LifecycleScriptShellKind;
   platform?: NodeJS.Platform;
 };
 
@@ -27,6 +29,7 @@ export function formatLifecycleScriptInput(
   const lines = splitScriptLines(script);
 
   if (shellKind === 'cmd') {
+    // `&` continues on error, matching POSIX shells without `set -e`.
     const body = lines.join(' & ');
     if (!body) return exit ? 'exit' : '';
     return exit ? `${body} & exit` : body;
