@@ -1,8 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { pullRequestErrorMessage, type PullRequest } from '@shared/pull-requests';
 import { rpc } from '@renderer/lib/ipc';
 import { computeCheckRunsSummary, type CheckRun } from '@renderer/utils/github';
+import { pullRequestErrorMessage, type PullRequest } from '@shared/pull-requests';
 
 const PENDING_CHECKS_REFETCH_INTERVAL_MS = 5_000;
 
