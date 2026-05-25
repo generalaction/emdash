@@ -92,7 +92,7 @@ export function VirtualizedChangesTree({
             const expanded = isChainExpanded(row.chain, expandedPaths);
             return (
               <DirectoryRow
-                key={node.path}
+                key={`${node.type}:${node.path}`}
                 row={row}
                 isExpanded={expanded}
                 onToggle={() => toggleChain(row.chain, expanded)}
@@ -104,7 +104,7 @@ export function VirtualizedChangesTree({
           if (!change) return null;
           return (
             <FileRow
-              key={node.path}
+              key={`${node.type}:${node.path}`}
               row={row}
               change={change}
               isSelected={isSelected?.(change.path) ?? false}
