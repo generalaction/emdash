@@ -58,6 +58,36 @@ describe('buildAgentCommand', () => {
     expect(result.args).toEqual(['resume', '--last']);
   });
 
+  it('uses custom resume-without-session flags when resuming without a stored provider session id', () => {
+    const result = buildAgentCommand({
+      providerId: 'codex',
+      providerConfig: {
+        ...providerConfigDefaults.codex,
+        resumeWithoutSessionFlag: 'resume newest',
+      },
+      sessionId: 'conv-1',
+      isResuming: true,
+    });
+
+    expect(result.args).toEqual(['resume', 'newest']);
+  });
+
+  it('does not pass the internal session id as a provider session id on resume-only providers', () => {
+    const result = buildAgentCommand({
+      providerId: 'codex',
+      providerConfig: {
+        cli: 'custom-agent',
+        resumeFlag: 'resume',
+        sessionIdFlag: '--session-id',
+        sessionIdOnResumeOnly: true,
+      },
+      sessionId: 'conv-1',
+      isResuming: true,
+    });
+
+    expect(result.args).toEqual(['resume']);
+  });
+
   it('uses the Antigravity skip-permissions flag when auto-approve is enabled', () => {
     const command = buildAgentCommand({
       providerId: 'antigravity',

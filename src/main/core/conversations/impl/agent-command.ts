@@ -134,10 +134,8 @@ export function buildAgentCommand({
       appendSessionId(args, providerConfig.resumeFlag, providerSessionId);
     } else if (providerConfig.sessionIdFlag && !providerConfig.sessionIdOnResumeOnly) {
       appendSessionId(args, providerConfig.resumeFlag, sessionId);
-    } else if (providerDef?.resumeWithoutSessionFlag) {
-      args.push(...parseArgField(providerDef.resumeWithoutSessionFlag));
-    } else if (providerConfig.sessionIdFlag && providerConfig.sessionIdOnResumeOnly) {
-      appendSessionId(args, providerConfig.resumeFlag, sessionId);
+    } else if (providerConfig.resumeWithoutSessionFlag) {
+      args.push(...parseArgField(providerConfig.resumeWithoutSessionFlag));
     } else {
       args.push(...parseArgField(providerConfig.resumeFlag));
     }
