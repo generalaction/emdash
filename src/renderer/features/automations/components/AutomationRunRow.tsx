@@ -263,12 +263,12 @@ export const AutomationRunRow = observer(function AutomationRunRow({
 
           <div className="flex max-w-[42%] shrink-0 flex-col items-end gap-0.5 text-right">
             {displayTime == null ? (
-              <span className="text-xs text-muted-foreground">—</span>
+              <span className="text-muted-foreground text-xs">—</span>
             ) : (
-              <AbsoluteTime value={displayTime} className="text-xs text-muted-foreground" />
+              <AbsoluteTime value={displayTime} className="text-muted-foreground text-xs" />
             )}
             {projectName ? (
-              <span className="inline-flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+              <span className="text-muted-foreground inline-flex min-w-0 items-center gap-1.5 text-xs">
                 <Folder className="size-3 shrink-0" />
                 <span className="truncate">{projectName}</span>
               </span>
