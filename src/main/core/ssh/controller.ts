@@ -109,9 +109,6 @@ export const sshController = createRPCController({
           );
 
     const metadataUpdate: SshConnectionMetadata = {};
-    if (Object.prototype.hasOwnProperty.call(config, 'worktreesDir')) {
-      metadataUpdate.worktreesDir = config.worktreesDir;
-    }
     if (Object.prototype.hasOwnProperty.call(config, 'sshConfigAlias')) {
       metadataUpdate.sshConfigAlias = config.sshConfigAlias;
     }
@@ -156,7 +153,6 @@ export const sshController = createRPCController({
     return {
       ...dbConfig,
       id: connectionId,
-      worktreesDir: metadata.worktreesDir,
       sshConfigAlias: metadata.sshConfigAlias,
       forwardAgent: metadata.forwardAgent,
       proxyJump: metadata.proxyJump,

@@ -52,7 +52,6 @@ export type ProjectProviderTransport = {
   readonly fs: FileSystemProvider;
   readonly settings: ProjectSettingsProvider;
   readonly worktreeHost: WorktreeHost;
-  readonly worktreePoolPath: string;
 };
 
 export class ProjectProvider implements IDisposable {

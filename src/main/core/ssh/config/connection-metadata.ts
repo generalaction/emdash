@@ -3,14 +3,12 @@ import type { SshConnectionRow } from '@main/db/schema';
 import type { SshConfig } from '@shared/ssh';
 
 export interface SshConnectionMetadata {
-  worktreesDir?: string;
   sshConfigAlias?: string;
   forwardAgent?: boolean;
   proxyJump?: string;
 }
 
 type SshConnectionMetadataUpdate = {
-  worktreesDir?: string | undefined;
   sshConfigAlias?: string | undefined;
   forwardAgent?: boolean | undefined;
   proxyJump?: string | undefined;
@@ -37,10 +35,8 @@ export function parseSshConnectionMetadata(metadata: string | null): SshConnecti
   try {
     const parsed = JSON.parse(metadata) as Record<string, unknown>;
     const result: SshConnectionMetadata = {};
-    const worktreesDir = optionalString(parsed.worktreesDir);
     const sshConfigAlias = optionalSshConfigAlias(parsed.sshConfigAlias);
     const proxyJump = optionalString(parsed.proxyJump);
-    if (worktreesDir) result.worktreesDir = worktreesDir;
     if (sshConfigAlias) result.sshConfigAlias = sshConfigAlias;
     if (typeof parsed.forwardAgent === 'boolean') result.forwardAgent = parsed.forwardAgent;
     if (proxyJump) result.proxyJump = proxyJump;
@@ -52,7 +48,6 @@ export function parseSshConnectionMetadata(metadata: string | null): SshConnecti
 
 export function serializeSshConnectionMetadata(metadata: SshConnectionMetadata): string {
   return JSON.stringify({
-    worktreesDir: optionalString(metadata.worktreesDir),
     sshConfigAlias: optionalSshConfigAlias(metadata.sshConfigAlias),
     forwardAgent: typeof metadata.forwardAgent === 'boolean' ? metadata.forwardAgent : undefined,
     proxyJump: optionalString(metadata.proxyJump),
@@ -67,7 +62,6 @@ export function mergeSshConnectionMetadata(
     Object.prototype.hasOwnProperty.call(update, key);
 
   return {
-    worktreesDir: has('worktreesDir') ? optionalString(update.worktreesDir) : existing.worktreesDir,
     sshConfigAlias: has('sshConfigAlias')
       ? optionalSshConfigAlias(update.sshConfigAlias)
       : existing.sshConfigAlias,
@@ -87,7 +81,6 @@ export function sshConfigFromRow(row: SshConnectionRow): SshConfig {
     authType: row.authType as 'password' | 'key' | 'agent',
     privateKeyPath: row.privateKeyPath ?? undefined,
     useAgent: row.useAgent === 1,
-    worktreesDir: metadata.worktreesDir,
     sshConfigAlias: metadata.sshConfigAlias,
     forwardAgent: metadata.forwardAgent,
     proxyJump: metadata.proxyJump,
