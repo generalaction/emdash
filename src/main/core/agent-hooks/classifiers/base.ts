@@ -7,6 +7,10 @@ export type ClassificationResult =
       message?: string;
     }
   | {
+      type: 'start';
+      message?: string;
+    }
+  | {
       type: 'stop';
       message?: string;
     }

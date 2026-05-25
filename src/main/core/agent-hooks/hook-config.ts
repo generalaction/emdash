@@ -11,6 +11,7 @@ import {
   makeCodexHookCommand,
   makeOpenCodePluginContent,
 } from './agent-notify-command';
+import cursorEmdashHookScript from './cursor-emdash-hook.cjs?raw';
 import piEmdashExtension from './pi-emdash-extension.ts?raw';
 
 const EMDASH_MARKER = 'EMDASH_HOOK_PORT';
@@ -21,9 +22,19 @@ const CODEX_HOOKS_PATH = '.codex/hooks.json';
 const DROID_SETTINGS_PATH = '.factory/settings.json';
 const PI_EMDASH_EXTENSION_PATH = '.pi/extensions/emdash-hook.ts';
 const OPENCODE_PLUGIN_PATH = '.opencode/plugins/emdash-notifications.js';
+const CURSOR_HOOKS_PATH = '.cursor/hooks.json';
+const CURSOR_HOOK_SCRIPT_PATH = '.cursor/hooks/emdash-notify.cjs';
+export const CURSOR_HOOK_SESSION_PATH = '.cursor/emdash-hook-session.json';
 const GITIGNORE_PATH = '.gitignore';
 type HookConfigWriteOptions = { writeGitIgnoreEntries?: boolean };
 type CodexHookEvent = 'Stop' | 'PermissionRequest';
+type CursorHookEvent =
+  | 'stop'
+  | 'beforeSubmitPrompt'
+  | 'afterAgentThought'
+  | 'preToolUse'
+  | 'beforeShellExecution'
+  | 'beforeMCPExecution';
 type DroidHookEvent = 'Notification' | 'Stop';
 
 const HOOK_EVENT_MAP = [
@@ -40,6 +51,17 @@ const DROID_HOOK_EVENT_MAP = [
   { hookKey: 'Notification', eventType: 'notification' },
   { hookKey: 'Stop', eventType: 'stop' },
 ] satisfies { hookKey: DroidHookEvent; eventType: 'notification' | 'stop' }[];
+
+// Only `stop` signals agent completion. Mid-run events (postToolUse, afterFileEdit, …)
+// fire after every tool call and must not mark the conversation idle.
+const CURSOR_HOOK_EVENT_MAP = [
+  { hookKey: 'stop', eventArg: 'stop' },
+  { hookKey: 'beforeSubmitPrompt', eventArg: 'start' },
+  { hookKey: 'afterAgentThought', eventArg: 'start' },
+  { hookKey: 'preToolUse', eventArg: 'start' },
+  { hookKey: 'beforeShellExecution', eventArg: 'permission' },
+  { hookKey: 'beforeMCPExecution', eventArg: 'permission' },
+] satisfies { hookKey: CursorHookEvent; eventArg: 'stop' | 'start' | 'permission' }[];
 
 const LEGACY_CODEX_NOTIFY_COMMAND = [
   'bash',
@@ -118,6 +140,70 @@ export class HookConfigWriter {
     return true;
   }
 
+  async writeCursorHooks(): Promise<boolean> {
+    if (!(await this.isCursorCliAvailable())) return false;
+
+    await this.ensureCursorHookScript();
+
+    const config: Record<string, unknown> = (await this.fs.exists(CURSOR_HOOKS_PATH))
+      ? await this.fs
+          .read(CURSOR_HOOKS_PATH)
+          .then((r) => JSON.parse(r.content) ?? {})
+          .catch(() => ({}))
+      : { version: 1 };
+
+    const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
+    const nodeCommand = await this.resolveCursorHookNodeCommand();
+
+    for (const hookKey of Object.keys(hooks)) {
+      if (!Array.isArray(hooks[hookKey])) continue;
+      hooks[hookKey] = hooks[hookKey].filter(
+        (entry) => !this.isEmdashManagedCursorHookEntry(entry)
+      );
+    }
+
+    for (const { hookKey, eventArg } of CURSOR_HOOK_EVENT_MAP) {
+      const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
+      hooks[hookKey] = this.buildCursorHookEntries(
+        existing,
+        `${nodeCommand} ${CURSOR_HOOK_SCRIPT_PATH} ${eventArg}`
+      );
+    }
+
+    await this.removeLegacyCursorHookScript();
+
+    await this.fs.write(
+      CURSOR_HOOKS_PATH,
+      JSON.stringify({ ...config, version: config.version ?? 1, hooks }, null, 2) + '\n'
+    );
+    return true;
+  }
+
+  async writeCursorHookSession(session: {
+    port: number;
+    token: string;
+    ptyId: string;
+  }): Promise<void> {
+    await this.writeCursorHooks();
+    await this.fs.write(
+      CURSOR_HOOK_SESSION_PATH,
+      JSON.stringify({
+        port: session.port,
+        token: session.token,
+        ptyId: session.ptyId,
+      }) + '\n'
+    );
+  }
+
+  private async ensureCursorHookScript(): Promise<void> {
+    let existingScript: string | undefined;
+    if (await this.fs.exists(CURSOR_HOOK_SCRIPT_PATH)) {
+      existingScript = (await this.fs.read(CURSOR_HOOK_SCRIPT_PATH)).content;
+    }
+    if (existingScript === cursorEmdashHookScript) return;
+    await this.fs.write(CURSOR_HOOK_SCRIPT_PATH, cursorEmdashHookScript);
+  }
+
   async writeDroidHooks(): Promise<boolean> {
     if (!(await resolveCommandPath('droid', this.exec))) return false;
 
@@ -187,6 +273,18 @@ export class HookConfigWriter {
       return this.writeCodexHooks();
     }
 
+    if (providerId === 'cursor') {
+      const wroteConfig = await this.writeCursorHooks();
+      if (wroteConfig && writeGitIgnoreEntries) {
+        await this.ensureGitIgnoreEntries([
+          CURSOR_HOOKS_PATH,
+          CURSOR_HOOK_SCRIPT_PATH,
+          CURSOR_HOOK_SESSION_PATH,
+        ]);
+      }
+      return wroteConfig;
+    }
+
     if (providerId === 'droid') {
       const wroteConfig = await this.writeDroidHooks();
       if (wroteConfig && writeGitIgnoreEntries) {
@@ -216,7 +314,7 @@ export class HookConfigWriter {
 
   async writeAll(options: HookConfigWriteOptions = {}): Promise<void> {
     await Promise.all(
-      (['claude', 'codex', 'droid', 'pi', 'opencode'] as const).map((providerId) =>
+      (['claude', 'codex', 'cursor', 'droid', 'pi', 'opencode'] as const).map((providerId) =>
         this.writeForProvider(providerId, options).catch((err: Error) => {
           log.warn(`Failed to write ${providerId} hook config`, { error: String(err) });
         })
@@ -227,6 +325,42 @@ export class HookConfigWriter {
   private buildHookEntries(existing: unknown[], command: string): unknown[] {
     const userEntries = existing.filter((entry) => !JSON.stringify(entry).includes(EMDASH_MARKER));
     return [...userEntries, { hooks: [{ type: 'command', command }] }];
+  }
+
+  private buildCursorHookEntries(existing: unknown[], command: string): unknown[] {
+    const userEntries = existing.filter((entry) => !this.isEmdashManagedCursorHookEntry(entry));
+    return [...userEntries, { command }];
+  }
+
+  private isEmdashManagedCursorHookEntry(entry: unknown): boolean {
+    const serialized = JSON.stringify(entry);
+    return (
+      serialized.includes('emdash-notify') ||
+      serialized.includes(EMDASH_MARKER) ||
+      serialized.includes('EMDASH_HOOK_TOKEN') ||
+      serialized.includes('EMDASH_PTY_ID') ||
+      serialized.includes('/hook"')
+    );
+  }
+
+  private async resolveCursorHookNodeCommand(): Promise<string> {
+    const nodePath = await resolveCommandPath('node', this.exec);
+    if (nodePath) return nodePath;
+    const execPath = process.execPath.includes(' ') ? `"${process.execPath}"` : process.execPath;
+    return `ELECTRON_RUN_AS_NODE=1 ${execPath}`;
+  }
+
+  private async removeLegacyCursorHookScript(): Promise<void> {
+    const legacyPath = '.cursor/hooks/emdash-notify.sh';
+    if (!(await this.fs.exists(legacyPath))) return;
+    await this.fs.remove(legacyPath).catch(() => undefined);
+  }
+
+  private async isCursorCliAvailable(): Promise<boolean> {
+    return (
+      !!(await resolveCommandPath('cursor-agent', this.exec)) ||
+      !!(await resolveCommandPath('agent', this.exec))
+    );
   }
 
   private async removeLegacyCodexNotify(): Promise<void> {

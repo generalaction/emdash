@@ -149,7 +149,24 @@ export class LocalConversationProvider implements ConversationProvider {
     });
 
     const hookActive = port > 0;
-    const useHooksOnly = hookActive && providerDef?.supportsHooks && hooksAvailable;
+    if (hookActive && conversation.providerId === 'cursor' && hooksAvailable) {
+      await this.hookConfigWriter.writeCursorHookSession({ port, token, ptyId }).catch((error) => {
+        log.warn('LocalConversationProvider: failed to write Cursor hook session', {
+          conversationId: conversation.id,
+          error: String(error),
+        });
+      });
+    }
+
+    const cursorHooksHandleStop =
+      hookActive && conversation.providerId === 'cursor' && hooksAvailable;
+
+    // Cursor: hooks own stop/idle; classifier only supplements start + permission from PTY.
+    const useHooksOnly =
+      hookActive &&
+      providerDef?.supportsHooks &&
+      hooksAvailable &&
+      conversation.providerId !== 'cursor';
 
     if (!useHooksOnly) {
       wireAgentClassifier({
@@ -158,6 +175,7 @@ export class LocalConversationProvider implements ConversationProvider {
         projectId: conversation.projectId,
         taskId: conversation.taskId,
         conversationId: conversation.id,
+        cursorHooksHandleStop,
       });
     }
 
@@ -217,7 +235,9 @@ export class LocalConversationProvider implements ConversationProvider {
       const writeGitIgnoreEntries = localProjectSettings.writeAgentConfigToGitIgnore ?? true;
       const previous = this.preparedHookProviders.get(providerId);
       const shouldPrepareHookConfig =
-        previous === undefined || (!previous.writeGitIgnoreEntries && writeGitIgnoreEntries);
+        providerId === 'cursor' ||
+        previous === undefined ||
+        (!previous.writeGitIgnoreEntries && writeGitIgnoreEntries);
       if (!shouldPrepareHookConfig) return previous?.hooksAvailable ?? false;
 
       const hooksAvailable = await this.hookConfigWriter.writeForProvider(providerId, {

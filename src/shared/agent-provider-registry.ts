@@ -169,9 +169,12 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     autoApproveFlag: '-f',
     initialPromptFlag: '',
     resumeFlag: '--resume',
+    sessionIdFlag: '--resume',
+    sessionIdOnResumeOnly: false,
     icon: 'cursor.svg',
     alt: 'Cursor CLI',
     terminalOnly: true,
+    supportsHooks: true,
   },
   {
     id: 'gemini',

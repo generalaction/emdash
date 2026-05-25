@@ -113,8 +113,21 @@ export class ConversationManagerStore implements IDisposable {
       if (event.type === 'notification') {
         const nt = event.payload.notificationType;
         if (!isAttentionNotification(nt)) return;
+        // Cursor stop hook owns idle; PTY classifier still sees stale "Add a follow-up" in scrollback.
+        if (
+          event.providerId === 'cursor' &&
+          event.source === 'classifier' &&
+          nt === 'idle_prompt'
+        ) {
+          return;
+        }
         conversationStore.setAwaitingInput(nt);
-        soundPlayer.play('needs_attention', appFocused);
+        // Auto-allowed Cursor shell/MCP hooks must not spam attention sounds.
+        const skipSound =
+          event.source === 'hook' && event.providerId === 'cursor' && nt === 'permission_prompt';
+        if (!skipSound) {
+          soundPlayer.play('needs_attention', appFocused);
+        }
         return;
       }
       if (event.type === 'stop') {

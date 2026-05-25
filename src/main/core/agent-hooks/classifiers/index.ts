@@ -60,7 +60,18 @@ const classifierFactories: Partial<Record<AgentProviderId, () => ProviderClassif
   rovo: createRovoClassifier,
 };
 
-export function createClassifier(providerId: AgentProviderId): ProviderClassifier {
+export type CreateClassifierOptions = {
+  /** Cursor `stop` hook owns idle; avoid PTY false-positives from stale follow-up text. */
+  cursorHooksHandleStop?: boolean;
+};
+
+export function createClassifier(
+  providerId: AgentProviderId,
+  options: CreateClassifierOptions = {}
+): ProviderClassifier {
+  if (providerId === 'cursor') {
+    return createCursorClassifier({ hooksHandleStop: options.cursorHooksHandleStop });
+  }
   const factory = classifierFactories[providerId];
   return factory ? factory() : createGenericClassifier();
 }

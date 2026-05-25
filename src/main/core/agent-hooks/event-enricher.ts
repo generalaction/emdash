@@ -38,9 +38,20 @@ export async function enrichEvent(raw: RawHookRequest): Promise<AgentEvent> {
     .where(eq(conversations.id, parsed.conversationId))
     .limit(1);
 
+  if (!convRows) {
+    throw new Error(`Conversation not found for hook ptyId: ${raw.ptyId}`);
+  }
+
   const taskId = convRows.taskId;
   const projectId = convRows.projectId;
-  const body = raw.body ? JSON.parse(raw.body) : {};
+  let body: Record<string, unknown> = {};
+  if (raw.body) {
+    try {
+      body = JSON.parse(raw.body) as Record<string, unknown>;
+    } catch {
+      body = {};
+    }
+  }
   const payload = normalizePayload(parsed.providerId, body);
 
   return {

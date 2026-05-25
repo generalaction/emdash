@@ -6,6 +6,14 @@ import { HookConfigWriter } from './hook-config';
 
 const mockResolveCommandPath = vi.hoisted(() => vi.fn());
 
+function mockCursorCliPaths(): void {
+  mockResolveCommandPath.mockImplementation(async (command: string) => {
+    if (command === 'node') return '/usr/local/bin/node';
+    if (command === 'cursor-agent' || command === 'agent') return '/usr/local/bin/cursor-agent';
+    return '/usr/local/bin/pi';
+  });
+}
+
 vi.mock('@main/core/dependencies/probe', () => ({
   resolveCommandPath: mockResolveCommandPath,
 }));
@@ -61,6 +69,154 @@ describe('HookConfigWriter', () => {
     await writer.writeForProvider('pi');
 
     expect(fs.files.has('.pi/extensions/emdash-hook.ts')).toBe(false);
+    expect(fs.files.has('.gitignore')).toBe(false);
+  });
+
+  it('writes Cursor hook script, hooks.json, and gitignore entries', async () => {
+    mockCursorCliPaths();
+    const fs = new MemoryFs();
+    const writer = makeWriter(fs);
+
+    const wroteConfig = await writer.writeForProvider('cursor');
+
+    expect(wroteConfig).toBe(true);
+    expect(fs.files.get('.cursor/hooks/emdash-notify.cjs')).toContain('conversation_id');
+    const config = JSON.parse(fs.files.get('.cursor/hooks.json')!);
+    expect(config.version).toBe(1);
+    expect(config.hooks.stop[0].command).toBe(
+      '/usr/local/bin/node .cursor/hooks/emdash-notify.cjs stop'
+    );
+    expect(config.hooks.beforeSubmitPrompt[0].command).toBe(
+      '/usr/local/bin/node .cursor/hooks/emdash-notify.cjs start'
+    );
+    expect(config.hooks.afterAgentThought[0].command).toBe(
+      '/usr/local/bin/node .cursor/hooks/emdash-notify.cjs start'
+    );
+    expect(config.hooks.preToolUse[0].command).toBe(
+      '/usr/local/bin/node .cursor/hooks/emdash-notify.cjs start'
+    );
+    expect(config.hooks.afterAgentResponse).toBeUndefined();
+    expect(config.hooks.afterFileEdit).toBeUndefined();
+    expect(config.hooks.postToolUse).toBeUndefined();
+    expect(config.hooks.beforeShellExecution[0].command).toBe(
+      '/usr/local/bin/node .cursor/hooks/emdash-notify.cjs permission'
+    );
+    expect(config.hooks.beforeMCPExecution[0].command).toBe(
+      '/usr/local/bin/node .cursor/hooks/emdash-notify.cjs permission'
+    );
+    expect(fs.files.get('.gitignore')).toBe(
+      '.cursor/hooks.json\n.cursor/hooks/emdash-notify.cjs\n.cursor/emdash-hook-session.json\n'
+    );
+  });
+
+  it('creates the Cursor hook script without reading a missing file first', async () => {
+    mockCursorCliPaths();
+    const fs = new MemoryFs();
+    const readSpy = vi.spyOn(fs, 'read');
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('cursor');
+
+    expect(fs.files.has('.cursor/hooks/emdash-notify.cjs')).toBe(true);
+    expect(readSpy).not.toHaveBeenCalledWith('.cursor/hooks/emdash-notify.cjs', expect.anything());
+    readSpy.mockRestore();
+  });
+
+  it('writes the Cursor hook session file with connection details', async () => {
+    mockCursorCliPaths();
+    const fs = new MemoryFs();
+    const writer = makeWriter(fs);
+
+    await writer.writeCursorHookSession({
+      port: 4242,
+      token: 'secret-token',
+      ptyId: 'cursor-conv-conversation-1',
+    });
+
+    expect(JSON.parse(fs.files.get('.cursor/emdash-hook-session.json')!)).toEqual({
+      port: 4242,
+      token: 'secret-token',
+      ptyId: 'cursor-conv-conversation-1',
+    });
+  });
+
+  it('removes legacy curl-based Emdash Cursor hooks', async () => {
+    mockCursorCliPaths();
+    const fs = new MemoryFs();
+    fs.files.set(
+      '.cursor/hooks.json',
+      JSON.stringify({
+        version: 1,
+        hooks: {
+          stop: [
+            {
+              command:
+                'curl -sf -X POST -H "X-Emdash-Token: $EMDASH_HOOK_TOKEN" "http://127.0.0.1:$EMDASH_HOOK_PORT/hook" || true',
+            },
+          ],
+        },
+      })
+    );
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('cursor');
+
+    const config = JSON.parse(fs.files.get('.cursor/hooks.json')!);
+    expect(config.hooks.stop).toHaveLength(1);
+    expect(config.hooks.stop[0].command).toContain('emdash-notify.cjs');
+    expect(config.hooks.stop[0].command).not.toContain('curl');
+  });
+
+  it('preserves unrelated Cursor hooks while replacing Emdash-managed entries', async () => {
+    mockCursorCliPaths();
+    const fs = new MemoryFs();
+    fs.files.set(
+      '.cursor/hooks.json',
+      JSON.stringify({
+        version: 1,
+        hooks: {
+          stop: [
+            { command: 'echo user stop hook' },
+            { command: '.cursor/hooks/emdash-notify.js stop' },
+          ],
+        },
+      })
+    );
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('cursor');
+
+    const config = JSON.parse(fs.files.get('.cursor/hooks.json')!);
+    expect(config.hooks.stop).toHaveLength(2);
+    expect(config.hooks.stop[0].command).toBe('echo user stop hook');
+    expect(config.hooks.stop[1].command).toBe(
+      '/usr/local/bin/node .cursor/hooks/emdash-notify.cjs stop'
+    );
+    expect(config.hooks.beforeShellExecution).toHaveLength(1);
+    expect(config.hooks.beforeMCPExecution).toHaveLength(1);
+  });
+
+  it('detects Cursor CLI via the agent shim when cursor-agent is missing', async () => {
+    mockResolveCommandPath.mockImplementation(async (command: string) =>
+      command === 'agent' ? '/usr/local/bin/agent' : undefined
+    );
+    const fs = new MemoryFs();
+    const writer = makeWriter(fs);
+
+    const wroteConfig = await writer.writeForProvider('cursor');
+
+    expect(wroteConfig).toBe(true);
+    expect(fs.files.has('.cursor/hooks.json')).toBe(true);
+  });
+
+  it('skips Cursor hooks when cursor-agent is unavailable', async () => {
+    mockResolveCommandPath.mockResolvedValue(undefined);
+    const fs = new MemoryFs();
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('cursor');
+
+    expect(fs.files.has('.cursor/hooks.json')).toBe(false);
     expect(fs.files.has('.gitignore')).toBe(false);
   });
 
