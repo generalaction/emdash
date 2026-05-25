@@ -254,8 +254,8 @@ export const AddProjectModal = observer(function AddProjectModal({
     // Guard against a double submit (e.g. a laggy machine registering two
     // clicks before onClose fires). Each submit mints its own random id and
     // navigates to it, so a second pass would navigate to a project that the
-    // deduped creation never produces. The modal always closes after a submit,
-    // so this one-shot guard never needs resetting.
+    // deduped creation never produces. Reset on inspection failures so future
+    // keep-open error handling can still retry within the same modal instance.
     if (isSubmittingRef.current) return;
     isSubmittingRef.current = true;
 
@@ -277,6 +277,7 @@ export const AddProjectModal = observer(function AddProjectModal({
         return;
       }
     } catch (e) {
+      isSubmittingRef.current = false;
       log.error(e);
     }
 
