@@ -121,6 +121,7 @@ export function createWorkspaceFactory(
       projectId: context.projectId,
       workspaceId,
       terminals: workspaceTerminals,
+      shellKind: type.kind === 'ssh' ? 'posix' : process.platform === 'win32' ? 'cmd' : 'posix',
     });
 
     const baseGitCtx =

@@ -5,7 +5,10 @@ import { makePtySessionId } from '@shared/ptySessionId';
 import { createLifecycleScriptTerminalId } from '@shared/terminals';
 import type { Pty } from '../pty/pty';
 import { ptySessionRegistry } from '../pty/pty-session-registry';
+import { formatLifecycleScriptInput } from '../terminals/format-lifecycle-script-input';
 import type { TerminalProvider } from '../terminals/terminal-provider';
+
+type LifecycleScriptShellKind = 'cmd' | 'posix';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
@@ -25,6 +28,7 @@ export class LifecycleScriptService implements IDisposable {
   private readonly projectId: string;
   private readonly workspaceId: string;
   private readonly terminals: TerminalProvider;
+  private readonly shellKind: LifecycleScriptShellKind;
   private readonly sessionsWithRespawnHandler = new Set<string>();
   private readonly latestRespawnRequest = new Map<string, LifecycleRespawnRequest>();
   private disposed = false;
@@ -33,14 +37,17 @@ export class LifecycleScriptService implements IDisposable {
     projectId,
     workspaceId,
     terminals,
+    shellKind = process.platform === 'win32' ? 'cmd' : 'posix',
   }: {
     projectId: string;
     workspaceId: string;
     terminals: TerminalProvider;
+    shellKind?: LifecycleScriptShellKind;
   }) {
     this.projectId = projectId;
     this.workspaceId = workspaceId;
     this.terminals = terminals;
+    this.shellKind = shellKind;
   }
 
   private respawnAfterExit(sessionId: string): void {
@@ -139,7 +146,7 @@ export class LifecycleScriptService implements IDisposable {
         })
       : null;
 
-    const command = exit ? `${script.script}; exit` : script.script;
+    const command = formatLifecycleScriptInput(script.script, { exit, shellKind: this.shellKind });
     pty.write(`${command}\n`);
 
     if (exitPromise) {
