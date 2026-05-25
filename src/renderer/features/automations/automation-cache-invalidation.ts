@@ -1,3 +1,4 @@
+import { isAutomationQuery } from '@renderer/features/automations/automation-query-keys';
 import { updateAutomationRunStatus } from '@renderer/features/automations/automation-run-status-store';
 import { events } from '@renderer/lib/ipc';
 import { queryClient } from '@renderer/lib/query-client';
@@ -10,7 +11,7 @@ import {
 export function wireAutomationCacheInvalidation(): void {
   events.on(automationsChangedChannel, () => {
     void queryClient.invalidateQueries({
-      predicate: (query) => query.queryKey[0] === 'automations' && query.queryKey[1] !== 'catalog',
+      predicate: (query) => isAutomationQuery(query.queryKey),
     });
   });
 
@@ -25,8 +26,7 @@ export function wireAutomationCacheInvalidation(): void {
       const now = Date.now();
       queryClient.setQueriesData<Automation[]>(
         {
-          predicate: (query) =>
-            query.queryKey[0] === 'automations' && query.queryKey[1] !== 'catalog',
+          predicate: (query) => isAutomationQuery(query.queryKey),
         },
         (current) =>
           current?.map((automation) =>

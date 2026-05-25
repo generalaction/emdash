@@ -1,6 +1,6 @@
 import ReactDOM from 'react-dom/client';
 import { setupNavigationGuards } from '@renderer/app/view-registry';
-import { wireAutomationCacheInvalidation } from '@renderer/lib/automation-cache-invalidation';
+import { wireAutomationCacheInvalidation } from '@renderer/features/automations/automation-cache-invalidation';
 import './index.css';
 import 'devicon/devicon.min.css';
 import 'katex/dist/katex.min.css';

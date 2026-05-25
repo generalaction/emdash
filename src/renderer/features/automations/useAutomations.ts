@@ -1,4 +1,10 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  automationsKey,
+  isAutomationQuery,
+  recentRunsKey,
+  runsKey,
+} from '@renderer/features/automations/automation-query-keys';
 import { rpc } from '@renderer/lib/ipc';
 import type {
   Automation,
@@ -7,16 +13,6 @@ import type {
   CreateAutomationInput,
   UpdateAutomationPatch,
 } from '@shared/automations/types';
-
-const automationsKey = (projectId?: string) => ['automations', projectId ?? 'all'] as const;
-const runsKey = (automationId: string, limit: number) =>
-  ['automations', 'runs', automationId, limit] as const;
-const recentRunsKey = (projectId: string | undefined, limit: number) =>
-  ['automations', 'recent-runs', projectId ?? 'all', limit] as const;
-
-function isAutomationQuery(queryKey: readonly unknown[]): boolean {
-  return queryKey[0] === 'automations' && queryKey[1] !== 'catalog';
-}
 
 async function unwrap<T>(
   promise: Promise<{ success: true; data: T } | { success: false; error: string }>
