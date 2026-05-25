@@ -14,7 +14,6 @@ export interface UseAutomationsPanel {
   openEdit: (automation: Automation) => void;
   openCreate: () => void;
   close: () => void;
-  setEdited: (automation: Automation) => void;
 }
 
 export function useAutomationsPanel(automations: readonly Automation[]): UseAutomationsPanel {
@@ -51,14 +50,6 @@ export function useAutomationsPanel(automations: readonly Automation[]): UseAuto
     setLocal({ kind: 'create' });
   }, [clearRequestedParam]);
 
-  const setEdited = useCallback(
-    (automation: Automation) => {
-      clearRequestedParam();
-      setLocal({ kind: 'edit', automation });
-    },
-    [clearRequestedParam]
-  );
-
   return {
     panel,
     selectedAutomationId: panel?.kind === 'edit' ? panel.automation.id : null,
@@ -66,6 +57,5 @@ export function useAutomationsPanel(automations: readonly Automation[]): UseAuto
     openEdit,
     openCreate,
     close,
-    setEdited,
   };
 }
