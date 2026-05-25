@@ -47,6 +47,7 @@ async function createLocalProvider(project: LocalProject): Promise<ProjectProvid
   const worktreeDirectory = await settings.getWorktreeDirectory();
   await fs.promises.mkdir(worktreeDirectory, { recursive: true });
   const worktreePoolPath = path.join(worktreeDirectory, safePathSegment(project.name, project.id));
+  const resolveWorktreePoolPath = async () => worktreePoolPath;
   const worktreeHost = await LocalWorktreeHost.create({
     allowedRoots: [project.path, worktreeDirectory],
   });
@@ -59,7 +60,7 @@ async function createLocalProvider(project: LocalProject): Promise<ProjectProvid
     repoGit,
     settings,
     worktreeHost,
-    worktreePoolPath,
+    resolveWorktreePoolPath,
     () => {}
   );
 }
@@ -88,9 +89,12 @@ async function createSshProvider(project: SshProject): Promise<ProjectProvider> 
         git: repoGit,
       }
     );
-    const worktreePoolPath = path.posix.join(await settings.getWorktreeDirectory(), project.name);
+    const worktreeDirectory = await settings.getWorktreeDirectory();
+    const worktreePoolPath = path.posix.join(worktreeDirectory, project.name);
     const worktreeHost = new SshWorktreeHost(rootFs);
     await worktreeHost.mkdirAbsolute(worktreePoolPath, { recursive: true });
+    const resolveWorktreePoolPath = async () =>
+      path.posix.join(await settings.getWorktreeDirectory(), project.name);
 
     const dispose = () => sshConnectionManager.off('connection-event', handler);
 
@@ -107,7 +111,7 @@ async function createSshProvider(project: SshProject): Promise<ProjectProvider> 
       repoGit,
       settings,
       worktreeHost,
-      worktreePoolPath,
+      resolveWorktreePoolPath,
       dispose
     );
 
@@ -141,7 +145,7 @@ function buildProvider(
   repoGit: GitService,
   settings: ProjectSettingsProvider,
   worktreeHost: WorktreeHost,
-  worktreePoolPath: string,
+  resolveWorktreePoolPath: () => Promise<string>,
   dispose: () => void
 ): ProjectProvider {
   const { ctx } = transportMeta;
@@ -151,16 +155,15 @@ function buildProvider(
     fs: projectFs,
     settings,
     worktreeHost,
-    worktreePoolPath,
   };
 
   const repository = new GitRepositoryService(repoGit, settings);
   const worktreeService = new WorktreeService({
-    worktreePoolPath,
     repoPath,
     projectSettings: settings,
     ctx,
     host: worktreeHost,
+    resolveWorktreePoolPath,
   });
   const gitFetchService = new GitFetchService(repoGit, hasGitHubToken, () =>
     repository.getBaseRemote()

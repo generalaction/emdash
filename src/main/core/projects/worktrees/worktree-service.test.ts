@@ -64,17 +64,19 @@ describe('WorktreeService', () => {
   function makeService(
     overrides: Partial<{
       worktreePoolPath: string;
+      resolveWorktreePoolPath: () => Promise<string>;
       repoPath: string;
       projectSettings: ProjectSettingsProvider;
     }> = {}
   ): WorktreeService {
     const repoPath = overrides.repoPath ?? repoDir;
+    const worktreePoolPath = overrides.worktreePoolPath ?? poolDir;
     return new WorktreeService({
-      worktreePoolPath: overrides.worktreePoolPath ?? poolDir,
       repoPath,
       ctx: new LocalExecutionContext({ root: repoPath }),
       host,
       projectSettings: overrides.projectSettings ?? makeSettings(),
+      resolveWorktreePoolPath: overrides.resolveWorktreePoolPath ?? (async () => worktreePoolPath),
     });
   }
 
@@ -103,6 +105,28 @@ describe('WorktreeService', () => {
       expect(result.success).toBe(true);
       if (!result.success) throw new Error('expected success');
       expect(result.data).toBe(path.join(poolDir, 'task', 'local-checkout'));
+      expect(fs.existsSync(result.data)).toBe(true);
+    });
+
+    it('uses the current resolved pool path when creating a worktree', async () => {
+      await git(['branch', 'task/dynamic-pool'], { cwd: repoDir });
+      const initialPool = path.join(poolDir, 'initial');
+      const updatedPool = path.join(poolDir, 'updated');
+      let currentPool = initialPool;
+      const svc = makeService({
+        worktreePoolPath: initialPool,
+        resolveWorktreePoolPath: async () => currentPool,
+      });
+
+      currentPool = updatedPool;
+      const result = await svc.checkoutBranchWorktree(
+        { type: 'local', branch: 'main' },
+        'task/dynamic-pool'
+      );
+
+      expect(result.success).toBe(true);
+      if (!result.success) throw new Error('expected success');
+      expect(result.data).toBe(path.join(updatedPool, 'task', 'dynamic-pool'));
       expect(fs.existsSync(result.data)).toBe(true);
     });
 
