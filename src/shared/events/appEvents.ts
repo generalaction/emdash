@@ -66,3 +66,22 @@ export const shellSessionStartedChannel = defineEvent<{
 export const dependencyStatusUpdatedChannel = defineEvent<DependencyStatusUpdatedEvent>(
   'dependency:status-updated'
 );
+
+/** Dev-only: main finished a simulated app quit (detach) without exiting the process. */
+export type DevBackgroundShutdownSimulatedEvent = {
+  projectIds: string[];
+  sessions: Array<{
+    sessionId: string;
+    projectId?: string;
+    taskId?: string;
+    conversationId?: string;
+    providerId?: string;
+    title?: string;
+    isRemote?: boolean;
+    tmuxSessionName?: string;
+    tmuxAlive?: boolean;
+  }>;
+};
+
+export const devBackgroundShutdownSimulatedChannel =
+  defineEvent<DevBackgroundShutdownSimulatedEvent>('dev:background-shutdown-simulated');

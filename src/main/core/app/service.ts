@@ -5,6 +5,7 @@ import { extname, resolve, sep } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { app, clipboard, dialog, shell } from 'electron';
 import { getMainWindow } from '@main/app/window';
+import { runBackgroundShutdown } from '@main/core/app/background-shutdown';
 import { db } from '@main/db/client';
 import { sshConnections } from '@main/db/schema';
 import { events } from '@main/lib/events';
@@ -16,7 +17,13 @@ import {
   buildRemoteSshCommand,
   buildRemoteTerminalExecArgs,
 } from '@main/utils/remoteOpenIn';
-import { appPasteChannel, appRedoChannel, appUndoChannel } from '@shared/events/appEvents';
+import {
+  appPasteChannel,
+  appRedoChannel,
+  appUndoChannel,
+  devBackgroundShutdownSimulatedChannel,
+  type DevBackgroundShutdownSimulatedEvent,
+} from '@shared/events/appEvents';
 import {
   getAppById,
   getResolvedLabel,
@@ -194,6 +201,25 @@ class AppService implements IInitializable, IDisposable {
 
   quit(): void {
     app.quit();
+  }
+
+  async simulateAppClose(): Promise<DevBackgroundShutdownSimulatedEvent> {
+    if (!import.meta.env.DEV) {
+      throw new Error('simulateAppClose is only available in development builds');
+    }
+    const result = await runBackgroundShutdown('simulate');
+    events.emit(devBackgroundShutdownSimulatedChannel, result);
+
+    const win = getMainWindow();
+    if (win && !win.isDestroyed()) {
+      const payload = JSON.stringify(result);
+      await win.webContents.executeJavaScript(
+        `sessionStorage.setItem('emdash:dev-app-close-sim', ${JSON.stringify(payload)})`
+      );
+      win.webContents.reload();
+    }
+
+    return result;
   }
 
   async openIn(args: {

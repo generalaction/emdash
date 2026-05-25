@@ -10,19 +10,16 @@ import { createMainWindow } from './app/window';
 import { providerTokenRegistry } from './core/account/provider-token-registry';
 import { emdashAccountService } from './core/account/services/emdash-account-service';
 import { agentHookService } from './core/agent-hooks/agent-hook-service';
+import { runBackgroundShutdown } from './core/app/background-shutdown';
 import { appService } from './core/app/service';
 import { localDependencyManager } from './core/dependencies/dependency-manager';
 import { editorBufferService } from './core/editor/editor-buffer-service';
 import { gitWatcherRegistry } from './core/git/git-watcher-registry';
 import { githubConnectionService } from './core/github/services/github-connection-service';
-import { projectManager } from './core/projects/project-manager';
 import { projectSettingsService } from './core/projects/settings/project-settings-service';
 import { promptLibraryService } from './core/prompt-library/service';
 import { prSyncScheduler } from './core/pull-requests/pr-sync-scheduler';
-import {
-  reconcileResourceSampler,
-  stopResourceSampler,
-} from './core/resource-monitor/resource-sampler';
+import { reconcileResourceSampler } from './core/resource-monitor/resource-sampler';
 import { searchService } from './core/search/search-service';
 import { workspaceFileIndexService } from './core/search/workspace-file-index-service';
 import { appSettingsService } from './core/settings/settings-service';
@@ -156,16 +153,7 @@ void app.whenReady().then(async () => {
 
 app.on('before-quit', (event) => {
   event.preventDefault();
-  telemetryService.capture('app_closed');
-  void telemetryService.dispose().finally(() => {
-    agentHookService.dispose();
-    stopResourceSampler();
-    updateService.dispose();
-    prSyncScheduler.dispose();
-    void gitWatcherRegistry.dispose();
-    void projectManager.dispose().catch((e) => {
-      log.error('Failed to shutdown project manager:', e);
-    });
+  void runBackgroundShutdown('exit').finally(() => {
     app.exit(0);
   });
 });

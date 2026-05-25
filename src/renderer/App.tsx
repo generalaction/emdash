@@ -1,6 +1,7 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import { AppMenuEvents } from './app/app-menu-events';
+import { DevShutdownEvents } from './app/dev-shutdown-events';
 import { WelcomeScreen } from './app/welcome';
 import { Workspace } from './app/workspace';
 import { IntegrationsProvider } from './features/integrations/integrations-provider';
@@ -84,6 +85,7 @@ function AppContent() {
             <IntegrationsProvider>
               <WorkspaceViewProvider>
                 <AppMenuEvents onOpenSettings={handleOpenSettingsFromMenu} />
+                <DevShutdownEvents />
                 <RightSidebarProvider>
                   <ThemeProvider>
                     <ModalRenderer />

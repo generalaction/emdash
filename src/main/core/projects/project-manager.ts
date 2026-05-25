@@ -84,6 +84,10 @@ class ProjectManager implements Hookable<ProjectManagerHooks>, IDisposable {
     return this._lifecycle.get(projectId);
   }
 
+  listProjectIds(): string[] {
+    return Array.from(this._lifecycle.keys());
+  }
+
   async dispose(): Promise<void> {
     const ids = Array.from(this._lifecycle.keys());
     await Promise.allSettled(ids.map((id) => this.closeProject(id)));

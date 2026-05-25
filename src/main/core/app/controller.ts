@@ -62,4 +62,20 @@ export const appController = createRPCController({
   getAppVersion: () => appService.getCachedAppVersion(),
   getElectronVersion: () => process.versions.electron,
   getPlatform: () => process.platform,
+
+  /** Dev-only: detach agents like a real app close, reload the UI — reopen task to verify output continued. */
+  simulateAppClose: async () => {
+    if (!import.meta.env.DEV) {
+      return { success: false as const, error: 'Only available in development builds' };
+    }
+    try {
+      const result = await appService.simulateAppClose();
+      return { success: true as const, result };
+    } catch (error) {
+      return {
+        success: false as const,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  },
 });

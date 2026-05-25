@@ -1,5 +1,7 @@
 import { app, clipboard, Menu, shell } from 'electron';
+import { appService } from '@main/core/app/service';
 import { events } from '@main/lib/events';
+import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import {
   menuCheckForUpdatesChannel,
@@ -141,6 +143,20 @@ export function setupApplicationMenu(): void {
         { role: 'zoomOut' as const },
         { type: 'separator' as const },
         { role: 'togglefullscreen' as const },
+        ...(import.meta.env.DEV
+          ? ([
+              { type: 'separator' as const },
+              {
+                label: 'Simulate App Close',
+                accelerator: 'Shift+CmdOrCtrl+Q',
+                click: () => {
+                  void appService.simulateAppClose().catch((error) => {
+                    log.error('[dev] simulateAppClose failed', error);
+                  });
+                },
+              },
+            ] satisfies Electron.MenuItemConstructorOptions[])
+          : []),
       ],
     },
     // Window menu
