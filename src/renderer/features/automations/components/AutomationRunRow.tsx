@@ -1,4 +1,4 @@
-import { Bot, Clock, Folder, Loader2, RotateCcw, Trash2 } from 'lucide-react';
+import { Bot, Clock, Folder, RotateCcw, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
 import { automationTool } from '@renderer/features/automations/automation-tools';

@@ -7,3 +7,7 @@ export const conversationChangedChannel = defineEvent<{
   projectId: string;
   changes: Partial<Pick<Conversation, 'lastInteractedAt' | 'title'>>;
 }>('conversation:changed');
+
+export const conversationCreatedChannel = defineEvent<{
+  conversation: Conversation;
+}>('conversation:created');
