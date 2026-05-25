@@ -185,7 +185,6 @@ export class HookConfigWriter {
     ptyId: string;
     autoApprove?: boolean;
   }): Promise<void> {
-    await this.writeCursorHooks();
     const existing = await this.fs
       .read(CURSOR_HOOK_SESSION_PATH)
       .then((r) => JSON.parse(r.content) as Record<string, unknown>)
@@ -376,10 +375,9 @@ export class HookConfigWriter {
   }
 
   private async isCursorCliAvailable(): Promise<boolean> {
-    return (
-      !!(await resolveCommandPath('cursor-agent', this.exec)) ||
-      !!(await resolveCommandPath('agent', this.exec))
-    );
+    if (await resolveCommandPath('cursor-agent', this.exec)) return true;
+    if (!(await this.fs.exists('.cursor'))) return false;
+    return !!(await resolveCommandPath('agent', this.exec));
   }
 
   private async removeLegacyCodexNotify(): Promise<void> {

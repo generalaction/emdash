@@ -203,11 +203,12 @@ describe('HookConfigWriter', () => {
     expect(config.hooks.beforeMCPExecution).toHaveLength(1);
   });
 
-  it('detects Cursor CLI via the agent shim when cursor-agent is missing', async () => {
+  it('detects Cursor CLI via the agent shim when cursor-agent is missing and .cursor exists', async () => {
     mockResolveCommandPath.mockImplementation(async (command: string) =>
       command === 'agent' ? '/usr/local/bin/agent' : undefined
     );
     const fs = new MemoryFs();
+    fs.files.set('.cursor', '');
     const writer = makeWriter(fs);
 
     const wroteConfig = await writer.writeForProvider('cursor');

@@ -101,7 +101,7 @@ function emitClassifierEvent({
 }
 
 function shouldEmitClassifierResult(
-  providerId: AgentProviderId,
+  _providerId: AgentProviderId,
   result: EmittableClassificationResult,
   cursorHooksHandleStop: boolean
 ): boolean {
