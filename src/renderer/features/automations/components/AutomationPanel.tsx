@@ -4,6 +4,7 @@ import { useMemo, useState, type ReactNode } from 'react';
 import {
   asMounted,
   firstMountedProjectId,
+  getProjectSshConnectionId,
   getProjectStore,
   getRepositoryStore,
 } from '@renderer/features/projects/stores/project-selectors';
@@ -15,6 +16,7 @@ import {
   useFromBranchMode,
   type FromBranchModeInitial,
 } from '@renderer/features/tasks/create-task-modal/use-from-branch-mode';
+import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { Button } from '@renderer/lib/ui/button';
@@ -40,7 +42,6 @@ import type { Branch } from '@shared/git';
 import type { CreateTaskParams } from '@shared/tasks';
 import { useAutomations } from '../useAutomations';
 import { AutomationPanelHeader } from './AutomationPanelHeader';
-import { AgentPicker } from './pickers/AgentPicker';
 import { SchedulePicker } from './pickers/SchedulePicker';
 import { UseTemplateButton } from './pickers/UseTemplateButton';
 import { RunHistory } from './RunHistory';
@@ -150,6 +151,9 @@ export const AutomationPanel = observer(function AutomationPanel({
 
   const effectiveProjectId =
     projectId && asMounted(getProjectStore(projectId)) ? projectId : firstMountedProjectId();
+  const agentConnectionId = effectiveProjectId
+    ? getProjectSshConnectionId(effectiveProjectId)
+    : undefined;
 
   const repo = effectiveProjectId ? getRepositoryStore(effectiveProjectId) : undefined;
   const defaultBranch = repo?.defaultBranch;
@@ -363,7 +367,12 @@ export const AutomationPanel = observer(function AutomationPanel({
                 />
               </RowField>
               <RowField label="Agent">
-                <AgentPicker value={provider} onChange={setProvider} />
+                <AgentSelector
+                  value={provider}
+                  onChange={setProvider}
+                  connectionId={agentConnectionId}
+                  className="h-8 bg-background text-xs"
+                />
               </RowField>
             </div>
 
