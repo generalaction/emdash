@@ -23,9 +23,7 @@ export interface GitHubIssue {
   labels: Array<{ name: string; color: string }>;
 }
 
-export interface GitHubIssueDetail extends GitHubIssue {
-  body: string | null;
-}
+export type GitHubIssueDetail = GitHubIssue;
 
 export interface GitHubIssueService {
   listIssues(
@@ -136,7 +134,7 @@ export class GitHubIssueServiceImpl implements GitHubIssueService {
         repo,
         issue_number: issueNumber,
       });
-      return ok(this.mapIssueDetail(data as unknown as RestIssue));
+      return ok(this.mapIssue(data as unknown as RestIssue));
     } catch (error) {
       return err(this.mapApiError(error, 'Unable to get GitHub issue', host));
     }
@@ -159,13 +157,6 @@ export class GitHubIssueServiceImpl implements GitHubIssueService {
           ? { name: l, color: '' }
           : { name: l.name ?? '', color: l.color ?? '' }
       ),
-    };
-  }
-
-  private mapIssueDetail(item: RestIssue): GitHubIssueDetail {
-    return {
-      ...this.mapIssue(item),
-      body: item.body ?? null,
     };
   }
 
