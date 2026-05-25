@@ -1,8 +1,9 @@
+import { inArray, or, type SQL } from 'drizzle-orm';
 import {
+  pullRequests,
   type pullRequestAssignees,
   type pullRequestChecks,
   type pullRequestLabels,
-  type pullRequests,
   type pullRequestUsers,
 } from '@main/db/schema';
 import type {
@@ -16,6 +17,14 @@ import type {
 } from '@shared/pull-requests';
 
 export type PrRow = typeof pullRequests.$inferSelect;
+
+/** Match PRs owned by or targeting a project remote (base or fork head). */
+export function pullRequestRepositoryScope(repositoryUrls: string[]): SQL {
+  return or(
+    inArray(pullRequests.repositoryUrl, repositoryUrls),
+    inArray(pullRequests.headRepositoryUrl, repositoryUrls)
+  )!;
+}
 export type PrUserRow = typeof pullRequestUsers.$inferSelect;
 export type PrLabelRow = typeof pullRequestLabels.$inferSelect;
 export type PrAssigneeRow = typeof pullRequestAssignees.$inferSelect;
