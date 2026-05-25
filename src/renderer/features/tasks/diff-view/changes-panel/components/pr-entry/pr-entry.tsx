@@ -6,6 +6,7 @@ import { useWorkspaceViewModel } from '@renderer/features/tasks/task-view-contex
 import { PrMergeLine } from '@renderer/lib/components/pr-merge-line';
 import { PrNumberBadge } from '@renderer/lib/components/pr-number-badge';
 import { StatusIcon } from '@renderer/lib/components/pr-status-icon';
+import { useRefreshOpenPullRequest } from '@renderer/lib/hooks/use-refresh-open-pull-request';
 import { rpc } from '@renderer/lib/ipc';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { type SplitButtonAction } from '@renderer/lib/ui/split-button';
@@ -120,6 +121,7 @@ function computeMergeUiState(pr: PullRequest): MergeUiState {
 }
 
 export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr: PullRequest }) {
+  useRefreshOpenPullRequest(pr);
   const taskView = useWorkspaceViewModel();
   const prStatus = pr.status;
   const prStore = taskView.prStore!;

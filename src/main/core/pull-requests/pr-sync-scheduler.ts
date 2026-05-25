@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
 import { parseGitHubRepository } from '@shared/github-repository';
 import { gitWatcherRegistry } from '@main/core/git/git-watcher-registry';
 import { projectManager } from '@main/core/projects/project-manager';
@@ -206,7 +206,9 @@ export class PrSyncScheduler implements IInitializable, IDisposable {
     const taskRows = await db
       .select({ taskBranch: tasks.taskBranch })
       .from(tasks)
-      .where(and(eq(tasks.projectId, projectId), isNull(tasks.archivedAt)))
+      .where(
+        and(eq(tasks.projectId, projectId), isNull(tasks.archivedAt), isNotNull(tasks.workspaceId))
+      )
       .orderBy(desc(tasks.lastInteractedAt), desc(tasks.updatedAt))
       .limit(ACTIVE_TASK_PR_SYNC_LIMIT);
 
