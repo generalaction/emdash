@@ -83,6 +83,7 @@ const renderAgentRow = (agent: CliAgentStatus, actions: AgentRowActions) => {
       key={agent.id}
       logoSrc={logo}
       logoSrcDark={meta?.iconDark}
+      invertInDark={meta?.invertInDark}
       icon={
         logo ? undefined : (
           <Sparkles className="text-muted-foreground h-3.5 w-3.5" aria-hidden="true" />

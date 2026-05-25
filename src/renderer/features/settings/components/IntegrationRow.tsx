@@ -14,6 +14,7 @@ type IntegrationStatus =
 interface IntegrationRowProps {
   logoSrc?: string;
   logoSrcDark?: string;
+  invertInDark?: boolean;
   icon?: React.ReactNode;
   name: string;
   onNameClick?: () => void;
@@ -64,6 +65,7 @@ const LOGO_WRAPPER = 'flex h-6 w-6 items-center justify-center';
 const IntegrationRow: React.FC<IntegrationRowProps> = ({
   logoSrc,
   logoSrcDark,
+  invertInDark,
   icon,
   name,
   onNameClick,
@@ -99,10 +101,10 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
 
   const isSvg = themedLogoSrc?.trimStart().startsWith('<svg');
 
-  // Match AgentLogo: only strip colors when a light logo is reused in dark mode.
+  // Match AgentLogo: only strip colors for logos that explicitly opt into dark inversion.
   const processedSvg =
     isSvg && themedLogoSrc
-      ? isDark && !logoSrcDark
+      ? isDark && invertInDark && !logoSrcDark
         ? themedLogoSrc
             .replace(/\bfill="[^"]*"/g, 'fill="currentColor"')
             .replace(/\bstroke="[^"]*"/g, 'stroke="currentColor"')

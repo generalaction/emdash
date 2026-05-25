@@ -29,7 +29,7 @@ const AgentLogo: React.FC<AgentLogoProps> = ({
 
   if (resolvedIsSvg) {
     const processed =
-      isDark && !logoDark
+      isDark && invertInDark && !logoDark
         ? themedLogo
             .replace(/\bfill="[^"]*"/g, 'fill="currentColor"')
             .replace(/\bstroke="[^"]*"/g, 'stroke="currentColor"')
