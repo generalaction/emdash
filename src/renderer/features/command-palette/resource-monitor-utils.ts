@@ -8,6 +8,7 @@ import type {
   ResourcePtyEntry,
   ResourceSnapshot,
 } from '@shared/resource-monitor';
+import { createLifecycleScriptTerminalId } from '@shared/terminals';
 
 export type Entry = ResourcePtyEntry & {
   taskName?: string;
@@ -38,9 +39,9 @@ const UNKNOWN_PROJECT_ID = '__unknown__';
  * truncated "script-l…" leaf id.
  */
 const LIFECYCLE_SCRIPT_LABELS: Record<string, string> = {
-  'script-lifecycle-setup': 'Setup script',
-  'script-lifecycle-run': 'Run script',
-  'script-lifecycle-teardown': 'Teardown script',
+  [createLifecycleScriptTerminalId('setup')]: 'Setup script',
+  [createLifecycleScriptTerminalId('run')]: 'Run script',
+  [createLifecycleScriptTerminalId('teardown')]: 'Teardown script',
 };
 
 export function isLifecycleScriptEntry(entry: Pick<Entry, 'leafId'>): boolean {
