@@ -11,7 +11,7 @@ import {
   type AutomationRunRow,
 } from '@main/db/schema';
 import { log } from '@main/lib/logger';
-import type { TaskCreateAction } from '@shared/automations/actions';
+import { isValidAction, type TaskCreateAction } from '@shared/automations/actions';
 import { getLocalTimeZone } from '@shared/automations/timezone';
 import type {
   Automation,
@@ -38,15 +38,7 @@ function parseActions(raw: string, promptTemplate: string): TaskCreateAction[] {
   try {
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return fallbackActions(promptTemplate);
-    return parsed.every(
-      (item) =>
-        item &&
-        typeof item === 'object' &&
-        'kind' in item &&
-        (item as { kind: unknown }).kind === 'task.create'
-    )
-      ? (parsed as TaskCreateAction[])
-      : fallbackActions(promptTemplate);
+    return parsed.every(isValidAction) ? parsed : fallbackActions(promptTemplate);
   } catch (error) {
     log.warn('automations.repo: failed to parse actions JSON', {
       error: String(error),
@@ -151,6 +143,25 @@ function mapAutomationRow(row: AutomationRow): Automation {
   };
 }
 
+function mapAutomationRowSafely(row: AutomationRow): Automation | null {
+  try {
+    return mapAutomationRow(row);
+  } catch (error) {
+    log.warn('automations.repo: skipping invalid automation row', {
+      automationId: row.id,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  }
+}
+
+function mapAutomationRows(rows: AutomationRow[]): Automation[] {
+  return rows.flatMap((row) => {
+    const automation = mapAutomationRowSafely(row);
+    return automation ? [automation] : [];
+  });
+}
+
 function mapAutomationRunRow(row: AutomationRunRow): AutomationRun {
   return {
     id: row.id,
@@ -191,12 +202,12 @@ export async function listAutomations(projectId?: string): Promise<Automation[]>
     ? db.select().from(automations).where(eq(automations.projectId, projectId))
     : db.select().from(automations);
   const rows = await query;
-  return rows.map(mapAutomationRow);
+  return mapAutomationRows(rows);
 }
 
 export async function getAutomation(id: string): Promise<Automation | null> {
   const [row] = await db.select().from(automations).where(eq(automations.id, id)).limit(1);
-  return row ? mapAutomationRow(row) : null;
+  return row ? mapAutomationRowSafely(row) : null;
 }
 
 async function projectExists(projectId: string): Promise<boolean> {
@@ -332,7 +343,7 @@ export async function dueCronAutomations(now = Date.now()): Promise<Automation[]
         lte(automations.nextRunAt, now)
       )
     );
-  return rows.map(mapAutomationRow);
+  return mapAutomationRows(rows);
 }
 
 export async function enabledCronAutomations(): Promise<Automation[]> {
@@ -342,7 +353,7 @@ export async function enabledCronAutomations(): Promise<Automation[]> {
     .where(
       and(eq(automations.enabled, 1), eq(automations.isDraft, 0), isNotNull(automations.projectId))
     );
-  return rows.map(mapAutomationRow);
+  return mapAutomationRows(rows);
 }
 
 export async function hasRunningRuns(automationId: string): Promise<boolean> {
@@ -407,10 +418,12 @@ export async function listQueuedRuns(limit = 100): Promise<
     )
     .orderBy(asc(automationRuns.scheduledAt), asc(automationRuns.startedAt))
     .limit(limit);
-  return rows.map(({ run, automation }) => ({
-    run: mapAutomationRunRow(run),
-    automation: mapAutomationRow(automation),
-  }));
+  return rows.flatMap(({ run, automation }) => {
+    const mappedAutomation = mapAutomationRowSafely(automation);
+    return mappedAutomation
+      ? [{ run: mapAutomationRunRow(run), automation: mappedAutomation }]
+      : [];
+  });
 }
 
 export async function claimQueuedRun(

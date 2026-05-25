@@ -91,9 +91,17 @@ export async function createTask(
         params.sourceBranch.type === 'remote' ? params.sourceBranch.remote.name : undefined
       );
       if (!createResult.success) {
-        return err({ type: 'branch-create-failed', branch: taskBranch, error: createResult.error });
-      }
-      if (strategy.pushBranch) {
+        // If the branch already exists locally (e.g. a prior task was deleted but branch
+        // cleanup failed), treat it as non-fatal — checkoutBranchWorktree will find and
+        // reuse it during provision.
+        if (createResult.error.type !== 'already_exists') {
+          return err({
+            type: 'branch-create-failed',
+            branch: taskBranch,
+            error: createResult.error,
+          });
+        }
+      } else if (strategy.pushBranch) {
         const publishResult = await project.repository.publishBranch(taskBranch, pushRemote);
         if (!publishResult.success) {
           warning = {

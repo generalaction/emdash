@@ -76,6 +76,7 @@ src/main/appConfig.json
 tooling/db/dev.db
 tooling/db/dev.db-wal
 tooling/db/dev.db-shm
+tooling/db/*.backup.*
 
 # Isolated better-sqlite3 for system Node (installed by pnpm run db:setup / postinstall)
 tooling/node-deps/node_modules/

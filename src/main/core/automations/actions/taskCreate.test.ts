@@ -4,6 +4,7 @@ import { projectManager } from '@main/core/projects/project-manager';
 import { generateTaskName } from '@main/core/tasks/name-generation/generateTaskName';
 import { createTask } from '@main/core/tasks/operations/createTask';
 import type { Automation, AutomationRun } from '@shared/automations/types';
+import { updateRun } from '../repo';
 import { executeTaskCreate } from './taskCreate';
 
 vi.mock('@main/core/projects/operations/openProject', () => ({ openProject: vi.fn() }));
@@ -17,16 +18,7 @@ vi.mock('@main/core/tasks/name-generation/generateTaskName', () => ({
   generateTaskName: vi.fn(() => 'generated-task'),
 }));
 vi.mock('@main/core/tasks/operations/createTask', () => ({ createTask: vi.fn() }));
-const dbMock = vi.hoisted(() => {
-  const run = vi.fn();
-  const where = vi.fn(() => ({ run }));
-  const set = vi.fn(() => ({ where }));
-  const update = vi.fn(() => ({ set }));
-  return { run, where, set, update };
-});
-vi.mock('@main/db/client', () => ({
-  db: { update: dbMock.update },
-}));
+vi.mock('../repo', () => ({ updateRun: vi.fn() }));
 
 const automation: Automation = {
   id: 'automation-1',
@@ -95,6 +87,16 @@ describe('executeTaskCreate', () => {
     expect(createTask).toHaveBeenCalledOnce();
   });
 
+  it('leaves auto-approval to the saved task config or user defaults', async () => {
+    vi.mocked(projectManager.getProject).mockReturnValue({} as never);
+    vi.mocked(createTask).mockResolvedValueOnce({ success: true, data: { task: {} as never } });
+
+    await executeTaskCreate(automation.actions[0]!, { automation, run });
+
+    const taskConfig = vi.mocked(createTask).mock.calls[0]?.[0];
+    expect(taskConfig?.initialConversation?.autoApprove).toBeUndefined();
+  });
+
   it('creates a task even when a previous action already created one for the run', async () => {
     vi.mocked(projectManager.getProject).mockReturnValue({} as never);
     vi.mocked(createTask).mockResolvedValueOnce({ success: true, data: { task: {} as never } });
@@ -105,6 +107,38 @@ describe('executeTaskCreate', () => {
     });
 
     expect(createTask).toHaveBeenCalledOnce();
+  });
+
+  it('persists the run task link immediately after task creation', async () => {
+    vi.mocked(projectManager.getProject).mockReturnValue({} as never);
+    vi.mocked(createTask).mockResolvedValueOnce({ success: true, data: { task: {} as never } });
+
+    const result = await executeTaskCreate(automation.actions[0]!, { automation, run });
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(updateRun).toHaveBeenCalledWith(run.id, {
+      taskId: result.data.taskId,
+      createdTaskId: result.data.taskId,
+    });
+  });
+
+  it('returns the task id when provisioning fails after task creation', async () => {
+    vi.mocked(projectManager.getProject).mockReturnValue({} as never);
+    vi.mocked(createTask).mockResolvedValueOnce({
+      success: false,
+      error: { type: 'provision-timeout', timeoutMs: 30_000, step: 'connecting' },
+    });
+
+    const result = await executeTaskCreate(automation.actions[0]!, { automation, run });
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        message: 'provisioning timed out after 30000ms at step connecting',
+        taskId: expect.any(String),
+      },
+    });
   });
 
   it('does not persist run/task mapping when task config construction throws after UUID generation', async () => {

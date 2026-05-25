@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Automation, AutomationRun } from '@shared/automations/types';
 import { automationsController } from './controller';
 import {
+  createAutomation,
   enqueueAutomationRun,
   getAutomation,
   getRun,
@@ -99,6 +100,20 @@ describe('automationsController.update', () => {
 
     expect(result).toEqual({ success: true, data: automation });
     expect(updateAutomation).toHaveBeenCalledWith(draftAutomation.id, { isDraft: false });
+  });
+
+  it('rejects malformed actions with action_invalid', async () => {
+    const result = await automationsController.create({
+      name: 'Automation',
+      description: null,
+      category: 'custom',
+      trigger: { expr: '0 9 * * *', tz: 'UTC' },
+      actions: [{ kind: 'task.create' } as never],
+      projectId: 'project-1',
+    });
+
+    expect(result).toEqual({ success: false, error: 'action_invalid:0' });
+    expect(createAutomation).not.toHaveBeenCalled();
   });
 });
 

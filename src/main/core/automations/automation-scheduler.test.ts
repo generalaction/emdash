@@ -136,6 +136,28 @@ describe('AutomationScheduler missed runs', () => {
     expect(getNextRunAt).toHaveBeenCalledWith(automation.trigger, now);
   });
 
+  it('serializes overlapping reloads and re-runs bootstrap once', async () => {
+    let finishFirstBootstrap: ((value: Automation[]) => void) | undefined;
+    vi.mocked(enabledCronAutomations)
+      .mockImplementationOnce(
+        () =>
+          new Promise<Automation[]>((resolve) => {
+            finishFirstBootstrap = resolve;
+          })
+      )
+      .mockResolvedValue([]);
+
+    const scheduler = new AutomationScheduler();
+    const firstReload = scheduler.reload();
+    const secondReload = scheduler.reload();
+
+    expect(enabledCronAutomations).toHaveBeenCalledTimes(1);
+    finishFirstBootstrap?.([]);
+    await Promise.all([firstReload, secondReload]);
+
+    expect(enabledCronAutomations).toHaveBeenCalledTimes(2);
+  });
+
   it('skips orphan automations without claiming a worker', async () => {
     const queuedRun = {
       id: 'run-1',
@@ -173,6 +195,89 @@ describe('AutomationScheduler missed runs', () => {
     expect(runQueuedAutomation).not.toHaveBeenCalled();
     expect(emitRunUpdated).toHaveBeenCalledWith(skippedRun);
     expect(automationEvents._emit).toHaveBeenCalledWith('automation:run:skipped', skippedRun);
+  });
+
+  it('skips a cron run when the same automation already has a running run', async () => {
+    const queuedRun = {
+      id: 'run-1',
+      automationId: baseAutomation.id,
+      scheduledAt: Date.now(),
+      deadlineAt: Date.now() + 60_000,
+      startedAt: null,
+      finishedAt: null,
+      status: 'queued' as const,
+      taskId: null,
+      createdTaskId: null,
+      error: null,
+      triggerKind: 'cron' as const,
+      workerId: null,
+    };
+    const skippedRun = {
+      ...queuedRun,
+      status: 'skipped' as const,
+      finishedAt: Date.now(),
+      error: 'previous_still_running',
+    };
+    vi.mocked(listQueuedRuns).mockResolvedValueOnce([
+      { run: queuedRun, automation: baseAutomation },
+    ]);
+    vi.mocked(hasRunningRuns).mockResolvedValue(true);
+    vi.mocked(updateRun).mockResolvedValue(skippedRun);
+
+    await new AutomationScheduler().drainQueue();
+
+    expect(hasRunningRuns).toHaveBeenCalledWith(baseAutomation.id);
+    expect(updateRun).toHaveBeenCalledWith(queuedRun.id, {
+      status: 'skipped',
+      finishedAt: expect.any(Number),
+      error: 'previous_still_running',
+    });
+    expect(claimQueuedRun).not.toHaveBeenCalled();
+    expect(runQueuedAutomation).not.toHaveBeenCalled();
+    expect(emitRunUpdated).toHaveBeenCalledWith(skippedRun);
+    expect(automationEvents._emit).toHaveBeenCalledWith('automation:run:skipped', skippedRun);
+  });
+
+  it('still runs a manual trigger when the same automation already has a running run', async () => {
+    const queuedRun = {
+      id: 'run-1',
+      automationId: baseAutomation.id,
+      scheduledAt: Date.now(),
+      deadlineAt: Date.now() + 60_000,
+      startedAt: null,
+      finishedAt: null,
+      status: 'queued' as const,
+      taskId: null,
+      createdTaskId: null,
+      error: null,
+      triggerKind: 'manual' as const,
+      workerId: null,
+    };
+    const runningRun = {
+      ...queuedRun,
+      status: 'running' as const,
+      startedAt: Date.now(),
+      workerId: 'worker-1',
+    };
+    vi.mocked(listQueuedRuns).mockResolvedValueOnce([
+      { run: queuedRun, automation: baseAutomation },
+    ]);
+    vi.mocked(hasRunningRuns).mockResolvedValue(true);
+    vi.mocked(claimQueuedRun).mockResolvedValue(runningRun);
+    vi.mocked(runQueuedAutomation).mockResolvedValue({
+      success: true,
+      data: {
+        ...runningRun,
+        status: 'success' as const,
+        finishedAt: Date.now(),
+      },
+    });
+
+    await new AutomationScheduler().drainQueue();
+
+    expect(hasRunningRuns).not.toHaveBeenCalled();
+    expect(claimQueuedRun).toHaveBeenCalledWith(queuedRun.id, expect.any(String));
+    expect(runQueuedAutomation).toHaveBeenCalledOnce();
   });
 
   it('marks a claimed run failed when the worker throws', async () => {
@@ -221,5 +326,95 @@ describe('AutomationScheduler missed runs', () => {
     expect(automationEvents._emit).toHaveBeenCalledWith('automation:run:start', runningRun);
     expect(automationEvents._emit).toHaveBeenCalledWith('automation:run:failed', failedRun);
     expect(emitRunUpdated).toHaveBeenCalledWith(failedRun);
+  });
+});
+
+describe('AutomationScheduler concurrency', () => {
+  const successRun = {
+    id: 'run-1',
+    automationId: baseAutomation.id,
+    scheduledAt: null,
+    deadlineAt: null,
+    startedAt: 1,
+    finishedAt: 2,
+    status: 'success' as const,
+    taskId: null,
+    createdTaskId: null,
+    error: null,
+    triggerKind: 'manual' as const,
+    workerId: 'worker-1',
+  };
+
+  function makeQueuedEntry(runId: string) {
+    const run = {
+      id: runId,
+      automationId: baseAutomation.id,
+      scheduledAt: Date.now(),
+      deadlineAt: Date.now() + 60_000,
+      startedAt: null,
+      finishedAt: null,
+      status: 'queued' as const,
+      taskId: null,
+      createdTaskId: null,
+      error: null,
+      triggerKind: 'manual' as const,
+      workerId: null,
+    };
+    return { run, automation: baseAutomation };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(hasRunningRuns).mockResolvedValue(false);
+    vi.mocked(updateRun).mockResolvedValue(null);
+  });
+
+  it('runs at most four automation workers at a time', async () => {
+    const entries = Array.from({ length: 6 }, (_, index) => makeQueuedEntry(`run-${index}`));
+    const pending = [...entries];
+    const releaseByRunId = new Map<string, () => void>();
+    let inFlight = 0;
+    let maxInFlight = 0;
+
+    vi.mocked(listQueuedRuns).mockImplementation(async (limit = 100) => pending.splice(0, limit));
+    vi.mocked(claimQueuedRun).mockImplementation(async (runId) => {
+      const entry = entries.find((candidate) => candidate.run.id === runId);
+      if (!entry) return null;
+      return {
+        ...entry.run,
+        status: 'running' as const,
+        startedAt: Date.now(),
+        workerId: 'worker-1',
+      };
+    });
+    vi.mocked(runQueuedAutomation).mockImplementation((_, run) => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      return new Promise((resolve) => {
+        releaseByRunId.set(run.id, () => {
+          inFlight -= 1;
+          resolve({ success: true, data: { ...successRun, id: run.id } });
+        });
+      });
+    });
+
+    const scheduler = new AutomationScheduler();
+    await scheduler.drainQueue();
+
+    expect(runQueuedAutomation).toHaveBeenCalledTimes(4);
+    expect(maxInFlight).toBe(4);
+
+    releaseByRunId.get('run-0')?.();
+    await vi.waitFor(() => expect(runQueuedAutomation).toHaveBeenCalledTimes(5));
+
+    releaseByRunId.get('run-1')?.();
+    await vi.waitFor(() => expect(runQueuedAutomation).toHaveBeenCalledTimes(6));
+
+    for (const index of [2, 3, 4, 5]) {
+      releaseByRunId.get(`run-${index}`)?.();
+    }
+    await vi.waitFor(() => expect(inFlight).toBe(0));
+
+    expect(maxInFlight).toBe(4);
   });
 });

@@ -15,6 +15,9 @@ const mocks = vi.hoisted(() => ({
   findBranchAnywhere: vi.fn(),
   fetchPrForReview: vi.fn(),
   getConfiguredRemotes: vi.fn(),
+  getRepositoryInfo: vi.fn(),
+  createBranch: vi.fn(),
+  publishBranch: vi.fn(),
 }));
 
 vi.mock('@main/db/client', () => ({
@@ -97,6 +100,9 @@ describe('createTask', () => {
     mocks.findBranchAnywhere.mockResolvedValue('/external/worktrees/pr-branch');
     mocks.fetchPrForReview.mockResolvedValue({ success: true });
     mocks.getConfiguredRemotes.mockResolvedValue({ baseRemote: 'origin', pushRemote: 'origin' });
+    mocks.getRepositoryInfo.mockResolvedValue({ currentBranch: 'main', isUnborn: false });
+    mocks.createBranch.mockResolvedValue({ success: true, data: undefined });
+    mocks.publishBranch.mockResolvedValue({ success: true, data: { output: '' } });
     mocks.getProject.mockReturnValue({
       defaultWorkspaceType: { kind: 'local' },
       worktreeService: {
@@ -104,6 +110,9 @@ describe('createTask', () => {
       },
       repository: {
         getConfiguredRemotes: mocks.getConfiguredRemotes,
+        getRepositoryInfo: mocks.getRepositoryInfo,
+        createBranch: mocks.createBranch,
+        publishBranch: mocks.publishBranch,
         fetchPrForReview: mocks.fetchPrForReview,
       },
     });
@@ -207,6 +216,46 @@ describe('createTask', () => {
         taskBranch: 'claude/add-french-translations-ud2fs',
         sourceBranch: { type: 'local', branch: 'claude/add-french-translations-ud2fs' },
       })
+    );
+  });
+
+  it('reuses an existing local branch when creating a new branch task', async () => {
+    const insertTaskValues = vi.fn((values: Partial<TaskRow>) => ({
+      returning: vi.fn().mockResolvedValue([makeTaskRow(values)]),
+    }));
+    const insertWorkspaceValues = vi.fn().mockResolvedValue(undefined);
+    mocks.insert
+      .mockReturnValueOnce({ values: insertTaskValues })
+      .mockReturnValueOnce({ values: insertWorkspaceValues });
+    mocks.createBranch.mockResolvedValueOnce({
+      success: false,
+      error: { type: 'already_exists', name: 'existing-branch' },
+    });
+
+    const result = await createTask({
+      id: 'task-1',
+      projectId: 'project-1',
+      name: 'Review PR',
+      sourceBranch: { type: 'local', branch: 'main' },
+      strategy: {
+        kind: 'new-branch',
+        taskBranch: 'Review PR',
+        pushBranch: true,
+      },
+    });
+
+    expect(result.success).toBe(true);
+    expect(mocks.createBranch).toHaveBeenCalledOnce();
+    expect(mocks.publishBranch).not.toHaveBeenCalled();
+    expect(insertTaskValues).toHaveBeenCalledWith(
+      expect.objectContaining({ taskBranch: expect.any(String) })
+    );
+    expect(mocks.provisionTask).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ taskBranch: expect.any(String) }),
+      [],
+      [],
+      expect.objectContaining({ type: 'local' })
     );
   });
 });

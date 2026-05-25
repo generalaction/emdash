@@ -1,25 +1,25 @@
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
 import { openProject } from '@main/core/projects/operations/openProject';
 import { projectManager } from '@main/core/projects/project-manager';
 import { DEFAULT_AGENT_ID } from '@main/core/settings/settings-registry';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { generateTaskName } from '@main/core/tasks/name-generation/generateTaskName';
 import { createTask } from '@main/core/tasks/operations/createTask';
-import { db } from '@main/db/client';
-import { automationRuns } from '@main/db/schema';
 import type { TaskCreateAction } from '@shared/automations/actions';
 import { bareRefName } from '@shared/git-utils';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { err, ok, type Result } from '@shared/result';
 import type { CreateTaskError, CreateTaskParams } from '@shared/tasks';
+import { updateRun } from '../repo';
 import type { ActionContext, ActionError, ActionOutcome } from './types';
 
-function taskExistsForCreateTaskError(error: CreateTaskError): boolean {
+function createTaskErrorLeavesTask(error: CreateTaskError): boolean {
+  // Provisioning runs after createTask has inserted the task/workspace, so
+  // automation callers can still link to the partially-created task.
   return error.type === 'provision-failed' || error.type === 'provision-timeout';
 }
 
-function stringifyCreateTaskError(error: CreateTaskError): string {
+function formatCreateTaskActionError(error: CreateTaskError): string {
   switch (error.type) {
     case 'project-not-found':
       return 'project_not_found';
@@ -116,7 +116,6 @@ export async function executeTaskCreate(
           projectId,
           taskId,
           initialPrompt: prompt,
-          autoApprove: true,
         },
       };
     } else {
@@ -139,7 +138,6 @@ export async function executeTaskCreate(
           provider,
           title: ctx.automation.name,
           initialPrompt: prompt,
-          autoApprove: true,
         },
       };
     }
@@ -147,16 +145,11 @@ export async function executeTaskCreate(
     const result = await createTask(taskConfig);
     if (!result.success) {
       return err({
-        message: stringifyCreateTaskError(result.error),
-        taskId: taskExistsForCreateTaskError(result.error) ? taskId : undefined,
+        message: formatCreateTaskActionError(result.error),
+        taskId: createTaskErrorLeavesTask(result.error) ? taskId : undefined,
       });
     }
-    if (ctx.run) {
-      db.update(automationRuns)
-        .set({ taskId, createdTaskId: taskId })
-        .where(eq(automationRuns.id, ctx.run.id))
-        .run();
-    }
+    if (ctx.run) await updateRun(ctx.run.id, { taskId, createdTaskId: taskId });
     return ok({
       taskId,
       sessionId: makePtySessionId(projectId, taskId, conversationId),

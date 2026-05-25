@@ -20,7 +20,8 @@ import { emitRunUpdated, runQueuedAutomation } from './runtime';
 const TICK_MS = 60_000;
 const MISSED_GRACE_MS = 5 * 60_000;
 const MAX_DUE_ENQUEUE = 100;
-const MAX_CONCURRENT_RUNS = 100;
+// Each run may allocate a worktree, PTY and agent process; keep local fan-out conservative.
+const MAX_CONCURRENT_RUNS = 4;
 const DEFAULT_QUEUE_DEADLINE_MS = 5 * 60_000;
 
 export function automationRunDeadline(
@@ -41,15 +42,17 @@ export class AutomationScheduler {
   private timer: NodeJS.Timeout | null = null;
   private ticking = false;
   private draining = false;
+  private bootstrapPromise: Promise<void> | null = null;
+  private bootstrapRequested = false;
   private activeWorkers = 0;
   private unsubscribeAutomationChanged: (() => void) | null = null;
   private readonly workerId = `automation-scheduler-${randomUUID()}`;
 
   start(): void {
     if (this.timer) return;
-    this.unsubscribeAutomationChanged = automationEvents.on('automation:changed', () =>
-      this.reload()
-    );
+    this.unsubscribeAutomationChanged = automationEvents.on('automation:changed', () => {
+      void this.reload();
+    });
     this.recoverAndBootstrap().catch((error) => {
       log.error('AutomationScheduler bootstrap failed', { error: String(error) });
     });
@@ -86,6 +89,27 @@ export class AutomationScheduler {
   }
 
   private async bootstrap(): Promise<void> {
+    if (this.bootstrapPromise) {
+      this.bootstrapRequested = true;
+      return this.bootstrapPromise;
+    }
+
+    this.bootstrapPromise = this.runBootstrapLoop();
+    try {
+      await this.bootstrapPromise;
+    } finally {
+      this.bootstrapPromise = null;
+    }
+  }
+
+  private async runBootstrapLoop(): Promise<void> {
+    do {
+      this.bootstrapRequested = false;
+      await this.bootstrapOnce();
+    } while (this.bootstrapRequested);
+  }
+
+  private async bootstrapOnce(): Promise<void> {
     const now = Date.now();
     const missedBefore = now - MISSED_GRACE_MS;
     const rows = await enabledCronAutomations();
