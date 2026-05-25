@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { automationRuns, automations } from '@main/db/schema';
 import { automationRunUpdatedChannel } from '@shared/events/automationEvents';
-import { updateAutomation } from './repo';
+import { listRecentRuns, listRuns, updateAutomation } from './repo';
 import { detachProject, setAutomationEnabled } from './service';
 
 const dbMock = vi.hoisted(() => {
@@ -10,10 +10,10 @@ const dbMock = vi.hoisted(() => {
       all: () => rows,
       get: () => rows[0],
     });
-  const selectLimit = vi.fn();
-  const selectWhere = vi.fn(() => ({ limit: selectLimit }));
-  const selectFrom = vi.fn(() => ({ where: selectWhere }));
-  const select = vi.fn(() => ({ from: selectFrom }));
+  const selectLimit = vi.fn<() => unknown>();
+  const selectWhere = vi.fn<() => unknown>(() => ({ limit: selectLimit }));
+  const selectFrom = vi.fn<() => unknown>(() => ({ where: selectWhere }));
+  const select = vi.fn<() => unknown>(() => ({ from: selectFrom }));
   const updateReturning = vi.fn();
   const updateWhere = vi.fn(() => ({ returning: updateReturning }));
   const updateSet = vi.fn(() => ({ where: updateWhere }));
@@ -181,5 +181,84 @@ describe('automations repo', () => {
 
     expect(dbMock.update).toHaveBeenCalledWith(automations);
     expect(dbMock.updateSet).toHaveBeenCalledWith({ isDraft: 0, updatedAt: expect.any(Number) });
+  });
+
+  it('hydrates run agent provider from the created task conversation', async () => {
+    const runWithTask = {
+      ...runRow,
+      status: 'success',
+      taskId: 'task-1',
+      createdTaskId: 'task-1',
+      error: null,
+    };
+    const currentAutomationProvider = {
+      id: automationRow.id,
+      taskConfig: JSON.stringify({ initialConversation: { provider: 'cursor' } }),
+    };
+    const conversationProvider = {
+      taskId: 'task-1',
+      provider: 'claude',
+      isInitialConversation: true,
+      createdAt: '2026-01-01 00:00:00',
+    };
+
+    dbMock.selectFrom
+      .mockReturnValueOnce({
+        where: vi.fn(() => ({
+          orderBy: vi.fn(() => ({
+            limit: vi.fn(() => dbMock.rowsResult([runWithTask])),
+          })),
+        })),
+      })
+      .mockReturnValueOnce({
+        where: vi.fn(() => ({
+          limit: vi.fn(() => dbMock.rowsResult([currentAutomationProvider])),
+        })),
+      })
+      .mockReturnValueOnce({
+        where: vi.fn(() => dbMock.rowsResult([conversationProvider])),
+      });
+
+    await expect(listRuns('automation-1')).resolves.toEqual([
+      expect.objectContaining({ id: 'run-1', agentProviderId: 'claude' }),
+    ]);
+  });
+
+  it('hydrates recent run agent provider from the created task conversation', async () => {
+    const runWithTask = {
+      ...runRow,
+      status: 'success',
+      taskId: 'task-1',
+      createdTaskId: 'task-1',
+      error: null,
+    };
+    const automationWithCurrentProvider = {
+      ...automationRow,
+      taskConfig: JSON.stringify({ initialConversation: { provider: 'cursor' } }),
+    };
+    const conversationProvider = {
+      taskId: 'task-1',
+      provider: 'claude',
+      isInitialConversation: true,
+      createdAt: '2026-01-01 00:00:00',
+    };
+
+    dbMock.selectFrom
+      .mockReturnValueOnce({
+        innerJoin: vi.fn(() => ({
+          orderBy: vi.fn(() => ({
+            limit: vi.fn(() =>
+              dbMock.rowsResult([{ run: runWithTask, automation: automationWithCurrentProvider }])
+            ),
+          })),
+        })),
+      })
+      .mockReturnValueOnce({
+        where: vi.fn(() => dbMock.rowsResult([conversationProvider])),
+      });
+
+    await expect(listRecentRuns(undefined)).resolves.toEqual([
+      expect.objectContaining({ id: 'run-1', agentProviderId: 'claude' }),
+    ]);
   });
 });

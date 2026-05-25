@@ -1,16 +1,18 @@
 import { randomUUID } from 'node:crypto';
 import { Cron } from 'croner';
-import { and, asc, desc, eq, isNotNull, lte, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, lte, or, sql } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import {
   automationRuns,
   automations,
+  conversations,
   projects,
   tasks,
   type AutomationRow,
   type AutomationRunRow,
 } from '@main/db/schema';
 import { log } from '@main/lib/logger';
+import { isValidProviderId, type AgentProviderId } from '@shared/agent-provider-registry';
 import { isValidAction, type TaskCreateAction } from '@shared/automations/actions';
 import { getLocalTimeZone } from '@shared/automations/timezone';
 import type {
@@ -71,6 +73,26 @@ function parseTaskConfig(raw: string | null): CreateTaskParams | null {
     });
     return null;
   }
+}
+
+function asAgentProviderId(
+  value: unknown,
+  context: Record<string, string>
+): AgentProviderId | null {
+  if (value == null) return null;
+  if (isValidProviderId(value)) return value;
+  log.warn('automations.repo: invalid agent provider for run', {
+    ...context,
+    value: String(value),
+  });
+  return null;
+}
+
+function automationTaskConfigAgentProvider(
+  row: Pick<AutomationRow, 'id' | 'taskConfig'>
+): AgentProviderId | null {
+  const provider = parseTaskConfig(row.taskConfig)?.initialConversation?.provider;
+  return asAgentProviderId(provider, { automationId: row.id });
 }
 
 const RUN_STATUSES: ReadonlySet<AutomationRunStatus> = new Set([
@@ -185,6 +207,81 @@ function mapAutomationRunRow(row: AutomationRunRow): AutomationRun {
     triggerKind: asRunTriggerKind(row.triggerKind, row.id),
     workerId: row.workerId,
   };
+}
+
+function runTaskIdForAgentProvider(run: AutomationRun): string | null {
+  return run.createdTaskId ?? run.taskId;
+}
+
+function shouldUseAutomationProviderFallback(run: AutomationRun): boolean {
+  const taskId = runTaskIdForAgentProvider(run);
+  if (!taskId) return true;
+
+  // For completed runs, falling back to the automation's current provider is misleading
+  // after the automation has been edited. Prefer an unknown icon if the task provider
+  // cannot be resolved from the run's created task.
+  return run.status === 'queued' || run.status === 'running';
+}
+
+async function agentProviderByTaskId(taskIds: string[]): Promise<Map<string, AgentProviderId>> {
+  const uniqueTaskIds = [...new Set(taskIds)];
+  if (uniqueTaskIds.length === 0) return new Map();
+
+  const rows = await db
+    .select({
+      taskId: conversations.taskId,
+      provider: conversations.provider,
+      isInitialConversation: conversations.isInitialConversation,
+      createdAt: conversations.createdAt,
+    })
+    .from(conversations)
+    .where(inArray(conversations.taskId, uniqueTaskIds));
+
+  const bestByTaskId = new Map<
+    string,
+    { provider: AgentProviderId; isInitialConversation: boolean; createdAt: string }
+  >();
+  for (const row of rows) {
+    const provider = asAgentProviderId(row.provider, { taskId: row.taskId });
+    if (!provider) continue;
+
+    const candidate = {
+      provider,
+      isInitialConversation: row.isInitialConversation === true,
+      createdAt: row.createdAt,
+    };
+    const existing = bestByTaskId.get(row.taskId);
+    if (
+      !existing ||
+      (candidate.isInitialConversation && !existing.isInitialConversation) ||
+      (candidate.isInitialConversation === existing.isInitialConversation &&
+        candidate.createdAt < existing.createdAt)
+    ) {
+      bestByTaskId.set(row.taskId, candidate);
+    }
+  }
+
+  return new Map(
+    [...bestByTaskId.entries()].map(([taskId, candidate]) => [taskId, candidate.provider])
+  );
+}
+
+async function attachAgentProviders<T extends AutomationRun>(
+  runs: T[],
+  fallbackProvider: (run: T) => AgentProviderId | null
+): Promise<T[]> {
+  const taskIds = runs
+    .map(runTaskIdForAgentProvider)
+    .filter((taskId): taskId is string => taskId != null);
+  const providersByTaskId = await agentProviderByTaskId(taskIds);
+
+  return runs.map((run) => {
+    const taskId = runTaskIdForAgentProvider(run);
+    const provider =
+      (taskId ? providersByTaskId.get(taskId) : undefined) ??
+      (shouldUseAutomationProviderFallback(run) ? fallbackProvider(run) : null);
+    return { ...run, agentProviderId: provider };
+  });
 }
 
 export function getNextRunAt(
@@ -591,7 +688,16 @@ export async function listRuns(automationId: string, limit = 20): Promise<Automa
     .where(eq(automationRuns.automationId, automationId))
     .orderBy(desc(automationRuns.scheduledAt))
     .limit(limit);
-  return rows.map(mapAutomationRunRow);
+  const runs = rows.map(mapAutomationRunRow);
+  if (runs.length === 0) return [];
+
+  const [automationRow] = await db
+    .select({ id: automations.id, taskConfig: automations.taskConfig })
+    .from(automations)
+    .where(eq(automations.id, automationId))
+    .limit(1);
+  const fallbackProvider = automationRow ? automationTaskConfigAgentProvider(automationRow) : null;
+  return attachAgentProviders(runs, () => fallbackProvider);
 }
 
 export async function listRecentRuns(
@@ -607,9 +713,13 @@ export async function listRecentRuns(
       sql`coalesce(${automationRuns.startedAt}, ${automationRuns.scheduledAt}, ${automationRuns.finishedAt}) desc`
     )
     .limit(limit);
-  return rows.map(({ run, automation }) => ({
+  const fallbackProviderByRunId = new Map(
+    rows.map(({ run, automation }) => [run.id, automationTaskConfigAgentProvider(automation)])
+  );
+  const runs = rows.map(({ run, automation }) => ({
     ...mapAutomationRunRow(run),
     automationName: automation.name,
     projectId: automation.projectId,
   }));
+  return attachAgentProviders(runs, (run) => fallbackProviderByRunId.get(run.id) ?? null);
 }

@@ -1,3 +1,4 @@
+import type { AgentProviderId } from '@shared/agent-provider-registry';
 import type { TaskCreateAction } from '@shared/automations/actions';
 import type { CreateTaskParams } from '@shared/tasks';
 
@@ -44,6 +45,8 @@ export type AutomationRun = {
   error: string | null;
   triggerKind: AutomationRunTriggerKind;
   workerId: string | null;
+  /** Provider that actually backed this run, when it can be resolved from its created task. */
+  agentProviderId?: AgentProviderId | null;
 };
 
 export type AutomationRunWithContext = AutomationRun & {

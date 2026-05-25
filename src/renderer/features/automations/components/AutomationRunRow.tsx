@@ -1,7 +1,7 @@
 import { Bot, Clock, Folder, RotateCcw, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
-import { automationTool } from '@renderer/features/automations/automation-tools';
+import { automationRunTool } from '@renderer/features/automations/automation-tools';
 import {
   isActiveStatus,
   statusIndicatorConfig,
@@ -73,7 +73,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
       ? 'Agent was deleted'
       : 'This run did not create an agent';
 
-  const tool = useMemo(() => automationTool(automation), [automation]);
+  const tool = useMemo(() => automationRunTool(run, automation), [automation, run]);
   const isFailed = run.status === 'failed';
   const isActive = isActiveStatus(run.status);
   const missedDeadline = isQueueDeadlineExceededRun(run);
