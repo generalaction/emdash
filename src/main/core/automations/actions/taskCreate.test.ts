@@ -127,6 +127,33 @@ describe('executeTaskCreate', () => {
     expect(taskService.createTask).toHaveBeenCalledOnce();
   });
 
+  it('uses the run id when generating default task names', async () => {
+    vi.mocked(projectManager.getProject).mockReturnValue({
+      repository: {
+        getBranchesPayload: vi.fn().mockResolvedValue({
+          gitDefaultBranch: 'main',
+          branches: [{ type: 'local', branch: 'main' }],
+        }),
+        getRepositoryInfo: vi.fn().mockResolvedValue({ isUnborn: false, currentBranch: 'main' }),
+        getConfiguredRemotes: vi.fn().mockResolvedValue({ baseRemote: 'origin' }),
+      },
+    } as never);
+    vi.mocked(taskService.createTask).mockResolvedValueOnce({
+      success: true,
+      data: { task: {} as never },
+    });
+
+    await executeTaskCreate(automation.actions[0]!, {
+      automation: { ...automation, taskConfig: null },
+      run,
+    });
+
+    expect(generateTaskName).toHaveBeenCalledWith({
+      title: 'Daily follow-up',
+      description: 'run-1',
+    });
+  });
+
   it('persists the run task link immediately after task creation', async () => {
     vi.mocked(projectManager.getProject).mockReturnValue({} as never);
     vi.mocked(taskService.createTask).mockResolvedValueOnce({

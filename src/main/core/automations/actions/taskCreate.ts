@@ -136,7 +136,7 @@ export async function executeTaskCreate(
         },
       };
     } else {
-      const taskName = generateTaskName({ title: ctx.automation.name });
+      const taskName = generateTaskName({ title: ctx.automation.name, description: ctx.run?.id });
       const defaults = await resolveProjectDefaults(projectId, taskName);
       if (!defaults.success) return err({ message: defaults.error });
       const provider = (await appSettingsService.get('defaultAgent')) ?? DEFAULT_AGENT_ID;
