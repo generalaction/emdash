@@ -17,13 +17,12 @@ function deleteProjectDescription(projectLabel: string, automations: Automation[
   return (
     <div className="space-y-3">
       <p>
-        "{projectLabel}" will be deleted. The project folder and worktrees will stay on the
-        filesystem.
+        {`"${projectLabel}" will be deleted. The project folder and worktrees will stay on the filesystem.`}
       </p>
       <div className="space-y-2">
-        <p className="text-foreground-destructive">
-          This will also delete {automations.length === 1 ? 'this automation' : 'these automations'}
-          :
+        <p className="text-foreground-muted">
+          {automations.length === 1 ? 'This automation' : 'These automations'} will be detached from
+          the project and will not run until attached to another project:
         </p>
         <ul className="max-h-32 space-y-1 overflow-auto rounded-md border border-border bg-background-secondary p-2 text-sm">
           {automations.map((automation) => (

@@ -12,7 +12,7 @@ export function useAutomationRunActions() {
   function deleteRun(run: AutomationRun) {
     showConfirmDelete({
       title: 'Delete run',
-      description: `Run “${formatRunName(run.id)}” will be permanently removed from the history.`,
+      description: `Run “${formatRunName(run.id)}” will be permanently removed from history. Any task or worktree created by this run will be kept.`,
       confirmLabel: 'Delete',
       onSuccess: () =>
         removeRun.mutate(run.id, {
@@ -30,7 +30,8 @@ export function useAutomationRunActions() {
     if (runIds.length === 0) return;
     showConfirmDelete({
       title: `Delete ${runIds.length} run${runIds.length === 1 ? '' : 's'}`,
-      description: 'The selected runs will be permanently removed from history.',
+      description:
+        'The selected runs will be permanently removed from history. Any tasks or worktrees created by these runs will be kept.',
       confirmLabel: `Delete ${runIds.length} run${runIds.length === 1 ? '' : 's'}`,
       onSuccess: () => {
         for (const id of runIds) {

@@ -1,8 +1,3 @@
-import { eq } from 'drizzle-orm';
-import { deleteTask } from '@main/core/tasks/operations/deleteTask';
-import { db } from '@main/db/client';
-import { tasks } from '@main/db/schema';
-import { log } from '@main/lib/logger';
 import { isValidAction } from '@shared/automations/actions';
 import {
   AUTOMATION_NAME_MAX_LENGTH,
@@ -163,27 +158,6 @@ export const automationsController = createRPCController({
 
       if (run.status === 'queued' || run.status === 'running') {
         return err('automation_run_in_flight');
-      }
-
-      const createdTaskId = run.createdTaskId;
-      if (createdTaskId) {
-        const [task] = await db
-          .select({ projectId: tasks.projectId })
-          .from(tasks)
-          .where(eq(tasks.id, createdTaskId))
-          .limit(1);
-        if (task) {
-          try {
-            await deleteTask(task.projectId, createdTaskId);
-          } catch (error) {
-            log.warn('automations.removeRun: deleteTask failed', {
-              runId: id,
-              taskId: createdTaskId,
-              error: error instanceof Error ? error.message : String(error),
-            });
-            return err('task_delete_failed');
-          }
-        }
       }
 
       const removed = await removeRunFromDb(id);
