@@ -7,8 +7,10 @@ import { workspaceBootstrapService } from '@main/core/workspaces/workspace-boots
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { db } from '@main/db/client';
 import { conversations, tasks, terminals, workspaces } from '@main/db/schema';
+import { events } from '@main/lib/events';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
+import { taskCreatedChannel } from '@shared/events/taskEvents';
 import { err, ok, type Result } from '@shared/result';
 import type {
   CreateTaskError,
@@ -55,7 +57,10 @@ export class TaskService implements Hookable<TaskCrudHooks> {
 
   async createTask(params: CreateTaskParams): Promise<Result<CreateTaskSuccess, CreateTaskError>> {
     const result = await createTask(params);
-    if (result.success) this._hooks.callHookBackground('task:created', result.data.task, params);
+    if (result.success) {
+      this._hooks.callHookBackground('task:created', result.data.task, params);
+      events.emit(taskCreatedChannel, { task: result.data.task });
+    }
     return result;
   }
 

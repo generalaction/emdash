@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createConversation } from '@main/core/conversations/createConversation';
 import { openProject } from '@main/core/projects/operations/openProject';
 import { projectManager } from '@main/core/projects/project-manager';
 import { generateTaskName } from '@main/core/tasks/name-generation/generateTaskName';
-import { createTask } from '@main/core/tasks/operations/createTask';
+import { taskService } from '@main/core/tasks/task-service';
 import type { Automation, AutomationRun } from '@shared/automations/types';
 import { updateRun } from '../repo';
 import { executeTaskCreate } from './taskCreate';
 
+vi.mock('@main/core/conversations/createConversation', () => ({ createConversation: vi.fn() }));
 vi.mock('@main/core/projects/operations/openProject', () => ({ openProject: vi.fn() }));
 vi.mock('@main/core/projects/project-manager', () => ({
   projectManager: { getProject: vi.fn() },
@@ -17,7 +19,9 @@ vi.mock('@main/core/settings/settings-service', () => ({
 vi.mock('@main/core/tasks/name-generation/generateTaskName', () => ({
   generateTaskName: vi.fn(() => 'generated-task'),
 }));
-vi.mock('@main/core/tasks/operations/createTask', () => ({ createTask: vi.fn() }));
+vi.mock('@main/core/tasks/task-service', () => ({
+  taskService: { createTask: vi.fn(), provision: vi.fn() },
+}));
 vi.mock('../repo', () => ({ updateRun: vi.fn() }));
 
 const automation: Automation = {
@@ -71,6 +75,11 @@ const run: AutomationRun = {
 describe('executeTaskCreate', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(taskService.provision).mockResolvedValue({
+      success: true,
+      data: { path: '/tmp/task', workspaceId: 'workspace-1' },
+    });
+    vi.mocked(createConversation).mockResolvedValue({} as never);
   });
 
   it('opens the project before creating a task from stored config', async () => {
@@ -78,40 +87,52 @@ describe('executeTaskCreate', () => {
       .mockReturnValueOnce(undefined)
       .mockReturnValueOnce({} as never);
     vi.mocked(openProject).mockResolvedValueOnce({ success: true, data: undefined });
-    vi.mocked(createTask).mockResolvedValueOnce({ success: true, data: { task: {} as never } });
+    vi.mocked(taskService.createTask).mockResolvedValueOnce({
+      success: true,
+      data: { task: {} as never },
+    });
 
     const result = await executeTaskCreate(automation.actions[0]!, { automation, run });
 
     expect(result.success).toBe(true);
     expect(openProject).toHaveBeenCalledWith('project-1');
-    expect(createTask).toHaveBeenCalledOnce();
+    expect(taskService.createTask).toHaveBeenCalledOnce();
   });
 
   it('leaves auto-approval to the saved task config or user defaults', async () => {
     vi.mocked(projectManager.getProject).mockReturnValue({} as never);
-    vi.mocked(createTask).mockResolvedValueOnce({ success: true, data: { task: {} as never } });
+    vi.mocked(taskService.createTask).mockResolvedValueOnce({
+      success: true,
+      data: { task: {} as never },
+    });
 
     await executeTaskCreate(automation.actions[0]!, { automation, run });
 
-    const taskConfig = vi.mocked(createTask).mock.calls[0]?.[0];
+    const taskConfig = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
     expect(taskConfig?.initialConversation?.autoApprove).toBeUndefined();
   });
 
   it('creates a task even when a previous action already created one for the run', async () => {
     vi.mocked(projectManager.getProject).mockReturnValue({} as never);
-    vi.mocked(createTask).mockResolvedValueOnce({ success: true, data: { task: {} as never } });
+    vi.mocked(taskService.createTask).mockResolvedValueOnce({
+      success: true,
+      data: { task: {} as never },
+    });
 
     await executeTaskCreate(automation.actions[0]!, {
       automation,
       run: { ...run, taskId: 'task-existing', createdTaskId: 'task-existing' },
     });
 
-    expect(createTask).toHaveBeenCalledOnce();
+    expect(taskService.createTask).toHaveBeenCalledOnce();
   });
 
   it('persists the run task link immediately after task creation', async () => {
     vi.mocked(projectManager.getProject).mockReturnValue({} as never);
-    vi.mocked(createTask).mockResolvedValueOnce({ success: true, data: { task: {} as never } });
+    vi.mocked(taskService.createTask).mockResolvedValueOnce({
+      success: true,
+      data: { task: {} as never },
+    });
 
     const result = await executeTaskCreate(automation.actions[0]!, { automation, run });
 
@@ -123,11 +144,45 @@ describe('executeTaskCreate', () => {
     });
   });
 
+  it('provisions the task and starts its initial conversation', async () => {
+    vi.mocked(projectManager.getProject).mockReturnValue({} as never);
+    vi.mocked(taskService.createTask).mockResolvedValueOnce({
+      success: true,
+      data: { task: {} as never },
+    });
+
+    const result = await executeTaskCreate(automation.actions[0]!, { automation, run });
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(taskService.provision).toHaveBeenCalledWith(result.data.taskId);
+    expect(createConversation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: 'project-1',
+        taskId: result.data.taskId,
+        initialPrompt: 'Check things',
+        isInitialConversation: true,
+      })
+    );
+    expect(vi.mocked(taskService.provision).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(createConversation).mock.invocationCallOrder[0]
+    );
+  });
+
   it('returns the task id when provisioning fails after task creation', async () => {
     vi.mocked(projectManager.getProject).mockReturnValue({} as never);
-    vi.mocked(createTask).mockResolvedValueOnce({
+    vi.mocked(taskService.createTask).mockResolvedValueOnce({
+      success: true,
+      data: { task: {} as never },
+    });
+    vi.mocked(taskService.provision).mockResolvedValueOnce({
       success: false,
-      error: { type: 'provision-timeout', timeoutMs: 30_000, step: 'connecting' },
+      error: {
+        type: 'timeout',
+        message: 'provisioning timed out',
+        timeout: 30_000,
+        step: 'connecting',
+      },
     });
 
     const result = await executeTaskCreate(automation.actions[0]!, { automation, run });
@@ -135,10 +190,11 @@ describe('executeTaskCreate', () => {
     expect(result).toEqual({
       success: false,
       error: {
-        message: 'provisioning timed out after 30000ms at step connecting',
+        message: 'provisioning timed out (step: connecting)',
         taskId: expect.any(String),
       },
     });
+    expect(createConversation).not.toHaveBeenCalled();
   });
 
   it('does not persist run/task mapping when task config construction throws after UUID generation', async () => {
@@ -152,6 +208,8 @@ describe('executeTaskCreate', () => {
     });
 
     expect(result).toEqual({ success: false, error: { message: 'after_uuid' } });
-    expect(createTask).not.toHaveBeenCalled();
+    expect(taskService.createTask).not.toHaveBeenCalled();
+    expect(taskService.provision).not.toHaveBeenCalled();
+    expect(createConversation).not.toHaveBeenCalled();
   });
 });

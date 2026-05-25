@@ -1,10 +1,12 @@
 import { randomUUID } from 'node:crypto';
+import { createConversation } from '@main/core/conversations/createConversation';
 import { openProject } from '@main/core/projects/operations/openProject';
 import { projectManager } from '@main/core/projects/project-manager';
 import { DEFAULT_AGENT_ID } from '@main/core/settings/settings-registry';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { generateTaskName } from '@main/core/tasks/name-generation/generateTaskName';
-import { createTask } from '@main/core/tasks/operations/createTask';
+import type { ProvisionTaskError } from '@main/core/tasks/provision-task-error';
+import { taskService } from '@main/core/tasks/task-service';
 import type { TaskCreateAction } from '@shared/automations/actions';
 import { bareRefName } from '@shared/git-utils';
 import { makePtySessionId } from '@shared/ptySessionId';
@@ -37,6 +39,21 @@ function formatCreateTaskActionError(error: CreateTaskError): string {
       return error.message;
     case 'provision-timeout':
       return `provisioning timed out after ${error.timeoutMs}ms at step ${error.step ?? 'unknown'}`;
+  }
+}
+
+function formatProvisionActionError(error: ProvisionTaskError): string {
+  switch (error.type) {
+    case 'timeout':
+      return error.step ? `${error.message} (step: ${error.step})` : error.message;
+    case 'error':
+      return error.message;
+    case 'branch-not-found':
+      return `Branch "${error.branch}" was not found locally or on remote`;
+    case 'worktree-setup-failed':
+      return error.message
+        ? `Failed to set up worktree for branch "${error.branch}": ${error.message}`
+        : `Failed to set up worktree for branch "${error.branch}"`;
   }
 }
 
@@ -142,7 +159,7 @@ export async function executeTaskCreate(
       };
     }
 
-    const result = await createTask(taskConfig);
+    const result = await taskService.createTask(taskConfig);
     if (!result.success) {
       return err({
         message: formatCreateTaskActionError(result.error),
@@ -150,6 +167,23 @@ export async function executeTaskCreate(
       });
     }
     if (ctx.run) await updateRun(ctx.run.id, { taskId, createdTaskId: taskId });
+
+    try {
+      const provision = await taskService.provision(taskId);
+      if (!provision.success) {
+        return err({ message: formatProvisionActionError(provision.error), taskId });
+      }
+
+      if (taskConfig.initialConversation) {
+        await createConversation({
+          ...taskConfig.initialConversation,
+          isInitialConversation: true,
+        });
+      }
+    } catch (error) {
+      return err({ message: error instanceof Error ? error.message : String(error), taskId });
+    }
+
     return ok({
       taskId,
       sessionId: makePtySessionId(projectId, taskId, conversationId),
