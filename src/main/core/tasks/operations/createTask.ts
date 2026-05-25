@@ -1,14 +1,10 @@
 import crypto from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
-import { taskEvents } from '@main/core/tasks/task-events';
-import { taskManager } from '@main/core/tasks/task-manager';
+import { providerRepositoryService } from '@main/core/repository/provider-repository-service';
 import { db } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
-import { events } from '@main/lib/events';
-import { telemetryService } from '@main/lib/telemetry';
-import { resolveAgentAutoApprove } from '@shared/agent-auto-approve-defaults';
-import { taskCreatedChannel } from '@shared/events/taskEvents';
+import { resolveTaskBranchName } from '@shared/resolveTaskBranchName';
 import { err, ok, type Result } from '@shared/result';
 import type {
   CreateTaskError,
@@ -17,50 +13,29 @@ import type {
   CreateTaskWarning,
   TaskLifecycleStatus,
 } from '@shared/tasks';
-import { createConversation } from '../../conversations/createConversation';
 import { prQueryService } from '../../pull-requests/pr-query-service';
 import { appSettingsService } from '../../settings/settings-service';
-import type { ProvisionTaskError } from '../provision-task-error';
-import { resolveTaskBranchName } from '../resolveTaskBranchName';
 import { toStoredBranch } from '../stored-branch';
 import { mapTaskRowToTask } from '../utils/utils';
 
-type TaskCreateDb = Pick<typeof db, 'insert' | 'update' | 'select' | 'delete'>;
-
-function mapProvisionError(error: ProvisionTaskError): CreateTaskError {
-  switch (error.type) {
-    case 'branch-not-found':
-      return { type: 'branch-not-found', branch: error.branch };
-    case 'worktree-setup-failed':
-      return {
-        type: 'worktree-setup-failed',
-        branch: error.branch,
-        message: error.message,
-      };
-    case 'timeout':
-      return { type: 'provision-timeout', timeoutMs: error.timeout, step: error.step };
-    default:
-      return { type: 'provision-failed', message: error.message };
-  }
-}
-
 export async function createTask(
-  params: CreateTaskParams,
-  database: TaskCreateDb = db
+  params: CreateTaskParams
 ): Promise<Result<CreateTaskSuccess, CreateTaskError>> {
   const { strategy } = params;
-  const suffix = Math.random().toString(36).slice(2, 7);
-  const agentAutoApproveDefaults = await appSettingsService.get('agentAutoApproveDefaults');
   let warning: CreateTaskWarning | undefined;
 
   const project = projectManager.getProject(params.projectId);
   if (!project) {
     return err({ type: 'project-not-found' });
   }
+  const { baseRemote, pushRemote } = await project.repository.getConfiguredRemotes();
+
+  // Settings used by from-pull-request branch resolution (new-branch and from-issue resolve
+  // the branch name on the FE via resolveTaskBranchName before submission).
   const projectDefaults = await appSettingsService.get('project');
   const branchPrefix = projectDefaults.branchPrefix ?? '';
   const appendRandomSuffix = projectDefaults.appendRandomBranchSuffix ?? true;
-  const { baseRemote, pushRemote } = await project.repository.getConfiguredRemotes();
+  const suffix = Math.random().toString(36).slice(2, 7);
 
   // Determines what gets stored as taskBranch in the DB and how the worktree is prepared.
   let taskBranch: string | undefined;
@@ -69,14 +44,8 @@ export async function createTask(
 
   switch (strategy.kind) {
     case 'new-branch': {
-      const rawBranch = strategy.taskBranch;
-      taskBranch = resolveTaskBranchName({
-        rawBranch,
-        branchPrefix,
-        suffix,
-        appendRandomSuffix,
-        linkedIssue: params.linkedIssue,
-      });
+      // The FE resolves the final branch name before submission via resolveTaskBranchName.
+      taskBranch = strategy.taskBranch;
       const repoInfo = await project.repository.getRepositoryInfo();
       if (repoInfo.isUnborn) {
         return err({
@@ -198,7 +167,7 @@ export async function createTask(
 
   const initialStatus: TaskLifecycleStatus = params.initialStatus ?? 'in_progress';
 
-  const [taskRow] = await database
+  const [taskRow] = await db
     .insert(tasks)
     .values({
       id: params.id,
@@ -217,15 +186,17 @@ export async function createTask(
 
   let prs: Awaited<ReturnType<typeof prQueryService.getTaskPullRequests>> = [];
   if (strategy.kind === 'from-pull-request') {
-    const capability = await prQueryService.getProjectRemoteInfo(params.projectId);
-    if (capability.status === 'ready') {
+    const capability = await providerRepositoryService.resolveProject(params.projectId);
+    if (capability.success) {
       prs = await prQueryService.getTaskPullRequests(
         params.projectId,
         strategy.headBranch,
-        capability.repositoryUrl
+        capability.data.repositoryUrl
       );
     }
   }
+
+  const task = { ...mapTaskRowToTask(taskRow, prs), automationId: params.automationId };
 
   const workspaceType = ((): 'local' | 'project-ssh' | 'byoi' => {
     if (params.workspaceProvider === 'byoi') return 'byoi';
@@ -233,66 +204,8 @@ export async function createTask(
     return 'local';
   })();
   const workspaceId = crypto.randomUUID();
-  await database.insert(workspaces).values({ id: workspaceId, type: workspaceType });
-  await database.update(tasks).set({ workspaceId }).where(eq(tasks.id, params.id));
-  const task = {
-    ...mapTaskRowToTask(taskRow, prs),
-    automationId: params.automationId,
-    workspaceId,
-  };
+  await db.insert(workspaces).values({ id: workspaceId, type: workspaceType });
+  await db.update(tasks).set({ workspaceId }).where(eq(tasks.id, params.id));
 
-  taskEvents._emit('task:created', task);
-
-  const provisionResult = await taskManager.provisionTask(project, task, [], [], {
-    id: workspaceId,
-    type: workspaceType,
-  });
-  if (!provisionResult.success) {
-    return err(mapProvisionError(provisionResult.error));
-  }
-  telemetryService.capture('task_provisioned', {
-    project_id: params.projectId,
-    task_id: params.id,
-  });
-  if (params.initialConversation) {
-    await createConversation(
-      {
-        ...params.initialConversation,
-        isInitialConversation: true,
-        autoApprove: resolveAgentAutoApprove(
-          params.initialConversation.autoApprove,
-          agentAutoApproveDefaults,
-          params.initialConversation.provider
-        ),
-      },
-      database
-    );
-  }
-
-  events.emit(taskCreatedChannel, { task });
-
-  const taskCreatedStrategy = (() => {
-    if (strategy.kind === 'from-pull-request') return 'pr';
-    if (params.linkedIssue) return 'issue';
-    if (strategy.kind === 'no-worktree') return 'blank';
-    return 'branch';
-  })();
-
-  telemetryService.capture('task_created', {
-    strategy: taskCreatedStrategy,
-    has_initial_prompt: Boolean(params.initialConversation?.initialPrompt?.trim()),
-    has_issue: params.linkedIssue?.provider ?? 'none',
-    provider: params.initialConversation?.provider ?? null,
-    project_id: params.projectId,
-    task_id: params.id,
-  });
-  if (params.linkedIssue) {
-    telemetryService.capture('issue_linked_to_task', {
-      provider: params.linkedIssue.provider,
-      project_id: params.projectId,
-      task_id: params.id,
-    });
-  }
-
-  return ok({ task, warning });
+  return ok({ task: { ...task, workspaceId }, warning });
 }

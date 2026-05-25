@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
 import { rpc } from '@renderer/lib/ipc';
 import { type Branch } from '@shared/git';
+import { useBranchName } from './use-branch-name';
 import { useBranchSelection, type BranchSelectionInitial } from './use-branch-selection';
 import { useTaskName } from './use-task-name';
 
@@ -47,14 +48,22 @@ export function useFromBranchMode(
     initialName: initial?.taskName,
   });
 
+  const branchNameState = useBranchName({
+    taskName: taskName.taskName,
+    projectId: selectedProjectId,
+    resetKey: selectedProjectId,
+  });
+
   const isValid =
     taskName.taskName.trim().length > 0 &&
+    branchNameState.branchName.trim().length > 0 &&
     branchSelection.selectedBranch !== undefined &&
     !taskName.isPending;
 
   return {
     ...branchSelection,
     ...taskName,
+    ...branchNameState,
     isValid,
   };
 }

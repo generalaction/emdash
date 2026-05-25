@@ -1,13 +1,12 @@
 import { and, eq, sql } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
-import { taskEvents } from '@main/core/tasks/task-events';
 import { mapTaskRowToTask } from '@main/core/tasks/utils/utils';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
+import { resolveTaskBranchName } from '@shared/resolveTaskBranchName';
 import { err, ok, type Result } from '@shared/result';
 import type { RenameTaskError, RenameTaskSuccess, RenameTaskWarning } from '@shared/tasks';
 import { appSettingsService } from '../../settings/settings-service';
-import { resolveTaskBranchName } from '../resolveTaskBranchName';
 
 function parseLinkedIssueProvider(linkedIssue: unknown): unknown {
   if (!linkedIssue || typeof linkedIssue !== 'string') return undefined;
@@ -92,9 +91,8 @@ export async function renameTask(
     .where(eq(tasks.id, taskId))
     .returning();
 
-  if (updatedRow) {
-    taskEvents._emit('task:updated', mapTaskRowToTask(updatedRow));
-  }
-
-  return ok({ warning });
+  const task = updatedRow
+    ? mapTaskRowToTask(updatedRow)
+    : mapTaskRowToTask({ ...row, name: newName });
+  return ok({ task, warning });
 }

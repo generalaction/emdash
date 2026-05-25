@@ -6,6 +6,7 @@ export const AGENT_PROVIDER_IDS = [
   'qwen',
   'droid',
   'gemini',
+  'antigravity',
   'cursor',
   'copilot',
   'amp',
@@ -55,6 +56,13 @@ export type AgentProviderDefinition = {
   keystrokeSubmitSequence?: string;
   /** Delay between injected prompt text and submit, for TUIs that need paste settling time. */
   keystrokeSubmitDelayMs?: number;
+  /**
+   * When true, the initial prompt is piped to the agent via stdin and the
+   * spawn becomes `bash -c 'printf ... | <agent...>'`.
+   * Use for agents that read an initial message from stdin then continue
+   * interactively (e.g. amp's `echo "msg" | amp`).
+   */
+  initialPromptViaStdinPipe?: boolean;
   resumeFlag?: string;
   /**
    * CLI flag to assign a unique session ID per chat instance.
@@ -187,6 +195,24 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     terminalOnly: true,
   },
   {
+    id: 'antigravity',
+    name: 'Antigravity',
+    description:
+      'Google Antigravity CLI for terminal-first agent sessions with shared Antigravity settings and conversation history.',
+    docUrl: 'https://antigravity.google/docs/cli-overview',
+    installCommand: 'curl -fsSL https://antigravity.google/cli/install.sh | bash',
+    commands: ['agy', 'antigravity'],
+    versionArgs: ['--version'],
+    cli: 'agy',
+    autoApproveFlag: '--dangerously-skip-permissions',
+    initialPromptFlag: '-i',
+    sessionIdFlag: '--conversation=',
+    planActivateCommand: '/plan',
+    icon: 'antigravity.png',
+    alt: 'Antigravity CLI',
+    terminalOnly: true,
+  },
+  {
     id: 'qwen',
     name: 'Qwen Code',
     description:
@@ -232,9 +258,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     cli: 'amp',
     autoApproveFlag: '--dangerously-allow-all',
     initialPromptFlag: '',
-    useKeystrokeInjection: true,
-    keystrokeSubmitSequence: '\x0A',
-    keystrokeSubmitDelayMs: 100,
+    initialPromptViaStdinPipe: true,
     icon: 'ampcode.png',
     alt: 'Amp CLI',
     terminalOnly: true,
@@ -249,8 +273,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     commands: ['opencode'],
     versionArgs: ['--version'],
     cli: 'opencode',
-    initialPromptFlag: '',
-    useKeystrokeInjection: true,
+    initialPromptFlag: '--prompt',
     resumeFlag: '--continue',
     icon: 'opencode.png',
     alt: 'OpenCode CLI',

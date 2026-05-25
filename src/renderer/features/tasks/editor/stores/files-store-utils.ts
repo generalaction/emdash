@@ -1,6 +1,5 @@
 // ---------------------------------------------------------------------------
-// Excluded directory/file names — kept in sync with DEFAULT_TREE_EXCLUDE in
-// editor-file-tree.tsx so the flat tree and renderer agree on visibility.
+// Excluded directory/file names for the task editor file tree.
 // ---------------------------------------------------------------------------
 
 import { type FileNode } from '@shared/fs';
@@ -54,19 +53,25 @@ export function isExcluded(path: string): boolean {
 // Helpers for building FileNode from a raw entry path
 // ---------------------------------------------------------------------------
 
+export function normalizeFileTreePath(path: string): string {
+  return path.replace(/\\/g, '/').split('/').filter(Boolean).join('/');
+}
+
 export function makeNode(relPath: string, type: 'file' | 'directory', mtime?: Date): FileNode {
-  const parts = relPath.split('/').filter(Boolean);
-  const name = parts[parts.length - 1] ?? relPath;
+  const path = normalizeFileTreePath(relPath);
+  const parts = path.split('/').filter(Boolean);
+  const name = parts[parts.length - 1] ?? path;
   const parentPath = parts.length > 1 ? parts.slice(0, -1).join('/') : null;
   const depth = parts.length - 1;
   const extension = type === 'file' && name.includes('.') ? name.split('.').pop() : undefined;
 
   return {
-    path: relPath,
+    path,
     name,
     parentPath,
     depth,
     type,
+    children: [],
     isHidden: name.startsWith('.'),
     extension,
     mtime,
@@ -74,17 +79,14 @@ export function makeNode(relPath: string, type: 'file' | 'directory', mtime?: Da
 }
 
 // ---------------------------------------------------------------------------
-// Sorted insertion into childIndex
+// Sibling sorting
 // Directories come before files; within each group, alphabetical order.
 // ---------------------------------------------------------------------------
 
-export function sortedChildPaths(paths: string[], nodes: Map<string, FileNode>): string[] {
-  return [...paths].sort((a, b) => {
-    const na = nodes.get(a);
-    const nb = nodes.get(b);
-    if (!na || !nb) return 0;
-    if (na.type !== nb.type) return na.type === 'directory' ? -1 : 1;
-    return na.name.localeCompare(nb.name);
+export function sortFileNodes(nodes: readonly FileNode[]): FileNode[] {
+  return [...nodes].sort((a, b) => {
+    if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
+    return a.name.localeCompare(b.name);
   });
 }
 
@@ -92,24 +94,53 @@ export function sortedChildPaths(paths: string[], nodes: Map<string, FileNode>):
 // Visible rows derivation
 // ---------------------------------------------------------------------------
 
-export function buildVisibleRows(
-  nodes: Map<string, FileNode>,
-  childIndex: Map<string | null, string[]>,
-  expandedPaths: Set<string>
-): FileNode[] {
-  const rows: FileNode[] = [];
+export interface TreeRow {
+  node: FileNode;
+  chain: FileNode[];
+  renderDepth: number;
+}
 
-  function walk(parent: string | null) {
-    for (const path of childIndex.get(parent) ?? []) {
-      const node = nodes.get(path);
-      if (!node) continue;
-      rows.push(node);
-      if (node.type === 'directory' && expandedPaths.has(path)) {
-        walk(path);
+function extendChain(node: FileNode): FileNode[] {
+  const chain: FileNode[] = [node];
+  const visited = new Set<string>([node.path]);
+  let current = node;
+  while (
+    current.type === 'directory' &&
+    current.children.length === 1 &&
+    current.children[0].type === 'directory' &&
+    !visited.has(current.children[0].path)
+  ) {
+    current = current.children[0];
+    visited.add(current.path);
+    chain.push(current);
+  }
+  return chain;
+}
+
+export function isChainExpanded(chain: readonly FileNode[], expandedPaths: Set<string>): boolean {
+  for (const segment of chain) {
+    if (expandedPaths.has(segment.path)) return true;
+  }
+  return false;
+}
+
+export function buildVisibleRows(
+  rootNodes: readonly FileNode[],
+  expandedPaths: Set<string>
+): TreeRow[] {
+  const rows: TreeRow[] = [];
+
+  function walk(nodes: readonly FileNode[], renderDepth: number) {
+    for (const node of nodes) {
+      const chain = node.type === 'directory' ? extendChain(node) : [node];
+      const terminus = chain[chain.length - 1];
+      rows.push({ node: terminus, chain, renderDepth });
+      if (terminus.type === 'directory' && isChainExpanded(chain, expandedPaths)) {
+        walk(terminus.children, renderDepth + 1);
       }
     }
   }
 
-  walk(null);
+  walk(rootNodes, 0);
   return rows;
 }

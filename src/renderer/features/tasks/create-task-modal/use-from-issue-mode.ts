@@ -1,10 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
+import { refreshLinkedIssueContext } from '@renderer/features/tasks/issue-context/refresh-linked-issue-context';
 import { rpc } from '@renderer/lib/ipc';
 import { type Branch } from '@shared/git';
 import { type Issue } from '@shared/tasks';
 import { getIssueTaskName } from './issue-task-name';
+import { useBranchName } from './use-branch-name';
 import { useBranchSelection, type BranchSelectionInitial } from './use-branch-selection';
 import { useTaskName } from './use-task-name';
 
@@ -35,8 +37,27 @@ export function useFromIssueMode(
     setPrevProjectId(selectedProjectId);
     setLinkedIssue(null);
   }
-  const { autoGenerateName } = useTaskSettings();
-  const generatedTaskNameFromIssue = getIssueTaskName(linkedIssue);
+  useEffect(() => {
+    if (!linkedIssue || linkedIssue.context) return;
+    let cancelled = false;
+    void refreshLinkedIssueContext(linkedIssue, selectedProjectId).then((enriched) => {
+      if (cancelled || enriched === linkedIssue || !enriched.context) return;
+      setLinkedIssue((current) =>
+        current &&
+        current.identifier === enriched.identifier &&
+        current.provider === enriched.provider
+          ? enriched
+          : current
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [linkedIssue, selectedProjectId]);
+  const { autoGenerateName, preserveNameCapitalization } = useTaskSettings();
+  const generatedTaskNameFromIssue = getIssueTaskName(linkedIssue, {
+    preserveCapitalization: preserveNameCapitalization,
+  });
 
   const shouldGenerate =
     autoGenerateName &&
@@ -62,8 +83,16 @@ export function useFromIssueMode(
     initialName: initial?.taskName,
   });
 
+  const branchNameState = useBranchName({
+    taskName: taskName.taskName,
+    linkedIssue,
+    projectId: selectedProjectId,
+    resetKey: selectedProjectId,
+  });
+
   const isValid =
     taskName.taskName.trim().length > 0 &&
+    branchNameState.branchName.trim().length > 0 &&
     linkedIssue !== null &&
     branchSelection.selectedBranch !== undefined &&
     !taskName.isPending;
@@ -71,6 +100,7 @@ export function useFromIssueMode(
   return {
     ...branchSelection,
     ...taskName,
+    ...branchNameState,
     linkedIssue,
     setLinkedIssue,
     isValid,

@@ -22,8 +22,8 @@ import type { Conversation } from '@shared/conversations';
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { makePtyId } from '@shared/ptyId';
 import { makePtySessionId } from '@shared/ptySessionId';
-import { buildAgentCommand } from './agent-command';
-import { createInitialPromptDelivery } from './initial-prompt-delivery';
+import { buildAgentSessionCommand } from './agent-command';
+import { scheduleInitialPromptInjection } from './keystroke-injection';
 import { resolveProviderEnv } from './provider-env';
 
 const DEFAULT_COLS = 80;
@@ -96,22 +96,19 @@ export class LocalConversationProvider implements ConversationProvider {
     const hooksAvailable = await this.prepareHookConfig(conversation.providerId);
 
     const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
-    const initialPromptDelivery = createInitialPromptDelivery({
-      providerId: conversation.providerId,
-      conversationId: conversation.id,
-      providerConfig,
-      initialPrompt,
-      isResuming,
-    });
-    const { command, args } = buildAgentCommand({
+    const providerDef = getProvider(conversation.providerId);
+    const { command, args } = buildAgentSessionCommand({
       providerId: conversation.providerId,
       providerConfig,
       autoApprove: conversation.autoApprove,
+      initialPrompt,
       sessionId: conversation.id,
       isResuming,
-      extraInitialArgs: initialPromptDelivery.argvAddition(),
     });
-    const providerEnv = resolveProviderEnv(providerConfig);
+    const providerEnv = resolveProviderEnv(providerConfig, {
+      providerId: conversation.providerId,
+      autoApprove: conversation.autoApprove,
+    });
 
     const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
 
@@ -152,8 +149,7 @@ export class LocalConversationProvider implements ConversationProvider {
     });
 
     const hookActive = port > 0;
-    const provider = getProvider(conversation.providerId);
-    const useHooksOnly = hookActive && provider?.supportsHooks && hooksAvailable;
+    const useHooksOnly = hookActive && providerDef?.supportsHooks && hooksAvailable;
 
     if (!useHooksOnly) {
       wireAgentClassifier({
@@ -206,7 +202,7 @@ export class LocalConversationProvider implements ConversationProvider {
       metadata: { providerId: conversation.providerId, title: conversation.title },
     });
     this.sessions.set(sessionId, pty);
-    initialPromptDelivery.afterSpawn(pty);
+    scheduleInitialPromptInjection({ pty, conversation, initialPrompt, isResuming });
     telemetryService.capture('agent_run_started', {
       provider: conversation.providerId,
       project_id: conversation.projectId,

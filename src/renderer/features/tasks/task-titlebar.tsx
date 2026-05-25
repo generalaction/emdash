@@ -2,10 +2,10 @@ import {
   ArrowDown,
   ArrowUp,
   ChevronDown,
+  Clock,
   FileDiff,
   FolderOpen,
   GitBranch,
-  MessageSquare,
   Pin,
   RefreshCcw,
   Terminal,
@@ -42,6 +42,7 @@ import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Toggle } from '@renderer/lib/ui/toggle';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
 import { cn } from '@renderer/utils/utils';
 import type { Issue } from '@shared/tasks';
 import { DevServerPills } from './components/dev-server-pills';
@@ -123,6 +124,10 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
     isPulling,
     isPushing,
   } = useGitActions(projectId, taskId);
+
+  const linesAdded = workspace.git.totalLinesAdded;
+  const linesDeleted = workspace.git.totalLinesDeleted;
+  const hasDiffStats = linesAdded > 0 || linesDeleted > 0;
 
   const projectStore = asMounted(getProjectStore(projectId));
 
@@ -285,7 +290,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                   void taskStore.updateLinkedIssue(issue ?? undefined);
                 }}
                 projectId={projectId}
-                repositoryUrl={workspace.repository.repositoryUrl ?? ''}
+                repositoryUrl={workspace.repository.issueRepositoryUrl ?? ''}
                 projectPath={workspace.path}
                 excludeTaskId={taskId}
               />
@@ -345,33 +350,60 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
             className="border-none bg-transparent"
           >
             <Tooltip>
-              <TooltipTrigger>
-                <ToggleGroupItem size="icon-sm" value="changes" aria-label="Changes">
-                  <FileDiff className="size-3.5" />
-                </ToggleGroupItem>
-              </TooltipTrigger>
+              <TooltipTrigger
+                render={
+                  <ToggleGroupItem
+                    value="changes"
+                    aria-label="Changes"
+                    className={cn('w-auto! min-w-7! gap-0', hasDiffStats && 'w-full px-2!')}
+                  >
+                    <FileDiff className="size-3.5" />
+                    <span
+                      className={cn(
+                        'overflow-hidden transition-[max-width,padding-left] duration-500 ease-in-out flex items-center tabular-nums text-xs leading-none gap-1',
+                        hasDiffStats ? 'max-w-20 pl-1' : 'max-w-0 pl-0'
+                      )}
+                    >
+                      {linesAdded > 0 && (
+                        <span className="text-foreground-diff-added">
+                          +{formatDiffLineCount(linesAdded)}
+                        </span>
+                      )}
+                      {linesDeleted > 0 && (
+                        <span className="text-foreground-diff-deleted">
+                          -{formatDiffLineCount(linesDeleted)}
+                        </span>
+                      )}
+                    </span>
+                  </ToggleGroupItem>
+                }
+              />
               <TooltipContent>
                 Changes <BoundShortcut settingsKey="sidebarChanges" variant="badge" />
               </TooltipContent>
             </Tooltip>
             <Tooltip>
-              <TooltipTrigger>
-                <ToggleGroupItem size="icon-sm" value="conversations" aria-label="Conversations">
-                  <MessageSquare className="size-3.5" />
-                </ToggleGroupItem>
-              </TooltipTrigger>
+              <TooltipTrigger
+                render={
+                  <ToggleGroupItem size="icon-sm" value="files" aria-label="Files">
+                    <FolderOpen className="size-3.5" />
+                  </ToggleGroupItem>
+                }
+              />
               <TooltipContent>
-                Conversations <BoundShortcut settingsKey="sidebarConversations" variant="badge" />
+                Files <BoundShortcut settingsKey="sidebarFiles" variant="badge" />
               </TooltipContent>
             </Tooltip>
             <Tooltip>
-              <TooltipTrigger>
-                <ToggleGroupItem size="icon-sm" value="files" aria-label="Files">
-                  <FolderOpen className="size-3.5" />
-                </ToggleGroupItem>
-              </TooltipTrigger>
+              <TooltipTrigger
+                render={
+                  <ToggleGroupItem size="icon-sm" value="conversations" aria-label="Conversations">
+                    <Clock className="size-3.5" />
+                  </ToggleGroupItem>
+                }
+              />
               <TooltipContent>
-                Files <BoundShortcut settingsKey="sidebarFiles" variant="badge" />
+                Conversations <BoundShortcut settingsKey="sidebarConversations" variant="badge" />
               </TooltipContent>
             </Tooltip>
           </ToggleGroup>

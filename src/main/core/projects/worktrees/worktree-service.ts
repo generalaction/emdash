@@ -16,20 +16,20 @@ export type ServeWorktreeError =
 
 export class WorktreeService {
   private gitOpQueue: Promise<unknown> = Promise.resolve();
-  private readonly worktreePoolPath: string;
+  private readonly resolveWorktreePoolPath: () => Promise<string>;
   private readonly repoPath: string;
   private readonly ctx: IExecutionContext;
   private readonly host: WorktreeHost;
   private readonly projectSettings: ProjectSettingsProvider;
 
   constructor(args: {
-    worktreePoolPath: string;
     repoPath: string;
     ctx: IExecutionContext;
     host: WorktreeHost;
     projectSettings: ProjectSettingsProvider;
+    resolveWorktreePoolPath: () => Promise<string>;
   }) {
-    this.worktreePoolPath = args.worktreePoolPath;
+    this.resolveWorktreePoolPath = args.resolveWorktreePoolPath;
     this.repoPath = args.repoPath;
     this.projectSettings = args.projectSettings;
     this.ctx = args.ctx;
@@ -61,7 +61,7 @@ export class WorktreeService {
   }
 
   private async ensureWorktreePoolDirExists(): Promise<void> {
-    await this.host.mkdirAbsolute(this.worktreePoolPath, { recursive: true });
+    await this.host.mkdirAbsolute(await this.resolveWorktreePoolPath(), { recursive: true });
   }
 
   private async getRemoteCandidates(): Promise<string[]> {
@@ -131,14 +131,15 @@ export class WorktreeService {
   }
 
   async getWorktree(branchName: string): Promise<string | undefined> {
-    const worktreePath = path.join(this.worktreePoolPath, branchName);
+    const worktreePoolPath = await this.resolveWorktreePoolPath();
+    const worktreePath = path.join(worktreePoolPath, branchName);
     if (await this.host.existsAbsolute(worktreePath)) {
       if (await this.isValidWorktree(worktreePath)) return worktreePath;
       await this.host.removeAbsolute(worktreePath, { recursive: true }).catch(() => {});
     }
 
     try {
-      const realPoolPath = await this.host.realPathAbsolute(this.worktreePoolPath);
+      const realPoolPath = await this.host.realPathAbsolute(worktreePoolPath);
       const { stdout } = await this.ctx.exec('git', ['worktree', 'list', '--porcelain']);
       const branchLine = `branch refs/heads/${branchName}`;
       for (const block of stdout.split('\n\n')) {
@@ -171,7 +172,7 @@ export class WorktreeService {
       return ok(checkedOutPath);
     }
 
-    const targetPath = path.join(this.worktreePoolPath, branchName);
+    const targetPath = path.join(await this.resolveWorktreePoolPath(), branchName);
     if (await this.host.existsAbsolute(targetPath)) {
       if (await this.isValidWorktree(targetPath)) return ok(targetPath);
       await this.host.removeAbsolute(targetPath, { recursive: true }).catch(() => {});
@@ -223,7 +224,7 @@ export class WorktreeService {
       return ok(checkedOutPath);
     }
 
-    const targetPath = path.join(this.worktreePoolPath, branchName);
+    const targetPath = path.join(await this.resolveWorktreePoolPath(), branchName);
     const remoteCandidates = await this.getRemoteCandidates();
 
     if (await this.host.existsAbsolute(targetPath)) {

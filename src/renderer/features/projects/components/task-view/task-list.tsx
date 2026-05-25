@@ -5,7 +5,6 @@ import { useRef } from 'react';
 import { asMounted, getProjectStore } from '@renderer/features/projects/stores/project-selectors';
 import { getTaskManagerStore } from '@renderer/features/tasks/stores/task-selectors';
 import { ListPopoverCard } from '@renderer/lib/components/list-popover-card';
-import { useMultiSelect } from '@renderer/lib/hooks/use-multi-select';
 import { useParams } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
@@ -19,12 +18,12 @@ import { TaskRow, type ReadyTask } from './task-row';
 
 function TaskVirtualList({
   tasks,
-  isSelected,
+  selectedIds,
   onToggleSelect,
 }: {
   tasks: ReadyTask[];
-  isSelected: (id: string) => boolean;
-  onToggleSelect: (id: string) => void;
+  selectedIds: Set<string>;
+  onToggleSelect: (id: string, shiftKey: boolean) => void;
 }) {
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -67,8 +66,8 @@ function TaskVirtualList({
             >
               <TaskRow
                 task={task}
-                isSelected={isSelected(task.data.id)}
-                onToggleSelect={() => onToggleSelect(task.data.id)}
+                isSelected={selectedIds.has(task.data.id)}
+                onToggleSelect={(shiftKey) => onToggleSelect(task.data.id, shiftKey)}
               />
             </div>
           );
@@ -129,7 +128,7 @@ export const TaskList = observer(function TaskList() {
   } = useParams('project');
   const store = asMounted(getProjectStore(projectId));
   const taskManager = getTaskManagerStore(projectId);
-  const showConfirm = useShowModal('confirmActionModal');
+  const showDeleteTask = useShowModal('deleteTaskModal');
   const showCreateTaskModal = useShowModal('taskModal');
 
   const taskView = store?.view.taskView ?? null;
@@ -142,43 +141,40 @@ export const TaskList = observer(function TaskList() {
   const activeTasks = allTasks.filter((t) => !t.data.archivedAt);
   const archivedTasks = allTasks.filter((t) => Boolean(t.data.archivedAt));
 
-  const tab = taskView?.tab ?? 'active';
-  const searchQuery = taskView?.searchQuery ?? '';
-  const displayTasks = tab === 'active' ? activeTasks : archivedTasks;
-  const q = searchQuery.trim().toLowerCase();
+  if (!taskView) return null;
+
+  const displayTasks = taskView.tab === 'active' ? activeTasks : archivedTasks;
+  const q = taskView.searchQuery.trim().toLowerCase();
   const filteredTasks = q
     ? displayTasks.filter((t) => t.data.name.toLowerCase().includes(q))
     : displayTasks;
 
-  const selection = useMultiSelect<ReadyTask>({
-    items: filteredTasks,
-    getId: (t) => t.data.id,
-  });
-
-  if (!taskView) return null;
+  const clearSelection = () => taskView.setSelectedIds(new Set());
 
   const bulkArchive = () => {
-    const ids = [...selection.selectedIds];
+    const ids = [...taskView.selectedIds];
     ids.forEach((id) => void taskManager?.archiveTask(id));
-    selection.clear();
+    clearSelection();
   };
 
   const bulkRestore = () => {
-    const ids = [...selection.selectedIds];
+    const ids = [...taskView.selectedIds];
     ids.forEach((id) => void taskManager?.restoreTask(id));
-    selection.clear();
+    clearSelection();
   };
 
   const bulkDelete = () => {
-    const count = selection.selectedIds.size;
-    showConfirm({
-      title: `Delete ${count} task${count === 1 ? '' : 's'}`,
-      description: 'The selected tasks will be permanently deleted. This action cannot be undone.',
-      confirmLabel: `Delete ${count} task${count === 1 ? '' : 's'}`,
-      onSuccess: () => {
-        const ids = [...selection.selectedIds];
-        ids.forEach((id) => void taskManager?.deleteTask(id));
-        selection.clear();
+    const selectedTasks = [...taskView.selectedIds]
+      .map((id) => taskManager?.tasks.get(id))
+      .filter((t): t is ReadyTask => !!t)
+      .map((t) => ({ taskId: t.data.id, taskName: t.data.name }));
+
+    showDeleteTask({
+      projectId,
+      tasks: selectedTasks,
+      onSuccess: ({ deleteWorktree, deleteBranch }) => {
+        void taskManager?.deleteTasks([...taskView.selectedIds], { deleteWorktree, deleteBranch });
+        clearSelection();
       },
     });
   };
@@ -216,15 +212,24 @@ export const TaskList = observer(function TaskList() {
       ) : (
         <TaskVirtualList
           tasks={filteredTasks}
-          isSelected={selection.isSelected}
-          onToggleSelect={selection.toggle}
+          selectedIds={taskView.selectedIds}
+          onToggleSelect={(id, shiftKey) => {
+            if (shiftKey) {
+              taskView.selectRange(
+                filteredTasks.map((t) => t.data.id),
+                id
+              );
+            } else {
+              taskView.toggleSelect(id);
+            }
+          }}
         />
       )}
 
       <SelectionBar
-        count={selection.selectedIds.size}
+        count={taskView.selectedIds.size}
         tab={taskView.tab}
-        onClear={selection.clear}
+        onClear={clearSelection}
         onArchive={bulkArchive}
         onRestore={bulkRestore}
         onDelete={bulkDelete}

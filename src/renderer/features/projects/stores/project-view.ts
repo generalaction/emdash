@@ -32,6 +32,8 @@ export class ProjectViewStore implements Snapshottable<ProjectViewSnapshot> {
 class TaskViewStore {
   tab: 'active' | 'archived' = 'active';
   searchQuery: string = '';
+  selectedIds: Set<string> = new Set();
+  lastSelectedId: string | null = null;
 
   constructor() {
     makeAutoObservable(this);
@@ -43,5 +45,35 @@ class TaskViewStore {
 
   setSearchQuery(query: string) {
     this.searchQuery = query;
+  }
+
+  setSelectedIds(ids: Set<string>) {
+    this.selectedIds = ids;
+    this.lastSelectedId = null;
+  }
+
+  toggleSelect(id: string) {
+    if (this.selectedIds.has(id)) {
+      this.selectedIds.delete(id);
+    } else {
+      this.selectedIds.add(id);
+    }
+    this.lastSelectedId = id;
+  }
+
+  selectRange(orderedIds: string[], toId: string) {
+    const anchor = this.lastSelectedId;
+    if (!anchor || anchor === toId) {
+      this.toggleSelect(toId);
+      return;
+    }
+    const fromIndex = orderedIds.indexOf(anchor);
+    const toIndex = orderedIds.indexOf(toId);
+    if (fromIndex === -1 || toIndex === -1) {
+      this.toggleSelect(toId);
+      return;
+    }
+    const [start, end] = fromIndex < toIndex ? [fromIndex, toIndex] : [toIndex, fromIndex];
+    this.selectedIds = new Set(orderedIds.slice(start, end + 1));
   }
 }
