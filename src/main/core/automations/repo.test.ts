@@ -5,6 +5,11 @@ import { updateAutomation } from './repo';
 import { detachProject, setAutomationEnabled } from './service';
 
 const dbMock = vi.hoisted(() => {
+  const rowsResult = <T>(rows: T[]) =>
+    Object.assign([...rows], {
+      all: () => rows,
+      get: () => rows[0],
+    });
   const selectLimit = vi.fn();
   const selectWhere = vi.fn(() => ({ limit: selectLimit }));
   const selectFrom = vi.fn(() => ({ where: selectWhere }));
@@ -13,8 +18,15 @@ const dbMock = vi.hoisted(() => {
   const updateWhere = vi.fn(() => ({ returning: updateReturning }));
   const updateSet = vi.fn(() => ({ where: updateWhere }));
   const update = vi.fn(() => ({ set: updateSet }));
-  const transaction = vi.fn((callback) => callback({ select, update }));
+  const transaction = vi.fn((callback) => {
+    const result = callback({ select, update });
+    if (result && typeof result.then === 'function') {
+      throw new Error('Transaction function cannot return a promise');
+    }
+    return result;
+  });
   return {
+    rowsResult,
     select,
     selectFrom,
     selectWhere,
@@ -79,15 +91,15 @@ const runRow = {
 describe('automations repo', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    dbMock.selectLimit.mockResolvedValue([automationRow]);
-    dbMock.updateReturning.mockResolvedValue([]);
+    dbMock.selectLimit.mockReturnValue(dbMock.rowsResult([automationRow]));
+    dbMock.updateReturning.mockReturnValue(dbMock.rowsResult([]));
   });
 
   it('detaches every automation for a project', async () => {
     dbMock.updateReturning
-      .mockResolvedValueOnce([{ id: 'automation-1' }, { id: 'automation-2' }])
-      .mockResolvedValueOnce([{ ...runRow, error: 'no_project_attached' }])
-      .mockResolvedValueOnce([]);
+      .mockReturnValueOnce(dbMock.rowsResult([{ id: 'automation-1' }, { id: 'automation-2' }]))
+      .mockReturnValueOnce(dbMock.rowsResult([{ ...runRow, error: 'no_project_attached' }]))
+      .mockReturnValueOnce(dbMock.rowsResult([]));
 
     await expect(detachProject('project-1')).resolves.toBe(2);
 
@@ -116,8 +128,8 @@ describe('automations repo', () => {
 
   it('skips queued cron runs when disabling an automation', async () => {
     dbMock.updateReturning
-      .mockResolvedValueOnce([{ ...automationRow, enabled: 0 }])
-      .mockResolvedValueOnce([runRow]);
+      .mockReturnValueOnce(dbMock.rowsResult([{ ...automationRow, enabled: 0 }]))
+      .mockReturnValueOnce(dbMock.rowsResult([runRow]));
 
     await expect(setAutomationEnabled('automation-1', false)).resolves.toEqual(
       expect.objectContaining({ id: 'automation-1', enabled: false })
@@ -146,9 +158,9 @@ describe('automations repo', () => {
   });
 
   it('validates final actions inside updateAutomation', async () => {
-    dbMock.selectLimit.mockReturnValueOnce([
-      { ...automationRow, actions: '[]', promptTemplate: '' },
-    ]);
+    dbMock.selectLimit.mockReturnValueOnce(
+      dbMock.rowsResult([{ ...automationRow, actions: '[]', promptTemplate: '' }])
+    );
 
     await expect(updateAutomation('automation-1', { isDraft: false })).rejects.toThrow(
       'actions_required'
@@ -158,8 +170,10 @@ describe('automations repo', () => {
   });
 
   it('updates when final published actions are valid', async () => {
-    dbMock.selectLimit.mockReturnValueOnce([{ ...automationRow, isDraft: 1 }]);
-    dbMock.updateReturning.mockReturnValueOnce([{ ...automationRow, isDraft: 0 }]);
+    dbMock.selectLimit.mockReturnValueOnce(dbMock.rowsResult([{ ...automationRow, isDraft: 1 }]));
+    dbMock.updateReturning.mockReturnValueOnce(
+      dbMock.rowsResult([{ ...automationRow, isDraft: 0 }])
+    );
 
     await expect(updateAutomation('automation-1', { isDraft: false })).resolves.toEqual(
       expect.objectContaining({ id: 'automation-1', isDraft: false })

@@ -285,12 +285,13 @@ export async function updateAutomation(
     throw new Error('project_not_found');
   }
 
-  return await db.transaction(async (tx) => {
-    const [existingRow] = await tx
+  return db.transaction((tx) => {
+    const [existingRow] = tx
       .select()
       .from(automations)
       .where(eq(automations.id, id))
-      .limit(1);
+      .limit(1)
+      .all();
     if (!existingRow) return null;
 
     const existing = mapAutomationRow(existingRow);
@@ -319,11 +320,12 @@ export async function updateAutomation(
       values.taskConfig = patch.taskConfig ? JSON.stringify(patch.taskConfig) : null;
     }
 
-    const [row] = await tx
+    const [row] = tx
       .update(automations)
       .set(values)
       .where(eq(automations.id, id))
-      .returning();
+      .returning()
+      .all();
     return row ? mapAutomationRow(row) : null;
   });
 }
