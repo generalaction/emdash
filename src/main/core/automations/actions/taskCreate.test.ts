@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createConversation } from '@main/core/conversations/createConversation';
 import { openProject } from '@main/core/projects/operations/openProject';
 import { projectManager } from '@main/core/projects/project-manager';
+import { appSettingsService } from '@main/core/settings/settings-service';
 import { generateTaskName } from '@main/core/tasks/name-generation/generateTaskName';
 import { taskService } from '@main/core/tasks/task-service';
 import type { Automation, AutomationRun } from '@shared/automations/types';
@@ -78,6 +79,7 @@ const run: AutomationRun = {
 describe('executeTaskCreate', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(appSettingsService.get).mockResolvedValue(null as never);
     vi.mocked(taskService.provision).mockResolvedValue({
       success: true,
       data: { path: '/tmp/task', workspaceId: 'workspace-1' },
@@ -103,17 +105,85 @@ describe('executeTaskCreate', () => {
     expect(taskService.createTask).toHaveBeenCalledOnce();
   });
 
-  it('leaves auto-approval to the saved task config or user defaults', async () => {
+  it('enables auto-approval for automation-created Cursor conversations', async () => {
     vi.mocked(projectManager.getProject).mockReturnValue({} as never);
     vi.mocked(taskService.createTask).mockResolvedValueOnce({
       success: true,
       data: { task: {} as never },
     });
 
-    await executeTaskCreate(automation.actions[0]!, { automation, run });
+    await executeTaskCreate(automation.actions[0]!, {
+      automation: {
+        ...automation,
+        taskConfig: {
+          ...automation.taskConfig!,
+          initialConversation: {
+            ...automation.taskConfig!.initialConversation!,
+            provider: 'cursor',
+            autoApprove: false,
+          },
+        },
+      },
+      run,
+    });
 
     const taskConfig = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
-    expect(taskConfig?.initialConversation?.autoApprove).toBeUndefined();
+    expect(taskConfig?.initialConversation?.autoApprove).toBe(true);
+  });
+
+  it('enables auto-approval for automation-created conversations when the provider supports it', async () => {
+    vi.mocked(projectManager.getProject).mockReturnValue({} as never);
+    vi.mocked(taskService.createTask).mockResolvedValueOnce({
+      success: true,
+      data: { task: {} as never },
+    });
+
+    await executeTaskCreate(automation.actions[0]!, {
+      automation: {
+        ...automation,
+        taskConfig: {
+          ...automation.taskConfig!,
+          initialConversation: {
+            ...automation.taskConfig!.initialConversation!,
+            provider: 'claude',
+            autoApprove: false,
+          },
+        },
+      },
+      run,
+    });
+
+    const taskConfig = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
+    expect(taskConfig?.initialConversation?.autoApprove).toBe(true);
+  });
+
+  it('preserves saved auto-approval when automation agent auto-approval is disabled', async () => {
+    vi.mocked(appSettingsService.get).mockImplementation(async (key) =>
+      key === 'tasks' ? ({ autoApproveAutomationAgents: false } as never) : (null as never)
+    );
+    vi.mocked(projectManager.getProject).mockReturnValue({} as never);
+    vi.mocked(taskService.createTask).mockResolvedValueOnce({
+      success: true,
+      data: { task: {} as never },
+    });
+
+    await executeTaskCreate(automation.actions[0]!, {
+      automation: {
+        ...automation,
+        taskConfig: {
+          ...automation.taskConfig!,
+          initialConversation: {
+            ...automation.taskConfig!.initialConversation!,
+            provider: 'cursor',
+            autoApprove: false,
+          },
+        },
+      },
+      run,
+    });
+
+    const taskConfig = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
+    expect(taskConfig?.initialConversation?.autoApprove).toBe(false);
   });
 
   it('creates a task even when a previous action already created one for the run', async () => {
@@ -156,6 +226,35 @@ describe('executeTaskCreate', () => {
       title: 'Daily follow-up',
       description: 'run-1',
     });
+  });
+
+  it('enables auto-approval for Cursor when building automation task config from defaults', async () => {
+    vi.mocked(appSettingsService.get).mockImplementation(async (key) =>
+      key === 'defaultAgent' ? 'cursor' : (null as never)
+    );
+    vi.mocked(projectManager.getProject).mockReturnValue({
+      repository: {
+        getBranchesPayload: vi.fn().mockResolvedValue({
+          gitDefaultBranch: 'main',
+          branches: [{ type: 'local', branch: 'main' }],
+        }),
+        getRepositoryInfo: vi.fn().mockResolvedValue({ isUnborn: false, currentBranch: 'main' }),
+        getConfiguredRemotes: vi.fn().mockResolvedValue({ baseRemote: 'origin' }),
+      },
+    } as never);
+    vi.mocked(taskService.createTask).mockResolvedValueOnce({
+      success: true,
+      data: { task: {} as never },
+    });
+
+    await executeTaskCreate(automation.actions[0]!, {
+      automation: { ...automation, taskConfig: null },
+      run,
+    });
+
+    const taskConfig = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
+    expect(taskConfig?.initialConversation?.provider).toBe('cursor');
+    expect(taskConfig?.initialConversation?.autoApprove).toBe(true);
   });
 
   it('persists the run task link immediately after task creation', async () => {

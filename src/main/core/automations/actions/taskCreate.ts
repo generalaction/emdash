@@ -7,6 +7,7 @@ import { appSettingsService } from '@main/core/settings/settings-service';
 import { generateTaskName } from '@main/core/tasks/name-generation/generateTaskName';
 import type { ProvisionTaskError } from '@main/core/tasks/provision-task-error';
 import { taskService } from '@main/core/tasks/task-service';
+import { getProvider, isValidProviderId } from '@shared/agent-provider-registry';
 import type { TaskCreateAction } from '@shared/automations/actions';
 import { bareRefName } from '@shared/git-utils';
 import { makePtySessionId } from '@shared/ptySessionId';
@@ -55,6 +56,18 @@ function formatProvisionActionError(error: ProvisionTaskError): string {
         ? `Failed to set up worktree for branch "${error.branch}": ${error.message}`
         : `Failed to set up worktree for branch "${error.branch}"`;
   }
+}
+
+function automationConversationAutoApprove(
+  provider: string,
+  configured: boolean | undefined,
+  autoApproveAutomationAgents: boolean
+): boolean | undefined {
+  return autoApproveAutomationAgents &&
+    isValidProviderId(provider) &&
+    getProvider(provider)?.autoApproveFlag
+    ? true
+    : configured;
 }
 
 async function ensureProjectOpen(projectId: string) {
@@ -114,6 +127,8 @@ export async function executeTaskCreate(
 
   try {
     const storedConfig = ctx.automation.taskConfig;
+    const taskSettings = await appSettingsService.get('tasks');
+    const autoApproveAutomationAgents = taskSettings?.autoApproveAutomationAgents ?? true;
     const taskId = randomUUID();
     const conversationId = randomUUID();
 
@@ -132,6 +147,11 @@ export async function executeTaskCreate(
           id: conversationId,
           projectId,
           taskId,
+          autoApprove: automationConversationAutoApprove(
+            storedConfig.initialConversation.provider,
+            storedConfig.initialConversation.autoApprove,
+            autoApproveAutomationAgents
+          ),
           initialPrompt: prompt,
         },
       };
@@ -154,6 +174,11 @@ export async function executeTaskCreate(
           taskId,
           provider,
           title: ctx.automation.name,
+          autoApprove: automationConversationAutoApprove(
+            provider,
+            storedConfig?.initialConversation?.autoApprove,
+            autoApproveAutomationAgents
+          ),
           initialPrompt: prompt,
         },
       };

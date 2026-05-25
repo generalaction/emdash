@@ -29,6 +29,7 @@ export const SETTINGS_DEFAULTS = {
     createBranchAndWorktree: true,
     preserveNameCapitalization: false,
     includeIssueContextByDefault: true,
+    autoApproveAutomationAgents: true,
   },
   agentAutoApproveDefaults: {},
   notifications: {

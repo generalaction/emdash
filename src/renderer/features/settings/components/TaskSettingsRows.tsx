@@ -166,6 +166,32 @@ export const IncludeIssueContextByDefaultRow: React.FC = () => {
   );
 };
 
+export const AutoApproveAutomationAgentsRow: React.FC = () => {
+  const taskSettings = useTaskSettings();
+
+  return (
+    <SettingRow
+      title="Auto-approve automation agents"
+      description="Let automation-created agent sessions skip provider approval prompts when the selected CLI supports it."
+      control={
+        <>
+          <ResetToDefaultButton
+            visible={taskSettings.isFieldOverridden('autoApproveAutomationAgents')}
+            defaultLabel="on"
+            onReset={taskSettings.resetAutoApproveAutomationAgents}
+            disabled={taskSettings.loading || taskSettings.saving}
+          />
+          <Switch
+            checked={taskSettings.autoApproveAutomationAgents}
+            disabled={taskSettings.loading || taskSettings.saving}
+            onCheckedChange={taskSettings.updateAutoApproveAutomationAgents}
+          />
+        </>
+      }
+    />
+  );
+};
+
 export const EnableTmuxRow: React.FC = () => {
   const {
     value: projects,

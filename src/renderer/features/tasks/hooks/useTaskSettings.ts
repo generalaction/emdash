@@ -6,6 +6,7 @@ export interface TaskSettingsModel {
   createBranchAndWorktree: boolean;
   preserveNameCapitalization: boolean;
   includeIssueContextByDefault: boolean;
+  autoApproveAutomationAgents: boolean;
   loading: boolean;
   saving: boolean;
   isFieldOverridden: (
@@ -15,17 +16,20 @@ export interface TaskSettingsModel {
       | 'createBranchAndWorktree'
       | 'preserveNameCapitalization'
       | 'includeIssueContextByDefault'
+      | 'autoApproveAutomationAgents'
   ) => boolean;
   updateAutoGenerateName: (next: boolean) => void;
   updateAutoTrustWorktrees: (next: boolean) => void;
   updateCreateBranchAndWorktree: (next: boolean) => void;
   updatePreserveNameCapitalization: (next: boolean) => void;
   updateIncludeIssueContextByDefault: (next: boolean) => void;
+  updateAutoApproveAutomationAgents: (next: boolean) => void;
   resetAutoGenerateName: () => void;
   resetAutoTrustWorktrees: () => void;
   resetCreateBranchAndWorktree: () => void;
   resetPreserveNameCapitalization: () => void;
   resetIncludeIssueContextByDefault: () => void;
+  resetAutoApproveAutomationAgents: () => void;
 }
 
 export function useTaskSettings(): TaskSettingsModel {
@@ -44,6 +48,7 @@ export function useTaskSettings(): TaskSettingsModel {
     createBranchAndWorktree: tasks?.createBranchAndWorktree ?? true,
     preserveNameCapitalization: tasks?.preserveNameCapitalization ?? false,
     includeIssueContextByDefault: tasks?.includeIssueContextByDefault ?? true,
+    autoApproveAutomationAgents: tasks?.autoApproveAutomationAgents ?? true,
     loading,
     saving,
     isFieldOverridden,
@@ -52,10 +57,12 @@ export function useTaskSettings(): TaskSettingsModel {
     updateCreateBranchAndWorktree: (next) => update({ createBranchAndWorktree: next }),
     updatePreserveNameCapitalization: (next) => update({ preserveNameCapitalization: next }),
     updateIncludeIssueContextByDefault: (next) => update({ includeIssueContextByDefault: next }),
+    updateAutoApproveAutomationAgents: (next) => update({ autoApproveAutomationAgents: next }),
     resetAutoGenerateName: () => resetField('autoGenerateName'),
     resetAutoTrustWorktrees: () => resetField('autoTrustWorktrees'),
     resetCreateBranchAndWorktree: () => resetField('createBranchAndWorktree'),
     resetPreserveNameCapitalization: () => resetField('preserveNameCapitalization'),
     resetIncludeIssueContextByDefault: () => resetField('includeIssueContextByDefault'),
+    resetAutoApproveAutomationAgents: () => resetField('autoApproveAutomationAgents'),
   };
 }
