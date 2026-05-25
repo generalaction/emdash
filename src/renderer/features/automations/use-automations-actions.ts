@@ -3,8 +3,14 @@ import { firstMountedProjectId } from '@renderer/features/projects/stores/projec
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { formatAutomationError } from '@shared/automations/format';
-import type { Automation } from '@shared/automations/types';
+import { AUTOMATION_NAME_MAX_LENGTH, type Automation } from '@shared/automations/types';
 import { useAutomations } from './useAutomations';
+
+function copyAutomationName(name: string) {
+  const suffix = ' (copy)';
+  const base = name.slice(0, AUTOMATION_NAME_MAX_LENGTH - suffix.length).trimEnd();
+  return `${base}${suffix}`;
+}
 
 interface UseAutomationsActionsOptions {
   selectedAutomationId: string | null;
@@ -74,6 +80,49 @@ export function useAutomationsActions({
     [setEnabled]
   );
 
+  const requestCopy = useCallback(
+    (automation: Automation) => {
+      if (!automation.projectId) {
+        toast({
+          title: 'Cannot copy automation',
+          description: 'This automation is not attached to a project.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      create.mutate(
+        {
+          name: copyAutomationName(automation.name),
+          description: automation.description,
+          category: automation.category,
+          trigger: automation.trigger,
+          actions: automation.actions,
+          taskConfig: automation.taskConfig,
+          projectId: automation.projectId,
+          enabled: automation.enabled,
+          isDraft: automation.isDraft,
+          builtinTemplateId: automation.builtinTemplateId,
+          deadlinePolicy: automation.deadlinePolicy,
+          deadlineMs: automation.deadlineMs,
+        },
+        {
+          onSuccess: () => {
+            toast({ title: 'Automation copied' });
+          },
+          onError: (error) => {
+            toast({
+              title: 'Failed to copy automation',
+              description: formatAutomationError(error),
+              variant: 'destructive',
+            });
+          },
+        }
+      );
+    },
+    [create, toast]
+  );
+
   const requestBulkDelete = useCallback(
     (automations: ReadonlyArray<Automation>, onDone?: () => void) => {
       if (automations.length === 0) return;
@@ -117,6 +166,7 @@ export function useAutomationsActions({
     requestDelete,
     requestRunNow,
     requestToggleEnabled,
+    requestCopy,
     requestBulkDelete,
     requestBulkSetEnabled,
   };

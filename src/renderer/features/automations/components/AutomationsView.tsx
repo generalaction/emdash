@@ -214,6 +214,7 @@ export function AutomationsView() {
                       onEdit={openEdit}
                       onRunNow={actions.requestRunNow}
                       onToggleEnabled={actions.requestToggleEnabled}
+                      onCopy={actions.requestCopy}
                       onDelete={actions.requestDelete}
                       isSelected={selection.isSelected}
                       onToggleSelect={selection.toggle}

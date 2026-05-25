@@ -3,6 +3,7 @@ import {
   CirclePause,
   CirclePlay,
   Clock,
+  Copy,
   Folder,
   Loader2,
   Pencil,
@@ -39,6 +40,7 @@ interface AutomationRowProps {
   onEdit: (automation: Automation) => void;
   onRunNow?: (automation: Automation) => void;
   onToggleEnabled?: (automation: Automation, enabled: boolean) => void;
+  onCopy?: (automation: Automation) => void;
   onDelete?: (automation: Automation) => void;
   isSelected?: boolean;
   onToggleSelect?: () => void;
@@ -50,6 +52,7 @@ export const AutomationRow = observer(function AutomationRow({
   onEdit,
   onRunNow,
   onToggleEnabled,
+  onCopy,
   onDelete,
   isSelected,
   onToggleSelect,
@@ -89,9 +92,10 @@ export const AutomationRow = observer(function AutomationRow({
     latestRun?.startedAt ?? latestRun?.scheduledAt ?? latestRun?.finishedAt ?? null;
   const triggerLabel = formatTriggerLabel(automation.trigger);
 
-  const hasContextMenu = Boolean(onRunNow || onToggleEnabled || onDelete);
+  const hasContextMenu = Boolean(onRunNow || onToggleEnabled || onCopy || onDelete);
   const canRunNow = !automation.isDraft && !isDetached;
   const canToggle = !automation.isDraft && !isDetached;
+  const canCopy = !isDetached;
   const selectable = Boolean(onToggleSelect);
 
   const row = (
@@ -256,6 +260,12 @@ export const AutomationRow = observer(function AutomationRow({
           >
             {automation.enabled ? <CirclePause /> : <CirclePlay />}
             {automation.enabled ? 'Pause schedule' : 'Resume schedule'}
+          </ContextMenuItem>
+        ) : null}
+        {onCopy ? (
+          <ContextMenuItem disabled={!canCopy} onClick={() => onCopy(automation)}>
+            <Copy />
+            Copy automation
           </ContextMenuItem>
         ) : null}
         {onDelete ? (
