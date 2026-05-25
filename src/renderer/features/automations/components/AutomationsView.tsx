@@ -1,5 +1,5 @@
 import { CirclePause, CirclePlay, Loader2, RotateCcw, Trash2, X } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAutomationsTab } from '@renderer/features/automations/automations-view';
 import { ListPopoverCard } from '@renderer/lib/components/list-popover-card';
 import { useMultiSelect } from '@renderer/lib/hooks/use-multi-select';
@@ -27,9 +27,7 @@ export function AutomationsView() {
   const { automations } = useAutomations();
   const recentRuns = useRecentAutomationRuns(undefined, 200);
   const [search, setSearch] = useState('');
-  const [searchExpanded, setSearchExpanded] = useState(false);
   const [runFacetFilters, setRunFacetFilters] = useState(EMPTY_AUTOMATION_RUNS_FACET_FILTERS);
-  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const automationItems = useMemo(() => automations.data ?? [], [automations.data]);
   const {
@@ -43,7 +41,6 @@ export function AutomationsView() {
 
   const closePanel = useCallback(() => {
     close();
-    setSearchExpanded(false);
   }, [close]);
 
   const actions = useAutomationsActions({
@@ -121,10 +118,6 @@ export function AutomationsView() {
   );
 
   const hasAutomations = automationItems.length > 0;
-
-  useEffect(() => {
-    if (panelOpen && searchExpanded) searchInputRef.current?.focus();
-  }, [panelOpen, searchExpanded]);
 
   useEffect(() => {
     if (!panelOpen) return;
@@ -205,10 +198,6 @@ export function AutomationsView() {
                 search={search}
                 onSearchChange={setSearch}
                 searchPlaceholder={searchPlaceholder}
-                searchExpanded={searchExpanded}
-                onExpandSearch={() => setSearchExpanded(true)}
-                onCollapseSearch={() => setSearchExpanded(false)}
-                searchInputRef={searchInputRef}
                 createPending={actions.createPending}
                 onNewAutomation={actions.requestCreate}
               />
