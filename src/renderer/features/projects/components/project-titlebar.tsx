@@ -20,7 +20,7 @@ import {
   DropdownMenuTrigger,
 } from '@renderer/lib/ui/dropdown-menu';
 import { Separator } from '@renderer/lib/ui/separator';
-import { parseGitHubRepository } from '@shared/github-repository';
+import { isGitHubDotComHost, parseRepositoryRef } from '@shared/repository-ref';
 
 const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
   projectId,
@@ -35,10 +35,10 @@ const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
   const repo = getRepositoryStore(projectId);
   const baseRemote = repo?.baseRemote;
   const remoteUrl = baseRemote?.url;
-  const repositoryUrl = repo?.repositoryUrl;
-  const repository = parseGitHubRepository(repositoryUrl);
+  const repositoryUrl = repo?.canonicalRepositoryUrl;
+  const repository = parseRepositoryRef(repositoryUrl);
 
-  const isGithubUrl = Boolean(repository);
+  const isGithubUrl = repository ? isGitHubDotComHost(repository.host) : false;
   const repoLabel = repository?.nameWithOwner ?? remoteUrl?.replace(/^https?:\/\//, '');
 
   return (

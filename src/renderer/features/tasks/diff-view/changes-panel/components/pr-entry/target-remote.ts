@@ -1,18 +1,22 @@
 import type { Remote } from '@shared/git';
-import { parseGitHubRepository, type GitHubRepositoryRef } from '@shared/github-repository';
+import { parseRepositoryRef, type RepositoryRef } from '@shared/repository-ref';
 
-export type GitHubTargetRemote = {
+export type TargetRemote = {
   remote: Remote;
-  repository: GitHubRepositoryRef;
+  repository: RepositoryRef;
 };
 
-export function getGitHubTargetRemotes(remotes: ReadonlyArray<Remote>): GitHubTargetRemote[] {
+export function getTargetRemotes(
+  remotes: ReadonlyArray<Remote>,
+  options: { host?: string } = {}
+): TargetRemote[] {
   return remotes
     .map((remote) => {
-      const repository = parseGitHubRepository(remote.url);
+      const repository = parseRepositoryRef(remote.url);
       return repository ? { remote, repository } : null;
     })
-    .filter((option): option is GitHubTargetRemote => option !== null);
+    .filter((option): option is TargetRemote => option !== null)
+    .filter((option) => !options.host || option.repository.host === options.host);
 }
 
 export function resolveCreatePrTargetRemote({
@@ -21,11 +25,11 @@ export function resolveCreatePrTargetRemote({
   selectedRemoteName,
   fallbackRepositoryUrl,
 }: {
-  options: ReadonlyArray<GitHubTargetRemote>;
+  options: ReadonlyArray<TargetRemote>;
   projectRemoteName: string;
   selectedRemoteName?: string;
   fallbackRepositoryUrl?: string;
-}): GitHubTargetRemote | undefined {
+}): TargetRemote | undefined {
   const selected = selectedRemoteName
     ? options.find((option) => option.remote.name === selectedRemoteName)
     : undefined;
@@ -34,7 +38,7 @@ export function resolveCreatePrTargetRemote({
   const projectRemote = options.find((option) => option.remote.name === projectRemoteName);
   if (projectRemote) return projectRemote;
 
-  const fallbackRepository = parseGitHubRepository(fallbackRepositoryUrl);
+  const fallbackRepository = parseRepositoryRef(fallbackRepositoryUrl);
   if (fallbackRepository) {
     const fallback = options.find(
       (option) => option.repository.repositoryUrl === fallbackRepository.repositoryUrl

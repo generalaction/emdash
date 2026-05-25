@@ -5,6 +5,7 @@ import { useWorkspaceViewModel } from '@renderer/features/tasks/task-view-contex
 import { PrMergeLine } from '@renderer/lib/components/pr-merge-line';
 import { PrNumberBadge } from '@renderer/lib/components/pr-number-badge';
 import { StatusIcon } from '@renderer/lib/components/pr-status-icon';
+import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { type SplitButtonAction } from '@renderer/lib/ui/split-button';
@@ -125,6 +126,7 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
   const diffView = taskView.diffView;
   const showConfirm = useShowModal('confirmActionModal');
   const [isMerging, setIsMerging] = useState(false);
+  const [isMarkingReady, setIsMarkingReady] = useState(false);
   if (!diffView) return null;
   const tab = diffView.effectivePrTab;
   const isOpen = pr.status === 'open';
@@ -213,8 +215,19 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
           uiState={uiState}
           mergeActions={mergeActions}
           isMerging={isMerging}
+          isMarkingReady={isMarkingReady}
           onMarkReady={() => {
-            prStore.markReadyForReview(pr.url).catch(() => {});
+            setIsMarkingReady(true);
+            prStore
+              .markReadyForReview(pr.url)
+              .catch(() => {
+                toast({
+                  title: 'Failed to mark pull request ready',
+                  description: 'Refresh PR status and try again.',
+                  variant: 'destructive',
+                });
+              })
+              .finally(() => setIsMarkingReady(false));
           }}
         />
       )}

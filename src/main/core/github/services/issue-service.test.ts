@@ -1,5 +1,6 @@
 import type { Octokit } from '@octokit/rest';
 import { describe, expect, it, vi } from 'vitest';
+import { err, ok } from '@shared/result';
 import { issueService } from './issue-service';
 import { getOctokit } from './octokit-provider';
 
@@ -58,6 +59,7 @@ const expectedIssue = {
 };
 
 const repository = {
+  host: 'github.com',
   owner: 'owner',
   repo: 'repo',
   nameWithOwner: 'owner/repo',
@@ -72,10 +74,11 @@ describe('GitHubIssueServiceImpl', () => {
   describe('listIssues', () => {
     it('maps REST response to camelCase', async () => {
       const listForRepo = vi.fn().mockResolvedValue({ data: [restIssue] });
-      mockGetOctokit.mockResolvedValue(makeOctokit({ listForRepo }));
+      mockGetOctokit.mockResolvedValue(ok(makeOctokit({ listForRepo })));
 
       const result = await issueService.listIssues(repository, 30);
 
+      expect(mockGetOctokit).toHaveBeenCalledWith('github.com');
       expect(listForRepo).toHaveBeenCalledWith({
         owner: 'owner',
         repo: 'repo',
@@ -84,30 +87,51 @@ describe('GitHubIssueServiceImpl', () => {
         sort: 'updated',
         direction: 'desc',
       });
-      expect(result).toEqual([expectedIssue]);
+      expect(result).toEqual(ok([expectedIssue]));
     });
 
     it('filters out pull requests', async () => {
       const pr = { ...restIssue, number: 2, pull_request: { url: 'https://...' } };
       const listForRepo = vi.fn().mockResolvedValue({ data: [restIssue, pr] });
-      mockGetOctokit.mockResolvedValue(makeOctokit({ listForRepo }));
+      mockGetOctokit.mockResolvedValue(ok(makeOctokit({ listForRepo })));
 
       const result = await issueService.listIssues(repository);
 
-      expect(result).toHaveLength(1);
-      expect(result[0].number).toBe(1);
+      expect(result).toEqual(ok([expectedIssue]));
     });
 
-    it('returns empty array on error', async () => {
+    it('propagates API errors', async () => {
       const listForRepo = vi.fn().mockRejectedValue(new Error('Network error'));
-      mockGetOctokit.mockResolvedValue(makeOctokit({ listForRepo }));
+      mockGetOctokit.mockResolvedValue(ok(makeOctokit({ listForRepo })));
 
-      expect(await issueService.listIssues(repository)).toEqual([]);
+      await expect(issueService.listIssues(repository)).resolves.toEqual(
+        err({ type: 'generic', message: 'Network error' })
+      );
+    });
+
+    it('maps post-token auth errors to typed auth failures', async () => {
+      const listForRepo = vi.fn().mockRejectedValue({ status: 403 });
+      mockGetOctokit.mockResolvedValue(ok(makeOctokit({ listForRepo })));
+
+      await expect(
+        issueService.listIssues({
+          ...repository,
+          host: 'ghe.example.com',
+          repositoryUrl: 'https://ghe.example.com/owner/repo',
+        })
+      ).resolves.toEqual(
+        err({
+          type: 'auth_required',
+          host: 'ghe.example.com',
+          message:
+            'GitHub Enterprise authentication required for ghe.example.com. Run: gh auth login --hostname ghe.example.com',
+        })
+      );
     });
 
     it('clamps limit to 1-100', async () => {
       const listForRepo = vi.fn().mockResolvedValue({ data: [] });
-      mockGetOctokit.mockResolvedValue(makeOctokit({ listForRepo }));
+      mockGetOctokit.mockResolvedValue(ok(makeOctokit({ listForRepo })));
 
       await issueService.listIssues(repository, 0);
       expect(listForRepo).toHaveBeenCalledWith(expect.objectContaining({ per_page: 1 }));
@@ -121,7 +145,7 @@ describe('GitHubIssueServiceImpl', () => {
   describe('searchIssues', () => {
     it('maps search results to camelCase', async () => {
       const issuesAndPullRequests = vi.fn().mockResolvedValue({ data: { items: [restIssue] } });
-      mockGetOctokit.mockResolvedValue(makeOctokit({ issuesAndPullRequests }));
+      mockGetOctokit.mockResolvedValue(ok(makeOctokit({ issuesAndPullRequests })));
 
       const result = await issueService.searchIssues(repository, 'bug fix', 15);
 
@@ -131,30 +155,32 @@ describe('GitHubIssueServiceImpl', () => {
         sort: 'updated',
         order: 'desc',
       });
-      expect(result).toEqual([expectedIssue]);
+      expect(result).toEqual(ok([expectedIssue]));
     });
 
     it('returns empty for blank search term', async () => {
       const issuesAndPullRequests = vi.fn();
-      mockGetOctokit.mockResolvedValue(makeOctokit({ issuesAndPullRequests }));
+      mockGetOctokit.mockResolvedValue(ok(makeOctokit({ issuesAndPullRequests })));
 
-      expect(await issueService.searchIssues(repository, '   ')).toEqual([]);
-      expect(await issueService.searchIssues(repository, '')).toEqual([]);
+      expect(await issueService.searchIssues(repository, '   ')).toEqual(ok([]));
+      expect(await issueService.searchIssues(repository, '')).toEqual(ok([]));
       expect(issuesAndPullRequests).not.toHaveBeenCalled();
     });
 
-    it('returns empty on error', async () => {
+    it('propagates search errors', async () => {
       const issuesAndPullRequests = vi.fn().mockRejectedValue(new Error('API error'));
-      mockGetOctokit.mockResolvedValue(makeOctokit({ issuesAndPullRequests }));
+      mockGetOctokit.mockResolvedValue(ok(makeOctokit({ issuesAndPullRequests })));
 
-      expect(await issueService.searchIssues(repository, 'query')).toEqual([]);
+      await expect(issueService.searchIssues(repository, 'query')).resolves.toEqual(
+        err({ type: 'generic', message: 'API error' })
+      );
     });
   });
 
   describe('getIssue', () => {
     it('maps detail response to camelCase with body', async () => {
       const issuesGet = vi.fn().mockResolvedValue({ data: { ...restIssue, body: 'Issue body' } });
-      mockGetOctokit.mockResolvedValue(makeOctokit({ issuesGet }));
+      mockGetOctokit.mockResolvedValue(ok(makeOctokit({ issuesGet })));
 
       const result = await issueService.getIssue(repository, 42);
 
@@ -163,14 +189,16 @@ describe('GitHubIssueServiceImpl', () => {
         repo: 'repo',
         issue_number: 42,
       });
-      expect(result).toEqual({ ...expectedIssue, body: 'Issue body' });
+      expect(result).toEqual(ok({ ...expectedIssue, body: 'Issue body' }));
     });
 
-    it('returns null on error', async () => {
+    it('propagates detail errors', async () => {
       const issuesGet = vi.fn().mockRejectedValue(new Error('Not found'));
-      mockGetOctokit.mockResolvedValue(makeOctokit({ issuesGet }));
+      mockGetOctokit.mockResolvedValue(ok(makeOctokit({ issuesGet })));
 
-      expect(await issueService.getIssue(repository, 99)).toBeNull();
+      await expect(issueService.getIssue(repository, 99)).resolves.toEqual(
+        err({ type: 'generic', message: 'Not found' })
+      );
     });
   });
 });

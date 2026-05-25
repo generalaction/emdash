@@ -9,7 +9,7 @@ vi.mock('@main/lib/events', () => ({
   },
 }));
 
-vi.mock('../ssh/ssh-connection-manager', () => ({
+vi.mock('../ssh/lifecycle/production-ssh-connection-manager', () => ({
   sshConnectionManager: {
     connect: vi.fn(),
   },

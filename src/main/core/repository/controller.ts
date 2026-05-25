@@ -7,6 +7,7 @@ import { err, ok } from '@shared/result';
 import type { GitRepositoryService } from '../git/repository-service';
 import { projectManager } from '../projects/project-manager';
 import { workspaceRegistry } from '../workspaces/workspace-registry';
+import { providerRepositoryService } from './provider-repository-service';
 
 function resolveRepository(projectId: string, workspaceId?: string): GitRepositoryService {
   const project = projectManager.getProject(projectId);
@@ -47,6 +48,10 @@ export const repositoryController = createRPCController({
       throw new Error('Project not found');
     }
     return project.repository.getRemotes();
+  },
+
+  resolveProviderRepository: async (projectId: string) => {
+    return providerRepositoryService.resolveProject(projectId);
   },
 
   addRemote: async (projectId: string, name: string, url: string) => {

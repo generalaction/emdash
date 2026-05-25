@@ -1,8 +1,13 @@
 import { normalizeTaskName } from '@renderer/utils/taskNames';
 import type { Issue } from '@shared/tasks';
 
-export function getIssueTaskName(issue: Issue | null | undefined): string | null {
-  if (issue?.provider !== 'linear') {
+const PROVIDERS_WITH_BRANCH_NAMES = new Set<Issue['provider']>(['linear', 'plain']);
+
+export function getIssueTaskName(
+  issue: Issue | null | undefined,
+  options?: { preserveCapitalization?: boolean }
+): string | null {
+  if (!issue || !PROVIDERS_WITH_BRANCH_NAMES.has(issue.provider)) {
     return null;
   }
 
@@ -11,6 +16,6 @@ export function getIssueTaskName(issue: Issue | null | undefined): string | null
     return null;
   }
 
-  const normalized = normalizeTaskName(branchName.replace(/\//g, '-'));
+  const normalized = normalizeTaskName(branchName.replace(/\//g, '-'), options);
   return normalized || null;
 }

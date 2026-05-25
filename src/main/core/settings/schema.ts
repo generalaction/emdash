@@ -1,5 +1,6 @@
 import z from 'zod';
 import { AGENT_PROVIDER_IDS, AGENT_PROVIDERS } from '@shared/agent-provider-registry';
+import { normalizeBranchPrefix } from '@shared/branch-prefix';
 import { openInAppIdSchema } from '@shared/openInApps';
 import { APP_SHORTCUTS } from '@shared/shortcuts';
 import { TERMINAL_FONT_SIZE_MAX, TERMINAL_FONT_SIZE_MIN } from '@shared/terminal-settings';
@@ -7,7 +8,7 @@ import { DEFAULT_AGENT_ID } from './settings-registry';
 
 export const projectSettingsSchema = z.object({
   pushOnCreate: z.boolean(),
-  branchPrefix: z.string(),
+  branchPrefix: z.string().transform(normalizeBranchPrefix),
   appendRandomBranchSuffix: z.boolean(),
   tmuxByDefault: z.boolean(),
 });
@@ -30,6 +31,8 @@ export const taskSettingsSchema = z.object({
   autoGenerateName: z.boolean(),
   autoTrustWorktrees: z.boolean(),
   createBranchAndWorktree: z.boolean(),
+  preserveNameCapitalization: z.boolean(),
+  includeIssueContextByDefault: z.boolean(),
 });
 
 export const agentAutoApproveDefaultsSchema = z
