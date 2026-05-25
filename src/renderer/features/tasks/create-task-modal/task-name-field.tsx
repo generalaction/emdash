@@ -19,7 +19,7 @@ export function TaskNameField({ state }: TaskNameFieldProps) {
       />
       {showSlugHint && (
         <p className="text-muted-foreground mt-1 text-xs">
-          Task names only allow lowercase letters, numbers, and hyphens.
+          Task names only allow letters, numbers, and hyphens.
         </p>
       )}
     </Field>

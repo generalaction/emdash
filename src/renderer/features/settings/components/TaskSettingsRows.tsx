@@ -114,6 +114,32 @@ export const CreateBranchAndWorktreeRow: React.FC = () => {
   );
 };
 
+export const PreserveTaskNameCapitalizationRow: React.FC = () => {
+  const taskSettings = useTaskSettings();
+
+  return (
+    <SettingRow
+      title="Preserve task name capitalization"
+      description="Keep uppercase letters in generated and manually entered task names. Defaults to lowercase."
+      control={
+        <>
+          <ResetToDefaultButton
+            visible={taskSettings.isFieldOverridden('preserveNameCapitalization')}
+            defaultLabel="off"
+            onReset={taskSettings.resetPreserveNameCapitalization}
+            disabled={taskSettings.loading || taskSettings.saving}
+          />
+          <Switch
+            checked={taskSettings.preserveNameCapitalization}
+            disabled={taskSettings.loading || taskSettings.saving}
+            onCheckedChange={taskSettings.updatePreserveNameCapitalization}
+          />
+        </>
+      }
+    />
+  );
+};
+
 export const IncludeIssueContextByDefaultRow: React.FC = () => {
   const taskSettings = useTaskSettings();
 
