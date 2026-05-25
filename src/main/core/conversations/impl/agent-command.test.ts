@@ -35,6 +35,29 @@ describe('buildAgentCommand', () => {
     });
   });
 
+  it('resumes Codex by stored provider session id when available', () => {
+    const result = buildAgentCommand({
+      providerId: 'codex',
+      providerConfig: providerConfigDefaults.codex,
+      sessionId: 'conv-1',
+      providerSessionId: '019c95f6-cd96-7812-ba15-574286674599',
+      isResuming: true,
+    });
+
+    expect(result.args).toEqual(['resume', '019c95f6-cd96-7812-ba15-574286674599']);
+  });
+
+  it('falls back to Codex --last when resuming without a stored provider session id', () => {
+    const result = buildAgentCommand({
+      providerId: 'codex',
+      providerConfig: providerConfigDefaults.codex,
+      sessionId: 'conv-1',
+      isResuming: true,
+    });
+
+    expect(result.args).toEqual(['resume', '--last']);
+  });
+
   it('uses the Antigravity skip-permissions flag when auto-approve is enabled', () => {
     const command = buildAgentCommand({
       providerId: 'antigravity',

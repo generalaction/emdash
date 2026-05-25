@@ -1,10 +1,13 @@
 import { conversationEvents } from '@main/core/conversations/conversation-events';
+import { setProviderSessionId } from '@main/core/conversations/set-provider-session-id';
 import { touchConversation } from '@main/core/conversations/touchConversation';
 import { events } from '@main/lib/events';
 import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
+import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { agentEventChannel, type AgentEvent } from '@shared/events/agentEvents';
 import { conversationChangedChannel } from '@shared/events/conversationEvents';
+import { extractCodexProviderSessionId } from './codex-session-id';
 import { enrichEvent } from './event-enricher';
 import { HookServer } from './hook-server';
 import { isAppFocused, maybeShowNotification } from './notification';
@@ -14,6 +17,11 @@ class AgentHookService implements IInitializable, IDisposable {
 
   async initialize(): Promise<void> {
     await this.server.start(async (raw) => {
+      if (raw.type === 'session-start') {
+        await this.persistCodexSessionStart(raw);
+        return;
+      }
+
       const event = await enrichEvent(raw);
       event.source = 'hook';
       const appFocused = isAppFocused();
@@ -64,6 +72,32 @@ class AgentHookService implements IInitializable, IDisposable {
   }
   getToken(): string {
     return this.server.getToken();
+  }
+
+  private async persistCodexSessionStart(raw: { ptyId: string; body: string }): Promise<void> {
+    try {
+      const event = await enrichEvent({ ...raw, type: 'session-start' });
+      if (event.providerId !== 'codex') return;
+
+      const body = raw.body ? (JSON.parse(raw.body) as Record<string, unknown>) : {};
+      const providerSessionId = extractCodexProviderSessionId(body);
+      if (!providerSessionId) return;
+
+      const updated = await setProviderSessionId(event.conversationId, providerSessionId);
+      if (!updated) return;
+
+      events.emit(conversationChangedChannel, {
+        conversationId: event.conversationId,
+        taskId: event.taskId,
+        projectId: event.projectId,
+        changes: { providerSessionId },
+      });
+    } catch (error) {
+      log.warn('AgentHookService: failed to persist Codex session id', {
+        ptyId: raw.ptyId,
+        error: String(error),
+      });
+    }
   }
 }
 

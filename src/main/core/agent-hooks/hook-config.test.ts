@@ -82,6 +82,8 @@ describe('HookConfigWriter', () => {
     expect(config.hooks.PermissionRequest[0].hooks[0].command).toContain(
       '{"notification_type":"permission_prompt"}'
     );
+    expect(config.hooks.SessionStart[0].hooks[0].command).toContain('session-start');
+    expect(config.hooks.SessionStart[0].hooks[0].command).toContain('INPUT="${1:-$(cat)}"');
     expect(config.hooks.Stop[0].hooks[0].command).toContain('X-Emdash-Pty-Id');
   });
 

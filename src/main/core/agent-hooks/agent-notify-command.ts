@@ -76,3 +76,17 @@ export function makeCodexHookCommand(
     platform: options.platform,
   });
 }
+
+function makeCodexStdinHookPostCommand(
+  eventType: string,
+  options: HookCommandOptions = {}
+): string {
+  const post = makeHookPostCommand({ eventType, payload: 'stdin', platform: options.platform });
+  if ((options.platform ?? process.platform) === 'win32') return post;
+
+  return `INPUT="\${1:-$(cat)}"; printf '%s' "$INPUT" | ${post}`;
+}
+
+export function makeCodexSessionStartHookCommand(options: HookCommandOptions = {}): string {
+  return makeCodexStdinHookPostCommand('session-start', options);
+}

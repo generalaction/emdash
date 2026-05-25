@@ -8,6 +8,8 @@ export type Conversation = {
   title: string;
   lastInteractedAt: string | null;
   resume?: boolean;
+  /** Provider-native session id captured at runtime (e.g. Codex session UUID). */
+  providerSessionId?: string;
   autoApprove?: boolean;
   isInitialConversation: boolean | null;
 };

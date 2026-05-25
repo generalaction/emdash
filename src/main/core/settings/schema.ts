@@ -71,6 +71,7 @@ export const providerCustomConfigEntrySchema = z.object({
   initialPromptFlag: z.string().optional(),
   sessionIdFlag: z.string().optional(),
   sessionIdOnResumeOnly: z.boolean().optional(),
+  resumeWithoutSessionFlag: z.string().optional(),
   extraArgs: z.string().optional(),
   env: z.record(z.string(), z.string()).optional(),
 });
@@ -88,6 +89,9 @@ export const providerConfigDefaults = Object.fromEntries(
       ...(p.defaultArgs ? { defaultArgs: p.defaultArgs } : {}),
       ...(p.sessionIdFlag ? { sessionIdFlag: p.sessionIdFlag } : {}),
       ...(p.sessionIdOnResumeOnly ? { sessionIdOnResumeOnly: p.sessionIdOnResumeOnly } : {}),
+      ...(p.resumeWithoutSessionFlag
+        ? { resumeWithoutSessionFlag: p.resumeWithoutSessionFlag }
+        : {}),
     },
   ])
 );

@@ -9,6 +9,7 @@ import type { AgentProviderId } from '@shared/agent-provider-registry';
 import {
   makeClaudeHookCommand,
   makeCodexHookCommand,
+  makeCodexSessionStartHookCommand,
   makeOpenCodePluginContent,
 } from './agent-notify-command';
 import piEmdashExtension from './pi-emdash-extension.ts?raw';
@@ -23,7 +24,7 @@ const PI_EMDASH_EXTENSION_PATH = '.pi/extensions/emdash-hook.ts';
 const OPENCODE_PLUGIN_PATH = '.opencode/plugins/emdash-notifications.js';
 const GITIGNORE_PATH = '.gitignore';
 type HookConfigWriteOptions = { writeGitIgnoreEntries?: boolean };
-type CodexHookEvent = 'Stop' | 'PermissionRequest';
+type CodexHookEvent = 'Stop' | 'PermissionRequest' | 'SessionStart';
 type DroidHookEvent = 'Notification' | 'Stop';
 
 const HOOK_EVENT_MAP = [
@@ -35,6 +36,10 @@ const CODEX_HOOK_EVENT_MAP = [
   { hookKey: 'Stop', notificationType: 'idle_prompt' },
   { hookKey: 'PermissionRequest', notificationType: 'permission_prompt' },
 ] satisfies { hookKey: CodexHookEvent; notificationType: 'idle_prompt' | 'permission_prompt' }[];
+
+const CODEX_SESSION_HOOK_EVENT_MAP = [{ hookKey: 'SessionStart' as const }] satisfies {
+  hookKey: CodexHookEvent;
+}[];
 
 const DROID_HOOK_EVENT_MAP = [
   { hookKey: 'Notification', eventType: 'notification' },
@@ -108,6 +113,14 @@ export class HookConfigWriter {
       hooks[hookKey] = this.buildHookEntries(
         existing,
         makeCodexHookCommand(notificationType, { platform: this.platform })
+      );
+    }
+
+    for (const { hookKey } of CODEX_SESSION_HOOK_EVENT_MAP) {
+      const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
+      hooks[hookKey] = this.buildHookEntries(
+        existing,
+        makeCodexSessionStartHookCommand({ platform: this.platform })
       );
     }
 

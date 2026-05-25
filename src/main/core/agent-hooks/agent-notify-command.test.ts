@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   makeClaudeHookCommand,
   makeCodexHookCommand,
+  makeCodexSessionStartHookCommand,
   makeOpenCodePluginContent,
 } from './agent-notify-command';
 
@@ -58,6 +59,16 @@ describe('makeCodexHookCommand', () => {
     expect(script).toContain('X-Emdash-Pty-Id');
     expect(script).toContain('$payload = \'{"notification_type":"permission_prompt"}\'');
     expect(script).toContain("'X-Emdash-Event-Type' = 'notification'");
+  });
+});
+
+describe('makeCodexSessionStartHookCommand', () => {
+  it('forwards Codex SessionStart hook stdin or argv to the Emdash hook server', () => {
+    const content = makeCodexSessionStartHookCommand({ platform: 'darwin' });
+
+    expect(content).toContain('INPUT="${1:-$(cat)}"');
+    expect(content).toContain('X-Emdash-Event-Type: session-start');
+    expect(content).toContain('-d @-');
   });
 });
 

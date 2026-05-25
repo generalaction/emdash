@@ -70,6 +70,8 @@ export type AgentProviderDefinition = {
   sessionIdFlag?: string;
   newConversationFlag?: string;
   sessionIdOnResumeOnly?: boolean;
+  /** Resume flag used when sessionIdOnResumeOnly is set but no provider session id is stored yet. */
+  resumeWithoutSessionFlag?: string;
   defaultArgs?: string[];
   planActivateCommand?: string;
   autoStartCommand?: string;
@@ -95,7 +97,10 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     cli: 'codex',
     autoApproveFlag: '--dangerously-bypass-approvals-and-sandbox',
     initialPromptFlag: '',
-    resumeFlag: 'resume --last',
+    resumeFlag: 'resume',
+    sessionIdFlag: ' ',
+    sessionIdOnResumeOnly: true,
+    resumeWithoutSessionFlag: 'resume --last',
     icon: 'openai.svg',
     alt: 'Codex',
     terminalOnly: true,
