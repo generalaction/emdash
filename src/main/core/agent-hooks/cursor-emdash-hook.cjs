@@ -47,8 +47,7 @@ function parseHookPayload(hookInput) {
   }
 }
 
-function parseConversationId(hookInput) {
-  const payload = parseHookPayload(hookInput);
+function parseConversationId(payload) {
   const id = payload.conversation_id ?? payload.conversationId;
   return typeof id === 'string' && id.length > 0 ? id : undefined;
 }
@@ -152,7 +151,8 @@ async function main() {
   const session = readSession();
   if (!session?.port || !session?.token) return;
 
-  const conversationId = parseConversationId(hookInput);
+  const payload = parseHookPayload(hookInput);
+  const conversationId = parseConversationId(payload);
   const ptyId = resolvePtyId(session, conversationId);
 
   if (!ptyId) return;
@@ -177,7 +177,6 @@ async function main() {
   }
 
   if (event === 'stop') {
-    const payload = parseHookPayload(hookInput);
     if (!shouldReportIdle(payload)) return;
 
     await postHook({

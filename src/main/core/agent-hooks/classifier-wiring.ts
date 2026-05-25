@@ -105,14 +105,11 @@ function shouldEmitClassifierResult(
   result: EmittableClassificationResult,
   cursorHooksHandleStop: boolean
 ): boolean {
-  if (
+  return !(
     cursorHooksHandleStop &&
-    result?.type === 'notification' &&
+    result.type === 'notification' &&
     result.notificationType === 'idle_prompt'
-  ) {
-    return false;
-  }
-  return true;
+  );
 }
 
 export function wireAgentClassifier({

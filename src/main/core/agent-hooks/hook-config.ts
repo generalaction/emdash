@@ -189,7 +189,7 @@ export class HookConfigWriter {
     const existing = await this.fs
       .read(CURSOR_HOOK_SESSION_PATH)
       .then((r) => JSON.parse(r.content) as Record<string, unknown>)
-      .catch(() => ({}));
+      .catch((): Record<string, unknown> => ({}));
     const existingPtySessions =
       existing.ptySessions && typeof existing.ptySessions === 'object'
         ? (existing.ptySessions as Record<string, unknown>)

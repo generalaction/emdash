@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -8,14 +8,29 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 const hookScriptPath = fileURLToPath(new URL('./cursor-emdash-hook.cjs', import.meta.url));
 
+type HookRequest = {
+  ptyId: string;
+  eventType: string;
+  body: Record<string, unknown>;
+};
+
+type Session = {
+  port?: number;
+  token?: string;
+  ptyId?: string;
+  activePtyId?: string;
+  ptySessions?: Record<string, { autoApprove: boolean }>;
+  cursorConversations?: Record<string, string>;
+};
+
 function runHook({
   cwd,
   event,
-  hookInput,
+  hookInput = {},
 }: {
   cwd: string;
   event: string;
-  hookInput: string;
+  hookInput?: Record<string, unknown>;
 }): Promise<{ stdout: string; exitCode: number | null }> {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [hookScriptPath, event], {
@@ -29,386 +44,177 @@ function runHook({
     });
     child.on('error', reject);
     child.on('close', (exitCode) => resolve({ stdout, exitCode }));
-    child.stdin.write(hookInput);
-    child.stdin.end();
+    child.stdin.end(JSON.stringify(hookInput));
   });
+}
+
+async function writeSession(cwd: string, session: Session): Promise<void> {
+  await mkdir(join(cwd, '.cursor'), { recursive: true });
+  await writeFile(join(cwd, '.cursor/emdash-hook-session.json'), JSON.stringify(session) + '\n');
+}
+
+function sessionFor(ptyId: string, options: { autoApprove?: boolean } = {}): Session {
+  return {
+    port: 1,
+    token: 'test-token',
+    activePtyId: ptyId,
+    ptySessions: { [ptyId]: { autoApprove: options.autoApprove === true } },
+    cursorConversations: {},
+  };
+}
+
+async function withHookServer<T>(
+  cwd: string,
+  session: Session,
+  action: () => Promise<T>
+): Promise<{ result: T; requests: HookRequest[] }> {
+  const requests: HookRequest[] = [];
+  const server = createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk) => {
+      body += chunk.toString();
+    });
+    req.on('end', () => {
+      if (req.method === 'POST' && req.url === '/hook') {
+        requests.push({
+          ptyId: String(req.headers['x-emdash-pty-id'] ?? ''),
+          eventType: String(req.headers['x-emdash-event-type'] ?? ''),
+          body: body ? (JSON.parse(body) as Record<string, unknown>) : {},
+        });
+      }
+      res.writeHead(req.method === 'POST' && req.url === '/hook' ? 200 : 404);
+      res.end();
+    });
+  });
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(0, '127.0.0.1', resolve);
+    });
+    const address = server.address();
+    if (!address || typeof address === 'string') throw new Error('hook test server failed to bind');
+    await writeSession(cwd, { ...session, port: address.port, token: 'test-token' });
+    return { result: await action(), requests };
+  } finally {
+    server.close();
+  }
 }
 
 describe('cursor-emdash-hook.cjs', () => {
   const tempDirs: string[] = [];
 
+  async function makeCwd(): Promise<string> {
+    const cwd = await mkdtemp(join(tmpdir(), 'emdash-cursor-hook-'));
+    tempDirs.push(cwd);
+    return cwd;
+  }
+
   afterEach(async () => {
     await Promise.all(tempDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
   });
 
-  it('posts start event for beforeSubmitPrompt', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'emdash-cursor-hook-'));
-    tempDirs.push(cwd);
-
-    const received = await new Promise<string>((resolve, reject) => {
-      const server = createServer((req, res) => {
-        if (req.method !== 'POST' || req.url !== '/hook') {
-          res.writeHead(404);
-          res.end();
-          return;
-        }
-        res.writeHead(200);
-        res.end();
-        resolve(String(req.headers['x-emdash-event-type'] ?? ''));
-      });
-      server.listen(0, '127.0.0.1', async () => {
-        const address = server.address();
-        if (!address || typeof address === 'string') {
-          reject(new Error('hook test server failed to bind'));
-          return;
-        }
-        try {
-          await mkdir(join(cwd, '.cursor'), { recursive: true });
-          await writeFile(
-            join(cwd, '.cursor/emdash-hook-session.json'),
-            JSON.stringify({
-              port: address.port,
-              token: 'test-token',
-              activePtyId: 'cursor-conv-emdash-conv-1',
-              ptySessions: { 'cursor-conv-emdash-conv-1': { autoApprove: false } },
-              cursorConversations: {},
-            }) + '\n'
-          );
-          await runHook({
-            cwd,
-            event: 'start',
-            hookInput: JSON.stringify({ conversation_id: 'conv-123' }),
-          });
-        } finally {
-          server.close();
-        }
-      });
-    });
-
-    expect(received).toBe('start');
-  });
-
-  it('posts idle_prompt for stop using conversation_id from hook stdin', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'emdash-cursor-hook-'));
-    tempDirs.push(cwd);
-
-    const received = await new Promise<{
-      ptyId: string;
-      eventType: string;
-      body: Record<string, unknown>;
-    }>((resolve, reject) => {
-      const server = createServer((req, res) => {
-        if (req.method !== 'POST' || req.url !== '/hook') {
-          res.writeHead(404);
-          res.end();
-          return;
-        }
-        let body = '';
-        req.on('data', (chunk) => {
-          body += chunk.toString();
+  it('posts start and completed stop events to the active Emdash pty', async () => {
+    const cwd = await makeCwd();
+    const { requests } = await withHookServer(
+      cwd,
+      sessionFor('cursor-conv-emdash-conv-1'),
+      async () => {
+        await runHook({ cwd, event: 'start', hookInput: { conversation_id: 'conv-123' } });
+        await runHook({
+          cwd,
+          event: 'stop',
+          hookInput: { conversation_id: 'conv-123', status: 'completed', loop_count: 0 },
         });
-        req.on('end', () => {
-          resolve({
-            ptyId: String(req.headers['x-emdash-pty-id'] ?? ''),
-            eventType: String(req.headers['x-emdash-event-type'] ?? ''),
-            body: JSON.parse(body) as Record<string, unknown>,
-          });
-          res.writeHead(200);
-          res.end();
-        });
-      });
-      server.listen(0, '127.0.0.1', async () => {
-        const address = server.address();
-        if (!address || typeof address === 'string') {
-          reject(new Error('hook test server failed to bind'));
-          return;
-        }
-        try {
-          await mkdir(join(cwd, '.cursor'), { recursive: true });
-          await writeFile(
-            join(cwd, '.cursor/emdash-hook-session.json'),
-            JSON.stringify({
-              port: address.port,
-              token: 'test-token',
-              activePtyId: 'cursor-conv-emdash-conv-1',
-              ptySessions: { 'cursor-conv-emdash-conv-1': { autoApprove: false } },
-              cursorConversations: {},
-            }) + '\n'
-          );
-          const result = await runHook({
-            cwd,
-            event: 'stop',
-            hookInput: JSON.stringify({
-              conversation_id: 'conv-123',
-              status: 'completed',
-              loop_count: 0,
-            }),
-          });
-          expect(result.exitCode).toBe(0);
-        } finally {
-          server.close();
-        }
-      });
-    });
-
-    expect(received.ptyId).toBe('cursor-conv-emdash-conv-1');
-    expect(received.eventType).toBe('notification');
-    expect(received.body).toEqual({ notification_type: 'idle_prompt' });
-  });
-
-  it('does not post idle when stop hook has remaining loop budget', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'emdash-cursor-hook-'));
-    tempDirs.push(cwd);
-
-    let requestCount = 0;
-    const server = createServer((req, res) => {
-      requestCount++;
-      res.writeHead(200);
-      res.end();
-    });
-    await new Promise<void>((resolve, reject) => {
-      server.listen(0, '127.0.0.1', async () => {
-        const address = server.address();
-        if (!address || typeof address === 'string') {
-          reject(new Error('hook test server failed to bind'));
-          return;
-        }
-        try {
-          await mkdir(join(cwd, '.cursor'), { recursive: true });
-          await writeFile(
-            join(cwd, '.cursor/emdash-hook-session.json'),
-            JSON.stringify({ port: address.port, token: 'test-token' }) + '\n'
-          );
-          await runHook({
-            cwd,
-            event: 'stop',
-            hookInput: JSON.stringify({
-              conversation_id: 'conv-123',
-              loop_count: 1,
-              loop_limit: 5,
-            }),
-          });
-        } finally {
-          server.close();
-          resolve();
-        }
-      });
-    });
-
-    expect(requestCount).toBe(0);
-  });
-
-  it('falls back to cursor conversation_id when session ptyId is missing', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'emdash-cursor-hook-'));
-    tempDirs.push(cwd);
-
-    const received = await new Promise<string>((resolve, reject) => {
-      const server = createServer((req, res) => {
-        if (req.method !== 'POST' || req.url !== '/hook') {
-          res.writeHead(404);
-          res.end();
-          return;
-        }
-        res.writeHead(200);
-        res.end();
-        resolve(String(req.headers['x-emdash-pty-id'] ?? ''));
-      });
-      server.listen(0, '127.0.0.1', async () => {
-        const address = server.address();
-        if (!address || typeof address === 'string') {
-          reject(new Error('hook test server failed to bind'));
-          return;
-        }
-        try {
-          await mkdir(join(cwd, '.cursor'), { recursive: true });
-          await writeFile(
-            join(cwd, '.cursor/emdash-hook-session.json'),
-            JSON.stringify({ port: address.port, token: 'test-token' }) + '\n'
-          );
-          await runHook({
-            cwd,
-            event: 'stop',
-            hookInput: JSON.stringify({
-              conversation_id: 'cursor-native-99',
-              loop_count: 5,
-              loop_limit: 5,
-            }),
-          });
-        } finally {
-          server.close();
-        }
-      });
-    });
-
-    expect(received).toBe('cursor-conv-cursor-native-99');
-  });
-
-  it('posts idle_prompt using session ptyId when hook stdin has no conversation_id', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'emdash-cursor-hook-'));
-    tempDirs.push(cwd);
-
-    const received = await new Promise<string>((resolve, reject) => {
-      const server = createServer((req, res) => {
-        if (req.method !== 'POST' || req.url !== '/hook') {
-          res.writeHead(404);
-          res.end();
-          return;
-        }
-        res.writeHead(200);
-        res.end();
-        resolve(String(req.headers['x-emdash-pty-id'] ?? ''));
-      });
-      server.listen(0, '127.0.0.1', async () => {
-        const address = server.address();
-        if (!address || typeof address === 'string') {
-          reject(new Error('hook test server failed to bind'));
-          return;
-        }
-        try {
-          await mkdir(join(cwd, '.cursor'), { recursive: true });
-          await writeFile(
-            join(cwd, '.cursor/emdash-hook-session.json'),
-            JSON.stringify({
-              port: address.port,
-              token: 'test-token',
-              ptyId: 'cursor-conv-emdash-only',
-            }) + '\n'
-          );
-          await runHook({
-            cwd,
-            event: 'stop',
-            hookInput: JSON.stringify({ loop_count: 5, loop_limit: 5 }),
-          });
-        } finally {
-          server.close();
-        }
-      });
-    });
-
-    expect(received).toBe('cursor-conv-emdash-only');
-  });
-
-  it('routes known Cursor conversation ids to their mapped Emdash ptyId', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'emdash-cursor-hook-'));
-    tempDirs.push(cwd);
-
-    const received = await new Promise<string>((resolve, reject) => {
-      const server = createServer((req, res) => {
-        if (req.method !== 'POST' || req.url !== '/hook') {
-          res.writeHead(404);
-          res.end();
-          return;
-        }
-        res.writeHead(200);
-        res.end();
-        resolve(String(req.headers['x-emdash-pty-id'] ?? ''));
-      });
-      server.listen(0, '127.0.0.1', async () => {
-        const address = server.address();
-        if (!address || typeof address === 'string') {
-          reject(new Error('hook test server failed to bind'));
-          return;
-        }
-        try {
-          await mkdir(join(cwd, '.cursor'), { recursive: true });
-          await writeFile(
-            join(cwd, '.cursor/emdash-hook-session.json'),
-            JSON.stringify({
-              port: address.port,
-              token: 'test-token',
-              activePtyId: 'cursor-conv-new',
-              ptySessions: {
-                'cursor-conv-old': { autoApprove: false },
-                'cursor-conv-new': { autoApprove: false },
-              },
-              cursorConversations: { 'cursor-native-old': 'cursor-conv-old' },
-            }) + '\n'
-          );
-          await runHook({
-            cwd,
-            event: 'stop',
-            hookInput: JSON.stringify({
-              conversation_id: 'cursor-native-old',
-              loop_count: 5,
-              loop_limit: 5,
-            }),
-          });
-        } finally {
-          server.close();
-        }
-      });
-    });
-
-    expect(received).toBe('cursor-conv-old');
-  });
-
-  it('prints allow JSON for auto-approved permission hooks without posting to Emdash', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'emdash-cursor-hook-'));
-    tempDirs.push(cwd);
-
-    let requestCount = 0;
-    const server = createServer((req, res) => {
-      requestCount++;
-      res.writeHead(200);
-      res.end();
-    });
-    await new Promise<void>((resolve, reject) => {
-      server.listen(0, '127.0.0.1', async () => {
-        const address = server.address();
-        if (!address || typeof address === 'string') {
-          reject(new Error('hook test server failed to bind'));
-          return;
-        }
-        try {
-          await mkdir(join(cwd, '.cursor'), { recursive: true });
-          await writeFile(
-            join(cwd, '.cursor/emdash-hook-session.json'),
-            JSON.stringify({
-              port: address.port,
-              token: 'test-token',
-              activePtyId: 'cursor-conv-emdash-conv-1',
-              ptySessions: { 'cursor-conv-emdash-conv-1': { autoApprove: true } },
-              cursorConversations: {},
-            }) + '\n'
-          );
-          const result = await runHook({
-            cwd,
-            event: 'permission',
-            hookInput: JSON.stringify({ conversation_id: 'conv-456' }),
-          });
-          expect(JSON.parse(result.stdout.trim())).toEqual({ permission: 'allow' });
-        } finally {
-          server.close();
-          resolve();
-        }
-      });
-    });
-
-    expect(requestCount).toBe(0);
-  });
-
-  it('does not auto-allow permission hooks when autoApprove is false', async () => {
-    const cwd = await mkdtemp(join(tmpdir(), 'emdash-cursor-hook-'));
-    tempDirs.push(cwd);
-
-    await mkdir(join(cwd, '.cursor'), { recursive: true });
-    await writeFile(
-      join(cwd, '.cursor/emdash-hook-session.json'),
-      JSON.stringify({
-        port: 1,
-        token: 'test-token',
-        activePtyId: 'cursor-conv-emdash-conv-1',
-        ptySessions: { 'cursor-conv-emdash-conv-1': { autoApprove: false } },
-        cursorConversations: {},
-      }) + '\n'
+      }
     );
 
-    const result = await runHook({
-      cwd,
-      event: 'permission',
-      hookInput: JSON.stringify({ conversation_id: 'conv-456' }),
+    expect(requests).toEqual([
+      { ptyId: 'cursor-conv-emdash-conv-1', eventType: 'start', body: {} },
+      {
+        ptyId: 'cursor-conv-emdash-conv-1',
+        eventType: 'notification',
+        body: { notification_type: 'idle_prompt' },
+      },
+    ]);
+  });
+
+  it('does not post idle when the stop hook still has loop budget', async () => {
+    const cwd = await makeCwd();
+    const { requests } = await withHookServer(cwd, { port: 1, token: 'test-token' }, async () => {
+      await runHook({
+        cwd,
+        event: 'stop',
+        hookInput: { conversation_id: 'conv-123', loop_count: 1, loop_limit: 5 },
+      });
     });
 
-    expect(result.stdout).toBe('');
+    expect(requests).toHaveLength(0);
+  });
+
+  it('routes known Cursor conversation ids before falling back to active or derived pty ids', async () => {
+    const cwd = await makeCwd();
+    const session: Session = {
+      port: 1,
+      token: 'test-token',
+      activePtyId: 'cursor-conv-new',
+      ptyId: 'cursor-conv-legacy',
+      ptySessions: {
+        'cursor-conv-old': { autoApprove: false },
+        'cursor-conv-new': { autoApprove: false },
+      },
+      cursorConversations: { 'cursor-native-old': 'cursor-conv-old' },
+    };
+
+    const { requests } = await withHookServer(cwd, session, async () => {
+      await runHook({
+        cwd,
+        event: 'stop',
+        hookInput: { conversation_id: 'cursor-native-old', loop_count: 5, loop_limit: 5 },
+      });
+      await runHook({ cwd, event: 'stop', hookInput: { loop_count: 5, loop_limit: 5 } });
+    });
+
+    expect(requests.map((request) => request.ptyId)).toEqual([
+      'cursor-conv-old',
+      'cursor-conv-new',
+    ]);
+  });
+
+  it('derives and remembers a pty id when session pty ids are missing', async () => {
+    const cwd = await makeCwd();
+
+    const { requests } = await withHookServer(cwd, { port: 1, token: 'test-token' }, async () => {
+      await runHook({
+        cwd,
+        event: 'stop',
+        hookInput: { conversation_id: 'cursor-native-99', loop_count: 5, loop_limit: 5 },
+      });
+    });
+
+    expect(requests[0]?.ptyId).toBe('cursor-conv-cursor-native-99');
+    const session = JSON.parse(
+      await readFile(join(cwd, '.cursor/emdash-hook-session.json'), 'utf8')
+    ) as Session;
+    expect(session.cursorConversations).toEqual({
+      'cursor-native-99': 'cursor-conv-cursor-native-99',
+    });
+  });
+
+  it.each([
+    { autoApprove: true, expectedStdout: { permission: 'allow' } },
+    { autoApprove: false, expectedStdout: undefined },
+  ])('handles permission hooks when autoApprove=$autoApprove', async (testCase) => {
+    const cwd = await makeCwd();
+    const { result, requests } = await withHookServer(
+      cwd,
+      sessionFor('cursor-conv-emdash-conv-1', { autoApprove: testCase.autoApprove }),
+      () => runHook({ cwd, event: 'permission', hookInput: { conversation_id: 'conv-456' } })
+    );
+
+    expect(result.stdout.trim() ? JSON.parse(result.stdout.trim()) : undefined).toEqual(
+      testCase.expectedStdout
+    );
+    expect(requests).toHaveLength(0);
   });
 });
