@@ -43,9 +43,15 @@ export type AgentInfo = {
 export const agentConfig: Record<AgentProviderId, AgentInfo> = {
   claude: { name: 'Claude Code', logo: claudeLogo, alt: 'Claude Code' },
   codex: { name: 'Codex', logo: openaiLogoSvg, alt: 'Codex', isSvg: true },
-  grok: { name: 'Grok', logo: xaiLogoSvg, alt: 'Grok CLI', isSvg: true },
+  grok: { name: 'Grok', logo: xaiLogoSvg, alt: 'Grok CLI', isSvg: true, invertInDark: true },
   devin: { name: 'Devin', logo: devinLogo, alt: 'Devin' },
-  cursor: { name: 'Cursor', logo: cursorLogoSvg, alt: 'Cursor CLI', isSvg: true },
+  cursor: {
+    name: 'Cursor',
+    logo: cursorLogoSvg,
+    alt: 'Cursor CLI',
+    isSvg: true,
+    invertInDark: true,
+  },
   gemini: { name: 'Gemini', logo: geminiLogo, alt: 'Gemini CLI' },
   antigravity: { name: 'Antigravity', logo: antigravityLogo, alt: 'Antigravity CLI' },
   mistral: { name: 'Mistral Vibe', logo: mistralLogo, alt: 'Mistral Vibe CLI' },
@@ -61,7 +67,13 @@ export const agentConfig: Record<AgentProviderId, AgentInfo> = {
     isSvg: true,
   },
   hermes: { name: 'Hermes Agent', logo: hermesLogo, alt: 'Hermes Agent CLI' },
-  auggie: { name: 'Auggie', logo: augmentLogoSvg, alt: 'Auggie CLI', isSvg: true },
+  auggie: {
+    name: 'Auggie',
+    logo: augmentLogoSvg,
+    alt: 'Auggie CLI',
+    isSvg: true,
+    invertInDark: true,
+  },
   goose: { name: 'Goose', logo: gooseLogo, alt: 'Goose CLI' },
   kimi: { name: 'Kimi', logo: kimiLogo, alt: 'Kimi CLI' },
   kilocode: { name: 'Kilocode', logo: kilocodeLogo, alt: 'Kilocode CLI' },
@@ -90,7 +102,13 @@ export const agentConfig: Record<AgentProviderId, AgentInfo> = {
   },
   amp: { name: 'Amp', logo: ampLogo, alt: 'Amp Code' },
   // Without initial prompt support
-  copilot: { name: 'Copilot', logo: copilotLogoSvg, alt: 'GitHub Copilot CLI', isSvg: true },
+  copilot: {
+    name: 'Copilot',
+    logo: copilotLogoSvg,
+    alt: 'GitHub Copilot CLI',
+    isSvg: true,
+    invertInDark: true,
+  },
   charm: { name: 'Charm', logo: charmLogo, alt: 'Charm Crush', invertInDark: true },
   rovo: { name: 'Rovo Dev', logo: atlassianLogo, alt: 'Rovo Dev' },
 };

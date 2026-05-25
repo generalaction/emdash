@@ -137,6 +137,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     resumeFlag: '-r',
     icon: 'xai.svg',
     alt: 'Grok CLI',
+    invertInDark: true,
     terminalOnly: true,
   },
   {
@@ -172,6 +173,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     resumeFlag: '--resume',
     icon: 'cursor.svg',
     alt: 'Cursor CLI',
+    invertInDark: true,
     terminalOnly: true,
   },
   {
@@ -310,6 +312,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     resumeFlag: '--resume',
     icon: 'gh-copilot.svg',
     alt: 'GitHub Copilot CLI',
+    invertInDark: true,
     terminalOnly: true,
   },
   {
@@ -343,6 +346,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     defaultArgs: ['--allow-indexing'],
     icon: 'Auggie.svg',
     alt: 'Auggie CLI',
+    invertInDark: true,
     terminalOnly: true,
   },
   {
