@@ -56,22 +56,22 @@ export const AutomationTaskTitlebar = observer(function AutomationTaskTitlebar()
   return (
     <Titlebar
       leftSlot={
-        <div className="flex items-center gap-1 px-2 text-sm text-foreground-muted">
+        <div className="flex items-center gap-0.5 px-2 text-sm text-foreground-muted">
           <button
             type="button"
-            className="text-sm text-foreground-passive hover:text-foreground"
-            onClick={() => navigate('project', { projectId })}
+            className="focus-visible:ring-ring rounded-sm px-1 py-0.5 text-sm text-foreground-passive transition-colors hover:bg-background-1 hover:text-foreground focus:outline-none focus-visible:ring-1"
+            onClick={() => navigate('automations', { tab: 'all' })}
           >
-            {projectName}
+            Automations
           </button>
           <span className="text-sm text-foreground-passive">/</span>
           <button
             type="button"
-            title={automation?.name}
-            className="max-w-[14rem] truncate text-sm text-foreground-passive hover:text-foreground"
+            title={automation ? `${automation.name} (${projectName})` : undefined}
+            className="focus-visible:ring-ring max-w-[18rem] truncate rounded-sm px-1 py-0.5 text-sm text-foreground-passive transition-colors hover:bg-background-1 hover:text-foreground focus:outline-none focus-visible:ring-1"
             onClick={() => navigate('automations', { selectedAutomationId: automationId })}
           >
-            {automationName}
+            {automationName} ({projectName})
           </button>
           <span className="text-sm text-foreground-passive">/</span>
           <AutomationRunsPopover

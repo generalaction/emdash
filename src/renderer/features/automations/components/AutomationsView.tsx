@@ -1,14 +1,17 @@
-import { CirclePause, CirclePlay, Loader2, Trash2, X } from 'lucide-react';
+import { CirclePause, CirclePlay, Loader2, RotateCcw, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAutomationsTab } from '@renderer/features/automations/automations-view';
 import { ListPopoverCard } from '@renderer/lib/components/list-popover-card';
 import { useMultiSelect } from '@renderer/lib/hooks/use-multi-select';
 import { Button } from '@renderer/lib/ui/button';
-import type { Automation } from '@shared/automations/types';
+import type { Automation, AutomationRunWithContext } from '@shared/automations/types';
+import { EMPTY_AUTOMATION_RUNS_FACET_FILTERS } from '../automation-runs-filter-types';
+import { useAutomationRunActions } from '../use-automation-run-actions';
 import { useAutomationsActions } from '../use-automations-actions';
 import { useAutomationsFilter } from '../use-automations-filter';
 import { useAutomationsPanel } from '../use-automations-panel';
 import { useAutomations, useRecentAutomationRuns } from '../useAutomations';
+import { AutomationRunsFilterBar } from './automation-runs-filter-bar';
 import { AutomationPanel, AutomationPanelShell } from './AutomationPanel';
 import { AutomationsEmptyState, AutomationsNoResults } from './AutomationsEmptyState';
 import { AutomationsHeader } from './AutomationsHeader';
@@ -17,6 +20,7 @@ import { AutomationsSidebarNav } from './AutomationsSidebarNav';
 import { RecentRunsList } from './RecentRunsList';
 
 const RECENT_RUNS_VISIBLE_LIMIT = 50;
+const EMPTY_VISIBLE_RUNS: AutomationRunWithContext[] = [];
 
 export function AutomationsView() {
   const { tab, onTabChange } = useAutomationsTab();
@@ -24,6 +28,7 @@ export function AutomationsView() {
   const recentRuns = useRecentAutomationRuns(undefined, 200);
   const [search, setSearch] = useState('');
   const [searchExpanded, setSearchExpanded] = useState(false);
+  const [runFacetFilters, setRunFacetFilters] = useState(EMPTY_AUTOMATION_RUNS_FACET_FILTERS);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const automationItems = useMemo(() => automations.data ?? [], [automations.data]);
@@ -46,12 +51,14 @@ export function AutomationsView() {
     onPanelClose: closePanel,
     onRequestCreate: openCreate,
   });
+  const runActions = useAutomationRunActions();
 
   const filter = useAutomationsFilter({
     automations: automationItems,
     runs: recentRuns.data,
     search,
     runsVisibleLimit: RECENT_RUNS_VISIBLE_LIMIT,
+    runFacetFilters: tab === 'runs' ? runFacetFilters : undefined,
   });
 
   const visibleAutomations = useMemo(
@@ -63,10 +70,24 @@ export function AutomationsView() {
     items: visibleAutomations,
     getId: (automation) => automation.id,
   });
+  const clearSelection = selection.clear;
 
-  useEffect(() => {
-    if (tab !== 'all') selection.clear();
-  }, [tab, selection]);
+  const visibleRuns = filter.visibleRuns ?? EMPTY_VISIBLE_RUNS;
+  const runSelection = useMultiSelect<AutomationRunWithContext>({
+    items: visibleRuns,
+    getId: (run) => run.id,
+  });
+  const clearRunSelection = runSelection.clear;
+
+  const handleTabChange = useCallback(
+    (nextTab: typeof tab) => {
+      if (nextTab !== 'all') clearSelection();
+      if (nextTab !== 'runs') clearRunSelection();
+      if (nextTab !== 'runs') setRunFacetFilters(EMPTY_AUTOMATION_RUNS_FACET_FILTERS);
+      onTabChange(nextTab);
+    },
+    [onTabChange, clearSelection, clearRunSelection]
+  );
 
   const selectedAutomations = useMemo(
     () => visibleAutomations.filter((automation) => selection.selectedIds.has(automation.id)),
@@ -76,6 +97,28 @@ export function AutomationsView() {
   const togglableSelected = selectedAutomations.filter((automation) => !automation.isDraft);
   const hasEnabled = togglableSelected.some((automation) => automation.enabled);
   const hasPaused = togglableSelected.some((automation) => !automation.enabled);
+
+  const automationById = useMemo(() => {
+    const map = new Map<string, Automation>();
+    for (const automation of automationItems) {
+      map.set(automation.id, automation);
+    }
+    return map;
+  }, [automationItems]);
+
+  const selectedRuns = useMemo(
+    () => visibleRuns.filter((run) => runSelection.selectedIds.has(run.id)),
+    [visibleRuns, runSelection.selectedIds]
+  );
+  const selectedRunCount = selectedRuns.length;
+  const rerunnableSelectedRuns = useMemo(
+    () =>
+      selectedRuns.filter((run) => {
+        const automation = automationById.get(run.automationId);
+        return automation && !automation.isDraft && automation.projectId;
+      }),
+    [selectedRuns, automationById]
+  );
 
   const hasAutomations = automationItems.length > 0;
 
@@ -126,12 +169,29 @@ export function AutomationsView() {
     actions.requestBulkDelete(selectedAutomations, selection.clear);
   };
 
+  const handleBulkDeleteRuns = () => {
+    runActions.bulkDeleteRuns(
+      selectedRuns.map((run) => run.id),
+      runSelection.clear
+    );
+  };
+
+  const handleBulkRerunRuns = () => {
+    const seen = new Set<string>();
+    for (const run of rerunnableSelectedRuns) {
+      if (seen.has(run.automationId)) continue;
+      seen.add(run.automationId);
+      runActions.rerunFrom(run.automationId);
+    }
+    runSelection.clear();
+  };
+
   return (
     <div className="flex h-full overflow-hidden bg-background text-foreground">
       <div className="relative z-10 flex min-w-0 flex-1 overflow-hidden">
         <div className="mx-auto grid h-full min-h-0 w-full max-w-[1060px] grid-cols-[13rem_minmax(0,1fr)] gap-8 px-8">
           <div className="py-10">
-            <AutomationsSidebarNav tab={tab} onTabChange={onTabChange} />
+            <AutomationsSidebarNav tab={tab} onTabChange={handleTabChange} />
           </div>
 
           <div className="relative min-h-0 min-w-0 overflow-y-auto">
@@ -179,15 +239,50 @@ export function AutomationsView() {
                 )
               ) : (
                 <section>
+                  <AutomationRunsFilterBar
+                    filters={runFacetFilters}
+                    options={filter.runsFilterOptions}
+                    onChange={setRunFacetFilters}
+                  />
                   <RecentRunsList
                     runs={filter.visibleRuns}
                     isPending={recentRuns.isPending}
                     automations={automationItems}
-                    searchActive={filter.query.length > 0}
+                    filtersActive={filter.query.length > 0 || filter.hasRunFacetFilters}
+                    isSelected={runSelection.isSelected}
+                    onToggleSelect={runSelection.toggle}
                   />
                 </section>
               )}
             </div>
+
+            {tab === 'runs' && selectedRunCount > 0 ? (
+              <ListPopoverCard className="justify-between">
+                <span className="whitespace-nowrap text-foreground-muted">
+                  {selectedRunCount} selected
+                </span>
+                <div className="flex items-center gap-2">
+                  {rerunnableSelectedRuns.length > 0 ? (
+                    <Button variant="outline" size="sm" onClick={handleBulkRerunRuns}>
+                      <RotateCcw className="size-3.5" />
+                      Rerun
+                    </Button>
+                  ) : null}
+                  <Button variant="destructive" size="sm" onClick={handleBulkDeleteRuns}>
+                    <Trash2 className="size-3.5" />
+                    Delete
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    onClick={runSelection.clear}
+                    aria-label="Clear selection"
+                  >
+                    <X className="size-3.5" />
+                  </Button>
+                </div>
+              </ListPopoverCard>
+            ) : null}
 
             {tab === 'all' && selectedCount > 0 ? (
               <ListPopoverCard className="justify-between">

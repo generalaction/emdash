@@ -145,7 +145,7 @@ export const AutomationPanel = observer(function AutomationPanel({
     isValidProviderId(seedProvider) ? seedProvider : fallbackProvider
   );
   const [cronExpr, setCronExpr] = useState<string>(cronExprFromTrigger(seedTrigger));
-  const [cronTz] = useState<string>(cronTzFromTrigger(seedTrigger));
+  const [cronTz, setCronTz] = useState<string>(cronTzFromTrigger(seedTrigger));
   const [useBYOI, setUseBYOI] = useState(seedConfig?.workspaceProvider === 'byoi');
   const [error, setError] = useState<string | null>(null);
   const [templatePopoverOpen, setTemplatePopoverOpen] = useState(false);
@@ -208,7 +208,6 @@ export const AutomationPanel = observer(function AutomationPanel({
         provider,
         title: name.trim(),
         initialPrompt: prompt.trim(),
-        autoApprove: true,
       },
     };
   }
@@ -263,6 +262,7 @@ export const AutomationPanel = observer(function AutomationPanel({
     setPrompt(action?.prompt ?? '');
     if (template.defaultTrigger) {
       setCronExpr(template.defaultTrigger.expr);
+      setCronTz(template.defaultTrigger.tz);
     }
     setTemplatePopoverOpen(false);
   }

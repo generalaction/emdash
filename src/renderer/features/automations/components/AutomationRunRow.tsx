@@ -1,4 +1,4 @@
-import { Bot, CheckIcon, RotateCcw, Trash2 } from 'lucide-react';
+import { Bot, RotateCcw, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
 import { automationTool } from '@renderer/features/automations/automation-tools';
@@ -15,6 +15,7 @@ import AgentLogo from '@renderer/lib/components/agent-logo';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { AbsoluteTime } from '@renderer/lib/ui/absolute-time';
 import { Badge } from '@renderer/lib/ui/badge';
+import { Checkbox } from '@renderer/lib/ui/checkbox';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -36,7 +37,6 @@ interface AutomationRunRowProps {
   projectId: string | null;
   title: string;
   showProjectName?: boolean;
-  paddingClass?: string;
   onDelete?: (run: AutomationRun) => void;
   onRerun?: (run: AutomationRun) => void;
   isSelected?: boolean;
@@ -49,7 +49,6 @@ export const AutomationRunRow = observer(function AutomationRunRow({
   projectId,
   title,
   showProjectName = false,
-  paddingClass = 'px-1',
   onDelete,
   onRerun,
   isSelected,
@@ -88,6 +87,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
   const metaParts = [projectName, formatRunTriggerKindLabel(run.triggerKind)].filter(
     (part): part is string => Boolean(part)
   );
+  const displayTime = run.startedAt ?? run.scheduledAt ?? run.finishedAt;
 
   function handleOpenTask() {
     if (!taskId || !projectId || !interactive) return;
@@ -115,74 +115,56 @@ export const AutomationRunRow = observer(function AutomationRunRow({
       aria-label={`Open run ${runName}`}
       aria-disabled={!interactive}
       className={cn(
-        'group flex min-h-14 items-center gap-3 py-2.5 text-left transition-colors focus:outline-none focus-visible:outline-none',
-        paddingClass,
-        interactive ? 'cursor-pointer hover:bg-muted/20' : 'cursor-default opacity-70'
+        'group flex min-h-14 items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors focus:outline-none focus-visible:outline-none',
+        interactive ? 'cursor-pointer hover:bg-background-1' : 'cursor-default opacity-70'
       )}
     >
       {selectable ? (
-        <button
-          type="button"
-          role="checkbox"
-          aria-checked={isSelected ?? false}
-          aria-label="Select run"
-          onClick={(event) => {
-            event.stopPropagation();
-            onToggleSelect?.();
-          }}
-          onPointerDown={(event) => event.stopPropagation()}
-          onKeyDown={(event) => {
-            if (event.key !== ' ' && event.key !== 'Enter') return;
-            event.preventDefault();
-            event.stopPropagation();
-            onToggleSelect?.();
-          }}
-          className={cn(
-            'relative flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg outline-none transition-[background-color,border-color,box-shadow] duration-150 ease-out focus-visible:ring-1 focus-visible:ring-ring',
-            !isSelected &&
-              'border border-border bg-background-1 text-foreground shadow-sm group-hover:border-transparent group-hover:bg-transparent group-hover:shadow-none'
-          )}
-        >
-          {isSelected ? (
+        <div className="relative flex size-9 shrink-0 items-center justify-center">
+          <span
+            aria-hidden
+            className={cn(
+              'pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg border border-border bg-background-1 text-foreground shadow-sm transition-opacity duration-150 ease-out',
+              isSelected ? 'opacity-0' : 'opacity-100 group-hover:opacity-0'
+            )}
+          >
+            {tool ? (
+              <AgentLogo
+                logo={tool.logo}
+                alt={tool.label}
+                isSvg={tool.isSvg}
+                invertInDark={tool.invertInDark}
+                className="size-5 rounded-sm"
+              />
+            ) : (
+              <Bot className="size-5" />
+            )}
             <span
               aria-hidden
-              className="border-primary flex size-4 items-center justify-center rounded-[4px] border bg-background-neutral text-foreground-neutral"
-            >
-              <CheckIcon absoluteStrokeWidth strokeWidth={3} className="size-3" />
-            </span>
-          ) : (
-            <>
-              <span
-                aria-hidden
-                className="blur-0 pointer-events-none absolute inset-0 flex scale-100 items-center justify-center opacity-100 transition-[opacity,scale,filter] duration-150 ease-out group-hover:scale-[0.25] group-hover:opacity-0 group-hover:blur-[4px]"
-              >
-                {tool ? (
-                  <AgentLogo
-                    logo={tool.logo}
-                    alt={tool.label}
-                    isSvg={tool.isSvg}
-                    invertInDark={tool.invertInDark}
-                    className="size-5 rounded-sm"
-                  />
-                ) : (
-                  <Bot className="size-5" />
-                )}
-              </span>
-              <span
-                aria-hidden
-                className={cn(
-                  'pointer-events-none absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full opacity-100 ring-2 ring-background transition-opacity duration-150 ease-out group-hover:opacity-0',
-                  status.dotClass,
-                  status.spin && 'animate-pulse'
-                )}
-              />
-              <span
-                aria-hidden
-                className="group-hover:blur-0 pointer-events-none absolute inset-0 m-auto flex size-4 scale-[0.25] items-center justify-center rounded-[4px] border border-border-1 opacity-0 blur-[4px] transition-[opacity,scale,filter] duration-150 ease-out group-hover:scale-100 group-hover:opacity-100"
-              />
-            </>
-          )}
-        </button>
+              className={cn(
+                'absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full ring-2 ring-background',
+                status.dotClass,
+                status.spin && 'animate-pulse'
+              )}
+            />
+          </span>
+          <div
+            onClick={(event) => event.stopPropagation()}
+            onPointerDown={(event) => event.stopPropagation()}
+            className={cn(
+              'relative transition-opacity duration-150 ease-out',
+              isSelected
+                ? 'opacity-100'
+                : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100'
+            )}
+          >
+            <Checkbox
+              checked={isSelected}
+              onCheckedChange={() => onToggleSelect?.()}
+              aria-label="Select run"
+            />
+          </div>
+        </div>
       ) : (
         <Tooltip>
           <TooltipTrigger>
@@ -245,7 +227,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
           </span>
         ))}
         <span className="text-muted-foreground/40">·</span>
-        <AbsoluteTime value={run.startedAt ?? run.scheduledAt ?? run.finishedAt ?? Date.now()} />
+        {displayTime == null ? <span>—</span> : <AbsoluteTime value={displayTime} />}
       </div>
     </div>
   );
