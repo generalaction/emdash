@@ -31,6 +31,34 @@ export type Group = {
 
 const UNKNOWN_PROJECT_ID = '__unknown__';
 
+/**
+ * Lifecycle-script PTYs are labelled by their terminal id (see
+ * `createLifecycleScriptTerminalId`), which has no provider/conversation
+ * metadata. Map those ids to friendly labels so they don't render as the
+ * truncated "script-l…" leaf id.
+ */
+const LIFECYCLE_SCRIPT_LABELS: Record<string, string> = {
+  'script-lifecycle-setup': 'Setup script',
+  'script-lifecycle-run': 'Run script',
+  'script-lifecycle-teardown': 'Teardown script',
+};
+
+export function isLifecycleScriptEntry(entry: Pick<Entry, 'leafId'>): boolean {
+  return entry.leafId in LIFECYCLE_SCRIPT_LABELS;
+}
+
+/** Single source of truth for an entry's display label. */
+export function entryLabel(entry: Entry): string {
+  const meta = entry.providerId ? agentMeta[entry.providerId] : undefined;
+  return (
+    entry.conversationTitle ||
+    meta?.label ||
+    entry.providerId ||
+    LIFECYCLE_SCRIPT_LABELS[entry.leafId] ||
+    entry.leafId.slice(0, 8)
+  );
+}
+
 export function formatReport(snapshot: ResourceSnapshot, groups: Group[]): string {
   const entryMem = snapshot.entries.reduce((n, e) => n + e.memory, 0);
   const entryCpu = snapshot.entries.reduce((n, e) => n + e.cpu, 0);
@@ -50,9 +78,7 @@ export function formatReport(snapshot: ResourceSnapshot, groups: Group[]): strin
   for (const g of groups) {
     for (const t of g.tasks) {
       for (const e of t.entries) {
-        const meta = e.providerId ? agentMeta[e.providerId] : undefined;
-        const label = e.conversationTitle || meta?.label || e.providerId || e.leafId.slice(0, 8);
-        const path = `${g.projectName} / ${t.taskName} / ${label}`;
+        const path = `${g.projectName} / ${t.taskName} / ${entryLabel(e)}`;
         const parts: string[] = [];
         if (e.pid !== undefined) parts.push(`pid=${e.pid}`);
         if (e.ppid !== undefined) parts.push(`ppid=${e.ppid}`);
@@ -87,11 +113,6 @@ export function sortAppProcesses(processes: ResourceAppProcess[]): ResourceAppPr
   });
 }
 
-function entryLabel(entry: Entry): string {
-  const meta = entry.providerId ? agentMeta[entry.providerId] : undefined;
-  return entry.conversationTitle || meta?.label || entry.providerId || entry.leafId.slice(0, 8);
-}
-
 export function buildGroups(entries: ResourcePtyEntry[]): Group[] {
   const projects = appState.projects.projects;
   const byProject = new Map<string, { projectName: string; tasks: Map<string, TaskBucket> }>();
@@ -99,6 +120,10 @@ export function buildGroups(entries: ResourcePtyEntry[]): Group[] {
   for (const entry of entries) {
     const projectStore = projects.get(entry.projectId);
     let taskName = entry.scopeId;
+    // The bucket key normally matches the entry's scopeId, but lifecycle
+    // scripts are scoped by workspaceId while agents are scoped by taskId.
+    // Resolving both to the owning task id groups them under the same branch.
+    let bucketKey = entry.scopeId;
     let providerId: AgentProviderId | undefined;
     let conversationTitle: string | undefined;
     let projectName = 'Other';
@@ -108,10 +133,24 @@ export function buildGroups(entries: ResourcePtyEntry[]): Group[] {
       projectKey = entry.projectId;
       projectName = projectStore.name ?? projectStore.data?.name ?? entry.projectId.slice(0, 8);
       const mounted = projectStore.mountedProject;
-      const task = mounted?.taskManager.tasks.get(entry.scopeId);
+      // Agent PTYs use the task id as scopeId; lifecycle-script PTYs use the
+      // workspace id. Try the direct lookup first, then fall back to matching
+      // a task by its workspaceId so scripts attach to their owning branch.
+      let taskId = entry.scopeId;
+      let task = mounted?.taskManager.tasks.get(entry.scopeId);
+      if (!task && mounted) {
+        for (const [id, candidate] of mounted.taskManager.tasks) {
+          if (candidate.workspaceId === entry.scopeId) {
+            taskId = id;
+            task = candidate;
+            break;
+          }
+        }
+      }
       if (task) {
+        bucketKey = taskId;
         taskName = task.displayName;
-        const conv = conversationRegistry.get(entry.scopeId)?.conversations.get(entry.leafId);
+        const conv = conversationRegistry.get(taskId)?.conversations.get(entry.leafId);
         providerId = conv?.data.providerId;
         conversationTitle = conv?.data.title;
       }
@@ -126,15 +165,15 @@ export function buildGroups(entries: ResourcePtyEntry[]): Group[] {
       projectName,
       tasks: new Map<string, TaskBucket>(),
     };
-    const taskBucket = project.tasks.get(entry.scopeId) ?? {
-      scopeId: entry.scopeId,
+    const taskBucket = project.tasks.get(bucketKey) ?? {
+      scopeId: bucketKey,
       taskName,
       entries: [],
       cpuSum: 0,
     };
     taskBucket.entries.push({ ...entry, taskName, providerId, conversationTitle });
     taskBucket.cpuSum += entry.cpu;
-    project.tasks.set(entry.scopeId, taskBucket);
+    project.tasks.set(bucketKey, taskBucket);
     byProject.set(projectKey, project);
   }
 
