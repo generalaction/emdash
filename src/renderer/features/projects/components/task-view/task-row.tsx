@@ -124,6 +124,7 @@ export const TaskRow = observer(function TaskRow({
               >
                 <AgentLogo
                   logo={config.logo}
+                  logoDark={config.logoDark}
                   alt={config.alt}
                   isSvg={config.isSvg}
                   invertInDark={config.invertInDark}

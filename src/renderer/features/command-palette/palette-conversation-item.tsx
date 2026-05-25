@@ -24,6 +24,7 @@ export const PaletteConversationItem = observer(function PaletteConversationItem
       {config ? (
         <AgentLogo
           logo={config.logo}
+          logoDark={config.logoDark}
           alt={config.alt}
           isSvg={config.isSvg}
           invertInDark={config.invertInDark}
