@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull, isNull } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, isNull } from 'drizzle-orm';
 import { gitWatcherRegistry } from '@main/core/git/git-watcher-registry';
 import { githubRepositoryResolver } from '@main/core/github/services/github-repository-resolver';
 import { projectManager } from '@main/core/projects/project-manager';
@@ -189,10 +189,16 @@ export class PrSyncScheduler implements IInitializable, IDisposable {
       const prs = await db
         .select({ identifier: pullRequests.identifier, headRefName: pullRequests.headRefName })
         .from(pullRequests)
-        .where(and(eq(pullRequests.repositoryUrl, repositoryUrl), eq(pullRequests.status, 'open')));
+        .where(
+          and(
+            eq(pullRequests.repositoryUrl, repositoryUrl),
+            eq(pullRequests.status, 'open'),
+            inArray(pullRequests.headRefName, [...taskBranches])
+          )
+        );
 
       for (const pr of prs) {
-        if (!taskBranches.has(pr.headRefName) || !pr.identifier) continue;
+        if (!pr.identifier) continue;
         const prNumber = Number.parseInt(pr.identifier.replace('#', ''), 10);
         if (!Number.isNaN(prNumber)) void prSyncEngine.syncSingle(repositoryUrl, prNumber);
       }

@@ -1,6 +1,5 @@
 import { ExternalLink } from 'lucide-react';
 import { PrMergeLine } from '@renderer/lib/components/pr-merge-line';
-import { useRefreshOpenPullRequest } from '@renderer/lib/hooks/use-refresh-open-pull-request';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
 import { cn } from '@renderer/utils/utils';
 import { getPrNumber, type PullRequest } from '@shared/pull-requests';
@@ -20,7 +19,6 @@ interface PrBadgeProps {
 
 export function PrBadge({ variant = 'default', pr, className, hoverDelay }: PrBadgeProps) {
   const prNumber = getPrNumber(pr);
-  useRefreshOpenPullRequest(pr);
 
   const renderBadge = () => {
     switch (variant) {
