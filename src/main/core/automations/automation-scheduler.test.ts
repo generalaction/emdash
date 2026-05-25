@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { events } from '@main/lib/events';
 import type { Automation } from '@shared/automations/types';
+import { automationRunUpdatedChannel } from '@shared/events/automationEvents';
 import { automationEvents } from './automation-events';
 import { AutomationScheduler } from './automation-scheduler';
 import {
@@ -16,7 +18,10 @@ import {
   updateAutomationSchedule,
   updateRun,
 } from './repo';
-import { emitRunUpdated, runQueuedAutomation } from './runtime';
+import { runQueuedAutomation } from './runtime';
+
+vi.mock('@main/lib/events', () => ({ events: { emit: vi.fn() } }));
+vi.mock('@main/lib/logger', () => ({ log: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
 
 vi.mock('./automation-events', () => ({
   automationEvents: {
@@ -41,7 +46,6 @@ vi.mock('./repo', () => ({
 }));
 
 vi.mock('./runtime', () => ({
-  emitRunUpdated: vi.fn(),
   runQueuedAutomation: vi.fn(),
 }));
 
@@ -154,6 +158,7 @@ describe('AutomationScheduler missed runs', () => {
     const firstReload = scheduler.reload();
     const secondReload = scheduler.reload();
 
+    await vi.waitFor(() => expect(finishFirstBootstrap).toBeDefined());
     expect(enabledCronAutomations).toHaveBeenCalledTimes(1);
     finishFirstBootstrap?.([]);
     await Promise.all([firstReload, secondReload]);
@@ -196,7 +201,15 @@ describe('AutomationScheduler missed runs', () => {
     });
     expect(claimQueuedRun).not.toHaveBeenCalled();
     expect(runQueuedAutomation).not.toHaveBeenCalled();
-    expect(emitRunUpdated).toHaveBeenCalledWith(skippedRun);
+    expect(events.emit).toHaveBeenCalledWith(
+      automationRunUpdatedChannel,
+      expect.objectContaining({
+        automationId: skippedRun.automationId,
+        runId: skippedRun.id,
+        status: skippedRun.status,
+        taskId: skippedRun.taskId,
+      })
+    );
     expect(automationEvents._emit).toHaveBeenCalledWith('automation:run:skipped', skippedRun);
   });
 
@@ -237,7 +250,15 @@ describe('AutomationScheduler missed runs', () => {
     });
     expect(claimQueuedRun).not.toHaveBeenCalled();
     expect(runQueuedAutomation).not.toHaveBeenCalled();
-    expect(emitRunUpdated).toHaveBeenCalledWith(skippedRun);
+    expect(events.emit).toHaveBeenCalledWith(
+      automationRunUpdatedChannel,
+      expect.objectContaining({
+        automationId: skippedRun.automationId,
+        runId: skippedRun.id,
+        status: skippedRun.status,
+        taskId: skippedRun.taskId,
+      })
+    );
     expect(automationEvents._emit).toHaveBeenCalledWith('automation:run:skipped', skippedRun);
   });
 
@@ -328,7 +349,15 @@ describe('AutomationScheduler missed runs', () => {
 
     expect(automationEvents._emit).toHaveBeenCalledWith('automation:run:start', runningRun);
     expect(automationEvents._emit).toHaveBeenCalledWith('automation:run:failed', failedRun);
-    expect(emitRunUpdated).toHaveBeenCalledWith(failedRun);
+    expect(events.emit).toHaveBeenCalledWith(
+      automationRunUpdatedChannel,
+      expect.objectContaining({
+        automationId: failedRun.automationId,
+        runId: failedRun.id,
+        status: failedRun.status,
+        taskId: failedRun.taskId,
+      })
+    );
   });
 });
 
@@ -458,6 +487,7 @@ describe('AutomationScheduler concurrency', () => {
     const firstDrain = scheduler.drainQueue();
     const secondDrain = scheduler.drainQueue();
 
+    await vi.waitFor(() => expect(finishFirstList).toBeDefined());
     finishFirstList?.([]);
     await Promise.all([firstDrain, secondDrain]);
 

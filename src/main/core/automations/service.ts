@@ -4,7 +4,7 @@ import {
   setAutomationEnabled as setAutomationEnabledInRepo,
   skipQueuedCronRuns,
 } from './repo';
-import { emitRunUpdated } from './runtime';
+import { emitRunTransition } from './run-transitions';
 
 export async function setAutomationEnabled(
   id: string,
@@ -13,7 +13,7 @@ export async function setAutomationEnabled(
   const automation = await setAutomationEnabledInRepo(id, enabled);
   if (automation && !enabled) {
     const skippedRuns = await skipQueuedCronRuns(id, 'automation_disabled');
-    skippedRuns.forEach((run) => emitRunUpdated(run));
+    skippedRuns.forEach((run) => emitRunTransition(run));
   }
   return automation;
 }
@@ -23,6 +23,6 @@ export async function detachProject(projectId: string): Promise<number> {
   const skippedRuns = await Promise.all(
     automations.map((automation) => skipQueuedCronRuns(automation.id, 'no_project_attached'))
   );
-  skippedRuns.flat().forEach((run) => emitRunUpdated(run));
+  skippedRuns.flat().forEach((run) => emitRunTransition(run));
   return automations.length;
 }

@@ -23,7 +23,7 @@ import {
   removeRun as removeRunFromDb,
   updateAutomation,
 } from './repo';
-import { emitRunUpdated } from './runtime';
+import { emitQueuedRun } from './run-transitions';
 import { setAutomationEnabled } from './service';
 
 function emitChanged(): void {
@@ -130,7 +130,7 @@ export const automationsController = createRPCController({
         triggerKind: 'manual',
       });
       if (!run) return err('automation_run_already_queued');
-      emitRunUpdated(run);
+      emitQueuedRun(run);
       void automationScheduler.drainQueue();
       return ok(run);
     });

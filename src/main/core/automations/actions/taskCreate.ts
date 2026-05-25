@@ -12,7 +12,7 @@ import { bareRefName } from '@shared/git-utils';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { err, ok, type Result } from '@shared/result';
 import type { CreateTaskError, CreateTaskParams } from '@shared/tasks';
-import { updateRun } from '../repo';
+import { linkRunTask } from '../run-transitions';
 import type { ActionContext, ActionError, ActionOutcome } from './types';
 
 function createTaskErrorLeavesTask(error: CreateTaskError): boolean {
@@ -166,7 +166,11 @@ export async function executeTaskCreate(
         taskId: createTaskErrorLeavesTask(result.error) ? taskId : undefined,
       });
     }
-    await updateRun(ctx.run.id, { taskId, createdTaskId: taskId });
+    try {
+      await linkRunTask(ctx.run.id, taskId);
+    } catch (error) {
+      return err({ message: error instanceof Error ? error.message : String(error), taskId });
+    }
 
     try {
       const provision = await taskService.provision(taskId);

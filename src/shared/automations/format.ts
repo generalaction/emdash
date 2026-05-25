@@ -177,6 +177,13 @@ const ERROR_MESSAGES = {
   automation_not_found: 'This automation no longer exists',
   automation_is_draft: 'Finish setting up the automation before running it',
   automation_run_in_flight: 'Wait for the run to finish before deleting it',
+  automation_run_already_queued: 'This automation already has a queued or running run',
+  automation_run_not_found: 'This automation run no longer exists',
+  interrupted_by_restart_task_preserved:
+    'The run was interrupted because the app restarted, but its agent was preserved',
+  interrupted_by_restart_task_missing:
+    'The run was interrupted because the app restarted and its agent could not be found',
+  run_update_failed: 'The automation run could not be updated',
 } as const;
 
 const PREFIXED_ERROR_MESSAGES: ReadonlyArray<{
@@ -209,17 +216,23 @@ function knownErrorMessage(raw: string): string | undefined {
   return ERROR_MESSAGES[raw as keyof typeof ERROR_MESSAGES];
 }
 
+function normalizeActionError(raw: string): string {
+  return raw.replace(/^action_\d+_[^:]+:/, '');
+}
+
 export function formatRunError(raw: string): string {
-  const exact = knownErrorMessage(raw);
+  const normalized = normalizeActionError(raw);
+  const exact = knownErrorMessage(normalized);
   if (exact) return exact;
 
   for (const { prefix, format } of PREFIXED_ERROR_MESSAGES) {
-    if (raw.startsWith(prefix)) return format(raw.slice(prefix.length));
+    if (normalized.startsWith(prefix)) return format(normalized.slice(prefix.length));
   }
 
-  if (raw.startsWith('provisioning timed out'))
+  if (normalized.startsWith('provisioning timed out'))
     return 'Setting up the task took too long and timed out';
-  if (raw.startsWith('action_invalid:')) return 'One of the actions is not configured correctly';
+  if (normalized.startsWith('action_invalid:'))
+    return 'One of the actions is not configured correctly';
 
   return raw;
 }

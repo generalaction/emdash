@@ -49,7 +49,7 @@ const run: AutomationRun = {
 describe('runQueuedAutomation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(updateRun).mockResolvedValue(null);
+    vi.mocked(updateRun).mockImplementation(async (_, values) => ({ ...run, ...values }));
   });
 
   it('skips orphan automations before executing actions', async () => {

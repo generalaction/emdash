@@ -20,7 +20,7 @@ vi.mock('@main/core/automations/automation-events', () => ({
   automationEvents: { _emit: mocks.automationEmitMock },
 }));
 
-vi.mock('@main/core/automations/repo', () => ({
+vi.mock('@main/core/automations/service', () => ({
   detachProject: mocks.detachProjectMock,
 }));
 

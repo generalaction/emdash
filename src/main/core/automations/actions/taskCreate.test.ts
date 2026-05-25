@@ -22,6 +22,9 @@ vi.mock('@main/core/tasks/name-generation/generateTaskName', () => ({
 vi.mock('@main/core/tasks/task-service', () => ({
   taskService: { createTask: vi.fn(), provision: vi.fn() },
 }));
+vi.mock('@main/lib/events', () => ({ events: { emit: vi.fn() } }));
+vi.mock('@main/lib/logger', () => ({ log: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
+vi.mock('../automation-events', () => ({ automationEvents: { _emit: vi.fn() } }));
 vi.mock('../repo', () => ({ updateRun: vi.fn() }));
 
 const automation: Automation = {
@@ -80,6 +83,7 @@ describe('executeTaskCreate', () => {
       data: { path: '/tmp/task', workspaceId: 'workspace-1' },
     });
     vi.mocked(createConversation).mockResolvedValue({} as never);
+    vi.mocked(updateRun).mockImplementation(async (_, values) => ({ ...run, ...values }));
   });
 
   it('opens the project before creating a task from stored config', async () => {
@@ -221,6 +225,24 @@ describe('executeTaskCreate', () => {
         taskId: expect.any(String),
       },
     });
+    expect(createConversation).not.toHaveBeenCalled();
+  });
+
+  it('returns the task id when persisting the run task link fails', async () => {
+    vi.mocked(projectManager.getProject).mockReturnValue({} as never);
+    vi.mocked(taskService.createTask).mockResolvedValueOnce({
+      success: true,
+      data: { task: {} as never },
+    });
+    vi.mocked(updateRun).mockResolvedValueOnce(null);
+
+    const result = await executeTaskCreate(automation.actions[0]!, { automation, run });
+
+    expect(result).toEqual({
+      success: false,
+      error: { message: 'run_update_failed', taskId: expect.any(String) },
+    });
+    expect(taskService.provision).not.toHaveBeenCalled();
     expect(createConversation).not.toHaveBeenCalled();
   });
 

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { log } from '@main/lib/logger';
 import { QUEUE_DEADLINE_EXCEEDED_ERROR } from '@shared/automations/format';
-import type { Automation } from '@shared/automations/types';
+import type { Automation, AutomationRun } from '@shared/automations/types';
 import { automationEvents } from './automation-events';
 import {
   claimQueuedRun,
@@ -15,9 +15,14 @@ import {
   recoverQueuedRuns,
   taskExists,
   updateAutomationSchedule,
-  updateRun,
 } from './repo';
-import { emitRunUpdated, runQueuedAutomation } from './runtime';
+import {
+  emitClaimedRunStarted,
+  emitQueuedRun,
+  markRunFailed,
+  markRunSkipped,
+} from './run-transitions';
+import { runQueuedAutomation } from './runtime';
 
 const TICK_MS = 60_000;
 const MISSED_GRACE_MS = 5 * 60_000;
@@ -25,6 +30,29 @@ const MAX_DUE_ENQUEUE = 100;
 // Each run may allocate a worktree, PTY and agent process; keep local fan-out conservative.
 const MAX_CONCURRENT_RUNS = 4;
 const DEFAULT_QUEUE_DEADLINE_MS = 5 * 60_000;
+
+class AutomationWorkerPool {
+  private activeCount = 0;
+
+  constructor(
+    private readonly limit: number,
+    private readonly onWorkerSettled: () => void
+  ) {}
+
+  get availableSlots(): number {
+    return Math.max(0, this.limit - this.activeCount);
+  }
+
+  start(task: () => Promise<void>): boolean {
+    if (this.availableSlots <= 0) return false;
+    this.activeCount += 1;
+    void task().finally(() => {
+      this.activeCount -= 1;
+      this.onWorkerSettled();
+    });
+    return true;
+  }
+}
 
 export function automationRunDeadline(
   automation: Automation,
@@ -43,13 +71,13 @@ export function automationRunDeadline(
 export class AutomationScheduler {
   private timer: NodeJS.Timeout | null = null;
   private ticking = false;
-  private draining = false;
-  private drainRequested = false;
-  private bootstrapPromise: Promise<void> | null = null;
-  private bootstrapRequested = false;
-  private activeWorkers = 0;
+  private drainTail: Promise<void> = Promise.resolve();
+  private bootstrapTail: Promise<void> = Promise.resolve();
   private unsubscribeAutomationChanged: (() => void) | null = null;
   private readonly workerId = `automation-scheduler-${randomUUID()}`;
+  private readonly workerPool = new AutomationWorkerPool(MAX_CONCURRENT_RUNS, () => {
+    void this.drainQueue();
+  });
 
   start(): void {
     if (this.timer) return;
@@ -74,7 +102,11 @@ export class AutomationScheduler {
   }
 
   async reload(): Promise<void> {
-    await this.bootstrap();
+    const run = this.bootstrapTail.then(() => this.bootstrapDueRuns());
+    this.bootstrapTail = run.catch((error) => {
+      log.error('AutomationScheduler bootstrap failed', { error: String(error) });
+    });
+    await run;
   }
 
   private async recoverAndBootstrap(): Promise<void> {
@@ -88,7 +120,7 @@ export class AutomationScheduler {
     if (recovered > 0) {
       log.warn('AutomationScheduler recovered interrupted runs', { recovered });
     }
-    await this.bootstrap();
+    await this.reload();
   }
 
   private async markRunningRunsInterrupted(now = Date.now()): Promise<number> {
@@ -99,33 +131,12 @@ export class AutomationScheduler {
           ? 'interrupted_by_restart_task_preserved'
           : 'interrupted_by_restart_task_missing'
         : 'interrupted_by_restart';
-      await updateRun(run.id, { status: 'failed', finishedAt: now, error });
+      await markRunFailed(run.id, { error, finishedAt: now });
     }
     return runningRuns.length;
   }
 
-  private async bootstrap(): Promise<void> {
-    if (this.bootstrapPromise) {
-      this.bootstrapRequested = true;
-      return this.bootstrapPromise;
-    }
-
-    this.bootstrapPromise = this.runBootstrapLoop();
-    try {
-      await this.bootstrapPromise;
-    } finally {
-      this.bootstrapPromise = null;
-    }
-  }
-
-  private async runBootstrapLoop(): Promise<void> {
-    do {
-      this.bootstrapRequested = false;
-      await this.bootstrapOnce();
-    } while (this.bootstrapRequested);
-  }
-
-  private async bootstrapOnce(): Promise<void> {
+  private async bootstrapDueRuns(): Promise<void> {
     const now = Date.now();
     const missedBefore = now - MISSED_GRACE_MS;
     const rows = await enabledCronAutomations();
@@ -174,87 +185,77 @@ export class AutomationScheduler {
       triggerKind: 'cron',
     });
     if (run) {
-      emitRunUpdated(run);
+      emitQueuedRun(run);
     }
   }
 
   async drainQueue(): Promise<void> {
-    if (this.draining) {
-      this.drainRequested = true;
-      return;
-    }
+    const run = this.drainTail.then(() => this.pumpQueue());
+    this.drainTail = run.catch((error) => {
+      log.error('AutomationScheduler queue drain failed', { error: String(error) });
+    });
+    await run;
+  }
 
-    this.draining = true;
-    try {
-      do {
-        this.drainRequested = false;
-        while (this.activeWorkers < MAX_CONCURRENT_RUNS) {
-          const capacity = MAX_CONCURRENT_RUNS - this.activeWorkers;
-          const batch = await listQueuedRuns(capacity);
-          if (batch.length === 0) break;
+  private async pumpQueue(): Promise<void> {
+    while (this.workerPool.availableSlots > 0) {
+      const capacity = this.workerPool.availableSlots;
+      const batch = await listQueuedRuns(capacity);
+      if (batch.length === 0) return;
 
-          for (const entry of batch) {
-            if (this.activeWorkers >= MAX_CONCURRENT_RUNS) break;
+      let madeProgress = false;
+      for (const entry of batch) {
+        if (this.workerPool.availableSlots <= 0) return;
 
-            if (entry.run.deadlineAt != null && entry.run.deadlineAt <= Date.now()) {
-              await this.markRunSkipped(entry.run.id, QUEUE_DEADLINE_EXCEEDED_ERROR);
-              continue;
-            }
-
-            if (entry.automation.projectId == null) {
-              await this.markRunSkipped(entry.run.id, 'no_project_attached');
-              continue;
-            }
-
-            if (entry.run.triggerKind === 'cron' && (await hasRunningRuns(entry.automation.id))) {
-              await this.markRunSkipped(entry.run.id, 'previous_still_running');
-              continue;
-            }
-
-            const run = await claimQueuedRun(entry.run.id, this.workerId);
-            if (!run) continue;
-
-            this.activeWorkers += 1;
-            automationEvents._emit('automation:run:start', run);
-            void runQueuedAutomation(entry.automation, run)
-              .catch(async (error) => {
-                const message = error instanceof Error ? error.message : String(error);
-                log.error('AutomationScheduler worker failed', {
-                  automationId: entry.automation.id,
-                  runId: run.id,
-                  error: message,
-                });
-                const failed = await updateRun(run.id, {
-                  status: 'failed',
-                  finishedAt: Date.now(),
-                  error: message,
-                });
-                if (failed) {
-                  emitRunUpdated(failed);
-                  automationEvents._emit('automation:run:failed', failed);
-                }
-              })
-              .finally(() => {
-                this.activeWorkers -= 1;
-                void this.drainQueue();
-              });
-          }
+        if (entry.run.deadlineAt != null && entry.run.deadlineAt <= Date.now()) {
+          await markRunSkipped(entry.run.id, QUEUE_DEADLINE_EXCEEDED_ERROR);
+          madeProgress = true;
+          continue;
         }
-      } while (this.drainRequested && this.activeWorkers < MAX_CONCURRENT_RUNS);
-    } finally {
-      this.draining = false;
+
+        if (entry.automation.projectId == null) {
+          await markRunSkipped(entry.run.id, 'no_project_attached');
+          madeProgress = true;
+          continue;
+        }
+
+        if (entry.run.triggerKind === 'cron' && (await hasRunningRuns(entry.automation.id))) {
+          await markRunSkipped(entry.run.id, 'previous_still_running');
+          madeProgress = true;
+          continue;
+        }
+
+        const run = await claimQueuedRun(entry.run.id, this.workerId);
+        if (!run) continue;
+
+        madeProgress = true;
+        emitClaimedRunStarted(run);
+        this.workerPool.start(() => this.runWorker(entry.automation, run));
+      }
+
+      if (!madeProgress) return;
     }
   }
 
-  private async markRunSkipped(runId: string, reason: string): Promise<void> {
-    const skipped = await updateRun(runId, {
-      status: 'skipped',
-      finishedAt: Date.now(),
-      error: reason,
-    });
-    if (skipped) {
-      emitRunUpdated(skipped);
-      automationEvents._emit('automation:run:skipped', skipped);
+  private async runWorker(automation: Automation, run: AutomationRun): Promise<void> {
+    try {
+      await runQueuedAutomation(automation, run);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      log.error('AutomationScheduler worker failed', {
+        automationId: automation.id,
+        runId: run.id,
+        error: message,
+      });
+      try {
+        await markRunFailed(run.id, { error: message });
+      } catch (markError) {
+        log.error('AutomationScheduler failed to mark worker failed', {
+          automationId: automation.id,
+          runId: run.id,
+          error: markError instanceof Error ? markError.message : String(markError),
+        });
+      }
     }
   }
 }

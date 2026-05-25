@@ -1,38 +1,17 @@
-import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import type { Automation, AutomationRun } from '@shared/automations/types';
-import { automationRunUpdatedChannel } from '@shared/events/automationEvents';
 import { err, ok, type Result } from '@shared/result';
 import { executeTaskCreate } from './actions/taskCreate';
 import type { ActionError, ActionOutcome } from './actions/types';
-import { automationEvents } from './automation-events';
-import { updateAutomationSchedule, updateRun } from './repo';
+import { updateAutomationSchedule } from './repo';
+import { markRunFailed, markRunSkipped, markRunSucceeded } from './run-transitions';
 
-export function emitRunUpdated(run: AutomationRun, sessionId?: string): void {
-  events.emit(automationRunUpdatedChannel, {
-    automationId: run.automationId,
-    runId: run.id,
-    status: run.status,
-    taskId: run.taskId,
-    sessionId,
-  });
-}
-
-async function requireUpdatedRun(
-  id: string,
-  values: Parameters<typeof updateRun>[1]
-): Promise<AutomationRun> {
-  const updated = await updateRun(id, values);
-  if (!updated) throw new Error('run_update_failed');
-  return updated;
-}
+export { emitRunUpdated } from './run-transitions';
 
 export async function runQueuedAutomation(
   automation: Automation,
   initialRun: AutomationRun
 ): Promise<Result<AutomationRun, string>> {
-  emitRunUpdated(initialRun);
-
   let run = initialRun;
   let firstTaskId: string | null = null;
   let firstSessionId: string | undefined;
@@ -41,13 +20,7 @@ export async function runQueuedAutomation(
   if (automation.projectId == null) {
     const message = 'no_project_attached';
     const finishedAt = Date.now();
-    run = await requireUpdatedRun(run.id, {
-      status: 'skipped',
-      finishedAt,
-      error: message,
-    });
-    emitRunUpdated(run);
-    automationEvents._emit('automation:run:skipped', run);
+    run = await markRunSkipped(run.id, message, { finishedAt });
     return err(message);
   }
 
@@ -58,13 +31,7 @@ export async function runQueuedAutomation(
       runId: run.id,
     });
     const finishedAt = Date.now();
-    run = await requireUpdatedRun(run.id, {
-      status: 'failed',
-      finishedAt,
-      error: message,
-    });
-    emitRunUpdated(run);
-    automationEvents._emit('automation:run:failed', run);
+    run = await markRunFailed(run.id, { error: message, finishedAt });
     return err(message);
   }
 
@@ -86,15 +53,12 @@ export async function runQueuedAutomation(
         error: message,
       });
       const finishedAt = Date.now();
-      run = await requireUpdatedRun(run.id, {
-        status: 'failed',
+      run = await markRunFailed(run.id, {
+        error: message,
         finishedAt,
         taskId: failedTaskId,
         createdTaskId: failedTaskId,
-        error: message,
       });
-      emitRunUpdated(run);
-      automationEvents._emit('automation:run:failed', run);
       return err(message);
     }
     if (firstTaskId == null && result.data.taskId) {
@@ -105,14 +69,12 @@ export async function runQueuedAutomation(
   }
 
   const finishedAt = Date.now();
-  run = await requireUpdatedRun(run.id, {
-    status: 'success',
+  run = await markRunSucceeded(run.id, {
     finishedAt,
     taskId: firstTaskId,
     createdTaskId: firstTaskId,
+    sessionId: firstSessionId,
   });
   await updateAutomationSchedule(automation.id, { lastRunAt: run.startedAt ?? Date.now() });
-  emitRunUpdated(run, firstSessionId);
-  automationEvents._emit('automation:run:finish', run);
   return ok(run);
 }

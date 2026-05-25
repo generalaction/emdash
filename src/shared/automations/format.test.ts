@@ -16,9 +16,18 @@ describe('automation run error formatting', () => {
     );
   });
 
-  it('does not normalize unshipped action-prefixed errors', () => {
+  it('formats action-prefixed configured action errors', () => {
     expect(formatRunError('action_0_myaction:action_invalid:2')).toBe(
-      'action_0_myaction:action_invalid:2'
+      'One of the actions is not configured correctly'
+    );
+  });
+
+  it('formats restart recovery errors', () => {
+    expect(formatRunError('interrupted_by_restart_task_preserved')).toBe(
+      'The run was interrupted because the app restarted, but its agent was preserved'
+    );
+    expect(formatRunError('interrupted_by_restart_task_missing')).toBe(
+      'The run was interrupted because the app restarted and its agent could not be found'
     );
   });
 });

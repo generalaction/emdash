@@ -9,7 +9,7 @@ import {
   removeRun as removeRunFromDb,
   updateAutomation,
 } from './repo';
-import { emitRunUpdated } from './runtime';
+import { emitQueuedRun } from './run-transitions';
 
 const { automationSchedulerMock } = vi.hoisted(() => ({
   automationSchedulerMock: { drainQueue: vi.fn() },
@@ -41,8 +41,8 @@ vi.mock('./service', () => ({
   setAutomationEnabled: vi.fn(),
 }));
 
-vi.mock('./runtime', () => ({
-  emitRunUpdated: vi.fn(),
+vi.mock('./run-transitions', () => ({
+  emitQueuedRun: vi.fn(),
 }));
 
 const draftAutomation: Automation = {
@@ -148,7 +148,7 @@ describe('automationsController.runNow', () => {
         triggerKind: 'manual',
       })
     );
-    expect(emitRunUpdated).toHaveBeenCalledWith(run);
+    expect(emitQueuedRun).toHaveBeenCalledWith(run);
     expect(automationSchedulerMock.drainQueue).toHaveBeenCalled();
   });
 });
