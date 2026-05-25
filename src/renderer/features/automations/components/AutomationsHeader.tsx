@@ -1,7 +1,7 @@
 import { Plus } from 'lucide-react';
-import { cn } from '@renderer/utils/utils';
 import { Button } from '@renderer/lib/ui/button';
 import { SearchInput } from '@renderer/lib/ui/search-input';
+import { cn } from '@renderer/utils/utils';
 
 interface AutomationsHeaderProps {
   title: string;
