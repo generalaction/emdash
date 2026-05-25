@@ -1,5 +1,5 @@
-import { joinInstallPath } from '@shared/agent-command-path';
 import { quoteShellArg } from '@main/utils/shellEscape';
+import { joinInstallPath } from '@shared/agent-command-path';
 import { getProvider, type AgentProviderId } from '@shared/agent-provider-registry';
 import type { ProviderCustomConfig } from '@shared/app-settings';
 
