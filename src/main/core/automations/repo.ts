@@ -210,6 +210,19 @@ export async function getAutomation(id: string): Promise<Automation | null> {
   return row ? mapAutomationRowSafely(row) : null;
 }
 
+async function skipQueuedCronRuns(automationId: string, reason: string): Promise<void> {
+  await db
+    .update(automationRuns)
+    .set({ status: 'skipped', finishedAt: Date.now(), error: reason, workerId: null })
+    .where(
+      and(
+        eq(automationRuns.automationId, automationId),
+        eq(automationRuns.status, 'queued'),
+        eq(automationRuns.triggerKind, 'cron')
+      )
+    );
+}
+
 async function projectExists(projectId: string): Promise<boolean> {
   const rows = await db
     .select({ id: projects.id })
@@ -288,6 +301,7 @@ export async function detachProject(projectId: string): Promise<number> {
     .set({ projectId: null, nextRunAt: null, updatedAt: Date.now() })
     .where(eq(automations.projectId, projectId))
     .returning({ id: automations.id });
+  await Promise.all(rows.map(({ id }) => skipQueuedCronRuns(id, 'no_project_attached')));
   return rows.length;
 }
 
@@ -317,6 +331,9 @@ export async function setAutomationEnabled(
     .set({ enabled: enabled ? 1 : 0, nextRunAt, updatedAt: Date.now() })
     .where(eq(automations.id, id))
     .returning();
+  if (row && !enabled) {
+    await skipQueuedCronRuns(id, 'automation_disabled');
+  }
   return row ? mapAutomationRow(row) : null;
 }
 

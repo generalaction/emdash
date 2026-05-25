@@ -163,6 +163,8 @@ const ERROR_MESSAGES = {
   interrupted_by_restart: 'The run was interrupted because the app restarted',
   previous_still_running: 'Skipped because the previous run is still in progress',
   queue_deadline_exceeded: 'Skipped because it waited in the queue for too long',
+  no_project_attached: 'Skipped because the automation is not attached to a project',
+  automation_disabled: 'Skipped because the automation schedule was paused',
   name_required: 'Give the automation a name',
   name_too_long: 'The name is too long',
   actions_required: 'Add at least one action before saving',

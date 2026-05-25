@@ -366,6 +366,8 @@ describe('AutomationScheduler concurrency', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(hasRunningRuns).mockResolvedValue(false);
+    vi.mocked(listQueuedRuns).mockResolvedValue([]);
+    vi.mocked(claimQueuedRun).mockResolvedValue(null);
     vi.mocked(updateRun).mockResolvedValue(null);
   });
 
@@ -416,5 +418,50 @@ describe('AutomationScheduler concurrency', () => {
     await vi.waitFor(() => expect(inFlight).toBe(0));
 
     expect(maxInFlight).toBe(4);
+  });
+
+  it('reruns a drain pass requested while another drain is active', async () => {
+    const entry = makeQueuedEntry('run-rerun');
+    const runningRun = {
+      ...entry.run,
+      status: 'running' as const,
+      startedAt: Date.now(),
+      workerId: 'worker-1',
+    };
+    let finishFirstList:
+      | ((entries: Awaited<ReturnType<typeof listQueuedRuns>>) => void)
+      | undefined;
+    let releaseWorker: (() => void) | undefined;
+
+    vi.mocked(listQueuedRuns)
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishFirstList = resolve;
+          })
+      )
+      .mockResolvedValueOnce([entry])
+      .mockResolvedValue([]);
+    vi.mocked(claimQueuedRun).mockResolvedValue(runningRun);
+    vi.mocked(runQueuedAutomation).mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          releaseWorker = () =>
+            resolve({ success: true, data: { ...successRun, id: entry.run.id } });
+        })
+    );
+
+    const scheduler = new AutomationScheduler();
+    const firstDrain = scheduler.drainQueue();
+    const secondDrain = scheduler.drainQueue();
+
+    finishFirstList?.([]);
+    await Promise.all([firstDrain, secondDrain]);
+
+    expect(claimQueuedRun).toHaveBeenCalledWith(entry.run.id, expect.any(String));
+    expect(runQueuedAutomation).toHaveBeenCalledOnce();
+
+    releaseWorker?.();
+    await vi.waitFor(() => expect(listQueuedRuns).toHaveBeenCalledTimes(4));
   });
 });
