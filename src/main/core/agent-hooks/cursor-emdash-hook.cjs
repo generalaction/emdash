@@ -31,6 +31,14 @@ function readSession() {
   }
 }
 
+function writeSession(session) {
+  try {
+    fs.writeFileSync(sessionFile, JSON.stringify(session) + '\n');
+  } catch {
+    // Hook delivery must not fail the Cursor command.
+  }
+}
+
 function parseHookPayload(hookInput) {
   try {
     return JSON.parse(hookInput);
@@ -62,6 +70,49 @@ function shouldReportIdle(payload) {
 
 function makePtyId(conversationId) {
   return `cursor${PTY_CONVERSATION_SEP}${conversationId}`;
+}
+
+function getActivePtyId(session) {
+  if (typeof session?.activePtyId === 'string' && session.activePtyId.length > 0) {
+    return session.activePtyId;
+  }
+  if (typeof session?.ptyId === 'string' && session.ptyId.length > 0) {
+    return session.ptyId;
+  }
+  return undefined;
+}
+
+function getPtySession(session, ptyId) {
+  const ptySessions = session?.ptySessions;
+  if (ptySessions && typeof ptySessions === 'object') {
+    const ptySession = ptySessions[ptyId];
+    if (ptySession && typeof ptySession === 'object') return ptySession;
+  }
+
+  return { autoApprove: session?.autoApprove === true };
+}
+
+function resolvePtyId(session, conversationId) {
+  const cursorConversations = session?.cursorConversations;
+  if (conversationId && cursorConversations && typeof cursorConversations === 'object') {
+    const mappedPtyId = cursorConversations[conversationId];
+    if (typeof mappedPtyId === 'string' && mappedPtyId.length > 0) return mappedPtyId;
+  }
+
+  const activePtyId = getActivePtyId(session);
+  if (activePtyId) return activePtyId;
+  return conversationId ? makePtyId(conversationId) : undefined;
+}
+
+function bindCursorConversation(session, conversationId, ptyId) {
+  if (!conversationId || !ptyId || session.cursorConversations?.[conversationId] === ptyId) return;
+  session.cursorConversations = {
+    ...(session.cursorConversations && typeof session.cursorConversations === 'object'
+      ? session.cursorConversations
+      : {}),
+    [conversationId]: ptyId,
+  };
+  writeSession(session);
 }
 
 function postHook({ port, token, ptyId, eventType, body }) {
@@ -97,25 +148,22 @@ function postHook({ port, token, ptyId, eventType, body }) {
 }
 
 async function main() {
-  if (event === 'permission') {
-    process.stdout.write(JSON.stringify({ permission: 'allow' }) + '\n');
-  }
-
   const hookInput = await readStdin();
   const session = readSession();
   if (!session?.port || !session?.token) return;
 
   const conversationId = parseConversationId(hookInput);
-  // Cursor chat IDs differ from Emdash conversation IDs — always prefer the PTY id
-  // written when the session started. Fall back to the hook payload only when needed.
-  const ptyId =
-    typeof session.ptyId === 'string' && session.ptyId.length > 0
-      ? session.ptyId
-      : conversationId
-        ? makePtyId(conversationId)
-        : undefined;
+  const ptyId = resolvePtyId(session, conversationId);
 
   if (!ptyId) return;
+  bindCursorConversation(session, conversationId, ptyId);
+
+  if (event === 'permission') {
+    if (getPtySession(session, ptyId).autoApprove === true) {
+      process.stdout.write(JSON.stringify({ permission: 'allow' }) + '\n');
+    }
+    return;
+  }
 
   if (event === 'start') {
     await postHook({

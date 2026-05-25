@@ -150,12 +150,14 @@ export class LocalConversationProvider implements ConversationProvider {
 
     const hookActive = port > 0;
     if (hookActive && conversation.providerId === 'cursor' && hooksAvailable) {
-      await this.hookConfigWriter.writeCursorHookSession({ port, token, ptyId }).catch((error) => {
-        log.warn('LocalConversationProvider: failed to write Cursor hook session', {
-          conversationId: conversation.id,
-          error: String(error),
+      await this.hookConfigWriter
+        .writeCursorHookSession({ port, token, ptyId, autoApprove: conversation.autoApprove })
+        .catch((error) => {
+          log.warn('LocalConversationProvider: failed to write Cursor hook session', {
+            conversationId: conversation.id,
+            error: String(error),
+          });
         });
-      });
     }
 
     const cursorHooksHandleStop =

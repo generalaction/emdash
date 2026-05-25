@@ -69,7 +69,9 @@ describe('cursor-emdash-hook.cjs', () => {
             JSON.stringify({
               port: address.port,
               token: 'test-token',
-              ptyId: 'cursor-conv-emdash-conv-1',
+              activePtyId: 'cursor-conv-emdash-conv-1',
+              ptySessions: { 'cursor-conv-emdash-conv-1': { autoApprove: false } },
+              cursorConversations: {},
             }) + '\n'
           );
           await runHook({
@@ -128,7 +130,9 @@ describe('cursor-emdash-hook.cjs', () => {
             JSON.stringify({
               port: address.port,
               token: 'test-token',
-              ptyId: 'cursor-conv-emdash-conv-1',
+              activePtyId: 'cursor-conv-emdash-conv-1',
+              ptySessions: { 'cursor-conv-emdash-conv-1': { autoApprove: false } },
+              cursorConversations: {},
             }) + '\n'
           );
           const result = await runHook({
@@ -284,7 +288,61 @@ describe('cursor-emdash-hook.cjs', () => {
     expect(received).toBe('cursor-conv-emdash-only');
   });
 
-  it('prints allow JSON for permission hooks without posting to Emdash', async () => {
+  it('routes known Cursor conversation ids to their mapped Emdash ptyId', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'emdash-cursor-hook-'));
+    tempDirs.push(cwd);
+
+    const received = await new Promise<string>((resolve, reject) => {
+      const server = createServer((req, res) => {
+        if (req.method !== 'POST' || req.url !== '/hook') {
+          res.writeHead(404);
+          res.end();
+          return;
+        }
+        res.writeHead(200);
+        res.end();
+        resolve(String(req.headers['x-emdash-pty-id'] ?? ''));
+      });
+      server.listen(0, '127.0.0.1', async () => {
+        const address = server.address();
+        if (!address || typeof address === 'string') {
+          reject(new Error('hook test server failed to bind'));
+          return;
+        }
+        try {
+          await mkdir(join(cwd, '.cursor'), { recursive: true });
+          await writeFile(
+            join(cwd, '.cursor/emdash-hook-session.json'),
+            JSON.stringify({
+              port: address.port,
+              token: 'test-token',
+              activePtyId: 'cursor-conv-new',
+              ptySessions: {
+                'cursor-conv-old': { autoApprove: false },
+                'cursor-conv-new': { autoApprove: false },
+              },
+              cursorConversations: { 'cursor-native-old': 'cursor-conv-old' },
+            }) + '\n'
+          );
+          await runHook({
+            cwd,
+            event: 'stop',
+            hookInput: JSON.stringify({
+              conversation_id: 'cursor-native-old',
+              loop_count: 5,
+              loop_limit: 5,
+            }),
+          });
+        } finally {
+          server.close();
+        }
+      });
+    });
+
+    expect(received).toBe('cursor-conv-old');
+  });
+
+  it('prints allow JSON for auto-approved permission hooks without posting to Emdash', async () => {
     const cwd = await mkdtemp(join(tmpdir(), 'emdash-cursor-hook-'));
     tempDirs.push(cwd);
 
@@ -305,7 +363,13 @@ describe('cursor-emdash-hook.cjs', () => {
           await mkdir(join(cwd, '.cursor'), { recursive: true });
           await writeFile(
             join(cwd, '.cursor/emdash-hook-session.json'),
-            JSON.stringify({ port: address.port, token: 'test-token' }) + '\n'
+            JSON.stringify({
+              port: address.port,
+              token: 'test-token',
+              activePtyId: 'cursor-conv-emdash-conv-1',
+              ptySessions: { 'cursor-conv-emdash-conv-1': { autoApprove: true } },
+              cursorConversations: {},
+            }) + '\n'
           );
           const result = await runHook({
             cwd,
@@ -321,5 +385,30 @@ describe('cursor-emdash-hook.cjs', () => {
     });
 
     expect(requestCount).toBe(0);
+  });
+
+  it('does not auto-allow permission hooks when autoApprove is false', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'emdash-cursor-hook-'));
+    tempDirs.push(cwd);
+
+    await mkdir(join(cwd, '.cursor'), { recursive: true });
+    await writeFile(
+      join(cwd, '.cursor/emdash-hook-session.json'),
+      JSON.stringify({
+        port: 1,
+        token: 'test-token',
+        activePtyId: 'cursor-conv-emdash-conv-1',
+        ptySessions: { 'cursor-conv-emdash-conv-1': { autoApprove: false } },
+        cursorConversations: {},
+      }) + '\n'
+    );
+
+    const result = await runHook({
+      cwd,
+      event: 'permission',
+      hookInput: JSON.stringify({ conversation_id: 'conv-456' }),
+    });
+
+    expect(result.stdout).toBe('');
   });
 });

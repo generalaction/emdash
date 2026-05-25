@@ -131,12 +131,51 @@ describe('HookConfigWriter', () => {
       port: 4242,
       token: 'secret-token',
       ptyId: 'cursor-conv-conversation-1',
+      autoApprove: true,
     });
 
     expect(JSON.parse(fs.files.get('.cursor/emdash-hook-session.json')!)).toEqual({
       port: 4242,
       token: 'secret-token',
-      ptyId: 'cursor-conv-conversation-1',
+      activePtyId: 'cursor-conv-conversation-1',
+      ptySessions: {
+        'cursor-conv-conversation-1': { autoApprove: true },
+      },
+      cursorConversations: {},
+    });
+  });
+
+  it('preserves Cursor conversation bindings when writing a new session', async () => {
+    mockCursorCliPaths();
+    const fs = new MemoryFs();
+    fs.files.set(
+      '.cursor/emdash-hook-session.json',
+      JSON.stringify({
+        port: 1111,
+        token: 'old-token',
+        activePtyId: 'cursor-conv-old',
+        ptySessions: { 'cursor-conv-old': { autoApprove: false } },
+        cursorConversations: { 'cursor-native-old': 'cursor-conv-old' },
+      })
+    );
+    const writer = makeWriter(fs);
+
+    await writer.writeCursorHookSession({
+      port: 4242,
+      token: 'secret-token',
+      ptyId: 'cursor-conv-new',
+      autoApprove: true,
+    });
+
+    expect(JSON.parse(fs.files.get('.cursor/emdash-hook-session.json')!)).toEqual({
+      port: 4242,
+      token: 'secret-token',
+      activePtyId: 'cursor-conv-new',
+      ptySessions: {
+        'cursor-conv-old': { autoApprove: false },
+        'cursor-conv-new': { autoApprove: true },
+      },
+      cursorConversations: { 'cursor-native-old': 'cursor-conv-old' },
     });
   });
 

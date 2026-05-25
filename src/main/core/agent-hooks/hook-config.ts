@@ -183,14 +183,33 @@ export class HookConfigWriter {
     port: number;
     token: string;
     ptyId: string;
+    autoApprove?: boolean;
   }): Promise<void> {
     await this.writeCursorHooks();
+    const existing = await this.fs
+      .read(CURSOR_HOOK_SESSION_PATH)
+      .then((r) => JSON.parse(r.content) as Record<string, unknown>)
+      .catch(() => ({}));
+    const existingPtySessions =
+      existing.ptySessions && typeof existing.ptySessions === 'object'
+        ? (existing.ptySessions as Record<string, unknown>)
+        : {};
+    const existingCursorConversations =
+      existing.cursorConversations && typeof existing.cursorConversations === 'object'
+        ? (existing.cursorConversations as Record<string, unknown>)
+        : {};
+
     await this.fs.write(
       CURSOR_HOOK_SESSION_PATH,
       JSON.stringify({
         port: session.port,
         token: session.token,
-        ptyId: session.ptyId,
+        activePtyId: session.ptyId,
+        ptySessions: {
+          ...existingPtySessions,
+          [session.ptyId]: { autoApprove: session.autoApprove === true },
+        },
+        cursorConversations: existingCursorConversations,
       }) + '\n'
     );
   }
