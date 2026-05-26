@@ -1,4 +1,4 @@
-import { CircleAlert, ExternalLink, Link2, Loader2 } from 'lucide-react';
+import { ExternalLink, Link2, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { forwardRef, useCallback, useRef, useState } from 'react';
 import {
@@ -116,17 +116,23 @@ function IssuePriorityIcon({
     <Tooltip>
       <TooltipTrigger
         render={
-          <span
-            className={cn(
-              'flex h-3 w-3 shrink-0 items-end justify-center gap-px text-foreground-muted',
-              normalizedPriority === 'urgent' && 'text-foreground-error',
-              className
-            )}
-          >
-            {normalizedPriority === 'urgent' ? (
-              <CircleAlert className="size-3" />
-            ) : (
-              [1, 2, 3].map((bar) => (
+          normalizedPriority === 'urgent' ? (
+            <span
+              className={cn(
+                'flex h-3 w-3 shrink-0 items-center justify-center rounded-[3px] bg-foreground-error text-[9px] leading-none font-bold text-white',
+                className
+              )}
+            >
+              !
+            </span>
+          ) : (
+            <span
+              className={cn(
+                'flex h-3 w-3 shrink-0 items-end justify-center gap-px text-foreground-muted',
+                className
+              )}
+            >
+              {[1, 2, 3].map((bar) => (
                 <span
                   key={bar}
                   className={cn(
@@ -137,9 +143,9 @@ function IssuePriorityIcon({
                     bar > activeBars && 'opacity-25'
                   )}
                 />
-              ))
-            )}
-          </span>
+              ))}
+            </span>
+          )
         }
       />
       <TooltipContent>Priority: {priority}</TooltipContent>
