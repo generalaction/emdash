@@ -46,9 +46,11 @@ const POPULAR_FONTS = [
   'MesloLGS NF',
 ];
 
+const DEFAULT_FONT_FAMILY = 'Menlo';
+
 const DEFAULT_OPTION: FontOption = {
   value: '',
-  label: 'Default (Menlo)',
+  label: `Default (${DEFAULT_FONT_FAMILY})`,
 };
 
 const clampFontSize = (size: number) =>
@@ -203,7 +205,13 @@ const TerminalSettingsCard: React.FC = () => {
                       <ComboboxCollection>
                         {(item: FontOption) => (
                           <ComboboxItem key={item.value || '__default__'} value={item}>
-                            {item.label}
+                            <span
+                              style={{
+                                fontFamily: item.value ? `"${item.value}"` : DEFAULT_FONT_FAMILY,
+                              }}
+                            >
+                              {item.label}
+                            </span>
                           </ComboboxItem>
                         )}
                       </ComboboxCollection>

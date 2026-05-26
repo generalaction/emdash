@@ -38,7 +38,7 @@ const ICON_PATHS = {
   windsurf: 'windsurf.png',
   xcode: 'xcode.png',
   terminal: 'terminal.png',
-  kaku: 'terminal.png',
+  kaku: 'kaku.png',
   alacritty: 'alacritty.svg',
   warp: 'warp.svg',
   iterm2: 'iterm2.png',

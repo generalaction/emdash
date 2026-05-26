@@ -88,6 +88,7 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
             <>
               <AgentLogo
                 logo={selectedConfig.logo}
+                logoDark={selectedConfig.logoDark}
                 alt={selectedConfig.alt}
                 isSvg={selectedConfig.isSvg}
                 invertInDark={selectedConfig.invertInDark}
@@ -125,6 +126,7 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
                           {config && (
                             <AgentLogo
                               logo={config.logo}
+                              logoDark={config.logoDark}
                               alt={config.alt}
                               isSvg={config.isSvg}
                               invertInDark={config.invertInDark}

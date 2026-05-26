@@ -5,13 +5,13 @@ import { Resource } from '@renderer/lib/stores/resource';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import { gitRefChangedChannel, gitWorkspaceChangedChannel } from '@shared/events/gitEvents';
 import { commitRef, mergeBaseRange, refsEqual, remoteRef, type GitChange } from '@shared/git';
-import { parseGitHubRepository } from '@shared/github-repository';
 import {
   isForkPr,
   pullRequestErrorMessage,
   selectCurrentPr,
   type PullRequest,
 } from '@shared/pull-requests';
+import { parseRepositoryRef } from '@shared/repository-ref';
 import type { Task } from '@shared/tasks';
 import { isRegistered, type TaskStore } from './task-store';
 
@@ -28,7 +28,7 @@ function prNumberFromIdentifier(identifier: string | null): number | null {
 export class PrStore {
   private readonly _prFiles = new Map<
     string,
-    { resource: Resource<GitChange[]>; headRefOid: string }
+    { resource: Resource<GitChange[]>; baseRefOid: string; headRefOid: string }
   >();
 
   constructor(
@@ -52,7 +52,10 @@ export class PrStore {
   getFiles(pr: PullRequest): Resource<GitChange[]> {
     const key = pr.url;
     const existing = this._prFiles.get(key);
-    if (existing && existing.headRefOid !== pr.headRefOid) {
+    if (
+      existing &&
+      (existing.baseRefOid !== pr.baseRefOid || existing.headRefOid !== pr.headRefOid)
+    ) {
       existing.resource.dispose();
       this._prFiles.delete(key);
     }
@@ -77,7 +80,7 @@ export class PrStore {
                 if (p.projectId !== this.projectId || p.kind !== 'remote-refs') return;
                 const sameRepoRef = remoteRef(this.repositoryStore.baseRemote, pr.headRefName);
                 const forkOwner = isForkPr(pr)
-                  ? (parseGitHubRepository(pr.headRepositoryUrl)?.owner ?? null)
+                  ? (parseRepositoryRef(pr.headRepositoryUrl)?.owner ?? null)
                   : null;
                 const forkRef = forkOwner ? remoteRef(forkOwner, pr.headRefName) : null;
                 const relevant =
@@ -99,7 +102,11 @@ export class PrStore {
         ]
       );
       resource.start();
-      this._prFiles.set(key, { resource, headRefOid: pr.headRefOid });
+      this._prFiles.set(key, {
+        resource,
+        baseRefOid: pr.baseRefOid,
+        headRefOid: pr.headRefOid,
+      });
     }
     return this._prFiles.get(key)!.resource;
   }
@@ -175,11 +182,7 @@ export class PrStore {
   }
 
   private async _fetchPrFiles(pr: PullRequest): Promise<GitChange[]> {
-    const remote = this.repositoryStore.baseRemote;
-    // Dereference the MobX-observable Remote into a plain object — MobX proxies
-    // cannot be structured-cloned by Electron IPC and will throw.
-    const plainRemote = { name: remote.name, url: remote.url };
-    const baseRef = remoteRef(plainRemote, pr.baseRefName);
+    const baseRef = commitRef(pr.baseRefOid);
     const headRef = commitRef(pr.headRefOid);
     const range = mergeBaseRange(baseRef, headRef);
 
@@ -187,16 +190,22 @@ export class PrStore {
       const result = await rpc.git.getChangedFiles(this.projectId, this.workspaceId, range);
       if (!result.success) return null;
       const changes = result.data.changes;
-      const expectedChangedFiles = pr.changedFiles ?? 0;
-      if (expectedChangedFiles > 0 && changes.length === 0) return null;
-      if (expectedChangedFiles > 0 && changes.length > expectedChangedFiles * 2) return null;
+      const expectedChangedFiles = pr.changedFiles;
+      if (changes.length === 0 && expectedChangedFiles !== 0) return null;
+      if (
+        expectedChangedFiles != null &&
+        expectedChangedFiles > 0 &&
+        changes.length > expectedChangedFiles * 2
+      ) {
+        return null;
+      }
       return changes;
     };
 
     const first = await tryRange();
     if (first) return first;
 
-    // headRefOid not available locally — fetch the PR branch then retry
+    await rpc.repository.fetch(this.projectId, this.workspaceId);
     const prNumber = prNumberFromIdentifier(pr.identifier);
     if (prNumber) {
       await rpc.repository.fetchPrForReview(
@@ -207,6 +216,8 @@ export class PrStore {
         isForkPr(pr)
       );
     }
-    return (await tryRange()) ?? [];
+
+    const retry = await tryRange();
+    return retry ?? [];
   }
 }

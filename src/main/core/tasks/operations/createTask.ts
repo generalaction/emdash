@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
+import { providerRepositoryService } from '@main/core/repository/provider-repository-service';
 import { db } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
 import { resolveTaskBranchName } from '@shared/resolveTaskBranchName';
@@ -185,12 +186,12 @@ export async function createTask(
 
   let prs: Awaited<ReturnType<typeof prQueryService.getTaskPullRequests>> = [];
   if (strategy.kind === 'from-pull-request') {
-    const capability = await prQueryService.getProjectRemoteInfo(params.projectId);
-    if (capability.status === 'ready') {
+    const capability = await providerRepositoryService.resolveProject(params.projectId);
+    if (capability.success) {
       prs = await prQueryService.getTaskPullRequests(
         params.projectId,
         strategy.headBranch,
-        capability.repositoryUrl
+        capability.data.repositoryUrl
       );
     }
   }

@@ -149,7 +149,15 @@ export class LocalConversationProvider implements ConversationProvider {
     });
 
     const hookActive = port > 0;
-    const useHooksOnly = hookActive && providerDef?.supportsHooks && hooksAvailable;
+    /*
+     * Codex hooks can be skipped by the CLI in some live-session edge cases; keep
+     * the output classifier active as a fallback so the UI can leave "working".
+     */
+    const useHooksOnly =
+      hookActive &&
+      providerDef?.supportsHooks &&
+      hooksAvailable &&
+      conversation.providerId !== 'codex';
 
     if (!useHooksOnly) {
       wireAgentClassifier({
