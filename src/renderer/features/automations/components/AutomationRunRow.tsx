@@ -86,7 +86,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
   const tool = useMemo(() => automationRunTool(run, automation), [automation, run]);
   const isFailed = run.status === 'failed';
   const taskAgentActivity = taskStore ? taskAgentStatus(taskStore) : null;
-  const agentStatus = taskAgentActivity ?? agentActivity?.status ?? null;
+  const agentStatus = taskStore ? taskAgentActivity : (agentActivity?.status ?? null);
   const agentIndicator =
     run.status === 'success' ? activeAgentActivityIndicatorConfig(agentStatus) : null;
   const agentIsWorking = run.status === 'success' && agentStatus === 'working';
@@ -116,7 +116,6 @@ export const AutomationRunRow = observer(function AutomationRunRow({
   const displayTime = run.startedAt ?? run.scheduledAt ?? run.finishedAt;
   const triggerLabel = formatRunTriggerKindLabel(run.triggerKind);
   const isListLayout = variant === 'card';
-  const showCardStatus = run.status !== 'running' && !agentIsWorking;
   const showRunningSpinner = run.status === 'running' || agentIsWorking;
 
   function handleOpenTask() {
@@ -283,19 +282,6 @@ export const AutomationRunRow = observer(function AutomationRunRow({
                 <Clock className="size-3 shrink-0" />
                 <span className="truncate">{triggerLabel}</span>
               </span>
-              {showCardStatus ? (
-                <span
-                  className={cn(
-                    'inline-flex shrink-0 items-center gap-1.5',
-                    displayStatus.textClass
-                  )}
-                >
-                  <StatusIcon
-                    className={cn('size-3 shrink-0', displayStatus.spin && 'animate-spin')}
-                  />
-                  <span>{displayStatus.label}</span>
-                </span>
-              ) : null}
             </div>
 
             {errorMessage ? (

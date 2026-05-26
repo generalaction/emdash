@@ -90,11 +90,14 @@ export const AutomationRow = observer(function AutomationRow({
       ? getTaskStore(automation.projectId, latestRunTaskId)
       : null;
   const taskAgentActivity = taskStore ? taskAgentStatus(taskStore) : null;
-  const agentStatus = taskAgentActivity ?? agentActivity?.status ?? null;
+  const agentStatus = taskStore ? taskAgentActivity : (agentActivity?.status ?? null);
   const agentIndicator =
     latestRun?.status === 'success' ? activeAgentActivityIndicatorConfig(agentStatus) : null;
+  const showLatestRunStatusLabel = agentIndicator?.spin !== true;
   const latestRunStatusLabel = latestRun
-    ? (agentIndicator?.label ?? formatRunStatusLabel(latestRun.status) ?? 'Success')
+    ? showLatestRunStatusLabel
+      ? (agentIndicator?.label ?? formatRunStatusLabel(latestRun.status) ?? 'Success')
+      : null
     : null;
   const latestRunIsFailed = latestRun?.status === 'failed';
   const latestRunAt =
@@ -123,7 +126,7 @@ export const AutomationRow = observer(function AutomationRow({
       }}
       aria-label={`Edit ${automation.name}`}
       className={cn(
-        'group flex min-h-14 cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-background-1 focus:outline-none focus-visible:outline-none',
+        'group grid min-h-14 cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-background-1 focus:outline-none focus-visible:outline-none',
         dimmed && 'opacity-60'
       )}
     >
@@ -184,7 +187,7 @@ export const AutomationRow = observer(function AutomationRow({
         </Tooltip>
       )}
 
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
+      <div className="flex min-w-0 flex-col gap-1">
         <div className="flex min-w-0 items-center gap-2">
           <Tooltip>
             <TooltipTrigger
@@ -225,20 +228,22 @@ export const AutomationRow = observer(function AutomationRow({
         </div>
       </div>
 
-      <div className="flex shrink-0 items-center justify-end">
+      <div className="flex min-w-0 items-center justify-end">
         {latestRun ? (
           <span
             className={cn(
-              'flex items-center gap-1 text-xs text-muted-foreground',
+              'flex min-w-0 max-w-full items-center gap-1 text-xs text-muted-foreground',
               latestRunIsFailed && 'text-destructive',
               agentIndicator?.textClass
             )}
           >
-            <span>{latestRunStatusLabel}</span>
+            {latestRunStatusLabel ? <span className="shrink-0">{latestRunStatusLabel}</span> : null}
             {latestRunAt != null ? (
               <>
-                <span className="text-muted-foreground/40">·</span>
-                <AbsoluteTime value={latestRunAt} />
+                {latestRunStatusLabel ? (
+                  <span className="text-muted-foreground/40 shrink-0">·</span>
+                ) : null}
+                <AbsoluteTime value={latestRunAt} className="min-w-0 truncate" />
               </>
             ) : null}
           </span>

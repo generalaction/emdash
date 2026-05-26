@@ -62,9 +62,9 @@ export function agentActivityIndicatorConfig(
     case 'working':
       return {
         Icon: Loader2,
-        label: 'Agent running',
-        dotClass: 'bg-blue-500',
-        textClass: 'text-blue-700 dark:text-blue-300',
+        label: 'Running',
+        dotClass: 'bg-muted-foreground/60',
+        textClass: 'text-muted-foreground',
         spin: true,
       };
     case 'awaiting-input':
