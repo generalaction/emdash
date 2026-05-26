@@ -40,7 +40,7 @@ const automation: Automation = {
     projectId: 'project-1',
     name: 'Stored task',
     sourceBranch: { type: 'local', branch: 'main' },
-    strategy: { kind: 'no-worktree' },
+    strategy: { kind: 'new-branch', taskBranch: 'stored-task-branch', pushBranch: false },
     initialConversation: {
       id: 'stored-conversation-id',
       projectId: 'project-1',
@@ -79,6 +79,7 @@ const run: AutomationRun = {
 describe('executeTaskCreate', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(generateTaskName).mockReturnValue('generated-task');
     vi.mocked(appSettingsService.get).mockResolvedValue(null as never);
     vi.mocked(taskService.provision).mockResolvedValue({
       success: true,
@@ -196,6 +197,85 @@ describe('executeTaskCreate', () => {
     });
 
     expect(taskService.createTask).toHaveBeenCalledOnce();
+  });
+
+  it('scopes stored task names and branches to each automation run', async () => {
+    vi.mocked(projectManager.getProject).mockReturnValue({} as never);
+    vi.mocked(generateTaskName).mockImplementation(({ title }) =>
+      title === 'stored-task-branch' ? 'stored-task-branch-run' : 'stored-task-run'
+    );
+    vi.mocked(taskService.createTask).mockResolvedValueOnce({
+      success: true,
+      data: { task: {} as never },
+    });
+
+    const result = await executeTaskCreate(automation.actions[0]!, { automation, run });
+
+    expect(result.success).toBe(true);
+    const taskConfig = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
+    expect(taskConfig?.name).toBe('stored-task-run');
+    expect(taskConfig?.strategy).toEqual({
+      kind: 'new-branch',
+      taskBranch: 'stored-task-branch-run',
+      pushBranch: false,
+    });
+    expect(generateTaskName).toHaveBeenCalledWith({ title: 'Stored task', description: run.id });
+    expect(generateTaskName).toHaveBeenCalledWith({
+      title: 'stored-task-branch',
+      description: run.id,
+    });
+  });
+
+  it('converts stored no-worktree configs into isolated run worktrees for normal projects', async () => {
+    vi.mocked(projectManager.getProject).mockReturnValue({
+      repository: { getRepositoryInfo: vi.fn().mockResolvedValue({ isUnborn: false }) },
+    } as never);
+    vi.mocked(generateTaskName).mockReturnValue('stored-task-run');
+    vi.mocked(taskService.createTask).mockResolvedValueOnce({
+      success: true,
+      data: { task: {} as never },
+    });
+
+    const result = await executeTaskCreate(automation.actions[0]!, {
+      automation: {
+        ...automation,
+        taskConfig: { ...automation.taskConfig!, strategy: { kind: 'no-worktree' } },
+      },
+      run,
+    });
+
+    expect(result.success).toBe(true);
+    const taskConfig = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
+    expect(taskConfig?.strategy).toEqual({
+      kind: 'new-branch',
+      taskBranch: 'stored-task-run',
+      pushBranch: false,
+    });
+  });
+
+  it('preserves no-worktree configs for BYOI automation tasks', async () => {
+    vi.mocked(projectManager.getProject).mockReturnValue({} as never);
+    vi.mocked(taskService.createTask).mockResolvedValueOnce({
+      success: true,
+      data: { task: {} as never },
+    });
+
+    const result = await executeTaskCreate(automation.actions[0]!, {
+      automation: {
+        ...automation,
+        taskConfig: {
+          ...automation.taskConfig!,
+          strategy: { kind: 'no-worktree' },
+          workspaceProvider: 'byoi',
+        },
+      },
+      run,
+    });
+
+    expect(result.success).toBe(true);
+    const taskConfig = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
+    expect(taskConfig?.strategy).toEqual({ kind: 'no-worktree' });
+    expect(taskConfig?.workspaceProvider).toBe('byoi');
   });
 
   it('uses the run id when generating default task names', async () => {

@@ -192,7 +192,7 @@ export const AutomationPanel = observer(function AutomationPanel({
     const strategy = resolveBranchLikeTaskStrategy({
       isUnborn,
       createBranchAndWorktree: fromBranch.createBranchAndWorktree,
-      taskBranch: fromBranch.taskName,
+      taskBranch: fromBranch.branchName,
       pushBranch: fromBranch.pushBranch,
     });
     const taskId = crypto.randomUUID();

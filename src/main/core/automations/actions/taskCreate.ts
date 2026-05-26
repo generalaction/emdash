@@ -12,7 +12,7 @@ import type { TaskCreateAction } from '@shared/automations/actions';
 import { bareRefName } from '@shared/git-utils';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { err, ok, type Result } from '@shared/result';
-import type { CreateTaskError, CreateTaskParams } from '@shared/tasks';
+import type { CreateTaskError, CreateTaskParams, CreateTaskStrategy } from '@shared/tasks';
 import { linkRunTask } from '../run-transitions';
 import type { ActionContext, ActionError, ActionOutcome } from './types';
 
@@ -103,6 +103,52 @@ async function resolveProjectDefaults(projectId: string, taskName: string) {
   return ok({ sourceBranch, strategy });
 }
 
+function makeRunTaskName(storedConfig: CreateTaskParams | null | undefined, ctx: ActionContext) {
+  return generateTaskName({
+    title: storedConfig?.name?.trim() || ctx.automation.name,
+    description: ctx.run.id,
+  });
+}
+
+function makeRunBranchName(baseBranch: string, runId: string) {
+  return generateTaskName({ title: baseBranch, description: runId });
+}
+
+async function resolveRunScopedStrategy(
+  config: CreateTaskParams,
+  projectId: string,
+  taskName: string,
+  runId: string
+): Promise<Result<CreateTaskStrategy, string>> {
+  const strategy = config.strategy;
+
+  if (strategy.kind === 'new-branch') {
+    return ok({
+      ...strategy,
+      taskBranch: makeRunBranchName(strategy.taskBranch, runId),
+    });
+  }
+
+  if (strategy.kind === 'from-pull-request' && strategy.taskBranch) {
+    return ok({
+      ...strategy,
+      taskBranch: makeRunBranchName(strategy.taskBranch, runId),
+    });
+  }
+
+  if (strategy.kind === 'no-worktree' && config.workspaceProvider !== 'byoi') {
+    const projectResult = await ensureProjectOpen(projectId);
+    if (!projectResult.success) return err(projectResult.error);
+
+    const repoInfo = await projectResult.data.repository.getRepositoryInfo();
+    if (!repoInfo.isUnborn) {
+      return ok({ kind: 'new-branch', taskBranch: taskName, pushBranch: false });
+    }
+  }
+
+  return ok(strategy);
+}
+
 export async function executeTaskCreate(
   action: TaskCreateAction,
   ctx: ActionContext
@@ -117,16 +163,26 @@ export async function executeTaskCreate(
     const storedConfig = ctx.automation.taskConfig;
     const taskId = randomUUID();
     const conversationId = randomUUID();
+    const taskName = makeRunTaskName(storedConfig, ctx);
 
     let taskConfig: CreateTaskParams;
     if (storedConfig?.initialConversation) {
       const projectResult = await ensureProjectOpen(projectId);
       if (!projectResult.success) return err({ message: projectResult.error });
+      const strategyResult = await resolveRunScopedStrategy(
+        storedConfig,
+        projectId,
+        taskName,
+        ctx.run.id
+      );
+      if (!strategyResult.success) return err({ message: strategyResult.error });
 
       taskConfig = {
         ...storedConfig,
         id: taskId,
         projectId,
+        name: taskName,
+        strategy: strategyResult.data,
         automationId: ctx.automation.id,
         initialConversation: {
           ...storedConfig.initialConversation,
@@ -141,17 +197,21 @@ export async function executeTaskCreate(
         },
       };
     } else {
-      const taskName = generateTaskName({ title: ctx.automation.name, description: ctx.run.id });
       const defaults = await resolveProjectDefaults(projectId, taskName);
       if (!defaults.success) return err({ message: defaults.error });
       const provider = (await appSettingsService.get('defaultAgent')) ?? DEFAULT_AGENT_ID;
+      const strategyResult = storedConfig
+        ? await resolveRunScopedStrategy(storedConfig, projectId, taskName, ctx.run.id)
+        : ok(defaults.data.strategy);
+      if (!strategyResult.success) return err({ message: strategyResult.error });
+
       taskConfig = {
         ...storedConfig,
         id: taskId,
         projectId,
-        name: storedConfig?.name?.trim() || taskName,
+        name: taskName,
         sourceBranch: storedConfig?.sourceBranch ?? defaults.data.sourceBranch,
-        strategy: storedConfig?.strategy ?? defaults.data.strategy,
+        strategy: strategyResult.data,
         automationId: ctx.automation.id,
         initialConversation: {
           id: conversationId,
