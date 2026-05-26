@@ -14,4 +14,6 @@ export interface ConversationProvider {
 
 export type ConversationConfig = {
   autoApprove?: boolean;
+  /** Provider-native session id (e.g. Codex rollout UUID) used when resuming. */
+  providerSessionId?: string;
 };

@@ -102,6 +102,7 @@ export class LocalConversationProvider implements ConversationProvider {
       providerConfig,
       autoApprove: conversation.autoApprove,
       sessionId: conversation.id,
+      providerSessionId: conversation.providerSessionId,
       isResuming,
       initialPrompt,
     });
