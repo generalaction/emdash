@@ -64,11 +64,11 @@ export const AutoTrustWorktreesRow: React.FC = () => {
           Auto-trust worktree directories
           <InfoTooltip
             label="More info about auto-trust worktrees"
-            content="Only applies to Claude Code. Writes trust entries to ~/.claude.json before launching."
+            content="Applies to Claude Code and Cursor. Writes provider trust entries before launching."
           />
         </div>
       }
-      description="Skip the folder trust prompt in Claude Code for new tasks."
+      description="Skip folder/workspace trust prompts for new tasks."
       control={
         <>
           <ResetToDefaultButton
@@ -159,32 +159,6 @@ export const IncludeIssueContextByDefaultRow: React.FC = () => {
             checked={taskSettings.includeIssueContextByDefault}
             disabled={taskSettings.loading || taskSettings.saving}
             onCheckedChange={taskSettings.updateIncludeIssueContextByDefault}
-          />
-        </>
-      }
-    />
-  );
-};
-
-export const AutoApproveAutomationAgentsRow: React.FC = () => {
-  const taskSettings = useTaskSettings();
-
-  return (
-    <SettingRow
-      title="Auto-approve automation agents"
-      description="Let automation-created agent sessions skip provider approval prompts when the selected CLI supports it."
-      control={
-        <>
-          <ResetToDefaultButton
-            visible={taskSettings.isFieldOverridden('autoApproveAutomationAgents')}
-            defaultLabel="on"
-            onReset={taskSettings.resetAutoApproveAutomationAgents}
-            disabled={taskSettings.loading || taskSettings.saving}
-          />
-          <Switch
-            checked={taskSettings.autoApproveAutomationAgents}
-            disabled={taskSettings.loading || taskSettings.saving}
-            onCheckedChange={taskSettings.updateAutoApproveAutomationAgents}
           />
         </>
       }

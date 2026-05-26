@@ -157,10 +157,7 @@ describe('executeTaskCreate', () => {
     expect(taskConfig?.initialConversation?.autoApprove).toBe(true);
   });
 
-  it('preserves saved auto-approval when automation agent auto-approval is disabled', async () => {
-    vi.mocked(appSettingsService.get).mockImplementation(async (key) =>
-      key === 'tasks' ? ({ autoApproveAutomationAgents: false } as never) : (null as never)
-    );
+  it('enables auto-approval for automation-created OpenCode conversations via provider env', async () => {
     vi.mocked(projectManager.getProject).mockReturnValue({} as never);
     vi.mocked(taskService.createTask).mockResolvedValueOnce({
       success: true,
@@ -174,7 +171,7 @@ describe('executeTaskCreate', () => {
           ...automation.taskConfig!,
           initialConversation: {
             ...automation.taskConfig!.initialConversation!,
-            provider: 'cursor',
+            provider: 'opencode',
             autoApprove: false,
           },
         },
@@ -183,7 +180,7 @@ describe('executeTaskCreate', () => {
     });
 
     const taskConfig = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
-    expect(taskConfig?.initialConversation?.autoApprove).toBe(false);
+    expect(taskConfig?.initialConversation?.autoApprove).toBe(true);
   });
 
   it('creates a task even when a previous action already created one for the run', async () => {

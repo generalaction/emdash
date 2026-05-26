@@ -45,6 +45,8 @@ export type AgentProviderDefinition = {
   detectable?: boolean;
   cli?: string;
   autoApproveFlag?: string;
+  /** Auto-approval is provided by provider-specific environment variables instead of CLI args. */
+  autoApproveViaEnv?: boolean;
   initialPromptFlag?: string;
   /**
    * When true, the initial prompt is delivered via keystroke injection
@@ -97,7 +99,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     commands: ['codex'],
     versionArgs: ['--version'],
     cli: 'codex',
-    autoApproveFlag: '--dangerously-bypass-approvals-and-sandbox',
+    autoApproveFlag: '--dangerously-bypass-approvals-and-sandbox --dangerously-bypass-hook-trust',
     initialPromptFlag: '',
     resumeFlag: 'resume --last',
     icon: 'openai.svg',
@@ -170,7 +172,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     commands: ['cursor-agent'],
     versionArgs: ['--version'],
     cli: 'cursor-agent',
-    autoApproveFlag: '-f',
+    autoApproveFlag: '-f --approve-mcps',
     initialPromptFlag: '',
     resumeFlag: '--resume',
     icon: 'cursor.svg',
@@ -187,7 +189,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     commands: ['gemini'],
     versionArgs: ['--version'],
     cli: 'gemini',
-    autoApproveFlag: '--yolo',
+    autoApproveFlag: '--approval-mode=yolo --skip-trust',
     initialPromptFlag: '-i',
     resumeFlag: '--resume',
     icon: 'gemini.png',
@@ -273,6 +275,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     commands: ['opencode'],
     versionArgs: ['--version'],
     cli: 'opencode',
+    autoApproveViaEnv: true,
     initialPromptFlag: '--prompt',
     resumeFlag: '--continue',
     icon: 'opencode.png',
@@ -309,7 +312,8 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     commands: ['copilot'],
     versionArgs: ['--version'],
     cli: 'copilot',
-    autoApproveFlag: '--allow-all-tools',
+    autoApproveFlag: '--allow-all',
+    initialPromptFlag: '-i',
     resumeFlag: '--resume',
     icon: 'gh-copilot.svg',
     alt: 'GitHub Copilot CLI',

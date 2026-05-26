@@ -31,7 +31,11 @@ describe('buildAgentCommand', () => {
 
     expect(command).toEqual({
       command: 'codex',
-      args: ['--dangerously-bypass-approvals-and-sandbox', 'Fix the issue'],
+      args: [
+        '--dangerously-bypass-approvals-and-sandbox',
+        '--dangerously-bypass-hook-trust',
+        'Fix the issue',
+      ],
     });
   });
 
@@ -48,6 +52,34 @@ describe('buildAgentCommand', () => {
       command: 'agy',
       args: ['--conversation=session-1', '--dangerously-skip-permissions', '-i', 'Fix the issue'],
     });
+  });
+
+  it.each<{
+    providerId: AgentProviderId;
+    expectedArgs: string[];
+  }>([
+    {
+      providerId: 'cursor',
+      expectedArgs: ['-f', '--approve-mcps', 'Fix the issue'],
+    },
+    {
+      providerId: 'gemini',
+      expectedArgs: ['--approval-mode=yolo', '--skip-trust', '-i', 'Fix the issue'],
+    },
+    {
+      providerId: 'copilot',
+      expectedArgs: ['--allow-all', '-i', 'Fix the issue'],
+    },
+  ])('uses automation-safe auto-approve args for $providerId', ({ providerId, expectedArgs }) => {
+    const command = buildAgentCommand({
+      providerId,
+      providerConfig: providerConfigDefaults[providerId],
+      autoApprove: true,
+      initialPrompt: 'Fix the issue',
+      sessionId: 'session-1',
+    });
+
+    expect(command.args).toEqual(expectedArgs);
   });
 
   it('supports custom CLI command prefixes and appends managed provider args', () => {
@@ -172,7 +204,7 @@ describe('buildAgentCommand', () => {
       resumeArgs: ['--continue'],
     },
     { providerId: 'grok', freshArgs: [], resumeArgs: ['-r'] },
-    { providerId: 'copilot', freshArgs: ['Fix the bug'], resumeArgs: ['--resume'] },
+    { providerId: 'copilot', freshArgs: ['-i', 'Fix the bug'], resumeArgs: ['--resume'] },
     {
       providerId: 'auggie',
       freshArgs: ['--allow-indexing', 'Fix the bug'],

@@ -15,7 +15,6 @@ import ResourceMonitorSettingsCard from './ResourceMonitorSettingsCard';
 import { SshConnectionsSettingsCard } from './SshConnectionsSettingsCard';
 import {
   AutoGenerateTaskNamesRow,
-  AutoApproveAutomationAgentsRow,
   AutoTrustWorktreesRow,
   CreateBranchAndWorktreeRow,
   EnableTmuxRow,
@@ -94,9 +93,6 @@ export function SettingsPage({
         },
         {
           component: <IncludeIssueContextByDefaultRow />,
-        },
-        {
-          component: <AutoApproveAutomationAgentsRow />,
         },
         {
           component: <EnableTmuxRow />,
