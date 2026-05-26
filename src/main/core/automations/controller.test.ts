@@ -151,6 +151,22 @@ describe('automationsController.runNow', () => {
     expect(emitQueuedRun).toHaveBeenCalledWith(run);
     expect(automationSchedulerMock.drainQueue).toHaveBeenCalled();
   });
+
+  it('returns already queued when a manual run is already in flight', async () => {
+    const automation: Automation = {
+      ...draftAutomation,
+      actions: [{ kind: 'task.create' as const, prompt: 'Do the thing' }],
+      isDraft: false,
+    };
+    vi.mocked(getAutomation).mockResolvedValue(automation);
+    vi.mocked(enqueueAutomationRun).mockResolvedValue(null);
+
+    const result = await automationsController.runNow(automation.id);
+
+    expect(result).toEqual({ success: false, error: 'automation_run_already_queued' });
+    expect(emitQueuedRun).not.toHaveBeenCalled();
+    expect(automationSchedulerMock.drainQueue).not.toHaveBeenCalled();
+  });
 });
 
 describe('automationsController.removeRun', () => {

@@ -520,16 +520,18 @@ export async function enqueueAutomationRun(input: {
   deadlineAt: number | null;
   triggerKind: AutomationRunTriggerKind;
 }): Promise<AutomationRun | null> {
+  const activeRunPredicates = [
+    eq(automationRuns.automationId, input.automationId),
+    or(eq(automationRuns.status, 'queued'), eq(automationRuns.status, 'running')),
+  ];
+  if (input.triggerKind === 'cron') {
+    activeRunPredicates.push(eq(automationRuns.scheduledAt, input.scheduledAt));
+  }
+
   const existing = await db
     .select({ id: automationRuns.id })
     .from(automationRuns)
-    .where(
-      and(
-        eq(automationRuns.automationId, input.automationId),
-        eq(automationRuns.scheduledAt, input.scheduledAt),
-        or(eq(automationRuns.status, 'queued'), eq(automationRuns.status, 'running'))
-      )
-    )
+    .where(and(...activeRunPredicates))
     .limit(1);
   if (existing.length > 0) return null;
 

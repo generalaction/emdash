@@ -25,7 +25,6 @@ import {
 import { runQueuedAutomation } from './runtime';
 
 const TICK_MS = 60_000;
-const MISSED_GRACE_MS = 5 * 60_000;
 const MAX_DUE_ENQUEUE = 100;
 // Each run may allocate a worktree, PTY and agent process; keep local fan-out conservative.
 const MAX_CONCURRENT_RUNS = 4;
@@ -138,15 +137,14 @@ export class AutomationScheduler {
 
   private async bootstrapDueRuns(): Promise<void> {
     const now = Date.now();
-    const missedBefore = now - MISSED_GRACE_MS;
     const rows = await enabledCronAutomations();
     await Promise.all(
       rows.map(async (automation) => {
-        const isMissed = automation.nextRunAt != null && automation.nextRunAt < missedBefore;
-        if (isMissed) {
+        const isDue = automation.nextRunAt != null && automation.nextRunAt <= now;
+        if (isDue) {
           await this.enqueueCronAutomation(automation, automation.nextRunAt!);
         }
-        if (!automation.nextRunAt || isMissed) {
+        if (!automation.nextRunAt || isDue) {
           await this.advanceNextRun(automation, now);
         }
       })
@@ -219,7 +217,7 @@ export class AutomationScheduler {
           continue;
         }
 
-        if (entry.run.triggerKind === 'cron' && (await hasRunningRuns(entry.automation.id))) {
+        if (await hasRunningRuns(entry.automation.id)) {
           await markRunSkipped(entry.run.id, 'previous_still_running');
           madeProgress = true;
           continue;
