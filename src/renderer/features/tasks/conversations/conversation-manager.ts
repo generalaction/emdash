@@ -344,7 +344,7 @@ export class ConversationStore {
   }
 
   clearWorking() {
-    if (this.status === 'working') {
+    if (this.status === 'working' || this.status === 'awaiting-input') {
       this.setStatus('idle');
     }
   }

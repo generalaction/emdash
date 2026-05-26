@@ -16,6 +16,7 @@ import {
   getProjectStore,
   projectDisplayName,
 } from '@renderer/features/projects/stores/project-selectors';
+import { getTaskStore, taskAgentStatus } from '@renderer/features/tasks/stores/task-selectors';
 import AgentLogo from '@renderer/lib/components/agent-logo';
 import { AbsoluteTime } from '@renderer/lib/ui/absolute-time';
 import { Checkbox } from '@renderer/lib/ui/checkbox';
@@ -30,9 +31,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/toolti
 import { cn } from '@renderer/utils/utils';
 import { formatRunStatusLabel, formatTriggerLabel } from '@shared/automations/format';
 import type { Automation, AutomationRun } from '@shared/automations/types';
-import { useAutomationRunStatus } from '../automation-run-status-store';
+import { useAutomationAgentActivity, useAutomationRunStatus } from '../automation-run-status-store';
 import { automationTool } from '../automation-tools';
-import { isActiveStatus } from '../run-status-styles';
+import { activeAgentActivityIndicatorConfig, isActiveStatus } from '../run-status-styles';
 
 interface AutomationRowProps {
   automation: Automation;
@@ -79,18 +80,30 @@ export const AutomationRow = observer(function AutomationRow({
   }, [automation.name]);
 
   const dimmed = automation.isDraft || !automation.enabled;
-  const isActiveRun = runStatus ? isActiveStatus(runStatus.status) : false;
-  const isRunning = runStatus?.status === 'running';
   const tooltipLabel = primaryTool?.label ?? 'Automation';
 
   const latestRun = recentRuns && recentRuns.length > 0 ? recentRuns[0] : null;
+  const latestRunTaskId = latestRun?.createdTaskId ?? latestRun?.taskId ?? null;
+  const agentActivity = useAutomationAgentActivity(latestRunTaskId);
+  const taskStore =
+    latestRunTaskId && automation.projectId
+      ? getTaskStore(automation.projectId, latestRunTaskId)
+      : null;
+  const taskAgentActivity = taskStore ? taskAgentStatus(taskStore) : null;
+  const agentStatus = taskAgentActivity ?? agentActivity?.status ?? null;
+  const agentIndicator =
+    latestRun?.status === 'success' ? activeAgentActivityIndicatorConfig(agentStatus) : null;
   const latestRunStatusLabel = latestRun
-    ? (formatRunStatusLabel(latestRun.status) ?? 'Success')
+    ? (agentIndicator?.label ?? formatRunStatusLabel(latestRun.status) ?? 'Success')
     : null;
   const latestRunIsFailed = latestRun?.status === 'failed';
   const latestRunAt =
     latestRun?.startedAt ?? latestRun?.scheduledAt ?? latestRun?.finishedAt ?? null;
   const triggerLabel = formatTriggerLabel(automation.trigger);
+
+  const agentIsWorking = latestRun?.status === 'success' && agentStatus === 'working';
+  const isActiveRun = (runStatus ? isActiveStatus(runStatus.status) : false) || agentIsWorking;
+  const isRunning = runStatus?.status === 'running' || agentIsWorking;
 
   const hasContextMenu = Boolean(onRunNow || onToggleEnabled || onCopy || onDelete);
   const canRunNow = !automation.isDraft && !isDetached;
@@ -217,7 +230,8 @@ export const AutomationRow = observer(function AutomationRow({
           <span
             className={cn(
               'flex items-center gap-1 text-xs text-muted-foreground',
-              latestRunIsFailed && 'text-destructive'
+              latestRunIsFailed && 'text-destructive',
+              agentIndicator?.textClass
             )}
           >
             <span>{latestRunStatusLabel}</span>

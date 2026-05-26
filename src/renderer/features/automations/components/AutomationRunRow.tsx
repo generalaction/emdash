@@ -3,6 +3,7 @@ import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
 import { automationRunTool } from '@renderer/features/automations/automation-tools';
 import {
+  activeAgentActivityIndicatorConfig,
   isActiveStatus,
   statusIndicatorConfig,
 } from '@renderer/features/automations/run-status-styles';
@@ -37,6 +38,7 @@ import {
 } from '@shared/automations/format';
 import { slugFromRunId } from '@shared/automations/run-slug';
 import type { Automation, AutomationRun } from '@shared/automations/types';
+import { useAutomationAgentActivity } from '../automation-run-status-store';
 
 const automationListRowClassName =
   'group flex min-h-14 items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors focus:outline-none focus-visible:outline-none';
@@ -69,7 +71,8 @@ export const AutomationRunRow = observer(function AutomationRunRow({
   onToggleSelect,
 }: AutomationRunRowProps) {
   const { navigate } = useNavigate();
-  const taskId = run.taskId;
+  const taskId = run.createdTaskId ?? run.taskId;
+  const agentActivity = useAutomationAgentActivity(taskId);
   const taskStore = taskId && projectId ? getTaskStore(projectId, taskId) : undefined;
   const task = taskId && projectId ? getRegisteredTaskData(projectId, taskId) : undefined;
   const interactive = Boolean(taskId && task && !task.archivedAt);
@@ -82,13 +85,17 @@ export const AutomationRunRow = observer(function AutomationRunRow({
 
   const tool = useMemo(() => automationRunTool(run, automation), [automation, run]);
   const isFailed = run.status === 'failed';
-  const agentStatus = taskStore ? taskAgentStatus(taskStore) : null;
-  const agentIsWorking = agentStatus === 'working';
-  const isActive = isActiveStatus(run.status) || agentIsWorking;
+  const taskAgentActivity = taskStore ? taskAgentStatus(taskStore) : null;
+  const agentStatus = taskAgentActivity ?? agentActivity?.status ?? null;
+  const agentIndicator =
+    run.status === 'success' ? activeAgentActivityIndicatorConfig(agentStatus) : null;
+  const agentIsWorking = run.status === 'success' && agentStatus === 'working';
+  const isRunWorking = isActiveStatus(run.status) || agentIsWorking;
   const missedDeadline = isQueueDeadlineExceededRun(run);
   const errorMessage = run.error ? formatRunError(run.error) : undefined;
   const status = statusIndicatorConfig(run.status);
-  const StatusIcon = status.Icon;
+  const displayStatus = agentIndicator ?? status;
+  const StatusIcon = displayStatus.Icon;
   const projectName = showProjectName
     ? projectId
       ? projectDisplayName(getProjectStore(projectId))
@@ -109,6 +116,8 @@ export const AutomationRunRow = observer(function AutomationRunRow({
   const displayTime = run.startedAt ?? run.scheduledAt ?? run.finishedAt;
   const triggerLabel = formatRunTriggerKindLabel(run.triggerKind);
   const isListLayout = variant === 'card';
+  const showCardStatus = run.status !== 'running' && !agentIsWorking;
+  const showRunningSpinner = run.status === 'running' || agentIsWorking;
 
   function handleOpenTask() {
     if (!taskId || !projectId || !interactive) return;
@@ -119,7 +128,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
 
   const selectable = Boolean(onToggleSelect);
 
-  const agentIconWithStatusDot = (
+  const agentIconWithStatusIndicator = (
     <>
       {tool ? (
         <AgentLogo
@@ -132,18 +141,27 @@ export const AutomationRunRow = observer(function AutomationRunRow({
       ) : (
         <Bot className="size-5" />
       )}
-      <span
-        aria-hidden
-        className={cn(
-          'absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full ring-2 ring-background',
-          status.dotClass,
-          status.spin && 'animate-pulse'
-        )}
-      />
+      {showRunningSpinner ? (
+        <span
+          aria-hidden
+          className="absolute -right-1 -bottom-1 flex size-4 items-center justify-center rounded-full bg-background font-mono text-[11px] leading-none ring-2 ring-background [&>span]:leading-none"
+        >
+          <CLISpinner />
+        </span>
+      ) : (
+        <span
+          aria-hidden
+          className={cn(
+            'absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full ring-2 ring-background',
+            displayStatus.dotClass,
+            displayStatus.spin && 'animate-pulse'
+          )}
+        />
+      )}
     </>
   );
-  const iconContent = isActive ? <CLISpinner /> : agentIconWithStatusDot;
-  const iconTooltip = agentIsWorking ? `${tool?.label ?? 'Agent'} is working` : status.label;
+  const iconContent = agentIconWithStatusIndicator;
+  const iconTooltip = agentIndicator?.label ?? status.label;
 
   const listIconSlot = selectable ? (
     <div className="relative flex size-9 shrink-0 items-center justify-center">
@@ -249,7 +267,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
               <span
                 className={cn(
                   'block min-w-0 max-w-full truncate text-left text-sm font-medium text-foreground',
-                  isActive && 'text-shimmer'
+                  isRunWorking && 'text-shimmer'
                 )}
               >
                 {automationLabel}
@@ -265,6 +283,19 @@ export const AutomationRunRow = observer(function AutomationRunRow({
                 <Clock className="size-3 shrink-0" />
                 <span className="truncate">{triggerLabel}</span>
               </span>
+              {showCardStatus ? (
+                <span
+                  className={cn(
+                    'inline-flex shrink-0 items-center gap-1.5',
+                    displayStatus.textClass
+                  )}
+                >
+                  <StatusIcon
+                    className={cn('size-3 shrink-0', displayStatus.spin && 'animate-spin')}
+                  />
+                  <span>{displayStatus.label}</span>
+                </span>
+              ) : null}
             </div>
 
             {errorMessage ? (
@@ -294,7 +325,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
                 className={cn(
                   'block min-w-0 max-w-full truncate text-left text-sm font-medium',
                   isFailed ? 'text-destructive' : 'text-foreground',
-                  isActive && !isFailed && 'text-shimmer'
+                  isRunWorking && !isFailed && 'text-shimmer'
                 )}
               >
                 {runName}
@@ -309,9 +340,9 @@ export const AutomationRunRow = observer(function AutomationRunRow({
           </div>
 
           <div className="text-muted-foreground flex shrink-0 items-center gap-1 text-xs">
-            <span className={cn('inline-flex items-center gap-1', status.textClass)}>
-              <StatusIcon className={cn('size-3 shrink-0', status.spin && 'animate-spin')} />
-              <span>{status.label}</span>
+            <span className={cn('inline-flex items-center gap-1', displayStatus.textClass)}>
+              <StatusIcon className={cn('size-3 shrink-0', displayStatus.spin && 'animate-spin')} />
+              <span>{displayStatus.label}</span>
             </span>
             {metaParts.length > 0 ? <span className="text-muted-foreground/40">·</span> : null}
             {metaParts.map((part, index) => (
