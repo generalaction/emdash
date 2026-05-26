@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { Remote } from '@shared/git';
 import { ok } from '@shared/result';
 import type { ProjectSettingsProvider } from '../settings/provider';
@@ -79,6 +80,43 @@ describe('WorktreeService', () => {
       resolveWorktreePoolPath: overrides.resolveWorktreePoolPath ?? (async () => worktreePoolPath),
     });
   }
+
+  it('uses the injected host path API for worktree paths', async () => {
+    const remoteHost: WorktreeHost = {
+      existsAbsolute: vi.fn().mockResolvedValue(false),
+      mkdirAbsolute: vi.fn().mockResolvedValue(undefined),
+      removeAbsolute: vi.fn().mockResolvedValue({ success: true }),
+      realPathAbsolute: vi.fn().mockResolvedValue('/remote/worktrees/project'),
+      globAbsolute: vi.fn().mockResolvedValue([]),
+      readFileAbsolute: vi.fn().mockResolvedValue(''),
+      copyFileAbsolute: vi.fn().mockResolvedValue(undefined),
+      statAbsolute: vi.fn().mockResolvedValue(null),
+      pathApi: {
+        join: (...segments: string[]) => `host:${path.posix.join(...segments)}`,
+        dirname: (input: string) => `host-dir:${path.posix.dirname(input.replace(/^host:/, ''))}`,
+      },
+    };
+    const remoteCtx = {
+      root: '/remote/repo',
+      supportsLocalSpawn: false,
+      exec: vi.fn().mockResolvedValue({ stdout: '', stderr: '' }),
+      execStreaming: vi.fn().mockResolvedValue(undefined),
+      dispose: vi.fn(),
+    } satisfies IExecutionContext;
+    const svc = new WorktreeService({
+      repoPath: '/remote/repo',
+      ctx: remoteCtx,
+      host: remoteHost,
+      projectSettings: makeSettings(),
+      resolveWorktreePoolPath: async () => '/remote/worktrees/project',
+    });
+
+    await expect(svc.getWorktree('emdash/task-abc')).resolves.toBeUndefined();
+
+    expect(remoteHost.existsAbsolute).toHaveBeenCalledWith(
+      'host:/remote/worktrees/project/emdash/task-abc'
+    );
+  });
 
   describe('checkoutBranchWorktree', () => {
     it('ignores stale worktree-list entries under the pool', async () => {
