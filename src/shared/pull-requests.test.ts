@@ -21,4 +21,22 @@ describe('pullRequestErrorMessage', () => {
       'GitHub Enterprise authentication required for ghe.example.com. Run: gh auth login --hostname ghe.example.com'
     );
   });
+
+  it('formats host reachability errors for any GitHub host', () => {
+    expect(
+      pullRequestErrorMessage({
+        type: 'host_unreachable',
+        host: 'github.com',
+        reason: 'Connect Timeout Error',
+      })
+    ).toBe('Unable to reach GitHub host github.com: Connect Timeout Error');
+
+    expect(
+      pullRequestErrorMessage({
+        type: 'host_unreachable',
+        host: 'ghe.example.com',
+        reason: 'Connect Timeout Error',
+      })
+    ).toBe('Unable to reach GitHub host ghe.example.com: Connect Timeout Error');
+  });
 });

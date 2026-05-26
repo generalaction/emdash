@@ -4,6 +4,7 @@ import type { GitHubApiAuthError } from '@main/core/github/services/github-api-a
 import { err, ok } from '@shared/result';
 import type { Result } from '@shared/result';
 import { PrSyncEngine } from './pr-sync-engine';
+import { toPrApiError } from './pr-sync-errors';
 
 vi.mock('@main/core/github/services/octokit-provider', () => ({
   getOctokit: vi.fn(),
@@ -98,6 +99,19 @@ describe('PrSyncEngine', () => {
         hint: 'Run: gh auth login --hostname ghe.example.com',
       })
     );
+  });
+
+  it('maps GitHub network timeouts to host reachability errors', () => {
+    const error = Object.assign(
+      new Error('Connect Timeout Error (attempted address: api.github.com:443, timeout: 10000ms)'),
+      { status: 500 }
+    );
+
+    expect(toPrApiError(error, 'Unable to sync pull requests', 'github.com')).toEqual({
+      type: 'host_unreachable',
+      host: 'github.com',
+      reason: 'Connect Timeout Error (attempted address: api.github.com:443, timeout: 10000ms)',
+    });
   });
 
   it('preserves typed auth errors for duplicate in-flight single PR sync calls', async () => {
