@@ -1,4 +1,5 @@
 import { Buffer } from 'node:buffer';
+import ampPluginContent from './amp-emdash-plugin.ts?raw';
 import openCodePluginContent from './opencode-notifications-plugin.js?raw';
 
 type HookPostPayload = 'stdin' | { json: Record<string, string> };
@@ -64,6 +65,10 @@ export function makeClaudeHookCommand(eventType: string, options: HookCommandOpt
 
 export function makeOpenCodePluginContent(): string {
   return openCodePluginContent;
+}
+
+export function makeAmpPluginContent(): string {
+  return ampPluginContent;
 }
 
 export function makeCodexHookCommand(
