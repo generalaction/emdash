@@ -94,11 +94,13 @@ export class LocalConversationProvider implements ConversationProvider {
       providerId: conversation.providerId,
       cwd: this.taskPath,
       homedir: homedir(),
+      force: conversation.autoApprove === true,
     });
     await cursorTrustService.maybeAutoTrustLocal({
       providerId: conversation.providerId,
       cwd: this.taskPath,
       homedir: homedir(),
+      force: conversation.autoApprove === true,
     });
     const hooksAvailable = await this.prepareHookConfig(conversation.providerId);
 

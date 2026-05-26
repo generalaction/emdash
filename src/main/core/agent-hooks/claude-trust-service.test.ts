@@ -97,6 +97,20 @@ describe('ClaudeTrustService', () => {
     expect(mockWriteFile).not.toHaveBeenCalled();
   });
 
+  it('trusts Claude worktrees when forced even if auto-trust is disabled', async () => {
+    const service = makeService({ autoTrustWorktrees: false });
+
+    await service.maybeAutoTrustLocal({
+      providerId: 'claude',
+      cwd: '/tmp/worktree',
+      homedir: '/home/local-user',
+      force: true,
+    });
+
+    expect(mockReadFile).toHaveBeenCalledWith('/home/local-user/.claude.json', 'utf8');
+    expect(mockWriteFile).toHaveBeenCalledTimes(1);
+  });
+
   it('writes local config atomically when missing', async () => {
     const service = makeService();
     const relPath = './relative/path';

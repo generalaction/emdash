@@ -90,12 +90,14 @@ export class SshConversationProvider implements ConversationProvider {
       cwd: this.taskPath,
       ctx: this.ctx,
       remoteFs,
+      force: conversation.autoApprove === true,
     });
     await cursorTrustService.maybeAutoTrustSsh({
       providerId: conversation.providerId,
       cwd: this.taskPath,
       ctx: this.ctx,
       remoteFs,
+      force: conversation.autoApprove === true,
     });
 
     const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);

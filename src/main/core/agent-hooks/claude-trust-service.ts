@@ -29,13 +29,15 @@ export class ClaudeTrustService {
     providerId,
     cwd,
     homedir,
+    force = false,
   }: {
     providerId: AgentProviderId;
     cwd?: string;
     homedir: string;
+    force?: boolean;
   }): Promise<void> {
     if (!cwd) return;
-    if (!(await this.shouldAutoTrust(providerId))) return;
+    if (!(await this.shouldAutoTrust(providerId, force))) return;
     const normalizedPath = path.resolve(cwd);
     const configPath = path.join(homedir, CLAUDE_CONFIG_NAME);
     await this.withLock(configPath, () =>
@@ -51,14 +53,16 @@ export class ClaudeTrustService {
     cwd,
     ctx,
     remoteFs,
+    force = false,
   }: {
     providerId: AgentProviderId;
     cwd?: string;
     ctx: IExecutionContext;
     remoteFs: Pick<FileSystemProvider, 'realPath' | 'read' | 'write'>;
+    force?: boolean;
   }): Promise<void> {
     if (!cwd) return;
-    if (!(await this.shouldAutoTrust(providerId))) return;
+    if (!(await this.shouldAutoTrust(providerId, force))) return;
 
     const normalizedPath = await remoteFs.realPath(cwd).catch(() => path.posix.resolve('/', cwd));
     const homeDir = await resolveRemoteHome(ctx);
@@ -72,8 +76,9 @@ export class ClaudeTrustService {
     );
   }
 
-  private async shouldAutoTrust(providerId: AgentProviderId): Promise<boolean> {
+  private async shouldAutoTrust(providerId: AgentProviderId, force: boolean): Promise<boolean> {
     if (providerId !== CLAUDE_PROVIDER_ID) return false;
+    if (force) return true;
     const { autoTrustWorktrees } = await this.deps.getTaskSettings();
     return autoTrustWorktrees;
   }

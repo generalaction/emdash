@@ -110,6 +110,22 @@ describe('CursorTrustService', () => {
     expect(mockWriteFile).not.toHaveBeenCalled();
   });
 
+  it('trusts Cursor workspaces when forced even if auto-trust is disabled', async () => {
+    const service = makeService({ autoTrustWorktrees: false });
+
+    await service.maybeAutoTrustLocal({
+      providerId: 'cursor',
+      cwd: '/tmp/worktree',
+      homedir: '/home/local-user',
+      force: true,
+    });
+
+    expect(mockAccess).toHaveBeenCalledWith(
+      '/home/local-user/.cursor/projects/tmp-worktree/.workspace-trusted'
+    );
+    expect(mockWriteFile).toHaveBeenCalledTimes(1);
+  });
+
   it('writes the local Cursor workspace trust marker when missing', async () => {
     const service = makeService();
 
@@ -148,7 +164,7 @@ describe('CursorTrustService', () => {
     expect(mockWriteFile).not.toHaveBeenCalled();
   });
 
-  it('matches Cursor CLI project directory hashing for long workspace paths', async () => {
+  it('matches Cursor CLI workspace trust directory derivation for long workspace paths', async () => {
     const service = makeService();
 
     await service.maybeAutoTrustLocal({
@@ -158,7 +174,7 @@ describe('CursorTrustService', () => {
     });
 
     expect(mockWriteFile).toHaveBeenCalledWith(
-      '/Users/janburzinski/.cursor/projects/Users-janburzinski-emdash-worktrees-emdash-offi-4eb6c5b/.workspace-trusted',
+      '/Users/janburzinski/.cursor/projects/Users-janburzinski-emdash-worktrees-emdash-official-tough-falcons-notice/.workspace-trusted',
       expect.any(String),
       'utf8'
     );

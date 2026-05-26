@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import type { IExecutionContext } from '@main/core/execution-context/types';
@@ -18,10 +17,6 @@ const CURSOR_PROJECTS_DIR_NAME = 'projects';
 const CURSOR_TRUST_MARKER_NAME = '.workspace-trusted';
 const CURSOR_TRUST_MARKER_MAX_BYTES = 1024;
 
-const HASH_PREFIX_LENGTH = 7;
-const PROJECT_DIR_PREFIX_MAX_LENGTH = 103 - HASH_PREFIX_LENGTH - 1 - 11;
-const PROJECT_DIR_MAX_LENGTH = 92;
-
 export class CursorTrustService {
   constructor(
     private readonly deps: {
@@ -33,13 +28,15 @@ export class CursorTrustService {
     providerId,
     cwd,
     homedir,
+    force = false,
   }: {
     providerId: AgentProviderId;
     cwd?: string;
     homedir: string;
+    force?: boolean;
   }): Promise<void> {
     if (!cwd) return;
-    if (!(await this.shouldAutoTrust(providerId))) return;
+    if (!(await this.shouldAutoTrust(providerId, force))) return;
 
     const workspacePath = path.resolve(cwd);
     const dataDir = path.join(homedir, CURSOR_DATA_DIR_NAME);
@@ -59,14 +56,16 @@ export class CursorTrustService {
     cwd,
     ctx,
     remoteFs,
+    force = false,
   }: {
     providerId: AgentProviderId;
     cwd?: string;
     ctx: IExecutionContext;
     remoteFs: Pick<FileSystemProvider, 'realPath' | 'read' | 'write'>;
+    force?: boolean;
   }): Promise<void> {
     if (!cwd) return;
-    if (!(await this.shouldAutoTrust(providerId))) return;
+    if (!(await this.shouldAutoTrust(providerId, force))) return;
 
     const workspacePath = await remoteFs.realPath(cwd).catch(() => path.posix.resolve('/', cwd));
     const homeDir = await resolveRemoteHome(ctx);
@@ -82,8 +81,9 @@ export class CursorTrustService {
     });
   }
 
-  private async shouldAutoTrust(providerId: AgentProviderId): Promise<boolean> {
+  private async shouldAutoTrust(providerId: AgentProviderId, force: boolean): Promise<boolean> {
     if (providerId !== CURSOR_PROVIDER_ID) return false;
+    if (force) return true;
     const { autoTrustWorktrees } = await this.deps.getTaskSettings();
     return autoTrustWorktrees;
   }
@@ -127,21 +127,8 @@ function cursorProjectDir(
   dataDir: string,
   pathImpl: Pick<typeof path, 'join'>
 ): string {
-  // Mirrors Cursor CLI's project-directory derivation so the interactive agent sees the marker.
-  let root = pathImpl.join(dataDir, CURSOR_PROJECTS_DIR_NAME);
-  if (root.length > PROJECT_DIR_PREFIX_MAX_LENGTH) {
-    root = dataDir;
-    if (root.length > PROJECT_DIR_PREFIX_MAX_LENGTH) root = '/tmp/.cursor';
-  }
-
-  const projectDir = pathImpl.join(root, slugifyPath(workspacePath));
-  if (projectDir.length <= PROJECT_DIR_MAX_LENGTH) return projectDir;
-
-  const hash = createHash('sha256')
-    .update(projectDir)
-    .digest('hex')
-    .substring(0, HASH_PREFIX_LENGTH);
-  return `${projectDir.substring(0, Math.min(PROJECT_DIR_PREFIX_MAX_LENGTH, projectDir.length))}-${hash}`;
+  // Mirrors Cursor CLI's workspace trust lookup: cursor-config Xq(workspacePath).
+  return pathImpl.join(dataDir, CURSOR_PROJECTS_DIR_NAME, slugifyPath(workspacePath));
 }
 
 function slugifyPath(value: string): string {
