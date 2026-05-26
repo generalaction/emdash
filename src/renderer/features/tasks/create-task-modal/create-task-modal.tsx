@@ -196,7 +196,6 @@ export const CreateTaskModal = observer(function CreateTaskModal({
       <DialogHeader className="flex items-center gap-2">
         <DialogTitle>Create Task</DialogTitle>
       </DialogHeader>
-
       <DialogContentArea>
         <div className="flex w-full flex-col gap-5">
           {/* Task name */}
@@ -235,7 +234,6 @@ export const CreateTaskModal = observer(function CreateTaskModal({
                   projectPath={projectData?.path}
                 />
               )}
-
               {state.linkedType === 'pr' && (
                 <>
                   {!repositoryUrl && (

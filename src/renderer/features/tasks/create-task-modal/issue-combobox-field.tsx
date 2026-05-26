@@ -1,6 +1,5 @@
 import {
   ISSUE_PROVIDER_META,
-  ISSUE_PROVIDER_ORDER,
 } from '@renderer/features/integrations/issue-provider-meta';
 import {
   IssueSelector,
@@ -8,7 +7,6 @@ import {
   ProviderLogo,
   SelectedIssueValue,
 } from '@renderer/features/tasks/components/issue-selector/issue-selector';
-import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/ui/select';
 import { cn } from '@renderer/utils/utils';
 import type { Issue } from '@shared/tasks';
 
@@ -25,39 +23,16 @@ interface IssueComboboxFieldProps {
 function ModalPlaceholder({
   issueProvider,
   connectedProviderCount,
-  isProviderDisabled,
-  setSelectedIssueProvider,
 }: IssueSelectorTriggerContext) {
   return (
-    <span className="flex w-full items-center justify-center gap-2 p-2 text-sm text-foreground-passive transition-colors hover:bg-background-2">
+    <span className="flex w-full items-center justify-center gap-2 p-2 h-14 text-sm text-foreground-passive transition-colors hover:bg-background-2">
       Select a
       {connectedProviderCount > 1 ? (
-        <Select
-          value={issueProvider ?? undefined}
-          onValueChange={(v) => v && setSelectedIssueProvider(v as Issue['provider'])}
-        >
-          <SelectTrigger
-            aria-label="Select issue provider"
-            className="flex h-auto items-center gap-1 border-none bg-transparent p-0 text-foreground-muted shadow-none hover:text-foreground focus:ring-0"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {issueProvider && <ProviderLogo provider={issueProvider} className="size-3.5" />}
-            <span>{issueProvider ? ISSUE_PROVIDER_META[issueProvider].displayName : 'issue'}</span>
-          </SelectTrigger>
-          <SelectContent>
-            {ISSUE_PROVIDER_ORDER.map((p) => (
-              <SelectItem
-                key={p}
-                value={p}
-                disabled={isProviderDisabled(p)}
-                className="text-foreground-secondary hover:text-foreground"
-              >
-                <ProviderLogo provider={p} className="size-3.5" />
-                {ISSUE_PROVIDER_META[p].displayName}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <span className="flex items-center gap-1">
+
+          {issueProvider && <ProviderLogo provider={issueProvider} className="size-3.5 opacity-40" />}
+          <span>{issueProvider ? ISSUE_PROVIDER_META[issueProvider].displayName : 'issue'}</span>
+        </span>
       ) : (
         issueProvider && (
           <span className="flex items-center gap-1">

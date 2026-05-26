@@ -47,7 +47,7 @@ export function PrComboboxField({
         </div>
       )}
       renderPlaceholder={() => (
-        <div className={cn('w-full', disabled && 'pointer-events-none opacity-50', className)}>
+        <div className={cn('w-full h-14', disabled && 'pointer-events-none opacity-50', className)}>
           <span className="flex w-full items-center justify-center gap-2 p-2 text-sm text-foreground-passive transition-colors hover:bg-background-2">
             Select a PR from
             {repoRef ? (
