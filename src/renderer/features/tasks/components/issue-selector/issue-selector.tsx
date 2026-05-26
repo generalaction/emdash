@@ -30,6 +30,8 @@ import { useIssueSearch } from './useIssueSearch';
 function getStatusColorClass(status?: string) {
   if (!status) return '';
   const s = status.toLowerCase();
+  if (s.includes('blocked') || s.includes('cancelled') || s.includes('canceled'))
+    return 'bg-foreground-error';
   if (
     s.includes('done') ||
     s.includes('closed') ||
@@ -37,10 +39,8 @@ function getStatusColorClass(status?: string) {
     s.includes('completed')
   )
     return 'bg-foreground-success';
-  if (s.includes('progress') || s.includes('review') || s.includes('open'))
+  if (s.includes('progress') || s.includes('review'))
     return 'bg-foreground-warning';
-  if (s.includes('blocked') || s.includes('cancelled') || s.includes('canceled'))
-    return 'bg-foreground-error';
   return 'bg-foreground-passive';
 }
 
@@ -152,6 +152,11 @@ export function hasMeaningfulPriority(issue: Issue): boolean {
   return !!priority && priority !== 'no priority';
 }
 
+function shouldShowStatusDot(issue: Issue): boolean {
+  if (!issue.status) return false;
+  return !(issue.provider === 'github' && issue.status.toLowerCase() === 'open');
+}
+
 export function LinkedIssueIndicator({ linkedTo }: { linkedTo: LinkedIssueInfo }) {
   return (
     <Tooltip>
@@ -180,10 +185,12 @@ export function IssueRow({
     <span className="flex w-full min-w-0 items-center gap-3">
       <IssuePriorityIcon priority={issue.priority} reserveSpace={reservePrioritySpace} />
       <IssueIdentifier identifier={issue.identifier} provider={issue.provider} />
-      <Tooltip>
-        <TooltipTrigger render={<StatusDot status={issue.status} />} />
-        <TooltipContent>{issue.status}</TooltipContent>
-      </Tooltip>
+      {shouldShowStatusDot(issue) ? (
+        <Tooltip>
+          <TooltipTrigger render={<StatusDot status={issue.status} />} />
+          <TooltipContent>{issue.status}</TooltipContent>
+        </Tooltip>
+      ) : null}
       {issue.title ? <span className="truncate text-foreground">{issue.title}</span> : null}
       {linkedTo ? <LinkedIssueIndicator linkedTo={linkedTo} /> : null}
     </span>
