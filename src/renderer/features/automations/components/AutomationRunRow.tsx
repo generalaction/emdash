@@ -10,7 +10,13 @@ import {
   getProjectStore,
   projectDisplayName,
 } from '@renderer/features/projects/stores/project-selectors';
-import { getRegisteredTaskData, getTaskView } from '@renderer/features/tasks/stores/task-selectors';
+import { CLISpinner } from '@renderer/features/tasks/components/cliSpinner';
+import {
+  getRegisteredTaskData,
+  getTaskStore,
+  getTaskView,
+  taskAgentStatus,
+} from '@renderer/features/tasks/stores/task-selectors';
 import AgentLogo from '@renderer/lib/components/agent-logo';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { AbsoluteTime } from '@renderer/lib/ui/absolute-time';
@@ -64,6 +70,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
 }: AutomationRunRowProps) {
   const { navigate } = useNavigate();
   const taskId = run.taskId;
+  const taskStore = taskId && projectId ? getTaskStore(projectId, taskId) : undefined;
   const task = taskId && projectId ? getRegisteredTaskData(projectId, taskId) : undefined;
   const interactive = Boolean(taskId && task && !task.archivedAt);
   const hadAgent = Boolean(run.createdTaskId);
@@ -75,7 +82,9 @@ export const AutomationRunRow = observer(function AutomationRunRow({
 
   const tool = useMemo(() => automationRunTool(run, automation), [automation, run]);
   const isFailed = run.status === 'failed';
-  const isActive = isActiveStatus(run.status);
+  const agentStatus = taskStore ? taskAgentStatus(taskStore) : null;
+  const agentIsWorking = agentStatus === 'working';
+  const isActive = isActiveStatus(run.status) || agentIsWorking;
   const missedDeadline = isQueueDeadlineExceededRun(run);
   const errorMessage = run.error ? formatRunError(run.error) : undefined;
   const status = statusIndicatorConfig(run.status);
@@ -133,6 +142,8 @@ export const AutomationRunRow = observer(function AutomationRunRow({
       />
     </>
   );
+  const iconContent = isActive ? <CLISpinner /> : agentIconWithStatusDot;
+  const iconTooltip = agentIsWorking ? `${tool?.label ?? 'Agent'} is working` : status.label;
 
   const listIconSlot = selectable ? (
     <div className="relative flex size-9 shrink-0 items-center justify-center">
@@ -143,7 +154,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
           isSelected ? 'opacity-0' : 'opacity-100 group-hover:opacity-0'
         )}
       >
-        {agentIconWithStatusDot}
+        {iconContent}
       </span>
       <div
         onClick={(event) => event.stopPropagation()}
@@ -164,10 +175,10 @@ export const AutomationRunRow = observer(function AutomationRunRow({
     <Tooltip>
       <TooltipTrigger>
         <span className="relative flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-background-1 text-foreground shadow-sm">
-          {agentIconWithStatusDot}
+          {iconContent}
         </span>
       </TooltipTrigger>
-      <TooltipContent>{status.label}</TooltipContent>
+      <TooltipContent>{iconTooltip}</TooltipContent>
     </Tooltip>
   );
 
@@ -180,7 +191,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
           isSelected ? 'opacity-0' : 'opacity-100 group-hover:opacity-0'
         )}
       >
-        {agentIconWithStatusDot}
+        {iconContent}
       </span>
       <div
         onClick={(event) => event.stopPropagation()}
@@ -201,10 +212,10 @@ export const AutomationRunRow = observer(function AutomationRunRow({
     <Tooltip>
       <TooltipTrigger>
         <span className="relative flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-background-1 text-foreground shadow-sm">
-          {agentIconWithStatusDot}
+          {iconContent}
         </span>
       </TooltipTrigger>
-      <TooltipContent>{status.label}</TooltipContent>
+      <TooltipContent>{iconTooltip}</TooltipContent>
     </Tooltip>
   );
 
