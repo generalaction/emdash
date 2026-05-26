@@ -57,6 +57,7 @@ export const ProviderSelect: React.FC<ProviderSelectProps> = ({
                 {logo && (
                   <AgentLogo
                     logo={logo.logo}
+                    logoDark={logo.logoDark}
                     alt={logo.alt}
                     isSvg={logo.isSvg}
                     invertInDark={logo.invertInDark}
