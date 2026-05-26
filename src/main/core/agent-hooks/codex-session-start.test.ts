@@ -1,5 +1,17 @@
-import { describe, expect, it } from 'vitest';
-import { extractCodexProviderSessionId } from './codex-session-id';
+import { describe, expect, it, vi } from 'vitest';
+import { extractCodexProviderSessionId } from './codex-session-start';
+
+vi.mock('@main/core/conversations/set-provider-session-id', () => ({
+  setProviderSessionId: vi.fn(),
+}));
+
+vi.mock('@main/lib/events', () => ({
+  events: { emit: vi.fn() },
+}));
+
+vi.mock('./event-enricher', () => ({
+  enrichEvent: vi.fn(),
+}));
 
 describe('extractCodexProviderSessionId', () => {
   it('prefers session_id from Codex hook payloads', () => {
