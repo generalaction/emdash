@@ -204,7 +204,10 @@ export class WorktreeService {
 
     const targetPath = path.join(await this.resolveWorktreePoolPath(), branchName);
     if (await this.host.existsAbsolute(targetPath)) {
-      if (await this.isValidWorktree(targetPath)) return ok(targetPath);
+      if (await this.isValidWorktree(targetPath)) {
+        await this.ensureBranchBaseConfig(branchName, baseConfigValue);
+        return ok(targetPath);
+      }
       await this.host.removeAbsolute(targetPath, { recursive: true }).catch(() => {});
       await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
     }
