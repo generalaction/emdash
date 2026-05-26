@@ -6,8 +6,6 @@ import type { ActionError, ActionOutcome } from './actions/types';
 import { updateAutomationSchedule } from './repo';
 import { markRunFailed, markRunSkipped, markRunSucceeded } from './run-transitions';
 
-export { emitRunUpdated } from './run-transitions';
-
 export async function runQueuedAutomation(
   automation: Automation,
   initialRun: AutomationRun
