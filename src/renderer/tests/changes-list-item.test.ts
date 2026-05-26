@@ -60,6 +60,29 @@ describe('ChangesListItem', () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
+  it('does not trigger row pointer activation from the checkbox', () => {
+    const onOpen = vi.fn();
+
+    act(() => {
+      root.render(
+        React.createElement(ChangesListItem, {
+          change,
+          onPointerDown: onOpen,
+          onToggleSelect: vi.fn(),
+        })
+      );
+    });
+
+    const checkbox = container.querySelector('[aria-label="Select example.ts"]');
+    expect(checkbox).not.toBeNull();
+
+    act(() => {
+      checkbox?.dispatchEvent(new dom.window.PointerEvent('pointerdown', { bubbles: true }));
+    });
+
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
   it('opens the diff row when clicking the file row outside the checkbox', () => {
     const onOpen = vi.fn();
 
