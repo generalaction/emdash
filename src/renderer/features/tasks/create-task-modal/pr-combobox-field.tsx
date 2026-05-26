@@ -5,7 +5,7 @@ import {
 } from '@renderer/features/tasks/components/pr-selector/pr-selector';
 import { cn } from '@renderer/utils/utils';
 import type { PullRequest } from '@shared/pull-requests';
-import { parseGitHubRepository } from '@shared/github-repository';
+import { parseRepositoryRef } from '@shared/repository-ref';
 
 interface PrComboboxFieldProps {
   value: PullRequest | null;
@@ -26,7 +26,7 @@ export function PrComboboxField({
   disabled,
   className,
 }: PrComboboxFieldProps) {
-  const repoRef = repositoryUrl ? parseGitHubRepository(repositoryUrl) : null;
+  const repoRef = repositoryUrl ? parseRepositoryRef(repositoryUrl) : null;
 
   return (
     <PrSelector
@@ -48,11 +48,11 @@ export function PrComboboxField({
       )}
       renderPlaceholder={() => (
         <div className={cn('w-full h-14', disabled && 'pointer-events-none opacity-50', className)}>
-          <span className="flex w-full items-center justify-center gap-2 p-2 text-sm text-foreground-passive transition-colors hover:bg-background-2">
+          <span className="flex w-full h-full items-center justify-center gap-2 p-2 text-sm text-foreground-passive transition-colors hover:bg-background-2">
             Select a PR from
             {repoRef ? (
-              <span className="flex items-center gap-1 text-foreground-muted h-8">
-                <GitHubIcon className="size-3.5" />
+              <span className="flex items-center gap-1 text-foreground-passive h-8">
+                <GitHubIcon className="size-3.5 opacity-40" />
                 <span>{repoRef.nameWithOwner}</span>
               </span>
             ) : null}

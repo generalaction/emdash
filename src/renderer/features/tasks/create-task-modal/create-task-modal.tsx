@@ -76,7 +76,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const currentBranch = repo?.currentBranch ?? null;
 
   const repositoryUrl = selectedProjectId
-    ? (getRepositoryStore(selectedProjectId)?.repositoryUrl ?? undefined)
+    ? (getRepositoryStore(selectedProjectId)?.pullRequestRepositoryUrl ?? undefined)
     : undefined;
 
   const resolvedInitialPR = initialStrategy === 'from-pull-request' ? initialPR : undefined;
