@@ -1,14 +1,14 @@
 import { ExternalLink, Link2, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { forwardRef, useCallback, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   ISSUE_PROVIDER_META,
   ISSUE_PROVIDER_ORDER,
 } from '@renderer/features/integrations/issue-provider-meta';
 import { PROVIDER_ICON_COMPONENTS } from '@renderer/features/integrations/provider-icons';
+import { IssueStatusIndicator, toIssueStatus } from '@renderer/lib/components/issue-status-indicator';
 import { rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
-import { Badge } from '@renderer/lib/ui/badge';
 import { Button } from '@renderer/lib/ui/button';
 import {
   Combobox,
@@ -27,23 +27,6 @@ import type { Issue } from '@shared/tasks';
 import { getLinkedIssueMap, type LinkedIssueInfo } from './use-linked-issue-urls';
 import { useIssueSearch } from './useIssueSearch';
 
-function getStatusColorClass(status?: string) {
-  if (!status) return '';
-  const s = status.toLowerCase();
-  if (
-    s.includes('done') ||
-    s.includes('closed') ||
-    s.includes('resolved') ||
-    s.includes('completed')
-  )
-    return 'bg-foreground-success';
-  if (s.includes('progress') || s.includes('review') || s.includes('open'))
-    return 'bg-foreground-warning';
-  if (s.includes('blocked') || s.includes('cancelled') || s.includes('canceled'))
-    return 'bg-foreground-error';
-  return 'bg-foreground-passive';
-}
-
 export function IssueIdentifier({
   identifier,
   provider,
@@ -53,25 +36,11 @@ export function IssueIdentifier({
 }) {
   if (provider === 'asana') return null;
   return (
-    <span className="text-muted-foreground group-hover:text-muted-foreground shrink-0 font-mono text-xs font-medium whitespace-nowrap">
+    <span className="shrink-0 font-mono text-xs font-medium whitespace-nowrap text-foreground-muted">
       {identifier}
     </span>
   );
 }
-
-export const StatusDot = forwardRef<HTMLSpanElement, { status?: string }>(
-  ({ status, ...props }, ref) => {
-    if (!status) return null;
-    const color = getStatusColorClass(status);
-    return (
-      <span
-        ref={ref}
-        {...props}
-        className={cn('inline-block h-1.5 w-1.5 shrink-0 rounded-full', color)}
-      />
-    );
-  }
-);
 
 export function ProviderLogo({
   provider,
@@ -113,14 +82,18 @@ export function LinkedIssueIndicator({ linkedTo }: { linkedTo: LinkedIssueInfo }
 
 export function IssueRow({ issue, linkedTo }: { issue: Issue; linkedTo?: LinkedIssueInfo }) {
   return (
-    <span className="flex w-full min-w-0 items-center gap-2">
-      <Tooltip>
-        <TooltipTrigger render={<StatusDot status={issue.status} />} />
-        <TooltipContent>{issue.status}</TooltipContent>
-      </Tooltip>
+    <span className="flex w-full min-w-0 items-center justify-between gap-2">
+      <div className="flex min-w-0 items-center gap-2">
+        <Tooltip>
+          <TooltipTrigger render={<IssueStatusIndicator status={toIssueStatus(issue.status)} />} />
+          <TooltipContent>{issue.status}</TooltipContent>
+        </Tooltip>
+        <span className="flex min-w-0 items-center gap-2">
+          {issue.title ? <span className="truncate text-foreground">{issue.title}</span> : null}
+          {linkedTo ? <LinkedIssueIndicator linkedTo={linkedTo} /> : null}
+        </span>
+      </div>
       <IssueIdentifier identifier={issue.identifier} provider={issue.provider} />
-      {issue.title ? <span className="truncate text-foreground">{issue.title}</span> : null}
-      {linkedTo ? <LinkedIssueIndicator linkedTo={linkedTo} /> : null}
     </span>
   );
 }
@@ -168,6 +141,8 @@ export const IssueSelector = observer(function IssueSelector({
     },
     [setSelectedIssueProvider, value, onValueChange]
   );
+
+
 
   const leftAddon = issueProvider ? (
     isProviderLoading ? (
@@ -286,30 +261,38 @@ export const IssueSelector = observer(function IssueSelector({
 
 export function SelectedIssueValue({ issue }: { issue: Issue }) {
   return (
-    <div className="flex w-full flex-col gap-2">
-      <div className="flex w-full items-center justify-between">
-        <div className="flex items-center gap-2">
-          <ProviderLogo provider={issue.provider} className="h-3.5 w-3.5" />
-          <span>{`${ISSUE_PROVIDER_META[issue.provider].displayName} issue`}</span>
-          <IssueIdentifier identifier={issue.identifier} provider={issue.provider} />
+    <div className="flex w-full flex-col gap-1">
+      <div className="flex w-full items-center">
+        <div className="flex w-full min-w-0 gap-0.5">
+          <span className="flex size-6 shrink-0 items-center justify-center">
+            <IssueStatusIndicator status={toIssueStatus(issue.status)} />
+          </span>
+          <div className="flex w-full min-w-0 flex-col gap-1 pr-1.5">
+            <span className="mt-0.5 flex items-center justify-between gap-2">
+              <span className="group flex min-w-0 items-center gap-1">
+                <div className="text-muted-foreground min-w-0 truncate">{issue.title}</div>
+                <button
+                  className="opacity-0 group-hover:opacity-100"
+                  disabled={!issue.url}
+                  onClick={() => issue.url && rpc.app.openExternal(issue.url)}
+                >
+                  <ExternalLink className="size-3" />
+                </button>
+              </span>
+              <span className="flex items-center gap-1">
+                <ProviderLogo provider={issue.provider} className="size-3 opacity-40" />
+                <IssueIdentifier identifier={issue.identifier} provider={issue.provider} />
+              </span>
+            </span>
+            {
+              issue.description ? (
+                <span className="line-clamp-1 min-w-0 truncate text-xs text-foreground-muted pb-1">
+                  {issue.description}
+                </span>
+              ) : null
+            }
+          </div>
         </div>
-        <Button
-          variant="ghost"
-          size="icon-xs"
-          disabled={!issue.url}
-          onClick={() => issue.url && rpc.app.openExternal(issue.url)}
-        >
-          <ExternalLink className="size-3" />
-        </Button>
-      </div>
-      {issue.title ? (
-        <div className="text-muted-foreground min-w-0 truncate">{issue.title}</div>
-      ) : null}
-      <div className="relative flex items-center justify-between gap-2">
-        <Badge variant="outline" className="flex items-center gap-2 rounded-md text-xs font-normal">
-          <StatusDot status={issue.status} />
-          {issue.status}
-        </Badge>
       </div>
     </div>
   );

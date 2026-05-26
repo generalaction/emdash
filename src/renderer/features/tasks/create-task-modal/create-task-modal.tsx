@@ -225,33 +225,34 @@ export const CreateTaskModal = observer(function CreateTaskModal({
                 </ToggleGroupItem>
               </ToggleGroup>
             </div>
-            {state.linkedType === 'issue' && (
-              <IssueComboboxField
-                value={state.linkedIssue}
-                onValueChange={state.setLinkedIssue}
-                projectId={selectedProjectId}
-                repositoryUrl={repositoryUrl}
-                projectPath={projectData?.path}
-                className="border-none px-2"
-              />
-            )}
-
-            {state.linkedType === 'pr' && (
-              <>
-                {!repositoryUrl && (
-                  <p className="text-muted-foreground text-sm">
-                    Pull requests are available only for configured GitHub remotes.
-                  </p>
-                )}
-                <PrComboboxField
-                  value={state.linkedPR}
-                  onValueChange={state.setLinkedPR}
+            <div>
+              {state.linkedType === 'issue' && (
+                <IssueComboboxField
+                  value={state.linkedIssue}
+                  onValueChange={state.setLinkedIssue}
                   projectId={selectedProjectId}
                   repositoryUrl={repositoryUrl}
-                  disabled={!repositoryUrl}
+                  projectPath={projectData?.path}
                 />
-              </>
-            )}
+              )}
+
+              {state.linkedType === 'pr' && (
+                <>
+                  {!repositoryUrl && (
+                    <p className="text-muted-foreground text-sm">
+                      Pull requests are available only for configured GitHub remotes.
+                    </p>
+                  )}
+                  <PrComboboxField
+                    value={state.linkedPR}
+                    onValueChange={state.setLinkedPR}
+                    projectId={selectedProjectId}
+                    repositoryUrl={repositoryUrl}
+                    disabled={!repositoryUrl}
+                  />
+                </>
+              )}
+            </div>
           </div>
           {/* Section tabs */}
           <div className="flex flex-col gap-2">

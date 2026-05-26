@@ -10,9 +10,9 @@ import { Kbd } from '@renderer/lib/ui/kbd';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/ui/select';
 import { cn } from '@renderer/utils/utils';
 import type { Issue } from '@shared/tasks';
-import { ConnectIssueIntegrationPlaceholder, IssueRow, ProviderLogo } from './issue-selector';
+import { IssueRow, ProviderLogo } from './issue-selector';
 import { getLinkedIssueMap } from './use-linked-issue-urls';
-import { useIssueSearch } from './useIssueSearch';
+import { useIssueSearch, type UseIssueSearchResult } from './useIssueSearch';
 
 export interface InlineIssueSelectorProps {
   value: Issue | null;
@@ -23,6 +23,8 @@ export interface InlineIssueSelectorProps {
   disabled?: boolean;
   /** Skip "already linked" indicator for this task — useful when re-selecting the same task's issue. */
   excludeTaskId?: string;
+  /** Provide pre-created search state to share with a parent (e.g. for a provider selector in the trigger). */
+  issueSearchResult?: UseIssueSearchResult;
 }
 
 export const InlineIssueSelector = observer(function InlineIssueSelector({
@@ -33,18 +35,19 @@ export const InlineIssueSelector = observer(function InlineIssueSelector({
   projectPath = '',
   disabled,
   excludeTaskId,
+  issueSearchResult,
 }: InlineIssueSelectorProps) {
   const linkedIssueMap = getLinkedIssueMap(projectId, excludeTaskId);
+  const ownSearch = useIssueSearch(repositoryUrl, projectPath, projectId);
   const {
     issues,
     issueProvider,
-    hasAnyIntegration,
     isProviderLoading,
     isProviderDisabled,
     connectedProviderCount,
     handleSetSearchTerm,
     setSelectedIssueProvider,
-  } = useIssueSearch(repositoryUrl, projectPath, projectId);
+  } = issueSearchResult ?? ownSearch;
 
   const [query, setQuery] = useState('');
   const [highlightedIndex, setHighlightedIndex] = useState(0);
@@ -143,14 +146,10 @@ export const InlineIssueSelector = observer(function InlineIssueSelector({
     )
   ) : null;
 
-  if (!hasAnyIntegration) {
-    return <ConnectIssueIntegrationPlaceholder />;
-  }
-
   return (
     <div
       className={cn(
-        'flex flex-col min-w-0 rounded-md overflow-hidden',
+        'flex flex-col min-w-0 rounded-md overflow-hidden w-full',
         disabled && 'pointer-events-none'
       )}
     >
@@ -165,8 +164,6 @@ export const InlineIssueSelector = observer(function InlineIssueSelector({
           autoFocus
         />
       </InputGroup>
-
-      {/* Issue list */}
       <div ref={listRef} className="h-52 overflow-x-hidden overflow-y-auto p-1">
         {issues.length === 0 ? (
           <div className="flex h-full items-center justify-center text-center text-sm text-foreground-passive">
@@ -182,7 +179,7 @@ export const InlineIssueSelector = observer(function InlineIssueSelector({
                 key={issue.identifier}
                 type="button"
                 className={cn(
-                  'relative flex min-w-0 w-full cursor-default items-center gap-2 rounded-sm py-1.5 pl-2 pr-8 text-sm outline-none select-none',
+                  'relative flex min-w-0 w-full cursor-default items-center gap-2 rounded-md py-1.5 px-2 text-sm outline-none select-none',
                   isHighlighted && !isSelected && 'bg-background-2',
                   isSelected && 'bg-background-2'
                 )}
@@ -190,9 +187,6 @@ export const InlineIssueSelector = observer(function InlineIssueSelector({
                 onClick={() => onValueChange(isSelected ? null : issue)}
               >
                 <IssueRow issue={issue} linkedTo={linkedTo} />
-                {isSelected && (
-                  <Check className="absolute right-2 size-3.5 shrink-0 text-foreground-muted" />
-                )}
               </button>
             );
           })
