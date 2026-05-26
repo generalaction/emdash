@@ -106,6 +106,10 @@ describe('WorktreeService', () => {
       if (!result.success) throw new Error('expected success');
       expect(result.data).toBe(path.join(poolDir, 'task', 'local-checkout'));
       expect(fs.existsSync(result.data)).toBe(true);
+      const { stdout } = await git(['config', '--get', 'branch.task/local-checkout.base'], {
+        cwd: repoDir,
+      });
+      expect(stdout.trim()).toBe('main');
     });
 
     it('uses the current resolved pool path when creating a worktree', async () => {
@@ -151,6 +155,10 @@ describe('WorktreeService', () => {
           cwd: result.data,
         });
         expect(stdout.trim()).toBe('task/from-remote');
+        const baseConfig = await git(['config', '--get', 'branch.task/from-remote.base'], {
+          cwd: repoDir,
+        });
+        expect(baseConfig.stdout.trim()).toBe('origin/feature/remote-base');
       } finally {
         fs.rmSync(remoteDir, { recursive: true, force: true });
       }

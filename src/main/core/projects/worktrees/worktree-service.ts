@@ -130,6 +130,34 @@ export class WorktreeService {
     }
   }
 
+  private getBranchBaseConfigValue(sourceBranch: Branch | undefined): string | undefined {
+    if (!sourceBranch) return undefined;
+    if (sourceBranch.type === 'local') return sourceBranch.branch;
+    return `${sourceBranch.remote.name}/${sourceBranch.branch}`;
+  }
+
+  private async ensureBranchBaseConfig(
+    branchName: string,
+    baseRef: string | undefined
+  ): Promise<void> {
+    if (!baseRef) return;
+    const key = `branch.${branchName}.base`;
+    try {
+      const { stdout } = await this.ctx.exec('git', ['config', '--get', key]);
+      if (stdout.trim()) return;
+    } catch {}
+
+    try {
+      await this.ctx.exec('git', ['config', key, baseRef]);
+    } catch (error) {
+      log.warn('WorktreeService: failed to set branch base metadata', {
+        branchName,
+        baseRef,
+        error: String(error),
+      });
+    }
+  }
+
   async getWorktree(branchName: string): Promise<string | undefined> {
     const worktreePoolPath = await this.resolveWorktreePoolPath();
     const worktreePath = path.join(worktreePoolPath, branchName);
@@ -167,8 +195,10 @@ export class WorktreeService {
     sourceBranch: Branch | undefined,
     branchName: string
   ): Promise<Result<string, ServeWorktreeError>> {
+    const baseConfigValue = this.getBranchBaseConfigValue(sourceBranch);
     const checkedOutPath = await this.findBranchAnywhere(branchName);
     if (checkedOutPath) {
+      await this.ensureBranchBaseConfig(branchName, baseConfigValue);
       return ok(checkedOutPath);
     }
 
@@ -193,6 +223,7 @@ export class WorktreeService {
         }
         await this.ctx.exec('git', ['branch', '--no-track', branchName, sourceRef]);
       }
+      await this.ensureBranchBaseConfig(branchName, baseConfigValue);
 
       await this.host.mkdirAbsolute(path.dirname(targetPath), { recursive: true });
       await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
