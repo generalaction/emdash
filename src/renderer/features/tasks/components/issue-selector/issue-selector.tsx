@@ -28,7 +28,7 @@ import { getLinkedIssueMap, type LinkedIssueInfo } from './use-linked-issue-urls
 import { useIssueSearch } from './useIssueSearch';
 
 function getStatusColorClass(status?: string) {
-  if (!status) return 'border-foreground-passive';
+  if (!status) return '';
   const s = status.toLowerCase();
   if (
     s.includes('done') ||
@@ -36,12 +36,12 @@ function getStatusColorClass(status?: string) {
     s.includes('resolved') ||
     s.includes('completed')
   )
-    return 'border-foreground-success';
+    return 'bg-foreground-success';
   if (s.includes('progress') || s.includes('review') || s.includes('open'))
-    return 'border-foreground-warning';
+    return 'bg-foreground-warning';
   if (s.includes('blocked') || s.includes('cancelled') || s.includes('canceled'))
-    return 'border-foreground-error';
-  return 'border-foreground-passive';
+    return 'bg-foreground-error';
+  return 'bg-foreground-passive';
 }
 
 export function IssueIdentifier({
@@ -67,13 +67,8 @@ export const StatusDot = forwardRef<HTMLSpanElement, { status?: string }>(
       <span
         ref={ref}
         {...props}
-        className={cn(
-          'inline-flex size-3.5 shrink-0 items-center justify-center rounded-full border-2',
-          color
-        )}
-      >
-        <span className="size-1.5 rounded-full bg-current opacity-0" />
-      </span>
+        className={cn('inline-block h-1.5 w-1.5 shrink-0 rounded-full', color)}
+      />
     );
   }
 );
