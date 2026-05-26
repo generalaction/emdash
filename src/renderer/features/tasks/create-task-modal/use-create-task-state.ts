@@ -126,11 +126,7 @@ export function useCreateTaskState(
   // Switching linked type clears the selection for the previous type.
   const setLinkedType = (type: LinkedType) => {
     setLinkedTypeRaw(type);
-    if (type === 'pr') setLinkedIssueRaw(null);
-    else {
-      setLinkedPRRaw(null);
-      setCheckoutMode('checkout');
-    }
+    if (type === 'issue') setCheckoutMode('checkout');
   };
 
   const setLinkedIssue = (issue: Issue | null) => {

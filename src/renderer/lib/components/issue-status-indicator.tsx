@@ -84,11 +84,9 @@ export function IssueStatusIndicator({
     case 'backlog':
       return (
         <svg
-          width="14"
-          height="14"
           viewBox="0 0 14 14"
           fill="none"
-          className={cn('shrink-0', className)}
+          className={cn('shrink-0 size-3', className)}
         >
           <circle
             cx="7"
@@ -116,11 +114,9 @@ export function IssueStatusIndicator({
     case 'duplicate':
       return (
         <svg
-          width="14"
-          height="14"
           viewBox="0 0 14 14"
           fill="none"
-          className={cn('shrink-0', className)}
+          className={cn('shrink-0 size-3', className)}
         >
           <circle
             cx="7"
@@ -153,13 +149,11 @@ export function IssueStatusIndicator({
     case 'triage':
       return (
         <svg
-          width="14"
-          height="14"
           viewBox="0 0 14 14"
           role="img"
           focusable="false"
           aria-hidden="true"
-          className={cn('shrink-0', className)}
+          className={cn('shrink-0 size-3', className)}
         >
           <path
             fill="lch(66% 80 48)"
@@ -225,5 +219,5 @@ export function toIssueStatus(raw: string | undefined): IssueStatus {
     return 'todo';
   }
 
-  return 'todo'
+  return 'todo';
 }

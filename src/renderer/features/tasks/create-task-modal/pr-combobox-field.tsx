@@ -1,9 +1,11 @@
-import { ChevronDown, GitPullRequest } from 'lucide-react';
-import { useState } from 'react';
-import { InlinePrSelector, PrRow } from '@renderer/features/tasks/components/inline-pr-selector';
-import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
+import { PROVIDER_ICON_COMPONENTS } from '@renderer/features/integrations/provider-icons';
+import {
+  PrSelector,
+  SelectedPrValue,
+} from '@renderer/features/tasks/components/pr-selector/pr-selector';
 import { cn } from '@renderer/utils/utils';
 import type { PullRequest } from '@shared/pull-requests';
+import { parseGitHubRepository } from '@shared/github-repository';
 
 interface PrComboboxFieldProps {
   value: PullRequest | null;
@@ -11,7 +13,10 @@ interface PrComboboxFieldProps {
   projectId?: string;
   repositoryUrl?: string;
   disabled?: boolean;
+  className?: string;
 }
+
+const GitHubIcon = PROVIDER_ICON_COMPONENTS['github'];
 
 export function PrComboboxField({
   value,
@@ -19,42 +24,41 @@ export function PrComboboxField({
   projectId,
   repositoryUrl,
   disabled,
+  className,
 }: PrComboboxFieldProps) {
-  const [open, setOpen] = useState(false);
-
-  const handleValueChange = (pr: PullRequest | null) => {
-    onValueChange(pr);
-    if (pr) setOpen(false);
-  };
+  const repoRef = repositoryUrl ? parseGitHubRepository(repositoryUrl) : null;
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger
-        disabled={disabled}
-        className={cn(
-          'flex w-full items-center justify-between gap-2 rounded-md border border-border p-2 text-sm outline-none hover:bg-background-1 data-popup-open:bg-background-1',
-          disabled && 'pointer-events-none opacity-50'
-        )}
-      >
-        {value ? (
-          <div className="flex min-w-0 items-center gap-2">
-            <GitPullRequest className="size-3.5 shrink-0 text-foreground-muted" />
-            <PrRow pr={value} />
-          </div>
-        ) : (
-          <span className="text-foreground-passive">Select a pull request</span>
-        )}
-        <ChevronDown className="size-4 shrink-0 text-foreground-muted" />
-      </PopoverTrigger>
-      <PopoverContent align="start" sideOffset={4} className="w-(--anchor-width) p-0">
-        <InlinePrSelector
-          value={value}
-          onValueChange={handleValueChange}
-          projectId={projectId}
-          repositoryUrl={repositoryUrl}
-          disabled={disabled}
-        />
-      </PopoverContent>
-    </Popover>
+    <PrSelector
+      value={value}
+      onValueChange={onValueChange}
+      projectId={projectId}
+      repositoryUrl={repositoryUrl}
+      disabled={disabled}
+      renderSelectedValue={(pr) => (
+        <div
+          className={cn(
+            'flex w-full items-center justify-between gap-2 p-2 text-sm hover:bg-background-1 data-popup-open:bg-background-1 h-14',
+            disabled && 'pointer-events-none opacity-50',
+            className
+          )}
+        >
+          <SelectedPrValue pr={pr} />
+        </div>
+      )}
+      renderPlaceholder={() => (
+        <div className={cn('w-full', disabled && 'pointer-events-none opacity-50', className)}>
+          <span className="flex w-full items-center justify-center gap-2 p-2 text-sm text-foreground-passive transition-colors hover:bg-background-2">
+            Select a PR from
+            {repoRef ? (
+              <span className="flex items-center gap-1 text-foreground-muted h-8">
+                <GitHubIcon className="size-3.5" />
+                <span>{repoRef.nameWithOwner}</span>
+              </span>
+            ) : null}
+          </span>
+        </div>
+      )}
+    />
   );
 }
