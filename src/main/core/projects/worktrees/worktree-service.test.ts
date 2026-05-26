@@ -1,8 +1,9 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
+import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { Remote } from '@shared/git';
 import { ok } from '@shared/result';
 import type { ProjectSettingsProvider } from '../settings/provider';
@@ -106,6 +107,10 @@ describe('WorktreeService', () => {
       if (!result.success) throw new Error('expected success');
       expect(result.data).toBe(path.join(poolDir, 'task', 'local-checkout'));
       expect(fs.existsSync(result.data)).toBe(true);
+      const { stdout } = await git(['config', '--get', 'branch.task/local-checkout.base'], {
+        cwd: repoDir,
+      });
+      expect(stdout.trim()).toBe('main');
     });
 
     it('uses the current resolved pool path when creating a worktree', async () => {
@@ -126,6 +131,60 @@ describe('WorktreeService', () => {
       if (!result.success) throw new Error('expected success');
       expect(result.data).toBe(path.join(updatedPool, 'task', 'dynamic-pool'));
       expect(fs.existsSync(result.data)).toBe(true);
+    });
+
+    it('records base metadata before returning an existing valid target worktree', async () => {
+      const branchName = 'task/existing-target';
+      const targetPath = path.join(poolDir, branchName);
+      const exec = vi.fn(async (_command: string, args: string[] = []) => {
+        const key = args.join(' ');
+        if (key === 'worktree prune' || key === 'worktree list --porcelain') {
+          return { stdout: '', stderr: '' };
+        }
+        if (key === `config --get branch.${branchName}.base`) {
+          throw Object.assign(new Error('missing config'), { code: 1 });
+        }
+        if (key === `config branch.${branchName}.base main`) {
+          return { stdout: '', stderr: '' };
+        }
+        throw new Error(`Unexpected git command: git ${key}`);
+      });
+      const ctx: IExecutionContext = {
+        root: repoDir,
+        supportsLocalSpawn: false,
+        exec,
+        execStreaming: async () => {},
+        dispose: () => {},
+      };
+      const fakeHost: WorktreeHost = {
+        existsAbsolute: vi.fn(async (absPath: string) => {
+          return absPath === targetPath || absPath === path.join(targetPath, '.git');
+        }),
+        mkdirAbsolute: vi.fn(async () => {}),
+        removeAbsolute: vi.fn(async () => ({ success: true })),
+        realPathAbsolute: vi.fn(async (absPath: string) => absPath),
+        globAbsolute: vi.fn(async () => []),
+        readFileAbsolute: vi.fn(async () => ''),
+        copyFileAbsolute: vi.fn(async () => {}),
+        statAbsolute: vi.fn(async () => null),
+      };
+      const svc = new WorktreeService({
+        repoPath: repoDir,
+        ctx,
+        host: fakeHost,
+        projectSettings: makeSettings(),
+        resolveWorktreePoolPath: async () => poolDir,
+      });
+
+      const result = await svc.checkoutBranchWorktree(
+        { type: 'local', branch: 'main' },
+        branchName
+      );
+
+      expect(result.success).toBe(true);
+      if (!result.success) throw new Error('expected success');
+      expect(result.data).toBe(targetPath);
+      expect(exec).toHaveBeenCalledWith('git', ['config', `branch.${branchName}.base`, 'main']);
     });
 
     it('creates a worktree from a remote source branch when branch is not local', async () => {
@@ -151,6 +210,10 @@ describe('WorktreeService', () => {
           cwd: result.data,
         });
         expect(stdout.trim()).toBe('task/from-remote');
+        const baseConfig = await git(['config', '--get', 'branch.task/from-remote.base'], {
+          cwd: repoDir,
+        });
+        expect(baseConfig.stdout.trim()).toBe('origin/feature/remote-base');
       } finally {
         fs.rmSync(remoteDir, { recursive: true, force: true });
       }
