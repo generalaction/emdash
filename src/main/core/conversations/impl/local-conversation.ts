@@ -1,9 +1,8 @@
 import { homedir } from 'node:os';
 import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
 import { wireAgentClassifier } from '@main/core/agent-hooks/classifier-wiring';
-import { claudeTrustService } from '@main/core/agent-hooks/claude-trust-service';
-import { cursorTrustService } from '@main/core/agent-hooks/cursor-trust-service';
 import { HookConfigWriter } from '@main/core/agent-hooks/hook-config';
+import { workspaceTrustService } from '@main/core/agent-hooks/workspace-trust-service';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
@@ -90,13 +89,7 @@ export class LocalConversationProvider implements ConversationProvider {
     this.knownSessionIds.add(sessionId);
     if (this.sessions.has(sessionId)) return;
 
-    await claudeTrustService.maybeAutoTrustLocal({
-      providerId: conversation.providerId,
-      cwd: this.taskPath,
-      homedir: homedir(),
-      force: conversation.autoApprove === true,
-    });
-    await cursorTrustService.maybeAutoTrustLocal({
+    await workspaceTrustService.maybeAutoTrustLocal({
       providerId: conversation.providerId,
       cwd: this.taskPath,
       homedir: homedir(),
