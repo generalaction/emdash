@@ -149,7 +149,7 @@ export class LocalConversationProvider implements ConversationProvider {
           providerVars: providerEnv,
         }),
         ...this.taskEnvVars,
-        ...(ampHooksAvailable ? { PLUGINS: 'all' } : {}),
+        ...(ampHooksAvailable && !this.taskEnvVars['PLUGINS'] ? { PLUGINS: 'all' } : {}),
       },
       cols: initialSize.cols,
       rows: initialSize.rows,

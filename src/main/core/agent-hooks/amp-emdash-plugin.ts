@@ -5,10 +5,7 @@ type AmpPluginAPI = {
   on(event: 'agent.end', handler: () => unknown): void;
 };
 
-async function notifyEmdash(
-  eventType: 'start' | 'stop' | 'error',
-  body: Record<string, unknown> = {}
-) {
+async function notifyEmdash(eventType: 'start' | 'stop', body: Record<string, unknown> = {}) {
   const port = process.env.EMDASH_HOOK_PORT;
   const token = process.env.EMDASH_HOOK_TOKEN;
   const ptyId = process.env.EMDASH_PTY_ID;
