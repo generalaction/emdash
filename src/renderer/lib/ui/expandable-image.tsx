@@ -1,6 +1,6 @@
 import { Expand } from 'lucide-react';
 import type React from 'react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Button } from '@renderer/lib/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
@@ -19,6 +19,7 @@ export function ExpandableImage({
   ...props
 }: ExpandableImageProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const hasBeenOpenedRef = useRef(false);
   const imageAlt = alt ?? '';
 
   if (!src) {
@@ -28,8 +29,11 @@ export function ExpandableImage({
   const openImage = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.preventDefault();
     event.stopPropagation();
+    hasBeenOpenedRef.current = true;
     setIsExpanded(true);
   };
+
+  const shouldRenderDialog = isExpanded || hasBeenOpenedRef.current;
 
   return (
     <span
@@ -55,26 +59,28 @@ export function ExpandableImage({
         </TooltipContent>
       </Tooltip>
       <ContainedImage src={src} alt={imageAlt} className={className} {...props} />
-      <ZoomableContentDialog
-        open={isExpanded}
-        ariaLabel={imageAlt ? `Image: ${imageAlt}` : 'Image'}
-        contentKey={`${src}:${imageAlt}`}
-        onOpenChange={setIsExpanded}
-        wrapperClassName="rounded-md bg-muted/20"
-      >
-        {({ fitToView }) => (
-          <ContainedImage
-            src={src}
-            alt={imageAlt}
-            className={cn(className, 'block h-auto max-h-none max-w-none rounded-none')}
-            {...props}
-            onLoad={(event) => {
-              props.onLoad?.(event);
-              fitToView();
-            }}
-          />
-        )}
-      </ZoomableContentDialog>
+      {shouldRenderDialog && (
+        <ZoomableContentDialog
+          open={isExpanded}
+          ariaLabel={imageAlt ? `Image: ${imageAlt}` : 'Image'}
+          contentKey={`${src}:${imageAlt}`}
+          onOpenChange={setIsExpanded}
+          wrapperClassName="rounded-md bg-muted/20"
+        >
+          {({ fitToView }) => (
+            <ContainedImage
+              src={src}
+              alt={imageAlt}
+              className={cn(className, 'block h-auto max-h-none max-w-none rounded-none')}
+              {...props}
+              onLoad={(event) => {
+                props.onLoad?.(event);
+                fitToView();
+              }}
+            />
+          )}
+        </ZoomableContentDialog>
+      )}
     </span>
   );
 }
