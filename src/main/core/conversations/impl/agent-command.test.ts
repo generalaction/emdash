@@ -172,7 +172,7 @@ describe('buildAgentCommand', () => {
       resumeArgs: ['--continue'],
     },
     { providerId: 'grok', freshArgs: [], resumeArgs: ['-r'] },
-    { providerId: 'copilot', freshArgs: ['Fix the bug'], resumeArgs: ['--resume'] },
+    { providerId: 'copilot', freshArgs: ['-i', 'Fix the bug'], resumeArgs: ['--resume'] },
     {
       providerId: 'auggie',
       freshArgs: ['--allow-indexing', 'Fix the bug'],
@@ -222,6 +222,23 @@ describe('buildAgentCommand', () => {
 
     expect(result.args).toContain('--model');
     expect(result.args).toContain('Claude Sonnet');
+  });
+
+  it('uses the current Copilot prompt flag when stored config has the old positional default', () => {
+    const result = buildAgentCommand({
+      providerId: 'copilot',
+      providerConfig: makeConfig({
+        cli: 'copilot',
+        initialPromptFlag: '',
+        resumeFlag: '--resume',
+        autoApproveFlag: '--allow-all-tools',
+        sessionIdFlag: undefined,
+      }),
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+    });
+
+    expect(result).toEqual({ command: 'copilot', args: ['-i', 'Fix the bug'] });
   });
 
   it('rejects shell control syntax that makes managed args ambiguous', () => {

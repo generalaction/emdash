@@ -120,6 +120,10 @@ export function buildAgentCommand({
 }): AgentCommand {
   const providerDef = getProvider(providerId);
   const [command, ...args] = parseCliPrefix(providerConfig?.cli, providerId);
+  let initialPromptFlag = providerConfig?.initialPromptFlag;
+  if (providerId === 'copilot' && initialPromptFlag === '') {
+    initialPromptFlag = providerDef?.initialPromptFlag;
+  }
 
   args.push(...(providerConfig?.defaultArgs ?? []));
 
@@ -149,7 +153,7 @@ export function buildAgentCommand({
     !providerDef?.useKeystrokeInjection &&
     !providerDef?.initialPromptViaStdinPipe
   ) {
-    args.push(...parseArgField(providerConfig?.initialPromptFlag), initialPrompt);
+    args.push(...parseArgField(initialPromptFlag), initialPrompt);
   }
 
   args.push(...parseArgField(providerConfig?.extraArgs));
