@@ -18,7 +18,7 @@ import {
   setTabActiveIndex as tabUtilsSetTabActiveIndex,
 } from '@renderer/lib/stores/tab-utils';
 import { setTelemetryConversationScope } from '@renderer/utils/telemetry-scope';
-import type { GitChangeStatus, GitObjectRef } from '@shared/git';
+import { refsEqual, type GitChangeStatus, type GitObjectRef } from '@shared/git';
 import type { ActiveFile, TabDescriptor, TabManagerSnapshot } from '@shared/view-state';
 
 // ---------------------------------------------------------------------------
@@ -48,6 +48,11 @@ export class ConversationTabEntry {
 }
 
 export type TabEntry = FileTabStore | DiffTabStore | ConversationTabEntry;
+
+function optionalRefsEqual(left: GitObjectRef | undefined, right: GitObjectRef | undefined) {
+  if (left === undefined || right === undefined) return left === right;
+  return refsEqual(left, right);
+}
 
 // ---------------------------------------------------------------------------
 // Resolved tabs — enriched with live store references and derived state
@@ -80,6 +85,10 @@ export type ResolvedDiffTab = {
   originalRef: GitObjectRef;
   modifiedRef?: GitObjectRef;
   prNumber?: number;
+  prBaseOid?: string;
+  prHeadOid?: string;
+  commitOriginalSha?: string | null;
+  commitModifiedSha?: string;
   status?: GitChangeStatus;
   isPreview: boolean;
   isActive: boolean;
@@ -305,6 +314,10 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
           originalRef: entry.originalRef,
           modifiedRef: entry.modifiedRef,
           prNumber: entry.prNumber,
+          prBaseOid: entry.prBaseOid,
+          prHeadOid: entry.prHeadOid,
+          commitOriginalSha: entry.commitOriginalSha,
+          commitModifiedSha: entry.commitModifiedSha,
           status: entry.status,
           isPreview: entry.isPreview,
           isActive: effectiveActiveId === entry.tabId,
@@ -346,6 +359,10 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
           originalRef: entry.originalRef,
           modifiedRef: entry.modifiedRef,
           prNumber: entry.prNumber,
+          prBaseOid: entry.prBaseOid,
+          prHeadOid: entry.prHeadOid,
+          commitOriginalSha: entry.commitOriginalSha,
+          commitModifiedSha: entry.commitModifiedSha,
           status: entry.status,
           isPreview: entry.isPreview,
         });
@@ -447,7 +464,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
   // ---------------------------------------------------------------------------
 
   openDiff(activeFile: ActiveFile, status?: GitChangeStatus): void {
-    const existing = this._findDiffEntryByKey(activeFile.path, activeFile.group);
+    const existing = this._findDiffEntry(activeFile);
     if (existing) {
       existing.isPreview = false;
       if (status !== undefined) existing.status = status;
@@ -461,7 +478,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
   }
 
   openDiffPreview(activeFile: ActiveFile, status?: GitChangeStatus): void {
-    const existing = this._findDiffEntryByKey(activeFile.path, activeFile.group);
+    const existing = this._findDiffEntry(activeFile);
     if (existing) {
       this.activeTabId = existing.tabId;
       return;
@@ -550,10 +567,18 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
    * Do NOT use for programmatic/internal closes (use closeTab instead).
    */
   closeTabWithGuard(id: string): void {
+    const conversationId = this._getConversationIdForTab(id);
     if (this._closeHandler) {
-      void this._closeHandler(id);
+      void this._closeHandler(id).then(() => {
+        if (conversationId && !this.entries.has(id)) {
+          this._markConversationSeen(conversationId);
+        }
+      });
     } else {
       this._removeTab(id);
+      if (conversationId) {
+        this._markConversationSeen(conversationId);
+      }
     }
   }
 
@@ -636,6 +661,10 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
               originalRef: t.originalRef,
               modifiedRef: t.modifiedRef,
               prNumber: t.prNumber,
+              prBaseOid: t.prBaseOid,
+              prHeadOid: t.prHeadOid,
+              commitOriginalSha: t.commitOriginalSha,
+              commitModifiedSha: t.commitModifiedSha,
             },
             t.isPreview,
             t.tabId,
@@ -698,17 +727,38 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     return undefined;
   }
 
-  private _findDiffEntryByKey(path: string, group: string): DiffTabStore | undefined {
+  private _findDiffEntry(activeFile: ActiveFile): DiffTabStore | undefined {
     for (const id of this.tabOrder) {
       const entry = this.entries.get(id);
-      if (entry?.kind === 'diff' && entry.path === path && entry.diffGroup === group) return entry;
+      if (
+        entry?.kind !== 'diff' ||
+        entry.path !== activeFile.path ||
+        entry.diffGroup !== activeFile.group
+      ) {
+        continue;
+      }
+      if (activeFile.group === 'disk' || activeFile.group === 'staged') return entry;
+      if (!refsEqual(entry.originalRef, activeFile.originalRef)) continue;
+      if (!optionalRefsEqual(entry.modifiedRef, activeFile.modifiedRef)) continue;
+      return entry;
     }
     return undefined;
   }
 
   private _removeTab(id: string): void {
-    if (!this.entries.has(id)) return;
+    const entry = this.entries.get(id);
+    if (!entry) return;
+
     this.entries.delete(id);
     removeTabId(this, id);
+  }
+
+  private _getConversationIdForTab(id: string): string | undefined {
+    const entry = this.entries.get(id);
+    return entry?.kind === 'conversation' ? entry.conversationId : undefined;
+  }
+
+  private _markConversationSeen(conversationId: string): void {
+    this._getConversations()?.conversations.get(conversationId)?.markSeen();
   }
 }

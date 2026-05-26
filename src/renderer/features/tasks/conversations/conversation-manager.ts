@@ -113,6 +113,13 @@ export class ConversationManagerStore implements IDisposable {
       if (event.type === 'notification') {
         const nt = event.payload.notificationType;
         if (!isAttentionNotification(nt)) return;
+        if (event.providerId === 'codex' && nt === 'idle_prompt') {
+          if (conversationStore.status === 'working') {
+            conversationStore.setStatus('completed');
+            soundPlayer.play('task_complete', appFocused);
+          }
+          return;
+        }
         conversationStore.setAwaitingInput(nt);
         soundPlayer.play('needs_attention', appFocused);
         return;

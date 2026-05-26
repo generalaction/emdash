@@ -6,9 +6,16 @@ import { db } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
+import type { DeleteTaskOptions } from '@shared/tasks';
 import { removeWorktreeIfUnused } from './task-lifecycle-utils';
 
-export async function deleteTask(projectId: string, taskId: string): Promise<void> {
+export async function deleteTask(
+  projectId: string,
+  taskId: string,
+  options: DeleteTaskOptions = {}
+): Promise<void> {
+  const { deleteWorktree = true, deleteBranch = false } = options;
+
   const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
   if (!task) return;
   const sourceBranch = task.sourceBranch ?? undefined;
@@ -39,9 +46,14 @@ export async function deleteTask(projectId: string, taskId: string): Promise<voi
   void viewStateService.del(`task:${taskId}`);
   telemetryService.capture('task_deleted', { project_id: projectId, task_id: taskId });
 
-  if (project) {
+  if (project && deleteWorktree) {
     const worktreeRemoved = await removeWorktreeIfUnused(task, project, false);
-    if (worktreeRemoved && sourceBranch && task.taskBranch !== sourceBranch.branch) {
+    if (
+      worktreeRemoved &&
+      deleteBranch &&
+      sourceBranch &&
+      task.taskBranch !== sourceBranch.branch
+    ) {
       const branchDelete = await project.repository.deleteBranch(task.taskBranch!).catch((e) => {
         log.warn('deleteTask: branch deletion failed', { taskId, error: String(e) });
         return null;

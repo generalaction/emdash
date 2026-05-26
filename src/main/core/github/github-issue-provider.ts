@@ -1,9 +1,15 @@
 import { normalizeSearchTerm } from '@main/core/issues/helpers/provider-inputs';
 import type { IssueProvider } from '@main/core/issues/issue-provider';
-import { parseGitHubRepository, type GitHubRepositoryRef } from '@shared/github-repository';
-import { ISSUE_PROVIDER_CAPABILITIES, type IssueListResult } from '@shared/issue-providers';
+import {
+  ISSUE_PROVIDER_CAPABILITIES,
+  type IssueListError,
+  type IssueListResult,
+} from '@shared/issue-providers';
+import type { RepositoryRef } from '@shared/repository-ref';
+import { err, ok, type Result } from '@shared/result';
 import type { Issue } from '@shared/tasks';
 import { githubConnectionService } from './services/github-connection-service';
+import { githubRepositoryResolver } from './services/github-repository-resolver';
 import { issueService } from './services/issue-service';
 
 function toIssue(raw: {
@@ -28,44 +34,62 @@ function toIssue(raw: {
   };
 }
 
+function toIssueListResult(result: Result<Issue[], IssueListError>): IssueListResult {
+  if (result.success) return { success: true, issues: result.data };
+  return {
+    success: false,
+    error: result.error.message,
+    errorType: result.error.type,
+    host: 'host' in result.error ? result.error.host : undefined,
+  };
+}
+
 async function listIssues(
-  repository: GitHubRepositoryRef,
+  repository: RepositoryRef,
   limit: number
-): Promise<IssueListResult> {
-  try {
-    const issues = await issueService.listIssues(repository, limit);
-    return {
-      success: true,
-      issues: issues.map(toIssue),
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unable to list GitHub issues',
-    };
-  }
+): Promise<Result<Issue[], IssueListError>> {
+  const issues = await issueService.listIssues(repository, limit);
+  if (!issues.success) return err(issues.error);
+  return ok(issues.data.map(toIssue));
 }
 
 async function searchIssues(
-  repository: GitHubRepositoryRef,
+  repository: RepositoryRef,
   searchTerm: string,
   limit: number
-): Promise<IssueListResult> {
+): Promise<Result<Issue[], IssueListError>> {
   if (!normalizeSearchTerm(searchTerm)) {
-    return { success: true, issues: [] };
+    return ok([]);
   }
 
-  try {
-    const issues = await issueService.searchIssues(repository, searchTerm, limit);
-    return {
-      success: true,
-      issues: issues.map(toIssue),
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unable to search GitHub issues',
-    };
+  const issues = await issueService.searchIssues(repository, searchTerm, limit);
+  if (!issues.success) return err(issues.error);
+  return ok(issues.data.map(toIssue));
+}
+
+async function resolveRepository(opts: {
+  repositoryUrl?: string;
+  remote?: string;
+}): Promise<Result<RepositoryRef, IssueListError>> {
+  const resolved = await githubRepositoryResolver.resolve(opts.repositoryUrl || opts.remote);
+  if (resolved.success) return ok(resolved.data);
+
+  switch (resolved.error.type) {
+    case 'not_parseable':
+      return err({ type: 'generic', message: 'Repository URL is required.' });
+    case 'not_github':
+      return err({
+        type: 'unsupported_host',
+        host: resolved.error.host,
+        message: 'This remote does not appear to be GitHub or GitHub Enterprise.',
+      });
+    case 'host_unreachable':
+    case 'host_error':
+      return err({
+        type: 'host_unreachable',
+        host: resolved.error.host,
+        message: resolved.error.reason,
+      });
   }
 }
 
@@ -83,22 +107,18 @@ export const githubIssueProvider: IssueProvider = {
   },
 
   listIssues: async (opts) => {
-    const repository =
-      parseGitHubRepository(opts.repositoryUrl) ?? parseGitHubRepository(opts.remote);
-    if (!repository) {
-      return { success: false, error: 'Repository URL is required.' };
-    }
+    const repository = await resolveRepository(opts);
+    if (!repository.success) return toIssueListResult(repository);
 
-    return listIssues(repository, opts.limit ?? 50);
+    return toIssueListResult(await listIssues(repository.data, opts.limit ?? 50));
   },
 
   searchIssues: async (opts) => {
-    const repository =
-      parseGitHubRepository(opts.repositoryUrl) ?? parseGitHubRepository(opts.remote);
-    if (!repository) {
-      return { success: false, error: 'Repository URL is required.' };
-    }
+    const repository = await resolveRepository(opts);
+    if (!repository.success) return toIssueListResult(repository);
 
-    return searchIssues(repository, opts.searchTerm, opts.limit ?? 20);
+    return toIssueListResult(
+      await searchIssues(repository.data, opts.searchTerm, opts.limit ?? 20)
+    );
   },
 };

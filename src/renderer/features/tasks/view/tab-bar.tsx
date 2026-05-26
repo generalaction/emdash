@@ -30,7 +30,7 @@ function makeTabRenderers(
         tab={tab}
         onSelect={() => tabManager.setActiveTab(tab.tabId)}
         onPin={() => tabManager.openConversation(tab.conversationId)}
-        onClose={() => tabManager.closeTab(tab.tabId)}
+        onClose={() => tabManager.closeTabWithGuard(tab.tabId)}
         onRenameSubmit={(name) => void conversations.renameConversation(tab.conversationId, name)}
       />
     ),

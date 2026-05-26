@@ -1,17 +1,14 @@
-import { ChevronDown, Plus, RefreshCw } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { type SelectionState } from '@renderer/features/tasks/diff-view/stores/changes-view-store';
 import { Badge } from '@renderer/lib/ui/badge';
-import { Button } from '@renderer/lib/ui/button';
 import { Checkbox } from '@renderer/lib/ui/checkbox';
-import { SplitButton, type SplitButtonAction } from '@renderer/lib/ui/split-button';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 
 interface SectionHeaderProps {
   label: string;
   count: number;
-  selectionState: SelectionState;
-  onToggleAll: () => void;
+  selectionState?: SelectionState;
+  onToggleAll?: () => void;
   actions?: React.ReactNode;
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
@@ -26,110 +23,36 @@ export function SectionHeader({
   collapsed,
   onToggleCollapsed,
 }: SectionHeaderProps) {
+  const showCheckbox = selectionState !== undefined && onToggleAll !== undefined;
   return (
-    <div className="flex h-10 shrink-0 items-center justify-between px-3.5">
-      <div className="flex w-full items-center justify-between gap-2">
-        <button onClick={onToggleCollapsed}>
-          <span className="flex items-center gap-2 text-sm text-foreground-muted">
-            <span>{label}</span> <Badge variant="secondary">{count}</Badge>{' '}
-            <span className="p-2 text-foreground-muted hover:text-foreground">
-              <ChevronDown
-                className={cn(
-                  'size-4 transition-transform duration-200 ease-in-out',
-                  collapsed ? '-rotate-90' : 'rotate-0'
-                )}
-              />
-            </span>
+    <div className="flex h-10 shrink-0 items-center justify-between gap-2 px-3.5">
+      <button onClick={onToggleCollapsed} className="min-w-0">
+        <span className="flex min-w-0 items-center gap-2 text-sm text-foreground-muted">
+          <span className="truncate">{label}</span>{' '}
+          <Badge variant="secondary" className="shrink-0">
+            {count}
+          </Badge>{' '}
+          <span className="p-2 text-foreground-muted hover:text-foreground">
+            <ChevronDown
+              className={cn(
+                'size-4 transition-transform duration-200 ease-in-out',
+                collapsed ? '-rotate-90' : 'rotate-0'
+              )}
+            />
           </span>
-        </button>
-        <Checkbox
-          checked={selectionState === 'all'}
-          indeterminate={selectionState === 'partial'}
-          onCheckedChange={onToggleAll}
-          aria-label={`Select all ${label.toLowerCase()}`}
-          className="mr-0.5"
-        />
-      </div>
-      {actions}
-    </div>
-  );
-}
-
-export function PullRequestSectionHeader({
-  count,
-  collapsed,
-  onToggleCollapsed,
-  hasOpenPr,
-  onCreatePr,
-  onCreateDraftPr,
-  onRefresh,
-  isRefreshing,
-}: {
-  count: number;
-  collapsed?: boolean;
-  onToggleCollapsed?: () => void;
-  hasOpenPr: boolean;
-  onCreatePr?: () => void;
-  onCreateDraftPr?: () => void;
-  onRefresh?: () => void;
-  isRefreshing?: boolean;
-}) {
-  const prActions: SplitButtonAction[] = [
-    {
-      value: 'create-pr',
-      label: 'Create PR',
-      action: () => onCreatePr?.(),
-    },
-    {
-      value: 'create-draft-pr',
-      label: 'Create draft PR',
-      action: () => onCreateDraftPr?.(),
-    },
-  ];
-
-  return (
-    <div className="flex h-10 shrink-0 items-center justify-between px-3.5">
-      <div className="flex w-full min-w-0 items-center justify-between gap-2">
-        <button onClick={onToggleCollapsed} className="min-w-0">
-          <span className="flex min-w-0 items-center gap-2 text-sm text-foreground-muted">
-            <span className="truncate">Pull Requests</span>{' '}
-            <Badge variant="secondary" className="shrink-0">
-              {count}
-            </Badge>
-            <span className="p-2 text-foreground-muted hover:text-foreground">
-              <ChevronDown
-                className={cn(
-                  'size-4 transition-transform duration-200 ease-in-out',
-                  collapsed ? '-rotate-90' : 'rotate-0'
-                )}
-              />
-            </span>
-          </span>
-        </button>
-        <div className="flex items-center gap-1.5">
-          <Tooltip>
-            <TooltipTrigger>
-              <SplitButton
-                variant="outline"
-                size="xs"
-                actions={prActions}
-                disabled={hasOpenPr || !onCreatePr || !onCreateDraftPr}
-                icon={<Plus className="size-3" />}
-              />
-            </TooltipTrigger>
-            <TooltipContent>
-              {hasOpenPr ? 'A pull request is already open' : 'Create a pull request'}
-            </TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger>
-              <Button variant="outline" size="icon-xs" onClick={onRefresh} disabled={isRefreshing}>
-                <RefreshCw className={cn('size-3', isRefreshing && 'animate-spin')} />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Refresh pull requests</TooltipContent>
-          </Tooltip>
-        </div>
+        </span>
+      </button>
+      <div className="flex items-center gap-1.5">
+        {actions}
+        {showCheckbox && (
+          <Checkbox
+            checked={selectionState === 'all'}
+            indeterminate={selectionState === 'partial'}
+            onCheckedChange={onToggleAll}
+            aria-label={`Select all ${label.toLowerCase()}`}
+            className="mr-0.5"
+          />
+        )}
       </div>
     </div>
   );

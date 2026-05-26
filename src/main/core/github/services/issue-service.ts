@@ -1,5 +1,8 @@
 import type { Octokit } from '@octokit/rest';
-import type { GitHubRepositoryRef } from '@shared/github-repository';
+import type { IssueListError } from '@shared/issue-providers';
+import { isGitHubDotComHost, type RepositoryRef } from '@shared/repository-ref';
+import { err, ok, type Result } from '@shared/result';
+import type { GitHubApiAuthError } from './github-api-auth-errors';
 import { getOctokit } from './octokit-provider';
 
 // ---------------------------------------------------------------------------
@@ -24,13 +27,19 @@ export interface GitHubIssueDetail extends GitHubIssue {
 }
 
 export interface GitHubIssueService {
-  listIssues(repository: GitHubRepositoryRef, limit?: number): Promise<GitHubIssue[]>;
+  listIssues(
+    repository: RepositoryRef,
+    limit?: number
+  ): Promise<Result<GitHubIssue[], IssueListError>>;
   searchIssues(
-    repository: GitHubRepositoryRef,
+    repository: RepositoryRef,
     searchTerm: string,
     limit?: number
-  ): Promise<GitHubIssue[]>;
-  getIssue(repository: GitHubRepositoryRef, issueNumber: number): Promise<GitHubIssueDetail | null>;
+  ): Promise<Result<GitHubIssue[], IssueListError>>;
+  getIssue(
+    repository: RepositoryRef,
+    issueNumber: number
+  ): Promise<Result<GitHubIssueDetail | null, IssueListError>>;
 }
 
 // ---------------------------------------------------------------------------
@@ -57,13 +66,20 @@ interface RestIssue {
 // ---------------------------------------------------------------------------
 
 export class GitHubIssueServiceImpl implements GitHubIssueService {
-  constructor(private readonly getOctokit: () => Promise<Octokit>) {}
+  constructor(
+    private readonly getOctokit: (host: string) => Promise<Result<Octokit, GitHubApiAuthError>>
+  ) {}
 
-  async listIssues(repository: GitHubRepositoryRef, limit: number = 50): Promise<GitHubIssue[]> {
-    const { owner, repo } = repository;
+  async listIssues(
+    repository: RepositoryRef,
+    limit: number = 50
+  ): Promise<Result<GitHubIssue[], IssueListError>> {
+    const { owner, repo, host } = repository;
+    const octokit = await this.getOctokit(host);
+    if (!octokit.success) return err(this.mapAuthError(octokit.error));
+
     try {
-      const octokit = await this.getOctokit();
-      const { data } = await octokit.rest.issues.listForRepo({
+      const { data } = await octokit.data.rest.issues.listForRepo({
         owner,
         repo,
         state: 'open',
@@ -71,51 +87,57 @@ export class GitHubIssueServiceImpl implements GitHubIssueService {
         sort: 'updated',
         direction: 'desc',
       });
-      return data
-        .filter((issue) => !issue.pull_request)
-        .map((item) => this.mapIssue(item as unknown as RestIssue));
-    } catch {
-      return [];
+      return ok(
+        data
+          .filter((issue) => !issue.pull_request)
+          .map((item) => this.mapIssue(item as unknown as RestIssue))
+      );
+    } catch (error) {
+      return err(this.mapApiError(error, 'Unable to list GitHub issues', host));
     }
   }
 
   async searchIssues(
-    repository: GitHubRepositoryRef,
+    repository: RepositoryRef,
     searchTerm: string,
     limit: number = 20
-  ): Promise<GitHubIssue[]> {
+  ): Promise<Result<GitHubIssue[], IssueListError>> {
     const term = searchTerm.trim();
-    if (!term) return [];
-    const { owner, repo } = repository;
+    if (!term) return ok([]);
+    const { owner, repo, host } = repository;
+    const octokit = await this.getOctokit(host);
+    if (!octokit.success) return err(this.mapAuthError(octokit.error));
+
     try {
-      const octokit = await this.getOctokit();
-      const { data } = await octokit.rest.search.issuesAndPullRequests({
+      const { data } = await octokit.data.rest.search.issuesAndPullRequests({
         q: `${term} repo:${owner}/${repo} is:issue is:open`,
         per_page: Math.min(Math.max(limit, 1), 100),
         sort: 'updated',
         order: 'desc',
       });
-      return data.items.map((item) => this.mapIssue(item as unknown as RestIssue));
-    } catch {
-      return [];
+      return ok(data.items.map((item) => this.mapIssue(item as unknown as RestIssue)));
+    } catch (error) {
+      return err(this.mapApiError(error, 'Unable to search GitHub issues', host));
     }
   }
 
   async getIssue(
-    repository: GitHubRepositoryRef,
+    repository: RepositoryRef,
     issueNumber: number
-  ): Promise<GitHubIssueDetail | null> {
-    const { owner, repo } = repository;
+  ): Promise<Result<GitHubIssueDetail | null, IssueListError>> {
+    const { owner, repo, host } = repository;
+    const octokit = await this.getOctokit(host);
+    if (!octokit.success) return err(this.mapAuthError(octokit.error));
+
     try {
-      const octokit = await this.getOctokit();
-      const { data } = await octokit.rest.issues.get({
+      const { data } = await octokit.data.rest.issues.get({
         owner,
         repo,
         issue_number: issueNumber,
       });
-      return this.mapIssueDetail(data as unknown as RestIssue);
-    } catch {
-      return null;
+      return ok(this.mapIssueDetail(data as unknown as RestIssue));
+    } catch (error) {
+      return err(this.mapApiError(error, 'Unable to get GitHub issue', host));
     }
   }
 
@@ -142,6 +164,33 @@ export class GitHubIssueServiceImpl implements GitHubIssueService {
     return {
       ...this.mapIssue(item),
       body: item.body ?? null,
+    };
+  }
+
+  private mapAuthError(error: GitHubApiAuthError): IssueListError {
+    return { type: 'auth_required', host: error.host, message: error.message };
+  }
+
+  private mapApiError(error: unknown, fallback: string, host: string): IssueListError {
+    if (error && typeof error === 'object' && 'status' in error) {
+      const status = Number((error as { status: unknown }).status);
+      if (status === 401 || status === 403) {
+        const hint = isGitHubDotComHost(host)
+          ? 'Connect GitHub from account settings.'
+          : `Run: gh auth login --hostname ${host}`;
+        return {
+          type: 'auth_required',
+          host,
+          message: isGitHubDotComHost(host)
+            ? `GitHub authentication required. ${hint}`
+            : `GitHub Enterprise authentication required for ${host}. ${hint}`,
+        };
+      }
+    }
+
+    return {
+      type: 'generic',
+      message: error instanceof Error ? error.message : fallback,
     };
   }
 }

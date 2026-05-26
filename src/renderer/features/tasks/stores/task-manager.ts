@@ -12,6 +12,7 @@ import type {
   CreateTaskError,
   CreateTaskParams,
   CreateTaskWarning,
+  DeleteTaskOptions,
   Task,
   TaskLifecycleStatus,
 } from '@shared/tasks';
@@ -124,7 +125,7 @@ export class TaskManagerStore {
     );
 
     this._unsubPrUpdated = events.on(prUpdatedChannel, ({ prs }) => {
-      const repoUrl = this._repository.repositoryUrl;
+      const repoUrl = this._repository.pullRequestRepositoryUrl;
       if (!repoUrl) return;
       for (const pr of prs) {
         if (pr.repositoryUrl !== repoUrl) continue;
@@ -146,7 +147,7 @@ export class TaskManagerStore {
 
     this._unsubPrSyncProgress = events.on(prSyncProgressChannel, (progress) => {
       if (progress.status !== 'done') return;
-      const repoUrl = this._repository.repositoryUrl;
+      const repoUrl = this._repository.pullRequestRepositoryUrl;
       if (!repoUrl || progress.remoteUrl !== repoUrl) return;
       for (const [, store] of this.tasks) {
         if (isRegistered(store)) {
@@ -156,7 +157,7 @@ export class TaskManagerStore {
     });
 
     this._disposeRepositoryReaction = reaction(
-      () => this._repository.repositoryUrl,
+      () => this._repository.pullRequestRepositoryUrl,
       () => {
         for (const [, store] of this.tasks) {
           if (isRegistered(store)) {
@@ -564,23 +565,34 @@ export class TaskManagerStore {
     }
   }
 
-  async deleteTask(taskId: string): Promise<void> {
-    const task = this.tasks.get(taskId);
-    if (!task) return;
+  async deleteTask(taskId: string, opts?: DeleteTaskOptions): Promise<void> {
+    return this.deleteTasks([taskId], opts);
+  }
+
+  async deleteTasks(taskIds: string[], opts?: DeleteTaskOptions): Promise<void> {
+    const removed = new Map<string, TaskStore>();
 
     runInAction(() => {
-      this.tasks.delete(taskId);
+      for (const id of taskIds) {
+        const t = this.tasks.get(id);
+        if (t) {
+          removed.set(id, t);
+          this.tasks.delete(id);
+        }
+      }
     });
 
     try {
-      // Release conversation and terminal registries before disposing the task.
-      conversationRegistry.release(taskId);
-      terminalRegistry.release(taskId);
-      task.dispose();
-      await rpc.tasks.deleteTask(this.projectId, taskId);
+      // Release conversation and terminal registries before disposing each task.
+      removed.forEach((t, id) => {
+        conversationRegistry.release(id);
+        terminalRegistry.release(id);
+        t.dispose();
+      });
+      await rpc.tasks.deleteTasks(this.projectId, taskIds, opts);
     } catch (e) {
       runInAction(() => {
-        this.tasks.set(taskId, task);
+        removed.forEach((t, id) => this.tasks.set(id, t));
       });
       throw e;
     }

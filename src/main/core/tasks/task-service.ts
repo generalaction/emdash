@@ -1,7 +1,7 @@
 import { eq, sql } from 'drizzle-orm';
 import { mapConversationRowToConversation } from '@main/core/conversations/utils';
 import { projectManager } from '@main/core/projects/project-manager';
-import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
+import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import { mapTerminalRowToTerminal } from '@main/core/terminals/core';
 import { workspaceBootstrapService } from '@main/core/workspaces/workspace-bootstrap-service';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
@@ -14,6 +14,7 @@ import type {
   CreateTaskError,
   CreateTaskParams,
   CreateTaskSuccess,
+  DeleteTaskOptions,
   Issue,
   ProvisionTaskResult,
   RenameTaskError,
@@ -23,6 +24,7 @@ import type {
 import { archiveTask } from './operations/archiveTask';
 import { createTask } from './operations/createTask';
 import { deleteTask } from './operations/deleteTask';
+import { getDeletePreflight } from './operations/getDeletePreflight';
 import { getTasks } from './operations/getTasks';
 import { renameTask } from './operations/renameTask';
 import { restoreTask } from './operations/restoreTask';
@@ -168,9 +170,22 @@ export class TaskService implements Hookable<TaskCrudHooks> {
     return taskManager.teardownTask(taskId, mode);
   }
 
-  async deleteTask(projectId: string, taskId: string): Promise<void> {
-    await deleteTask(projectId, taskId);
+  async getDeletePreflight(projectId: string, taskIds: string[]) {
+    return getDeletePreflight(projectId, taskIds);
+  }
+
+  async deleteTask(projectId: string, taskId: string, options?: DeleteTaskOptions): Promise<void> {
+    await deleteTask(projectId, taskId, options);
     this._hooks.callHookBackground('task:deleted', taskId, projectId);
+  }
+
+  async deleteTasks(
+    projectId: string,
+    taskIds: string[],
+    options?: DeleteTaskOptions
+  ): Promise<void> {
+    await Promise.all(taskIds.map((id) => deleteTask(projectId, id, options)));
+    taskIds.forEach((id) => this._hooks.callHookBackground('task:deleted', id, projectId));
   }
 
   async archiveTask(projectId: string, taskId: string): Promise<void> {

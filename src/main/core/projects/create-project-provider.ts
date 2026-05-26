@@ -10,10 +10,8 @@ import { GitFetchService } from '@main/core/git/git-fetch-service';
 import { GitService } from '@main/core/git/impl/git-service';
 import { GitRepositoryService } from '@main/core/git/repository-service';
 import { githubConnectionService } from '@main/core/github/services/github-connection-service';
-import {
-  sshConnectionManager,
-  type SshConnectionManagerEvent,
-} from '@main/core/ssh/ssh-connection-manager';
+import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
+import type { SshConnectionManagerEvent } from '@main/core/ssh/lifecycle/ssh-connection-manager';
 import { log } from '@main/lib/logger';
 import { safePathSegment } from '@shared/path-name';
 import type { LocalProject, SshProject } from '@shared/projects';
@@ -48,10 +46,15 @@ async function createLocalProvider(project: LocalProject): Promise<ProjectProvid
   });
   const worktreeDirectory = await settings.getWorktreeDirectory();
   await fs.promises.mkdir(worktreeDirectory, { recursive: true });
-  const worktreePoolPath = path.join(worktreeDirectory, safePathSegment(project.name, project.id));
   const worktreeHost = await LocalWorktreeHost.create({
     allowedRoots: [project.path, worktreeDirectory],
   });
+  const resolveWorktreePoolPath = async () => {
+    const directory = await settings.getWorktreeDirectory();
+    await fs.promises.mkdir(directory, { recursive: true });
+    await worktreeHost.allowRoot(directory);
+    return path.join(directory, safePathSegment(project.name, project.id));
+  };
 
   return buildProvider(
     project.id,
@@ -61,7 +64,7 @@ async function createLocalProvider(project: LocalProject): Promise<ProjectProvid
     repoGit,
     settings,
     worktreeHost,
-    worktreePoolPath,
+    resolveWorktreePoolPath,
     () => {}
   );
 }
@@ -90,9 +93,12 @@ async function createSshProvider(project: SshProject): Promise<ProjectProvider> 
         git: repoGit,
       }
     );
-    const worktreePoolPath = path.posix.join(await settings.getWorktreeDirectory(), project.name);
+    const worktreeDirectory = await settings.getWorktreeDirectory();
+    const worktreePoolPath = path.posix.join(worktreeDirectory, project.name);
     const worktreeHost = new SshWorktreeHost(rootFs);
     await worktreeHost.mkdirAbsolute(worktreePoolPath, { recursive: true });
+    const resolveWorktreePoolPath = async () =>
+      path.posix.join(await settings.getWorktreeDirectory(), project.name);
 
     const dispose = () => sshConnectionManager.off('connection-event', handler);
 
@@ -109,7 +115,7 @@ async function createSshProvider(project: SshProject): Promise<ProjectProvider> 
       repoGit,
       settings,
       worktreeHost,
-      worktreePoolPath,
+      resolveWorktreePoolPath,
       dispose
     );
 
@@ -143,7 +149,7 @@ function buildProvider(
   repoGit: GitService,
   settings: ProjectSettingsProvider,
   worktreeHost: WorktreeHost,
-  worktreePoolPath: string,
+  resolveWorktreePoolPath: () => Promise<string>,
   dispose: () => void
 ): ProjectProvider {
   const { ctx } = transportMeta;
@@ -153,16 +159,15 @@ function buildProvider(
     fs: projectFs,
     settings,
     worktreeHost,
-    worktreePoolPath,
   };
 
   const repository = new GitRepositoryService(repoGit, settings);
   const worktreeService = new WorktreeService({
-    worktreePoolPath,
     repoPath,
     projectSettings: settings,
     ctx,
     host: worktreeHost,
+    resolveWorktreePoolPath,
   });
   const gitFetchService = new GitFetchService(repoGit, hasGitHubToken, () =>
     repository.getBaseRemote()

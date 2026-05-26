@@ -127,6 +127,25 @@ export type ProvisionTaskResult = {
   workspaceId: string;
 };
 
+export type DeleteTaskOptions = {
+  deleteWorktree?: boolean;
+  deleteBranch?: boolean;
+};
+
+export type TaskDeletePreflightItem = {
+  taskId: string;
+  /** taskBranch exists and no sibling task shares it */
+  hasWorktree: boolean;
+  /** staged or unstaged changes exist in the worktree */
+  hasUncommittedChanges: boolean;
+  /** hasWorktree && taskBranch differs from sourceBranch */
+  hasDeletableBranch: boolean;
+};
+
+export type DeletePreflightResult = {
+  tasks: TaskDeletePreflightItem[];
+};
+
 export function formatIssueAsPrompt(issue: Issue, initialPrompt?: string): string {
   const parts = [
     `[${issue.identifier}] ${issue.title}`,
