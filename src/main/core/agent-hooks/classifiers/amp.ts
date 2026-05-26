@@ -13,7 +13,7 @@ export function createAmpClassifier() {
     }
 
     // Idle/ready prompts
-    if (/Ready|Awaiting|Press Enter|Next command|Type your message/i.test(tail)) {
+    if (/Ready|Awaiting|Press Enter|Next command|Type your message|(?:^|\n)\s*>\s*$/i.test(tail)) {
       return {
         type: 'notification',
         notificationType: 'idle_prompt',

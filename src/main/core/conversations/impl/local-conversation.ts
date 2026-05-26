@@ -132,6 +132,12 @@ export class LocalConversationProvider implements ConversationProvider {
     const ptyId = makePtyId(conversation.providerId, conversation.id);
     const port = agentHookService.getPort();
     const token = agentHookService.getToken();
+    const hookActive = port > 0;
+    const ampHooksAvailable =
+      hookActive &&
+      conversation.providerId === 'amp' &&
+      providerDef?.supportsHooks &&
+      hooksAvailable;
     const pty = spawnLocalPty({
       id: sessionId,
       command: resolved.command,
@@ -143,21 +149,23 @@ export class LocalConversationProvider implements ConversationProvider {
           providerVars: providerEnv,
         }),
         ...this.taskEnvVars,
+        ...(ampHooksAvailable ? { PLUGINS: 'all' } : {}),
       },
       cols: initialSize.cols,
       rows: initialSize.rows,
     });
 
-    const hookActive = port > 0;
     /*
-     * Codex hooks can be skipped by the CLI in some live-session edge cases; keep
-     * the output classifier active as a fallback so the UI can leave "working".
+     * Codex hooks can be skipped by the CLI in some live-session edge cases.
+     * Amp hooks only cover lifecycle events today. Keep the output classifier
+     * active as a fallback so the UI can leave "working" and catch prompts.
      */
     const useHooksOnly =
       hookActive &&
       providerDef?.supportsHooks &&
       hooksAvailable &&
-      conversation.providerId !== 'codex';
+      conversation.providerId !== 'codex' &&
+      conversation.providerId !== 'amp';
 
     if (!useHooksOnly) {
       wireAgentClassifier({
