@@ -27,6 +27,14 @@ export type GitChange = {
   status: GitChangeStatus;
   additions: number;
   deletions: number;
+  /**
+   * Present when the path is a file inside a git submodule. `rootPath` is the
+   * parent-repo path to the submodule; `path` is relative to that submodule.
+   */
+  submodule?: {
+    rootPath: string;
+    path: string;
+  };
 };
 
 /** Result of a single coalesced workspace status refresh (staged + unstaged + branch). */

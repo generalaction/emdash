@@ -1,6 +1,13 @@
+import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { promises as fs } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
+import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import type { IExecutionContext } from '@main/core/execution-context/types';
+import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { GitService } from './git-service';
 import { computeBaseRef } from './git-utils';
@@ -44,6 +51,7 @@ const BRANCH_FORMAT =
   'branch -a --format=%(refname:short)|%(upstream:short)|%(upstream:track)|%(refname)';
 
 const stubFs = {} as FileSystemProvider;
+const execFileAsync = promisify(execFile);
 
 function makeContext(exec: MockExec, root = '/repo'): IExecutionContext {
   return {
@@ -60,6 +68,52 @@ function makeContext(exec: MockExec, root = '/repo'): IExecutionContext {
 function makeService(exec: MockExec): GitService {
   const ctx = makeContext(exec);
   return new GitService(ctx, ctx, stubFs);
+}
+
+async function git(cwd: string, args: string[]): Promise<void> {
+  await execFileAsync('git', args, { cwd });
+}
+
+async function gitOutput(cwd: string, args: string[]): Promise<string> {
+  const { stdout } = await execFileAsync('git', args, { cwd });
+  return stdout;
+}
+
+async function makeSubmoduleFixture(): Promise<{
+  root: string;
+  submodulePath: string;
+  service: GitService;
+}> {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'emdash-submodule-'));
+  const subSrc = path.join(root, 'sub-src');
+  const parent = path.join(root, 'parent');
+  await fs.mkdir(subSrc);
+  await fs.mkdir(parent);
+
+  await git(subSrc, ['init', '-q']);
+  await git(subSrc, ['config', 'user.email', 'test@example.com']);
+  await git(subSrc, ['config', 'user.name', 'Test']);
+  await fs.writeFile(path.join(subSrc, 'a.txt'), 'one\n');
+  await git(subSrc, ['add', 'a.txt']);
+  await git(subSrc, ['commit', '-qm', 'initial submodule']);
+
+  await git(parent, ['init', '-q']);
+  await git(parent, ['config', 'user.email', 'test@example.com']);
+  await git(parent, ['config', 'user.name', 'Test']);
+  await git(parent, [
+    '-c',
+    'protocol.file.allow=always',
+    'submodule',
+    'add',
+    '-q',
+    subSrc,
+    'lib/sub',
+  ]);
+  await git(parent, ['commit', '-qm', 'add submodule']);
+
+  const ctx = new LocalExecutionContext({ root: parent });
+  const service = new GitService(ctx, ctx, new LocalFileSystem(parent));
+  return { root: parent, submodulePath: 'lib/sub', service };
 }
 
 // ---------------------------------------------------------------------------
@@ -262,6 +316,89 @@ describe('GitService.getStatusFingerprint', () => {
       hash: createHash('sha256').update(stdout).digest('hex'),
       byteLength: Buffer.byteLength(stdout),
     });
+  });
+});
+
+describe('GitService submodule support', () => {
+  it('expands dirty submodule files in full status', async () => {
+    const { root, service } = await makeSubmoduleFixture();
+    await fs.appendFile(path.join(root, 'lib/sub/a.txt'), 'two\n');
+
+    const status = await service.getFullStatus();
+
+    expect(status.unstaged).toEqual([
+      {
+        path: 'lib/sub/a.txt',
+        status: 'modified',
+        additions: 1,
+        deletions: 0,
+        submodule: { rootPath: 'lib/sub', path: 'a.txt' },
+      },
+    ]);
+    expect(status.staged).toEqual([]);
+  });
+
+  it('does not expand uninitialized submodules as parent-repo files', async () => {
+    const { root, service } = await makeSubmoduleFixture();
+    await git(root, ['submodule', 'deinit', '-f', 'lib/sub']);
+    await fs.writeFile(path.join(root, '.gitignore'), '.DS_Store\n');
+
+    const status = await service.getFullStatus();
+    const unstagedPaths = status.unstaged.map((change) => change.path);
+
+    expect(unstagedPaths).toContain('.gitignore');
+    expect(unstagedPaths).not.toContain('lib/sub/.gitignore');
+  });
+
+  it('stages and commits submodule file edits before committing the parent gitlink', async () => {
+    const { root, service } = await makeSubmoduleFixture();
+    await fs.appendFile(path.join(root, 'lib/sub/a.txt'), 'two\n');
+
+    await service.stageFiles(['lib/sub/a.txt']);
+    const staged = await service.getFullStatus();
+    expect(staged.staged.map((change) => change.path)).toEqual(['lib/sub/a.txt']);
+
+    const result = await service.commit('update submodule file');
+    expect(result.success).toBe(true);
+
+    await expect(gitOutput(path.join(root, 'lib/sub'), ['status', '--porcelain'])).resolves.toBe(
+      ''
+    );
+    await expect(gitOutput(root, ['status', '--porcelain'])).resolves.toBe('');
+    await expect(gitOutput(root, ['show', '--stat', '--oneline', 'HEAD'])).resolves.toContain(
+      'lib/sub'
+    );
+  });
+
+  it('expands committed submodule pointer changes to inner files', async () => {
+    const { root, service } = await makeSubmoduleFixture();
+    await fs.appendFile(path.join(root, 'lib/sub/a.txt'), 'two\n');
+    await git(path.join(root, 'lib/sub'), ['add', 'a.txt']);
+    await git(path.join(root, 'lib/sub'), ['commit', '-qm', 'change submodule file']);
+
+    const status = await service.getFullStatus();
+
+    expect(status.unstaged).toEqual([
+      {
+        path: 'lib/sub/a.txt',
+        status: 'modified',
+        additions: 1,
+        deletions: 0,
+        submodule: { rootPath: 'lib/sub', path: 'a.txt' },
+      },
+    ]);
+  });
+
+  it('reads submodule file contents from the parent gitlink ref for diffs', async () => {
+    const { root, service } = await makeSubmoduleFixture();
+    await fs.appendFile(path.join(root, 'lib/sub/a.txt'), 'two\n');
+    await git(path.join(root, 'lib/sub'), ['add', 'a.txt']);
+    await git(path.join(root, 'lib/sub'), ['commit', '-qm', 'change submodule file']);
+
+    await expect(service.getFileAtHead('lib/sub/a.txt')).resolves.toBe('one');
+
+    await service.stageFiles(['lib/sub/a.txt']);
+    await expect(service.getFileAtIndex('lib/sub/a.txt')).resolves.toBe('one\ntwo');
   });
 });
 

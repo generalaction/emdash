@@ -95,6 +95,20 @@ type HeadInfo =
   | { kind: 'detached'; shortHash: string }
   | { kind: 'unborn'; name: string };
 
+type SubmoduleInfo = {
+  rootPath: string;
+};
+
+type ResolvedSubmodulePath = SubmoduleInfo & {
+  innerPath: string;
+};
+
+type SubmodulePointerChange = {
+  rootPath: string;
+  oldOid: string;
+  newOid: string;
+};
+
 export class GitService implements GitProvider, IDisposable {
   private _statusInFlight: Promise<FullGitStatus> | null = null;
   private _catFile: CatFileBatch | null = null;
@@ -138,6 +152,73 @@ export class GitService implements GitProvider, IDisposable {
       map.set(filePath, existing);
     }
     return map;
+  }
+
+  private async _getSubmodules(): Promise<SubmoduleInfo[]> {
+    try {
+      const { stdout } = await this.ctx.exec('git', ['submodule', 'status', '--recursive']);
+      return stdout
+        .split('\n')
+        .map((line) => {
+          const match = line.match(/^([ +-U]?)[0-9a-f]{40}\s+([^\s(]+)/);
+          if (!match || match[1] === '-') return '';
+          return match[2]?.replace(/\\/g, '/').replace(/\/+$/g, '') ?? '';
+        })
+        .filter((rootPath): rootPath is string => rootPath.length > 0)
+        .sort((a, b) => b.length - a.length)
+        .map((rootPath) => ({ rootPath }));
+    } catch {
+      return [];
+    }
+  }
+
+  private _resolveSubmodulePath(
+    filePath: string,
+    submodules: SubmoduleInfo[]
+  ): ResolvedSubmodulePath | null {
+    const normalized = filePath.replace(/\\/g, '/').replace(/^\/+/g, '');
+    for (const submodule of submodules) {
+      if (normalized === submodule.rootPath) {
+        return { ...submodule, innerPath: '' };
+      }
+      const prefix = `${submodule.rootPath}/`;
+      if (normalized.startsWith(prefix)) {
+        return { ...submodule, innerPath: normalized.slice(prefix.length) };
+      }
+    }
+    return null;
+  }
+
+  private async _resolveSubmodule(filePath: string): Promise<ResolvedSubmodulePath | null> {
+    return this._resolveSubmodulePath(filePath, await this._getSubmodules());
+  }
+
+  private _withSubmodulePrefix(change: GitChange, rootPath: string): GitChange {
+    const innerPath = change.path.replace(/\\/g, '/').replace(/^\/+/g, '');
+    return {
+      ...change,
+      path: `${rootPath}/${innerPath}`,
+      submodule: { rootPath, path: innerPath },
+    };
+  }
+
+  private _coalesceChanges(changes: GitChange[]): GitChange[] {
+    const byPath = new Map<string, GitChange>();
+    for (const change of changes) {
+      const existing = byPath.get(change.path);
+      if (!existing) {
+        byPath.set(change.path, { ...change });
+        continue;
+      }
+      byPath.set(change.path, {
+        ...existing,
+        status: change.status === 'conflicted' ? 'conflicted' : existing.status,
+        additions: existing.additions + change.additions,
+        deletions: existing.deletions + change.deletions,
+        submodule: existing.submodule ?? change.submodule,
+      });
+    }
+    return [...byPath.values()];
   }
 
   async getFullStatus(): Promise<FullGitStatus> {
@@ -192,13 +273,14 @@ export class GitService implements GitProvider, IDisposable {
   private async _loadFullStatus(): Promise<FullGitStatus> {
     try {
       const parser = new StatusParser();
-      const [, stagedRes, unstagedRes, head] = await Promise.all([
+      const [, stagedRes, unstagedRes, head, submodules] = await Promise.all([
         this._runStatusZ(parser),
         this.ctx.exec('git', ['diff', '--numstat', '--cached']).catch(() => ({
           stdout: '',
         })),
         this.ctx.exec('git', ['diff', '--numstat']).catch(() => ({ stdout: '' })),
         this._getHeadInfo(),
+        this._getSubmodules(),
       ]);
 
       const stagedNumstat = this.parseNumstat(stagedRes.stdout);
@@ -208,7 +290,13 @@ export class GitService implements GitProvider, IDisposable {
         throw new TooManyFilesChangedError();
       }
 
-      return await this._buildFullGitStatus(parser.status, stagedNumstat, unstagedNumstat, head);
+      const status = await this._buildFullGitStatus(
+        parser.status,
+        stagedNumstat,
+        unstagedNumstat,
+        head
+      );
+      return await this._expandSubmoduleStatus(status, submodules);
     } catch (e) {
       if (e instanceof TooManyFilesChangedError) throw e;
       return {
@@ -299,6 +387,268 @@ export class GitService implements GitProvider, IDisposable {
     };
   }
 
+  private async _expandSubmoduleStatus(
+    status: FullGitStatus,
+    submodules: SubmoduleInfo[]
+  ): Promise<FullGitStatus> {
+    if (submodules.length === 0) return status;
+
+    const [nestedStatus, stagedPointers, unstagedPointers] = await Promise.all([
+      this._getNestedSubmoduleStatus(submodules),
+      this._getSubmodulePointerChanges(submodules, 'staged'),
+      this._getSubmodulePointerChanges(submodules, 'unstaged'),
+    ]);
+
+    const [stagedPointerChanges, unstagedPointerChanges] = await Promise.all([
+      this._expandSubmodulePointerChanges(stagedPointers),
+      this._expandSubmodulePointerChanges(unstagedPointers),
+    ]);
+
+    const replacedStagedRoots = new Set([
+      ...nestedStatus.staged.map((change) => change.submodule!.rootPath),
+      ...stagedPointerChanges.map((change) => change.submodule!.rootPath),
+    ]);
+    const replacedUnstagedRoots = new Set([
+      ...nestedStatus.unstaged.map((change) => change.submodule!.rootPath),
+      ...unstagedPointerChanges.map((change) => change.submodule!.rootPath),
+    ]);
+
+    const staged = this._coalesceChanges([
+      ...status.staged.filter((change) => !replacedStagedRoots.has(change.path)),
+      ...stagedPointerChanges,
+      ...nestedStatus.staged,
+    ]);
+    const unstaged = this._coalesceChanges([
+      ...status.unstaged.filter((change) => !replacedUnstagedRoots.has(change.path)),
+      ...unstagedPointerChanges,
+      ...nestedStatus.unstaged,
+    ]);
+
+    return {
+      ...status,
+      staged,
+      unstaged,
+      totalAdded: staged.reduce((sum, change) => sum + change.additions, 0),
+      totalDeleted: staged.reduce((sum, change) => sum + change.deletions, 0),
+    };
+  }
+
+  private async _getNestedSubmoduleStatus(
+    submodules: SubmoduleInfo[]
+  ): Promise<{ staged: GitChange[]; unstaged: GitChange[] }> {
+    const staged: GitChange[] = [];
+    const unstaged: GitChange[] = [];
+
+    for (const submodule of submodules) {
+      try {
+        const parser = new StatusParser();
+        await this.ctx.execStreaming(
+          'git',
+          ['-C', submodule.rootPath, '--no-optional-locks', 'status', '-z', '-uall'],
+          (chunk) => {
+            parser.update(chunk);
+            return !parser.tooManyFiles;
+          }
+        );
+        if (parser.tooManyFiles) throw new TooManyFilesChangedError();
+
+        const [stagedRes, unstagedRes] = await Promise.all([
+          this.ctx
+            .exec('git', ['-C', submodule.rootPath, 'diff', '--numstat', '--cached'])
+            .catch(() => ({ stdout: '' })),
+          this.ctx
+            .exec('git', ['-C', submodule.rootPath, 'diff', '--numstat'])
+            .catch(() => ({ stdout: '' })),
+        ]);
+        const stagedNumstat = this.parseNumstat(stagedRes.stdout);
+        const unstagedNumstat = this.parseNumstat(unstagedRes.stdout);
+
+        for (const entry of parser.status) {
+          const code = `${entry.x}${entry.y}`;
+          const status = mapStatus(code);
+          const innerPath = entry.path;
+
+          if (entry.x !== ' ' && entry.x !== '?') {
+            const ns = stagedNumstat.get(innerPath);
+            staged.push(
+              this._withSubmodulePrefix(
+                {
+                  path: innerPath,
+                  status,
+                  additions: ns?.additions ?? 0,
+                  deletions: ns?.deletions ?? 0,
+                },
+                submodule.rootPath
+              )
+            );
+          }
+
+          const isUntracked = code === '??';
+          const hasUnstaged = code[1] !== ' ' && code[1] !== '?';
+          if (!isUntracked && !hasUnstaged) continue;
+
+          let additions = unstagedNumstat.get(innerPath)?.additions ?? 0;
+          const deletions = unstagedNumstat.get(innerPath)?.deletions ?? 0;
+
+          if (additions === 0 && deletions === 0 && code.includes('?')) {
+            try {
+              const result = await this.fs.read(
+                `${submodule.rootPath}/${innerPath}`,
+                MAX_DIFF_CONTENT_BYTES
+              );
+              if (!result.truncated) additions = (result.content.match(/\n/g) ?? []).length;
+            } catch {}
+          }
+
+          unstaged.push(
+            this._withSubmodulePrefix(
+              {
+                path: innerPath,
+                status,
+                additions,
+                deletions,
+              },
+              submodule.rootPath
+            )
+          );
+        }
+      } catch (error) {
+        if (error instanceof TooManyFilesChangedError) throw error;
+      }
+    }
+
+    return { staged, unstaged };
+  }
+
+  private async _getGitlinkOidAtRef(rootPath: string, ref: string): Promise<string | null> {
+    try {
+      const { stdout } = await this.ctx.exec('git', ['rev-parse', `${ref}:${rootPath}`]);
+      const oid = stdout.trim();
+      return oid && oid !== '0'.repeat(40) ? oid : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async _getGitlinkOidAtIndex(rootPath: string): Promise<string | null> {
+    try {
+      const { stdout } = await this.ctx.exec('git', ['ls-files', '-s', '--', rootPath]);
+      const oid = stdout.trim().split(/\s+/)[1] ?? '';
+      return oid && oid !== '0'.repeat(40) ? oid : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async _getSubmoduleHeadOid(rootPath: string): Promise<string | null> {
+    try {
+      const { stdout } = await this.ctx.exec('git', ['-C', rootPath, 'rev-parse', 'HEAD']);
+      const oid = stdout.trim();
+      return oid && oid !== '0'.repeat(40) ? oid : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async _getSubmodulePointerChanges(
+    submodules: SubmoduleInfo[],
+    target: 'staged' | 'unstaged'
+  ): Promise<SubmodulePointerChange[]> {
+    const changes: SubmodulePointerChange[] = [];
+
+    for (const submodule of submodules) {
+      const oldOid =
+        target === 'staged'
+          ? await this._getGitlinkOidAtRef(submodule.rootPath, 'HEAD')
+          : await this._getGitlinkOidAtIndex(submodule.rootPath);
+      const newOid =
+        target === 'staged'
+          ? await this._getGitlinkOidAtIndex(submodule.rootPath)
+          : await this._getSubmoduleHeadOid(submodule.rootPath);
+
+      if (!oldOid || !newOid || oldOid === newOid) continue;
+      changes.push({ rootPath: submodule.rootPath, oldOid, newOid });
+    }
+
+    return changes;
+  }
+
+  private async _expandSubmodulePointerChanges(
+    pointerChanges: SubmodulePointerChange[]
+  ): Promise<GitChange[]> {
+    const changes: GitChange[] = [];
+
+    for (const pointer of pointerChanges) {
+      try {
+        const [numstatResult, nameStatusResult] = await Promise.all([
+          this.ctx
+            .exec('git', [
+              '-C',
+              pointer.rootPath,
+              'diff',
+              '--numstat',
+              pointer.oldOid,
+              pointer.newOid,
+            ])
+            .catch(() => ({ stdout: '' })),
+          this.ctx
+            .exec('git', [
+              '-C',
+              pointer.rootPath,
+              'diff',
+              '--name-status',
+              pointer.oldOid,
+              pointer.newOid,
+            ])
+            .catch(() => ({ stdout: '' })),
+        ]);
+        const numstatMap = this.parseNumstat(numstatResult.stdout);
+        const expanded: GitChange[] = [];
+
+        for (const line of nameStatusResult.stdout.trim().split('\n').filter(Boolean)) {
+          const parts = line.split('\t');
+          const code = parts[0] ?? '';
+          const innerPath = (parts[parts.length - 1] ?? '').trim();
+          if (!innerPath) continue;
+          const stat = numstatMap.get(innerPath);
+          expanded.push(
+            this._withSubmodulePrefix(
+              {
+                path: innerPath,
+                status: mapStatus(code),
+                additions: stat?.additions ?? 0,
+                deletions: stat?.deletions ?? 0,
+              },
+              pointer.rootPath
+            )
+          );
+        }
+
+        if (expanded.length > 0) {
+          changes.push(...expanded);
+        } else {
+          changes.push({
+            path: pointer.rootPath,
+            status: 'modified',
+            additions: 1,
+            deletions: 1,
+            submodule: { rootPath: pointer.rootPath, path: '' },
+          });
+        }
+      } catch {
+        changes.push({
+          path: pointer.rootPath,
+          status: 'modified',
+          additions: 1,
+          deletions: 1,
+          submodule: { rootPath: pointer.rootPath, path: '' },
+        });
+      }
+    }
+
+    return changes;
+  }
+
   async getStatus(): Promise<{ changes: GitChange[]; currentBranch: string | null }> {
     try {
       const full = await this.getFullStatus();
@@ -360,20 +710,78 @@ export class GitService implements GitProvider, IDisposable {
 
   async stageFiles(filePaths: string[]): Promise<void> {
     if (filePaths.length === 0) return;
-    await this.ctx.exec('git', ['add', '--', ...filePaths]);
+    const submodules = await this._getSubmodules();
+    const parentPaths: string[] = [];
+    const bySubmodule = new Map<string, string[]>();
+
+    for (const filePath of filePaths) {
+      const submodule = this._resolveSubmodulePath(filePath, submodules);
+      if (!submodule || !submodule.innerPath) {
+        parentPaths.push(filePath);
+        continue;
+      }
+      bySubmodule.set(submodule.rootPath, [
+        ...(bySubmodule.get(submodule.rootPath) ?? []),
+        submodule.innerPath,
+      ]);
+    }
+
+    for (const [rootPath, innerPaths] of bySubmodule) {
+      await this.ctx.exec('git', ['-C', rootPath, 'add', '--', ...innerPaths]);
+      parentPaths.push(rootPath);
+    }
+
+    if (parentPaths.length > 0) {
+      await this.ctx.exec('git', ['add', '--', ...[...new Set(parentPaths)]]);
+    }
   }
 
   async stageAllFiles(): Promise<void> {
+    for (const submodule of await this._getSubmodules()) {
+      await this.ctx.exec('git', ['-C', submodule.rootPath, 'add', '-A']).catch(() => {});
+    }
     await this.ctx.exec('git', ['add', '-A']);
   }
 
   async unstageFiles(filePaths: string[]): Promise<void> {
     if (filePaths.length === 0) return;
+    const submodules = await this._getSubmodules();
+    const parentPaths: string[] = [];
+    const bySubmodule = new Map<string, string[]>();
+
+    for (const filePath of filePaths) {
+      const submodule = this._resolveSubmodulePath(filePath, submodules);
+      if (!submodule || !submodule.innerPath) {
+        parentPaths.push(filePath);
+        continue;
+      }
+      bySubmodule.set(submodule.rootPath, [
+        ...(bySubmodule.get(submodule.rootPath) ?? []),
+        submodule.innerPath,
+      ]);
+      parentPaths.push(submodule.rootPath);
+    }
+
+    for (const [rootPath, innerPaths] of bySubmodule) {
+      await this.ctx
+        .exec('git', ['-C', rootPath, 'reset', 'HEAD', '--', ...innerPaths])
+        .catch(async () => {
+          for (const innerPath of innerPaths) {
+            await this.ctx
+              .exec('git', ['-C', rootPath, 'reset', 'HEAD', '--', innerPath])
+              .catch(() =>
+                this.ctx.exec('git', ['-C', rootPath, 'rm', '--cached', '--', innerPath])
+              );
+          }
+        });
+    }
+
+    if (parentPaths.length === 0) return;
     try {
-      await this.ctx.exec('git', ['reset', 'HEAD', '--', ...filePaths]);
+      await this.ctx.exec('git', ['reset', 'HEAD', '--', ...[...new Set(parentPaths)]]);
     } catch {
       // Fallback for edge cases (e.g. new files with no HEAD): unstage each via rm --cached
-      for (const filePath of filePaths) {
+      for (const filePath of [...new Set(parentPaths)]) {
         try {
           await this.ctx.exec('git', ['reset', 'HEAD', '--', filePath]);
         } catch {
@@ -384,6 +792,9 @@ export class GitService implements GitProvider, IDisposable {
   }
 
   async unstageAllFiles(): Promise<void> {
+    for (const submodule of await this._getSubmodules()) {
+      await this.ctx.exec('git', ['-C', submodule.rootPath, 'reset', 'HEAD']).catch(() => {});
+    }
     try {
       await this.ctx.exec('git', ['reset', 'HEAD']);
     } catch {
@@ -393,6 +804,45 @@ export class GitService implements GitProvider, IDisposable {
 
   async revertFiles(filePaths: string[]): Promise<void> {
     if (filePaths.length === 0) return;
+    const submodules = await this._getSubmodules();
+    const parentPaths: string[] = [];
+    const bySubmodule = new Map<string, string[]>();
+
+    for (const filePath of filePaths) {
+      const submodule = this._resolveSubmodulePath(filePath, submodules);
+      if (!submodule || !submodule.innerPath) {
+        parentPaths.push(filePath);
+        continue;
+      }
+      bySubmodule.set(submodule.rootPath, [
+        ...(bySubmodule.get(submodule.rootPath) ?? []),
+        submodule.innerPath,
+      ]);
+      parentPaths.push(submodule.rootPath);
+    }
+
+    for (const [rootPath, innerPaths] of bySubmodule) {
+      try {
+        await this.ctx.exec('git', ['-C', rootPath, 'checkout', 'HEAD', '--', ...innerPaths]);
+      } catch {}
+      for (const innerPath of innerPaths) {
+        try {
+          const exists = await this.fs.exists(`${rootPath}/${innerPath}`);
+          if (exists) {
+            await this.ctx
+              .exec('git', ['-C', rootPath, 'ls-files', '--error-unmatch', '--', innerPath])
+              .catch(async () => {
+                await this.fs.remove(`${rootPath}/${innerPath}`);
+              });
+          }
+        } catch {}
+      }
+      await this.ctx
+        .exec('git', ['submodule', 'update', '--checkout', '--', rootPath])
+        .catch(() => {});
+    }
+
+    if (parentPaths.length === 0) return;
 
     // Determine which files exist in HEAD in a single command
     let trackedPaths = new Set<string>();
@@ -402,15 +852,15 @@ export class GitService implements GitProvider, IDisposable {
         '--name-only',
         'HEAD',
         '--',
-        ...filePaths,
+        ...[...new Set(parentPaths)],
       ]);
       trackedPaths = new Set(stdout.trim().split('\n').filter(Boolean));
     } catch {
       // Empty repo — no HEAD yet, all files are untracked
     }
 
-    const tracked = filePaths.filter((f) => trackedPaths.has(f));
-    const untracked = filePaths.filter((f) => !trackedPaths.has(f));
+    const tracked = [...new Set(parentPaths)].filter((f) => trackedPaths.has(f));
+    const untracked = [...new Set(parentPaths)].filter((f) => !trackedPaths.has(f));
 
     if (tracked.length > 0) {
       await this.ctx.exec('git', ['checkout', 'HEAD', '--', ...tracked]);
@@ -426,6 +876,12 @@ export class GitService implements GitProvider, IDisposable {
   }
 
   async revertAllFiles(): Promise<void> {
+    for (const submodule of await this._getSubmodules()) {
+      await this.ctx
+        .exec('git', ['-C', submodule.rootPath, 'reset', '--hard', 'HEAD'])
+        .catch(() => {});
+      await this.ctx.exec('git', ['-C', submodule.rootPath, 'clean', '-fd']).catch(() => {});
+    }
     // Reset index and working tree for all tracked changes back to HEAD,
     // then remove any untracked files/directories.
     try {
@@ -444,7 +900,49 @@ export class GitService implements GitProvider, IDisposable {
     return this.getFileAtRef(filePath, 'HEAD');
   }
 
+  private async _getFileAtSubmoduleCommit(
+    rootPath: string,
+    innerPath: string,
+    oid: string | null
+  ): Promise<string | null> {
+    if (!innerPath || !oid) return null;
+    try {
+      const { stdout } = await this.ctx.exec(
+        'git',
+        ['-C', rootPath, 'show', `${oid}:${innerPath}`],
+        {
+          maxBuffer: MAX_DIFF_CONTENT_BYTES,
+        }
+      );
+      return stripTrailingNewline(stdout);
+    } catch {
+      return null;
+    }
+  }
+
   async getFileAtRef(filePath: string, ref: string): Promise<string | null> {
+    const submodule = await this._resolveSubmodule(filePath);
+    if (submodule?.innerPath) {
+      const oid = await this._getGitlinkOidAtRef(submodule.rootPath, ref);
+      const fromParentRef = await this._getFileAtSubmoduleCommit(
+        submodule.rootPath,
+        submodule.innerPath,
+        oid
+      );
+      if (fromParentRef !== null) return fromParentRef;
+
+      try {
+        const { stdout } = await this.ctx.exec(
+          'git',
+          ['-C', submodule.rootPath, 'show', `${ref}:${submodule.innerPath}`],
+          { maxBuffer: MAX_DIFF_CONTENT_BYTES }
+        );
+        return stripTrailingNewline(stdout);
+      } catch {
+        return null;
+      }
+    }
+
     const cf = this._getCatFile();
     if (cf) {
       try {
@@ -464,6 +962,29 @@ export class GitService implements GitProvider, IDisposable {
   }
 
   async getFileAtIndex(filePath: string): Promise<string | null> {
+    const submodule = await this._resolveSubmodule(filePath);
+    if (submodule?.innerPath) {
+      const [headOid, indexOid] = await Promise.all([
+        this._getGitlinkOidAtRef(submodule.rootPath, 'HEAD'),
+        this._getGitlinkOidAtIndex(submodule.rootPath),
+      ]);
+
+      if (indexOid && indexOid !== headOid) {
+        return this._getFileAtSubmoduleCommit(submodule.rootPath, submodule.innerPath, indexOid);
+      }
+
+      try {
+        const { stdout } = await this.ctx.exec(
+          'git',
+          ['-C', submodule.rootPath, 'show', `:0:${submodule.innerPath}`],
+          { maxBuffer: MAX_DIFF_CONTENT_BYTES }
+        );
+        return stripTrailingNewline(stdout);
+      } catch {
+        return null;
+      }
+    }
+
     const cf = this._getCatFile();
     if (cf) {
       try {
@@ -483,22 +1004,48 @@ export class GitService implements GitProvider, IDisposable {
   }
 
   async getImageAtRef(filePath: string, ref: string): Promise<ImageReadResult> {
+    const submodule = await this._resolveSubmodule(filePath);
+    if (submodule?.innerPath) {
+      const oid = await this._getGitlinkOidAtRef(submodule.rootPath, ref);
+      if (oid) {
+        return this._readImageBlob(`${oid}:${submodule.innerPath}`, filePath, submodule.rootPath);
+      }
+    }
     return this._readImageBlob(`${ref}:${filePath}`, filePath);
   }
 
   async getImageAtIndex(filePath: string): Promise<ImageReadResult> {
+    const submodule = await this._resolveSubmodule(filePath);
+    if (submodule?.innerPath) {
+      const [headOid, indexOid] = await Promise.all([
+        this._getGitlinkOidAtRef(submodule.rootPath, 'HEAD'),
+        this._getGitlinkOidAtIndex(submodule.rootPath),
+      ]);
+      if (indexOid && indexOid !== headOid) {
+        return this._readImageBlob(
+          `${indexOid}:${submodule.innerPath}`,
+          filePath,
+          submodule.rootPath
+        );
+      }
+      return this._readImageBlob(`:0:${submodule.innerPath}`, filePath, submodule.rootPath);
+    }
     return this._readImageBlob(`:0:${filePath}`, filePath);
   }
 
   // SSH workspaces have no binary-safe exec channel.
-  private async _readImageBlob(spec: string, filePath: string): Promise<ImageReadResult> {
+  private async _readImageBlob(
+    spec: string,
+    filePath: string,
+    cwd?: string
+  ): Promise<ImageReadResult> {
     if (!this.ctx.supportsLocalSpawn) return { kind: 'unavailable', reason: 'ssh' };
     const mimeType = imageMimeForPath(filePath);
     if (!mimeType) return { kind: 'unavailable', reason: 'unsupported' };
 
     return new Promise((resolve) => {
       const child = spawn(GIT_EXECUTABLE, ['cat-file', '--filters', spec], {
-        cwd: this.ctx.root || undefined,
+        cwd: cwd ? path.join(this.ctx.root ?? '', cwd) : this.ctx.root || undefined,
       });
       const chunks: Buffer[] = [];
       let total = 0;
@@ -900,6 +1447,11 @@ export class GitService implements GitProvider, IDisposable {
     ]);
 
     const numstatMap = parseNumstat(numstatResult.stdout);
+    const submodules = await this._getSubmodules();
+    const submoduleRoots = new Set(submodules.map((submodule) => submodule.rootPath));
+    const rawPointerChanges = await this._getRawSubmodulePointerChanges(ref, submoduleRoots);
+    const pointerChanges = await this._expandSubmodulePointerChanges(rawPointerChanges);
+    const expandedRoots = new Set(pointerChanges.map((change) => change.submodule!.rootPath));
 
     const changes: GitChange[] = [];
     for (const line of nameStatusResult.stdout.trim().split('\n').filter(Boolean)) {
@@ -907,6 +1459,7 @@ export class GitService implements GitProvider, IDisposable {
       const code = parts[0] ?? '';
       const filePath = (parts[parts.length - 1] ?? '').trim();
       if (!filePath) continue;
+      if (expandedRoots.has(filePath)) continue;
 
       const stat = numstatMap.get(filePath);
       changes.push({
@@ -917,7 +1470,40 @@ export class GitService implements GitProvider, IDisposable {
       });
     }
 
-    return changes;
+    return this._coalesceChanges([...changes, ...pointerChanges]);
+  }
+
+  private async _getRawSubmodulePointerChanges(
+    ref: string,
+    submoduleRoots: Set<string>
+  ): Promise<SubmodulePointerChange[]> {
+    if (submoduleRoots.size === 0) return [];
+    const args =
+      ref === '--cached'
+        ? ['diff', '--raw', '--cached', '--', ...submoduleRoots]
+        : ['diff', '--raw', ref, '--', ...submoduleRoots];
+
+    try {
+      const { stdout } = await this.ctx.exec('git', args);
+      return stdout
+        .trim()
+        .split('\n')
+        .filter(Boolean)
+        .flatMap((line): SubmodulePointerChange[] => {
+          const match = line.match(
+            /^:160000\s+160000\s+([0-9a-f]{7,40})\s+([0-9a-f]{7,40})\s+\S+\s+(.+)$/
+          );
+          if (!match) return [];
+          const rootPath = match[3]!.trim();
+          if (!submoduleRoots.has(rootPath)) return [];
+          const oldOid = match[1]!;
+          const newOid = match[2]!;
+          if (/^0+$/.test(oldOid) || /^0+$/.test(newOid) || oldOid === newOid) return [];
+          return [{ rootPath, oldOid, newOid }];
+        });
+    } catch {
+      return [];
+    }
   }
 
   async getCommitFiles(commitHash: string): Promise<CommitFile[]> {
@@ -969,8 +1555,66 @@ export class GitService implements GitProvider, IDisposable {
   // Mutations
   // ---------------------------------------------------------------------------
 
+  private async _hasStagedChanges(rootPath: string): Promise<boolean> {
+    try {
+      await this.ctx.exec('git', ['-C', rootPath, 'diff', '--cached', '--quiet']);
+      return false;
+    } catch {
+      return true;
+    }
+  }
+
+  private async _commitStagedSubmodules(message: string): Promise<Result<void, CommitError>> {
+    const submodules = await this._getSubmodules();
+
+    for (const submodule of submodules) {
+      const hasStagedChanges = await this._hasStagedChanges(submodule.rootPath);
+      if (!hasStagedChanges) continue;
+
+      try {
+        await this.ctx.exec('git', ['-C', submodule.rootPath, 'commit', '-m', message]);
+      } catch (error: unknown) {
+        const stderr = (error as { stderr?: string })?.stderr || '';
+        const stdout = (error as { stdout?: string })?.stdout || '';
+        const output = stderr || stdout || String(error);
+        if (stderr.includes('nothing to commit') || stdout.includes('nothing to commit')) {
+          continue;
+        }
+        return err({ type: 'hook_failed', message: output });
+      }
+
+      try {
+        const parent = this._findParentSubmodule(submodule.rootPath, submodules);
+        if (parent) {
+          const relativePath = submodule.rootPath.slice(parent.rootPath.length + 1);
+          await this.ctx.exec('git', ['-C', parent.rootPath, 'add', '--', relativePath]);
+        } else {
+          await this.ctx.exec('git', ['add', '--', submodule.rootPath]);
+        }
+      } catch (error: unknown) {
+        return err({ type: 'error', message: String(error) });
+      }
+    }
+
+    return ok(undefined);
+  }
+
+  private _findParentSubmodule(
+    rootPath: string,
+    submodules: SubmoduleInfo[]
+  ): SubmoduleInfo | null {
+    return (
+      submodules
+        .filter((candidate) => rootPath.startsWith(`${candidate.rootPath}/`))
+        .sort((a, b) => b.rootPath.length - a.rootPath.length)[0] ?? null
+    );
+  }
+
   async commit(message: string): Promise<Result<{ hash: string }, CommitError>> {
     if (!message || !message.trim()) return err({ type: 'empty_message' });
+    const submoduleCommit = await this._commitStagedSubmodules(message);
+    if (!submoduleCommit.success) return err(submoduleCommit.error);
+
     try {
       await this.ctx.exec('git', ['commit', '-m', message]);
     } catch (error: unknown) {
@@ -1050,6 +1694,9 @@ export class GitService implements GitProvider, IDisposable {
     };
 
     try {
+      const submodulePush = await this._pushSubmodules();
+      if (!submodulePush.success) return err(submodulePush.error);
+
       const remote = preferredRemote?.trim();
       if (remote) {
         const { stdout } = await this.ctx.exec('git', ['branch', '--show-current']);
@@ -1124,6 +1771,78 @@ export class GitService implements GitProvider, IDisposable {
       }
 
       return err({ type: 'error', message });
+    }
+  }
+
+  private async _pushSubmodules(): Promise<Result<void, PushError>> {
+    for (const submodule of await this._getSubmodules()) {
+      try {
+        const { stdout } = await this.authCtx.exec('git', [
+          '-C',
+          submodule.rootPath,
+          'rev-list',
+          '--count',
+          '@{upstream}..HEAD',
+        ]);
+        const ahead = Number.parseInt(stdout.trim(), 10) || 0;
+        if (ahead === 0) continue;
+        await this.authCtx.exec('git', ['-C', submodule.rootPath, 'push']);
+      } catch (error: unknown) {
+        const stderr = (error as { stderr?: string })?.stderr || '';
+        const message = stderr || String(error);
+        if (
+          stderr.includes('no upstream configured') ||
+          stderr.includes('has no upstream branch') ||
+          stderr.includes('no upstream') ||
+          stderr.includes('No configured push destination')
+        ) {
+          const remoteContainsHead = await this._isSubmoduleHeadOnAnyRemote(submodule.rootPath);
+          if (remoteContainsHead) continue;
+          return err({
+            type: 'no_remote',
+            message: `Submodule "${submodule.rootPath}" has commits that need to be pushed, but no upstream is configured.`,
+          });
+        }
+        if (
+          stderr.includes('Authentication failed') ||
+          stderr.includes('authentication failed') ||
+          stderr.includes('Permission denied') ||
+          stderr.includes('could not read Username')
+        ) {
+          return err({ type: 'auth_failed', message });
+        }
+        if (
+          stderr.includes('Could not resolve host') ||
+          stderr.includes('could not resolve host') ||
+          stderr.includes('Network is unreachable') ||
+          stderr.includes('Connection refused') ||
+          stderr.includes('Connection timed out') ||
+          stderr.includes('unable to connect')
+        ) {
+          return err({ type: 'network_error', message });
+        }
+        return err({
+          type: 'error',
+          message: `Failed to push submodule "${submodule.rootPath}": ${message}`,
+        });
+      }
+    }
+    return ok(undefined);
+  }
+
+  private async _isSubmoduleHeadOnAnyRemote(rootPath: string): Promise<boolean> {
+    try {
+      const { stdout } = await this.ctx.exec('git', [
+        '-C',
+        rootPath,
+        'branch',
+        '-r',
+        '--contains',
+        'HEAD',
+      ]);
+      return stdout.trim().length > 0;
+    } catch {
+      return false;
     }
   }
 
