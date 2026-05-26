@@ -81,7 +81,7 @@ describe('WorktreeService', () => {
     });
   }
 
-  it('uses the injected host path API for worktree paths', async () => {
+  it('uses the host path API for worktree paths', async () => {
     const remoteHost: WorktreeHost = {
       existsAbsolute: vi.fn().mockResolvedValue(false),
       mkdirAbsolute: vi.fn().mockResolvedValue(undefined),
@@ -115,6 +115,17 @@ describe('WorktreeService', () => {
 
     expect(remoteHost.existsAbsolute).toHaveBeenCalledWith(
       'host:/remote/worktrees/project/emdash/task-abc'
+    );
+
+    const checkoutResult = await svc.checkoutBranchWorktree(
+      { type: 'local', branch: 'main' },
+      'emdash/task-created'
+    );
+
+    expect(checkoutResult.success).toBe(true);
+    expect(remoteHost.mkdirAbsolute).toHaveBeenCalledWith(
+      'host-dir:/remote/worktrees/project/emdash',
+      { recursive: true }
     );
   });
 
