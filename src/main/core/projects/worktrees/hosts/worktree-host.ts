@@ -1,6 +1,10 @@
+import type path from 'node:path';
 import type { FileEntry } from '@main/core/fs/types';
 
+export type WorktreeHostPathApi = Pick<typeof path, 'dirname' | 'join'>;
+
 export interface WorktreeHost {
+  readonly pathApi: WorktreeHostPathApi;
   existsAbsolute(path: string): Promise<boolean>;
   mkdirAbsolute(path: string, options?: { recursive?: boolean }): Promise<void>;
   removeAbsolute(

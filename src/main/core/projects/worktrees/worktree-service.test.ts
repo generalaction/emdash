@@ -81,6 +81,54 @@ describe('WorktreeService', () => {
     });
   }
 
+  it('uses the host path API for worktree paths', async () => {
+    const remoteHost: WorktreeHost = {
+      existsAbsolute: vi.fn().mockResolvedValue(false),
+      mkdirAbsolute: vi.fn().mockResolvedValue(undefined),
+      removeAbsolute: vi.fn().mockResolvedValue({ success: true }),
+      realPathAbsolute: vi.fn().mockResolvedValue('/remote/worktrees/project'),
+      globAbsolute: vi.fn().mockResolvedValue([]),
+      readFileAbsolute: vi.fn().mockResolvedValue(''),
+      copyFileAbsolute: vi.fn().mockResolvedValue(undefined),
+      statAbsolute: vi.fn().mockResolvedValue(null),
+      pathApi: {
+        join: (...segments: string[]) => `host:${path.posix.join(...segments)}`,
+        dirname: (input: string) => `host-dir:${path.posix.dirname(input.replace(/^host:/, ''))}`,
+      },
+    };
+    const remoteCtx = {
+      root: '/remote/repo',
+      supportsLocalSpawn: false,
+      exec: vi.fn().mockResolvedValue({ stdout: '', stderr: '' }),
+      execStreaming: vi.fn().mockResolvedValue(undefined),
+      dispose: vi.fn(),
+    } satisfies IExecutionContext;
+    const svc = new WorktreeService({
+      repoPath: '/remote/repo',
+      ctx: remoteCtx,
+      host: remoteHost,
+      projectSettings: makeSettings(),
+      resolveWorktreePoolPath: async () => '/remote/worktrees/project',
+    });
+
+    await expect(svc.getWorktree('emdash/task-abc')).resolves.toBeUndefined();
+
+    expect(remoteHost.existsAbsolute).toHaveBeenCalledWith(
+      'host:/remote/worktrees/project/emdash/task-abc'
+    );
+
+    const checkoutResult = await svc.checkoutBranchWorktree(
+      { type: 'local', branch: 'main' },
+      'emdash/task-created'
+    );
+
+    expect(checkoutResult.success).toBe(true);
+    expect(remoteHost.mkdirAbsolute).toHaveBeenCalledWith(
+      'host-dir:/remote/worktrees/project/emdash',
+      { recursive: true }
+    );
+  });
+
   describe('checkoutBranchWorktree', () => {
     it('ignores stale worktree-list entries under the pool', async () => {
       const branchName = 'emdash/openrouter-embedding-3hvp5';

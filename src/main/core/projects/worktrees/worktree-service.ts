@@ -1,5 +1,4 @@
 import { promises as fsPromises } from 'node:fs';
-import path from 'node:path';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { log } from '@main/lib/logger';
@@ -51,13 +50,13 @@ export class WorktreeService {
     // For SSH we rely on the host (SshWorktreeHost has no root restrictions).
     if (this.ctx.supportsLocalSpawn) {
       try {
-        await fsPromises.access(path.join(worktreePath, '.git'));
+        await fsPromises.access(this.host.pathApi.join(worktreePath, '.git'));
         return true;
       } catch {
         return false;
       }
     }
-    return this.host.existsAbsolute(path.join(worktreePath, '.git'));
+    return this.host.existsAbsolute(this.host.pathApi.join(worktreePath, '.git'));
   }
 
   private async ensureWorktreePoolDirExists(): Promise<void> {
@@ -160,7 +159,7 @@ export class WorktreeService {
 
   async getWorktree(branchName: string): Promise<string | undefined> {
     const worktreePoolPath = await this.resolveWorktreePoolPath();
-    const worktreePath = path.join(worktreePoolPath, branchName);
+    const worktreePath = this.host.pathApi.join(worktreePoolPath, branchName);
     if (await this.host.existsAbsolute(worktreePath)) {
       if (await this.isValidWorktree(worktreePath)) return worktreePath;
       await this.host.removeAbsolute(worktreePath, { recursive: true }).catch(() => {});
@@ -202,7 +201,7 @@ export class WorktreeService {
       return ok(checkedOutPath);
     }
 
-    const targetPath = path.join(await this.resolveWorktreePoolPath(), branchName);
+    const targetPath = this.host.pathApi.join(await this.resolveWorktreePoolPath(), branchName);
     if (await this.host.existsAbsolute(targetPath)) {
       if (await this.isValidWorktree(targetPath)) {
         await this.ensureBranchBaseConfig(branchName, baseConfigValue);
@@ -228,7 +227,7 @@ export class WorktreeService {
       }
       await this.ensureBranchBaseConfig(branchName, baseConfigValue);
 
-      await this.host.mkdirAbsolute(path.dirname(targetPath), { recursive: true });
+      await this.host.mkdirAbsolute(this.host.pathApi.dirname(targetPath), { recursive: true });
       await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
       await this.ctx.exec('git', ['worktree', 'add', targetPath, branchName]);
     } catch (cause) {
@@ -258,7 +257,7 @@ export class WorktreeService {
       return ok(checkedOutPath);
     }
 
-    const targetPath = path.join(await this.resolveWorktreePoolPath(), branchName);
+    const targetPath = this.host.pathApi.join(await this.resolveWorktreePoolPath(), branchName);
     const remoteCandidates = await this.getRemoteCandidates();
 
     if (await this.host.existsAbsolute(targetPath)) {
@@ -268,7 +267,7 @@ export class WorktreeService {
     }
 
     try {
-      await this.host.mkdirAbsolute(path.dirname(targetPath), { recursive: true });
+      await this.host.mkdirAbsolute(this.host.pathApi.dirname(targetPath), { recursive: true });
       for (const remoteName of remoteCandidates) {
         await this.ctx.exec('git', ['fetch', remoteName]).catch(() => {});
       }
@@ -329,9 +328,11 @@ export class WorktreeService {
 
   private taskConfigFs(targetPath: string): Pick<FileSystemProvider, 'exists' | 'read'> {
     return {
-      exists: (filePath) => this.host.existsAbsolute(path.join(targetPath, filePath)),
+      exists: (filePath) => this.host.existsAbsolute(this.host.pathApi.join(targetPath, filePath)),
       read: async (filePath) => {
-        const content = await this.host.readFileAbsolute(path.join(targetPath, filePath));
+        const content = await this.host.readFileAbsolute(
+          this.host.pathApi.join(targetPath, filePath)
+        );
         return {
           content,
           truncated: false,
@@ -363,11 +364,11 @@ export class WorktreeService {
       });
       for (const relPath of matches) {
         if (relPath === '.emdash.json' || (await this.isTrackedSourcePath(relPath))) continue;
-        const src = path.join(this.repoPath, relPath);
+        const src = this.host.pathApi.join(this.repoPath, relPath);
         const stat = await this.host.statAbsolute(src).catch(() => null);
         if (!stat || stat.type !== 'file') continue;
-        const dest = path.join(targetPath, relPath);
-        await this.host.mkdirAbsolute(path.dirname(dest), { recursive: true });
+        const dest = this.host.pathApi.join(targetPath, relPath);
+        await this.host.mkdirAbsolute(this.host.pathApi.dirname(dest), { recursive: true });
         await this.host.copyFileAbsolute(src, dest);
       }
     }

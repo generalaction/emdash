@@ -22,6 +22,8 @@ function isNotFound(error: unknown): boolean {
 }
 
 export class LocalWorktreeHost implements WorktreeHost {
+  readonly pathApi = path;
+
   private constructor(private readonly roots: string[]) {}
 
   private static async resolveAllowedRoot(root: string): Promise<string> {
