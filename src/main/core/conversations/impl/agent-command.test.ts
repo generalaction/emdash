@@ -224,7 +224,7 @@ describe('buildAgentCommand', () => {
     expect(result.args).toContain('Claude Sonnet');
   });
 
-  it('uses the current Copilot prompt flag when stored config has the old positional default', () => {
+  it('respects explicit Copilot positional prompt overrides', () => {
     const result = buildAgentCommand({
       providerId: 'copilot',
       providerConfig: makeConfig({
@@ -238,7 +238,7 @@ describe('buildAgentCommand', () => {
       sessionId: 'conv-1',
     });
 
-    expect(result).toEqual({ command: 'copilot', args: ['-i', 'Fix the bug'] });
+    expect(result).toEqual({ command: 'copilot', args: ['Fix the bug'] });
   });
 
   it('rejects shell control syntax that makes managed args ambiguous', () => {

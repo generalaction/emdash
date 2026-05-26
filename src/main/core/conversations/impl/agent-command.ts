@@ -120,10 +120,7 @@ export function buildAgentCommand({
 }): AgentCommand {
   const providerDef = getProvider(providerId);
   const [command, ...args] = parseCliPrefix(providerConfig?.cli, providerId);
-  let initialPromptFlag = providerConfig?.initialPromptFlag;
-  if (providerId === 'copilot' && initialPromptFlag === '') {
-    initialPromptFlag = providerDef?.initialPromptFlag;
-  }
+  const initialPromptFlag = providerConfig?.initialPromptFlag;
 
   args.push(...(providerConfig?.defaultArgs ?? []));
 
