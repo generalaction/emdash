@@ -194,7 +194,7 @@ export function FeedbackModal({ onSuccess, blurb }: Props) {
                   onCheckedChange={(checked) => setIncludeDiagnosticLogs(Boolean(checked))}
                   disabled={submitting}
                 />
-                <span className="min-w-0 font-medium">Include diagnostic logs</span>
+                <span className="min-w-0">Include diagnostic logs</span>
               </label>
               <TooltipProvider delay={150}>
                 <Tooltip>
