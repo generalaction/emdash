@@ -1465,6 +1465,18 @@ export class GitService implements GitProvider, IDisposable {
     await this.ctx.exec('git', ['remote', 'add', name, url]);
   }
 
+  private async setBranchBaseConfig(branchName: string, baseRef: string): Promise<void> {
+    try {
+      await this.ctx.exec('git', ['config', `branch.${branchName}.base`, baseRef]);
+    } catch (error) {
+      log.warn('GitService: failed to set branch base metadata', {
+        branchName,
+        baseRef,
+        error: String(error),
+      });
+    }
+  }
+
   async createBranch(
     name: string,
     from: string,
@@ -1481,6 +1493,7 @@ export class GitService implements GitProvider, IDisposable {
     const base = syncWithRemote ? `${remote}/${from}` : `refs/heads/${from}`;
     try {
       await this.ctx.exec('git', ['branch', '--no-track', name, base]);
+      await this.setBranchBaseConfig(name, syncWithRemote ? `${remote}/${from}` : from);
       return ok();
     } catch (error: unknown) {
       const stderr = (error as { stderr?: string })?.stderr || String(error);

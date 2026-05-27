@@ -1,4 +1,5 @@
 import { action, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
+import { makeFileLinkHandlers } from '@renderer/features/tasks/stores/open-file-in-file-editor';
 import { events, rpc } from '@renderer/lib/ipc';
 import { PtySession } from '@renderer/lib/pty/pty-session';
 import type { IDisposable } from '@renderer/lib/stores/lifecycle';
@@ -59,10 +60,13 @@ export class ConversationManagerStore implements IDisposable {
             this.conversations.set(conversation.id, new ConversationStore(conversation));
           }
           if (!this.sessions.has(conversation.id)) {
+            const handlers = makeFileLinkHandlers(conversation.projectId, conversation.taskId);
             this.sessions.set(
               conversation.id,
               new PtySession(
-                makePtySessionId(conversation.projectId, conversation.taskId, conversation.id)
+                makePtySessionId(conversation.projectId, conversation.taskId, conversation.id),
+                handlers.onOpenFile,
+                handlers.onOpenExternal
               )
             );
           }
@@ -83,10 +87,13 @@ export class ConversationManagerStore implements IDisposable {
               this.conversations.set(conversation.id, new ConversationStore(conversation));
             }
             if (!this.sessions.has(conversation.id)) {
+              const handlers = makeFileLinkHandlers(conversation.projectId, conversation.taskId);
               this.sessions.set(
                 conversation.id,
                 new PtySession(
-                  makePtySessionId(conversation.projectId, conversation.taskId, conversation.id)
+                  makePtySessionId(conversation.projectId, conversation.taskId, conversation.id),
+                  handlers.onOpenFile,
+                  handlers.onOpenExternal
                 )
               );
             }
@@ -113,7 +120,7 @@ export class ConversationManagerStore implements IDisposable {
       if (event.type === 'notification') {
         const nt = event.payload.notificationType;
         if (!isAttentionNotification(nt)) return;
-        if (event.providerId === 'codex' && nt === 'idle_prompt') {
+        if ((event.providerId === 'codex' || event.providerId === 'amp') && nt === 'idle_prompt') {
           if (conversationStore.status === 'working') {
             conversationStore.setStatus('completed');
             soundPlayer.play('task_complete', appFocused);
@@ -178,10 +185,13 @@ export class ConversationManagerStore implements IDisposable {
         this.conversations.set(conversation.id, new ConversationStore(conversation));
       }
       if (!this.sessions.has(conversation.id)) {
+        const handlers = makeFileLinkHandlers(conversation.projectId, conversation.taskId);
         this.sessions.set(
           conversation.id,
           new PtySession(
-            makePtySessionId(conversation.projectId, conversation.taskId, conversation.id)
+            makePtySessionId(conversation.projectId, conversation.taskId, conversation.id),
+            handlers.onOpenFile,
+            handlers.onOpenExternal
           )
         );
       }

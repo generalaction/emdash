@@ -1,4 +1,4 @@
-import { Activity, ArrowLeft, Check, Copy, Folder, GitBranch } from 'lucide-react';
+import { Activity, ArrowLeft, Check, Copy, Folder, GitBranch, Terminal } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import AgentLogo from '@renderer/lib/components/agent-logo';
@@ -10,7 +10,9 @@ import type { ResourceAppProcess, ResourceSnapshot } from '@shared/resource-moni
 import {
   appProcessLabel,
   buildGroups,
+  entryLabel,
   formatReport,
+  isLifecycleScriptEntry,
   sortAppProcesses,
   type Entry,
   type Group,
@@ -157,8 +159,7 @@ function TaskRow({ task }: { task: TaskBucket }) {
 function AgentRow({ entry }: { entry: Entry }) {
   const norm = appState.resourceMonitor.normalizedCpu(entry);
   const meta = entry.providerId ? agentMeta[entry.providerId] : undefined;
-  const label =
-    entry.conversationTitle || meta?.label || entry.providerId || entry.leafId.slice(0, 8);
+  const label = entryLabel(entry);
 
   return (
     <div
@@ -174,6 +175,10 @@ function AgentRow({ entry }: { entry: Entry }) {
             invertInDark={meta.invertInDark}
             className="h-3.5 w-3.5"
           />
+        </span>
+      ) : isLifecycleScriptEntry(entry) ? (
+        <span className="flex size-4 shrink-0 items-center justify-center">
+          <Terminal size={12} className="text-foreground/40" />
         </span>
       ) : (
         <span className="size-4 shrink-0" />

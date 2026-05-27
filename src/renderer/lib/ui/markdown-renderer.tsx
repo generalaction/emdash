@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Markdown from 'react-markdown';
+import type { ExtraProps } from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import rehypeKatex from 'rehype-katex';
@@ -11,7 +12,7 @@ import type { PluggableList } from 'unified';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { rpc } from '@renderer/lib/ipc';
 import { cn } from '@renderer/utils/utils';
-import { ContainedImage } from './contained-image';
+import { ExpandableImage } from './expandable-image';
 import { normalizeLatexDelimiters } from './markdown-latex';
 import { MermaidDiagram } from './mermaid-diagram';
 
@@ -101,13 +102,20 @@ const ResolvedImage: React.FC<{
       <span className="text-muted-foreground my-3 inline-block text-xs">Loading image...</span>
     );
   }
-  return <ContainedImage src={dataUrl} alt={alt} className="my-3 max-w-full rounded" />;
+  return (
+    <ExpandableImage
+      src={dataUrl}
+      alt={alt}
+      containerClassName="my-3"
+      className="max-w-full rounded"
+    />
+  );
 };
 
 type WithChildren = { children?: React.ReactNode };
 type WithChildrenAndClass = { children?: React.ReactNode; className?: string };
 type AnchorProps = { href?: string; children?: React.ReactNode };
-type ImgProps = { src?: string; alt?: string };
+type ImgProps = React.ComponentPropsWithoutRef<'img'> & ExtraProps;
 
 function getCodeBlock(children: React.ReactNode, className?: string) {
   const language = /language-(\w+)/.exec(className || '')?.[1] ?? '';
@@ -236,12 +244,20 @@ function useFullComponents(
         <td className="border-t border-border px-3 py-2 text-foreground">{children}</td>
       ),
       hr: () => <hr className="my-6 border-border" />,
-      img: ({ src, alt }: ImgProps) => {
+      img: ({ node: _node, src, alt, className, ...props }: ImgProps) => {
         const isExternal = typeof src === 'string' && /^https?:\/\//i.test(src);
         if (!isExternal && resolveImage && src) {
           return <ResolvedImage src={src} alt={alt || ''} resolveImage={resolveImage} />;
         }
-        return <ContainedImage src={src} alt={alt || ''} className="my-3 max-w-full rounded" />;
+        return (
+          <ExpandableImage
+            src={src}
+            alt={alt || ''}
+            containerClassName="my-3"
+            className={cn('max-w-full rounded', className)}
+            {...props}
+          />
+        );
       },
       strong: ({ children }: WithChildren) => (
         <strong className="font-semibold text-foreground">{children}</strong>
@@ -323,11 +339,13 @@ function useCompactComponents(isDark: boolean) {
           </a>
         );
       },
-      img: ({ src, alt }: ImgProps) => (
-        <ContainedImage
+      img: ({ node: _node, src, alt, className, ...props }: ImgProps) => (
+        <ExpandableImage
           src={src}
           alt={alt || ''}
-          className="my-2 h-auto max-h-80 max-w-full rounded"
+          containerClassName="my-2"
+          className={cn('h-auto max-h-80 max-w-full rounded', className)}
+          {...props}
         />
       ),
     }),
