@@ -48,10 +48,10 @@ export function PrComboboxField({
       )}
       renderPlaceholder={() => (
         <div className={cn('w-full h-14', disabled && 'pointer-events-none opacity-50', className)}>
-          <span className="flex w-full h-full items-center justify-center gap-2 p-2 text-sm text-foreground-passive transition-colors hover:bg-background-2">
+          <span className="flex h-full w-full items-center justify-center gap-2 p-2 text-sm text-foreground-passive transition-colors hover:bg-background-2">
             {repoRef ? (
-              <span className="flex items-center gap-1 text-foreground-passive h-8">
-                    Select a PR from
+              <span className="flex h-8 items-center gap-1 text-foreground-passive">
+                Select a PR from
                 <GitHubIcon className="size-3.5 opacity-40" />
                 <span>{repoRef.nameWithOwner}</span>
               </span>

@@ -209,15 +209,15 @@ export const IssueSelector = observer(function IssueSelector({
     setSelectedIssueProvider,
   };
 
-  const selectedContent = value
-    ? renderSelectedValue
-      ? renderSelectedValue(value)
-      : (
-        <div className="hover:bg-muted/30 flex w-full min-w-0 items-start rounded-md border border-border p-3 text-left text-sm hover:shadow-xs">
-          <SelectedIssueValue issue={value} />
-        </div>
-      )
-    : null;
+  const selectedContent = value ? (
+    renderSelectedValue ? (
+      renderSelectedValue(value)
+    ) : (
+      <div className="hover:bg-muted/30 flex w-full min-w-0 items-start rounded-md border border-border p-3 text-left text-sm hover:shadow-xs">
+        <SelectedIssueValue issue={value} />
+      </div>
+    )
+  ) : null;
 
   const placeholderContent = renderPlaceholder ? (
     renderPlaceholder(triggerContext)
@@ -308,7 +308,7 @@ export function SelectedIssueValue({ issue }: { issue: Issue }) {
     <div className="flex w-full flex-col gap-1">
       <div className="flex w-full items-center">
         <div className="flex w-full min-w-0 gap-2">
-          <span className="flex size-3.5 mt-1 shrink-0 items-center justify-center">
+          <span className="mt-1 flex size-3.5 shrink-0 items-center justify-center">
             <IssueStatusIndicator status={toIssueStatus(issue.status)} />
           </span>
           <div className="flex w-full min-w-0 flex-col gap-1 pr-1.5">

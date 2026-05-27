@@ -83,11 +83,7 @@ export function IssueStatusIndicator({
       );
     case 'backlog':
       return (
-        <svg
-          viewBox="0 0 14 14"
-          fill="none"
-          className={cn('shrink-0 size-3', className)}
-        >
+        <svg viewBox="0 0 14 14" fill="none" className={cn('shrink-0 size-3', className)}>
           <circle
             cx="7"
             cy="7"
@@ -113,11 +109,7 @@ export function IssueStatusIndicator({
       );
     case 'duplicate':
       return (
-        <svg
-          viewBox="0 0 14 14"
-          fill="none"
-          className={cn('shrink-0 size-3', className)}
-        >
+        <svg viewBox="0 0 14 14" fill="none" className={cn('shrink-0 size-3', className)}>
           <circle
             cx="7"
             cy="7"

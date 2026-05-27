@@ -1,6 +1,4 @@
-import {
-  ISSUE_PROVIDER_META,
-} from '@renderer/features/integrations/issue-provider-meta';
+import { ISSUE_PROVIDER_META } from '@renderer/features/integrations/issue-provider-meta';
 import {
   IssueSelector,
   type IssueSelectorTriggerContext,
@@ -20,17 +18,15 @@ interface IssueComboboxFieldProps {
   className?: string;
 }
 
-function ModalPlaceholder({
-  issueProvider,
-  connectedProviderCount,
-}: IssueSelectorTriggerContext) {
+function ModalPlaceholder({ issueProvider, connectedProviderCount }: IssueSelectorTriggerContext) {
   return (
-    <span className="flex w-full items-center justify-center gap-2 p-2 h-14 text-sm text-foreground-passive transition-colors hover:bg-background-2">
+    <span className="flex h-14 w-full items-center justify-center gap-2 p-2 text-sm text-foreground-passive transition-colors hover:bg-background-2">
       Select a
       {connectedProviderCount > 1 ? (
         <span className="flex items-center gap-1">
-
-          {issueProvider && <ProviderLogo provider={issueProvider} className="size-3.5 opacity-40" />}
+          {issueProvider && (
+            <ProviderLogo provider={issueProvider} className="size-3.5 opacity-40" />
+          )}
           <span>{issueProvider ? ISSUE_PROVIDER_META[issueProvider].displayName : 'issue'}</span>
         </span>
       ) : (

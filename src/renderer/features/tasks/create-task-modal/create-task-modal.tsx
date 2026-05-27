@@ -30,6 +30,7 @@ import {
   InitialConversationField,
   useInitialConversationState,
 } from './initial-conversation-section';
+import { buildFinalPrompt } from './initial-conversation-text';
 import { IssueComboboxField } from './issue-combobox-field';
 import { PrComboboxField } from './pr-combobox-field';
 import { TaskNameField } from './task-name-field';
@@ -48,7 +49,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   strategy?: 'from-branch' | 'from-issue' | 'from-pull-request';
   initialPR?: PullRequest;
 }) {
-  const [selectedProjectId, setSelectedProjectId] = useState<string | undefined>(() => {
+  const [selectedProjectId, _setSelectedProjectId] = useState<string | undefined>(() => {
     if (projectId) return projectId;
     const nav = appState.navigation;
     const navProjectId =
@@ -128,6 +129,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   useEffect(() => {
     initialConversation.setProvider(null);
     initialConversation.setPrompt('');
+    initialConversation.setIssueContext(null);
     // oxlint-disable-next-line react/exhaustive-deps
   }, [selectedProjectId]);
 
@@ -148,7 +150,10 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           taskId: id,
           provider: conversationProvider,
           title: nextDefaultConversationTitle(conversationProvider, []),
-          initialPrompt: initialConversation.prompt.trim() || undefined,
+          initialPrompt: buildFinalPrompt(
+            initialConversation.issueContext,
+            initialConversation.prompt
+          ),
           autoApprove: autoApproveDefaults.getDefault(conversationProvider),
         }
       : undefined;

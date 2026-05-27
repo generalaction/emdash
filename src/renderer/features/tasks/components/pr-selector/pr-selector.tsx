@@ -30,9 +30,9 @@ export interface PrSelectorProps {
 
 export function PrRow({ pr }: { pr: PullRequest }) {
   return (
-    <div className="flex min-w-0 w-full items-start gap-2">
+    <div className="flex w-full min-w-0 items-start gap-2">
       <div className="shrink-0 pt-0.5">
-        <StatusIcon className='size-3.5' pr={pr} disableTooltip />
+        <StatusIcon className="size-3.5" pr={pr} disableTooltip />
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex min-w-0 items-center gap-1.5">
