@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { fail, info, warn } from './lib/log.ts';
+import { fail, info } from './lib/log.ts';
 
 const DEFAULT_MAX_GLIBC = '2.35';
 const RELEASE_DIR = 'release';
@@ -48,16 +48,28 @@ function findNativeModules(dir: string): string[] {
   return results;
 }
 
-function readGlibcSymbols(file: string): string[] {
+interface GlibcInspection {
+  file: string;
+  symbols: string[];
+  error?: string;
+}
+
+function inspectGlibcSymbols(file: string): GlibcInspection {
   try {
     const output = execFileSync('objdump', ['-T', file], {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
     });
-    return Array.from(output.matchAll(/GLIBC_(\d+\.\d+)/g), (match) => match[1]);
-  } catch {
-    warn(`Skipping native module that objdump could not inspect: ${file}`);
-    return [];
+    return {
+      file,
+      symbols: Array.from(output.matchAll(/GLIBC_(\d+\.\d+)/g), (match) => match[1]),
+    };
+  } catch (error) {
+    return {
+      file,
+      symbols: [],
+      error: error instanceof Error ? error.message : String(error),
+    };
   }
 }
 
@@ -71,10 +83,17 @@ if (nativeModules.length === 0) {
 }
 
 const violations: GlibcSymbol[] = [];
+const inspectionFailures: GlibcInspection[] = [];
 let inspected = 0;
 
 for (const file of nativeModules) {
-  const symbols = readGlibcSymbols(file);
+  const inspection = inspectGlibcSymbols(file);
+  if (inspection.error) {
+    inspectionFailures.push(inspection);
+    continue;
+  }
+
+  const { symbols } = inspection;
   if (symbols.length === 0) continue;
 
   inspected += 1;
@@ -83,6 +102,11 @@ for (const file of nativeModules) {
       violations.push({ file, version });
     }
   }
+}
+
+if (inspectionFailures.length > 0) {
+  const details = inspectionFailures.map(({ file, error }) => `  ${file}: ${error}`).join('\n');
+  fail(`Cannot verify Linux native modules because objdump failed for:\n${details}`);
 }
 
 if (inspected === 0) {
