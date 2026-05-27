@@ -4,6 +4,7 @@ import {
   FolderClosed,
   FolderInput,
   Loader2,
+  Pencil,
   Plus,
   RotateCcw,
   Trash2,
@@ -60,6 +61,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
   const showCreateTaskModal = useShowModal('taskModal');
   const showConfirmDeleteProject = useShowModal('confirmActionModal');
   const showChangeConnectionModal = useShowModal('changeProjectConnectionModal');
+  const showRenameProjectModal = useShowModal('renameProjectModal');
 
   const project = getProjectStore(projectId);
 
@@ -196,8 +198,21 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
         </SidebarMenuRow>
       </ContextMenuTrigger>
       <ContextMenuContent>
+        <ContextMenuItem
+          disabled={project.state === 'unregistered'}
+          onClick={() => {
+            showRenameProjectModal({
+              projectId,
+              currentName: project.name ?? '',
+            });
+          }}
+        >
+          <Pencil className="size-4" />
+          Rename Project
+        </ContextMenuItem>
         {sshConnectionId && (
           <>
+            <ContextMenuSeparator />
             <ContextMenuItem
               disabled={!canReconnect}
               onClick={() => {

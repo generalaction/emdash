@@ -28,7 +28,7 @@ export class MountedProject {
   readonly settings: ProjectSettingsStore;
   readonly repository: RepositoryStore;
   readonly prSync: PrSyncStore;
-  readonly data: LocalProject | SshProject;
+  data: LocalProject | SshProject;
 
   private _snapshotDisposer: (() => void) | null = null;
 
@@ -66,6 +66,10 @@ export class MountedProject {
     this.settings.dispose();
     this._snapshotDisposer?.();
     this._snapshotDisposer = null;
+  }
+
+  updateData(data: LocalProject | SshProject): void {
+    this.data = data;
   }
 }
 
@@ -126,6 +130,13 @@ export class ProjectStore {
     this.phase = phase;
     this.error = undefined;
     this.errorCode = undefined;
+  }
+
+  rename(data: LocalProject | SshProject): void {
+    if (this.state === 'unregistered') return;
+    this.name = data.name;
+    this.data = data;
+    this.mountedProject?.updateData(data);
   }
 
   transitionToUnregistered(

@@ -3,6 +3,7 @@ import { IntegrationSetupModal } from '@renderer/features/integrations/integrati
 import { PromptModal } from '@renderer/features/library/prompts/prompt-modal';
 import { McpModal } from '@renderer/features/mcp/components/McpModal';
 import { AddProjectModal } from '@renderer/features/projects/components/add-project-modal/add-project-modal';
+import { RenameProjectModal } from '@renderer/features/projects/components/rename-project-modal';
 import { ProjectConfigImportModal } from '@renderer/features/projects/components/settings-view/project-config-import-modal';
 import { ShareProjectConfigModal } from '@renderer/features/projects/components/settings-view/share-project-config-modal';
 import { GithubConnectModal } from '@renderer/features/settings/components/github-connect-modal';
@@ -42,6 +43,7 @@ export const modalRegistry = {
   commandPaletteModal: createModal(CommandPaletteModal, { size: 'md' }),
   taskModal: createModal(CreateTaskModal),
   addProjectModal: createModal(AddProjectModal),
+  renameProjectModal: createModal(RenameProjectModal, { size: 'xs' }),
   addSshConnModal: createModal(AddSshConnModal),
   changeProjectConnectionModal: createModal(ChangeProjectConnectionModal, { size: 'sm' }),
   githubDeviceFlowModal: createModal(GithubDeviceFlowModalOverlay, { size: 'md' }),
