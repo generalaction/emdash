@@ -12,8 +12,8 @@ import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useA
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
 import { Button } from '@renderer/lib/ui/button';
 import { Field } from '@renderer/lib/ui/field';
-import { Textarea } from '@renderer/lib/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
+import { Textarea } from '@renderer/lib/ui/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
@@ -119,7 +119,7 @@ export function InitialConversationField({ state, linkedIssue }: InitialConversa
 
         {/* Issue context pill */}
         {state.issueContext && linkedIssue && (
-          <div className=" px-2 py-1">
+          <div className="px-2 py-1">
             <Popover>
               <PopoverTrigger
                 className={cn(
@@ -148,13 +148,8 @@ export function InitialConversationField({ state, linkedIssue }: InitialConversa
                   <X className="size-3" />
                 </button>
               </PopoverTrigger>
-              <PopoverContent
-                side="bottom"
-                align="start"
-                sideOffset={6}
-                className="w-80 gap-0 p-0"
-              >
-                <pre className="whitespace-pre-wrap p-3 font-mono text-xs text-foreground-passive">
+              <PopoverContent side="bottom" align="start" sideOffset={6} className="w-80 gap-0 p-0">
+                <pre className="p-3 font-mono text-xs whitespace-pre-wrap text-foreground-passive">
                   {state.issueContext}
                 </pre>
               </PopoverContent>

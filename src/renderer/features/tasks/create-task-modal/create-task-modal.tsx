@@ -225,7 +225,9 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           {/* Task name */}
           <TaskNameField state={state.taskName} />
           <div className="flex w-full flex-col justify-between overflow-hidden rounded-lg border">
-            <div className={`flex w-full items-center justify-between gap-2 px-2 py-1 ${state.linkedType ? 'border-b' : ''}`}>
+            <div
+              className={`flex w-full items-center justify-between gap-2 px-2 py-1 ${state.linkedType ? 'border-b' : ''}`}
+            >
               <span className="shrink-0 text-sm text-foreground-muted">Based on</span>
               <ToggleGroup
                 className="gap-1! border-none bg-transparent p-0!"
