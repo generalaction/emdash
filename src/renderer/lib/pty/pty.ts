@@ -82,6 +82,7 @@ export class FrontendPty {
   readonly ownedContainer: HTMLDivElement;
   private theme?: SessionTheme;
   private offData: (() => void) | null = null;
+  private isReplayingHistory = false;
   /** Last { cols, rows } sent to rpc.pty.resize(). Used by PaneSizingContext to skip redundant IPC calls. */
   lastSentDims: { cols: number; rows: number } | null = null;
 
@@ -159,6 +160,7 @@ export class FrontendPty {
   private registerColorQueryHandlers(): void {
     this.terminal.parser.registerOscHandler(11, (data) => {
       if (data !== '?') return false;
+      if (this.isReplayingHistory) return true;
 
       const background = this.terminal.options.theme?.background ?? cssVar('--xterm-bg');
       const color = getOscColorValue(background);
@@ -181,7 +183,13 @@ export class FrontendPty {
   async connect(): Promise<void> {
     const result = await rpc.pty.subscribe(this.sessionId);
     const historical = result.success ? result.data.buffer : '';
-    if (historical) this.terminal.write(historical);
+    if (historical) {
+      this.isReplayingHistory = true;
+      this.terminal.write(historical, () => {
+        this.isReplayingHistory = false;
+      });
+    }
+
     this.offData = events.on(
       ptyDataChannel,
       (data: string) => {
