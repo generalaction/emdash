@@ -386,7 +386,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
         {canAddAsNormalTask ? (
           <ContextMenuItem onClick={handleAddAsNormalTask}>
             <MessageSquarePlus />
-            Add as normal task
+            Convert to task
           </ContextMenuItem>
         ) : null}
         {onDelete ? (
