@@ -1,6 +1,9 @@
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, type ReactNode } from 'react';
-import { closeTabWithConfirm } from '@renderer/features/tasks/tabs/close-tab-with-confirm';
+import {
+  closeActiveTabWithConfirm,
+  closeTabWithConfirm,
+} from '@renderer/features/tasks/tabs/close-tab-with-confirm';
 import { useTabGroupContext } from '@renderer/features/tasks/tabs/tab-group-context';
 import { useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
 import { useTabShortcuts } from '@renderer/lib/hooks/useTabShortcuts';
@@ -57,7 +60,10 @@ export const TabBar = observer(function TabBar() {
   const isFocusedPane =
     taskView.focusedRegion === 'main' && tabGroupManager.activeGroupId === groupId;
 
-  useTabShortcuts(tabManager, { focused: isFocusedPane });
+  useTabShortcuts(tabManager, {
+    focused: isFocusedPane,
+    closeActiveTab: () => closeActiveTabWithConfirm(tabManager),
+  });
 
   const resolvedTabs = tabManager.resolvedTabs;
 
