@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import { decodeOsc52ClipboardData } from '@renderer/lib/pty/pty-clipboard';
 import {
   CTRL_J_ASCII,
   CTRL_U_ASCII,
-  decodeOsc52ClipboardData,
   shouldCopySelectionFromTerminal,
   shouldHandleInterruptFromTerminal,
   shouldKillLineFromTerminal,
@@ -65,6 +65,26 @@ describe('TerminalSessionManager - Shift+Enter to Ctrl+J mapping', () => {
         withSelection
       )
     ).toBe(true);
+
+    // all platforms: Ctrl+Shift+C can use the recent selection fallback
+    expect(
+      shouldCopySelectionFromTerminal(
+        makeEvent({ key: 'c', ctrlKey: true, shiftKey: true }),
+        false,
+        withoutSelection,
+        true
+      )
+    ).toBe(true);
+
+    // non-macOS: Ctrl+C requires a live selection so stale selections do not block SIGINT
+    expect(
+      shouldCopySelectionFromTerminal(
+        makeEvent({ key: 'c', ctrlKey: true }),
+        false,
+        withoutSelection,
+        true
+      )
+    ).toBe(false);
 
     // no selection should never copy
     expect(

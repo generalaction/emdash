@@ -5,7 +5,7 @@ import { cssColorToHex, cssVar } from '@renderer/utils/cssVars';
 import { log } from '@renderer/utils/logger';
 import { ptyDataChannel } from '@shared/events/ptyEvents';
 import { FileLinkProvider } from './file-link-provider';
-import { decodeOsc52ClipboardData } from './pty-keybindings';
+import { decodeOsc52ClipboardData } from './pty-clipboard';
 import { buildTerminalFontFamily } from './terminal-font';
 import { ensureXtermHost } from './xterm-host';
 

@@ -432,9 +432,14 @@ export function usePty(
       terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
         if (document.querySelector('[role="dialog"]')) return false;
 
-        const hasCopyableSelection =
-          terminal.hasSelection() || getRecentSelection(lastSelectionRef.current) !== '';
-        if (shouldCopySelectionFromTerminal(event, IS_MAC_PLATFORM, hasCopyableSelection)) {
+        if (
+          shouldCopySelectionFromTerminal(
+            event,
+            IS_MAC_PLATFORM,
+            terminal.hasSelection(),
+            getRecentSelection(lastSelectionRef.current) !== ''
+          )
+        ) {
           event.preventDefault();
           event.stopImmediatePropagation();
           event.stopPropagation();
@@ -547,10 +552,10 @@ export function usePty(
         }
 
         if (!autoCopyOnSelectionRef.current) return;
-        if (!terminal.hasSelection() && !getRecentSelection(lastSelectionRef.current)) return;
+        if (!terminal.hasSelection()) return;
         if (selectionDebounceTimer) clearTimeout(selectionDebounceTimer);
         selectionDebounceTimer = setTimeout(() => {
-          if (terminal.hasSelection() || getRecentSelection(lastSelectionRef.current)) {
+          if (terminal.hasSelection()) {
             copySelectionToClipboard();
           }
         }, 150);
