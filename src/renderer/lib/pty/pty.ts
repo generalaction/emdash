@@ -9,11 +9,33 @@ import { buildTerminalFontFamily } from './terminal-font';
 import { ensureXtermHost } from './xterm-host';
 
 const SCROLLBACK_LINES = 100_000;
+const OSC_TERMINATOR = '\x1b\\';
 
 // ── Theme helpers ─────────────────────────────────────────────────────────────
 
 export interface SessionTheme {
   override?: ITerminalOptions['theme'];
+}
+
+function hexToXtermRgb(hexColor: string): string | null {
+  const hex = hexColor.trim().replace(/^#/, '');
+  const rgb =
+    hex.length === 3
+      ? hex
+          .split('')
+          .map((part) => part + part)
+          .join('')
+      : hex.slice(0, 6);
+
+  if (!/^[0-9a-fA-F]{6}$/.test(rgb)) return null;
+
+  return `rgb:${rgb.slice(0, 2).repeat(2)}/${rgb.slice(2, 4).repeat(2)}/${rgb
+    .slice(4, 6)
+    .repeat(2)}`;
+}
+
+function getOscColorValue(color: string): string | null {
+  return hexToXtermRgb(cssColorToHex(color));
 }
 
 export function readXtermCssVars(): ITerminalOptions['theme'] {
@@ -111,6 +133,7 @@ export class FrontendPty {
         new FileLinkProvider(this.terminal, onOpenFile, onOpenExternal)
       );
     }
+    this.registerColorQueryHandlers();
     this.terminal.open(this.ownedContainer);
 
     const el = (this.terminal as unknown as { element?: HTMLElement }).element;
@@ -131,6 +154,19 @@ export class FrontendPty {
 
   refreshTheme(): void {
     this.terminal.options.theme = buildTheme(this.theme);
+  }
+
+  private registerColorQueryHandlers(): void {
+    this.terminal.parser.registerOscHandler(11, (data) => {
+      if (data !== '?') return false;
+
+      const background = this.terminal.options.theme?.background ?? cssVar('--xterm-bg');
+      const color = getOscColorValue(background);
+      if (!color) return false;
+
+      rpc.pty.sendInput(this.sessionId, `\x1b]11;${color}${OSC_TERMINATOR}`).catch(() => {});
+      return true;
+    });
   }
 
   /**

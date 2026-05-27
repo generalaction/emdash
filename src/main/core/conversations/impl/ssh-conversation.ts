@@ -19,6 +19,7 @@ import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { buildAgentSessionCommand } from './agent-command';
 import { scheduleInitialPromptInjection } from './keystroke-injection';
+import { prepareSshOpenCodeThemeEnv, withOpenCodeThemeShellSetup } from './opencode-theme-state';
 import { resolveProviderEnv } from './provider-env';
 
 const DEFAULT_COLS = 80;
@@ -120,10 +121,16 @@ export class SshConversationProvider implements ConversationProvider {
     };
 
     const profile = await this.proxy.getRemoteShellProfile();
+    const openCodeThemeEnv = await prepareSshOpenCodeThemeEnv({
+      providerId: conversation.providerId,
+      profile,
+      proxy: this.proxy,
+    });
+    cfg.shellSetup = withOpenCodeThemeShellSetup(cfg.shellSetup, openCodeThemeEnv);
     const sshCommand = resolveSshCommand(
       'agent',
       cfg,
-      { ...providerEnv, ...this.taskEnvVars },
+      { ...providerEnv, ...openCodeThemeEnv, ...this.taskEnvVars },
       profile
     );
 
