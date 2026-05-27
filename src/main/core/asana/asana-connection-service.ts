@@ -1,7 +1,7 @@
-import { ISSUE_PROVIDER_CAPABILITIES, type ConnectionStatus } from '@shared/issue-providers';
 import { encryptedAppSecretsStore } from '@main/core/secrets/encrypted-app-secrets-store';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
+import { ISSUE_PROVIDER_CAPABILITIES, type ConnectionStatus } from '@shared/issue-providers';
 import { AsanaClient, AsanaHttpError } from './asana-client';
 
 export const NOT_CONFIGURED_ERROR = 'Asana is not configured. Connect Asana in settings.';

@@ -1,6 +1,4 @@
 import { eq } from 'drizzle-orm';
-import { getTaskEnvVars } from '@shared/task/envVars';
-import type { Task } from '@shared/tasks';
 import { LocalConversationProvider } from '@main/core/conversations/impl/local-conversation';
 import { SshConversationProvider } from '@main/core/conversations/impl/ssh-conversation';
 import type { ConversationProvider } from '@main/core/conversations/types';
@@ -15,7 +13,7 @@ import { RemoteStatusFingerprintPoller } from '@main/core/git/remote-status-fing
 import { GitRepositoryService } from '@main/core/git/repository-service';
 import { githubConnectionService } from '@main/core/github/services/github-connection-service';
 import { workspaceFileIndexService } from '@main/core/search/workspace-file-index-service';
-import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
+import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { LocalTerminalProvider } from '@main/core/terminals/impl/local-terminal-provider';
 import { SshTerminalProvider } from '@main/core/terminals/impl/ssh-terminal-provider';
 import type { TerminalProvider } from '@main/core/terminals/terminal-provider';
@@ -25,6 +23,8 @@ import { type WorkspaceFactoryResult } from '@main/core/workspaces/workspace-reg
 import { db } from '@main/db/client';
 import { workspaces as workspacesTable } from '@main/db/schema';
 import { log } from '@main/lib/logger';
+import { getTaskEnvVars } from '@shared/task/envVars';
+import type { Task } from '@shared/tasks';
 import { getEffectiveTaskSettings } from '../projects/settings/effective-task-settings';
 import type { ProjectSettingsProvider } from '../projects/settings/provider';
 import { TimeoutSignal, withTimeout } from '../projects/utils';

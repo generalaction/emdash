@@ -17,8 +17,8 @@ export function coerceRawSvgContent(payload: unknown): string | undefined {
 
 export function prepareInlineSvgMarkup(svgContent: string): string {
   return svgContent
-    .replace(/\bwidth="[^"]*"/g, '')
-    .replace(/\bheight="[^"]*"/g, '')
+    .replace(/\swidth="[^"]*"/g, '')
+    .replace(/\sheight="[^"]*"/g, '')
     .replace(/<style>[\s\S]*?<\/style>/g, '')
     .replace('<svg ', '<svg fill="currentColor" class="h-full w-full" ');
 }

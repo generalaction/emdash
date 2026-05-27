@@ -1,6 +1,12 @@
-import type { Issue } from '@shared/tasks';
 import { refreshLinkedIssueContext } from '@renderer/features/tasks/issue-context/refresh-linked-issue-context';
-import { buildLinkedIssueContextAction, type ContextAction } from './context-actions';
+import type { Issue } from '@shared/tasks';
+import {
+  buildContextActionText,
+  buildLinkedIssueContextAction,
+  type ContextAction,
+} from './context-actions';
+
+const PROVIDERS_WITH_CONTEXT = new Set<Issue['provider']>(['linear', 'plain']);
 
 export async function resolveContextActionText(args: {
   action: ContextAction;
@@ -8,10 +14,15 @@ export async function resolveContextActionText(args: {
   projectId?: string;
 }): Promise<string> {
   const { action, linkedIssue, projectId } = args;
-  if (action.kind !== 'linked-issue' || linkedIssue?.provider !== 'linear') {
-    return action.text;
+  if (
+    action.kind !== 'linked-issue' ||
+    !linkedIssue ||
+    !PROVIDERS_WITH_CONTEXT.has(linkedIssue.provider)
+  ) {
+    return buildContextActionText(action);
   }
 
   const refreshedIssue = await refreshLinkedIssueContext(linkedIssue, projectId);
-  return buildLinkedIssueContextAction(refreshedIssue)?.text ?? action.text;
+  const refreshedAction = buildLinkedIssueContextAction(refreshedIssue);
+  return refreshedAction ? buildContextActionText(refreshedAction) : buildContextActionText(action);
 }

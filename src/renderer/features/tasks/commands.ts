@@ -69,7 +69,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
               projectId,
               taskId,
               onSuccess: ({ conversationId }) => {
-                tabManager?.openConversation(conversationId);
+                taskView?.tabGroupManager.openConversation(conversationId);
                 taskView?.setFocusedRegion('main');
               },
             });

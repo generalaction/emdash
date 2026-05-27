@@ -1,4 +1,5 @@
 import { Buffer } from 'node:buffer';
+import ampPluginContent from './amp-emdash-plugin.ts?raw';
 import openCodePluginContent from './opencode-notifications-plugin.js?raw';
 
 type HookPostPayload = 'stdin' | { json: Record<string, string> };
@@ -66,6 +67,10 @@ export function makeOpenCodePluginContent(): string {
   return openCodePluginContent;
 }
 
+export function makeAmpPluginContent(): string {
+  return ampPluginContent;
+}
+
 export function makeCodexHookCommand(
   notificationType: 'idle_prompt' | 'permission_prompt',
   options: HookCommandOptions = {}
@@ -75,4 +80,18 @@ export function makeCodexHookCommand(
     payload: { json: { notification_type: notificationType } },
     platform: options.platform,
   });
+}
+
+function makeCodexStdinHookPostCommand(
+  eventType: string,
+  options: HookCommandOptions = {}
+): string {
+  const post = makeHookPostCommand({ eventType, payload: 'stdin', platform: options.platform });
+  if ((options.platform ?? process.platform) === 'win32') return post;
+
+  return `INPUT="\${1:-$(cat)}"; printf '%s' "$INPUT" | ${post}`;
+}
+
+export function makeCodexSessionStartHookCommand(options: HookCommandOptions = {}): string {
+  return makeCodexStdinHookPostCommand('session-start', options);
 }

@@ -1,7 +1,6 @@
 import { Check, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Issue } from '@shared/tasks';
 import {
   ISSUE_PROVIDER_META,
   ISSUE_PROVIDER_ORDER,
@@ -10,6 +9,7 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from '@renderer/lib/ui/i
 import { Kbd } from '@renderer/lib/ui/kbd';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/ui/select';
 import { cn } from '@renderer/utils/utils';
+import type { Issue } from '@shared/tasks';
 import { ConnectIssueIntegrationPlaceholder, IssueRow, ProviderLogo } from './issue-selector';
 import { getLinkedIssueMap } from './use-linked-issue-urls';
 import { useIssueSearch } from './useIssueSearch';
@@ -155,7 +155,7 @@ export const InlineIssueSelector = observer(function InlineIssueSelector({
       )}
     >
       {/* Search row */}
-      <InputGroup className="rounded-none border-0 border-b border-input shadow-none has-[[data-slot=input-group-control]:focus-visible]:ring-0 has-[[data-slot=input-group-control]:focus-visible]:border-input">
+      <InputGroup className="border-input has-[[data-slot=input-group-control]:focus-visible]:border-input rounded-none border-0 border-b shadow-none has-[[data-slot=input-group-control]:focus-visible]:ring-0">
         {providerAddon && <InputGroupAddon align="inline-start">{providerAddon}</InputGroupAddon>}
         <InputGroupInput
           ref={inputRef}
@@ -168,9 +168,9 @@ export const InlineIssueSelector = observer(function InlineIssueSelector({
       </InputGroup>
 
       {/* Issue list */}
-      <div ref={listRef} className="overflow-y-auto overflow-x-hidden h-52 p-1">
+      <div ref={listRef} className="h-52 overflow-x-hidden overflow-y-auto p-1">
         {issues.length === 0 ? (
-          <div className="text-center text-sm text-foreground-passive flex items-center justify-center h-full">
+          <div className="flex h-full items-center justify-center text-center text-sm text-foreground-passive">
             {query ? 'No issues found' : `No ${issueProvider} issues to show`}
           </div>
         ) : (
@@ -199,11 +199,11 @@ export const InlineIssueSelector = observer(function InlineIssueSelector({
           })
         )}
       </div>
-      <div className="flex items-center justify-between h-6 px-2 text-xs bg-background-1 border-t border-border">
+      <div className="flex h-6 items-center justify-between border-t border-border bg-background-1 px-2 text-xs">
         <div className="text-foreground-muted">Navigate with arrow keys</div>
         <div className="text-foreground-muted">
           <button className="flex items-center gap-2">
-            Select Issue <Kbd>↵</Kbd>
+            Select Issue <Kbd>⏎</Kbd>
           </button>{' '}
         </div>
       </div>

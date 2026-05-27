@@ -5,8 +5,6 @@ import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useA
 import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
-import { getPaneContainer } from '@renderer/lib/pty/pane-sizing-context';
-import { measureDimensions } from '@renderer/lib/pty/pty-dimensions';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
   DialogContentArea,
@@ -18,11 +16,6 @@ import { Field, FieldGroup, FieldLabel } from '@renderer/lib/ui/field';
 import { Switch } from '@renderer/lib/ui/switch';
 import { nextDefaultConversationTitle } from './conversation-title-utils';
 import { useEffectiveProvider } from './use-effective-provider';
-
-function getConversationsPaneSize() {
-  const container = getPaneContainer('conversations');
-  return container ? (measureDimensions(container, 8, 16) ?? undefined) : undefined;
-}
 
 export const CreateConversationModal = observer(function CreateConversationModal({
   onSuccess,
@@ -58,7 +51,6 @@ export const CreateConversationModal = observer(function CreateConversationModal
         autoApprove: skipPermissions,
         provider: providerId,
         title,
-        initialSize: getConversationsPaneSize(),
       });
       onSuccess({ conversationId: id });
     } catch {
@@ -105,7 +97,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
               <FieldLabel>Auto-approve permissions</FieldLabel>
             </div>
           </Field>
-          {error && <p className="text-xs text-destructive">{error}</p>}
+          {error && <p className="text-destructive text-xs">{error}</p>}
         </FieldGroup>
       </DialogContentArea>
       <DialogFooter>

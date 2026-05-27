@@ -79,7 +79,7 @@ export const CommentWidget: React.FC<CommentWidgetProps> = ({ comment, onEdit, o
                 title="Save (Cmd/Ctrl+Enter)"
                 aria-label="Save comment"
               >
-                <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                <Check className="h-4 w-4 text-foreground-success" />
               </Button>
             </>
           ) : (
@@ -97,7 +97,7 @@ export const CommentWidget: React.FC<CommentWidgetProps> = ({ comment, onEdit, o
               <Button
                 variant="ghost"
                 size="icon-xs"
-                className="h-8 w-8 text-destructive hover:text-destructive"
+                className="text-destructive hover:text-destructive h-8 w-8"
                 onClick={() => void onDelete()}
                 title="Delete"
                 aria-label="Delete comment"

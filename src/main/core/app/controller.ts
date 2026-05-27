@@ -1,6 +1,6 @@
+import { telemetryService } from '@main/lib/telemetry';
 import { createRPCController } from '@shared/ipc/rpc';
 import type { OpenInAppId } from '@shared/openInApps';
-import { telemetryService } from '@main/lib/telemetry';
 import { appService } from './service';
 
 export const appController = createRPCController({
@@ -11,6 +11,25 @@ export const appController = createRPCController({
       return { success: true };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  },
+  openPath: async (path: string) => {
+    try {
+      await appService.openPath(path);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  },
+  readUserFile: async (path: string) => {
+    try {
+      const result = await appService.readUserFile(path);
+      return { success: true as const, ...result };
+    } catch (error) {
+      return {
+        success: false as const,
+        error: error instanceof Error ? error.message : String(error),
+      };
     }
   },
   clipboardWriteText: async (text: string) => {
@@ -48,8 +67,17 @@ export const appController = createRPCController({
     const { fonts, cached, error } = await appService.listInstalledFonts(args?.refresh);
     return { success: !error, fonts, cached, ...(error ? { error } : {}) };
   },
-  openSelectDirectoryDialog: (args: { title: string; message: string }) =>
+  openSelectDirectoryDialog: (args: { title: string; message: string; defaultPath?: string }) =>
     appService.openSelectDirectoryDialog(args),
+  openSelectAudioFileDialog: (args: { title: string; message: string }) =>
+    appService.openSelectAudioFileDialog(args),
+  readAudioFileDataUrl: async (filePath: string) => {
+    try {
+      return { success: true, dataUrl: await appService.readAudioFileDataUrl(filePath) };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  },
   getAppVersion: () => appService.getCachedAppVersion(),
   getElectronVersion: () => process.versions.electron,
   getPlatform: () => process.platform,

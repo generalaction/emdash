@@ -1,8 +1,8 @@
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import type { PullRequestComment } from '@shared/pull-requests';
 import { CommentsList } from '@renderer/features/tasks/diff-view/changes-panel/components/pr-entry/comments-list';
+import type { PullRequestComment } from '@shared/pull-requests';
 
 vi.mock('@renderer/lib/hooks/useTheme', () => ({
   useTheme: () => ({ effectiveTheme: 'emlight' }),
@@ -53,6 +53,7 @@ describe('CommentsList', () => {
 
     expect(html).toContain('src="https://github.com/user/image.png"');
     expect(html).toContain('alt="Image"');
+    expect(html).toContain('aria-label="Expand image"');
     expect(html).toContain('max-w-full');
     expect(html).toContain('max-h-80');
     expect(html).toContain('object-contain');

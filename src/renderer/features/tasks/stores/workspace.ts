@@ -1,9 +1,9 @@
 import { computed, makeObservable } from 'mobx';
-import type { ConnectionState } from '@shared/ssh';
 import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
 import { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
 import { appState } from '@renderer/lib/stores/app-state';
 import type { ILifecycle } from '@renderer/lib/stores/lifecycle';
+import type { ConnectionState } from '@shared/ssh';
 import { GitStore } from '../diff-view/stores/git-store';
 import { FilesStore } from '../editor/stores/files-store';
 import { LifecycleScriptsStore } from './lifecycle-scripts';

@@ -1,3 +1,10 @@
+import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
+import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
+import type { IExecutionContext } from '@main/core/execution-context/types';
+import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
+import { events } from '@main/lib/events';
+import type { IInitializable } from '@main/lib/lifecycle';
+import { log } from '@main/lib/logger';
 import type {
   DependencyCategory,
   DependencyId,
@@ -7,13 +14,6 @@ import type {
 } from '@shared/dependencies';
 import { dependencyStatusUpdatedChannel } from '@shared/events/appEvents';
 import { err, ok } from '@shared/result';
-import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
-import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
-import type { IExecutionContext } from '@main/core/execution-context/types';
-import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
-import { events } from '@main/lib/events';
-import type { IInitializable } from '@main/lib/lifecycle';
-import { log } from '@main/lib/logger';
 import {
   createSshInstallCommandRunner,
   runLocalInstallCommand,

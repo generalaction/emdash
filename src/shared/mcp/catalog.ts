@@ -165,6 +165,19 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     docsUrl: 'https://developers.notion.com/docs/mcp',
     credentialKeys: [],
   },
+  notra: {
+    config: {
+      type: 'http',
+      url: 'https://mcp.usenotra.com/mcp',
+      headers: {
+        Authorization: 'Bearer YOUR_API_KEY',
+      },
+    },
+    name: 'Notra',
+    description: 'Create & manage posts, brand identities, integrations, and schedules',
+    docsUrl: 'https://docs.usenotra.com/devtools/mcp',
+    credentialKeys: [{ key: 'Authorization', required: true }],
+  },
   clerk: {
     config: {
       type: 'http',
@@ -184,6 +197,19 @@ export const catalogData: Record<string, CatalogEntryDef> = {
     description: 'Authenticated access to your Postgres and MySQL DBs',
     docsUrl: 'https://planetscale.com/docs/connect/mcp',
     credentialKeys: [],
+  },
+  neon: {
+    config: {
+      type: 'http',
+      url: 'https://mcp.neon.tech/mcp',
+      headers: {
+        Authorization: 'Bearer YOUR_API_KEY',
+      },
+    },
+    name: 'Neon',
+    description: 'Manage Neon Postgres databases, branches, migrations, and queries',
+    docsUrl: 'https://neon.com/docs/ai/neon-mcp-server',
+    credentialKeys: [{ key: 'Authorization', required: true }],
   },
   bigquery: {
     config: {

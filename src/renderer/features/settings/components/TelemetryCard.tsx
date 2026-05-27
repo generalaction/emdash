@@ -1,9 +1,9 @@
 import React from 'react';
-import { PRODUCT_NAME } from '@shared/app-identity';
 import { useTelemetryConsent } from '@renderer/lib/hooks/useTelemetryConsent';
 import { rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
 import { Switch } from '@renderer/lib/ui/switch';
+import { PRODUCT_NAME } from '@shared/app-identity';
 import { SettingRow } from './SettingRow';
 
 const TelemetryCard: React.FC = () => {
@@ -22,13 +22,13 @@ const TelemetryCard: React.FC = () => {
               type="button"
               variant="link"
               size="sm"
-              className="group inline-flex h-auto items-center gap-1 px-0 text-sm font-normal text-muted-foreground hover:text-foreground hover:no-underline focus-visible:outline-none focus-visible:ring-0"
+              className="group text-muted-foreground inline-flex h-auto items-center gap-1 px-0 text-sm font-normal hover:text-foreground hover:no-underline focus-visible:ring-0 focus-visible:outline-none"
               onClick={() => rpc.app.openExternal('https://docs.emdash.sh/telemetry')}
             >
               <span className="transition-colors group-hover:text-foreground">
                 Telemetry information
               </span>
-              <span className="text-sm text-muted-foreground transition-colors group-hover:text-foreground">
+              <span className="text-muted-foreground text-sm transition-colors group-hover:text-foreground">
                 ↗
               </span>
             </Button>
@@ -50,7 +50,7 @@ const TelemetryCard: React.FC = () => {
             aria-label="Enable anonymous telemetry"
           />
           {!hasKeyAndHost && (
-            <span className="text-[10px] text-muted-foreground">
+            <span className="text-muted-foreground text-[10px]">
               Inactive in this build (no PostHog keys)
             </span>
           )}

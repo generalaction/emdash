@@ -42,13 +42,13 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
   const isInFlight = phase !== 'idle';
 
   const showCreatePrModal = useShowModal('createPrModal');
+  const repositoryUrl = workspace.repository.pullRequestRepositoryUrl;
 
   if (!diffView || !changesView) return null;
 
   const taskData = getRegisteredTaskData(projectId, taskId);
   const hasOpenPr = taskView.prStore?.pullRequests.some((p) => p.status === 'open') ?? false;
-  const canCreatePr =
-    Boolean(workspace.repository.repositoryUrl) && Boolean(taskData?.taskBranch) && !hasOpenPr;
+  const canCreatePr = Boolean(repositoryUrl) && Boolean(taskData?.taskBranch) && !hasOpenPr;
 
   const doCommit = async () => {
     setPhase('committing');
@@ -118,7 +118,9 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
     await new Promise((r) => setTimeout(r, 500));
     setPhase('idle');
     showCreatePrModal({
-      repositoryUrl: workspace.repository.repositoryUrl ?? '',
+      projectId,
+      taskId,
+      repositoryUrl: repositoryUrl ?? '',
       branchName: taskData?.taskBranch ?? '',
       draft: false,
       workspaceId,
@@ -146,7 +148,7 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
       : diffView.effectiveCommitAction;
 
   return (
-    <div className="shrink-0 mx-2 mb-2 flex flex-col gap-2 items-center justify-between rounded-xl border border-border bg-background-1 p-2">
+    <div className="mx-2 mb-2 flex shrink-0 flex-col items-center justify-between gap-2 rounded-xl border border-border bg-background-1 p-2">
       <Input
         placeholder="Commit message"
         autoFocus
@@ -181,13 +183,19 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
         <StatusRow icon={<Loader2 className="size-4 animate-spin" />} label="Opening PR…" />
       )}
       {(phase === 'commit-only-done' || phase === 'committed') && (
-        <StatusRow icon={<CheckCircle className="size-4 text-green-500" />} label="Committed" />
+        <StatusRow
+          icon={<CheckCircle className="size-4 text-foreground-success" />}
+          label="Committed"
+        />
       )}
       {phase === 'pushing' && (
         <StatusRow icon={<Loader2 className="size-4 animate-spin" />} label="Pushing…" />
       )}
       {phase === 'pushed' && (
-        <StatusRow icon={<CheckCircle className="size-4 text-green-500" />} label="Pushed" />
+        <StatusRow
+          icon={<CheckCircle className="size-4 text-foreground-success" />}
+          label="Pushed"
+        />
       )}
     </div>
   );

@@ -1,5 +1,5 @@
-import type { LocalProject, SshProject } from '@shared/projects';
 import { appState } from '@renderer/lib/stores/app-state';
+import type { LocalProject, SshProject } from '@shared/projects';
 import type { PrSyncStore } from './pr-sync-store';
 import {
   isUnmountedProject,

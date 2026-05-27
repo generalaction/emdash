@@ -1,18 +1,30 @@
+import { type ConversationRow } from '@main/db/schema';
 import { type AgentProviderId } from '@shared/agent-provider-registry';
 import { type Conversation } from '@shared/conversations';
-import { type ConversationRow } from '@main/db/schema';
+import type { ConversationConfig } from './types';
+
+export function parseConversationConfig(raw: string | null): ConversationConfig {
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw) as ConversationConfig;
+  } catch {
+    return {};
+  }
+}
 
 export function mapConversationRowToConversation(
   row: ConversationRow,
   resume: boolean = false
 ): Conversation {
+  const config = parseConversationConfig(row.config);
   return {
     id: row.id,
     title: row.title,
     taskId: row.taskId,
     projectId: row.projectId,
     providerId: row.provider as AgentProviderId,
-    autoApprove: row.config ? JSON.parse(row.config).autoApprove : undefined,
+    autoApprove: config.autoApprove,
+    providerSessionId: config.providerSessionId,
     resume: resume,
     lastInteractedAt: row.lastInteractedAt ?? null,
     isInitialConversation: row.isInitialConversation,

@@ -5,8 +5,7 @@ import { EmdashShimmerLogo } from '@renderer/lib/emdash-shimmer-logo';
 import { useArrowKeyNavigation } from '@renderer/lib/hooks/use-arrow-key-navigation';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
-import { Kbd } from '@renderer/lib/ui/kbd';
-import { cn } from '@renderer/utils/utils';
+import { ActionListItem } from '@renderer/lib/ui/action-list-item';
 
 const PROJECT_ACTIONS = [
   {
@@ -65,7 +64,7 @@ export function HomeMainPanel() {
             />
           </div>
         </div>
-        <div className="mx-auto mt-8 flex flex-col w-full max-w-md gap-1">
+        <div className="mx-auto mt-8 flex w-full max-w-md flex-col gap-1">
           {PROJECT_ACTIONS.map((action, i) => (
             <HomeProjectAction
               key={action.label}
@@ -86,7 +85,7 @@ export function HomeMainPanel() {
 function HomeProjectAction({
   label,
   description,
-  icon: Icon,
+  icon,
   isSelected,
   onClick,
   onMouseEnter,
@@ -99,36 +98,14 @@ function HomeProjectAction({
   onMouseEnter: () => void;
 }) {
   return (
-    <button
-      type="button"
-      aria-label={label}
+    <ActionListItem
+      label={label}
+      description={description}
+      icon={icon}
+      isSelected={isSelected}
       onClick={onClick}
       onMouseEnter={onMouseEnter}
-      className={cn(
-        'group flex w-full items-center justify-between rounded-lg bg-background hover:bg-background-1 p-4 text-left transition-all ',
-        isSelected && 'bg-background-1'
-      )}
-    >
-      <div className="flex items-center gap-3">
-        <Icon className="size-7.5 text-foreground-passive transition-colors" strokeWidth={1} />
-        <div className="flex flex-col gap-1.5">
-          <span
-            className={cn(
-              ' whitespace-nowrap leading-none tracking-normal text-sm text-foreground-muted transition-colors',
-              isSelected && 'text-foreground'
-            )}
-          >
-            {label}
-          </span>
-          <span className="text-xs text-foreground-passive">{description}</span>
-        </div>
-      </div>
-      {isSelected && (
-        <Kbd className="text-foreground-muted group-hover:text-foreground bg-background-2 size-6 pt-1">
-          ↵
-        </Kbd>
-      )}
-    </button>
+    />
   );
 }
 

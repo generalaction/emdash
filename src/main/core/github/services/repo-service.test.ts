@@ -1,5 +1,6 @@
 import type { Octokit } from '@octokit/rest';
 import { describe, expect, it, vi } from 'vitest';
+import { ok } from '@shared/result';
 import { getOctokit } from './octokit-provider';
 import { repoService } from './repo-service';
 
@@ -91,7 +92,7 @@ describe('GitHubRepositoryServiceImpl', () => {
       const octokit = makeOctokit({
         reposListForAuthenticatedUser: vi.fn().mockResolvedValue({ data: [restRepo] }),
       });
-      mockGetOctokit.mockResolvedValue(octokit);
+      mockGetOctokit.mockResolvedValue(ok(octokit));
 
       const result = await repoService.listRepositories();
 
@@ -104,7 +105,7 @@ describe('GitHubRepositoryServiceImpl', () => {
       const octokit = makeOctokit({
         orgsListForAuthenticatedUser: vi.fn().mockResolvedValue({ data: [{ login: 'acme' }] }),
       });
-      mockGetOctokit.mockResolvedValue(octokit);
+      mockGetOctokit.mockResolvedValue(ok(octokit));
 
       const owners = await repoService.getOwners();
 
@@ -118,7 +119,7 @@ describe('GitHubRepositoryServiceImpl', () => {
       const octokit = makeOctokit({
         orgsListForAuthenticatedUser: vi.fn().mockRejectedValue(new Error('forbidden')),
       });
-      mockGetOctokit.mockResolvedValue(octokit);
+      mockGetOctokit.mockResolvedValue(ok(octokit));
 
       const owners = await repoService.getOwners();
 
@@ -137,7 +138,7 @@ describe('GitHubRepositoryServiceImpl', () => {
           },
         }),
       });
-      mockGetOctokit.mockResolvedValue(octokit);
+      mockGetOctokit.mockResolvedValue(ok(octokit));
 
       const result = await repoService.createRepository({
         name: 'new',
@@ -163,7 +164,7 @@ describe('GitHubRepositoryServiceImpl', () => {
           },
         }),
       });
-      mockGetOctokit.mockResolvedValue(octokit);
+      mockGetOctokit.mockResolvedValue(ok(octokit));
 
       await repoService.createRepository({ name: 'new', owner: 'acme', isPrivate: true });
 
@@ -176,7 +177,7 @@ describe('GitHubRepositoryServiceImpl', () => {
   describe('deleteRepository', () => {
     it('calls repos.delete', async () => {
       const octokit = makeOctokit();
-      mockGetOctokit.mockResolvedValue(octokit);
+      mockGetOctokit.mockResolvedValue(ok(octokit));
 
       await repoService.deleteRepository('testuser', 'old-repo');
 
@@ -192,7 +193,7 @@ describe('GitHubRepositoryServiceImpl', () => {
       const octokit = makeOctokit({
         reposGet: vi.fn().mockResolvedValue({ data: {} }),
       });
-      mockGetOctokit.mockResolvedValue(octokit);
+      mockGetOctokit.mockResolvedValue(ok(octokit));
 
       expect(await repoService.checkRepositoryExists('testuser', 'repo')).toBe(true);
     });
@@ -201,7 +202,7 @@ describe('GitHubRepositoryServiceImpl', () => {
       const octokit = makeOctokit({
         reposGet: vi.fn().mockRejectedValue({ status: 404 }),
       });
-      mockGetOctokit.mockResolvedValue(octokit);
+      mockGetOctokit.mockResolvedValue(ok(octokit));
 
       expect(await repoService.checkRepositoryExists('testuser', 'missing')).toBe(false);
     });
@@ -210,7 +211,7 @@ describe('GitHubRepositoryServiceImpl', () => {
       const octokit = makeOctokit({
         reposGet: vi.fn().mockRejectedValue({ status: 500 }),
       });
-      mockGetOctokit.mockResolvedValue(octokit);
+      mockGetOctokit.mockResolvedValue(ok(octokit));
 
       await expect(repoService.checkRepositoryExists('testuser', 'repo')).rejects.toEqual({
         status: 500,

@@ -3,10 +3,10 @@ import os from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { AppSettings, AppSettingsKey } from '@shared/app-settings';
-import type { PromptLibraryPrompt } from '@shared/prompt-library';
 import { getDefaultForKey } from '@main/core/settings/settings-registry';
 import { computeDelta, isDeepEqual, isPlainObject, mergeDeep } from '@main/core/settings/utils';
+import type { AppSettings, AppSettingsKey } from '@shared/app-settings';
+import type { PromptLibraryPrompt } from '@shared/prompt-library';
 import { createDrizzleClient } from '../../../drizzleClient';
 import { portLegacySettings } from './importer';
 

@@ -24,11 +24,11 @@ export function CheckoutModeGroup({
   return (
     <div className="flex flex-col gap-2">
       <RadioGroup value={value} onValueChange={(v) => onValueChange(v as CheckoutMode)}>
-        <Label className="flex items-center gap-3 cursor-pointer font-normal">
+        <Label className="flex cursor-pointer items-center gap-3 font-normal">
           <RadioGroupItem value="checkout" disabled={disabled} />
           Checkout branch for review
         </Label>
-        <Label className="flex items-center gap-3 cursor-pointer font-normal">
+        <Label className="flex cursor-pointer items-center gap-3 font-normal">
           <RadioGroupItem value="new-branch" disabled={disabled} />
           Create task branch and worktree
         </Label>

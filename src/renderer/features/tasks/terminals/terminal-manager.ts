@@ -1,10 +1,11 @@
 import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
-import { makePtySessionId } from '@shared/ptySessionId';
-import { type CreateTerminalParams, type Terminal } from '@shared/terminals';
+import { makeFileLinkHandlers } from '@renderer/features/tasks/stores/open-file-in-file-editor';
 import { rpc } from '@renderer/lib/ipc';
 import { PtySession } from '@renderer/lib/pty/pty-session';
 import type { IDisposable } from '@renderer/lib/stores/lifecycle';
 import { Resource } from '@renderer/lib/stores/resource';
+import { makePtySessionId } from '@shared/ptySessionId';
+import { type CreateTerminalParams, type Terminal } from '@shared/terminals';
 import { nextTerminalName } from './terminal-tabs';
 
 export class TerminalManagerStore implements IDisposable {
@@ -49,9 +50,14 @@ export class TerminalManagerStore implements IDisposable {
               this.terminals.set(terminal.id, new TerminalStore(terminal));
             }
             if (!this.sessions.has(terminal.id)) {
+              const handlers = makeFileLinkHandlers(terminal.projectId, terminal.taskId);
               this.sessions.set(
                 terminal.id,
-                new PtySession(makePtySessionId(terminal.projectId, terminal.taskId, terminal.id))
+                new PtySession(
+                  makePtySessionId(terminal.projectId, terminal.taskId, terminal.id),
+                  handlers.onOpenFile,
+                  handlers.onOpenExternal
+                )
               );
             }
           }
@@ -82,10 +88,15 @@ export class TerminalManagerStore implements IDisposable {
     };
 
     runInAction(() => {
+      const handlers = makeFileLinkHandlers(params.projectId, params.taskId);
       this.terminals.set(params.id, new TerminalStore(optimistic));
       this.sessions.set(
         params.id,
-        new PtySession(makePtySessionId(params.projectId, params.taskId, params.id))
+        new PtySession(
+          makePtySessionId(params.projectId, params.taskId, params.id),
+          handlers.onOpenFile,
+          handlers.onOpenExternal
+        )
       );
     });
 
