@@ -19,6 +19,8 @@ export function fromStoredBranch(raw: string | Branch | null | undefined): Branc
     const decoded = decodeStoredBranchValue(parsed);
     if (decoded) return decoded;
 
+    if (parsed === null) return undefined;
+
     // A historical plain branch name can itself be valid JSON, e.g. "123" or "true".
     return isStructuredJson(raw) ? undefined : { type: 'local', branch: raw };
   } catch {

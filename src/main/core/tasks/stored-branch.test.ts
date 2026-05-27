@@ -42,4 +42,14 @@ describe('stored-branch', () => {
   it('treats valid JSON primitives as historical raw branch strings', () => {
     expect(fromStoredBranch('123')).toEqual({ type: 'local', branch: '123' });
   });
+
+  it('returns undefined for null, undefined, and empty string', () => {
+    expect(fromStoredBranch(null)).toBeUndefined();
+    expect(fromStoredBranch(undefined)).toBeUndefined();
+    expect(fromStoredBranch('')).toBeUndefined();
+  });
+
+  it('returns undefined for literal JSON null', () => {
+    expect(fromStoredBranch('null')).toBeUndefined();
+  });
 });
