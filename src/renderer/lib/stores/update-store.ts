@@ -13,15 +13,9 @@ import {
 } from '@shared/events/updateEvents';
 import { events, rpc } from '@renderer/lib/ipc';
 
+import { normalizeDownloadProgress, type DownloadProgress } from './update-progress';
 const LAST_NOTIFIED_KEY = 'emdash:update:lastNotified';
 const SNOOZE_HOURS = 6;
-
-type DownloadProgress = {
-  percent?: number;
-  transferred?: number;
-  total?: number;
-  bytesPerSecond?: number;
-};
 
 export type UpdateState =
   | { status: 'idle' }
@@ -101,12 +95,7 @@ export class UpdateStore {
       runInAction(() => {
         this.state = {
           status: 'downloading',
-          progress: {
-            percent: d.percent,
-            transferred: d.transferred,
-            total: d.total,
-            bytesPerSecond: d.bytesPerSecond,
-          },
+          progress: normalizeDownloadProgress(d),
         };
       });
     });
