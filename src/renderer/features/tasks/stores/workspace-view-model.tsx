@@ -18,6 +18,7 @@ import type {
   TaskViewSnapshot,
   TerminalDrawerActiveItem,
 } from '@shared/view-state';
+import { ConversationHydrationReconciler } from './conversation-hydration-reconciler';
 import { conversationRegistry } from './conversation-registry';
 import { PrStore } from './pr-store';
 import type { TaskStore } from './task-store';
@@ -67,13 +68,18 @@ export class WorkspaceViewModel implements ILifecycle {
   /** Saved whenever suspend() is called, restored in next initialize(). */
   private _savedDiffViewSnapshot: DiffViewSnapshot | undefined;
   private _isCreatingTerminal = false;
-  private readonly _hydratedConversationIds = new Set<string>();
+  private readonly _conversationHydration: ConversationHydrationReconciler;
 
   readonly taskId: string;
 
   constructor(private readonly _taskStore: TaskStore) {
     const taskData = _taskStore.data as Task;
     this.taskId = taskData.id;
+    this._conversationHydration = new ConversationHydrationReconciler({
+      taskId: this.taskId,
+      getConversations: () => conversationRegistry.get(this.taskId),
+      log,
+    });
 
     // UI state defaults — overridden by restoreSnapshot when called
     this.sidebarTab = 'conversations';
@@ -95,10 +101,11 @@ export class WorkspaceViewModel implements ILifecycle {
       workspaceId
     );
 
-    makeAutoObservable(this, {
+    makeAutoObservable<WorkspaceViewModel, '_conversationHydration'>(this, {
       tabGroupManager: false,
       terminalTabs: false,
       editorView: false,
+      _conversationHydration: false,
       diffView: observable.ref,
       activeRenderer: computed,
     });
@@ -344,7 +351,7 @@ export class WorkspaceViewModel implements ILifecycle {
     this.devServers?.dispose();
     this.devServers = null;
 
-    this.dehydrateAllConversations();
+    this._conversationHydration.dispose();
 
     // Stop snapshot persistence.
     this._snapshotDisposer?.();
@@ -450,51 +457,6 @@ export class WorkspaceViewModel implements ILifecycle {
   }
 
   private syncConversationHydration(openIds: string[]): void {
-    const conversations = conversationRegistry.get(this.taskId);
-    if (!conversations) return;
-
-    const next = new Set(openIds);
-    for (const id of next) {
-      if (this._hydratedConversationIds.has(id)) continue;
-      this._hydratedConversationIds.add(id);
-      void conversations.hydrateConversation(id).catch((error) => {
-        log.warn('WorkspaceViewModel: failed to hydrate conversation', {
-          taskId: this.taskId,
-          conversationId: id,
-          error,
-        });
-      });
-    }
-
-    for (const id of [...this._hydratedConversationIds]) {
-      if (next.has(id)) continue;
-      this._hydratedConversationIds.delete(id);
-      void conversations.dehydrateConversation(id).catch((error) => {
-        log.warn('WorkspaceViewModel: failed to dehydrate conversation', {
-          taskId: this.taskId,
-          conversationId: id,
-          error,
-        });
-      });
-    }
-  }
-
-  private dehydrateAllConversations(): void {
-    const conversations = conversationRegistry.get(this.taskId);
-    if (!conversations) {
-      this._hydratedConversationIds.clear();
-      return;
-    }
-
-    for (const id of [...this._hydratedConversationIds]) {
-      void conversations.dehydrateConversation(id).catch((error) => {
-        log.warn('WorkspaceViewModel: failed to dehydrate conversation during suspend', {
-          taskId: this.taskId,
-          conversationId: id,
-          error,
-        });
-      });
-    }
-    this._hydratedConversationIds.clear();
+    this._conversationHydration.sync(openIds);
   }
 }
