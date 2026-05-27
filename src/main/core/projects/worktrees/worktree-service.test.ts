@@ -249,6 +249,20 @@ describe('WorktreeService', () => {
       expect(exec).toHaveBeenCalledWith('git', ['config', `branch.${branchName}.base`, 'main']);
     });
 
+    it('does not return external worktrees from getWorktree', async () => {
+      const branchName = 'task/external-worktree';
+      const externalDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-external-'));
+      const externalPath = path.join(externalDir, 'task-external-worktree');
+      await git(['branch', branchName], { cwd: repoDir });
+      await git(['worktree', 'add', externalPath, branchName], { cwd: repoDir });
+
+      const svc = makeService({ worktreePoolPath: path.join(poolDir, 'projects', 'current') });
+
+      await expect(svc.getWorktree(branchName)).resolves.toBeUndefined();
+
+      fs.rmSync(externalDir, { recursive: true, force: true });
+    });
+
     it('creates a worktree from a remote source branch when branch is not local', async () => {
       const remoteDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-remote-'));
       try {

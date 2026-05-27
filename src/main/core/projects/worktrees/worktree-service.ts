@@ -1,4 +1,5 @@
 import { promises as fsPromises } from 'node:fs';
+import path from 'node:path';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { log } from '@main/lib/logger';
@@ -81,6 +82,13 @@ export class WorktreeService {
       }
     }
     return this.host.existsAbsolute(absPath);
+  }
+
+  private async realPathAbsolute(absPath: string): Promise<string> {
+    if (this.ctx.supportsLocalSpawn) {
+      return fsPromises.realpath(absPath);
+    }
+    return this.host.realPathAbsolute(absPath);
   }
 
   async findBranchAnywhere(branchName: string): Promise<string | undefined> {
@@ -166,20 +174,28 @@ export class WorktreeService {
     }
 
     try {
-      const realPoolPath = await this.host.realPathAbsolute(worktreePoolPath);
+      const realProjectPoolsRoot = await this.realPathAbsolute(path.dirname(worktreePoolPath));
       const { stdout } = await this.ctx.exec('git', ['worktree', 'list', '--porcelain']);
       const branchLine = `branch refs/heads/${branchName}`;
       for (const block of stdout.split('\n\n')) {
         if (block.split('\n').some((line) => line === branchLine)) {
           const match = /^worktree (.+)$/m.exec(block);
           const candidatePath = match?.[1];
-          if (!candidatePath?.startsWith(realPoolPath)) continue;
-          if (await this.isValidWorktree(candidatePath)) return candidatePath;
+          const realCandidatePath = candidatePath
+            ? await this.realPathAbsolute(candidatePath).catch(() => candidatePath)
+            : undefined;
+          if (
+            !realCandidatePath ||
+            path.relative(realProjectPoolsRoot, realCandidatePath).startsWith('..')
+          ) {
+            continue;
+          }
+          if (await this.isValidWorktree(realCandidatePath)) return realCandidatePath;
           await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
         }
       }
     } catch {}
-    return this.findBranchAnywhere(branchName);
+    return undefined;
   }
 
   async checkoutBranchWorktree(
