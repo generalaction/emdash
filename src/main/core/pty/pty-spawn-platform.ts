@@ -2,6 +2,11 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { log } from '@main/lib/logger';
 import { getWindowsEnvValue } from '@main/utils/windows-env';
+import {
+  isCshShell,
+  terminalInteractiveShellArgs,
+  type TerminalShellId,
+} from '@shared/terminal-settings';
 import { buildTmuxShellLine } from './tmux-session-name';
 
 export type PtyCommandSpec =
@@ -12,6 +17,7 @@ export type PtySpawnIntent =
   | {
       kind: 'interactive-shell';
       cwd: string;
+      shell?: TerminalShellId;
       shellSetup?: string;
       tmuxSessionName?: string;
     }
@@ -19,6 +25,7 @@ export type PtySpawnIntent =
       kind: 'run-command';
       cwd: string;
       command: PtyCommandSpec;
+      shell?: TerminalShellId;
       shellSetup?: string;
       tmuxSessionName?: string;
     };
@@ -34,12 +41,21 @@ export type ResolvedLocalPtySpawn = {
 
 type FileExists = (candidate: string) => boolean;
 
-function getPosixShell(env: NodeJS.ProcessEnv): string {
+function getPosixShell(env: NodeJS.ProcessEnv, shell: TerminalShellId | undefined): string {
+  if (shell && shell !== 'auto') return shell;
   return env.SHELL || '/bin/sh';
 }
 
 function getWindowsShell(env: NodeJS.ProcessEnv): string {
   return env.ComSpec || 'C:\\Windows\\System32\\cmd.exe';
+}
+
+function interactiveShellCommand(shell: string): string {
+  return `exec ${quotePosixArg(shell)} ${terminalInteractiveShellArgs(shell).join(' ')}`;
+}
+
+function shellArgQuoter(shell: string): (input: string) => string {
+  return isCshShell(shell) ? quoteCshArg : quotePosixArg;
 }
 
 function isWindows(platform: NodeJS.Platform): boolean {
@@ -52,8 +68,12 @@ function quotePosixArg(input: string): string {
   return `'${input.replace(/'/g, "'\\''")}'`;
 }
 
-function argvToPosixShellLine(command: string, args: string[]): string {
-  return [command, ...args].map(quotePosixArg).join(' ');
+function argvToShellLine(shell: string, command: string, args: string[]): string {
+  return [command, ...args].map(shellArgQuoter(shell)).join(' ');
+}
+
+function quoteCshArg(input: string): string {
+  return quotePosixArg(input).replace(/!/g, '\\!');
 }
 
 function quoteForCmdExe(input: string): string {
@@ -207,13 +227,13 @@ function resolveWindowsSpawn(
 }
 
 function resolvePosixSpawn(intent: PtySpawnIntent, env: NodeJS.ProcessEnv): ResolvedLocalPtySpawn {
-  const shell = getPosixShell(env);
+  const shell = getPosixShell(env, intent.shell);
 
   if (intent.kind === 'interactive-shell') {
     if (intent.tmuxSessionName) {
       const commandLine = intent.shellSetup
-        ? `${intent.shellSetup} && exec ${quotePosixArg(shell)} -il`
-        : `exec ${quotePosixArg(shell)} -il`;
+        ? `${intent.shellSetup} && ${interactiveShellCommand(shell)}`
+        : interactiveShellCommand(shell);
       return {
         command: shell,
         args: ['-c', buildTmuxShellLine(intent.tmuxSessionName, commandLine)],
@@ -225,19 +245,24 @@ function resolvePosixSpawn(intent: PtySpawnIntent, env: NodeJS.ProcessEnv): Reso
     if (intent.shellSetup) {
       return {
         command: shell,
-        args: ['-c', `${intent.shellSetup} && exec ${quotePosixArg(shell)} -il`],
+        args: ['-c', `${intent.shellSetup} && ${interactiveShellCommand(shell)}`],
         cwd: intent.cwd,
         warnings: [],
       };
     }
 
-    return { command: shell, args: ['-il'], cwd: intent.cwd, warnings: [] };
+    return {
+      command: shell,
+      args: terminalInteractiveShellArgs(shell),
+      cwd: intent.cwd,
+      warnings: [],
+    };
   }
 
   const commandLine =
     intent.command.kind === 'shell-line'
       ? intent.command.commandLine
-      : argvToPosixShellLine(intent.command.command, intent.command.args);
+      : argvToShellLine(shell, intent.command.command, intent.command.args);
   const fullCommandLine = intent.shellSetup
     ? `${intent.shellSetup} && ${commandLine}`
     : commandLine;

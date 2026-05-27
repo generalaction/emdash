@@ -22,6 +22,7 @@ import type { Conversation } from '@shared/conversations';
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { makePtyId } from '@shared/ptyId';
 import { makePtySessionId } from '@shared/ptySessionId';
+import type { TerminalShellId } from '@shared/terminal-settings';
 import { buildAgentSessionCommand } from './agent-command';
 import { scheduleInitialPromptInjection } from './keystroke-injection';
 import { resolveProviderEnv } from './provider-env';
@@ -41,6 +42,7 @@ export class LocalConversationProvider implements ConversationProvider {
   private readonly shellSetup?: string;
   private readonly ctx: IExecutionContext;
   private readonly taskEnvVars: Record<string, string>;
+  private readonly getShell: () => Promise<TerminalShellId>;
   private readonly hookConfigWriter: HookConfigWriter;
   private readonly preparedHookProviders = new Map<
     string,
@@ -52,6 +54,7 @@ export class LocalConversationProvider implements ConversationProvider {
     taskPath,
     taskId,
     tmux = false,
+    getShell = async () => (await appSettingsService.get('terminal')).shell,
     shellSetup,
     ctx,
     taskEnvVars = {},
@@ -60,6 +63,7 @@ export class LocalConversationProvider implements ConversationProvider {
     taskPath: string;
     taskId: string;
     tmux?: boolean;
+    getShell?: () => Promise<TerminalShellId>;
     shellSetup?: string;
     ctx: IExecutionContext;
     taskEnvVars?: Record<string, string>;
@@ -71,6 +75,7 @@ export class LocalConversationProvider implements ConversationProvider {
     this.shellSetup = shellSetup;
     this.ctx = ctx;
     this.taskEnvVars = taskEnvVars;
+    this.getShell = getShell;
     this.hookConfigWriter = new HookConfigWriter(new LocalFileSystem(taskPath), ctx);
   }
 
@@ -112,6 +117,7 @@ export class LocalConversationProvider implements ConversationProvider {
     });
 
     const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
+    const shell = await this.getShell();
 
     const resolved = resolveLocalPtySpawn({
       platform: process.platform,
@@ -120,6 +126,7 @@ export class LocalConversationProvider implements ConversationProvider {
         kind: 'run-command',
         cwd: this.taskPath,
         command: { kind: 'argv', command, args },
+        shell,
         shellSetup: this.shellSetup,
         tmuxSessionName,
       },
@@ -147,6 +154,8 @@ export class LocalConversationProvider implements ConversationProvider {
       env: {
         ...buildAgentEnv({
           hook: port > 0 ? { port, ptyId, token } : undefined,
+          includeShellVar: shell !== 'auto',
+          shell,
           providerVars: providerEnv,
         }),
         ...this.taskEnvVars,

@@ -10,8 +10,10 @@ import {
   type PtySpawnIntent,
 } from '@main/core/pty/pty-spawn-platform';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
+import { appSettingsService } from '@main/core/settings/settings-service';
 import { log } from '@main/lib/logger';
 import { makePtySessionId } from '@shared/ptySessionId';
+import type { TerminalShellId } from '@shared/terminal-settings';
 import type { Terminal } from '@shared/terminals';
 import { wireTerminalDevServerWatcher } from '../dev-server-watcher';
 import { type LifecycleScriptSpawnRequest, type TerminalProvider } from '../terminal-provider';
@@ -37,12 +39,14 @@ export class LocalTerminalProvider implements TerminalProvider {
   private readonly shellSetup?: string;
   private readonly ctx: IExecutionContext;
   private readonly taskEnvVars: Record<string, string>;
+  private readonly getShell: () => Promise<TerminalShellId>;
 
   constructor({
     projectId,
     scopeId,
     taskPath,
     tmux = false,
+    getShell = async () => (await appSettingsService.get('terminal')).shell,
     shellSetup,
     ctx,
     taskEnvVars = {},
@@ -51,6 +55,7 @@ export class LocalTerminalProvider implements TerminalProvider {
     scopeId: string;
     taskPath: string;
     tmux?: boolean;
+    getShell?: () => Promise<TerminalShellId>;
     shellSetup?: string;
     ctx: IExecutionContext;
     taskEnvVars?: Record<string, string>;
@@ -62,6 +67,7 @@ export class LocalTerminalProvider implements TerminalProvider {
     this.shellSetup = shellSetup;
     this.ctx = ctx;
     this.taskEnvVars = taskEnvVars;
+    this.getShell = getShell;
   }
 
   async spawnTerminal(
@@ -114,18 +120,21 @@ export class LocalTerminalProvider implements TerminalProvider {
     const sessionId = makePtySessionId(terminal.projectId, terminal.taskId, terminal.id);
     this.knownSessionIds.add(sessionId);
     if (this.sessions.has(sessionId)) return;
+    const shell = await this.getShell();
 
     const intent: PtySpawnIntent = command
       ? {
           kind: 'run-command',
           cwd: this.taskPath,
           command,
+          shell,
           shellSetup: shellSetup ?? this.shellSetup,
           tmuxSessionName: this.tmux ? makeTmuxSessionName(sessionId) : undefined,
         }
       : {
           kind: 'interactive-shell',
           cwd: this.taskPath,
+          shell,
           shellSetup: shellSetup ?? this.shellSetup,
           tmuxSessionName: this.tmux ? makeTmuxSessionName(sessionId) : undefined,
         };
@@ -145,7 +154,7 @@ export class LocalTerminalProvider implements TerminalProvider {
       command: resolved.command,
       args: resolved.args,
       cwd: resolved.cwd,
-      env: { ...buildTerminalEnv(), ...this.taskEnvVars },
+      env: { ...buildTerminalEnv({ shell }), ...this.taskEnvVars },
       cols: initialSize.cols,
       rows: initialSize.rows,
     });

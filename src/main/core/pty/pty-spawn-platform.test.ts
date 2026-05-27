@@ -256,6 +256,71 @@ describe('resolveLocalPtySpawn - POSIX', () => {
     });
   });
 
+  it('uses the selected terminal shell for interactive shells', () => {
+    const result = resolveLocalPtySpawn({
+      platform: 'darwin',
+      env: posixEnv,
+      intent: { kind: 'interactive-shell', cwd: '/repo', shell: 'bash' },
+    });
+
+    expect(result).toEqual({
+      command: 'bash',
+      args: ['-il'],
+      cwd: '/repo',
+      warnings: [],
+    });
+  });
+
+  it('does not pass login flags to basic POSIX interactive shells', () => {
+    const result = resolveLocalPtySpawn({
+      platform: 'darwin',
+      env: posixEnv,
+      intent: { kind: 'interactive-shell', cwd: '/repo', shell: 'dash' },
+    });
+
+    expect(result).toEqual({
+      command: 'dash',
+      args: ['-i'],
+      cwd: '/repo',
+      warnings: [],
+    });
+  });
+
+  it('does not pass login flags to csh-family interactive shells', () => {
+    const result = resolveLocalPtySpawn({
+      platform: 'darwin',
+      env: posixEnv,
+      intent: { kind: 'interactive-shell', cwd: '/repo', shell: 'tcsh' },
+    });
+
+    expect(result).toEqual({
+      command: 'tcsh',
+      args: ['-i'],
+      cwd: '/repo',
+      warnings: [],
+    });
+  });
+
+  it('does not pass login flags to basic POSIX interactive shells after setup', () => {
+    const result = resolveLocalPtySpawn({
+      platform: 'darwin',
+      env: posixEnv,
+      intent: {
+        kind: 'interactive-shell',
+        cwd: '/repo',
+        shell: 'sh',
+        shellSetup: 'export FOO=bar',
+      },
+    });
+
+    expect(result).toEqual({
+      command: 'sh',
+      args: ['-c', 'export FOO=bar && exec sh -i'],
+      cwd: '/repo',
+      warnings: [],
+    });
+  });
+
   it('quotes argv commands before shell wrapping', () => {
     const result = resolveLocalPtySpawn({
       platform: 'linux',
@@ -270,6 +335,46 @@ describe('resolveLocalPtySpawn - POSIX', () => {
     expect(result).toEqual({
       command: '/bin/bash',
       args: ['-c', "node 'script name.js' 'it'\\''s ok'"],
+      cwd: '/repo',
+      warnings: [],
+    });
+  });
+
+  it('uses the selected terminal shell for shell-wrapped commands', () => {
+    const result = resolveLocalPtySpawn({
+      platform: 'linux',
+      env: posixEnv,
+      intent: {
+        kind: 'run-command',
+        cwd: '/repo',
+        shell: 'sh',
+        command: { kind: 'argv', command: 'node', args: ['--version'] },
+      },
+    });
+
+    expect(result).toEqual({
+      command: 'sh',
+      args: ['-c', 'node --version'],
+      cwd: '/repo',
+      warnings: [],
+    });
+  });
+
+  it('escapes history expansion for csh-family argv commands', () => {
+    const result = resolveLocalPtySpawn({
+      platform: 'linux',
+      env: posixEnv,
+      intent: {
+        kind: 'run-command',
+        cwd: '/repo',
+        shell: 'tcsh',
+        command: { kind: 'argv', command: 'printf', args: ['hello!'] },
+      },
+    });
+
+    expect(result).toEqual({
+      command: 'tcsh',
+      args: ['-c', "printf 'hello\\!'"],
       cwd: '/repo',
       warnings: [],
     });

@@ -1,6 +1,7 @@
 import os from 'node:os';
 import { detectSshAuthSock } from '@main/utils/shellEnv';
 import { getWindowsEnvValue } from '@main/utils/windows-env';
+import type { TerminalShellId } from '@shared/terminal-settings';
 
 export const AGENT_ENV_VARS = [
   'ALL_PROXY',
@@ -139,6 +140,9 @@ export interface AgentEnvOptions {
    */
   includeShellVar?: boolean;
 
+  /** User-selected terminal shell. Used when SHELL is included. */
+  shell?: TerminalShellId;
+
   /**
    * Emdash hook server connection details.  When set, injects
    * EMDASH_HOOK_PORT, EMDASH_PTY_ID, and EMDASH_HOOK_TOKEN so agent CLIs
@@ -169,7 +173,9 @@ export interface AgentEnvOptions {
  * SSH_AUTH_SOCK is injected via the same cached detector used for agents,
  * since GUI-launched apps often don't inherit it from the user's login shell.
  */
-export function buildTerminalEnv(): Record<string, string> {
+export function buildTerminalEnv(
+  options: { shell?: TerminalShellId } = {}
+): Record<string, string> {
   // Inherit the full process environment, stripping undefined values.
   const env: Record<string, string> = {};
   for (const [key, val] of Object.entries(process.env)) {
@@ -184,7 +190,10 @@ export function buildTerminalEnv(): Record<string, string> {
   // Ensure SHELL reflects the user's configured shell on POSIX. Native Windows
   // shells are selected via ComSpec by the spawn resolver, not SHELL.
   if (process.platform !== 'win32') {
-    env.SHELL = process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
+    env.SHELL =
+      options.shell && options.shell !== 'auto'
+        ? options.shell
+        : (process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash'));
   } else if (process.env.SHELL) {
     env.SHELL = process.env.SHELL;
   }
@@ -209,7 +218,7 @@ export function buildTerminalEnv(): Record<string, string> {
  * find its own dependencies.
  */
 export function buildAgentEnv(options: AgentEnvOptions = {}): Record<string, string> {
-  const { agentApiVars = true, includeShellVar = false, hook, providerVars } = options;
+  const { agentApiVars = true, includeShellVar = false, shell, hook, providerVars } = options;
 
   // process.env.PATH is enriched at startup by resolveUserEnv() so it already
   // contains the full login-shell PATH (Homebrew, nvm, npm globals, etc.).
@@ -234,7 +243,7 @@ export function buildAgentEnv(options: AgentEnvOptions = {}): Record<string, str
   if (sshAuthSock) env.SSH_AUTH_SOCK = sshAuthSock;
 
   if (includeShellVar && process.platform !== 'win32') {
-    env.SHELL = process.env.SHELL || '/bin/bash';
+    env.SHELL = shell && shell !== 'auto' ? shell : process.env.SHELL || '/bin/bash';
   } else if (includeShellVar && process.env.SHELL) {
     env.SHELL = process.env.SHELL;
   }
