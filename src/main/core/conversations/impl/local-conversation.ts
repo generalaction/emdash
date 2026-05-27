@@ -203,8 +203,9 @@ export class LocalConversationProvider implements ConversationProvider {
           return;
         }
 
+        const resumeNext = isResuming && count <= MAX_RESPAWNS;
         setTimeout(() => {
-          this.startSession(conversation, initialSize, false, initialPrompt).catch((e) => {
+          this.startSession(conversation, initialSize, resumeNext, initialPrompt).catch((e) => {
             log.error('LocalConversationProvider: respawn failed', {
               conversationId: conversation.id,
               error: String(e),
