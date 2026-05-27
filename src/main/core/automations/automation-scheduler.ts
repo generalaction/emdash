@@ -138,7 +138,7 @@ export class AutomationScheduler {
   private async bootstrapDueRuns(): Promise<void> {
     const now = Date.now();
     const rows = await enabledCronAutomations();
-    await Promise.all(
+    const results = await Promise.allSettled(
       rows.map(async (automation) => {
         const isDue = automation.nextRunAt != null && automation.nextRunAt <= now;
         if (isDue) {
@@ -149,6 +149,14 @@ export class AutomationScheduler {
         }
       })
     );
+    results.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        log.error('AutomationScheduler bootstrap automation failed', {
+          automationId: rows[index]?.id,
+          error: String(result.reason),
+        });
+      }
+    });
     await this.drainQueue();
   }
 

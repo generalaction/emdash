@@ -413,6 +413,8 @@ export async function updateAutomation(
     const existing = mapAutomationRow(existingRow);
     const finalIsDraft = patch.isDraft ?? existing.isDraft;
     const finalActions = patch.actions ?? existing.actions;
+    const finalProjectId = patch.projectId ?? existing.projectId;
+    const finalEnabled = patch.enabled ?? existing.enabled;
     assertValidAutomationInput({
       trigger: patch.trigger ?? existing.trigger,
       deadlinePolicy: patch.deadlinePolicy ?? existing.deadlinePolicy,
@@ -420,6 +422,8 @@ export async function updateAutomation(
       isDraft: finalIsDraft,
       actions: finalActions,
     });
+    if (finalEnabled && finalIsDraft) throw new Error('automation_is_draft');
+    if (finalEnabled && finalProjectId == null) throw new Error('no_project_attached');
 
     const values: Partial<typeof automations.$inferInsert> = { updatedAt: Date.now() };
     if (patch.name !== undefined) values.name = patch.name.trim();
@@ -428,7 +432,12 @@ export async function updateAutomation(
     if (patch.projectId !== undefined) {
       values.projectId = patch.projectId;
     }
-    if (patch.enabled !== undefined) values.enabled = patch.enabled ? 1 : 0;
+    if (patch.enabled !== undefined) {
+      values.enabled = patch.enabled ? 1 : 0;
+      if (patch.enabled && !existing.enabled && patch.trigger === undefined) {
+        values.nextRunAt = getNextRunAt(existing.trigger);
+      }
+    }
     if (patch.isDraft !== undefined) values.isDraft = patch.isDraft ? 1 : 0;
     if (patch.deadlinePolicy !== undefined) values.deadlinePolicy = patch.deadlinePolicy;
     if (patch.deadlineMs !== undefined) values.deadlineMs = patch.deadlineMs;

@@ -222,6 +222,47 @@ describe('automations repo', () => {
     });
   });
 
+  it('rejects enabling a draft inside updateAutomation', async () => {
+    dbMock.selectLimit.mockReturnValueOnce(dbMock.rowsResult([{ ...automationRow, isDraft: 1 }]));
+
+    await expect(updateAutomation('automation-1', { enabled: true })).rejects.toThrow(
+      'automation_is_draft'
+    );
+
+    expect(dbMock.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects enabling a detached automation inside updateAutomation', async () => {
+    dbMock.selectLimit.mockReturnValueOnce(
+      dbMock.rowsResult([{ ...automationRow, enabled: 0, projectId: null }])
+    );
+
+    await expect(updateAutomation('automation-1', { enabled: true })).rejects.toThrow(
+      'no_project_attached'
+    );
+
+    expect(dbMock.update).not.toHaveBeenCalled();
+  });
+
+  it('refreshes nextRunAt when updateAutomation enables a paused automation', async () => {
+    dbMock.selectLimit.mockReturnValueOnce(
+      dbMock.rowsResult([{ ...automationRow, enabled: 0, nextRunAt: null }])
+    );
+    dbMock.updateReturning.mockReturnValueOnce(
+      dbMock.rowsResult([{ ...automationRow, enabled: 1, nextRunAt: 999 }])
+    );
+
+    await expect(updateAutomation('automation-1', { enabled: true })).resolves.toEqual(
+      expect.objectContaining({ id: 'automation-1', enabled: true, nextRunAt: 999 })
+    );
+
+    expect(dbMock.updateSet).toHaveBeenCalledWith({
+      enabled: 1,
+      nextRunAt: expect.any(Number),
+      updatedAt: expect.any(Number),
+    });
+  });
+
   it('updates when final published actions are valid', async () => {
     dbMock.selectLimit.mockReturnValueOnce(dbMock.rowsResult([{ ...automationRow, isDraft: 1 }]));
     dbMock.updateReturning.mockReturnValueOnce(
