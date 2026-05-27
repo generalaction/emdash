@@ -160,7 +160,7 @@ export class GitService implements GitProvider, IDisposable {
       return stdout
         .split('\n')
         .map((line) => {
-          const match = line.match(/^([ +-U]?)[0-9a-f]{40}\s+([^\s(]+)/);
+          const match = line.match(/^([ +-U]?)[0-9a-f]{40}\s+(.+?)(?:\s+\(.*\))?$/);
           if (!match || match[1] === '-') return '';
           return match[2]?.replace(/\\/g, '/').replace(/\/+$/g, '') ?? '';
         })
@@ -554,23 +554,21 @@ export class GitService implements GitProvider, IDisposable {
     submodules: SubmoduleInfo[],
     target: 'staged' | 'unstaged'
   ): Promise<SubmodulePointerChange[]> {
-    const changes: SubmodulePointerChange[] = [];
-
-    for (const submodule of submodules) {
-      const oldOid =
-        target === 'staged'
-          ? await this._getGitlinkOidAtRef(submodule.rootPath, 'HEAD')
-          : await this._getGitlinkOidAtIndex(submodule.rootPath);
-      const newOid =
-        target === 'staged'
-          ? await this._getGitlinkOidAtIndex(submodule.rootPath)
-          : await this._getSubmoduleHeadOid(submodule.rootPath);
-
-      if (!oldOid || !newOid || oldOid === newOid) continue;
-      changes.push({ rootPath: submodule.rootPath, oldOid, newOid });
-    }
-
-    return changes;
+    const results = await Promise.all(
+      submodules.map(async (submodule) => {
+        const [oldOid, newOid] = await Promise.all([
+          target === 'staged'
+            ? this._getGitlinkOidAtRef(submodule.rootPath, 'HEAD')
+            : this._getGitlinkOidAtIndex(submodule.rootPath),
+          target === 'staged'
+            ? this._getGitlinkOidAtIndex(submodule.rootPath)
+            : this._getSubmoduleHeadOid(submodule.rootPath),
+        ]);
+        if (!oldOid || !newOid || oldOid === newOid) return null;
+        return { rootPath: submodule.rootPath, oldOid, newOid };
+      })
+    );
+    return results.filter((r): r is SubmodulePointerChange => r !== null);
   }
 
   private async _expandSubmodulePointerChanges(
@@ -876,12 +874,6 @@ export class GitService implements GitProvider, IDisposable {
   }
 
   async revertAllFiles(): Promise<void> {
-    for (const submodule of await this._getSubmodules()) {
-      await this.ctx
-        .exec('git', ['-C', submodule.rootPath, 'reset', '--hard', 'HEAD'])
-        .catch(() => {});
-      await this.ctx.exec('git', ['-C', submodule.rootPath, 'clean', '-fd']).catch(() => {});
-    }
     // Reset index and working tree for all tracked changes back to HEAD,
     // then remove any untracked files/directories.
     try {
@@ -890,6 +882,12 @@ export class GitService implements GitProvider, IDisposable {
       // Repo may have no commits yet; ignore.
     }
     await this.ctx.exec('git', ['clean', '-fd']);
+    for (const submodule of await this._getSubmodules()) {
+      await this.ctx
+        .exec('git', ['submodule', 'update', '--checkout', '--force', '--', submodule.rootPath])
+        .catch(() => {});
+      await this.ctx.exec('git', ['-C', submodule.rootPath, 'clean', '-fd']).catch(() => {});
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -1580,7 +1578,9 @@ export class GitService implements GitProvider, IDisposable {
         if (stderr.includes('nothing to commit') || stdout.includes('nothing to commit')) {
           continue;
         }
-        return err({ type: 'hook_failed', message: output });
+        const isHookFailure =
+          stderr.includes('hook') || stderr.includes('Hook') || stderr.includes('pre-commit');
+        return err({ type: isHookFailure ? 'hook_failed' : 'error', message: output });
       }
 
       try {
