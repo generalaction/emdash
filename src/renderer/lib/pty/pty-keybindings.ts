@@ -37,9 +37,9 @@ export function shouldHandleInterruptFromTerminal(event: KeyEventLike): boolean 
 export function shouldCopySelectionFromTerminal(
   event: KeyEventLike,
   isMacPlatform: boolean,
-  hasSelection: boolean
+  hasSelection: boolean,
+  hasRecentSelection = false
 ): boolean {
-  if (!hasSelection) return false;
   if (event.type !== 'keydown') return false;
   if (event.key.toLowerCase() !== 'c') return false;
 
@@ -49,7 +49,9 @@ export function shouldCopySelectionFromTerminal(
   const shift = event.shiftKey === true;
 
   // Ctrl+Shift+C should copy on all platforms
-  if (ctrl && shift && !meta && !alt) return true;
+  if (ctrl && shift && !meta && !alt) return hasSelection || hasRecentSelection;
+
+  if (!hasSelection) return false;
 
   // Platform-specific default copy shortcuts
   if (isMacPlatform) {
