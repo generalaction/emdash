@@ -172,7 +172,7 @@ export class UpdateStore {
   }
 
   async download(): Promise<void> {
-    if (this._simulating) {
+    if (import.meta.env.DEV && this._simulating) {
       this.simulateDownloadProgress();
       return;
     }
@@ -201,7 +201,7 @@ export class UpdateStore {
     runInAction(() => {
       this.state = { status: 'installing' };
     });
-    if (this._simulating) {
+    if (import.meta.env.DEV && this._simulating) {
       // Real installs quit the app; for the demo just settle back to idle.
       setTimeout(() => this.resetUpdateState(), 2000);
       return;
