@@ -39,8 +39,7 @@ function getStatusColorClass(status?: string) {
     s.includes('completed')
   )
     return 'bg-foreground-success';
-  if (s.includes('progress') || s.includes('review'))
-    return 'bg-foreground-warning';
+  if (s.includes('progress') || s.includes('review')) return 'bg-foreground-warning';
   return 'bg-foreground-passive';
 }
 
@@ -97,14 +96,18 @@ export function ProviderLogo({
 }
 
 function IssuePriorityIcon({
+  provider,
   priority,
   className,
   reserveSpace = false,
 }: {
+  provider: Issue['provider'];
   priority?: string;
   className?: string;
   reserveSpace?: boolean;
 }) {
+  if (provider !== 'linear') return null;
+
   if (!priority || priority.toLowerCase() === 'no priority') {
     return reserveSpace ? <span className={cn('w-3 shrink-0', className)} /> : null;
   }
@@ -154,6 +157,8 @@ function IssuePriorityIcon({
 }
 
 export function hasMeaningfulPriority(issue: Issue): boolean {
+  if (issue.provider !== 'linear') return false;
+
   const priority = issue.priority?.toLowerCase();
   return !!priority && priority !== 'no priority';
 }
@@ -189,7 +194,11 @@ export function IssueRow({
 }) {
   return (
     <span className="flex w-full min-w-0 items-center gap-3">
-      <IssuePriorityIcon priority={issue.priority} reserveSpace={reservePrioritySpace} />
+      <IssuePriorityIcon
+        provider={issue.provider}
+        priority={issue.priority}
+        reserveSpace={reservePrioritySpace}
+      />
       <IssueIdentifier identifier={issue.identifier} provider={issue.provider} />
       {shouldShowStatusDot(issue) ? (
         <Tooltip>
@@ -375,7 +384,7 @@ export function SelectedIssueValue({ issue }: { issue: Issue }) {
         <div className="flex items-center gap-2">
           <ProviderLogo provider={issue.provider} className="h-3.5 w-3.5" />
           <span>{`${ISSUE_PROVIDER_META[issue.provider].displayName} issue`}</span>
-          <IssuePriorityIcon priority={issue.priority} />
+          <IssuePriorityIcon provider={issue.provider} priority={issue.priority} />
           <IssueIdentifier identifier={issue.identifier} provider={issue.provider} />
         </div>
         <Button
