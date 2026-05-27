@@ -12,6 +12,11 @@ const sqlFiles = import.meta.glob('@root/drizzle/*.sql', {
 
 type JournalEntry = { idx: number; when: number; tag: string; breakpoints: boolean };
 
+function isDuplicateColumnMigrationError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return /duplicate column name:/i.test(error.message);
+}
+
 function runBundledMigrations(connection: BetterSqlite3.Database): void {
   connection.exec(`
     CREATE TABLE IF NOT EXISTS __drizzle_migrations (
@@ -38,7 +43,13 @@ function runBundledMigrations(connection: BetterSqlite3.Database): void {
 
       for (const stmt of sql.split('--> statement-breakpoint')) {
         const trimmed = stmt.trim();
-        if (trimmed) connection.exec(trimmed);
+        if (!trimmed) continue;
+        try {
+          connection.exec(trimmed);
+        } catch (error) {
+          if (isDuplicateColumnMigrationError(error)) continue;
+          throw error;
+        }
       }
 
       connection
