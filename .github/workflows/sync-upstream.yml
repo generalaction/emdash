@@ -34,12 +34,12 @@ jobs:
         run: |
           git remote add upstream "https://github.com/${UPSTREAM_REPO}.git" 2>/dev/null || \
             git remote set-url upstream "https://github.com/${UPSTREAM_REPO}.git"
-          git fetch upstream "${UPSTREAM_BRANCH}:refs/remotes/upstream/${UPSTREAM_BRANCH}"
+          git fetch --force upstream "refs/heads/${UPSTREAM_BRANCH}:refs/remotes/upstream/${UPSTREAM_BRANCH}"
 
       - name: Count commits behind
         id: diff
         run: |
-          git fetch origin "${TARGET_BRANCH}"
+          git fetch origin "refs/heads/${TARGET_BRANCH}"
           git checkout -B "${TARGET_BRANCH}" FETCH_HEAD
           ahead=$(git rev-list --count "HEAD..refs/remotes/upstream/${UPSTREAM_BRANCH}")
           echo "ahead=${ahead}" >> "$GITHUB_OUTPUT"
