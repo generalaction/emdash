@@ -1,5 +1,9 @@
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, type ReactNode } from 'react';
+import {
+  closeActiveTabWithConfirm,
+  closeTabWithConfirm,
+} from '@renderer/features/tasks/tabs/close-tab-with-confirm';
 import { useTabGroupContext } from '@renderer/features/tasks/tabs/tab-group-context';
 import {
   useConversations,
@@ -30,7 +34,7 @@ function makeTabRenderers(
         tab={tab}
         onSelect={() => tabManager.setActiveTab(tab.tabId)}
         onPin={() => tabManager.openConversation(tab.conversationId)}
-        onClose={() => tabManager.closeTabWithGuard(tab.tabId)}
+        onClose={() => closeTabWithConfirm(tabManager, tab.tabId)}
         onRenameSubmit={(name) => void conversations.renameConversation(tab.conversationId, name)}
       />
     ),
@@ -40,7 +44,7 @@ function makeTabRenderers(
         tab={tab}
         onSelect={() => tabManager.setActiveTab(tab.tabId)}
         onPin={() => tabManager.pinTab(tab.tabId)}
-        onClose={() => tabManager.closeTab(tab.tabId)}
+        onClose={() => closeTabWithConfirm(tabManager, tab.tabId)}
       />
     ),
     file: (tab: ResolvedFileTab): ReactNode => (
@@ -49,7 +53,7 @@ function makeTabRenderers(
         tab={tab}
         onSelect={() => tabManager.setActiveTab(tab.tabId)}
         onPin={() => tabManager.pinTab(tab.tabId)}
-        onClose={() => tabManager.closeTabWithGuard(tab.tabId)}
+        onClose={() => closeTabWithConfirm(tabManager, tab.tabId)}
       />
     ),
   } satisfies { [K in ResolvedTab['kind']]: (tab: Extract<ResolvedTab, { kind: K }>) => ReactNode };
@@ -65,7 +69,10 @@ export const TabBar = observer(function TabBar() {
   const isFocusedPane =
     taskView.focusedRegion === 'main' && tabGroupManager.activeGroupId === groupId;
 
-  useTabShortcuts(tabManager, { focused: isFocusedPane });
+  useTabShortcuts(tabManager, {
+    focused: isFocusedPane,
+    closeActiveTab: () => closeActiveTabWithConfirm(tabManager),
+  });
 
   const resolvedTabs = tabManager.resolvedTabs;
 

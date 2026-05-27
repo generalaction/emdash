@@ -16,6 +16,7 @@ import { commandRegistry } from './registry';
  */
 function SingleKeyBinder({ shortcutKey }: { shortcutKey: ShortcutSettingsKey }) {
   const { value: keyboard } = useAppSettingsKey('keyboard');
+
   const isAllow = APP_SHORTCUTS[shortcutKey].conflictBehavior === 'allow';
 
   useHotkey(
@@ -46,7 +47,9 @@ function SingleKeyBinder({ shortcutKey }: { shortcutKey: ShortcutSettingsKey }) 
 export const CommandShortcutBinder = observer(function CommandShortcutBinder() {
   const keys = [
     ...new Set(
-      commandRegistry.activeCommands.filter((c) => c.shortcutKey != null).map((c) => c.shortcutKey!)
+      commandRegistry.activeCommands
+        .filter((c) => c.shortcutKey != null && c.shortcutKey in APP_SHORTCUTS)
+        .map((c) => c.shortcutKey!)
     ),
   ];
 
