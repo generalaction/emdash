@@ -79,7 +79,6 @@ const automationRow = {
   isDraft: 0,
   lastRunAt: null,
   nextRunAt: 123,
-  builtinTemplateId: null,
   deadlinePolicy: 'next-interval',
   deadlineMs: null,
   createdAt: 1,

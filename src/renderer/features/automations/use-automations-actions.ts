@@ -102,7 +102,6 @@ export function useAutomationsActions({
           projectId: automation.projectId,
           enabled: automation.enabled,
           isDraft: automation.isDraft,
-          builtinTemplateId: automation.builtinTemplateId,
           deadlinePolicy: automation.deadlinePolicy,
           deadlineMs: automation.deadlineMs,
         },

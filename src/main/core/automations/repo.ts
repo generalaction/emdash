@@ -178,7 +178,6 @@ function mapAutomationRow(row: AutomationRow): Automation {
     isDraft: row.isDraft === 1,
     lastRunAt: row.lastRunAt,
     nextRunAt: row.nextRunAt,
-    builtinTemplateId: row.builtinTemplateId,
     deadlinePolicy: asDeadlinePolicy(row.deadlinePolicy, row.id),
     deadlineMs: row.deadlineMs,
     createdAt: row.createdAt,
@@ -385,7 +384,6 @@ export async function createAutomation(input: CreateAutomationInput): Promise<Au
       enabled: input.isDraft ? 0 : input.enabled === false ? 0 : 1,
       isDraft: input.isDraft ? 1 : 0,
       lastRunAt: null,
-      builtinTemplateId: input.builtinTemplateId ?? null,
       deadlinePolicy: input.deadlinePolicy ?? 'next-interval',
       deadlineMs: input.deadlineMs ?? null,
       createdAt: now,
@@ -432,7 +430,6 @@ export async function updateAutomation(
     }
     if (patch.enabled !== undefined) values.enabled = patch.enabled ? 1 : 0;
     if (patch.isDraft !== undefined) values.isDraft = patch.isDraft ? 1 : 0;
-    if (patch.builtinTemplateId !== undefined) values.builtinTemplateId = patch.builtinTemplateId;
     if (patch.deadlinePolicy !== undefined) values.deadlinePolicy = patch.deadlinePolicy;
     if (patch.deadlineMs !== undefined) values.deadlineMs = patch.deadlineMs;
     if (patch.trigger !== undefined) Object.assign(values, rowValuesFromTrigger(patch.trigger));

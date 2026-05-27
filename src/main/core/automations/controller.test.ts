@@ -58,7 +58,6 @@ const draftAutomation: Automation = {
   isDraft: true,
   lastRunAt: null,
   nextRunAt: null,
-  builtinTemplateId: null,
   deadlinePolicy: 'next-interval',
   deadlineMs: null,
   createdAt: 0,

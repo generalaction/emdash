@@ -257,7 +257,6 @@ export const AutomationPanel = observer(function AutomationPanel({
             actions,
             taskConfig,
             projectId: effectiveProjectId,
-            builtinTemplateId: appliedTemplate?.id ?? null,
           });
       toast({ title: automation ? 'Automation saved' : 'Automation created' });
       onSaved?.(saved);

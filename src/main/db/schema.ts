@@ -289,7 +289,6 @@ export const automations = sqliteTable(
     isDraft: integer('is_draft').notNull().default(0),
     lastRunAt: integer('last_run_at'),
     nextRunAt: integer('next_run_at'),
-    builtinTemplateId: text('builtin_template_id'),
     deadlinePolicy: text('deadline_policy').notNull().default('next-interval'),
     deadlineMs: integer('deadline_ms'),
     createdAt: integer('created_at').notNull(),

@@ -62,7 +62,6 @@ const baseAutomation: Automation = {
   isDraft: false,
   lastRunAt: null,
   nextRunAt: null,
-  builtinTemplateId: null,
   deadlinePolicy: 'next-interval',
   deadlineMs: null,
   createdAt: 0,

@@ -22,7 +22,6 @@ export type Automation = {
   isDraft: boolean;
   lastRunAt: number | null;
   nextRunAt: number | null;
-  builtinTemplateId: string | null;
   deadlinePolicy: AutomationDeadlinePolicy;
   deadlineMs: number | null;
   createdAt: number;
@@ -74,7 +73,6 @@ export type CreateAutomationInput = {
   projectId: string;
   enabled?: boolean;
   isDraft?: boolean;
-  builtinTemplateId?: string | null;
   deadlinePolicy?: AutomationDeadlinePolicy;
   deadlineMs?: number | null;
 };
@@ -88,7 +86,6 @@ export type UpdateAutomationPatch = Partial<
     | 'trigger'
     | 'actions'
     | 'projectId'
-    | 'builtinTemplateId'
     | 'deadlinePolicy'
     | 'deadlineMs'
   > & { taskConfig: CreateTaskParams | null; enabled: boolean; isDraft: boolean }
