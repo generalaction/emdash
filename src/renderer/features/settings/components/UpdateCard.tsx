@@ -1,10 +1,11 @@
-import { AlertCircle, CheckCircle2, Download, Loader2, RefreshCw } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Download, Loader2, Play, RefreshCw } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React from 'react';
 import { PRODUCT_NAME } from '@shared/app-identity';
 import { appState } from '@renderer/lib/stores/app-state';
 import { Badge } from '@renderer/lib/ui/badge';
 import { Button } from '@renderer/lib/ui/button';
+import { Progress } from '@renderer/lib/ui/progress';
 import { formatBytes } from '@renderer/utils/formatBytes';
 import { SettingRow } from './SettingRow';
 
@@ -12,9 +13,12 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
   const update = appState.update;
   const downloadProgress =
     update.state.status === 'downloading' ? update.state.progress : undefined;
-  const hasByteProgress =
-    downloadProgress !== undefined &&
-    ((downloadProgress.total ?? 0) > 0 || (downloadProgress.transferred ?? 0) > 0);
+  const progressPercent = Math.round(downloadProgress?.percent ?? 0);
+  // The check/refresh action only makes sense before a download is underway.
+  const showCheckButton =
+    update.state.status !== 'downloading' &&
+    update.state.status !== 'downloaded' &&
+    update.state.status !== 'installing';
 
   const versionTitle = (
     <div className="flex items-center gap-2">
@@ -34,7 +38,7 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
         description={renderStatusMessage()}
         control={
           <div className="flex items-center gap-2">
-            {update.state.status !== 'downloaded' && update.state.status !== 'installing' && (
+            {showCheckButton && (
               <Button
                 type="button"
                 variant="outline"
@@ -54,20 +58,70 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
         }
       />
 
-      {update.state.status === 'downloading' && downloadProgress && (
-        <div className="space-y-2">
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full bg-primary transition-all duration-300 ease-out"
-              style={{ width: `${downloadProgress.percent || 0}%` }}
-            />
+      {update.state.status === 'downloading' && <Progress value={progressPercent} />}
+
+      {import.meta.env.DEV && (
+        <div className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-foreground-passive">Dev: simulate update</span>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="default"
+              size="sm"
+              onClick={() => update.simulateUpdateFlow()}
+            >
+              <Play className="mr-1.5 h-3 w-3" />
+              Run flow
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => update.simulateUpdateToast()}
+            >
+              Available
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => update.simulateDownloadProgress()}
+            >
+              Downloading
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => update.simulateDownloaded()}
+            >
+              Downloaded
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => update.simulateInstalling()}
+            >
+              Installing
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => update.simulateUpdateError()}
+            >
+              Error
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => update.resetUpdateState()}
+            >
+              Reset
+            </Button>
           </div>
-          {hasByteProgress && (
-            <p className="text-xs text-muted-foreground">
-              {formatBytes(downloadProgress.transferred || 0)} /{' '}
-              {formatBytes(downloadProgress.total || 0)}
-            </p>
-          )}
         </div>
       )}
     </div>
@@ -93,12 +147,19 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
         }
         return <p className="text-sm text-muted-foreground">An update is available</p>;
 
-      case 'downloading':
+      case 'downloading': {
+        const transferred = downloadProgress?.transferred ?? 0;
+        const total = downloadProgress?.total ?? 0;
+        const speed = downloadProgress?.bytesPerSecond ?? 0;
+        const sizeLabel = total > 0 ? `${formatBytes(transferred)} / ${formatBytes(total)}` : '';
+        const speedLabel = speed > 0 ? `${formatBytes(speed)}/s` : '';
+        const detail = [sizeLabel, speedLabel].filter(Boolean).join(' · ');
         return (
-          <p className="text-sm text-muted-foreground">
-            Downloading update{update.progressLabel ? ` (${update.progressLabel})` : '...'}
+          <p className="text-sm text-muted-foreground tabular-nums">
+            {detail ? `Downloading update · ${detail}` : 'Downloading update…'}
           </p>
         );
+      }
 
       case 'downloaded':
         return (
@@ -142,42 +203,32 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
     switch (update.state.status) {
       case 'available':
         return (
-          <Button
-            size="sm"
-            variant="default"
-            onClick={() => update.download()}
-            className="h-7 text-xs"
-          >
-            <Download className="mr-1.5 h-3 w-3" />
+          <Button size="default" variant="default" onClick={() => update.download()}>
+            <Download className="mr-1.5 h-4 w-4" />
             Download
           </Button>
         );
 
       case 'downloading':
         return (
-          <Button size="sm" variant="outline" disabled className="h-7 text-xs">
-            <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
-            Downloading
+          <Button size="default" variant="outline" disabled>
+            <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+            Downloading {progressPercent}%
           </Button>
         );
 
       case 'downloaded':
         return (
-          <Button
-            size="sm"
-            variant="default"
-            onClick={() => update.install()}
-            className="h-7 text-xs"
-          >
-            <RefreshCw className="mr-1.5 h-3 w-3" />
+          <Button size="default" variant="default" onClick={() => update.install()}>
+            <RefreshCw className="mr-1.5 h-4 w-4" />
             Restart
           </Button>
         );
 
       case 'installing':
         return (
-          <Button size="sm" variant="outline" disabled className="h-7 text-xs">
-            <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+          <Button size="default" variant="outline" disabled>
+            <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
             Installing
           </Button>
         );

@@ -21,11 +21,11 @@ class AppState {
 
   constructor() {
     this.snapshots = snapshotRegistry;
+    this.navigation = new NavigationStore();
     this.update = new UpdateStore();
     this.projects = new ProjectManagerStore();
     this.sidebar = new SidebarStore(this.projects);
     this.history = new NavigationHistoryStore();
-    this.navigation = new NavigationStore();
     this.dependencies = new DependenciesStore();
     this.sshConnections = new SshConnectionStore({
       onConnectionReady: (connectionId) => void this.dependencies.refreshAgents(connectionId),
