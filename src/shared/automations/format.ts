@@ -179,6 +179,9 @@ const ERROR_MESSAGES = {
   automation_run_in_flight: 'Wait for the run to finish before deleting it',
   automation_run_already_queued: 'This automation already has a queued or running run',
   automation_run_not_found: 'This automation run no longer exists',
+  cron_invalid: 'Enter a valid schedule',
+  deadline_policy_invalid: 'Choose a valid deadline policy',
+  deadline_ms_invalid: 'Choose a positive deadline duration',
   interrupted_by_restart_task_preserved:
     'The run was interrupted because the app restarted, but its agent was preserved',
   interrupted_by_restart_task_missing:

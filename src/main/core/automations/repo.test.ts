@@ -169,6 +169,26 @@ describe('automations repo', () => {
     expect(dbMock.update).not.toHaveBeenCalled();
   });
 
+  it('validates final trigger inside updateAutomation', async () => {
+    dbMock.selectLimit.mockReturnValueOnce(dbMock.rowsResult([automationRow]));
+
+    await expect(
+      updateAutomation('automation-1', { trigger: { expr: 'not cron', tz: 'UTC' } })
+    ).rejects.toThrow('cron_invalid');
+
+    expect(dbMock.update).not.toHaveBeenCalled();
+  });
+
+  it('validates final deadline inside updateAutomation', async () => {
+    dbMock.selectLimit.mockReturnValueOnce(dbMock.rowsResult([automationRow]));
+
+    await expect(updateAutomation('automation-1', { deadlineMs: 0 })).rejects.toThrow(
+      'deadline_ms_invalid'
+    );
+
+    expect(dbMock.update).not.toHaveBeenCalled();
+  });
+
   it('updates when final published actions are valid', async () => {
     dbMock.selectLimit.mockReturnValueOnce(dbMock.rowsResult([{ ...automationRow, isDraft: 1 }]));
     dbMock.updateReturning.mockReturnValueOnce(

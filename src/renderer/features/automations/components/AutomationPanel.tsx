@@ -38,6 +38,7 @@ import {
   type BuiltinAutomationTemplate,
   type CronTrigger,
 } from '@shared/automations/types';
+import { assertValidCronTrigger } from '@shared/automations/validation';
 import type { Branch } from '@shared/git';
 import type { CreateTaskParams } from '@shared/tasks';
 import { useAutomations } from '../useAutomations';
@@ -147,6 +148,7 @@ export const AutomationPanel = observer(function AutomationPanel({
   const [cronTz, setCronTz] = useState<string>(cronTzFromTrigger(seedTrigger));
   const [useBYOI, setUseBYOI] = useState(seedConfig?.workspaceProvider === 'byoi');
   const [error, setError] = useState<string | null>(null);
+  const [cronError, setCronError] = useState<string | null>(null);
   const [templatePopoverOpen, setTemplatePopoverOpen] = useState(false);
 
   const effectiveProjectId =
@@ -224,6 +226,13 @@ export const AutomationPanel = observer(function AutomationPanel({
     const taskConfig = buildTaskConfig(effectiveProjectId);
     if (!taskConfig) return;
     const triggerSpec: CronTrigger = { expr: cronExpr.trim(), tz: cronTz };
+    try {
+      assertValidCronTrigger(triggerSpec);
+    } catch (validationError) {
+      setCronError(formatAutomationError(validationError));
+      return;
+    }
+    setCronError(null);
     const actions: TaskCreateAction[] = [{ kind: 'task.create', prompt: prompt.trim() }];
     try {
       const trimmedName = name.trim();
@@ -265,6 +274,7 @@ export const AutomationPanel = observer(function AutomationPanel({
     if (template.defaultTrigger) {
       setCronExpr(template.defaultTrigger.expr);
       setCronTz(template.defaultTrigger.tz);
+      setCronError(null);
     }
     setTemplatePopoverOpen(false);
   }
@@ -343,9 +353,16 @@ export const AutomationPanel = observer(function AutomationPanel({
             <h3 className="text-muted-foreground text-xs font-medium">Schedule</h3>
             <div className="bg-muted/10 rounded-md border border-border">
               <RowField label="Runs">
-                <SchedulePicker value={cronExpr} onChange={setCronExpr} />
+                <SchedulePicker
+                  value={cronExpr}
+                  onChange={(nextCronExpr) => {
+                    setCronExpr(nextCronExpr);
+                    setCronError(null);
+                  }}
+                />
               </RowField>
             </div>
+            {cronError && <p className="text-destructive text-xs">{cronError}</p>}
           </section>
 
           <section className="flex flex-col gap-2">

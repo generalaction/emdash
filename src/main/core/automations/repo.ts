@@ -26,6 +26,7 @@ import type {
   CronTrigger,
   UpdateAutomationPatch,
 } from '@shared/automations/types';
+import { assertValidCronTrigger, assertValidDeadline } from '@shared/automations/validation';
 import type { CreateTaskParams } from '@shared/tasks';
 
 const DEFAULT_TZ = getLocalTimeZone();
@@ -59,6 +60,18 @@ function assertPublishableActions(actions: TaskCreateAction[]): void {
   }
   const invalidIndex = actions.findIndex((action) => !isValidAction(action));
   if (invalidIndex >= 0) throw new Error(`action_invalid:${invalidIndex}`);
+}
+
+function assertValidAutomationInput(input: {
+  trigger: CronTrigger;
+  deadlinePolicy: AutomationDeadlinePolicy;
+  deadlineMs: number | null;
+  isDraft: boolean;
+  actions: TaskCreateAction[];
+}): void {
+  assertValidCronTrigger(input.trigger);
+  assertValidDeadline(input.deadlinePolicy, input.deadlineMs);
+  if (!input.isDraft) assertPublishableActions(input.actions);
 }
 
 function parseTaskConfig(raw: string | null): CreateTaskParams | null {
@@ -296,7 +309,7 @@ export function getNextRunAt(
 
 function rowValuesFromTrigger(trigger: CronTrigger) {
   return {
-    cronExpr: trigger.expr,
+    cronExpr: trigger.expr.trim(),
     cronTz: trigger.tz || DEFAULT_TZ,
     nextRunAt: getNextRunAt(trigger),
   };
@@ -348,6 +361,14 @@ export async function createAutomation(input: CreateAutomationInput): Promise<Au
     throw new Error('project_not_found');
   }
 
+  assertValidAutomationInput({
+    trigger: input.trigger,
+    deadlinePolicy: input.deadlinePolicy ?? 'next-interval',
+    deadlineMs: input.deadlineMs ?? null,
+    isDraft: input.isDraft ?? false,
+    actions: input.actions,
+  });
+
   const now = Date.now();
   const [row] = await db
     .insert(automations)
@@ -394,7 +415,13 @@ export async function updateAutomation(
     const existing = mapAutomationRow(existingRow);
     const finalIsDraft = patch.isDraft ?? existing.isDraft;
     const finalActions = patch.actions ?? existing.actions;
-    if (!finalIsDraft) assertPublishableActions(finalActions);
+    assertValidAutomationInput({
+      trigger: patch.trigger ?? existing.trigger,
+      deadlinePolicy: patch.deadlinePolicy ?? existing.deadlinePolicy,
+      deadlineMs: patch.deadlineMs ?? existing.deadlineMs,
+      isDraft: finalIsDraft,
+      actions: finalActions,
+    });
 
     const values: Partial<typeof automations.$inferInsert> = { updatedAt: Date.now() };
     if (patch.name !== undefined) values.name = patch.name.trim();
