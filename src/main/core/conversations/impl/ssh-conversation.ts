@@ -107,6 +107,7 @@ export class SshConversationProvider implements ConversationProvider {
       extraInitialArgs: initialPromptDelivery.argvAddition(),
       initialPrompt,
       sessionId: conversation.id,
+      providerSessionId: conversation.providerSessionId,
       isResuming,
     });
     const providerEnv = resolveProviderEnv(providerConfig, {

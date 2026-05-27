@@ -110,6 +110,7 @@ export function buildAgentCommand({
   extraInitialArgs,
   initialPrompt,
   sessionId,
+  providerSessionId,
   isResuming,
 }: {
   providerId: AgentProviderId;
@@ -118,6 +119,7 @@ export function buildAgentCommand({
   extraInitialArgs?: readonly string[];
   initialPrompt?: string;
   sessionId: string;
+  providerSessionId?: string;
   isResuming?: boolean;
 }): AgentCommand {
   const providerDef = getProvider(providerId);
@@ -130,8 +132,12 @@ export function buildAgentCommand({
     sessionIdFlag !== undefined && (!providerConfig?.sessionIdOnResumeOnly || isResuming);
 
   if (isResuming && providerConfig?.resumeFlag) {
-    if (providerConfig.sessionIdFlag) {
+    if (providerConfig.sessionIdFlag && providerSessionId) {
+      appendSessionId(args, providerConfig.resumeFlag, providerSessionId);
+    } else if (providerConfig.sessionIdFlag && !providerConfig.sessionIdOnResumeOnly) {
       appendSessionId(args, providerConfig.resumeFlag, sessionId);
+    } else if (providerConfig.resumeWithoutSessionFlag) {
+      args.push(...parseArgField(providerConfig.resumeWithoutSessionFlag));
     } else {
       args.push(...parseArgField(providerConfig.resumeFlag));
     }
@@ -174,6 +180,7 @@ export function buildAgentSessionCommand(args: {
   extraInitialArgs?: readonly string[];
   initialPrompt?: string;
   sessionId: string;
+  providerSessionId?: string;
   isResuming?: boolean;
 }): AgentCommand {
   const command = buildAgentCommand(args);

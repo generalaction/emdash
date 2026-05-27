@@ -394,3 +394,34 @@ describe('GitService.push', () => {
     });
   });
 });
+
+describe('GitService.createBranch', () => {
+  it('records local source branch metadata after creating a branch', async () => {
+    const svc = makeService(
+      makeExec({
+        'branch --no-track task/local refs/heads/main': '',
+        'config branch.task/local.base main': '',
+      })
+    );
+
+    await expect(svc.createBranch('task/local', 'main', false)).resolves.toEqual({
+      success: true,
+      data: undefined,
+    });
+  });
+
+  it('records remote source branch metadata after creating a branch', async () => {
+    const svc = makeService(
+      makeExec({
+        'fetch upstream': '',
+        'branch --no-track task/remote upstream/main': '',
+        'config branch.task/remote.base upstream/main': '',
+      })
+    );
+
+    await expect(svc.createBranch('task/remote', 'main', true, 'upstream')).resolves.toEqual({
+      success: true,
+      data: undefined,
+    });
+  });
+});
