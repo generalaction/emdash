@@ -41,6 +41,7 @@ class SearchService {
     taskService.on('task:deleted', (taskId) => this.removeByType('task', taskId));
 
     projectEvents.on('project:created', (project) => this.upsertProject(project));
+    projectEvents.on('project:renamed', (project) => this.upsertProject(project));
     projectEvents.on('project:deleted', (projectId) => this.removeByType('project', projectId));
 
     conversationEvents.on('conversation:created', (conversation) =>

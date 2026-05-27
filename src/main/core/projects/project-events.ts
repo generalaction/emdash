@@ -4,6 +4,7 @@ import type { Project } from '@shared/projects';
 
 export type ProjectCrudHooks = {
   'project:created': (project: Project) => void | Promise<void>;
+  'project:renamed': (project: Project) => void | Promise<void>;
   'project:deleted': (projectId: string) => void | Promise<void>;
 };
 

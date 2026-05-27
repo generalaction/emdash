@@ -26,6 +26,8 @@ export type SshProject = {
 
 export type Project = LocalProject | SshProject;
 
+export const MAX_PROJECT_NAME_LENGTH = 120;
+
 export type CreateLocalProjectParams = {
   type: 'local';
   id?: string;
@@ -44,6 +46,11 @@ export type CreateSshProjectParams = {
 };
 
 export type CreateProjectParams = CreateLocalProjectParams | CreateSshProjectParams;
+
+export type RenameProjectError =
+  | { type: 'project-not-found' }
+  | { type: 'invalid-name' }
+  | { type: 'error'; message: string };
 
 export type InspectLocalProjectPathParams = {
   type: 'local';

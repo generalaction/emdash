@@ -15,6 +15,7 @@ import type { SshConnectionManagerEvent } from '@main/core/ssh/lifecycle/ssh-con
 import { log } from '@main/lib/logger';
 import { safePathSegment } from '@shared/path-name';
 import type { LocalProject, SshProject } from '@shared/projects';
+import { getProjectById } from './operations/getProjects';
 import { ProjectProvider, type ProjectProviderTransport } from './project-provider';
 import type { ProjectSettingsProvider } from './settings/provider';
 import { LocalProjectSettingsProvider } from './settings/providers/local-project-settings-provider';
@@ -53,7 +54,7 @@ async function createLocalProvider(project: LocalProject): Promise<ProjectProvid
     const directory = await settings.getWorktreeDirectory();
     await fs.promises.mkdir(directory, { recursive: true });
     await worktreeHost.allowRoot(directory);
-    return path.join(directory, safePathSegment(project.name, project.id));
+    return path.join(directory, await getProjectPoolSegment(project.id, project.name));
   };
 
   return buildProvider(
@@ -94,11 +95,17 @@ async function createSshProvider(project: SshProject): Promise<ProjectProvider> 
       }
     );
     const worktreeDirectory = await settings.getWorktreeDirectory();
-    const worktreePoolPath = path.posix.join(worktreeDirectory, project.name);
+    const worktreePoolPath = path.posix.join(
+      worktreeDirectory,
+      await getProjectPoolSegment(project.id, project.name)
+    );
     const worktreeHost = new SshWorktreeHost(rootFs);
     await worktreeHost.mkdirAbsolute(worktreePoolPath, { recursive: true });
     const resolveWorktreePoolPath = async () =>
-      path.posix.join(await settings.getWorktreeDirectory(), project.name);
+      path.posix.join(
+        await settings.getWorktreeDirectory(),
+        await getProjectPoolSegment(project.id, project.name)
+      );
 
     const dispose = () => sshConnectionManager.off('connection-event', handler);
 
@@ -136,6 +143,11 @@ async function createSshProvider(project: SshProject): Promise<ProjectProvider> 
     sshConnectionManager.reportChannelError(project.connectionId, error);
     throw error;
   }
+}
+
+async function getProjectPoolSegment(projectId: string, fallbackName: string): Promise<string> {
+  const currentProject = await getProjectById(projectId);
+  return safePathSegment(currentProject?.name ?? fallbackName, projectId);
 }
 
 function buildProvider(

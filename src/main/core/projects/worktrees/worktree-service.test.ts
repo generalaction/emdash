@@ -128,6 +128,19 @@ describe('WorktreeService', () => {
       expect(fs.existsSync(result.data)).toBe(true);
     });
 
+    it('finds valid worktrees after the resolved pool path changes', async () => {
+      const branchName = 'task/renamed-project';
+      const oldPool = path.join(poolDir, 'old-name');
+      const newPool = path.join(poolDir, 'new-name');
+      const oldWorktreePath = path.join(oldPool, branchName);
+      await git(['branch', branchName], { cwd: repoDir });
+      await git(['worktree', 'add', oldWorktreePath, branchName], { cwd: repoDir });
+
+      const svc = makeService({ worktreePoolPath: newPool });
+
+      await expect(svc.getWorktree(branchName)).resolves.toBe(fs.realpathSync(oldWorktreePath));
+    });
+
     it('creates a worktree from a remote source branch when branch is not local', async () => {
       const remoteDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wt-remote-'));
       try {

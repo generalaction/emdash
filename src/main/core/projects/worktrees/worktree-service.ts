@@ -152,7 +152,7 @@ export class WorktreeService {
         }
       }
     } catch {}
-    return undefined;
+    return this.findBranchAnywhere(branchName);
   }
 
   async checkoutBranchWorktree(

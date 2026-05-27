@@ -25,6 +25,7 @@ describe('path-name helpers', () => {
     it('collapses path-shaped project names to a safe single segment', () => {
       expect(safePathSegment('E:\\my_work\\github_pro\\emdash')).toBe('emdash');
       expect(safePathSegment('../emdash')).toBe('emdash');
+      expect(safePathSegment('team/repo')).toBe('repo');
     });
 
     it('falls back when no safe segment remains', () => {
