@@ -60,15 +60,7 @@ export class ConversationManagerStore implements IDisposable {
             this.conversations.set(conversation.id, new ConversationStore(conversation));
           }
           if (!this.sessions.has(conversation.id)) {
-            const handlers = makeFileLinkHandlers(conversation.projectId, conversation.taskId);
-            this.sessions.set(
-              conversation.id,
-              new PtySession(
-                makePtySessionId(conversation.projectId, conversation.taskId, conversation.id),
-                handlers.onOpenFile,
-                handlers.onOpenExternal
-              )
-            );
+            this.sessions.set(conversation.id, this.createSession(conversation));
           }
         }
       });
@@ -87,15 +79,7 @@ export class ConversationManagerStore implements IDisposable {
               this.conversations.set(conversation.id, new ConversationStore(conversation));
             }
             if (!this.sessions.has(conversation.id)) {
-              const handlers = makeFileLinkHandlers(conversation.projectId, conversation.taskId);
-              this.sessions.set(
-                conversation.id,
-                new PtySession(
-                  makePtySessionId(conversation.projectId, conversation.taskId, conversation.id),
-                  handlers.onOpenFile,
-                  handlers.onOpenExternal
-                )
-              );
+              this.sessions.set(conversation.id, this.createSession(conversation));
             }
           }
         });
@@ -185,15 +169,7 @@ export class ConversationManagerStore implements IDisposable {
         this.conversations.set(conversation.id, new ConversationStore(conversation));
       }
       if (!this.sessions.has(conversation.id)) {
-        const handlers = makeFileLinkHandlers(conversation.projectId, conversation.taskId);
-        this.sessions.set(
-          conversation.id,
-          new PtySession(
-            makePtySessionId(conversation.projectId, conversation.taskId, conversation.id),
-            handlers.onOpenFile,
-            handlers.onOpenExternal
-          )
-        );
+        this.sessions.set(conversation.id, this.createSession(conversation));
       }
       if (params.initialPrompt?.trim()) {
         this.conversations.get(conversation.id)?.setWorking();
@@ -218,6 +194,16 @@ export class ConversationManagerStore implements IDisposable {
       }
       store.setWorking();
     });
+  }
+
+  async hydrateConversation(conversationId: string): Promise<void> {
+    await rpc.conversations.hydrateConversation(this.projectId, this.taskId, conversationId);
+  }
+
+  async dehydrateConversation(conversationId: string): Promise<void> {
+    const session = this.sessions.get(conversationId);
+    session?.dispose();
+    await rpc.conversations.dehydrateConversation(this.projectId, this.taskId, conversationId);
   }
 
   async deleteConversation(conversationId: string): Promise<void> {
@@ -273,6 +259,16 @@ export class ConversationManagerStore implements IDisposable {
     for (const session of this.sessions.values()) {
       session.dispose();
     }
+  }
+
+  private createSession(conversation: Conversation): PtySession {
+    const handlers = makeFileLinkHandlers(conversation.projectId, conversation.taskId);
+    return new PtySession(
+      makePtySessionId(conversation.projectId, conversation.taskId, conversation.id),
+      undefined,
+      handlers.onOpenFile,
+      handlers.onOpenExternal
+    );
   }
 }
 

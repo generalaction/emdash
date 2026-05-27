@@ -33,7 +33,13 @@ export class LifecycleScriptStore {
 
   constructor(data: LifecycleScriptData, projectId: string, workspaceId: string) {
     this.data = data;
-    this.session = new PtySession(makePtySessionId(projectId, workspaceId, data.id));
+    this.session = new PtySession(makePtySessionId(projectId, workspaceId, data.id), () =>
+      rpc.terminals.prepareLifecycleScript({
+        projectId,
+        workspaceId,
+        type: data.type,
+      })
+    );
     this.offPtyExit = events.on(ptyExitChannel, () => this.markExited(), this.session.sessionId);
     makeObservable(this, {
       data: observable,
@@ -218,7 +224,6 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
           const store = new LifecycleScriptStore(data, this.projectId, this.workspaceId);
           this.scripts.set(entry.id, store);
           addTabId(this, entry.id);
-          void store.session.connect();
         }
       }
 

@@ -196,20 +196,6 @@ export function createWorkspaceFactory(
             shellSetup,
           });
         }
-        if (scripts?.run) {
-          void ws.lifecycleService.prepareLifecycleScript({
-            type: 'run',
-            script: scripts.run,
-            shellSetup,
-          });
-        }
-        if (scripts?.teardown) {
-          void ws.lifecycleService.prepareLifecycleScript({
-            type: 'teardown',
-            script: scripts.teardown,
-            shellSetup,
-          });
-        }
       },
 
       onCreate: context.extraHooks?.onCreate,
