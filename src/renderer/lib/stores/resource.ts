@@ -55,6 +55,7 @@ export class Resource<T, TEventData = void> {
   private readonly _fetch: (() => Promise<T>) | null;
   private readonly _strategies: ResourceStrategy<T, TEventData>[];
   private _inFlight: Promise<void> | null = null;
+  private _reloadQueued = false;
   private _stopFns: Array<() => void> = [];
   private readonly _ctx: ResourceContext<T>;
 
@@ -148,6 +149,10 @@ export class Resource<T, TEventData = void> {
       })
       .finally(() => {
         this._inFlight = null;
+        if (this._reloadQueued) {
+          this._reloadQueued = false;
+          void this.load();
+        }
       });
 
     return this._inFlight;
@@ -155,6 +160,10 @@ export class Resource<T, TEventData = void> {
 
   /** Schedule a fresh load (fire-and-forget). */
   invalidate(): void {
+    if (this._inFlight) {
+      this._reloadQueued = true;
+      return;
+    }
     void this.load();
   }
 
@@ -189,6 +198,7 @@ export class Resource<T, TEventData = void> {
 
   /** Stop all timers and unsubscribe all listeners. */
   dispose(): void {
+    this._reloadQueued = false;
     for (const stop of this._stopFns) stop();
     this._stopFns = [];
   }
@@ -274,9 +284,9 @@ export class Resource<T, TEventData = void> {
       if (strategy.onEvent === 'reload') {
         if (strategy.debounceMs) {
           if (debounceTimer) clearTimeout(debounceTimer);
-          debounceTimer = setTimeout(() => void this.load(), strategy.debounceMs);
+          debounceTimer = setTimeout(() => this.invalidate(), strategy.debounceMs);
         } else {
-          void this.load();
+          this.invalidate();
         }
       } else {
         runInAction(() => {
