@@ -36,6 +36,14 @@ interface XtermInternals {
   };
 }
 
+const PTY_RESIZE_DEBOUNCE_MS = 120;
+const MIN_TERMINAL_COLS = 2;
+const MIN_TERMINAL_ROWS = 1;
+const IS_MAC_PLATFORM =
+  typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+const IS_WINDOWS_PLATFORM = typeof navigator !== 'undefined' && /Win/.test(navigator.platform);
+const LAST_SELECTION_COPY_GRACE_MS = 2_000;
+
 function getCellMetrics(terminal: Terminal): { width: number; height: number } | null {
   const t = terminal as unknown as XtermInternals;
   // Proposed API (xterm 5.x). Undefined on the public Terminal in xterm 6.x.
@@ -52,12 +60,11 @@ function getCellMetrics(terminal: Terminal): { width: number; height: number } |
   return null;
 }
 
-const PTY_RESIZE_DEBOUNCE_MS = 120;
-const MIN_TERMINAL_COLS = 2;
-const MIN_TERMINAL_ROWS = 1;
-const IS_MAC_PLATFORM =
-  typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
-const IS_WINDOWS_PLATFORM = typeof navigator !== 'undefined' && /Win/.test(navigator.platform);
+function getRecentSelection(selection: { text: string; capturedAt: number } | null): string {
+  if (!selection) return '';
+  if (Date.now() - selection.capturedAt > LAST_SELECTION_COPY_GRACE_MS) return '';
+  return selection.text;
+}
 
 export interface UsePtyOptions {
   /** Deterministic PTY session ID: makePtySessionId(projectId, scopeId, leafId). */
@@ -174,6 +181,7 @@ export function usePty(
 
   // Auto-copy on selection
   const autoCopyOnSelectionRef = useRef(false);
+  const lastSelectionRef = useRef<{ text: string; capturedAt: number } | null>(null);
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -280,7 +288,8 @@ export function usePty(
   }, []);
 
   const copySelectionToClipboard = useCallback(() => {
-    const selection = termRef.current?.getSelection();
+    const selection =
+      termRef.current?.getSelection() || getRecentSelection(lastSelectionRef.current);
     if (selection) {
       navigator.clipboard.writeText(selection).catch(() => {});
     }
@@ -354,6 +363,7 @@ export function usePty(
     {
       const frontendPty = pty;
       termRef.current = frontendPty.terminal;
+      lastSelectionRef.current = null;
 
       // Apply current theme before mounting (in case it differs from the
       // theme the terminal was constructed with).
@@ -422,7 +432,9 @@ export function usePty(
       terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
         if (document.querySelector('[role="dialog"]')) return false;
 
-        if (shouldCopySelectionFromTerminal(event, IS_MAC_PLATFORM, terminal.hasSelection())) {
+        const hasCopyableSelection =
+          terminal.hasSelection() || getRecentSelection(lastSelectionRef.current) !== '';
+        if (shouldCopySelectionFromTerminal(event, IS_MAC_PLATFORM, hasCopyableSelection)) {
           event.preventDefault();
           event.stopImmediatePropagation();
           event.stopPropagation();
@@ -529,11 +541,18 @@ export function usePty(
       // ── Auto-copy on selection ─────────────────────────────────────────────
       let selectionDebounceTimer: ReturnType<typeof setTimeout> | null = null;
       const selectionDisposable = terminal.onSelectionChange(() => {
+        const selection = terminal.getSelection();
+        if (selection) {
+          lastSelectionRef.current = { text: selection, capturedAt: Date.now() };
+        }
+
         if (!autoCopyOnSelectionRef.current) return;
-        if (!terminal.hasSelection()) return;
+        if (!terminal.hasSelection() && !getRecentSelection(lastSelectionRef.current)) return;
         if (selectionDebounceTimer) clearTimeout(selectionDebounceTimer);
         selectionDebounceTimer = setTimeout(() => {
-          if (terminal.hasSelection()) copySelectionToClipboard();
+          if (terminal.hasSelection() || getRecentSelection(lastSelectionRef.current)) {
+            copySelectionToClipboard();
+          }
         }, 150);
       });
       cleanups.push(() => {

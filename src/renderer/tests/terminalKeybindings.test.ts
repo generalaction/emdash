@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CTRL_J_ASCII,
   CTRL_U_ASCII,
+  decodeOsc52ClipboardData,
   shouldCopySelectionFromTerminal,
   shouldHandleInterruptFromTerminal,
   shouldKillLineFromTerminal,
@@ -96,6 +97,17 @@ describe('TerminalSessionManager - Shift+Enter to Ctrl+J mapping', () => {
         withSelection
       )
     ).toBe(false);
+  });
+
+  it('decodes OSC 52 clipboard payloads', () => {
+    expect(decodeOsc52ClipboardData('c;aGVsbG8=')).toBe('hello');
+    expect(decodeOsc52ClipboardData('pc;8J+agA==')).toBe('🚀');
+    expect(decodeOsc52ClipboardData(';dGV4dA==')).toBe('text');
+
+    expect(decodeOsc52ClipboardData('p;aGVsbG8=')).toBeNull();
+    expect(decodeOsc52ClipboardData('c;?')).toBeNull();
+    expect(decodeOsc52ClipboardData('c;not base64')).toBeNull();
+    expect(decodeOsc52ClipboardData('missing-separator')).toBeNull();
   });
 
   it('detects paste shortcut per platform', () => {
