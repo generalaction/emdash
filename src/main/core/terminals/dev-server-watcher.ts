@@ -11,8 +11,17 @@ const PROBE_FAILURES_TO_CLOSE = 2;
 const URL_PATTERN = /https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d{2,5})?(?:\/\S*)?/;
 const MAX_BUFFER = 4096;
 
-function normalizeUrl(raw: string): string {
-  return raw.replace('0.0.0.0', '127.0.0.1');
+export function normalizeUrl(raw: string, sshHost?: string): string {
+  if (!sshHost) return raw.replace('0.0.0.0', '127.0.0.1');
+  try {
+    const u = new URL(raw);
+    // The WHATWG URL.hostname setter requires IPv6 literals to be bracketed,
+    // otherwise it silently ignores the assignment.
+    u.hostname = sshHost.includes(':') && !sshHost.startsWith('[') ? `[${sshHost}]` : sshHost;
+    return u.toString();
+  } catch {
+    return raw;
+  }
 }
 
 function parseTarget(url: string): { host: string; port: number } | null {
@@ -84,12 +93,15 @@ export function wireTerminalDevServerWatcher({
   scopeId,
   terminalId,
   probe = true,
+  sshHost,
 }: {
   pty: Pty;
   scopeId: string;
   terminalId: string;
   /** Set to false for SSH sessions where remote ports are not locally reachable */
   probe?: boolean;
+  /** When set, dev-server URLs are rewritten to use this host instead of localhost. */
+  sshHost?: string;
 }): void {
   let buffer = '';
   let found = false;
@@ -120,7 +132,7 @@ export function wireTerminalDevServerWatcher({
     if (!match) return;
 
     found = true;
-    const url = normalizeUrl(match[0]);
+    const url = normalizeUrl(match[0], sshHost);
     events.emit(hostPreviewEventChannel, { type: 'url', taskId: scopeId, terminalId, url });
 
     if (probe) {

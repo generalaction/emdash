@@ -44,6 +44,7 @@ export class SshTerminalProvider implements TerminalProvider {
   private readonly ctx: IExecutionContext;
   private readonly proxy: SshClientProxy;
   private readonly connectionId: string;
+  private readonly sshHost: string | undefined;
   private readonly _handleReconnect: (evt: SshConnectionManagerEvent) => void;
 
   constructor({
@@ -76,6 +77,9 @@ export class SshTerminalProvider implements TerminalProvider {
     this.ctx = ctx;
     this.proxy = proxy;
     this.connectionId = connectionId;
+    // Snapshot host at construct time. Callers establish the SSH connection
+    // before constructing the provider, so the host map is already populated.
+    this.sshHost = sshConnectionManager.getHost(connectionId);
     this._handleReconnect = (evt: SshConnectionManagerEvent) => {
       if (evt.type === 'reconnected' && evt.connectionId === this.connectionId) {
         this.rehydrate().catch((e: unknown) => {
@@ -174,6 +178,7 @@ export class SshTerminalProvider implements TerminalProvider {
         scopeId: this.scopeId,
         terminalId: terminal.id,
         probe: false,
+        sshHost: this.sshHost,
       });
     }
 

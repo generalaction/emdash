@@ -67,6 +67,13 @@ export class SshConnectionManager extends EventEmitter {
   private healthStates: Map<string, SshHealthState> = new Map();
 
   /**
+   * Per-connection host string captured at connect time. Lives for the entire
+   * connection identity — survives transient closes and reconnect attempts.
+   * Cleared only on intentional disconnect and on reconnect exhaustion.
+   */
+  private hosts: Map<string, string> = new Map();
+
+  /**
    * IDs for which disconnect() was called — these are excluded from
    * auto-reconnect so an intentional teardown is never silently restarted.
    */
@@ -125,6 +132,15 @@ export class SshConnectionManager extends EventEmitter {
     return Array.from(this.proxies.keys());
   }
 
+  /**
+   * Host string for a connection ID, or undefined if no such connection exists.
+   * Populated at connect-time and held for the lifetime of the connection
+   * identity (including across reconnect attempts).
+   */
+  getHost(id: string): string | undefined {
+    return this.hosts.get(id);
+  }
+
   /** Returns the current ConnectionState for a single connection ID. */
   getConnectionState(id: string): ConnectionState {
     if (this.proxies.get(id)?.isConnected) return 'connected';
@@ -171,6 +187,7 @@ export class SshConnectionManager extends EventEmitter {
         connectionId: id,
       });
       this.proxies.delete(id);
+      this.hosts.delete(id);
       return;
     }
 
@@ -182,6 +199,7 @@ export class SshConnectionManager extends EventEmitter {
         log.warn('SshConnectionManager: disconnect timed out, forcing close', { connectionId: id });
         proxy.invalidate();
         this.proxies.delete(id);
+        this.hosts.delete(id);
         resolve();
       }, 5_000);
 
@@ -189,6 +207,7 @@ export class SshConnectionManager extends EventEmitter {
         clearTimeout(timeout);
         proxy.invalidate();
         this.proxies.delete(id);
+        this.hosts.delete(id);
         resolve();
       });
 
@@ -232,6 +251,7 @@ export class SshConnectionManager extends EventEmitter {
     // Ensure a stable proxy exists for this ID.
     const proxy = this.proxies.get(id) ?? new SshClientProxy(id, this);
     this.proxies.set(id, proxy);
+    this.hosts.set(id, config.host ?? '');
 
     const client = new Client();
 
@@ -340,6 +360,7 @@ export class SshConnectionManager extends EventEmitter {
     if (attempt > RECONNECT_DELAYS_MS.length) {
       log.error('SshConnectionManager: max reconnect attempts reached', { connectionId: id });
       this.reconnecting.delete(id);
+      this.hosts.delete(id);
       this.emit('connection-event', {
         type: 'reconnect-failed',
         connectionId: id,
@@ -391,6 +412,7 @@ export class SshConnectionManager extends EventEmitter {
               connectionId: id,
             });
             this.reconnecting.delete(id);
+            this.hosts.delete(id);
             this.emit('connection-event', {
               type: 'reconnect-failed',
               connectionId: id,
