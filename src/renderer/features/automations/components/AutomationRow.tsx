@@ -114,6 +114,44 @@ export const AutomationRow = observer(function AutomationRow({
   const canCopy = !isDetached;
   const selectable = Boolean(onToggleSelect);
 
+  const selectionSlot = selectable ? (
+    <div
+      onClick={(event) => event.stopPropagation()}
+      onPointerDown={(event) => event.stopPropagation()}
+      className={cn(
+        'transition-opacity duration-150 ease-out',
+        isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100'
+      )}
+    >
+      <Checkbox
+        checked={isSelected}
+        onCheckedChange={() => onToggleSelect?.()}
+        aria-label={`Select ${automation.name}`}
+      />
+    </div>
+  ) : null;
+
+  const toolIcon = (
+    <Tooltip>
+      <TooltipTrigger>
+        <span className="relative flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-sm bg-background-2 text-foreground ring-2 ring-background">
+          {primaryTool ? (
+            <AgentLogo
+              logo={primaryTool.logo}
+              alt={primaryTool.label}
+              isSvg={primaryTool.isSvg}
+              invertInDark={primaryTool.invertInDark}
+              className="size-3.5 rounded-[2px]"
+            />
+          ) : (
+            <Bot className="size-3.5" />
+          )}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{tooltipLabel}</TooltipContent>
+    </Tooltip>
+  );
+
   const row = (
     <div
       role="button"
@@ -126,68 +164,13 @@ export const AutomationRow = observer(function AutomationRow({
       }}
       aria-label={`Edit ${automation.name}`}
       className={cn(
-        'group grid min-h-14 cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-background-1 focus:outline-none focus-visible:outline-none',
+        'group flex min-h-14 cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-background-1 focus:outline-none focus-visible:outline-none',
         dimmed && 'opacity-60'
       )}
     >
-      {selectable ? (
-        <div className="relative flex size-9 shrink-0 items-center justify-center">
-          <span
-            aria-hidden
-            className={cn(
-              'pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg border border-border bg-background-1 text-foreground shadow-sm transition-opacity duration-150 ease-out',
-              isSelected ? 'opacity-0' : 'opacity-100 group-hover:opacity-0'
-            )}
-          >
-            {primaryTool ? (
-              <AgentLogo
-                logo={primaryTool.logo}
-                alt={primaryTool.label}
-                isSvg={primaryTool.isSvg}
-                invertInDark={primaryTool.invertInDark}
-                className="size-5 rounded-sm"
-              />
-            ) : (
-              <Bot className="size-5" />
-            )}
-          </span>
-          <div
-            onClick={(event) => event.stopPropagation()}
-            onPointerDown={(event) => event.stopPropagation()}
-            className={cn(
-              'relative transition-opacity duration-150 ease-out',
-              isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-            )}
-          >
-            <Checkbox
-              checked={isSelected}
-              onCheckedChange={() => onToggleSelect?.()}
-              aria-label={`Select ${automation.name}`}
-            />
-          </div>
-        </div>
-      ) : (
-        <Tooltip>
-          <TooltipTrigger>
-            <span className="relative flex size-9 shrink-0 items-center justify-center rounded-lg border border-border bg-background-1 text-foreground shadow-sm">
-              {primaryTool ? (
-                <AgentLogo
-                  logo={primaryTool.logo}
-                  alt={primaryTool.label}
-                  isSvg={primaryTool.isSvg}
-                  invertInDark={primaryTool.invertInDark}
-                  className="size-5 rounded-sm"
-                />
-              ) : (
-                <Bot className="size-5" />
-              )}
-            </span>
-          </TooltipTrigger>
-          <TooltipContent>{tooltipLabel}</TooltipContent>
-        </Tooltip>
-      )}
+      {selectionSlot}
 
-      <div className="flex min-w-0 flex-col gap-1">
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
         <div className="flex min-w-0 items-center gap-2">
           <Tooltip>
             <TooltipTrigger
@@ -228,7 +211,8 @@ export const AutomationRow = observer(function AutomationRow({
         </div>
       </div>
 
-      <div className="flex min-w-0 items-center justify-end">
+      <div className="flex max-w-[44%] min-w-0 shrink-0 items-center justify-end gap-2">
+        {toolIcon}
         {latestRun ? (
           <span
             className={cn(

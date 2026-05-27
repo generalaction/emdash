@@ -164,25 +164,27 @@ export const AutomationRunRow = observer(function AutomationRunRow({
       )}
     </>
   );
+  const compactAgentIcon = tool ? (
+    <AgentLogo
+      logo={tool.logo}
+      alt={tool.label}
+      isSvg={tool.isSvg}
+      invertInDark={tool.invertInDark}
+      className="size-3.5 rounded-[2px]"
+    />
+  ) : (
+    <Bot className="size-3.5" />
+  );
   const iconContent = agentIconWithStatusIndicator;
   const iconTooltip = agentIndicator?.label ?? status.label;
 
   const listIconSlot = selectable ? (
-    <div className="relative flex size-9 shrink-0 items-center justify-center">
-      <span
-        aria-hidden
-        className={cn(
-          'pointer-events-none absolute inset-0 flex items-center justify-center rounded-lg border border-border bg-background-1 text-foreground shadow-sm transition-opacity duration-150 ease-out',
-          isSelected ? 'opacity-0' : 'opacity-100 group-hover:opacity-0'
-        )}
-      >
-        {iconContent}
-      </span>
+    <div className="flex shrink-0 items-center justify-center">
       <div
         onClick={(event) => event.stopPropagation()}
         onPointerDown={(event) => event.stopPropagation()}
         className={cn(
-          'relative transition-opacity duration-150 ease-out',
+          'transition-opacity duration-150 ease-out',
           isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100'
         )}
       >
@@ -201,6 +203,17 @@ export const AutomationRunRow = observer(function AutomationRunRow({
         </span>
       </TooltipTrigger>
       <TooltipContent>{iconTooltip}</TooltipContent>
+    </Tooltip>
+  );
+
+  const listTrailingIconSlot = (
+    <Tooltip>
+      <TooltipTrigger>
+        <span className="relative flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-sm bg-background-2 text-foreground ring-2 ring-background">
+          {compactAgentIcon}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{tool?.label ?? 'Automation'}</TooltipContent>
     </Tooltip>
   );
 
@@ -294,6 +307,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
             ) : null}
           </div>
 
+          {listTrailingIconSlot}
           <div className="flex max-w-[42%] shrink-0 flex-col items-end gap-0.5 text-right">
             {displayTime == null ? (
               <span className="text-muted-foreground text-xs">—</span>
