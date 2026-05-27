@@ -18,6 +18,7 @@ import type {
   TaskViewSnapshot,
   TerminalDrawerActiveItem,
 } from '@shared/view-state';
+import { ConversationHydrationReconciler } from './conversation-hydration-reconciler';
 import { conversationRegistry } from './conversation-registry';
 import { PrStore } from './pr-store';
 import type { TaskStore } from './task-store';
@@ -67,12 +68,18 @@ export class WorkspaceViewModel implements ILifecycle {
   /** Saved whenever suspend() is called, restored in next initialize(). */
   private _savedDiffViewSnapshot: DiffViewSnapshot | undefined;
   private _isCreatingTerminal = false;
+  private readonly _conversationHydration: ConversationHydrationReconciler;
 
   readonly taskId: string;
 
   constructor(private readonly _taskStore: TaskStore) {
     const taskData = _taskStore.data as Task;
     this.taskId = taskData.id;
+    this._conversationHydration = new ConversationHydrationReconciler({
+      taskId: this.taskId,
+      getConversations: () => conversationRegistry.get(this.taskId),
+      log,
+    });
 
     // UI state defaults — overridden by restoreSnapshot when called
     this.sidebarTab = 'conversations';
@@ -94,10 +101,11 @@ export class WorkspaceViewModel implements ILifecycle {
       workspaceId
     );
 
-    makeAutoObservable(this, {
+    makeAutoObservable<WorkspaceViewModel, '_conversationHydration'>(this, {
       tabGroupManager: false,
       terminalTabs: false,
       editorView: false,
+      _conversationHydration: false,
       diffView: observable.ref,
       activeRenderer: computed,
     });
@@ -299,6 +307,13 @@ export class WorkspaceViewModel implements ILifecycle {
     // Register snapshot with the persistence layer.
     this._snapshotDisposer = snapshotRegistry.register(`task:${this.taskId}`, () => this.snapshot);
 
+    const conversationHydrationDisposer = reaction(
+      () => this.openConversationIds,
+      (ids) => this.syncConversationHydration(ids),
+      { fireImmediately: true }
+    );
+    this._sessionDisposers.push(conversationHydrationDisposer);
+
     // Auto-create a terminal when the drawer is open and no terminals exist.
     const terminalsDisposer = reaction(
       () => {
@@ -335,6 +350,8 @@ export class WorkspaceViewModel implements ILifecycle {
     this.prStore = null;
     this.devServers?.dispose();
     this.devServers = null;
+
+    this._conversationHydration.dispose();
 
     // Stop snapshot persistence.
     this._snapshotDisposer?.();
@@ -426,5 +443,20 @@ export class WorkspaceViewModel implements ILifecycle {
         this._isCreatingTerminal = false;
       });
     }
+  }
+
+  private get openConversationIds(): string[] {
+    const ids = new Set<string>();
+    for (const { tabManager } of this.tabGroupManager.groups) {
+      for (const tabId of tabManager.tabOrder) {
+        const entry = tabManager.entries.get(tabId);
+        if (entry?.kind === 'conversation') ids.add(entry.conversationId);
+      }
+    }
+    return [...ids].sort();
+  }
+
+  private syncConversationHydration(openIds: string[]): void {
+    this._conversationHydration.sync(openIds);
   }
 }

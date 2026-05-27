@@ -6,6 +6,7 @@ import { workspaceTrustService } from '@main/core/agent-hooks/workspace-trust-se
 import type { ConversationProvider } from '@main/core/conversations/types';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
+import { isUnexpectedPtyExit } from '@main/core/pty/exit-classification';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import type { Pty } from '@main/core/pty/pty';
 import { buildAgentEnv } from '@main/core/pty/pty-env';
@@ -188,9 +189,10 @@ export class LocalConversationProvider implements ConversationProvider {
       });
     }
 
-    pty.onExit(({ exitCode }) => {
+    pty.onExit(({ exitCode, signal }) => {
       ptySessionRegistry.unregister(sessionId);
-      const shouldRespawn = this.sessions.has(sessionId);
+      const shouldRespawn =
+        this.sessions.has(sessionId) && isUnexpectedPtyExit({ exitCode, signal });
       this.sessions.delete(sessionId);
       events.emit(agentSessionExitedChannel, {
         sessionId,
@@ -203,7 +205,7 @@ export class LocalConversationProvider implements ConversationProvider {
         const count = (this.respawnCounts.get(sessionId) ?? 0) + 1;
         this.respawnCounts.set(sessionId, count);
 
-        if (count > MAX_RESPAWNS && !isResuming) {
+        if (count > MAX_RESPAWNS) {
           log.error('LocalConversationProvider: respawn limit reached, giving up', {
             conversationId: conversation.id,
           });
@@ -212,8 +214,6 @@ export class LocalConversationProvider implements ConversationProvider {
         }
 
         const resumeNext = isResuming && count <= MAX_RESPAWNS;
-        if (count > MAX_RESPAWNS) this.respawnCounts.set(sessionId, 0);
-
         setTimeout(() => {
           this.startSession(conversation, initialSize, resumeNext, initialPrompt).catch((e) => {
             log.error('LocalConversationProvider: respawn failed', {
@@ -265,6 +265,7 @@ export class LocalConversationProvider implements ConversationProvider {
   async stopSession(conversationId: string): Promise<void> {
     const sessionId = makePtySessionId(this.projectId, this.taskId, conversationId);
     this.knownSessionIds.delete(sessionId);
+    this.respawnCounts.delete(sessionId);
     const pty = this.sessions.get(sessionId);
     if (pty) {
       try {
@@ -297,5 +298,6 @@ export class LocalConversationProvider implements ConversationProvider {
       ptySessionRegistry.unregister(sessionId);
     }
     this.sessions.clear();
+    this.respawnCounts.clear();
   }
 }
