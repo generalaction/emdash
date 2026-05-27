@@ -1,6 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback, useState } from 'react';
-import { asProvisioned, getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
+import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
@@ -23,7 +23,6 @@ type RenameConversationModalArgs = {
 type Props = BaseModalProps<void> & RenameConversationModalArgs;
 
 export const RenameConversationModal = observer(function RenameConversationModal({
-  projectId,
   taskId,
   conversationId,
   currentName,
@@ -41,18 +40,18 @@ export const RenameConversationModal = observer(function RenameConversationModal
 
   const handleSubmit = useCallback(async () => {
     if (!isValid) return;
-    const provisioned = asProvisioned(getTaskStore(projectId, taskId));
-    if (!provisioned) return;
+    const conversations = conversationRegistry.get(taskId);
+    if (!conversations) return;
     setIsSubmitting(true);
     setError(null);
     try {
-      await provisioned.conversations.renameConversation(conversationId, trimmed);
+      await conversations.renameConversation(conversationId, trimmed);
       onSuccess();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to rename conversation');
       setIsSubmitting(false);
     }
-  }, [isValid, projectId, taskId, conversationId, trimmed, onSuccess]);
+  }, [isValid, taskId, conversationId, trimmed, onSuccess]);
 
   return (
     <>
