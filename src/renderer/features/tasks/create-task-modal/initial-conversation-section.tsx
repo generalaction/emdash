@@ -1,4 +1,4 @@
-import { CheckCheckIcon } from 'lucide-react';
+import { CheckCheckIcon, PlusIcon } from 'lucide-react';
 import { useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
 import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
@@ -63,24 +63,24 @@ export function InitialConversationField({ state, linkedIssue }: InitialConversa
   return (
     <Field>
       <div className="flex flex-col rounded-md border border-border">
-        <Textarea
-          placeholder="Start with a prompt... (optional)"
-          value={state.prompt}
-          onChange={(e) => state.setPrompt(e.target.value)}
-          className="max-h-64 min-h-24 resize-none rounded-none border-0 focus-visible:border-0 focus-visible:ring-0"
-        />
-        <div className="flex w-full items-center justify-between gap-2 border-b px-2 py-1">
+        <div className="flex w-full items-center justify-between gap-2 px-2 pt-1">
           <AgentSelector
             value={state.provider}
             onChange={(provider) => state.setProvider(provider)}
             connectionId={state.connectionId}
-            className="h-6! min-w-[160px] rounded-none border-0 p-0! text-sm!"
+            className="h-6! w-fit! rounded-none border-0 p-0! text-sm!"
+            contentClassName="w-64"
           />
           <div className="flex items-center gap-2">
             <AddContextPopover
               actions={contextActions}
               disabled={contextActions.length === 0}
               onApplyAction={handleActionClick}
+              renderTrigger={({ disabled: isDisabled }) => (
+                <Button variant="ghost" size="icon-xs" disabled={isDisabled}>
+                  <PlusIcon className="size-4" />
+                </Button>
+              )}
             />
             <Tooltip>
               <TooltipTrigger>
@@ -90,7 +90,7 @@ export function InitialConversationField({ state, linkedIssue }: InitialConversa
                   onClick={handleToggleAutoApprove}
                   disabled={!state.provider}
                   data-active={autoApprove || undefined}
-                  className="data-active:text-foreground"
+                  className="transition-colors data-active:bg-background-destructive data-active:text-foreground-destructive"
                 >
                   <CheckCheckIcon className="size-4" />
                 </Button>
@@ -99,6 +99,12 @@ export function InitialConversationField({ state, linkedIssue }: InitialConversa
             </Tooltip>
           </div>
         </div>
+        <Textarea
+          placeholder="Add an optional initial message..."
+          value={state.prompt}
+          onChange={(e) => state.setPrompt(e.target.value)}
+          className="max-h-64 min-h-8 resize-none rounded-none border-0 focus-visible:border-0 focus-visible:ring-0"
+        />
       </div>
     </Field>
   );

@@ -10,7 +10,7 @@ import { useBranchName } from './use-branch-name';
 import { useBranchSelection } from './use-branch-selection';
 import { useTaskName } from './use-task-name';
 
-export type LinkedType = 'issue' | 'pr';
+export type LinkedType = 'issue' | 'pr' | null;
 export type CheckoutMode = 'checkout' | 'new-branch';
 
 export type CreateTaskState = ReturnType<typeof useCreateTaskState>;
@@ -20,11 +20,14 @@ export function useCreateTaskState(
   defaultBranch: Branch | undefined,
   isUnborn: boolean,
   currentBranch: string | null,
-  initialPR?: PullRequest
+  initialPR?: PullRequest,
+  initialLinkedType: LinkedType = null
 ) {
   const { autoGenerateName, createBranchAndWorktree } = useTaskSettings();
 
-  const [linkedType, setLinkedTypeRaw] = useState<LinkedType>(initialPR ? 'pr' : 'issue');
+  const [linkedType, setLinkedTypeRaw] = useState<LinkedType>(
+    initialPR ? 'pr' : initialLinkedType
+  );
   const [linkedIssue, setLinkedIssueRaw] = useState<Issue | null>(null);
   const [linkedPR, setLinkedPRRaw] = useState<PullRequest | null>(initialPR ?? null);
   const [checkoutMode, setCheckoutMode] = useState<CheckoutMode>('checkout');
@@ -33,7 +36,7 @@ export function useCreateTaskState(
   // Reset linked state when project changes.
   if (projectId !== prevProjectId) {
     setPrevProjectId(projectId);
-    setLinkedTypeRaw('issue');
+    setLinkedTypeRaw(null);
     setLinkedIssueRaw(null);
     setLinkedPRRaw(null);
     setCheckoutMode('checkout');
@@ -126,7 +129,7 @@ export function useCreateTaskState(
   // Switching linked type clears the selection for the previous type.
   const setLinkedType = (type: LinkedType) => {
     setLinkedTypeRaw(type);
-    if (type === 'issue') setCheckoutMode('checkout');
+    if (type === 'issue' || type === null) setCheckoutMode('checkout');
   };
 
   const setLinkedIssue = (issue: Issue | null) => {

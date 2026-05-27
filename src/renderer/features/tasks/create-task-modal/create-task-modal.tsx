@@ -1,5 +1,7 @@
 import { observer } from 'mobx-react-lite';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useIntegrationsContext } from '@renderer/features/integrations/integrations-provider';
+import { ISSUE_PROVIDER_ORDER } from '@renderer/features/integrations/issue-provider-meta';
 import {
   getProjectManagerStore,
   getRepositoryStore,
@@ -79,13 +81,39 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     ? (getRepositoryStore(selectedProjectId)?.pullRequestRepositoryUrl ?? undefined)
     : undefined;
 
+  const { connectionStatus } = useIntegrationsContext();
+
+  const hasAnyIssueIntegration = useMemo(
+    () =>
+      ISSUE_PROVIDER_ORDER.some((p) => {
+        const s = connectionStatus[p];
+        if (!s?.connected) return false;
+        if (s.capabilities.requiresRepositoryUrl && !repositoryUrl) return false;
+        if (s.capabilities.requiresProjectPath && !projectData?.path) return false;
+        return true;
+      }),
+    [connectionStatus, repositoryUrl, projectData?.path]
+  );
+
+  const hasPrSupport = !!repositoryUrl;
+
+  const defaultLinkedType = useMemo((): LinkedType => {
+    if (initialStrategy === 'from-pull-request') return 'pr';
+    if (initialStrategy === 'from-issue') return 'issue';
+    if (hasAnyIssueIntegration) return 'issue';
+    if (hasPrSupport) return 'pr';
+    return null;
+    // oxlint-disable-next-line react/exhaustive-deps
+  }, []); // computed once on mount
+
   const resolvedInitialPR = initialStrategy === 'from-pull-request' ? initialPR : undefined;
   const state = useCreateTaskState(
     selectedProjectId,
     defaultBranch,
     isUnborn,
     currentBranch,
-    resolvedInitialPR
+    resolvedInitialPR,
+    defaultLinkedType
   );
 
   const initialConversation = useInitialConversationState(selectedProjectId);
@@ -103,16 +131,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     // oxlint-disable-next-line react/exhaustive-deps
   }, [selectedProjectId]);
 
-  // If opened with 'from-issue' strategy, pre-select the issue tab.
-  useEffect(() => {
-    if (initialStrategy === 'from-issue') state.setLinkedType('issue');
-    if (initialStrategy === 'from-pull-request') state.setLinkedType('pr');
-    // only run once on mount
-    // oxlint-disable-next-line react/exhaustive-deps
-  }, []);
-
-  const prUnavailable = state.linkedType === 'pr' && !repositoryUrl;
-  const canCreate = !!selectedProjectId && state.isValid && !prUnavailable;
+  const canCreate = !!selectedProjectId && state.isValid;
 
   const handleCreateTask = useCallback(() => {
     if (!selectedProjectId) return;
@@ -205,20 +224,22 @@ export const CreateTaskModal = observer(function CreateTaskModal({
               <span className="shrink-0 text-sm text-foreground-muted">Based on</span>
               <ToggleGroup
                 className="gap-1! border-none bg-transparent p-0!"
-                value={[state.linkedType]}
+                value={state.linkedType ? [state.linkedType] : []}
                 onValueChange={([v]) => {
-                  if (v) state.setLinkedType(v as LinkedType);
+                  state.setLinkedType((v as LinkedType) ?? null);
                 }}
               >
                 <ToggleGroupItem
                   className="h-6! min-w-0! rounded-lg! px-2! py-0.5! text-xs"
                   value="issue"
+                  disabled={!hasAnyIssueIntegration}
                 >
                   Issue
                 </ToggleGroupItem>
                 <ToggleGroupItem
                   className="h-6! min-w-0! rounded-lg! px-2! py-0.5! text-xs"
                   value="pr"
+                  disabled={!hasPrSupport}
                 >
                   Pull Request
                 </ToggleGroupItem>
@@ -235,21 +256,17 @@ export const CreateTaskModal = observer(function CreateTaskModal({
                 />
               )}
               {state.linkedType === 'pr' && (
-                <>
-                  {!repositoryUrl ? (
-                    <p className="text-muted-foreground text-sm h-14 items-center justify-center flex text-foreground-passive">
-                      Pull requests are available only for configured GitHub remotes.
-                    </p>
-                  ) : (
-                    <PrComboboxField
-                      value={state.linkedPR}
-                      onValueChange={state.setLinkedPR}
-                      projectId={selectedProjectId}
-                      repositoryUrl={repositoryUrl}
-                      disabled={!repositoryUrl}
-                    />
-                  )}
-                </>
+                <PrComboboxField
+                  value={state.linkedPR}
+                  onValueChange={state.setLinkedPR}
+                  projectId={selectedProjectId}
+                  repositoryUrl={repositoryUrl}
+                />
+              )}
+              {state.linkedType === null && (
+                <div className="flex h-14 items-center justify-center text-sm text-foreground-passive">
+                  Select a tab above to link an issue or pull request.
+                </div>
               )}
             </div>
           </div>
