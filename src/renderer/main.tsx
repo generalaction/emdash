@@ -1,10 +1,10 @@
 import ReactDOM from 'react-dom/client';
 import { setupNavigationGuards } from '@renderer/app/view-registry';
-import { setupAppCommandProvider } from '@renderer/lib/commands/app-commands';
+import { prefetchAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import './index.css';
 import 'devicon/devicon.min.css';
 import 'katex/dist/katex.min.css';
-import { prefetchAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { setupAppCommandProvider } from '@renderer/lib/commands/app-commands';
 import { setupViewCommandProvider } from '@renderer/lib/commands/registry';
 import { wireCommitHistoryInvalidation } from '@renderer/lib/commit-history-invalidation';
 import { rpc } from '@renderer/lib/ipc';
