@@ -542,28 +542,20 @@ export async function enqueueAutomationRun(input: {
   deadlineAt: number | null;
   triggerKind: AutomationRunTriggerKind;
 }): Promise<AutomationRun | null> {
-  const activeRunPredicates = [
-    eq(automationRuns.automationId, input.automationId),
-    or(eq(automationRuns.status, 'queued'), eq(automationRuns.status, 'running')),
-  ];
-  if (input.triggerKind === 'cron') {
-    activeRunPredicates.push(eq(automationRuns.scheduledAt, input.scheduledAt));
-  }
-
-  const existing = await db
-    .select({ id: automationRuns.id })
-    .from(automationRuns)
-    .where(and(...activeRunPredicates))
-    .limit(1);
-  if (existing.length > 0) return null;
-
-  return insertRun({
-    automationId: input.automationId,
-    scheduledAt: input.scheduledAt,
-    deadlineAt: input.deadlineAt,
-    status: 'queued',
-    triggerKind: input.triggerKind,
-  });
+  const runId = randomUUID();
+  const rows = db.all<AutomationRunRow>(sql`
+    INSERT INTO automation_runs (id, automation_id, scheduled_at, deadline_at, status, trigger_kind)
+    SELECT ${runId}, ${input.automationId}, ${input.scheduledAt}, ${input.deadlineAt}, 'queued', ${input.triggerKind}
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM automation_runs
+      WHERE automation_id = ${input.automationId}
+        AND status IN ('queued', 'running')
+        ${input.triggerKind === 'cron' ? sql`AND scheduled_at = ${input.scheduledAt}` : sql``}
+    )
+    RETURNING *
+  `);
+  return rows[0] ? mapAutomationRunRow(rows[0]) : null;
 }
 
 export async function listQueuedRuns(limit = 100): Promise<
@@ -604,11 +596,21 @@ export async function claimQueuedRun(
   workerId: string,
   now = Date.now()
 ): Promise<AutomationRun | null> {
-  const [row] = await db
-    .update(automationRuns)
-    .set({ status: 'running', startedAt: now, workerId })
-    .where(and(eq(automationRuns.id, id), eq(automationRuns.status, 'queued')))
-    .returning();
+  const rows = db.all<AutomationRunRow>(sql`
+    UPDATE automation_runs
+    SET status = 'running', started_at = ${now}, worker_id = ${workerId}
+    WHERE id = ${id}
+      AND status = 'queued'
+      AND NOT EXISTS (
+        SELECT 1
+        FROM automation_runs AS running
+        WHERE running.automation_id = automation_runs.automation_id
+          AND running.status = 'running'
+          AND running.id <> automation_runs.id
+      )
+    RETURNING *
+  `);
+  const [row] = rows;
   return row ? mapAutomationRunRow(row) : null;
 }
 

@@ -1,7 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { automationRuns, automations } from '@main/db/schema';
 import { automationRunUpdatedChannel } from '@shared/events/automationEvents';
-import { listRecentRuns, listRuns, updateAutomation } from './repo';
+import {
+  claimQueuedRun,
+  enqueueAutomationRun,
+  listRecentRuns,
+  listRuns,
+  updateAutomation,
+} from './repo';
 import { detachProject, setAutomationEnabled } from './service';
 
 const dbMock = vi.hoisted(() => {
@@ -18,6 +24,7 @@ const dbMock = vi.hoisted(() => {
   const updateWhere = vi.fn(() => ({ returning: updateReturning }));
   const updateSet = vi.fn(() => ({ where: updateWhere }));
   const update = vi.fn(() => ({ set: updateSet }));
+  const all = vi.fn();
   const transaction = vi.fn((callback) => {
     const result = callback({ select, update });
     if (result && typeof result.then === 'function') {
@@ -35,12 +42,18 @@ const dbMock = vi.hoisted(() => {
     updateReturning,
     updateSet,
     updateWhere,
+    all,
     transaction,
   };
 });
 
 vi.mock('@main/db/client', () => ({
-  db: { select: dbMock.select, update: dbMock.update, transaction: dbMock.transaction },
+  db: {
+    select: dbMock.select,
+    update: dbMock.update,
+    all: dbMock.all,
+    transaction: dbMock.transaction,
+  },
 }));
 
 vi.mock('@main/lib/events', () => ({
@@ -93,6 +106,7 @@ describe('automations repo', () => {
     vi.clearAllMocks();
     dbMock.selectLimit.mockReturnValue(dbMock.rowsResult([automationRow]));
     dbMock.updateReturning.mockReturnValue(dbMock.rowsResult([]));
+    dbMock.all.mockReturnValue([]);
   });
 
   it('detaches every automation for a project', async () => {
@@ -201,6 +215,46 @@ describe('automations repo', () => {
 
     expect(dbMock.update).toHaveBeenCalledWith(automations);
     expect(dbMock.updateSet).toHaveBeenCalledWith({ isDraft: 0, updatedAt: expect.any(Number) });
+  });
+
+  it('enqueues a run with a guarded insert', async () => {
+    dbMock.all.mockReturnValueOnce([{ ...runRow, status: 'queued', finishedAt: null }]);
+
+    await expect(
+      enqueueAutomationRun({
+        automationId: 'automation-1',
+        scheduledAt: 100,
+        deadlineAt: null,
+        triggerKind: 'cron',
+      })
+    ).resolves.toEqual(expect.objectContaining({ id: 'run-1', status: 'queued' }));
+
+    expect(dbMock.all).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns null when the guarded enqueue does not insert', async () => {
+    dbMock.all.mockReturnValueOnce([]);
+
+    await expect(
+      enqueueAutomationRun({
+        automationId: 'automation-1',
+        scheduledAt: 100,
+        deadlineAt: null,
+        triggerKind: 'cron',
+      })
+    ).resolves.toBeNull();
+  });
+
+  it('claims a run only through the guarded update', async () => {
+    dbMock.all.mockReturnValueOnce([
+      { ...runRow, status: 'running', startedAt: 300, finishedAt: null, workerId: 'worker-1' },
+    ]);
+
+    await expect(claimQueuedRun('run-1', 'worker-1', 300)).resolves.toEqual(
+      expect.objectContaining({ id: 'run-1', status: 'running', workerId: 'worker-1' })
+    );
+
+    expect(dbMock.all).toHaveBeenCalledTimes(1);
   });
 
   it('hydrates run agent provider from the created task conversation', async () => {
