@@ -39,8 +39,8 @@ jobs:
       - name: Count commits behind
         id: diff
         run: |
-          git fetch origin "${TARGET_BRANCH}:refs/remotes/origin/${TARGET_BRANCH}"
-          git checkout -B "${TARGET_BRANCH}" "refs/remotes/origin/${TARGET_BRANCH}"
+          git fetch origin "${TARGET_BRANCH}"
+          git checkout -B "${TARGET_BRANCH}" FETCH_HEAD
           ahead=$(git rev-list --count "HEAD..refs/remotes/upstream/${UPSTREAM_BRANCH}")
           echo "ahead=${ahead}" >> "$GITHUB_OUTPUT"
           echo "Commits behind upstream: ${ahead}"
