@@ -103,10 +103,18 @@ export const ptyController = createRPCController({
     const task = taskManager.getTask(scopeId);
     if (task) {
       const isConversation = ptySessionRegistry.getMetadata(sessionId)?.providerId !== undefined;
-      if (isConversation) {
-        await task.conversations.stopSession(leafId);
-      } else {
-        await task.terminals.killTerminal(leafId);
+      try {
+        if (isConversation) {
+          await task.conversations.stopSession(leafId);
+        } else {
+          await task.terminals.killTerminal(leafId);
+        }
+      } catch (e) {
+        log.warn('ptyController.stopSession: error stopping task PTY', {
+          sessionId,
+          error: String(e),
+        });
+        return err({ type: 'stop_failed' as const, message: String((e as Error)?.message || e) });
       }
       return ok();
     }

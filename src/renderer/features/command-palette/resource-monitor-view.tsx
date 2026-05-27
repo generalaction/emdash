@@ -252,6 +252,8 @@ function KillButton({
       try {
         await rpc.pty.stopSession(sessionId);
         await appState.resourceMonitor.refresh();
+        setKilling(false);
+        onArmedChange(false);
       } catch {
         setKilling(false);
         onArmedChange(false);
