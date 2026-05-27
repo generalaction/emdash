@@ -16,7 +16,6 @@ import { commandRegistry } from './registry';
  */
 function SingleKeyBinder({ shortcutKey }: { shortcutKey: ShortcutSettingsKey }) {
   const { value: keyboard } = useAppSettingsKey('keyboard');
-  if (!(shortcutKey in APP_SHORTCUTS)) return null;
 
   const isAllow = APP_SHORTCUTS[shortcutKey].conflictBehavior === 'allow';
 
