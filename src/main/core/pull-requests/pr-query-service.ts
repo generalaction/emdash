@@ -9,7 +9,7 @@ import {
   pullRequestUsers,
 } from '@main/db/schema';
 import type { Label, ListPrOptions, PrFilterOptions, PullRequest } from '@shared/pull-requests';
-import { assemblePullRequest, type PrRow } from './pr-utils';
+import { assemblePullRequest, pullRequestRepositoryScope, type PrRow } from './pr-utils';
 
 async function fetchRelated(rows: PrRow[]): Promise<PullRequest[]> {
   if (rows.length === 0) return [];
@@ -87,7 +87,7 @@ export class PrQueryService {
       repositoryUrls = remoteRows.map((r) => r.remoteUrl);
     }
 
-    const conditions = [inArray(pullRequests.repositoryUrl, repositoryUrls)];
+    const conditions = [pullRequestRepositoryScope(repositoryUrls)];
 
     const filters = options.filters;
     if (filters?.status && filters.status !== 'all') {
@@ -154,7 +154,7 @@ export class PrQueryService {
       .select()
       .from(pullRequests)
       .where(
-        and(eq(pullRequests.headRefName, taskBranch), eq(pullRequests.repositoryUrl, repositoryUrl))
+        and(eq(pullRequests.headRefName, taskBranch), pullRequestRepositoryScope([repositoryUrl]))
       );
 
     return fetchRelated(rows);
@@ -174,7 +174,7 @@ export class PrQueryService {
     const prUrlsSub = db
       .select({ url: pullRequests.url })
       .from(pullRequests)
-      .where(inArray(pullRequests.repositoryUrl, repositoryUrls));
+      .where(pullRequestRepositoryScope(repositoryUrls));
 
     const authorUserIdsSub = db
       .select({ userId: pullRequests.authorUserId })
