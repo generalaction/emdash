@@ -1,14 +1,23 @@
-import { Pause, Play, Plus, Settings, Terminal, X } from 'lucide-react';
+import { ChevronDown, Pause, Play, Plus, Settings, Terminal, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { asMounted, getProjectStore } from '@renderer/features/projects/stores/project-selectors';
 import { type LifecycleScriptsStore } from '@renderer/features/tasks/stores/lifecycle-scripts';
 import { type TerminalTabViewStore } from '@renderer/features/tasks/terminals/terminal-tab-view-store';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
+import { Button } from '@renderer/lib/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from '@renderer/lib/ui/dropdown-menu';
 import { MicroLabel } from '@renderer/lib/ui/label';
 import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
+import { TERMINAL_SHELL_IDS, type TerminalShellId } from '@shared/terminal-settings';
 import { scriptIcon } from './terminal-tabs';
 
 interface TerminalDrawerSidebarProps {
@@ -19,6 +28,8 @@ interface TerminalDrawerSidebarProps {
   onStopScript: (id: string) => void;
   terminalTabView: TerminalTabViewStore;
   activeTerminalId: string | undefined;
+  selectedShell: TerminalShellId;
+  onShellChange: (shell: TerminalShellId) => void;
   onSelectTerminal: (id: string) => void;
   onAddTerminal: () => void;
   onRemoveTerminal: (id: string) => void;
@@ -36,6 +47,8 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
   onStopScript,
   terminalTabView,
   activeTerminalId,
+  selectedShell,
+  onShellChange,
   onSelectTerminal,
   onAddTerminal,
   onRemoveTerminal,
@@ -55,19 +68,47 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
       <Section
         label="Terminals"
         action={
-          <Tooltip>
-            <TooltipTrigger>
-              <button
-                className="flex size-5 items-center justify-center rounded text-foreground-muted hover:bg-background-2 hover:text-foreground"
-                onClick={onAddTerminal}
+          <div className="flex items-center">
+            <Tooltip>
+              <TooltipTrigger>
+                <button
+                  className="flex size-5 items-center justify-center rounded-l text-foreground-muted hover:bg-background-2 hover:text-foreground"
+                  onClick={onAddTerminal}
+                >
+                  <Plus className="size-3" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                New terminal <BoundShortcut settingsKey="newTerminal" variant="badge" />
+              </TooltipContent>
+            </Tooltip>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    className="size-5 rounded-l-none px-0 text-foreground-muted hover:bg-background-2 hover:text-foreground"
+                    aria-label={`New terminal shell: ${shellLabel(selectedShell)}`}
+                  />
+                }
               >
-                <Plus className="size-3" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>
-              New terminal <BoundShortcut settingsKey="newTerminal" variant="badge" />
-            </TooltipContent>
-          </Tooltip>
+                <ChevronDown className="size-3" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-36">
+                <DropdownMenuRadioGroup
+                  value={selectedShell}
+                  onValueChange={(shell) => onShellChange(shell as TerminalShellId)}
+                >
+                  {TERMINAL_SHELL_IDS.map((shell) => (
+                    <DropdownMenuRadioItem key={shell} value={shell}>
+                      {shellLabel(shell)}
+                    </DropdownMenuRadioItem>
+                  ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         }
       >
         {terminals.map((terminal) => (
@@ -164,6 +205,10 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
     </div>
   );
 });
+
+function shellLabel(shell: TerminalShellId): string {
+  return shell === 'auto' ? 'Auto' : shell;
+}
 
 interface SidebarRowProps {
   icon?: ReactNode;

@@ -4,7 +4,6 @@ import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { resolveSshCommand } from '@main/core/pty/spawn-utils';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
-import { appSettingsService } from '@main/core/settings/settings-service';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import type { SshConnectionManagerEvent } from '@main/core/ssh/lifecycle/ssh-connection-manager';
@@ -53,7 +52,7 @@ export class SshTerminalProvider implements TerminalProvider {
     taskPath,
     taskEnvVars = {},
     tmux = false,
-    getShell = async () => (await appSettingsService.get('terminal')).shell,
+    getShell = async () => 'auto',
     shellSetup,
     ctx,
     proxy,
@@ -143,7 +142,7 @@ export class SshTerminalProvider implements TerminalProvider {
     if (policy.trackForRehydrate) {
       this.terminals.set(terminal.id, terminal);
     }
-    const shell = await this.getShell();
+    const shell = terminal.shell ?? (await this.getShell());
 
     const cfg: GeneralSessionConfig = {
       taskId: this.scopeId,

@@ -2,7 +2,16 @@ export const TERMINAL_FONT_SIZE_DEFAULT = 13;
 export const TERMINAL_FONT_SIZE_MIN = 8;
 export const TERMINAL_FONT_SIZE_MAX = 32;
 
-export const TERMINAL_SHELL_IDS = ['auto', 'bash', 'csh', 'dash', 'ksh', 'sh', 'tcsh', 'zsh'] as const;
+export const TERMINAL_SHELL_IDS = [
+  'auto',
+  'bash',
+  'csh',
+  'dash',
+  'ksh',
+  'sh',
+  'tcsh',
+  'zsh',
+] as const;
 export type TerminalShellId = (typeof TERMINAL_SHELL_IDS)[number];
 
 export type TerminalShellAvailability = {

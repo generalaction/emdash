@@ -10,7 +10,6 @@ import {
   type PtySpawnIntent,
 } from '@main/core/pty/pty-spawn-platform';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
-import { appSettingsService } from '@main/core/settings/settings-service';
 import { log } from '@main/lib/logger';
 import { makePtySessionId } from '@shared/ptySessionId';
 import type { TerminalShellId } from '@shared/terminal-settings';
@@ -46,7 +45,7 @@ export class LocalTerminalProvider implements TerminalProvider {
     scopeId,
     taskPath,
     tmux = false,
-    getShell = async () => (await appSettingsService.get('terminal')).shell,
+    getShell = async () => 'auto',
     shellSetup,
     ctx,
     taskEnvVars = {},
@@ -120,7 +119,7 @@ export class LocalTerminalProvider implements TerminalProvider {
     const sessionId = makePtySessionId(terminal.projectId, terminal.taskId, terminal.id);
     this.knownSessionIds.add(sessionId);
     if (this.sessions.has(sessionId)) return;
-    const shell = await this.getShell();
+    const shell = terminal.shell ?? (await this.getShell());
 
     const intent: PtySpawnIntent = command
       ? {

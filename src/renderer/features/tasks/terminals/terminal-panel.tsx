@@ -15,6 +15,7 @@ import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
 import { BoundShortcut } from '@renderer/lib/ui/shortcut';
+import type { TerminalShellId } from '@shared/terminal-settings';
 import { useIsActiveTask } from '../hooks/use-is-active-task';
 import { TerminalDrawerSidebar } from './terminal-drawer-sidebar';
 import { resolveTerminalPanelActiveItem } from './terminal-panel-selection';
@@ -31,6 +32,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
   const isActive = useIsActiveTask(taskId);
   const remoteConnectionId = workspace.sshConnectionId;
   const [isPanelFocused, setIsPanelFocused] = useState(false);
+  const [selectedShell, setSelectedShell] = useState<TerminalShellId>('auto');
 
   const autoFocus =
     isActive && taskView.isTerminalDrawerOpen && taskView.focusedRegion === 'bottom';
@@ -70,7 +72,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
   useTabShortcuts(activeStore, { focused: isPanelFocused });
 
   const handleCreate = async () => {
-    await taskView.openNewTerminal();
+    await taskView.openNewTerminal(selectedShell);
   };
 
   const handleRunScript = (id: string) => {
@@ -164,6 +166,8 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
           onStopScript={handleStopScript}
           terminalTabView={terminalTabView}
           activeTerminalId={activeTerminalId}
+          selectedShell={selectedShell}
+          onShellChange={setSelectedShell}
           onSelectTerminal={(id) => {
             terminalTabView.setActiveTab(id);
             taskView.setTerminalDrawerActiveItem({ kind: 'terminal', id });

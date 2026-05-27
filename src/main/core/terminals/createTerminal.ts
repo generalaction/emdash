@@ -28,7 +28,7 @@ export async function createTerminal(params: CreateTerminalParams): Promise<Term
     throw new Error('Task not found');
   }
 
-  const terminal = mapTerminalRowToTerminal(row);
+  const terminal = { ...mapTerminalRowToTerminal(row), shell: params.shell };
   await withCompensation({
     action: () => task.terminals.spawnTerminal(terminal, initialSize),
     compensate: async () => {
