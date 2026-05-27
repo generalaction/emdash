@@ -12,7 +12,7 @@ function getTabDisplayTitle(tab: ResolvedTab): string {
 
 export function closeTabWithConfirm(tabManager: TabManagerStore, tabId: string): void {
   if (!getAppSettingValueSnapshot('interface')?.confirmTabClose) {
-    tabManager.closeTab(tabId);
+    tabManager.closeTabWithGuard(tabId);
     return;
   }
   const tab = tabManager.resolvedTabs.find((t) => t.tabId === tabId);
@@ -24,7 +24,7 @@ export function closeTabWithConfirm(tabManager: TabManagerStore, tabId: string):
       : 'Are you sure you want to close this tab?',
     confirmLabel: 'Close',
     variant: 'destructive',
-    onSuccess: () => tabManager.closeTab(tabId),
+    onSuccess: () => tabManager.closeTabWithGuard(tabId),
   });
 }
 

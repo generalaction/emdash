@@ -1,5 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, type ReactNode } from 'react';
+import { closeTabWithConfirm } from '@renderer/features/tasks/tabs/close-tab-with-confirm';
 import { useTabGroupContext } from '@renderer/features/tasks/tabs/tab-group-context';
 import { useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
 import { useTabShortcuts } from '@renderer/lib/hooks/useTabShortcuts';
@@ -23,7 +24,7 @@ function makeTabRenderers(tabManager: ReturnType<typeof useTabGroupContext>['tab
         tab={tab}
         onSelect={() => tabManager.setActiveTab(tab.tabId)}
         onPin={() => tabManager.openConversation(tab.conversationId)}
-        onClose={() => tabManager.closeTab(tab.tabId)}
+        onClose={() => closeTabWithConfirm(tabManager, tab.tabId)}
       />
     ),
     diff: (tab: ResolvedDiffTab): ReactNode => (
@@ -32,7 +33,7 @@ function makeTabRenderers(tabManager: ReturnType<typeof useTabGroupContext>['tab
         tab={tab}
         onSelect={() => tabManager.setActiveTab(tab.tabId)}
         onPin={() => tabManager.pinTab(tab.tabId)}
-        onClose={() => tabManager.closeTab(tab.tabId)}
+        onClose={() => closeTabWithConfirm(tabManager, tab.tabId)}
       />
     ),
     file: (tab: ResolvedFileTab): ReactNode => (
@@ -41,7 +42,7 @@ function makeTabRenderers(tabManager: ReturnType<typeof useTabGroupContext>['tab
         tab={tab}
         onSelect={() => tabManager.setActiveTab(tab.tabId)}
         onPin={() => tabManager.pinTab(tab.tabId)}
-        onClose={() => tabManager.closeTabWithGuard(tab.tabId)}
+        onClose={() => closeTabWithConfirm(tabManager, tab.tabId)}
       />
     ),
   } satisfies { [K in ResolvedTab['kind']]: (tab: Extract<ResolvedTab, { kind: K }>) => ReactNode };
