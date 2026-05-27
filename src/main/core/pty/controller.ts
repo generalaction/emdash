@@ -82,6 +82,50 @@ export const ptyController = createRPCController({
   },
 
   /**
+   * Stop a session for good without deleting its conversation/terminal record.
+   *
+   * Unlike `kill`, which only terminates the OS process, this routes through
+   * the owning provider so the session is removed from its respawn tracking
+   * (`knownSessionIds`/`sessions`). A bare `kill` leaves those intact, so the
+   * provider's `onExit` handler respawns the PTY ~500ms later — which is what
+   * made killing from the resource monitor appear to do nothing. The tab and
+   * its history are preserved; the session simply stays stopped until the task
+   * is remounted or the user starts a new one.
+   */
+  stopSession: async (sessionId: string) => {
+    const parsed = parsePtySessionId(sessionId);
+    if (!parsed) return err({ type: 'invalid_session' as const });
+    const { scopeId, leafId } = parsed;
+
+    // Agents and terminals are scoped by task id, so the task lookup resolves
+    // the owning provider. Conversation PTYs carry a providerId in their
+    // registry metadata; plain terminals do not — that distinguishes the two.
+    const task = taskManager.getTask(scopeId);
+    if (task) {
+      const isConversation = ptySessionRegistry.getMetadata(sessionId)?.providerId !== undefined;
+      if (isConversation) {
+        await task.conversations.stopSession(leafId);
+      } else {
+        await task.terminals.killTerminal(leafId);
+      }
+      return ok();
+    }
+
+    // Lifecycle scripts are scoped by workspace id (no task match) and never
+    // respawn, so a raw kill is sufficient and safe.
+    const pty = ptySessionRegistry.get(sessionId);
+    if (pty) {
+      try {
+        pty.kill();
+      } catch (e) {
+        log.warn('ptyController.stopSession: error killing PTY', { sessionId, error: String(e) });
+      }
+    }
+    ptySessionRegistry.unregister(sessionId);
+    return ok();
+  },
+
+  /**
    * Upload local files into the task's working directory on a remote SSH host
    * and return their remote paths.  Uses the SFTP subsystem of the already-
    * connected ssh2 client — no local ssh/scp binaries are involved.

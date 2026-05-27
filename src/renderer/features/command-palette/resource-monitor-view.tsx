@@ -1,11 +1,13 @@
-import { Activity, ArrowLeft, Check, Copy, Folder, GitBranch, Terminal } from 'lucide-react';
+import { Activity, ArrowLeft, Check, Copy, Folder, GitBranch, Terminal, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import AgentLogo from '@renderer/lib/components/agent-logo';
+import { rpc } from '@renderer/lib/ipc';
 import { agentMeta } from '@renderer/lib/providers/meta';
 import { appState } from '@renderer/lib/stores/app-state';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { formatBytes } from '@renderer/utils/formatBytes';
+import { cn } from '@renderer/utils/utils';
 import type { ResourceAppProcess, ResourceSnapshot } from '@shared/resource-monitor';
 import {
   appProcessLabel,
@@ -160,6 +162,7 @@ function AgentRow({ entry }: { entry: Entry }) {
   const norm = appState.resourceMonitor.normalizedCpu(entry);
   const meta = entry.providerId ? agentMeta[entry.providerId] : undefined;
   const label = entryLabel(entry);
+  const [armed, setArmed] = useState(false);
 
   return (
     <div
@@ -187,10 +190,105 @@ function AgentRow({ entry }: { entry: Entry }) {
         <span className="truncate text-xs text-foreground-muted">{label}</span>
         {entry.pid === undefined ? <Badge>SSH</Badge> : null}
       </div>
-      <span className="shrink-0 text-xs text-foreground/50 tabular-nums">
-        {norm.toFixed(0)}% · {formatBytes(entry.memory)}
-      </span>
+      <div className="relative flex shrink-0 items-center">
+        <span
+          className={cn(
+            'text-xs text-foreground/50 tabular-nums transition-opacity group-hover/agent:opacity-0',
+            armed && 'opacity-0'
+          )}
+        >
+          {norm.toFixed(0)}% · {formatBytes(entry.memory)}
+        </span>
+        <KillButton
+          sessionId={entry.sessionId}
+          label={label}
+          armed={armed}
+          onArmedChange={setArmed}
+        />
+      </div>
     </div>
+  );
+}
+
+function KillButton({
+  sessionId,
+  label,
+  armed,
+  onArmedChange,
+}: {
+  sessionId: string;
+  label: string;
+  armed: boolean;
+  onArmedChange: (armed: boolean) => void;
+}) {
+  const [killing, setKilling] = useState(false);
+  const resetRef = useRef<number | null>(null);
+
+  const clearReset = useCallback(() => {
+    if (resetRef.current !== null) {
+      window.clearTimeout(resetRef.current);
+      resetRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => clearReset, [clearReset]);
+
+  const handleClick = useCallback(
+    async (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (killing) return;
+      if (!armed) {
+        // First click arms; auto-disarm if the second click doesn't follow.
+        onArmedChange(true);
+        clearReset();
+        resetRef.current = window.setTimeout(() => {
+          onArmedChange(false);
+          resetRef.current = null;
+        }, 3000);
+        return;
+      }
+      clearReset();
+      setKilling(true);
+      try {
+        await rpc.pty.stopSession(sessionId);
+        await appState.resourceMonitor.refresh();
+      } catch {
+        setKilling(false);
+        onArmedChange(false);
+      }
+    },
+    [armed, killing, sessionId, clearReset, onArmedChange]
+  );
+
+  if (armed) {
+    return (
+      <button
+        type="button"
+        disabled={killing}
+        onClick={handleClick}
+        className="absolute top-1/2 right-0 flex h-5 -translate-y-1/2 items-center rounded-md bg-red-500/10 px-1.5 text-[11px] font-medium text-red-500 transition-colors hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+        aria-label={`Confirm kill ${label}`}
+      >
+        Kill?
+      </button>
+    );
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger>
+        <button
+          type="button"
+          disabled={killing}
+          onClick={handleClick}
+          className="absolute top-1/2 right-0 flex size-5 -translate-y-1/2 items-center justify-center rounded-md text-foreground/50 opacity-0 transition-opacity group-hover/agent:opacity-100 hover:bg-red-500/10 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-50"
+          aria-label={`Kill ${label}`}
+        >
+          <X size={13} />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent>Kill session</TooltipContent>
+    </Tooltip>
   );
 }
 
