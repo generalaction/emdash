@@ -23,6 +23,7 @@ import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { makePtyId } from '@shared/ptyId';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { buildAgentSessionCommand } from './agent-command';
+import { syncGrokThemeWithAppTheme } from './grok-theme-config';
 import { scheduleInitialPromptInjection } from './keystroke-injection';
 import { resolveProviderEnv } from './provider-env';
 
@@ -110,6 +111,9 @@ export class LocalConversationProvider implements ConversationProvider {
       providerId: conversation.providerId,
       autoApprove: conversation.autoApprove,
     });
+    if (conversation.providerId === 'grok') {
+      await syncGrokThemeWithAppTheme({ env: providerEnv });
+    }
 
     const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
 
