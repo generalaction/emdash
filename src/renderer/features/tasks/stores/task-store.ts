@@ -252,6 +252,9 @@ export class TaskStore {
       if (!updatedTask) {
         throw new Error(`Task not found: ${task.id}`);
       }
+      runInAction(() => {
+        this.data = updatedTask;
+      });
     } catch (e) {
       runInAction(() => {
         task.automationId = previousAutomationId;
