@@ -2,15 +2,13 @@ import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { ProvisionResult } from '@main/core/projects/project-provider';
 import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
-import { buildTaskFromWorkspace } from '@main/core/tasks/task-builder';
+import { buildTaskFromWorkspace, emitTaskProvisionProgress } from '@main/core/tasks/task-builder';
 import { parseProvisionOutput } from '@main/core/workspaces/byoi/provision-output';
 import { createWorkspaceFactory } from '@main/core/workspaces/workspace-factory';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
-import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { quoteShellArg } from '@main/utils/shellEscape';
 import type { Conversation } from '@shared/conversations';
-import { taskProvisionProgressChannel } from '@shared/events/taskEvents';
 import type { ProjectSettings } from '@shared/project-settings';
 import type { Task } from '@shared/tasks';
 
@@ -47,7 +45,7 @@ export async function provisionBYOITask(params: ProvisionBYOITaskParams): Promis
     conversationsToHydrate = [],
   } = params;
 
-  events.emit(taskProvisionProgressChannel, {
+  emitTaskProvisionProgress({
     taskId: task.id,
     projectId,
     step: 'running-provision-script',
@@ -62,7 +60,7 @@ export async function provisionBYOITask(params: ProvisionBYOITaskParams): Promis
   }
   const output = parseResult.data;
 
-  events.emit(taskProvisionProgressChannel, {
+  emitTaskProvisionProgress({
     taskId: task.id,
     projectId,
     step: 'connecting',
@@ -77,7 +75,7 @@ export async function provisionBYOITask(params: ProvisionBYOITaskParams): Promis
     ...(output.password ? { password: output.password } : { agent: process.env['SSH_AUTH_SOCK'] }),
   });
 
-  events.emit(taskProvisionProgressChannel, {
+  emitTaskProvisionProgress({
     taskId: task.id,
     projectId,
     step: 'setting-up-workspace',
@@ -120,7 +118,7 @@ export async function provisionBYOITask(params: ProvisionBYOITaskParams): Promis
 
   let provisionSucceeded = false;
   try {
-    events.emit(taskProvisionProgressChannel, {
+    emitTaskProvisionProgress({
       taskId: task.id,
       projectId,
       step: 'starting-sessions',

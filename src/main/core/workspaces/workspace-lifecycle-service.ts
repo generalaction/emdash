@@ -1,6 +1,5 @@
-import { events } from '@main/lib/events';
+import { ptySessionEvents } from '@main/core/pty/pty-session-events';
 import type { IDisposable } from '@main/lib/lifecycle';
-import { ptyExitChannel } from '@shared/events/ptyEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { createLifecycleScriptTerminalId } from '@shared/terminals';
 import type { Pty } from '../pty/pty';
@@ -135,7 +134,11 @@ export class LifecycleScriptService implements IDisposable {
 
     const exitPromise = waitForExit
       ? new Promise<void>((resolve) => {
-          events.once(ptyExitChannel, () => resolve(), sessionId);
+          const off = ptySessionEvents.on('exit', (exitedSessionId) => {
+            if (exitedSessionId !== sessionId) return;
+            off();
+            resolve();
+          });
         })
       : null;
 

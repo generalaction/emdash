@@ -2,6 +2,7 @@ import { events } from '@main/lib/events';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 import { ptyDataChannel, ptyExitChannel, ptyInputChannel } from '@shared/events/ptyEvents';
 import type { Pty } from './pty';
+import { ptySessionEvents } from './pty-session-events';
 
 export interface PtySessionMetadata {
   providerId?: AgentProviderId;
@@ -63,6 +64,7 @@ export class PtySessionRegistry {
         flush();
       }
       events.emit(ptyExitChannel, info, sessionId);
+      ptySessionEvents.emitExit(sessionId, info);
       if (preserveBufferOnExit) {
         // Partial cleanup: keep ring buffer so late-connecting renderers can replay output
         this.ptyMap.delete(sessionId);
