@@ -72,6 +72,14 @@ export function PrSelector({
 }: PrSelectorProps) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('open');
 
+  // Trigger a background incremental sync when the selector mounts, at most once per 60 s.
+  useQuery({
+    queryKey: ['pr-sync', projectId],
+    queryFn: () => rpc.pullRequests.syncPullRequests(projectId!),
+    enabled: !!projectId && !!repositoryUrl,
+    staleTime: 60_000,
+  });
+
   const { data } = useQuery({
     queryKey: ['pull-requests-selector', projectId, repositoryUrl, statusFilter],
     queryFn: async () => {
