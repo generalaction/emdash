@@ -1,4 +1,4 @@
-import { Bot, Clock, Folder, RotateCcw, Trash2 } from 'lucide-react';
+import { Bot, Clock, Folder, MessageSquarePlus, RotateCcw, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
 import { automationRunTool } from '@renderer/features/automations/automation-tools';
@@ -125,7 +125,12 @@ export const AutomationRunRow = observer(function AutomationRunRow({
     navigate('task', { projectId, taskId });
   }
 
+  function handleAddAsNormalTask() {
+    void taskStore?.convertAutomationTask();
+  }
+
   const selectable = Boolean(onToggleSelect);
+  const canAddAsNormalTask = Boolean(taskStore && task?.automationId);
 
   const agentIconWithStatusIndicator = (
     <>
@@ -352,7 +357,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
     </Tooltip>
   );
 
-  if (!onDelete && !onRerun) return wrapped;
+  if (!onDelete && !onRerun && !canAddAsNormalTask) return wrapped;
 
   return (
     <ContextMenu>
@@ -362,6 +367,12 @@ export const AutomationRunRow = observer(function AutomationRunRow({
           <ContextMenuItem onClick={() => onRerun(run)}>
             <RotateCcw />
             Rerun automation
+          </ContextMenuItem>
+        ) : null}
+        {canAddAsNormalTask ? (
+          <ContextMenuItem onClick={handleAddAsNormalTask}>
+            <MessageSquarePlus />
+            Add as normal task
           </ContextMenuItem>
         ) : null}
         {onDelete ? (

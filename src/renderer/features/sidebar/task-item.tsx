@@ -63,6 +63,8 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
 
   const handleRename = () => showRename({ projectId, taskId, currentName: taskName });
 
+  const handleConvertAutomation = () => void task.convertAutomationTask();
+
   const handleDelete = () =>
     showDeleteTask({
       projectId,
@@ -93,6 +95,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
       onRename={handleRename}
       onArchive={handleArchive}
       onReconnect={handleReconnect}
+      onConvertAutomation={task.data.automationId ? handleConvertAutomation : undefined}
       onDelete={handleDelete}
     >
       <SidebarMenuRow

@@ -24,6 +24,7 @@ import type {
   Task,
 } from '@shared/tasks';
 import { archiveTask } from './operations/archiveTask';
+import { convertAutomationTask } from './operations/convertAutomationTask';
 import { createTask } from './operations/createTask';
 import { deleteTask } from './operations/deleteTask';
 import { getDeletePreflight } from './operations/getDeletePreflight';
@@ -216,6 +217,12 @@ export class TaskService implements Hookable<TaskCrudHooks> {
   async updateLinkedIssue(taskId: string, issue?: Issue): Promise<void> {
     const task = await updateLinkedIssue(taskId, issue);
     if (task) this._hooks.callHookBackground('task:updated', task);
+  }
+
+  async convertAutomationTask(taskId: string): Promise<Task | null> {
+    const task = await convertAutomationTask(taskId);
+    if (task) this._hooks.callHookBackground('task:updated', task);
+    return task;
   }
 
   // Operations with no hook — thin pass-throughs
