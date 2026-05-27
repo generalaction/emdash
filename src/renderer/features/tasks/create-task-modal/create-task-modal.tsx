@@ -236,18 +236,19 @@ export const CreateTaskModal = observer(function CreateTaskModal({
               )}
               {state.linkedType === 'pr' && (
                 <>
-                  {!repositoryUrl && (
-                    <p className="text-muted-foreground text-sm">
+                  {!repositoryUrl ? (
+                    <p className="text-muted-foreground text-sm h-14 items-center justify-center flex text-foreground-passive">
                       Pull requests are available only for configured GitHub remotes.
                     </p>
+                  ) : (
+                    <PrComboboxField
+                      value={state.linkedPR}
+                      onValueChange={state.setLinkedPR}
+                      projectId={selectedProjectId}
+                      repositoryUrl={repositoryUrl}
+                      disabled={!repositoryUrl}
+                    />
                   )}
-                  <PrComboboxField
-                    value={state.linkedPR}
-                    onValueChange={state.setLinkedPR}
-                    projectId={selectedProjectId}
-                    repositoryUrl={repositoryUrl}
-                    disabled={!repositoryUrl}
-                  />
                 </>
               )}
             </div>
@@ -283,7 +284,6 @@ export const CreateTaskModal = observer(function CreateTaskModal({
                   linkedIssue={
                     state.linkedType === 'issue' ? (state.linkedIssue ?? undefined) : undefined
                   }
-                  projectId={selectedProjectId}
                 />
               )}
               {sectionTab === 'workspace' && (

@@ -345,23 +345,20 @@ export function ConnectIssueIntegrationPlaceholder() {
   const { navigate } = useNavigate();
 
   return (
-    <div className="flex w-full flex-col items-center justify-center gap-5 rounded-md border border-dashed border-border p-8">
+    <div className="flex w-full flex-col items-center justify-center gap-2 rounded-md border border-dashed border-border p-4">
       <div className="flex items-center justify-center [&>span]:ring-2 [&>span]:ring-background-quaternary [&>span:not(:first-child)]:-ml-1.5">
         {ISSUE_PROVIDER_ORDER.map((provider) => (
           <span
             key={provider}
-            className="relative flex size-8 items-center justify-center overflow-hidden rounded-full bg-background-quaternary-2"
+            className="relative flex size-5 items-center justify-center overflow-hidden rounded-full bg-background-quaternary-2"
           >
-            <ProviderLogo provider={provider} className="size-4" />
+            <ProviderLogo provider={provider} className="size-3" />
           </span>
         ))}
       </div>
-      <p className="font-nomral text-center text-sm text-foreground-muted">
-        Connect with one of our issue integrations to link your issues to your tasks and use them as
-        context in your conversations.
-      </p>
+
       <Button
-        variant="outline"
+        variant="link"
         size="xs"
         className="w-fit"
         onClick={() => navigate('settings', { tab: 'integrations' })}
