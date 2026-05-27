@@ -127,8 +127,7 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
       if (!projectId) continue;
       for (const task of project.mountedProject.taskManager.tasks.values()) {
         const visible =
-          !task.data.automationId &&
-          (task.state === 'unregistered' || !('archivedAt' in task.data && task.data.archivedAt));
+          task.state === 'unregistered' || !('archivedAt' in task.data && task.data.archivedAt);
         if (!visible || !task.data.isPinned) continue;
         pairs.push({ projectId, task });
       }
@@ -139,8 +138,8 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
 
   /**
    * Visible unpinned task IDs for a project in sidebar order. Archived tasks are
-   * excluded. Independent of expand state so Next/Previous Task navigation works
-   * even when the project is collapsed.
+   * and automation tasks are excluded. Independent of expand state so Next/Previous
+   * Task navigation works even when the project is collapsed.
    */
   visibleTaskIdsForProject(projectId: string): string[] {
     const project = this.projectManager.projects.get(projectId);

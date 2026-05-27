@@ -200,9 +200,9 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
             ? 'Remove this task from pinned'
             : 'Pin this task to keep it at the top',
           group: pinDef.group,
-          enabled: taskData != null && !isAutomationTask,
+          enabled: taskData != null,
           execute() {
-            if (taskData && !isAutomationTask) void taskStore?.setPinned(!taskData.isPinned);
+            if (taskData) void taskStore?.setPinned(!taskData.isPinned);
           },
         },
 

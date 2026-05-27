@@ -1,4 +1,4 @@
-import { Bot, ChevronDown, FileDiff, FolderOpen, MessageSquare, Terminal } from 'lucide-react';
+import { Bot, ChevronDown, FileDiff, FolderOpen, MessageSquare, Pin, Terminal } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import { automationTool } from '@renderer/features/automations/automation-tools';
@@ -80,12 +80,42 @@ export const AutomationTaskTitlebar = observer(function AutomationTaskTitlebar()
             projectId={projectId}
             currentTaskId={taskId}
           />
+          <AutomationTaskPinButton projectId={projectId} taskId={taskId} />
         </div>
       }
       rightSlot={
         ready ? <AutomationTitlebarRightSlot projectId={projectId} taskId={taskId} /> : undefined
       }
     />
+  );
+});
+
+const AutomationTaskPinButton = observer(function AutomationTaskPinButton({
+  projectId,
+  taskId,
+}: {
+  projectId: string;
+  taskId: string;
+}) {
+  const taskStore = getTaskStore(projectId, taskId);
+  const taskPayload = getRegisteredTaskData(projectId, taskId);
+  if (!taskStore || !taskPayload) return null;
+
+  return (
+    <button
+      type="button"
+      className={cn(
+        'text-foreground-muted ml-1 rounded-sm p-0.5 transition-colors hover:bg-background-1 hover:text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-ring',
+        taskPayload.isPinned && 'text-muted-foreground'
+      )}
+      onClick={() => taskStore.setPinned(!taskPayload.isPinned)}
+      aria-label={taskPayload.isPinned ? 'Unpin task' : 'Pin task'}
+    >
+      <Pin
+        className={cn('size-3.5', taskPayload.isPinned && 'text-foreground-muted')}
+        fill={taskPayload.isPinned ? 'currentColor' : 'none'}
+      />
+    </button>
   );
 });
 
