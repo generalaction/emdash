@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import {
   buildRemoteShellCommand,
+  captureRemoteShellProfile,
   FALLBACK_REMOTE_SHELL_PROFILE,
   includeRemoteUserBinDirs,
   normalizeRemoteShell,
@@ -17,6 +18,35 @@ function makeCtx(stdout: string): IExecutionContext {
     execStreaming: vi.fn(),
     dispose: vi.fn(),
   } as unknown as IExecutionContext;
+}
+
+function makeRemoteShellClient(outputs: string[]) {
+  const commands: string[] = [];
+  const exec = vi.fn(
+    (command: string, callback: (error: Error | undefined, channel: unknown) => void) => {
+      commands.push(command);
+      const stdout = outputs.shift() ?? '';
+      const listeners = new Map<string, (value: unknown) => void>();
+      const channel = {
+        on: vi.fn((event: string, handler: (value: unknown) => void) => {
+          listeners.set(event, handler);
+          return channel;
+        }),
+        stderr: {
+          on: vi.fn(() => channel.stderr),
+        },
+        destroy: vi.fn(),
+      };
+
+      callback(undefined, channel);
+      queueMicrotask(() => {
+        listeners.get('data')?.(Buffer.from(stdout));
+        listeners.get('close')?.(0);
+      });
+    }
+  );
+
+  return { commands, exec };
 }
 
 describe('remote shell profile command building', () => {
@@ -74,6 +104,38 @@ describe('remote shell profile command building', () => {
     expect(command).toBe("'/bin/sh' -c 'which claude'");
   });
 
+  it('uses csh-compatible environment setup for csh shells', () => {
+    const command = buildRemoteShellCommand(
+      {
+        shell: '/bin/tcsh',
+        env: {
+          PATH: '/usr/bin',
+        },
+      },
+      'which claude',
+      { FOO: 'bar!' }
+    );
+
+    expect(command).toContain("'/bin/tcsh' -c");
+    expect(command).toContain('setenv PATH');
+    expect(command).toContain('bar\\!');
+    expect(command).toContain('which claude');
+  });
+
+  it('captures csh shell env without login flags', async () => {
+    const client = makeRemoteShellClient(['/bin/tcsh', 'HOME=/Users/jona\nPATH=/usr/bin\n']);
+
+    await expect(captureRemoteShellProfile(client)).resolves.toEqual({
+      shell: '/bin/tcsh',
+      env: {
+        HOME: '/Users/jona',
+        PATH: '/Users/jona/.local/bin:/usr/bin',
+      },
+    });
+
+    expect(client.commands[1]).toContain("'/bin/tcsh' -ic 'env'");
+  });
+
   it('filters volatile and invalid environment variables from command exports', () => {
     const command = buildRemoteShellCommand(
       {
@@ -101,6 +163,7 @@ describe('remote shell profile command building', () => {
     expect(normalizeRemoteShell('')).toBe('/bin/sh');
     expect(normalizeRemoteShell('zsh')).toBe('/bin/sh');
     expect(normalizeRemoteShell('/bin/zsh\n')).toBe('/bin/zsh');
+    expect(normalizeRemoteShell('/bin/tcsh')).toBe('/bin/tcsh');
   });
 
   it('falls back to /bin/sh for unsupported remote shells', () => {

@@ -30,6 +30,7 @@ const zshProfile: RemoteShellProfile = {
   shell: '/bin/zsh',
   env: {
     PATH: '/Users/jona/.local/bin:/opt/homebrew/bin:/usr/bin',
+    SHELL: '/bin/zsh',
   },
 };
 
@@ -38,7 +39,7 @@ describe('resolveSshCommand', () => {
     const result = resolveSshCommand('agent', makeAgentConfig(), undefined, zshProfile);
 
     expect(result).toBe(
-      `'/bin/zsh' -lc 'export PATH='\\''/Users/jona/.local/bin:/opt/homebrew/bin:/usr/bin'\\''; cd "/workspace" && '\\''claude'\\'' '\\''--resume'\\'' '\\''conv-1'\\'''`
+      `'/bin/zsh' -lc 'export PATH='\\''/Users/jona/.local/bin:/opt/homebrew/bin:/usr/bin'\\''; export SHELL='\\''/bin/zsh'\\''; cd "/workspace" && '\\''claude'\\'' '\\''--resume'\\'' '\\''conv-1'\\'''`
     );
   });
 
@@ -53,7 +54,7 @@ describe('resolveSshCommand', () => {
     );
 
     expect(result).toBe(
-      `'/bin/zsh' -lc 'export PATH='\\''/Users/jona/.local/bin:/opt/homebrew/bin:/usr/bin'\\''; export FOO='\\''bar'\\''; cd "/workspace" && '\\''claude'\\'' '\\''--resume'\\'' '\\''conv-1'\\'''`
+      `'/bin/zsh' -lc 'export PATH='\\''/Users/jona/.local/bin:/opt/homebrew/bin:/usr/bin'\\''; export SHELL='\\''/bin/zsh'\\''; export FOO='\\''bar'\\''; cd "/workspace" && '\\''claude'\\'' '\\''--resume'\\'' '\\''conv-1'\\'''`
     );
   });
 
@@ -79,7 +80,7 @@ describe('resolveSshCommand', () => {
     );
 
     expect(result).toBe(
-      `'/bin/zsh' -lc 'export PATH='\\''/Users/jona/.local/bin:/opt/homebrew/bin:/usr/bin'\\''; cd "/workspace" && '\\''caffeinate'\\'' '\\''-i'\\'' '\\''direnv'\\'' '\\''exec'\\'' '\\''.'\\'' '\\''/opt/Claude Code/bin/claude'\\'' '\\''Fix the bug'\\'''`
+      `'/bin/zsh' -lc 'export PATH='\\''/Users/jona/.local/bin:/opt/homebrew/bin:/usr/bin'\\''; export SHELL='\\''/bin/zsh'\\''; cd "/workspace" && '\\''caffeinate'\\'' '\\''-i'\\'' '\\''direnv'\\'' '\\''exec'\\'' '\\''.'\\'' '\\''/opt/Claude Code/bin/claude'\\'' '\\''Fix the bug'\\'''`
     );
   });
 
@@ -104,7 +105,78 @@ describe('resolveSshCommand', () => {
     const result = resolveSshCommand('general', makeGeneralConfig(), undefined, zshProfile);
 
     expect(result).toBe(
-      `'/bin/zsh' -lc 'export PATH='\\''/Users/jona/.local/bin:/opt/homebrew/bin:/usr/bin'\\''; cd "/workspace" && exec /bin/zsh -il'`
+      `'/bin/zsh' -lc 'export PATH='\\''/Users/jona/.local/bin:/opt/homebrew/bin:/usr/bin'\\''; export SHELL='\\''/bin/zsh'\\''; cd "/workspace" && exec /bin/zsh -il'`
+    );
+  });
+
+  it('uses the selected terminal shell for remote general terminals', () => {
+    const result = resolveSshCommand(
+      'general',
+      makeGeneralConfig({ shell: 'bash' }),
+      undefined,
+      zshProfile
+    );
+
+    expect(result).toBe(
+      `'/usr/bin/env' 'PATH=/Users/jona/.local/bin:/opt/homebrew/bin:/usr/bin' 'bash' -lc 'export PATH='\\''/Users/jona/.local/bin:/opt/homebrew/bin:/usr/bin'\\''; export SHELL='\\''bash'\\''; cd "/workspace" && exec bash -il'`
+    );
+  });
+
+  it('uses task PATH overrides when looking up the selected remote shell', () => {
+    const result = resolveSshCommand(
+      'general',
+      makeGeneralConfig({ shell: 'bash' }),
+      { PATH: '/custom/bin:/usr/bin' },
+      zshProfile
+    );
+
+    expect(result).toContain("'/usr/bin/env' 'PATH=/custom/bin:/usr/bin' 'bash'");
+    expect(result).toContain("export PATH='\\''/custom/bin:/usr/bin'\\''");
+    expect(result).toContain("export SHELL='\\''bash'\\''");
+    expect(result).not.toContain("export SHELL='\\''/bin/zsh'\\''");
+    expect(result).toContain('exec bash -il');
+    expect(result).not.toContain('/bin/bash');
+  });
+
+  it('does not pass login flags to selected basic POSIX remote general shells', () => {
+    const result = resolveSshCommand(
+      'general',
+      makeGeneralConfig({ shell: 'dash' }),
+      undefined,
+      zshProfile
+    );
+
+    expect(result).toBe(
+      `'/usr/bin/env' 'PATH=/Users/jona/.local/bin:/opt/homebrew/bin:/usr/bin' 'dash' -c 'export PATH='\\''/Users/jona/.local/bin:/opt/homebrew/bin:/usr/bin'\\''; export SHELL='\\''dash'\\''; cd "/workspace" && exec dash -i'`
+    );
+  });
+
+  it('does not pass login flags to selected csh remote general shells', () => {
+    const result = resolveSshCommand(
+      'general',
+      makeGeneralConfig({ shell: 'tcsh' }),
+      undefined,
+      zshProfile
+    );
+
+    expect(result).toContain(
+      "'/usr/bin/env' 'PATH=/Users/jona/.local/bin:/opt/homebrew/bin:/usr/bin' 'tcsh' -c"
+    );
+    expect(result).toContain('setenv PATH');
+    expect(result).toContain('exec tcsh -i');
+    expect(result).not.toContain('exec tcsh -il');
+  });
+
+  it('uses the selected terminal shell for remote agent command wrappers', () => {
+    const result = resolveSshCommand(
+      'agent',
+      makeAgentConfig({ shell: 'sh' }),
+      undefined,
+      zshProfile
+    );
+
+    expect(result).toBe(
+      `'/usr/bin/env' 'PATH=/Users/jona/.local/bin:/opt/homebrew/bin:/usr/bin' 'sh' -c 'export PATH='\\''/Users/jona/.local/bin:/opt/homebrew/bin:/usr/bin'\\''; export SHELL='\\''sh'\\''; cd "/workspace" && '\\''claude'\\'' '\\''--resume'\\'' '\\''conv-1'\\'''`
     );
   });
 });

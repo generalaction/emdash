@@ -1,4 +1,5 @@
 import type { AgentProviderId } from '@shared/agent-provider-registry';
+import type { TerminalShellId } from './terminal-settings';
 
 export interface AgentSessionConfig {
   taskId: string;
@@ -7,6 +8,7 @@ export interface AgentSessionConfig {
   command: string;
   args: string[];
   cwd: string;
+  shell?: TerminalShellId;
   sessionId?: string;
   shellSetup?: string;
   tmuxSessionName?: string;

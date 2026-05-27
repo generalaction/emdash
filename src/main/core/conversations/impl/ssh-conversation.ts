@@ -9,6 +9,7 @@ import { resolveSshCommand } from '@main/core/pty/spawn-utils';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
+import { appSettingsService } from '@main/core/settings/settings-service';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
@@ -17,6 +18,7 @@ import type { AgentSessionConfig } from '@shared/agent-session';
 import type { Conversation } from '@shared/conversations';
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
+import type { TerminalShellId } from '@shared/terminal-settings';
 import { buildAgentSessionCommand } from './agent-command';
 import { scheduleInitialPromptInjection } from './keystroke-injection';
 import { resolveProviderEnv } from './provider-env';
@@ -37,6 +39,7 @@ export class SshConversationProvider implements ConversationProvider {
   private readonly shellSetup?: string;
   private readonly ctx: IExecutionContext;
   private readonly proxy: SshClientProxy;
+  private readonly getShell: () => Promise<TerminalShellId>;
 
   constructor({
     projectId,
@@ -44,6 +47,7 @@ export class SshConversationProvider implements ConversationProvider {
     taskId,
     taskEnvVars = {},
     tmux = false,
+    getShell = async () => (await appSettingsService.get('terminal')).shell,
     shellSetup,
     ctx,
     proxy,
@@ -53,6 +57,7 @@ export class SshConversationProvider implements ConversationProvider {
     taskId: string;
     taskEnvVars?: Record<string, string>;
     tmux?: boolean;
+    getShell?: () => Promise<TerminalShellId>;
     shellSetup?: string;
     ctx: IExecutionContext;
     proxy: SshClientProxy;
@@ -65,6 +70,7 @@ export class SshConversationProvider implements ConversationProvider {
     this.shellSetup = shellSetup;
     this.ctx = ctx;
     this.proxy = proxy;
+    this.getShell = getShell;
   }
 
   async startSession(
@@ -105,6 +111,7 @@ export class SshConversationProvider implements ConversationProvider {
     });
 
     const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
+    const shell = await this.getShell();
 
     const cfg: AgentSessionConfig = {
       taskId: this.taskId,
@@ -113,6 +120,7 @@ export class SshConversationProvider implements ConversationProvider {
       command,
       args,
       cwd: this.taskPath,
+      shell,
       shellSetup: this.shellSetup,
       tmuxSessionName,
       autoApprove: conversation.autoApprove ?? false,
