@@ -63,6 +63,12 @@ export const APP_SHORTCUTS = defineShortcuts({
     description: 'Create a new task',
     category: 'Navigation',
   },
+  deleteSelectedTasks: {
+    defaultHotkey: 'Mod+Backspace',
+    label: 'Delete Selected Tasks',
+    description: 'Delete the selected tasks',
+    category: 'Navigation',
+  },
   newProject: {
     defaultHotkey: 'Mod+Shift+N',
     label: 'New Project',

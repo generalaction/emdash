@@ -1,4 +1,5 @@
 import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
+import { makeFileLinkHandlers } from '@renderer/features/tasks/stores/open-file-in-file-editor';
 import { rpc } from '@renderer/lib/ipc';
 import { PtySession } from '@renderer/lib/pty/pty-session';
 import type { IDisposable } from '@renderer/lib/stores/lifecycle';
@@ -49,10 +50,7 @@ export class TerminalManagerStore implements IDisposable {
               this.terminals.set(terminal.id, new TerminalStore(terminal));
             }
             if (!this.sessions.has(terminal.id)) {
-              this.sessions.set(
-                terminal.id,
-                new PtySession(makePtySessionId(terminal.projectId, terminal.taskId, terminal.id))
-              );
+              this.sessions.set(terminal.id, this.createSession(terminal));
             }
           }
 
@@ -83,10 +81,7 @@ export class TerminalManagerStore implements IDisposable {
 
     runInAction(() => {
       this.terminals.set(params.id, new TerminalStore(optimistic));
-      this.sessions.set(
-        params.id,
-        new PtySession(makePtySessionId(params.projectId, params.taskId, params.id))
-      );
+      this.sessions.set(params.id, this.createSession(optimistic));
     });
 
     try {
@@ -141,6 +136,16 @@ export class TerminalManagerStore implements IDisposable {
     }
   }
 
+  async hydrateTerminal(terminalId: string): Promise<void> {
+    const store = this.terminals.get(terminalId);
+    if (!store) return;
+    await rpc.terminals.hydrateTerminal({
+      projectId: this.projectId,
+      taskId: this.taskId,
+      terminalId,
+    });
+  }
+
   dispose(): void {
     this._disposeReaction();
     for (const session of this.sessions.values()) {
@@ -167,6 +172,16 @@ export class TerminalManagerStore implements IDisposable {
       });
       throw err;
     }
+  }
+
+  private createSession(terminal: Terminal): PtySession {
+    const handlers = makeFileLinkHandlers(terminal.projectId, terminal.taskId);
+    return new PtySession(
+      makePtySessionId(terminal.projectId, terminal.taskId, terminal.id),
+      () => this.hydrateTerminal(terminal.id),
+      handlers.onOpenFile,
+      handlers.onOpenExternal
+    );
   }
 }
 

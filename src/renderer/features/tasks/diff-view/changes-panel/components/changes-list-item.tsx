@@ -85,11 +85,14 @@ export function ChangeStatusAffordance({
               'opacity-0 group-hover/item:opacity-100',
               isSelected && 'opacity-100'
             )}
+            onClick={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
           >
             <Checkbox
               checked={isSelected ?? false}
               onCheckedChange={() => onToggleSelect(change.path)}
-              onClick={(e) => e.stopPropagation()}
               aria-label={`Select ${filename}`}
             />
           </span>

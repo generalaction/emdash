@@ -90,7 +90,7 @@ export function InitialConversationField({
             placeholder="Start with a prompt... (optional)"
             value={state.prompt}
             onChange={(e) => state.setPrompt(e.target.value)}
-            className="max-h-64 min-h-24 resize-none rounded-none border-0 focus-visible:border-0 focus-visible:ring-0"
+            className="h-24 resize-none overflow-y-auto rounded-none border-0 focus-visible:border-0 focus-visible:ring-0"
           />
           <ModalContextBar
             actions={contextActions}
