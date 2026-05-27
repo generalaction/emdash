@@ -201,7 +201,7 @@ export function FeedbackModal({ onSuccess, blurb }: Props) {
                   <TooltipTrigger>
                     <button
                       type="button"
-                      className="text-muted-foreground mt-0.5 inline-flex size-4 items-center justify-center hover:text-foreground"
+                      className="text-muted-foreground mt-1 inline-flex size-4 items-center justify-center hover:text-foreground"
                       aria-label="More information about diagnostic logs"
                     >
                       <Info className="size-3.5" aria-hidden="true" />
