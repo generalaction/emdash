@@ -162,4 +162,62 @@ describe('GitStore', () => {
     expect(store.stagedFileChanges.map((change) => change.path)).toEqual(['src/a.ts']);
     store.dispose();
   });
+
+  it('refreshes when a local-ref change does not identify changed refs', async () => {
+    mocks.getFullStatus
+      .mockResolvedValueOnce(
+        okStatus(
+          status({
+            staged: [{ path: 'src/a.ts', status: 'modified', additions: 1, deletions: 0 }],
+          })
+        )
+      )
+      .mockResolvedValue(okStatus(status()));
+
+    const store = createStore();
+    store.startWatching();
+    await flushAsyncWork();
+
+    for (const handler of gitRefHandlers) {
+      handler({
+        projectId: 'project-1',
+        kind: 'local-refs',
+      });
+    }
+    vi.advanceTimersByTime(500);
+    await flushAsyncWork();
+
+    expect(mocks.getFullStatus).toHaveBeenCalledTimes(2);
+    expect(store.stagedFileChanges).toEqual([]);
+    store.dispose();
+  });
+
+  it('ignores local-ref changes scoped to a different workspace', async () => {
+    mocks.getFullStatus.mockResolvedValue(
+      okStatus(
+        status({
+          staged: [{ path: 'src/a.ts', status: 'modified', additions: 1, deletions: 0 }],
+        })
+      )
+    );
+
+    const store = createStore();
+    store.startWatching();
+    await flushAsyncWork();
+
+    for (const handler of gitRefHandlers) {
+      handler({
+        projectId: 'project-1',
+        workspaceId: 'workspace-other',
+        kind: 'local-refs',
+        changedRefs: [localRef('feature/stale-staged')],
+      });
+    }
+    vi.advanceTimersByTime(500);
+    await flushAsyncWork();
+
+    expect(mocks.getFullStatus).toHaveBeenCalledTimes(1);
+    expect(store.stagedFileChanges.map((change) => change.path)).toEqual(['src/a.ts']);
+    store.dispose();
+  });
 });
