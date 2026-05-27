@@ -136,6 +136,7 @@ describe('automations repo', () => {
       runId: 'run-1',
       status: 'skipped',
       taskId: null,
+      startedAt: null,
     });
   });
 
@@ -167,6 +168,7 @@ describe('automations repo', () => {
       runId: 'run-1',
       status: 'skipped',
       taskId: null,
+      startedAt: null,
     });
   });
 

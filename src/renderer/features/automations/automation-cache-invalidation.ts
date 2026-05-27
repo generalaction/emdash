@@ -56,7 +56,7 @@ export function wireAutomationCacheInvalidation(): void {
     });
   });
 
-  events.on(automationRunUpdatedChannel, ({ automationId, runId, status, taskId }) => {
+  events.on(automationRunUpdatedChannel, ({ automationId, runId, status, taskId, startedAt }) => {
     updateAutomationRunStatus(automationId, { runId, status, taskId });
     void queryClient.invalidateQueries({ queryKey: ['automations', 'runs', automationId] });
     void queryClient.invalidateQueries({
@@ -64,14 +64,14 @@ export function wireAutomationCacheInvalidation(): void {
         query.queryKey[0] === 'automations' && query.queryKey[1] === 'recent-runs',
     });
     if (status === 'success') {
-      const now = Date.now();
+      const lastRunAt = startedAt ?? Date.now();
       queryClient.setQueriesData<Automation[]>(
         {
           predicate: (query) => isAutomationQuery(query.queryKey),
         },
         (current) =>
           current?.map((automation) =>
-            automation.id === automationId ? { ...automation, lastRunAt: now } : automation
+            automation.id === automationId ? { ...automation, lastRunAt } : automation
           )
       );
     }

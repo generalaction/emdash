@@ -34,6 +34,7 @@ export function emitRunUpdated(run: AutomationRun): void {
     runId: run.id,
     status: run.status,
     taskId: run.taskId,
+    startedAt: run.startedAt,
   });
 }
 

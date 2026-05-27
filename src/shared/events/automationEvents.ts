@@ -8,4 +8,5 @@ export const automationRunUpdatedChannel = defineEvent<{
   runId: string;
   status: AutomationRunStatus;
   taskId?: string | null;
+  startedAt?: number | null;
 }>('automations:run-updated');
