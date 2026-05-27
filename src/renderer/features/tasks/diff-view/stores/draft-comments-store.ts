@@ -1,5 +1,10 @@
 import { makeAutoObservable } from 'mobx';
-import { formatCommentsForAgent } from '@shared/lineComments';
+import {
+  formatCommentsForAgent,
+  getDraftCommentTargetKey,
+  getDraftCommentTargetPath,
+  type DraftCommentTarget,
+} from '@shared/lineComments';
 
 const MAX_COMMENTS_PER_TASK = 200;
 
@@ -7,6 +12,8 @@ export type DraftComment = {
   id: string;
   taskId: string;
   filePath: string;
+  target: DraftCommentTarget;
+  targetKey: string;
   lineNumber: number;
   lineContent?: string | null;
   content: string;
@@ -15,7 +22,7 @@ export type DraftComment = {
 };
 
 type CreateDraftCommentInput = {
-  filePath: string;
+  target: DraftCommentTarget;
   lineNumber: number;
   lineContent?: string | null;
   content: string;
@@ -31,7 +38,7 @@ export class DraftCommentsStore {
   readonly commentsById = new Map<string, DraftComment>();
 
   constructor(readonly taskId: string) {
-    makeAutoObservable(this, { getCommentsForFile: false }, { autoBind: true });
+    makeAutoObservable(this, { getCommentsForTarget: false }, { autoBind: true });
   }
 
   get comments(): DraftComment[] {
@@ -46,9 +53,9 @@ export class DraftCommentsStore {
     return formatCommentsForAgent(this.comments, { includeIntro: false });
   }
 
-  getCommentsForFile(filePath: string): DraftComment[] {
+  getCommentsForTarget(targetKey: string): DraftComment[] {
     return this.comments
-      .filter((comment) => comment.filePath === filePath)
+      .filter((comment) => comment.targetKey === targetKey)
       .sort((a, b) => a.lineNumber - b.lineNumber || a.createdAt.localeCompare(b.createdAt));
   }
 
@@ -62,11 +69,15 @@ export class DraftCommentsStore {
 
     const now = new Date().toISOString();
     const id = crypto.randomUUID();
+    const filePath = getDraftCommentTargetPath(input.target);
+    const targetKey = getDraftCommentTargetKey(input.target);
 
     this.commentsById.set(id, {
       id,
       taskId: this.taskId,
-      filePath: input.filePath,
+      filePath,
+      target: input.target,
+      targetKey,
       lineNumber: input.lineNumber,
       lineContent: input.lineContent ?? null,
       content: input.content,

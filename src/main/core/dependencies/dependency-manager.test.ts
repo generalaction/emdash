@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { err, ok } from '@shared/result';
 import type { IExecutionContext } from '@main/core/execution-context/types';
+import { err, ok } from '@shared/result';
 import { DependencyManager } from './dependency-manager';
 
 vi.mock('@main/lib/events', () => ({
@@ -9,7 +9,7 @@ vi.mock('@main/lib/events', () => ({
   },
 }));
 
-vi.mock('../ssh/ssh-connection-manager', () => ({
+vi.mock('../ssh/lifecycle/production-ssh-connection-manager', () => ({
   sshConnectionManager: {
     connect: vi.fn(),
   },

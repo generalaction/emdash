@@ -3,7 +3,7 @@ import { type ReactNode } from 'react';
 import { NavButtons } from '@renderer/lib/components/nav-buttons';
 import { useWorkspaceLayoutContext } from '@renderer/lib/layout/layout-provider';
 import { Button } from '@renderer/lib/ui/button';
-import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
+import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 
@@ -35,7 +35,7 @@ export function Titlebar({ leftSlot, rightSlot }: { leftSlot?: ReactNode; rightS
                   </TooltipTrigger>
                   <TooltipContent>
                     Toggle left sidebar
-                    <ShortcutHint settingsKey="toggleLeftSidebar" />
+                    <BoundShortcut settingsKey="toggleLeftSidebar" variant="badge" />
                   </TooltipContent>
                 </Tooltip>
                 <NavButtons />

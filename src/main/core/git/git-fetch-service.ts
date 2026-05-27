@@ -1,6 +1,6 @@
+import { log } from '@main/lib/logger';
 import type { FetchError } from '@shared/git';
 import { err, type Result } from '@shared/result';
-import { log } from '@main/lib/logger';
 import type { GitService } from './impl/git-service';
 import { isGitHubSshRemoteUrl, isSshRemoteUrl } from './remote-helper';
 

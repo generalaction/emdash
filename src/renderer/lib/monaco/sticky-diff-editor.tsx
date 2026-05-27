@@ -53,7 +53,7 @@ export function StickyDiffEditor({
   // Create editor once on mount, dispose on unmount.
   // Monaco is guaranteed ready because bootstrap awaited diffEditorPool.init().
   useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // oxlint-disable-next-line typescript/no-explicit-any
     const m = (globalThis as any).__monaco as typeof monaco;
     if (!m || !mountRef.current) return;
 
@@ -87,7 +87,7 @@ export function StickyDiffEditor({
       runInAction(() => editorBox.set(null));
       editor.dispose();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, []);
 
   // Sync diffStyle changes to the mounted editor.
@@ -148,7 +148,7 @@ export function StickyDiffEditor({
       onHeightChangeRef.current?.(editor.getModifiedEditor().getContentHeight());
     });
     // editorBox is a stable ref created once; only URI changes recreate the autorun.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [originalUri, modifiedUri]);
 
   return <div ref={mountRef} className="h-full" />;

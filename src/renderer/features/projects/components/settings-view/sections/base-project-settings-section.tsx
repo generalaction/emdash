@@ -1,7 +1,5 @@
 import { Folder } from 'lucide-react';
 import { useState } from 'react';
-import type { Branch, Remote } from '@shared/git';
-import type { Project } from '@shared/projects';
 import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
 import {
   RemoteSelectContent,
@@ -15,6 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/
 import { Separator } from '@renderer/lib/ui/separator';
 import { Switch } from '@renderer/lib/ui/switch';
 import { cn } from '@renderer/utils/utils';
+import type { Branch, Remote } from '@shared/git';
+import type { Project } from '@shared/projects';
 import type { FormState, FormUpdate } from '../project-settings-form-model';
 
 const SAME_AS_BASE_REMOTE = '__same_as_base_remote__';
@@ -79,7 +79,7 @@ export function BaseProjectSettingsSection({
               onChange={(e) => update('worktreeDirectory', e.target.value)}
             />
             {worktreeDirectoryError ? (
-              <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-red-500">
+              <span className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-xs text-foreground-error">
                 {worktreeDirectoryError}
               </span>
             ) : null}

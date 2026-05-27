@@ -1,10 +1,4 @@
 import { action, computed, makeObservable, observable, onBecomeObserved, runInAction } from 'mobx';
-import { fsWatchEventChannel } from '@shared/events/fsEvents';
-import { projectSettingsChangedChannel } from '@shared/events/projectEvents';
-import { ptyExitChannel } from '@shared/events/ptyEvents';
-import { PROJECT_CONFIG_FILE } from '@shared/project-settings';
-import { makePtySessionId } from '@shared/ptySessionId';
-import { createLifecycleScriptTerminalId } from '@shared/terminals';
 import { events, rpc } from '@renderer/lib/ipc';
 import { PtySession } from '@renderer/lib/pty/pty-session';
 import { type TabViewProvider } from '@renderer/lib/stores/generic-tab-view';
@@ -15,6 +9,12 @@ import {
   setTabActive,
   setTabActiveIndex,
 } from '@renderer/lib/stores/tab-utils';
+import { fsWatchEventChannel } from '@shared/events/fsEvents';
+import { projectSettingsChangedChannel } from '@shared/events/projectEvents';
+import { ptyExitChannel } from '@shared/events/ptyEvents';
+import { PROJECT_CONFIG_FILE } from '@shared/project-settings';
+import { makePtySessionId } from '@shared/ptySessionId';
+import { createLifecycleScriptTerminalId } from '@shared/terminals';
 
 export type ScriptType = 'setup' | 'run' | 'teardown';
 
@@ -178,7 +178,7 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
   private async reload(): Promise<void> {
     if (this._disposed) return;
     const refreshSeq = ++this._refreshSeq;
-    const settings = await rpc.tasks.getWorkspaceSettings(this.projectId, this.workspaceId);
+    const settings = await rpc.projectSettings.getSettings(this.workspaceId);
     if (this._disposed) return;
 
     const entries: { type: ScriptType; command: string; label: string }[] = [];

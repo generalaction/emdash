@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { type Branch } from '@shared/git';
 import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
 import { rpc } from '@renderer/lib/ipc';
+import { type Branch } from '@shared/git';
+import { useBranchName } from './use-branch-name';
 import { useBranchSelection } from './use-branch-selection';
 import { useTaskName } from './use-task-name';
 
@@ -38,14 +39,22 @@ export function useFromBranchMode(
     resetKey: selectedProjectId,
   });
 
+  const branchNameState = useBranchName({
+    taskName: taskName.taskName,
+    projectId: selectedProjectId,
+    resetKey: selectedProjectId,
+  });
+
   const isValid =
     taskName.taskName.trim().length > 0 &&
+    branchNameState.branchName.trim().length > 0 &&
     branchSelection.selectedBranch !== undefined &&
     !taskName.isPending;
 
   return {
     ...branchSelection,
     ...taskName,
+    ...branchNameState,
     isValid,
   };
 }

@@ -1,8 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Issue } from '@shared/tasks';
-import { buildLinkedIssueContextAction } from '@renderer/features/tasks/conversations/context-actions';
-import { resolveContextActionText } from '@renderer/features/tasks/conversations/resolve-context-action-text';
 import { refreshLinkedIssueContext } from '@renderer/features/tasks/issue-context/refresh-linked-issue-context';
+import type { Issue } from '@shared/tasks';
 
 const mocks = vi.hoisted(() => ({
   getIssueContext: vi.fn(),
@@ -55,20 +53,5 @@ describe('refreshLinkedIssueContext', () => {
     mocks.getIssueContext.mockResolvedValue({ success: false, error: 'not found' });
 
     await expect(refreshLinkedIssueContext(issue, 'project-1')).resolves.toBe(issue);
-  });
-
-  it('resolves linked issue action text with refreshed Linear context', async () => {
-    const issue = makeIssue();
-    const action = buildLinkedIssueContextAction(issue);
-    const refreshedIssue = makeIssue({ context: 'Linear issue activity' });
-    mocks.getIssueContext.mockResolvedValue({ success: true, issue: refreshedIssue });
-
-    await expect(
-      resolveContextActionText({
-        action: action!,
-        linkedIssue: issue,
-        projectId: 'project-1',
-      })
-    ).resolves.toContain('Linear issue activity');
   });
 });

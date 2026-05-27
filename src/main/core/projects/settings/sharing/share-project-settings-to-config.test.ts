@@ -331,15 +331,15 @@ describe('shareProjectSettingsToConfig', () => {
     });
   });
 
-  it('includes task worktrees from stored task state, not only active workspaces', async () => {
-    const getWorktree = vi.fn().mockResolvedValue('/repo/.emdash/worktrees/task-one');
+  it('includes task worktrees from git branch discovery, not only active workspaces', async () => {
+    const findBranchAnywhere = vi.fn().mockResolvedValue('/external/worktrees/task-one');
     const project = {
       projectId: 'project-1',
       repoPath: '/repo',
       fs: {},
       defaultWorkspaceType: { kind: 'local' },
       worktreeService: {
-        getWorktree,
+        findBranchAnywhere,
       },
     };
     mocks.select
@@ -372,10 +372,10 @@ describe('shareProjectSettingsToConfig', () => {
         type: 'task',
         taskId: 'task-1',
         label: 'Task One',
-        path: '/repo/.emdash/worktrees/task-one',
+        path: '/external/worktrees/task-one',
       },
     ]);
-    expect(getWorktree).toHaveBeenCalledWith('emdash/task-one');
+    expect(findBranchAnywhere).toHaveBeenCalledWith('emdash/task-one');
   });
 
   it('excludes task targets that use the project root working directory', async () => {
@@ -391,14 +391,14 @@ describe('shareProjectSettingsToConfig', () => {
         content: JSON.stringify({ shellSetup: 'worktree setup' }),
       }),
     };
-    const getWorktree = vi.fn();
+    const findBranchAnywhere = vi.fn();
     const project = {
       projectId: 'project-1',
       repoPath: '/repo',
       fs: projectRootFs,
       defaultWorkspaceType: { kind: 'local' },
       worktreeService: {
-        getWorktree,
+        findBranchAnywhere,
       },
     };
     mocks.workspaceGet.mockImplementation((workspaceId: string) => {
@@ -448,7 +448,7 @@ describe('shareProjectSettingsToConfig', () => {
         path: '/repo/.emdash/worktrees/task-two',
       },
     ]);
-    expect(getWorktree).not.toHaveBeenCalled();
+    expect(findBranchAnywhere).not.toHaveBeenCalled();
     expect(overrideState.shellSetup).toEqual([
       { label: 'Repo Name', path: '/repo', value: 'root setup' },
       {
@@ -460,14 +460,14 @@ describe('shareProjectSettingsToConfig', () => {
   });
 
   it('skips task target resolution when the project row no longer exists', async () => {
-    const getWorktree = vi.fn();
+    const findBranchAnywhere = vi.fn();
     const project = {
       projectId: 'project-1',
       repoPath: '/repo',
       fs: {},
       defaultWorkspaceType: { kind: 'local' },
       worktreeService: {
-        getWorktree,
+        findBranchAnywhere,
       },
     };
     mocks.select.mockReturnValueOnce({
@@ -484,7 +484,7 @@ describe('shareProjectSettingsToConfig', () => {
 
     expect(targets).toEqual([{ type: 'project', label: 'Project repository', path: '/repo' }]);
     expect(mocks.select).toHaveBeenCalledTimes(1);
-    expect(getWorktree).not.toHaveBeenCalled();
+    expect(findBranchAnywhere).not.toHaveBeenCalled();
   });
 
   it('detects workspace setting overrides from .emdash.json files', async () => {
@@ -507,7 +507,7 @@ describe('shareProjectSettingsToConfig', () => {
       },
       defaultWorkspaceType: { kind: 'local' },
       worktreeService: {
-        getWorktree: vi.fn(),
+        findBranchAnywhere: vi.fn(),
       },
     };
     mocks.select

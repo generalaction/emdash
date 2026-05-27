@@ -1,6 +1,10 @@
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
-import { GIT_EXECUTABLE } from '@main/core/utils/exec';
+import {
+  GIT_EXECUTABLE,
+  isMissingGitExecutableError,
+  missingGitExecutableError,
+} from '@main/core/utils/exec';
 import type { ExecOptions, ExecResult, IExecutionContext } from './types';
 
 const execFileAsync = promisify(execFile);
@@ -32,6 +36,11 @@ export class LocalExecutionContext implements IExecutionContext {
       timeout,
       maxBuffer,
       signal: this._signal(opts.signal),
+    }).catch((error) => {
+      if (command === 'git' && isMissingGitExecutableError(error)) {
+        throw missingGitExecutableError();
+      }
+      throw error;
     }) as Promise<ExecResult>;
   }
 
@@ -73,7 +82,11 @@ export class LocalExecutionContext implements IExecutionContext {
         signal.removeEventListener('abort', onAbort);
         if (!settled) {
           settled = true;
-          reject(err);
+          reject(
+            command === 'git' && isMissingGitExecutableError(err)
+              ? missingGitExecutableError()
+              : err
+          );
         }
       });
 

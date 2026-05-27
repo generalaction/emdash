@@ -1,12 +1,12 @@
 import { type Terminal } from '@xterm/xterm';
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
+import { events, rpc } from '@renderer/lib/ipc';
+import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
+import { log } from '@renderer/utils/logger';
 import type { AppSettings } from '@shared/app-settings';
 import { appPasteChannel } from '@shared/events/appEvents';
 import { ptyDataChannel, ptyExitChannel } from '@shared/events/ptyEvents';
 import { TERMINAL_FONT_SIZE_DEFAULT } from '@shared/terminal-settings';
-import { events, rpc } from '@renderer/lib/ipc';
-import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
-import { log } from '@renderer/utils/logger';
 import { usePaneSizingContext } from './pane-sizing-context';
 import type { FrontendPty, SessionTheme } from './pty';
 import { measureDimensions } from './pty-dimensions';
@@ -20,6 +20,7 @@ import {
   shouldMapShiftEnterToCtrlJ,
   shouldPasteToTerminal,
 } from './pty-keybindings';
+import { buildTerminalFontFamily } from './terminal-font';
 
 // xterm's proposed API and internal fields are not in the public TypeScript
 // types. Both code paths are necessary: the proposed `dimensions` API works in
@@ -56,6 +57,7 @@ const MIN_TERMINAL_COLS = 2;
 const MIN_TERMINAL_ROWS = 1;
 const IS_MAC_PLATFORM =
   typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+const IS_WINDOWS_PLATFORM = typeof navigator !== 'undefined' && /Win/.test(navigator.platform);
 
 export interface UsePtyOptions {
   /** Deterministic PTY session ID: makePtySessionId(projectId, scopeId, leafId). */
@@ -69,6 +71,7 @@ export interface UsePtyOptions {
   onFirstMessage?: (message: string) => void;
   onEnterPress?: (message: string) => void;
   onInterruptPress?: () => void;
+  onPasteFromClipboard?: PasteFromClipboardHandler;
 }
 
 export interface UseTerminalReturn {
@@ -76,6 +79,11 @@ export interface UseTerminalReturn {
   setTheme: (theme: SessionTheme) => void;
   sendInput: (data: string, options?: { track?: boolean }) => void;
 }
+
+export type PasteFromClipboardHandler = (helpers: {
+  focus: UseTerminalReturn['focus'];
+  sendInput: UseTerminalReturn['sendInput'];
+}) => void;
 
 /**
  * React hook that manages a full xterm.js terminal instance attached to
@@ -109,6 +117,7 @@ export function usePty(
     onFirstMessage,
     onEnterPress,
     onInterruptPress,
+    onPasteFromClipboard,
   } = options;
 
   // Stable refs for callbacks so the effect doesn't re-run on every render.
@@ -122,6 +131,8 @@ export function usePty(
   onEnterPressRef.current = onEnterPress;
   const onInterruptPressRef = useRef(onInterruptPress);
   onInterruptPressRef.current = onInterruptPress;
+  const onPasteFromClipboardRef = useRef(onPasteFromClipboard);
+  onPasteFromClipboardRef.current = onPasteFromClipboard;
   const themeRef = useRef(theme);
   themeRef.current = theme;
 
@@ -292,13 +303,21 @@ export function usePty(
   );
 
   const pasteFromClipboard = useCallback(() => {
-    navigator.clipboard
-      .readText()
-      .then((text) => {
+    const customPasteFromClipboard = onPasteFromClipboardRef.current;
+    if (customPasteFromClipboard) {
+      customPasteFromClipboard({ focus, sendInput });
+      return;
+    }
+
+    void (async () => {
+      try {
+        const text = await navigator.clipboard.readText();
         if (text) sendInput(text);
-      })
-      .catch(() => {});
-  }, [sendInput]);
+      } catch {
+        // Clipboard read denied or unavailable.
+      }
+    })();
+  }, [focus, sendInput]);
 
   // ─── Main effect: mount terminal once per sessionId ────────────────────────
 
@@ -354,7 +373,9 @@ export function usePty(
         (terminalSettings) => {
           if (terminalSettings?.fontFamily) {
             customFontFamily = terminalSettings.fontFamily.trim();
-            if (customFontFamily) frontendPty.terminal.options.fontFamily = customFontFamily;
+            if (customFontFamily) {
+              frontendPty.terminal.options.fontFamily = buildTerminalFontFamily(customFontFamily);
+            }
           }
           frontendPty.terminal.options.fontSize =
             terminalSettings?.fontSize ?? TERMINAL_FONT_SIZE_DEFAULT;
@@ -409,7 +430,7 @@ export function usePty(
           return false;
         }
 
-        if (shouldPasteToTerminal(event, IS_MAC_PLATFORM)) {
+        if (shouldPasteToTerminal(event, IS_MAC_PLATFORM, IS_WINDOWS_PLATFORM)) {
           event.preventDefault();
           event.stopImmediatePropagation();
           event.stopPropagation();
@@ -541,7 +562,7 @@ export function usePty(
         const detail = (e as CustomEvent<{ fontFamily?: string; fontSize?: number }>).detail;
         if (detail?.fontFamily !== undefined) {
           customFontFamily = detail.fontFamily.trim();
-          terminal.options.fontFamily = customFontFamily || undefined;
+          terminal.options.fontFamily = buildTerminalFontFamily(customFontFamily);
         }
         if (detail?.fontSize !== undefined) {
           terminal.options.fontSize = detail.fontSize;
@@ -627,7 +648,7 @@ export function usePty(
       inputBufferRef.current = '';
       submittedInputBufferRef.current = new SubmittedInputBuffer();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [sessionId, pty]); // Re-run only when the session changes
 
   // ── Theme update (after initial mount) ──────────────────────────────────────

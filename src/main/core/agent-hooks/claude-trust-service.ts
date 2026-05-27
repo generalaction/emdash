@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import type { AgentProviderId } from '@shared/agent-provider-registry';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import {
   FileSystemError,
@@ -9,8 +8,9 @@ import {
   type FileSystemProvider,
 } from '@main/core/fs/types';
 import { appSettingsService } from '@main/core/settings/settings-service';
-import { resolveRemoteHome } from '@main/core/ssh/utils';
+import { resolveRemoteHome } from '@main/core/ssh/lifecycle/remote-shell-profile';
 import { log } from '@main/lib/logger';
+import type { AgentProviderId } from '@shared/agent-provider-registry';
 
 const CLAUDE_PROVIDER_ID: AgentProviderId = 'claude';
 const CLAUDE_CONFIG_NAME = '.claude.json';

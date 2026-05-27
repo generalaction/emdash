@@ -1,7 +1,8 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { Input } from '@renderer/lib/ui/input';
 import { Switch } from '@renderer/lib/ui/switch';
+import { normalizeBranchPrefix } from '@shared/branch-prefix';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
 import { SettingRow } from './SettingRow';
 
@@ -30,12 +31,6 @@ const RepositorySettingsCard: React.FC = () => {
   const projectBusy = projectLoading || projectSaving;
   const localProjectBusy = localProjectLoading || localProjectSaving;
 
-  const example = useMemo(() => {
-    const prefix = branchPrefix ? `${branchPrefix}/` : '';
-    const suffix = appendRandomBranchSuffix ? '-a3f' : '';
-    return `${prefix}my-feature${suffix}`;
-  }, [appendRandomBranchSuffix, branchPrefix]);
-
   return (
     <div className="grid gap-8">
       <div className="grid gap-2">
@@ -44,7 +39,8 @@ const RepositorySettingsCard: React.FC = () => {
             key={branchPrefix}
             defaultValue={branchPrefix}
             onBlur={(e) => {
-              const next = e.target.value.trim();
+              const next = normalizeBranchPrefix(e.currentTarget.value);
+              e.currentTarget.value = next;
               if (next !== branchPrefix) {
                 updateProject({ branchPrefix: next });
               }
@@ -61,8 +57,8 @@ const RepositorySettingsCard: React.FC = () => {
             disabled={projectBusy}
           />
         </div>
-        <div className="text-[11px] text-muted-foreground">
-          Example: <code className="rounded bg-muted/60 px-1">{example}</code>
+        <div className="text-xs text-foreground-passive">
+          Leave empty to create branches without a prefix.
         </div>
       </div>
       <SettingRow

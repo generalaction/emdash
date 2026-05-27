@@ -1,6 +1,12 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
+import type { IExecutionContext } from '@main/core/execution-context/types';
+import type { FileSystemProvider } from '@main/core/fs/types';
+import { GIT_EXECUTABLE } from '@main/core/utils/exec';
+import { HookCore } from '@main/lib/hookable';
+import type { IDisposable } from '@main/lib/lifecycle';
+import { log } from '@main/lib/logger';
 import {
   HEAD_MODE,
   toRangeString,
@@ -18,6 +24,7 @@ import {
   type FetchPrForReviewError,
   type FullGitStatus,
   type GitChange,
+  type GitChangeStatus,
   type GitHeadState,
   type GitInfo,
   type GitObjectRef,
@@ -33,17 +40,11 @@ import {
   type SoftResetError,
 } from '@shared/git';
 import { DEFAULT_REMOTE_NAME } from '@shared/git-utils';
-import { parseGitHubRepository } from '@shared/github-repository';
 import { err, ok, type Result } from '@shared/result';
-import type { IExecutionContext } from '@main/core/execution-context/types';
-import type { FileSystemProvider } from '@main/core/fs/types';
-import { GIT_EXECUTABLE } from '@main/core/utils/exec';
-import { HookCore } from '@main/lib/hookable';
-import type { IDisposable } from '@main/lib/lifecycle';
-import { log } from '@main/lib/logger';
 import { type GitProvider } from '../types';
 import type { WorkspaceGitHooks } from '../workspace-git-provider';
 import { CatFileBatch } from './cat-file-batch';
+import { remoteNameForRepositoryUrl } from './git-repo-utils';
 import {
   computeBaseRef,
   mapStatus,
@@ -816,7 +817,7 @@ export class GitService implements GitProvider, IDisposable {
 
     const FIELD_SEP = '---FIELD_SEP---';
     const RECORD_SEP = '---RECORD_SEP---';
-    const format = `${RECORD_SEP}%H${FIELD_SEP}%s${FIELD_SEP}%an${FIELD_SEP}%aI${FIELD_SEP}%D${FIELD_SEP}%b`;
+    const format = `${RECORD_SEP}%H${FIELD_SEP}%P${FIELD_SEP}%s${FIELD_SEP}%an${FIELD_SEP}%aI${FIELD_SEP}%D${FIELD_SEP}%b`;
     // When base is provided (PR view), use a range so only commits between
     // base and head are returned — not a raw linear walk from head.
     const rangeArg = base ? `${toRefString(base)}..${headStr}` : headStr;
@@ -836,7 +837,7 @@ export class GitService implements GitProvider, IDisposable {
       .filter((entry) => entry.trim())
       .map((entry, index) => {
         const parts = entry.trim().split(FIELD_SEP);
-        const refs = parts[4] || '';
+        const refs = parts[5] || '';
         const tags = refs
           .split(',')
           .map((r) => r.trim())
@@ -844,10 +845,11 @@ export class GitService implements GitProvider, IDisposable {
           .map((r) => r.slice(5));
         return {
           hash: parts[0] || '',
-          subject: parts[1] || '',
-          body: (parts[5] || '').trim(),
-          author: parts[2] || '',
-          date: parts[3] || '',
+          parents: (parts[1] || '').split(' ').filter(Boolean),
+          subject: parts[2] || '',
+          body: (parts[6] || '').trim(),
+          author: parts[3] || '',
+          date: parts[4] || '',
           isPushed: skip + index >= aheadCount,
           tags,
         };
@@ -946,7 +948,7 @@ export class GitService implements GitProvider, IDisposable {
     const statLines = stdout.trim().split('\n').filter(Boolean);
     const statusLines = nameStatus.trim().split('\n').filter(Boolean);
 
-    const statusMap = new Map<string, string>();
+    const statusMap = new Map<string, GitChangeStatus>();
     for (const line of statusLines) {
       const [code, ...pathParts] = line.split('\t');
       const filePath = pathParts[pathParts.length - 1] || '';
@@ -1463,6 +1465,18 @@ export class GitService implements GitProvider, IDisposable {
     await this.ctx.exec('git', ['remote', 'add', name, url]);
   }
 
+  private async setBranchBaseConfig(branchName: string, baseRef: string): Promise<void> {
+    try {
+      await this.ctx.exec('git', ['config', `branch.${branchName}.base`, baseRef]);
+    } catch (error) {
+      log.warn('GitService: failed to set branch base metadata', {
+        branchName,
+        baseRef,
+        error: String(error),
+      });
+    }
+  }
+
   async createBranch(
     name: string,
     from: string,
@@ -1479,6 +1493,7 @@ export class GitService implements GitProvider, IDisposable {
     const base = syncWithRemote ? `${remote}/${from}` : `refs/heads/${from}`;
     try {
       await this.ctx.exec('git', ['branch', '--no-track', name, base]);
+      await this.setBranchBaseConfig(name, syncWithRemote ? `${remote}/${from}` : from);
       return ok();
     } catch (error: unknown) {
       const stderr = (error as { stderr?: string })?.stderr || String(error);
@@ -1513,7 +1528,7 @@ export class GitService implements GitProvider, IDisposable {
   ): Promise<Result<void, FetchPrForReviewError>> {
     try {
       if (isFork) {
-        const forkRemote = parseGitHubRepository(headRepositoryUrl)?.owner ?? 'fork';
+        const forkRemote = remoteNameForRepositoryUrl(headRepositoryUrl);
         // Idempotently ensure remote exists with the correct URL
         const remotes = await this.ctx.exec('git', ['remote']).catch(() => ({ stdout: '' }));
         const names = remotes.stdout

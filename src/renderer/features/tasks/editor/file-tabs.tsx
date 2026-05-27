@@ -63,14 +63,14 @@ export const FileTabs: React.FC<FileTabsProps> = ({
           items={tabs}
           onReorder={handleReorder}
           axis="x"
-          className="flex overflow-x-auto w-full h-full"
+          className="flex h-full w-full overflow-x-auto"
           itemClassName="list-none flex h-full"
           getKey={(item) => item.tabId}
         >
           {renderTab}
         </ReorderList>
       ) : (
-        <div className="flex overflow-x-auto h-full">{tabs.map(renderTab)}</div>
+        <div className="flex h-full overflow-x-auto">{tabs.map(renderTab)}</div>
       )}
     </div>
   );
@@ -92,9 +92,11 @@ const FileTab: React.FC<FileTabProps> = observer(function FileTab({
   onClose,
 }) {
   const fileName = tab.path.split('/').pop() || 'Untitled';
-  const isMonacoFile = tab.kind === 'text' || tab.kind === 'markdown' || tab.kind === 'svg';
+  const isMonacoFile =
+    !tab.isExternal && (tab.kind === 'text' || tab.kind === 'markdown' || tab.kind === 'svg');
   const modelStatus = useModelStatus(tab.bufferUri);
-  const showSpinner = useDelayedBoolean(isMonacoFile && modelStatus === 'loading', 200);
+  const isLoading = tab.isExternal ? tab.isLoading : isMonacoFile && modelStatus === 'loading';
+  const showSpinner = useDelayedBoolean(isLoading, 200);
 
   return (
     <>
@@ -108,7 +110,7 @@ const FileTab: React.FC<FileTabProps> = observer(function FileTab({
         onDoubleClick={onDoubleClick}
         title={tab.isPreview ? `${tab.path} (preview — double-click to keep)` : tab.path}
       >
-        <div className="flex items-center pl-3 pr-2 h-full gap-1.5">
+        <div className="flex h-full items-center gap-1.5 pr-2 pl-3">
           <span className="shrink-0 [&>svg]:h-3 [&>svg]:w-3">
             {showSpinner ? (
               <Loader2 className="h-3 w-3 animate-spin" />
@@ -119,7 +121,7 @@ const FileTab: React.FC<FileTabProps> = observer(function FileTab({
           <span className={cn('max-w-[200px] text-sm truncate p-1', tab.isPreview && 'italic')}>
             {fileName}
           </span>
-          <div className="relative size-5 flex items-center justify-center shrink-0">
+          <div className="relative flex size-5 shrink-0 items-center justify-center">
             {tab.isDirty && (
               <div
                 className="size-2 rounded-full bg-foreground group-hover:opacity-0"
@@ -127,7 +129,7 @@ const FileTab: React.FC<FileTabProps> = observer(function FileTab({
               />
             )}
             <button
-              className="absolute inset-0 hover:bg-background-2 text-foreground-muted flex items-center justify-center rounded-md opacity-0 group-hover:opacity-100"
+              className="absolute inset-0 flex items-center justify-center rounded-md text-foreground-muted opacity-0 group-hover:opacity-100 hover:bg-background-2"
               onClick={onClose}
               aria-label={`Close ${fileName}`}
             >

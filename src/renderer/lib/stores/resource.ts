@@ -61,14 +61,22 @@ export class Resource<T, TEventData = void> {
   constructor(
     fetch: (() => Promise<T>) | null,
     strategies: ResourceStrategy<T, TEventData>[],
-    options?: { init?: T }
+    options?: {
+      init?: T;
+      /**
+       * Track only data reference changes. Do not use ctx.mutate() with this
+       * option unless T contains its own MobX observable state; in-place plain
+       * object/array mutations will not notify observers. Use ctx.set() instead.
+       */
+      refData?: boolean;
+    }
   ) {
     this._fetch = fetch;
     this._strategies = strategies;
     this.data = options?.init ?? null;
 
     makeObservable(this, {
-      data: observable,
+      data: options?.refData ? observable.ref : observable,
       loading: observable,
       error: observable,
       lastUpdatedAt: observable,

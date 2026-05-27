@@ -63,12 +63,12 @@ Tip: During development, the renderer hot‑reloads. Changes to the Electron mai
 
 ```
 pnpm run format     # Format code with Prettier (required)
-pnpm run lint       # ESLint
+pnpm run lint       # oxlint
 pnpm run typecheck  # TypeScript type checking
 pnpm run test       # Vitest test suite
 ```
 
-Pre-commit hooks run automatically via Husky + lint-staged. On each commit, staged files are auto-formatted with Prettier and linted with ESLint. Run the full local gate before opening or merging a PR.
+Pre-commit hooks run automatically via Husky + lint-staged. On each commit, staged files are auto-formatted with Prettier and linted with oxlint. Run the full local gate before opening or merging a PR.
 
 If you need to skip the hook for a work-in-progress commit, use `git commit --no-verify`. The checks will still run in CI when you open a PR.
 
@@ -94,12 +94,12 @@ feat(docs): add changelog tab with GitHub releases integration
 
 ## Code Style and Patterns
 
-TypeScript + ESLint + Prettier
+TypeScript + oxlint + Prettier
 
 Pre-commit hooks handle formatting and linting automatically on staged files. For full-project checks you can run them manually:
 
 - `pnpm run format` -- format all files with Prettier
-- `pnpm run lint` -- ESLint across all files
+- `pnpm run lint` -- oxlint across all files
 - `pnpm run typecheck` -- TypeScript type checking (whole project)
 - `pnpm run test` -- run the test suite
 

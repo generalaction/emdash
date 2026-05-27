@@ -2,9 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Command } from 'cmdk';
 import { Activity, FolderOpen, GitBranch, MessageSquare, type LucideIcon } from 'lucide-react';
 import { useObserver } from 'mobx-react-lite';
-import React, { useEffect, useMemo, useState } from 'react';
-import { ALL_COMMAND_DEFS, type CommandDef } from '@shared/commands';
-import type { SearchItem } from '@shared/search';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
 import { getTaskStore, getTaskView } from '@renderer/features/tasks/stores/task-selectors';
@@ -15,7 +13,11 @@ import { getEffectiveHotkey } from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { appState } from '@renderer/lib/stores/app-state';
+import { Shortcut } from '@renderer/lib/ui/shortcut';
 import { cn } from '@renderer/utils/utils';
+import { ALL_COMMAND_DEFS, type CommandDef } from '@shared/commands';
+import type { SearchItem } from '@shared/search';
 import { getCommandIcon } from './command-icons';
 import { PaletteConversationItem } from './palette-conversation-item';
 import { PALETTE_ITEM_CLASS } from './palette-item-styles';
@@ -36,7 +38,7 @@ interface PaletteAction {
   id: string;
   title: string;
   subtitle?: string;
-  shortcut?: string;
+  shortcut?: ReturnType<typeof getEffectiveHotkey>;
   icon?: LucideIcon;
   execute: () => void;
 }
@@ -68,12 +70,6 @@ const TASK_SUGGESTED = [
 const PROJECT_SUGGESTED = ['app.newTask', 'app.settings', 'resource-monitor', 'app.giveFeedback'];
 const APP_SUGGESTED = ['app.newProject', 'app.settings', 'resource-monitor', 'app.giveFeedback'];
 
-/** Converts a TanStack hotkey string (e.g. 'Mod+Shift+C') to a display label. */
-function formatHotkey(hotkey: string | undefined): string | undefined {
-  if (!hotkey) return undefined;
-  return hotkey.replace('Mod', '⌘').replace('Shift', '⇧').replace('Alt', '⌥').replace(/\+/g, '');
-}
-
 function PaletteItem({
   value,
   item,
@@ -91,13 +87,18 @@ function PaletteItem({
     KIND_ICON[item.kind]
   );
   return (
-    <Command.Item value={value} onSelect={onSelect} className={PALETTE_ITEM_CLASS}>
+    <Command.Item value={value} onSelect={onSelect} className={cn(PALETTE_ITEM_CLASS, 'group')}>
       {iconNode}
       <span className="flex-1 truncate">{item.title}</span>
       {action?.shortcut && (
-        <kbd className="shrink-0 rounded bg-background-quaternary px-1.5 py-0.5 text-xs text-foreground/60">
-          {action.shortcut}
-        </kbd>
+        <>
+          <Shortcut hotkey={action.shortcut} className="group-aria-selected:hidden" />
+          <Shortcut
+            hotkey={action.shortcut}
+            variant="badge"
+            className="hidden group-aria-selected:inline-flex"
+          />
+        </>
       )}
     </Command.Item>
   );
@@ -137,6 +138,14 @@ export function CommandPaletteModal({
   const { value: keyboard } = useAppSettingsKey('keyboard');
   const queryClient = useQueryClient();
 
+  const handleClose = onClose;
+
+  useEffect(() => {
+    if (view !== 'resource-monitor') return;
+    appState.resourceMonitor.start();
+    return () => appState.resourceMonitor.dispose();
+  }, [view]);
+
   // Prefetch recents immediately on mount so the empty-query view is instant.
   useEffect(() => {
     void queryClient.prefetchQuery({
@@ -145,7 +154,7 @@ export function CommandPaletteModal({
         rpc.search.commandPalette({ query: '', context: { projectId, taskId, workspaceId } }),
       staleTime: 5_000,
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, []);
 
   const { data: dbResults = [] } = useQuery({
@@ -173,12 +182,10 @@ export function CommandPaletteModal({
           id: cmd.id,
           title: cmd.label,
           subtitle: cmd.description,
-          shortcut: cmd.shortcutKey
-            ? formatHotkey(getEffectiveHotkey(cmd.shortcutKey, keyboard) ?? undefined)
-            : undefined,
+          shortcut: cmd.shortcutKey ? getEffectiveHotkey(cmd.shortcutKey, keyboard) : null,
           icon: getCommandIcon(def?.iconKey),
           execute: () => {
-            onClose();
+            handleClose();
             cmd.execute();
           },
         };
@@ -194,7 +201,9 @@ export function CommandPaletteModal({
             title: 'Resource Monitor',
             subtitle: 'Show CPU and memory performance for running agents',
             icon: Activity,
-            execute: () => setView('resource-monitor'),
+            execute: () => {
+              setView('resource-monitor');
+            },
           }
         : null,
     [resourceMonitor?.enabled]
@@ -228,26 +237,26 @@ export function CommandPaletteModal({
 
   const handleNavigateToTask = (item: SearchItem) => {
     if (!item.projectId) return;
-    onClose();
+    handleClose();
     navigate('task', { projectId: item.projectId, taskId: item.id });
   };
 
   const handleNavigateToProject = (item: SearchItem) => {
-    onClose();
+    handleClose();
     navigate('project', { projectId: item.id });
   };
 
   const handleNavigateToConversation = (item: SearchItem) => {
     if (!item.projectId || !item.taskId) return;
-    getTaskView(item.projectId, item.taskId)?.tabManager.openConversation(item.id);
-    onClose();
+    getTaskView(item.projectId, item.taskId)?.tabGroupManager.openConversation(item.id);
+    handleClose();
     navigate('task', { projectId: item.projectId, taskId: item.taskId });
   };
 
   const handleOpenFile = (item: SearchItem) => {
     if (!item.projectId || !item.taskId) return;
     getTaskView(item.projectId, item.taskId)?.tabManager.openFile(item.id);
-    onClose();
+    handleClose();
     navigate('task', { projectId: item.projectId, taskId: item.taskId });
   };
 
@@ -258,31 +267,31 @@ export function CommandPaletteModal({
     if (item.kind === 'file') return handleOpenFile(item);
   };
 
+  const handleResourceMonitorBack = useCallback(() => {
+    setView('search');
+  }, []);
+
   useEffect(() => {
     if (view !== 'resource-monitor') return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' || e.key === 'Backspace') {
         e.preventDefault();
         e.stopPropagation();
-        setView('search');
+        handleResourceMonitorBack();
       }
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [view]);
+  }, [view, handleResourceMonitorBack]);
 
   if (view === 'resource-monitor') {
     return (
       <div className="flex flex-col overflow-hidden">
-        <ResourceMonitorView onBack={() => setView('search')} />
+        <ResourceMonitorView onBack={handleResourceMonitorBack} />
         <div className="flex items-center gap-4 border-t border-foreground/10 px-3 py-2">
           <span className="flex items-center gap-1 text-xs text-foreground/40">
-            <kbd className="rounded bg-background-secondary px-1.5 py-0.5 font-mono text-[10px] text-foreground/50">
-              Esc
-            </kbd>
-            <kbd className="rounded bg-background-secondary px-1.5 py-0.5 font-mono text-[10px] text-foreground/50">
-              ⌫
-            </kbd>
+            <Shortcut hotkey="Escape" variant="badge" />
+            <Shortcut hotkey="Backspace" variant="badge" />
             Back
           </span>
         </div>
@@ -322,8 +331,8 @@ export function CommandPaletteModal({
                   | CommandDef
                   | undefined;
                 const shortcut = def?.shortcutKey
-                  ? formatHotkey(getEffectiveHotkey(def.shortcutKey, keyboard) ?? undefined)
-                  : undefined;
+                  ? getEffectiveHotkey(def.shortcutKey, keyboard)
+                  : null;
                 const displayItem: PaletteAction = {
                   kind: 'action',
                   id: item.id,
@@ -332,7 +341,7 @@ export function CommandPaletteModal({
                   shortcut,
                   icon: getCommandIcon(def?.iconKey),
                   execute: () => {
-                    onClose();
+                    handleClose();
                     live.execute();
                   },
                 };
@@ -342,7 +351,7 @@ export function CommandPaletteModal({
                     value={item.id}
                     item={displayItem}
                     onSelect={() => {
-                      onClose();
+                      handleClose();
                       live.execute();
                     }}
                   />
@@ -399,7 +408,7 @@ export function CommandPaletteModal({
             <PaletteNotificationsGroup
               currentProjectId={projectId}
               currentTaskId={taskId}
-              onClose={onClose}
+              onClose={handleClose}
               navigate={navigate}
             />
             {actionResults.length > 0 && (
@@ -435,7 +444,7 @@ export function CommandPaletteModal({
               <PaletteProjectsGroup
                 currentProjectId={projectId}
                 limit={5}
-                onClose={onClose}
+                onClose={handleClose}
                 navigate={navigate}
               />
             )}
@@ -469,24 +478,16 @@ export function CommandPaletteModal({
 
       <div className="flex items-center gap-4 border-t border-foreground/10 px-3 py-2">
         <span className="flex items-center gap-1 text-xs text-foreground/40">
-          <kbd className="rounded bg-background-secondary px-1.5 py-0.5 font-mono text-[10px] text-foreground/50">
-            ↑
-          </kbd>
-          <kbd className="rounded bg-background-secondary px-1.5 py-0.5 font-mono text-[10px] text-foreground/50">
-            ↓
-          </kbd>
+          <Shortcut hotkey="ArrowUp" variant="badge" />
+          <Shortcut hotkey="ArrowDown" variant="badge" />
           Navigate
         </span>
         <span className="flex items-center gap-1 text-xs text-foreground/40">
-          <kbd className="rounded bg-background-secondary px-1.5 py-0.5 font-mono text-[10px] text-foreground/50">
-            ↵
-          </kbd>
+          <Shortcut hotkey="Enter" variant="badge" />
           Select
         </span>
         <span className="flex items-center gap-1 text-xs text-foreground/40">
-          <kbd className="rounded bg-background-secondary px-1.5 py-0.5 font-mono text-[10px] text-foreground/50">
-            Esc
-          </kbd>
+          <Shortcut hotkey="Escape" variant="badge" />
           Close
         </span>
       </div>

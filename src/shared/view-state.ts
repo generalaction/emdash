@@ -7,7 +7,7 @@ export type TabViewSnapshot = {
 
 export type TabDescriptor =
   | { kind: 'conversation'; tabId: string; conversationId: string; isPreview: boolean }
-  | { kind: 'file'; tabId: string; path: string; isPreview: boolean }
+  | { kind: 'file'; tabId: string; path: string; isPreview: boolean; isExternal?: boolean }
   | {
       kind: 'diff';
       tabId: string;
@@ -16,6 +16,10 @@ export type TabDescriptor =
       originalRef: GitObjectRef;
       modifiedRef?: GitObjectRef;
       prNumber?: number;
+      prBaseOid?: string;
+      prHeadOid?: string;
+      commitOriginalSha?: string | null;
+      commitModifiedSha?: string;
       status?: GitChangeStatus;
       isPreview: boolean;
     };
@@ -36,6 +40,10 @@ export type TabGroupsSnapshot = {
 };
 
 export type EditorViewSnapshot = {
+  /** Legacy: was used before tab state moved to TabManagerSnapshot. Ignored on restore. */
+  tabs?: Array<{ tabId: string; path: string; isPreview: boolean; isExternal?: boolean }>;
+  /** Legacy: was used before tab state moved to TabManagerSnapshot. Ignored on restore. */
+  activeTabId?: string | null;
   expandedPaths: string[];
 };
 
@@ -65,11 +73,17 @@ export interface ActiveFile {
    *  'pr'     = PR diff (originalRef is remote-tracking base) */
   group: 'disk' | 'staged' | 'git' | 'pr';
   originalRef: GitObjectRef;
-  /** PR head SHA for the modified side of a 'pr' group diff.
-   *  When absent the diff stack falls back to HEAD_REF. */
+  /** Fixed modified-side ref for 'git' and 'pr' diffs.
+   *  When absent the diff viewer falls back to HEAD_REF. */
   modifiedRef?: GitObjectRef;
   /** Set only when group === 'pr'. Identifies the PR for store lookups. */
   prNumber?: number;
+  /** Exact PR base/head OIDs for comment scoping and stable target identity. */
+  prBaseOid?: string;
+  prHeadOid?: string;
+  /** Exact commit diff endpoints for comment scoping. Root commits use null original. */
+  commitOriginalSha?: string | null;
+  commitModifiedSha?: string;
 }
 
 export type TaskViewSnapshot = {

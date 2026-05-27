@@ -1,13 +1,13 @@
 import { appendFile, mkdir, readFile, rename, stat, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import { app } from 'electron';
+import { APP_SCHEME } from '@main/app/protocol';
 import {
   serializeLogValue,
   stringifyLogValue,
   type Level,
   type LogSinkEntry,
 } from '@shared/logger';
-import { APP_SCHEME } from '@main/app/protocol';
 
 const MAX_LOG_BYTES = 5 * 1024 * 1024;
 const DIAGNOSTIC_LOG_BYTES = 500 * 1024;
