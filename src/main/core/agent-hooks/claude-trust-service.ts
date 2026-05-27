@@ -13,7 +13,9 @@ import { log } from '@main/lib/logger';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 
 const CLAUDE_PROVIDER_ID: AgentProviderId = 'claude';
+const COPILOT_PROVIDER_ID: AgentProviderId = 'copilot';
 const CLAUDE_CONFIG_NAME = '.claude.json';
+const COPILOT_CONFIG_NAME = '.copilot/config.json';
 const CLAUDE_CONFIG_MAX_BYTES = 2 * 1024 * 1024;
 
 export class ClaudeTrustService {
@@ -35,13 +37,15 @@ export class ClaudeTrustService {
     homedir: string;
   }): Promise<void> {
     if (!cwd) return;
-    if (!(await this.shouldAutoTrust(providerId))) return;
+    const trustConfig = await this.getTrustConfig(providerId);
+    if (!trustConfig) return;
     const normalizedPath = path.resolve(cwd);
-    const configPath = path.join(homedir, CLAUDE_CONFIG_NAME);
+    const configPath = path.join(homedir, trustConfig.configName);
     await this.withLock(configPath, () =>
       this.ensureTrusted(normalizedPath, {
         readConfig: () => readLocalConfig(configPath),
         writeConfig: (content) => writeLocalConfigAtomic(configPath, content),
+        trustConfig,
       })
     );
   }
@@ -58,24 +62,40 @@ export class ClaudeTrustService {
     remoteFs: Pick<FileSystemProvider, 'realPath' | 'read' | 'write'>;
   }): Promise<void> {
     if (!cwd) return;
-    if (!(await this.shouldAutoTrust(providerId))) return;
+    const trustConfig = await this.getTrustConfig(providerId);
+    if (!trustConfig) return;
 
     const normalizedPath = await remoteFs.realPath(cwd).catch(() => path.posix.resolve('/', cwd));
     const homeDir = await resolveRemoteHome(ctx);
-    const configPath = path.posix.join(homeDir, CLAUDE_CONFIG_NAME);
+    const configPath = path.posix.join(homeDir, trustConfig.configName);
 
     await this.withLock(configPath, () =>
       this.ensureTrusted(normalizedPath, {
         readConfig: () => readRemoteConfig(remoteFs, configPath),
         writeConfig: (content) => writeRemoteConfigAtomic(remoteFs, ctx, configPath, content),
+        trustConfig,
       })
     );
   }
 
-  private async shouldAutoTrust(providerId: AgentProviderId): Promise<boolean> {
-    if (providerId !== CLAUDE_PROVIDER_ID) return false;
+  private async getTrustConfig(providerId: AgentProviderId): Promise<TrustConfig | null> {
+    if (providerId !== CLAUDE_PROVIDER_ID && providerId !== COPILOT_PROVIDER_ID) return null;
     const { autoTrustWorktrees } = await this.deps.getTaskSettings();
-    return autoTrustWorktrees;
+    if (!autoTrustWorktrees) return null;
+
+    if (providerId === COPILOT_PROVIDER_ID) {
+      return {
+        configName: COPILOT_CONFIG_NAME,
+        parseWarningName: 'Copilot',
+        withTrustedPath: withCopilotTrustedFolder,
+      };
+    }
+
+    return {
+      configName: CLAUDE_CONFIG_NAME,
+      parseWarningName: 'Claude',
+      withTrustedPath: withClaudeTrustedProject,
+    };
   }
 
   private withLock(configPath: string, fn: () => Promise<void>): Promise<void> {
@@ -90,13 +110,14 @@ export class ClaudeTrustService {
     io: {
       readConfig: () => Promise<string | null>;
       writeConfig: (content: string) => Promise<void>;
+      trustConfig: TrustConfig;
     }
   ): Promise<void> {
     try {
       const rawConfig = await io.readConfig();
-      const config = parseConfig(rawConfig);
+      const config = parseConfig(rawConfig, io.trustConfig.parseWarningName);
       if (!config) return;
-      const nextConfig = withTrustedProject(config, normalizedPath);
+      const nextConfig = io.trustConfig.withTrustedPath(config, normalizedPath);
       if (!nextConfig) return;
       await io.writeConfig(JSON.stringify(nextConfig, null, 2) + '\n');
     } catch (error: unknown) {
@@ -112,23 +133,32 @@ export const claudeTrustService = new ClaudeTrustService({
   getTaskSettings: () => appSettingsService.get('tasks'),
 });
 
-function parseConfig(raw: string | null): Record<string, unknown> | null {
+type TrustConfig = {
+  configName: string;
+  parseWarningName: string;
+  withTrustedPath: (
+    config: Record<string, unknown>,
+    worktreePath: string
+  ) => Record<string, unknown> | null;
+};
+
+function parseConfig(raw: string | null, warningName: string): Record<string, unknown> | null {
   if (!raw || raw.trim() === '') return {};
 
   try {
     const parsed = JSON.parse(raw);
     if (isPlainObject(parsed)) return parsed;
-    log.warn('ClaudeTrustService: refusing to overwrite non-object Claude config root');
+    log.warn(`ClaudeTrustService: refusing to overwrite non-object ${warningName} config root`);
     return null;
   } catch (error: unknown) {
-    log.warn('ClaudeTrustService: refusing to overwrite corrupt Claude config', {
+    log.warn(`ClaudeTrustService: refusing to overwrite corrupt ${warningName} config`, {
       error: String(error),
     });
     return null;
   }
 }
 
-function withTrustedProject(
+function withClaudeTrustedProject(
   config: Record<string, unknown>,
   worktreePath: string
 ): Record<string, unknown> | null {
@@ -153,6 +183,19 @@ function withTrustedProject(
   };
 }
 
+function withCopilotTrustedFolder(
+  config: Record<string, unknown>,
+  worktreePath: string
+): Record<string, unknown> | null {
+  const trustedFolders = Array.isArray(config.trusted_folders) ? config.trusted_folders : [];
+  if (trustedFolders.includes(worktreePath)) return null;
+
+  return {
+    ...config,
+    trusted_folders: [...trustedFolders, worktreePath],
+  };
+}
+
 async function readLocalConfig(configPath: string): Promise<string | null> {
   try {
     return await fs.readFile(configPath, 'utf8');
@@ -165,6 +208,7 @@ async function readLocalConfig(configPath: string): Promise<string | null> {
 async function writeLocalConfigAtomic(configPath: string, content: string): Promise<void> {
   const tmpPath = `${configPath}.${randomUUID()}.tmp`;
   try {
+    await fs.mkdir(path.dirname(configPath), { recursive: true });
     await fs.writeFile(tmpPath, content, 'utf8');
     await fs.rename(tmpPath, configPath);
   } catch (error: unknown) {
@@ -196,6 +240,7 @@ async function writeRemoteConfigAtomic(
 ): Promise<void> {
   const tmpPath = `${configPath}.${randomUUID()}.tmp`;
   try {
+    await ctx.exec('mkdir', ['-p', path.posix.dirname(configPath)]);
     await remoteFs.write(tmpPath, content);
     await ctx.exec('mv', [tmpPath, configPath]);
   } catch (error: unknown) {
