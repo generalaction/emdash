@@ -24,7 +24,7 @@ import { makePtyId } from '@shared/ptyId';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { buildAgentSessionCommand } from './agent-command';
 import { scheduleInitialPromptInjection } from './keystroke-injection';
-import { prepareLocalOpenCodeThemeEnv, withOpenCodeThemeShellSetup } from './opencode-theme-state';
+import { prepareLocalOpenCodeThemeEnv } from './opencode-theme-state';
 import { resolveProviderEnv } from './provider-env';
 
 const DEFAULT_COLS = 80;
@@ -111,8 +111,14 @@ export class LocalConversationProvider implements ConversationProvider {
       providerId: conversation.providerId,
       autoApprove: conversation.autoApprove,
     });
-    const openCodeThemeEnv = await prepareLocalOpenCodeThemeEnv(conversation.providerId);
-    const shellSetup = withOpenCodeThemeShellSetup(this.shellSetup, openCodeThemeEnv);
+    try {
+      await prepareLocalOpenCodeThemeEnv(conversation.providerId);
+    } catch (error) {
+      log.warn('LocalConversationProvider: failed to prepare opencode theme state', {
+        conversationId: conversation.id,
+        error: String(error),
+      });
+    }
 
     const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
 
@@ -123,7 +129,7 @@ export class LocalConversationProvider implements ConversationProvider {
         kind: 'run-command',
         cwd: this.taskPath,
         command: { kind: 'argv', command, args },
-        shellSetup,
+        shellSetup: this.shellSetup,
         tmuxSessionName,
       },
     });
@@ -150,7 +156,7 @@ export class LocalConversationProvider implements ConversationProvider {
       env: {
         ...buildAgentEnv({
           hook: port > 0 ? { port, ptyId, token } : undefined,
-          providerVars: { ...providerEnv, ...openCodeThemeEnv },
+          providerVars: providerEnv,
         }),
         ...this.taskEnvVars,
         ...(ampHooksAvailable && !this.taskEnvVars['PLUGINS'] ? { PLUGINS: 'all' } : {}),
