@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { FALLBACK_TIME_ZONE, getLocalTimeZone } from './timezone';
+import { getLocalTimeZone } from './timezone';
 
 describe('getLocalTimeZone', () => {
   it('uses the runtime time zone', () => {
@@ -12,7 +12,7 @@ describe('getLocalTimeZone', () => {
     } as unknown as Intl.DateTimeFormat);
 
     try {
-      expect(getLocalTimeZone()).toBe(FALLBACK_TIME_ZONE);
+      expect(getLocalTimeZone()).toBe('UTC');
     } finally {
       spy.mockRestore();
     }

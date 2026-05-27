@@ -427,11 +427,6 @@ export async function updateAutomation(
   });
 }
 
-export async function detachProject(projectId: string): Promise<number> {
-  const rows = await detachProjectAutomations(projectId);
-  return rows.length;
-}
-
 export async function detachProjectAutomations(projectId: string): Promise<Array<{ id: string }>> {
   const rows = await db
     .update(automations)

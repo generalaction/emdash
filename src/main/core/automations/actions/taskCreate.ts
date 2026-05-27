@@ -10,7 +10,6 @@ import { taskService } from '@main/core/tasks/task-service';
 import { resolveAutomationAgentAutoApprove } from '@shared/agent-auto-approve-defaults';
 import type { TaskCreateAction } from '@shared/automations/actions';
 import { bareRefName } from '@shared/git-utils';
-import { makePtySessionId } from '@shared/ptySessionId';
 import { err, ok, type Result } from '@shared/result';
 import type { CreateTaskError, CreateTaskParams, CreateTaskStrategy } from '@shared/tasks';
 import { linkRunTask } from '../run-transitions';
@@ -257,10 +256,7 @@ export async function executeTaskCreate(
       return err({ message: error instanceof Error ? error.message : String(error), taskId });
     }
 
-    return ok({
-      taskId,
-      sessionId: makePtySessionId(projectId, taskId, conversationId),
-    });
+    return ok({ taskId });
   } catch (error) {
     return err({ message: error instanceof Error ? error.message : String(error) });
   }

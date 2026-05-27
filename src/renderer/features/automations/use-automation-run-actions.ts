@@ -65,7 +65,5 @@ export function useAutomationRunActions() {
     deleteRun,
     bulkDeleteRuns,
     rerunFrom,
-    runNowPending: runNow.isPending,
-    runNowVariables: runNow.variables,
   };
 }

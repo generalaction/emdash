@@ -10,7 +10,6 @@ type RunUpdateValues = Parameters<typeof updateRun>[1];
 
 interface EmitRunTransitionOptions {
   hook?: RunHookName | false;
-  sessionId?: string;
   emitUpdate?: boolean;
 }
 
@@ -29,13 +28,12 @@ function hookForStatus(status: AutomationRun['status']): RunHookName | undefined
   }
 }
 
-export function emitRunUpdated(run: AutomationRun, sessionId?: string): void {
+export function emitRunUpdated(run: AutomationRun): void {
   events.emit(automationRunUpdatedChannel, {
     automationId: run.automationId,
     runId: run.id,
     status: run.status,
     taskId: run.taskId,
-    sessionId,
   });
 }
 
@@ -43,7 +41,7 @@ export function emitRunTransition(
   run: AutomationRun,
   options: EmitRunTransitionOptions = {}
 ): void {
-  if (options.emitUpdate !== false) emitRunUpdated(run, options.sessionId);
+  if (options.emitUpdate !== false) emitRunUpdated(run);
 
   const hook = options.hook === undefined ? hookForStatus(run.status) : options.hook;
   if (hook) automationEvents._emit(hook, run);
@@ -122,7 +120,6 @@ export async function markRunSucceeded(
     finishedAt?: number;
     taskId: string | null;
     createdTaskId: string | null;
-    sessionId?: string;
   }
 ): Promise<AutomationRun> {
   return updateRunAndEmit(
@@ -133,6 +130,6 @@ export async function markRunSucceeded(
       taskId: input.taskId,
       createdTaskId: input.createdTaskId,
     },
-    { hook: 'automation:run:finish', sessionId: input.sessionId }
+    { hook: 'automation:run:finish' }
   );
 }

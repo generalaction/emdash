@@ -7,7 +7,6 @@ export type ActionContext = {
 
 export type ActionOutcome = {
   taskId?: string;
-  sessionId?: string;
   message?: string;
 };
 

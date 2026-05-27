@@ -56,12 +56,6 @@ export function useAutomations(projectId?: string) {
     onSuccess: invalidateAutomations,
   });
 
-  const setProject = useMutation({
-    mutationFn: ({ id, projectId }: { id: string; projectId: string }) =>
-      unwrap<Automation>(rpc.automations.setProject(id, projectId)),
-    onSuccess: invalidateAutomations,
-  });
-
   const runNow = useMutation({
     mutationFn: (id: string) => unwrap<AutomationRun>(rpc.automations.runNow(id)),
     onSuccess: invalidateAutomations,
@@ -78,7 +72,6 @@ export function useAutomations(projectId?: string) {
     update,
     remove,
     setEnabled,
-    setProject,
     runNow,
     removeRun,
   };

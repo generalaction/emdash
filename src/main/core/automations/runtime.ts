@@ -12,7 +12,6 @@ export async function runQueuedAutomation(
 ): Promise<Result<AutomationRun, string>> {
   let run = initialRun;
   let firstTaskId: string | null = null;
-  let firstSessionId: string | undefined;
   const ctx = { automation, run };
 
   if (automation.projectId == null) {
@@ -61,7 +60,6 @@ export async function runQueuedAutomation(
     }
     if (firstTaskId == null && result.data.taskId) {
       firstTaskId = result.data.taskId;
-      firstSessionId = result.data.sessionId;
       run = { ...run, taskId: firstTaskId, createdTaskId: firstTaskId };
     }
   }
@@ -71,7 +69,6 @@ export async function runQueuedAutomation(
     finishedAt,
     taskId: firstTaskId,
     createdTaskId: firstTaskId,
-    sessionId: firstSessionId,
   });
   await updateAutomationSchedule(automation.id, { lastRunAt: run.startedAt ?? Date.now() });
   return ok(run);
