@@ -203,6 +203,24 @@ describe('automations repo', () => {
     expect(dbMock.update).not.toHaveBeenCalled();
   });
 
+  it('allows clearing an existing deadline inside updateAutomation', async () => {
+    dbMock.selectLimit.mockReturnValueOnce(
+      dbMock.rowsResult([{ ...automationRow, deadlinePolicy: 'fixed', deadlineMs: 1000 }])
+    );
+    dbMock.updateReturning.mockReturnValueOnce(
+      dbMock.rowsResult([{ ...automationRow, deadlineMs: null }])
+    );
+
+    await expect(updateAutomation('automation-1', { deadlineMs: null })).resolves.toEqual(
+      expect.objectContaining({ id: 'automation-1', deadlineMs: null })
+    );
+
+    expect(dbMock.updateSet).toHaveBeenCalledWith({
+      deadlineMs: null,
+      updatedAt: expect.any(Number),
+    });
+  });
+
   it('updates when final published actions are valid', async () => {
     dbMock.selectLimit.mockReturnValueOnce(dbMock.rowsResult([{ ...automationRow, isDraft: 1 }]));
     dbMock.updateReturning.mockReturnValueOnce(

@@ -418,7 +418,7 @@ export async function updateAutomation(
     assertValidAutomationInput({
       trigger: patch.trigger ?? existing.trigger,
       deadlinePolicy: patch.deadlinePolicy ?? existing.deadlinePolicy,
-      deadlineMs: patch.deadlineMs ?? existing.deadlineMs,
+      deadlineMs: patch.deadlineMs !== undefined ? patch.deadlineMs : existing.deadlineMs,
       isDraft: finalIsDraft,
       actions: finalActions,
     });
@@ -553,7 +553,19 @@ export async function enqueueAutomationRun(input: {
         AND status IN ('queued', 'running')
         ${input.triggerKind === 'cron' ? sql`AND scheduled_at = ${input.scheduledAt}` : sql``}
     )
-    RETURNING *
+    RETURNING
+      id,
+      automation_id AS automationId,
+      scheduled_at AS scheduledAt,
+      deadline_at AS deadlineAt,
+      started_at AS startedAt,
+      finished_at AS finishedAt,
+      status,
+      task_id AS taskId,
+      created_task_id AS createdTaskId,
+      error,
+      trigger_kind AS triggerKind,
+      worker_id AS workerId
   `);
   return rows[0] ? mapAutomationRunRow(rows[0]) : null;
 }
@@ -608,7 +620,19 @@ export async function claimQueuedRun(
           AND running.status = 'running'
           AND running.id <> automation_runs.id
       )
-    RETURNING *
+    RETURNING
+      id,
+      automation_id AS automationId,
+      scheduled_at AS scheduledAt,
+      deadline_at AS deadlineAt,
+      started_at AS startedAt,
+      finished_at AS finishedAt,
+      status,
+      task_id AS taskId,
+      created_task_id AS createdTaskId,
+      error,
+      trigger_kind AS triggerKind,
+      worker_id AS workerId
   `);
   const [row] = rows;
   return row ? mapAutomationRunRow(row) : null;
