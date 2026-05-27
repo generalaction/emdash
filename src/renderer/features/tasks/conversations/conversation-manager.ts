@@ -265,7 +265,7 @@ export class ConversationManagerStore implements IDisposable {
     const handlers = makeFileLinkHandlers(conversation.projectId, conversation.taskId);
     return new PtySession(
       makePtySessionId(conversation.projectId, conversation.taskId, conversation.id),
-      () => this.hydrateConversation(conversation.id),
+      undefined,
       handlers.onOpenFile,
       handlers.onOpenExternal
     );
