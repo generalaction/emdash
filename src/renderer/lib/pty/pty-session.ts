@@ -35,11 +35,13 @@ export class PtySession {
       await this.prepare?.();
       if (version !== this.version) return;
       if (this.pty) return;
-      this.pty = new FrontendPty(this.sessionId, undefined, this.onOpenFile, this.onOpenExternal);
+      const pty = new FrontendPty(this.sessionId, undefined, this.onOpenFile, this.onOpenExternal);
+      this.pty = pty;
       runInAction(() => {
         this.status = 'connecting';
       });
-      await this.pty.connect();
+      await pty.connect();
+      if (version !== this.version || this.pty !== pty) return;
       runInAction(() => {
         this.status = 'ready';
       });
