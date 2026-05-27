@@ -1,6 +1,7 @@
 import { Activity, ArrowLeft, Check, Copy, Folder, GitBranch, Terminal, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { getTaskView } from '@renderer/features/tasks/stores/task-selectors';
 import AgentLogo from '@renderer/lib/components/agent-logo';
 import { rpc } from '@renderer/lib/ipc';
 import { agentMeta } from '@renderer/lib/providers/meta';
@@ -8,6 +9,7 @@ import { appState } from '@renderer/lib/stores/app-state';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { formatBytes } from '@renderer/utils/formatBytes';
 import { cn } from '@renderer/utils/utils';
+import { parsePtySessionId } from '@shared/ptySessionId';
 import type { ResourceAppProcess, ResourceSnapshot } from '@shared/resource-monitor';
 import {
   appProcessLabel,
@@ -199,7 +201,7 @@ function AgentRow({ entry }: { entry: Entry }) {
         >
           {norm.toFixed(0)}% · {formatBytes(entry.memory)}
         </span>
-        <KillButton
+        <StopButton
           sessionId={entry.sessionId}
           label={label}
           armed={armed}
@@ -210,7 +212,23 @@ function AgentRow({ entry }: { entry: Entry }) {
   );
 }
 
-function KillButton({
+function closeConversationTabsForSession(sessionId: string): void {
+  const parsed = parsePtySessionId(sessionId);
+  if (!parsed) return;
+
+  const taskView = getTaskView(parsed.projectId, parsed.scopeId);
+  if (!taskView) return;
+
+  for (const { tabManager } of taskView.tabGroupManager.groups) {
+    for (const [tabId, entry] of tabManager.entries) {
+      if (entry.kind === 'conversation' && entry.conversationId === parsed.leafId) {
+        tabManager.closeTab(tabId);
+      }
+    }
+  }
+}
+
+function StopButton({
   sessionId,
   label,
   armed,
@@ -221,7 +239,7 @@ function KillButton({
   armed: boolean;
   onArmedChange: (armed: boolean) => void;
 }) {
-  const [killing, setKilling] = useState(false);
+  const [stopping, setStopping] = useState(false);
   const resetRef = useRef<number | null>(null);
 
   const clearReset = useCallback(() => {
@@ -236,7 +254,7 @@ function KillButton({
   const handleClick = useCallback(
     async (e: React.MouseEvent) => {
       e.stopPropagation();
-      if (killing) return;
+      if (stopping) return;
       if (!armed) {
         // First click arms; auto-disarm if the second click doesn't follow.
         onArmedChange(true);
@@ -248,30 +266,31 @@ function KillButton({
         return;
       }
       clearReset();
-      setKilling(true);
+      setStopping(true);
       try {
         await rpc.pty.stopSession(sessionId);
+        closeConversationTabsForSession(sessionId);
         await appState.resourceMonitor.refresh();
-        setKilling(false);
+        setStopping(false);
         onArmedChange(false);
       } catch {
-        setKilling(false);
+        setStopping(false);
         onArmedChange(false);
       }
     },
-    [armed, killing, sessionId, clearReset, onArmedChange]
+    [armed, stopping, sessionId, clearReset, onArmedChange]
   );
 
   if (armed) {
     return (
       <button
         type="button"
-        disabled={killing}
+        disabled={stopping}
         onClick={handleClick}
         className="absolute top-1/2 right-0 flex h-5 -translate-y-1/2 items-center rounded-md bg-red-500/10 px-1.5 text-[11px] font-medium text-red-500 transition-colors hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-        aria-label={`Confirm kill ${label}`}
+        aria-label={`Confirm stop ${label}`}
       >
-        Kill?
+        Stop?
       </button>
     );
   }
@@ -281,15 +300,15 @@ function KillButton({
       <TooltipTrigger>
         <button
           type="button"
-          disabled={killing}
+          disabled={stopping}
           onClick={handleClick}
           className="absolute top-1/2 right-0 flex size-5 -translate-y-1/2 items-center justify-center rounded-md text-foreground/50 opacity-0 transition-opacity group-hover/agent:opacity-100 hover:bg-red-500/10 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-50"
-          aria-label={`Kill ${label}`}
+          aria-label={`Stop ${label}`}
         >
           <X size={13} />
         </button>
       </TooltipTrigger>
-      <TooltipContent>Kill session</TooltipContent>
+      <TooltipContent>Stop session</TooltipContent>
     </Tooltip>
   );
 }
