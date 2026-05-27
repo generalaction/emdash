@@ -215,6 +215,7 @@ describe('WorktreeService', () => {
         readFileAbsolute: vi.fn(async () => ''),
         copyFileAbsolute: vi.fn(async () => {}),
         statAbsolute: vi.fn(async () => null),
+        pathApi: path,
       };
       const svc = new WorktreeService({
         repoPath: repoDir,
