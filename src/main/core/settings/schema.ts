@@ -3,7 +3,11 @@ import { AGENT_PROVIDER_IDS, AGENT_PROVIDERS } from '@shared/agent-provider-regi
 import { normalizeBranchPrefix } from '@shared/branch-prefix';
 import { openInAppIdSchema } from '@shared/openInApps';
 import { APP_SHORTCUTS } from '@shared/shortcuts';
-import { TERMINAL_FONT_SIZE_MAX, TERMINAL_FONT_SIZE_MIN } from '@shared/terminal-settings';
+import {
+  TERMINAL_FONT_SIZE_MAX,
+  TERMINAL_FONT_SIZE_MIN,
+  TERMINAL_SHELL_IDS,
+} from '@shared/terminal-settings';
 import { DEFAULT_AGENT_ID } from './settings-registry';
 
 export const projectSettingsSchema = z.object({
@@ -40,6 +44,7 @@ export const agentAutoApproveDefaultsSchema = z
   .default({});
 
 export const terminalSettingsSchema = z.object({
+  shell: z.enum(TERMINAL_SHELL_IDS),
   fontFamily: z.string().optional(),
   fontSize: z.number().min(TERMINAL_FONT_SIZE_MIN).max(TERMINAL_FONT_SIZE_MAX).optional(),
   autoCopyOnSelection: z.boolean(),

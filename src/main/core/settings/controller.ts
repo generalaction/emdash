@@ -1,9 +1,12 @@
 import { createRPCController } from '@/shared/ipc/rpc';
 import { reconcileResourceSampler } from '@main/core/resource-monitor/resource-sampler';
 import { appSettingsService, type AppSettings, type AppSettingsKey } from './settings-service';
+import { getTerminalShellAvailability } from './terminal-shell-availability';
 
 export const appSettingsController = createRPCController({
   get: <T extends AppSettingsKey>(key: T): Promise<AppSettings[T]> => appSettingsService.get(key),
+
+  getTerminalShellAvailability,
 
   getAll: (): Promise<AppSettings> => appSettingsService.getAll(),
 
