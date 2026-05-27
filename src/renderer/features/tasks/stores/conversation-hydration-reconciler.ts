@@ -17,9 +17,12 @@ type ConversationHydrationReconcilerOptions = {
 
 type SessionState = 'stopped' | 'starting' | 'running' | 'stopping';
 
+export const DEHYDRATE_RETRY_DELAY_MS = 500;
+
 type Entry = {
   desired: boolean;
   state: SessionState;
+  dehydrateRetryTimer: ReturnType<typeof setTimeout> | null;
 };
 
 export class ConversationHydrationReconciler implements IDisposable {
@@ -27,6 +30,7 @@ export class ConversationHydrationReconciler implements IDisposable {
   private readonly getConversations: () => ConversationSessionAdapter | undefined;
   private readonly log: Logger;
   private readonly entries = new Map<string, Entry>();
+  private disposed = false;
 
   constructor({ taskId, getConversations, log }: ConversationHydrationReconcilerOptions) {
     this.taskId = taskId;
@@ -35,19 +39,24 @@ export class ConversationHydrationReconciler implements IDisposable {
   }
 
   sync(openConversationIds: Iterable<string>): void {
+    if (this.disposed) return;
+
     const desired = new Set(openConversationIds);
     const ids = new Set([...this.entries.keys(), ...desired]);
 
     for (const id of ids) {
       const entry = this.getOrCreateEntry(id);
       entry.desired = desired.has(id);
+      if (entry.desired) this.clearDehydrateRetry(entry);
       this.reconcile(id, entry);
       this.cleanupIfIdle(id, entry);
     }
   }
 
   dispose(): void {
+    this.disposed = true;
     for (const [id, entry] of this.entries) {
+      this.clearDehydrateRetry(entry);
       entry.desired = false;
       this.reconcile(id, entry);
       this.cleanupIfIdle(id, entry);
@@ -57,7 +66,7 @@ export class ConversationHydrationReconciler implements IDisposable {
   private getOrCreateEntry(id: string): Entry {
     const existing = this.entries.get(id);
     if (existing) return existing;
-    const entry: Entry = { desired: false, state: 'stopped' };
+    const entry: Entry = { desired: false, state: 'stopped', dehydrateRetryTimer: null };
     this.entries.set(id, entry);
     return entry;
   }
@@ -102,7 +111,11 @@ export class ConversationHydrationReconciler implements IDisposable {
     reason: 'sync' | 'stale-hydrate' = 'sync'
   ): Promise<void> {
     const conversations = this.getConversations();
-    if (!conversations) return;
+    if (!conversations) {
+      entry.state = 'stopped';
+      this.cleanupIfIdle(id, entry);
+      return;
+    }
 
     entry.state = 'stopping';
     try {
@@ -119,10 +132,12 @@ export class ConversationHydrationReconciler implements IDisposable {
           error,
         }
       );
+      if (!entry.desired) this.scheduleDehydrateRetry(id, entry);
       return;
     }
 
     entry.state = 'stopped';
+    this.clearDehydrateRetry(entry);
     // intent may have flipped while we awaited — restart if wanted again
     if (entry.desired) {
       this.reconcile(id, entry);
@@ -133,6 +148,23 @@ export class ConversationHydrationReconciler implements IDisposable {
 
   private cleanupIfIdle(id: string, entry: Entry): void {
     if (entry.desired || entry.state !== 'stopped') return;
+    this.clearDehydrateRetry(entry);
     this.entries.delete(id);
+  }
+
+  private scheduleDehydrateRetry(id: string, entry: Entry): void {
+    if (this.disposed || entry.dehydrateRetryTimer) return;
+    entry.dehydrateRetryTimer = setTimeout(() => {
+      entry.dehydrateRetryTimer = null;
+      if (this.entries.get(id) !== entry || entry.desired) return;
+      this.reconcile(id, entry);
+      this.cleanupIfIdle(id, entry);
+    }, DEHYDRATE_RETRY_DELAY_MS);
+  }
+
+  private clearDehydrateRetry(entry: Entry): void {
+    if (!entry.dehydrateRetryTimer) return;
+    clearTimeout(entry.dehydrateRetryTimer);
+    entry.dehydrateRetryTimer = null;
   }
 }

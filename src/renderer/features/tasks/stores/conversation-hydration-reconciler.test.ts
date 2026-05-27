@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   ConversationHydrationReconciler,
+  DEHYDRATE_RETRY_DELAY_MS,
   type ConversationSessionAdapter,
 } from './conversation-hydration-reconciler';
 
@@ -141,5 +142,31 @@ describe('ConversationHydrationReconciler', () => {
 
     expect(dehydrateConversation).toHaveBeenCalledTimes(1);
     expect(dehydrateConversation).toHaveBeenCalledWith('conversation-1');
+  });
+
+  it('retries failed dehydrate without waiting for another sync', async () => {
+    vi.useFakeTimers();
+    try {
+      const { reconciler, dehydrateConversation, logger } = makeHarness();
+      dehydrateConversation
+        .mockRejectedValueOnce(new Error('dehydrate failed'))
+        .mockResolvedValueOnce(undefined);
+
+      reconciler.sync(['conversation-1']);
+      await Promise.resolve();
+
+      reconciler.sync([]);
+      await Promise.resolve();
+
+      expect(dehydrateConversation).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(DEHYDRATE_RETRY_DELAY_MS);
+
+      expect(dehydrateConversation).toHaveBeenCalledTimes(2);
+      expect(dehydrateConversation).toHaveBeenLastCalledWith('conversation-1');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
