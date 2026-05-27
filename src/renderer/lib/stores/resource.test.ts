@@ -1,3 +1,4 @@
+import { autorun } from 'mobx';
 import { describe, expect, it } from 'vitest';
 import { Resource } from './resource';
 
@@ -73,6 +74,44 @@ describe('Resource', () => {
 
     expect(fetchCount).toBe(2);
     expect(resource.data).toBe('fresh');
+  });
+
+  it('keeps loading true between an in-flight load and its queued reload', async () => {
+    let fetchCount = 0;
+    let releaseFirst: (() => void) | undefined;
+    let releaseSecond: (() => void) | undefined;
+
+    const resource = new Resource(async () => {
+      fetchCount += 1;
+      await new Promise<void>((resolve) => {
+        if (fetchCount === 1) {
+          releaseFirst = resolve;
+        } else {
+          releaseSecond = resolve;
+        }
+      });
+      return fetchCount === 1 ? 'stale' : 'fresh';
+    }, []);
+
+    const loadingStates: boolean[] = [];
+    const dispose = autorun(() => {
+      loadingStates.push(resource.loading);
+    });
+
+    const firstLoad = resource.load();
+    resource.invalidate();
+    releaseFirst?.();
+    await firstLoad;
+
+    expect(fetchCount).toBe(2);
+    expect(loadingStates).toEqual([false, true]);
+
+    releaseSecond?.();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+    expect(resource.data).toBe('fresh');
+    expect(loadingStates).toEqual([false, true, false]);
+    dispose();
   });
 
   it('dedupes overlapping direct loads without queueing an extra reload', async () => {

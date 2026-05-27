@@ -136,7 +136,7 @@ export class Resource<T, TEventData = void> {
       .then((data) => {
         runInAction(() => {
           this.data = data;
-          this.loading = false;
+          this.loading = this._reloadQueued;
           this.error = undefined;
           this.lastUpdatedAt = Date.now();
         });
@@ -144,7 +144,7 @@ export class Resource<T, TEventData = void> {
       .catch((e: unknown) => {
         runInAction(() => {
           this.error = e instanceof Error ? e.message : String(e);
-          this.loading = false;
+          this.loading = this._reloadQueued;
         });
       })
       .finally(() => {
