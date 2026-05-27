@@ -266,6 +266,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'ampcode.svg',
     alt: 'Amp CLI',
     terminalOnly: true,
+    supportsHooks: true,
   },
   {
     id: 'opencode',

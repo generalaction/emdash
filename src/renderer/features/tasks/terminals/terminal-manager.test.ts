@@ -10,7 +10,19 @@ const frontendConnect = vi.hoisted(() => vi.fn());
 const frontendDispose = vi.hoisted(() => vi.fn());
 
 vi.mock('@renderer/lib/ipc', () => ({
+  events: { on: () => () => {} },
   rpc: {
+    app: {
+      openPath: vi.fn(),
+    },
+    fs: {
+      fileExists: vi.fn(),
+    },
+    ssh: {
+      getConnections: async () => [],
+      getConnectionState: async () => ({}),
+      getHealthStates: async () => ({}),
+    },
     terminals: {
       createTerminal,
       deleteTerminal,

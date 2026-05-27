@@ -1,4 +1,5 @@
 import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
+import { makeFileLinkHandlers } from '@renderer/features/tasks/stores/open-file-in-file-editor';
 import { rpc } from '@renderer/lib/ipc';
 import { PtySession } from '@renderer/lib/pty/pty-session';
 import type { IDisposable } from '@renderer/lib/stores/lifecycle';
@@ -174,8 +175,12 @@ export class TerminalManagerStore implements IDisposable {
   }
 
   private createSession(terminal: Terminal): PtySession {
-    return new PtySession(makePtySessionId(terminal.projectId, terminal.taskId, terminal.id), () =>
-      this.hydrateTerminal(terminal.id)
+    const handlers = makeFileLinkHandlers(terminal.projectId, terminal.taskId);
+    return new PtySession(
+      makePtySessionId(terminal.projectId, terminal.taskId, terminal.id),
+      () => this.hydrateTerminal(terminal.id),
+      handlers.onOpenFile,
+      handlers.onOpenExternal
     );
   }
 }

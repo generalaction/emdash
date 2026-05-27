@@ -1,4 +1,5 @@
 import { action, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
+import { makeFileLinkHandlers } from '@renderer/features/tasks/stores/open-file-in-file-editor';
 import { events, rpc } from '@renderer/lib/ipc';
 import { PtySession } from '@renderer/lib/pty/pty-session';
 import type { IDisposable } from '@renderer/lib/stores/lifecycle';
@@ -103,7 +104,7 @@ export class ConversationManagerStore implements IDisposable {
       if (event.type === 'notification') {
         const nt = event.payload.notificationType;
         if (!isAttentionNotification(nt)) return;
-        if (event.providerId === 'codex' && nt === 'idle_prompt') {
+        if ((event.providerId === 'codex' || event.providerId === 'amp') && nt === 'idle_prompt') {
           if (conversationStore.status === 'working') {
             conversationStore.setStatus('completed');
             soundPlayer.play('task_complete', appFocused);
@@ -261,9 +262,12 @@ export class ConversationManagerStore implements IDisposable {
   }
 
   private createSession(conversation: Conversation): PtySession {
+    const handlers = makeFileLinkHandlers(conversation.projectId, conversation.taskId);
     return new PtySession(
       makePtySessionId(conversation.projectId, conversation.taskId, conversation.id),
-      () => this.hydrateConversation(conversation.id)
+      () => this.hydrateConversation(conversation.id),
+      handlers.onOpenFile,
+      handlers.onOpenExternal
     );
   }
 }

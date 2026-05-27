@@ -11,7 +11,9 @@ export class PtySession {
 
   constructor(
     readonly sessionId: string,
-    private readonly prepare?: () => Promise<void>
+    private readonly prepare?: () => Promise<void>,
+    private readonly onOpenFile?: (filePath: string) => void,
+    private readonly onOpenExternal?: (filePath: string) => void
   ) {
     makeAutoObservable(this, {
       pty: false,
@@ -33,7 +35,7 @@ export class PtySession {
       await this.prepare?.();
       if (version !== this.version) return;
       if (this.pty) return;
-      this.pty = new FrontendPty(this.sessionId);
+      this.pty = new FrontendPty(this.sessionId, undefined, this.onOpenFile, this.onOpenExternal);
       runInAction(() => {
         this.status = 'connecting';
       });

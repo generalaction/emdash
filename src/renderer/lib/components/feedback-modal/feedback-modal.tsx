@@ -1,6 +1,7 @@
-import { ImageIcon, Paperclip, XIcon } from 'lucide-react';
+import { ExternalLink, ImageIcon, Paperclip, XIcon } from 'lucide-react';
 import React, { useCallback } from 'react';
 import { useAttachments } from '@renderer/lib/hooks/use-attachments';
+import { rpc } from '@renderer/lib/ipc';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
 import { appState } from '@renderer/lib/stores/app-state';
@@ -17,6 +18,7 @@ import { Input } from '@renderer/lib/ui/input';
 import { Spinner } from '@renderer/lib/ui/spinner';
 import { Textarea } from '@renderer/lib/ui/textarea';
 import { cn } from '@renderer/utils/utils';
+import { EMDASH_ISSUES_NEW_URL } from '@shared/urls';
 import { useFeedbackSubmit } from './use-feedback-submit';
 
 type FeedbackModalArgs = {
@@ -116,8 +118,18 @@ export function FeedbackModal({ onSuccess, blurb }: Props) {
         </div>
       )}
       <DialogHeader>
-        <div className="flex flex-col gap-0.5">
+        <div className="flex flex-col gap-1">
           <DialogTitle>Feedback</DialogTitle>
+          <Button
+            type="button"
+            variant="link"
+            size="sm"
+            className="group text-muted-foreground inline-flex h-auto w-fit items-center gap-1 px-0 text-xs font-normal tracking-normal normal-case hover:text-foreground hover:no-underline"
+            onClick={() => void rpc.app.openExternal(EMDASH_ISSUES_NEW_URL)}
+          >
+            <span className="transition-colors group-hover:text-foreground">GitHub issues</span>
+            <ExternalLink className="size-3" aria-hidden="true" />
+          </Button>
           {blurb ? <DialogDescription className="text-xs">{blurb}</DialogDescription> : null}
         </div>
       </DialogHeader>
