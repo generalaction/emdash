@@ -42,7 +42,9 @@ export const RenameProjectModal = observer(function RenameProjectModal({
     ? 'Project name cannot be empty.'
     : isTooLong
       ? `Project name must be ${MAX_PROJECT_NAME_LENGTH} characters or fewer.`
-      : undefined;
+      : isUnchanged
+        ? 'Enter a different name to rename the project.'
+        : undefined;
 
   const handleSubmit = useCallback(async () => {
     if (!isValid) return;
@@ -78,7 +80,7 @@ export const RenameProjectModal = observer(function RenameProjectModal({
               maxLength={MAX_PROJECT_NAME_LENGTH}
               autoFocus
             />
-            {validationMessage && !isUnchanged && (
+            {validationMessage && (
               <p className="text-destructive mt-1 text-xs">{validationMessage}</p>
             )}
             {error && <p className="text-destructive mt-1 text-xs">{error}</p>}

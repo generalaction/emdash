@@ -16,6 +16,7 @@ import { log } from '@main/lib/logger';
 import { safePathSegment } from '@shared/path-name';
 import type { LocalProject, SshProject } from '@shared/projects';
 import { getProjectById } from './operations/getProjects';
+import { projectEvents } from './project-events';
 import { ProjectProvider, type ProjectProviderTransport } from './project-provider';
 import type { ProjectSettingsProvider } from './settings/provider';
 import { LocalProjectSettingsProvider } from './settings/providers/local-project-settings-provider';
@@ -50,11 +51,12 @@ async function createLocalProvider(project: LocalProject): Promise<ProjectProvid
   const worktreeHost = await LocalWorktreeHost.create({
     allowedRoots: [project.path, worktreeDirectory],
   });
+  const poolSegment = createProjectPoolSegmentResolver(project);
   const resolveWorktreePoolPath = async () => {
     const directory = await settings.getWorktreeDirectory();
     await fs.promises.mkdir(directory, { recursive: true });
     await worktreeHost.allowRoot(directory);
-    return path.join(directory, await getProjectPoolSegment(project.id, project.name));
+    return path.join(directory, await poolSegment.resolve());
   };
 
   return buildProvider(
@@ -66,7 +68,7 @@ async function createLocalProvider(project: LocalProject): Promise<ProjectProvid
     settings,
     worktreeHost,
     resolveWorktreePoolPath,
-    () => {}
+    poolSegment.dispose
   );
 }
 
@@ -95,19 +97,17 @@ async function createSshProvider(project: SshProject): Promise<ProjectProvider> 
       }
     );
     const worktreeDirectory = await settings.getWorktreeDirectory();
-    const worktreePoolPath = path.posix.join(
-      worktreeDirectory,
-      await getProjectPoolSegment(project.id, project.name)
-    );
+    const poolSegment = createProjectPoolSegmentResolver(project);
+    const worktreePoolPath = path.posix.join(worktreeDirectory, await poolSegment.resolve());
     const worktreeHost = new SshWorktreeHost(rootFs);
     await worktreeHost.mkdirAbsolute(worktreePoolPath, { recursive: true });
     const resolveWorktreePoolPath = async () =>
-      path.posix.join(
-        await settings.getWorktreeDirectory(),
-        await getProjectPoolSegment(project.id, project.name)
-      );
+      path.posix.join(await settings.getWorktreeDirectory(), await poolSegment.resolve());
 
-    const dispose = () => sshConnectionManager.off('connection-event', handler);
+    const dispose = () => {
+      sshConnectionManager.off('connection-event', handler);
+      poolSegment.dispose();
+    };
 
     const provider = buildProvider(
       project.id,
@@ -145,9 +145,23 @@ async function createSshProvider(project: SshProject): Promise<ProjectProvider> 
   }
 }
 
-async function getProjectPoolSegment(projectId: string, fallbackName: string): Promise<string> {
-  const currentProject = await getProjectById(projectId);
-  return safePathSegment(currentProject?.name ?? fallbackName, projectId);
+function createProjectPoolSegmentResolver(project: Pick<LocalProject | SshProject, 'id' | 'name'>) {
+  let cachedSegment: string | undefined;
+  const dispose = projectEvents.on('project:renamed', (renamedProject) => {
+    if (renamedProject.id === project.id) {
+      cachedSegment = safePathSegment(renamedProject.name, project.id);
+    }
+  });
+
+  return {
+    async resolve(): Promise<string> {
+      if (cachedSegment) return cachedSegment;
+      const currentProject = await getProjectById(project.id);
+      cachedSegment = safePathSegment(currentProject?.name ?? project.name, project.id);
+      return cachedSegment;
+    },
+    dispose,
+  };
 }
 
 function buildProvider(
