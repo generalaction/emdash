@@ -4,6 +4,7 @@ import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import type { DeletePreflightResult, TaskDeletePreflightItem } from '@shared/tasks';
+import { fromStoredBranch } from '../stored-branch';
 
 async function getTaskPreflight(
   projectId: string,
@@ -28,7 +29,7 @@ async function getTaskPreflight(
 
   const hasWorktree = siblings.length === 0;
 
-  const sourceBranch = task.sourceBranch ?? undefined;
+  const sourceBranch = fromStoredBranch(task.sourceBranch);
   const hasDeletableBranch =
     hasWorktree && !!sourceBranch && task.taskBranch !== sourceBranch.branch;
 
