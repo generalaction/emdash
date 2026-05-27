@@ -225,7 +225,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           {/* Task name */}
           <TaskNameField state={state.taskName} />
           <div className="flex w-full flex-col justify-between overflow-hidden rounded-lg border">
-            <div className="flex w-full items-center justify-between gap-2 border-b px-2 py-1">
+            <div className={`flex w-full items-center justify-between gap-2 px-2 py-1 ${state.linkedType ? 'border-b' : ''}`}>
               <span className="shrink-0 text-sm text-foreground-muted">Based on</span>
               <ToggleGroup
                 className="gap-1! border-none bg-transparent p-0!"
@@ -250,30 +250,23 @@ export const CreateTaskModal = observer(function CreateTaskModal({
                 </ToggleGroupItem>
               </ToggleGroup>
             </div>
-            <div>
-              {state.linkedType === 'issue' && (
-                <IssueComboboxField
-                  value={state.linkedIssue}
-                  onValueChange={state.setLinkedIssue}
-                  projectId={selectedProjectId}
-                  repositoryUrl={repositoryUrl}
-                  projectPath={projectData?.path}
-                />
-              )}
-              {state.linkedType === 'pr' && (
-                <PrComboboxField
-                  value={state.linkedPR}
-                  onValueChange={state.setLinkedPR}
-                  projectId={selectedProjectId}
-                  repositoryUrl={repositoryUrl}
-                />
-              )}
-              {state.linkedType === null && (
-                <div className="flex h-14 items-center justify-center text-sm text-foreground-passive">
-                  Select a tab above to link an issue or pull request.
-                </div>
-              )}
-            </div>
+            {state.linkedType === 'issue' && (
+              <IssueComboboxField
+                value={state.linkedIssue}
+                onValueChange={state.setLinkedIssue}
+                projectId={selectedProjectId}
+                repositoryUrl={repositoryUrl}
+                projectPath={projectData?.path}
+              />
+            )}
+            {state.linkedType === 'pr' && (
+              <PrComboboxField
+                value={state.linkedPR}
+                onValueChange={state.setLinkedPR}
+                projectId={selectedProjectId}
+                repositoryUrl={repositoryUrl}
+              />
+            )}
           </div>
           {/* Section tabs */}
           <div className="flex flex-col gap-2">
