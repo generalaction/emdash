@@ -9,11 +9,13 @@ import {
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
-import { commitRef, HEAD_REF, type GitChange } from '@shared/git';
+import { commitRef, type GitChange, HEAD_REF } from '@shared/git';
 import { ActionCard } from './components/action-card';
+import { ChangesListOrTree } from './components/changes-list-or-tree';
+import { ChangesViewModeToggle } from './components/changes-view-mode-toggle';
 import { CommitCard } from './components/commit-card';
 import { SectionHeader } from './components/section-header';
-import { VirtualizedChangesList } from './components/virtualized-changes-list';
+import { useChangesViewMode } from './hooks/use-changes-view-mode';
 import { usePrefetchDiffModels } from './hooks/use-prefetch-diff-models';
 
 export const UnstagedSection = observer(function UnstagedSection() {
@@ -37,20 +39,32 @@ export const UnstagedSection = observer(function UnstagedSection() {
 
   const prefetch = usePrefetchDiffModels(projectId, workspaceId, 'disk', HEAD_REF);
 
+  const { mode: viewMode, setMode: setViewMode } = useChangesViewMode('unstaged');
+
   const showConfirmActionModal = useShowModal('confirmActionModal');
 
   if (!diffView || !changesView) return null;
 
   const handleSelectChange = (change: GitChange) => {
     taskView.tabManager.openDiffPreview(
-      { path: change.path, type: 'disk', group: 'disk', originalRef: commitRef('HEAD') },
+      {
+        path: change.path,
+        type: 'disk',
+        group: 'disk',
+        originalRef: commitRef('HEAD'),
+      },
       change.status
     );
   };
 
   const handleDoubleClickChange = (change: GitChange) => {
     taskView.tabManager.openDiff(
-      { path: change.path, type: 'disk', group: 'disk', originalRef: commitRef('HEAD') },
+      {
+        path: change.path,
+        type: 'disk',
+        group: 'disk',
+        originalRef: commitRef('HEAD'),
+      },
       change.status
     );
   };
@@ -99,7 +113,7 @@ export const UnstagedSection = observer(function UnstagedSection() {
         count={changes.length}
         selectionState={changesView.unstagedSelectionState}
         onToggleAll={() => changesView.toggleAllUnstaged()}
-        actions={undefined}
+        actions={<ChangesViewModeToggle value={viewMode} onChange={setViewMode} label="Changed" />}
       />
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {!hasChanges && (
@@ -159,7 +173,8 @@ export const UnstagedSection = observer(function UnstagedSection() {
           />
         )}
         <div className="min-h-0 flex-1 px-1">
-          <VirtualizedChangesList
+          <ChangesListOrTree
+            viewMode={viewMode}
             changes={changes}
             isSelected={(path) => changesView.unstagedSelection.has(path)}
             onToggleSelect={(path) => changesView.toggleUnstagedItem(path)}

@@ -7,8 +7,10 @@ import type { FileSystemProvider } from '@main/core/fs/types';
 import { log } from '@main/lib/logger';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 import {
+  makeAmpPluginContent,
   makeClaudeHookCommand,
   makeCodexHookCommand,
+  makeCodexSessionStartHookCommand,
   makeOpenCodePluginContent,
 } from './agent-notify-command';
 import piEmdashExtension from './pi-emdash-extension.ts?raw';
@@ -19,11 +21,12 @@ const CLAUDE_SETTINGS_PATH = '.claude/settings.local.json';
 const CODEX_CONFIG_PATH = '.codex/config.toml';
 const CODEX_HOOKS_PATH = '.codex/hooks.json';
 const DROID_SETTINGS_PATH = '.factory/settings.json';
+const AMP_PLUGIN_PATH = '.amp/plugins/emdash-hook.ts';
 const PI_EMDASH_EXTENSION_PATH = '.pi/extensions/emdash-hook.ts';
 const OPENCODE_PLUGIN_PATH = '.opencode/plugins/emdash-notifications.js';
 const GITIGNORE_PATH = '.gitignore';
 type HookConfigWriteOptions = { writeGitIgnoreEntries?: boolean };
-type CodexHookEvent = 'Stop' | 'PermissionRequest';
+type CodexHookEvent = 'Stop' | 'PermissionRequest' | 'SessionStart';
 type DroidHookEvent = 'Notification' | 'Stop' | 'SessionStart';
 
 const HOOK_EVENT_MAP = [
@@ -35,6 +38,10 @@ const CODEX_HOOK_EVENT_MAP = [
   { hookKey: 'Stop', notificationType: 'idle_prompt' },
   { hookKey: 'PermissionRequest', notificationType: 'permission_prompt' },
 ] satisfies { hookKey: CodexHookEvent; notificationType: 'idle_prompt' | 'permission_prompt' }[];
+
+const CODEX_SESSION_HOOK_EVENT_MAP = [{ hookKey: 'SessionStart' as const }] satisfies {
+  hookKey: CodexHookEvent;
+}[];
 
 const DROID_HOOK_EVENT_MAP = [
   { hookKey: 'Notification', eventType: 'notification' },
@@ -112,6 +119,14 @@ export class HookConfigWriter {
       );
     }
 
+    for (const { hookKey } of CODEX_SESSION_HOOK_EVENT_MAP) {
+      const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
+      hooks[hookKey] = this.buildHookEntries(
+        existing,
+        makeCodexSessionStartHookCommand({ platform: this.platform })
+      );
+    }
+
     await this.userFs.write(CODEX_HOOKS_PATH, JSON.stringify({ ...config, hooks }, null, 2) + '\n');
     await this.removeLegacyCodexNotify().catch((err: Error) => {
       log.warn('CodexHooks: failed to remove legacy notify entry', { error: String(err) });
@@ -170,6 +185,20 @@ export class HookConfigWriter {
     return true;
   }
 
+  async writeAmpPlugin(): Promise<boolean> {
+    if (!(await resolveCommandPath('amp', this.exec))) return false;
+
+    const pluginContent = makeAmpPluginContent();
+    const existing = await this.fs
+      .read(AMP_PLUGIN_PATH)
+      .then((r) => r.content)
+      .catch(() => undefined);
+    if (existing === pluginContent) return true;
+
+    await this.fs.write(AMP_PLUGIN_PATH, pluginContent);
+    return true;
+  }
+
   async writeForProvider(
     providerId: AgentProviderId,
     options: HookConfigWriteOptions = {}
@@ -212,12 +241,20 @@ export class HookConfigWriter {
       return wroteConfig;
     }
 
+    if (providerId === 'amp') {
+      const wroteConfig = await this.writeAmpPlugin();
+      if (wroteConfig && writeGitIgnoreEntries) {
+        await this.ensureGitIgnoreEntries([AMP_PLUGIN_PATH]);
+      }
+      return wroteConfig;
+    }
+
     return false;
   }
 
   async writeAll(options: HookConfigWriteOptions = {}): Promise<void> {
     await Promise.all(
-      (['claude', 'codex', 'droid', 'pi', 'opencode'] as const).map((providerId) =>
+      (['claude', 'codex', 'droid', 'pi', 'opencode', 'amp'] as const).map((providerId) =>
         this.writeForProvider(providerId, options).catch((err: Error) => {
           log.warn(`Failed to write ${providerId} hook config`, { error: String(err) });
         })

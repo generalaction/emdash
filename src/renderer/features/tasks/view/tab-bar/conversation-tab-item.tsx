@@ -66,6 +66,7 @@ export const ConversationTabItem = observer(function ConversationTabItem({
         {config ? (
           <AgentLogo
             logo={config.logo}
+            logoDark={config.logoDark}
             alt={config.alt}
             isSvg={config.isSvg}
             invertInDark={config.invertInDark}
@@ -107,6 +108,7 @@ export const ConversationTabItem = observer(function ConversationTabItem({
           {config ? (
             <AgentLogo
               logo={config.logo}
+              logoDark={config.logoDark}
               alt={config.alt}
               isSvg={config.isSvg}
               invertInDark={config.invertInDark}
@@ -149,6 +151,7 @@ export const ConversationTabDragPreview = observer(function ConversationTabDragP
       {config ? (
         <AgentLogo
           logo={config.logo}
+          logoDark={config.logoDark}
           alt={config.alt}
           isSvg={config.isSvg}
           invertInDark={config.invertInDark}

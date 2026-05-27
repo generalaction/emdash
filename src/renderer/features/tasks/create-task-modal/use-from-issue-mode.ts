@@ -30,7 +30,6 @@ export function useFromIssueMode(
     setPrevProjectId(selectedProjectId);
     setLinkedIssue(null);
   }
-
   useEffect(() => {
     if (!linkedIssue || linkedIssue.context) return;
     let cancelled = false;
@@ -48,8 +47,10 @@ export function useFromIssueMode(
       cancelled = true;
     };
   }, [linkedIssue, selectedProjectId]);
-  const { autoGenerateName } = useTaskSettings();
-  const generatedTaskNameFromIssue = getIssueTaskName(linkedIssue);
+  const { autoGenerateName, preserveNameCapitalization } = useTaskSettings();
+  const generatedTaskNameFromIssue = getIssueTaskName(linkedIssue, {
+    preserveCapitalization: preserveNameCapitalization,
+  });
 
   const shouldGenerate =
     autoGenerateName && linkedIssue !== null && generatedTaskNameFromIssue === null;

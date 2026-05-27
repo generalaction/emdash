@@ -53,6 +53,7 @@ describe('CommentsList', () => {
 
     expect(html).toContain('src="https://github.com/user/image.png"');
     expect(html).toContain('alt="Image"');
+    expect(html).toContain('aria-label="Expand image"');
     expect(html).toContain('max-w-full');
     expect(html).toContain('max-h-80');
     expect(html).toContain('object-contain');

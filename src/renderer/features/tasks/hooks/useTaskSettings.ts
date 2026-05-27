@@ -4,6 +4,7 @@ export interface TaskSettingsModel {
   autoGenerateName: boolean;
   autoTrustWorktrees: boolean;
   createBranchAndWorktree: boolean;
+  preserveNameCapitalization: boolean;
   includeIssueContextByDefault: boolean;
   loading: boolean;
   saving: boolean;
@@ -12,15 +13,18 @@ export interface TaskSettingsModel {
       | 'autoGenerateName'
       | 'autoTrustWorktrees'
       | 'createBranchAndWorktree'
+      | 'preserveNameCapitalization'
       | 'includeIssueContextByDefault'
   ) => boolean;
   updateAutoGenerateName: (next: boolean) => void;
   updateAutoTrustWorktrees: (next: boolean) => void;
   updateCreateBranchAndWorktree: (next: boolean) => void;
+  updatePreserveNameCapitalization: (next: boolean) => void;
   updateIncludeIssueContextByDefault: (next: boolean) => void;
   resetAutoGenerateName: () => void;
   resetAutoTrustWorktrees: () => void;
   resetCreateBranchAndWorktree: () => void;
+  resetPreserveNameCapitalization: () => void;
   resetIncludeIssueContextByDefault: () => void;
 }
 
@@ -38,6 +42,7 @@ export function useTaskSettings(): TaskSettingsModel {
     autoGenerateName: tasks?.autoGenerateName ?? false,
     autoTrustWorktrees: tasks?.autoTrustWorktrees ?? false,
     createBranchAndWorktree: tasks?.createBranchAndWorktree ?? true,
+    preserveNameCapitalization: tasks?.preserveNameCapitalization ?? false,
     includeIssueContextByDefault: tasks?.includeIssueContextByDefault ?? true,
     loading,
     saving,
@@ -45,10 +50,12 @@ export function useTaskSettings(): TaskSettingsModel {
     updateAutoGenerateName: (next) => update({ autoGenerateName: next }),
     updateAutoTrustWorktrees: (next) => update({ autoTrustWorktrees: next }),
     updateCreateBranchAndWorktree: (next) => update({ createBranchAndWorktree: next }),
+    updatePreserveNameCapitalization: (next) => update({ preserveNameCapitalization: next }),
     updateIncludeIssueContextByDefault: (next) => update({ includeIssueContextByDefault: next }),
     resetAutoGenerateName: () => resetField('autoGenerateName'),
     resetAutoTrustWorktrees: () => resetField('autoTrustWorktrees'),
     resetCreateBranchAndWorktree: () => resetField('createBranchAndWorktree'),
+    resetPreserveNameCapitalization: () => resetField('preserveNameCapitalization'),
     resetIncludeIssueContextByDefault: () => resetField('includeIssueContextByDefault'),
   };
 }

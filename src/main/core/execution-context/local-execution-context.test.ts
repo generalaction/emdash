@@ -40,6 +40,19 @@ describe('LocalExecutionContext', () => {
     );
   });
 
+  it('explains when git is missing during buffered local execution', async () => {
+    execFileMock.mockImplementation((_command, _args, _options, callback) => {
+      callback(
+        Object.assign(new Error('spawn git ENOENT'), { code: 'ENOENT', path: GIT_EXECUTABLE })
+      );
+    });
+    const ctx = new LocalExecutionContext({ root: '/repo' });
+
+    await expect(ctx.exec('git', ['status'])).rejects.toThrow(
+      'Git is not installed or Emdash cannot find it'
+    );
+  });
+
   it('resolves logical git command for streaming local execution', async () => {
     const child = new FakeChildProcess();
     spawnMock.mockReturnValue(child);
@@ -50,5 +63,19 @@ describe('LocalExecutionContext', () => {
     await promise;
 
     expect(spawnMock).toHaveBeenCalledWith(GIT_EXECUTABLE, ['status'], { cwd: '/repo' });
+  });
+
+  it('explains when git is missing during streaming local execution', async () => {
+    const child = new FakeChildProcess();
+    spawnMock.mockReturnValue(child);
+    const ctx = new LocalExecutionContext({ root: '/repo' });
+
+    const promise = ctx.execStreaming('git', ['status'], () => true);
+    child.emit(
+      'error',
+      Object.assign(new Error('spawn git ENOENT'), { code: 'ENOENT', path: GIT_EXECUTABLE })
+    );
+
+    await expect(promise).rejects.toThrow('Git is not installed or Emdash cannot find it');
   });
 });

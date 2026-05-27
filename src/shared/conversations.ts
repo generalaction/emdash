@@ -9,7 +9,7 @@ export type Conversation = {
   lastInteractedAt: string | null;
   resume?: boolean;
   autoApprove?: boolean;
-  /** Droid session UUID captured from the provider for per-chat resume. */
+  /** Provider-native session id captured at runtime for per-chat resume. */
   providerSessionId?: string;
   isInitialConversation: boolean | null;
 };

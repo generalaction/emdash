@@ -98,7 +98,8 @@ export class SshConversationProvider implements ConversationProvider {
       providerId: conversation.providerId,
       providerConfig,
       autoApprove: conversation.autoApprove,
-      sessionId: agentSession.sessionId,
+      sessionId: conversation.id,
+      providerSessionId: conversation.providerSessionId,
       isResuming: agentSession.isResuming,
       initialPrompt,
     });

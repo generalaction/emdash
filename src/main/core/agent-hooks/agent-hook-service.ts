@@ -5,6 +5,7 @@ import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
 import { telemetryService } from '@main/lib/telemetry';
 import { agentEventChannel, type AgentEvent } from '@shared/events/agentEvents';
 import { conversationChangedChannel } from '@shared/events/conversationEvents';
+import { handleCodexSessionStartHook } from './codex-session-start';
 import { enrichEvent } from './event-enricher';
 import { handleProviderSessionHook } from './handle-provider-session-hook';
 import { HookServer } from './hook-server';
@@ -17,6 +18,11 @@ class AgentHookService implements IInitializable, IDisposable {
     await this.server.start(async (raw) => {
       if (raw.type === 'session') {
         await handleProviderSessionHook(raw);
+        return;
+      }
+
+      if (raw.type === 'session-start') {
+        await handleCodexSessionStartHook(raw);
         return;
       }
 
