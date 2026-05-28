@@ -168,10 +168,9 @@ export class HookConfigWriter {
 
     for (const { hookKey } of CODEX_SESSION_HOOK_EVENT_MAP) {
       const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
-      hooks[hookKey] = this.buildHookEntries(
-        existing,
-        { command: makeCodexSessionStartHookCommand({ platform: this.platform }) }
-      );
+      hooks[hookKey] = this.buildHookEntries(existing, {
+        command: makeCodexSessionStartHookCommand({ platform: this.platform }),
+      });
     }
 
     await this.userFs.write(CODEX_HOOKS_PATH, JSON.stringify({ ...config, hooks }, null, 2) + '\n');
