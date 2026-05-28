@@ -1,5 +1,6 @@
 import { catalogData } from '@shared/mcp/catalog';
 import type { McpCatalogEntry, RawServerEntry } from '@shared/mcp/types';
+import { getRuntimeCatalogConfig } from '../runtime-catalog';
 
 export function loadCatalog(): McpCatalogEntry[] {
   return Object.entries(catalogData).map(([key, entry]) => ({
@@ -7,11 +8,11 @@ export function loadCatalog(): McpCatalogEntry[] {
     name: entry.name,
     description: entry.description,
     docsUrl: entry.docsUrl,
-    defaultConfig: entry.config,
+    defaultConfig: getRuntimeCatalogConfig(key) ?? entry.config,
     credentialKeys: entry.credentialKeys,
   }));
 }
 
 export function getCatalogServerConfig(key: string): RawServerEntry | undefined {
-  return catalogData[key]?.config;
+  return getRuntimeCatalogConfig(key) ?? catalogData[key]?.config;
 }

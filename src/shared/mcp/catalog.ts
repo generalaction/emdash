@@ -14,6 +14,16 @@ export interface CatalogEntryDef {
 }
 
 export const catalogData: Record<string, CatalogEntryDef> = {
+  emdash: {
+    config: {
+      command: 'emdash',
+      args: ['mcp-server'],
+    },
+    name: 'Emdash',
+    description: 'Coordinate Emdash agent conversations from an agent session',
+    docsUrl: 'https://github.com/popemkt/emdash',
+    credentialKeys: [],
+  },
   playwright: {
     config: {
       command: 'npx',
