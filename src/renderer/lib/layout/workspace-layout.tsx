@@ -15,7 +15,8 @@ interface WorkspaceLayoutProps {
 }
 
 export function WorkspaceLayout({ leftSidebar, mainContent }: WorkspaceLayoutProps) {
-  const { leftPanelRef, handleDragging, setIsLeftOpen, isLeftOpen } = useWorkspaceLayoutContext();
+  const { leftPanelRef, handleDragging, syncLeftOpenFromPanel, isLeftOpen } =
+    useWorkspaceLayoutContext();
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
     id: 'workspace-outer',
     storage: localStorage,
@@ -36,7 +37,7 @@ export function WorkspaceLayout({ leftSidebar, mainContent }: WorkspaceLayoutPro
         minSize={LEFT_SIDEBAR_MIN_SIZE}
         maxSize={LEFT_SIDEBAR_MAX_SIZE}
         collapsedSize="0%"
-        onResize={() => setIsLeftOpen(!leftPanelRef.current?.isCollapsed())}
+        onResize={syncLeftOpenFromPanel}
         collapsible
       >
         {leftSidebar}
