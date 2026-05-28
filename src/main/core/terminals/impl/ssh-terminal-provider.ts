@@ -209,6 +209,7 @@ export class SshTerminalProvider implements TerminalProvider {
             respawnCount: count,
           });
           this.respawnCounts.delete(sessionId);
+          this.shellProfiles.delete(sessionId);
           return;
         }
 
@@ -227,6 +228,8 @@ export class SshTerminalProvider implements TerminalProvider {
             });
           });
         }, 500);
+      } else {
+        this.shellProfiles.delete(sessionId);
       }
     });
 

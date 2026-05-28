@@ -190,6 +190,7 @@ export class LocalTerminalProvider implements TerminalProvider {
             respawnCount: count,
           });
           this.respawnCounts.delete(sessionId);
+          this.shellProfiles.delete(sessionId);
           return;
         }
 
@@ -208,6 +209,8 @@ export class LocalTerminalProvider implements TerminalProvider {
             });
           });
         }, 500);
+      } else {
+        this.shellProfiles.delete(sessionId);
       }
     });
 
