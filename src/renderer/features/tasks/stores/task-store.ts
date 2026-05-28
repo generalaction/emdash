@@ -9,6 +9,7 @@ import type {
   RenameTaskError,
   RenameTaskSuccess,
   Task,
+  TaskKind,
   TaskLifecycleStatus,
 } from '@shared/tasks';
 import { conversationRegistry } from './conversation-registry';
@@ -27,6 +28,7 @@ export type UnprovisionedTaskPhase =
 export type UnregisteredTaskData = {
   id: string;
   name: string;
+  kind: TaskKind;
   status: TaskLifecycleStatus;
   lastInteractedAt: string;
   createdAt: string;

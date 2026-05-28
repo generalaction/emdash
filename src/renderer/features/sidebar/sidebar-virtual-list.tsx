@@ -193,6 +193,8 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
       let newIdx = isAbove ? overTaskIdx : overTaskIdx + 1;
       if (newIdx > oldIdx) newIdx -= 1;
       if (newIdx === oldIdx) return;
+      // Manual order is only persisted for the tasks group; chats use date sort.
+      if (activeGroup !== 'tasks') return;
       sidebarStore.setTaskOrder(projectId, arrayMove(taskIds, oldIdx, newIdx));
     }
   }

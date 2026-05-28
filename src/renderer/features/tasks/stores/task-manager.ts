@@ -239,6 +239,7 @@ export class TaskManagerStore {
           lastInteractedAt: new Date().toISOString(),
           createdAt: new Date().toISOString(),
           name: params.name,
+          kind: params.kind ?? 'task',
           status: params.initialStatus ?? 'in_progress',
           statusChangedAt: new Date().toISOString(),
           isPinned: false,
