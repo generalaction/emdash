@@ -4,10 +4,18 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
+  InfoIcon,
   LoaderCircle,
   XCircle,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ComponentProps,
+  type ReactNode,
+} from 'react';
 import { useSshConfigHost, useSshConfigHosts } from '@renderer/lib/hooks/use-ssh-config-hosts';
 import type { BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
@@ -34,6 +42,7 @@ import { ModalLayout } from '@renderer/lib/ui/modal-layout';
 import { RadioGroup, RadioGroupItem } from '@renderer/lib/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/ui/select';
 import { Switch } from '@renderer/lib/ui/switch';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import type { ConnectionTestResult, SshConfig, SshConfigHost } from '@shared/ssh';
 import { suggestedAuthTypeForSshConfigHost, type AuthType } from './ssh-connection-form-model';
 import { sshConnectionFormSchema } from './ssh-connection-form-schema';
@@ -46,6 +55,48 @@ export interface AddSshConnModalProps extends BaseModalProps<{ connectionId: str
 type TestState = 'idle' | 'testing' | 'success' | 'error';
 const MANUAL_CONNECTION_VALUE = '__manual__';
 const EMPTY_SSH_CONFIG_HOSTS: SshConfigHost[] = [];
+
+function FieldInfoTooltip({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <TooltipProvider delay={150}>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <button
+              type="button"
+              className="focus-visible:ring-primary/30 relative inline-flex size-4 shrink-0 items-center justify-center rounded-full text-foreground-passive transition-colors before:absolute before:-inset-2.5 before:content-[''] hover:text-foreground focus-visible:ring-2 focus-visible:outline-none"
+              aria-label={`About ${label}`}
+            >
+              <InfoIcon className="size-3.5" aria-hidden="true" />
+            </button>
+          }
+        />
+        <TooltipContent
+          side="top"
+          align="start"
+          className="max-w-[240px] items-start text-left leading-relaxed whitespace-normal"
+        >
+          {children}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+function FieldLabelWithInfo({
+  children,
+  info,
+  ...props
+}: ComponentProps<typeof FieldLabel> & { info: ReactNode }) {
+  const tooltipLabel = typeof children === 'string' ? children : 'this field';
+
+  return (
+    <div className="flex w-fit items-center gap-1.5">
+      <FieldLabel {...props}>{children}</FieldLabel>
+      <FieldInfoTooltip label={tooltipLabel}>{info}</FieldInfoTooltip>
+    </div>
+  );
+}
 
 export function AddSshConnModal({
   onSuccess,
@@ -308,7 +359,9 @@ export function AddSshConnModal({
                   const selectedHost = sshConfigHostsByAlias.get(field.state.value);
                   return (
                     <Field>
-                      <FieldLabel>SSH Config</FieldLabel>
+                      <FieldLabelWithInfo info="Select an entry from ~/.ssh/config to prefill host, user, key, proxy, and agent forwarding settings.">
+                        SSH Config
+                      </FieldLabelWithInfo>
                       {sshConfigHosts.length > 0 && (
                         <Select
                           value={field.state.value || MANUAL_CONNECTION_VALUE}
@@ -443,7 +496,15 @@ export function AddSshConnModal({
             <form.Field name="authType">
               {(field) => (
                 <FieldSet>
-                  <FieldLegend variant="label">Authentication</FieldLegend>
+                  <div className="mb-3 flex w-fit items-center gap-1.5">
+                    <FieldLegend variant="label" className="mb-0">
+                      Authentication
+                    </FieldLegend>
+                    <FieldInfoTooltip label="Authentication">
+                      Choose how Emdash authenticates to the remote server. SSH config entries can
+                      preselect the best option.
+                    </FieldInfoTooltip>
+                  </div>
                   <RadioGroup
                     value={field.state.value}
                     onValueChange={(v) => field.handleChange(v as AuthType)}
@@ -506,7 +567,12 @@ export function AddSshConnModal({
                           const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
                           return (
                             <Field data-invalid={isInvalid}>
-                              <FieldLabel htmlFor={field.name}>Private Key Path</FieldLabel>
+                              <FieldLabelWithInfo
+                                htmlFor={field.name}
+                                info="Path on this machine to the private key used for the connection, for example ~/.ssh/id_ed25519."
+                              >
+                                Private Key Path
+                              </FieldLabelWithInfo>
                               <Input
                                 id={field.name}
                                 name={field.name}
@@ -525,7 +591,12 @@ export function AddSshConnModal({
                       <form.Field name="passphrase">
                         {(field) => (
                           <Field>
-                            <FieldLabel htmlFor={field.name}>Passphrase</FieldLabel>
+                            <FieldLabelWithInfo
+                              htmlFor={field.name}
+                              info="Only needed if the selected private key is encrypted with a passphrase."
+                            >
+                              Passphrase
+                            </FieldLabelWithInfo>
                             <Input
                               id={field.name}
                               name={field.name}
@@ -588,7 +659,12 @@ export function AddSshConnModal({
                         <form.Field name="proxyCommand">
                           {(field) => (
                             <Field>
-                              <FieldLabel htmlFor={field.name}>ProxyCommand</FieldLabel>
+                              <FieldLabelWithInfo
+                                htmlFor={field.name}
+                                info="Command from your SSH config used to reach this host through a proxy. It is read-only here because it comes from ~/.ssh/config."
+                              >
+                                ProxyCommand
+                              </FieldLabelWithInfo>
                               <Input
                                 id={field.name}
                                 name={field.name}
@@ -602,7 +678,12 @@ export function AddSshConnModal({
                         <form.Field name="proxyJump">
                           {(field) => (
                             <Field>
-                              <FieldLabel htmlFor={field.name}>ProxyJump</FieldLabel>
+                              <FieldLabelWithInfo
+                                htmlFor={field.name}
+                                info="Optional bastion host to connect through before reaching the target server, for example user@bastion:2222."
+                              >
+                                ProxyJump
+                              </FieldLabelWithInfo>
                               <Input
                                 id={field.name}
                                 name={field.name}
@@ -620,7 +701,12 @@ export function AddSshConnModal({
                       <form.Field name="forwardAgent">
                         {(field) => (
                           <Field className="flex-row items-center justify-between gap-3 rounded-md border border-border px-3 py-2">
-                            <FieldLabel htmlFor={field.name}>ForwardAgent</FieldLabel>
+                            <FieldLabelWithInfo
+                              htmlFor={field.name}
+                              info="Forward your local SSH agent to the remote server so nested SSH and Git commands can use your loaded local keys. Enable only for trusted hosts."
+                            >
+                              ForwardAgent
+                            </FieldLabelWithInfo>
                             <Switch
                               id={field.name}
                               checked={field.state.value}
