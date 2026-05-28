@@ -26,6 +26,8 @@ export interface FocusContext {
 
 export type SettingName = 'theme' | 'default_provider' | 'telemetry' | 'notifications';
 
+export type TaskCreatedTelemetryStrategy = 'blank' | 'branch' | 'issue' | 'pr' | 'chat';
+
 export type TelemetryEventProperties = {
   app_started: EmptyProps;
   app_closed: { was_crash?: boolean };
@@ -52,7 +54,7 @@ export type TelemetryEventProperties = {
   project_deleted: EmptyProps;
 
   task_created: {
-    strategy: 'blank' | 'branch' | 'issue' | 'pr';
+    strategy: TaskCreatedTelemetryStrategy;
     has_initial_prompt: boolean;
     has_issue:
       | 'github'
