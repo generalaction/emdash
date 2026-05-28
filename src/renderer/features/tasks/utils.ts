@@ -35,6 +35,8 @@ export function friendlyGitError(raw: string): string {
 
 const GITHUB_REPOSITORY_ACCESS_ERROR =
   'GitHub could not find the repository, or your local Git credentials do not have write access.';
+const GITHUB_AUTHENTICATION_ERROR =
+  'GitHub authentication failed. Authenticate Git on this machine, or configure a fork as the project push remote.';
 
 export function formatPushErrorDetail(error: PushLikeError): string {
   const message = 'message' in error ? (error.message ?? error.type) : error.type;
@@ -47,6 +49,16 @@ export function formatPushErrorDetail(error: PushLikeError): string {
       normalized.includes('not found'))
   ) {
     return GITHUB_REPOSITORY_ACCESS_ERROR;
+  }
+
+  if (
+    normalized.includes('github.com') &&
+    (normalized.includes('could not read username') ||
+      normalized.includes('terminal prompts disabled') ||
+      normalized.includes('authentication failed') ||
+      normalized.includes('permission denied'))
+  ) {
+    return GITHUB_AUTHENTICATION_ERROR;
   }
 
   return message;

@@ -14,6 +14,17 @@ describe('formatPushErrorDetail', () => {
     );
   });
 
+  it('explains disabled GitHub credential prompts as local Git authentication failures', () => {
+    const detail = formatPushErrorDetail({
+      type: 'auth_failed',
+      message: "fatal: could not read Username for 'https://github.com': terminal prompts disabled",
+    });
+
+    expect(detail).toBe(
+      'GitHub authentication failed. Authenticate Git on this machine, or configure a fork as the project push remote.'
+    );
+  });
+
   it('preserves unrelated git error messages', () => {
     const detail = formatPushErrorDetail({
       type: 'rejected',
