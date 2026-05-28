@@ -131,31 +131,34 @@ describe('executeTaskCreate', () => {
     expect(taskConfig?.initialConversation?.autoApprove).toBe(true);
   });
 
-  it('enables auto-approval for automation-created conversations when the provider supports it', async () => {
-    vi.mocked(projectManager.getProject).mockReturnValue({} as never);
-    vi.mocked(taskService.createTask).mockResolvedValueOnce({
-      success: true,
-      data: { task: {} as never },
-    });
+  it.each(['claude', 'codex'] as const)(
+    'enables auto-approval for automation-created %s conversations when the provider supports it',
+    async (provider) => {
+      vi.mocked(projectManager.getProject).mockReturnValue({} as never);
+      vi.mocked(taskService.createTask).mockResolvedValueOnce({
+        success: true,
+        data: { task: {} as never },
+      });
 
-    await executeTaskCreate(automation.actions[0]!, {
-      automation: {
-        ...automation,
-        taskConfig: {
-          ...automation.taskConfig!,
-          initialConversation: {
-            ...automation.taskConfig!.initialConversation!,
-            provider: 'claude',
-            autoApprove: false,
+      await executeTaskCreate(automation.actions[0]!, {
+        automation: {
+          ...automation,
+          taskConfig: {
+            ...automation.taskConfig!,
+            initialConversation: {
+              ...automation.taskConfig!.initialConversation!,
+              provider,
+              autoApprove: false,
+            },
           },
         },
-      },
-      run,
-    });
+        run,
+      });
 
-    const taskConfig = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
-    expect(taskConfig?.initialConversation?.autoApprove).toBe(true);
-  });
+      const taskConfig = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
+      expect(taskConfig?.initialConversation?.autoApprove).toBe(true);
+    }
+  );
 
   it('enables auto-approval for automation-created OpenCode conversations via provider env', async () => {
     vi.mocked(projectManager.getProject).mockReturnValue({} as never);

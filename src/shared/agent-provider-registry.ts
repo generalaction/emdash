@@ -102,7 +102,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     commands: ['codex'],
     versionArgs: ['--version'],
     cli: 'codex',
-    autoApproveFlag: '--dangerously-bypass-approvals-and-sandbox --dangerously-bypass-hook-trust',
+    autoApproveFlag: '--dangerously-bypass-approvals-and-sandbox',
     initialPromptFlag: '',
     resumeFlag: 'resume',
     sessionIdFlag: ' ',
