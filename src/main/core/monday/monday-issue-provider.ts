@@ -136,27 +136,31 @@ async function searchIssues(searchTerm: string, limit: number): Promise<IssueLis
   const sanitizedLimit = clampIssueLimit(limit, 20, 200);
 
   try {
+    const queryParams = {
+      rules: [{ column_id: 'name', compare_value: [searchTerm], operator: 'contains_text' }],
+    };
+
     const query = credentials.boardIds.length
-      ? `query ($boardIds: [ID!]!, $term: String!, $limit: Int!) {
+      ? `query ($boardIds: [ID!]!, $queryParams: ItemsQuery, $limit: Int!) {
           boards(ids: $boardIds) {
             id name url
-            items_page(limit: $limit, query_params: { rules: [{ column_id: "name", compare_value: [$term], operator: contains_text }] }) {
+            items_page(limit: $limit, query_params: $queryParams) {
               items { ${ITEMS_FIELDS} }
             }
           }
         }`
-      : `query ($term: String!, $limit: Int!) {
+      : `query ($queryParams: ItemsQuery, $limit: Int!) {
           boards(limit: 20) {
             id name url
-            items_page(limit: $limit, query_params: { rules: [{ column_id: "name", compare_value: [$term], operator: contains_text }] }) {
+            items_page(limit: $limit, query_params: $queryParams) {
               items { ${ITEMS_FIELDS} }
             }
           }
         }`;
 
     const variables = credentials.boardIds.length
-      ? { boardIds: credentials.boardIds, term: searchTerm, limit: sanitizedLimit }
-      : { term: searchTerm, limit: sanitizedLimit };
+      ? { boardIds: credentials.boardIds, queryParams, limit: sanitizedLimit }
+      : { queryParams, limit: sanitizedLimit };
 
     const data = await mondayConnectionService.query<{ boards: MondayBoard[] }>(
       credentials.token,
