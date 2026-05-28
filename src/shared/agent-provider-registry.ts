@@ -107,7 +107,8 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     // prompt. Automations always auto-approve and can't answer that prompt, so without this
     // the session id is never captured and resume falls back to `codex resume --last`,
     // reattaching the globally-most-recent Codex session instead of this conversation.
-    autoApproveFlag: '--dangerously-bypass-approvals-and-sandbox --dangerously-bypass-hook-trust',
+    autoApproveFlag:
+      '-c approval_policy="never" -c sandbox_mode="danger-full-access" --dangerously-bypass-hook-trust',
     initialPromptFlag: '',
     resumeFlag: 'resume',
     sessionIdFlag: ' ',

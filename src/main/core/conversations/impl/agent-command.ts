@@ -103,6 +103,17 @@ function appendSessionId(args: string[], flag: string, sessionId: string): void 
   args.push(...parts, sessionId);
 }
 
+function dedupeSingletonArgs(args: string[], singletonArgs: readonly string[]): string[] {
+  const singletons = new Set(singletonArgs);
+  const seen = new Set<string>();
+  return args.filter((arg) => {
+    if (!singletons.has(arg)) return true;
+    if (seen.has(arg)) return false;
+    seen.add(arg);
+    return true;
+  });
+}
+
 export function buildAgentCommand({
   providerId,
   providerConfig,
@@ -164,7 +175,11 @@ export function buildAgentCommand({
 
   args.push(...parseArgField(providerConfig?.extraArgs));
 
-  return { command, args };
+  const finalArgs = providerId === 'codex'
+    ? dedupeSingletonArgs(args, ['--dangerously-bypass-approvals-and-sandbox'])
+    : args;
+
+  return { command, args: finalArgs };
 }
 
 export function wrapAgentCommandWithStdinPipe(agent: AgentCommand, prompt: string): AgentCommand {
