@@ -60,7 +60,7 @@ class WorkspaceFileIndexService {
   }
 
   async onWorkspaceCreated(workspaceId: string, workspace: Workspace): Promise<void> {
-    if (this.hasIndexEntries(workspaceId)) {
+    if (this.hasCompletedCrawl(workspaceId)) {
       this.touchMeta(workspaceId);
       return;
     }
@@ -69,7 +69,7 @@ class WorkspaceFileIndexService {
   }
 
   async prepareForSearch(workspaceId: string): Promise<void> {
-    if (this.hasIndexEntries(workspaceId)) {
+    if (this.hasCompletedCrawl(workspaceId)) {
       this.touchMeta(workspaceId);
       return;
     }
@@ -179,13 +179,13 @@ class WorkspaceFileIndexService {
     ]);
   }
 
-  private hasIndexEntries(workspaceId: string): boolean {
+  private hasCompletedCrawl(workspaceId: string): boolean {
     try {
       return !!sqlite
-        .prepare(`SELECT 1 FROM workspace_file_index WHERE workspace_id = ? LIMIT 1`)
+        .prepare(`SELECT 1 FROM workspace_file_index_meta WHERE workspace_id = ? LIMIT 1`)
         .get(workspaceId);
     } catch (e) {
-      log.warn('WorkspaceFileIndexService: hasIndexEntries failed', {
+      log.warn('WorkspaceFileIndexService: hasCompletedCrawl failed', {
         workspaceId,
         error: String(e),
       });
