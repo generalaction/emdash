@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
 import { log } from '@main/lib/logger';
+import { quoteCshArg } from '@main/utils/shellEscape';
 import { getWindowsEnvValue } from '@main/utils/windows-env';
 import { buildTmuxShellLine } from './tmux-session-name';
 
@@ -81,10 +82,6 @@ function quotePosixArg(input: string): string {
   if (input.length === 0) return "''";
   if (!/[\s'"\\$`\n\r\t;&|<>(){}[\]*?!]/.test(input)) return input;
   return `'${input.replace(/'/g, "'\\''")}'`;
-}
-
-function quoteCshArg(input: string): string {
-  return quotePosixArg(input).replace(/!/g, '\\!');
 }
 
 function argvToPosixShellLine(intent: PtySpawnIntent, command: string, args: string[]): string {

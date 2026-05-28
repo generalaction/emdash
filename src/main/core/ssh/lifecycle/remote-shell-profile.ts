@@ -1,6 +1,6 @@
 import type { ClientCallback, ClientChannel } from 'ssh2';
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import { isValidEnvVarName, quoteShellArg } from '@main/utils/shellEscape';
+import { isValidEnvVarName, quoteCshArg, quoteShellArg } from '@main/utils/shellEscape';
 import { parseRemoteEnvOutput, SHELL_ENV_CAPTURE_GUARD } from '@main/utils/userEnv';
 import {
   isCshShell,
@@ -60,10 +60,6 @@ function buildRemoteShellEnvPrefix(shell: string, env: Record<string, string>): 
     );
 
   return exports.length > 0 ? `${exports.join('; ')}; ` : '';
-}
-
-function quoteCshArg(value: string): string {
-  return quoteShellArg(value).replace(/!/g, '\\!');
 }
 
 function buildRemoteShellProcessEnvPrefix(env: Record<string, string>): string {

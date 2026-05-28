@@ -6,7 +6,7 @@ import {
   type RemoteShellProfile,
 } from '@main/core/ssh/lifecycle/remote-shell-profile';
 import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
-import { quoteShellArg } from '@main/utils/shellEscape';
+import { quoteCshArg, quoteShellArg } from '@main/utils/shellEscape';
 import type { AgentSessionConfig } from '@shared/agent-session';
 import type { GeneralSessionConfig } from '@shared/general-session';
 import {
@@ -53,10 +53,6 @@ function posixShellLineForSsh(
     default:
       throw new Error(`Unsupported session type: ${type}`);
   }
-}
-
-function quoteCshArg(value: string): string {
-  return quoteShellArg(value).replace(/!/g, '\\!');
 }
 
 /**

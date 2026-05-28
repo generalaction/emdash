@@ -540,7 +540,7 @@ describe('resolveLocalPtySpawn - POSIX', () => {
 
     expect(result).toEqual({
       command: 'tcsh',
-      args: ['-c', "printf 'hello\\!'"],
+      args: ['-c', "'printf' 'hello\\!'"],
       cwd: '/repo',
       warnings: [],
     });
