@@ -25,12 +25,27 @@ export function isHeicLikeFile(file: File): boolean {
 export function extractClipboardImageFiles(clipboardData: DataTransfer | null): File[] {
   if (!clipboardData?.items) return [];
   const imageFiles: File[] = [];
+  const seen = new Set<string>();
   for (const item of clipboardData.items) {
     if (item.kind !== 'file') continue;
     const file = item.getAsFile();
-    if (file && isClipboardImageFile(file)) imageFiles.push(file);
+    if (!file || !isClipboardImageFile(file)) continue;
+
+    const fingerprint = `${file.name}\0${file.type}\0${file.size}\0${file.lastModified}`;
+    if (seen.has(fingerprint)) continue;
+    seen.add(fingerprint);
+    imageFiles.push(file);
   }
+
+  if (clipboardData.types.some((type) => type.toLowerCase().startsWith('image/'))) {
+    return imageFiles.slice(0, 1);
+  }
+
   return imageFiles;
+}
+
+export function isNearDuplicatePaste(recentPasteAt: number, now = Date.now()): boolean {
+  return recentPasteAt > 0 && now >= recentPasteAt && now - recentPasteAt < 250;
 }
 
 export function clipboardDataMayContainImage(clipboardData: DataTransfer | null): boolean {

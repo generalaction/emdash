@@ -8,6 +8,7 @@ import {
   buildTerminalImageInjection,
   clipboardDataMayContainImage,
   extractClipboardImageFiles,
+  isNearDuplicatePaste,
 } from './terminal-image-paths';
 import { type PasteFromClipboardHandler, usePty } from './use-pty';
 
@@ -123,11 +124,15 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
     ref
   ) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
+    const lastDomImagePasteAtRef = useRef(0);
+    const lastSystemPasteAtRef = useRef(0);
 
     const theme: SessionTheme = { override: themeOverride };
 
     const handleSystemPaste = useCallback<PasteFromClipboardHandler>(
       ({ focus, sendInput }) => {
+        if (isNearDuplicatePaste(lastDomImagePasteAtRef.current)) return;
+        lastSystemPasteAtRef.current = Date.now();
         void pasteClipboardImageOrText({
           sessionId,
           remoteConnectionId,
@@ -192,6 +197,10 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
         const imageFiles = extractClipboardImageFiles(clipboardData);
         if (imageFiles.length > 0) {
           event.preventDefault();
+          event.stopPropagation();
+          event.nativeEvent.stopImmediatePropagation();
+          if (isNearDuplicatePaste(lastSystemPasteAtRef.current)) return;
+          lastDomImagePasteAtRef.current = Date.now();
           void (async () => {
             try {
               const injected = await injectImageFiles(imageFiles);
@@ -213,6 +222,10 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
         if (!clipboardDataMayContainImage(clipboardData)) return;
 
         event.preventDefault();
+        event.stopPropagation();
+        event.nativeEvent.stopImmediatePropagation();
+        if (isNearDuplicatePaste(lastSystemPasteAtRef.current)) return;
+        lastDomImagePasteAtRef.current = Date.now();
         void pasteClipboardImageOrText({
           sessionId,
           remoteConnectionId,
