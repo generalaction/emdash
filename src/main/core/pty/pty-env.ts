@@ -5,6 +5,10 @@ import { getWindowsEnvValue } from '@main/utils/windows-env';
 export const AGENT_ENV_VARS = [
   'AMP_API_KEY',
   'ANTHROPIC_API_KEY',
+  'ANTHROPIC_DEFAULT_HAIKU_MODEL',
+  'ANTHROPIC_DEFAULT_OPUS_MODEL',
+  'ANTHROPIC_DEFAULT_SONNET_MODEL',
+  'ANTHROPIC_SMALL_FAST_MODEL',
   'AUTOHAND_API_KEY',
   'AUGMENT_SESSION_AUTH',
   'AWS_ACCESS_KEY_ID',
@@ -16,6 +20,9 @@ export const AGENT_ENV_VARS = [
   'AZURE_OPENAI_API_ENDPOINT',
   'AZURE_OPENAI_API_KEY',
   'AZURE_OPENAI_KEY',
+  'CLAUDE_CODE_DISABLE_BACKGROUND_TASKS',
+  'CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS',
+  'CLAUDE_CODE_SUBAGENT_MODEL',
   'CODEBUFF_API_KEY',
   'COPILOT_CLI_TOKEN',
   'CURSOR_API_KEY',
@@ -209,6 +216,7 @@ export function buildAgentEnv(options: AgentEnvOptions = {}): Record<string, str
       const val = process.env[key];
       if (val) env[key] = val;
     }
+
   }
 
   if (providerVars) {
