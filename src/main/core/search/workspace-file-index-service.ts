@@ -5,6 +5,7 @@ import { sqlite } from '@main/db/client';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { fsWatchEventChannel } from '@shared/events/fsEvents';
+import { workspaceFileIndexUpdatedChannel } from '@shared/events/searchEvents';
 
 const STALE_DAYS = 14;
 const MAX_FILES = 50_000;
@@ -158,6 +159,7 @@ class WorkspaceFileIndexService {
       })();
 
       this.touchMeta(workspaceId);
+      events.emit(workspaceFileIndexUpdatedChannel, { workspaceId });
       log.info('WorkspaceFileIndexService: indexed workspace', {
         workspaceId,
         count: files.length,

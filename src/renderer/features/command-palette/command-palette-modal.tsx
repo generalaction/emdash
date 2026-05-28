@@ -10,13 +10,14 @@ import { commandRegistry } from '@renderer/lib/commands/registry';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { useDebounce } from '@renderer/lib/hooks/useDebounce';
 import { getEffectiveHotkey } from '@renderer/lib/hooks/useKeyboardShortcuts';
-import { rpc } from '@renderer/lib/ipc';
+import { events, rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 import { Shortcut } from '@renderer/lib/ui/shortcut';
 import { cn } from '@renderer/utils/utils';
 import { ALL_COMMAND_DEFS, type CommandDef } from '@shared/commands';
+import { workspaceFileIndexUpdatedChannel } from '@shared/events/searchEvents';
 import type { SearchItem } from '@shared/search';
 import { getCommandIcon } from './command-icons';
 import { PaletteConversationItem } from './palette-conversation-item';
@@ -156,6 +157,15 @@ export function CommandPaletteModal({
     });
     // oxlint-disable-next-line react/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!workspaceId) return;
+
+    return events.on(workspaceFileIndexUpdatedChannel, ({ workspaceId: updatedWorkspaceId }) => {
+      if (updatedWorkspaceId !== workspaceId) return;
+      void queryClient.invalidateQueries({ queryKey: ['cmdk-search'] });
+    });
+  }, [queryClient, workspaceId]);
 
   const { data: dbResults = [] } = useQuery({
     queryKey: ['cmdk-search', debouncedQuery, projectId, taskId, workspaceId],
