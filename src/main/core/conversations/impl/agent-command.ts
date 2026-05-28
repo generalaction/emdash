@@ -175,9 +175,10 @@ export function buildAgentCommand({
 
   args.push(...parseArgField(providerConfig?.extraArgs));
 
-  const finalArgs = providerId === 'codex'
-    ? dedupeSingletonArgs(args, ['--dangerously-bypass-approvals-and-sandbox'])
-    : args;
+  const finalArgs =
+    providerId === 'codex'
+      ? dedupeSingletonArgs(args, ['--dangerously-bypass-approvals-and-sandbox'])
+      : args;
 
   return { command, args: finalArgs };
 }
