@@ -884,7 +884,8 @@ export class SshFileSystem implements FileSystemProvider {
           lowerMsg.includes('already exists') ||
           lowerMsg.includes('file exists') ||
           (code === SFTP_STATUS.FAILURE && (msg === 'Failure' || msg === ''));
-        const isMissingParent = code === SFTP_STATUS.NO_SUCH_FILE || msg.includes('No such file');
+        const isMissingParent =
+          code === SFTP_STATUS.NO_SUCH_FILE || lowerMsg.includes('no such file');
 
         if (isAlreadyExists) {
           resolve();

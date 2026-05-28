@@ -61,6 +61,13 @@ describe('SshFileSystem.mkdir', () => {
 
     await expect(fs.mkdir('denied', { recursive: true })).rejects.toThrow('Permission denied');
   });
+
+  it('creates missing parents when SFTP reports lowercase no such file', async () => {
+    const { fs, mkdirCalls } = makeMkdirFs([new Error('no such file'), undefined, undefined]);
+
+    await expect(fs.mkdir('parent/child', { recursive: true })).resolves.toBeUndefined();
+    expect(mkdirCalls).toEqual(['/repo/parent/child', '/repo/parent', '/repo/parent/child']);
+  });
 });
 
 describe('SshFileSystem.watch', () => {
