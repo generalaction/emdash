@@ -2,11 +2,9 @@ import { observer } from 'mobx-react-lite';
 import { useCallback, useState } from 'react';
 import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
 import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
-import { asProvisioned, getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
+import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
-import { getPaneContainer } from '@renderer/lib/pty/pane-sizing-context';
-import { measureDimensions } from '@renderer/lib/pty/pty-dimensions';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
   DialogContentArea,
@@ -19,11 +17,6 @@ import { Switch } from '@renderer/lib/ui/switch';
 import { nextDefaultConversationTitle } from './conversation-title-utils';
 import { useEffectiveProvider } from './use-effective-provider';
 
-function getConversationsPaneSize() {
-  const container = getPaneContainer('conversations');
-  return container ? (measureDimensions(container, 8, 16) ?? undefined) : undefined;
-}
-
 export const CreateConversationModal = observer(function CreateConversationModal({
   onSuccess,
   projectId,
@@ -34,7 +27,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
 }) {
   const connectionId = getProjectSshConnectionId(projectId);
   const { providerId, setProviderOverride, createDisabled } = useEffectiveProvider(connectionId);
-  const conversationMgr = asProvisioned(getTaskStore(projectId, taskId))?.conversations;
+  const conversationMgr = conversationRegistry.get(taskId);
   const autoApproveDefaults = useAgentAutoApproveDefaults();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,7 +51,6 @@ export const CreateConversationModal = observer(function CreateConversationModal
         autoApprove: skipPermissions,
         provider: providerId,
         title,
-        initialSize: getConversationsPaneSize(),
       });
       onSuccess({ conversationId: id });
     } catch {
@@ -105,7 +97,7 @@ export const CreateConversationModal = observer(function CreateConversationModal
               <FieldLabel>Auto-approve permissions</FieldLabel>
             </div>
           </Field>
-          {error && <p className="text-xs text-destructive">{error}</p>}
+          {error && <p className="text-destructive text-xs">{error}</p>}
         </FieldGroup>
       </DialogContentArea>
       <DialogFooter>

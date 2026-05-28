@@ -1,22 +1,21 @@
-import type { GeneralSessionConfig } from '@shared/general-session';
-import { makePtySessionId } from '@shared/ptySessionId';
-import type { Terminal } from '@shared/terminals';
 import type { IExecutionContext } from '@main/core/execution-context/types';
+import { isUnexpectedPtyExit } from '@main/core/pty/exit-classification';
 import type { Pty } from '@main/core/pty/pty';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { resolveSshCommand } from '@main/core/pty/spawn-utils';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
-import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
-import {
-  sshConnectionManager,
-  type SshConnectionManagerEvent,
-} from '@main/core/ssh/ssh-connection-manager';
+import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
+import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
+import type { SshConnectionManagerEvent } from '@main/core/ssh/lifecycle/ssh-connection-manager';
 import {
   type LifecycleScriptSpawnRequest,
   type TerminalProvider,
 } from '@main/core/terminals/terminal-provider';
 import { log } from '@main/lib/logger';
+import type { GeneralSessionConfig } from '@shared/general-session';
+import { makePtySessionId } from '@shared/ptySessionId';
+import type { Terminal } from '@shared/terminals';
 import { wireTerminalDevServerWatcher } from '../dev-server-watcher';
 
 const DEFAULT_COLS = 80;
@@ -95,7 +94,7 @@ export class SshTerminalProvider implements TerminalProvider {
     initialSize: { cols: number; rows: number } = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS },
     command?: { command: string; args: string[] }
   ): Promise<void> {
-    return this.spawnWithPolicy(terminal, initialSize, command, {
+    return this.spawnWithPolicy(terminal, initialSize, command, undefined, {
       respawnOnExit: true,
       preserveBufferOnExit: false,
       watchDevServer: true,
@@ -106,6 +105,7 @@ export class SshTerminalProvider implements TerminalProvider {
   async spawnLifecycleScript({
     terminal,
     command,
+    shellSetup,
     initialSize = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS },
     respawnOnExit = false,
     preserveBufferOnExit = true,
@@ -115,6 +115,7 @@ export class SshTerminalProvider implements TerminalProvider {
       terminal,
       initialSize,
       command === undefined ? undefined : { command, args: [] },
+      shellSetup,
       {
         respawnOnExit,
         preserveBufferOnExit,
@@ -128,6 +129,7 @@ export class SshTerminalProvider implements TerminalProvider {
     terminal: Terminal,
     initialSize: { cols: number; rows: number },
     command: { command: string; args: string[] } | undefined,
+    shellSetup: string | undefined,
     policy: SpawnPolicy
   ): Promise<void> {
     const sessionId = makePtySessionId(terminal.projectId, terminal.taskId, terminal.id);
@@ -140,7 +142,7 @@ export class SshTerminalProvider implements TerminalProvider {
     const cfg: GeneralSessionConfig = {
       taskId: this.scopeId,
       cwd: this.taskPath,
-      shellSetup: this.shellSetup,
+      shellSetup: shellSetup ?? this.shellSetup,
       tmuxSessionName: this.tmux ? makeTmuxSessionName(sessionId) : undefined,
       command: command?.command,
       args: command?.args,
@@ -174,8 +176,11 @@ export class SshTerminalProvider implements TerminalProvider {
       });
     }
 
-    pty.onExit(() => {
-      const shouldRespawn = policy.respawnOnExit && this.sessions.has(sessionId);
+    pty.onExit(({ exitCode, signal }) => {
+      const shouldRespawn =
+        policy.respawnOnExit &&
+        this.sessions.has(sessionId) &&
+        isUnexpectedPtyExit({ exitCode, signal });
       this.sessions.delete(sessionId);
       if (!policy.preserveBufferOnExit) {
         ptySessionRegistry.unregister(sessionId);
@@ -194,7 +199,7 @@ export class SshTerminalProvider implements TerminalProvider {
         }
 
         setTimeout(() => {
-          this.spawnWithPolicy(terminal, initialSize, command, policy).catch((e) => {
+          this.spawnWithPolicy(terminal, initialSize, command, shellSetup, policy).catch((e) => {
             log.error('SshTerminalProvider: respawn failed', {
               terminalId: terminal.id,
               error: String(e),

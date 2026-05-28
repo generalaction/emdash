@@ -20,6 +20,7 @@ export interface UseTabShortcutsOptions {
    * Defaults to true (always enabled when store is present).
    */
   focused?: boolean;
+  closeActiveTab?: () => void;
 }
 
 /**
@@ -81,7 +82,7 @@ export function useTabShortcuts(
     getHotkeyRegistration('tabClose', keyboard),
     (e) => {
       e.preventDefault();
-      store?.closeActiveTab();
+      (options?.closeActiveTab ?? store?.closeActiveTab)?.();
     },
     { enabled: enabled && tabCloseHotkey !== null, conflictBehavior: 'allow' }
   );

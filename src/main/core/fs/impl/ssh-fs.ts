@@ -4,11 +4,11 @@
  */
 
 import type { SFTPWrapper } from 'ssh2';
-import type { FileWatchEvent } from '@shared/fs';
-import { buildRemoteShellCommand } from '@main/core/ssh/remote-shell-profile';
-import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
+import { buildRemoteShellCommand } from '@main/core/ssh/lifecycle/remote-shell-profile';
+import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { log } from '@main/lib/logger';
 import { quoteShellArg } from '@main/utils/shellEscape';
+import type { FileWatchEvent } from '@shared/fs';
 import {
   FileSystemError,
   FileSystemErrorCodes,
@@ -877,13 +877,15 @@ export class SshFileSystem implements FileSystemProvider {
 
         const sftpErr = err as SftpError;
         const msg = sftpErr.message ?? '';
+        const lowerMsg = msg.toLowerCase();
         const code = sftpErr.code;
 
         const isAlreadyExists =
-          msg.includes('already exists') ||
-          msg.includes('File exists') ||
+          lowerMsg.includes('already exists') ||
+          lowerMsg.includes('file exists') ||
           (code === SFTP_STATUS.FAILURE && (msg === 'Failure' || msg === ''));
-        const isMissingParent = code === SFTP_STATUS.NO_SUCH_FILE || msg.includes('No such file');
+        const isMissingParent =
+          code === SFTP_STATUS.NO_SUCH_FILE || lowerMsg.includes('no such file');
 
         if (isAlreadyExists) {
           resolve();

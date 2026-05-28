@@ -33,7 +33,19 @@ export type GitChange = {
 export interface FullGitStatus {
   staged: GitChange[];
   unstaged: GitChange[];
+  /**
+   * The checked-out branch name, or null when HEAD is detached.
+   * Use headKind to distinguish detached HEAD from an unborn branch.
+   */
   currentBranch: string | null;
+  /**
+   * - 'branch': a normal branch is checked out
+   * - 'detached': HEAD is detached (e.g. mid-rebase); shortHash is populated
+   * - 'unborn': the branch exists but has no commits yet; currentBranch is set
+   */
+  headKind: 'branch' | 'detached' | 'unborn';
+  /** Short commit hash (7 chars). Only set when headKind === 'detached'. */
+  shortHash: string | null;
   totalAdded: number;
   totalDeleted: number;
 }
@@ -204,6 +216,7 @@ export function tagRef(name: string): GitObjectRef {
 
 export type Commit = {
   hash: string;
+  parents: string[];
   subject: string;
   body: string;
   author: string;
@@ -214,7 +227,7 @@ export type Commit = {
 
 export type CommitFile = {
   path: string;
-  status: string;
+  status: GitChangeStatus;
   additions: number;
   deletions: number;
 };

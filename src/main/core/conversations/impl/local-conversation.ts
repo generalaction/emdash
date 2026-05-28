@@ -1,9 +1,4 @@
 import { homedir } from 'node:os';
-import { getProvider } from '@shared/agent-provider-registry';
-import type { Conversation } from '@shared/conversations';
-import { agentSessionExitedChannel } from '@shared/events/agentEvents';
-import { makePtyId } from '@shared/ptyId';
-import { makePtySessionId } from '@shared/ptySessionId';
 import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
 import { wireAgentClassifier } from '@main/core/agent-hooks/classifier-wiring';
 import { claudeTrustService } from '@main/core/agent-hooks/claude-trust-service';
@@ -11,6 +6,7 @@ import { HookConfigWriter } from '@main/core/agent-hooks/hook-config';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
+import { isUnexpectedPtyExit } from '@main/core/pty/exit-classification';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import type { Pty } from '@main/core/pty/pty';
 import { buildAgentEnv } from '@main/core/pty/pty-env';
@@ -22,7 +18,15 @@ import { appSettingsService } from '@main/core/settings/settings-service';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
-import { buildAgentCommand } from './agent-command';
+import { getProvider } from '@shared/agent-provider-registry';
+import type { Conversation } from '@shared/conversations';
+import { agentSessionExitedChannel } from '@shared/events/agentEvents';
+import { makePtyId } from '@shared/ptyId';
+import { makePtySessionId } from '@shared/ptySessionId';
+import { resolveAgentSessionCommandArgs } from '../resolve-agent-session-command';
+import { buildAgentSessionCommand } from './agent-command';
+import { syncGrokThemeWithAppTheme } from './grok-theme-config';
+import { scheduleInitialPromptInjection } from './keystroke-injection';
 import { resolveProviderEnv } from './provider-env';
 
 const DEFAULT_COLS = 80;
@@ -41,7 +45,10 @@ export class LocalConversationProvider implements ConversationProvider {
   private readonly ctx: IExecutionContext;
   private readonly taskEnvVars: Record<string, string>;
   private readonly hookConfigWriter: HookConfigWriter;
-  private readonly preparedHookProviders = new Map<string, boolean>();
+  private readonly preparedHookProviders = new Map<
+    string,
+    { writeGitIgnoreEntries: boolean; hooksAvailable: boolean }
+  >();
 
   constructor({
     projectId,
@@ -89,18 +96,27 @@ export class LocalConversationProvider implements ConversationProvider {
       cwd: this.taskPath,
       homedir: homedir(),
     });
-    await this.prepareHookConfig(conversation.providerId);
+    const hooksAvailable = await this.prepareHookConfig(conversation.providerId);
 
     const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
-    const { command, args } = buildAgentCommand({
+    const providerDef = getProvider(conversation.providerId);
+    const agentSession = resolveAgentSessionCommandArgs(conversation, isResuming);
+    const { command, args } = buildAgentSessionCommand({
       providerId: conversation.providerId,
       providerConfig,
       autoApprove: conversation.autoApprove,
       sessionId: conversation.id,
-      isResuming,
+      providerSessionId: conversation.providerSessionId,
+      isResuming: agentSession.isResuming,
       initialPrompt,
     });
-    const providerEnv = resolveProviderEnv(providerConfig);
+    const providerEnv = resolveProviderEnv(providerConfig, {
+      providerId: conversation.providerId,
+      autoApprove: conversation.autoApprove,
+    });
+    if (conversation.providerId === 'grok') {
+      await syncGrokThemeWithAppTheme({ env: providerEnv });
+    }
 
     const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
 
@@ -124,6 +140,12 @@ export class LocalConversationProvider implements ConversationProvider {
     const ptyId = makePtyId(conversation.providerId, conversation.id);
     const port = agentHookService.getPort();
     const token = agentHookService.getToken();
+    const hookActive = port > 0;
+    const ampHooksAvailable =
+      hookActive &&
+      conversation.providerId === 'amp' &&
+      providerDef?.supportsHooks &&
+      hooksAvailable;
     const pty = spawnLocalPty({
       id: sessionId,
       command: resolved.command,
@@ -135,14 +157,23 @@ export class LocalConversationProvider implements ConversationProvider {
           providerVars: providerEnv,
         }),
         ...this.taskEnvVars,
+        ...(ampHooksAvailable && !this.taskEnvVars['PLUGINS'] ? { PLUGINS: 'all' } : {}),
       },
       cols: initialSize.cols,
       rows: initialSize.rows,
     });
 
-    const hookActive = port > 0;
-    const provider = getProvider(conversation.providerId);
-    const useHooksOnly = hookActive && provider?.supportsHooks;
+    /*
+     * Codex hooks can be skipped by the CLI in some live-session edge cases.
+     * Amp hooks only cover lifecycle events today. Keep the output classifier
+     * active as a fallback so the UI can leave "working" and catch prompts.
+     */
+    const useHooksOnly =
+      hookActive &&
+      providerDef?.supportsHooks &&
+      hooksAvailable &&
+      conversation.providerId !== 'codex' &&
+      conversation.providerId !== 'amp';
 
     if (!useHooksOnly) {
       wireAgentClassifier({
@@ -154,17 +185,11 @@ export class LocalConversationProvider implements ConversationProvider {
       });
     }
 
-    pty.onExit(({ exitCode }) => {
+    pty.onExit(({ exitCode, signal }) => {
       ptySessionRegistry.unregister(sessionId);
-      const shouldRespawn = this.sessions.has(sessionId);
+      const shouldRespawn =
+        this.sessions.has(sessionId) && isUnexpectedPtyExit({ exitCode, signal });
       this.sessions.delete(sessionId);
-      telemetryService.capture('agent_run_finished', {
-        provider: conversation.providerId,
-        exit_code: typeof exitCode === 'number' ? exitCode : -1,
-        project_id: conversation.projectId,
-        task_id: conversation.taskId,
-        conversation_id: conversation.id,
-      });
       events.emit(agentSessionExitedChannel, {
         sessionId,
         projectId: conversation.projectId,
@@ -176,7 +201,7 @@ export class LocalConversationProvider implements ConversationProvider {
         const count = (this.respawnCounts.get(sessionId) ?? 0) + 1;
         this.respawnCounts.set(sessionId, count);
 
-        if (count > MAX_RESPAWNS && !isResuming) {
+        if (count > MAX_RESPAWNS) {
           log.error('LocalConversationProvider: respawn limit reached, giving up', {
             conversationId: conversation.id,
           });
@@ -185,8 +210,6 @@ export class LocalConversationProvider implements ConversationProvider {
         }
 
         const resumeNext = isResuming && count <= MAX_RESPAWNS;
-        if (count > MAX_RESPAWNS) this.respawnCounts.set(sessionId, 0);
-
         setTimeout(() => {
           this.startSession(conversation, initialSize, resumeNext, initialPrompt).catch((e) => {
             log.error('LocalConversationProvider: respawn failed', {
@@ -202,6 +225,7 @@ export class LocalConversationProvider implements ConversationProvider {
       metadata: { providerId: conversation.providerId, title: conversation.title },
     });
     this.sessions.set(sessionId, pty);
+    scheduleInitialPromptInjection({ pty, conversation, initialPrompt, isResuming });
     telemetryService.capture('agent_run_started', {
       provider: conversation.providerId,
       project_id: conversation.projectId,
@@ -210,32 +234,34 @@ export class LocalConversationProvider implements ConversationProvider {
     });
   }
 
-  private async prepareHookConfig(providerId: Conversation['providerId']): Promise<void> {
+  private async prepareHookConfig(providerId: Conversation['providerId']): Promise<boolean> {
     try {
       const localProjectSettings = await appSettingsService.get('localProject');
       const writeGitIgnoreEntries = localProjectSettings.writeAgentConfigToGitIgnore ?? true;
-      const previousWriteGitIgnoreEntries = this.preparedHookProviders.get(providerId);
+      const previous = this.preparedHookProviders.get(providerId);
       const shouldPrepareHookConfig =
-        previousWriteGitIgnoreEntries === undefined ||
-        (!previousWriteGitIgnoreEntries && writeGitIgnoreEntries);
-      if (!shouldPrepareHookConfig) return;
+        previous === undefined || (!previous.writeGitIgnoreEntries && writeGitIgnoreEntries);
+      if (!shouldPrepareHookConfig) return previous?.hooksAvailable ?? false;
 
-      await this.hookConfigWriter.writeForProvider(providerId, {
+      const hooksAvailable = await this.hookConfigWriter.writeForProvider(providerId, {
         writeGitIgnoreEntries,
       });
-      this.preparedHookProviders.set(providerId, writeGitIgnoreEntries);
+      this.preparedHookProviders.set(providerId, { writeGitIgnoreEntries, hooksAvailable });
+      return hooksAvailable;
     } catch (error) {
       log.warn('LocalConversationProvider: failed to prepare hook config', {
         providerId,
         taskPath: this.taskPath,
         error: String(error),
       });
+      return false;
     }
   }
 
   async stopSession(conversationId: string): Promise<void> {
     const sessionId = makePtySessionId(this.projectId, this.taskId, conversationId);
     this.knownSessionIds.delete(sessionId);
+    this.respawnCounts.delete(sessionId);
     const pty = this.sessions.get(sessionId);
     if (pty) {
       try {
@@ -268,5 +294,6 @@ export class LocalConversationProvider implements ConversationProvider {
       ptySessionRegistry.unregister(sessionId);
     }
     this.sessions.clear();
+    this.respawnCounts.clear();
   }
 }

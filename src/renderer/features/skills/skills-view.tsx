@@ -1,5 +1,5 @@
 import { Titlebar } from '@renderer/lib/components/titlebar/Titlebar';
-import SkillsView from './components/SkillsView';
+import { SkillsView } from './components/SkillsView';
 
 export function SkillsTitlebar() {
   return <Titlebar />;

@@ -1,10 +1,10 @@
 import { eq, sql } from 'drizzle-orm';
-import type { CreateTerminalParams, Terminal } from '@shared/terminals';
 import { withCompensation } from '@main/core/utils/compensation';
 import { db } from '@main/db/client';
 import { terminals } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
+import type { CreateTerminalParams, Terminal } from '@shared/terminals';
 import { resolveTask } from '../projects/utils';
 import { mapTerminalRowToTerminal } from './core';
 

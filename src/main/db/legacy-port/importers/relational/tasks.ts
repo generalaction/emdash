@@ -1,3 +1,4 @@
+import { toStoredBranch } from '@main/core/tasks/stored-branch';
 import { tasks } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { readLegacyRows, toInteger, toIsoTimestamp, toTrimmedString } from './helpers';
@@ -147,7 +148,7 @@ export async function portTasks({ appDb, legacyDb, remap }: PortContext): Promis
       projectId: mappedProjectId,
       name: toTrimmedString(row.name) ?? branch ?? `Legacy Task ${legacyTaskId.slice(0, 8)}`,
       status: coerceTaskStatus(toTrimmedString(row.status)),
-      sourceBranch,
+      sourceBranch: toStoredBranch(sourceBranch),
       taskBranch: taskBranch ?? null,
       archivedAt: toTrimmedString(row.archived_at) ?? null,
       createdAt,

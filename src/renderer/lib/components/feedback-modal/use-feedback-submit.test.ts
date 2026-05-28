@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { FEEDBACK_EMAIL_SCHEMA } from './schemas/feedback-email';
 import { buildFeedbackContent } from './use-feedback-submit';
 
 describe('buildFeedbackContent', () => {
@@ -16,6 +17,29 @@ describe('buildFeedbackContent', () => {
     expect(content).toContain('Emdash Version: 1.2.3');
   });
 
+  it('notes diagnostic logs when user opts in', () => {
+    const content = buildFeedbackContent({
+      feedback: 'Something broke',
+      contactEmail: '',
+      githubUser: null,
+      appVersion: '1.2.3',
+      includeDiagnosticLogs: true,
+    });
+
+    expect(content).toContain('Diagnostic Logs: attached by user opt-in');
+  });
+
+  it('omits diagnostic-log note when user does not opt in', () => {
+    const content = buildFeedbackContent({
+      feedback: 'Something broke',
+      contactEmail: '',
+      githubUser: null,
+      appVersion: '1.2.3',
+    });
+
+    expect(content).not.toContain('Diagnostic Logs');
+  });
+
   it('omits empty metadata fields', () => {
     const content = buildFeedbackContent({
       feedback: 'Needs improvement',
@@ -25,5 +49,24 @@ describe('buildFeedbackContent', () => {
     });
 
     expect(content).toBe('Needs improvement');
+  });
+});
+
+describe('FEEDBACK_EMAIL_SCHEMA', () => {
+  it('accepts blank optional email', () => {
+    expect(FEEDBACK_EMAIL_SCHEMA.safeParse('').success).toBe(true);
+  });
+
+  it('accepts valid email', () => {
+    expect(FEEDBACK_EMAIL_SCHEMA.safeParse('person@example.com').success).toBe(true);
+  });
+
+  it('rejects invalid email', () => {
+    const result = FEEDBACK_EMAIL_SCHEMA.safeParse('person');
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toBe('Please enter a valid email address.');
+    }
   });
 });

@@ -1,43 +1,16 @@
 import { observer } from 'mobx-react-lite';
 import { useEffect, type ReactNode } from 'react';
-import { type ViewDefinition } from '@renderer/app/view-registry';
+import { type GuardResult, type ViewDefinition } from '@renderer/app/view-registry';
 import {
   getTaskManagerStore,
   getTaskStore,
   taskViewKind,
 } from '@renderer/features/tasks/stores/task-selectors';
-import {
-  ProvisionedTaskProvider,
-  TaskViewWrapper,
-  useProvisionedTask,
-} from '@renderer/features/tasks/task-view-context';
+import { TaskViewWrapper } from '@renderer/features/tasks/task-view-context';
+import { appState } from '@renderer/lib/stores/app-state';
 import { createTaskCommandProvider } from './commands';
-import { EditorProvider } from './editor/editor-provider';
-import { useIsActiveTask } from './hooks/use-is-active-task';
 import { TaskMainPanel } from './main-panel';
 import { TaskTitlebar } from './task-titlebar';
-
-/**
- * Syncs TabManagerStore.isVisible with the active task state.
- * Controls telemetry conversation scope.
- */
-const TabManagerVisibilitySync = observer(function TabManagerVisibilitySync({
-  taskId,
-}: {
-  taskId: string;
-}) {
-  const { taskView } = useProvisionedTask();
-  const isActive = useIsActiveTask(taskId);
-
-  useEffect(() => {
-    taskView.tabManager.setVisible(isActive);
-    return () => {
-      taskView.tabManager.setVisible(false);
-    };
-  }, [taskView.tabManager, isActive]);
-
-  return null;
-});
 
 const TaskViewWrapperWithProviders = observer(function TaskViewWrapperWithProviders({
   children,
@@ -73,12 +46,7 @@ const TaskViewWrapperWithProviders = observer(function TaskViewWrapperWithProvid
 
   return (
     <TaskViewWrapper projectId={projectId} taskId={taskId}>
-      <ProvisionedTaskProvider projectId={projectId} taskId={taskId}>
-        <TabManagerVisibilitySync taskId={taskId} />
-        <EditorProvider key={taskId} taskId={taskId} projectId={projectId}>
-          {children}
-        </EditorProvider>
-      </ProvisionedTaskProvider>
+      {children}
     </TaskViewWrapper>
   );
 });
@@ -89,4 +57,28 @@ export const taskView = {
   MainPanel: TaskMainPanel,
   commandProvider: ({ projectId, taskId }: { projectId: string; taskId: string }) =>
     createTaskCommandProvider(projectId, taskId),
+  canActivate: (params: unknown): GuardResult => {
+    const projectId =
+      typeof params === 'object' && params !== null
+        ? (params as { projectId?: unknown }).projectId
+        : undefined;
+    const taskId =
+      typeof params === 'object' && params !== null
+        ? (params as { taskId?: unknown }).taskId
+        : undefined;
+    if (typeof projectId !== 'string' || typeof taskId !== 'string') {
+      return { ok: false, redirect: 'home' };
+    }
+    if (
+      !appState.projects.projects.has(projectId) &&
+      !appState.projects.pendingCreationIds.has(projectId)
+    ) {
+      return { ok: false, redirect: 'home' };
+    }
+    const taskManager = getTaskManagerStore(projectId);
+    if (taskManager && !taskManager.tasks.has(taskId)) {
+      return { ok: false, redirect: 'project', params: { projectId } };
+    }
+    return { ok: true };
+  },
 } satisfies ViewDefinition<{ projectId: string; taskId: string }>;

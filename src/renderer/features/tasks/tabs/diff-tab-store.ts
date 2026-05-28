@@ -1,4 +1,6 @@
 import { action, makeObservable, observable } from 'mobx';
+import type { DiffRendererData } from '@renderer/features/tasks/types';
+import { getFileKind } from '@renderer/lib/editor/fileKind';
 import type { GitChangeStatus, GitObjectRef } from '@shared/git';
 import type { ActiveFile } from '@shared/view-state';
 
@@ -12,10 +14,15 @@ export class DiffTabStore {
 
   path: string;
   isPreview: boolean;
+  renderer: DiffRendererData;
   diffGroup: 'disk' | 'staged' | 'git' | 'pr';
   originalRef: GitObjectRef;
   modifiedRef: GitObjectRef | undefined;
   prNumber: number | undefined;
+  prBaseOid: string | undefined;
+  prHeadOid: string | undefined;
+  commitOriginalSha: string | null | undefined;
+  commitModifiedSha: string | undefined;
   status: GitChangeStatus | undefined;
 
   constructor(
@@ -27,18 +34,28 @@ export class DiffTabStore {
     this.tabId = tabId ?? crypto.randomUUID();
     this.path = activeFile.path;
     this.isPreview = isPreview;
+    this.renderer = resolveDiffRenderer(activeFile.path);
     this.diffGroup = activeFile.group;
     this.originalRef = activeFile.originalRef;
     this.modifiedRef = activeFile.modifiedRef;
     this.prNumber = activeFile.prNumber;
+    this.prBaseOid = activeFile.prBaseOid;
+    this.prHeadOid = activeFile.prHeadOid;
+    this.commitOriginalSha = activeFile.commitOriginalSha;
+    this.commitModifiedSha = activeFile.commitModifiedSha;
     this.status = status;
 
     makeObservable(this, {
       isPreview: observable,
+      renderer: observable,
       diffGroup: observable,
       originalRef: observable,
       modifiedRef: observable,
       prNumber: observable,
+      prBaseOid: observable,
+      prHeadOid: observable,
+      commitOriginalSha: observable,
+      commitModifiedSha: observable,
       status: observable,
       transition: action,
       pin: action,
@@ -59,10 +76,21 @@ export class DiffTabStore {
     this.originalRef = newOriginalRef;
     this.modifiedRef = undefined;
     this.prNumber = undefined;
+    this.prBaseOid = undefined;
+    this.prHeadOid = undefined;
+    this.commitOriginalSha = undefined;
+    this.commitModifiedSha = undefined;
     this.status = status;
   }
 
   pin(): void {
     this.isPreview = false;
   }
+}
+
+function resolveDiffRenderer(path: string): DiffRendererData {
+  const kind = getFileKind(path);
+  if (kind === 'image' || kind === 'svg') return { kind: 'image' };
+  if (kind === 'binary') return { kind: 'binary' };
+  return { kind: 'text' };
 }

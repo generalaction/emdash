@@ -1,22 +1,22 @@
 import path from 'node:path';
-import type { Conversation } from '@shared/conversations';
-import { taskProvisionProgressChannel, type ProvisionStep } from '@shared/events/taskEvents';
-import { makePtySessionId } from '@shared/ptySessionId';
-import { err, ok, type Result } from '@shared/result';
-import type { Task, TaskBootstrapStatus } from '@shared/tasks';
-import type { Terminal } from '@shared/terminals';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
 import { provisionBYOITask } from '@main/core/workspaces/byoi/provision-byoi-task';
-import { localWorkspaceId, sshWorkspaceId } from '@main/core/workspaces/workspace-id';
 import { workspaceRegistry, type TeardownMode } from '@main/core/workspaces/workspace-registry';
 import { events } from '@main/lib/events';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { LifecycleMap } from '@main/lib/lifecycle-map';
 import { log } from '@main/lib/logger';
+import type { Conversation } from '@shared/conversations';
+import { taskProvisionProgressChannel, type ProvisionStep } from '@shared/events/taskEvents';
+import { makePtySessionId } from '@shared/ptySessionId';
+import { err, ok, type Result } from '@shared/result';
+import type { Task, TaskBootstrapStatus } from '@shared/tasks';
+import type { WorkspaceType as SharedWorkspaceType } from '@shared/workspaces';
 import type { ProjectProvider, ProvisionResult, TaskProvider } from '../projects/project-provider';
 import { withTimeout } from '../projects/utils';
+import { loadConversationsForInitialHydration } from './load-initial-conversations';
 import {
   formatProvisionTaskError,
   TASK_TIMEOUT_MS,
@@ -26,6 +26,12 @@ import {
   type TeardownTaskError,
 } from './provision-task-error';
 import { provisionLocalTask } from './task-builder';
+
+export type WorkspaceHint = {
+  id: string;
+  type: SharedWorkspaceType;
+  path?: string;
+};
 
 type StoredTask = ProvisionResult & { projectId: string; ctx: IExecutionContext };
 
@@ -47,10 +53,13 @@ export type TaskManagerHooks = {
 async function executeProvision(
   provider: ProjectProvider,
   task: Task,
-  conversations: Conversation[],
-  terminals: Terminal[]
+  hint: WorkspaceHint,
+  conversationsToHydrate: Conversation[]
 ): Promise<ProvisionResult> {
-  if (task.workspaceProvider === 'byoi') {
+  const workspaceId = hint.id;
+
+  const isByoi = hint.type === 'byoi';
+  if (isByoi) {
     const projectSettings = await provider.settings.get();
     if (projectSettings.workspaceProvider?.type !== 'script') {
       throw new Error(
@@ -59,26 +68,19 @@ async function executeProvision(
     }
     return provisionBYOITask({
       task,
-      conversations,
-      terminals,
       wpConfig: projectSettings.workspaceProvider,
       ctx: provider.ctx,
       projectId: provider.projectId,
       projectPath: provider.repoPath,
       settings: provider.settings,
       logPrefix: `${provider.type}ProjectProvider[byoi]`,
+      workspaceId,
+      conversationsToHydrate,
     });
   }
 
-  const workspaceId =
-    provider.defaultWorkspaceType.kind === 'local'
-      ? localWorkspaceId(provider.projectId, task.taskBranch)
-      : sshWorkspaceId(provider.projectId, task.taskBranch);
-
   const { provisionResult, workspace } = await provisionLocalTask({
     task,
-    conversations,
-    terminals,
     workspaceId,
     type: provider.defaultWorkspaceType,
     projectId: provider.projectId,
@@ -88,6 +90,8 @@ async function executeProvision(
     fetchService: provider.gitFetchService,
     repository: provider.repository,
     logPrefix: `${provider.type}ProjectProvider`,
+    workDir: hint.path,
+    conversationsToHydrate,
   });
 
   if (provider.defaultWorkspaceType.kind === 'local') {
@@ -158,8 +162,7 @@ class TaskManager {
   async provisionTask(
     provider: ProjectProvider,
     task: Task,
-    conversations: Conversation[],
-    terminals: Terminal[]
+    hint: WorkspaceHint
   ): Promise<Result<ProvisionResult, ProvisionTaskError>> {
     return this._lifecycle.provision(task.id, async () => {
       let lastStep: ProvisionStep | null = null;
@@ -167,8 +170,12 @@ class TaskManager {
         if (progress.taskId === task.id) lastStep = progress.step;
       });
       try {
+        const conversationsToHydrate = await loadConversationsForInitialHydration(
+          provider.projectId,
+          task.id
+        );
         const result = await withTimeout(
-          executeProvision(provider, task, conversations, terminals),
+          executeProvision(provider, task, hint, conversationsToHydrate),
           TASK_TIMEOUT_MS
         );
         const stored: StoredTask = {

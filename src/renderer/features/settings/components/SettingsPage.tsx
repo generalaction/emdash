@@ -1,19 +1,27 @@
 import { ExternalLink } from 'lucide-react';
 import React, { useCallback } from 'react';
+import { PageHeader } from '@renderer/lib/components/page-header';
 import { rpc } from '@renderer/lib/ipc';
-import { Separator } from '@renderer/lib/ui/separator';
 import { cn } from '@renderer/utils/utils';
 import { AccountTab } from './AccountTab';
 import { CliAgentsList } from './CliAgentsList';
 import DefaultAgentSettingsCard from './DefaultAgentSettingsCard';
 import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
 import IntegrationsCard from './IntegrationsCard';
+import InterfaceSettingsCard from './InterfaceSettingsCard';
 import KeyboardSettingsCard from './KeyboardSettingsCard';
 import NotificationSettingsCard from './NotificationSettingsCard';
 import RepositorySettingsCard from './RepositorySettingsCard';
 import ResourceMonitorSettingsCard from './ResourceMonitorSettingsCard';
-import { ReviewPromptResetButton, ReviewPromptSettingsCard } from './ReviewPromptSettingsCard';
-import { AutoGenerateTaskNamesRow, AutoTrustWorktreesRow, EnableTmuxRow } from './TaskSettingsRows';
+import { SshConnectionsSettingsCard } from './SshConnectionsSettingsCard';
+import {
+  AutoGenerateTaskNamesRow,
+  AutoTrustWorktreesRow,
+  CreateBranchAndWorktreeRow,
+  EnableTmuxRow,
+  IncludeIssueContextByDefaultRow,
+  PreserveTaskNameCapitalizationRow,
+} from './TaskSettingsRows';
 import TelemetryCard from './TelemetryCard';
 import TerminalSettingsCard from './TerminalSettingsCard';
 import ThemeCard from './ThemeCard';
@@ -24,6 +32,7 @@ export type SettingsPageTab =
   | 'account'
   | 'clis-models'
   | 'integrations'
+  | 'connections'
   | 'repository'
   | 'interface'
   | 'docs';
@@ -54,6 +63,7 @@ export function SettingsPage({
     { id: 'account', label: 'Account' },
     { id: 'clis-models', label: 'Agents' },
     { id: 'integrations', label: 'Integrations' },
+    { id: 'connections', label: 'Connections' },
     { id: 'repository', label: 'Repository' },
     { id: 'interface', label: 'Interface' },
     { id: 'docs', label: 'Docs', isExternal: true },
@@ -77,6 +87,15 @@ export function SettingsPage({
           component: <AutoTrustWorktreesRow />,
         },
         {
+          component: <CreateBranchAndWorktreeRow />,
+        },
+        {
+          component: <PreserveTaskNameCapitalizationRow />,
+        },
+        {
+          component: <IncludeIssueContextByDefaultRow />,
+        },
+        {
           component: <EnableTmuxRow />,
         },
         {
@@ -98,14 +117,9 @@ export function SettingsPage({
       sections: [
         { component: <DefaultAgentSettingsCard /> },
         {
-          title: 'Review Prompt',
-          action: <ReviewPromptResetButton />,
-          component: <ReviewPromptSettingsCard />,
-        },
-        {
           title: 'CLI agents',
           component: (
-            <div className="rounded-xl border border-border/60 bg-muted/10 p-2">
+            <div className="bg-muted/10 rounded-xl border border-border/60 p-2">
               <CliAgentsList />
             </div>
           ),
@@ -116,6 +130,11 @@ export function SettingsPage({
       title: 'Integrations',
       description: 'Connect external services and tools.',
       sections: [{ title: 'Integrations', component: <IntegrationsCard /> }],
+    },
+    connections: {
+      title: 'Connections',
+      description: 'Manage reusable SSH connections for remote projects.',
+      sections: [{ component: <SshConnectionsSettingsCard /> }],
     },
     repository: {
       title: 'Repository',
@@ -129,6 +148,7 @@ export function SettingsPage({
         { component: <ThemeCard /> },
         { component: <TerminalSettingsCard /> },
         { component: <ResourceMonitorSettingsCard /> },
+        { component: <InterfaceSettingsCard /> },
         { title: 'Keyboard shortcuts', component: <KeyboardSettingsCard /> },
         {
           title: 'Tools',
@@ -174,15 +194,9 @@ export function SettingsPage({
           </div>
           {/* Content container */}
           {currentContent && (
-            <div className="min-h-0 min-w-0 flex-1 justify-center overflow-x-hidden overflow-y-auto">
-              <div className="mx-auto w-full max-w-4xl space-y-8 px-1 py-10">
-                <div className="flex flex-col gap-6">
-                  <div className="flex flex-col gap-1">
-                    <h2 className="text-xl">{currentContent.title}</h2>
-                    <p className="text-sm text-foreground-muted">{currentContent.description}</p>
-                  </div>
-                  <Separator />
-                </div>
+            <div className="min-h-0 min-w-0 flex-1 justify-center overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable]">
+              <div className="mx-auto w-full max-w-4xl space-y-8 px-4 py-10">
+                <PageHeader title={currentContent.title} description={currentContent.description} />
                 {currentContent.sections.map((section) => (
                   <div key={section.title} className="flex flex-col gap-3">
                     {section.title && (

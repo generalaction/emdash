@@ -1,10 +1,12 @@
 export const AGENT_PROVIDER_IDS = [
   'codex',
   'claude',
+  'grok',
   'devin',
   'qwen',
   'droid',
   'gemini',
+  'antigravity',
   'cursor',
   'copilot',
   'amp',
@@ -20,6 +22,7 @@ export const AGENT_PROVIDER_IDS = [
   'cline',
   'continue',
   'codebuff',
+  'freebuff',
   'mistral',
   'jules',
   'junie',
@@ -49,6 +52,13 @@ export type AgentProviderDefinition = {
    * Use for agents whose CLI has no flag for interactive-mode prompt delivery.
    */
   useKeystrokeInjection?: boolean;
+  /**
+   * When true, the initial prompt is piped to the agent via stdin and the
+   * spawn becomes `bash -c 'printf ... | <agent...>'`.
+   * Use for agents that read an initial message from stdin then continue
+   * interactively (e.g. amp's `echo "msg" | amp`).
+   */
+  initialPromptViaStdinPipe?: boolean;
   resumeFlag?: string;
   /**
    * CLI flag to assign a unique session ID per chat instance.
@@ -60,10 +70,13 @@ export type AgentProviderDefinition = {
   sessionIdFlag?: string;
   newConversationFlag?: string;
   sessionIdOnResumeOnly?: boolean;
+  /** Resume flag used when sessionIdOnResumeOnly is set but no provider session id is stored yet. */
+  resumeWithoutSessionFlag?: string;
   defaultArgs?: string[];
   planActivateCommand?: string;
   autoStartCommand?: string;
   icon?: string;
+  iconDark?: string;
   /** Accessible alt text for the provider logo. */
   alt?: string;
   /** When true, the logo should be colour-inverted in dark mode. */
@@ -85,7 +98,10 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     cli: 'codex',
     autoApproveFlag: '--dangerously-bypass-approvals-and-sandbox',
     initialPromptFlag: '',
-    resumeFlag: 'resume --last',
+    resumeFlag: 'resume',
+    sessionIdFlag: ' ',
+    sessionIdOnResumeOnly: true,
+    resumeWithoutSessionFlag: 'resume --last',
     icon: 'openai.svg',
     alt: 'Codex',
     terminalOnly: true,
@@ -106,10 +122,28 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     resumeFlag: '--resume',
     sessionIdFlag: '--session-id',
     planActivateCommand: '/plan',
-    icon: 'claude.png',
+    icon: 'claude.svg',
     alt: 'Claude Code',
     terminalOnly: true,
     supportsHooks: true,
+  },
+  {
+    id: 'grok',
+    name: 'Grok',
+    description:
+      "xAI's Grok CLI for terminal-first coding sessions with plans, subagents, and parallel work.",
+    docUrl: 'https://x.ai/cli',
+    installCommand: 'curl -fsSL https://x.ai/cli/install.sh | bash',
+    commands: ['grok'],
+    versionArgs: ['--version'],
+    cli: 'grok',
+    autoApproveFlag: '--always-approve',
+    useKeystrokeInjection: true,
+    resumeFlag: '-r',
+    icon: 'xai.svg',
+    alt: 'Grok CLI',
+    invertInDark: true,
+    terminalOnly: true,
   },
   {
     id: 'devin',
@@ -144,6 +178,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     resumeFlag: '--resume',
     icon: 'cursor.svg',
     alt: 'Cursor CLI',
+    invertInDark: true,
     terminalOnly: true,
   },
   {
@@ -159,8 +194,26 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     autoApproveFlag: '--yolo',
     initialPromptFlag: '-i',
     resumeFlag: '--resume',
-    icon: 'gemini.png',
+    icon: 'gemini.svg',
     alt: 'Gemini CLI',
+    terminalOnly: true,
+  },
+  {
+    id: 'antigravity',
+    name: 'Antigravity',
+    description:
+      'Google Antigravity CLI for terminal-first agent sessions with shared Antigravity settings and conversation history.',
+    docUrl: 'https://antigravity.google/docs/cli-overview',
+    installCommand: 'curl -fsSL https://antigravity.google/cli/install.sh | bash',
+    commands: ['agy', 'antigravity'],
+    versionArgs: ['--version'],
+    cli: 'agy',
+    autoApproveFlag: '--dangerously-skip-permissions',
+    initialPromptFlag: '-i',
+    sessionIdFlag: '--conversation=',
+    planActivateCommand: '/plan',
+    icon: 'antigravity.svg',
+    alt: 'Antigravity CLI',
     terminalOnly: true,
   },
   {
@@ -176,7 +229,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     autoApproveFlag: '--yolo',
     initialPromptFlag: '-i',
     resumeFlag: '--continue',
-    icon: 'qwen.png',
+    icon: 'qwen.svg',
     alt: 'Qwen Code CLI',
     terminalOnly: true,
   },
@@ -190,11 +243,14 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     versionArgs: ['--version'],
     cli: 'droid',
     initialPromptFlag: '',
-    sessionIdFlag: '--session-id',
+    resumeFlag: '--resume',
+    /** Value is unused; presence signals that the session ID is passed as an argument to resumeFlag. */
+    sessionIdFlag: '--resume',
     sessionIdOnResumeOnly: true,
     icon: 'droid.svg',
     alt: 'Factory Droid',
     terminalOnly: true,
+    supportsHooks: true,
   },
   {
     id: 'amp',
@@ -208,10 +264,11 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     cli: 'amp',
     autoApproveFlag: '--dangerously-allow-all',
     initialPromptFlag: '',
-    useKeystrokeInjection: true,
-    icon: 'ampcode.png',
+    initialPromptViaStdinPipe: true,
+    icon: 'ampcode.svg',
     alt: 'Amp CLI',
     terminalOnly: true,
+    supportsHooks: true,
   },
   {
     id: 'opencode',
@@ -223,12 +280,11 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     commands: ['opencode'],
     versionArgs: ['--version'],
     cli: 'opencode',
-    initialPromptFlag: '',
-    useKeystrokeInjection: true,
+    initialPromptFlag: '--prompt',
     resumeFlag: '--continue',
-    icon: 'opencode.png',
+    icon: 'opencode.svg',
+    iconDark: 'opencode-dark.svg',
     alt: 'OpenCode CLI',
-    invertInDark: true,
     terminalOnly: true,
   },
   {
@@ -264,6 +320,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     resumeFlag: '--resume',
     icon: 'gh-copilot.svg',
     alt: 'GitHub Copilot CLI',
+    invertInDark: true,
     terminalOnly: true,
   },
   {
@@ -297,6 +354,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     defaultArgs: ['--allow-indexing'],
     icon: 'Auggie.svg',
     alt: 'Auggie CLI',
+    invertInDark: true,
     terminalOnly: true,
   },
   {
@@ -330,7 +388,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     autoApproveFlag: '--yolo',
     initialPromptFlag: '-c',
     resumeFlag: '--continue',
-    icon: 'kimi.png',
+    icon: 'kimi.svg',
     alt: 'Kimi CLI',
     terminalOnly: true,
   },
@@ -362,6 +420,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     versionArgs: ['--version'],
     cli: 'kiro-cli',
     defaultArgs: ['chat'],
+    autoApproveFlag: '--trust-all-tools',
     initialPromptFlag: '',
     icon: 'kiro.png',
     alt: 'Kiro CLI',
@@ -430,6 +489,21 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     terminalOnly: true,
   },
   {
+    id: 'freebuff',
+    name: 'Freebuff',
+    description:
+      'Freebuff is a standalone Codebuff package for project-directory assistance and day-to-day development tasks.',
+    docUrl: 'https://freebuff.com',
+    installCommand: 'npm install -g freebuff',
+    commands: ['freebuff'],
+    versionArgs: ['--version'],
+    cli: 'freebuff',
+    initialPromptFlag: '',
+    icon: 'codebuff.png',
+    alt: 'Freebuff CLI',
+    terminalOnly: true,
+  },
+  {
     id: 'mistral',
     name: 'Mistral Vibe',
     description:
@@ -441,7 +515,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     cli: 'vibe',
     autoApproveFlag: '--auto-approve',
     initialPromptFlag: '',
-    icon: 'mistral.png',
+    icon: 'mistral.svg',
     alt: 'Mistral Vibe CLI',
     terminalOnly: true,
   },

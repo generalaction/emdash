@@ -1,6 +1,12 @@
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
+import type { IExecutionContext } from '@main/core/execution-context/types';
+import type { FileSystemProvider } from '@main/core/fs/types';
+import { GIT_EXECUTABLE } from '@main/core/utils/exec';
+import { HookCore } from '@main/lib/hookable';
+import type { IDisposable } from '@main/lib/lifecycle';
+import { log } from '@main/lib/logger';
 import {
   HEAD_MODE,
   toRangeString,
@@ -18,6 +24,7 @@ import {
   type FetchPrForReviewError,
   type FullGitStatus,
   type GitChange,
+  type GitChangeStatus,
   type GitHeadState,
   type GitInfo,
   type GitObjectRef,
@@ -33,14 +40,11 @@ import {
   type SoftResetError,
 } from '@shared/git';
 import { DEFAULT_REMOTE_NAME } from '@shared/git-utils';
-import { parseGitHubRepository } from '@shared/github-repository';
 import { err, ok, type Result } from '@shared/result';
-import type { IExecutionContext } from '@main/core/execution-context/types';
-import type { FileSystemProvider } from '@main/core/fs/types';
-import { GIT_EXECUTABLE } from '@main/core/utils/exec';
-import type { IDisposable } from '@main/lib/lifecycle';
 import { type GitProvider } from '../types';
+import type { WorkspaceGitHooks } from '../workspace-git-provider';
 import { CatFileBatch } from './cat-file-batch';
+import { remoteNameForRepositoryUrl } from './git-repo-utils';
 import {
   computeBaseRef,
   mapStatus,
@@ -87,15 +91,26 @@ function looksLikeLfsPointer(buffer: Buffer): boolean {
   return buffer.slice(0, LFS_POINTER_PREFIX.length).equals(LFS_POINTER_PREFIX);
 }
 
+type HeadInfo =
+  | { kind: 'branch'; name: string }
+  | { kind: 'detached'; shortHash: string }
+  | { kind: 'unborn'; name: string };
+
 export class GitService implements GitProvider, IDisposable {
   private _statusInFlight: Promise<FullGitStatus> | null = null;
   private _catFile: CatFileBatch | null = null;
+  private readonly _hooks = new HookCore<WorkspaceGitHooks>((name, e) =>
+    log.error(`GitService: ${String(name)} hook error`, e)
+  );
 
   constructor(
     private readonly ctx: IExecutionContext,
-    private readonly authCtx: IExecutionContext,
     private readonly fs: FileSystemProvider
   ) {}
+
+  on<K extends keyof WorkspaceGitHooks>(name: K, handler: WorkspaceGitHooks[K]) {
+    return this._hooks.on(name, handler);
+  }
 
   dispose(): void {
     this._catFile?.dispose();
@@ -127,9 +142,14 @@ export class GitService implements GitProvider, IDisposable {
 
   async getFullStatus(): Promise<FullGitStatus> {
     if (this._statusInFlight) return this._statusInFlight;
-    this._statusInFlight = this._loadFullStatus().finally(() => {
-      this._statusInFlight = null;
-    });
+    this._statusInFlight = this._loadFullStatus()
+      .then((status) => {
+        this._hooks.callHookBackground('status:updated', status);
+        return status;
+      })
+      .finally(() => {
+        this._statusInFlight = null;
+      });
     return this._statusInFlight;
   }
 
@@ -158,16 +178,27 @@ export class GitService implements GitProvider, IDisposable {
     }
   }
 
+  async isFileCleanlyTracked(filePath: string): Promise<boolean> {
+    try {
+      await this.ctx.exec('git', ['ls-files', '--error-unmatch', '--', filePath]);
+      await this.ctx.exec('git', ['diff', '--quiet', '--', filePath]);
+      await this.ctx.exec('git', ['diff', '--cached', '--quiet', '--', filePath]);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   private async _loadFullStatus(): Promise<FullGitStatus> {
     try {
       const parser = new StatusParser();
-      const [, stagedRes, unstagedRes, currentBranch] = await Promise.all([
+      const [, stagedRes, unstagedRes, head] = await Promise.all([
         this._runStatusZ(parser),
         this.ctx.exec('git', ['diff', '--numstat', '--cached']).catch(() => ({
           stdout: '',
         })),
         this.ctx.exec('git', ['diff', '--numstat']).catch(() => ({ stdout: '' })),
-        this.getCurrentBranch(),
+        this._getHeadInfo(),
       ]);
 
       const stagedNumstat = this.parseNumstat(stagedRes.stdout);
@@ -177,18 +208,15 @@ export class GitService implements GitProvider, IDisposable {
         throw new TooManyFilesChangedError();
       }
 
-      return await this._buildFullGitStatus(
-        parser.status,
-        stagedNumstat,
-        unstagedNumstat,
-        currentBranch
-      );
+      return await this._buildFullGitStatus(parser.status, stagedNumstat, unstagedNumstat, head);
     } catch (e) {
       if (e instanceof TooManyFilesChangedError) throw e;
       return {
         staged: [],
         unstaged: [],
         currentBranch: null,
+        headKind: 'branch',
+        shortHash: null,
         totalAdded: 0,
         totalDeleted: 0,
       };
@@ -211,7 +239,7 @@ export class GitService implements GitProvider, IDisposable {
     entries: IFileStatus[],
     stagedNumstat: Map<string, { additions: number; deletions: number }>,
     unstagedNumstat: Map<string, { additions: number; deletions: number }>,
-    currentBranch: string | null
+    head: HeadInfo
   ): Promise<FullGitStatus> {
     const staged: GitChange[] = [];
     const unstaged: GitChange[] = [];
@@ -260,7 +288,15 @@ export class GitService implements GitProvider, IDisposable {
     const totalAdded = staged.reduce((s, c) => s + c.additions, 0);
     const totalDeleted = staged.reduce((s, c) => s + c.deletions, 0);
 
-    return { staged, unstaged, currentBranch, totalAdded, totalDeleted };
+    return {
+      staged,
+      unstaged,
+      currentBranch: head.kind === 'detached' ? null : head.name,
+      headKind: head.kind,
+      shortHash: head.kind === 'detached' ? head.shortHash : null,
+      totalAdded,
+      totalDeleted,
+    };
   }
 
   async getStatus(): Promise<{ changes: GitChange[]; currentBranch: string | null }> {
@@ -780,7 +816,7 @@ export class GitService implements GitProvider, IDisposable {
 
     const FIELD_SEP = '---FIELD_SEP---';
     const RECORD_SEP = '---RECORD_SEP---';
-    const format = `${RECORD_SEP}%H${FIELD_SEP}%s${FIELD_SEP}%an${FIELD_SEP}%aI${FIELD_SEP}%D${FIELD_SEP}%b`;
+    const format = `${RECORD_SEP}%H${FIELD_SEP}%P${FIELD_SEP}%s${FIELD_SEP}%an${FIELD_SEP}%aI${FIELD_SEP}%D${FIELD_SEP}%b`;
     // When base is provided (PR view), use a range so only commits between
     // base and head are returned — not a raw linear walk from head.
     const rangeArg = base ? `${toRefString(base)}..${headStr}` : headStr;
@@ -800,7 +836,7 @@ export class GitService implements GitProvider, IDisposable {
       .filter((entry) => entry.trim())
       .map((entry, index) => {
         const parts = entry.trim().split(FIELD_SEP);
-        const refs = parts[4] || '';
+        const refs = parts[5] || '';
         const tags = refs
           .split(',')
           .map((r) => r.trim())
@@ -808,10 +844,11 @@ export class GitService implements GitProvider, IDisposable {
           .map((r) => r.slice(5));
         return {
           hash: parts[0] || '',
-          subject: parts[1] || '',
-          body: (parts[5] || '').trim(),
-          author: parts[2] || '',
-          date: parts[3] || '',
+          parents: (parts[1] || '').split(' ').filter(Boolean),
+          subject: parts[2] || '',
+          body: (parts[6] || '').trim(),
+          author: parts[3] || '',
+          date: parts[4] || '',
           isPushed: skip + index >= aheadCount,
           tags,
         };
@@ -910,7 +947,7 @@ export class GitService implements GitProvider, IDisposable {
     const statLines = stdout.trim().split('\n').filter(Boolean);
     const statusLines = nameStatus.trim().split('\n').filter(Boolean);
 
-    const statusMap = new Map<string, string>();
+    const statusMap = new Map<string, GitChangeStatus>();
     for (const line of statusLines) {
       const [code, ...pathParts] = line.split('\t');
       const filePath = pathParts[pathParts.length - 1] || '';
@@ -970,7 +1007,7 @@ export class GitService implements GitProvider, IDisposable {
         return err({ type: 'remote_not_found', message: `Remote "${selectedRemote}" not found` });
       }
 
-      await this.authCtx.exec('git', selectedRemote ? ['fetch', selectedRemote] : ['fetch'], {
+      await this.ctx.exec('git', selectedRemote ? ['fetch', selectedRemote] : ['fetch'], {
         maxBuffer: MAX_REF_LIST_BYTES,
       });
       return ok();
@@ -1009,11 +1046,21 @@ export class GitService implements GitProvider, IDisposable {
 
   async push(preferredRemote?: string): Promise<Result<{ output: string }, PushError>> {
     const doPush = async (args: string[]): Promise<string> => {
-      const { stdout, stderr } = await this.authCtx.exec('git', args);
+      const { stdout, stderr } = await this.ctx.exec('git', args);
       return (stdout || stderr || '').trim();
     };
 
     try {
+      const remote = preferredRemote?.trim();
+      if (remote) {
+        const { stdout } = await this.ctx.exec('git', ['branch', '--show-current']);
+        const currentBranch = stdout.trim();
+        if (!currentBranch) {
+          return err({ type: 'error', message: 'No branch checked out' });
+        }
+        const output = await doPush(['push', remote, `HEAD:${currentBranch}`]);
+        return ok({ output });
+      }
       const output = await doPush(['push']);
       return ok({ output });
     } catch (error: unknown) {
@@ -1032,15 +1079,7 @@ export class GitService implements GitProvider, IDisposable {
         try {
           const { stdout: branchOut } = await this.ctx.exec('git', ['branch', '--show-current']);
           const currentBranch = branchOut.trim();
-          let pushRemote = preferredRemote?.trim() || DEFAULT_REMOTE_NAME;
-          try {
-            const { stdout: remoteOut } = await this.ctx.exec('git', [
-              'config',
-              '--get',
-              `branch.${currentBranch}.remote`,
-            ]);
-            if (remoteOut.trim()) pushRemote = remoteOut.trim();
-          } catch {}
+          const pushRemote = preferredRemote?.trim() || DEFAULT_REMOTE_NAME;
           const output = await doPush(['push', '--set-upstream', pushRemote, currentBranch]);
           return ok({ output });
         } catch (upstreamError: unknown) {
@@ -1094,7 +1133,7 @@ export class GitService implements GitProvider, IDisposable {
     remote = 'origin'
   ): Promise<Result<{ output: string }, PushError>> {
     const doPush = async (args: string[]): Promise<string> => {
-      const { stdout, stderr } = await this.authCtx.exec('git', args);
+      const { stdout, stderr } = await this.ctx.exec('git', args);
       return (stdout || stderr || '').trim();
     };
 
@@ -1162,7 +1201,7 @@ export class GitService implements GitProvider, IDisposable {
 
   async pull(): Promise<Result<{ output: string }, PullError>> {
     try {
-      const { stdout } = await this.authCtx.exec('git', ['pull']);
+      const { stdout } = await this.ctx.exec('git', ['pull']);
       return ok({ output: stdout.trim() });
     } catch (error: unknown) {
       const stdout = (error as { stdout?: string })?.stdout || '';
@@ -1251,15 +1290,35 @@ export class GitService implements GitProvider, IDisposable {
   }
 
   async getCurrentBranch(): Promise<string | null> {
+    const head = await this._getHeadInfo();
+    return head.kind === 'detached' ? null : head.name;
+  }
+
+  private async _getHeadInfo(): Promise<HeadInfo> {
     try {
       const { stdout } = await this.ctx.exec('git', ['rev-parse', '--symbolic-full-name', 'HEAD']);
       const ref = stdout.trim();
-      if (ref === 'HEAD' || !ref) return null;
-      if (ref.startsWith('refs/heads/')) return ref.slice('refs/heads/'.length);
-      if (ref.startsWith('heads/')) return ref.slice('heads/'.length);
-      return ref;
+      if (ref === 'HEAD' || !ref) {
+        // Detached HEAD — also capture the short commit hash for display
+        try {
+          const { stdout: hashOut } = await this.ctx.exec('git', ['rev-parse', '--short', 'HEAD']);
+          return { kind: 'detached', shortHash: hashOut.trim() };
+        } catch {
+          return { kind: 'detached', shortHash: '' };
+        }
+      }
+      if (ref.startsWith('refs/heads/'))
+        return { kind: 'branch', name: ref.slice('refs/heads/'.length) };
+      if (ref.startsWith('heads/')) return { kind: 'branch', name: ref.slice('heads/'.length) };
+      return { kind: 'branch', name: ref };
     } catch {
-      return null;
+      // Unborn branch — rev-parse fails but symbolic-ref still resolves
+      try {
+        const { stdout: symOut } = await this.ctx.exec('git', ['symbolic-ref', '--short', 'HEAD']);
+        return { kind: 'unborn', name: symOut.trim() };
+      } catch {
+        return { kind: 'unborn', name: 'main' };
+      }
     }
   }
 
@@ -1345,7 +1404,7 @@ export class GitService implements GitProvider, IDisposable {
 
     // Heuristic 2: ask the remote directly (requires a network call).
     try {
-      const { stdout } = await this.authCtx.exec('git', ['remote', 'show', remote]);
+      const { stdout } = await this.ctx.exec('git', ['remote', 'show', remote]);
       const match = /HEAD branch:\s*(\S+)/.exec(stdout);
       if (match?.[1]) return match[1];
     } catch {}
@@ -1405,6 +1464,18 @@ export class GitService implements GitProvider, IDisposable {
     await this.ctx.exec('git', ['remote', 'add', name, url]);
   }
 
+  private async setBranchBaseConfig(branchName: string, baseRef: string): Promise<void> {
+    try {
+      await this.ctx.exec('git', ['config', `branch.${branchName}.base`, baseRef]);
+    } catch (error) {
+      log.warn('GitService: failed to set branch base metadata', {
+        branchName,
+        baseRef,
+        error: String(error),
+      });
+    }
+  }
+
   async createBranch(
     name: string,
     from: string,
@@ -1412,7 +1483,7 @@ export class GitService implements GitProvider, IDisposable {
     remote = 'origin'
   ): Promise<Result<void, CreateBranchError>> {
     if (syncWithRemote) {
-      await this.authCtx
+      await this.ctx
         .exec('git', ['fetch', remote], {
           maxBuffer: MAX_REF_LIST_BYTES,
         })
@@ -1421,6 +1492,7 @@ export class GitService implements GitProvider, IDisposable {
     const base = syncWithRemote ? `${remote}/${from}` : `refs/heads/${from}`;
     try {
       await this.ctx.exec('git', ['branch', '--no-track', name, base]);
+      await this.setBranchBaseConfig(name, syncWithRemote ? `${remote}/${from}` : from);
       return ok();
     } catch (error: unknown) {
       const stderr = (error as { stderr?: string })?.stderr || String(error);
@@ -1455,7 +1527,7 @@ export class GitService implements GitProvider, IDisposable {
   ): Promise<Result<void, FetchPrForReviewError>> {
     try {
       if (isFork) {
-        const forkRemote = parseGitHubRepository(headRepositoryUrl)?.owner ?? 'fork';
+        const forkRemote = remoteNameForRepositoryUrl(headRepositoryUrl);
         // Idempotently ensure remote exists with the correct URL
         const remotes = await this.ctx.exec('git', ['remote']).catch(() => ({ stdout: '' }));
         const names = remotes.stdout
@@ -1469,7 +1541,7 @@ export class GitService implements GitProvider, IDisposable {
             .exec('git', ['remote', 'set-url', forkRemote, headRepositoryUrl])
             .catch(() => {});
         }
-        await this.authCtx.exec('git', [
+        await this.ctx.exec('git', [
           'fetch',
           forkRemote,
           `${headRefName}:refs/heads/${localBranch}`,
@@ -1481,7 +1553,7 @@ export class GitService implements GitProvider, IDisposable {
           .catch(() => {});
       } else {
         // Same-repo: GitHub always exposes refs/pull/{N}/head on origin
-        await this.authCtx.exec('git', [
+        await this.ctx.exec('git', [
           'fetch',
           configuredRemote,
           `refs/pull/${prNumber}/head:refs/heads/${localBranch}`,
@@ -1535,10 +1607,10 @@ export class GitService implements GitProvider, IDisposable {
 
     if (remoteName) {
       try {
-        await this.authCtx.exec('git', ['push', remoteName, '--delete', oldBranch]);
+        await this.ctx.exec('git', ['push', remoteName, '--delete', oldBranch]);
       } catch {}
       try {
-        await this.authCtx.exec('git', ['push', '-u', remoteName, newBranch]);
+        await this.ctx.exec('git', ['push', '-u', remoteName, newBranch]);
       } catch (error: unknown) {
         const stderr = (error as { stderr?: string })?.stderr || String(error);
         return err({ type: 'remote_push_failed', message: stderr });
@@ -1594,7 +1666,7 @@ export class GitService implements GitProvider, IDisposable {
 
     if (!branch && remoteName) {
       try {
-        const { stdout } = await this.authCtx.exec('git', ['remote', 'show', remoteName]);
+        const { stdout } = await this.ctx.exec('git', ['remote', 'show', remoteName]);
         const match = /HEAD branch:\s*(\S+)/.exec(stdout);
         branch = match?.[1] ?? undefined;
       } catch {}

@@ -16,9 +16,9 @@ type ErrorBoundaryProps = {
 function ErrorFallback({ message, onReload }: { message: string; onReload: () => void }) {
   return (
     <div className="flex h-screen w-screen items-center justify-center bg-background p-6">
-      <div className="max-w-xl rounded-md border border-border bg-card p-6 text-card-foreground shadow-sm">
+      <div className="bg-card text-card-foreground max-w-xl rounded-md border border-border p-6 shadow-sm">
         <h1 className="mb-2 text-lg font-semibold">Something went wrong</h1>
-        <p className="mb-4 break-all text-sm text-muted-foreground">{message}</p>
+        <p className="text-muted-foreground mb-4 text-sm break-all">{message}</p>
         <Button variant="default" onClick={onReload}>
           Reload
         </Button>

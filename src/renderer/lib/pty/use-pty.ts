@@ -1,13 +1,14 @@
 import { type Terminal } from '@xterm/xterm';
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
-import type { AppSettings } from '@shared/app-settings';
-import { appPasteChannel } from '@shared/events/appEvents';
-import { ptyDataChannel, ptyExitChannel } from '@shared/events/ptyEvents';
 import { events, rpc } from '@renderer/lib/ipc';
 import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
 import { log } from '@renderer/utils/logger';
+import type { AppSettings } from '@shared/app-settings';
+import { appPasteChannel } from '@shared/events/appEvents';
+import { ptyDataChannel, ptyExitChannel } from '@shared/events/ptyEvents';
+import { TERMINAL_FONT_SIZE_DEFAULT } from '@shared/terminal-settings';
 import { usePaneSizingContext } from './pane-sizing-context';
-import { buildTheme, type FrontendPty, type SessionTheme } from './pty';
+import type { FrontendPty, SessionTheme } from './pty';
 import { measureDimensions } from './pty-dimensions';
 import { isRealTaskInput, SubmittedInputBuffer } from './pty-input-buffer';
 import {
@@ -19,6 +20,7 @@ import {
   shouldMapShiftEnterToCtrlJ,
   shouldPasteToTerminal,
 } from './pty-keybindings';
+import { buildTerminalFontFamily } from './terminal-font';
 
 // xterm's proposed API and internal fields are not in the public TypeScript
 // types. Both code paths are necessary: the proposed `dimensions` API works in
@@ -33,6 +35,14 @@ interface XtermInternals {
     renderService?: { dimensions?: XtermCellDimensions };
   };
 }
+
+const PTY_RESIZE_DEBOUNCE_MS = 120;
+const MIN_TERMINAL_COLS = 2;
+const MIN_TERMINAL_ROWS = 1;
+const IS_MAC_PLATFORM =
+  typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+const IS_WINDOWS_PLATFORM = typeof navigator !== 'undefined' && /Win/.test(navigator.platform);
+const LAST_SELECTION_COPY_GRACE_MS = 2_000;
 
 function getCellMetrics(terminal: Terminal): { width: number; height: number } | null {
   const t = terminal as unknown as XtermInternals;
@@ -50,11 +60,11 @@ function getCellMetrics(terminal: Terminal): { width: number; height: number } |
   return null;
 }
 
-const PTY_RESIZE_DEBOUNCE_MS = 120;
-const MIN_TERMINAL_COLS = 2;
-const MIN_TERMINAL_ROWS = 1;
-const IS_MAC_PLATFORM =
-  typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+function getRecentSelection(selection: { text: string; capturedAt: number } | null): string {
+  if (!selection) return '';
+  if (Date.now() - selection.capturedAt > LAST_SELECTION_COPY_GRACE_MS) return '';
+  return selection.text;
+}
 
 export interface UsePtyOptions {
   /** Deterministic PTY session ID: makePtySessionId(projectId, scopeId, leafId). */
@@ -68,6 +78,7 @@ export interface UsePtyOptions {
   onFirstMessage?: (message: string) => void;
   onEnterPress?: (message: string) => void;
   onInterruptPress?: () => void;
+  onPasteFromClipboard?: PasteFromClipboardHandler;
 }
 
 export interface UseTerminalReturn {
@@ -75,6 +86,11 @@ export interface UseTerminalReturn {
   setTheme: (theme: SessionTheme) => void;
   sendInput: (data: string, options?: { track?: boolean }) => void;
 }
+
+export type PasteFromClipboardHandler = (helpers: {
+  focus: UseTerminalReturn['focus'];
+  sendInput: UseTerminalReturn['sendInput'];
+}) => void;
 
 /**
  * React hook that manages a full xterm.js terminal instance attached to
@@ -108,6 +124,7 @@ export function usePty(
     onFirstMessage,
     onEnterPress,
     onInterruptPress,
+    onPasteFromClipboard,
   } = options;
 
   // Stable refs for callbacks so the effect doesn't re-run on every render.
@@ -121,6 +138,8 @@ export function usePty(
   onEnterPressRef.current = onEnterPress;
   const onInterruptPressRef = useRef(onInterruptPress);
   onInterruptPressRef.current = onInterruptPress;
+  const onPasteFromClipboardRef = useRef(onPasteFromClipboard);
+  onPasteFromClipboardRef.current = onPasteFromClipboard;
   const themeRef = useRef(theme);
   themeRef.current = theme;
 
@@ -162,6 +181,7 @@ export function usePty(
 
   // Auto-copy on selection
   const autoCopyOnSelectionRef = useRef(false);
+  const lastSelectionRef = useRef<{ text: string; capturedAt: number } | null>(null);
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -192,49 +212,53 @@ export function usePty(
   // exact space the terminal occupies — rather than a distant ancestor div.
   // Reports to PaneSizingContext (which broadcasts to ALL sessions in the pane)
   // or directly via queuePtyResize for standalone terminals.
+  //
+  // Runs synchronously (no rAF wrapper).  ResizeObserver fires after layout
+  // and before paint, so a sync term.resize() in that callback lets the xterm
+  // DOM catch up in the same paint as the new container size — eliminating
+  // the one-frame mismatch that produces the visible flicker on
+  // cmd+J / cmd+B toggles.  Other call sites (mount, font change, drag-end)
+  // also benefit from running before the next paint instead of one frame later.
   const measureAndResize = useCallback(
     (retries = 0) => {
-      if (!termRef.current) return;
-      requestAnimationFrame(() => {
-        try {
-          const term = termRef.current;
-          if (!term) return;
-          const pane = paneSizingRef.current;
+      try {
+        const term = termRef.current;
+        if (!term) return;
+        const pane = paneSizingRef.current;
 
-          const cell = getCellMetrics(term);
-          if (!cell) {
-            // Cold-path: terminal was opened off-DOM so xterm's font measurement
-            // hasn't populated yet.  Retry up to 5 times to avoid an infinite loop.
-            if (retries < 5) {
-              setTimeout(() => measureAndResizeRef.current(retries + 1), 100);
-            }
-            return;
+        const cell = getCellMetrics(term);
+        if (!cell) {
+          // Cold-path: terminal was opened off-DOM so xterm's font measurement
+          // hasn't populated yet.  Retry up to 5 times to avoid an infinite loop.
+          if (retries < 5) {
+            setTimeout(() => measureAndResizeRef.current(retries + 1), 100);
           }
-
-          // Measure the terminal's immediate parent (the FrontendPty's ownedContainer),
-          // matching FitAddon.proposeDimensions().  Fall back to the mount-target
-          // container for standalone terminals not using the pool.
-          const termParent = (term as unknown as { element?: HTMLElement }).element?.parentElement;
-          const measureTarget = termParent ?? (containerRef.current as HTMLElement | null);
-          if (!measureTarget) return;
-
-          const dims = measureDimensions(measureTarget, cell.width, cell.height);
-          if (!dims) return;
-          const { cols: targetCols, rows: targetRows } = dims;
-
-          if (term.cols !== targetCols || term.rows !== targetRows) {
-            term.resize(targetCols, targetRows);
-          }
-
-          if (pane) {
-            pane.reportDimensions(targetCols, targetRows);
-          } else {
-            queuePtyResizeRef.current(targetCols, targetRows);
-          }
-        } catch (e) {
-          log.warn('useTerminal: measureAndResize failed', { sessionId, error: e });
+          return;
         }
-      });
+
+        // Measure the terminal's immediate parent (the FrontendPty's ownedContainer),
+        // matching FitAddon.proposeDimensions().  Fall back to the mount-target
+        // container for standalone terminals not using the pool.
+        const termParent = (term as unknown as { element?: HTMLElement }).element?.parentElement;
+        const measureTarget = termParent ?? (containerRef.current as HTMLElement | null);
+        if (!measureTarget) return;
+
+        const dims = measureDimensions(measureTarget, cell.width, cell.height);
+        if (!dims) return;
+        const { cols: targetCols, rows: targetRows } = dims;
+
+        if (term.cols !== targetCols || term.rows !== targetRows) {
+          term.resize(targetCols, targetRows);
+        }
+
+        if (pane) {
+          pane.reportDimensions(targetCols, targetRows);
+        } else {
+          queuePtyResizeRef.current(targetCols, targetRows);
+        }
+      } catch (e) {
+        log.warn('useTerminal: measureAndResize failed', { sessionId, error: e });
+      }
     },
     [sessionId, containerRef]
   );
@@ -244,10 +268,12 @@ export function usePty(
   const measureAndResizeRef = useRef(measureAndResize);
   measureAndResizeRef.current = measureAndResize;
 
-  const applyTheme = useCallback((t?: SessionTheme) => {
-    if (!termRef.current) return;
-    termRef.current.options.theme = buildTheme(t);
-  }, []);
+  const applyTheme = useCallback(
+    (t?: SessionTheme) => {
+      pty.setTheme(t);
+    },
+    [pty]
+  );
 
   const setTheme = useCallback(
     (t: SessionTheme) => {
@@ -262,7 +288,8 @@ export function usePty(
   }, []);
 
   const copySelectionToClipboard = useCallback(() => {
-    const selection = termRef.current?.getSelection();
+    const selection =
+      termRef.current?.getSelection() || getRecentSelection(lastSelectionRef.current);
     if (selection) {
       navigator.clipboard.writeText(selection).catch(() => {});
     }
@@ -285,13 +312,21 @@ export function usePty(
   );
 
   const pasteFromClipboard = useCallback(() => {
-    navigator.clipboard
-      .readText()
-      .then((text) => {
+    const customPasteFromClipboard = onPasteFromClipboardRef.current;
+    if (customPasteFromClipboard) {
+      customPasteFromClipboard({ focus, sendInput });
+      return;
+    }
+
+    void (async () => {
+      try {
+        const text = await navigator.clipboard.readText();
         if (text) sendInput(text);
-      })
-      .catch(() => {});
-  }, [sendInput]);
+      } catch {
+        // Clipboard read denied or unavailable.
+      }
+    })();
+  }, [focus, sendInput]);
 
   // ─── Main effect: mount terminal once per sessionId ────────────────────────
 
@@ -328,10 +363,11 @@ export function usePty(
     {
       const frontendPty = pty;
       termRef.current = frontendPty.terminal;
+      lastSelectionRef.current = null;
 
       // Apply current theme before mounting (in case it differs from the
       // theme the terminal was constructed with).
-      frontendPty.terminal.options.theme = buildTheme(themeRef.current);
+      frontendPty.setTheme(themeRef.current);
 
       // Mount: pre-resize then appendChild (flash-free).
       frontendPty.mount(container as HTMLElement, targetDims);
@@ -347,8 +383,13 @@ export function usePty(
         (terminalSettings) => {
           if (terminalSettings?.fontFamily) {
             customFontFamily = terminalSettings.fontFamily.trim();
-            if (customFontFamily) frontendPty.terminal.options.fontFamily = customFontFamily;
+            if (customFontFamily) {
+              frontendPty.terminal.options.fontFamily = buildTerminalFontFamily(customFontFamily);
+            }
           }
+          frontendPty.terminal.options.fontSize =
+            terminalSettings?.fontSize ?? TERMINAL_FONT_SIZE_DEFAULT;
+          measureAndResize();
           autoCopyOnSelectionRef.current = terminalSettings?.autoCopyOnSelection ?? false;
         }
       );
@@ -391,7 +432,14 @@ export function usePty(
       terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
         if (document.querySelector('[role="dialog"]')) return false;
 
-        if (shouldCopySelectionFromTerminal(event, IS_MAC_PLATFORM, terminal.hasSelection())) {
+        if (
+          shouldCopySelectionFromTerminal(
+            event,
+            IS_MAC_PLATFORM,
+            terminal.hasSelection(),
+            getRecentSelection(lastSelectionRef.current) !== ''
+          )
+        ) {
           event.preventDefault();
           event.stopImmediatePropagation();
           event.stopPropagation();
@@ -399,7 +447,7 @@ export function usePty(
           return false;
         }
 
-        if (shouldPasteToTerminal(event, IS_MAC_PLATFORM)) {
+        if (shouldPasteToTerminal(event, IS_MAC_PLATFORM, IS_WINDOWS_PLATFORM)) {
           event.preventDefault();
           event.stopImmediatePropagation();
           event.stopPropagation();
@@ -498,11 +546,18 @@ export function usePty(
       // ── Auto-copy on selection ─────────────────────────────────────────────
       let selectionDebounceTimer: ReturnType<typeof setTimeout> | null = null;
       const selectionDisposable = terminal.onSelectionChange(() => {
+        const selection = terminal.getSelection();
+        if (selection) {
+          lastSelectionRef.current = { text: selection, capturedAt: Date.now() };
+        }
+
         if (!autoCopyOnSelectionRef.current) return;
         if (!terminal.hasSelection()) return;
         if (selectionDebounceTimer) clearTimeout(selectionDebounceTimer);
         selectionDebounceTimer = setTimeout(() => {
-          if (terminal.hasSelection()) copySelectionToClipboard();
+          if (terminal.hasSelection()) {
+            copySelectionToClipboard();
+          }
         }, 150);
       });
       cleanups.push(() => {
@@ -528,9 +583,14 @@ export function usePty(
 
       // ── Font / setting change events ───────────────────────────────────────
       const handleFontChange = (e: Event) => {
-        const detail = (e as CustomEvent<{ fontFamily?: string }>).detail;
-        customFontFamily = detail?.fontFamily?.trim() ?? '';
-        terminal.options.fontFamily = customFontFamily || undefined;
+        const detail = (e as CustomEvent<{ fontFamily?: string; fontSize?: number }>).detail;
+        if (detail?.fontFamily !== undefined) {
+          customFontFamily = detail.fontFamily.trim();
+          terminal.options.fontFamily = buildTerminalFontFamily(customFontFamily);
+        }
+        if (detail?.fontSize !== undefined) {
+          terminal.options.fontSize = detail.fontSize;
+        }
         measureAndResize();
       };
       const handleAutoCopyChange = (e: Event) => {
@@ -547,11 +607,45 @@ export function usePty(
       // ── ResizeObserver (observes the mount-target, not the owned container) ─
       // Skips measuring while a panel drag is in progress; the drag-end effect
       // below fires one measure once the drag completes.
+      //
+      // Single-shot layout changes (cmd+J drawer toggle, cmd+B sidebar toggle,
+      // navigation) need an *immediate* term.resize so the xterm DOM catches
+      // up in the same paint as the container — otherwise the user sees a
+      // frame where the container is at the new size but the terminal grid
+      // is still at the old size (the flicker).  Bursty changes (continuous
+      // window-corner resize) still need coalescing so we don't spam
+      // term.resize() every frame.
+      //
+      // Strategy: leading-edge fire after a quiet period; trailing-edge fire
+      // for the tail of a burst.
+      const RESIZE_QUIET_MS = 150;
+      const RESIZE_TRAILING_MS = 50;
+      let lastResizeAt = 0;
+      let trailingTimer: ReturnType<typeof setTimeout> | null = null;
+      const fireResize = () => {
+        lastResizeAt = performance.now();
+        measureAndResizeRef.current();
+      };
       const resizeObserver = new ResizeObserver(() => {
-        if (!isPanelDraggingRef.current) measureAndResize();
+        if (isPanelDraggingRef.current) return;
+        if (performance.now() - lastResizeAt > RESIZE_QUIET_MS) {
+          fireResize();
+          return;
+        }
+        if (trailingTimer) clearTimeout(trailingTimer);
+        trailingTimer = setTimeout(() => {
+          trailingTimer = null;
+          fireResize();
+        }, RESIZE_TRAILING_MS);
       });
       resizeObserver.observe(container);
-      cleanups.push(() => resizeObserver.disconnect());
+      cleanups.push(() => {
+        resizeObserver.disconnect();
+        if (trailingTimer) {
+          clearTimeout(trailingTimer);
+          trailingTimer = null;
+        }
+      });
     }
 
     // ── Cleanup ───────────────────────────────────────────────────────────────
@@ -578,7 +672,7 @@ export function usePty(
       inputBufferRef.current = '';
       submittedInputBufferRef.current = new SubmittedInputBuffer();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, [sessionId, pty]); // Re-run only when the session changes
 
   // ── Theme update (after initial mount) ──────────────────────────────────────

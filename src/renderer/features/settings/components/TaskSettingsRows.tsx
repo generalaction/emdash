@@ -14,7 +14,7 @@ function InfoTooltip({ label, content }: { label: string; content: React.ReactNo
         <TooltipTrigger>
           <button
             type="button"
-            className="inline-flex h-4 w-4 items-center justify-center text-muted-foreground hover:text-foreground"
+            className="text-muted-foreground inline-flex h-4 w-4 items-center justify-center hover:text-foreground"
             aria-label={label}
           >
             <Info className="h-3.5 w-3.5" />
@@ -81,6 +81,84 @@ export const AutoTrustWorktreesRow: React.FC = () => {
             checked={taskSettings.autoTrustWorktrees}
             disabled={taskSettings.loading || taskSettings.saving}
             onCheckedChange={taskSettings.updateAutoTrustWorktrees}
+          />
+        </>
+      }
+    />
+  );
+};
+
+export const CreateBranchAndWorktreeRow: React.FC = () => {
+  const taskSettings = useTaskSettings();
+
+  return (
+    <SettingRow
+      title="Create branch and worktree by default"
+      description="Start new From Branch tasks in a dedicated task branch and worktree unless changed in the task modal."
+      control={
+        <>
+          <ResetToDefaultButton
+            visible={taskSettings.isFieldOverridden('createBranchAndWorktree')}
+            defaultLabel="on"
+            onReset={taskSettings.resetCreateBranchAndWorktree}
+            disabled={taskSettings.loading || taskSettings.saving}
+          />
+          <Switch
+            checked={taskSettings.createBranchAndWorktree}
+            disabled={taskSettings.loading || taskSettings.saving}
+            onCheckedChange={taskSettings.updateCreateBranchAndWorktree}
+          />
+        </>
+      }
+    />
+  );
+};
+
+export const PreserveTaskNameCapitalizationRow: React.FC = () => {
+  const taskSettings = useTaskSettings();
+
+  return (
+    <SettingRow
+      title="Preserve task name capitalization"
+      description="Keep uppercase letters in generated and manually entered task names. Defaults to lowercase."
+      control={
+        <>
+          <ResetToDefaultButton
+            visible={taskSettings.isFieldOverridden('preserveNameCapitalization')}
+            defaultLabel="off"
+            onReset={taskSettings.resetPreserveNameCapitalization}
+            disabled={taskSettings.loading || taskSettings.saving}
+          />
+          <Switch
+            checked={taskSettings.preserveNameCapitalization}
+            disabled={taskSettings.loading || taskSettings.saving}
+            onCheckedChange={taskSettings.updatePreserveNameCapitalization}
+          />
+        </>
+      }
+    />
+  );
+};
+
+export const IncludeIssueContextByDefaultRow: React.FC = () => {
+  const taskSettings = useTaskSettings();
+
+  return (
+    <SettingRow
+      title="Include issue context by default"
+      description="Add the selected issue to the initial agent prompt when creating a task from an issue."
+      control={
+        <>
+          <ResetToDefaultButton
+            visible={taskSettings.isFieldOverridden('includeIssueContextByDefault')}
+            defaultLabel="on"
+            onReset={taskSettings.resetIncludeIssueContextByDefault}
+            disabled={taskSettings.loading || taskSettings.saving}
+          />
+          <Switch
+            checked={taskSettings.includeIssueContextByDefault}
+            disabled={taskSettings.loading || taskSettings.saving}
+            onCheckedChange={taskSettings.updateIncludeIssueContextByDefault}
           />
         </>
       }

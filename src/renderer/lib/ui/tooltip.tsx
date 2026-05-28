@@ -10,13 +10,7 @@ function Tooltip({ ...props }: TooltipPrimitive.Root.Props) {
 }
 
 function TooltipTrigger({ className, ...props }: TooltipPrimitive.Trigger.Props) {
-  return (
-    <TooltipPrimitive.Trigger
-      data-slot="tooltip-trigger"
-      className={cn('h-full', className)}
-      {...props}
-    />
-  );
+  return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" className={className} {...props} />;
 }
 
 function TooltipContent({

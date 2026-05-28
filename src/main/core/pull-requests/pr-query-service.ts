@@ -1,7 +1,4 @@
 import { and, asc, desc, eq, inArray, isNotNull, like, or } from 'drizzle-orm';
-import { parseGitHubRepository } from '@shared/github-repository';
-import type { Label, ListPrOptions, PrFilterOptions, PullRequest } from '@shared/pull-requests';
-import { projectManager } from '@main/core/projects/project-manager';
 import { db } from '@main/db/client';
 import {
   projectRemotes,
@@ -11,13 +8,8 @@ import {
   pullRequests,
   pullRequestUsers,
 } from '@main/db/schema';
-import { assemblePullRequest, type PrRow } from './pr-utils';
-
-/** Internal capability type — not exposed to the renderer. */
-export type ProjectRemoteCapability =
-  | { status: 'ready'; repositoryUrl: string }
-  | { status: 'no_remote' }
-  | { status: 'unsupported_remote' };
+import type { Label, ListPrOptions, PrFilterOptions, PullRequest } from '@shared/pull-requests';
+import { assemblePullRequest, pullRequestRepositoryScope, type PrRow } from './pr-utils';
 
 async function fetchRelated(rows: PrRow[]): Promise<PullRequest[]> {
   if (rows.length === 0) return [];
@@ -95,7 +87,7 @@ export class PrQueryService {
       repositoryUrls = remoteRows.map((r) => r.remoteUrl);
     }
 
-    const conditions = [inArray(pullRequests.repositoryUrl, repositoryUrls)];
+    const conditions = [pullRequestRepositoryScope(repositoryUrls)];
 
     const filters = options.filters;
     if (filters?.status && filters.status !== 'all') {
@@ -162,7 +154,7 @@ export class PrQueryService {
       .select()
       .from(pullRequests)
       .where(
-        and(eq(pullRequests.headRefName, taskBranch), eq(pullRequests.repositoryUrl, repositoryUrl))
+        and(eq(pullRequests.headRefName, taskBranch), pullRequestRepositoryScope([repositoryUrl]))
       );
 
     return fetchRelated(rows);
@@ -182,7 +174,7 @@ export class PrQueryService {
     const prUrlsSub = db
       .select({ url: pullRequests.url })
       .from(pullRequests)
-      .where(inArray(pullRequests.repositoryUrl, repositoryUrls));
+      .where(pullRequestRepositoryScope(repositoryUrls));
 
     const authorUserIdsSub = db
       .select({ userId: pullRequests.authorUserId })
@@ -231,23 +223,6 @@ export class PrQueryService {
         userUpdatedAt: r.userUpdatedAt ?? null,
         userCreatedAt: r.userCreatedAt ?? null,
       })),
-    };
-  }
-
-  async getProjectRemoteInfo(projectId: string): Promise<ProjectRemoteCapability> {
-    const project = projectManager.getProject(projectId);
-    if (!project) return { status: 'no_remote' };
-
-    const remoteState = await project.getRemoteState();
-    if (!remoteState.hasRemote) return { status: 'no_remote' };
-    if (!remoteState.selectedRemoteUrl) return { status: 'unsupported_remote' };
-
-    const repository = parseGitHubRepository(remoteState.selectedRemoteUrl);
-    if (!repository) return { status: 'unsupported_remote' };
-
-    return {
-      status: 'ready',
-      repositoryUrl: repository.repositoryUrl,
     };
   }
 }

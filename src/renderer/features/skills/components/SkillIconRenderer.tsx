@@ -1,14 +1,7 @@
 import React, { useState } from 'react';
-import type { CatalogSkill } from '@shared/skills/types';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
+import type { CatalogSkill } from '@shared/skills/types';
 import { resolveSkillIcon } from './skillIcons';
-
-type SkillIconSize = 'sm' | 'md';
-
-const sizeClasses: Record<SkillIconSize, { container: string; padding: string; text: string }> = {
-  sm: { container: 'h-10 w-10', padding: 'p-2', text: 'text-sm' },
-  md: { container: 'h-12 w-12', padding: 'p-2.5', text: 'text-base' },
-};
 
 function processSvg(raw: string, fillColor: string): string {
   let svg = raw.replace(/\bwidth="[^"]*"/g, '').replace(/\bheight="[^"]*"/g, '');
@@ -18,36 +11,24 @@ function processSvg(raw: string, fillColor: string): string {
 
 interface SkillIconRendererProps {
   skill: CatalogSkill;
-  size?: SkillIconSize;
 }
 
-const SkillIconRenderer: React.FC<SkillIconRendererProps> = ({ skill, size = 'sm' }) => {
+export const SkillIconRenderer: React.FC<SkillIconRendererProps> = ({ skill }) => {
   const [imgError, setImgError] = useState(false);
   const { effectiveTheme } = useTheme();
   const isDark = effectiveTheme === 'emdark';
 
-  const { container, padding, text } = sizeClasses[size];
   const letter = skill.displayName.charAt(0).toUpperCase();
 
-  // 1. Bundled SVG
-  const svg = resolveSkillIcon(skill.id, skill.source);
-  if (svg) {
-    const html = processSvg(svg, isDark ? '#ffffff' : '#000000');
-    return (
-      <div
-        className={`flex ${container} shrink-0 items-center justify-center rounded-xl bg-muted/40 ${padding}`}
-        dangerouslySetInnerHTML={{ __html: html }}
-      />
-    );
-  }
-
-  // 2. Remote iconUrl
-  if (skill.iconUrl && !imgError) {
-    const filter = isDark ? 'brightness(0) invert(1)' : 'brightness(0)';
-    return (
-      <div
-        className={`flex ${container} shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted/40 p-1.5`}
-      >
+  const renderIcon = () => {
+    const svg = resolveSkillIcon(skill.id, skill.source);
+    if (svg) {
+      const html = processSvg(svg, isDark ? '#ffffff' : '#000000');
+      return <div dangerouslySetInnerHTML={{ __html: html }} />;
+    }
+    if (skill.iconUrl && !imgError) {
+      const filter = isDark ? 'brightness(0) invert(1)' : 'brightness(0)';
+      return (
         <img
           src={skill.iconUrl}
           alt=""
@@ -56,18 +37,14 @@ const SkillIconRenderer: React.FC<SkillIconRendererProps> = ({ skill, size = 'sm
           onError={() => setImgError(true)}
           loading="lazy"
         />
-      </div>
-    );
-  }
+      );
+    }
+    return letter;
+  };
 
-  // 3. Letter fallback
   return (
-    <div
-      className={`flex ${container} shrink-0 items-center justify-center rounded-xl bg-muted/40 ${text} font-semibold text-foreground/60`}
-    >
-      {letter}
+    <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-background-2 p-2 font-semibold text-foreground/60 transition-colors group-hover:bg-background-3">
+      {renderIcon()}
     </div>
   );
 };
-
-export default SkillIconRenderer;

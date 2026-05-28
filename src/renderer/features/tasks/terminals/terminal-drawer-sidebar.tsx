@@ -1,10 +1,12 @@
 import { Pause, Play, Plus, Settings, Terminal, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { asMounted, getProjectStore } from '@renderer/features/projects/stores/project-selectors';
 import { type LifecycleScriptsStore } from '@renderer/features/tasks/stores/lifecycle-scripts';
 import { type TerminalTabViewStore } from '@renderer/features/tasks/terminals/terminal-tab-view-store';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { MicroLabel } from '@renderer/lib/ui/label';
+import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 import { scriptIcon } from './terminal-tabs';
@@ -13,8 +15,8 @@ interface TerminalDrawerSidebarProps {
   lifecycleScriptsMgr: LifecycleScriptsStore | null;
   activeScriptId: string | undefined;
   onSelectScript: (id: string) => void;
-  onRunScript: () => void;
-  onStopScript: () => void;
+  onRunScript: (id: string) => void;
+  onStopScript: (id: string) => void;
   terminalTabView: TerminalTabViewStore;
   activeTerminalId: string | undefined;
   onSelectTerminal: (id: string) => void;
@@ -46,6 +48,7 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
   const terminals = terminalTabView.tabs;
 
   const { navigate } = useNavigate();
+  const project = asMounted(getProjectStore(projectId));
 
   return (
     <div className={cn('flex flex-col overflow-y-auto text-sm', className)}>
@@ -55,13 +58,15 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
           <Tooltip>
             <TooltipTrigger>
               <button
-                className="flex items-center justify-center size-5 rounded hover:bg-background-2 text-foreground-muted hover:text-foreground"
+                className="flex size-5 items-center justify-center rounded text-foreground-muted hover:bg-background-2 hover:text-foreground"
                 onClick={onAddTerminal}
               >
                 <Plus className="size-3" />
               </button>
             </TooltipTrigger>
-            <TooltipContent>New terminal</TooltipContent>
+            <TooltipContent>
+              New terminal <BoundShortcut settingsKey="newTerminal" variant="badge" />
+            </TooltipContent>
           </Tooltip>
         }
       >
@@ -78,7 +83,7 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
               <Tooltip>
                 <TooltipTrigger>
                   <button
-                    className="ml-1 shrink-0 flex items-center justify-center size-5 rounded opacity-0 group-hover:opacity-100 hover:bg-background text-foreground-muted hover:text-foreground"
+                    className="ml-1 flex size-5 shrink-0 items-center justify-center rounded text-foreground-muted opacity-0 group-hover:opacity-100 hover:bg-background hover:text-foreground"
                     onClick={(e) => {
                       e.stopPropagation();
                       onRemoveTerminal(terminal.data.id);
@@ -100,8 +105,13 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
             <Tooltip>
               <TooltipTrigger>
                 <button
-                  onClick={() => navigate('project', { projectId })}
-                  className="flex items-center justify-center size-5 rounded hover:bg-background-2 text-foreground-muted hover:text-foreground"
+                  onClick={() => {
+                    if (!project) return;
+                    project.view.setProjectView('settings');
+                    navigate('project', { projectId });
+                  }}
+                  disabled={!project}
+                  className="flex size-5 items-center justify-center rounded text-foreground-muted hover:bg-background-2 hover:text-foreground"
                 >
                   <Settings className="size-3" />
                 </button>
@@ -120,30 +130,31 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
                 isActive={isActive}
                 onSelect={() => onSelectScript(script.data.id)}
                 action={
-                  isActive ? (
-                    <Tooltip>
-                      <TooltipTrigger>
-                        <button
-                          className="ml-1 shrink-0 flex items-center justify-center size-5 rounded hover:bg-background text-foreground-muted hover:text-foreground"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (script.isRunning) {
-                              onStopScript();
-                            } else {
-                              onRunScript();
-                            }
-                          }}
-                        >
-                          {script.isRunning ? (
-                            <Pause className="size-3" />
-                          ) : (
-                            <Play className="size-3" />
-                          )}
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent>{script.isRunning ? 'Stop' : 'Run'}</TooltipContent>
-                    </Tooltip>
-                  ) : null
+                  <Tooltip>
+                    <TooltipTrigger>
+                      <button
+                        className={cn(
+                          'ml-1 shrink-0 flex items-center justify-center size-5 rounded hover:bg-background text-foreground-muted hover:text-foreground',
+                          !isActive && 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100'
+                        )}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (script.isRunning) {
+                            onStopScript(script.data.id);
+                          } else {
+                            onRunScript(script.data.id);
+                          }
+                        }}
+                      >
+                        {script.isRunning ? (
+                          <Pause className="size-3" />
+                        ) : (
+                          <Play className="size-3" />
+                        )}
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent>{script.isRunning ? 'Stop' : 'Run'}</TooltipContent>
+                  </Tooltip>
                 }
               />
             );
@@ -244,7 +255,7 @@ function InlineRenameInput({
   return (
     <input
       ref={ref}
-      className="w-full bg-transparent outline-none text-sm border border-border px-1 py-0.5 rounded text-foreground"
+      className="w-full rounded border border-border bg-transparent px-1 py-0.5 text-sm text-foreground outline-none"
       value={value}
       onChange={(e) => setValue(e.target.value)}
       onBlur={() => onConfirm(value)}

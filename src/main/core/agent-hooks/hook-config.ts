@@ -1,12 +1,16 @@
+import { homedir } from 'node:os';
 import * as toml from 'smol-toml';
-import type { AgentProviderId } from '@shared/agent-provider-registry';
 import { resolveCommandPath } from '@main/core/dependencies/probe';
 import type { IExecutionContext } from '@main/core/execution-context/types';
+import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { log } from '@main/lib/logger';
+import type { AgentProviderId } from '@shared/agent-provider-registry';
 import {
+  makeAmpPluginContent,
   makeClaudeHookCommand,
-  makeCodexNotifyCommand,
+  makeCodexHookCommand,
+  makeCodexSessionStartHookCommand,
   makeOpenCodePluginContent,
 } from './agent-notify-command';
 import piEmdashExtension from './pi-emdash-extension.ts?raw';
@@ -15,21 +19,61 @@ const EMDASH_MARKER = 'EMDASH_HOOK_PORT';
 
 const CLAUDE_SETTINGS_PATH = '.claude/settings.local.json';
 const CODEX_CONFIG_PATH = '.codex/config.toml';
+const CODEX_HOOKS_PATH = '.codex/hooks.json';
+const DROID_SETTINGS_PATH = '.factory/settings.json';
+const AMP_PLUGIN_PATH = '.amp/plugins/emdash-hook.ts';
 const PI_EMDASH_EXTENSION_PATH = '.pi/extensions/emdash-hook.ts';
 const OPENCODE_PLUGIN_PATH = '.opencode/plugins/emdash-notifications.js';
 const GITIGNORE_PATH = '.gitignore';
 type HookConfigWriteOptions = { writeGitIgnoreEntries?: boolean };
+type CodexHookEvent = 'Stop' | 'PermissionRequest' | 'SessionStart';
+type DroidHookEvent = 'Notification' | 'Stop' | 'SessionStart';
 
 const HOOK_EVENT_MAP = [
   { eventType: 'notification', hookKey: 'Notification' },
   { eventType: 'stop', hookKey: 'Stop' },
 ] satisfies { eventType: string; hookKey: string }[];
 
+const CODEX_HOOK_EVENT_MAP = [
+  { hookKey: 'Stop', notificationType: 'idle_prompt' },
+  { hookKey: 'PermissionRequest', notificationType: 'permission_prompt' },
+] satisfies { hookKey: CodexHookEvent; notificationType: 'idle_prompt' | 'permission_prompt' }[];
+
+const CODEX_SESSION_HOOK_EVENT_MAP = [{ hookKey: 'SessionStart' as const }] satisfies {
+  hookKey: CodexHookEvent;
+}[];
+
+const DROID_HOOK_EVENT_MAP = [
+  { hookKey: 'Notification', eventType: 'notification' },
+  { hookKey: 'Stop', eventType: 'stop' },
+  { hookKey: 'SessionStart', eventType: 'session' },
+] satisfies { hookKey: DroidHookEvent; eventType: 'notification' | 'stop' | 'session' }[];
+
+const LEGACY_CODEX_NOTIFY_COMMAND = [
+  'bash',
+  '-c',
+  'curl -sf -X POST ' +
+    "-H 'Content-Type: application/json' " +
+    '-H "X-Emdash-Token: $EMDASH_HOOK_TOKEN" ' +
+    '-H "X-Emdash-Pty-Id: $EMDASH_PTY_ID" ' +
+    '-H "X-Emdash-Event-Type: notification" ' +
+    '-d "$1" ' +
+    '"http://127.0.0.1:$EMDASH_HOOK_PORT/hook" || true',
+  '_',
+];
+
 export class HookConfigWriter {
+  private readonly userFs: FileSystemProvider;
+  private readonly platform: NodeJS.Platform;
+
   constructor(
     private readonly fs: FileSystemProvider,
-    private readonly exec: IExecutionContext
-  ) {}
+    private readonly exec: IExecutionContext,
+    options: { userFs?: FileSystemProvider; platform?: NodeJS.Platform } = {}
+  ) {
+    this.userFs = options.userFs ?? new LocalFileSystem(homedir());
+    this.platform = options.platform ?? process.platform;
+  }
 
   async writeClaudeHooks(): Promise<boolean> {
     if (!(await resolveCommandPath('claude', this.exec))) return false;
@@ -45,25 +89,72 @@ export class HookConfigWriter {
 
     for (const { eventType, hookKey } of HOOK_EVENT_MAP) {
       const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
-      hooks[hookKey] = this.buildHookEntries(existing, makeClaudeHookCommand(eventType));
+      hooks[hookKey] = this.buildHookEntries(
+        existing,
+        makeClaudeHookCommand(eventType, { platform: this.platform })
+      );
     }
 
     await this.fs.write(CLAUDE_SETTINGS_PATH, JSON.stringify({ ...config, hooks }, null, 2) + '\n');
     return true;
   }
 
-  async writeCodexNotify(): Promise<boolean> {
+  async writeCodexHooks(): Promise<boolean> {
     if (!(await resolveCommandPath('codex', this.exec))) return false;
 
-    const config: Record<string, unknown> = (await this.fs.exists(CODEX_CONFIG_PATH))
-      ? await this.fs
-          .read(CODEX_CONFIG_PATH)
-          .then((result) => toml.parse(result.content) ?? {})
+    const config: Record<string, unknown> = (await this.userFs.exists(CODEX_HOOKS_PATH))
+      ? await this.userFs
+          .read(CODEX_HOOKS_PATH)
+          .then((r) => JSON.parse(r.content) ?? {})
           .catch(() => ({}))
       : {};
 
-    config.notify = makeCodexNotifyCommand();
-    await this.fs.write(CODEX_CONFIG_PATH, toml.stringify(config));
+    const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
+
+    for (const { hookKey, notificationType } of CODEX_HOOK_EVENT_MAP) {
+      const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
+      hooks[hookKey] = this.buildHookEntries(
+        existing,
+        makeCodexHookCommand(notificationType, { platform: this.platform })
+      );
+    }
+
+    for (const { hookKey } of CODEX_SESSION_HOOK_EVENT_MAP) {
+      const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
+      hooks[hookKey] = this.buildHookEntries(
+        existing,
+        makeCodexSessionStartHookCommand({ platform: this.platform })
+      );
+    }
+
+    await this.userFs.write(CODEX_HOOKS_PATH, JSON.stringify({ ...config, hooks }, null, 2) + '\n');
+    await this.removeLegacyCodexNotify().catch((err: Error) => {
+      log.warn('CodexHooks: failed to remove legacy notify entry', { error: String(err) });
+    });
+    return true;
+  }
+
+  async writeDroidHooks(): Promise<boolean> {
+    if (!(await resolveCommandPath('droid', this.exec))) return false;
+
+    const config: Record<string, unknown> = (await this.fs.exists(DROID_SETTINGS_PATH))
+      ? await this.fs
+          .read(DROID_SETTINGS_PATH)
+          .then((r) => JSON.parse(r.content) ?? {})
+          .catch(() => ({}))
+      : {};
+
+    const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
+
+    for (const { hookKey, eventType } of DROID_HOOK_EVENT_MAP) {
+      const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
+      hooks[hookKey] = this.buildHookEntries(
+        existing,
+        makeClaudeHookCommand(eventType, { platform: this.platform })
+      );
+    }
+
+    await this.fs.write(DROID_SETTINGS_PATH, JSON.stringify({ ...config, hooks }, null, 2) + '\n');
     return true;
   }
 
@@ -94,10 +185,24 @@ export class HookConfigWriter {
     return true;
   }
 
+  async writeAmpPlugin(): Promise<boolean> {
+    if (!(await resolveCommandPath('amp', this.exec))) return false;
+
+    const pluginContent = makeAmpPluginContent();
+    const existing = await this.fs
+      .read(AMP_PLUGIN_PATH)
+      .then((r) => r.content)
+      .catch(() => undefined);
+    if (existing === pluginContent) return true;
+
+    await this.fs.write(AMP_PLUGIN_PATH, pluginContent);
+    return true;
+  }
+
   async writeForProvider(
     providerId: AgentProviderId,
     options: HookConfigWriteOptions = {}
-  ): Promise<void> {
+  ): Promise<boolean> {
     const writeGitIgnoreEntries = options.writeGitIgnoreEntries ?? true;
 
     if (providerId === 'claude') {
@@ -105,15 +210,19 @@ export class HookConfigWriter {
       if (wroteConfig && writeGitIgnoreEntries) {
         await this.ensureGitIgnoreEntries([CLAUDE_SETTINGS_PATH]);
       }
-      return;
+      return wroteConfig;
     }
 
     if (providerId === 'codex') {
-      const wroteConfig = await this.writeCodexNotify();
+      return this.writeCodexHooks();
+    }
+
+    if (providerId === 'droid') {
+      const wroteConfig = await this.writeDroidHooks();
       if (wroteConfig && writeGitIgnoreEntries) {
-        await this.ensureGitIgnoreEntries([CODEX_CONFIG_PATH]);
+        await this.ensureGitIgnoreEntries([DROID_SETTINGS_PATH]);
       }
-      return;
+      return wroteConfig;
     }
 
     if (providerId === 'pi') {
@@ -121,7 +230,7 @@ export class HookConfigWriter {
       if (wroteConfig && writeGitIgnoreEntries) {
         await this.ensureGitIgnoreEntries([PI_EMDASH_EXTENSION_PATH]);
       }
-      return;
+      return wroteConfig;
     }
 
     if (providerId === 'opencode') {
@@ -129,13 +238,23 @@ export class HookConfigWriter {
       if (wroteConfig && writeGitIgnoreEntries) {
         await this.ensureGitIgnoreEntries([OPENCODE_PLUGIN_PATH]);
       }
-      return;
+      return wroteConfig;
     }
+
+    if (providerId === 'amp') {
+      const wroteConfig = await this.writeAmpPlugin();
+      if (wroteConfig && writeGitIgnoreEntries) {
+        await this.ensureGitIgnoreEntries([AMP_PLUGIN_PATH]);
+      }
+      return wroteConfig;
+    }
+
+    return false;
   }
 
   async writeAll(options: HookConfigWriteOptions = {}): Promise<void> {
     await Promise.all(
-      (['claude', 'codex', 'pi', 'opencode'] as const).map((providerId) =>
+      (['claude', 'codex', 'droid', 'pi', 'opencode', 'amp'] as const).map((providerId) =>
         this.writeForProvider(providerId, options).catch((err: Error) => {
           log.warn(`Failed to write ${providerId} hook config`, { error: String(err) });
         })
@@ -146,6 +265,32 @@ export class HookConfigWriter {
   private buildHookEntries(existing: unknown[], command: string): unknown[] {
     const userEntries = existing.filter((entry) => !JSON.stringify(entry).includes(EMDASH_MARKER));
     return [...userEntries, { hooks: [{ type: 'command', command }] }];
+  }
+
+  private async removeLegacyCodexNotify(): Promise<void> {
+    if (!(await this.fs.exists(CODEX_CONFIG_PATH))) return;
+
+    const config = await this.fs
+      .read(CODEX_CONFIG_PATH)
+      .then((result) => toml.parse(result.content) as Record<string, unknown>)
+      .catch(() => undefined);
+    if (!config || !this.isLegacyCodexNotify(config.notify)) return;
+
+    delete config.notify;
+    await this.fs.write(CODEX_CONFIG_PATH, toml.stringify(config));
+  }
+
+  private isLegacyCodexNotify(value: unknown): boolean {
+    if (!Array.isArray(value)) return false;
+    if (JSON.stringify(value) === JSON.stringify(LEGACY_CODEX_NOTIFY_COMMAND)) return true;
+
+    const [command, noProfile, fileFlag, scriptPath] = value.map((item) => String(item));
+    return (
+      command.toLowerCase() === 'powershell.exe' &&
+      noProfile === '-NoProfile' &&
+      fileFlag === '-File' &&
+      scriptPath.endsWith('emdash-codex-notify.ps1')
+    );
   }
 
   private async ensureGitIgnoreEntries(entries: string[]): Promise<void> {

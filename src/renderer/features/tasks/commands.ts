@@ -1,14 +1,15 @@
-import { TASK_COMMAND_DEFS, type CommandDef, type TaskCommandId } from '@shared/commands';
 import {
-  asProvisioned,
   getRegisteredTaskData,
   getTaskGitStore,
   getTaskStore,
   getTaskView,
 } from '@renderer/features/tasks/stores/task-selectors';
+import { closeActiveTabWithConfirm } from '@renderer/features/tasks/tabs/close-tab-with-confirm';
 import type { CommandProvider } from '@renderer/lib/commands/types';
 import { showModal } from '@renderer/lib/modal/modal-provider';
 import { appState, sidebarStore } from '@renderer/lib/stores/app-state';
+import { TASK_COMMAND_DEFS, type CommandDef, type TaskCommandId } from '@shared/commands';
+import type { ShortcutSettingsKey } from '@shared/shortcuts';
 
 function taskDef(id: TaskCommandId): CommandDef {
   return TASK_COMMAND_DEFS.find((d) => d.id === id)!;
@@ -26,13 +27,13 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
 
     getCommands() {
       const taskStore = getTaskStore(projectId, taskId);
-      const provisioned = asProvisioned(taskStore);
 
       // Guard: only expose commands when the task is fully provisioned.
-      if (!provisioned) return [];
+      if (taskStore?.state !== 'provisioned') return [];
 
       const taskView = getTaskView(projectId, taskId);
       const tabManager = taskView?.tabManager;
+      const hasTabs = (tabManager?.resolvedTabs.length ?? 0) > 0;
 
       const taskIds = sidebarStore.visibleTaskIdsForProject(projectId);
       const currentIdx = taskIds.indexOf(taskId);
@@ -68,7 +69,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
               projectId,
               taskId,
               onSuccess: ({ conversationId }) => {
-                tabManager?.openConversation(conversationId);
+                taskView?.tabGroupManager.openConversation(conversationId);
                 taskView?.setFocusedRegion('main');
               },
             });
@@ -150,9 +151,55 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           shortcutKey: newTerminalDef.shortcutKey,
           group: newTerminalDef.group,
           execute() {
-            taskView?.openNewTerminal();
+            void taskView?.openNewTerminal();
           },
         },
+
+        // ── Tab management ─────────────────────────────────────────────────
+        {
+          id: 'task.tabClose',
+          label: 'Close Tab',
+          description: 'Close the active tab',
+          shortcutKey: 'tabClose',
+          group: 'Tabs',
+          enabled: hasTabs,
+          execute() {
+            if (tabManager) closeActiveTabWithConfirm(tabManager);
+          },
+        },
+        {
+          id: 'task.tabNext',
+          label: 'Next Tab',
+          description: 'Switch to the next tab',
+          shortcutKey: 'tabNext',
+          group: 'Tabs',
+          enabled: hasTabs,
+          execute() {
+            tabManager?.setNextTabActive();
+          },
+        },
+        {
+          id: 'task.tabPrev',
+          label: 'Previous Tab',
+          description: 'Switch to the previous tab',
+          shortcutKey: 'tabPrev',
+          group: 'Tabs',
+          enabled: hasTabs,
+          execute() {
+            tabManager?.setPreviousTabActive();
+          },
+        },
+        ...([1, 2, 3, 4, 5, 6, 7, 8, 9] as const).map((n) => ({
+          id: `task.tab${n}`,
+          label: `Go to Tab ${n}`,
+          description: `Switch to tab ${n}`,
+          shortcutKey: `tab${n}` as ShortcutSettingsKey,
+          group: 'Tabs',
+          enabled: hasTabs,
+          execute() {
+            tabManager?.setTabActiveIndex(n - 1);
+          },
+        })),
 
         // ── Git ────────────────────────────────────────────────────────────
         {

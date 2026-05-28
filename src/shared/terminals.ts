@@ -37,3 +37,7 @@ export async function createScriptTerminalId({
   const hash = await createHash(key);
   return hash.slice(0, 32);
 }
+
+export function createLifecycleScriptTerminalId(type: 'setup' | 'run' | 'teardown') {
+  return `script-lifecycle-${type}`;
+}

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ProviderCustomConfig } from '@shared/app-settings';
 import { rpc } from '@renderer/lib/ipc';
+import type { ProviderCustomConfig } from '@shared/app-settings';
 
 type ProviderSettingsMeta = {
   value: ProviderCustomConfig;

@@ -36,6 +36,10 @@ export const ISSUE_PROVIDER_CAPABILITIES: Record<IssueProviderType, IssueProvide
     requiresProjectPath: false,
     requiresRepositoryUrl: false,
   },
+  asana: {
+    requiresProjectPath: false,
+    requiresRepositoryUrl: false,
+  },
 };
 
 export type ConnectionStatus = {
@@ -47,6 +51,21 @@ export type ConnectionStatus = {
 
 export type ConnectionStatusMap = Record<IssueProviderType, ConnectionStatus>;
 
+export type IssueListError =
+  | { type: 'auth_required'; host: string; message: string }
+  | { type: 'host_unreachable'; host: string; message: string }
+  | { type: 'unsupported_host'; host: string; message: string }
+  | { type: 'generic'; message: string };
+
 export type IssueListResult =
   | { success: true; issues: Issue[] }
+  | {
+      success: false;
+      error: string;
+      errorType?: IssueListError['type'];
+      host?: string;
+    };
+
+export type IssueContextResult =
+  | { success: true; issue: Issue }
   | { success: false; error: string };

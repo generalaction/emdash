@@ -1,12 +1,12 @@
 import { RotateCcw } from 'lucide-react';
-import type {
-  ProjectSettingsOverrideState,
-  ShareableProjectSettingsWriteField,
-} from '@shared/project-settings';
 import { Badge } from '@renderer/lib/ui/badge';
 import { Button } from '@renderer/lib/ui/button';
 import { FieldTitle } from '@renderer/lib/ui/field';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+import type {
+  ProjectSettingsOverrideState,
+  ShareableProjectSettingsWriteField,
+} from '@shared/project-settings';
 
 type Props = {
   children: React.ReactNode;
@@ -31,7 +31,7 @@ export function ShareableSettingTitle({ children, leafLabel, overrideSources, on
               <TooltipTrigger className="inline-flex h-4.5 items-center">
                 <Badge
                   variant="outline"
-                  className="rounded-xs h-4.5 border-amber-200 bg-amber-50 leading-none text-amber-700 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-400"
+                  className="h-4.5 rounded-xs border-border-warning bg-background-warning leading-none text-foreground-warning"
                 >
                   Overriding
                 </Badge>
@@ -46,7 +46,7 @@ export function ShareableSettingTitle({ children, leafLabel, overrideSources, on
                   type="button"
                   variant="ghost"
                   size="icon-xs"
-                  className="size-4.5 rounded-full p-0 text-muted-foreground hover:text-foreground"
+                  className="text-muted-foreground size-4.5 rounded-full p-0 hover:text-foreground"
                   aria-label={`Use team settings for ${leafLabel}`}
                   onClick={onRestore}
                 >

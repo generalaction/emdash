@@ -1,9 +1,13 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { formatConversationTitleForDisplay } from '@renderer/features/tasks/conversations/conversation-title-utils';
-import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
+import {
+  useConversations,
+  useTaskViewContext,
+  useWorkspaceViewModel,
+} from '@renderer/features/tasks/task-view-context';
 import AgentLogo from '@renderer/lib/components/agent-logo';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
@@ -18,6 +22,7 @@ import { MicroLabel } from '@renderer/lib/ui/label';
 import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { agentConfig } from '@renderer/utils/agentConfig';
 import { cn } from '@renderer/utils/utils';
+import { MAX_CONVERSATION_TITLE_LENGTH } from '@shared/conversations';
 import { AgentStatusIndicator } from '../components/agent-status-indicator';
 
 const ROW_HEIGHT = 32;
@@ -28,11 +33,21 @@ const ConversationRow = observer(function ConversationRow({
   conversationId: string;
 }) {
   const [isEditing, setIsEditing] = useState(false);
-  const provisioned = useProvisionedTask();
-  const { tabManager } = provisioned.taskView;
+  const taskView = useWorkspaceViewModel();
+  const conversations = useConversations();
+  const { tabManager, tabGroupManager } = taskView;
   const showConfirm = useShowModal('confirmActionModal');
 
-  const conversation = provisioned.conversations.conversations.get(conversationId);
+  const handleRenameInputRef = useCallback((input: HTMLInputElement | null) => {
+    input?.focus();
+    input?.select();
+  }, []);
+
+  const handleRename = useCallback(() => {
+    window.setTimeout(() => setIsEditing(true), 0);
+  }, []);
+
+  const conversation = conversations.conversations.get(conversationId);
   if (!conversation) return null;
 
   const isActive = tabManager.activeConversationId === conversationId;
@@ -45,7 +60,7 @@ const ConversationRow = observer(function ConversationRow({
 
   const handleRenameSubmit = (newTitle: string) => {
     setIsEditing(false);
-    void provisioned.conversations.renameConversation(conversationId, newTitle);
+    void conversations.renameConversation(conversationId, newTitle);
   };
 
   const handleDelete = () => {
@@ -55,7 +70,7 @@ const ConversationRow = observer(function ConversationRow({
       confirmLabel: 'Delete',
       variant: 'destructive',
       onSuccess: () => {
-        void provisioned.conversations.deleteConversation(conversationId);
+        void conversations.deleteConversation(conversationId);
       },
     });
   };
@@ -64,11 +79,12 @@ const ConversationRow = observer(function ConversationRow({
     return (
       <div className="flex h-full w-full items-center px-2">
         <input
-          className="w-full rounded bg-background-1 px-1.5 py-0.5 text-sm text-foreground outline-none ring-1 ring-foreground/20 focus:ring-foreground/40"
+          ref={handleRenameInputRef}
+          className="w-full rounded bg-background-1 px-1.5 py-0.5 text-sm text-foreground ring-1 ring-foreground/20 outline-none focus:ring-foreground/40"
           defaultValue={rawTitle}
-          autoFocus
+          maxLength={MAX_CONVERSATION_TITLE_LENGTH}
           onBlur={(e) => {
-            const value = e.target.value.trim();
+            const value = e.target.value.trim().slice(0, MAX_CONVERSATION_TITLE_LENGTH);
             if (value && value !== rawTitle) {
               handleRenameSubmit(value);
             } else {
@@ -77,7 +93,7 @@ const ConversationRow = observer(function ConversationRow({
           }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
-              const value = e.currentTarget.value.trim();
+              const value = e.currentTarget.value.trim().slice(0, MAX_CONVERSATION_TITLE_LENGTH);
               if (value && value !== rawTitle) {
                 handleRenameSubmit(value);
               } else {
@@ -96,8 +112,8 @@ const ConversationRow = observer(function ConversationRow({
     <ContextMenu>
       <ContextMenuTrigger>
         <button
-          onClick={() => tabManager.openConversationPreview(conversationId)}
-          onDoubleClick={() => tabManager.openConversation(conversationId)}
+          onClick={() => tabGroupManager.openConversationPreview(conversationId)}
+          onDoubleClick={() => tabGroupManager.openConversation(conversationId)}
           className={cn(
             'flex w-full items-center gap-2 h-8 rounded-md px-2 text-left text-sm text-foreground-muted transition-colors hover:bg-background-1 hover:text-foreground',
             isActive && 'bg-background-2 text-foreground hover:bg-background-2'
@@ -107,6 +123,7 @@ const ConversationRow = observer(function ConversationRow({
             <span className="shrink-0">
               <AgentLogo
                 logo={config.logo}
+                logoDark={config.logoDark}
                 alt={config.alt}
                 isSvg={config.isSvg}
                 invertInDark={config.invertInDark}
@@ -121,15 +138,15 @@ const ConversationRow = observer(function ConversationRow({
             ) : (
               <RelativeTime
                 value={conversation.data.lastInteractedAt ?? ''}
-                className="text-xs text-foreground-passive font-mono pr-1 h-full flex items-center"
+                className="flex h-full items-center pr-1 font-mono text-xs text-foreground-passive"
                 compact
               />
             )}
           </span>
         </button>
       </ContextMenuTrigger>
-      <ContextMenuContent>
-        <ContextMenuItem onClick={() => setIsEditing(true)}>
+      <ContextMenuContent finalFocus={false}>
+        <ContextMenuItem onClick={handleRename}>
           <Pencil className="size-4" />
           Rename
         </ContextMenuItem>
@@ -145,10 +162,11 @@ const ConversationRow = observer(function ConversationRow({
 
 export const SidebarConversationsList = observer(function SidebarConversationsList() {
   const { projectId, taskId } = useTaskViewContext();
-  const provisioned = useProvisionedTask();
-  const { tabManager } = provisioned.taskView;
+  const taskView = useWorkspaceViewModel();
+  const conversations = useConversations();
+  const { tabGroupManager } = taskView;
   const showCreateConversationModal = useShowModal('createConversationModal');
-  const conversationIds = Array.from(provisioned.conversations.conversations.values())
+  const conversationIds = Array.from(conversations.conversations.values())
     .sort((a, b) => {
       const aTime = a.data.lastInteractedAt ? new Date(a.data.lastInteractedAt).getTime() : 0;
       const bTime = b.data.lastInteractedAt ? new Date(b.data.lastInteractedAt).getTime() : 0;
@@ -170,14 +188,14 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
       projectId,
       taskId,
       onSuccess: ({ conversationId }) => {
-        tabManager.openConversation(conversationId);
+        tabGroupManager.openConversation(conversationId);
       },
     });
   };
 
   return (
-    <div className="flex h-full flex-col w-full">
-      <div className="shrink-0 pl-4 pr-2 pt-2 pb-1 flex items-center justify-between">
+    <div className="flex h-full w-full flex-col">
+      <div className="flex shrink-0 items-center justify-between pt-2 pr-2 pb-1 pl-4">
         <MicroLabel>Conversations</MicroLabel>
         <Button size="icon-sm" variant="ghost" onClick={handleCreate}>
           <Plus className="size-3.5" />

@@ -1,44 +1,49 @@
-import ampcodeIcon from '@/assets/images/ampcode.png';
+import ampcodeIcon from '@/assets/images/ampcode.svg?raw';
+import antigravityIcon from '@/assets/images/antigravity.svg?raw';
 import atlassianIcon from '@/assets/images/atlassian.png';
 import augmentcodeIcon from '@/assets/images/Auggie.svg?raw';
 import autohandIcon from '@/assets/images/autohand.svg?raw';
 import charmIcon from '@/assets/images/charm.png';
-import claudeIcon from '@/assets/images/claude.png';
+import claudeIcon from '@/assets/images/claude.svg?raw';
 import clineIcon from '@/assets/images/cline.png';
 import codebuffIcon from '@/assets/images/codebuff.png';
 import continueIcon from '@/assets/images/continue.png';
 import cursorlogoIcon from '@/assets/images/cursor.svg?raw';
 import devinIcon from '@/assets/images/devin.png';
 import factorydroidIcon from '@/assets/images/droid.svg?raw';
-import geminiIcon from '@/assets/images/gemini.png';
+import geminiIcon from '@/assets/images/gemini.svg?raw';
 import ghcopilotIcon from '@/assets/images/gh-copilot.svg?raw';
 import gooseIcon from '@/assets/images/goose.png';
 import hermesIcon from '@/assets/images/hermesagent.jpg';
 import julesIcon from '@/assets/images/jules.svg?raw';
 import junieIcon from '@/assets/images/junie-color.png';
 import kilocodeIcon from '@/assets/images/kilocode.png';
-import kimiIcon from '@/assets/images/kimi.png';
+import kimiIcon from '@/assets/images/kimi.svg?raw';
 import kiroIcon from '@/assets/images/kiro.png';
 import lettaIcon from '@/assets/images/letta.svg?raw';
-import mistralIcon from '@/assets/images/mistral.png';
+import mistralIcon from '@/assets/images/mistral.svg?raw';
 import openaiIcon from '@/assets/images/openai.svg?raw';
-import opencodeIcon from '@/assets/images/opencode.png';
+import opencodeDarkIcon from '@/assets/images/opencode-dark.svg?raw';
+import opencodeIcon from '@/assets/images/opencode.svg?raw';
 import piIcon from '@/assets/images/pi.png';
-import qwenIcon from '@/assets/images/qwen.png';
+import qwenIcon from '@/assets/images/qwen.svg?raw';
+import xaiIcon from '@/assets/images/xai.svg?raw';
 import { AGENT_PROVIDERS, type AgentProviderId } from '@shared/agent-provider-registry';
 
 export type UiAgent = AgentProviderId;
 
 const ICONS: Record<string, string> = {
   'Auggie.svg': augmentcodeIcon,
-  'qwen.png': qwenIcon,
+  'qwen.svg': qwenIcon,
   'charm.png': charmIcon,
-  'opencode.png': opencodeIcon,
-  'ampcode.png': ampcodeIcon,
+  'opencode.svg': opencodeIcon,
+  'opencode-dark.svg': opencodeDarkIcon,
+  'ampcode.svg': ampcodeIcon,
   'openai.svg': openaiIcon,
-  'claude.png': claudeIcon,
+  'antigravity.svg': antigravityIcon,
+  'claude.svg': claudeIcon,
   'droid.svg': factorydroidIcon,
-  'gemini.png': geminiIcon,
+  'gemini.svg': geminiIcon,
   'cursor.svg': cursorlogoIcon,
   'devin.png': devinIcon,
   'gh-copilot.svg': ghcopilotIcon,
@@ -46,7 +51,7 @@ const ICONS: Record<string, string> = {
   'hermesagent.jpg': hermesIcon,
   'jules.svg': julesIcon,
   'junie-color.png': junieIcon,
-  'kimi.png': kimiIcon,
+  'kimi.svg': kimiIcon,
   'kilocode.png': kilocodeIcon,
   'kiro.png': kiroIcon,
   'letta.svg': lettaIcon,
@@ -54,14 +59,16 @@ const ICONS: Record<string, string> = {
   'cline.png': clineIcon,
   'continue.png': continueIcon,
   'codebuff.png': codebuffIcon,
-  'mistral.png': mistralIcon,
+  'mistral.svg': mistralIcon,
   'pi.png': piIcon,
   'autohand.svg': autohandIcon,
+  'xai.svg': xaiIcon,
 };
 
 export type AgentMeta = {
   label: string;
   icon?: string;
+  iconDark?: string;
   /** True when the icon is a raw SVG string rather than an image URL. */
   isSvg?: boolean;
   /** When true, the icon should be colour-inverted in dark mode. */
@@ -75,6 +82,7 @@ export type AgentMeta = {
   autoApproveFlag?: string;
   initialPromptFlag?: string;
   useKeystrokeInjection?: boolean;
+  initialPromptViaStdinPipe?: boolean;
 };
 
 export const agentMeta: Record<UiAgent, AgentMeta> = Object.fromEntries(
@@ -83,6 +91,7 @@ export const agentMeta: Record<UiAgent, AgentMeta> = Object.fromEntries(
     {
       label: p.name,
       icon: p.icon ? ICONS[p.icon] : undefined,
+      iconDark: p.iconDark ? ICONS[p.iconDark] : undefined,
       isSvg: p.icon ? p.icon.endsWith('.svg') : undefined,
       invertInDark: p.invertInDark,
       alt: p.alt,
@@ -93,6 +102,7 @@ export const agentMeta: Record<UiAgent, AgentMeta> = Object.fromEntries(
       autoApproveFlag: p.autoApproveFlag,
       initialPromptFlag: p.initialPromptFlag,
       useKeystrokeInjection: p.useKeystrokeInjection,
+      initialPromptViaStdinPipe: p.initialPromptViaStdinPipe,
     },
   ])
 ) as Record<UiAgent, AgentMeta>;

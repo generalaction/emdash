@@ -1,12 +1,12 @@
 import { computed, makeObservable } from 'mobx';
 import { toast } from 'sonner';
-import { fsWatchEventChannel } from '@shared/events/fsEvents';
-import { gitWorkspaceChangedChannel } from '@shared/events/gitEvents';
-import type { FullGitStatus, GitChange } from '@shared/git';
-import { err, ok } from '@shared/result';
 import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
+import { fsWatchEventChannel } from '@shared/events/fsEvents';
+import { gitRefChangedChannel, gitWorkspaceChangedChannel } from '@shared/events/gitEvents';
+import { localRef, refsEqual, type FullGitStatus, type GitChange } from '@shared/git';
+import { err, ok } from '@shared/result';
 
 const TOO_MANY_FILES_MSG = 'Too many files changed to display';
 
@@ -45,6 +45,29 @@ export class GitStore {
         },
         {
           kind: 'event',
+          subscribe: (handler) =>
+            events.on(gitRefChangedChannel, (payload) => {
+              if (payload.projectId !== this.projectId) return;
+              if (payload.workspaceId !== undefined && payload.workspaceId !== this.workspaceId)
+                return;
+              if (payload.kind !== 'local-refs') return;
+
+              const currentBranch = this.fullStatus.data?.currentBranch;
+              if (
+                currentBranch &&
+                payload.changedRefs &&
+                !payload.changedRefs.some((ref) => refsEqual(ref, localRef(currentBranch)))
+              ) {
+                return;
+              }
+
+              handler();
+            }),
+          onEvent: 'reload',
+          debounceMs: 500,
+        },
+        {
+          kind: 'event',
           subscribe: (handler) => {
             rpc.fs.watchSetPaths(projectId, workspaceId, [''], 'git-store-status').catch(() => {});
             const unsub = events.on(fsWatchEventChannel, (payload) => {
@@ -80,6 +103,8 @@ export class GitStore {
       aheadCount: computed,
       behindCount: computed,
       branchName: computed,
+      headKind: computed,
+      headDisplay: computed,
     });
   }
 
@@ -149,6 +174,22 @@ export class GitStore {
 
   get branchName(): string | null {
     return this.fullStatus.data?.currentBranch ?? null;
+  }
+
+  /** The HEAD state: 'branch' (normal), 'detached' (mid-rebase etc.), or 'unborn' (no commits yet). */
+  get headKind(): 'branch' | 'detached' | 'unborn' {
+    return this.fullStatus.data?.headKind ?? 'branch';
+  }
+
+  /**
+   * Always non-null once hasData is true.
+   * Returns the branch name on a branch/unborn repo, or the short commit hash when detached.
+   */
+  get headDisplay(): string | null {
+    const d = this.fullStatus.data;
+    if (!d) return null;
+    if (d.headKind === 'detached') return d.shortHash;
+    return d.currentBranch;
   }
 
   /** True when this workspace's branch has a remote tracking ref. */
@@ -336,7 +377,7 @@ export class GitStore {
   }
 
   async push() {
-    const remote = this.repositoryStore.configuredRemote.name;
+    const remote = this.repositoryStore.pushRemote.name;
     const result = await rpc.git.push(this.projectId, this.workspaceId, remote);
     if (result.success) {
       this.repositoryStore.refreshLocal(); // divergence resets to 0
@@ -353,7 +394,7 @@ export class GitStore {
   async publishBranch() {
     const branchName = this.branchName;
     if (!branchName) return err({ type: 'git_error' as const, message: 'No branch checked out' });
-    const remote = this.repositoryStore.configuredRemote.name;
+    const remote = this.repositoryStore.pushRemote.name;
     const result = await rpc.git.publishBranch(
       this.projectId,
       this.workspaceId,

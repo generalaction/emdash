@@ -1,14 +1,22 @@
+import type { FileSystemProvider } from '@main/core/fs/types';
+import type { RepositoryGitProvider } from '@main/core/git/repository-git-provider';
+import { log } from '@main/lib/logger';
 import { remoteNameFromQualifiedRef } from '@shared/git-utils';
 import {
   baseProjectSettingsSchema,
+  legacyBaseProjectSettingsSchema,
   legacyProjectConfigSchema,
+  shareableProjectSettingsSchema,
   type BaseProjectSettings,
-  type ProjectSettings,
+  type ShareableProjectSettings,
 } from '@shared/project-settings';
+import { mergeShareableProjectSettings } from '@shared/project-settings-fields';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import type { Result } from '@shared/result';
-import type { FileSystemProvider } from '@main/core/fs/types';
-import { log } from '@main/lib/logger';
+import {
+  hasLegacyShareableConfigMigrated,
+  serializeShareableProjectSettings,
+} from './legacy-shareable-migration-marker';
 import { compactUndefined, parseJsonObject, readJson } from './project-settings-json';
 import type { ProjectSettingsStorage, StoredProjectSettings } from './project-settings-storage';
 
@@ -18,16 +26,17 @@ export type LegacyProjectSettingsMigrationArgs = {
   configReader: Pick<FileSystemProvider, 'exists' | 'read'> | undefined;
   defaultBranchFallback: string;
   storage: ProjectSettingsStorage;
+  git?: Pick<RepositoryGitProvider, 'isFileCleanlyTracked'>;
   normalizeStoredWorktreeDirectory: (
     worktreeDirectory: string
   ) => Promise<Result<string, UpdateProjectSettingsError>>;
 };
 
 function normalizeLegacyDefaultBranch(
-  branch: ProjectSettings['defaultBranch'],
+  branch: BaseProjectSettings['defaultBranch'],
   remote: string | undefined,
   fallback: string
-): ProjectSettings['defaultBranch'] {
+): BaseProjectSettings['defaultBranch'] {
   if (!branch) return undefined;
   const branchName = typeof branch === 'string' ? branch.trim() : branch.name.trim();
   if (!branchName) return undefined;
@@ -38,7 +47,12 @@ function normalizeLegacyDefaultBranch(
 
 async function readLegacyProjectConfig(
   configReader: Pick<FileSystemProvider, 'exists' | 'read'> | undefined
-): Promise<ProjectSettings | undefined> {
+): Promise<
+  | (BaseProjectSettings & {
+      remote?: string;
+    })
+  | undefined
+> {
   if (!configReader) return undefined;
   try {
     if (!(await configReader.exists('.emdash.json'))) return undefined;
@@ -61,28 +75,47 @@ export async function migrateLegacyProjectSettingsIfNeeded({
   configReader,
   defaultBranchFallback,
   storage,
+  git,
   normalizeStoredWorktreeDirectory,
 }: LegacyProjectSettingsMigrationArgs): Promise<void> {
-  if (!row || row.legacyConfigMigratedAt) return;
+  if (!row) return;
+
+  const baseAlreadyMigrated = Boolean(row.legacyConfigMigratedAt);
+  const shareableAlreadyMigrated = hasLegacyShareableConfigMigrated(
+    row.shareableProjectSettingsJson
+  );
+  if (baseAlreadyMigrated && shareableAlreadyMigrated) return;
 
   const current = readJson(
     row.baseProjectSettingsJson,
-    baseProjectSettingsSchema,
+    legacyBaseProjectSettingsSchema,
     'base project settings'
   );
+  const currentShareable = readJson(
+    row.shareableProjectSettingsJson,
+    shareableProjectSettingsSchema,
+    'shareable project settings'
+  );
+  const { remote, ...currentSettings } = current;
   const legacy = await readLegacyProjectConfig(configReader);
-  const next: BaseProjectSettings = { ...current };
+  const next: BaseProjectSettings = baseProjectSettingsSchema.parse({
+    ...currentSettings,
+    baseRemote: currentSettings.baseRemote ?? remote,
+  });
+  let nextShareable: ShareableProjectSettings | undefined;
 
-  if (legacy) {
+  if (legacy && !baseAlreadyMigrated) {
     if (legacy.worktreeDirectory !== undefined) {
       const normalized = await normalizeStoredWorktreeDirectory(legacy.worktreeDirectory);
       if (normalized.success) next.worktreeDirectory = normalized.data;
     }
-    if (legacy.remote !== undefined) next.remote = legacy.remote;
+    if (legacy.remote !== undefined) next.baseRemote = legacy.remote;
+    if (legacy.baseRemote !== undefined) next.baseRemote = legacy.baseRemote;
+    if (legacy.pushRemote !== undefined) next.pushRemote = legacy.pushRemote;
     if (legacy.defaultBranch !== undefined) {
       next.defaultBranch = normalizeLegacyDefaultBranch(
         legacy.defaultBranch,
-        legacy.remote ?? next.remote,
+        legacy.baseRemote ?? legacy.remote ?? next.baseRemote,
         defaultBranchFallback
       );
     }
@@ -92,8 +125,30 @@ export async function migrateLegacyProjectSettingsIfNeeded({
     }
   }
 
-  await storage.update(projectId, {
-    baseProjectSettingsJson: JSON.stringify(compactUndefined(next)),
-    legacyConfigMigratedAt: new Date().toISOString(),
-  });
+  if (legacy && !shareableAlreadyMigrated) {
+    if ((await git?.isFileCleanlyTracked('.emdash.json')) === false) {
+      const legacyShareable = shareableProjectSettingsSchema.parse(legacy);
+      nextShareable = mergeShareableProjectSettings(currentShareable, legacyShareable);
+    }
+  }
+
+  const update: Partial<StoredProjectSettings> = {
+    ...(nextShareable
+      ? {
+          shareableProjectSettingsJson: serializeShareableProjectSettings(nextShareable, {
+            previousRaw: row.shareableProjectSettingsJson,
+            markLegacyShareableConfigMigrated: true,
+          }),
+        }
+      : {}),
+  };
+
+  if (!baseAlreadyMigrated) {
+    update.baseProjectSettingsJson = JSON.stringify(compactUndefined(next));
+    update.legacyConfigMigratedAt = new Date().toISOString();
+  }
+
+  if (Object.keys(update).length > 0) {
+    await storage.update(projectId, update);
+  }
 }

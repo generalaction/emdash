@@ -11,7 +11,7 @@
 services:
   ssh-dev:
     build:
-      context: ./testing/docker-ssh
+      context: ./tooling/docker-ssh
       dockerfile: dockerfile
     container_name: emdash-ssh-dev
     ports:

@@ -1,13 +1,12 @@
-import { prSyncProgressChannel } from '@shared/events/prEvents';
 import { events } from '@renderer/lib/ipc';
 import { queryClient } from '@renderer/lib/query-client';
+import { shouldInvalidatePrListQuery } from '@renderer/lib/should-invalidate-pr-list-query';
+import { prSyncProgressChannel } from '@shared/events/prEvents';
 
 export function wirePrCacheInvalidation(): void {
   events.on(prSyncProgressChannel, (progress) => {
-    if (progress.status !== 'running' && progress.status !== 'done') return;
     void queryClient.invalidateQueries({
-      predicate: (query) =>
-        query.queryKey[0] === 'pull-requests' && query.queryKey[2] === progress.remoteUrl,
+      predicate: (query) => shouldInvalidatePrListQuery(query.queryKey, progress),
     });
   });
 }

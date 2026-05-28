@@ -23,10 +23,10 @@ function SyncStatusCard({ icon, label, content, actions, className }: SyncStatus
   return (
     <ListPopoverCard className={className}>
       {icon}
-      {label && <span className="text-foreground-muted shrink-0">{label}</span>}
+      {label && <span className="shrink-0 text-foreground-muted">{label}</span>}
 
-      <span className="text-foreground-passive grow min-w-0">{content}</span>
-      {actions && <div className="flex items-center gap-1 shrink-0">{actions}</div>}
+      <span className="min-w-0 grow text-foreground-passive">{content}</span>
+      {actions && <div className="flex shrink-0 items-center gap-1">{actions}</div>}
     </ListPopoverCard>
   );
 }
@@ -72,7 +72,7 @@ export const PrSyncStatusCard = observer(function PrSyncStatusCard({
     const hasProgress = state.total != null && state.total > 0;
     return (
       <SyncStatusCard
-        icon={<Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" />}
+        icon={<Loader2 className="text-muted-foreground size-3.5 shrink-0 animate-spin" />}
         label={kindLabel}
         content={
           hasProgress ? `Syncing PRs: ${state.synced ?? 0} / ${state.total}` : 'Syncing PRs…'
@@ -81,7 +81,7 @@ export const PrSyncStatusCard = observer(function PrSyncStatusCard({
           <Button
             variant="ghost"
             size="sm"
-            className="shrink-0 h-6 px-2 text-xs"
+            className="h-6 shrink-0 px-2 text-xs"
             onClick={() => prSync?.cancel(repositoryUrl)}
           >
             Cancel
@@ -94,7 +94,7 @@ export const PrSyncStatusCard = observer(function PrSyncStatusCard({
   if (state.status === 'cancelled' && state.kind !== 'single') {
     return (
       <SyncStatusCard
-        icon={<RotateCcw className="size-3.5 shrink-0 text-muted-foreground" />}
+        icon={<RotateCcw className="text-muted-foreground size-3.5 shrink-0" />}
         label={kindLabel}
         content="Sync cancelled"
         actions={
@@ -133,7 +133,7 @@ export const PrSyncStatusCard = observer(function PrSyncStatusCard({
           </Button>
           <Button
             variant="ghost"
-            size="icon-sm"
+            size="icon-xs"
             onClick={() => prSync?.clear(repositoryUrl)}
             aria-label="Dismiss"
           >
