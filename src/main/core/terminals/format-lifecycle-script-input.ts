@@ -6,7 +6,7 @@ export type LifecycleScriptInputOptions = {
   platform?: NodeJS.Platform;
 };
 
-function splitScriptLines(script: string): string[] {
+function splitCmdScriptLines(script: string): string[] {
   return script
     .split(/\r?\n/)
     .map((line) => line.trimEnd())
@@ -26,16 +26,13 @@ export function formatLifecycleScriptInput(
     shellKind = platform === 'win32' ? 'cmd' : 'posix',
   }: LifecycleScriptInputOptions = {}
 ): string {
-  const lines = splitScriptLines(script);
-
   if (shellKind === 'cmd') {
     // `&` continues on error, matching POSIX shells without `set -e`.
-    const body = lines.join(' & ');
+    const body = splitCmdScriptLines(script).join(' & ');
     if (!body) return exit ? 'exit' : '';
     return exit ? `${body} & exit` : body;
   }
 
-  const body = lines.join('\n');
-  if (!body) return exit ? 'exit' : '';
-  return exit ? `${body}; exit` : body;
+  if (!script) return exit ? 'exit' : '';
+  return exit ? `${script}; exit` : script;
 }

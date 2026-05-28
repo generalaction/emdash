@@ -56,14 +56,18 @@ describe('formatLifecycleScriptInput', () => {
     );
   });
 
-  it('ignores blank lines', () => {
+  it('ignores blank lines for Windows only', () => {
     const script = 'pnpm install\n\npnpm build';
 
     expect(formatLifecycleScriptInput(script, { platform: 'win32' })).toBe(
       'pnpm install & pnpm build'
     );
-    expect(formatLifecycleScriptInput(script, { platform: 'darwin' })).toBe(
-      'pnpm install\npnpm build'
-    );
+    expect(formatLifecycleScriptInput(script, { platform: 'darwin' })).toBe(script);
+  });
+
+  it('preserves POSIX trailing whitespace', () => {
+    const script = 'pnpm install  \npnpm build\t';
+
+    expect(formatLifecycleScriptInput(script, { platform: 'darwin' })).toBe(script);
   });
 });
