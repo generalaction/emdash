@@ -35,7 +35,15 @@ describe('LocalExecutionContext', () => {
     expect(execFileMock).toHaveBeenCalledWith(
       GIT_EXECUTABLE,
       ['status'],
-      expect.objectContaining({ cwd: '/repo' }),
+      expect.objectContaining({
+        cwd: '/repo',
+        env: expect.objectContaining({
+          GIT_ASKPASS: '',
+          GIT_TERMINAL_PROMPT: '0',
+          GCM_INTERACTIVE: 'never',
+          SSH_ASKPASS: '',
+        }),
+      }),
       expect.any(Function)
     );
   });
@@ -62,7 +70,19 @@ describe('LocalExecutionContext', () => {
     child.emit('close', 0);
     await promise;
 
-    expect(spawnMock).toHaveBeenCalledWith(GIT_EXECUTABLE, ['status'], { cwd: '/repo' });
+    expect(spawnMock).toHaveBeenCalledWith(
+      GIT_EXECUTABLE,
+      ['status'],
+      expect.objectContaining({
+        cwd: '/repo',
+        env: expect.objectContaining({
+          GIT_ASKPASS: '',
+          GIT_TERMINAL_PROMPT: '0',
+          GCM_INTERACTIVE: 'never',
+          SSH_ASKPASS: '',
+        }),
+      })
+    );
   });
 
   it('explains when git is missing during streaming local execution', async () => {

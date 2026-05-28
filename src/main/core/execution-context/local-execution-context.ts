@@ -5,9 +5,17 @@ import {
   isMissingGitExecutableError,
   missingGitExecutableError,
 } from '@main/core/utils/exec';
+import { NON_INTERACTIVE_GIT_ENV } from './non-interactive-git-env';
 import type { ExecOptions, ExecResult, IExecutionContext } from './types';
 
 const execFileAsync = promisify(execFile);
+
+function buildNonInteractiveGitEnv(): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    ...NON_INTERACTIVE_GIT_ENV,
+  };
+}
 
 export class LocalExecutionContext implements IExecutionContext {
   readonly root: string;
@@ -33,6 +41,7 @@ export class LocalExecutionContext implements IExecutionContext {
     const { timeout, maxBuffer } = opts;
     return execFileAsync(this.resolveCommand(command), args, {
       cwd: this.root || undefined,
+      env: command === 'git' ? buildNonInteractiveGitEnv() : undefined,
       timeout,
       maxBuffer,
       signal: this._signal(opts.signal),
@@ -58,7 +67,10 @@ export class LocalExecutionContext implements IExecutionContext {
         return;
       }
 
-      const child = spawn(this.resolveCommand(command), args, { cwd: this.root || undefined });
+      const child = spawn(this.resolveCommand(command), args, {
+        cwd: this.root || undefined,
+        env: command === 'git' ? buildNonInteractiveGitEnv() : undefined,
+      });
 
       let settled = false;
 
