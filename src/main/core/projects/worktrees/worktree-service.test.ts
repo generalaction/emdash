@@ -205,6 +205,7 @@ describe('WorktreeService', () => {
         dispose: () => {},
       };
       const fakeHost: WorktreeHost = {
+        pathApi: path,
         existsAbsolute: vi.fn(async (absPath: string) => {
           return absPath === targetPath || absPath === path.join(targetPath, '.git');
         }),

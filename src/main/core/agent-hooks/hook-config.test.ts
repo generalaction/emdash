@@ -156,6 +156,7 @@ describe('HookConfigWriter', () => {
     );
     expect(config.hooks.Stop[0].hooks[0].command).toContain('X-Emdash-Event-Type: stop');
     expect(config.hooks.Stop[0].hooks[0].command).toContain('X-Emdash-Pty-Id');
+    expect(config.hooks.SessionStart[0].hooks[0].command).toContain('X-Emdash-Event-Type: session');
     expect(fs.files.get('.gitignore')).toBe('.factory/settings.json\n');
   });
 
