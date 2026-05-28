@@ -46,7 +46,7 @@ const CRAWL_IGNORED_DIRS = new Set([
 type FileHit = { path: string; filename: string };
 
 class WorkspaceFileIndexService {
-  private crawling = new Set<string>();
+  private crawling = new Map<string, Promise<void>>();
   private debounceTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   initialize(): void {
@@ -58,15 +58,22 @@ class WorkspaceFileIndexService {
   }
 
   async onWorkspaceCreated(workspaceId: string, workspace: Workspace): Promise<void> {
-    const alreadyIndexed = sqlite
-      .prepare(`SELECT 1 FROM workspace_file_index_meta WHERE workspace_id = ?`)
-      .get(workspaceId);
-
-    if (alreadyIndexed) {
+    if (this.hasIndexEntries(workspaceId)) {
       this.touchMeta(workspaceId);
       return;
     }
 
+    await this.crawl(workspaceId, workspace);
+  }
+
+  async ensureIndexed(workspaceId: string): Promise<void> {
+    if (this.hasIndexEntries(workspaceId)) {
+      this.touchMeta(workspaceId);
+      return;
+    }
+
+    const workspace = workspaceRegistry.get(workspaceId);
+    if (!workspace) return;
     await this.crawl(workspaceId, workspace);
   }
 
@@ -117,9 +124,17 @@ class WorkspaceFileIndexService {
   }
 
   private async crawl(workspaceId: string, workspace: Workspace): Promise<void> {
-    if (this.crawling.has(workspaceId)) return;
-    this.crawling.add(workspaceId);
+    const existing = this.crawling.get(workspaceId);
+    if (existing) return existing;
 
+    const pending = this.crawlWorkspace(workspaceId, workspace).finally(() => {
+      this.crawling.delete(workspaceId);
+    });
+    this.crawling.set(workspaceId, pending);
+    return pending;
+  }
+
+  private async crawlWorkspace(workspaceId: string, workspace: Workspace): Promise<void> {
     try {
       const result = await workspace.fs.list('', {
         recursive: true,
@@ -149,8 +164,20 @@ class WorkspaceFileIndexService {
       });
     } catch (e) {
       log.warn('WorkspaceFileIndexService: crawl failed', { workspaceId, error: String(e) });
-    } finally {
-      this.crawling.delete(workspaceId);
+    }
+  }
+
+  private hasIndexEntries(workspaceId: string): boolean {
+    try {
+      return !!sqlite
+        .prepare(`SELECT 1 FROM workspace_file_index WHERE workspace_id = ? LIMIT 1`)
+        .get(workspaceId);
+    } catch (e) {
+      log.warn('WorkspaceFileIndexService: hasIndexEntries failed', {
+        workspaceId,
+        error: String(e),
+      });
+      return false;
     }
   }
 

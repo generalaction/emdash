@@ -57,7 +57,7 @@ class SearchService {
     this.seedCommands();
   }
 
-  search({ query, context }: CommandPaletteQuery): SearchItem[] {
+  async search({ query, context }: CommandPaletteQuery): Promise<SearchItem[]> {
     if (!query.trim()) return this.recents(context);
 
     // Trigram tokenizer requires each term to be at least 3 characters.
@@ -113,6 +113,7 @@ class SearchService {
     }));
 
     if (context?.workspaceId) {
+      await workspaceFileIndexService.ensureIndexed(context.workspaceId);
       const fileHits = workspaceFileIndexService.search(context.workspaceId, query);
       for (const h of fileHits) {
         results.push({
