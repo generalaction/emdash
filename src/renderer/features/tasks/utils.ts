@@ -1,3 +1,7 @@
+import type { PushError } from '@shared/git';
+
+type PushLikeError = PushError | { type: string; message?: string };
+
 export function extractErrorMessage(error: unknown): string {
   if (error && typeof error === 'object' && 'message' in error) {
     return String((error as { message: unknown }).message);
@@ -27,4 +31,23 @@ export function friendlyGitError(raw: string): string {
   if (s.includes('nothing to commit')) return 'Nothing to commit.';
   const firstLine = raw.split('\n').find((l) => l.trim().length > 0) || raw;
   return firstLine.length > 120 ? firstLine.slice(0, 120) + '...' : firstLine;
+}
+
+const GITHUB_REPOSITORY_ACCESS_ERROR =
+  'GitHub could not find the repository, or your local Git credentials do not have write access.';
+
+export function formatPushErrorDetail(error: PushLikeError): string {
+  const message = 'message' in error ? (error.message ?? error.type) : error.type;
+  const normalized = message.toLowerCase();
+
+  if (
+    normalized.includes('github.com') &&
+    (normalized.includes('repository not found') ||
+      normalized.includes('fatal: repository') ||
+      normalized.includes('not found'))
+  ) {
+    return GITHUB_REPOSITORY_ACCESS_ERROR;
+  }
+
+  return message;
 }
