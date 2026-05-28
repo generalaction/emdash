@@ -41,7 +41,6 @@ export type Conversation = {
   lastInteractedAt: string | null;
   resume?: boolean;
   autoApprove?: boolean;
-  initialPrompt?: string;
   /** Provider-native session id captured at runtime for per-chat resume. */
   providerSessionId?: string;
   isInitialConversation: boolean | null;

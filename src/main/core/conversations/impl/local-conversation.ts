@@ -277,6 +277,17 @@ export class LocalConversationProvider implements ConversationProvider {
     }
   }
 
+  async sendInput(conversationId: string, data: string): Promise<void> {
+    const sessionId = makePtySessionId(this.projectId, this.taskId, conversationId);
+    const pty = this.sessions.get(sessionId);
+    if (!pty) throw new Error('Conversation PTY session not found');
+    pty.write(data);
+  }
+
+  async interruptSession(conversationId: string): Promise<void> {
+    await this.sendInput(conversationId, '\x03');
+  }
+
   async destroyAll(): Promise<void> {
     const sessionIds = Array.from(this.knownSessionIds);
     await this.detachAll();

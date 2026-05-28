@@ -17,8 +17,12 @@ import {
   isAttentionNotification,
   type NotificationType,
 } from '@shared/events/agentEvents';
-import { conversationChangedChannel } from '@shared/events/conversationEvents';
+import {
+  conversationChangedChannel,
+  conversationStatusEventChannel,
+} from '@shared/events/conversationEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
+import { ConversationTimelineStore } from './conversation-timeline-store';
 
 export type AgentStatus = 'idle' | 'working' | 'awaiting-input' | 'error' | 'completed';
 
@@ -26,6 +30,7 @@ export class ConversationManagerStore implements IDisposable {
   private offAgentEvents: (() => void) | null = null;
   private offSessionExited: (() => void) | null = null;
   private offConversationChanges: (() => void) | null = null;
+  private offConversationStatus: (() => void) | null = null;
   private readonly _disposeReaction: () => void;
 
   /** Data layer: plain Conversation records loaded from the main process. */
@@ -34,6 +39,8 @@ export class ConversationManagerStore implements IDisposable {
   conversations = observable.map<string, ConversationStore>();
   /** Terminal session layer keyed by conversation id — connected lazily for terminal runtimes. */
   sessions = observable.map<string, PtySession>();
+  /** Chat timeline layer keyed by conversation id — populated for chat runtimes. */
+  timelines = observable.map<string, ConversationTimelineStore>();
 
   constructor(
     private readonly projectId: string,
@@ -43,6 +50,7 @@ export class ConversationManagerStore implements IDisposable {
     makeObservable(this, {
       conversations: observable,
       sessions: observable,
+      timelines: observable,
       taskStatus: computed,
     });
 
@@ -66,6 +74,9 @@ export class ConversationManagerStore implements IDisposable {
           if (shouldCreateTerminalSession(conversation) && !this.sessions.has(conversation.id)) {
             this.sessions.set(conversation.id, this.createSession(conversation));
           }
+          if (shouldCreateChatTimeline(conversation) && !this.timelines.has(conversation.id)) {
+            this.timelines.set(conversation.id, this.createTimeline(conversation));
+          }
         }
       });
     }
@@ -88,6 +99,12 @@ export class ConversationManagerStore implements IDisposable {
               this.sessions.get(conversation.id)?.dispose();
               this.sessions.delete(conversation.id);
             }
+            if (shouldCreateChatTimeline(conversation) && !this.timelines.has(conversation.id)) {
+              this.timelines.set(conversation.id, this.createTimeline(conversation));
+            } else if (!shouldCreateChatTimeline(conversation)) {
+              this.timelines.get(conversation.id)?.dispose();
+              this.timelines.delete(conversation.id);
+            }
           }
         });
       },
@@ -97,6 +114,7 @@ export class ConversationManagerStore implements IDisposable {
     this.offAgentEvents = this.listenToAgentEvents();
     this.offSessionExited = this.listenToSessionExited();
     this.offConversationChanges = this.listenToConversationChanges();
+    this.offConversationStatus = this.listenToConversationStatus();
   }
 
   private listenToAgentEvents(): () => void {
@@ -153,6 +171,15 @@ export class ConversationManagerStore implements IDisposable {
     });
   }
 
+  private listenToConversationStatus(): () => void {
+    return events.on(conversationStatusEventChannel, (event) => {
+      if (event.projectId !== this.projectId || event.taskId !== this.taskId) return;
+      const store = this.conversations.get(event.conversationId);
+      if (!store) return;
+      store.setStatus(event.status);
+    });
+  }
+
   get taskStatus(): AgentStatus | null {
     let hasWorking = false;
     let hasUnseenError = false;
@@ -178,7 +205,10 @@ export class ConversationManagerStore implements IDisposable {
       if (shouldCreateTerminalSession(conversation) && !this.sessions.has(conversation.id)) {
         this.sessions.set(conversation.id, this.createSession(conversation));
       }
-      if (shouldCreateTerminalSession(conversation) && params.initialPrompt?.trim()) {
+      if (shouldCreateChatTimeline(conversation) && !this.timelines.has(conversation.id)) {
+        this.timelines.set(conversation.id, this.createTimeline(conversation));
+      }
+      if (params.initialPrompt?.trim()) {
         this.conversations.get(conversation.id)?.setWorking();
       }
     });
@@ -205,34 +235,60 @@ export class ConversationManagerStore implements IDisposable {
 
   async hydrateConversation(conversationId: string): Promise<void> {
     await rpc.conversations.hydrateConversation(this.projectId, this.taskId, conversationId);
+    const conversation = this.conversations.get(conversationId)?.data;
+    if (
+      conversation &&
+      shouldCreateChatTimeline(conversation) &&
+      !this.timelines.has(conversationId)
+    ) {
+      runInAction(() => {
+        this.timelines.set(conversationId, this.createTimeline(conversation));
+      });
+    }
   }
 
   async dehydrateConversation(conversationId: string): Promise<void> {
     const session = this.sessions.get(conversationId);
-    session?.dispose();
+    const timeline = this.timelines.get(conversationId);
     await rpc.conversations.dehydrateConversation(this.projectId, this.taskId, conversationId);
+    session?.dispose();
+    timeline?.dispose();
+    runInAction(() => {
+      this.timelines.delete(conversationId);
+    });
   }
 
   async deleteConversation(conversationId: string): Promise<void> {
     const store = this.conversations.get(conversationId);
     const session = this.sessions.get(conversationId);
+    const timeline = this.timelines.get(conversationId);
     if (!store) return;
 
     runInAction(() => {
       this.conversations.delete(conversationId);
       this.sessions.delete(conversationId);
+      this.timelines.delete(conversationId);
     });
 
     try {
       await rpc.conversations.deleteConversation(this.projectId, this.taskId, conversationId);
       session?.dispose();
+      timeline?.dispose();
     } catch (err) {
       runInAction(() => {
         this.conversations.set(conversationId, store);
         if (session) this.sessions.set(conversationId, session);
+        if (timeline) this.timelines.set(conversationId, timeline);
       });
       throw err;
     }
+  }
+
+  async sendMessage(conversationId: string, text: string): Promise<void> {
+    const timeline = this.timelines.get(conversationId);
+    if (!timeline) throw new Error('Conversation timeline not found');
+    await timeline.sendMessage(text);
+    this.conversations.get(conversationId)?.setWorking();
   }
 
   async renameConversation(conversationId: string, name: string): Promise<void> {
@@ -263,8 +319,13 @@ export class ConversationManagerStore implements IDisposable {
     this.offSessionExited = null;
     this.offConversationChanges?.();
     this.offConversationChanges = null;
+    this.offConversationStatus?.();
+    this.offConversationStatus = null;
     for (const session of this.sessions.values()) {
       session.dispose();
+    }
+    for (const timeline of this.timelines.values()) {
+      timeline.dispose();
     }
   }
 
@@ -277,10 +338,22 @@ export class ConversationManagerStore implements IDisposable {
       handlers.onOpenExternal
     );
   }
+
+  private createTimeline(conversation: Conversation): ConversationTimelineStore {
+    return new ConversationTimelineStore(
+      conversation.projectId,
+      conversation.taskId,
+      conversation.id
+    );
+  }
 }
 
 function shouldCreateTerminalSession(conversation: Conversation): boolean {
   return !shouldUseChatRuntime(conversation);
+}
+
+function shouldCreateChatTimeline(conversation: Conversation): boolean {
+  return shouldUseChatRuntime(conversation);
 }
 
 export class ConversationStore {

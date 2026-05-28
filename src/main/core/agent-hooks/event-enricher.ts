@@ -26,6 +26,22 @@ function normalizePayload(
   return payload;
 }
 
+function parseHookBody(rawBody: string): Record<string, unknown> {
+  if (!rawBody.trim()) return {};
+  try {
+    const parsed: unknown = JSON.parse(rawBody);
+    if (typeof parsed === 'object' && parsed !== null) {
+      return parsed as Record<string, unknown>;
+    }
+    if (typeof parsed === 'string' && parsed.trim()) {
+      return { lastAssistantMessage: parsed };
+    }
+    return {};
+  } catch {
+    return { lastAssistantMessage: rawBody };
+  }
+}
+
 export async function enrichEvent(raw: RawHookRequest): Promise<AgentEvent> {
   const parsed = parsePtyId(raw.ptyId);
   if (!parsed) {
@@ -40,7 +56,7 @@ export async function enrichEvent(raw: RawHookRequest): Promise<AgentEvent> {
 
   const taskId = convRows.taskId;
   const projectId = convRows.projectId;
-  const body = raw.body ? JSON.parse(raw.body) : {};
+  const body = parseHookBody(raw.body);
   const payload = normalizePayload(parsed.providerId, body);
 
   return {

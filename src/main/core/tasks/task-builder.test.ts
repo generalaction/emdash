@@ -4,6 +4,16 @@ import type { Conversation } from '@shared/conversations';
 import { chatConversationRuntime } from '../conversations/chat/chat-conversation-runtime';
 import { hydrateRestoredConversation } from './hydrate-restored-conversation';
 
+vi.mock('@main/db/client', () => ({
+  db: {},
+}));
+
+vi.mock('../conversations/chat/chat-timeline-store', () => ({
+  chatTimelineStore: {
+    getLatestAssistantMessage: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
 function makeConversation(overrides: Partial<Conversation> = {}): Conversation {
   return {
     id: 'conversation-1',
@@ -21,6 +31,8 @@ function makeConversation(overrides: Partial<Conversation> = {}): Conversation {
 function makeConversationProvider(): ConversationProvider {
   return {
     startSession: vi.fn().mockResolvedValue(undefined),
+    sendInput: vi.fn().mockResolvedValue(undefined),
+    interruptSession: vi.fn().mockResolvedValue(undefined),
     stopSession: vi.fn().mockResolvedValue(undefined),
     destroyAll: vi.fn().mockResolvedValue(undefined),
     detachAll: vi.fn().mockResolvedValue(undefined),
@@ -44,7 +56,7 @@ describe('hydrateRestoredConversation', () => {
 
     await hydrateRestoredConversation(conversation, provider);
 
-    expect(provider.startSession).not.toHaveBeenCalled();
+    expect(provider.startSession).toHaveBeenCalledWith(conversation, undefined, true);
     expect(chatConversationRuntime.isActive(conversation.id)).toBe(true);
 
     chatConversationRuntime.dehydrateConversation(conversation.id);

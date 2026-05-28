@@ -40,9 +40,6 @@ export async function createConversation(params: CreateConversationParams): Prom
 
   const config = serializeConversationConfig({
     ...(params.autoApprove === undefined ? {} : { autoApprove: params.autoApprove }),
-    ...(runtimeMode === 'chat' && params.initialPrompt?.trim()
-      ? { initialPrompt: params.initialPrompt }
-      : {}),
   });
 
   const task = resolveTask(params.projectId, params.taskId);
@@ -68,11 +65,19 @@ export async function createConversation(params: CreateConversationParams): Prom
     .returning();
 
   const conversation = mapConversationRowToConversation(row);
+  let chatBackendSessionStarted = false;
 
   await withCompensation({
     action: async () => {
       if (shouldUseChatRuntime(conversation)) {
-        await chatConversationRuntime.startConversation(conversation);
+        await chatConversationRuntime.startConversation(conversation, params.initialPrompt);
+        await task.conversations.startSession(
+          conversation,
+          params.initialSize,
+          false,
+          params.initialPrompt
+        );
+        chatBackendSessionStarted = true;
         return;
       }
       await task.conversations.startSession(
@@ -83,7 +88,14 @@ export async function createConversation(params: CreateConversationParams): Prom
       );
     },
     compensate: async () => {
-      await db.delete(conversations).where(eq(conversations.id, row.id)).execute();
+      chatConversationRuntime.dehydrateConversation(row.id);
+      try {
+        if (chatBackendSessionStarted) {
+          await task.conversations.stopSession(row.id);
+        }
+      } finally {
+        await db.delete(conversations).where(eq(conversations.id, row.id)).execute();
+      }
     },
     onCompensationError: (error) => {
       log.error('createConversation: failed to roll back conversation row after spawn failure', {

@@ -33,6 +33,8 @@ async function installTaskProvider(): Promise<void> {
     taskEnvVars: {},
     conversations: {
       startSession: vi.fn(),
+      sendInput: vi.fn(),
+      interruptSession: vi.fn(),
       stopSession: mocks.stopSession,
       destroyAll: vi.fn(),
       detachAll: vi.fn(),

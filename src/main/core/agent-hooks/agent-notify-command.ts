@@ -75,6 +75,10 @@ export function makeCodexHookCommand(
   notificationType: 'idle_prompt' | 'permission_prompt',
   options: HookCommandOptions = {}
 ): string {
+  if (notificationType === 'idle_prompt') {
+    return makeCodexStdinHookPostCommand('notification', options);
+  }
+
   return makeHookPostCommand({
     eventType: 'notification',
     payload: { json: { notification_type: notificationType } },

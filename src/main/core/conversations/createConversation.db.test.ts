@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TaskProvider } from '@main/core/projects/project-provider';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { taskManager } from '@main/core/tasks/task-manager';
-import { conversations } from '@main/db/schema';
+import { conversationTimelineItems, conversations } from '@main/db/schema';
 import { ok } from '@shared/result';
 import { chatConversationRuntime } from './chat/chat-conversation-runtime';
 import { createConversation } from './createConversation';
@@ -12,6 +12,7 @@ import { createConversation } from './createConversation';
 const mocks = vi.hoisted(() => ({
   db: undefined as unknown,
   startSession: vi.fn(),
+  stopSession: vi.fn(),
   captureTelemetry: vi.fn(),
 }));
 
@@ -40,7 +41,9 @@ async function installTaskProvider(): Promise<void> {
     taskEnvVars: {},
     conversations: {
       startSession: mocks.startSession,
-      stopSession: vi.fn(),
+      sendInput: vi.fn(),
+      interruptSession: vi.fn(),
+      stopSession: mocks.stopSession,
       destroyAll: vi.fn(),
       detachAll: vi.fn(),
     },
@@ -56,6 +59,7 @@ async function installTaskProvider(): Promise<void> {
     _lifecycle: {
       provision: (id: string, run: () => Promise<ReturnType<typeof ok>>) => Promise<unknown>;
     };
+    _tasksByProject: Map<string, Set<string>>;
   };
 
   await internals._lifecycle.provision('task-1', async () =>
@@ -66,6 +70,7 @@ async function installTaskProvider(): Promise<void> {
       persistData: { workspaceId: 'workspace-1' },
     })
   );
+  internals._tasksByProject.set('project-1', new Set(['task-1']));
 }
 
 describe('createConversation runtime mode', () => {
@@ -77,6 +82,7 @@ describe('createConversation runtime mode', () => {
     fixture = await openFixture('empty');
     mocks.db = fixture.db;
     mocks.startSession.mockResolvedValue(undefined);
+    mocks.stopSession.mockResolvedValue(undefined);
     await installTaskProvider();
 
     fixture.sqlite
@@ -162,12 +168,25 @@ describe('createConversation runtime mode', () => {
       .where(eq(conversations.id, 'conversation-1'));
 
     expect(row?.runtimeMode).toBe('chat');
-    expect(row?.config).toContain('"initialPrompt":"hello"');
+    const [timelineItem] = await fixture.db
+      .select()
+      .from(conversationTimelineItems)
+      .where(eq(conversationTimelineItems.conversationId, 'conversation-1'));
+
     expect(conversation.runtimeMode).toBe('chat');
-    expect(conversation.initialPrompt).toBe('hello');
-    expect(mocks.startSession).not.toHaveBeenCalled();
+    expect(row?.config).toBeNull();
+    expect(timelineItem).toMatchObject({
+      kind: 'user_message',
+      sequence: 1,
+      payload: JSON.stringify({ text: 'hello' }),
+    });
+    expect(mocks.startSession).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'conversation-1', runtimeMode: 'chat' }),
+      undefined,
+      false,
+      'hello'
+    );
     expect(chatConversationRuntime.isActive('conversation-1')).toBe(true);
-    expect(chatConversationRuntime.getInitialPrompt('conversation-1')).toBe('hello');
   });
 
   it('falls back to terminal runtime for terminal-only providers', async () => {
@@ -211,6 +230,48 @@ describe('createConversation runtime mode', () => {
 
     await taskManager.teardownTask('task-1', 'terminate');
 
+    expect(chatConversationRuntime.isActive('conversation-1')).toBe(false);
+  });
+
+  it('clears active chat runtime state when project tasks are detached', async () => {
+    await setConversationUiMode('chat');
+
+    await createConversation({
+      id: 'conversation-1',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      title: 'Chat conversation',
+      provider: 'codex',
+    });
+
+    expect(chatConversationRuntime.isActive('conversation-1')).toBe(true);
+
+    await taskManager.teardownAllForProject('project-1', 'detach');
+
+    expect(chatConversationRuntime.isActive('conversation-1')).toBe(false);
+  });
+
+  it('dehydrates chat runtime and removes the row when backend startup fails', async () => {
+    await setConversationUiMode('chat');
+    mocks.startSession.mockRejectedValueOnce(new Error('backend failed'));
+
+    await expect(
+      createConversation({
+        id: 'conversation-1',
+        projectId: 'project-1',
+        taskId: 'task-1',
+        title: 'Chat conversation',
+        provider: 'codex',
+        initialPrompt: 'hello',
+      })
+    ).rejects.toThrow('backend failed');
+
+    const rows = await fixture.db
+      .select()
+      .from(conversations)
+      .where(eq(conversations.id, 'conversation-1'));
+    expect(rows).toEqual([]);
+    expect(mocks.stopSession).not.toHaveBeenCalled();
     expect(chatConversationRuntime.isActive('conversation-1')).toBe(false);
   });
 });

@@ -8,6 +8,7 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
 import type { StoredBranch } from '@main/core/tasks/stored-branch';
+import type { ConversationTimelineItemKind } from '@shared/conversation-timeline';
 import type { ConversationRuntimeMode } from '@shared/conversations';
 
 export const sshConnections = sqliteTable(
@@ -348,6 +349,31 @@ export const messages = sqliteTable(
   })
 );
 
+export const conversationTimelineItems = sqliteTable(
+  'conversation_timeline_items',
+  {
+    id: text('id').primaryKey(),
+    conversationId: text('conversation_id')
+      .notNull()
+      .references(() => conversations.id, { onDelete: 'cascade' }),
+    sequence: integer('sequence').notNull(),
+    kind: text('kind').notNull().$type<ConversationTimelineItemKind>(),
+    payload: text('payload').notNull(),
+    createdAt: text('created_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    conversationIdIdx: index('idx_conversation_timeline_items_conversation_id').on(
+      table.conversationId
+    ),
+    sequenceIdx: uniqueIndex('idx_conversation_timeline_items_conversation_sequence').on(
+      table.conversationId,
+      table.sequence
+    ),
+  })
+);
+
 export const editorBuffers = sqliteTable(
   'editor_buffers',
   {
@@ -430,6 +456,7 @@ export const conversationsRelations = relations(conversations, ({ one, many }) =
     references: [tasks.id],
   }),
   messages: many(messages),
+  timelineItems: many(conversationTimelineItems),
 }));
 
 export const messagesRelations = relations(messages, ({ one }) => ({
@@ -438,6 +465,16 @@ export const messagesRelations = relations(messages, ({ one }) => ({
     references: [conversations.id],
   }),
 }));
+
+export const conversationTimelineItemsRelations = relations(
+  conversationTimelineItems,
+  ({ one }) => ({
+    conversation: one(conversations, {
+      fields: [conversationTimelineItems.conversationId],
+      references: [conversations.id],
+    }),
+  })
+);
 
 export type SshConnectionRow = typeof sshConnections.$inferSelect;
 export type SshConnectionInsert = typeof sshConnections.$inferInsert;
@@ -448,6 +485,8 @@ export type TaskRow = typeof tasks.$inferSelect;
 export type ConversationRow = typeof conversations.$inferSelect;
 export type TerminalRow = typeof terminals.$inferSelect;
 export type MessageRow = typeof messages.$inferSelect;
+export type ConversationTimelineItemRow = typeof conversationTimelineItems.$inferSelect;
+export type ConversationTimelineItemInsert = typeof conversationTimelineItems.$inferInsert;
 export type EditorBufferRow = typeof editorBuffers.$inferSelect;
 export type EditorBufferInsert = typeof editorBuffers.$inferInsert;
 export type KvRow = typeof kv.$inferSelect;

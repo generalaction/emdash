@@ -6,7 +6,7 @@ export async function dehydrateConversation(
   taskId: string,
   conversationId: string
 ): Promise<void> {
-  chatConversationRuntime.dehydrateConversation(conversationId);
   const task = resolveTask(projectId, taskId);
   await task?.conversations.stopSession(conversationId);
+  chatConversationRuntime.dehydrateConversation(conversationId);
 }

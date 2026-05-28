@@ -8,6 +8,12 @@ export async function hydrateRestoredConversation(
 ): Promise<void> {
   if (shouldUseChatRuntime(conversation)) {
     await chatConversationRuntime.hydrateConversation(conversation);
+    try {
+      await conversationProvider.startSession(conversation, undefined, true);
+    } catch (error) {
+      chatConversationRuntime.dehydrateConversation(conversation.id);
+      throw error;
+    }
     return;
   }
 

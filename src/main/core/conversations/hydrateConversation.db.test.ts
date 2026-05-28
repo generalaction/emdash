@@ -58,7 +58,6 @@ async function seedConversation(
     taskId: 'task-1',
     title: 'Conversation 1',
     provider,
-    config: runtimeMode === 'chat' ? JSON.stringify({ initialPrompt: 'hello' }) : undefined,
     runtimeMode,
   });
 }
@@ -71,6 +70,8 @@ async function installTaskProvider(): Promise<void> {
     taskEnvVars: {},
     conversations: {
       startSession: mocks.startSession,
+      sendInput: vi.fn(),
+      interruptSession: vi.fn(),
       stopSession: vi.fn(),
       destroyAll: vi.fn(),
       detachAll: vi.fn(),
@@ -139,9 +140,16 @@ describe('hydrateConversation runtime mode', () => {
 
     await hydrateConversation('project-1', 'task-1', 'conversation-1');
 
-    expect(mocks.startSession).not.toHaveBeenCalled();
+    expect(mocks.startSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'conversation-1',
+        runtimeMode: 'chat',
+        resume: true,
+      }),
+      undefined,
+      true
+    );
     expect(chatConversationRuntime.isActive('conversation-1')).toBe(true);
-    expect(chatConversationRuntime.getInitialPrompt('conversation-1')).toBe('hello');
   });
 
   it('falls back to a PTY session for terminal-only chat rows', async () => {

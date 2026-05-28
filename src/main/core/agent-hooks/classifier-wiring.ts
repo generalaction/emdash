@@ -1,4 +1,5 @@
 import { BrowserWindow } from 'electron';
+import { chatConversationRuntime } from '@main/core/conversations/chat/chat-conversation-runtime';
 import { type Pty } from '@main/core/pty/pty';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
@@ -116,6 +117,12 @@ export function wireAgentClassifier({
           },
         };
         const appFocused = isAppFocused();
+        void chatConversationRuntime.recordAgentEvent(event).catch((error) => {
+          log.warn('wireAgentClassifier: failed to record chat timeline event', {
+            conversationId,
+            error: String(error),
+          });
+        });
         void maybeShowNotification(event, appFocused);
         events.emit(agentEventChannel, { event, appFocused });
       } catch (err) {

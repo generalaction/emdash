@@ -7,6 +7,8 @@ export interface ConversationProvider {
     isResuming?: boolean,
     initialPrompt?: string
   ): Promise<void>;
+  sendInput(conversationId: string, data: string): Promise<void>;
+  interruptSession(conversationId: string): Promise<void>;
   stopSession(conversationId: string): Promise<void>;
   destroyAll(): Promise<void>;
   detachAll(): Promise<void>;

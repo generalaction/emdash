@@ -8,6 +8,6 @@ export async function touchConversation(
 ): Promise<void> {
   await db
     .update(conversations)
-    .set({ lastInteractedAt })
+    .set({ lastInteractedAt, updatedAt: lastInteractedAt })
     .where(eq(conversations.id, conversationId));
 }

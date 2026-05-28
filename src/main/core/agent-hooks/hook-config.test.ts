@@ -78,7 +78,8 @@ describe('HookConfigWriter', () => {
     expect(fs.files.has('.gitignore')).toBe(false);
 
     const config = JSON.parse(userFs.files.get('.codex/hooks.json')!);
-    expect(config.hooks.Stop[0].hooks[0].command).toContain('{"notification_type":"idle_prompt"}');
+    expect(config.hooks.Stop[0].hooks[0].command).toContain('INPUT="${1:-$(cat)}"');
+    expect(config.hooks.Stop[0].hooks[0].command).toContain('X-Emdash-Event-Type: notification');
     expect(config.hooks.PermissionRequest[0].hooks[0].command).toContain(
       '{"notification_type":"permission_prompt"}'
     );
@@ -109,7 +110,8 @@ describe('HookConfigWriter', () => {
     const config = JSON.parse(userFs.files.get('.codex/hooks.json')!);
     expect(config.hooks.Stop).toHaveLength(2);
     expect(config.hooks.Stop[0].hooks[0].command).toBe('echo user hook');
-    expect(config.hooks.Stop[1].hooks[0].command).toContain('{"notification_type":"idle_prompt"}');
+    expect(config.hooks.Stop[1].hooks[0].command).toContain('INPUT="${1:-$(cat)}"');
+    expect(config.hooks.Stop[1].hooks[0].command).toContain('X-Emdash-Event-Type: notification');
   });
 
   it('removes only the legacy Emdash Codex notify key from project-local config', async () => {

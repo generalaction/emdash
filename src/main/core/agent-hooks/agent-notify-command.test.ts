@@ -45,7 +45,9 @@ describe('makeCodexHookCommand', () => {
     expect(content).toContain('EMDASH_HOOK_PORT');
     expect(content).toContain('X-Emdash-Token');
     expect(content).toContain('X-Emdash-Pty-Id');
-    expect(content).toContain('{"notification_type":"idle_prompt"}');
+    expect(content).toContain('INPUT="${1:-$(cat)}"');
+    expect(content).toContain('X-Emdash-Event-Type: notification');
+    expect(content).toContain('-d @-');
   });
 
   it('posts native Codex hook events to the Emdash hook server on Windows', () => {

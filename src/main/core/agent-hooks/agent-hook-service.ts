@@ -1,7 +1,9 @@
+import { chatConversationRuntime } from '@main/core/conversations/chat/chat-conversation-runtime';
 import { conversationEvents } from '@main/core/conversations/conversation-events';
 import { touchConversation } from '@main/core/conversations/touchConversation';
 import { events } from '@main/lib/events';
 import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
+import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { agentEventChannel, type AgentEvent } from '@shared/events/agentEvents';
 import { conversationChangedChannel } from '@shared/events/conversationEvents';
@@ -29,6 +31,12 @@ class AgentHookService implements IInitializable, IDisposable {
       const event = await enrichEvent(raw);
       event.source = 'hook';
       const appFocused = isAppFocused();
+      await chatConversationRuntime.recordAgentEvent(event).catch((error) => {
+        log.warn('AgentHookService: failed to record chat timeline event', {
+          conversationId: event.conversationId,
+          error: String(error),
+        });
+      });
       await maybeShowNotification(event, appFocused);
       events.emit(agentEventChannel, { event, appFocused });
     });

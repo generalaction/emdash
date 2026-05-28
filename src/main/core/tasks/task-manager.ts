@@ -251,6 +251,7 @@ class TaskManager {
         taskIds.flatMap((id) => {
           const stored = this._lifecycle.get(id);
           if (!stored) return [];
+          chatConversationRuntime.dehydrateTask(id);
           return [
             stored.taskProvider.conversations.detachAll(),
             stored.taskProvider.terminals.detachAll(),
