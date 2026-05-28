@@ -17,6 +17,7 @@ export async function deleteProject(id: string): Promise<void> {
       ...projectTasks.map((t) => taskManager.teardownTask(t.id)),
       ...projectTasks.map((t) => viewStateService.del(`task:${t.id}`)),
     ]);
+    await projectManager.closeProject(id);
   }
 
   await prSyncEngine.deleteProjectData(id);
@@ -24,6 +25,5 @@ export async function deleteProject(id: string): Promise<void> {
   await db.delete(projects).where(eq(projects.id, id));
   void viewStateService.del(`project:${id}`);
   projectEvents._emit('project:deleted', id);
-  await projectManager.closeProject(id);
   telemetryService.capture('project_deleted', { project_id: id });
 }
