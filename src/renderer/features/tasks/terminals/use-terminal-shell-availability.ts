@@ -10,6 +10,7 @@ export function useTerminalShellAvailability(
   remoteConnectionId: string | undefined,
   options: { enabled?: boolean } = {}
 ) {
+  const isRemote = Boolean(remoteConnectionId);
   return useQuery({
     queryKey: ['terminal-shell-availability', remoteConnectionId ?? 'local'],
     queryFn: () =>
@@ -19,7 +20,7 @@ export function useTerminalShellAvailability(
             connectionId: remoteConnectionId,
           })
         : rpc.terminals.getTerminalShellAvailability({ kind: 'local' }),
-    staleTime: 30_000,
+    staleTime: isRemote ? 5_000 : 30_000,
     enabled: options.enabled ?? true,
   });
 }
