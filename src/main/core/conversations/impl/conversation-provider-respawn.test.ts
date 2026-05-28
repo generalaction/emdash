@@ -94,13 +94,13 @@ function localProvider() {
   });
 }
 
-function sshProvider() {
+function sshProvider(proxy = { getRemoteShellProfile: vi.fn(async () => ({})) }) {
   return new SshConversationProvider({
     projectId: 'project-1',
     taskId: 'task-1',
     taskPath: '/tmp/task-1',
     ctx: {} as never,
-    proxy: { getRemoteShellProfile: vi.fn(async () => ({})) } as never,
+    proxy: proxy as never,
   });
 }
 
@@ -173,6 +173,38 @@ describe('conversation provider respawn state', () => {
       await vi.advanceTimersByTimeAsync(500);
 
       expect(respawn).toHaveBeenCalledWith(item, size, true, initialPrompt);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('refreshes the SSH shell profile and retries once when an agent command is missing', async () => {
+    vi.useFakeTimers();
+    try {
+      const firstExitHandlers: Array<(info: PtyExitInfo) => void> = [];
+      const secondExitHandlers: Array<(info: PtyExitInfo) => void> = [];
+      openSsh2Pty
+        .mockResolvedValueOnce({ success: true, data: fakePty(firstExitHandlers) })
+        .mockResolvedValueOnce({ success: true, data: fakePty(secondExitHandlers) });
+      const proxy = {
+        getRemoteShellProfile: vi.fn(async () => ({})),
+        refreshRemoteShellProfile: vi.fn(async () => ({})),
+      };
+      const provider = sshProvider(proxy);
+      const item = conversation();
+
+      await provider.startSession(item);
+      for (const handler of firstExitHandlers) handler({ exitCode: 127 });
+      await vi.advanceTimersByTimeAsync(500);
+
+      expect(proxy.refreshRemoteShellProfile).toHaveBeenCalledTimes(1);
+      expect(openSsh2Pty).toHaveBeenCalledTimes(2);
+
+      for (const handler of secondExitHandlers) handler({ exitCode: 127 });
+      await vi.advanceTimersByTimeAsync(500);
+
+      expect(proxy.refreshRemoteShellProfile).toHaveBeenCalledTimes(1);
+      expect(openSsh2Pty).toHaveBeenCalledTimes(2);
     } finally {
       vi.useRealTimers();
     }
