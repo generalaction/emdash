@@ -13,6 +13,7 @@ import {
 import type { Snapshottable } from '@renderer/lib/stores/snapshottable';
 import { type LocalProject, type SshProject } from '@shared/projects';
 import type { TaskSidebarGroup } from '@shared/tasks';
+import { TASK_SIDEBAR_GROUP } from '@shared/tasks';
 import type { SidebarSnapshot, SidebarTaskSortBy } from '@shared/view-state';
 
 function parseSidebarTaskSortBy(value: unknown): SidebarTaskSortBy | undefined {
@@ -38,7 +39,7 @@ export type SidebarRow =
   | { kind: 'group-header'; projectId: string; group: TaskSidebarGroup }
   | { kind: 'group-item'; projectId: string; taskId: string; group: TaskSidebarGroup };
 
-const SIDEBAR_GROUPS: TaskSidebarGroup[] = ['tasks', 'chats'];
+const SIDEBAR_GROUPS: TaskSidebarGroup[] = [TASK_SIDEBAR_GROUP.Tasks, TASK_SIDEBAR_GROUP.Chats];
 
 export class SidebarStore implements Snapshottable<SidebarSnapshot> {
   projectOrder: string[] = [];
@@ -113,7 +114,7 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
         for (const group of SIDEBAR_GROUPS) {
           const groupTasks = byGroup[group];
           const ordered =
-            group === 'tasks' && manualOrder?.length
+            group === TASK_SIDEBAR_GROUP.Tasks && manualOrder?.length
               ? this.mergeTaskOrder(projectId, groupTasks)
               : this.sortTasksForSidebar(groupTasks);
           const visible = ordered.filter((t) => !t.data.isPinned);

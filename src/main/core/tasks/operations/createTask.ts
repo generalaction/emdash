@@ -6,12 +6,13 @@ import { db } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
 import { resolveTaskBranchName } from '@shared/resolveTaskBranchName';
 import { err, ok, type Result } from '@shared/result';
-import type {
-  CreateTaskError,
-  CreateTaskParams,
-  CreateTaskSuccess,
-  CreateTaskWarning,
-  TaskLifecycleStatus,
+import {
+  resolveTaskKind,
+  type CreateTaskError,
+  type CreateTaskParams,
+  type CreateTaskSuccess,
+  type CreateTaskWarning,
+  type TaskLifecycleStatus,
 } from '@shared/tasks';
 import { prQueryService } from '../../pull-requests/pr-query-service';
 import { appSettingsService } from '../../settings/settings-service';
@@ -173,7 +174,7 @@ export async function createTask(
       id: params.id,
       projectId: params.projectId,
       name: params.name,
-      kind: params.kind ?? 'task',
+      kind: resolveTaskKind(params.kind),
       taskBranch,
       status: initialStatus,
       sourceBranch: toStoredBranch(dbSourceBranch),

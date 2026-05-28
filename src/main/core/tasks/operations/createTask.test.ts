@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TaskRow } from '@main/db/schema';
 import { err } from '@shared/result';
+import { DEFAULT_TASK_KIND, TASK_KIND } from '@shared/tasks';
 import { toStoredBranch } from '../stored-branch';
 import { createTask } from './createTask';
 
@@ -52,7 +53,7 @@ function makeTaskRow(values: Partial<TaskRow>): TaskRow {
     id: values.id ?? 'task-1',
     projectId: values.projectId ?? 'project-1',
     name: values.name ?? 'Review PR',
-    kind: values.kind ?? 'task',
+    kind: values.kind ?? DEFAULT_TASK_KIND,
     status: values.status ?? 'in_progress',
     sourceBranch: values.sourceBranch ?? null,
     taskBranch: values.taskBranch ?? null,
@@ -204,7 +205,7 @@ describe('createTask', () => {
       id: 'chat-1',
       projectId: 'project-1',
       name: 'chat-may-27',
-      kind: 'chat',
+      kind: TASK_KIND.Chat,
       sourceBranch: { type: 'local', branch: 'main' },
       strategy: { kind: 'no-worktree' },
     });
@@ -212,7 +213,7 @@ describe('createTask', () => {
     expect(result.success).toBe(true);
     expect(insertTaskValues).toHaveBeenCalledWith(
       expect.objectContaining({
-        kind: 'chat',
+        kind: TASK_KIND.Chat,
         taskBranch: undefined,
       })
     );
@@ -245,6 +246,6 @@ describe('createTask', () => {
       },
     });
 
-    expect(insertTaskValues).toHaveBeenCalledWith(expect.objectContaining({ kind: 'task' }));
+    expect(insertTaskValues).toHaveBeenCalledWith(expect.objectContaining({ kind: TASK_KIND.Task }));
   });
 });

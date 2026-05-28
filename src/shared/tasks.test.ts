@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 import {
+  DEFAULT_TASK_SIDEBAR_GROUP,
+  resolveTaskKind,
+  TASK_KIND,
+  TASK_SIDEBAR_GROUP,
   formatIssueAsPrompt,
   generateChatName,
   taskSidebarGroupForKind,
@@ -57,20 +61,30 @@ describe('generateChatName', () => {
   });
 });
 
+describe('resolveTaskKind', () => {
+  it('defaults to task when omitted', () => {
+    expect(resolveTaskKind()).toBe(TASK_KIND.Task);
+  });
+
+  it('preserves an explicit kind', () => {
+    expect(resolveTaskKind(TASK_KIND.Chat)).toBe(TASK_KIND.Chat);
+  });
+});
+
 describe('taskSidebarGroupForKind', () => {
   it('maps task kind to tasks group', () => {
-    expect(taskSidebarGroupForKind('task')).toBe('tasks');
+    expect(taskSidebarGroupForKind(TASK_KIND.Task)).toBe(TASK_SIDEBAR_GROUP.Tasks);
   });
 
   it('maps chat kind to chats group', () => {
-    expect(taskSidebarGroupForKind('chat')).toBe('chats');
+    expect(taskSidebarGroupForKind(TASK_KIND.Chat)).toBe(TASK_SIDEBAR_GROUP.Chats);
   });
 });
 
 describe('taskViewProfile', () => {
   it('hides git and file chrome for chats', () => {
-    expect(taskViewProfile('chat')).toEqual({
-      group: 'chats',
+    expect(taskViewProfile(TASK_KIND.Chat)).toEqual({
+      group: TASK_SIDEBAR_GROUP.Chats,
       showGitChrome: false,
       showChangesSidebar: false,
       showFilesSidebar: false,
@@ -79,7 +93,7 @@ describe('taskViewProfile', () => {
   });
 
   it('shows full chrome for tasks', () => {
-    expect(taskViewProfile('task').group).toBe('tasks');
-    expect(taskViewProfile('task').showGitChrome).toBe(true);
+    expect(taskViewProfile(TASK_KIND.Task).group).toBe(TASK_SIDEBAR_GROUP.Tasks);
+    expect(taskViewProfile(TASK_KIND.Task).showGitChrome).toBe(true);
   });
 });

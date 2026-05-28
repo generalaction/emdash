@@ -12,19 +12,42 @@ export type TaskLifecycleStatus =
   | 'duplicate'
   | 'triage';
 
-export type TaskKind = 'task' | 'chat';
+/** Canonical task kind values (string unions, not TS enums). */
+export const TASK_KIND = {
+  Task: 'task',
+  Chat: 'chat',
+} as const;
+
+export type TaskKind = (typeof TASK_KIND)[keyof typeof TASK_KIND];
+
+export const DEFAULT_TASK_KIND = TASK_KIND.Task;
+
+export function resolveTaskKind(kind?: TaskKind): TaskKind {
+  return kind ?? DEFAULT_TASK_KIND;
+}
+
+export function taskKindFromDb(value: string | null | undefined): TaskKind {
+  return value === TASK_KIND.Chat ? TASK_KIND.Chat : DEFAULT_TASK_KIND;
+}
 
 /** Sidebar / view grouping derived from {@link TaskKind}. */
-export type TaskSidebarGroup = 'tasks' | 'chats';
+export const TASK_SIDEBAR_GROUP = {
+  Tasks: 'tasks',
+  Chats: 'chats',
+} as const;
+
+export type TaskSidebarGroup = (typeof TASK_SIDEBAR_GROUP)[keyof typeof TASK_SIDEBAR_GROUP];
 
 export const TASK_SIDEBAR_GROUP_LABEL: Record<TaskSidebarGroup, string> = {
-  tasks: 'Tasks',
-  chats: 'Chats',
+  [TASK_SIDEBAR_GROUP.Tasks]: 'Tasks',
+  [TASK_SIDEBAR_GROUP.Chats]: 'Chats',
 };
 
 export function taskSidebarGroupForKind(kind: TaskKind): TaskSidebarGroup {
-  return kind === 'chat' ? 'chats' : 'tasks';
+  return kind === TASK_KIND.Chat ? TASK_SIDEBAR_GROUP.Chats : TASK_SIDEBAR_GROUP.Tasks;
 }
+
+export const DEFAULT_TASK_SIDEBAR_GROUP = taskSidebarGroupForKind(DEFAULT_TASK_KIND);
 
 export type TaskViewProfile = {
   group: TaskSidebarGroup;
@@ -36,7 +59,7 @@ export type TaskViewProfile = {
 
 export function taskViewProfile(kind: TaskKind): TaskViewProfile {
   const group = taskSidebarGroupForKind(kind);
-  if (group === 'chats') {
+  if (group === TASK_SIDEBAR_GROUP.Chats) {
     return {
       group,
       showGitChrome: false,

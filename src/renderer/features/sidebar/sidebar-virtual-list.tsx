@@ -30,7 +30,7 @@ import { taskSidebarGroupForStore } from '@renderer/features/tasks/stores/task-g
 import { getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
 import { useParams, useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
 import { sidebarStore } from '@renderer/lib/stores/app-state';
-import { TASK_SIDEBAR_GROUP_LABEL } from '@shared/tasks';
+import { DEFAULT_TASK_SIDEBAR_GROUP, TASK_SIDEBAR_GROUP_LABEL } from '@shared/tasks';
 import { SidebarProjectItem } from './project-item';
 import { SidebarTaskItem } from './task-item';
 
@@ -194,7 +194,7 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
       if (newIdx > oldIdx) newIdx -= 1;
       if (newIdx === oldIdx) return;
       // Manual order is only persisted for the tasks group; chats use date sort.
-      if (activeGroup !== 'tasks') return;
+      if (activeGroup !== DEFAULT_TASK_SIDEBAR_GROUP) return;
       sidebarStore.setTaskOrder(projectId, arrayMove(taskIds, oldIdx, newIdx));
     }
   }

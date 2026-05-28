@@ -303,6 +303,11 @@ export function unregisteredTaskData(store: TaskStore): UnregisteredTaskData | u
   return isUnregistered(store) ? store.data : undefined;
 }
 
+export function taskKindForStore(store: TaskStore): TaskKind {
+  if (isRegistered(store)) return store.data.kind;
+  return unregisteredTaskData(store)!.kind;
+}
+
 export function createUnregisteredTask(data: UnregisteredTaskData): TaskStore {
   return new TaskStore(data, 'unregistered', 'creating');
 }

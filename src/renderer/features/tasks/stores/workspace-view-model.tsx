@@ -21,7 +21,7 @@ import type {
 import { ConversationHydrationReconciler } from './conversation-hydration-reconciler';
 import { conversationRegistry } from './conversation-registry';
 import { PrStore } from './pr-store';
-import type { TaskStore } from './task-store';
+import { isRegistered, isUnregistered, taskKindForStore, type TaskStore } from './task-store';
 import { terminalRegistry } from './terminal-registry';
 import { workspaceRegistry } from './workspace-registry';
 
@@ -400,9 +400,8 @@ export class WorkspaceViewModel implements ILifecycle {
   }
 
   private taskKind(): TaskKind | null {
-    return this._taskStore.state !== 'unregistered' && 'kind' in this._taskStore.data
-      ? this._taskStore.data.kind
-      : null;
+    if (!isRegistered(this._taskStore) && !isUnregistered(this._taskStore)) return null;
+    return taskKindForStore(this._taskStore);
   }
 
   setSidebarCollapsed(collapsed: boolean): void {

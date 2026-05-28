@@ -20,6 +20,7 @@ import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { cn } from '@renderer/utils/utils';
 import { selectCurrentPr } from '@shared/pull-requests';
 import type { TaskSidebarGroup } from '@shared/tasks';
+import { DEFAULT_TASK_SIDEBAR_GROUP, TASK_SIDEBAR_GROUP } from '@shared/tasks';
 import { PrBadge } from '../../lib/components/pr-badge';
 import { SidebarMenuRow } from './sidebar-primitives';
 
@@ -49,8 +50,8 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
 
   const task = getTaskStore(projectId, taskId)!;
   const taskManager = getTaskManagerStore(projectId);
-  const resolvedGroup = group ?? taskSidebarGroupForStore(task) ?? 'tasks';
-  const isChatsGroup = resolvedGroup === 'chats';
+  const resolvedGroup = group ?? taskSidebarGroupForStore(task) ?? DEFAULT_TASK_SIDEBAR_GROUP;
+  const isChatsGroup = resolvedGroup === TASK_SIDEBAR_GROUP.Chats;
 
   const isBootstrapping =
     task.state === 'unregistered' ||

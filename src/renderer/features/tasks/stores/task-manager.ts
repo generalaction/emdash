@@ -11,6 +11,8 @@ import { taskProvisionProgressChannel, taskStatusUpdatedChannel } from '@shared/
 import type { Branch } from '@shared/git';
 import {
   generateChatName,
+  resolveTaskKind,
+  TASK_KIND,
   type CreateTaskError,
   type CreateTaskParams,
   type CreateTaskWarning,
@@ -223,7 +225,7 @@ export class TaskManagerStore {
       id,
       projectId: this.projectId,
       name,
-      kind: 'chat',
+      kind: TASK_KIND.Chat,
       sourceBranch: this.resolveChatSourceBranch(),
       strategy: { kind: 'no-worktree' },
     });
@@ -239,7 +241,7 @@ export class TaskManagerStore {
           lastInteractedAt: new Date().toISOString(),
           createdAt: new Date().toISOString(),
           name: params.name,
-          kind: params.kind ?? 'task',
+          kind: resolveTaskKind(params.kind),
           status: params.initialStatus ?? 'in_progress',
           statusChangedAt: new Date().toISOString(),
           isPinned: false,
