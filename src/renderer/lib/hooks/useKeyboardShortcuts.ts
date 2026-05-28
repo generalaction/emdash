@@ -16,9 +16,12 @@ export function getEffectiveHotkey(
   key: ShortcutSettingsKey,
   custom?: ShortcutOverrides
 ): Hotkey | null {
+  const def = APP_SHORTCUTS[key];
+  if (!def) return null;
+
   const configured = custom?.[key];
   if (configured === null) return null;
-  const resolved = configured ?? resolveDefaultHotkey(APP_SHORTCUTS[key]);
+  const resolved = configured ?? resolveDefaultHotkey(def);
   return resolved != null ? (resolved as Hotkey) : null;
 }
 
@@ -30,7 +33,7 @@ export function getHotkeyRegistration(
   key: ShortcutSettingsKey,
   custom?: ShortcutOverrides
 ): Hotkey {
-  return (getEffectiveHotkey(key, custom) ??
-    resolveDefaultHotkey(APP_SHORTCUTS[key]) ??
+  const def = APP_SHORTCUTS[key];
+  return (getEffectiveHotkey(key, custom) ?? (def ? resolveDefaultHotkey(def) : undefined) ??
     '') as Hotkey;
 }
