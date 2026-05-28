@@ -209,7 +209,7 @@ export class SshConversationProvider implements ConversationProvider {
         const count = (this.respawnCounts.get(sessionId) ?? 0) + 1;
         this.respawnCounts.set(sessionId, count);
 
-        if (count > MAX_RESPAWNS) {
+        if (count > MAX_RESPAWNS && !isResuming) {
           log.error('SshConversationProvider: respawn limit reached, giving up', {
             conversationId: conversation.id,
           });
