@@ -166,7 +166,7 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
     for (const group of SIDEBAR_GROUPS) {
       const groupTasks = byGroup[group];
       const ordered =
-        group === 'tasks' && manualOrder?.length
+        group === TASK_SIDEBAR_GROUP.Tasks && manualOrder?.length
           ? this.mergeTaskOrder(projectId, groupTasks)
           : this.sortTasksForSidebar(groupTasks);
       ids.push(...ordered.map((t) => t.data.id));

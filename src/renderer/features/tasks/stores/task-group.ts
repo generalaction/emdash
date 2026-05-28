@@ -1,10 +1,6 @@
-import type { Task, TaskSidebarGroup } from '@shared/tasks';
+import type { TaskSidebarGroup } from '@shared/tasks';
 import { TASK_SIDEBAR_GROUP, taskSidebarGroupForKind } from '@shared/tasks';
 import { taskKindForStore, type TaskStore } from './task-store';
-
-export function taskSidebarGroupForTask(task: Pick<Task, 'kind'>): TaskSidebarGroup {
-  return taskSidebarGroupForKind(task.kind);
-}
 
 export function taskSidebarGroupForStore(task: TaskStore): TaskSidebarGroup {
   return taskSidebarGroupForKind(taskKindForStore(task));

@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
 import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
+import { TASK_KIND, TASK_SIDEBAR_GROUP } from '@shared/tasks';
+import { taskSidebarGroupForStore } from './task-group';
 import { TaskManagerStore } from './task-manager';
 
 const mocks = vi.hoisted(() => ({
@@ -79,7 +81,7 @@ describe('TaskManagerStore.createChat', () => {
           id: '00000000-0000-4000-8000-0000000000c1',
           projectId: 'project-1',
           name: 'chat-may-27',
-          kind: 'chat',
+          kind: TASK_KIND.Chat,
           status: 'in_progress',
           sourceBranch: { type: 'local', branch: 'main' },
           createdAt: '2026-01-01T00:00:00.000Z',
@@ -114,7 +116,7 @@ describe('TaskManagerStore.createChat', () => {
       expect.objectContaining({
         id: '00000000-0000-4000-8000-0000000000c1',
         projectId: 'project-1',
-        kind: 'chat',
+        kind: TASK_KIND.Chat,
         strategy: { kind: 'no-worktree' },
         sourceBranch: { type: 'local', branch: 'main' },
       })
@@ -136,6 +138,8 @@ describe('TaskManagerStore.createChat', () => {
 
     expect(store.tasks.has('00000000-0000-4000-8000-0000000000c1')).toBe(true);
     expect(store.tasks.get('00000000-0000-4000-8000-0000000000c1')?.state).toBe('unregistered');
+    const unregistered = store.tasks.get('00000000-0000-4000-8000-0000000000c1')!;
+    expect(taskSidebarGroupForStore(unregistered)).toBe(TASK_SIDEBAR_GROUP.Chats);
 
     resolveCreate({
       success: true,
@@ -144,7 +148,7 @@ describe('TaskManagerStore.createChat', () => {
           id: '00000000-0000-4000-8000-0000000000c1',
           projectId: 'project-1',
           name: 'chat-may-27',
-          kind: 'chat',
+          kind: TASK_KIND.Chat,
           status: 'in_progress',
           sourceBranch: { type: 'local', branch: 'main' },
           createdAt: '2026-01-01T00:00:00.000Z',

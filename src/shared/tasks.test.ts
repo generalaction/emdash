@@ -4,6 +4,7 @@ import {
   resolveTaskKind,
   TASK_KIND,
   TASK_SIDEBAR_GROUP,
+  taskKindFromDb,
   formatIssueAsPrompt,
   generateChatName,
   taskSidebarGroupForKind,
@@ -58,6 +59,17 @@ describe('generateChatName', () => {
     const may = generateChatName(new Date('2026-05-27T12:00:00Z'));
     const june = generateChatName(new Date('2026-06-01T12:00:00Z'));
     expect(may).not.toBe(june);
+  });
+});
+
+describe('taskKindFromDb', () => {
+  it('maps stored chat rows to chat kind', () => {
+    expect(taskKindFromDb('chat')).toBe(TASK_KIND.Chat);
+  });
+
+  it('defaults unknown values to task kind', () => {
+    expect(taskKindFromDb(undefined)).toBe(TASK_KIND.Task);
+    expect(taskKindFromDb('unknown')).toBe(TASK_KIND.Task);
   });
 });
 

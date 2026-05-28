@@ -11,7 +11,9 @@ import type {
   Task,
   TaskKind,
   TaskLifecycleStatus,
+  TaskViewProfile,
 } from '@shared/tasks';
+import { taskViewProfile } from '@shared/tasks';
 import { conversationRegistry } from './conversation-registry';
 import { workspaceRegistry } from './workspace-registry';
 import { WorkspaceViewModel } from './workspace-view-model';
@@ -306,6 +308,10 @@ export function unregisteredTaskData(store: TaskStore): UnregisteredTaskData | u
 export function taskKindForStore(store: TaskStore): TaskKind {
   if (isRegistered(store)) return store.data.kind;
   return unregisteredTaskData(store)!.kind;
+}
+
+export function taskViewProfileForStore(store: TaskStore): TaskViewProfile {
+  return taskViewProfile(taskKindForStore(store));
 }
 
 export function createUnregisteredTask(data: UnregisteredTaskData): TaskStore {

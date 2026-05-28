@@ -48,6 +48,7 @@ function createAppDb(): {
       id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
       name TEXT NOT NULL,
+      kind TEXT NOT NULL DEFAULT 'task',
       status TEXT NOT NULL,
       source_branch TEXT,
       task_branch TEXT,

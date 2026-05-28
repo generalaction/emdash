@@ -1,16 +1,11 @@
-import {
-  getRegisteredTaskData,
-  getTaskGitStore,
-  getTaskStore,
-  getTaskView,
-} from '@renderer/features/tasks/stores/task-selectors';
+import { getRegisteredTaskData, getTaskStore, getTaskGitStore, getTaskView } from '@renderer/features/tasks/stores/task-selectors';
+import { taskViewProfileForStore } from '@renderer/features/tasks/stores/task-store';
 import { closeActiveTabWithConfirm } from '@renderer/features/tasks/tabs/close-tab-with-confirm';
 import type { CommandProvider } from '@renderer/lib/commands/types';
 import { showModal } from '@renderer/lib/modal/modal-provider';
 import { appState, sidebarStore } from '@renderer/lib/stores/app-state';
 import { TASK_COMMAND_DEFS, type CommandDef, type TaskCommandId } from '@shared/commands';
 import type { ShortcutSettingsKey } from '@shared/shortcuts';
-import { taskViewProfile } from '@shared/tasks';
 
 function taskDef(id: TaskCommandId): CommandDef {
   return TASK_COMMAND_DEFS.find((d) => d.id === id)!;
@@ -41,7 +36,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
 
       const git = getTaskGitStore(projectId, taskId);
       const taskData = getRegisteredTaskData(projectId, taskId);
-      const viewProfile = taskData ? taskViewProfile(taskData.kind) : null;
+      const viewProfile = taskStore ? taskViewProfileForStore(taskStore) : null;
 
       const newConversationDef = taskDef('task.newConversation');
       const sidebarChangesDef = taskDef('task.sidebarChanges');
