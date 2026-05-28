@@ -167,6 +167,51 @@ describe('mondayIssueProvider', () => {
       });
     });
 
+    it('returns item description from Monday Doc', async () => {
+      const credentials = { token: 'tok', boardIds: ['111'] };
+      const docValue = JSON.stringify({
+        files: [{ fileType: 'MONDAY_DOC_ITEM_DESCRIPTION', objectId: 42034047 }],
+      });
+      const item = {
+        id: '101',
+        name: 'Fix login bug',
+        updated_at: '2026-05-20T10:00:00Z',
+        board: {
+          id: '111',
+          name: 'Sprint Board',
+          url: 'https://myteam.monday.com/boards/111',
+        },
+        group: { title: 'In Progress' },
+        column_values: [
+          { id: 'monday_doc_v2', type: 'direct_doc', text: '', value: docValue },
+        ],
+        updates: [],
+      };
+
+      mockGetStoredCredentials.mockResolvedValue(credentials);
+      mockQuery
+        .mockResolvedValueOnce({ items: [item] })
+        .mockResolvedValueOnce({ export_markdown_from_doc: { markdown: 'Doc description content' } });
+
+      const result = await mondayIssueProvider.getIssueContext!({
+        identifier: item.id,
+      });
+
+      expect(result).toEqual({
+        success: true,
+        issue: expect.objectContaining({
+          provider: 'monday',
+          identifier: item.id,
+          description: 'Doc description content',
+        }),
+      });
+      expect(mockQuery).toHaveBeenCalledWith(
+        credentials.token,
+        expect.stringContaining('export_markdown_from_doc'),
+        { docId: '42034047' }
+      );
+    });
+
     it('returns error when item not found', async () => {
       const credentials = { token: 'tok', boardIds: ['111'] };
       mockGetStoredCredentials.mockResolvedValue(credentials);

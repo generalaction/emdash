@@ -17,6 +17,7 @@ type MondayColumnValue = {
   id: string;
   type: string;
   text: string;
+  value?: string;
 };
 
 type MondayItem = {
@@ -56,12 +57,28 @@ function extractDescription(columnValues: MondayColumnValue[]): string | undefin
   return longText?.text || undefined;
 }
 
+function extractDocObjectId(columnValues: MondayColumnValue[]): number | undefined {
+  const docColumn = columnValues.find((c) => c.type === 'doc' || c.type === 'direct_doc');
+  if (!docColumn?.value) return undefined;
+
+  try {
+    const parsed = JSON.parse(docColumn.value);
+    const file = parsed?.files?.find(
+      (f: { fileType?: string }) => f.fileType === 'MONDAY_DOC_ITEM_DESCRIPTION'
+    );
+    return file?.objectId;
+  } catch {
+    return undefined;
+  }
+}
+
 function toIssue(
   item: MondayItem,
   board: { name: string; url: string },
-  context?: string
+  context?: string,
+  descriptionOverride?: string
 ): Issue {
-  const description = extractDescription(item.column_values);
+  const description = descriptionOverride ?? extractDescription(item.column_values);
 
   return {
     provider: 'monday',
@@ -177,6 +194,28 @@ async function searchIssues(searchTerm: string, limit: number): Promise<IssueLis
   }
 }
 
+async function fetchDocDescription(
+  token: string,
+  columnValues: MondayColumnValue[]
+): Promise<string | undefined> {
+  const objectId = extractDocObjectId(columnValues);
+  if (!objectId) return undefined;
+
+  try {
+    const exportQuery = `query ($docId: ID!) {
+      export_markdown_from_doc(docId: $docId) { markdown }
+    }`;
+
+    const data = await mondayConnectionService.query<{
+      export_markdown_from_doc: { markdown: string } | null;
+    }>(token, exportQuery, { docId: String(objectId) });
+
+    return data.export_markdown_from_doc?.markdown?.trim() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 async function getIssueContext(opts: IssueContextOpts): Promise<IssueContextResult> {
   const credentials = await mondayConnectionService.getStoredCredentials();
   if (!credentials) {
@@ -189,7 +228,7 @@ async function getIssueContext(opts: IssueContextOpts): Promise<IssueContextResu
         id name updated_at
         board { id name url }
         group { title }
-        column_values { id type text }
+        column_values { id type text value }
         updates { id text_body created_at creator { name } }
       }
     }`;
@@ -205,8 +244,11 @@ async function getIssueContext(opts: IssueContextOpts): Promise<IssueContextResu
       return { success: false, error: `Item ${opts.identifier} not found.` };
     }
 
+    const description =
+      extractDescription(item.column_values) ??
+      (await fetchDocDescription(credentials.token, item.column_values));
     const context = formatContext(item.updates);
-    const issue = toIssue(item, item.board, context);
+    const issue = toIssue(item, item.board, context, description);
     return { success: true, issue };
   } catch (error) {
     return {
