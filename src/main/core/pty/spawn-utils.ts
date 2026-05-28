@@ -1,11 +1,20 @@
 import {
   buildRemoteShellCommand,
+  buildRemoteShellCommandWithPathLookup,
   FALLBACK_REMOTE_SHELL_PROFILE,
   type RemoteShellProfile,
 } from '@main/core/ssh/lifecycle/remote-shell-profile';
+import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
 import { quoteShellArg } from '@main/utils/shellEscape';
 import type { AgentSessionConfig } from '@shared/agent-session';
 import type { GeneralSessionConfig } from '@shared/general-session';
+import {
+  isCshShell,
+  terminalCommandArgs,
+  terminalEnvCaptureArgs,
+  terminalInteractiveShellArgs,
+  terminalShellBasename,
+} from '@shared/terminal-settings';
 import { buildTmuxShellLine } from './tmux-session-name';
 
 export type SessionType = 'agent' | 'general';
@@ -14,14 +23,15 @@ export type SessionConfig = AgentSessionConfig | GeneralSessionConfig;
 function posixShellLineForSsh(
   type: SessionType,
   config: SessionConfig,
-  profile: RemoteShellProfile
+  profile: ResolvedShellProfile
 ): { cwd: string; line: string } {
-  const shell = profile.shell;
+  const shell = profile.executable;
+  const quoteArg = isCshShell(shell) ? quoteCshArg : quoteShellArg;
 
   switch (type) {
     case 'agent': {
       const cfg = config as AgentSessionConfig;
-      const baseCmd = [cfg.command, ...cfg.args].map(quoteShellArg).join(' ');
+      const baseCmd = [cfg.command, ...cfg.args].map(quoteArg).join(' ');
       const line = cfg.shellSetup ? `${cfg.shellSetup} && ${baseCmd}` : baseCmd;
       return {
         cwd: cfg.cwd,
@@ -32,7 +42,7 @@ function posixShellLineForSsh(
       const cfg = config as GeneralSessionConfig;
       const baseCmd = cfg.command
         ? [cfg.command, ...(cfg.args ?? [])].join(' ')
-        : `exec ${shell} -il`;
+        : `exec ${shell} ${profile.interactiveArgs.join(' ')}`;
       const line = cfg.shellSetup ? `${cfg.shellSetup} && ${baseCmd}` : baseCmd;
       return {
         cwd: cfg.cwd,
@@ -44,6 +54,10 @@ function posixShellLineForSsh(
   }
 }
 
+function quoteCshArg(value: string): string {
+  return quoteShellArg(value).replace(/!/g, '\\!');
+}
+
 /**
  * Build a single command string for SSH remote execution.
  */
@@ -51,10 +65,58 @@ export function resolveSshCommand(
   type: SessionType,
   config: SessionConfig,
   envVars?: Record<string, string>,
-  profile?: RemoteShellProfile
+  profile?: ResolvedShellProfile | RemoteShellProfile
 ): string {
-  const effectiveProfile = profile ?? FALLBACK_REMOTE_SHELL_PROFILE;
+  const effectiveProfile = toResolvedShellProfile(profile);
   const { cwd, line } = posixShellLineForSsh(type, config, effectiveProfile);
   const commandString = `cd ${JSON.stringify(cwd)} && ${line}`;
-  return buildRemoteShellCommand(effectiveProfile, commandString, envVars);
+  const remoteProfile = {
+    shell: effectiveProfile.executable,
+    env: effectiveProfile.capturedEnv ?? {},
+  };
+  if (effectiveProfile.remotePathLookup) {
+    return buildRemoteShellCommandWithPathLookup(
+      remoteProfile,
+      effectiveProfile.executable,
+      commandString,
+      envVars
+    );
+  }
+  return buildRemoteShellCommand(remoteProfile, commandString, envVars);
+}
+
+function toResolvedShellProfile(
+  profile: ResolvedShellProfile | RemoteShellProfile | undefined
+): ResolvedShellProfile {
+  if (profile && 'executable' in profile) return profile;
+  if (profile) {
+    const shellId = terminalShellBasename(profile.shell) || 'sh';
+    return {
+      id: 'target-default',
+      resolvedShellId:
+        shellId === 'zsh' || shellId === 'bash' || shellId === 'ksh' ? shellId : 'sh',
+      resolvedFromAuto: true,
+      executable: profile.shell,
+      displayName: `Auto - ${shellId}`,
+      available: true,
+      family: isCshShell(profile.shell) ? 'csh' : 'posix',
+      interactiveArgs: terminalInteractiveShellArgs(profile.shell),
+      commandArgs: terminalCommandArgs(profile.shell),
+      envCaptureArgs: terminalEnvCaptureArgs(profile.shell),
+      capturedEnv: profile.env,
+    };
+  }
+  return {
+    id: 'target-default',
+    resolvedShellId: 'sh',
+    resolvedFromAuto: true,
+    executable: FALLBACK_REMOTE_SHELL_PROFILE.shell,
+    displayName: 'Auto - sh',
+    available: true,
+    family: 'posix',
+    interactiveArgs: ['-i'],
+    commandArgs: ['-c'],
+    envCaptureArgs: ['-ic'],
+    capturedEnv: FALLBACK_REMOTE_SHELL_PROFILE.env,
+  };
 }

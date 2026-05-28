@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
 import { resolveLocalPtySpawn } from './pty-spawn-platform';
 
 const winEnv = {
@@ -9,6 +10,42 @@ const winEnv = {
 const posixEnv = {
   SHELL: '/bin/bash',
 } satisfies NodeJS.ProcessEnv;
+
+const pwshProfile = {
+  id: 'pwsh',
+  resolvedShellId: 'pwsh',
+  resolvedFromAuto: false,
+  executable: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
+  displayName: 'pwsh',
+  available: true,
+  family: 'powershell',
+  interactiveArgs: [],
+  commandArgs: ['-NoProfile', '-Command'],
+} satisfies ResolvedShellProfile;
+
+function posixShellProfile({
+  shell,
+  family = 'posix',
+  interactiveArgs,
+  commandArgs,
+}: {
+  shell: 'bash' | 'dash' | 'sh' | 'tcsh';
+  family?: 'posix' | 'csh';
+  interactiveArgs: string[];
+  commandArgs: string[];
+}): ResolvedShellProfile {
+  return {
+    id: shell,
+    resolvedShellId: shell,
+    resolvedFromAuto: false,
+    executable: shell,
+    displayName: shell,
+    available: true,
+    family,
+    interactiveArgs,
+    commandArgs,
+  };
+}
 
 describe('resolveLocalPtySpawn - Windows', () => {
   const windowsPathEnv = {
@@ -169,6 +206,26 @@ describe('resolveLocalPtySpawn - Windows', () => {
     });
   });
 
+  it('wraps cmd and bat argv commands through cmd.exe when PowerShell is selected', () => {
+    const result = resolveLocalPtySpawn({
+      platform: 'win32',
+      env: winEnv,
+      intent: {
+        kind: 'run-command',
+        cwd: 'C:\\repo',
+        shellProfile: pwshProfile,
+        command: { kind: 'argv', command: 'pnpm.cmd', args: ['run', 'dev'] },
+      },
+    });
+
+    expect(result).toEqual({
+      command: 'C:\\Windows\\System32\\cmd.exe',
+      args: ['/d', '/s', '/c', 'pnpm.cmd run dev'],
+      cwd: 'C:\\repo',
+      warnings: [],
+    });
+  });
+
   it('quotes cmd wrapper arguments that contain Windows metacharacters', () => {
     const result = resolveLocalPtySpawn({
       platform: 'win32',
@@ -221,6 +278,47 @@ describe('resolveLocalPtySpawn - Windows', () => {
     });
   });
 
+  it('runs shell-line commands through selected PowerShell', () => {
+    const result = resolveLocalPtySpawn({
+      platform: 'win32',
+      env: winEnv,
+      intent: {
+        kind: 'run-command',
+        cwd: 'C:\\repo',
+        shellProfile: pwshProfile,
+        command: { kind: 'shell-line', commandLine: 'pnpm run dev' },
+      },
+    });
+
+    expect(result).toEqual({
+      command: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
+      args: ['-NoProfile', '-Command', 'pnpm run dev'],
+      cwd: 'C:\\repo',
+      warnings: [],
+    });
+  });
+
+  it('runs unresolved extensionless commands through selected PowerShell', () => {
+    const result = resolveLocalPtySpawn({
+      platform: 'win32',
+      env: windowsPathEnv,
+      fileExists: () => false,
+      intent: {
+        kind: 'run-command',
+        cwd: 'C:\\repo',
+        shellProfile: pwshProfile,
+        command: { kind: 'argv', command: 'codex', args: ['hello world', "it's ok"] },
+      },
+    });
+
+    expect(result).toEqual({
+      command: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
+      args: ['-NoProfile', '-Command', "& codex 'hello world' 'it''s ok'"],
+      cwd: 'C:\\repo',
+      warnings: [],
+    });
+  });
+
   it('returns warnings for ignored shellSetup and tmux on Windows', () => {
     const result = resolveLocalPtySpawn({
       platform: 'win32',
@@ -241,6 +339,39 @@ describe('resolveLocalPtySpawn - Windows', () => {
 });
 
 describe('resolveLocalPtySpawn - POSIX', () => {
+  const bashProfile = posixShellProfile({
+    shell: 'bash',
+    interactiveArgs: ['-il'],
+    commandArgs: ['-lc'],
+  });
+  const dashProfile = posixShellProfile({
+    shell: 'dash',
+    interactiveArgs: ['-i'],
+    commandArgs: ['-c'],
+  });
+  const shProfile = posixShellProfile({
+    shell: 'sh',
+    interactiveArgs: ['-i'],
+    commandArgs: ['-c'],
+  });
+  const tcshProfile = posixShellProfile({
+    shell: 'tcsh',
+    family: 'csh',
+    interactiveArgs: ['-i'],
+    commandArgs: ['-c'],
+  });
+  const posixPwshProfile: ResolvedShellProfile = {
+    id: 'pwsh',
+    resolvedShellId: 'pwsh',
+    resolvedFromAuto: false,
+    executable: 'pwsh',
+    displayName: 'pwsh',
+    available: true,
+    family: 'powershell',
+    interactiveArgs: [],
+    commandArgs: ['-NoProfile', '-Command'],
+  };
+
   it('uses SHELL -il for interactive shells', () => {
     const result = resolveLocalPtySpawn({
       platform: 'darwin',
@@ -251,6 +382,71 @@ describe('resolveLocalPtySpawn - POSIX', () => {
     expect(result).toEqual({
       command: '/bin/bash',
       args: ['-il'],
+      cwd: '/repo',
+      warnings: [],
+    });
+  });
+
+  it('uses the selected terminal shell profile for interactive shells', () => {
+    const result = resolveLocalPtySpawn({
+      platform: 'darwin',
+      env: posixEnv,
+      intent: { kind: 'interactive-shell', cwd: '/repo', shellProfile: bashProfile },
+    });
+
+    expect(result).toEqual({
+      command: 'bash',
+      args: ['-il'],
+      cwd: '/repo',
+      warnings: [],
+    });
+  });
+
+  it('does not pass login flags to basic POSIX interactive shells', () => {
+    const result = resolveLocalPtySpawn({
+      platform: 'darwin',
+      env: posixEnv,
+      intent: { kind: 'interactive-shell', cwd: '/repo', shellProfile: dashProfile },
+    });
+
+    expect(result).toEqual({
+      command: 'dash',
+      args: ['-i'],
+      cwd: '/repo',
+      warnings: [],
+    });
+  });
+
+  it('does not pass login flags to csh-family interactive shells', () => {
+    const result = resolveLocalPtySpawn({
+      platform: 'darwin',
+      env: posixEnv,
+      intent: { kind: 'interactive-shell', cwd: '/repo', shellProfile: tcshProfile },
+    });
+
+    expect(result).toEqual({
+      command: 'tcsh',
+      args: ['-i'],
+      cwd: '/repo',
+      warnings: [],
+    });
+  });
+
+  it('does not pass login flags to basic POSIX interactive shells after setup', () => {
+    const result = resolveLocalPtySpawn({
+      platform: 'darwin',
+      env: posixEnv,
+      intent: {
+        kind: 'interactive-shell',
+        cwd: '/repo',
+        shellProfile: shProfile,
+        shellSetup: 'export FOO=bar',
+      },
+    });
+
+    expect(result).toEqual({
+      command: 'sh',
+      args: ['-c', 'export FOO=bar && exec sh -i'],
       cwd: '/repo',
       warnings: [],
     });
@@ -270,6 +466,61 @@ describe('resolveLocalPtySpawn - POSIX', () => {
     expect(result).toEqual({
       command: '/bin/bash',
       args: ['-c', "node 'script name.js' 'it'\\''s ok'"],
+      cwd: '/repo',
+      warnings: [],
+    });
+  });
+
+  it('uses the selected terminal shell profile for shell-wrapped commands', () => {
+    const result = resolveLocalPtySpawn({
+      platform: 'linux',
+      env: posixEnv,
+      intent: {
+        kind: 'run-command',
+        cwd: '/repo',
+        shellProfile: shProfile,
+        command: { kind: 'argv', command: 'node', args: ['--version'] },
+      },
+    });
+
+    expect(result).toEqual({
+      command: 'sh',
+      args: ['-c', 'node --version'],
+      cwd: '/repo',
+      warnings: [],
+    });
+  });
+
+  it('rejects POSIX run-command wrapping through PowerShell shells', () => {
+    expect(() =>
+      resolveLocalPtySpawn({
+        platform: 'linux',
+        env: posixEnv,
+        intent: {
+          kind: 'run-command',
+          cwd: '/repo',
+          shellProfile: posixPwshProfile,
+          command: { kind: 'argv', command: 'node', args: ['script name.js'] },
+        },
+      })
+    ).toThrow('Cannot run POSIX shell-wrapped commands through pwsh');
+  });
+
+  it('escapes history expansion for csh-family argv commands', () => {
+    const result = resolveLocalPtySpawn({
+      platform: 'linux',
+      env: posixEnv,
+      intent: {
+        kind: 'run-command',
+        cwd: '/repo',
+        shellProfile: tcshProfile,
+        command: { kind: 'argv', command: 'printf', args: ['hello!'] },
+      },
+    });
+
+    expect(result).toEqual({
+      command: 'tcsh',
+      args: ['-c', "printf 'hello\\!'"],
       cwd: '/repo',
       warnings: [],
     });

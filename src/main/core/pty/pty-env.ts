@@ -1,4 +1,5 @@
 import os from 'node:os';
+import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
 import { detectSshAuthSock } from '@main/utils/shellEnv';
 import { getWindowsEnvValue } from '@main/utils/windows-env';
 
@@ -169,7 +170,9 @@ export interface AgentEnvOptions {
  * SSH_AUTH_SOCK is injected via the same cached detector used for agents,
  * since GUI-launched apps often don't inherit it from the user's login shell.
  */
-export function buildTerminalEnv(): Record<string, string> {
+export function buildTerminalEnv(
+  options: { shellProfile?: ResolvedShellProfile } = {}
+): Record<string, string> {
   // Inherit the full process environment, stripping undefined values.
   const env: Record<string, string> = {};
   for (const [key, val] of Object.entries(process.env)) {
@@ -184,7 +187,10 @@ export function buildTerminalEnv(): Record<string, string> {
   // Ensure SHELL reflects the user's configured shell on POSIX. Native Windows
   // shells are selected via ComSpec by the spawn resolver, not SHELL.
   if (process.platform !== 'win32') {
-    env.SHELL = process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
+    env.SHELL =
+      options.shellProfile?.family === 'posix' || options.shellProfile?.family === 'csh'
+        ? options.shellProfile.executable
+        : (process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash'));
   } else if (process.env.SHELL) {
     env.SHELL = process.env.SHELL;
   }
