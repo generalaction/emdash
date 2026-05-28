@@ -1,5 +1,5 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { MailOpen, Pencil, Plus, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useRef, useState } from 'react';
 import { formatConversationTitleForDisplay } from '@renderer/features/tasks/conversations/conversation-title-utils';
@@ -146,6 +146,13 @@ const ConversationRow = observer(function ConversationRow({
         </button>
       </ContextMenuTrigger>
       <ContextMenuContent finalFocus={false}>
+        <ContextMenuItem
+          onClick={() => conversation.markUnread()}
+          disabled={!conversation.canMarkUnread}
+        >
+          <MailOpen className="size-4" />
+          Mark as unread
+        </ContextMenuItem>
         <ContextMenuItem onClick={handleRename}>
           <Pencil className="size-4" />
           Rename

@@ -4,8 +4,10 @@ import { AgentStatusIndicator } from '@renderer/features/tasks/components/agent-
 import { TaskContextMenu } from '@renderer/features/tasks/components/task-context-menu';
 import { TaskGitDiffStats } from '@renderer/features/tasks/components/task-git-diff-stats';
 import {
+  canMarkTaskUnread,
   getTaskGitStore,
   getTaskManagerStore,
+  markLatestConversationUnread,
   taskAgentStatus,
 } from '@renderer/features/tasks/stores/task-selectors';
 import { type TaskStore } from '@renderer/features/tasks/stores/task-store';
@@ -60,6 +62,9 @@ export const TaskRow = observer(function TaskRow({
   const currentPr = task.data.prs ? selectCurrentPr(task.data.prs) : undefined;
   const branchName =
     getTaskGitStore(task.data.projectId, task.data.id)?.branchName ?? task.data.taskBranch;
+  const handleMarkUnread = canMarkTaskUnread(task.data.projectId, task.data.id)
+    ? () => markLatestConversationUnread(task.data.projectId, task.data.id)
+    : undefined;
 
   return (
     <TaskContextMenu
@@ -72,6 +77,7 @@ export const TaskRow = observer(function TaskRow({
       onRename={handleRename}
       onArchive={handleArchive}
       onRestore={handleRestore}
+      onMarkUnread={handleMarkUnread}
       onDelete={handleDelete}
     >
       <button

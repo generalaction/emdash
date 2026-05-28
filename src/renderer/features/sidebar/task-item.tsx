@@ -3,10 +3,12 @@ import { TaskSidebarAgentStatus } from '@renderer/features/sidebar/task-sidebar-
 import { TaskContextMenu } from '@renderer/features/tasks/components/task-context-menu';
 import { TaskGitDiffStats } from '@renderer/features/tasks/components/task-git-diff-stats';
 import {
+  canMarkTaskUnread,
   getTaskGitStore,
   getTaskManagerStore,
   getTaskStore,
   getWorkspaceForTask,
+  markLatestConversationUnread,
 } from '@renderer/features/tasks/stores/task-selectors';
 import { type TaskStore } from '@renderer/features/tasks/stores/task-store';
 import {
@@ -81,6 +83,9 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
     git?.branchName ?? ('taskBranch' in task.data ? task.data.taskBranch : undefined);
   const handleReconnect =
     workspaceStore?.connectionState != null ? () => workspaceStore.reconnect() : undefined;
+  const handleMarkUnread = canMarkTaskUnread(projectId, taskId)
+    ? () => markLatestConversationUnread(projectId, taskId)
+    : undefined;
 
   return (
     <TaskContextMenu
@@ -93,6 +98,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
       onRename={handleRename}
       onArchive={handleArchive}
       onReconnect={handleReconnect}
+      onMarkUnread={handleMarkUnread}
       onDelete={handleDelete}
     >
       <SidebarMenuRow

@@ -190,11 +190,14 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       )
     );
 
-    // Mark conversation as seen when it becomes the active tab in the focused pane.
+    // Mark conversation as seen when it becomes active, gains focus, or receives
+    // a new terminal status while visible. Do not track `seen` itself so an
+    // explicit "mark as unread" action can stick until the next visibility edge.
     this.disposers.push(
       autorun(() => {
         const conv = this.activeConversation;
-        if (this.isFocused && conv && !conv.seen) {
+        const status = conv?.status;
+        if (this.isFocused && conv && status !== 'working') {
           conv.markSeen();
         }
       })

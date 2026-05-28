@@ -65,6 +65,16 @@ export function taskAgentStatus(store: TaskStore): AgentStatus | null {
   return mgr?.taskStatus ?? null;
 }
 
+export function markLatestConversationUnread(projectId: string, taskId: string): void {
+  if (!getTaskStore(projectId, taskId)) return;
+  conversationRegistry.get(taskId)?.markLatestConversationUnread();
+}
+
+export function canMarkTaskUnread(projectId: string, taskId: string): boolean {
+  if (!getTaskStore(projectId, taskId)) return false;
+  return conversationRegistry.get(taskId)?.canMarkUnread ?? false;
+}
+
 export type TaskViewKind =
   | 'missing'
   | 'project-mounting' // project is still opening — task data not yet available

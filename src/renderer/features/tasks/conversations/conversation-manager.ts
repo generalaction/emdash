@@ -40,6 +40,8 @@ export class ConversationManagerStore implements IDisposable {
       conversations: observable,
       sessions: observable,
       taskStatus: computed,
+      canMarkUnread: computed,
+      markLatestConversationUnread: action,
     });
 
     const hasPreloaded = preloaded !== undefined;
@@ -160,6 +162,31 @@ export class ConversationManagerStore implements IDisposable {
     if (hasUnseenError) return 'error';
     if (hasUnseenCompleted) return 'completed';
     return null;
+  }
+
+  get canMarkUnread(): boolean {
+    for (const conversation of this.conversations.values()) {
+      if (conversation.canMarkUnread) return true;
+    }
+    return false;
+  }
+
+  markLatestConversationUnread(): void {
+    let latest: ConversationStore | undefined;
+    let latestTime = -1;
+
+    for (const conversation of this.conversations.values()) {
+      if (!conversation.canMarkUnread) continue;
+      const time = conversation.data.lastInteractedAt
+        ? new Date(conversation.data.lastInteractedAt).getTime()
+        : 0;
+      if (!latest || time > latestTime) {
+        latest = conversation;
+        latestTime = time;
+      }
+    }
+
+    latest?.markUnread();
   }
 
   async createConversation(params: CreateConversationParams): Promise<Conversation> {
@@ -290,7 +317,9 @@ export class ConversationStore {
       setWorking: action,
       clearWorking: action,
       markSeen: action,
+      markUnread: action,
       isInitialConversation: computed,
+      canMarkUnread: computed,
       indicatorStatus: computed,
     });
   }
@@ -306,6 +335,10 @@ export class ConversationStore {
     if (this.status === 'error') return 'error';
     if (this.status === 'completed') return 'completed';
     return null;
+  }
+
+  get canMarkUnread(): boolean {
+    return this.seen && this.status !== 'idle' && this.status !== 'working';
   }
 
   setStatus(status: AgentStatus) {
@@ -337,6 +370,10 @@ export class ConversationStore {
 
   markSeen() {
     this.seen = true;
+  }
+
+  markUnread() {
+    this.seen = false;
   }
 
   dispose() {
