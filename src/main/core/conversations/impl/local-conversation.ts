@@ -23,7 +23,9 @@ import type { Conversation } from '@shared/conversations';
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { makePtyId } from '@shared/ptyId';
 import { makePtySessionId } from '@shared/ptySessionId';
+import { resolveAgentSessionCommandArgs } from '../resolve-agent-session-command';
 import { buildAgentSessionCommand } from './agent-command';
+import { syncGrokThemeWithAppTheme } from './grok-theme-config';
 import { scheduleInitialPromptInjection } from './keystroke-injection';
 import { resolveProviderEnv } from './provider-env';
 
@@ -98,19 +100,23 @@ export class LocalConversationProvider implements ConversationProvider {
 
     const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
     const providerDef = getProvider(conversation.providerId);
+    const agentSession = resolveAgentSessionCommandArgs(conversation, isResuming);
     const { command, args } = buildAgentSessionCommand({
       providerId: conversation.providerId,
       providerConfig,
       autoApprove: conversation.autoApprove,
       sessionId: conversation.id,
       providerSessionId: conversation.providerSessionId,
-      isResuming,
+      isResuming: agentSession.isResuming,
       initialPrompt,
     });
     const providerEnv = resolveProviderEnv(providerConfig, {
       providerId: conversation.providerId,
       autoApprove: conversation.autoApprove,
     });
+    if (conversation.providerId === 'grok') {
+      await syncGrokThemeWithAppTheme({ env: providerEnv });
+    }
 
     const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
 

@@ -141,6 +141,68 @@ describe('SshClientProxy remote shell profile', () => {
     });
     expect(mocks.captureRemoteShellProfile).toHaveBeenCalledTimes(1);
   });
+
+  it('deduplicates concurrent refreshes for the same client', async () => {
+    let resolveRefresh!: (profile: { shell: string; env: Record<string, string> }) => void;
+    const refreshCapture = new Promise<{ shell: string; env: Record<string, string> }>(
+      (resolve) => {
+        resolveRefresh = resolve;
+      }
+    );
+    const client = {};
+    mocks.captureRemoteShellProfile.mockReturnValueOnce(refreshCapture);
+    const proxy = new SshClientProxy('ssh-1');
+    proxy.update(client as never);
+
+    const first = proxy.refreshRemoteShellProfile();
+    const second = proxy.refreshRemoteShellProfile();
+    resolveRefresh({ shell: '/bin/zsh', env: { PATH: '/refreshed:/usr/bin' } });
+
+    await expect(first).resolves.toEqual({
+      shell: '/bin/zsh',
+      env: { PATH: '/refreshed:/usr/bin' },
+    });
+    await expect(second).resolves.toEqual({
+      shell: '/bin/zsh',
+      env: { PATH: '/refreshed:/usr/bin' },
+    });
+    expect(mocks.captureRemoteShellProfile).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets refresh preempt an in-flight get capture', async () => {
+    let resolveGet!: (profile: { shell: string; env: Record<string, string> }) => void;
+    let resolveRefresh!: (profile: { shell: string; env: Record<string, string> }) => void;
+    const getCapture = new Promise<{ shell: string; env: Record<string, string> }>((resolve) => {
+      resolveGet = resolve;
+    });
+    const refreshCapture = new Promise<{ shell: string; env: Record<string, string> }>(
+      (resolve) => {
+        resolveRefresh = resolve;
+      }
+    );
+    const client = {};
+    mocks.captureRemoteShellProfile
+      .mockReturnValueOnce(getCapture)
+      .mockReturnValueOnce(refreshCapture);
+    const proxy = new SshClientProxy('ssh-1');
+    proxy.update(client as never);
+
+    const staleGet = proxy.getRemoteShellProfile();
+    const refresh = proxy.refreshRemoteShellProfile();
+    resolveGet({ shell: '/bin/zsh', env: { PATH: '/old' } });
+    resolveRefresh({ shell: '/bin/zsh', env: { PATH: '/new:/usr/bin' } });
+
+    await expect(staleGet).resolves.toEqual({ shell: '/bin/zsh', env: { PATH: '/old' } });
+    await expect(refresh).resolves.toEqual({
+      shell: '/bin/zsh',
+      env: { PATH: '/new:/usr/bin' },
+    });
+    await expect(proxy.getRemoteShellProfile()).resolves.toEqual({
+      shell: '/bin/zsh',
+      env: { PATH: '/new:/usr/bin' },
+    });
+    expect(mocks.captureRemoteShellProfile).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('SshClientProxy channel health reporting', () => {

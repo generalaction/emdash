@@ -2,7 +2,6 @@ import { eq } from 'drizzle-orm';
 import { LocalConversationProvider } from '@main/core/conversations/impl/local-conversation';
 import { SshConversationProvider } from '@main/core/conversations/impl/ssh-conversation';
 import type { ConversationProvider } from '@main/core/conversations/types';
-import { GitHubAuthExecutionContext } from '@main/core/execution-context/github-auth-execution-context';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
@@ -11,7 +10,6 @@ import { GitFetchService } from '@main/core/git/git-fetch-service';
 import { GitService } from '@main/core/git/impl/git-service';
 import { RemoteStatusFingerprintPoller } from '@main/core/git/remote-status-fingerprint-poller';
 import { GitRepositoryService } from '@main/core/git/repository-service';
-import { githubConnectionService } from '@main/core/github/services/github-connection-service';
 import { workspaceFileIndexService } from '@main/core/search/workspace-file-index-service';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { LocalTerminalProvider } from '@main/core/terminals/impl/local-terminal-provider';
@@ -127,21 +125,13 @@ export function createWorkspaceFactory(
       type.kind === 'ssh'
         ? new SshExecutionContext(type.proxy, { root: workDir })
         : new LocalExecutionContext({ root: workDir });
-    const authGitCtx = new GitHubAuthExecutionContext(baseGitCtx, () =>
-      githubConnectionService.getToken()
-    );
-    const gitService = new GitService(baseGitCtx, authGitCtx, workspaceFs);
+    const gitService = new GitService(baseGitCtx, workspaceFs);
 
     const repository = context.repository ?? new GitRepositoryService(gitService, context.settings);
 
     const ownsFetchService = !context.fetchService;
     const fetchService =
-      context.fetchService ??
-      new GitFetchService(
-        gitService,
-        async () => (await githubConnectionService.getToken()) !== null,
-        () => repository.getBaseRemote()
-      );
+      context.fetchService ?? new GitFetchService(gitService, () => repository.getBaseRemote());
     const statusPoller =
       type.kind === 'ssh'
         ? new RemoteStatusFingerprintPoller(context.projectId, workspaceId, gitService)

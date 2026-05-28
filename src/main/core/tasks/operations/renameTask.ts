@@ -7,6 +7,7 @@ import { resolveTaskBranchName } from '@shared/resolveTaskBranchName';
 import { err, ok, type Result } from '@shared/result';
 import type { RenameTaskError, RenameTaskSuccess, RenameTaskWarning } from '@shared/tasks';
 import { appSettingsService } from '../../settings/settings-service';
+import { fromStoredBranch } from '../stored-branch';
 
 function parseLinkedIssueProvider(linkedIssue: unknown): unknown {
   if (!linkedIssue || typeof linkedIssue !== 'string') return undefined;
@@ -29,7 +30,7 @@ export async function renameTask(
   if (!project) return err({ type: 'project-not-found', projectId });
 
   const oldBranch = row.taskBranch;
-  const sourceBranch = row.sourceBranch ?? undefined;
+  const sourceBranch = fromStoredBranch(row.sourceBranch);
   let newBranch: string | null = null;
   let warning: RenameTaskWarning | undefined;
 

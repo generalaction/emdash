@@ -5,6 +5,7 @@ import { cssColorToHex, cssVar } from '@renderer/utils/cssVars';
 import { log } from '@renderer/utils/logger';
 import { ptyDataChannel } from '@shared/events/ptyEvents';
 import { FileLinkProvider } from './file-link-provider';
+import { decodeOsc52ClipboardData } from './pty-clipboard';
 import { buildTerminalFontFamily } from './terminal-font';
 import { ensureXtermHost } from './xterm-host';
 
@@ -111,6 +112,17 @@ export class FrontendPty {
         new FileLinkProvider(this.terminal, onOpenFile, onOpenExternal)
       );
     }
+
+    this.terminal.parser.registerOscHandler(52, (data) => {
+      const text = decodeOsc52ClipboardData(data);
+      if (text === null) return false;
+
+      void rpc.app.clipboardWriteText(text).catch((error) => {
+        log.warn('FrontendPty: failed to write OSC 52 clipboard payload', { error });
+      });
+      return true;
+    });
+
     this.terminal.open(this.ownedContainer);
 
     const el = (this.terminal as unknown as { element?: HTMLElement }).element;

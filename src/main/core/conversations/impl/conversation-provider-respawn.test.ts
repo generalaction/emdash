@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Pty, PtyExitInfo } from '@main/core/pty/pty';
 import type { Conversation } from '@shared/conversations';
+import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { LocalConversationProvider } from './local-conversation';
 import { SshConversationProvider } from './ssh-conversation';
@@ -81,6 +82,8 @@ vi.mock('@main/core/settings/settings-service', () => ({
   },
 }));
 
+const { events } = await import('@main/lib/events');
+
 type RespawnState = {
   respawnCounts: Map<string, number>;
 };
@@ -94,13 +97,13 @@ function localProvider() {
   });
 }
 
-function sshProvider() {
+function sshProvider(proxy = { getRemoteShellProfile: vi.fn(async () => ({})) }) {
   return new SshConversationProvider({
     projectId: 'project-1',
     taskId: 'task-1',
     taskPath: '/tmp/task-1',
     ctx: {} as never,
-    proxy: { getRemoteShellProfile: vi.fn(async () => ({})) } as never,
+    proxy: proxy as never,
   });
 }
 
@@ -132,6 +135,7 @@ describe('conversation provider respawn state', () => {
     vi.useRealTimers();
     spawnLocalPty.mockReset();
     openSsh2Pty.mockReset();
+    vi.mocked(events.emit).mockClear();
   });
 
   it('preserves resume mode when a local resumed session respawns', async () => {
@@ -173,6 +177,46 @@ describe('conversation provider respawn state', () => {
       await vi.advanceTimersByTimeAsync(500);
 
       expect(respawn).toHaveBeenCalledWith(item, size, true, initialPrompt);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('refreshes the SSH shell profile and retries once when an agent command is missing', async () => {
+    vi.useFakeTimers();
+    try {
+      const firstExitHandlers: Array<(info: PtyExitInfo) => void> = [];
+      const secondExitHandlers: Array<(info: PtyExitInfo) => void> = [];
+      openSsh2Pty
+        .mockResolvedValueOnce({ success: true, data: fakePty(firstExitHandlers) })
+        .mockResolvedValueOnce({ success: true, data: fakePty(secondExitHandlers) });
+      const proxy = {
+        getRemoteShellProfile: vi.fn(async () => ({})),
+        refreshRemoteShellProfile: vi.fn(async () => ({})),
+      };
+      const provider = sshProvider(proxy);
+      const item = conversation();
+
+      await provider.startSession(item);
+      for (const handler of firstExitHandlers) handler({ exitCode: 127 });
+      await vi.advanceTimersByTimeAsync(500);
+
+      expect(proxy.refreshRemoteShellProfile).toHaveBeenCalledTimes(1);
+      expect(openSsh2Pty).toHaveBeenCalledTimes(2);
+      expect(events.emit).not.toHaveBeenCalledWith(
+        agentSessionExitedChannel,
+        expect.objectContaining({ exitCode: 127 })
+      );
+
+      for (const handler of secondExitHandlers) handler({ exitCode: 127 });
+      await vi.advanceTimersByTimeAsync(500);
+
+      expect(proxy.refreshRemoteShellProfile).toHaveBeenCalledTimes(1);
+      expect(openSsh2Pty).toHaveBeenCalledTimes(2);
+      expect(events.emit).toHaveBeenCalledWith(
+        agentSessionExitedChannel,
+        expect.objectContaining({ exitCode: 127 })
+      );
     } finally {
       vi.useRealTimers();
     }
