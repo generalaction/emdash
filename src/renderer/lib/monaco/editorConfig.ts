@@ -11,7 +11,7 @@ export const DIFF_EDITOR_BASE_OPTIONS: editor.IDiffEditorConstructionOptions = {
   lineNumbers: 'on',
   lineNumbersMinChars: 2,
   readOnly: true,
-  renderIndicators: false,
+  renderIndicators: true,
   overviewRulerLanes: 3,
   renderOverviewRuler: true,
   overviewRulerBorder: false,
@@ -29,6 +29,8 @@ export const DIFF_EDITOR_BASE_OPTIONS: editor.IDiffEditorConstructionOptions = {
     verticalSliderSize: 4,
     horizontalSliderSize: 4,
   },
+  // Collapsed unchanged regions break drag-selection across large diffs (ENG-1248).
+  hideUnchangedRegions: { enabled: false },
   diffWordWrap: 'on',
   enableSplitViewResizing: false,
   smoothScrolling: true,

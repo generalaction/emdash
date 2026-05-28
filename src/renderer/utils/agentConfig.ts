@@ -1,37 +1,39 @@
 import { type AgentProviderId } from '@shared/agent-provider-registry';
-import ampLogo from '../../assets/images/ampcode.png';
-import antigravityLogo from '../../assets/images/antigravity.png';
+import ampLogo from '../../assets/images/ampcode.svg';
+import antigravityLogo from '../../assets/images/antigravity.svg';
 import atlassianLogo from '../../assets/images/atlassian.png';
 import augmentLogoSvg from '../../assets/images/Auggie.svg?raw';
 import autohandLogoSvg from '../../assets/images/autohand.svg?raw';
 import charmLogo from '../../assets/images/charm.png';
-import claudeLogo from '../../assets/images/claude.png';
+import claudeLogo from '../../assets/images/claude.svg';
 import clineLogo from '../../assets/images/cline.png';
 import codebuffLogo from '../../assets/images/codebuff.png';
 import continueLogo from '../../assets/images/continue.png';
 import cursorLogoSvg from '../../assets/images/cursor.svg?raw';
 import devinLogo from '../../assets/images/devin.png';
 import factoryLogoSvg from '../../assets/images/droid.svg?raw';
-import geminiLogo from '../../assets/images/gemini.png';
+import geminiLogo from '../../assets/images/gemini.svg';
 import copilotLogoSvg from '../../assets/images/gh-copilot.svg?raw';
 import gooseLogo from '../../assets/images/goose.png';
 import hermesLogo from '../../assets/images/hermesagent.jpg';
 import julesLogoSvg from '../../assets/images/jules.svg?raw';
 import junieLogo from '../../assets/images/junie-color.png';
 import kilocodeLogo from '../../assets/images/kilocode.png';
-import kimiLogo from '../../assets/images/kimi.png';
+import kimiLogo from '../../assets/images/kimi.svg';
 import kiroLogo from '../../assets/images/kiro.png';
 import lettaLogoSvg from '../../assets/images/letta.svg?raw';
-import mistralLogo from '../../assets/images/mistral.png';
+import mistralLogo from '../../assets/images/mistral.svg';
 import openaiLogoSvg from '../../assets/images/openai.svg?raw';
-import opencodeLogo from '../../assets/images/opencode.png';
+import opencodeLogoDark from '../../assets/images/opencode-dark.svg?raw';
+import opencodeLogo from '../../assets/images/opencode.svg?raw';
 import piLogo from '../../assets/images/pi.png';
-import qwenLogo from '../../assets/images/qwen.png';
+import qwenLogo from '../../assets/images/qwen.svg';
 import xaiLogoSvg from '../../assets/images/xai.svg?raw';
 
 export type AgentInfo = {
   name: string;
   logo: string;
+  logoDark?: string;
   alt: string;
   invertInDark?: boolean;
   isSvg?: boolean;
@@ -41,9 +43,15 @@ export type AgentInfo = {
 export const agentConfig: Record<AgentProviderId, AgentInfo> = {
   claude: { name: 'Claude Code', logo: claudeLogo, alt: 'Claude Code' },
   codex: { name: 'Codex', logo: openaiLogoSvg, alt: 'Codex', isSvg: true },
-  grok: { name: 'Grok', logo: xaiLogoSvg, alt: 'Grok CLI', isSvg: true },
+  grok: { name: 'Grok', logo: xaiLogoSvg, alt: 'Grok CLI', isSvg: true, invertInDark: true },
   devin: { name: 'Devin', logo: devinLogo, alt: 'Devin' },
-  cursor: { name: 'Cursor', logo: cursorLogoSvg, alt: 'Cursor CLI', isSvg: true },
+  cursor: {
+    name: 'Cursor',
+    logo: cursorLogoSvg,
+    alt: 'Cursor CLI',
+    isSvg: true,
+    invertInDark: true,
+  },
   gemini: { name: 'Gemini', logo: geminiLogo, alt: 'Gemini CLI' },
   antigravity: { name: 'Antigravity', logo: antigravityLogo, alt: 'Antigravity CLI' },
   mistral: { name: 'Mistral Vibe', logo: mistralLogo, alt: 'Mistral Vibe CLI' },
@@ -51,9 +59,21 @@ export const agentConfig: Record<AgentProviderId, AgentInfo> = {
   droid: { name: 'Droid', logo: factoryLogoSvg, alt: 'Factory Droid', isSvg: true },
   pi: { name: 'Pi', logo: piLogo, alt: 'Pi CLI' },
   autohand: { name: 'Autohand Code', logo: autohandLogoSvg, alt: 'Autohand Code CLI', isSvg: true },
-  opencode: { name: 'OpenCode', logo: opencodeLogo, alt: 'OpenCode', invertInDark: true },
+  opencode: {
+    name: 'OpenCode',
+    logo: opencodeLogo,
+    logoDark: opencodeLogoDark,
+    alt: 'OpenCode',
+    isSvg: true,
+  },
   hermes: { name: 'Hermes Agent', logo: hermesLogo, alt: 'Hermes Agent CLI' },
-  auggie: { name: 'Auggie', logo: augmentLogoSvg, alt: 'Auggie CLI', isSvg: true },
+  auggie: {
+    name: 'Auggie',
+    logo: augmentLogoSvg,
+    alt: 'Auggie CLI',
+    isSvg: true,
+    invertInDark: true,
+  },
   goose: { name: 'Goose', logo: gooseLogo, alt: 'Goose CLI' },
   kimi: { name: 'Kimi', logo: kimiLogo, alt: 'Kimi CLI' },
   kilocode: { name: 'Kilocode', logo: kilocodeLogo, alt: 'Kilocode CLI' },
@@ -82,7 +102,13 @@ export const agentConfig: Record<AgentProviderId, AgentInfo> = {
   },
   amp: { name: 'Amp', logo: ampLogo, alt: 'Amp Code' },
   // Without initial prompt support
-  copilot: { name: 'Copilot', logo: copilotLogoSvg, alt: 'GitHub Copilot CLI', isSvg: true },
+  copilot: {
+    name: 'Copilot',
+    logo: copilotLogoSvg,
+    alt: 'GitHub Copilot CLI',
+    isSvg: true,
+    invertInDark: true,
+  },
   charm: { name: 'Charm', logo: charmLogo, alt: 'Charm Crush', invertInDark: true },
   rovo: { name: 'Rovo Dev', logo: atlassianLogo, alt: 'Rovo Dev' },
 };

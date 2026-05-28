@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  makeAmpPluginContent,
   makeClaudeHookCommand,
   makeCodexHookCommand,
+  makeCodexSessionStartHookCommand,
   makeNotificationHookCommand,
   makeOpenCodePluginContent,
 } from './agent-notify-command';
@@ -71,6 +73,16 @@ describe('makeNotificationHookCommand', () => {
   });
 });
 
+describe('makeCodexSessionStartHookCommand', () => {
+  it('forwards Codex SessionStart hook stdin or argv to the Emdash hook server', () => {
+    const content = makeCodexSessionStartHookCommand({ platform: 'darwin' });
+
+    expect(content).toContain('INPUT="${1:-$(cat)}"');
+    expect(content).toContain('X-Emdash-Event-Type: session-start');
+    expect(content).toContain('-d @-');
+  });
+});
+
 describe('makeOpenCodePluginContent', () => {
   it('posts OpenCode session events to the Emdash hook server', () => {
     const content = makeOpenCodePluginContent();
@@ -79,5 +91,17 @@ describe('makeOpenCodePluginContent', () => {
     expect(content).toContain("event.type === 'session.idle'");
     expect(content).toContain("event.type === 'session.error'");
     expect(content).toContain("'X-Emdash-Event-Type': payload.type");
+  });
+});
+
+describe('makeAmpPluginContent', () => {
+  it('posts Amp agent lifecycle events to the Emdash hook server', () => {
+    const content = makeAmpPluginContent();
+
+    expect(content).toContain('@i-know-the-amp-plugin-api-is-wip-and-very-experimental-right-now');
+    expect(content).toContain('EMDASH_HOOK_PORT');
+    expect(content).toContain("amp.on('agent.start'");
+    expect(content).toContain("amp.on('agent.end'");
+    expect(content).toContain("'X-Emdash-Event-Type': eventType");
   });
 });

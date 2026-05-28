@@ -2,16 +2,31 @@ import { describe, expect, it } from 'vitest';
 import { getIssueTaskName } from './issue-task-name';
 
 describe('getIssueTaskName', () => {
-  it('normalizes a Linear branch name into a task name', () => {
+  it('normalizes a Linear branch name into a lowercase task name by default', () => {
     expect(
       getIssueTaskName({
         provider: 'linear',
-        url: 'https://linear.app/general-action/issue/GEN-626',
-        title: 'Linear issue branch name creation',
-        identifier: 'GEN-626',
-        branchName: 'jona/gen-626-linear-issue-branch-name-creation',
+        url: 'https://linear.app/general-action/issue/ENG-1368',
+        title: 'Allow capital letters in issue titles',
+        identifier: 'ENG-1368',
+        branchName: 'jan/ENG-1368-allow-capital-letters-in-issue-titles',
       })
-    ).toBe('jona-gen-626-linear-issue-branch-name-creation');
+    ).toBe('jan-eng-1368-allow-capital-letters-in-issue-titles');
+  });
+
+  it('preserves Linear branch name capitals when configured', () => {
+    expect(
+      getIssueTaskName(
+        {
+          provider: 'linear',
+          url: 'https://linear.app/general-action/issue/ENG-1368',
+          title: 'Allow capital letters in issue titles',
+          identifier: 'ENG-1368',
+          branchName: 'jan/ENG-1368-allow-capital-letters-in-issue-titles',
+        },
+        { preserveCapitalization: true }
+      )
+    ).toBe('jan-ENG-1368-allow-capital-letters-in-issue-titles');
   });
 
   it('returns null for non-Linear issues', () => {

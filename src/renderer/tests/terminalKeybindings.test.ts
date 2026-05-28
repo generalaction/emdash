@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { decodeOsc52ClipboardData } from '@renderer/lib/pty/pty-clipboard';
 import {
   CTRL_J_ASCII,
   CTRL_U_ASCII,
@@ -65,6 +66,26 @@ describe('TerminalSessionManager - Shift+Enter to Ctrl+J mapping', () => {
       )
     ).toBe(true);
 
+    // all platforms: Ctrl+Shift+C can use the recent selection fallback
+    expect(
+      shouldCopySelectionFromTerminal(
+        makeEvent({ key: 'c', ctrlKey: true, shiftKey: true }),
+        false,
+        withoutSelection,
+        true
+      )
+    ).toBe(true);
+
+    // non-macOS: Ctrl+C requires a live selection so stale selections do not block SIGINT
+    expect(
+      shouldCopySelectionFromTerminal(
+        makeEvent({ key: 'c', ctrlKey: true }),
+        false,
+        withoutSelection,
+        true
+      )
+    ).toBe(false);
+
     // no selection should never copy
     expect(
       shouldCopySelectionFromTerminal(
@@ -96,6 +117,17 @@ describe('TerminalSessionManager - Shift+Enter to Ctrl+J mapping', () => {
         withSelection
       )
     ).toBe(false);
+  });
+
+  it('decodes OSC 52 clipboard payloads', () => {
+    expect(decodeOsc52ClipboardData('c;aGVsbG8=')).toBe('hello');
+    expect(decodeOsc52ClipboardData('pc;8J+agA==')).toBe('🚀');
+    expect(decodeOsc52ClipboardData(';dGV4dA==')).toBe('text');
+
+    expect(decodeOsc52ClipboardData('p;aGVsbG8=')).toBeNull();
+    expect(decodeOsc52ClipboardData('c;?')).toBeNull();
+    expect(decodeOsc52ClipboardData('c;not base64')).toBeNull();
+    expect(decodeOsc52ClipboardData('missing-separator')).toBeNull();
   });
 
   it('detects paste shortcut per platform', () => {

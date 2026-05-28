@@ -1,5 +1,7 @@
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 
+export const MAX_CONVERSATION_TITLE_LENGTH = 100;
+
 export type Conversation = {
   id: string;
   projectId: string;
@@ -9,6 +11,8 @@ export type Conversation = {
   lastInteractedAt: string | null;
   resume?: boolean;
   autoApprove?: boolean;
+  /** Provider-native session id captured at runtime for per-chat resume. */
+  providerSessionId?: string;
   isInitialConversation: boolean | null;
 };
 

@@ -345,52 +345,58 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
             className="border-none bg-transparent"
           >
             <Tooltip>
-              <TooltipTrigger>
-                <ToggleGroupItem
-                  value="changes"
-                  aria-label="Changes"
-                  className={cn('w-auto! min-w-7! gap-0', hasDiffStats && 'w-full px-2!')}
-                >
-                  <FileDiff className="size-3.5" />
-                  <span
-                    className={cn(
-                      'overflow-hidden transition-[max-width,padding-left] duration-500 ease-in-out flex items-center tabular-nums text-xs leading-none gap-1',
-                      hasDiffStats ? 'max-w-20 pl-1' : 'max-w-0 pl-0'
-                    )}
+              <TooltipTrigger
+                render={
+                  <ToggleGroupItem
+                    value="changes"
+                    aria-label="Changes"
+                    className={cn('w-auto! min-w-7! gap-0', hasDiffStats && 'w-full px-2!')}
                   >
-                    {linesAdded > 0 && (
-                      <span className="text-foreground-diff-added">
-                        +{formatDiffLineCount(linesAdded)}
-                      </span>
-                    )}
-                    {linesDeleted > 0 && (
-                      <span className="text-foreground-diff-deleted">
-                        -{formatDiffLineCount(linesDeleted)}
-                      </span>
-                    )}
-                  </span>
-                </ToggleGroupItem>
-              </TooltipTrigger>
+                    <FileDiff className="size-3.5" />
+                    <span
+                      className={cn(
+                        'overflow-hidden transition-[max-width,padding-left] duration-500 ease-in-out flex items-center tabular-nums text-xs leading-none gap-1',
+                        hasDiffStats ? 'max-w-20 pl-1' : 'max-w-0 pl-0'
+                      )}
+                    >
+                      {linesAdded > 0 && (
+                        <span className="text-foreground-diff-added">
+                          +{formatDiffLineCount(linesAdded)}
+                        </span>
+                      )}
+                      {linesDeleted > 0 && (
+                        <span className="text-foreground-diff-deleted">
+                          -{formatDiffLineCount(linesDeleted)}
+                        </span>
+                      )}
+                    </span>
+                  </ToggleGroupItem>
+                }
+              />
               <TooltipContent>
                 Changes <BoundShortcut settingsKey="sidebarChanges" variant="badge" />
               </TooltipContent>
             </Tooltip>
             <Tooltip>
-              <TooltipTrigger>
-                <ToggleGroupItem size="icon-sm" value="files" aria-label="Files">
-                  <FolderOpen className="size-3.5" />
-                </ToggleGroupItem>
-              </TooltipTrigger>
+              <TooltipTrigger
+                render={
+                  <ToggleGroupItem size="icon-sm" value="files" aria-label="Files">
+                    <FolderOpen className="size-3.5" />
+                  </ToggleGroupItem>
+                }
+              />
               <TooltipContent>
                 Files <BoundShortcut settingsKey="sidebarFiles" variant="badge" />
               </TooltipContent>
             </Tooltip>
             <Tooltip>
-              <TooltipTrigger>
-                <ToggleGroupItem size="icon-sm" value="conversations" aria-label="Conversations">
-                  <Clock className="size-3.5" />
-                </ToggleGroupItem>
-              </TooltipTrigger>
+              <TooltipTrigger
+                render={
+                  <ToggleGroupItem size="icon-sm" value="conversations" aria-label="Conversations">
+                    <Clock className="size-3.5" />
+                  </ToggleGroupItem>
+                }
+              />
               <TooltipContent>
                 Conversations <BoundShortcut settingsKey="sidebarConversations" variant="badge" />
               </TooltipContent>

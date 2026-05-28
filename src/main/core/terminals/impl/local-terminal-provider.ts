@@ -1,4 +1,5 @@
 import type { IExecutionContext } from '@main/core/execution-context/types';
+import { isUnexpectedPtyExit } from '@main/core/pty/exit-classification';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import type { Pty } from '@main/core/pty/pty';
 import { buildTerminalEnv } from '@main/core/pty/pty-env';
@@ -154,8 +155,11 @@ export class LocalTerminalProvider implements TerminalProvider {
       wireTerminalDevServerWatcher({ pty, scopeId: this.scopeId, terminalId: terminal.id });
     }
 
-    pty.onExit(() => {
-      const shouldRespawn = policy.respawnOnExit && this.sessions.has(sessionId);
+    pty.onExit(({ exitCode, signal }) => {
+      const shouldRespawn =
+        policy.respawnOnExit &&
+        this.sessions.has(sessionId) &&
+        isUnexpectedPtyExit({ exitCode, signal });
       this.sessions.delete(sessionId);
       if (!policy.preserveBufferOnExit) {
         ptySessionRegistry.unregister(sessionId);

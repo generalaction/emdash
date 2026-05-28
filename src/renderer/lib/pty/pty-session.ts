@@ -6,8 +6,15 @@ export type PtySessionStatus = 'disconnected' | 'connecting' | 'ready';
 export class PtySession {
   pty: FrontendPty | null = null;
   status: PtySessionStatus = 'disconnected';
+  private connectPromise: Promise<void> | null = null;
+  private version = 0;
 
-  constructor(readonly sessionId: string) {
+  constructor(
+    readonly sessionId: string,
+    private readonly prepare?: () => Promise<void>,
+    private readonly onOpenFile?: (filePath: string) => void,
+    private readonly onOpenExternal?: (filePath: string) => void
+  ) {
     makeAutoObservable(this, {
       pty: false,
     });
@@ -21,17 +28,32 @@ export class PtySession {
 
   async connect() {
     if (this.pty) return;
-    this.pty = new FrontendPty(this.sessionId);
-    runInAction(() => {
-      this.status = 'connecting';
+    if (this.connectPromise) return this.connectPromise;
+
+    const version = this.version;
+    this.connectPromise = (async () => {
+      await this.prepare?.();
+      if (version !== this.version) return;
+      if (this.pty) return;
+      const pty = new FrontendPty(this.sessionId, undefined, this.onOpenFile, this.onOpenExternal);
+      this.pty = pty;
+      runInAction(() => {
+        this.status = 'connecting';
+      });
+      await pty.connect();
+      if (version !== this.version || this.pty !== pty) return;
+      runInAction(() => {
+        this.status = 'ready';
+      });
+    })().finally(() => {
+      this.connectPromise = null;
     });
-    await this.pty.connect();
-    runInAction(() => {
-      this.status = 'ready';
-    });
+
+    return this.connectPromise;
   }
 
   dispose() {
+    this.version++;
     this.pty?.dispose();
     runInAction(() => {
       this.pty = null;
