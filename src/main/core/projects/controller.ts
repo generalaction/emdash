@@ -43,4 +43,37 @@ export const projectController = createRPCController({
       rows.filter((r) => r.path != null).map((r) => [r.path!, r.taskCount])
     );
   },
+
+  async getWorktreeStatuses(
+    projectId: string,
+    paths: string[]
+  ): Promise<Record<string, boolean>> {
+    const project = projectManager.getProject(projectId);
+    if (!project) return {};
+    const results = await Promise.all(
+      paths.map(async (p) => {
+        try {
+          const { stdout } = await project.ctx.exec('git', ['-C', p, 'status', '--porcelain']);
+          return [p, stdout.trim().length > 0] as const;
+        } catch {
+          return [p, false] as const;
+        }
+      })
+    );
+    return Object.fromEntries(results);
+  },
+
+  async removeWorktree(
+    projectId: string,
+    worktreePath: string
+  ): Promise<{ success: boolean; error?: string }> {
+    const project = projectManager.getProject(projectId);
+    if (!project) return { success: false, error: 'Project not found' };
+    try {
+      await project.worktreeService.removeWorktree(worktreePath);
+      return { success: true };
+    } catch (e) {
+      return { success: false, error: String(e) };
+    }
+  },
 });

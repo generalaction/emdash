@@ -1,5 +1,11 @@
 import { observer } from 'mobx-react-lite';
-import { ChevronRight, FolderGit2, GitBranch, Globe, GithubIcon, Laptop, CopyIcon, Folder, TreePine } from 'lucide-react';
+import { ChevronRight, FolderGit2, GitBranch, Globe, GithubIcon, Laptop, CopyIcon, Folder, Trash2, TreePine } from 'lucide-react';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from '@renderer/lib/ui/context-menu';
 import { rpc } from '@renderer/lib/ipc';
 import { cn } from '@renderer/utils/utils';
 import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
@@ -18,7 +24,14 @@ export type FlatItem =
       username: string;
       projectId: string;
     }
-  | { type: 'worktree'; entry: WorktreeEntry; taskCount: number; repoName: string };
+  | {
+      type: 'worktree';
+      entry: WorktreeEntry;
+      taskCount: number;
+      repoName: string;
+      hasUncommittedChanges: boolean;
+      projectId: string;
+    };
 
 
 export function splitWorkspacePath(absPath: string): string[] {
@@ -168,7 +181,13 @@ const MainRepoRow = observer(function MainRepoRow({
   );
 });
 
-function WorktreeRow({ item }: { item: Extract<FlatItem, { type: 'worktree' }> }) {
+function WorktreeRow({
+  item,
+  onRemove,
+}: {
+  item: Extract<FlatItem, { type: 'worktree' }>;
+  onRemove?: () => void;
+}) {
   const displayPath = splitWorkspacePath(item.entry.path);
   const taskLabel =
     item.taskCount === 0
@@ -178,45 +197,62 @@ function WorktreeRow({ item }: { item: Extract<FlatItem, { type: 'worktree' }> }
         : `${item.taskCount} tasks`;
 
   return (
-    <WorkspaceRowShell className="group px-2 gap-2">
-      <div className="flex size-8 h-full items-center">
-        <div className="h-full w-px bg-border mx-auto opacity-20" />
-
-      </div>
-      <div className="flex size-8 items-center justify-center">
-        <TreePine className='size-5 text-foreground-muted' absoluteStrokeWidth strokeWidth={1.5} />
-      </div>
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <div className="flex items-center justify-between gap-2">
-          <span
-            className="truncate text-sm text-foreground"
-            title={item.entry.path}
-          >
-            {displayPath[displayPath.length -1]}
-          </span>
-          <span className='flex items-center text-xs gap-1 text-foreground-passive'>
-            <Folder className='size-3' />
-            {displayPath[displayPath.length - 2]}
-          </span>
-        </div>
-        <div className="flex items-center gap-1 justify-between">
-          <div className='flex items-center gap-2'>
-          <BranchLabel text={item.entry.branch ?? 'detached HEAD'} className="text-foreground-muted text-xs" />
-          {taskLabel && <span className="shrink-0 text-xs text-foreground-info">{taskLabel}</span>}
+    <ContextMenu>
+      <ContextMenuTrigger>
+        <WorkspaceRowShell className="group px-2 gap-2">
+          <div className="flex size-8 h-full items-center">
+            <div className="h-full w-px bg-border mx-auto opacity-20" />
           </div>
-          <span className='flex items-center text-xs gap-1 text-foreground-passive'>
-            <FolderGit2 className='size-3' />
-            {item.repoName}
-          </span>
-        </div>
-      </div>
-    </WorkspaceRowShell>
+          <div className="flex size-8 items-center justify-center">
+            <TreePine className='size-5 text-foreground-muted' absoluteStrokeWidth strokeWidth={1.5} />
+          </div>
+          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <div className="flex items-center justify-between gap-2">
+              <span
+                className="truncate text-sm text-foreground"
+                title={item.entry.path}
+              >
+                {displayPath[displayPath.length - 1]}
+              </span>
+              <span className='flex items-center text-xs gap-1 text-foreground-passive'>
+                <Folder className='size-3' />
+                {displayPath[displayPath.length - 2]}
+              </span>
+            </div>
+            <div className="flex items-center gap-1 justify-between">
+              <div className='flex items-center gap-2'>
+                <BranchLabel text={item.entry.branch ?? 'detached HEAD'} className="text-foreground-muted text-xs" />
+                {taskLabel && <span className="shrink-0 text-xs text-foreground-info">{taskLabel}</span>}
+              </div>
+              <span className='flex items-center text-xs gap-1 text-foreground-passive'>
+                <FolderGit2 className='size-3' />
+                {item.repoName}
+              </span>
+            </div>
+          </div>
+        </WorkspaceRowShell>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem variant="destructive" onClick={onRemove}>
+          <Trash2 />
+          Remove worktree
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
 
-export function WorkspaceRow({ item, onToggle }: { item: FlatItem; onToggle: () => void }) {
+export function WorkspaceRow({
+  item,
+  onToggle,
+  onRemove,
+}: {
+  item: FlatItem;
+  onToggle: () => void;
+  onRemove?: () => void;
+}) {
   if (item.type === 'main') {
     return <MainRepoRow item={item} onToggle={onToggle} />;
   }
-  return <WorktreeRow item={item} />;
+  return <WorktreeRow item={item} onRemove={onRemove} />;
 }

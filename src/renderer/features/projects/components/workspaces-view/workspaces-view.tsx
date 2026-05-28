@@ -1,10 +1,11 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Trash2 } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { PageHeader } from '@renderer/lib/components/page-header';
 import { rpc } from '@renderer/lib/ipc';
 import { useParams } from '@renderer/lib/layout/navigation-provider';
+import { Alert, AlertAction, AlertDescription, AlertTitle } from '@renderer/lib/ui/alert';
 import { Button } from '@renderer/lib/ui/button';
 import { SearchInput } from '@renderer/lib/ui/search-input';
 import { Spinner } from '@renderer/lib/ui/spinner';
@@ -44,13 +45,19 @@ export function WorkspacesView() {
     enabled: !!projectId,
   });
 
+  const linkedEntries = useMemo(() => entries?.filter((e) => !e.isMain) ?? [], [entries]);
+
+  const { data: worktreeStatuses } = useQuery({
+    queryKey: ['worktreeStatuses', projectId, linkedEntries.map((e) => e.path)],
+    queryFn: () => rpc.projects.getWorktreeStatuses(projectId, linkedEntries.map((e) => e.path)),
+    enabled: !!projectId && linkedEntries.length > 0,
+  });
+
   const isPending = worktreesPending;
   const isError = worktreesError;
-
   const username = systemInfo?.username ?? '';
 
   const mainEntry = useMemo(() => entries?.find((e) => e.isMain), [entries]);
-  const linkedEntries = useMemo(() => entries?.filter((e) => !e.isMain) ?? [], [entries]);
 
   const filteredLinkedEntries = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -59,6 +66,15 @@ export function WorkspacesView() {
       (e) => e.path.toLowerCase().includes(q) || (e.branch?.toLowerCase().includes(q) ?? false)
     );
   }, [linkedEntries, search]);
+
+  const cleanableWorktrees = useMemo(
+    () =>
+      linkedEntries.filter(
+        (e) =>
+          (taskCounts?.[e.path] ?? 0) === 0 && !(worktreeStatuses?.[e.path] ?? false)
+      ),
+    [linkedEntries, taskCounts, worktreeStatuses]
+  );
 
   // Auto-expand when searching so results are always visible.
   const effectivelyExpanded = isExpanded || search.trim().length > 0;
@@ -87,6 +103,8 @@ export function WorkspacesView() {
           entry,
           taskCount: taskCounts?.[entry.path] ?? 0,
           repoName,
+          hasUncommittedChanges: worktreeStatuses?.[entry.path] ?? false,
+          projectId,
         });
       }
     }
@@ -98,6 +116,7 @@ export function WorkspacesView() {
     filteredLinkedEntries,
     linkedEntries.length,
     taskCounts,
+    worktreeStatuses,
     username,
     projectId,
   ]);
@@ -109,9 +128,25 @@ export function WorkspacesView() {
     overscan: 8,
   });
 
-  const handleRefresh = () => {
+  const invalidateAll = () => {
     void queryClient.invalidateQueries({ queryKey: ['listWorktrees', projectId] });
     void queryClient.invalidateQueries({ queryKey: ['workspaceTaskCounts', projectId] });
+    void queryClient.invalidateQueries({ queryKey: ['worktreeStatuses', projectId] });
+  };
+
+  const handleRefresh = () => {
+    invalidateAll();
+  };
+
+  const { mutate: removeWorktree, isPending: isRemoving } = useMutation({
+    mutationFn: (worktreePath: string) => rpc.projects.removeWorktree(projectId, worktreePath),
+    onSettled: () => invalidateAll(),
+  });
+
+  const handleRemoveCleanable = () => {
+    for (const entry of cleanableWorktrees) {
+      removeWorktree(entry.path);
+    }
   };
 
   return (
@@ -119,7 +154,23 @@ export function WorkspacesView() {
       {/* Header with search */}
       <div className="shrink-0">
         <PageHeader title="Workspaces" description="Git worktrees associated with this project.">
-          <div className="flex w-full items-center gap-2">
+            {/* Cleanable worktrees alert */}
+            {!isPending && !isError && cleanableWorktrees.length > 0 && (
+                <Alert variant="warning">
+                  <AlertTitle><Trash2 />Cleanable worktrees</AlertTitle>
+                  <AlertDescription>
+                    You have {cleanableWorktrees.length}{' '}
+                    {cleanableWorktrees.length === 1 ? 'worktree' : 'worktrees'} that can be cleaned up
+                    because {cleanableWorktrees.length === 1 ? 'it has' : 'they have'} no uncommitted
+                    changes and no associated task in emdash.
+                  </AlertDescription>
+                  <AlertAction onClick={handleRemoveCleanable} disabled={isRemoving}>
+                    Remove worktrees
+                  </AlertAction>
+                </Alert>
+            )}
+          <div className="flex w-full items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
             <SearchInput
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -135,9 +186,14 @@ export function WorkspacesView() {
             >
               <RefreshCw className={cn('size-4', isPending && 'animate-spin')} />
             </Button>
+            </div>
+            <Button>
+              Add Workspace
+            </Button>
           </div>
         </PageHeader>
       </div>
+
 
       {/* Loading */}
       {isPending && (
@@ -172,7 +228,15 @@ export function WorkspacesView() {
                     transform: `translateY(${vItem.start}px)`,
                   }}
                 >
-                  <WorkspaceRow item={item} onToggle={() => setIsExpanded((v) => !v)} />
+                  <WorkspaceRow
+                    item={item}
+                    onToggle={() => setIsExpanded((v) => !v)}
+                    onRemove={
+                      item.type === 'worktree'
+                        ? () => removeWorktree(item.entry.path)
+                        : undefined
+                    }
+                  />
                 </div>
               );
             })}
