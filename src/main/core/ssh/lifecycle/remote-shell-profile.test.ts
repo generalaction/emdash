@@ -105,7 +105,7 @@ describe('remote shell profile command building', () => {
     expect(command).toBe("'/bin/sh' -c 'which claude'");
   });
 
-  it('uses csh-compatible environment setup for csh shells', () => {
+  it('falls back to sh for captured csh-family login shells', () => {
     const command = buildRemoteShellCommand(
       {
         shell: '/bin/tcsh',
@@ -117,26 +117,25 @@ describe('remote shell profile command building', () => {
       { FOO: 'bar!' }
     );
 
-    expect(command).toContain("'/bin/tcsh' -c");
-    expect(command).toContain('setenv PATH');
-    expect(command).toContain('bar\\!');
-    expect(command).toContain('which claude');
+    expect(command).toBe(
+      "'/bin/sh' -c 'export PATH='\\''/usr/bin'\\''; export FOO='\\''bar!'\\''; which claude'"
+    );
   });
 
   it.each(['/bin/csh', '/bin/tcsh'])(
-    'captures %s shell env with separate interactive and command flags',
+    'captures %s login shell env through the supported sh fallback',
     async (shell) => {
       const client = makeRemoteShellClient([shell, 'HOME=/Users/jona\nPATH=/usr/bin\n']);
 
       await expect(captureRemoteShellProfile(client)).resolves.toEqual({
-        shell,
+        shell: '/bin/sh',
         env: {
           HOME: '/Users/jona',
           PATH: '/Users/jona/.local/bin:/usr/bin',
         },
       });
 
-      expect(client.commands[1]).toContain(`'${shell}' -i -c 'env'`);
+      expect(client.commands[1]).toContain("'/bin/sh' -ic 'env'");
     }
   );
 
@@ -188,7 +187,7 @@ describe('remote shell profile command building', () => {
     expect(normalizeRemoteShell('')).toBe('/bin/sh');
     expect(normalizeRemoteShell('zsh')).toBe('/bin/sh');
     expect(normalizeRemoteShell('/bin/zsh\n')).toBe('/bin/zsh');
-    expect(normalizeRemoteShell('/bin/tcsh')).toBe('/bin/tcsh');
+    expect(normalizeRemoteShell('/bin/tcsh')).toBe('/bin/sh');
   });
 
   it('falls back to /bin/sh for unsupported remote shells', () => {

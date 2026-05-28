@@ -34,6 +34,13 @@ const zshProfile: RemoteShellProfile = {
   },
 };
 
+const tcshLoginProfile: RemoteShellProfile = {
+  shell: '/bin/tcsh',
+  env: {
+    PATH: '/usr/bin',
+  },
+};
+
 const bashRemoteProfile: ResolvedShellProfile = {
   id: 'bash',
   resolvedShellId: 'bash',
@@ -55,7 +62,7 @@ const tcshRemoteProfile: ResolvedShellProfile = {
   id: 'tcsh',
   resolvedShellId: 'tcsh',
   resolvedFromAuto: false,
-  executable: '/bin/tcsh',
+  executable: 'tcsh',
   displayName: 'tcsh',
   available: true,
   family: 'csh',
@@ -65,6 +72,7 @@ const tcshRemoteProfile: ResolvedShellProfile = {
   capturedEnv: {
     PATH: '/usr/bin',
   },
+  remotePathLookup: true,
 };
 
 describe('resolveSshCommand', () => {
@@ -98,6 +106,21 @@ describe('resolveSshCommand', () => {
 
     expect(result).toBe(
       `'/bin/sh' -c 'export FOO='\\''bar'\\''; cd "/workspace" && '\\''claude'\\'' '\\''--resume'\\'' '\\''conv-1'\\'''`
+    );
+  });
+
+  it('keeps captured csh-family login shells on the supported sh fallback for agents', () => {
+    const result = resolveSshCommand(
+      'agent',
+      makeAgentConfig({
+        shellSetup: 'export FOO=bar',
+      }),
+      undefined,
+      tcshLoginProfile
+    );
+
+    expect(result).toBe(
+      `'/bin/sh' -c 'export PATH='\\''/usr/bin'\\''; cd "/workspace" && export FOO=bar && '\\''claude'\\'' '\\''--resume'\\'' '\\''conv-1'\\'''`
     );
   });
 
@@ -181,7 +204,7 @@ describe('resolveSshCommand', () => {
       tcshRemoteProfile
     );
 
-    expect(result).toContain("'/bin/tcsh' -c");
+    expect(result).toContain("'/usr/bin/env' 'PATH=/usr/bin' 'tcsh' -c");
     expect(result).toContain("'\\''hello\\!'\\''");
   });
 });

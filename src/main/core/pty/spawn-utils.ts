@@ -2,6 +2,7 @@ import {
   buildRemoteShellCommand,
   buildRemoteShellCommandWithPathLookup,
   FALLBACK_REMOTE_SHELL_PROFILE,
+  normalizeRemoteShell,
   type RemoteShellProfile,
 } from '@main/core/ssh/lifecycle/remote-shell-profile';
 import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
@@ -90,19 +91,20 @@ function toResolvedShellProfile(
 ): ResolvedShellProfile {
   if (profile && 'executable' in profile) return profile;
   if (profile) {
-    const shellId = terminalShellBasename(profile.shell) || 'sh';
+    const executable = normalizeRemoteShell(profile.shell);
+    const shellId = terminalShellBasename(executable) || 'sh';
     return {
       id: 'target-default',
       resolvedShellId:
         shellId === 'zsh' || shellId === 'bash' || shellId === 'ksh' ? shellId : 'sh',
       resolvedFromAuto: true,
-      executable: profile.shell,
+      executable,
       displayName: `Auto - ${shellId}`,
       available: true,
-      family: isCshShell(profile.shell) ? 'csh' : 'posix',
-      interactiveArgs: terminalInteractiveShellArgs(profile.shell),
-      commandArgs: terminalCommandArgs(profile.shell),
-      envCaptureArgs: terminalEnvCaptureArgs(profile.shell),
+      family: isCshShell(executable) ? 'csh' : 'posix',
+      interactiveArgs: terminalInteractiveShellArgs(executable),
+      commandArgs: terminalCommandArgs(executable),
+      envCaptureArgs: terminalEnvCaptureArgs(executable),
       capturedEnv: profile.env,
     };
   }

@@ -24,7 +24,7 @@ export const FALLBACK_REMOTE_SHELL_PROFILE: RemoteShellProfile = {
 const CAPTURE_TIMEOUT_MS = 5_000;
 const SHELL_TIMEOUT_MS = 3_000;
 
-const LOGIN_SHELLS = new Set(['bash', 'csh', 'ksh', 'tcsh', 'zsh']);
+const LOGIN_SHELLS = new Set(['bash', 'ksh', 'zsh']);
 const BASIC_POSIX_SHELLS = new Set(['dash', 'sh']);
 const SUPPORTED_REMOTE_SHELLS = new Set([...BASIC_POSIX_SHELLS, ...LOGIN_SHELLS]);
 const VOLATILE_ENV_KEYS = new Set(['_', 'PWD', 'OLDPWD', 'SHLVL', 'COLUMNS', 'LINES']);
