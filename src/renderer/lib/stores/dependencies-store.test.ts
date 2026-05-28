@@ -118,6 +118,21 @@ describe('DependenciesStore install', () => {
     expect(store.getRemote('ssh-1').data?.claude?.status).toBe('available');
   });
 
+  it('forces remote shell env refresh when loading remote agent availability on demand', async () => {
+    vi.mocked(rpc.dependencies.getAll).mockResolvedValueOnce({
+      claude: availableAgent('claude'),
+    });
+    const store = new DependenciesStore();
+    const remote = store.getRemote('ssh-1');
+
+    await remote.load();
+
+    expect(rpc.dependencies.probeCategory).toHaveBeenCalledWith('agent', 'ssh-1', {
+      refreshShellEnv: true,
+    });
+    expect(remote.data?.claude?.status).toBe('available');
+  });
+
   it('refreshes an existing remote dependency resource on reconnect', async () => {
     vi.mocked(rpc.dependencies.getAll).mockResolvedValueOnce({
       codex: availableAgent('codex'),
