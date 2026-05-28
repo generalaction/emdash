@@ -896,11 +896,16 @@ export class SkillsService {
 
   private extractHtmlMetaContent(html: string, name: string): string | null {
     const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const pattern = new RegExp(
-      `<meta[^>]+(?:name|property)=["']${escapedName}["'][^>]+content=["']([^"']*)["'][^>]*>`,
+    // Match either attribute order: name/property before content, or content first.
+    const nameBeforeContent = new RegExp(
+      `<meta[^>]+(?:name|property)=["']${escapedName}["'][^>]+content=["']([^"']*)["']`,
       'i'
     );
-    return html.match(pattern)?.[1] ?? null;
+    const contentBeforeName = new RegExp(
+      `<meta[^>]+content=["']([^"']*)["'][^>]+(?:name|property)=["']${escapedName}["']`,
+      'i'
+    );
+    return html.match(nameBeforeContent)?.[1] ?? html.match(contentBeforeName)?.[1] ?? null;
   }
 
   private decodeHtmlEntities(value: string): string {
