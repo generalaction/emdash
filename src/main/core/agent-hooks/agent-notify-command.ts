@@ -1,4 +1,5 @@
 import { Buffer } from 'node:buffer';
+import type { NotificationType } from '@shared/events/agentEvents';
 import openCodePluginContent from './opencode-notifications-plugin.js?raw';
 
 type HookPostPayload = 'stdin' | { json: Record<string, string> };
@@ -62,6 +63,17 @@ export function makeClaudeHookCommand(eventType: string, options: HookCommandOpt
   return makeHookPostCommand({ eventType, payload: 'stdin', platform: options.platform });
 }
 
+export function makeNotificationHookCommand(
+  notificationType: NotificationType,
+  options: HookCommandOptions = {}
+): string {
+  return makeHookPostCommand({
+    eventType: 'notification',
+    payload: { json: { notification_type: notificationType } },
+    platform: options.platform,
+  });
+}
+
 export function makeOpenCodePluginContent(): string {
   return openCodePluginContent;
 }
@@ -70,9 +82,5 @@ export function makeCodexHookCommand(
   notificationType: 'idle_prompt' | 'permission_prompt',
   options: HookCommandOptions = {}
 ): string {
-  return makeHookPostCommand({
-    eventType: 'notification',
-    payload: { json: { notification_type: notificationType } },
-    platform: options.platform,
-  });
+  return makeNotificationHookCommand(notificationType, options);
 }

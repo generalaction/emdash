@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   makeClaudeHookCommand,
   makeCodexHookCommand,
+  makeNotificationHookCommand,
   makeOpenCodePluginContent,
 } from './agent-notify-command';
 
@@ -58,6 +59,15 @@ describe('makeCodexHookCommand', () => {
     expect(script).toContain('X-Emdash-Pty-Id');
     expect(script).toContain('$payload = \'{"notification_type":"permission_prompt"}\'');
     expect(script).toContain("'X-Emdash-Event-Type' = 'notification'");
+  });
+});
+
+describe('makeNotificationHookCommand', () => {
+  it('posts a static notification_type to the Emdash hook server', () => {
+    const content = makeNotificationHookCommand('elicitation_dialog', { platform: 'darwin' });
+
+    expect(content).toContain('X-Emdash-Event-Type: notification');
+    expect(content).toContain('{"notification_type":"elicitation_dialog"}');
   });
 });
 
