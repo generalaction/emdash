@@ -12,6 +12,18 @@ import bundledCatalog from './bundled-catalog.json';
 const SKILLS_ROOT = path.join(os.homedir(), '.agentskills');
 const EMDASH_META = path.join(SKILLS_ROOT, '.emdash');
 const CATALOG_INDEX_PATH = path.join(EMDASH_META, 'catalog-index.json');
+const SKILLSH_INSTALLS_PATH = path.join(EMDASH_META, 'skillssh-installs.json');
+
+/**
+ * Persisted Skills.SH provenance, keyed by local install directory name.
+ * Lets us reattach the skillssh source + icon to installed skills, which the
+ * filesystem scan alone cannot recover.
+ */
+interface SkillShInstallRecord {
+  sourceRef: string;
+  catalogSkillId: string;
+  skillShPath: string;
+}
 
 const MAX_REDIRECTS = 5;
 const MAX_HTTP_RESPONSE_BYTES = 2 * 1024 * 1024;
@@ -166,6 +178,7 @@ export class SkillsService {
     await this.initialize();
     const seen = new Set<string>();
     const skills: CatalogSkill[] = [];
+    const skillShInstalls = await this.readPrunedSkillShInstalls();
 
     // Scan all known skill directories (central + agent-specific)
     const dirsToScan = [SKILLS_ROOT, ...skillScanPaths];
@@ -201,11 +214,20 @@ export class SkillsService {
           const content = await fs.promises.readFile(skillMdPath, 'utf-8');
           const { frontmatter } = parseFrontmatter(content);
           seen.add(entry.name);
+          const skillSh = skillShInstalls[entry.name];
           skills.push({
-            id: entry.name,
+            id: skillSh ? this.toSkillShId(skillSh.sourceRef, skillSh.skillShPath) : entry.name,
+            installId: skillSh ? entry.name : undefined,
             displayName: frontmatter.name || entry.name,
-            description: frontmatter.description || '',
-            source: 'local',
+            description: frontmatter.description || skillSh?.sourceRef || '',
+            source: skillSh ? 'skillssh' : 'local',
+            sourceRef: skillSh?.sourceRef,
+            catalogSkillId: skillSh?.catalogSkillId,
+            skillShPath: skillSh?.skillShPath,
+            sourceUrl: skillSh
+              ? this.getSkillShUrl(skillSh.sourceRef, skillSh.skillShPath)
+              : undefined,
+            iconUrl: skillSh ? this.getSkillShIconUrl(skillSh.sourceRef) : undefined,
             frontmatter,
             installed: true,
             localPath: skillDir,
@@ -332,6 +354,15 @@ export class SkillsService {
       // Sync to agents
       await this.syncToAgents(installName);
 
+      // Persist Skills.SH provenance so the installed skill keeps its source + icon
+      if (skill.source === 'skillssh' && skill.sourceRef && skill.catalogSkillId) {
+        await this.writeSkillShInstall(installName, {
+          sourceRef: skill.sourceRef,
+          catalogSkillId: skill.catalogSkillId,
+          skillShPath: skill.skillShPath ?? skill.catalogSkillId,
+        });
+      }
+
       // Invalidate cache
       this.catalogCache = null;
       this.skillShSearchCache.clear();
@@ -384,6 +415,9 @@ export class SkillsService {
         throw error;
       }
     }
+
+    // Drop any persisted Skills.SH provenance for this install
+    await this.removeSkillShInstall(installName);
 
     // Invalidate cache
     this.catalogCache = null;
@@ -759,6 +793,62 @@ export class SkillsService {
     const maxBaseLength = MAX_SKILL_NAME_LENGTH - hash.length - 1;
     const truncatedBase = base.slice(0, maxBaseLength).replace(/-+$/g, '') || 'skillssh';
     return `${truncatedBase}-${hash}`;
+  }
+
+  private async readSkillShInstalls(): Promise<Record<string, SkillShInstallRecord>> {
+    try {
+      const data = await fs.promises.readFile(SKILLSH_INSTALLS_PATH, 'utf-8');
+      const parsed = JSON.parse(data) as Record<string, SkillShInstallRecord>;
+      return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+      return {};
+    }
+  }
+
+  private async writeSkillShInstall(
+    installName: string,
+    record: SkillShInstallRecord
+  ): Promise<void> {
+    const installs = await this.readSkillShInstalls();
+    installs[installName] = record;
+    await fs.promises.mkdir(EMDASH_META, { recursive: true });
+    await fs.promises.writeFile(SKILLSH_INSTALLS_PATH, JSON.stringify(installs, null, 2));
+  }
+
+  private async removeSkillShInstall(installName: string): Promise<void> {
+    const installs = await this.readSkillShInstalls();
+    if (!(installName in installs)) return;
+    delete installs[installName];
+    await fs.promises.writeFile(SKILLSH_INSTALLS_PATH, JSON.stringify(installs, null, 2));
+  }
+
+  /**
+   * Read the provenance index, dropping entries whose install directory no
+   * longer exists (e.g. deleted outside the app). Existence is checked against
+   * the real directory — never the SKILL.md parse — so a transient read error
+   * can never discard provenance. Writes back only when something was pruned.
+   */
+  private async readPrunedSkillShInstalls(): Promise<Record<string, SkillShInstallRecord>> {
+    const installs = await this.readSkillShInstalls();
+    const live: Record<string, SkillShInstallRecord> = {};
+    let pruned = false;
+    for (const [installName, record] of Object.entries(installs)) {
+      try {
+        await fs.promises.access(path.resolve(SKILLS_ROOT, installName));
+        live[installName] = record;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+          pruned = true;
+        } else {
+          // Unknown error (e.g. permissions) — keep the entry to stay safe
+          live[installName] = record;
+        }
+      }
+    }
+    if (pruned) {
+      await fs.promises.writeFile(SKILLSH_INSTALLS_PATH, JSON.stringify(live, null, 2));
+    }
+    return live;
   }
 
   private getLegacySkillShInstallName(sourceRef: string, catalogSkillId: string): string | null {
