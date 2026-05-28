@@ -113,7 +113,7 @@ class SearchService {
     }));
 
     if (context?.workspaceId) {
-      await workspaceFileIndexService.ensureIndexed(context.workspaceId);
+      await workspaceFileIndexService.prepareForSearch(context.workspaceId);
       const fileHits = workspaceFileIndexService.search(context.workspaceId, query);
       for (const h of fileHits) {
         results.push({

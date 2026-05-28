@@ -9,6 +9,7 @@ import { fsWatchEventChannel } from '@shared/events/fsEvents';
 const STALE_DAYS = 14;
 const MAX_FILES = 50_000;
 const CRAWL_TIMEOUT_MS = 30_000;
+const SEARCH_INDEX_WAIT_MS = 250;
 const REINDEX_DEBOUNCE_MS = 3_000;
 
 const CRAWL_IGNORED_DIRS = new Set([
@@ -66,7 +67,7 @@ class WorkspaceFileIndexService {
     await this.crawl(workspaceId, workspace);
   }
 
-  async ensureIndexed(workspaceId: string): Promise<void> {
+  async prepareForSearch(workspaceId: string): Promise<void> {
     if (this.hasIndexEntries(workspaceId)) {
       this.touchMeta(workspaceId);
       return;
@@ -74,7 +75,7 @@ class WorkspaceFileIndexService {
 
     const workspace = workspaceRegistry.get(workspaceId);
     if (!workspace) return;
-    await this.crawl(workspaceId, workspace);
+    await this.waitForSearchIndex(this.crawl(workspaceId, workspace));
   }
 
   onWorkspaceDestroyed(_workspaceId: string): void {
@@ -165,6 +166,15 @@ class WorkspaceFileIndexService {
     } catch (e) {
       log.warn('WorkspaceFileIndexService: crawl failed', { workspaceId, error: String(e) });
     }
+  }
+
+  private async waitForSearchIndex(crawl: Promise<void>): Promise<void> {
+    await Promise.race([
+      crawl,
+      new Promise<void>((resolve) => {
+        setTimeout(resolve, SEARCH_INDEX_WAIT_MS);
+      }),
+    ]);
   }
 
   private hasIndexEntries(workspaceId: string): boolean {
