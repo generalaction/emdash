@@ -18,6 +18,7 @@ import type { AgentSessionConfig } from '@shared/agent-session';
 import type { Conversation } from '@shared/conversations';
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
+import { resolveAgentSessionCommandArgs } from '../resolve-agent-session-command';
 import { buildAgentSessionCommand } from './agent-command';
 import { scheduleInitialPromptInjection } from './keystroke-injection';
 import { resolveProviderEnv } from './provider-env';
@@ -103,13 +104,16 @@ export class SshConversationProvider implements ConversationProvider {
     });
 
     const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
+    const agentSession = resolveAgentSessionCommandArgs(conversation, isResuming, {
+      requireProviderSessionId: false,
+    });
     const { command, args } = buildAgentSessionCommand({
       providerId: conversation.providerId,
       providerConfig,
       autoApprove: conversation.autoApprove,
       sessionId: conversation.id,
       providerSessionId: conversation.providerSessionId,
-      isResuming,
+      isResuming: agentSession.isResuming,
       initialPrompt,
     });
     const providerEnv = resolveProviderEnv(providerConfig, {
