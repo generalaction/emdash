@@ -1,6 +1,6 @@
 import { useHotkey, type Hotkey } from '@tanstack/react-hotkeys';
 import { ChevronDown, ChevronUp, MessageSquare, TextInitial } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import {
   Combobox,
   ComboboxCollection,
@@ -81,6 +81,8 @@ export interface AddContextPopoverProps {
     action: ContextAction,
     opts?: { andSend?: boolean }
   ) => Promise<void>;
+  /** Replace the default "Add context" button with a custom trigger. */
+  renderTrigger?: (ctx: { open: boolean; disabled: boolean }) => ReactNode;
 }
 
 export function AddContextPopover({
@@ -88,6 +90,7 @@ export function AddContextPopover({
   disabled,
   isActivePane = true,
   onApplyAction,
+  renderTrigger,
 }: AddContextPopoverProps) {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<ContextAction | null>(null);
@@ -144,17 +147,27 @@ export function AddContextPopover({
     >
       <ComboboxTrigger
         disabled={disabled}
-        className="flex h-6 min-w-[160px] items-center justify-between gap-1.5 rounded-lg border-border bg-background-secondary-2 px-2 text-xs font-normal text-foreground-muted transition-colors hover:bg-background-secondary-3 hover:text-foreground disabled:pointer-events-none"
+        className={
+          renderTrigger
+            ? undefined
+            : 'flex h-6 min-w-[160px] items-center justify-between gap-1.5 rounded-lg border-border bg-background-secondary-2 px-2 text-xs font-normal text-foreground-muted transition-colors hover:bg-background-secondary-3 hover:text-foreground disabled:pointer-events-none'
+        }
       >
-        <span className="flex items-center gap-1.5">
-          {open ? (
-            <ChevronUp className="size-3 shrink-0" />
-          ) : (
-            <ChevronDown className="size-3 shrink-0" />
-          )}
-          <span>Add context</span>
-        </span>
-        <Shortcut hotkey={ADD_CONTEXT_HOTKEY} />
+        {renderTrigger ? (
+          renderTrigger({ open, disabled })
+        ) : (
+          <>
+            <span className="flex items-center gap-1.5">
+              {open ? (
+                <ChevronUp className="size-3 shrink-0" />
+              ) : (
+                <ChevronDown className="size-3 shrink-0" />
+              )}
+              <span>Add context</span>
+            </span>
+            <Shortcut hotkey={ADD_CONTEXT_HOTKEY} />
+          </>
+        )}
       </ComboboxTrigger>
 
       <ComboboxContent
