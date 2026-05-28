@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as https from 'node:https';
 import * as os from 'node:os';
@@ -16,6 +17,7 @@ const MAX_REDIRECTS = 5;
 const MAX_HTTP_RESPONSE_BYTES = 2 * 1024 * 1024;
 const SKILLSH_SEARCH_CACHE_TTL_MS = 5 * 60 * 1000;
 const SKILLSH_SKILL_CACHE_MAX_ENTRIES = 200;
+const MAX_SKILL_NAME_LENGTH = 64;
 
 class HttpStatusError extends Error {
   constructor(
@@ -290,11 +292,13 @@ export class SkillsService {
     const tmpDir = `${skillDir}.tmp-${Date.now()}`;
     let finalDirCreated = false;
     try {
-      try {
-        await fs.promises.access(skillDir);
-        throw new Error(`Skill "${installName}" is already installed`);
-      } catch (err) {
-        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+      for (const candidateName of this.getInstallNameCandidates(skill)) {
+        try {
+          await fs.promises.access(path.resolve(SKILLS_ROOT, candidateName));
+          throw new Error(`Skill "${candidateName}" is already installed`);
+        } catch (err) {
+          if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
+        }
       }
 
       await fs.promises.mkdir(tmpDir, { recursive: true });
@@ -326,6 +330,8 @@ export class SkillsService {
 
       // Invalidate cache
       this.catalogCache = null;
+      this.skillShSearchCache.clear();
+      this.skillShSkillCache.clear();
 
       return {
         ...skill,
@@ -345,9 +351,14 @@ export class SkillsService {
   }
 
   async uninstallSkill(skillId: string): Promise<void> {
-    const skill = await this.resolveSkillShId(skillId);
-    const installName = skill ? this.getInstallName(skill) : skillId;
-    const skillDir = path.join(SKILLS_ROOT, installName);
+    const installName = await this.getInstallNameForUninstall(skillId);
+    if (!isValidSkillName(installName)) {
+      throw new Error(`Invalid skill install name "${installName}"`);
+    }
+    const skillDir = path.resolve(SKILLS_ROOT, installName);
+    if (!this.isPathInsideSkillsRoot(skillDir)) {
+      throw new Error(`Invalid skill install path for "${installName}"`);
+    }
 
     // Remove agent symlinks first. Never delete real directories from agent config paths —
     // those may be user-managed skills that Emdash only discovered.
@@ -372,6 +383,8 @@ export class SkillsService {
 
     // Invalidate cache
     this.catalogCache = null;
+    this.skillShSearchCache.clear();
+    this.skillShSkillCache.clear();
   }
 
   async createSkill(name: string, description: string, content?: string): Promise<CatalogSkill> {
@@ -426,15 +439,7 @@ export class SkillsService {
         const parentDir = path.dirname(targetDir);
         await fs.promises.mkdir(parentDir, { recursive: true });
 
-        // Remove existing symlink/dir if present
-        try {
-          const stat = await fs.promises.lstat(targetDir);
-          if (stat.isSymbolicLink() || stat.isDirectory()) {
-            await fs.promises.rm(targetDir, { recursive: true, force: true });
-          }
-        } catch {
-          // Doesn't exist, that's fine
-        }
+        await this.removeSyncedAgentSkillLink(targetDir);
 
         await fs.promises.symlink(skillDir, targetDir, 'junction');
       } catch (err) {
@@ -518,17 +523,19 @@ export class SkillsService {
         if (!this.isSkillShGithubSource(entry.source)) continue;
         if (skills.length >= 24) break;
 
-        const catalogSkillId = this.normalizeSkillShSkillId(entry.skillId);
-        if (!isValidSkillName(catalogSkillId)) continue;
-        const skillId = this.toSkillShId(entry.source, catalogSkillId);
-        if (skills.some((skill) => skill.id === skillId)) continue;
         const skillShPath = this.normalizeSkillShPath(entry.skillId);
+        if (!this.isSafeSkillShPath(skillShPath)) continue;
+        const catalogSkillId = this.normalizeSkillShSkillId(skillShPath);
+        if (!catalogSkillId) continue;
+        const skillId = this.toSkillShId(entry.source, skillShPath);
+        if (skills.some((skill) => skill.id === skillId)) continue;
         const displayName = entry.name || catalogSkillId;
         const description = entry.source;
-        const sourceUrl = this.getSkillShUrl(entry.source, catalogSkillId);
+        const sourceUrl = this.getSkillShUrl(entry.source, skillShPath);
 
         const skill: CatalogSkill = {
           id: skillId,
+          installId: this.getSkillShInstallName(entry.source, skillShPath),
           displayName,
           description,
           source: 'skillssh',
@@ -573,8 +580,8 @@ export class SkillsService {
 
   // --- Private helpers ---
 
-  private toSkillShId(sourceRef: string, skillId: string): string {
-    return `skillssh:${sourceRef}/${this.normalizeSkillShSkillId(skillId)}`;
+  private toSkillShId(sourceRef: string, skillPath: string): string {
+    return `skillssh:${sourceRef}/${this.normalizeSkillShPath(skillPath)}`;
   }
 
   private normalizeSkillShSearchQuery(query: string): string {
@@ -634,32 +641,28 @@ export class SkillsService {
     if (cached) return cached;
     if (!skillId.startsWith('skillssh:')) return null;
 
-    const fullId = skillId.slice('skillssh:'.length);
-    const parts = fullId.split('/');
-    if (parts.length < 3) return null;
+    const parsed = this.parseSkillShRemoteId(skillId);
+    if (!parsed) return null;
 
-    const sourceRef = parts.slice(0, 2).join('/');
-    if (!this.isSkillShGithubSource(sourceRef)) return null;
-
-    const catalogSkillId = this.normalizeSkillShSkillId(parts.slice(2).join('/'));
-    if (!isValidSkillName(catalogSkillId)) return null;
-
-    const sourceUrl = this.getSkillShUrl(sourceRef, catalogSkillId);
+    const sourceUrl = this.getSkillShUrl(parsed.sourceRef, parsed.skillShPath);
     const pageDescription = await this.fetchSkillShPageDescription(sourceUrl).catch(() => null);
-    if (!pageDescription) return null;
 
     const skill: CatalogSkill = {
       id: skillId,
-      displayName: catalogSkillId,
-      description: `${sourceRef}`,
+      installId: this.getSkillShInstallName(parsed.sourceRef, parsed.skillShPath),
+      displayName: parsed.catalogSkillId,
+      description: `${parsed.sourceRef}`,
       source: 'skillssh',
-      sourceRef,
+      sourceRef: parsed.sourceRef,
       sourceUrl,
-      catalogSkillId,
-      skillShPath: catalogSkillId,
-      iconUrl: this.getSkillShIconUrl(sourceRef),
+      catalogSkillId: parsed.catalogSkillId,
+      skillShPath: parsed.skillShPath,
+      iconUrl: this.getSkillShIconUrl(parsed.sourceRef),
       brandColor: '#000000',
-      frontmatter: { name: catalogSkillId, description: pageDescription },
+      frontmatter: {
+        name: parsed.catalogSkillId,
+        description: pageDescription ?? parsed.sourceRef,
+      },
       installed: false,
     };
     this.setSkillShSkillCache(skill.id, skill);
@@ -667,14 +670,130 @@ export class SkillsService {
   }
 
   private getInstallName(skill: CatalogSkill): string {
-    if (skill.source !== 'skillssh' || !skill.sourceRef || !skill.catalogSkillId) return skill.id;
-
-    const [owner, repo] = skill.sourceRef.split('/');
-    return `skillssh-${owner}-${repo}-${this.normalizeSkillShSkillId(skill.catalogSkillId)}`;
+    return this.getInstallNameCandidates(skill)[0] ?? skill.id;
   }
 
-  private getSkillShUrl(sourceRef: string, skillId: string): string {
-    return `https://skills.sh/${sourceRef}/${skillId}`;
+  private getInstallNameCandidates(skill: CatalogSkill): string[] {
+    if (skill.source !== 'skillssh' || !skill.sourceRef || !skill.catalogSkillId) return [skill.id];
+
+    const installNames = [
+      skill.installId ??
+        this.getSkillShInstallName(skill.sourceRef, skill.skillShPath ?? skill.catalogSkillId),
+    ];
+    const legacyInstallName = this.getLegacySkillShInstallName(
+      skill.sourceRef,
+      skill.catalogSkillId
+    );
+    if (legacyInstallName && !installNames.includes(legacyInstallName)) {
+      installNames.push(legacyInstallName);
+    }
+    return installNames;
+  }
+
+  private async getInstallNameForUninstall(skillId: string): Promise<string> {
+    const cachedSkill = this.parseSkillShId(skillId);
+    if (cachedSkill) return this.getExistingInstallName(cachedSkill);
+    if (!skillId.startsWith('skillssh:')) return skillId;
+
+    const parsed = this.parseSkillShRemoteId(skillId);
+    if (!parsed) {
+      throw new Error(`Invalid Skills.SH skill id "${skillId}"`);
+    }
+    return this.getExistingInstallName({
+      id: skillId,
+      displayName: parsed.catalogSkillId,
+      description: parsed.sourceRef,
+      source: 'skillssh',
+      sourceRef: parsed.sourceRef,
+      catalogSkillId: parsed.catalogSkillId,
+      skillShPath: parsed.skillShPath,
+      frontmatter: { name: parsed.catalogSkillId, description: parsed.sourceRef },
+      installed: false,
+    });
+  }
+
+  private async getExistingInstallName(skill: CatalogSkill): Promise<string> {
+    const installNames = this.getInstallNameCandidates(skill);
+    for (const installName of installNames) {
+      try {
+        await fs.promises.access(path.resolve(SKILLS_ROOT, installName));
+        return installName;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      }
+    }
+    return installNames[0] ?? skill.id;
+  }
+
+  private parseSkillShRemoteId(
+    skillId: string
+  ): { sourceRef: string; catalogSkillId: string; skillShPath: string } | null {
+    const fullId = skillId.slice('skillssh:'.length);
+    const parts = fullId.split('/');
+    if (parts.length < 3) return null;
+
+    const sourceRef = parts.slice(0, 2).join('/');
+    if (!this.isSkillShGithubSource(sourceRef)) return null;
+
+    const skillShPath = this.normalizeSkillShPath(parts.slice(2).join('/'));
+    if (!this.isSafeSkillShPath(skillShPath)) return null;
+    const catalogSkillId = this.normalizeSkillShSkillId(skillShPath);
+    if (!catalogSkillId) return null;
+    return { sourceRef, catalogSkillId, skillShPath };
+  }
+
+  private getSkillShInstallName(sourceRef: string, skillPath: string): string {
+    const sourceSlug = this.toSkillNameSlug(sourceRef.replace(/\//g, '-'));
+    const normalizedSkillPath = this.normalizeSkillShPath(skillPath);
+    const skillSlug = this.toSkillNameSlug(normalizedSkillPath);
+    const hash = createHash('sha256')
+      .update(`${sourceRef}/${normalizedSkillPath}`)
+      .digest('hex')
+      .slice(0, 8);
+    const base = `skillssh-${sourceSlug}-${skillSlug}`;
+
+    const maxBaseLength = MAX_SKILL_NAME_LENGTH - hash.length - 1;
+    const truncatedBase = base.slice(0, maxBaseLength).replace(/-+$/g, '') || 'skillssh';
+    return `${truncatedBase}-${hash}`;
+  }
+
+  private getLegacySkillShInstallName(sourceRef: string, catalogSkillId: string): string | null {
+    const [owner, repo] = sourceRef.split('/');
+    const installName = `skillssh-${owner}-${repo}-${this.normalizeSkillShSkillId(catalogSkillId)}`;
+    return isValidSkillName(installName) ? installName : null;
+  }
+
+  private async removeSyncedAgentSkillLink(targetDir: string): Promise<void> {
+    try {
+      const stat = await fs.promises.lstat(targetDir);
+      if (!stat.isSymbolicLink()) return;
+
+      const linkTarget = await fs.promises.readlink(targetDir);
+      const resolved = path.resolve(path.dirname(targetDir), linkTarget);
+      if (this.isPathInsideSkillsRoot(resolved)) {
+        await fs.promises.unlink(targetDir);
+      }
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== 'ENOENT') throw error;
+    }
+  }
+
+  private toSkillNameSlug(value: string): string {
+    return (
+      value
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'skill'
+    );
+  }
+
+  private getSkillShUrl(sourceRef: string, skillPath: string): string {
+    const encodedSkillPath = this.normalizeSkillShPath(skillPath)
+      .split('/')
+      .map(encodeURIComponent)
+      .join('/');
+    return `https://skills.sh/${sourceRef}/${encodedSkillPath}`;
   }
 
   private getSkillShIconUrl(sourceRef: string): string | undefined {
@@ -694,6 +813,11 @@ export class SkillsService {
 
     if (!skill.skillShPath) {
       throw new Error(`Could not find SKILL.md for ${skill.sourceRef}/${skill.catalogSkillId}`);
+    }
+    if (!this.isSafeSkillShPath(skill.skillShPath)) {
+      throw new Error(
+        `Invalid Skills.SH skill path for ${skill.sourceRef}/${skill.catalogSkillId}`
+      );
     }
 
     const candidatePaths = [`${skill.skillShPath}/SKILL.md`];
@@ -789,6 +913,11 @@ export class SkillsService {
     return !relativePath.startsWith('..') && !path.isAbsolute(relativePath);
   }
 
+  private isSafeSkillShPath(skillPath: string): boolean {
+    if (!skillPath || path.posix.isAbsolute(skillPath)) return false;
+    return !skillPath.split('/').some((part) => !part || part === '.' || part === '..');
+  }
+
   private loadBundledCatalog(): CatalogIndex {
     return bundledCatalog as CatalogIndex;
   }
@@ -805,13 +934,17 @@ export class SkillsService {
       return true;
     });
 
-    const mergedSkills = dedupedSkills.map((skill) => {
-      const installName = this.getInstallName(skill);
-      const local = installedMap.get(skill.id) ?? installedMap.get(installName);
+    const mergedSkills: CatalogSkill[] = dedupedSkills.map((skill) => {
+      const installNames = this.getInstallNameCandidates(skill);
+      const installName = installNames[0] ?? skill.id;
+      const local =
+        installedMap.get(skill.id) ??
+        installNames.map((name) => installedMap.get(name)).find(Boolean);
       if (local) {
         installedMap.delete(local.id);
         return {
           ...skill,
+          installId: installName !== skill.id ? installName : skill.installId,
           displayName: local.displayName || skill.displayName,
           description: local.description || skill.description,
           frontmatter: { ...skill.frontmatter, ...local.frontmatter },
@@ -820,7 +953,11 @@ export class SkillsService {
           skillMdContent: local.skillMdContent,
         };
       }
-      return { ...skill, installed: false };
+      return {
+        ...skill,
+        installId: installName !== skill.id ? installName : skill.installId,
+        installed: false,
+      };
     });
 
     // Add locally-installed skills not in the catalog

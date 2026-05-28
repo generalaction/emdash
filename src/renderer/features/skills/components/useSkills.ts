@@ -65,6 +65,8 @@ export function useSkills() {
         description: `${skillId} is now available across your agents`,
       });
       void queryClient.invalidateQueries({ queryKey: CATALOG_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: ['skills', 'skillssh-search'] });
+      queryClient.removeQueries({ queryKey: ['skills', 'detail'] });
     },
   });
 
@@ -98,6 +100,8 @@ export function useSkills() {
 
       toast({ title: 'Skill removed', description: 'Skill has been uninstalled' });
       void queryClient.invalidateQueries({ queryKey: CATALOG_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: ['skills', 'skillssh-search'] });
+      queryClient.removeQueries({ queryKey: ['skills', 'detail'] });
     },
   });
 
@@ -178,8 +182,19 @@ export function useSkills() {
   );
 
   const skillShSearchSkills = useMemo(() => {
-    const installedNames = new Set(catalog?.skills.filter((s) => s.installed).map((s) => s.id));
-    return skillShSkills.filter((skill) => !installedNames.has(skill.catalogSkillId ?? skill.id));
+    const installedKeys = new Set<string>();
+    for (const skill of catalog?.skills ?? []) {
+      if (!skill.installed) continue;
+      installedKeys.add(skill.id);
+      if (skill.installId) installedKeys.add(skill.installId);
+    }
+
+    return skillShSkills.filter(
+      (skill) =>
+        !skill.installed &&
+        !installedKeys.has(skill.id) &&
+        (!skill.installId || !installedKeys.has(skill.installId))
+    );
   }, [catalog, skillShSkills]);
 
   return {

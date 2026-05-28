@@ -10,6 +10,8 @@ export interface SkillFrontmatter {
 export interface CatalogSkill {
   /** Skill directory name */
   id: string;
+  /** Local install directory name when it differs from the catalog id */
+  installId?: string;
   /** Human-readable display name */
   displayName: string;
   /** Short description */
@@ -26,7 +28,7 @@ export interface CatalogSkill {
   defaultPrompt?: string;
   /** Skills.SH source repository, e.g. owner/repo */
   sourceRef?: string;
-  /** Original skill id inside the source repository */
+  /** Leaf skill id/name inside the source repository */
   catalogSkillId?: string;
   /** Exact SKILL.md-relative directory path from Skills.SH */
   skillShPath?: string;
