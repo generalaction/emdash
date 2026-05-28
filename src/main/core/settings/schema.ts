@@ -1,5 +1,6 @@
 import z from 'zod';
 import { AGENT_PROVIDER_IDS, AGENT_PROVIDERS } from '@shared/agent-provider-registry';
+import { normalizeBranchPrefix } from '@shared/branch-prefix';
 import { openInAppIdSchema } from '@shared/openInApps';
 import { APP_SHORTCUTS } from '@shared/shortcuts';
 import { TERMINAL_FONT_SIZE_MAX, TERMINAL_FONT_SIZE_MIN } from '@shared/terminal-settings';
@@ -7,7 +8,7 @@ import { DEFAULT_AGENT_ID } from './settings-registry';
 
 export const projectSettingsSchema = z.object({
   pushOnCreate: z.boolean(),
-  branchPrefix: z.string(),
+  branchPrefix: z.string().transform(normalizeBranchPrefix),
   appendRandomBranchSuffix: z.boolean(),
   tmuxByDefault: z.boolean(),
 });
@@ -30,6 +31,8 @@ export const taskSettingsSchema = z.object({
   autoGenerateName: z.boolean(),
   autoTrustWorktrees: z.boolean(),
   createBranchAndWorktree: z.boolean(),
+  preserveNameCapitalization: z.boolean(),
+  includeIssueContextByDefault: z.boolean(),
 });
 
 export const agentAutoApproveDefaultsSchema = z
@@ -69,6 +72,7 @@ export const providerCustomConfigEntrySchema = z.object({
   initialPromptFlag: z.string().optional(),
   sessionIdFlag: z.string().optional(),
   sessionIdOnResumeOnly: z.boolean().optional(),
+  resumeWithoutSessionFlag: z.string().optional(),
   extraArgs: z.string().optional(),
   env: z.record(z.string(), z.string()).optional(),
 });
@@ -86,6 +90,9 @@ export const providerConfigDefaults = Object.fromEntries(
       ...(p.defaultArgs ? { defaultArgs: p.defaultArgs } : {}),
       ...(p.sessionIdFlag ? { sessionIdFlag: p.sessionIdFlag } : {}),
       ...(p.sessionIdOnResumeOnly ? { sessionIdOnResumeOnly: p.sessionIdOnResumeOnly } : {}),
+      ...(p.resumeWithoutSessionFlag
+        ? { resumeWithoutSessionFlag: p.resumeWithoutSessionFlag }
+        : {}),
     },
   ])
 );
@@ -93,6 +100,13 @@ export const providerConfigDefaults = Object.fromEntries(
 export const interfaceSettingsSchema = z.object({
   taskHoverAction: z.enum(['delete', 'archive']),
   autoRightSidebarBehavior: z.boolean(),
+  confirmTabClose: z.boolean(),
+});
+
+export const changesViewModeSchema = z.object({
+  unstaged: z.enum(['flat', 'tree']),
+  staged: z.enum(['flat', 'tree']),
+  pr: z.enum(['flat', 'tree']),
 });
 
 export const browserPreviewSettingsSchema = z.object({ enabled: z.boolean() });
@@ -125,6 +139,7 @@ export const APP_SETTINGS_SCHEMA_MAP = {
   browserPreview: browserPreviewSettingsSchema,
   resourceMonitor: resourceMonitorSettingsSchema,
   worktreeCleanup: worktreeCleanupSettingsSchema,
+  changesViewMode: changesViewModeSchema,
 } as const;
 
 export const appSettingsSchema = z.object({
@@ -142,4 +157,5 @@ export const appSettingsSchema = z.object({
   browserPreview: browserPreviewSettingsSchema,
   resourceMonitor: resourceMonitorSettingsSchema,
   worktreeCleanup: worktreeCleanupSettingsSchema,
+  changesViewMode: changesViewModeSchema,
 });

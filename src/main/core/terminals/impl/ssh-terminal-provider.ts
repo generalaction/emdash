@@ -1,14 +1,13 @@
 import type { IExecutionContext } from '@main/core/execution-context/types';
+import { isUnexpectedPtyExit } from '@main/core/pty/exit-classification';
 import type { Pty } from '@main/core/pty/pty';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { resolveSshCommand } from '@main/core/pty/spawn-utils';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
-import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
-import {
-  sshConnectionManager,
-  type SshConnectionManagerEvent,
-} from '@main/core/ssh/ssh-connection-manager';
+import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
+import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
+import type { SshConnectionManagerEvent } from '@main/core/ssh/lifecycle/ssh-connection-manager';
 import {
   type LifecycleScriptSpawnRequest,
   type TerminalProvider,
@@ -177,8 +176,11 @@ export class SshTerminalProvider implements TerminalProvider {
       });
     }
 
-    pty.onExit(() => {
-      const shouldRespawn = policy.respawnOnExit && this.sessions.has(sessionId);
+    pty.onExit(({ exitCode, signal }) => {
+      const shouldRespawn =
+        policy.respawnOnExit &&
+        this.sessions.has(sessionId) &&
+        isUnexpectedPtyExit({ exitCode, signal });
       this.sessions.delete(sessionId);
       if (!policy.preserveBufferOnExit) {
         ptySessionRegistry.unregister(sessionId);

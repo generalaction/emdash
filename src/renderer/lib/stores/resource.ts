@@ -55,20 +55,29 @@ export class Resource<T, TEventData = void> {
   private readonly _fetch: (() => Promise<T>) | null;
   private readonly _strategies: ResourceStrategy<T, TEventData>[];
   private _inFlight: Promise<void> | null = null;
+  private _reloadQueued = false;
   private _stopFns: Array<() => void> = [];
   private readonly _ctx: ResourceContext<T>;
 
   constructor(
     fetch: (() => Promise<T>) | null,
     strategies: ResourceStrategy<T, TEventData>[],
-    options?: { init?: T }
+    options?: {
+      init?: T;
+      /**
+       * Track only data reference changes. Do not use ctx.mutate() with this
+       * option unless T contains its own MobX observable state; in-place plain
+       * object/array mutations will not notify observers. Use ctx.set() instead.
+       */
+      refData?: boolean;
+    }
   ) {
     this._fetch = fetch;
     this._strategies = strategies;
     this.data = options?.init ?? null;
 
     makeObservable(this, {
-      data: observable,
+      data: options?.refData ? observable.ref : observable,
       loading: observable,
       error: observable,
       lastUpdatedAt: observable,
@@ -127,7 +136,7 @@ export class Resource<T, TEventData = void> {
       .then((data) => {
         runInAction(() => {
           this.data = data;
-          this.loading = false;
+          this.loading = this._reloadQueued;
           this.error = undefined;
           this.lastUpdatedAt = Date.now();
         });
@@ -135,11 +144,15 @@ export class Resource<T, TEventData = void> {
       .catch((e: unknown) => {
         runInAction(() => {
           this.error = e instanceof Error ? e.message : String(e);
-          this.loading = false;
+          this.loading = this._reloadQueued;
         });
       })
       .finally(() => {
         this._inFlight = null;
+        if (this._reloadQueued) {
+          this._reloadQueued = false;
+          void this.load();
+        }
       });
 
     return this._inFlight;
@@ -147,6 +160,10 @@ export class Resource<T, TEventData = void> {
 
   /** Schedule a fresh load (fire-and-forget). */
   invalidate(): void {
+    if (this._inFlight) {
+      this._reloadQueued = true;
+      return;
+    }
     void this.load();
   }
 
@@ -181,6 +198,7 @@ export class Resource<T, TEventData = void> {
 
   /** Stop all timers and unsubscribe all listeners. */
   dispose(): void {
+    this._reloadQueued = false;
     for (const stop of this._stopFns) stop();
     this._stopFns = [];
   }
@@ -266,9 +284,9 @@ export class Resource<T, TEventData = void> {
       if (strategy.onEvent === 'reload') {
         if (strategy.debounceMs) {
           if (debounceTimer) clearTimeout(debounceTimer);
-          debounceTimer = setTimeout(() => void this.load(), strategy.debounceMs);
+          debounceTimer = setTimeout(() => this.invalidate(), strategy.debounceMs);
         } else {
-          void this.load();
+          this.invalidate();
         }
       } else {
         runInAction(() => {

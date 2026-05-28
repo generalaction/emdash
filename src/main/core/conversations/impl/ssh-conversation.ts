@@ -3,13 +3,14 @@ import { claudeTrustService } from '@main/core/agent-hooks/claude-trust-service'
 import type { ConversationProvider } from '@main/core/conversations/types';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
+import { isUnexpectedPtyExit } from '@main/core/pty/exit-classification';
 import type { Pty } from '@main/core/pty/pty';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { resolveSshCommand } from '@main/core/pty/spawn-utils';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
-import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
+import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
@@ -17,6 +18,7 @@ import type { AgentSessionConfig } from '@shared/agent-session';
 import type { Conversation } from '@shared/conversations';
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
+import { resolveAgentSessionCommandArgs } from '../resolve-agent-session-command';
 import { buildAgentSessionCommand } from './agent-command';
 import { scheduleInitialPromptInjection } from './keystroke-injection';
 import { resolveProviderEnv } from './provider-env';
@@ -73,6 +75,18 @@ export class SshConversationProvider implements ConversationProvider {
     isResuming: boolean = false,
     initialPrompt?: string
   ): Promise<void> {
+    return this.startSessionInternal(conversation, initialSize, isResuming, initialPrompt, {
+      shellRefreshRetried: false,
+    });
+  }
+
+  private async startSessionInternal(
+    conversation: Conversation,
+    initialSize: { cols: number; rows: number },
+    isResuming: boolean,
+    initialPrompt: string | undefined,
+    options: { shellRefreshRetried: boolean }
+  ): Promise<void> {
     const sessionId = makePtySessionId(
       conversation.projectId,
       conversation.taskId,
@@ -90,12 +104,16 @@ export class SshConversationProvider implements ConversationProvider {
     });
 
     const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
+    const agentSession = resolveAgentSessionCommandArgs(conversation, isResuming, {
+      requireProviderSessionId: false,
+    });
     const { command, args } = buildAgentSessionCommand({
       providerId: conversation.providerId,
       providerConfig,
       autoApprove: conversation.autoApprove,
       sessionId: conversation.id,
-      isResuming,
+      providerSessionId: conversation.providerSessionId,
+      isResuming: agentSession.isResuming,
       initialPrompt,
     });
     const providerEnv = resolveProviderEnv(providerConfig, {
@@ -152,10 +170,33 @@ export class SshConversationProvider implements ConversationProvider {
       conversationId: conversation.id,
     });
 
-    pty.onExit(({ exitCode }) => {
+    pty.onExit(({ exitCode, signal }) => {
       ptySessionRegistry.unregister(sessionId);
-      const shouldRespawn = this.sessions.has(sessionId);
+      const sessionWasActive = this.sessions.has(sessionId);
+      const shouldRetryAfterShellRefresh =
+        sessionWasActive && !this.tmux && !options.shellRefreshRetried && exitCode === 127;
+      const shouldRespawn =
+        sessionWasActive && exitCode !== 127 && isUnexpectedPtyExit({ exitCode, signal });
       this.sessions.delete(sessionId);
+      if (shouldRetryAfterShellRefresh) {
+        setTimeout(() => {
+          this.proxy
+            .refreshRemoteShellProfile()
+            .then(() =>
+              this.startSessionInternal(conversation, initialSize, isResuming, initialPrompt, {
+                shellRefreshRetried: true,
+              })
+            )
+            .catch((e) => {
+              log.error('SshConversationProvider: shell refresh retry failed', {
+                conversationId: conversation.id,
+                error: String(e),
+              });
+            });
+        }, 500);
+        return;
+      }
+
       events.emit(agentSessionExitedChannel, {
         sessionId,
         projectId: conversation.projectId,
@@ -163,11 +204,12 @@ export class SshConversationProvider implements ConversationProvider {
         taskId: conversation.taskId,
         exitCode,
       });
+
       if (shouldRespawn && !this.tmux) {
         const count = (this.respawnCounts.get(sessionId) ?? 0) + 1;
         this.respawnCounts.set(sessionId, count);
 
-        if (count > MAX_RESPAWNS && !isResuming) {
+        if (count > MAX_RESPAWNS) {
           log.error('SshConversationProvider: respawn limit reached, giving up', {
             conversationId: conversation.id,
           });
@@ -176,8 +218,6 @@ export class SshConversationProvider implements ConversationProvider {
         }
 
         const resumeNext = isResuming && count <= MAX_RESPAWNS;
-        if (count > MAX_RESPAWNS) this.respawnCounts.set(sessionId, 0);
-
         setTimeout(() => {
           this.startSession(conversation, initialSize, resumeNext, initialPrompt).catch((e) => {
             log.error('SshConversationProvider: respawn failed', {
@@ -205,6 +245,7 @@ export class SshConversationProvider implements ConversationProvider {
   async stopSession(conversationId: string): Promise<void> {
     const sessionId = makePtySessionId(this.projectId, this.taskId, conversationId);
     this.knownSessionIds.delete(sessionId);
+    this.respawnCounts.delete(sessionId);
     const pty = this.sessions.get(sessionId);
     if (pty) {
       try {
@@ -237,5 +278,6 @@ export class SshConversationProvider implements ConversationProvider {
       ptySessionRegistry.unregister(sessionId);
     }
     this.sessions.clear();
+    this.respawnCounts.clear();
   }
 }

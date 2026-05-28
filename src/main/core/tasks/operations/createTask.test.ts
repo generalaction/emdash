@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TaskRow } from '@main/db/schema';
+import { err } from '@shared/result';
+import { toStoredBranch } from '../stored-branch';
 import { createTask } from './createTask';
 
 const mocks = vi.hoisted(() => ({
@@ -7,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   update: vi.fn(),
   getProject: vi.fn(),
   getAppSetting: vi.fn(),
-  getProjectRemoteInfo: vi.fn(),
+  resolveProviderRepository: vi.fn(),
   getTaskPullRequests: vi.fn(),
   findBranchAnywhere: vi.fn(),
   fetchPrForReview: vi.fn(),
@@ -35,8 +37,13 @@ vi.mock('../../settings/settings-service', () => ({
 
 vi.mock('../../pull-requests/pr-query-service', () => ({
   prQueryService: {
-    getProjectRemoteInfo: mocks.getProjectRemoteInfo,
     getTaskPullRequests: mocks.getTaskPullRequests,
+  },
+}));
+
+vi.mock('@main/core/repository/provider-repository-service', () => ({
+  providerRepositoryService: {
+    resolveProject: mocks.resolveProviderRepository,
   },
 }));
 
@@ -85,7 +92,7 @@ describe('createTask', () => {
         fetchPrForReview: mocks.fetchPrForReview,
       },
     });
-    mocks.getProjectRemoteInfo.mockResolvedValue({ status: 'unavailable' });
+    mocks.resolveProviderRepository.mockResolvedValue(err({ type: 'unsupported_provider' }));
 
     const updateWhere = vi.fn().mockResolvedValue(undefined);
     const updateSet = vi.fn(() => ({ where: updateWhere }));
@@ -125,7 +132,10 @@ describe('createTask', () => {
     expect(insertTaskValues).toHaveBeenCalledWith(
       expect.objectContaining({
         taskBranch: 'claude/add-french-translations-ud2fs',
-        sourceBranch: { type: 'local', branch: 'claude/add-french-translations-ud2fs' },
+        sourceBranch: toStoredBranch({
+          type: 'local',
+          branch: 'claude/add-french-translations-ud2fs',
+        }),
       })
     );
   });
@@ -172,7 +182,10 @@ describe('createTask', () => {
     expect(insertTaskValues).toHaveBeenCalledWith(
       expect.objectContaining({
         taskBranch: 'claude/add-french-translations-ud2fs',
-        sourceBranch: { type: 'local', branch: 'claude/add-french-translations-ud2fs' },
+        sourceBranch: toStoredBranch({
+          type: 'local',
+          branch: 'claude/add-french-translations-ud2fs',
+        }),
       })
     );
   });

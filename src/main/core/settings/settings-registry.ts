@@ -27,6 +27,8 @@ export const SETTINGS_DEFAULTS = {
     autoGenerateName: true,
     autoTrustWorktrees: true,
     createBranchAndWorktree: true,
+    preserveNameCapitalization: false,
+    includeIssueContextByDefault: true,
   },
   agentAutoApproveDefaults: {},
   notifications: {
@@ -50,6 +52,7 @@ export const SETTINGS_DEFAULTS = {
   interface: {
     taskHoverAction: 'delete' as const,
     autoRightSidebarBehavior: false,
+    confirmTabClose: false,
   },
   browserPreview: {
     enabled: true,
@@ -61,6 +64,11 @@ export const SETTINGS_DEFAULTS = {
     autoCleanupEnabled: false,
     maxWorktrees: 20,
     maxTotalSizeGb: 50,
+  },
+  changesViewMode: {
+    unstaged: 'flat' as const,
+    staged: 'flat' as const,
+    pr: 'flat' as const,
   },
 } satisfies SettingsDefaultsMap;
 

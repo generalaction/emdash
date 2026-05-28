@@ -38,43 +38,69 @@ export const ChangesListItem = forwardRef<HTMLButtonElement, ChangesListItemProp
             )}
           </span>
         </div>
-        <div
-          className="flex shrink-0 items-center gap-1.5"
-          aria-label={`${change.additions} lines added, ${change.deletions} lines removed`}
-        >
-          <DiffLineStats additions={change.additions} deletions={change.deletions} />
-          <span className="relative flex size-4 items-center justify-center">
-            <span
-              className={cn(
-                'transition-opacity',
-                onToggleSelect && 'group-hover/item:opacity-0',
-                isSelected && 'opacity-0'
-              )}
-            >
-              <GitChangeStatusIcon status={change.status} className="size-4" />
-            </span>
-            {onToggleSelect && (
-              <span
-                className={cn(
-                  'absolute inset-0 flex items-center justify-center transition-opacity',
-                  'opacity-0 group-hover/item:opacity-100',
-                  isSelected && 'opacity-100'
-                )}
-              >
-                <Checkbox
-                  checked={isSelected ?? false}
-                  onCheckedChange={() => onToggleSelect(change.path)}
-                  onClick={(e) => e.stopPropagation()}
-                  aria-label={`Select ${filename}`}
-                />
-              </span>
-            )}
-          </span>
-        </div>
+        <ChangeStatusAffordance
+          change={change}
+          filename={filename}
+          isSelected={isSelected}
+          onToggleSelect={onToggleSelect}
+        />
       </button>
     );
   }
 );
+
+interface ChangeStatusAffordanceProps {
+  change: GitChange;
+  filename: string;
+  isSelected?: boolean;
+  onToggleSelect?: (path: string) => void;
+}
+
+export function ChangeStatusAffordance({
+  change,
+  filename,
+  isSelected,
+  onToggleSelect,
+}: ChangeStatusAffordanceProps) {
+  return (
+    <div
+      className="flex shrink-0 items-center gap-1.5"
+      aria-label={`${change.additions} lines added, ${change.deletions} lines removed`}
+    >
+      <DiffLineStats additions={change.additions} deletions={change.deletions} />
+      <span className="relative flex size-4 items-center justify-center">
+        <span
+          className={cn(
+            'transition-opacity',
+            onToggleSelect && 'group-hover/item:opacity-0',
+            isSelected && 'opacity-0'
+          )}
+        >
+          <GitChangeStatusIcon status={change.status} className="size-4" />
+        </span>
+        {onToggleSelect && (
+          <span
+            className={cn(
+              'absolute inset-0 flex items-center justify-center transition-opacity',
+              'opacity-0 group-hover/item:opacity-100',
+              isSelected && 'opacity-100'
+            )}
+            onClick={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <Checkbox
+              checked={isSelected ?? false}
+              onCheckedChange={() => onToggleSelect(change.path)}
+              aria-label={`Select ${filename}`}
+            />
+          </span>
+        )}
+      </span>
+    </div>
+  );
+}
 
 function DiffLineStats({ additions, deletions }: { additions: number; deletions: number }) {
   if (additions === 0 && deletions === 0) return null;

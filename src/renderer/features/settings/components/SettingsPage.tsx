@@ -8,6 +8,7 @@ import { CliAgentsList } from './CliAgentsList';
 import DefaultAgentSettingsCard from './DefaultAgentSettingsCard';
 import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
 import IntegrationsCard from './IntegrationsCard';
+import InterfaceSettingsCard from './InterfaceSettingsCard';
 import KeyboardSettingsCard from './KeyboardSettingsCard';
 import NotificationSettingsCard from './NotificationSettingsCard';
 import RepositorySettingsCard from './RepositorySettingsCard';
@@ -18,6 +19,8 @@ import {
   AutoTrustWorktreesRow,
   CreateBranchAndWorktreeRow,
   EnableTmuxRow,
+  IncludeIssueContextByDefaultRow,
+  PreserveTaskNameCapitalizationRow,
 } from './TaskSettingsRows';
 import TelemetryCard from './TelemetryCard';
 import TerminalSettingsCard from './TerminalSettingsCard';
@@ -90,6 +93,12 @@ export function SettingsPage({
           component: <CreateBranchAndWorktreeRow />,
         },
         {
+          component: <PreserveTaskNameCapitalizationRow />,
+        },
+        {
+          component: <IncludeIssueContextByDefaultRow />,
+        },
+        {
           component: <EnableTmuxRow />,
         },
         {
@@ -147,6 +156,7 @@ export function SettingsPage({
         { component: <ThemeCard /> },
         { component: <TerminalSettingsCard /> },
         { component: <ResourceMonitorSettingsCard /> },
+        { component: <InterfaceSettingsCard /> },
         { title: 'Keyboard shortcuts', component: <KeyboardSettingsCard /> },
         {
           title: 'Tools',
@@ -192,8 +202,8 @@ export function SettingsPage({
           </div>
           {/* Content container */}
           {currentContent && (
-            <div className="min-h-0 min-w-0 flex-1 justify-center overflow-x-hidden overflow-y-auto">
-              <div className="mx-auto w-full max-w-4xl space-y-8 px-1 py-10">
+            <div className="min-h-0 min-w-0 flex-1 justify-center overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable]">
+              <div className="mx-auto w-full max-w-4xl space-y-8 px-4 py-10">
                 <PageHeader title={currentContent.title} description={currentContent.description} />
                 {currentContent.sections.map((section) => (
                   <div key={section.title} className="flex flex-col gap-3">

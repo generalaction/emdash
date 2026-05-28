@@ -43,7 +43,7 @@ export const PrRow = memo(function PrRow({
                   <ExternalLink className="size-3.5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Open PR on github</TooltipContent>
+              <TooltipContent>Open PR on GitHub</TooltipContent>
             </Tooltip>
           </div>
           <RelativeTime value={pr.createdAt} className="text-xs text-foreground-passive" compact />

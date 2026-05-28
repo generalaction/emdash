@@ -71,6 +71,7 @@ describe('buildAgentEnv provider env forwarding', () => {
       GEMINI_MODEL: 'gemini-2.5-pro',
       GOOGLE_GENAI_API_VERSION: 'v1beta',
       GROK_CODE_XAI_API_KEY: 'xai-key',
+      GROK_HOME: '/tmp/grok-home',
       BAILIAN_CODING_PLAN_API_KEY: 'bailian-key',
       GOOSE_PROVIDER: 'openai',
       GOOSE_MODEL: 'gpt-5.1',

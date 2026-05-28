@@ -30,6 +30,11 @@ import { updateService } from './core/updates/update-service';
 import { viewStateService } from './core/view-state/view-state-service';
 import { worktreeCleanupService } from './core/worktree-cleanup/service';
 import { initializeDatabase } from './db/initialize';
+import {
+  initializeFileLogger,
+  registerProcessErrorLogging,
+  registerRendererLogHandler,
+} from './lib/file-logger';
 import { log } from './lib/logger';
 import { telemetryService } from './lib/telemetry';
 import { rpcRouter } from './rpc';
@@ -47,6 +52,9 @@ registerAppScheme();
 
 app.setName(PRODUCT_NAME);
 app.setPath('userData', join(app.getPath('appData'), 'emdash'));
+initializeFileLogger();
+registerProcessErrorLogging(log);
+registerRendererLogHandler(ipcMain);
 
 app.on('second-instance', () => {
   const win = BrowserWindow.getAllWindows()[0];
