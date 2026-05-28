@@ -3,11 +3,11 @@ import { projectManager } from '@main/core/projects/project-manager';
 import { taskManager } from '@main/core/tasks/task-manager';
 import { viewStateService } from '@main/core/view-state/view-state-service';
 import { db } from '@main/db/client';
-import { tasks, workspaces } from '@main/db/schema';
+import { tasks } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import type { DeleteTaskOptions } from '@shared/tasks';
-import { removeWorktreeIfUnused } from './task-lifecycle-utils';
+import { deleteWorkspaceIfUnused, removeWorktreeIfUnused } from './task-lifecycle-utils';
 
 export async function deleteTask(
   projectId: string,
@@ -34,12 +34,7 @@ export async function deleteTask(
   }
 
   if (task.workspaceId) {
-    await db
-      .delete(workspaces)
-      .where(eq(workspaces.id, task.workspaceId))
-      .catch((e) => {
-        log.warn('deleteTask: workspace row deletion failed', { taskId, error: String(e) });
-      });
+    await deleteWorkspaceIfUnused(task.workspaceId, taskId);
   }
 
   await db.delete(tasks).where(eq(tasks.id, taskId));
