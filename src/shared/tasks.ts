@@ -4,6 +4,48 @@ import type { PullRequest } from '@shared/pull-requests';
 
 export type TaskLifecycleStatus = 'todo' | 'in_progress' | 'review' | 'done' | 'cancelled';
 
+export type TaskKind = 'task' | 'chat';
+
+/** Sidebar / view grouping derived from {@link TaskKind}. */
+export type TaskSidebarGroup = 'tasks' | 'chats';
+
+export const TASK_SIDEBAR_GROUP_LABEL: Record<TaskSidebarGroup, string> = {
+  tasks: 'Tasks',
+  chats: 'Chats',
+};
+
+export function taskSidebarGroupForKind(kind: TaskKind): TaskSidebarGroup {
+  return kind === 'chat' ? 'chats' : 'tasks';
+}
+
+export type TaskViewProfile = {
+  group: TaskSidebarGroup;
+  showGitChrome: boolean;
+  showChangesSidebar: boolean;
+  showFilesSidebar: boolean;
+  showFilePicker: boolean;
+};
+
+export function taskViewProfile(kind: TaskKind): TaskViewProfile {
+  const group = taskSidebarGroupForKind(kind);
+  if (group === 'chats') {
+    return {
+      group,
+      showGitChrome: false,
+      showChangesSidebar: false,
+      showFilesSidebar: false,
+      showFilePicker: false,
+    };
+  }
+  return {
+    group,
+    showGitChrome: true,
+    showChangesSidebar: true,
+    showFilesSidebar: true,
+    showFilePicker: true,
+  };
+}
+
 export type Issue = {
   provider: 'github' | 'linear' | 'jira' | 'gitlab' | 'plain' | 'forgejo' | 'featurebase' | 'asana';
   url: string;
@@ -23,6 +65,7 @@ export type Task = {
   id: string;
   projectId: string;
   name: string;
+  kind: TaskKind;
   status: TaskLifecycleStatus;
   sourceBranch: Branch | undefined;
   taskBranch?: string;
@@ -65,6 +108,7 @@ export type CreateTaskParams = {
   id: string;
   projectId: string;
   name: string;
+  kind?: TaskKind;
   /** The branch to fork the new worktree from (not used for `from-pull-request` strategy) */
   sourceBranch: Branch;
   /** Controls branch creation, worktree setup, and git fetch strategy */
@@ -137,6 +181,12 @@ export type TaskDeletePreflightItem = {
 export type DeletePreflightResult = {
   tasks: TaskDeletePreflightItem[];
 };
+
+export function generateChatName(now = new Date()): string {
+  const month = now.toLocaleString('en', { month: 'short' });
+  const day = now.getDate();
+  return `chat-${month.toLowerCase()}-${day}`;
+}
 
 export function formatIssueAsPrompt(issue: Issue, initialPrompt?: string): string {
   const parts = [

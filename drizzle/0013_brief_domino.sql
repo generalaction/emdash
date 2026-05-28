@@ -1,0 +1,1 @@
+ALTER TABLE `tasks` ADD `kind` text DEFAULT 'task' NOT NULL;

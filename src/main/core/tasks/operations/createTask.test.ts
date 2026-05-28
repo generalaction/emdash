@@ -51,6 +51,7 @@ function makeTaskRow(values: Partial<TaskRow>): TaskRow {
     id: values.id ?? 'task-1',
     projectId: values.projectId ?? 'project-1',
     name: values.name ?? 'Review PR',
+    kind: values.kind ?? 'task',
     status: values.status ?? 'in_progress',
     sourceBranch: values.sourceBranch ?? null,
     taskBranch: values.taskBranch ?? null,
@@ -181,5 +182,62 @@ describe('createTask', () => {
         sourceBranch: { type: 'local', branch: 'claude/add-french-translations-ud2fs' },
       })
     );
+  });
+
+  it('inserts kind="chat" with no worktree when requested', async () => {
+    const insertTaskValues = vi.fn((values: Partial<TaskRow>) => ({
+      returning: vi.fn().mockResolvedValue([makeTaskRow(values)]),
+    }));
+    const insertWorkspaceValues = vi.fn().mockResolvedValue(undefined);
+    mocks.insert
+      .mockReturnValueOnce({ values: insertTaskValues })
+      .mockReturnValueOnce({ values: insertWorkspaceValues });
+
+    const result = await createTask({
+      id: 'chat-1',
+      projectId: 'project-1',
+      name: 'chat-may-27',
+      kind: 'chat',
+      sourceBranch: { type: 'local', branch: 'main' },
+      strategy: { kind: 'no-worktree' },
+    });
+
+    expect(result.success).toBe(true);
+    expect(insertTaskValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: 'chat',
+        taskBranch: undefined,
+      })
+    );
+  });
+
+  it('defaults kind to "task" when not provided', async () => {
+    const insertTaskValues = vi.fn((values: Partial<TaskRow>) => ({
+      returning: vi.fn().mockResolvedValue([makeTaskRow(values)]),
+    }));
+    const insertWorkspaceValues = vi.fn().mockResolvedValue(undefined);
+    mocks.insert
+      .mockReturnValueOnce({ values: insertTaskValues })
+      .mockReturnValueOnce({ values: insertWorkspaceValues });
+
+    await createTask({
+      id: 'task-1',
+      projectId: 'project-1',
+      name: 'Review PR',
+      sourceBranch: {
+        type: 'remote',
+        branch: 'main',
+        remote: { name: 'origin', url: 'https://github.com/example/repo.git' },
+      },
+      strategy: {
+        kind: 'from-pull-request',
+        prNumber: 123,
+        headBranch: 'feature',
+        headRepositoryUrl: 'https://github.com/example/repo.git',
+        isFork: false,
+      },
+    });
+
+    expect(insertTaskValues).toHaveBeenCalledWith(expect.objectContaining({ kind: 'task' }));
   });
 });

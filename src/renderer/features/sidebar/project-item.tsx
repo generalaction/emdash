@@ -4,6 +4,7 @@ import {
   FolderClosed,
   FolderInput,
   Loader2,
+  MessageSquare,
   Plus,
   RotateCcw,
   Trash2,
@@ -21,6 +22,7 @@ import {
   getRepositoryStore,
   projectViewKind,
 } from '@renderer/features/projects/stores/project-selectors';
+import { getTaskManagerStore } from '@renderer/features/tasks/stores/task-selectors';
 import { ConnectionStatusDot } from '@renderer/lib/components/connection-status-dot';
 import {
   useNavigate,
@@ -168,31 +170,52 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
               )}
             </span>
           </div>
-          <Tooltip>
-            <TooltipTrigger
-              className="h-6"
-              render={
-                <SidebarItemMiniButton
-                  type="button"
-                  className={
-                    'opacity-0 transition-opacity duration-150 group-hover/row:opacity-100'
-                  }
-                  onPointerEnter={() => prefetchRepository()}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    showCreateTaskModal({ projectId });
-                  }}
-                  disabled={project.state === 'unregistered'}
-                >
-                  <Plus className="h-4 w-4" />
-                </SidebarItemMiniButton>
-              }
-            />
-            <TooltipContent>
-              New Task
-              <BoundShortcut settingsKey="newTask" variant="badge" />
-            </TooltipContent>
-          </Tooltip>
+          <div className="flex items-center opacity-0 transition-opacity duration-150 group-hover/row:opacity-100">
+            <Tooltip>
+              <TooltipTrigger
+                className="h-6"
+                render={
+                  <SidebarItemMiniButton
+                    type="button"
+                    onPointerEnter={() => prefetchRepository()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const taskManager = getTaskManagerStore(projectId);
+                      if (!taskManager) return;
+                      const taskId = taskManager.createChat();
+                      navigate('task', { projectId, taskId });
+                    }}
+                    disabled={project.state === 'unregistered'}
+                  >
+                    <MessageSquare className="h-4 w-4" />
+                  </SidebarItemMiniButton>
+                }
+              />
+              <TooltipContent>New Chat</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger
+                className="h-6"
+                render={
+                  <SidebarItemMiniButton
+                    type="button"
+                    onPointerEnter={() => prefetchRepository()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      showCreateTaskModal({ projectId });
+                    }}
+                    disabled={project.state === 'unregistered'}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </SidebarItemMiniButton>
+                }
+              />
+              <TooltipContent>
+                New Task
+                <BoundShortcut settingsKey="newTask" variant="badge" />
+              </TooltipContent>
+            </Tooltip>
+          </div>
         </SidebarMenuRow>
       </ContextMenuTrigger>
       <ContextMenuContent>

@@ -43,6 +43,7 @@ import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
 import { cn } from '@renderer/utils/utils';
+import { taskViewProfile } from '@shared/tasks';
 import type { Issue } from '@shared/tasks';
 import { DevServerPills } from './components/dev-server-pills';
 import { IssueSelector, ProviderLogo } from './components/issue-selector/issue-selector';
@@ -132,6 +133,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
   if (!taskStore || !taskPayload) return null;
 
   const isRemoteProject = projectStore?.data.type === 'ssh';
+  const viewProfile = taskViewProfile(taskPayload.kind);
   return (
     <Titlebar
       leftSlot={
@@ -144,154 +146,165 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
             {projectName}
           </button>
           <span className="text-sm text-foreground-passive">/</span>
-          <Popover>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <PopoverTrigger className="flex items-center gap-1 text-sm text-foreground-muted hover:text-foreground">
-                    <span className="flex min-w-0 items-center gap-1.5">
-                      <span className="max-w-56 truncate">{taskDisplayName(taskStore)}</span>
-                      <ConnectionStatusDot state={workspace.connectionState} />
-                    </span>
-                    <ChevronDown className="size-3.5 shrink-0" />
-                  </PopoverTrigger>
-                }
-              />
-              <TooltipContent>Link to issue</TooltipContent>
-            </Tooltip>
-            <PopoverContent align="start" className="flex w-96 flex-col gap-2 p-4">
-              <div className="flex w-full flex-col gap-1">
-                <MicroLabel className="flex items-center text-foreground-passive">Task</MicroLabel>
-                <span className="text-sm tracking-tight">{taskDisplayName(taskStore)}</span>
-              </div>
-              <div className="flex flex-col gap-1 rounded-md border border-border p-2">
-                <span className="flex items-center gap-1 text-foreground-muted">
-                  <GitBranch className="size-3.5" />
-                  <span>{workspace.git.branchName}</span>
-                </span>
-                {taskPayload.sourceBranch && (
-                  <span className="flex items-center gap-2 text-foreground-passive">
-                    Created from
-                    <span className="flex items-center gap-1 text-foreground-muted">
-                      <GitBranch className="size-3.5" /> {taskPayload.sourceBranch.branch}
-                    </span>
+          {!viewProfile.showGitChrome ? (
+            <span className="flex min-w-0 items-center gap-1.5 text-sm text-foreground-muted">
+              <span className="max-w-56 truncate">{taskDisplayName(taskStore)}</span>
+              <ConnectionStatusDot state={workspace.connectionState} />
+            </span>
+          ) : (
+            <Popover>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <PopoverTrigger className="flex items-center gap-1 text-sm text-foreground-muted hover:text-foreground">
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span className="max-w-56 truncate">{taskDisplayName(taskStore)}</span>
+                        <ConnectionStatusDot state={workspace.connectionState} />
+                      </span>
+                      <ChevronDown className="size-3.5 shrink-0" />
+                    </PopoverTrigger>
+                  }
+                />
+                <TooltipContent>Link to issue</TooltipContent>
+              </Tooltip>
+              <PopoverContent align="start" className="flex w-96 flex-col gap-2 p-4">
+                <div className="flex w-full flex-col gap-1">
+                  <MicroLabel className="flex items-center text-foreground-passive">
+                    Task
+                  </MicroLabel>
+                  <span className="text-sm tracking-tight">{taskDisplayName(taskStore)}</span>
+                </div>
+                <div className="flex flex-col gap-1 rounded-md border border-border p-2">
+                  <span className="flex items-center gap-1 text-foreground-muted">
+                    <GitBranch className="size-3.5" />
+                    <span>{workspace.git.branchName}</span>
                   </span>
-                )}
-                <div className="flex w-full items-center gap-1">
-                  {hasUpstream ? (
-                    <>
+                  {taskPayload.sourceBranch && (
+                    <span className="flex items-center gap-2 text-foreground-passive">
+                      Created from
+                      <span className="flex items-center gap-1 text-foreground-muted">
+                        <GitBranch className="size-3.5" /> {taskPayload.sourceBranch.branch}
+                      </span>
+                    </span>
+                  )}
+                  <div className="flex w-full items-center gap-1">
+                    {hasUpstream ? (
+                      <>
+                        <Tooltip>
+                          <TooltipTrigger className="flex-1">
+                            <Button
+                              className="w-full"
+                              variant="outline"
+                              size="xs"
+                              disabled={isFetching}
+                              onClick={() => fetch()}
+                            >
+                              <RefreshCcw className="size-3" />
+                              {isFetching ? 'Fetching...' : 'Fetch'}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {isFetching ? 'Fetching...' : 'Fetch changes'}
+                          </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger className="flex-1">
+                            <Button
+                              className="w-full"
+                              variant="outline"
+                              disabled={isPulling || behindCount === 0}
+                              size="xs"
+                              onClick={() => pull()}
+                            >
+                              <ArrowDown className="size-3" />
+                              {isPulling ? (
+                                'Pulling...'
+                              ) : (
+                                <span className="flex items-center gap-1">
+                                  Pull
+                                  <Badge variant="secondary" className="shrink-0">
+                                    {behindCount}
+                                  </Badge>
+                                </span>
+                              )}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {isPulling
+                              ? 'Pulling...'
+                              : behindCount === 0
+                                ? 'Nothing to pull'
+                                : 'Pull changes'}
+                          </TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger className="flex-1">
+                            <Button
+                              className="w-full"
+                              variant="outline"
+                              disabled={isPushing || aheadCount === 0}
+                              size="xs"
+                              onClick={() => push()}
+                            >
+                              <ArrowUp className="size-3" />
+                              {isPushing ? (
+                                'Pushing...'
+                              ) : (
+                                <span className="flex items-center gap-1">
+                                  Push
+                                  <Badge variant="secondary" className="shrink-0">
+                                    {aheadCount}
+                                  </Badge>
+                                </span>
+                              )}
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {isPushing
+                              ? 'Pushing...'
+                              : aheadCount === 0
+                                ? 'Nothing to push'
+                                : 'Push changes'}
+                          </TooltipContent>
+                        </Tooltip>
+                      </>
+                    ) : (
                       <Tooltip>
                         <TooltipTrigger className="flex-1">
                           <Button
                             className="w-full"
                             variant="outline"
+                            disabled={isPublishing}
                             size="xs"
-                            disabled={isFetching}
-                            onClick={() => fetch()}
-                          >
-                            <RefreshCcw className="size-3" />
-                            {isFetching ? 'Fetching...' : 'Fetch'}
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          {isFetching ? 'Fetching...' : 'Fetch changes'}
-                        </TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger className="flex-1">
-                          <Button
-                            className="w-full"
-                            variant="outline"
-                            disabled={isPulling || behindCount === 0}
-                            size="xs"
-                            onClick={() => pull()}
-                          >
-                            <ArrowDown className="size-3" />
-                            {isPulling ? (
-                              'Pulling...'
-                            ) : (
-                              <span className="flex items-center gap-1">
-                                Pull
-                                <Badge variant="secondary" className="shrink-0">
-                                  {behindCount}
-                                </Badge>
-                              </span>
-                            )}
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          {isPulling
-                            ? 'Pulling...'
-                            : behindCount === 0
-                              ? 'Nothing to pull'
-                              : 'Pull changes'}
-                        </TooltipContent>
-                      </Tooltip>
-                      <Tooltip>
-                        <TooltipTrigger className="flex-1">
-                          <Button
-                            className="w-full"
-                            variant="outline"
-                            disabled={isPushing || aheadCount === 0}
-                            size="xs"
-                            onClick={() => push()}
+                            onClick={() => publish()}
                           >
                             <ArrowUp className="size-3" />
-                            {isPushing ? (
-                              'Pushing...'
-                            ) : (
-                              <span className="flex items-center gap-1">
-                                Push
-                                <Badge variant="secondary" className="shrink-0">
-                                  {aheadCount}
-                                </Badge>
-                              </span>
-                            )}
+                            {isPublishing ? 'Publishing...' : 'Publish'}
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>
-                          {isPushing
-                            ? 'Pushing...'
-                            : aheadCount === 0
-                              ? 'Nothing to push'
-                              : 'Push changes'}
+                          {isPublishing ? 'Publishing...' : 'Publish branch'}
                         </TooltipContent>
                       </Tooltip>
-                    </>
-                  ) : (
-                    <Tooltip>
-                      <TooltipTrigger className="flex-1">
-                        <Button
-                          className="w-full"
-                          variant="outline"
-                          disabled={isPublishing}
-                          size="xs"
-                          onClick={() => publish()}
-                        >
-                          <ArrowUp className="size-3" />
-                          {isPublishing ? 'Publishing...' : 'Publish'}
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        {isPublishing ? 'Publishing...' : 'Publish branch'}
-                      </TooltipContent>
-                    </Tooltip>
-                  )}
+                    )}
+                  </div>
                 </div>
-              </div>
-              <IssueSelector
-                value={taskPayload.linkedIssue ?? null}
-                onValueChange={(issue) => {
-                  void taskStore.updateLinkedIssue(issue ?? undefined);
-                }}
-                projectId={projectId}
-                repositoryUrl={workspace.repository.issueRepositoryUrl ?? ''}
-                projectPath={workspace.path}
-                excludeTaskId={taskId}
-              />
-            </PopoverContent>
-          </Popover>
-          {taskPayload.linkedIssue ? <LinkedIssueBadge issue={taskPayload.linkedIssue} /> : null}
+                <IssueSelector
+                  value={taskPayload.linkedIssue ?? null}
+                  onValueChange={(issue) => {
+                    void taskStore.updateLinkedIssue(issue ?? undefined);
+                  }}
+                  projectId={projectId}
+                  repositoryUrl={workspace.repository.issueRepositoryUrl ?? ''}
+                  projectPath={workspace.path}
+                  excludeTaskId={taskId}
+                />
+              </PopoverContent>
+            </Popover>
+          )}
+          {viewProfile.showGitChrome && taskPayload.linkedIssue ? (
+            <LinkedIssueBadge issue={taskPayload.linkedIssue} />
+          ) : null}
           <button
             className={cn(
               'text-foreground-muted ml-1',
@@ -344,51 +357,55 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
             size="icon-sm"
             className="border-none bg-transparent"
           >
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <ToggleGroupItem
-                    value="changes"
-                    aria-label="Changes"
-                    className={cn('w-auto! min-w-7! gap-0', hasDiffStats && 'w-full px-2!')}
-                  >
-                    <FileDiff className="size-3.5" />
-                    <span
-                      className={cn(
-                        'overflow-hidden transition-[max-width,padding-left] duration-500 ease-in-out flex items-center tabular-nums text-xs leading-none gap-1',
-                        hasDiffStats ? 'max-w-20 pl-1' : 'max-w-0 pl-0'
-                      )}
+            {viewProfile.showChangesSidebar && (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <ToggleGroupItem
+                      value="changes"
+                      aria-label="Changes"
+                      className={cn('w-auto! min-w-7! gap-0', hasDiffStats && 'w-full px-2!')}
                     >
-                      {linesAdded > 0 && (
-                        <span className="text-foreground-diff-added">
-                          +{formatDiffLineCount(linesAdded)}
-                        </span>
-                      )}
-                      {linesDeleted > 0 && (
-                        <span className="text-foreground-diff-deleted">
-                          -{formatDiffLineCount(linesDeleted)}
-                        </span>
-                      )}
-                    </span>
-                  </ToggleGroupItem>
-                }
-              />
-              <TooltipContent>
-                Changes <BoundShortcut settingsKey="sidebarChanges" variant="badge" />
-              </TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <ToggleGroupItem size="icon-sm" value="files" aria-label="Files">
-                    <FolderOpen className="size-3.5" />
-                  </ToggleGroupItem>
-                }
-              />
-              <TooltipContent>
-                Files <BoundShortcut settingsKey="sidebarFiles" variant="badge" />
-              </TooltipContent>
-            </Tooltip>
+                      <FileDiff className="size-3.5" />
+                      <span
+                        className={cn(
+                          'overflow-hidden transition-[max-width,padding-left] duration-500 ease-in-out flex items-center tabular-nums text-xs leading-none gap-1',
+                          hasDiffStats ? 'max-w-20 pl-1' : 'max-w-0 pl-0'
+                        )}
+                      >
+                        {linesAdded > 0 && (
+                          <span className="text-foreground-diff-added">
+                            +{formatDiffLineCount(linesAdded)}
+                          </span>
+                        )}
+                        {linesDeleted > 0 && (
+                          <span className="text-foreground-diff-deleted">
+                            -{formatDiffLineCount(linesDeleted)}
+                          </span>
+                        )}
+                      </span>
+                    </ToggleGroupItem>
+                  }
+                />
+                <TooltipContent>
+                  Changes <BoundShortcut settingsKey="sidebarChanges" variant="badge" />
+                </TooltipContent>
+              </Tooltip>
+            )}
+            {viewProfile.showFilesSidebar && (
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <ToggleGroupItem size="icon-sm" value="files" aria-label="Files">
+                      <FolderOpen className="size-3.5" />
+                    </ToggleGroupItem>
+                  }
+                />
+                <TooltipContent>
+                  Files <BoundShortcut settingsKey="sidebarFiles" variant="badge" />
+                </TooltipContent>
+              </Tooltip>
+            )}
             <Tooltip>
               <TooltipTrigger
                 render={

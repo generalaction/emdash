@@ -91,7 +91,12 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
   }
 
   if (kind === 'missing') {
-    return null;
+    return (
+      <div className="flex h-full w-full flex-col items-center justify-center gap-3">
+        <Loader2 className="h-5 w-5 animate-spin text-foreground-muted" />
+        <p className="font-mono text-xs text-foreground-muted">Loading task…</p>
+      </div>
+    );
   }
 
   if (kind === 'needs-resolution') {

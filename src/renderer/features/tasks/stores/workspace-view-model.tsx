@@ -12,7 +12,7 @@ import type { ILifecycle } from '@renderer/lib/stores/lifecycle';
 import { snapshotRegistry } from '@renderer/lib/stores/snapshot-registry';
 import { focusTracker } from '@renderer/utils/focus-tracker';
 import { log } from '@renderer/utils/logger';
-import type { Task } from '@shared/tasks';
+import { taskViewProfile, type Task, type TaskKind } from '@shared/tasks';
 import type {
   DiffViewSnapshot,
   TaskViewSnapshot,
@@ -217,7 +217,7 @@ export class WorkspaceViewModel implements ILifecycle {
    * initialize() so the reaction baseline is correct.
    */
   restoreSnapshot(savedSnapshot: TaskViewSnapshot): void {
-    this.sidebarTab = (savedSnapshot.sidebarTab as SidebarTab) ?? 'conversations';
+    this.setSidebarTab((savedSnapshot.sidebarTab as SidebarTab) ?? 'conversations');
     this.isSidebarCollapsed = savedSnapshot.isSidebarCollapsed ?? true;
     this.focusedRegion = savedSnapshot.focusedRegion === 'bottom' ? 'bottom' : 'main';
     this.isTerminalDrawerOpen = savedSnapshot.isTerminalDrawerOpen ?? false;
@@ -390,7 +390,19 @@ export class WorkspaceViewModel implements ILifecycle {
   }
 
   setSidebarTab(v: SidebarTab): void {
+    const kind = this.taskKind();
+    if (kind) {
+      const profile = taskViewProfile(kind);
+      if (v === 'changes' && !profile.showChangesSidebar) return;
+      if (v === 'files' && !profile.showFilesSidebar) return;
+    }
     this.sidebarTab = v;
+  }
+
+  private taskKind(): TaskKind | null {
+    return this._taskStore.state !== 'unregistered' && 'kind' in this._taskStore.data
+      ? this._taskStore.data.kind
+      : null;
   }
 
   setSidebarCollapsed(collapsed: boolean): void {

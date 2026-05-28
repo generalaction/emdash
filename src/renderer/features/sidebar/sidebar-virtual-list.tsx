@@ -26,9 +26,11 @@ import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { type SidebarRow } from '@renderer/features/sidebar/sidebar-store';
+import { taskSidebarGroupForStore } from '@renderer/features/tasks/stores/task-group';
 import { getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
 import { useParams, useWorkspaceSlots } from '@renderer/lib/layout/navigation-provider';
 import { sidebarStore } from '@renderer/lib/stores/app-state';
+import { TASK_SIDEBAR_GROUP_LABEL } from '@shared/tasks';
 import { SidebarProjectItem } from './project-item';
 import { SidebarTaskItem } from './task-item';
 
@@ -51,7 +53,10 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
     currentView === 'task' && taskParams.projectId
       ? sidebarStore.expandedProjectIds.has(taskParams.projectId)
       : null;
-  const allDndIds = useMemo(() => rows.map(rowToDndId), [rows]);
+  const allDndIds = useMemo(
+    () => rows.filter((row) => row.kind === 'group-item').map(rowToDndId),
+    [rows]
+  );
 
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -102,7 +107,9 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
     const activeIndex = rowsRef.current.findIndex((row) => {
       if (targetTaskId) {
         return (
-          row.kind === 'task' && row.taskId === targetTaskId && row.projectId === targetProjectId
+          row.kind === 'group-item' &&
+          row.taskId === targetTaskId &&
+          row.projectId === targetProjectId
         );
       }
       return row.kind === 'project' && row.projectId === targetProjectId;
@@ -171,10 +178,13 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
       sidebarStore.setProjectOrder(arrayMove(ids, oldIdx, newIdx));
     } else if (oParsed.kind === 'task' && oParsed.projectId === aParsed.projectId) {
       const projectId = aParsed.projectId;
+      const activeTask = getTaskStore(projectId, aParsed.taskId);
+      const activeGroup = activeTask ? taskSidebarGroupForStore(activeTask) : null;
+      if (!activeGroup) return;
       const taskIds = rows
         .filter(
-          (r): r is Extract<SidebarRow, { kind: 'task' }> =>
-            r.kind === 'task' && r.projectId === projectId
+          (r): r is Extract<SidebarRow, { kind: 'group-item' }> =>
+            r.kind === 'group-item' && r.projectId === projectId && r.group === activeGroup
         )
         .map((r) => r.taskId);
       const oldIdx = taskIds.indexOf(aParsed.taskId);
@@ -219,9 +229,26 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
                   </SortableRow>
                 );
               }
+              if (row.kind === 'group-header') {
+                return (
+                  <div key={`${row.group}-header:${row.projectId}`} style={vStyle} className="px-1">
+                    <span className="flex h-8 items-center pl-8 text-xs font-medium text-foreground-passive">
+                      {TASK_SIDEBAR_GROUP_LABEL[row.group]}
+                    </span>
+                  </div>
+                );
+              }
               return (
-                <SortableRow key={`${row.projectId}:${row.taskId}`} dndId={dndId} style={vStyle}>
-                  <SidebarTaskItem projectId={row.projectId} taskId={row.taskId} />
+                <SortableRow
+                  key={`${row.projectId}:${row.group}:${row.taskId}`}
+                  dndId={dndId}
+                  style={vStyle}
+                >
+                  <SidebarTaskItem
+                    projectId={row.projectId}
+                    taskId={row.taskId}
+                    group={row.group}
+                  />
                 </SortableRow>
               );
             })}
@@ -245,7 +272,9 @@ type SidebarDndId =
 
 function rowToDndId(row: SidebarRow): string {
   if (row.kind === 'project') return toProjectDndId(row.projectId);
-  return toTaskDndId(row.projectId, row.taskId);
+  if (row.kind === 'group-header') return `group-header::${row.projectId}::${row.group}`;
+  if (row.kind === 'group-item') return toTaskDndId(row.projectId, row.taskId);
+  return '';
 }
 
 function parseDndId(id: string): SidebarDndId | null {
@@ -264,12 +293,19 @@ const sidebarCollision: CollisionDetection = (args) => {
   const activeId = String(args.active.id);
   const parsed = parseDndId(activeId);
   if (!parsed) return [];
+  const activeTask =
+    parsed.kind === 'task' ? getTaskStore(parsed.projectId, parsed.taskId) : undefined;
+  const activeGroup = activeTask ? taskSidebarGroupForStore(activeTask) : null;
   const containers = args.droppableContainers.filter((c) => {
     const id = String(c.id);
     if (id === activeId) return false;
     if (parsed.kind === 'task') {
       const cParsed = parseDndId(id);
-      return cParsed?.kind === 'task' && cParsed.projectId === parsed.projectId;
+      if (cParsed?.kind !== 'task' || cParsed.projectId !== parsed.projectId) return false;
+      if (!activeGroup) return false;
+      const overTask = getTaskStore(cParsed.projectId, cParsed.taskId);
+      const overGroup = overTask ? taskSidebarGroupForStore(overTask) : null;
+      return overGroup === activeGroup;
     }
     return true;
   });
@@ -323,11 +359,7 @@ function InsertionIndicator({ pointerY }: { pointerY: number | null }) {
   const activeParsed = parseDndId(String(active.id));
   const overParsed = parseDndId(String(over.id));
   if (!activeParsed || !overParsed) return null;
-  if (
-    activeParsed.kind === 'project' &&
-    overParsed.kind === 'task' &&
-    overParsed.projectId === activeParsed.projectId
-  ) {
+  if (activeParsed.kind === 'project' && overParsed.kind === 'task') {
     return null;
   }
   const overRect = over.rect;

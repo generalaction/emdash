@@ -41,6 +41,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     id: 'task-1',
     projectId: 'project-1',
     name: 'Task 1',
+    kind: 'task',
     status: 'todo',
     sourceBranch: undefined,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -77,6 +78,25 @@ function asHydrationHarness(viewModel: WorkspaceViewModel): HydrationHarness {
 
 afterEach(() => {
   conversationRegistry.release('task-1');
+});
+
+describe('WorkspaceViewModel.setSidebarTab', () => {
+  it('ignores changes and files tabs for chat tasks', () => {
+    const viewModel = new WorkspaceViewModel({
+      data: makeTask({ kind: 'chat' }),
+      state: 'unprovisioned',
+      phase: 'provision',
+    } as unknown as TaskStore);
+
+    viewModel.setSidebarTab('changes');
+    expect(viewModel.sidebarTab).toBe('conversations');
+
+    viewModel.setSidebarTab('files');
+    expect(viewModel.sidebarTab).toBe('conversations');
+
+    viewModel.setSidebarTab('conversations');
+    expect(viewModel.sidebarTab).toBe('conversations');
+  });
 });
 
 describe('WorkspaceViewModel terminal drawer snapshot', () => {

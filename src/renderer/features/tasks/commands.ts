@@ -8,6 +8,7 @@ import type { CommandProvider } from '@renderer/lib/commands/types';
 import { showModal } from '@renderer/lib/modal/modal-provider';
 import { appState, sidebarStore } from '@renderer/lib/stores/app-state';
 import { TASK_COMMAND_DEFS, type CommandDef, type TaskCommandId } from '@shared/commands';
+import { taskViewProfile } from '@shared/tasks';
 
 function taskDef(id: TaskCommandId): CommandDef {
   return TASK_COMMAND_DEFS.find((d) => d.id === id)!;
@@ -36,6 +37,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
 
       const git = getTaskGitStore(projectId, taskId);
       const taskData = getRegisteredTaskData(projectId, taskId);
+      const viewProfile = taskData ? taskViewProfile(taskData.kind) : null;
 
       const newConversationDef = taskDef('task.newConversation');
       const sidebarChangesDef = taskDef('task.sidebarChanges');
@@ -73,17 +75,21 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
         },
 
         // ── View sidebar panels ────────────────────────────────────────────
-        {
-          id: sidebarChangesDef.id,
-          label: sidebarChangesDef.label,
-          description: sidebarChangesDef.description,
-          shortcutKey: sidebarChangesDef.shortcutKey,
-          group: sidebarChangesDef.group,
-          execute() {
-            taskView?.setSidebarTab('changes');
-            taskView?.setSidebarCollapsed(false);
-          },
-        },
+        ...(viewProfile?.showChangesSidebar
+          ? [
+              {
+                id: sidebarChangesDef.id,
+                label: sidebarChangesDef.label,
+                description: sidebarChangesDef.description,
+                shortcutKey: sidebarChangesDef.shortcutKey,
+                group: sidebarChangesDef.group,
+                execute() {
+                  taskView?.setSidebarTab('changes');
+                  taskView?.setSidebarCollapsed(false);
+                },
+              },
+            ]
+          : []),
         {
           id: sidebarConversationsDef.id,
           label: sidebarConversationsDef.label,
@@ -95,17 +101,21 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
             taskView?.setSidebarCollapsed(false);
           },
         },
-        {
-          id: sidebarFilesDef.id,
-          label: sidebarFilesDef.label,
-          description: sidebarFilesDef.description,
-          shortcutKey: sidebarFilesDef.shortcutKey,
-          group: sidebarFilesDef.group,
-          execute() {
-            taskView?.setSidebarTab('files');
-            taskView?.setSidebarCollapsed(false);
-          },
-        },
+        ...(viewProfile?.showFilesSidebar
+          ? [
+              {
+                id: sidebarFilesDef.id,
+                label: sidebarFilesDef.label,
+                description: sidebarFilesDef.description,
+                shortcutKey: sidebarFilesDef.shortcutKey,
+                group: sidebarFilesDef.group,
+                execute() {
+                  taskView?.setSidebarTab('files');
+                  taskView?.setSidebarCollapsed(false);
+                },
+              },
+            ]
+          : []),
         {
           id: viewTerminalsDef.id,
           label: viewTerminalsDef.label,
@@ -152,43 +162,47 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
         },
 
         // ── Git ────────────────────────────────────────────────────────────
-        {
-          id: gitFetchDef.id,
-          label: gitFetchDef.label,
-          description: gitFetchDef.description,
-          group: gitFetchDef.group,
-          enabled: git != null,
-          execute() {
-            void git?.fetchRemote();
-          },
-        },
-        {
-          id: gitPullDef.id,
-          label: gitPullDef.label,
-          description: gitPullDef.description,
-          group: gitPullDef.group,
-          enabled: git != null,
-          execute() {
-            void git?.pull();
-          },
-        },
-        {
-          id: gitPushDef.id,
-          // Dynamic label: push vs publish branch
-          label: git?.isBranchPublished ? 'Git Push' : 'Git Publish Branch',
-          description: git?.isBranchPublished
-            ? 'Push commits to remote'
-            : 'Publish this branch to remote',
-          group: gitPushDef.group,
-          enabled: git != null,
-          execute() {
-            if (git?.isBranchPublished) {
-              void git.push();
-            } else {
-              void git?.publishBranch();
-            }
-          },
-        },
+        ...(viewProfile?.showGitChrome
+          ? [
+              {
+                id: gitFetchDef.id,
+                label: gitFetchDef.label,
+                description: gitFetchDef.description,
+                group: gitFetchDef.group,
+                enabled: git != null,
+                execute() {
+                  void git?.fetchRemote();
+                },
+              },
+              {
+                id: gitPullDef.id,
+                label: gitPullDef.label,
+                description: gitPullDef.description,
+                group: gitPullDef.group,
+                enabled: git != null,
+                execute() {
+                  void git?.pull();
+                },
+              },
+              {
+                id: gitPushDef.id,
+                // Dynamic label: push vs publish branch
+                label: git?.isBranchPublished ? 'Git Push' : 'Git Publish Branch',
+                description: git?.isBranchPublished
+                  ? 'Push commits to remote'
+                  : 'Publish this branch to remote',
+                group: gitPushDef.group,
+                enabled: git != null,
+                execute() {
+                  if (git?.isBranchPublished) {
+                    void git.push();
+                  } else {
+                    void git?.publishBranch();
+                  }
+                },
+              },
+            ]
+          : []),
 
         // ── Task actions ───────────────────────────────────────────────────
         {

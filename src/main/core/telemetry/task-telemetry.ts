@@ -5,6 +5,7 @@ import { taskService } from '../tasks/task-service';
 taskService.on('task:created', (task, params) => {
   const { strategy } = params;
   const taskCreatedStrategy = (() => {
+    if (params.kind === 'chat') return 'chat';
     if (strategy.kind === 'from-pull-request') return 'pr';
     if (params.linkedIssue) return 'issue';
     if (strategy.kind === 'no-worktree') return 'blank';
