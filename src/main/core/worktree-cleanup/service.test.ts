@@ -212,6 +212,52 @@ describe('WorktreeCleanupService', () => {
     expect(fs.existsSync(worktreePath)).toBe(true);
   });
 
+  it('does not manually delete a shared worktree path while an active task references it', async () => {
+    const { WorktreeCleanupService } = await import('./service');
+    const worktreePath = managedWorktreePath('manual-shared-worktree');
+    fs.mkdirSync(worktreePath);
+    fs.writeFileSync(path.join(worktreePath, 'file.txt'), 'content');
+
+    rows = [
+      {
+        workspaceId: 'archived-workspace',
+        path: worktreePath,
+        workspaceUpdatedAt: '2026-05-01T00:00:00.000Z',
+        taskId: 'archived-task',
+        taskName: 'Archived task',
+        taskBranch: 'feature/shared',
+        taskStatus: 'done',
+        taskUpdatedAt: '2026-05-01T00:00:00.000Z',
+        lastInteractedAt: null,
+        archivedAt: '2026-05-02T00:00:00.000Z',
+        projectId: 'project',
+        projectName: 'Project',
+        projectPath: tempDir,
+      },
+      {
+        workspaceId: 'active-workspace',
+        path: worktreePath,
+        workspaceUpdatedAt: '2026-05-03T00:00:00.000Z',
+        taskId: 'active-task',
+        taskName: 'Active task',
+        taskBranch: 'feature/shared',
+        taskStatus: 'in-progress',
+        taskUpdatedAt: '2026-05-03T00:00:00.000Z',
+        lastInteractedAt: null,
+        archivedAt: null,
+        projectId: 'project',
+        projectName: 'Project',
+        projectPath: tempDir,
+      },
+    ];
+
+    const service = new WorktreeCleanupService();
+
+    await expect(service.removeWorktreeById('archived-workspace')).rejects.toThrow('active-task');
+
+    expect(fs.existsSync(worktreePath)).toBe(true);
+  });
+
   it('does not automatically remove archived worktrees outside the managed root', async () => {
     const { WorktreeCleanupService } = await import('./service');
     setupDefaultLocalProject();
@@ -272,6 +318,22 @@ describe('WorktreeCleanupService', () => {
     const summary = await service.listManagedWorktrees({ forceRefresh: true });
 
     expect(summary.worktrees).toHaveLength(0);
+  });
+
+  it('does not treat the managed project root itself as an orphan worktree', async () => {
+    const { WorktreeCleanupService } = await import('./service');
+    const root = setupDefaultLocalProject();
+    fs.mkdirSync(path.join(root, '.git'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'README.md'), 'content');
+
+    const service = new WorktreeCleanupService();
+    const summary = await service.listManagedWorktrees({ forceRefresh: true });
+
+    expect(summary.worktrees).toHaveLength(0);
+
+    await service.cleanup();
+
+    expect(fs.existsSync(root)).toBe(true);
   });
 
   it('deduplicates concurrent cleanup runs', async () => {
@@ -432,5 +494,36 @@ describe('WorktreeCleanupService', () => {
     expect(emit).not.toHaveBeenCalledWith(managedWorktreeSizeUpdatedChannel, expect.anything());
     expect(remaining?.sizeBytes).toBe(secondSize);
     expect(after.totalSizeBytes).toBe(secondSize);
+  });
+
+  it('serializes manual removals so the cached summary does not restore stale rows', async () => {
+    const { WorktreeCleanupService } = await import('./service');
+    const root = setupDefaultLocalProject();
+    const firstPath = path.join(root, 'orphan-one');
+    const secondPath = path.join(root, 'orphan-two');
+    fs.mkdirSync(path.join(firstPath, '.git'), { recursive: true });
+    fs.mkdirSync(path.join(secondPath, '.git'), { recursive: true });
+    fs.writeFileSync(path.join(firstPath, 'file.txt'), 'first');
+    fs.writeFileSync(path.join(secondPath, 'file.txt'), 'second');
+
+    const service = new WorktreeCleanupService();
+    const before = await service.listManagedWorktrees({ forceRefresh: true, awaitSizes: true });
+    const firstId = before.worktrees.find((worktree) => worktree.path === firstPath)?.workspaceId;
+    const secondId = before.worktrees.find((worktree) => worktree.path === secondPath)?.workspaceId;
+
+    expect(firstId).toBeDefined();
+    expect(secondId).toBeDefined();
+
+    if (!firstId || !secondId) {
+      throw new Error('Expected orphan worktrees to be listed');
+    }
+
+    await Promise.all([service.removeWorktreeById(firstId), service.removeWorktreeById(secondId)]);
+
+    const after = await service.listManagedWorktrees();
+
+    expect(after.worktrees).toHaveLength(0);
+    expect(fs.existsSync(firstPath)).toBe(false);
+    expect(fs.existsSync(secondPath)).toBe(false);
   });
 });

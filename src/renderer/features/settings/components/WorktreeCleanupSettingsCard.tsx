@@ -168,6 +168,7 @@ export default function WorktreeCleanupSettingsCard() {
 
   const busy = isLoading || isSaving;
   const summary = worktreesQuery.data;
+  const destructiveActionPending = cleanupMutation.isPending || removeWorktreeMutation.isPending;
   const isLoadingWorktrees = (!summary && worktreesQuery.isFetching) || summary?.isRefreshing;
   const worktreeGroups = React.useMemo(
     () => groupWorktreesByProject(summary?.worktrees ?? []),
@@ -320,7 +321,11 @@ export default function WorktreeCleanupSettingsCard() {
                   variant="ghost"
                   size="icon-sm"
                   aria-label="Refresh managed worktrees"
-                  disabled={worktreesQuery.isFetching || refreshMutation.isPending}
+                  disabled={
+                    worktreesQuery.isFetching ||
+                    refreshMutation.isPending ||
+                    destructiveActionPending
+                  }
                   onClick={() => refreshMutation.mutate()}
                 >
                   <RefreshCw
@@ -337,7 +342,7 @@ export default function WorktreeCleanupSettingsCard() {
               type="button"
               variant="ghost"
               className="hover:text-foreground-destructive"
-              disabled={cleanupMutation.isPending}
+              disabled={destructiveActionPending}
               onClick={requestCleanup}
             >
               <Trash2 className="size-4" />
@@ -409,7 +414,7 @@ export default function WorktreeCleanupSettingsCard() {
                               size="icon-sm"
                               aria-label={`Delete ${worktree.taskName ?? worktree.path}`}
                               className="hover:text-foreground-destructive"
-                              disabled={isDeleting}
+                              disabled={destructiveActionPending}
                               onClick={() => requestRemoveWorktree(worktree)}
                             >
                               <Trash2 className={cn('size-4', isDeleting && 'animate-pulse')} />

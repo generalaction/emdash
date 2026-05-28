@@ -284,7 +284,12 @@ function parseConfiguredWorktreeDirectory(json: string | null): string | undefin
 
 function isPathInsideDirectory(candidatePath: string, directory: string): boolean {
   const relative = path.relative(directory, path.resolve(candidatePath));
-  return relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+  return (
+    relative !== '' &&
+    relative !== '..' &&
+    !relative.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(relative)
+  );
 }
 
 async function readManagedWorktreeRoots(): Promise<Map<string, ManagedWorktreeRoot>> {
@@ -342,7 +347,14 @@ export class WorktreeCleanupService {
   private managedWorktreesRefresh: Promise<ManagedWorktreesSummary> | undefined;
   private sizeStreamPromise: Promise<void> | undefined;
   private cleanupRun: Promise<ManagedWorktreesSummary> | undefined;
+  private destructiveQueue: Promise<unknown> = Promise.resolve();
   private readonly limitFs: FsLimit = createConcurrencyLimiter(FS_SIZE_CONCURRENCY);
+
+  private enqueueDestructive<T>(task: () => Promise<T>): Promise<T> {
+    const run = this.destructiveQueue.then(task, task);
+    this.destructiveQueue = run.catch(() => {});
+    return run;
+  }
 
   initialize(): void {
     if (this.timer) return;
@@ -595,11 +607,35 @@ export class WorktreeCleanupService {
   }
 
   async removeWorktreeById(workspaceId: string): Promise<ManagedWorktreesSummary> {
+    return this.enqueueDestructive(() => this.runRemoveWorktreeById(workspaceId));
+  }
+
+  private findOtherActivePathReferences(worktree: ManagedWorktree): WorktreeRow[] {
+    const resolvedPath = path.resolve(worktree.path);
+    return readRows().filter((row) => {
+      if (row.workspaceId === worktree.workspaceId) return false;
+      if (!isActiveTaskReference(row) || !row.path) return false;
+      return path.resolve(row.path) === resolvedPath;
+    });
+  }
+
+  private assertNoOtherActivePathReferences(worktree: ManagedWorktree): void {
+    const activeReferences = this.findOtherActivePathReferences(worktree);
+    if (activeReferences.length === 0) return;
+
+    throw new Error(
+      `Worktree ${worktree.workspaceId} is still referenced by active task ${activeReferences[0].taskId}`
+    );
+  }
+
+  private async runRemoveWorktreeById(workspaceId: string): Promise<ManagedWorktreesSummary> {
     const summary = await this.getSummaryForRemoval();
     const worktree = summary.worktrees.find((entry) => entry.workspaceId === workspaceId);
     if (!worktree) {
       throw new Error(`Worktree ${workspaceId} not found`);
     }
+
+    this.assertNoOtherActivePathReferences(worktree);
 
     if (worktree.status === 'active') {
       // Archive every non-archived task pointing at this workspace before nuking the dir.
@@ -622,6 +658,8 @@ export class WorktreeCleanupService {
         });
       }
     }
+
+    this.assertNoOtherActivePathReferences(worktree);
 
     await this.removeWorktree(worktree);
 
@@ -651,7 +689,7 @@ export class WorktreeCleanupService {
   async cleanup(): Promise<ManagedWorktreesSummary> {
     if (this.cleanupRun) return this.cleanupRun;
 
-    const run = this.runCleanup();
+    const run = this.enqueueDestructive(() => this.runCleanup());
     this.cleanupRun = run;
 
     try {
