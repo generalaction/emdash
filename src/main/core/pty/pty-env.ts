@@ -251,7 +251,6 @@ export function buildAgentEnv(options: AgentEnvOptions = {}): Record<string, str
       const val = process.env[key];
       if (val) env[key] = val;
     }
-
   }
 
   if (providerVars) {
