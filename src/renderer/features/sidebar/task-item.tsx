@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import { TaskSidebarAgentStatus } from '@renderer/features/sidebar/task-sidebar-agent-status';
+import { TaskSidebarTrailingSlot } from '@renderer/features/sidebar/task-sidebar-agent-status';
 import { TaskContextMenu } from '@renderer/features/tasks/components/task-context-menu';
 import { TaskGitDiffStats } from '@renderer/features/tasks/components/task-git-diff-stats';
 import {
@@ -116,9 +116,9 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
           {taskName}
         </span>
         <div className="flex shrink-0 items-center justify-end gap-2">
-          <TaskGitDiffStats task={task} className="min-w-[7ch] justify-end" />
-          <TaskSidebarAgentStatus task={task} />
+          <TaskGitDiffStats task={task} />
           <RenderPrBadge task={task} />
+          <TaskSidebarTrailingSlot task={task} />
         </div>
       </SidebarMenuRow>
     </TaskContextMenu>
