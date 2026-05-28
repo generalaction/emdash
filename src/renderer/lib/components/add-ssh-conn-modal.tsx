@@ -496,7 +496,7 @@ export function AddSshConnModal({
             <form.Field name="authType">
               {(field) => (
                 <FieldSet>
-                  <div className="mb-3 flex w-fit items-center gap-1.5">
+                  <div className="flex w-fit items-center gap-1.5">
                     <FieldLegend variant="label" className="mb-0">
                       Authentication
                     </FieldLegend>
