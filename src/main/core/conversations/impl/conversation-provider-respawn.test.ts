@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Pty, PtyExitInfo } from '@main/core/pty/pty';
 import type { Conversation } from '@shared/conversations';
+import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { LocalConversationProvider } from './local-conversation';
 import { SshConversationProvider } from './ssh-conversation';
@@ -81,6 +82,8 @@ vi.mock('@main/core/settings/settings-service', () => ({
   },
 }));
 
+const { events } = await import('@main/lib/events');
+
 type RespawnState = {
   respawnCounts: Map<string, number>;
 };
@@ -132,6 +135,7 @@ describe('conversation provider respawn state', () => {
     vi.useRealTimers();
     spawnLocalPty.mockReset();
     openSsh2Pty.mockReset();
+    vi.mocked(events.emit).mockClear();
   });
 
   it('preserves resume mode when a local resumed session respawns', async () => {
@@ -199,12 +203,20 @@ describe('conversation provider respawn state', () => {
 
       expect(proxy.refreshRemoteShellProfile).toHaveBeenCalledTimes(1);
       expect(openSsh2Pty).toHaveBeenCalledTimes(2);
+      expect(events.emit).not.toHaveBeenCalledWith(
+        agentSessionExitedChannel,
+        expect.objectContaining({ exitCode: 127 })
+      );
 
       for (const handler of secondExitHandlers) handler({ exitCode: 127 });
       await vi.advanceTimersByTimeAsync(500);
 
       expect(proxy.refreshRemoteShellProfile).toHaveBeenCalledTimes(1);
       expect(openSsh2Pty).toHaveBeenCalledTimes(2);
+      expect(events.emit).toHaveBeenCalledWith(
+        agentSessionExitedChannel,
+        expect.objectContaining({ exitCode: 127 })
+      );
     } finally {
       vi.useRealTimers();
     }

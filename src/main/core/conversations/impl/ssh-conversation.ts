@@ -178,13 +178,6 @@ export class SshConversationProvider implements ConversationProvider {
       const shouldRespawn =
         sessionWasActive && exitCode !== 127 && isUnexpectedPtyExit({ exitCode, signal });
       this.sessions.delete(sessionId);
-      events.emit(agentSessionExitedChannel, {
-        sessionId,
-        projectId: conversation.projectId,
-        conversationId: conversation.id,
-        taskId: conversation.taskId,
-        exitCode,
-      });
       if (shouldRetryAfterShellRefresh) {
         setTimeout(() => {
           this.proxy
@@ -203,6 +196,14 @@ export class SshConversationProvider implements ConversationProvider {
         }, 500);
         return;
       }
+
+      events.emit(agentSessionExitedChannel, {
+        sessionId,
+        projectId: conversation.projectId,
+        conversationId: conversation.id,
+        taskId: conversation.taskId,
+        exitCode,
+      });
 
       if (shouldRespawn && !this.tmux) {
         const count = (this.respawnCounts.get(sessionId) ?? 0) + 1;
