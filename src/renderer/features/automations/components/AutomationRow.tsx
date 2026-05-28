@@ -29,11 +29,11 @@ import {
 } from '@renderer/lib/ui/context-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
-import { formatRunStatusLabel, formatTriggerLabel } from '@shared/automations/format';
+import { formatTriggerLabel } from '@shared/automations/format';
 import type { Automation, AutomationRun } from '@shared/automations/types';
 import { useAutomationAgentActivity, useAutomationRunStatus } from '../automation-run-status-store';
 import { automationTool } from '../automation-tools';
-import { activeAgentActivityIndicatorConfig, isActiveStatus } from '../run-status-styles';
+import { isActiveStatus } from '../run-status-styles';
 
 interface AutomationRowProps {
   automation: Automation;
@@ -91,15 +91,6 @@ export const AutomationRow = observer(function AutomationRow({
       : null;
   const taskAgentActivity = taskStore ? taskAgentStatus(taskStore) : null;
   const agentStatus = taskStore ? taskAgentActivity : (agentActivity?.status ?? null);
-  const agentIndicator =
-    latestRun?.status === 'success' ? activeAgentActivityIndicatorConfig(agentStatus) : null;
-  const showLatestRunStatusLabel = agentIndicator?.spin !== true;
-  const latestRunStatusLabel = latestRun
-    ? showLatestRunStatusLabel
-      ? (agentIndicator?.label ?? formatRunStatusLabel(latestRun.status) ?? 'Success')
-      : null
-    : null;
-  const latestRunIsFailed = latestRun?.status === 'failed';
   const latestRunAt =
     latestRun?.startedAt ?? latestRun?.scheduledAt ?? latestRun?.finishedAt ?? null;
   const triggerLabel = formatTriggerLabel(automation.trigger);
@@ -214,23 +205,12 @@ export const AutomationRow = observer(function AutomationRow({
       <div className="flex max-w-[44%] min-w-0 shrink-0 items-center justify-end gap-2">
         {toolIcon}
         {latestRun ? (
-          <span
-            className={cn(
-              'flex min-w-0 max-w-full items-center gap-1 text-xs text-muted-foreground',
-              latestRunIsFailed && 'text-destructive',
-              agentIndicator?.textClass
-            )}
-          >
-            {latestRunStatusLabel ? <span className="shrink-0">{latestRunStatusLabel}</span> : null}
-            {latestRunAt != null ? (
-              <>
-                {latestRunStatusLabel ? (
-                  <span className="text-muted-foreground/40 shrink-0">·</span>
-                ) : null}
-                <AbsoluteTime value={latestRunAt} className="min-w-0 truncate" />
-              </>
-            ) : null}
-          </span>
+          latestRunAt != null ? (
+            <AbsoluteTime
+              value={latestRunAt}
+              className="text-muted-foreground min-w-0 truncate text-xs"
+            />
+          ) : null
         ) : (
           <span className="text-muted-foreground text-xs">
             {automation.isDraft ? 'Draft' : 'No runs yet'}

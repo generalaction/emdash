@@ -95,7 +95,6 @@ export const AutomationRunRow = observer(function AutomationRunRow({
   const errorMessage = run.error ? formatRunError(run.error) : undefined;
   const status = statusIndicatorConfig(run.status);
   const displayStatus = agentIndicator ?? status;
-  const StatusIcon = displayStatus.Icon;
   const projectName = showProjectName
     ? projectId
       ? projectDisplayName(getProjectStore(projectId))
@@ -345,11 +344,6 @@ export const AutomationRunRow = observer(function AutomationRunRow({
           </div>
 
           <div className="text-muted-foreground flex shrink-0 items-center gap-1 text-xs">
-            <span className={cn('inline-flex items-center gap-1', displayStatus.textClass)}>
-              <StatusIcon className={cn('size-3 shrink-0', displayStatus.spin && 'animate-spin')} />
-              <span>{displayStatus.label}</span>
-            </span>
-            {metaParts.length > 0 ? <span className="text-muted-foreground/40">·</span> : null}
             {metaParts.map((part, index) => (
               <span key={`${part}-${index}`} className="flex items-center gap-1">
                 {index > 0 ? <span className="text-muted-foreground/40">·</span> : null}

@@ -38,7 +38,7 @@ export function AutomationsHeader({
       {showActions && (
         <div className="mt-4 flex items-center justify-between gap-2">
           <SearchInput
-            containerClassName={cn('max-w-full min-w-0 shrink-0', panelOpen ? 'w-48' : 'w-64')}
+            containerClassName={cn('min-w-0 flex-1', panelOpen ? 'max-w-48' : 'max-w-64')}
             placeholder={searchPlaceholder}
             value={search}
             onChange={(event) => onSearchChange(event.target.value)}

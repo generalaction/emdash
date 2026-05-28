@@ -22,11 +22,23 @@ async function unwrap<T>(
   return result.data;
 }
 
+function isAutomationListQuery(queryKey: readonly unknown[]) {
+  return queryKey[0] === 'automations' && queryKey.length === 2 && queryKey[1] !== 'catalog';
+}
+
 export function useAutomations(projectId?: string) {
   const queryClient = useQueryClient();
 
   function invalidateAutomations() {
     void queryClient.invalidateQueries({ predicate: (query) => isAutomationQuery(query.queryKey) });
+  }
+
+  function replaceAutomationInLists(updated: Automation) {
+    queryClient.setQueriesData<Automation[]>(
+      { predicate: (query) => isAutomationListQuery(query.queryKey) },
+      (current) =>
+        current?.map((automation) => (automation.id === updated.id ? updated : automation))
+    );
   }
 
   const automations = useQuery({
@@ -42,7 +54,10 @@ export function useAutomations(projectId?: string) {
   const update = useMutation({
     mutationFn: ({ id, patch }: { id: string; patch: UpdateAutomationPatch }) =>
       unwrap<Automation>(rpc.automations.update(id, patch)),
-    onSuccess: invalidateAutomations,
+    onSuccess: (updated) => {
+      replaceAutomationInLists(updated);
+      invalidateAutomations();
+    },
   });
 
   const remove = useMutation({
@@ -53,7 +68,10 @@ export function useAutomations(projectId?: string) {
   const setEnabled = useMutation({
     mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
       unwrap<Automation>(rpc.automations.setEnabled(id, enabled)),
-    onSuccess: invalidateAutomations,
+    onSuccess: (updated) => {
+      replaceAutomationInLists(updated);
+      invalidateAutomations();
+    },
   });
 
   const runNow = useMutation({

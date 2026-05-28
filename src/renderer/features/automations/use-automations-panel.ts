@@ -22,7 +22,11 @@ export function useAutomationsPanel(automations: readonly Automation[]): UseAuto
 
   const requestedId = params.selectedAutomationId;
   const panel: AutomationsPanelState = useMemo(() => {
-    if (local) return local;
+    if (local?.kind === 'create') return local;
+    if (local?.kind === 'edit') {
+      const target = automations.find((automation) => automation.id === local.automation.id);
+      return target ? { kind: 'edit', automation: target } : local;
+    }
     if (!requestedId) return null;
     const target = automations.find((automation) => automation.id === requestedId);
     return target ? { kind: 'edit', automation: target } : null;
