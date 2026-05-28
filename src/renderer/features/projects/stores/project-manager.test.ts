@@ -151,6 +151,29 @@ describe('ProjectManagerStore project creation', () => {
     });
   });
 
+  it('inspects the final new-project path instead of the parent directory', async () => {
+    const store = new ProjectManagerStore();
+
+    const result = await store.startProjectCreation(
+      { type: 'local' },
+      {
+        mode: 'new',
+        name: 'child-project',
+        path: '/parent',
+        repositoryName: 'child-project',
+        repositoryOwner: 'acme',
+        repositoryVisibility: 'private',
+      },
+      { id: 'optimistic-project' }
+    );
+
+    if (result.kind === 'creating') void result.completion.catch(() => {});
+    expect(mocks.inspectProjectPath).toHaveBeenCalledWith({
+      type: 'local',
+      path: '/parent/child-project',
+    });
+  });
+
   it('does not let a project registered at the clone parent path short-circuit creation', async () => {
     const parentProject = localProject({ id: 'parent-project', path: '/parent' });
     mocks.inspectProjectPath.mockImplementation(async ({ path }: { path: string }) => ({
@@ -167,6 +190,33 @@ describe('ProjectManagerStore project creation', () => {
         name: 'child-project',
         path: '/parent',
         repositoryUrl: 'https://github.com/acme/child-project.git',
+      },
+      { id: 'optimistic-project' }
+    );
+
+    if (result.kind === 'creating') void result.completion.catch(() => {});
+    expect(result.kind).toBe('creating');
+    expect(store.projects.has('optimistic-project')).toBe(true);
+  });
+
+  it('does not let a project registered at the new-project parent path short-circuit creation', async () => {
+    const parentProject = localProject({ id: 'parent-project', path: '/parent' });
+    mocks.inspectProjectPath.mockImplementation(async ({ path }: { path: string }) => ({
+      isDirectory: true,
+      isGitRepo: true,
+      existingProject: path === '/parent' ? parentProject : undefined,
+    }));
+    const store = new ProjectManagerStore();
+
+    const result = await store.startProjectCreation(
+      { type: 'local' },
+      {
+        mode: 'new',
+        name: 'child-project',
+        path: '/parent',
+        repositoryName: 'child-project',
+        repositoryOwner: 'acme',
+        repositoryVisibility: 'private',
       },
       { id: 'optimistic-project' }
     );
