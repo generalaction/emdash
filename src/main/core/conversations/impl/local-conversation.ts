@@ -25,8 +25,8 @@ import { makePtyId } from '@shared/ptyId';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { resolveAgentSessionCommandArgs } from '../resolve-agent-session-command';
 import { buildAgentSessionCommand } from './agent-command';
-import { createInitialPromptDelivery } from './initial-prompt-delivery';
 import { syncGrokThemeWithAppTheme } from './grok-theme-config';
+import { createInitialPromptDelivery } from './initial-prompt-delivery';
 import { scheduleInitialPromptInjection } from './keystroke-injection';
 import { resolveProviderEnv } from './provider-env';
 
