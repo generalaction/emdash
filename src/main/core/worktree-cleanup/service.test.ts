@@ -86,6 +86,24 @@ vi.mock('../settings/settings-service', () => ({
 describe('WorktreeCleanupService', () => {
   let tempDir: string;
 
+  function setupDefaultLocalProject(): string {
+    const root = path.join(defaultWorktreeDirectory, 'Project');
+    fs.mkdirSync(root, { recursive: true });
+    projectRows = [
+      {
+        projectId: 'project',
+        projectName: 'Project',
+        projectPath: path.join(tempDir, 'repo'),
+        baseProjectSettingsJson: null,
+      },
+    ];
+    return root;
+  }
+
+  function managedWorktreePath(name: string): string {
+    return path.join(setupDefaultLocalProject(), name);
+  }
+
   beforeEach(() => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'worktree-cleanup-'));
     defaultWorktreeDirectory = path.join(tempDir, 'default-worktrees');
@@ -143,7 +161,7 @@ describe('WorktreeCleanupService', () => {
 
   it('does not delete a shared worktree path while an active task still references it', async () => {
     const { WorktreeCleanupService } = await import('./service');
-    const worktreePath = path.join(tempDir, 'shared-worktree');
+    const worktreePath = managedWorktreePath('shared-worktree');
     fs.mkdirSync(worktreePath);
     fs.writeFileSync(path.join(worktreePath, 'file.txt'), 'content');
 
@@ -194,6 +212,46 @@ describe('WorktreeCleanupService', () => {
     expect(fs.existsSync(worktreePath)).toBe(true);
   });
 
+  it('does not automatically remove archived worktrees outside the managed root', async () => {
+    const { WorktreeCleanupService } = await import('./service');
+    setupDefaultLocalProject();
+    const worktreePath = path.join(tempDir, 'external-worktree');
+    fs.mkdirSync(worktreePath);
+    fs.writeFileSync(path.join(worktreePath, 'file.txt'), 'content');
+
+    rows = [
+      {
+        workspaceId: 'external-workspace',
+        path: worktreePath,
+        workspaceUpdatedAt: '2026-05-01T00:00:00.000Z',
+        taskId: 'external-task',
+        taskName: 'External task',
+        taskBranch: 'feature/external',
+        taskStatus: 'done',
+        taskUpdatedAt: '2026-05-01T00:00:00.000Z',
+        lastInteractedAt: null,
+        archivedAt: '2026-05-02T00:00:00.000Z',
+        projectId: 'project',
+        projectName: 'Project',
+        projectPath: tempDir,
+      },
+    ];
+
+    const service = new WorktreeCleanupService();
+    const summary = await service.listManagedWorktrees();
+    const external = summary.worktrees.find(
+      (worktree) => worktree.workspaceId === 'external-workspace'
+    );
+
+    expect(external?.status).toBe('archived');
+    expect(external?.cleanupEligible).toBe(false);
+
+    await service.cleanup();
+
+    expect(fs.existsSync(worktreePath)).toBe(true);
+    expect(workspaceRun).not.toHaveBeenCalled();
+  });
+
   it('does not scan cwd-relative roots when no default worktree directory is configured', async () => {
     const { WorktreeCleanupService } = await import('./service');
     defaultWorktreeDirectory = '';
@@ -218,7 +276,7 @@ describe('WorktreeCleanupService', () => {
 
   it('deduplicates concurrent cleanup runs', async () => {
     const { WorktreeCleanupService } = await import('./service');
-    const worktreePath = path.join(tempDir, 'archived-worktree');
+    const worktreePath = managedWorktreePath('archived-worktree');
     fs.mkdirSync(worktreePath);
     fs.writeFileSync(path.join(worktreePath, 'file.txt'), 'content');
     rows = [
@@ -288,7 +346,7 @@ describe('WorktreeCleanupService', () => {
 
   it('does not clear the workspace record when directory removal fails', async () => {
     const { WorktreeCleanupService } = await import('./service');
-    const worktreePath = path.join(tempDir, 'archived-worktree');
+    const worktreePath = managedWorktreePath('archived-worktree');
     fs.mkdirSync(worktreePath);
     rows = [
       {

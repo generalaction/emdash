@@ -55,6 +55,12 @@ type LocalProjectRow = {
   baseProjectSettingsJson: string | null;
 };
 
+type ManagedWorktreeRoot = {
+  project: LocalProjectRow;
+  root: string;
+  resolvedRoot: string;
+};
+
 function recencyOf(...timestamps: Array<string | null | undefined>): number {
   for (const timestamp of timestamps) {
     if (!timestamp) continue;
@@ -195,7 +201,6 @@ async function duSize(absPath: string): Promise<number | null> {
 }
 
 async function walkerDirectorySize(absPath: string, limit: FsLimit): Promise<number> {
-  let total = 0;
   const entries = await limit(() => fs.readdir(absPath, { withFileTypes: true })).catch((error) => {
     log.debug('worktree-cleanup: directorySize readdir failed', {
       path: absPath,
@@ -203,14 +208,14 @@ async function walkerDirectorySize(absPath: string, limit: FsLimit): Promise<num
     });
     return [];
   });
-  await Promise.all(
+  const sizes = await Promise.all(
     entries.map(async (entry) => {
       const entryPath = path.join(absPath, entry.name);
       try {
         if (entry.isDirectory()) {
-          total += await walkerDirectorySize(entryPath, limit);
+          return await walkerDirectorySize(entryPath, limit);
         } else if (entry.isFile()) {
-          total += (await limit(() => fs.stat(entryPath))).size;
+          return (await limit(() => fs.stat(entryPath))).size;
         }
       } catch (error) {
         log.debug('worktree-cleanup: directorySize entry failed', {
@@ -218,9 +223,10 @@ async function walkerDirectorySize(absPath: string, limit: FsLimit): Promise<num
           error: String(error),
         });
       }
+      return 0;
     })
   );
-  return total;
+  return sizes.reduce((sum, size) => sum + size, 0);
 }
 
 async function directorySize(absPath: string, limit: FsLimit): Promise<number> {
@@ -253,10 +259,12 @@ function isActiveTaskReference(row: WorktreeRow): boolean {
 function cleanupEligible(
   row: WorktreeRow,
   status: ManagedWorktree['status'],
-  activePaths: Set<string>
+  activePaths: Set<string>,
+  isManagedPath: boolean
 ): boolean {
   if (!row.path) return false;
   if (activePaths.has(path.resolve(row.path))) return false;
+  if (!isManagedPath) return false;
   return status !== 'active';
 }
 
@@ -272,6 +280,36 @@ function parseConfiguredWorktreeDirectory(json: string | null): string | undefin
   } catch {
     return undefined;
   }
+}
+
+function isPathInsideDirectory(candidatePath: string, directory: string): boolean {
+  const relative = path.relative(directory, path.resolve(candidatePath));
+  return relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+}
+
+async function readManagedWorktreeRoots(): Promise<Map<string, ManagedWorktreeRoot>> {
+  const localWorktreeDefault = (await appSettingsService.get('localProject'))
+    .defaultWorktreeDirectory;
+  const roots = new Map<string, ManagedWorktreeRoot>();
+
+  for (const project of readLocalProjects()) {
+    const configured = parseConfiguredWorktreeDirectory(project.baseProjectSettingsJson);
+    const baseDirectory = configured
+      ? path.resolve(configured)
+      : localWorktreeDefault.trim()
+        ? localWorktreeDefault
+        : undefined;
+    if (!baseDirectory) continue;
+
+    const root = path.join(baseDirectory, safePathSegment(project.projectName, project.projectId));
+    roots.set(project.projectId, {
+      project,
+      root,
+      resolvedRoot: path.resolve(root),
+    });
+  }
+
+  return roots;
 }
 
 async function findWorktreeDirectories(root: string): Promise<string[]> {
@@ -451,6 +489,7 @@ export class WorktreeCleanupService {
     const rows = readRows().filter(
       (row): row is WorktreeRow & { path: string } => row.path !== null
     );
+    const rootsByProjectId = await readManagedWorktreeRoots();
     const activePaths = new Set(
       rows.flatMap((row) => (isActiveTaskReference(row) ? [path.resolve(row.path)] : []))
     );
@@ -458,6 +497,10 @@ export class WorktreeCleanupService {
       rows.map(async (row): Promise<ManagedWorktree> => {
         const pathOnDisk = await exists(row.path);
         const status = classify(row, pathOnDisk);
+        const projectRoot = row.projectId ? rootsByProjectId.get(row.projectId) : undefined;
+        const isManagedPath = projectRoot
+          ? isPathInsideDirectory(row.path, projectRoot.resolvedRoot)
+          : false;
         return {
           workspaceId: row.workspaceId,
           taskId: row.taskId,
@@ -472,43 +515,24 @@ export class WorktreeCleanupService {
           lastInteractedAt: row.lastInteractedAt,
           archivedAt: row.archivedAt,
           status,
-          cleanupEligible: cleanupEligible(row, status, activePaths),
+          cleanupEligible: cleanupEligible(row, status, activePaths, isManagedPath),
         };
       })
     );
     const knownPaths = new Set(visible.map((worktree) => path.resolve(worktree.path)));
-    const localWorktreeDefault = (await appSettingsService.get('localProject'))
-      .defaultWorktreeDirectory;
-    const projects = readLocalProjects();
     // Only scan project-specific roots (`<base>/<safePathSegment(name,id)>`).
     // Scanning the bare default worktree directory would treat unrelated git repos
     // sitting in the user's chosen folder as orphaned Emdash worktrees.
-    const roots = new Map<string, LocalProjectRow>();
-
-    for (const project of projects) {
-      const configured = parseConfiguredWorktreeDirectory(project.baseProjectSettingsJson);
-      const baseDirectory = configured
-        ? path.resolve(configured)
-        : localWorktreeDefault.trim()
-          ? localWorktreeDefault
-          : undefined;
-      if (!baseDirectory) continue;
-      const root = path.join(
-        baseDirectory,
-        safePathSegment(project.projectName, project.projectId)
-      );
-      roots.set(path.resolve(root), project);
-    }
-
     const orphans = (
       await Promise.all(
-        Array.from(roots).map(async ([root, project]) => {
+        Array.from(rootsByProjectId.values()).map(async ({ root, resolvedRoot, project }) => {
           // findWorktreeDirectories catches readdir errors on missing roots and returns [].
           const paths = await findWorktreeDirectories(root);
           return Promise.all(
             paths.map(async (worktreePath): Promise<ManagedWorktree | null> => {
               const resolvedPath = path.resolve(worktreePath);
               if (knownPaths.has(resolvedPath)) return null;
+              if (!isPathInsideDirectory(resolvedPath, resolvedRoot)) return null;
               const stats = await fs.stat(worktreePath).catch(() => undefined);
               const updatedAt = stats?.mtime.toISOString() ?? new Date(0).toISOString();
               const displayName = basenameFromAnyPath(worktreePath) || worktreePath;
