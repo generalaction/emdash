@@ -56,7 +56,7 @@ export const AddProjectModal = observer(function AddProjectModal({
   const [strategy, setStrategy] = useState<Strategy>(strategyProp ?? 'local');
   const [mode, setMode] = useState<Mode>(modeProp ?? 'pick');
   const [connectionId, setConnectionId] = useState<string | undefined>(connectionIdProp);
-  const [submitState, setSubmitState] = useState<'idle' | 'checking'>('idle');
+  const [submitState, setSubmitState] = useState<'idle' | 'creating'>('idle');
   const { connections } = appState.sshConnections;
   const availableConnectionIds = useMemo(
     () =>
@@ -243,7 +243,7 @@ export const AddProjectModal = observer(function AddProjectModal({
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
-    setSubmitState('checking');
+    setSubmitState('creating');
     setCloseGuard(true);
 
     const id = crypto.randomUUID();
@@ -325,7 +325,7 @@ export const AddProjectModal = observer(function AddProjectModal({
       footer={
         <DialogFooter>
           <ConfirmButton type="button" onClick={() => void handleSubmit()} disabled={!canSubmit}>
-            {submitState === 'checking' ? 'Creating...' : 'Create'}
+            {submitState === 'creating' ? 'Creating...' : 'Create'}
           </ConfirmButton>
         </DialogFooter>
       }
