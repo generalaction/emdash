@@ -4,7 +4,6 @@ import {
   resolveTaskKind,
   TASK_KIND,
   TASK_SIDEBAR_GROUP,
-  taskKindFromDb,
   formatIssueAsPrompt,
   generateChatName,
   taskSidebarGroupForKind,
@@ -60,16 +59,10 @@ describe('generateChatName', () => {
     const june = generateChatName(new Date('2026-06-01T12:00:00Z'));
     expect(may).not.toBe(june);
   });
-});
 
-describe('taskKindFromDb', () => {
-  it('maps stored chat rows to chat kind', () => {
-    expect(taskKindFromDb('chat')).toBe(TASK_KIND.Chat);
-  });
-
-  it('defaults unknown values to task kind', () => {
-    expect(taskKindFromDb(undefined)).toBe(TASK_KIND.Task);
-    expect(taskKindFromDb('unknown')).toBe(TASK_KIND.Task);
+  it('uses unpadded day numbers', () => {
+    vi.spyOn(Date.prototype, 'toLocaleString').mockReturnValue('Jan');
+    expect(generateChatName(new Date('2026-01-05T12:00:00Z'))).toBe('chat-jan-5');
   });
 });
 
@@ -107,5 +100,11 @@ describe('taskViewProfile', () => {
   it('shows full chrome for tasks', () => {
     expect(taskViewProfile(TASK_KIND.Task).group).toBe(TASK_SIDEBAR_GROUP.Tasks);
     expect(taskViewProfile(TASK_KIND.Task).showGitChrome).toBe(true);
+  });
+});
+
+describe('DEFAULT_TASK_SIDEBAR_GROUP', () => {
+  it('matches the tasks sidebar group', () => {
+    expect(DEFAULT_TASK_SIDEBAR_GROUP).toBe(TASK_SIDEBAR_GROUP.Tasks);
   });
 });

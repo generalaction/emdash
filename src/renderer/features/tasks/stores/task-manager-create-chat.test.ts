@@ -138,6 +138,9 @@ describe('TaskManagerStore.createChat', () => {
 
     expect(store.tasks.has('00000000-0000-4000-8000-0000000000c1')).toBe(true);
     expect(store.tasks.get('00000000-0000-4000-8000-0000000000c1')?.state).toBe('unregistered');
+    expect(store.tasks.get('00000000-0000-4000-8000-0000000000c1')?.data).toMatchObject({
+      kind: TASK_KIND.Chat,
+    });
     const unregistered = store.tasks.get('00000000-0000-4000-8000-0000000000c1')!;
     expect(taskSidebarGroupForStore(unregistered)).toBe(TASK_SIDEBAR_GROUP.Chats);
 

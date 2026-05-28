@@ -8,6 +8,8 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
 import type { StoredBranch } from '@main/core/tasks/stored-branch';
+import type { TaskKind } from '@shared/tasks';
+import { TASK_KIND } from '@shared/tasks';
 
 export const sshConnections = sqliteTable(
   'ssh_connections',
@@ -109,7 +111,7 @@ export const tasks = sqliteTable(
       .notNull()
       .references(() => projects.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
-    kind: text('kind').notNull().default('task'),
+    kind: text('kind').notNull().default(TASK_KIND.Task).$type<TaskKind>(),
     status: text('status').notNull(),
     sourceBranch: text('source_branch').$type<StoredBranch>(),
     taskBranch: text('task_branch'),

@@ -1,7 +1,6 @@
 import type { TaskRow } from '@main/db/schema';
 import type { PullRequest } from '@shared/pull-requests';
 import type { Issue, Task, TaskLifecycleStatus } from '@shared/tasks';
-import { taskKindFromDb } from '@shared/tasks';
 import { fromStoredBranch } from '../stored-branch';
 
 export function mapTaskRowToTask(
@@ -10,12 +9,11 @@ export function mapTaskRowToTask(
   conversations: Record<string, number> = {}
 ): Task {
   const sourceBranch = row.sourceBranch ? fromStoredBranch(row.sourceBranch) : undefined;
-  const kind = taskKindFromDb(row.kind);
   return {
     id: row.id,
     projectId: row.projectId,
     name: row.name,
-    kind,
+    kind: row.kind,
     status: row.status as TaskLifecycleStatus,
     sourceBranch,
     taskBranch: row.taskBranch ?? undefined,

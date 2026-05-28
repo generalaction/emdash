@@ -26,10 +26,6 @@ export function resolveTaskKind(kind?: TaskKind): TaskKind {
   return kind ?? DEFAULT_TASK_KIND;
 }
 
-export function taskKindFromDb(value: string | null | undefined): TaskKind {
-  return value === TASK_KIND.Chat ? TASK_KIND.Chat : DEFAULT_TASK_KIND;
-}
-
 /** Sidebar / view grouping derived from {@link TaskKind}. */
 export const TASK_SIDEBAR_GROUP = {
   Tasks: 'tasks',

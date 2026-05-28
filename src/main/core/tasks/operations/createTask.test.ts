@@ -211,6 +211,7 @@ describe('createTask', () => {
     });
 
     expect(result.success).toBe(true);
+    expect(result.success && result.data.task.kind).toBe(TASK_KIND.Chat);
     expect(insertTaskValues).toHaveBeenCalledWith(
       expect.objectContaining({
         kind: TASK_KIND.Chat,
@@ -247,5 +248,32 @@ describe('createTask', () => {
     });
 
     expect(insertTaskValues).toHaveBeenCalledWith(expect.objectContaining({ kind: TASK_KIND.Task }));
+  });
+
+  it('creates a regular no-worktree task with kind task and no branch', async () => {
+    const insertTaskValues = vi.fn((values: Partial<TaskRow>) => ({
+      returning: vi.fn().mockResolvedValue([makeTaskRow(values)]),
+    }));
+    const insertWorkspaceValues = vi.fn().mockResolvedValue(undefined);
+    mocks.insert
+      .mockReturnValueOnce({ values: insertTaskValues })
+      .mockReturnValueOnce({ values: insertWorkspaceValues });
+
+    const result = await createTask({
+      id: 'blank-1',
+      projectId: 'project-1',
+      name: 'Blank task',
+      sourceBranch: { type: 'local', branch: 'main' },
+      strategy: { kind: 'no-worktree' },
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.success && result.data.task.kind).toBe(TASK_KIND.Task);
+    expect(insertTaskValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: TASK_KIND.Task,
+        taskBranch: undefined,
+      })
+    );
   });
 });
