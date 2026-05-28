@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import {
   getLocalTerminalShellAvailability,
+  getRemoteTerminalShellAvailability,
   resolveTerminalShell,
   ShellUnavailableError,
 } from './resolver';
@@ -102,6 +103,7 @@ describe('terminal shell resolver', () => {
 
     expect(availability.find((entry) => entry.shell === 'cmd')).toBeUndefined();
     expect(availability.find((entry) => entry.shell === 'powershell')).toBeUndefined();
+    expect(availability.find((entry) => entry.shell === 'pwsh')).toBeUndefined();
     expect(availability.find((entry) => entry.shell === 'auto')?.displayName).toBe('Auto - zsh');
     expect(availability.find((entry) => entry.shell === 'bash')?.available).toBe(true);
     expect(availability.find((entry) => entry.shell === 'zsh')?.available).toBe(true);
@@ -156,6 +158,43 @@ describe('terminal shell resolver', () => {
       executable: 'bash',
       remotePathLookup: true,
     });
+  });
+
+  it('does not offer PowerShell shells for SSH targets', async () => {
+    const proxy = {
+      exec: vi.fn((_command, callback) => {
+        callback(undefined, {
+          on(event: string, handler: (code?: number | null) => void) {
+            if (event === 'close') handler(0);
+            return this;
+          },
+          stderr: { on: vi.fn() },
+        });
+      }),
+    } as unknown as SshClientProxy;
+
+    const availability = await getRemoteTerminalShellAvailability(proxy, {
+      shell: '/bin/zsh',
+      env: { PATH: '/usr/local/bin:/usr/bin' },
+    });
+
+    expect(availability.find((entry) => entry.shell === 'pwsh')).toBeUndefined();
+    expect(availability.find((entry) => entry.shell === 'powershell')).toBeUndefined();
+  });
+
+  it('rejects explicit remote pwsh even when a proxy is provided', async () => {
+    const proxy = { exec: vi.fn() } as unknown as SshClientProxy;
+
+    await expect(
+      resolveTerminalShell({
+        intent: 'pwsh',
+        target: {
+          kind: 'ssh',
+          proxy,
+          profile: { shell: '/bin/zsh', env: { PATH: '/usr/local/bin:/usr/bin' } },
+        },
+      })
+    ).rejects.toBeInstanceOf(ShellUnavailableError);
   });
 
   it('keeps login-shell args for unknown remote auto shells after normalization', async () => {

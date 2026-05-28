@@ -120,7 +120,7 @@ function resolveLocalExplicitShell(
     return findOnPath(shell, env, platform, fileExists);
   }
 
-  if (shell === 'cmd' || shell === 'powershell') return undefined;
+  if (shell === 'cmd' || shell === 'powershell' || shell === 'pwsh') return undefined;
   return findOnPath(shell, env, platform, fileExists);
 }
 
@@ -296,7 +296,7 @@ async function isRemoteShellAvailable(
   shell: ExplicitTerminalShellId,
   env: Record<string, string>
 ): Promise<boolean> {
-  if (shell === 'cmd' || shell === 'powershell') return false;
+  if (shell === 'cmd' || shell === 'powershell' || shell === 'pwsh') return false;
   const pathPrefix = env.PATH ? `PATH=${quoteShellArg(env.PATH)} ` : '';
   const command = `${pathPrefix}command -v ${quoteShellArg(shell)} >/dev/null 2>&1`;
   try {
@@ -309,11 +309,11 @@ async function isRemoteShellAvailable(
 
 function shellIdsForLocalPlatform(platform: NodeJS.Platform): TerminalShellId[] {
   if (platform === 'win32') return ['auto', 'cmd', 'powershell', 'pwsh', 'bash'];
-  return ['auto', 'bash', 'csh', 'dash', 'ksh', 'pwsh', 'sh', 'tcsh', 'zsh'];
+  return ['auto', 'bash', 'csh', 'dash', 'ksh', 'sh', 'tcsh', 'zsh'];
 }
 
 function remoteShellIds(): TerminalShellId[] {
-  return ['auto', 'bash', 'csh', 'dash', 'ksh', 'pwsh', 'sh', 'tcsh', 'zsh'];
+  return ['auto', 'bash', 'csh', 'dash', 'ksh', 'sh', 'tcsh', 'zsh'];
 }
 
 function sortShellAvailability(entries: TerminalShellAvailability[]): TerminalShellAvailability[] {
