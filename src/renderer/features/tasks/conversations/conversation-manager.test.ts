@@ -55,6 +55,7 @@ describe('ConversationManagerStore session hydration', () => {
         title: 'Conversation 1',
         lastInteractedAt: null,
         isInitialConversation: false,
+        runtimeMode: 'terminal',
       },
     ]);
 
@@ -65,6 +66,27 @@ describe('ConversationManagerStore session hydration', () => {
 
     expect(hydrateConversation).not.toHaveBeenCalled();
     expect(frontendConnect).toHaveBeenCalledTimes(1);
+
+    store.dispose();
+  });
+
+  it('creates a PTY fallback session for chat conversations without a runnable chat runtime', () => {
+    const store = new ConversationManagerStore('project-1', 'task-1', [
+      {
+        id: 'conversation-1',
+        projectId: 'project-1',
+        taskId: 'task-1',
+        providerId: 'grok',
+        title: 'Conversation 1',
+        lastInteractedAt: null,
+        isInitialConversation: false,
+        runtimeMode: 'chat',
+      },
+    ]);
+
+    expect(store.conversations.get('conversation-1')).toBeDefined();
+    expect(store.sessions.get('conversation-1')).toBeDefined();
+    expect(frontendConnect).not.toHaveBeenCalled();
 
     store.dispose();
   });

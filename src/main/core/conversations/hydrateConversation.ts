@@ -1,7 +1,9 @@
 import { and, eq } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
+import { shouldUseChatRuntime } from '@shared/conversations';
 import { resolveTask } from '../projects/utils';
+import { chatConversationRuntime } from './chat/chat-conversation-runtime';
 import { mapConversationRowToConversation } from './utils';
 
 export async function hydrateConversation(
@@ -25,9 +27,11 @@ export async function hydrateConversation(
     .limit(1);
   if (!row) throw new Error('Conversation not found');
 
-  await task.conversations.startSession(
-    mapConversationRowToConversation(row, true),
-    undefined,
-    true
-  );
+  const conversation = mapConversationRowToConversation(row, true);
+  if (shouldUseChatRuntime(conversation)) {
+    await chatConversationRuntime.hydrateConversation(conversation);
+    return;
+  }
+
+  await task.conversations.startSession(conversation, undefined, true);
 }

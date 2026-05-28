@@ -19,6 +19,7 @@ import {
   resolveTaskEnv,
   type WorkspaceType,
 } from '../workspaces/workspace-factory';
+import { hydrateRestoredConversation } from './hydrate-restored-conversation';
 
 export type BuildTaskResult = {
   taskProvider: TaskProvider;
@@ -179,7 +180,7 @@ export async function buildTaskFromWorkspace(
 
   await Promise.all(
     conversationsToHydrate.map((conv) =>
-      conversationProvider.startSession(conv, undefined, true).catch((e) => {
+      hydrateRestoredConversation(conv, conversationProvider).catch((e) => {
         log.error('buildTaskFromWorkspace: failed to hydrate conversation from view state', {
           conversationId: conv.id,
           error: String(e),

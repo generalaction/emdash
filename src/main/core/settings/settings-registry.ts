@@ -53,6 +53,7 @@ export const SETTINGS_DEFAULTS = {
     taskHoverAction: 'delete' as const,
     autoRightSidebarBehavior: false,
     confirmTabClose: false,
+    conversationUiMode: 'terminal' as const,
   },
   browserPreview: {
     enabled: true,

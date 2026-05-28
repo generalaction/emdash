@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { chatConversationRuntime } from '@main/core/conversations/chat/chat-conversation-runtime';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
@@ -124,6 +125,7 @@ async function executeTeardown(
     await task.conversations.destroyAll();
     await task.terminals.destroyAll();
   }
+  chatConversationRuntime.dehydrateTask(task.taskId);
   await workspaceRegistry.release(workspaceId, mode);
 }
 

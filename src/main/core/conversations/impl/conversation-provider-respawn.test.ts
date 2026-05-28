@@ -117,6 +117,7 @@ function conversation(): Conversation {
     lastInteractedAt: null,
     providerSessionId: 'provider-session-1',
     isInitialConversation: false,
+    runtimeMode: 'terminal',
   };
 }
 

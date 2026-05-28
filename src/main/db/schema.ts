@@ -8,6 +8,7 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
 import type { StoredBranch } from '@main/core/tasks/stored-branch';
+import type { ConversationRuntimeMode } from '@shared/conversations';
 
 export const sshConnections = sqliteTable(
   'ssh_connections',
@@ -293,6 +294,10 @@ export const conversations = sqliteTable(
       .default(sql`CURRENT_TIMESTAMP`),
     lastInteractedAt: text('last_interacted_at'),
     isInitialConversation: integer('is_initial_conversation', { mode: 'boolean' }),
+    runtimeMode: text('runtime_mode')
+      .notNull()
+      .default('terminal')
+      .$type<ConversationRuntimeMode>(),
   },
   (table) => ({
     taskIdIdx: index('idx_conversations_task_id').on(table.taskId),

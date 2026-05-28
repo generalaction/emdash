@@ -6,7 +6,11 @@ import type { IDisposable } from '@renderer/lib/stores/lifecycle';
 import { Resource } from '@renderer/lib/stores/resource';
 import { log } from '@renderer/utils/logger';
 import { soundPlayer } from '@renderer/utils/soundPlayer';
-import { type Conversation, type CreateConversationParams } from '@shared/conversations';
+import {
+  type Conversation,
+  type CreateConversationParams,
+  shouldUseChatRuntime,
+} from '@shared/conversations';
 import {
   agentEventChannel,
   agentSessionExitedChannel,
@@ -28,7 +32,7 @@ export class ConversationManagerStore implements IDisposable {
   readonly list: Resource<Conversation[]>;
   /** Runtime state stores keyed by conversation id — populated by reaction on list.data. */
   conversations = observable.map<string, ConversationStore>();
-  /** Session layer keyed by conversation id — created alongside data, connected lazily. */
+  /** Terminal session layer keyed by conversation id — connected lazily for terminal runtimes. */
   sessions = observable.map<string, PtySession>();
 
   constructor(
@@ -59,7 +63,7 @@ export class ConversationManagerStore implements IDisposable {
           if (!this.conversations.has(conversation.id)) {
             this.conversations.set(conversation.id, new ConversationStore(conversation));
           }
-          if (!this.sessions.has(conversation.id)) {
+          if (shouldCreateTerminalSession(conversation) && !this.sessions.has(conversation.id)) {
             this.sessions.set(conversation.id, this.createSession(conversation));
           }
         }
@@ -78,8 +82,11 @@ export class ConversationManagerStore implements IDisposable {
             if (!this.conversations.has(conversation.id)) {
               this.conversations.set(conversation.id, new ConversationStore(conversation));
             }
-            if (!this.sessions.has(conversation.id)) {
+            if (shouldCreateTerminalSession(conversation) && !this.sessions.has(conversation.id)) {
               this.sessions.set(conversation.id, this.createSession(conversation));
+            } else if (!shouldCreateTerminalSession(conversation)) {
+              this.sessions.get(conversation.id)?.dispose();
+              this.sessions.delete(conversation.id);
             }
           }
         });
@@ -168,10 +175,10 @@ export class ConversationManagerStore implements IDisposable {
       if (!this.conversations.has(conversation.id)) {
         this.conversations.set(conversation.id, new ConversationStore(conversation));
       }
-      if (!this.sessions.has(conversation.id)) {
+      if (shouldCreateTerminalSession(conversation) && !this.sessions.has(conversation.id)) {
         this.sessions.set(conversation.id, this.createSession(conversation));
       }
-      if (params.initialPrompt?.trim()) {
+      if (shouldCreateTerminalSession(conversation) && params.initialPrompt?.trim()) {
         this.conversations.get(conversation.id)?.setWorking();
       }
     });
@@ -270,6 +277,10 @@ export class ConversationManagerStore implements IDisposable {
       handlers.onOpenExternal
     );
   }
+}
+
+function shouldCreateTerminalSession(conversation: Conversation): boolean {
+  return !shouldUseChatRuntime(conversation);
 }
 
 export class ConversationStore {

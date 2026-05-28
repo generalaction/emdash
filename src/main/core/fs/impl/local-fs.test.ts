@@ -206,6 +206,8 @@ describe('LocalFileSystem', () => {
     it('should throw error when cannot create directory', async () => {
       // Make tempDir read-only (on Unix systems)
       if (process.platform !== 'win32') {
+        if (process.getuid?.() === 0) return;
+
         fs.chmodSync(tempDir, 0o555);
 
         try {

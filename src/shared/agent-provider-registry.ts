@@ -104,7 +104,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     resumeWithoutSessionFlag: 'resume --last',
     icon: 'openai.svg',
     alt: 'Codex',
-    terminalOnly: true,
+    terminalOnly: false,
     supportsHooks: true,
   },
   {
@@ -124,7 +124,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     planActivateCommand: '/plan',
     icon: 'claude.svg',
     alt: 'Claude Code',
-    terminalOnly: true,
+    terminalOnly: false,
     supportsHooks: true,
   },
   {
@@ -161,7 +161,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     planActivateCommand: '/plan',
     icon: 'devin.png',
     alt: 'Devin',
-    terminalOnly: true,
+    terminalOnly: false,
   },
   {
     id: 'cursor',
@@ -179,7 +179,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'cursor.svg',
     alt: 'Cursor CLI',
     invertInDark: true,
-    terminalOnly: true,
+    terminalOnly: false,
   },
   {
     id: 'gemini',
@@ -196,7 +196,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     resumeFlag: '--resume',
     icon: 'gemini.svg',
     alt: 'Gemini CLI',
-    terminalOnly: true,
+    terminalOnly: false,
   },
   {
     id: 'antigravity',
@@ -231,7 +231,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     resumeFlag: '--continue',
     icon: 'qwen.svg',
     alt: 'Qwen Code CLI',
-    terminalOnly: true,
+    terminalOnly: false,
   },
   {
     id: 'droid',
@@ -249,7 +249,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     sessionIdOnResumeOnly: true,
     icon: 'droid.svg',
     alt: 'Factory Droid',
-    terminalOnly: true,
+    terminalOnly: false,
     supportsHooks: true,
   },
   {
@@ -267,7 +267,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     initialPromptViaStdinPipe: true,
     icon: 'ampcode.svg',
     alt: 'Amp CLI',
-    terminalOnly: true,
+    terminalOnly: false,
     supportsHooks: true,
   },
   {
@@ -285,7 +285,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'opencode.svg',
     iconDark: 'opencode-dark.svg',
     alt: 'OpenCode CLI',
-    terminalOnly: true,
+    terminalOnly: false,
   },
   {
     id: 'hermes',
@@ -304,7 +304,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     resumeFlag: '--continue',
     icon: 'hermesagent.jpg',
     alt: 'Hermes Agent CLI',
-    terminalOnly: true,
+    terminalOnly: false,
   },
   {
     id: 'copilot',
@@ -321,7 +321,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'gh-copilot.svg',
     alt: 'GitHub Copilot CLI',
     invertInDark: true,
-    terminalOnly: true,
+    terminalOnly: false,
   },
   {
     id: 'charm',
@@ -355,7 +355,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'Auggie.svg',
     alt: 'Auggie CLI',
     invertInDark: true,
-    terminalOnly: true,
+    terminalOnly: false,
   },
   {
     id: 'goose',
@@ -373,7 +373,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     resumeFlag: '--resume',
     icon: 'goose.png',
     alt: 'Goose CLI',
-    terminalOnly: true,
+    terminalOnly: false,
   },
   {
     id: 'kimi',
@@ -390,7 +390,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     resumeFlag: '--continue',
     icon: 'kimi.svg',
     alt: 'Kimi CLI',
-    terminalOnly: true,
+    terminalOnly: false,
   },
   {
     id: 'kilocode',
@@ -407,7 +407,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     resumeFlag: '--continue',
     icon: 'kilocode.png',
     alt: 'Kilocode CLI',
-    terminalOnly: true,
+    terminalOnly: false,
   },
   {
     id: 'kiro',
@@ -424,7 +424,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     initialPromptFlag: '',
     icon: 'kiro.png',
     alt: 'Kiro CLI',
-    terminalOnly: true,
+    terminalOnly: false,
   },
   {
     id: 'rovo',
@@ -455,7 +455,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     initialPromptFlag: '',
     icon: 'cline.png',
     alt: 'Cline CLI',
-    terminalOnly: true,
+    terminalOnly: false,
   },
   {
     id: 'continue',
@@ -517,7 +517,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     initialPromptFlag: '',
     icon: 'mistral.svg',
     alt: 'Mistral Vibe CLI',
-    terminalOnly: true,
+    terminalOnly: false,
   },
   {
     id: 'jules',
@@ -549,7 +549,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     sessionIdFlag: '--session-id',
     icon: 'junie-color.png',
     alt: 'Junie CLI',
-    terminalOnly: true,
+    terminalOnly: false,
   },
   {
     id: 'pi',
@@ -565,7 +565,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     resumeFlag: '-c',
     icon: 'pi.png',
     alt: 'Pi CLI',
-    terminalOnly: true,
+    terminalOnly: false,
   },
   {
     id: 'letta',
@@ -602,7 +602,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     initialPromptFlag: '-p',
     icon: 'autohand.svg',
     alt: 'Autohand Code CLI',
-    terminalOnly: true,
+    terminalOnly: false,
   },
 ];
 
@@ -612,6 +612,13 @@ const PROVIDER_MAP = new Map<string, AgentProviderDefinition>(
 
 export function getProvider(id: AgentProviderId): AgentProviderDefinition | undefined {
   return PROVIDER_MAP.get(id);
+}
+
+/**
+ * Provider metadata capability only. Use supportsChatRuntime for conversation routing.
+ */
+export function supportsChatUi(id: AgentProviderId): boolean {
+  return getProvider(id)?.terminalOnly === false;
 }
 
 export function getInstallCommandForProvider(id: AgentProviderId): string | null {

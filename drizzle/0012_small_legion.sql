@@ -1,0 +1,1 @@
+ALTER TABLE `conversations` ADD `runtime_mode` text DEFAULT 'terminal' NOT NULL;

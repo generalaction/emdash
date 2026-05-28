@@ -63,6 +63,7 @@ function makeConversation(overrides: Partial<Conversation> = {}): Conversation {
     title: 'Conversation 1',
     lastInteractedAt: null,
     isInitialConversation: false,
+    runtimeMode: 'terminal',
     ...overrides,
   };
 }

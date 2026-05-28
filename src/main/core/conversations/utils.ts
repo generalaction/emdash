@@ -15,9 +15,11 @@ export function mapConversationRowToConversation(
     projectId: row.projectId,
     providerId: row.provider as AgentProviderId,
     autoApprove: config.autoApprove,
+    initialPrompt: config.initialPrompt,
     providerSessionId: config.providerSessionId,
     resume: resume,
     lastInteractedAt: row.lastInteractedAt ?? null,
     isInitialConversation: row.isInitialConversation,
+    runtimeMode: row.runtimeMode ?? 'terminal',
   };
 }

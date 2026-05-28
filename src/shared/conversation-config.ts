@@ -8,6 +8,8 @@ export type ConversationConfig = {
   autoApprove?: boolean;
   /** Provider-native session id (e.g. Droid UUID) for resuming the correct chat. */
   providerSessionId?: string;
+  /** Durable handoff for the first chat prompt until timeline storage owns messages. */
+  initialPrompt?: string;
 };
 
 export function parseConversationConfig(raw: string | null | undefined): ConversationConfig {
@@ -21,6 +23,7 @@ export function parseConversationConfig(raw: string | null | undefined): Convers
       ...(typeof record.providerSessionId === 'string'
         ? { providerSessionId: record.providerSessionId }
         : {}),
+      ...(typeof record.initialPrompt === 'string' ? { initialPrompt: record.initialPrompt } : {}),
     };
   } catch {
     return {};

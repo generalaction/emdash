@@ -101,6 +101,7 @@ export const interfaceSettingsSchema = z.object({
   taskHoverAction: z.enum(['delete', 'archive']),
   autoRightSidebarBehavior: z.boolean(),
   confirmTabClose: z.boolean(),
+  conversationUiMode: z.enum(['terminal', 'chat']),
 });
 
 export const changesViewModeSchema = z.object({
