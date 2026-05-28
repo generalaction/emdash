@@ -130,7 +130,7 @@ describe('ClaudeTrustService', () => {
 
   it('adds Copilot trusted folders', async () => {
     const service = makeService();
-    mockReadFile.mockResolvedValue(JSON.stringify({ trusted_folders: ['/already/trusted'] }));
+    mockReadFile.mockResolvedValue(JSON.stringify({ trustedFolders: ['/already/trusted'] }));
 
     await service.maybeAutoTrustLocal({
       providerId: 'copilot',
@@ -144,7 +144,7 @@ describe('ClaudeTrustService', () => {
     expect(tmpPath).toContain('/home/local-user/.copilot/config.json.');
     expect(renameFrom).toBe(tmpPath);
     expect(renameTo).toBe('/home/local-user/.copilot/config.json');
-    expect(JSON.parse(String(content)).trusted_folders).toEqual([
+    expect(JSON.parse(String(content)).trustedFolders).toEqual([
       '/already/trusted',
       '/tmp/worktree',
     ]);
@@ -152,7 +152,7 @@ describe('ClaudeTrustService', () => {
 
   it('does not rewrite Copilot config when folder is already trusted', async () => {
     const service = makeService();
-    mockReadFile.mockResolvedValue(JSON.stringify({ trusted_folders: ['/tmp/worktree'] }));
+    mockReadFile.mockResolvedValue(JSON.stringify({ trustedFolders: ['/tmp/worktree'] }));
 
     await service.maybeAutoTrustLocal({
       providerId: 'copilot',

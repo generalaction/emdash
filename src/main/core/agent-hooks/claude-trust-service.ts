@@ -187,12 +187,12 @@ function withCopilotTrustedFolder(
   config: Record<string, unknown>,
   worktreePath: string
 ): Record<string, unknown> | null {
-  const trustedFolders = Array.isArray(config.trusted_folders) ? config.trusted_folders : [];
+  const trustedFolders = Array.isArray(config.trustedFolders) ? config.trustedFolders : [];
   if (trustedFolders.includes(worktreePath)) return null;
 
   return {
     ...config,
-    trusted_folders: [...trustedFolders, worktreePath],
+    trustedFolders: [...trustedFolders, worktreePath],
   };
 }
 
