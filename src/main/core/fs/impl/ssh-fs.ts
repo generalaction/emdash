@@ -877,11 +877,12 @@ export class SshFileSystem implements FileSystemProvider {
 
         const sftpErr = err as SftpError;
         const msg = sftpErr.message ?? '';
+        const lowerMsg = msg.toLowerCase();
         const code = sftpErr.code;
 
         const isAlreadyExists =
-          msg.includes('already exists') ||
-          msg.includes('File exists') ||
+          lowerMsg.includes('already exists') ||
+          lowerMsg.includes('file exists') ||
           (code === SFTP_STATUS.FAILURE && (msg === 'Failure' || msg === ''));
         const isMissingParent = code === SFTP_STATUS.NO_SUCH_FILE || msg.includes('No such file');
 
