@@ -25,9 +25,11 @@ export function SettingsNumberStepper({
   const [draft, setDraft] = React.useState<string | null>(null);
   const clamp = (next: number) => Math.min(max, Math.max(min, next));
   const display = draft ?? String(value);
+  const draftNumber = draft !== null ? Number.parseInt(draft, 10) : Number.NaN;
+  const currentNumber = draft !== null && Number.isFinite(draftNumber) ? clamp(draftNumber) : value;
   const valueWidth = `${Math.max(display.length, 1)}ch`;
-  const atMin = value <= min;
-  const atMax = value >= max;
+  const atMin = currentNumber <= min;
+  const atMax = currentNumber >= max;
 
   const commitDraft = (raw: string) => {
     const parsed = Number.parseInt(raw, 10);
@@ -39,8 +41,9 @@ export function SettingsNumberStepper({
   };
 
   const bump = (direction: 1 | -1) => {
-    const next = clamp(value + direction * step);
+    const next = clamp(currentNumber + direction * step);
     if (next !== value) onChange(next);
+    setDraft(null);
   };
 
   return (
@@ -52,6 +55,7 @@ export function SettingsNumberStepper({
         type="button"
         aria-label={`Decrease ${label}`}
         disabled={disabled || atMin}
+        onPointerDown={(event) => event.preventDefault()}
         onClick={() => bump(-1)}
         className="inline-flex size-7 shrink-0 items-center justify-center rounded text-foreground-passive transition-colors hover:bg-foreground/5 hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
       >
@@ -93,6 +97,7 @@ export function SettingsNumberStepper({
         type="button"
         aria-label={`Increase ${label}`}
         disabled={disabled || atMax}
+        onPointerDown={(event) => event.preventDefault()}
         onClick={() => bump(1)}
         className="inline-flex size-7 shrink-0 items-center justify-center rounded text-foreground-passive transition-colors hover:bg-foreground/5 hover:text-foreground disabled:pointer-events-none disabled:opacity-30"
       >

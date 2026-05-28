@@ -33,6 +33,8 @@ type WorktreeGroup = {
   totalSizeBytes: number;
 };
 
+const managedWorktreesQueryKey = ['managedWorktrees'] as const;
+
 function formatCleanupInterval(ms: number): string {
   const minutes = ms / (60 * 1000);
   if (Number.isInteger(minutes) && minutes < 60) {
@@ -111,14 +113,15 @@ export default function WorktreeCleanupSettingsCard() {
     useAppSettingsKey('worktreeCleanup');
 
   const worktreesQuery = useQuery<ManagedWorktreesSummary>({
-    queryKey: ['managedWorktrees'],
+    queryKey: managedWorktreesQueryKey,
     queryFn: () => rpc.worktreeCleanup.listManagedWorktrees(),
+    refetchInterval: (query) => (query.state.data?.isRefreshing ? 500 : false),
     staleTime: 30_000,
   });
 
   React.useEffect(() => {
     const offSize = events.on(managedWorktreeSizeUpdatedChannel, ({ workspaceId, sizeBytes }) => {
-      queryClient.setQueryData<ManagedWorktreesSummary>(['managedWorktrees'], (prev) => {
+      queryClient.setQueryData<ManagedWorktreesSummary>(managedWorktreesQueryKey, (prev) => {
         if (!prev) return prev;
         const worktrees = prev.worktrees.map((worktree) =>
           worktree.workspaceId === workspaceId ? { ...worktree, sizeBytes } : worktree
@@ -130,10 +133,11 @@ export default function WorktreeCleanupSettingsCard() {
         };
       });
     });
-    const offDone = events.on(managedWorktreeRefreshCompleteChannel, () => {
-      queryClient.setQueryData<ManagedWorktreesSummary>(['managedWorktrees'], (prev) =>
-        prev ? { ...prev, isRefreshing: false } : prev
+    const offDone = events.on(managedWorktreeRefreshCompleteChannel, ({ totalSizeBytes }) => {
+      queryClient.setQueryData<ManagedWorktreesSummary>(managedWorktreesQueryKey, (prev) =>
+        prev ? { ...prev, totalSizeBytes, isRefreshing: false } : prev
       );
+      void queryClient.invalidateQueries({ queryKey: managedWorktreesQueryKey });
     });
     return () => {
       offSize();
@@ -144,21 +148,21 @@ export default function WorktreeCleanupSettingsCard() {
   const refreshMutation = useMutation({
     mutationFn: () => rpc.worktreeCleanup.listManagedWorktrees({ forceRefresh: true }),
     onSuccess: (summary) => {
-      queryClient.setQueryData(['managedWorktrees'], summary);
+      queryClient.setQueryData(managedWorktreesQueryKey, summary);
     },
   });
 
   const cleanupMutation = useMutation({
     mutationFn: () => rpc.worktreeCleanup.cleanupNow(),
     onSuccess: (summary) => {
-      queryClient.setQueryData(['managedWorktrees'], summary);
+      queryClient.setQueryData(managedWorktreesQueryKey, summary);
     },
   });
 
   const removeWorktreeMutation = useMutation({
     mutationFn: (workspaceId: string) => rpc.worktreeCleanup.removeWorktree(workspaceId),
     onSuccess: (summary) => {
-      queryClient.setQueryData(['managedWorktrees'], summary);
+      queryClient.setQueryData(managedWorktreesQueryKey, summary);
     },
   });
 
