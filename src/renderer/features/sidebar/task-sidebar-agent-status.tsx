@@ -49,9 +49,10 @@ export const TaskSidebarTrailingSlot = observer(function TaskSidebarTrailingSlot
     );
   }
 
-  // Completed/idle are terminal states, so fall through to the timestamp.
+  // 'completed' and null (idle) are terminal states; show the timestamp for those.
+  // All other live states ('working', 'awaiting-input', 'error') get the indicator.
   const status = taskAgentStatus(task);
-  if (status === 'working' || status === 'awaiting-input' || status === 'error') {
+  if (status !== null && status !== 'completed') {
     return (
       <Slot>
         <AgentStatusIndicator status={status} />
