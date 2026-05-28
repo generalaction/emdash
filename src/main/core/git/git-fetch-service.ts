@@ -2,7 +2,7 @@ import { log } from '@main/lib/logger';
 import type { FetchError } from '@shared/git';
 import { err, type Result } from '@shared/result';
 import type { GitService } from './impl/git-service';
-import { isGitHubSshRemoteUrl, isSshRemoteUrl } from './remote-helper';
+import { isSshRemoteUrl } from './remote-helper';
 
 const DEFAULT_INTERVAL_MS = 2 * 60 * 1000;
 
@@ -13,7 +13,6 @@ export class GitFetchService {
 
   constructor(
     private readonly git: GitService,
-    private readonly hasGitHubToken: () => Promise<boolean>,
     private readonly getRemote: () => Promise<string | undefined>
   ) {}
 
@@ -77,8 +76,6 @@ export class GitFetchService {
 
     const sshRemotes = remotes.filter((remote) => isSshRemoteUrl(remote.url));
     if (sshRemotes.length === 0) return true;
-    if (!sshRemotes.every((remote) => isGitHubSshRemoteUrl(remote.url))) return false;
-
-    return await this.hasGitHubToken();
+    return false;
   }
 }
