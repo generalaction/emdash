@@ -56,6 +56,7 @@ export function useWorkspaceLayoutService() {
       // events. Suppress them and resize xterm once after the layout settles
       // to avoid repeated term.resize() calls during the burst.
       panelDragStore.suppressFor(140);
+      setIsLeftOpen(!collapsed);
       if (collapsed) {
         panel.collapse();
       } else {
