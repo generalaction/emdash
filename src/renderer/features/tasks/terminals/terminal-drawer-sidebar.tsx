@@ -28,6 +28,7 @@ interface TerminalDrawerSidebarProps {
   terminalTabView: TerminalTabViewStore;
   activeTerminalId: string | undefined;
   shellAvailability: TerminalShellAvailability[];
+  onShellMenuOpen: () => void;
   onSelectTerminal: (id: string) => void;
   onAddTerminal: (shell?: TerminalShellId) => void;
   onRemoveTerminal: (id: string) => void;
@@ -46,6 +47,7 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
   terminalTabView,
   activeTerminalId,
   shellAvailability,
+  onShellMenuOpen,
   onSelectTerminal,
   onAddTerminal,
   onRemoveTerminal,
@@ -79,7 +81,7 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
                 New terminal <BoundShortcut settingsKey="newTerminal" variant="badge" />
               </TooltipContent>
             </Tooltip>
-            <DropdownMenu>
+            <DropdownMenu onOpenChange={(open) => open && onShellMenuOpen()}>
               <DropdownMenuTrigger
                 render={
                   <Button

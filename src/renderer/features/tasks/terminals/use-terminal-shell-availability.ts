@@ -6,7 +6,10 @@ export const DEFAULT_TERMINAL_SHELL_AVAILABILITY: TerminalShellAvailability[] = 
   { shell: 'auto', displayName: 'Auto', available: true },
 ];
 
-export function useTerminalShellAvailability(remoteConnectionId: string | undefined) {
+export function useTerminalShellAvailability(
+  remoteConnectionId: string | undefined,
+  options: { enabled?: boolean } = {}
+) {
   return useQuery({
     queryKey: ['terminal-shell-availability', remoteConnectionId ?? 'local'],
     queryFn: () =>
@@ -17,5 +20,6 @@ export function useTerminalShellAvailability(remoteConnectionId: string | undefi
           })
         : rpc.terminals.getTerminalShellAvailability({ kind: 'local' }),
     staleTime: 30_000,
+    enabled: options.enabled ?? true,
   });
 }
