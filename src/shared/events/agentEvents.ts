@@ -6,7 +6,9 @@ export type NotificationType =
   | 'permission_prompt'
   | 'idle_prompt'
   | 'auth_success'
-  | 'elicitation_dialog';
+  | 'elicitation_dialog'
+  | 'elicitation_complete'
+  | 'elicitation_response';
 
 export const ATTENTION_NOTIFICATION_TYPES: ReadonlySet<NotificationType> = new Set([
   'permission_prompt',

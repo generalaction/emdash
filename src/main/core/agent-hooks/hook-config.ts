@@ -6,9 +6,11 @@ import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { log } from '@main/lib/logger';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
+import type { AgentEventType, NotificationType } from '@shared/events/agentEvents';
 import {
   makeClaudeHookCommand,
   makeCodexHookCommand,
+  makeNotificationHookCommand,
   makeOpenCodePluginContent,
 } from './agent-notify-command';
 import piEmdashExtension from './pi-emdash-extension.ts?raw';
@@ -25,15 +27,40 @@ const GITIGNORE_PATH = '.gitignore';
 type HookConfigWriteOptions = { writeGitIgnoreEntries?: boolean };
 type CodexHookEvent = 'Stop' | 'PermissionRequest';
 type DroidHookEvent = 'Notification' | 'Stop';
+type HookEntryConfig = { command: string; matcher?: string };
+type ClaudeHookConfig = {
+  eventType: AgentEventType;
+  hookKey: string;
+  matcher?: string;
+  notificationType?: NotificationType;
+};
 
-// Claude Code event map. PreToolUse → 'start' lets emdash detect that Claude
-// resumed work after a permission prompt (which it cannot infer from
-// Stop/Notification alone).
+// Claude Code hook map. Notification matchers provide typed attention events
+// without parsing notification text. Start events keep the task status in sync
+// when Claude enters tool or MCP elicitation flows.
 const CLAUDE_HOOK_EVENT_MAP = [
-  { eventType: 'notification', hookKey: 'Notification' },
+  {
+    eventType: 'notification',
+    hookKey: 'Notification',
+    matcher: 'permission_prompt',
+    notificationType: 'permission_prompt',
+  },
+  {
+    eventType: 'notification',
+    hookKey: 'Notification',
+    matcher: 'idle_prompt',
+    notificationType: 'idle_prompt',
+  },
+  {
+    eventType: 'notification',
+    hookKey: 'Notification',
+    matcher: 'elicitation_dialog',
+    notificationType: 'elicitation_dialog',
+  },
   { eventType: 'stop', hookKey: 'Stop' },
   { eventType: 'start', hookKey: 'PreToolUse' },
-] satisfies { eventType: string; hookKey: string }[];
+  { eventType: 'start', hookKey: 'ElicitationResult' },
+] satisfies ClaudeHookConfig[];
 
 const CODEX_HOOK_EVENT_MAP = [
   { hookKey: 'Stop', notificationType: 'idle_prompt' },
@@ -83,12 +110,29 @@ export class HookConfigWriter {
 
     const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
 
-    for (const { eventType, hookKey } of CLAUDE_HOOK_EVENT_MAP) {
+    const entriesByHookKey = new Map<string, HookEntryConfig[]>();
+    for (const { eventType, hookKey, matcher, notificationType } of CLAUDE_HOOK_EVENT_MAP) {
+      const command = notificationType
+        ? makeNotificationHookCommand(notificationType, { platform: this.platform })
+        : makeClaudeHookCommand(eventType, { platform: this.platform });
+      const entries = entriesByHookKey.get(hookKey) ?? [];
+      entries.push(matcher ? { command, matcher } : { command });
+      entriesByHookKey.set(hookKey, entries);
+    }
+
+    for (const [hookKey, entries] of entriesByHookKey) {
       const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
-      hooks[hookKey] = this.buildHookEntries(
-        existing,
-        makeClaudeHookCommand(eventType, { platform: this.platform })
-      );
+      hooks[hookKey] = this.buildHookEntries(existing, entries);
+    }
+
+    const permissionRequestHooks = hooks.PermissionRequest;
+    if (Array.isArray(permissionRequestHooks)) {
+      const userEntries = this.removeEmdashManagedEntries(permissionRequestHooks);
+      if (userEntries.length > 0) {
+        hooks.PermissionRequest = userEntries;
+      } else {
+        delete hooks.PermissionRequest;
+      }
     }
 
     await this.fs.write(CLAUDE_SETTINGS_PATH, JSON.stringify({ ...config, hooks }, null, 2) + '\n');
@@ -109,10 +153,9 @@ export class HookConfigWriter {
 
     for (const { hookKey, notificationType } of CODEX_HOOK_EVENT_MAP) {
       const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
-      hooks[hookKey] = this.buildHookEntries(
-        existing,
-        makeCodexHookCommand(notificationType, { platform: this.platform })
-      );
+      hooks[hookKey] = this.buildHookEntries(existing, {
+        command: makeCodexHookCommand(notificationType, { platform: this.platform }),
+      });
     }
 
     await this.userFs.write(CODEX_HOOKS_PATH, JSON.stringify({ ...config, hooks }, null, 2) + '\n');
@@ -136,10 +179,9 @@ export class HookConfigWriter {
 
     for (const { hookKey, eventType } of DROID_HOOK_EVENT_MAP) {
       const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
-      hooks[hookKey] = this.buildHookEntries(
-        existing,
-        makeClaudeHookCommand(eventType, { platform: this.platform })
-      );
+      hooks[hookKey] = this.buildHookEntries(existing, {
+        command: makeClaudeHookCommand(eventType, { platform: this.platform }),
+      });
     }
 
     await this.fs.write(DROID_SETTINGS_PATH, JSON.stringify({ ...config, hooks }, null, 2) + '\n');
@@ -228,9 +270,21 @@ export class HookConfigWriter {
     );
   }
 
-  private buildHookEntries(existing: unknown[], command: string): unknown[] {
-    const userEntries = existing.filter((entry) => !JSON.stringify(entry).includes(EMDASH_MARKER));
-    return [...userEntries, { hooks: [{ type: 'command', command }] }];
+  private buildHookEntries(
+    existing: unknown[],
+    entries: HookEntryConfig | HookEntryConfig[]
+  ): unknown[] {
+    const userEntries = this.removeEmdashManagedEntries(existing);
+    const hookEntryConfigs = Array.isArray(entries) ? entries : [entries];
+    const hookEntries = hookEntryConfigs.map(({ command, matcher }) => ({
+      ...(matcher ? { matcher } : {}),
+      hooks: [{ type: 'command', command }],
+    }));
+    return [...userEntries, ...hookEntries];
+  }
+
+  private removeEmdashManagedEntries(existing: unknown[]): unknown[] {
+    return existing.filter((entry) => !JSON.stringify(entry).includes(EMDASH_MARKER));
   }
 
   private async removeLegacyCodexNotify(): Promise<void> {

@@ -141,7 +141,7 @@ describe('HookConfigWriter', () => {
     expect(config.notify).toBeUndefined();
   });
 
-  it('writes Claude Notification, Stop, and PreToolUse hooks and ignores settings in git', async () => {
+  it('writes typed Claude attention, stop, and start hooks and ignores settings in git', async () => {
     mockResolveCommandPath.mockResolvedValue('/usr/local/bin/claude');
     const fs = new MemoryFs();
     const writer = makeWriter(fs);
@@ -149,11 +149,24 @@ describe('HookConfigWriter', () => {
     await writer.writeForProvider('claude');
 
     const config = JSON.parse(fs.files.get('.claude/settings.local.json')!);
+    expect(config.hooks.PermissionRequest).toBeUndefined();
+    expect(config.hooks.Notification[0].matcher).toBe('permission_prompt');
     expect(config.hooks.Notification[0].hooks[0].command).toContain(
-      'X-Emdash-Event-Type: notification'
+      '{"notification_type":"permission_prompt"}'
+    );
+    expect(config.hooks.Notification[1].matcher).toBe('idle_prompt');
+    expect(config.hooks.Notification[1].hooks[0].command).toContain(
+      '{"notification_type":"idle_prompt"}'
+    );
+    expect(config.hooks.Notification[2].matcher).toBe('elicitation_dialog');
+    expect(config.hooks.Notification[2].hooks[0].command).toContain(
+      '{"notification_type":"elicitation_dialog"}'
     );
     expect(config.hooks.Stop[0].hooks[0].command).toContain('X-Emdash-Event-Type: stop');
     expect(config.hooks.PreToolUse[0].hooks[0].command).toContain('X-Emdash-Event-Type: start');
+    expect(config.hooks.ElicitationResult[0].hooks[0].command).toContain(
+      'X-Emdash-Event-Type: start'
+    );
     expect(fs.files.get('.gitignore')).toBe('.claude/settings.local.json\n');
   });
 
@@ -164,6 +177,10 @@ describe('HookConfigWriter', () => {
       '.claude/settings.local.json',
       JSON.stringify({
         hooks: {
+          PermissionRequest: [
+            { hooks: [{ type: 'command', command: 'echo user permission hook' }] },
+            { hooks: [{ type: 'command', command: 'echo $EMDASH_HOOK_PORT' }] },
+          ],
           PreToolUse: [
             { hooks: [{ type: 'command', command: 'echo user pretool hook' }] },
             { hooks: [{ type: 'command', command: 'echo $EMDASH_HOOK_PORT' }] },
@@ -176,6 +193,8 @@ describe('HookConfigWriter', () => {
     await writer.writeForProvider('claude');
 
     const config = JSON.parse(fs.files.get('.claude/settings.local.json')!);
+    expect(config.hooks.PermissionRequest).toHaveLength(1);
+    expect(config.hooks.PermissionRequest[0].hooks[0].command).toBe('echo user permission hook');
     expect(config.hooks.PreToolUse).toHaveLength(2);
     expect(config.hooks.PreToolUse[0].hooks[0].command).toBe('echo user pretool hook');
     expect(config.hooks.PreToolUse[1].hooks[0].command).toContain('X-Emdash-Event-Type: start');

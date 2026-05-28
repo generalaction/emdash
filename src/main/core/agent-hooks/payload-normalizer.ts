@@ -19,7 +19,8 @@ export function normalizePayload(
     payload.notificationType = 'idle_prompt';
   }
 
-  // Claude Code's Notification hook payload has no notification_type field.
+  // Current Claude Code notification hooks include notification_type. Keep a
+  // message fallback for older/raw hook configs that forwarded untyped payloads.
   if (!payload.notificationType && providerId === 'claude' && eventType === 'notification') {
     payload.notificationType = isClaudePermissionPrompt(payload.message)
       ? 'permission_prompt'
