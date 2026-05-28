@@ -51,28 +51,24 @@ function buildItemUrl(boardUrl: string, itemId: string): string {
   return `${boardUrl}/pulses/${itemId}`;
 }
 
+function extractDescription(columnValues: MondayColumnValue[]): string | undefined {
+  const longText = columnValues.find((c) => c.type === 'long_text' || c.type === 'text');
+  return longText?.text || undefined;
+}
+
 function toIssue(
   item: MondayItem,
   board: { name: string; url: string },
   context?: string
 ): Issue {
-  const status = item.column_values.find((c) => c.type === 'status')?.text || undefined;
-  const assigneesRaw = item.column_values.find((c) => c.type === 'people')?.text;
-  const assignees = assigneesRaw
-    ? assigneesRaw
-        .split(',')
-        .map((s) => s.trim())
-        .filter(Boolean)
-    : undefined;
+  const description = extractDescription(item.column_values);
 
   return {
     provider: 'monday',
     identifier: item.id,
     title: item.name,
     url: buildItemUrl(board.url, item.id),
-    status,
-    assignees,
-    project: board.name,
+    description,
     updatedAt: item.updated_at,
     fetchedAt: new Date().toISOString(),
     context,
