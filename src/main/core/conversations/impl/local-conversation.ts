@@ -3,6 +3,7 @@ import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
 import { wireAgentClassifier } from '@main/core/agent-hooks/classifier-wiring';
 import { claudeTrustService } from '@main/core/agent-hooks/claude-trust-service';
 import { HookConfigWriter } from '@main/core/agent-hooks/hook-config';
+import { agentSessionEvents } from '@main/core/conversations/agent-session-events';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
@@ -26,7 +27,10 @@ import { makePtySessionId } from '@shared/ptySessionId';
 import { resolveAgentSessionCommandArgs } from '../resolve-agent-session-command';
 import { buildAgentSessionCommand } from './agent-command';
 import { syncGrokThemeWithAppTheme } from './grok-theme-config';
-import { scheduleInitialPromptInjection } from './keystroke-injection';
+import {
+  scheduleInitialPromptInjection,
+  waitForInitialPromptReadiness,
+} from './keystroke-injection';
 import { resolveProviderEnv } from './provider-env';
 
 const DEFAULT_COLS = 80;
@@ -190,13 +194,15 @@ export class LocalConversationProvider implements ConversationProvider {
       const shouldRespawn =
         this.sessions.has(sessionId) && isUnexpectedPtyExit({ exitCode, signal });
       this.sessions.delete(sessionId);
-      events.emit(agentSessionExitedChannel, {
+      const exitEvent = {
         sessionId,
         projectId: conversation.projectId,
         conversationId: conversation.id,
         taskId: conversation.taskId,
         exitCode,
-      });
+      };
+      agentSessionEvents._emit('agent:session-exited', exitEvent);
+      events.emit(agentSessionExitedChannel, exitEvent);
       if (shouldRespawn && !this.tmux) {
         const count = (this.respawnCounts.get(sessionId) ?? 0) + 1;
         this.respawnCounts.set(sessionId, count);
@@ -282,6 +288,13 @@ export class LocalConversationProvider implements ConversationProvider {
     const pty = this.sessions.get(sessionId);
     if (!pty) throw new Error('Conversation PTY session not found');
     pty.write(data);
+  }
+
+  async waitUntilReadyForInput(conversation: Conversation): Promise<void> {
+    const sessionId = makePtySessionId(this.projectId, this.taskId, conversation.id);
+    const pty = this.sessions.get(sessionId);
+    if (!pty) throw new Error('Conversation PTY session not found');
+    await waitForInitialPromptReadiness({ pty, conversation, isResuming: false, force: true });
   }
 
   async interruptSession(conversationId: string): Promise<void> {

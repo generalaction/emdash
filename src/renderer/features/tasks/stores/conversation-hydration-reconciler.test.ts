@@ -144,6 +144,24 @@ describe('ConversationHydrationReconciler', () => {
     expect(dehydrateConversation).toHaveBeenCalledWith('conversation-1');
   });
 
+  it('can hydrate again after dispose and resume', async () => {
+    const { reconciler, hydrateConversation, dehydrateConversation } = makeHarness();
+
+    reconciler.sync(['conversation-1']);
+    await Promise.resolve();
+    reconciler.dispose();
+    await Promise.resolve();
+
+    expect(dehydrateConversation).toHaveBeenCalledTimes(1);
+
+    reconciler.resume();
+    reconciler.sync(['conversation-1']);
+    await Promise.resolve();
+
+    expect(hydrateConversation).toHaveBeenCalledTimes(2);
+    expect(hydrateConversation).toHaveBeenLastCalledWith('conversation-1');
+  });
+
   it('retries failed dehydrate without waiting for another sync', async () => {
     vi.useFakeTimers();
     try {

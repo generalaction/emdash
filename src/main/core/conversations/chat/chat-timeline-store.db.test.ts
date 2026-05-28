@@ -134,6 +134,123 @@ describe('ChatTimelineStore', () => {
     expect(items.map((item) => item.id)).toEqual(['message-2']);
   });
 
+  it('keeps silently appended user messages hidden until they are emitted', async () => {
+    const conversation = makeConversation();
+    const item = await chatTimelineStore.appendUserMessage(
+      conversation,
+      {
+        messageId: 'message-1',
+        text: 'pending',
+      },
+      { emit: false }
+    );
+
+    const pendingRows = fixture.sqlite
+      .prepare(`SELECT payload FROM conversation_timeline_items WHERE id = 'message-1'`)
+      .all() as Array<{ payload: string }>;
+    expect(JSON.parse(pendingRows[0]?.payload ?? '{}')).toMatchObject({
+      text: 'pending',
+      deliveryStatus: '__emdash_pending_delivery__',
+    });
+    await expect(
+      chatTimelineStore.listTimeline('project-1', 'task-1', 'conversation-1')
+    ).resolves.toEqual([]);
+
+    await chatTimelineStore.markUserMessageDelivered(conversation, item);
+    const deliveredPendingRows = fixture.sqlite
+      .prepare(`SELECT payload FROM conversation_timeline_items WHERE id = 'message-1'`)
+      .all() as Array<{ payload: string }>;
+    expect(JSON.parse(deliveredPendingRows[0]?.payload ?? '{}')).toMatchObject({
+      text: 'pending',
+      deliveryStatus: '__emdash_delivered_pending_emit__',
+    });
+    await expect(
+      chatTimelineStore.listTimeline('project-1', 'task-1', 'conversation-1')
+    ).resolves.toEqual([]);
+
+    await chatTimelineStore.emitItem(conversation, item);
+
+    const committedRows = fixture.sqlite
+      .prepare(`SELECT payload FROM conversation_timeline_items WHERE id = 'message-1'`)
+      .all() as Array<{ payload: string }>;
+    expect(JSON.parse(committedRows[0]?.payload ?? '{}')).toEqual({ text: 'pending' });
+    await expect(
+      chatTimelineStore.listTimeline('project-1', 'task-1', 'conversation-1')
+    ).resolves.toMatchObject([{ id: 'message-1', kind: 'user_message', text: 'pending' }]);
+  });
+
+  it('discards undelivered pending user messages during runtime recovery', async () => {
+    const conversation = makeConversation();
+    await chatTimelineStore.appendUserMessage(
+      conversation,
+      {
+        messageId: 'message-1',
+        text: 'pending',
+      },
+      { emit: false }
+    );
+
+    await chatTimelineStore.recoverPendingUserMessages(conversation);
+
+    const rows = fixture.sqlite
+      .prepare(`SELECT id FROM conversation_timeline_items WHERE id = 'message-1'`)
+      .all();
+    expect(rows).toEqual([]);
+    await expect(
+      chatTimelineStore.listTimeline('project-1', 'task-1', 'conversation-1')
+    ).resolves.toEqual([]);
+  });
+
+  it('recovers delivered user messages that were not emitted before restart', async () => {
+    const conversation = makeConversation();
+    const item = await chatTimelineStore.appendUserMessage(
+      conversation,
+      {
+        messageId: 'message-1',
+        text: 'delivered',
+      },
+      { emit: false }
+    );
+    await chatTimelineStore.markUserMessageDeliveryStarted(conversation, item);
+    await chatTimelineStore.markUserMessageDelivered(conversation, item);
+
+    await chatTimelineStore.recoverPendingUserMessages(conversation);
+
+    const rows = fixture.sqlite
+      .prepare(`SELECT payload FROM conversation_timeline_items WHERE id = 'message-1'`)
+      .all() as Array<{ payload: string }>;
+    expect(JSON.parse(rows[0]?.payload ?? '{}')).toEqual({ text: 'delivered' });
+    await expect(
+      chatTimelineStore.listTimeline('project-1', 'task-1', 'conversation-1')
+    ).resolves.toMatchObject([{ id: 'message-1', kind: 'user_message', text: 'delivered' }]);
+  });
+
+  it('recovers delivery-started user messages with an uncertainty error', async () => {
+    const conversation = makeConversation();
+    const item = await chatTimelineStore.appendUserMessage(
+      conversation,
+      {
+        messageId: 'message-1',
+        text: 'maybe sent',
+      },
+      { emit: false }
+    );
+    await chatTimelineStore.markUserMessageDeliveryStarted(conversation, item);
+
+    await chatTimelineStore.recoverPendingUserMessages(conversation);
+    await chatTimelineStore.recoverPendingUserMessages(conversation);
+
+    const items = await chatTimelineStore.listTimeline('project-1', 'task-1', 'conversation-1');
+    expect(items).toMatchObject([
+      { id: 'message-1', kind: 'user_message', text: 'maybe sent' },
+      {
+        kind: 'error',
+        message:
+          'Emdash restarted before it could confirm whether this message reached the agent backend.',
+      },
+    ]);
+  });
+
   it('lists the latest timeline tail by default', async () => {
     const conversation = makeConversation();
     for (let index = 1; index <= 105; index++) {
@@ -149,6 +266,36 @@ describe('ChatTimelineStore', () => {
     expect(items).toHaveLength(100);
     expect(items[0]?.id).toBe('message-6');
     expect(items.at(-1)?.id).toBe('message-105');
+  });
+
+  it('does not count silently appended user messages against timeline limits', async () => {
+    const conversation = makeConversation();
+    await chatTimelineStore.append(conversation, {
+      id: 'message-1',
+      kind: 'user_message',
+      payload: { text: 'visible 1' },
+    });
+    await chatTimelineStore.append(conversation, {
+      id: 'message-2',
+      kind: 'user_message',
+      payload: { text: 'visible 2' },
+    });
+    await chatTimelineStore.appendUserMessage(
+      conversation,
+      { messageId: 'message-pending', text: 'pending' },
+      { emit: false }
+    );
+    await chatTimelineStore.append(conversation, {
+      id: 'message-4',
+      kind: 'assistant_message',
+      payload: { text: 'visible 4' },
+    });
+
+    const items = await chatTimelineStore.listTimeline('project-1', 'task-1', 'conversation-1', {
+      limit: 2,
+    });
+
+    expect(items.map((item) => item.id)).toEqual(['message-2', 'message-4']);
   });
 
   it('rejects terminal conversations at the chat timeline boundary', async () => {

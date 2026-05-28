@@ -11,6 +11,14 @@ vi.mock('@main/db/client', () => ({
 vi.mock('../conversations/chat/chat-timeline-store', () => ({
   chatTimelineStore: {
     getLatestAssistantMessage: vi.fn().mockResolvedValue(undefined),
+    recoverPendingUserMessages: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
+vi.mock('@main/core/conversations/chat/chat-timeline-store', () => ({
+  chatTimelineStore: {
+    getLatestAssistantMessage: vi.fn().mockResolvedValue(undefined),
+    recoverPendingUserMessages: vi.fn().mockResolvedValue(undefined),
   },
 }));
 

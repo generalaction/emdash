@@ -281,6 +281,8 @@ export class WorkspaceViewModel implements ILifecycle {
     const workspace = this._workspace;
     if (!workspace) return; // defensive — should always have workspace when provisioned
 
+    this._conversationHydration.resume();
+
     const taskData = this._taskStore.data as Task;
     const workspaceId = this._taskStore.workspaceId!;
     this.devServers = new DevServerStore(this.taskId, workspaceId);

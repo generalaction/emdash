@@ -70,14 +70,17 @@ export async function createConversation(params: CreateConversationParams): Prom
   await withCompensation({
     action: async () => {
       if (shouldUseChatRuntime(conversation)) {
-        await chatConversationRuntime.startConversation(conversation, params.initialPrompt);
-        await task.conversations.startSession(
-          conversation,
-          params.initialSize,
-          false,
-          params.initialPrompt
-        );
+        await chatConversationRuntime.startConversation(conversation);
+        await task.conversations.startSession(conversation, params.initialSize, false, undefined);
         chatBackendSessionStarted = true;
+        if (params.initialPrompt?.trim()) {
+          await chatConversationRuntime.sendMessage(
+            conversation.projectId,
+            conversation.taskId,
+            conversation.id,
+            { text: params.initialPrompt }
+          );
+        }
         return;
       }
       await task.conversations.startSession(

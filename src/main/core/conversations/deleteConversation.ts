@@ -11,6 +11,16 @@ export async function deleteConversation(
   taskId: string,
   conversationId: string
 ): Promise<void> {
+  const releaseBackendExitSuppression =
+    chatConversationRuntime.suppressBackendExitDuringStop(conversationId);
+  const task = resolveTask(projectId, taskId);
+  try {
+    await task?.conversations.stopSession(conversationId);
+  } finally {
+    releaseBackendExitSuppression();
+  }
+  chatConversationRuntime.dehydrateConversation(conversationId);
+
   await db
     .delete(conversations)
     .where(
@@ -23,9 +33,6 @@ export async function deleteConversation(
 
   conversationEvents._emit('conversation:deleted', conversationId);
 
-  const task = resolveTask(projectId, taskId);
-  chatConversationRuntime.dehydrateConversation(conversationId);
-  await task?.conversations.stopSession(conversationId);
   telemetryService.capture('conversation_deleted', {
     project_id: projectId,
     task_id: taskId,

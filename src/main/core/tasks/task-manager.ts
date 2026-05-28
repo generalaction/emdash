@@ -118,12 +118,18 @@ async function executeTeardown(
   workspaceId: string,
   mode: TeardownMode
 ): Promise<void> {
-  if (mode === 'detach') {
-    await task.conversations.detachAll();
-    await task.terminals.detachAll();
-  } else {
-    await task.conversations.destroyAll();
-    await task.terminals.destroyAll();
+  const releaseBackendExitSuppression =
+    chatConversationRuntime.suppressBackendExitForTaskDuringStop(task.taskId);
+  try {
+    if (mode === 'detach') {
+      await task.conversations.detachAll();
+      await task.terminals.detachAll();
+    } else {
+      await task.conversations.destroyAll();
+      await task.terminals.destroyAll();
+    }
+  } finally {
+    releaseBackendExitSuppression();
   }
   chatConversationRuntime.dehydrateTask(task.taskId);
   await workspaceRegistry.release(workspaceId, mode);

@@ -4,6 +4,7 @@ import type { Task } from '@shared/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
 import { conversationRegistry } from './conversation-registry';
 import type { TaskStore } from './task-store';
+import { workspaceRegistry } from './workspace-registry';
 import { WorkspaceViewModel } from './workspace-view-model';
 
 vi.mock('@renderer/lib/ipc', () => ({
@@ -69,7 +70,10 @@ function makeConversation(overrides: Partial<Conversation> = {}): Conversation {
 }
 
 function makeViewModel(): WorkspaceViewModel {
-  return new WorkspaceViewModel({ data: makeTask() } as unknown as TaskStore);
+  return new WorkspaceViewModel({
+    data: makeTask(),
+    workspaceId: 'workspace-1',
+  } as unknown as TaskStore);
 }
 
 function asHydrationHarness(viewModel: WorkspaceViewModel): HydrationHarness {
@@ -78,6 +82,7 @@ function asHydrationHarness(viewModel: WorkspaceViewModel): HydrationHarness {
 
 afterEach(() => {
   conversationRegistry.release('task-1');
+  workspaceRegistry.release('project-1', 'workspace-1');
 });
 
 describe('WorkspaceViewModel terminal drawer snapshot', () => {
@@ -252,6 +257,42 @@ describe('WorkspaceViewModel conversation hydration', () => {
     expect(dehydrateConversation).toHaveBeenCalledWith('conversation-1');
     expect(dehydrateConversation).toHaveBeenCalledWith('conversation-2');
 
+    viewModel.dispose();
+  });
+
+  it('rehydrates open conversations after suspend and initialize', async () => {
+    const viewModel = makeViewModel();
+    const workspaceGet = vi.spyOn(workspaceRegistry, 'get').mockReturnValue({
+      git: {
+        stagedFileChanges: [],
+        unstagedFileChanges: [],
+      },
+      repository: {
+        baseRemote: 'origin',
+      },
+    } as never);
+    const conversations = conversationRegistry.acquire('task-1', 'project-1', [makeConversation()]);
+    const hydrateConversation = vi.spyOn(conversations, 'hydrateConversation').mockResolvedValue();
+    const dehydrateConversation = vi
+      .spyOn(conversations, 'dehydrateConversation')
+      .mockResolvedValue();
+
+    viewModel.tabManager.openConversation('conversation-1');
+    viewModel.initialize();
+    await Promise.resolve();
+
+    expect(hydrateConversation).toHaveBeenCalledTimes(1);
+
+    viewModel.suspend();
+    await Promise.resolve();
+    expect(dehydrateConversation).toHaveBeenCalledTimes(1);
+
+    viewModel.initialize();
+    await Promise.resolve();
+
+    expect(hydrateConversation).toHaveBeenCalledTimes(2);
+
+    workspaceGet.mockRestore();
     viewModel.dispose();
   });
 

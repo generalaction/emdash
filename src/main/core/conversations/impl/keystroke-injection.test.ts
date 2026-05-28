@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Pty, PtyExitInfo } from '@main/core/pty/pty';
 import type { Conversation } from '@shared/conversations';
-import { scheduleInitialPromptInjection } from './keystroke-injection';
+import {
+  scheduleInitialPromptInjection,
+  waitForInitialPromptReadiness,
+} from './keystroke-injection';
 
 function makeConversation(providerId: Conversation['providerId']): Conversation {
   return {
@@ -168,5 +171,27 @@ describe('scheduleInitialPromptInjection', () => {
     emitExit();
     vi.advanceTimersByTime(20_000);
     expect(write).not.toHaveBeenCalled();
+  });
+
+  it('can force readiness waiting for providers without keystroke injection', async () => {
+    const { pty, emitData } = makePty();
+    let resolved = false;
+    const ready = waitForInitialPromptReadiness({
+      pty,
+      conversation: makeConversation('codex'),
+      isResuming: false,
+      force: true,
+    }).then(() => {
+      resolved = true;
+    });
+
+    await Promise.resolve();
+    expect(resolved).toBe(false);
+
+    emitData('ready');
+    vi.advanceTimersByTime(900);
+    await ready;
+
+    expect(resolved).toBe(true);
   });
 });

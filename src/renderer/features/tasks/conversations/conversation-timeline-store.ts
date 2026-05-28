@@ -64,6 +64,10 @@ export class ConversationTimelineStore implements IDisposable {
     return item;
   }
 
+  async cancelTurn(): Promise<void> {
+    await rpc.conversations.cancelTurn(this.projectId, this.taskId, this.conversationId);
+  }
+
   dispose(): void {
     this.items.dispose();
   }

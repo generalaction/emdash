@@ -8,6 +8,7 @@ import { SshConversationProvider } from './ssh-conversation';
 
 const spawnLocalPty = vi.hoisted(() => vi.fn());
 const openSsh2Pty = vi.hoisted(() => vi.fn());
+const agentSessionEmit = vi.hoisted(() => vi.fn());
 
 vi.mock('@main/core/agent-hooks/agent-hook-service', () => ({
   agentHookService: {
@@ -30,6 +31,12 @@ vi.mock('@main/core/agent-hooks/claude-trust-service', () => ({
 vi.mock('@main/core/agent-hooks/hook-config', () => ({
   HookConfigWriter: class {
     writeForProvider = vi.fn(async () => false);
+  },
+}));
+
+vi.mock('@main/core/conversations/agent-session-events', () => ({
+  agentSessionEvents: {
+    _emit: agentSessionEmit,
   },
 }));
 
@@ -136,6 +143,7 @@ describe('conversation provider respawn state', () => {
     vi.useRealTimers();
     spawnLocalPty.mockReset();
     openSsh2Pty.mockReset();
+    agentSessionEmit.mockReset();
     vi.mocked(events.emit).mockClear();
   });
 
@@ -155,6 +163,10 @@ describe('conversation provider respawn state', () => {
       for (const handler of exitHandlers) handler({ exitCode: 1 });
       await vi.advanceTimersByTimeAsync(500);
 
+      expect(agentSessionEmit).toHaveBeenCalledWith(
+        'agent:session-exited',
+        expect.objectContaining({ conversationId: 'conversation-1' })
+      );
       expect(respawn).toHaveBeenCalledWith(item, size, true, initialPrompt);
     } finally {
       vi.useRealTimers();

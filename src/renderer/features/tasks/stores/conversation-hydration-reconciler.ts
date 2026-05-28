@@ -38,6 +38,10 @@ export class ConversationHydrationReconciler implements IDisposable {
     this.log = log;
   }
 
+  resume(): void {
+    this.disposed = false;
+  }
+
   sync(openConversationIds: Iterable<string>): void {
     if (this.disposed) return;
 

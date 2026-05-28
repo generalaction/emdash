@@ -20,6 +20,7 @@ const listeners = vi.hoisted(() => ({
 }));
 const getTimeline = vi.hoisted(() => vi.fn());
 const sendMessage = vi.hoisted(() => vi.fn());
+const cancelTurn = vi.hoisted(() => vi.fn());
 
 vi.mock('@renderer/lib/ipc', () => ({
   events: {
@@ -32,6 +33,7 @@ vi.mock('@renderer/lib/ipc', () => ({
   },
   rpc: {
     conversations: {
+      cancelTurn,
       getTimeline,
       sendMessage,
     },
@@ -43,7 +45,9 @@ describe('ConversationTimelineStore', () => {
     listeners.timeline = undefined;
     getTimeline.mockReset();
     sendMessage.mockReset();
+    cancelTurn.mockReset();
     getTimeline.mockResolvedValue([]);
+    cancelTurn.mockResolvedValue(undefined);
     sendMessage.mockResolvedValue({
       item: {
         id: 'message-1',
@@ -122,6 +126,14 @@ describe('ConversationTimelineStore', () => {
     ]);
 
     store.dispose();
+  });
+
+  it('cancels turns through RPC', async () => {
+    const store = new ConversationTimelineStore('project-1', 'task-1', 'conversation-1');
+
+    await store.cancelTurn();
+
+    expect(cancelTurn).toHaveBeenCalledWith('project-1', 'task-1', 'conversation-1');
   });
 });
 

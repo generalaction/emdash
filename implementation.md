@@ -148,3 +148,144 @@ Remaining risks and follow-ups:
   provider-native parsing may still be needed in later phases.
 - The chat panel rendering is intentionally basic in this step; richer Paseo-inspired message
   layout and composer polish remain future UI work.
+
+## Step 3: Codex Provider Adapter Boundary
+
+Completed the first provider-adapter phase from `docs/design.md`.
+
+Files and modules changed:
+
+- Added `ChatProviderAdapter` and runtime event types in
+  `src/main/core/conversations/chat/types.ts`.
+- Added the Codex chat adapter under `src/main/core/conversations/chat/provider-adapters/`.
+- Moved Codex prompt formatting, cancellation, status mapping, assistant message mapping, and error
+  mapping out of `ChatConversationRuntime` and behind the adapter boundary.
+- Updated `ChatConversationRuntime` to select adapters by provider id, persist user messages before
+  provider delivery, emit mapped adapter statuses/timeline rows, dedupe assistant messages, and
+  fence cancelled turns from late provider events.
+- Extended `ChatTimelineStore` with deferred item emission and deletion so failed or cancelled sends
+  do not leak optimistic user messages into the renderer.
+- Extended deferred user-message persistence with explicit pending, delivery-started, and
+  delivered-pending-emit states so recovery can distinguish unsent rows, uncertain delivery, and
+  confirmed backend delivery.
+- Added backend readiness invalidation across backend exits, delivery failures, and cancellation so
+  TUI-backed chat sends wait for a fresh prompt after session disruption.
+- Updated classifier wiring so classifier status/error labels are not treated as assistant text and
+  chat timeline recording completes before renderer `agent:event` emission.
+- Updated renderer conversation management so chat conversations ignore raw agent lifecycle and PTY
+  session-exit status paths, relying on `conversation:status` instead.
+- Added a chat cancel path through the renderer timeline store, conversation manager, and chat panel,
+  and disabled sends while the provider turn is working.
+- Split the chat panel rendering/composer into focused renderer components while keeping state
+  changes routed through the existing conversation manager/timeline stores.
+- Moved chat conversation deletion to stop the provider session before deleting the conversation row.
+- Updated conversation hydration reconciliation so workspace resume can hydrate conversations again
+  after disposal.
+- Added a lightweight main-process session-exit hook so providers can notify the chat runtime about
+  backend exits without importing the runtime from PTY provider implementations.
+- Added focused adapter, runtime, classifier, renderer, and DB-backed cancellation coverage.
+
+Key decisions:
+
+- Provider-specific chat behavior lives in adapters; the runtime owns persistence/order,
+  cancellation fencing, and event emission.
+- Classifier `message` remains a status/error label. Only hook/provider-native
+  `lastAssistantMessage` can become an assistant timeline row.
+- User timeline rows are written before provider input delivery, but hidden until the runtime either
+  confirms backend delivery or recovers them with an explicit uncertainty marker.
+- Cancellation interrupts the provider before marking the turn cancelled; the cancellation timeline
+  marker is best-effort and must not block backend interruption.
+- Chat sends remain pending until backend delivery succeeds, then stay blocked while the provider is
+  responding until a mapped completion, error, or attention status arrives.
+
+Validation:
+
+- `pnpm run format`: passed.
+- Focused regression tests for adapter/runtime/timeline/provider/task/renderer paths: passed,
+  11 files / 94 tests.
+- `pnpm run lint`: passed.
+- `pnpm run typecheck`: passed.
+- `pnpm run test`: passed, 200 files / 1322 tests.
+
+Review loop:
+
+- Round 1 found medium issues around weak Codex wire-format assertions, classifier status labels
+  being persisted as assistant messages, raw renderer agent events still owning chat state, late
+  cancelled-turn events, and classifier event emission racing timeline persistence. Fixed with exact
+  adapter tests, classifier payload changes, renderer chat guards, cancellation fencing, and awaited
+  classifier timeline recording.
+- Round 2 found medium issues around provider delivery before durable user-message persistence,
+  cancellation append ordering, PTY session-exit status ownership, and missing DB-backed cancellation
+  coverage. Fixed by persisting before provider send, interrupting before cancellation state/marker,
+  ignoring PTY session exits for chat conversations, and adding DB-backed cancellation replay
+  coverage.
+- Round 3 found medium issues around provider events arriving while message persistence or
+  cancellation interruption was in flight, plus classifier notification failures blocking agent-event
+  emission. Fixed by buffering mapped provider events during a pending send, only marking
+  cancellation after interrupt succeeds, and making notification failures non-fatal.
+- Round 4 found medium issues around cancellation racing a send that was waiting on timeline
+  persistence, missing DB coverage for normal mapped hook events, timeline append failures blocking
+  later status updates, and overlapping sends while the provider turn was still running. Fixed by
+  cancelling unsent pending turns without provider delivery, adding DB-backed assistant/error event
+  coverage, continuing status mapping after timeline append failures, and blocking new sends until a
+  mapped terminal/attention status arrives.
+- Round 5 found medium issues around cancellation while backend delivery was in flight, stale
+  cancelled-turn output leaking into the next pending send, backend-send rollback failures skipping
+  error status, initial prompts not blocking overlapping sends, and idle startup prompts marking chat
+  conversations completed. Fixed by treating cancellation as fatal after backend delivery resolves,
+  suppressing buffered events for the next send after cancellation, making silent rollback failures
+  non-fatal, marking initial prompts as awaiting a response, and ignoring completion/attention
+  statuses when no response is active.
+- Round 6 found medium issues around later sends being able to clear cancellation state for an
+  earlier in-flight send, chat initial prompts bypassing the chat adapter/runtime send boundary, and
+  missing coverage for pending-send overlap and startup prompt behavior. Fixed by keeping cancelled
+  pending turns until their original backend delivery resolves, routing chat initial prompts through
+  `sendMessage` after backend startup, persisting user messages silently before backend delivery, and
+  adding focused runtime/DB/renderer coverage.
+- Round 7 found high/medium issues around failed cancellation leaving pending turns marked
+  cancelled, retry sends inheriting event suppression from failed sends/cancelled turns, pending
+  silent rows replaying after process restart, chat backend exits no longer clearing runtime state,
+  and initial chat prompts bypassing PTY startup readiness. Fixed by restoring pending-turn
+  cancellation state on interrupt failure, scoping orphan-event suppression to the failed turn,
+  storing silent rows with a durable pending-delivery marker that replay filters until commit,
+  translating provider session exits through a decoupled main-process hook, and waiting for the
+  existing initial-prompt readiness gate before sending chat initial prompts through the adapter.
+- Round 8 found high/medium issues around unsupported Codex permission prompts looking actionable in
+  chat UI, intentional stop/delete exits mutating active chat status, cancellation showing idle while
+  the original send was still resolving, backend exits racing in-flight backend delivery, and
+  awaiting-input not keeping the composer in a cancelable state. Fixed by surfacing unsupported
+  interactive prompts as explicit timeline errors while keeping the turn cancelable, deactivating
+  chat runtime before intentional provider stops, keeping cancellation status blocked until the
+  original send resolves, deferring backend-exit handling until the delivered user message is
+  committed, and treating awaiting-input as a blocked/cancelable composer state.
+- Round 9 found high/medium issues around content-bearing hook events being dropped after stale
+  classifier completion, unsupported interactive prompts being blocked only by renderer state,
+  initial-prompt status races forcing new chat conversations to working, intentional task teardown
+  being recorded as backend failure, stale pending-delivery rows lacking recovery, backend-exit
+  races during pending flush, dehydrate/delete dropping runtime state on failed stops, and next-turn
+  event suppression losing real provider events. Fixed by ignoring only status-only stale
+  notifications, blocking unsupported interactive prompts in the main runtime, avoiding renderer
+  forced-working for new chat conversations, suppressing backend-exit handling during task teardown,
+  deleting stale pending user rows on runtime activation, carrying pending backend exits through
+  flush, preserving runtime state when stop fails, and removing next-turn provider-event
+  suppression.
+- Rounds 10-16 found medium issues around clearing `awaitingInput` on cancellation, preserving
+  events during failed cancellation, startup readiness for hydrated chat sends, pending user-message
+  crash recovery, backend exits while awaiting input, optimistic create-time status races,
+  backend-readiness lifetime, delivered-marker failure recovery, crash-atomic uncertainty recovery,
+  cancellation during delivery-start marking, successful-cancel readiness invalidation, backend exits
+  racing the pre-send window, cancelled turns being marked delivered, orphan provider output after
+  pre-delivery aborts, and cancellation being misclassified as backend send failure. Fixed by
+  restoring blocked status on failed cancellation, buffering cancellation-in-flight events,
+  centralizing readiness in the chat runtime, adding pending/delivery-started/delivered recovery
+  states, making delivery-started recovery transactional, checking backend-exit generations before
+  external writes, invalidating readiness on exits/failures/cancel, suppressing orphan events after
+  pre-delivery aborts, and treating in-flight cancellation as cancellation rather than send failure.
+- Final reviewer state: logic reviewer reported no high/medium issues in round 2; architecture and
+  test reviewers reported no high/medium issues in round 7 after the follow-up fixes.
+
+Remaining risks and follow-ups:
+
+- Permission responses are still typed but unsupported until the tool-call/permission phase.
+- Codex remains the only registered chat adapter; broader provider support is intentionally deferred.
+- The chat UI is still MVP-level and will be refined in the dedicated UI step.

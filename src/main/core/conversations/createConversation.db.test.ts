@@ -7,12 +7,16 @@ import { taskManager } from '@main/core/tasks/task-manager';
 import { conversationTimelineItems, conversations } from '@main/db/schema';
 import { ok } from '@shared/result';
 import { chatConversationRuntime } from './chat/chat-conversation-runtime';
+import { conversationEvents } from './conversation-events';
 import { createConversation } from './createConversation';
 
 const mocks = vi.hoisted(() => ({
   db: undefined as unknown,
+  interruptSession: vi.fn(),
+  sendInput: vi.fn(),
   startSession: vi.fn(),
   stopSession: vi.fn(),
+  waitUntilReadyForInput: vi.fn(),
   captureTelemetry: vi.fn(),
 }));
 
@@ -33,6 +37,17 @@ async function setConversationUiMode(mode: 'terminal' | 'chat') {
   await appSettingsService.update('interface', { ...current, conversationUiMode: mode });
 }
 
+function deferred<T = void>(): {
+  promise: Promise<T>;
+  resolve: (value: T | PromiseLike<T>) => void;
+} {
+  let resolve: (value: T | PromiseLike<T>) => void = () => {};
+  const promise = new Promise<T>((innerResolve) => {
+    resolve = innerResolve;
+  });
+  return { promise, resolve };
+}
+
 async function installTaskProvider(): Promise<void> {
   const taskProvider: TaskProvider = {
     taskId: 'task-1',
@@ -41,8 +56,9 @@ async function installTaskProvider(): Promise<void> {
     taskEnvVars: {},
     conversations: {
       startSession: mocks.startSession,
-      sendInput: vi.fn(),
-      interruptSession: vi.fn(),
+      sendInput: mocks.sendInput,
+      interruptSession: mocks.interruptSession,
+      waitUntilReadyForInput: mocks.waitUntilReadyForInput,
       stopSession: mocks.stopSession,
       destroyAll: vi.fn(),
       detachAll: vi.fn(),
@@ -82,7 +98,10 @@ describe('createConversation runtime mode', () => {
     fixture = await openFixture('empty');
     mocks.db = fixture.db;
     mocks.startSession.mockResolvedValue(undefined);
+    mocks.sendInput.mockResolvedValue(undefined);
+    mocks.interruptSession.mockResolvedValue(undefined);
     mocks.stopSession.mockResolvedValue(undefined);
+    mocks.waitUntilReadyForInput.mockResolvedValue(undefined);
     await installTaskProvider();
 
     fixture.sqlite
@@ -184,9 +203,73 @@ describe('createConversation runtime mode', () => {
       expect.objectContaining({ id: 'conversation-1', runtimeMode: 'chat' }),
       undefined,
       false,
-      'hello'
+      undefined
+    );
+    expect(mocks.waitUntilReadyForInput).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'conversation-1', runtimeMode: 'chat' })
+    );
+    expect(mocks.sendInput).toHaveBeenCalledWith(
+      'conversation-1',
+      expect.stringContaining('hello')
     );
     expect(chatConversationRuntime.isActive('conversation-1')).toBe(true);
+  });
+
+  it('waits for chat backend startup before recording the initial prompt', async () => {
+    await setConversationUiMode('chat');
+    const start = deferred();
+    const ready = deferred();
+    mocks.startSession.mockReturnValueOnce(start.promise);
+    mocks.waitUntilReadyForInput.mockReturnValueOnce(ready.promise);
+    const emit = vi.spyOn(conversationEvents, '_emit');
+
+    const createPromise = createConversation({
+      id: 'conversation-1',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      title: 'Chat conversation',
+      provider: 'codex',
+      initialPrompt: 'hello',
+    });
+    await Promise.resolve();
+
+    const rowsBeforeStart = await fixture.db
+      .select()
+      .from(conversationTimelineItems)
+      .where(eq(conversationTimelineItems.conversationId, 'conversation-1'));
+    expect(rowsBeforeStart).toEqual([]);
+    expect(emit).not.toHaveBeenCalledWith(
+      'conversation:input-submitted',
+      expect.objectContaining({ conversationId: 'conversation-1' })
+    );
+
+    start.resolve();
+    await Promise.resolve();
+
+    const rowsBeforeReady = await fixture.db
+      .select()
+      .from(conversationTimelineItems)
+      .where(eq(conversationTimelineItems.conversationId, 'conversation-1'));
+    expect(rowsBeforeReady).toEqual([]);
+    expect(mocks.sendInput).not.toHaveBeenCalled();
+    expect(emit).not.toHaveBeenCalledWith(
+      'conversation:input-submitted',
+      expect.objectContaining({ conversationId: 'conversation-1' })
+    );
+
+    ready.resolve();
+    await createPromise;
+
+    const rowsAfterStart = await fixture.db
+      .select()
+      .from(conversationTimelineItems)
+      .where(eq(conversationTimelineItems.conversationId, 'conversation-1'));
+    expect(rowsAfterStart).toHaveLength(1);
+    expect(emit).toHaveBeenCalledWith(
+      'conversation:input-submitted',
+      expect.objectContaining({ conversationId: 'conversation-1' })
+    );
+    emit.mockRestore();
   });
 
   it('falls back to terminal runtime for terminal-only providers', async () => {

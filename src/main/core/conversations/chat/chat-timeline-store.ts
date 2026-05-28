@@ -19,6 +19,9 @@ import { mapConversationRowToConversation } from '../utils';
 
 const DEFAULT_TIMELINE_LIMIT = 100;
 const MAX_TIMELINE_LIMIT = 500;
+const PENDING_DELIVERY_STATUS = '__emdash_pending_delivery__';
+const DELIVERY_STARTED_STATUS = '__emdash_delivery_started__';
+const DELIVERED_PENDING_EMIT_STATUS = '__emdash_delivered_pending_emit__';
 
 function normalizeLimit(limit: number | undefined): number {
   if (limit === undefined) return DEFAULT_TIMELINE_LIMIT;
@@ -32,6 +35,38 @@ function parsePayload(raw: string): Record<string, unknown> {
     throw new Error('Invalid conversation timeline payload');
   }
   return parsed as Record<string, unknown>;
+}
+
+function recoverPendingDeliveryPayload(
+  raw: string
+): { action: 'commit'; payload: string; warning?: string } | { action: 'delete' } | undefined {
+  try {
+    const payload = parsePayload(raw);
+    if (payload.deliveryStatus === PENDING_DELIVERY_STATUS) return { action: 'delete' };
+    if (
+      payload.deliveryStatus !== DELIVERY_STARTED_STATUS &&
+      payload.deliveryStatus !== DELIVERED_PENDING_EMIT_STATUS
+    ) {
+      return undefined;
+    }
+    const { deliveryStatus: _deliveryStatus, ...deliveredPayload } = payload;
+    validatePayload('user_message', deliveredPayload);
+    return {
+      action: 'commit',
+      payload: JSON.stringify(deliveredPayload),
+      warning:
+        payload.deliveryStatus === DELIVERY_STARTED_STATUS
+          ? 'Emdash restarted before it could confirm whether this message reached the agent backend.'
+          : undefined,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function deliveredTimelinePayloadPredicate() {
+  const deliveryStatus = sql`case when json_valid(${conversationTimelineItems.payload}) then coalesce(json_extract(${conversationTimelineItems.payload}, '$.deliveryStatus'), '') else '' end`;
+  return sql`${deliveryStatus} != ${PENDING_DELIVERY_STATUS} and ${deliveryStatus} != ${DELIVERY_STARTED_STATUS} and ${deliveryStatus} != ${DELIVERED_PENDING_EMIT_STATUS}`;
 }
 
 function rowToTimelineItem(
@@ -222,7 +257,8 @@ export class ChatTimelineStore {
 
   async append(
     conversation: Conversation,
-    input: AppendConversationTimelineItemInput
+    input: AppendConversationTimelineItemInput,
+    options: { emit?: boolean } = {}
   ): Promise<ConversationTimelineItem> {
     validatePayload(input.kind, input.payload as Record<string, unknown>);
     const persisted = await this.requireChatConversation(
@@ -230,6 +266,11 @@ export class ChatTimelineStore {
       conversation.taskId,
       conversation.id
     );
+
+    const payload =
+      options.emit === false && input.kind === 'user_message'
+        ? { ...input.payload, deliveryStatus: PENDING_DELIVERY_STATUS }
+        : input.payload;
 
     const [row] = this.db.transaction((tx) => {
       const [maxRow] = tx
@@ -245,34 +286,161 @@ export class ChatTimelineStore {
           conversationId: persisted.id,
           sequence: (maxRow?.value ?? 0) + 1,
           kind: input.kind,
-          payload: JSON.stringify(input.payload),
+          payload: JSON.stringify(payload),
         })
         .returning()
         .all();
     });
 
     const item = rowToTimelineItem(row);
-    events.emit(conversationTimelineEventChannel, {
-      projectId: persisted.projectId,
-      taskId: persisted.taskId,
-      conversationId: persisted.id,
-      item,
-    });
+    if (options.emit !== false) {
+      this.emitTimelineItem(persisted, item);
+    }
     return item;
   }
 
   async appendUserMessage(
     conversation: Conversation,
-    input: SendConversationMessageInput | string
+    input: SendConversationMessageInput | string,
+    options: { emit?: boolean } = {}
   ): Promise<ConversationMessageTimelineItem> {
     const text = (typeof input === 'string' ? input : input.text).trim();
     if (!text) throw new Error('Message text is required');
 
-    return this.append(conversation, {
-      id: typeof input === 'string' ? undefined : input.messageId,
-      kind: 'user_message',
-      payload: { text },
-    }) as Promise<ConversationMessageTimelineItem>;
+    return this.append(
+      conversation,
+      {
+        id: typeof input === 'string' ? undefined : input.messageId,
+        kind: 'user_message',
+        payload: { text },
+      },
+      options
+    ) as Promise<ConversationMessageTimelineItem>;
+  }
+
+  async emitItem(conversation: Conversation, item: ConversationTimelineItem): Promise<void> {
+    if (item.kind === 'user_message') {
+      await this.db
+        .update(conversationTimelineItems)
+        .set({ payload: JSON.stringify({ text: item.text }) })
+        .where(
+          and(
+            eq(conversationTimelineItems.id, item.id),
+            eq(conversationTimelineItems.conversationId, conversation.id)
+          )
+        )
+        .execute();
+    }
+    this.emitTimelineItem(conversation, item);
+  }
+
+  async markUserMessageDeliveryStarted(
+    conversation: Conversation,
+    item: ConversationMessageTimelineItem
+  ): Promise<void> {
+    await this.db
+      .update(conversationTimelineItems)
+      .set({
+        payload: JSON.stringify({
+          text: item.text,
+          deliveryStatus: DELIVERY_STARTED_STATUS,
+        }),
+      })
+      .where(
+        and(
+          eq(conversationTimelineItems.id, item.id),
+          eq(conversationTimelineItems.conversationId, conversation.id)
+        )
+      )
+      .execute();
+  }
+
+  async markUserMessageDelivered(
+    conversation: Conversation,
+    item: ConversationMessageTimelineItem
+  ): Promise<void> {
+    await this.db
+      .update(conversationTimelineItems)
+      .set({
+        payload: JSON.stringify({
+          text: item.text,
+          deliveryStatus: DELIVERED_PENDING_EMIT_STATUS,
+        }),
+      })
+      .where(
+        and(
+          eq(conversationTimelineItems.id, item.id),
+          eq(conversationTimelineItems.conversationId, conversation.id)
+        )
+      )
+      .execute();
+  }
+
+  async deleteItem(conversation: Conversation, itemId: string): Promise<void> {
+    await this.db
+      .delete(conversationTimelineItems)
+      .where(
+        and(
+          eq(conversationTimelineItems.id, itemId),
+          eq(conversationTimelineItems.conversationId, conversation.id)
+        )
+      )
+      .execute();
+  }
+
+  async recoverPendingUserMessages(conversation: Conversation): Promise<void> {
+    const rows = await this.db
+      .select({ id: conversationTimelineItems.id, payload: conversationTimelineItems.payload })
+      .from(conversationTimelineItems)
+      .where(
+        and(
+          eq(conversationTimelineItems.conversationId, conversation.id),
+          eq(conversationTimelineItems.kind, 'user_message')
+        )
+      );
+    for (const row of rows) {
+      const recovery = recoverPendingDeliveryPayload(row.payload);
+      if (!recovery) continue;
+      if (recovery.action === 'delete') {
+        await this.db
+          .delete(conversationTimelineItems)
+          .where(
+            and(
+              eq(conversationTimelineItems.conversationId, conversation.id),
+              eq(conversationTimelineItems.id, row.id)
+            )
+          )
+          .execute();
+        continue;
+      }
+      this.db.transaction((tx) => {
+        tx.update(conversationTimelineItems)
+          .set({ payload: recovery.payload })
+          .where(
+            and(
+              eq(conversationTimelineItems.conversationId, conversation.id),
+              eq(conversationTimelineItems.id, row.id)
+            )
+          )
+          .run();
+
+        if (!recovery.warning) return;
+        const [maxRow] = tx
+          .select({ value: sql<number>`coalesce(max(${conversationTimelineItems.sequence}), 0)` })
+          .from(conversationTimelineItems)
+          .where(eq(conversationTimelineItems.conversationId, conversation.id))
+          .all();
+        tx.insert(conversationTimelineItems)
+          .values({
+            id: randomUUID(),
+            conversationId: conversation.id,
+            sequence: (maxRow?.value ?? 0) + 1,
+            kind: 'error',
+            payload: JSON.stringify({ message: recovery.warning }),
+          })
+          .run();
+      });
+    }
   }
 
   async listTimeline(
@@ -293,7 +461,12 @@ export class ChatTimelineStore {
       const rows = await this.db
         .select()
         .from(conversationTimelineItems)
-        .where(eq(conversationTimelineItems.conversationId, conversationId))
+        .where(
+          and(
+            eq(conversationTimelineItems.conversationId, conversationId),
+            deliveredTimelinePayloadPredicate()
+          )
+        )
         .orderBy(desc(conversationTimelineItems.sequence))
         .limit(normalizeLimit(options.limit));
 
@@ -306,7 +479,8 @@ export class ChatTimelineStore {
       .where(
         and(
           eq(conversationTimelineItems.conversationId, conversationId),
-          gt(conversationTimelineItems.sequence, options.afterSequence)
+          gt(conversationTimelineItems.sequence, options.afterSequence),
+          deliveredTimelinePayloadPredicate()
         )
       )
       .orderBy(asc(conversationTimelineItems.sequence))
@@ -331,6 +505,15 @@ export class ChatTimelineStore {
     if (!row) return undefined;
     const item = rowToTimelineItem(row);
     return item.kind === 'assistant_message' ? item.text : undefined;
+  }
+
+  private emitTimelineItem(conversation: Conversation, item: ConversationTimelineItem): void {
+    events.emit(conversationTimelineEventChannel, {
+      projectId: conversation.projectId,
+      taskId: conversation.taskId,
+      conversationId: conversation.id,
+      item,
+    });
   }
 }
 

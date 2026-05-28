@@ -89,45 +89,62 @@ export function wireAgentClassifier({
   });
 
   pty.onData((chunk) => {
-    classifier.classify(chunk);
+    const substantiveOutput = isSubstantiveOutput(chunk);
+    if (substantiveOutput && idleTimer) {
+      clearTimeout(idleTimer);
+      idleTimer = null;
+    }
 
-    if (!isSubstantiveOutput(chunk)) return;
+    try {
+      classifier.classify(chunk);
+    } catch (err) {
+      log.warn('wireAgentClassifier: classify failed', { error: String(err) });
+      return;
+    }
+
+    if (!substantiveOutput) return;
 
     guard.onVisibleChunk();
 
-    if (idleTimer) clearTimeout(idleTimer);
     idleTimer = setTimeout(() => {
-      try {
-        const result = classifier.classify('');
-        if (!guard.shouldEmit(result)) return;
+      void (async () => {
+        try {
+          const result = classifier.classify('');
+          if (!guard.shouldEmit(result)) return;
 
-        const event: AgentEvent = {
-          type: result!.type,
-          source: 'classifier',
-          ptyId,
-          providerId,
-          conversationId,
-          taskId,
-          projectId,
-          timestamp: Date.now(),
-          payload: {
-            message: result!.message,
-            notificationType:
-              result!.type === 'notification' ? result!.notificationType : undefined,
-          },
-        };
-        const appFocused = isAppFocused();
-        void chatConversationRuntime.recordAgentEvent(event).catch((error) => {
-          log.warn('wireAgentClassifier: failed to record chat timeline event', {
+          const event: AgentEvent = {
+            type: result!.type,
+            source: 'classifier',
+            ptyId,
+            providerId,
             conversationId,
-            error: String(error),
+            taskId,
+            projectId,
+            timestamp: Date.now(),
+            payload: {
+              message: result!.message,
+              notificationType:
+                result!.type === 'notification' ? result!.notificationType : undefined,
+            },
+          };
+          const appFocused = isAppFocused();
+          await chatConversationRuntime.recordAgentEvent(event).catch((error) => {
+            log.warn('wireAgentClassifier: failed to record chat timeline event', {
+              conversationId,
+              error: String(error),
+            });
           });
-        });
-        void maybeShowNotification(event, appFocused);
-        events.emit(agentEventChannel, { event, appFocused });
-      } catch (err) {
-        log.warn('wireAgentClassifier: idle check failed', { error: String(err) });
-      }
+          await maybeShowNotification(event, appFocused).catch((error) => {
+            log.warn('wireAgentClassifier: failed to show notification', {
+              conversationId,
+              error: String(error),
+            });
+          });
+          events.emit(agentEventChannel, { event, appFocused });
+        } catch (err) {
+          log.warn('wireAgentClassifier: idle check failed', { error: String(err) });
+        }
+      })();
     }, IDLE_THRESHOLD_MS);
   });
 }

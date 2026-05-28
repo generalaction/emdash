@@ -6,7 +6,13 @@ export async function dehydrateConversation(
   taskId: string,
   conversationId: string
 ): Promise<void> {
+  const releaseBackendExitSuppression =
+    chatConversationRuntime.suppressBackendExitDuringStop(conversationId);
   const task = resolveTask(projectId, taskId);
-  await task?.conversations.stopSession(conversationId);
+  try {
+    await task?.conversations.stopSession(conversationId);
+  } finally {
+    releaseBackendExitSuppression();
+  }
   chatConversationRuntime.dehydrateConversation(conversationId);
 }

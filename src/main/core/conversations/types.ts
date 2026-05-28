@@ -7,6 +7,7 @@ export interface ConversationProvider {
     isResuming?: boolean,
     initialPrompt?: string
   ): Promise<void>;
+  waitUntilReadyForInput?(conversation: Conversation): Promise<void>;
   sendInput(conversationId: string, data: string): Promise<void>;
   interruptSession(conversationId: string): Promise<void>;
   stopSession(conversationId: string): Promise<void>;

@@ -6,6 +6,7 @@ import type { IDisposable } from '@renderer/lib/stores/lifecycle';
 import { Resource } from '@renderer/lib/stores/resource';
 import { log } from '@renderer/utils/logger';
 import { soundPlayer } from '@renderer/utils/soundPlayer';
+import type { ConversationStatus } from '@shared/conversation-timeline';
 import {
   type Conversation,
   type CreateConversationParams,
@@ -41,6 +42,7 @@ export class ConversationManagerStore implements IDisposable {
   sessions = observable.map<string, PtySession>();
   /** Chat timeline layer keyed by conversation id — populated for chat runtimes. */
   timelines = observable.map<string, ConversationTimelineStore>();
+  private readonly pendingStatuses = new Map<string, ConversationStatus>();
 
   constructor(
     private readonly projectId: string,
@@ -71,6 +73,7 @@ export class ConversationManagerStore implements IDisposable {
           if (!this.conversations.has(conversation.id)) {
             this.conversations.set(conversation.id, new ConversationStore(conversation));
           }
+          this.applyPendingStatus(conversation.id);
           if (shouldCreateTerminalSession(conversation) && !this.sessions.has(conversation.id)) {
             this.sessions.set(conversation.id, this.createSession(conversation));
           }
@@ -93,6 +96,7 @@ export class ConversationManagerStore implements IDisposable {
             if (!this.conversations.has(conversation.id)) {
               this.conversations.set(conversation.id, new ConversationStore(conversation));
             }
+            this.applyPendingStatus(conversation.id);
             if (shouldCreateTerminalSession(conversation) && !this.sessions.has(conversation.id)) {
               this.sessions.set(conversation.id, this.createSession(conversation));
             } else if (!shouldCreateTerminalSession(conversation)) {
@@ -122,6 +126,7 @@ export class ConversationManagerStore implements IDisposable {
       if (event.taskId !== this.taskId) return;
       const conversationStore = this.conversations.get(event.conversationId);
       if (!conversationStore) return;
+      if (shouldUseChatRuntime(conversationStore.data)) return;
       if (event.type === 'start') {
         conversationStore.setWorking();
         return;
@@ -141,6 +146,7 @@ export class ConversationManagerStore implements IDisposable {
         return;
       }
       if (event.type === 'stop') {
+        if (conversationStore.status !== 'working') return;
         conversationStore.setStatus('completed');
         soundPlayer.play('task_complete', appFocused);
         return;
@@ -156,6 +162,7 @@ export class ConversationManagerStore implements IDisposable {
       if (event.taskId !== this.taskId) return;
       const conversationStore = this.conversations.get(event.conversationId);
       if (!conversationStore) return;
+      if (shouldUseChatRuntime(conversationStore.data)) return;
       conversationStore.clearWorking();
     });
   }
@@ -175,7 +182,10 @@ export class ConversationManagerStore implements IDisposable {
     return events.on(conversationStatusEventChannel, (event) => {
       if (event.projectId !== this.projectId || event.taskId !== this.taskId) return;
       const store = this.conversations.get(event.conversationId);
-      if (!store) return;
+      if (!store) {
+        this.pendingStatuses.set(event.conversationId, event.status);
+        return;
+      }
       store.setStatus(event.status);
     });
   }
@@ -208,7 +218,12 @@ export class ConversationManagerStore implements IDisposable {
       if (shouldCreateChatTimeline(conversation) && !this.timelines.has(conversation.id)) {
         this.timelines.set(conversation.id, this.createTimeline(conversation));
       }
-      if (params.initialPrompt?.trim()) {
+      const appliedPendingStatus = this.applyPendingStatus(conversation.id);
+      if (
+        !appliedPendingStatus &&
+        params.initialPrompt?.trim() &&
+        (shouldCreateTerminalSession(conversation) || shouldUseChatRuntime(conversation))
+      ) {
         this.conversations.get(conversation.id)?.setWorking();
       }
     });
@@ -236,15 +251,15 @@ export class ConversationManagerStore implements IDisposable {
   async hydrateConversation(conversationId: string): Promise<void> {
     await rpc.conversations.hydrateConversation(this.projectId, this.taskId, conversationId);
     const conversation = this.conversations.get(conversationId)?.data;
-    if (
-      conversation &&
-      shouldCreateChatTimeline(conversation) &&
-      !this.timelines.has(conversationId)
-    ) {
-      runInAction(() => {
+    if (!conversation) return;
+    runInAction(() => {
+      if (shouldCreateTerminalSession(conversation) && !this.sessions.has(conversationId)) {
+        this.sessions.set(conversationId, this.createSession(conversation));
+      }
+      if (shouldCreateChatTimeline(conversation) && !this.timelines.has(conversationId)) {
         this.timelines.set(conversationId, this.createTimeline(conversation));
-      });
-    }
+      }
+    });
   }
 
   async dehydrateConversation(conversationId: string): Promise<void> {
@@ -254,6 +269,7 @@ export class ConversationManagerStore implements IDisposable {
     session?.dispose();
     timeline?.dispose();
     runInAction(() => {
+      this.sessions.delete(conversationId);
       this.timelines.delete(conversationId);
     });
   }
@@ -268,6 +284,7 @@ export class ConversationManagerStore implements IDisposable {
       this.conversations.delete(conversationId);
       this.sessions.delete(conversationId);
       this.timelines.delete(conversationId);
+      this.pendingStatuses.delete(conversationId);
     });
 
     try {
@@ -288,7 +305,12 @@ export class ConversationManagerStore implements IDisposable {
     const timeline = this.timelines.get(conversationId);
     if (!timeline) throw new Error('Conversation timeline not found');
     await timeline.sendMessage(text);
-    this.conversations.get(conversationId)?.setWorking();
+  }
+
+  async cancelTurn(conversationId: string): Promise<void> {
+    const timeline = this.timelines.get(conversationId);
+    if (!timeline) throw new Error('Conversation timeline not found');
+    await timeline.cancelTurn();
   }
 
   async renameConversation(conversationId: string, name: string): Promise<void> {
@@ -327,6 +349,7 @@ export class ConversationManagerStore implements IDisposable {
     for (const timeline of this.timelines.values()) {
       timeline.dispose();
     }
+    this.pendingStatuses.clear();
   }
 
   private createSession(conversation: Conversation): PtySession {
@@ -345,6 +368,16 @@ export class ConversationManagerStore implements IDisposable {
       conversation.taskId,
       conversation.id
     );
+  }
+
+  private applyPendingStatus(conversationId: string): boolean {
+    const status = this.pendingStatuses.get(conversationId);
+    if (!status) return false;
+    const store = this.conversations.get(conversationId);
+    if (!store) return false;
+    this.pendingStatuses.delete(conversationId);
+    store.setStatus(status);
+    return true;
   }
 }
 

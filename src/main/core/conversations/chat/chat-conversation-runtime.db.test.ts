@@ -89,6 +89,20 @@ async function seedChatConversation(fixture: Awaited<ReturnType<typeof openFixtu
   });
 }
 
+function deferred<T = void>(): {
+  promise: Promise<T>;
+  resolve: (value: T | PromiseLike<T>) => void;
+  reject: (reason?: unknown) => void;
+} {
+  let resolve: (value: T | PromiseLike<T>) => void = () => {};
+  let reject: (reason?: unknown) => void = () => {};
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 describe('ChatConversationRuntime', () => {
   let fixture: Awaited<ReturnType<typeof openFixture>>;
   let runtime: ChatConversationRuntime;
@@ -147,5 +161,161 @@ describe('ChatConversationRuntime', () => {
       'conversation:input-submitted',
       expect.objectContaining({ conversationId: 'conversation-1' })
     );
+  });
+
+  it('removes the silent user row when backend delivery fails', async () => {
+    await seedChatConversation(fixture);
+    await runtime.hydrateConversation(makeConversation());
+    mocks.sendInput.mockRejectedValueOnce(new Error('write failed'));
+
+    await expect(
+      runtime.sendMessage('project-1', 'task-1', 'conversation-1', { text: 'hello' })
+    ).rejects.toThrow('write failed');
+
+    const rows = fixture.sqlite
+      .prepare(
+        `SELECT kind, payload
+         FROM conversation_timeline_items
+         WHERE conversation_id = 'conversation-1'
+         ORDER BY sequence`
+      )
+      .all() as Array<{ kind: string; payload: string }>;
+
+    expect(rows).toEqual([
+      {
+        kind: 'error',
+        payload: JSON.stringify({ message: 'Failed to send message to the agent backend' }),
+      },
+    ]);
+    expect(mocks.emit).not.toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'conversation:timeline' }),
+      expect.objectContaining({
+        item: expect.objectContaining({ kind: 'user_message' }),
+      })
+    );
+  });
+
+  it('persists cancellation marker and ignores late provider timeline events', async () => {
+    await seedChatConversation(fixture);
+    await runtime.hydrateConversation(makeConversation());
+
+    await runtime.cancelTurn('project-1', 'task-1', 'conversation-1');
+    await runtime.recordAgentEvent({
+      type: 'notification',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      conversationId: 'conversation-1',
+      timestamp: Date.now(),
+      payload: {
+        notificationType: 'idle_prompt',
+        lastAssistantMessage: 'late answer',
+      },
+    });
+
+    const rows = fixture.sqlite
+      .prepare(
+        `SELECT kind, payload
+         FROM conversation_timeline_items
+         WHERE conversation_id = 'conversation-1'
+         ORDER BY sequence`
+      )
+      .all() as Array<{ kind: string; payload: string }>;
+
+    expect(mocks.interruptSession).toHaveBeenCalledWith('conversation-1');
+    expect(rows).toEqual([
+      {
+        kind: 'reasoning',
+        payload: JSON.stringify({ text: 'Turn cancelled.' }),
+      },
+    ]);
+  });
+
+  it('removes the hidden user row when cancelling an in-flight backend delivery', async () => {
+    await seedChatConversation(fixture);
+    await runtime.hydrateConversation(makeConversation());
+    const send = deferred();
+    const cancel = deferred();
+    mocks.sendInput.mockReturnValueOnce(send.promise);
+    mocks.interruptSession.mockReturnValueOnce(cancel.promise);
+
+    const sendPromise = runtime.sendMessage('project-1', 'task-1', 'conversation-1', {
+      text: 'hello',
+    });
+    await vi.waitFor(() => expect(mocks.sendInput).toHaveBeenCalled());
+    const cancelPromise = runtime.cancelTurn('project-1', 'task-1', 'conversation-1');
+    await vi.waitFor(() => expect(mocks.interruptSession).toHaveBeenCalled());
+
+    send.resolve();
+    cancel.resolve();
+    await expect(sendPromise).rejects.toThrow('Message send was cancelled');
+    await cancelPromise;
+
+    const rows = fixture.sqlite
+      .prepare(
+        `SELECT kind, payload
+         FROM conversation_timeline_items
+         WHERE conversation_id = 'conversation-1'
+         ORDER BY sequence`
+      )
+      .all() as Array<{ kind: string; payload: string }>;
+
+    expect(rows).toEqual([
+      {
+        kind: 'reasoning',
+        payload: JSON.stringify({ text: 'Turn cancelled.' }),
+      },
+    ]);
+    expect(mocks.emit).not.toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'conversation:timeline' }),
+      expect.objectContaining({
+        item: expect.objectContaining({ kind: 'user_message' }),
+      })
+    );
+  });
+
+  it('persists mapped assistant and error hook events', async () => {
+    await seedChatConversation(fixture);
+    await runtime.hydrateConversation(makeConversation());
+
+    await runtime.recordAgentEvent({
+      type: 'notification',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      conversationId: 'conversation-1',
+      timestamp: Date.now(),
+      payload: {
+        lastAssistantMessage: 'done',
+      },
+    });
+    await runtime.recordAgentEvent({
+      type: 'error',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      conversationId: 'conversation-1',
+      timestamp: Date.now(),
+      payload: {
+        message: 'failed',
+      },
+    });
+
+    const rows = fixture.sqlite
+      .prepare(
+        `SELECT kind, payload
+         FROM conversation_timeline_items
+         WHERE conversation_id = 'conversation-1'
+         ORDER BY sequence`
+      )
+      .all() as Array<{ kind: string; payload: string }>;
+
+    expect(rows).toEqual([
+      {
+        kind: 'assistant_message',
+        payload: JSON.stringify({ text: 'done' }),
+      },
+      {
+        kind: 'error',
+        payload: JSON.stringify({ message: 'failed' }),
+      },
+    ]);
   });
 });
