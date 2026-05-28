@@ -2,6 +2,7 @@ import { observer } from 'mobx-react-lite';
 import { PullRequestView } from '@renderer/features/projects/components/pr-view/pr-view';
 import { SettingsPanel } from '@renderer/features/projects/components/settings-view/settings-panel';
 import { TaskList } from '@renderer/features/projects/components/task-view/task-list';
+import { WorkspacesView } from '@renderer/features/projects/components/workspaces-view/workspaces-view';
 import { asMounted, getProjectStore } from '@renderer/features/projects/stores/project-selectors';
 import type { ProjectView } from '@renderer/features/projects/stores/project-view';
 import { useParams } from '@renderer/lib/layout/navigation-provider';
@@ -10,6 +11,7 @@ import { cn } from '@renderer/utils/utils';
 const projectViewItems: Array<{ id: ProjectView; label: string }> = [
   { id: 'tasks', label: 'Tasks' },
   { id: 'pull-request', label: 'Pull Requests' },
+  { id: 'workspaces', label: 'Workspaces' },
   { id: 'settings', label: 'Settings' },
 ];
 
@@ -69,6 +71,7 @@ export const ActiveProject = observer(function ActiveProject() {
             <div className="mx-auto flex h-full min-h-0 w-full max-w-4xl flex-col px-1 py-10">
               {activeView === 'tasks' && <TaskList />}
               {activeView === 'pull-request' && <PullRequestView />}
+              {activeView === 'workspaces' && <WorkspacesView />}
               {activeView === 'settings' && <SettingsPanel />}
             </div>
           </div>

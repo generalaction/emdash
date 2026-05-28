@@ -3,7 +3,7 @@ import type { Snapshottable } from '@renderer/lib/stores/snapshottable';
 import type { IssueProviderType } from '@shared/issue-providers';
 import type { ProjectViewSnapshot } from '@shared/view-state';
 
-export type ProjectView = 'tasks' | 'pull-request' | 'settings';
+export type ProjectView = 'tasks' | 'pull-request' | 'workspaces' | 'settings';
 
 export class ProjectViewStore implements Snapshottable<ProjectViewSnapshot> {
   activeView: ProjectView = 'tasks';

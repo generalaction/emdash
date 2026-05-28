@@ -82,5 +82,6 @@ export const appController = createRPCController({
   getAppVersion: () => appService.getCachedAppVersion(),
   getElectronVersion: () => process.versions.electron,
   getPlatform: () => process.platform,
+  getSystemInfo: () => appService.getSystemInfo(),
   getDiagnosticLogAttachment,
 });
