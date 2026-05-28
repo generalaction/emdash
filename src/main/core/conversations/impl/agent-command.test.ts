@@ -31,7 +31,11 @@ describe('buildAgentCommand', () => {
 
     expect(command).toEqual({
       command: 'codex',
-      args: ['--dangerously-bypass-approvals-and-sandbox', 'Fix the issue'],
+      args: [
+        '--dangerously-bypass-approvals-and-sandbox',
+        '--dangerously-bypass-hook-trust',
+        'Fix the issue',
+      ],
     });
   });
 

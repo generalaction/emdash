@@ -102,7 +102,12 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     commands: ['codex'],
     versionArgs: ['--version'],
     cli: 'codex',
-    autoApproveFlag: '--dangerously-bypass-approvals-and-sandbox',
+    // `--dangerously-bypass-hook-trust` lets Codex run emdash's own hooks (notably the
+    // SessionStart hook that reports the rollout session id) without an interactive trust
+    // prompt. Automations always auto-approve and can't answer that prompt, so without this
+    // the session id is never captured and resume falls back to `codex resume --last`,
+    // reattaching the globally-most-recent Codex session instead of this conversation.
+    autoApproveFlag: '--dangerously-bypass-approvals-and-sandbox --dangerously-bypass-hook-trust',
     initialPromptFlag: '',
     resumeFlag: 'resume',
     sessionIdFlag: ' ',
