@@ -271,7 +271,7 @@ export function AddSshConnModal({
         </DialogFooter>
       }
     >
-      <DialogContentArea>
+      <DialogContentArea className="max-h-[calc(100dvh-10rem)] overflow-auto">
         <form
           id="add-ssh-conn-form"
           onSubmit={(e) => {
