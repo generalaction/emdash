@@ -1,4 +1,4 @@
-import { Archive, Copy, MailOpen, Pencil, Pin, PinOff, RotateCcw, Trash2 } from 'lucide-react';
+import { Archive, Copy, Mail, Pencil, Pin, PinOff, RotateCcw, Trash2 } from 'lucide-react';
 import React from 'react';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import {
@@ -101,7 +101,7 @@ export function TaskContextMenu({
         )}
         {onMarkUnread && (
           <ContextMenuItem onClick={onMarkUnread}>
-            <MailOpen className="size-4" />
+            <Mail className="size-4" />
             Mark as unread
           </ContextMenuItem>
         )}
