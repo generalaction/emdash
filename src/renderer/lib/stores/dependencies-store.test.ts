@@ -51,7 +51,7 @@ describe('DependenciesStore install', () => {
 
     expect(result.success).toBe(true);
     expect(rpc.dependencies.install).toHaveBeenCalledWith('codex', undefined);
-    expect(rpc.dependencies.probeCategory).toHaveBeenCalledWith('agent', undefined);
+    expect(rpc.dependencies.probeCategory).toHaveBeenCalledWith('agent', undefined, undefined);
     expect(store.local.data?.codex?.status).toBe('available');
   });
 
@@ -112,7 +112,7 @@ describe('DependenciesStore install', () => {
 
     await store.install('claude', 'ssh-1');
 
-    expect(rpc.dependencies.probeCategory).toHaveBeenCalledWith('agent', 'ssh-1');
+    expect(rpc.dependencies.probeCategory).toHaveBeenCalledWith('agent', 'ssh-1', undefined);
     expect(rpc.dependencies.getAll).toHaveBeenCalledWith('ssh-1');
     expect(store.getRemote('ssh-1').data?.codex?.status).toBe('available');
     expect(store.getRemote('ssh-1').data?.claude?.status).toBe('available');
@@ -144,7 +144,7 @@ describe('DependenciesStore install', () => {
 
     await store.refreshAgents('ssh-1');
 
-    expect(rpc.dependencies.probeCategory).toHaveBeenCalledWith('agent', 'ssh-1');
+    expect(rpc.dependencies.probeCategory).toHaveBeenCalledWith('agent', 'ssh-1', undefined);
     expect(remote.data?.codex?.status).toBe('available');
     expect(remote.data?.claude?.status).toBe('available');
   });
@@ -158,7 +158,7 @@ describe('DependenciesStore install', () => {
 
     await store.refreshAgents('ssh-1');
 
-    expect(rpc.dependencies.probeCategory).toHaveBeenCalledWith('agent', 'ssh-1');
+    expect(rpc.dependencies.probeCategory).toHaveBeenCalledWith('agent', 'ssh-1', undefined);
     expect(store.getRemote('ssh-1').data?.codex?.status).toBe('available');
     expect(store.getRemote('ssh-1').data?.claude?.status).toBe('available');
   });

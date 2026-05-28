@@ -184,11 +184,7 @@ export class DependenciesStore {
     options: { refreshShellEnv?: boolean } = {}
   ): Promise<DependencyStatusMap> {
     const probeOptions = options.refreshShellEnv ? { refreshShellEnv: true } : undefined;
-    if (probeOptions) {
-      await rpc.dependencies.probeCategory('agent', connectionId, probeOptions);
-    } else {
-      await rpc.dependencies.probeCategory('agent', connectionId);
-    }
+    await rpc.dependencies.probeCategory('agent', connectionId, probeOptions);
     const all = await rpc.dependencies.getAll(connectionId);
     return (all ?? {}) as DependencyStatusMap;
   }
