@@ -31,6 +31,7 @@ interface AgentSelectorProps {
   onChange: (agent: AgentProviderId) => void;
   disabled?: boolean;
   className?: string;
+  contentClassName?: string;
   connectionId?: string;
   installable?: boolean;
   autoFocus?: boolean;
@@ -42,6 +43,7 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
     onChange,
     disabled = false,
     className = '',
+    contentClassName,
     connectionId,
     installable = true,
     autoFocus = false,
@@ -101,7 +103,7 @@ export const AgentSelector: React.FC<AgentSelectorProps> = observer(
           )}
           <ChevronDown className="size-3.5 shrink-0 text-foreground-muted" />
         </ComboboxTrigger>
-        <ComboboxContent className="min-w-(--anchor-width)">
+        <ComboboxContent className={cn('min-w-(--anchor-width)', contentClassName)}>
           <ComboboxInput showTrigger={false} placeholder="Search agents..." />
           <ComboboxList className="pb-0">
             {(group: AgentGroup) => (

@@ -7,14 +7,16 @@ interface TaskNameFieldProps {
 }
 
 export function TaskNameField({ state }: TaskNameFieldProps) {
-  const { taskName, handleTaskNameChange, showSlugHint } = state;
+  const { taskName, placeholder, handleTaskNameChange, showSlugHint } = state;
 
   return (
-    <Field>
+    <Field className="flex flex-col gap-1">
       <FieldLabel>Task name</FieldLabel>
       <Input
         data-autofocus
         value={taskName}
+        placeholder={placeholder || 'Task name...'}
+        className="border-none px-0 text-lg! focus-visible:ring-0"
         onChange={(e) => handleTaskNameChange(e.target.value)}
       />
       {showSlugHint && (

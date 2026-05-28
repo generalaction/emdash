@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TaskRow } from '@main/db/schema';
 import { err } from '@shared/result';
+import { toStoredBranch } from '../stored-branch';
 import { createTask } from './createTask';
 
 const mocks = vi.hoisted(() => ({
@@ -132,7 +133,10 @@ describe('createTask', () => {
     expect(insertTaskValues).toHaveBeenCalledWith(
       expect.objectContaining({
         taskBranch: 'claude/add-french-translations-ud2fs',
-        sourceBranch: { type: 'local', branch: 'claude/add-french-translations-ud2fs' },
+        sourceBranch: toStoredBranch({
+          type: 'local',
+          branch: 'claude/add-french-translations-ud2fs',
+        }),
       })
     );
   });
@@ -179,7 +183,10 @@ describe('createTask', () => {
     expect(insertTaskValues).toHaveBeenCalledWith(
       expect.objectContaining({
         taskBranch: 'claude/add-french-translations-ud2fs',
-        sourceBranch: { type: 'local', branch: 'claude/add-french-translations-ud2fs' },
+        sourceBranch: toStoredBranch({
+          type: 'local',
+          branch: 'claude/add-french-translations-ud2fs',
+        }),
       })
     );
   });

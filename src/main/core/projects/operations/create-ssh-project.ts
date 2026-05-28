@@ -1,10 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
-import { GitHubAuthExecutionContext } from '@main/core/execution-context/github-auth-execution-context';
 import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import { GitService } from '@main/core/git/impl/git-service';
-import { githubConnectionService } from '@main/core/github/services/github-connection-service';
 import { projectEvents } from '@main/core/projects/project-events';
 import { projectManager } from '@main/core/projects/project-manager';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
@@ -30,10 +28,7 @@ export async function createSshProject(params: CreateSshProjectParams): Promise<
     throw new Error('Invalid directory');
   }
   const baseSshCtx = new SshExecutionContext(sshProxy, { root: params.path });
-  const authSshCtx = new GitHubAuthExecutionContext(baseSshCtx, () =>
-    githubConnectionService.getToken()
-  );
-  const git = new GitService(baseSshCtx, authSshCtx, sshFs);
+  const git = new GitService(baseSshCtx, sshFs);
 
   const gitInfo = await ensureGitRepository(git, params.initGitRepository);
   const baseRef = await resolveProjectBaseRef(git, gitInfo.baseRef);
@@ -81,10 +76,7 @@ export async function getSshProjectPathStatus(
     }
 
     const baseSshCtx = new SshExecutionContext(sshProxy, { root: path });
-    const authSshCtx = new GitHubAuthExecutionContext(baseSshCtx, () =>
-      githubConnectionService.getToken()
-    );
-    const git = new GitService(baseSshCtx, authSshCtx, sshFs);
+    const git = new GitService(baseSshCtx, sshFs);
     const gitInfo = await git.detectInfo();
     return { isDirectory: true, isGitRepo: gitInfo.isGitRepo };
   } catch {

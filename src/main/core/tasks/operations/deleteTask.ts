@@ -7,6 +7,7 @@ import { tasks, workspaces } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import type { DeleteTaskOptions } from '@shared/tasks';
+import { fromStoredBranch } from '../stored-branch';
 import { removeWorktreeIfUnused } from './task-lifecycle-utils';
 
 export async function deleteTask(
@@ -18,7 +19,7 @@ export async function deleteTask(
 
   const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
   if (!task) return;
-  const sourceBranch = task.sourceBranch ?? undefined;
+  const sourceBranch = fromStoredBranch(task.sourceBranch);
 
   const project = projectManager.getProject(projectId);
 

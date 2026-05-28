@@ -111,7 +111,7 @@ export const tasks = sqliteTable(
     name: text('name').notNull(),
     kind: text('kind').notNull().default('task'),
     status: text('status').notNull(),
-    sourceBranch: text('source_branch', { mode: 'json' }).$type<StoredBranch>(),
+    sourceBranch: text('source_branch').$type<StoredBranch>(),
     taskBranch: text('task_branch'),
     linkedIssue: text('linked_issue'),
     archivedAt: text('archived_at'), // null = active, timestamp = archived

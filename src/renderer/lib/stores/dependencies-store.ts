@@ -79,7 +79,7 @@ export class DependenciesStore {
     let store = this._remoteStores.get(connectionId);
     if (!store) {
       store = new Resource<DependencyStatusMap>(
-        () => this.loadAgentStatuses(connectionId),
+        () => this.loadAgentStatuses(connectionId, { refreshShellEnv: true }),
         [{ kind: 'demand' }]
       );
       this._remoteStores.set(connectionId, store);
@@ -130,7 +130,7 @@ export class DependenciesStore {
       const result = (await rpc.dependencies.install(id, connectionId)) as DependencyInstallResult;
       if (!result.success) return result;
 
-      await this.refreshAgents(connectionId);
+      await this.refreshAgents(connectionId, { refreshShellEnv: false });
       return result;
     } finally {
       this._inFlightInstalls.delete(key);
@@ -141,12 +141,15 @@ export class DependenciesStore {
   }
 
   async probeAll(): Promise<void> {
-    await rpc.dependencies.probeAll();
+    await rpc.dependencies.probeAll(undefined, { refreshShellEnv: true });
     this.local.invalidate();
   }
 
-  async refreshAgents(connectionId?: string): Promise<void> {
-    const statuses = await this.loadAgentStatuses(connectionId);
+  async refreshAgents(
+    connectionId?: string,
+    options: { refreshShellEnv?: boolean } = {}
+  ): Promise<void> {
+    const statuses = await this.loadAgentStatuses(connectionId, options);
     if (connectionId) {
       this.getRemote(connectionId).setValue(statuses);
       return;
@@ -176,8 +179,12 @@ export class DependenciesStore {
     return `${connectionId ?? 'local'}:${id}`;
   }
 
-  private async loadAgentStatuses(connectionId?: string): Promise<DependencyStatusMap> {
-    await rpc.dependencies.probeCategory('agent', connectionId);
+  private async loadAgentStatuses(
+    connectionId?: string,
+    options: { refreshShellEnv?: boolean } = {}
+  ): Promise<DependencyStatusMap> {
+    const probeOptions = options.refreshShellEnv ? { refreshShellEnv: true } : undefined;
+    await rpc.dependencies.probeCategory('agent', connectionId, probeOptions);
     const all = await rpc.dependencies.getAll(connectionId);
     return (all ?? {}) as DependencyStatusMap;
   }
