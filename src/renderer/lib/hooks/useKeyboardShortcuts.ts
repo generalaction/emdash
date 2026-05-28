@@ -34,6 +34,7 @@ export function getHotkeyRegistration(
   custom?: ShortcutOverrides
 ): Hotkey {
   const def = APP_SHORTCUTS[key];
-  return (getEffectiveHotkey(key, custom) ?? (def ? resolveDefaultHotkey(def) : undefined) ??
+  return (getEffectiveHotkey(key, custom) ??
+    (def ? resolveDefaultHotkey(def) : undefined) ??
     '') as Hotkey;
 }
