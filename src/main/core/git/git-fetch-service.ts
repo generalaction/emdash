@@ -2,7 +2,6 @@ import { log } from '@main/lib/logger';
 import type { FetchError } from '@shared/git';
 import { err, type Result } from '@shared/result';
 import type { GitService } from './impl/git-service';
-import { isSshRemoteUrl } from './remote-helper';
 
 const DEFAULT_INTERVAL_MS = 2 * 60 * 1000;
 
@@ -67,15 +66,12 @@ export class GitFetchService {
   }
 
   private async _canBackgroundFetchWithoutPrompt(): Promise<boolean> {
-    let remotes: { url: string }[] = [];
     try {
-      remotes = await this.git.getRemotes();
+      await this.git.getRemotes();
     } catch {
       return false;
     }
 
-    const sshRemotes = remotes.filter((remote) => isSshRemoteUrl(remote.url));
-    if (sshRemotes.length === 0) return true;
-    return false;
+    return true;
   }
 }
