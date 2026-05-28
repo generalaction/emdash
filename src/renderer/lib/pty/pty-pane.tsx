@@ -62,6 +62,8 @@ async function injectTerminalImagePaths(args: {
   args.focus();
 }
 
+// Returns true only when an image was injected, so callers can scope their
+// duplicate-paste guard to the image path and leave plain-text pastes unguarded.
 async function pasteClipboardImageOrText(args: {
   sessionId: string;
   remoteConnectionId: string | undefined;
@@ -69,13 +71,16 @@ async function pasteClipboardImageOrText(args: {
   focus: TerminalInputHelpers['focus'];
   fallbackText?: string;
   preferText?: boolean;
-}): Promise<void> {
+  // Re-checked right before injecting an image; the image branch resolves
+  // asynchronously, so a competing paste path may have injected in the meantime.
+  shouldInjectImage?: () => boolean;
+}): Promise<boolean> {
   if (args.preferText) {
     try {
       const text = await navigator.clipboard.readText();
       if (text) {
         args.sendInput(text);
-        return;
+        return false;
       }
     } catch {
       // Clipboard text read denied or unavailable; try the image path below.
@@ -85,8 +90,9 @@ async function pasteClipboardImageOrText(args: {
   try {
     const result = await rpc.pty.persistClipboardImage();
     if (result.success && result.data.path) {
+      if (args.shouldInjectImage && !args.shouldInjectImage()) return false;
       await injectTerminalImagePaths({ ...args, paths: [result.data.path] });
-      return;
+      return true;
     }
   } catch (error) {
     log.warn('Terminal clipboard image paste failed', { error });
@@ -94,7 +100,7 @@ async function pasteClipboardImageOrText(args: {
 
   if (args.fallbackText !== undefined) {
     if (args.fallbackText) args.sendInput(args.fallbackText);
-    return;
+    return false;
   }
 
   try {
@@ -103,6 +109,7 @@ async function pasteClipboardImageOrText(args: {
   } catch {
     // Clipboard read denied or unavailable.
   }
+  return false;
 }
 
 const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
@@ -132,14 +139,19 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
     const handleSystemPaste = useCallback<PasteFromClipboardHandler>(
       ({ focus, sendInput }) => {
         if (isNearDuplicatePaste(lastDomImagePasteAtRef.current)) return;
-        lastSystemPasteAtRef.current = Date.now();
-        void pasteClipboardImageOrText({
-          sessionId,
-          remoteConnectionId,
-          focus,
-          sendInput,
-          preferText: true,
-        });
+        void (async () => {
+          const injectedImage = await pasteClipboardImageOrText({
+            sessionId,
+            remoteConnectionId,
+            focus,
+            sendInput,
+            preferText: true,
+            shouldInjectImage: () => !isNearDuplicatePaste(lastDomImagePasteAtRef.current),
+          });
+          // Only guard the DOM image path against a system paste that actually
+          // injected an image; plain-text pastes must not block it.
+          if (injectedImage) lastSystemPasteAtRef.current = Date.now();
+        })();
       },
       [remoteConnectionId, sessionId]
     );

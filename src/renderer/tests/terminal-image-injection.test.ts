@@ -62,6 +62,8 @@ describe('terminal-image-injection', () => {
   it('detects near-duplicate paste paths from the same user gesture', () => {
     expect(isNearDuplicatePaste(1_000, 1_249)).toBe(true);
     expect(isNearDuplicatePaste(1_000, 1_250)).toBe(false);
+    // initial ref value (0) must never be treated as a recent paste
+    expect(isNearDuplicatePaste(0, 100)).toBe(false);
   });
 
   it('wraps formatted paths for bracketed paste', () => {

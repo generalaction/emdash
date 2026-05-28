@@ -38,6 +38,14 @@ export function extractClipboardImageFiles(clipboardData: DataTransfer | null): 
   }
 
   if (clipboardData.types.some((type) => type.toLowerCase().startsWith('image/'))) {
+    // Browser ordering of clipboard items is not guaranteed, so pick a lossless,
+    // widely-supported representation deterministically instead of trusting index 0.
+    const preferredOrder = ['image/png', 'image/jpeg', 'image/gif', 'image/webp'];
+    const rank = (type: string): number => {
+      const index = preferredOrder.indexOf(type.toLowerCase());
+      return index === -1 ? Number.MAX_SAFE_INTEGER : index;
+    };
+    imageFiles.sort((a, b) => rank(a.type) - rank(b.type));
     return imageFiles.slice(0, 1);
   }
 
