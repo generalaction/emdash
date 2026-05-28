@@ -75,6 +75,18 @@ export class SshConversationProvider implements ConversationProvider {
     isResuming: boolean = false,
     initialPrompt?: string
   ): Promise<void> {
+    return this.startSessionInternal(conversation, initialSize, isResuming, initialPrompt, {
+      shellRefreshRetried: false,
+    });
+  }
+
+  private async startSessionInternal(
+    conversation: Conversation,
+    initialSize: { cols: number; rows: number },
+    isResuming: boolean,
+    initialPrompt: string | undefined,
+    options: { shellRefreshRetried: boolean }
+  ): Promise<void> {
     const sessionId = makePtySessionId(
       conversation.projectId,
       conversation.taskId,
@@ -160,9 +172,31 @@ export class SshConversationProvider implements ConversationProvider {
 
     pty.onExit(({ exitCode, signal }) => {
       ptySessionRegistry.unregister(sessionId);
+      const sessionWasActive = this.sessions.has(sessionId);
+      const shouldRetryAfterShellRefresh =
+        sessionWasActive && !this.tmux && !options.shellRefreshRetried && exitCode === 127;
       const shouldRespawn =
-        this.sessions.has(sessionId) && isUnexpectedPtyExit({ exitCode, signal });
+        sessionWasActive && exitCode !== 127 && isUnexpectedPtyExit({ exitCode, signal });
       this.sessions.delete(sessionId);
+      if (shouldRetryAfterShellRefresh) {
+        setTimeout(() => {
+          this.proxy
+            .refreshRemoteShellProfile()
+            .then(() =>
+              this.startSessionInternal(conversation, initialSize, isResuming, initialPrompt, {
+                shellRefreshRetried: true,
+              })
+            )
+            .catch((e) => {
+              log.error('SshConversationProvider: shell refresh retry failed', {
+                conversationId: conversation.id,
+                error: String(e),
+              });
+            });
+        }, 500);
+        return;
+      }
+
       events.emit(agentSessionExitedChannel, {
         sessionId,
         projectId: conversation.projectId,
@@ -170,6 +204,7 @@ export class SshConversationProvider implements ConversationProvider {
         taskId: conversation.taskId,
         exitCode,
       });
+
       if (shouldRespawn && !this.tmux) {
         const count = (this.respawnCounts.get(sessionId) ?? 0) + 1;
         this.respawnCounts.set(sessionId, count);
