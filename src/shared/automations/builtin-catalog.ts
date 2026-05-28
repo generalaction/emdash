@@ -1,42 +1,7 @@
 import type { BuiltinAutomationTemplate } from '@shared/automations/types';
 
-const TEST_COVERAGE_PROMPT = `You are a test coverage automation focused on preventing regressions.
-
-## Goal
-
-Every run, inspect recent merged code and add missing tests where coverage is weak and business risk is meaningful.
-
-## Prioritization
-
-Prioritize:
-- New code paths without tests.
-- Bug fixes that only changed production code.
-- Edge-case logic, parsing, concurrency, permissions, and data validation.
-- Shared utilities and core flows with large blast radius.
-
-Avoid:
-- Trivial snapshots with little signal.
-- Tests for cosmetic-only changes.
-- Refactors that do not change behavior unless critical behavior is now untested.
-
-## Implementation rules
-
-- Follow existing test conventions and fixture patterns.
-- Keep tests deterministic and independent.
-- Add the minimum set of tests that clearly prove correctness.
-- Do not change production behavior unless a tiny testability refactor is required.
-
-## Validation
-
-- Run the relevant test targets for touched areas.
-- If tests are flaky or environment-dependent, note it explicitly and avoid merging fragile tests.
-
-## Output
-
-If you create a PR, include:
-- Risky behavior now covered
-- Test files added/updated
-- Why these tests materially reduce regression risk`;
+const TEST_COVERAGE_PROMPT =
+  'Inspect recent merged code for meaningful regression risk and add the smallest deterministic tests for weakly covered behavior. Prioritize new code paths, bug fixes without tests, edge-case parsing, concurrency, permissions, validation, shared utilities, and core flows. Avoid low-signal snapshots and cosmetic-only changes. Follow existing test conventions, run relevant validation, and summarize what risky behavior is now covered.';
 
 export const builtinAutomationCatalog: BuiltinAutomationTemplate[] = [
   {
@@ -128,13 +93,13 @@ export const builtinAutomationCatalog: BuiltinAutomationTemplate[] = [
     ],
   },
   {
-    id: 'slack-bug-reports',
+    id: 'reported-bugs',
     category: 'Incidents & triage',
     name: 'Fix reported bugs',
     description:
       'Investigate bug reports you provide in issues, docs, or prompt notes and fix with a PR',
     icon: 'Wrench',
-    defaultTrigger: { expr: '*/30 * * * *', tz: 'UTC' },
+    defaultTrigger: { expr: '0 10 * * MON-FRI', tz: 'UTC' },
     defaultActions: [
       {
         kind: 'task.create',

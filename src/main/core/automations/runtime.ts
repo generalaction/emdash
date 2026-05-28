@@ -23,13 +23,13 @@ export async function runQueuedAutomation(
 
   if (automation.actions.length === 0) {
     const message = 'no_actions_configured';
-    log.error('Automation has no actions', {
+    log.warn('Automation has no actions', {
       automationId: automation.id,
       runId: run.id,
     });
     const finishedAt = Date.now();
-    run = await markRunFailed(run.id, { error: message, finishedAt });
-    return err(message);
+    run = await markRunSkipped(run.id, message, { finishedAt });
+    return ok(run);
   }
 
   for (let i = 0; i < automation.actions.length; i++) {

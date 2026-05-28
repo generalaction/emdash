@@ -31,7 +31,7 @@ export function AutomationsViewWrapper({ children, tab = 'all' }: AutomationsVie
   const { setParams } = useParams('automations');
   const handleTabChange = useCallback(
     (nextTab: AutomationsTab) => {
-      setParams({ tab: nextTab, selectedAutomationId: undefined });
+      setParams({ tab: nextTab, selectedAutomationId: undefined, selectedRunId: undefined });
     },
     [setParams]
   );

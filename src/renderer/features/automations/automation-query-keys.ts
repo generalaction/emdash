@@ -7,5 +7,5 @@ export const recentRunsKey = (projectId: string | undefined, limit: number) =>
   ['automations', 'recent-runs', projectId ?? 'all', limit] as const;
 
 export function isAutomationQuery(queryKey: readonly unknown[]): boolean {
-  return queryKey[0] === 'automations' && queryKey[1] !== 'catalog';
+  return queryKey.length >= 2 && queryKey[0] === 'automations' && queryKey[1] !== 'catalog';
 }

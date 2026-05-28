@@ -31,9 +31,6 @@ export function automationRunTool(
   run: AutomationRun,
   automation: Automation | undefined
 ): AutomationTool | null {
-  const provider =
-    run.agentProviderId === undefined
-      ? automation?.taskConfig?.initialConversation?.provider
-      : run.agentProviderId;
+  const provider = run.agentProviderId ?? automation?.taskConfig?.initialConversation?.provider;
   return toolForProvider(provider);
 }

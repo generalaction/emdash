@@ -132,30 +132,46 @@ export function useAutomationsActions({
           'The selected automations and their run history will be permanently removed. This action cannot be undone.',
         confirmLabel: `Delete ${count} automation${count === 1 ? '' : 's'}`,
         onSuccess: () => {
-          for (const automation of automations) {
-            remove.mutate(automation.id, {
-              onSuccess: () => {
+          void (async () => {
+            const results = await Promise.allSettled(
+              automations.map(async (automation) => {
+                await remove.mutateAsync(automation.id);
                 if (selectedAutomationId === automation.id) onPanelClose();
-              },
-            });
-          }
-          onDone?.();
+              })
+            );
+            const failedCount = results.filter((result) => result.status === 'rejected').length;
+            if (failedCount > 0) {
+              toast({
+                title: 'Failed to delete automations',
+                description: `${failedCount} automation${failedCount === 1 ? '' : 's'} could not be deleted.`,
+                variant: 'destructive',
+              });
+            }
+            onDone?.();
+          })();
         },
       });
     },
-    [showConfirmDelete, remove, selectedAutomationId, onPanelClose]
+    [showConfirmDelete, remove, selectedAutomationId, onPanelClose, toast]
   );
 
   const requestBulkSetEnabled = useCallback(
-    (automations: ReadonlyArray<Automation>, enabled: boolean, onDone?: () => void) => {
-      for (const automation of automations) {
-        if (automation.isDraft) continue;
-        if (automation.enabled === enabled) continue;
-        setEnabled.mutate({ id: automation.id, enabled });
+    async (automations: ReadonlyArray<Automation>, enabled: boolean, onDone?: () => void) => {
+      const updates = automations
+        .filter((automation) => !automation.isDraft && automation.enabled !== enabled)
+        .map((automation) => setEnabled.mutateAsync({ id: automation.id, enabled }));
+      const results = await Promise.allSettled(updates);
+      const failedCount = results.filter((result) => result.status === 'rejected').length;
+      if (failedCount > 0) {
+        toast({
+          title: 'Failed to update automations',
+          description: `${failedCount} automation${failedCount === 1 ? '' : 's'} could not be updated.`,
+          variant: 'destructive',
+        });
       }
       onDone?.();
     },
-    [setEnabled]
+    [setEnabled, toast]
   );
 
   return {

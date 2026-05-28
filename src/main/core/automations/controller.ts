@@ -38,6 +38,12 @@ function validateName(name: string | undefined): string | null {
   return null;
 }
 
+function validateActions(actions: unknown): string | null {
+  if (!Array.isArray(actions) || actions.length === 0) return 'actions_required';
+  const invalidIndex = actions.findIndex((action) => !isValidAction(action));
+  return invalidIndex >= 0 ? `action_invalid:${invalidIndex}` : null;
+}
+
 async function safe<T>(fn: () => Promise<Result<T, string>> | Result<T, string>) {
   try {
     return await fn();
@@ -56,11 +62,8 @@ export const automationsController = createRPCController({
       const nameError = validateName(input.name);
       if (nameError) return err(nameError);
       if (!input.isDraft) {
-        if (!Array.isArray(input.actions) || input.actions.length === 0) {
-          return err('actions_required');
-        }
-        const invalidIndex = input.actions.findIndex((action) => !isValidAction(action));
-        if (invalidIndex >= 0) return err(`action_invalid:${invalidIndex}`);
+        const actionsError = validateActions(input.actions);
+        if (actionsError) return err(actionsError);
       }
       const automation = await createAutomation(input);
       emitChanged();
@@ -72,6 +75,16 @@ export const automationsController = createRPCController({
     return safe(async () => {
       const nameError = validateName(patch.name);
       if (nameError) return err(nameError);
+      if (patch.actions !== undefined) {
+        const actionsError = validateActions(patch.actions);
+        if (actionsError) return err(actionsError);
+      }
+      if (patch.isDraft === false && patch.actions === undefined) {
+        const existing = await getAutomation(id);
+        if (!existing) return err('automation_not_found');
+        const actionsError = validateActions(existing.actions);
+        if (actionsError) return err(actionsError);
+      }
       const automation = await updateAutomation(id, patch);
       if (!automation) return err('automation_not_found');
       emitChanged();

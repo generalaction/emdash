@@ -85,8 +85,11 @@ export type UpdateAutomationPatch = Partial<
     | 'category'
     | 'trigger'
     | 'actions'
+    | 'taskConfig'
     | 'projectId'
+    | 'enabled'
+    | 'isDraft'
     | 'deadlinePolicy'
     | 'deadlineMs'
-  > & { taskConfig: CreateTaskParams | null; enabled: boolean; isDraft: boolean }
+  >
 >;

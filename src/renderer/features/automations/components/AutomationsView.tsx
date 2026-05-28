@@ -154,10 +154,10 @@ export function AutomationsView() {
       : 'Run agents on a schedule across your projects';
 
   const handleBulkPause = () => {
-    actions.requestBulkSetEnabled(togglableSelected, false, selection.clear);
+    void actions.requestBulkSetEnabled(togglableSelected, false, selection.clear);
   };
   const handleBulkResume = () => {
-    actions.requestBulkSetEnabled(togglableSelected, true, selection.clear);
+    void actions.requestBulkSetEnabled(togglableSelected, true, selection.clear);
   };
   const handleBulkDelete = () => {
     actions.requestBulkDelete(selectedAutomations, selection.clear);

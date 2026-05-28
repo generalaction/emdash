@@ -48,7 +48,9 @@ function changeScheduleKind(prev: ScheduleSpec, kind: ScheduleKind): ScheduleSpe
       return { kind, minute };
     case 'interval': {
       const intervalMinutes =
-        prev.kind === 'interval' ? prev.intervalMinutes : INTERVAL_MINUTE_OPTIONS[3];
+        prev.kind === 'interval'
+          ? prev.intervalMinutes
+          : (INTERVAL_MINUTE_OPTIONS[3] ?? INTERVAL_MINUTE_OPTIONS[0] ?? 15);
       return { kind, intervalMinutes };
     }
   }
@@ -85,8 +87,12 @@ export function SchedulePicker({ value, onChange }: SchedulePickerProps) {
       return;
     }
     const [rawHour, rawMinute] = event.target.value.split(':');
-    const hour = clampInt(parseInt(rawHour ?? '', 10), 0, 23);
-    const minute = clampInt(parseInt(rawMinute ?? '', 10), 0, 59);
+    if (!rawHour || !rawMinute) return;
+    const parsedHour = parseInt(rawHour, 10);
+    const parsedMinute = parseInt(rawMinute, 10);
+    if (Number.isNaN(parsedHour) || Number.isNaN(parsedMinute)) return;
+    const hour = clampInt(parsedHour, 0, 23);
+    const minute = clampInt(parsedMinute, 0, 59);
     update({ ...schedule, hour, minute });
   }
 

@@ -70,13 +70,13 @@ describe('automationsController.update', () => {
   });
 
   it('rejects publishing a draft when existing actions are empty', async () => {
-    vi.mocked(updateAutomation).mockRejectedValue(new Error('actions_required'));
+    vi.mocked(getAutomation).mockResolvedValue(draftAutomation);
 
     const result = await automationsController.update(draftAutomation.id, { isDraft: false });
 
     expect(result).toEqual({ success: false, error: 'actions_required' });
-    expect(getAutomation).not.toHaveBeenCalled();
-    expect(updateAutomation).toHaveBeenCalledWith(draftAutomation.id, { isDraft: false });
+    expect(getAutomation).toHaveBeenCalledWith(draftAutomation.id);
+    expect(updateAutomation).not.toHaveBeenCalled();
   });
 
   it('validates existing actions when publishing without an actions patch', async () => {
@@ -85,13 +85,20 @@ describe('automationsController.update', () => {
       actions: [{ kind: 'task.create' as const, prompt: 'Do the thing' }],
       isDraft: false,
     };
+    vi.mocked(getAutomation).mockResolvedValue(automation);
     vi.mocked(updateAutomation).mockResolvedValue(automation);
 
     const result = await automationsController.update(draftAutomation.id, { isDraft: false });
 
     expect(result).toEqual({ success: true, data: automation });
-    expect(getAutomation).not.toHaveBeenCalled();
+    expect(getAutomation).toHaveBeenCalledWith(draftAutomation.id);
     expect(updateAutomation).toHaveBeenCalledWith(draftAutomation.id, { isDraft: false });
+  });
+});
+
+describe('automationsController.create', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
   });
 
   it('rejects malformed actions with action_invalid', async () => {

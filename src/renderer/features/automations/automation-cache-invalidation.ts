@@ -63,8 +63,8 @@ export function wireAutomationCacheInvalidation(): void {
       predicate: (query) =>
         query.queryKey[0] === 'automations' && query.queryKey[1] === 'recent-runs',
     });
-    if (status === 'success') {
-      const lastRunAt = startedAt ?? Date.now();
+    if (status === 'success' && startedAt != null) {
+      const lastRunAt = startedAt;
       queryClient.setQueriesData<Automation[]>(
         {
           predicate: (query) => isAutomationQuery(query.queryKey),
