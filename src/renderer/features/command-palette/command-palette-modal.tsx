@@ -163,7 +163,9 @@ export function CommandPaletteModal({
 
     return events.on(workspaceFileIndexUpdatedChannel, ({ workspaceId: updatedWorkspaceId }) => {
       if (updatedWorkspaceId !== workspaceId) return;
-      void queryClient.invalidateQueries({ queryKey: ['cmdk-search'] });
+      void queryClient.invalidateQueries({
+        predicate: ({ queryKey }) => queryKey[0] === 'cmdk-search' && queryKey[4] === workspaceId,
+      });
     });
   }, [queryClient, workspaceId]);
 
