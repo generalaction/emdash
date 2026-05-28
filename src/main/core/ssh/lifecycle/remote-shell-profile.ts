@@ -1,7 +1,13 @@
 import type { ClientCallback, ClientChannel } from 'ssh2';
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import { isValidEnvVarName, quoteShellArg } from '@main/utils/shellEscape';
+import { isValidEnvVarName, quoteCshArg, quoteShellArg } from '@main/utils/shellEscape';
 import { parseRemoteEnvOutput, SHELL_ENV_CAPTURE_GUARD } from '@main/utils/userEnv';
+import {
+  isCshShell,
+  terminalCommandArgs,
+  terminalEnvCaptureArgs,
+  terminalShellBasename,
+} from '@shared/terminal-settings';
 
 export type RemoteShellProfile = {
   shell: string;
@@ -34,16 +40,24 @@ type RemoteShellExecClient = {
 
 export function normalizeRemoteShell(raw: string | undefined | null): string {
   const shell = raw?.trim();
-  if (!shell || !shell.startsWith('/') || !SUPPORTED_REMOTE_SHELLS.has(shellBasename(shell))) {
+  if (
+    !shell ||
+    !shell.startsWith('/') ||
+    !SUPPORTED_REMOTE_SHELLS.has(terminalShellBasename(shell))
+  ) {
     return DEFAULT_REMOTE_SHELL;
   }
   return shell;
 }
 
-function buildRemoteShellEnvPrefix(env: Record<string, string>): string {
+function buildRemoteShellEnvPrefix(shell: string, env: Record<string, string>): string {
   const exports = Object.entries(env)
     .filter(([key]) => shouldForwardEnvKey(key))
-    .map(([key, value]) => `export ${key}=${quoteShellArg(value)}`);
+    .map(([key, value]) =>
+      isCshShell(shell)
+        ? `setenv ${key} ${quoteCshArg(value)}`
+        : `export ${key}=${quoteShellArg(value)}`
+    );
 
   return exports.length > 0 ? `${exports.join('; ')}; ` : '';
 }
@@ -62,10 +76,31 @@ export function buildRemoteShellCommand(
   env: Record<string, string> = {}
 ): string {
   const shell = normalizeRemoteShell(profile.shell);
-  const prefix = `${buildRemoteShellEnvPrefix(profile.env)}${buildRemoteShellEnvPrefix(env)}`;
-  return `${quoteShellArg(shell)} ${remoteShellCommandFlag(shell)} ${quoteShellArg(
+  const prefix = `${buildRemoteShellEnvPrefix(shell, profile.env)}${buildRemoteShellEnvPrefix(
+    shell,
+    env
+  )}`;
+  return `${quoteShellArg(shell)} ${terminalCommandArgs(shell).join(' ')} ${quoteShellArg(
     `${prefix}${command}`
   )}`;
+}
+
+export function buildRemoteShellCommandWithPathLookup(
+  profile: RemoteShellProfile,
+  shellName: string,
+  command: string,
+  env: Record<string, string> = {}
+): string {
+  const selectedShellEnv = { ...env, SHELL: shellName };
+  const prefix = `${buildRemoteShellEnvPrefix(
+    shellName,
+    withoutShellEnv(profile.env)
+  )}${buildRemoteShellEnvPrefix(shellName, selectedShellEnv)}`;
+  const remotePath = env.PATH ?? profile.env.PATH;
+  const pathArg = remotePath ? `${quoteShellArg(`PATH=${remotePath}`)} ` : '';
+  return `${quoteShellArg('/usr/bin/env')} ${pathArg}${quoteShellArg(
+    shellName
+  )} ${terminalCommandArgs(shellName).join(' ')} ${quoteShellArg(`${prefix}${command}`)}`;
 }
 
 export function includeRemoteUserBinDirs(env: Record<string, string>): Record<string, string> {
@@ -114,9 +149,10 @@ async function captureRemoteEnv(
 ): Promise<Record<string, string>> {
   try {
     const guard = buildRemoteShellProcessEnvPrefix(SHELL_ENV_CAPTURE_GUARD);
-    const capture = `${guard}${quoteShellArg(shell)} ${remoteShellEnvCaptureFlag(
-      shell
-    )} ${quoteShellArg('env')}`;
+    const envCaptureArgs = terminalEnvCaptureArgs(shell) ?? ['-ic'];
+    const capture = `${guard}${quoteShellArg(shell)} ${envCaptureArgs.join(' ')} ${quoteShellArg(
+      'env'
+    )}`;
     const { stdout } = await execRaw(client, capture, CAPTURE_TIMEOUT_MS);
     return includeRemoteUserBinDirs(parseRemoteEnvOutput(stdout));
   } catch {
@@ -133,16 +169,9 @@ function shouldForwardEnvKey(key: string): boolean {
   return isValidEnvVarName(key) && !VOLATILE_ENV_KEYS.has(key);
 }
 
-function remoteShellCommandFlag(shell: string): string {
-  return BASIC_POSIX_SHELLS.has(shellBasename(shell)) ? '-c' : '-lc';
-}
-
-function remoteShellEnvCaptureFlag(shell: string): string {
-  return BASIC_POSIX_SHELLS.has(shellBasename(shell)) ? '-ic' : '-ilc';
-}
-
-function shellBasename(shell: string): string {
-  return shell.split('/').pop() ?? '';
+function withoutShellEnv(env: Record<string, string>): Record<string, string> {
+  const { SHELL: _shell, ...rest } = env;
+  return rest;
 }
 
 function execRaw(
