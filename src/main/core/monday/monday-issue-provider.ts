@@ -30,12 +30,12 @@ type MondayItem = {
 type MondayBoard = {
   id: string;
   name: string;
-  board_url: string;
+  url: string;
   items_page: { items: MondayItem[] };
 };
 
 type MondayItemWithContext = MondayItem & {
-  board: { id: string; name: string; board_url: string };
+  board: { id: string; name: string; url: string };
   updates: { id: string; text_body: string; created_at: string; creator: { name: string } }[];
 };
 
@@ -53,7 +53,7 @@ function buildItemUrl(boardUrl: string, itemId: string): string {
 
 function toIssue(
   item: MondayItem,
-  board: { name: string; board_url: string },
+  board: { name: string; url: string },
   context?: string
 ): Issue {
   const status = item.column_values.find((c) => c.type === 'status')?.text || undefined;
@@ -69,7 +69,7 @@ function toIssue(
     provider: 'monday',
     identifier: item.id,
     title: item.name,
-    url: buildItemUrl(board.board_url, item.id),
+    url: buildItemUrl(board.url, item.id),
     status,
     assignees,
     project: board.name,
@@ -98,10 +98,10 @@ async function listIssues(limit: number): Promise<IssueListResult> {
   try {
     const query = credentials.boardIds.length
       ? `query ($boardIds: [ID!]!, $limit: Int!) {
-          boards(ids: $boardIds) { id name board_url items_page(limit: $limit) { items { ${ITEMS_FIELDS} } } }
+          boards(ids: $boardIds) { id name url items_page(limit: $limit) { items { ${ITEMS_FIELDS} } } }
         }`
       : `query ($limit: Int!) {
-          boards(limit: 20) { id name board_url items_page(limit: $limit) { items { ${ITEMS_FIELDS} } } }
+          boards(limit: 20) { id name url items_page(limit: $limit) { items { ${ITEMS_FIELDS} } } }
         }`;
 
     const variables = credentials.boardIds.length
@@ -139,7 +139,7 @@ async function searchIssues(searchTerm: string, limit: number): Promise<IssueLis
     const query = credentials.boardIds.length
       ? `query ($boardIds: [ID!]!, $term: String!, $limit: Int!) {
           boards(ids: $boardIds) {
-            id name board_url
+            id name url
             items_page(limit: $limit, query_params: { rules: [{ column_id: "name", compare_value: [$term], operator: contains_text }] }) {
               items { ${ITEMS_FIELDS} }
             }
@@ -147,7 +147,7 @@ async function searchIssues(searchTerm: string, limit: number): Promise<IssueLis
         }`
       : `query ($term: String!, $limit: Int!) {
           boards(limit: 20) {
-            id name board_url
+            id name url
             items_page(limit: $limit, query_params: { rules: [{ column_id: "name", compare_value: [$term], operator: contains_text }] }) {
               items { ${ITEMS_FIELDS} }
             }
@@ -187,7 +187,7 @@ async function getIssueContext(opts: IssueContextOpts): Promise<IssueContextResu
     const query = `query ($itemId: [ID!]!) {
       items(ids: $itemId) {
         id name updated_at
-        board { id name board_url }
+        board { id name url }
         group { title }
         column_values { id type text }
         updates { id text_body created_at creator { name } }

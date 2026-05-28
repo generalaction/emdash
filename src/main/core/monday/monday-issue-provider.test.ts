@@ -34,7 +34,7 @@ describe('mondayIssueProvider', () => {
       const board = {
         id: '111',
         name: 'Sprint Board',
-        board_url: 'https://myteam.monday.com/boards/111',
+        url: 'https://myteam.monday.com/boards/111',
         items_page: { items: [item] },
       };
 
@@ -53,7 +53,7 @@ describe('mondayIssueProvider', () => {
             status: item.column_values[0].text,
             assignees: [item.column_values[1].text],
             project: board.name,
-            url: `${board.board_url}/pulses/${item.id}`,
+            url: `${board.url}/pulses/${item.id}`,
           }),
         ],
       });
@@ -93,7 +93,7 @@ describe('mondayIssueProvider', () => {
       const board = {
         id: '111',
         name: 'Sprint Board',
-        board_url: 'https://myteam.monday.com/boards/111',
+        url: 'https://myteam.monday.com/boards/111',
         items_page: { items: [item] },
       };
 
@@ -145,7 +145,7 @@ describe('mondayIssueProvider', () => {
         board: {
           id: '111',
           name: 'Sprint Board',
-          board_url: 'https://myteam.monday.com/boards/111',
+          url: 'https://myteam.monday.com/boards/111',
         },
         group: { title: 'In Progress' },
         column_values: [{ id: 'status', type: 'status', text: 'Working on it' }],
