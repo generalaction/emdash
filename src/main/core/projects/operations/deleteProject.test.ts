@@ -74,8 +74,21 @@ describe('deleteProject', () => {
 
     expect(mocks.closeProject).toHaveBeenCalledWith('project-1');
     expect(mocks.deleteWhere).toHaveBeenCalledTimes(1);
-    expect(mocks.closeProject.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.deleteWhere.mock.invocationCallOrder[0]!
-    );
+    const closeOrder = mocks.closeProject.mock.invocationCallOrder[0];
+    const deleteOrder = mocks.deleteWhere.mock.invocationCallOrder[0];
+    expect(closeOrder).toBeDefined();
+    expect(deleteOrder).toBeDefined();
+    expect(closeOrder!).toBeLessThan(deleteOrder!);
+  });
+
+  it('deletes an unmounted project without closing a provider', async () => {
+    mocks.getProject.mockReturnValue(undefined);
+
+    await deleteProject('project-1');
+
+    expect(mocks.closeProject).not.toHaveBeenCalled();
+    expect(mocks.getTasks).not.toHaveBeenCalled();
+    expect(mocks.teardownTask).not.toHaveBeenCalled();
+    expect(mocks.deleteWhere).toHaveBeenCalledTimes(1);
   });
 });
