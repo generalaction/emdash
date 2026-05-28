@@ -60,16 +60,20 @@ function httpsGet(
         }
         let data = '';
         let bytes = 0;
+        let destroyed = false;
         const maxBytes = options.maxBytes ?? MAX_HTTP_RESPONSE_BYTES;
         res.on('data', (chunk: Buffer | string) => {
           bytes += Buffer.byteLength(chunk);
           if (bytes > maxBytes) {
+            destroyed = true;
             req.destroy(new Error(`Response too large for ${url}`));
             return;
           }
           data += chunk;
         });
-        res.on('end', () => resolve(data));
+        res.on('end', () => {
+          if (!destroyed) resolve(data);
+        });
         res.on('error', reject);
       }
     );
