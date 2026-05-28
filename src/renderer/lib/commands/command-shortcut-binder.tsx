@@ -49,6 +49,7 @@ export const CommandShortcutBinder = observer(function CommandShortcutBinder() {
     ...new Set(
       commandRegistry.activeCommands
         .filter((c) => c.shortcutKey != null && c.shortcutKey in APP_SHORTCUTS)
+        .filter((c) => APP_SHORTCUTS[c.shortcutKey!].conflictBehavior !== 'allow')
         .map((c) => c.shortcutKey!)
     ),
   ];
