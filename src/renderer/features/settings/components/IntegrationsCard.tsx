@@ -74,9 +74,7 @@ const IntegrationsCard: React.FC = () => {
   const isGithubStoredTokenConnected = authenticated && tokenSource !== 'cli';
   const githubAuthSource = githubAuthSourceLabel(tokenSource);
   const githubDescription =
-    authenticated && user
-      ? `@${user.login} via ${githubAuthSource}`
-      : 'Connect your GitHub repositories';
+    authenticated && user ? `@${user.login} via ${githubAuthSource}` : 'Connect your repositories';
 
   useEffect(() => {
     void checkStatus();
