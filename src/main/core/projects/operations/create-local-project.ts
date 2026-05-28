@@ -1,10 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
-import { GitHubAuthExecutionContext } from '@main/core/execution-context/github-auth-execution-context';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { GitService } from '@main/core/git/impl/git-service';
-import { githubConnectionService } from '@main/core/github/services/github-connection-service';
 import { projectEvents } from '@main/core/projects/project-events';
 import { projectManager } from '@main/core/projects/project-manager';
 import { db } from '@main/db/client';
@@ -28,8 +26,7 @@ export async function createLocalProject(params: CreateLocalProjectParams): Prom
 
   const fs = new LocalFileSystem(params.path);
   const baseCtx = new LocalExecutionContext({ root: params.path });
-  const authCtx = new GitHubAuthExecutionContext(baseCtx, () => githubConnectionService.getToken());
-  const git = new GitService(baseCtx, authCtx, fs);
+  const git = new GitService(baseCtx, fs);
   const gitInfo = await ensureGitRepository(git, params.initGitRepository);
   const baseRef = await resolveProjectBaseRef(git, gitInfo.baseRef);
 
@@ -69,8 +66,7 @@ export async function getLocalProjectPathStatus(path: string): Promise<ProjectPa
 
   const fs = new LocalFileSystem(path);
   const baseCtx = new LocalExecutionContext({ root: path });
-  const authCtx = new GitHubAuthExecutionContext(baseCtx, () => githubConnectionService.getToken());
-  const git = new GitService(baseCtx, authCtx, fs);
+  const git = new GitService(baseCtx, fs);
   const gitInfo = await git.detectInfo();
   return { isDirectory: true, isGitRepo: gitInfo.isGitRepo };
 }

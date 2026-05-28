@@ -59,7 +59,7 @@ function makeContext(exec: MockExec, root = '/repo'): IExecutionContext {
 
 function makeService(exec: MockExec): GitService {
   const ctx = makeContext(exec);
-  return new GitService(ctx, ctx, stubFs);
+  return new GitService(ctx, stubFs);
 }
 
 // ---------------------------------------------------------------------------
@@ -422,6 +422,34 @@ describe('GitService.createBranch', () => {
     await expect(svc.createBranch('task/remote', 'main', true, 'upstream')).resolves.toEqual({
       success: true,
       data: undefined,
+    });
+  });
+});
+
+describe('GitService.fetch', () => {
+  it('fetches through plain git without injected GitHub auth config', async () => {
+    const svc = makeService(
+      makeExec({
+        remote: 'origin\n',
+        'fetch origin': '',
+      })
+    );
+
+    await expect(svc.fetch('origin')).resolves.toEqual({ success: true, data: undefined });
+  });
+});
+
+describe('GitService.publishBranch', () => {
+  it('publishes through plain git without injected GitHub auth config', async () => {
+    const svc = makeService(
+      makeExec({
+        'push --set-upstream origin emdash/test-branch': 'pushed',
+      })
+    );
+
+    await expect(svc.publishBranch('emdash/test-branch', 'origin')).resolves.toEqual({
+      success: true,
+      data: { output: 'pushed' },
     });
   });
 });
