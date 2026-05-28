@@ -100,6 +100,7 @@ export const providerConfigDefaults = Object.fromEntries(
 export const interfaceSettingsSchema = z.object({
   taskHoverAction: z.enum(['delete', 'archive']),
   autoRightSidebarBehavior: z.boolean(),
+  confirmTabClose: z.boolean(),
 });
 
 export const changesViewModeSchema = z.object({

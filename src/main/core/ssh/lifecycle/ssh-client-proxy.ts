@@ -3,7 +3,12 @@ import { captureRemoteShellProfile, type RemoteShellProfile } from './remote-she
 
 type RemoteShellProfileState =
   | { kind: 'empty' }
-  | { kind: 'loading'; client: Client; promise: Promise<RemoteShellProfile> }
+  | {
+      kind: 'loading';
+      client: Client;
+      mode: 'get' | 'refresh';
+      promise: Promise<RemoteShellProfile>;
+    }
   | { kind: 'ready'; client: Client; profile: RemoteShellProfile };
 
 /**
@@ -44,22 +49,24 @@ export class SshClientProxy {
       return state.promise;
     }
 
-    const promise = captureRemoteShellProfile(this).then((profile) => {
-      if (
-        this._client === client &&
-        this._remoteShellProfileState.kind === 'loading' &&
-        this._remoteShellProfileState.promise === promise
-      ) {
-        this._remoteShellProfileState = { kind: 'ready', client, profile };
-      }
-      return profile;
-    });
-    this._remoteShellProfileState = { kind: 'loading', client, promise };
-    return promise;
+    return this.captureRemoteShellProfileFor(client, 'get');
   }
 
   async refreshRemoteShellProfile(): Promise<RemoteShellProfile> {
     const client = this.client;
+    const state = this._remoteShellProfileState;
+
+    if (state.kind === 'loading' && state.client === client && state.mode === 'refresh') {
+      return state.promise;
+    }
+
+    return this.captureRemoteShellProfileFor(client, 'refresh');
+  }
+
+  private captureRemoteShellProfileFor(
+    client: Client,
+    mode: 'get' | 'refresh'
+  ): Promise<RemoteShellProfile> {
     const promise = captureRemoteShellProfile(this).then((profile) => {
       if (
         this._client === client &&
@@ -70,7 +77,7 @@ export class SshClientProxy {
       }
       return profile;
     });
-    this._remoteShellProfileState = { kind: 'loading', client, promise };
+    this._remoteShellProfileState = { kind: 'loading', client, mode, promise };
     return promise;
   }
 

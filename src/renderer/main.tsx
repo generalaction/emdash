@@ -1,6 +1,7 @@
 import ReactDOM from 'react-dom/client';
 import { setupNavigationGuards } from '@renderer/app/view-registry';
 import { wireAutomationCacheInvalidation } from '@renderer/features/automations/automation-cache-invalidation';
+import { prefetchAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import './index.css';
 import 'devicon/devicon.min.css';
 import 'katex/dist/katex.min.css';
@@ -45,6 +46,7 @@ async function bootstrap() {
     rpc.viewState.get('sidebar'),
     rpc.viewState.getAll(),
     appState.projects.load(),
+    prefetchAppSettingsKey('interface'),
   ]);
 
   viewStateCache.populate(allViewState as Record<string, unknown>);

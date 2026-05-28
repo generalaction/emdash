@@ -1,16 +1,7 @@
 import { type ConversationRow } from '@main/db/schema';
 import { type AgentProviderId } from '@shared/agent-provider-registry';
+import { parseConversationConfig } from '@shared/conversation-config';
 import { type Conversation } from '@shared/conversations';
-import type { ConversationConfig } from './types';
-
-export function parseConversationConfig(raw: string | null): ConversationConfig {
-  if (!raw) return {};
-  try {
-    return JSON.parse(raw) as ConversationConfig;
-  } catch {
-    return {};
-  }
-}
 
 export function mapConversationRowToConversation(
   row: ConversationRow,

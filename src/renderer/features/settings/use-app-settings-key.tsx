@@ -4,8 +4,10 @@ import {
   APP_SETTINGS_STALE_TIME_MS,
   appSettingsMetaQueryKey,
   getAllAppSettingsFromCache,
+  getAppSettingValueSnapshot,
   invalidateAppSettingsKey,
   mergeAppSettingsValue,
+  prefetchAppSettingsKey,
   requestAppSettingsMeta,
   resetAppSettingsFieldRequest,
   resetAppSettingsRequest,
@@ -14,6 +16,8 @@ import {
   updateAppSettingsRequest,
   type SettingsMeta,
 } from './app-settings-client';
+
+export { getAppSettingValueSnapshot, prefetchAppSettingsKey };
 
 export function useAppSettingsKey<K extends AppSettingsKey>(key: K) {
   const queryClient = useQueryClient();

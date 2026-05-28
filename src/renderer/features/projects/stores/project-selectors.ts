@@ -9,6 +9,7 @@ import {
 } from './project';
 import type { ProjectManagerStore } from './project-manager';
 import type { ProjectSettingsStore } from './project-settings-store';
+import type { ProjectViewStore } from './project-view';
 import type { RepositoryStore } from './repository-store';
 
 /** Returns the ProjectManagerStore from appState. Call only inside `observer` components (or other MobX reactions). */
@@ -100,4 +101,9 @@ export function getProjectSettingsStore(projectId: string): ProjectSettingsStore
 /** Returns the PrSyncStore for a mounted project, or undefined if not ready. */
 export function getPrSyncStore(projectId: string): PrSyncStore | undefined {
   return asMounted(getProjectStore(projectId))?.prSync;
+}
+
+/** Returns the ProjectViewStore for a mounted project, or undefined if not ready. */
+export function getProjectViewStore(projectId: string): ProjectViewStore | undefined {
+  return asMounted(getProjectStore(projectId))?.view;
 }

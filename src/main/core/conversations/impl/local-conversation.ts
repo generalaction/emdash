@@ -23,8 +23,10 @@ import type { Conversation } from '@shared/conversations';
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { makePtyId } from '@shared/ptyId';
 import { makePtySessionId } from '@shared/ptySessionId';
+import { resolveAgentSessionCommandArgs } from '../resolve-agent-session-command';
 import { buildAgentSessionCommand } from './agent-command';
 import { createInitialPromptDelivery } from './initial-prompt-delivery';
+import { syncGrokThemeWithAppTheme } from './grok-theme-config';
 import { scheduleInitialPromptInjection } from './keystroke-injection';
 import { resolveProviderEnv } from './provider-env';
 
@@ -100,12 +102,13 @@ export class LocalConversationProvider implements ConversationProvider {
 
     const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
     const providerDef = getProvider(conversation.providerId);
+    const agentSession = resolveAgentSessionCommandArgs(conversation, isResuming);
     const initialPromptDelivery = createInitialPromptDelivery({
       providerId: conversation.providerId,
       conversationId: conversation.id,
       providerConfig,
       initialPrompt,
-      isResuming,
+      isResuming: agentSession.isResuming,
     });
     const { command, args } = buildAgentSessionCommand({
       providerId: conversation.providerId,
@@ -113,14 +116,17 @@ export class LocalConversationProvider implements ConversationProvider {
       autoApprove: conversation.autoApprove,
       extraInitialArgs: initialPromptDelivery.argvAddition(),
       initialPrompt,
-      sessionId: conversation.id,
+      sessionId: agentSession.sessionId,
       providerSessionId: conversation.providerSessionId,
-      isResuming,
+      isResuming: agentSession.isResuming,
     });
     const providerEnv = resolveProviderEnv(providerConfig, {
       providerId: conversation.providerId,
       autoApprove: conversation.autoApprove,
     });
+    if (conversation.providerId === 'grok') {
+      await syncGrokThemeWithAppTheme({ env: providerEnv });
+    }
 
     const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
 

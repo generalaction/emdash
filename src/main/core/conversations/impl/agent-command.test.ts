@@ -234,15 +234,16 @@ describe('buildAgentCommand', () => {
     });
   });
 
-  it('passes Droid session id when resuming', () => {
+  it('passes Droid resume flag with session id when resuming', () => {
     const result = buildAgentCommand({
       providerId: 'droid',
       providerConfig: providerConfigDefaults.droid,
       sessionId: 'conv-1',
+      providerSessionId: '31477a03-961a-4451-82d4-efded56947fc',
       isResuming: true,
     });
 
-    expect(result.args).toEqual(['--session-id', 'conv-1']);
+    expect(result.args).toEqual(['--resume', '31477a03-961a-4451-82d4-efded56947fc']);
   });
 
   it.each<{

@@ -9,13 +9,12 @@ import {
   getRepositoryStore,
 } from '@renderer/features/projects/stores/project-selectors';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { BranchPickerField } from '@renderer/features/tasks/create-task-modal/branch-picker-field';
 import { resolveBranchLikeTaskStrategy } from '@renderer/features/tasks/create-task-modal/create-task-strategy';
-import { FromBranchContent } from '@renderer/features/tasks/create-task-modal/from-branch-content';
 import { ProjectSelector } from '@renderer/features/tasks/create-task-modal/project-selector';
-import {
-  useFromBranchMode,
-  type FromBranchModeInitial,
-} from '@renderer/features/tasks/create-task-modal/use-from-branch-mode';
+import { useBranchName } from '@renderer/features/tasks/create-task-modal/use-branch-name';
+import { useBranchSelection } from '@renderer/features/tasks/create-task-modal/use-branch-selection';
+import { useTaskName } from '@renderer/features/tasks/create-task-modal/use-task-name';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
@@ -163,17 +162,39 @@ export const AutomationPanel = observer(function AutomationPanel({
   const currentBranch = repo?.currentBranch ?? null;
 
   const branchInitial = useMemo(() => branchInitialFromConfig(seedConfig), [seedConfig]);
-  const fromBranchInitial: FromBranchModeInitial = useMemo(
-    () => ({ ...branchInitial, taskName: seedConfig?.name }),
-    [branchInitial, seedConfig?.name]
-  );
-
-  const fromBranch = useFromBranchMode(
+  const taskName = useTaskName({
+    generatedName: seedConfig?.name,
+    resetKey: effectiveProjectId,
+  });
+  const branchSelection = useBranchSelection(
     effectiveProjectId,
     defaultBranch,
     isUnborn,
     currentBranch,
-    fromBranchInitial
+    branchInitial
+  );
+  const branchNameState = useBranchName({
+    taskName: taskName.effectiveTaskName || name,
+    projectId: effectiveProjectId,
+    resetKey: effectiveProjectId,
+  });
+  const isBranchValid =
+    !branchSelection.createBranchAndWorktree ||
+    (branchNameState.branchName.trim().length > 0 && !branchNameState.branchAlreadyExists);
+  const isTaskConfigValid = !!branchSelection.selectedBranch && isBranchValid;
+
+  const fromBranch = {
+    selectedBranch: branchSelection.selectedBranch,
+    createBranchAndWorktree: branchSelection.createBranchAndWorktree,
+    pushBranch: branchSelection.pushBranch,
+    branchName: branchNameState.branchName,
+    taskName: taskName.effectiveTaskName,
+    isValid: isTaskConfigValid,
+  };
+
+  const workspaceSettingsKey = useMemo(
+    () => `${effectiveProjectId ?? 'none'}:${seedConfig?.id ?? 'new'}`,
+    [effectiveProjectId, seedConfig?.id]
   );
 
   const { create, update } = useAutomations();
@@ -399,8 +420,10 @@ export const AutomationPanel = observer(function AutomationPanel({
               </div>
             ) : null}
 
-            <FromBranchContent
-              state={fromBranch}
+            <BranchPickerField
+              key={workspaceSettingsKey}
+              state={branchSelection}
+              branchNameState={branchNameState}
               projectId={effectiveProjectId}
               currentBranch={currentBranch}
               isUnborn={isUnborn}

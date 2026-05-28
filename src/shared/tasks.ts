@@ -2,7 +2,15 @@ import type { CreateConversationParams } from '@shared/conversations';
 import type { Branch, CreateBranchError, FetchPrForReviewError, PushError } from '@shared/git';
 import type { PullRequest } from '@shared/pull-requests';
 
-export type TaskLifecycleStatus = 'todo' | 'in_progress' | 'review' | 'done' | 'cancelled';
+export type TaskLifecycleStatus =
+  | 'todo'
+  | 'in_progress'
+  | 'review'
+  | 'done'
+  | 'cancelled'
+  | 'backlog'
+  | 'duplicate'
+  | 'triage';
 
 export type Issue = {
   provider: 'github' | 'linear' | 'jira' | 'gitlab' | 'plain' | 'forgejo' | 'featurebase' | 'asana';
