@@ -45,7 +45,7 @@ describe('ConversationManagerStore session hydration', () => {
     frontendConnect.mockResolvedValue(undefined);
   });
 
-  it('does not hydrate conversations from the PTY session connect path', async () => {
+  it('creates PTY sessions lazily when conversations are hydrated', async () => {
     const store = new ConversationManagerStore('project-1', 'task-1', [
       {
         id: 'conversation-1',
@@ -58,12 +58,16 @@ describe('ConversationManagerStore session hydration', () => {
       },
     ]);
 
-    const session = store.sessions.get('conversation-1');
+    expect(store.sessions.get('conversation-1')).toBeUndefined();
+
+    await store.hydrateConversation('conversation-1');
+
+    const session = store.getSession('conversation-1');
     expect(session).toBeDefined();
+    expect(hydrateConversation).toHaveBeenCalledWith('project-1', 'task-1', 'conversation-1');
 
     await session?.connect();
 
-    expect(hydrateConversation).not.toHaveBeenCalled();
     expect(frontendConnect).toHaveBeenCalledTimes(1);
 
     store.dispose();

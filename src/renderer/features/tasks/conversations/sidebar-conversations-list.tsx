@@ -166,13 +166,7 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
   const conversations = useConversations();
   const { tabGroupManager } = taskView;
   const showCreateConversationModal = useShowModal('createConversationModal');
-  const conversationIds = Array.from(conversations.conversations.values())
-    .sort((a, b) => {
-      const aTime = a.data.lastInteractedAt ? new Date(a.data.lastInteractedAt).getTime() : 0;
-      const bTime = b.data.lastInteractedAt ? new Date(b.data.lastInteractedAt).getTime() : 0;
-      return bTime - aTime;
-    })
-    .map((c) => c.data.id);
+  const conversationIds = conversations.sortedConversationIds;
 
   const parentRef = useRef<HTMLDivElement>(null);
 

@@ -28,7 +28,7 @@ export const ContextBar = observer(function ContextBar({ conversationId }: Conte
   const task = getRegisteredTaskData(projectId, taskId);
   const draftComments = getTaskStore(projectId, taskId)?.draftComments;
   const { value: promptLibrary, isSaving: isSavingPromptLibrary } = usePromptLibrary();
-  const activeSession = conversationId ? conversations.sessions.get(conversationId) : undefined;
+  const activeSession = conversations.getSession(conversationId);
   const activeConversationStore = conversationId
     ? conversations.conversations.get(conversationId)
     : undefined;

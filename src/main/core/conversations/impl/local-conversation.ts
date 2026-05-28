@@ -6,6 +6,7 @@ import { HookConfigWriter } from '@main/core/agent-hooks/hook-config';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
+import { mcpInternalService } from '@main/core/mcp-internal';
 import { isUnexpectedPtyExit } from '@main/core/pty/exit-classification';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import type { Pty } from '@main/core/pty/pty';
@@ -140,6 +141,11 @@ export class LocalConversationProvider implements ConversationProvider {
     const ptyId = makePtyId(conversation.providerId, conversation.id);
     const port = agentHookService.getPort();
     const token = agentHookService.getToken();
+    const mcpEnv = mcpInternalService.getPtyEnv(
+      conversation.projectId,
+      conversation.taskId,
+      conversation.id
+    );
     const hookActive = port > 0;
     const ampHooksAvailable =
       hookActive &&
@@ -156,6 +162,7 @@ export class LocalConversationProvider implements ConversationProvider {
           hook: port > 0 ? { port, ptyId, token } : undefined,
           providerVars: providerEnv,
         }),
+        ...mcpEnv,
         ...this.taskEnvVars,
         ...(ampHooksAvailable && !this.taskEnvVars['PLUGINS'] ? { PLUGINS: 'all' } : {}),
       },

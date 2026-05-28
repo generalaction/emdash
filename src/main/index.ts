@@ -15,6 +15,7 @@ import { localDependencyManager } from './core/dependencies/dependency-manager';
 import { editorBufferService } from './core/editor/editor-buffer-service';
 import { gitWatcherRegistry } from './core/git/git-watcher-registry';
 import { githubConnectionService } from './core/github/services/github-connection-service';
+import { mcpInternalService } from './core/mcp-internal';
 import { projectManager } from './core/projects/project-manager';
 import { projectSettingsService } from './core/projects/settings/project-settings-service';
 import { promptLibraryService } from './core/prompt-library/service';
@@ -132,6 +133,9 @@ void app.whenReady().then(async () => {
   agentHookService.initialize().catch((e) => {
     log.error('Failed to start agent event service:', e);
   });
+  mcpInternalService.initialize().catch((e) => {
+    log.error('Failed to start internal MCP service:', e);
+  });
 
   emdashAccountService.loadSessionToken().catch((e) => {
     log.warn('Failed to load account session token:', e);
@@ -174,6 +178,7 @@ app.on('before-quit', (event) => {
     void projectManager.dispose().catch((e) => {
       log.error('Failed to shutdown project manager:', e);
     });
+    mcpInternalService.dispose();
     app.exit(0);
   });
 });

@@ -13,7 +13,11 @@ import {
   isAttentionNotification,
   type NotificationType,
 } from '@shared/events/agentEvents';
-import { conversationChangedChannel } from '@shared/events/conversationEvents';
+import {
+  conversationChangedChannel,
+  conversationCreatedChannel,
+  conversationDeletedChannel,
+} from '@shared/events/conversationEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 
 export type AgentStatus = 'idle' | 'working' | 'awaiting-input' | 'error' | 'completed';
@@ -22,6 +26,8 @@ export class ConversationManagerStore implements IDisposable {
   private offAgentEvents: (() => void) | null = null;
   private offSessionExited: (() => void) | null = null;
   private offConversationChanges: (() => void) | null = null;
+  private offConversationCreated: (() => void) | null = null;
+  private offConversationDeleted: (() => void) | null = null;
   private readonly _disposeReaction: () => void;
 
   /** Data layer: plain Conversation records loaded from the main process. */
@@ -39,6 +45,7 @@ export class ConversationManagerStore implements IDisposable {
     makeObservable(this, {
       conversations: observable,
       sessions: observable,
+      sortedConversationIds: computed,
       taskStatus: computed,
     });
 
@@ -59,9 +66,6 @@ export class ConversationManagerStore implements IDisposable {
           if (!this.conversations.has(conversation.id)) {
             this.conversations.set(conversation.id, new ConversationStore(conversation));
           }
-          if (!this.sessions.has(conversation.id)) {
-            this.sessions.set(conversation.id, this.createSession(conversation));
-          }
         }
       });
     }
@@ -78,9 +82,6 @@ export class ConversationManagerStore implements IDisposable {
             if (!this.conversations.has(conversation.id)) {
               this.conversations.set(conversation.id, new ConversationStore(conversation));
             }
-            if (!this.sessions.has(conversation.id)) {
-              this.sessions.set(conversation.id, this.createSession(conversation));
-            }
           }
         });
       },
@@ -90,6 +91,8 @@ export class ConversationManagerStore implements IDisposable {
     this.offAgentEvents = this.listenToAgentEvents();
     this.offSessionExited = this.listenToSessionExited();
     this.offConversationChanges = this.listenToConversationChanges();
+    this.offConversationCreated = this.listenToConversationCreated();
+    this.offConversationDeleted = this.listenToConversationDeleted();
   }
 
   private listenToAgentEvents(): () => void {
@@ -146,6 +149,33 @@ export class ConversationManagerStore implements IDisposable {
     });
   }
 
+  private listenToConversationCreated(): () => void {
+    return events.on(conversationCreatedChannel, ({ conversation }) => {
+      if (conversation.taskId !== this.taskId || conversation.projectId !== this.projectId) return;
+      runInAction(() => {
+        const existing = this.conversations.get(conversation.id);
+        if (existing) {
+          Object.assign(existing.data, conversation);
+          return;
+        }
+        const store = new ConversationStore(conversation);
+        this.conversations.set(conversation.id, store);
+      });
+    });
+  }
+
+  private listenToConversationDeleted(): () => void {
+    return events.on(conversationDeletedChannel, (event) => {
+      if (event.taskId !== this.taskId || event.projectId !== this.projectId) return;
+      const session = this.sessions.get(event.conversationId);
+      runInAction(() => {
+        this.conversations.delete(event.conversationId);
+        this.sessions.delete(event.conversationId);
+      });
+      session?.dispose();
+    });
+  }
+
   get taskStatus(): AgentStatus | null {
     let hasWorking = false;
     let hasUnseenError = false;
@@ -162,14 +192,21 @@ export class ConversationManagerStore implements IDisposable {
     return null;
   }
 
+  get sortedConversationIds(): string[] {
+    return Array.from(this.conversations.values())
+      .sort((a, b) => {
+        const aTime = a.data.lastInteractedAt ? new Date(a.data.lastInteractedAt).getTime() : 0;
+        const bTime = b.data.lastInteractedAt ? new Date(b.data.lastInteractedAt).getTime() : 0;
+        return bTime - aTime;
+      })
+      .map((c) => c.data.id);
+  }
+
   async createConversation(params: CreateConversationParams): Promise<Conversation> {
     const conversation = await rpc.conversations.createConversation(params);
     runInAction(() => {
       if (!this.conversations.has(conversation.id)) {
         this.conversations.set(conversation.id, new ConversationStore(conversation));
-      }
-      if (!this.sessions.has(conversation.id)) {
-        this.sessions.set(conversation.id, this.createSession(conversation));
       }
       if (params.initialPrompt?.trim()) {
         this.conversations.get(conversation.id)?.setWorking();
@@ -197,6 +234,7 @@ export class ConversationManagerStore implements IDisposable {
   }
 
   async hydrateConversation(conversationId: string): Promise<void> {
+    this.ensureSession(conversationId);
     await rpc.conversations.hydrateConversation(this.projectId, this.taskId, conversationId);
   }
 
@@ -256,9 +294,30 @@ export class ConversationManagerStore implements IDisposable {
     this.offSessionExited = null;
     this.offConversationChanges?.();
     this.offConversationChanges = null;
+    this.offConversationCreated?.();
+    this.offConversationCreated = null;
+    this.offConversationDeleted?.();
+    this.offConversationDeleted = null;
     for (const session of this.sessions.values()) {
       session.dispose();
     }
+  }
+
+  getSession(conversationId: string | undefined): PtySession | undefined {
+    if (!conversationId) return undefined;
+    return this.sessions.get(conversationId);
+  }
+
+  private ensureSession(conversationId: string): PtySession | undefined {
+    const existing = this.sessions.get(conversationId);
+    if (existing) return existing;
+    const conversation = this.conversations.get(conversationId)?.data;
+    if (!conversation) return undefined;
+    const session = this.createSession(conversation);
+    runInAction(() => {
+      this.sessions.set(conversationId, session);
+    });
+    return session;
   }
 
   private createSession(conversation: Conversation): PtySession {

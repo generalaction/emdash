@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useIsActiveTask } from '@renderer/features/tasks/hooks/use-is-active-task';
 import { useTabGroupContext } from '@renderer/features/tasks/tabs/tab-group-context';
 import {
@@ -27,17 +27,13 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
   const autoFocus = isActive && taskView.focusedRegion === 'main';
 
   // Build session ID list for PaneSizingProvider (all open conversation tabs).
-  const allSessionIds = useMemo(() => {
-    return tm.resolvedTabs
-      .filter((t) => t.kind === 'conversation')
-      .map((t) => conversations.sessions.get(t.store.data.id)?.sessionId)
-      .filter((id): id is string => Boolean(id));
-  }, [tm.resolvedTabs, conversations.sessions]);
+  const allSessionIds = tm.resolvedTabs
+    .filter((t) => t.kind === 'conversation')
+    .map((t) => conversations.getSession(t.store.data.id)?.sessionId)
+    .filter((id): id is string => Boolean(id));
 
   const activeConversation: ConversationStore | undefined = tm.activeConversation;
-  const activeSession = activeConversation
-    ? (conversations.sessions.get(activeConversation.data.id) ?? null)
-    : null;
+  const activeSession = conversations.getSession(activeConversation?.data.id) ?? null;
   const activeSessionId = activeSession?.sessionId ?? null;
 
   const containerRef = useRef<HTMLDivElement>(null);

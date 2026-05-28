@@ -3,10 +3,12 @@ import { eq, sql } from 'drizzle-orm';
 import { withCompensation } from '@main/core/utils/compensation';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
+import { events as ipcEvents } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { serializeConversationConfig } from '@shared/conversation-config';
 import { type Conversation, type CreateConversationParams } from '@shared/conversations';
+import { conversationCreatedChannel } from '@shared/events/conversationEvents';
 import { resolveTask } from '../projects/utils';
 import { conversationEvents } from './conversation-events';
 import { mapConversationRowToConversation } from './utils';
@@ -67,6 +69,7 @@ export async function createConversation(params: CreateConversationParams): Prom
   });
 
   conversationEvents._emit('conversation:created', conversation);
+  ipcEvents.emit(conversationCreatedChannel, { conversation });
   telemetryService.capture('conversation_created', {
     provider: params.provider,
     is_first_in_task: existingConversation === undefined,
