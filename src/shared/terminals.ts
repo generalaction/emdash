@@ -1,3 +1,4 @@
+import type { TerminalShellId } from './terminal-settings';
 import { createHash } from './utils';
 
 export type Terminal = {
@@ -13,6 +14,7 @@ export type CreateTerminalParams = {
   projectId: string;
   taskId: string;
   name: string;
+  shell?: TerminalShellId;
   initialSize?: { cols: number; rows: number };
 };
 
