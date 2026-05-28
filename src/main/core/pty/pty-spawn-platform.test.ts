@@ -402,6 +402,26 @@ describe('resolveLocalPtySpawn - POSIX', () => {
     });
   });
 
+  it('uses a non-login setup wrapper before execing selected login shells', () => {
+    const result = resolveLocalPtySpawn({
+      platform: 'darwin',
+      env: posixEnv,
+      intent: {
+        kind: 'interactive-shell',
+        cwd: '/repo',
+        shellProfile: bashProfile,
+        shellSetup: 'export FOO=bar',
+      },
+    });
+
+    expect(result).toEqual({
+      command: 'bash',
+      args: ['-c', 'export FOO=bar && exec bash -il'],
+      cwd: '/repo',
+      warnings: [],
+    });
+  });
+
   it('does not pass login flags to basic POSIX interactive shells', () => {
     const result = resolveLocalPtySpawn({
       platform: 'darwin',

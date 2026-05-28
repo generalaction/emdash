@@ -57,6 +57,18 @@ function getCommandArgs(intent: PtySpawnIntent): string[] {
   return intent.shellProfile?.commandArgs ?? ['-c'];
 }
 
+function getSetupWrapperArgs(intent: PtySpawnIntent): string[] {
+  if (!intent.shellProfile) return ['-c'];
+  switch (intent.shellProfile.family) {
+    case 'posix':
+    case 'csh':
+      return ['-c'];
+    case 'windows-cmd':
+    case 'powershell':
+      return intent.shellProfile.commandArgs;
+  }
+}
+
 function shellArgQuoter(intent: PtySpawnIntent): (input: string) => string {
   return intent.shellProfile?.family === 'csh' ? quoteCshArg : quotePosixArg;
 }
@@ -292,6 +304,7 @@ function resolvePosixSpawn(intent: PtySpawnIntent, env: NodeJS.ProcessEnv): Reso
   const shell = getResolvedShell(intent, env);
   const interactiveArgs = getInteractiveArgs(intent);
   const commandArgs = getCommandArgs(intent);
+  const setupWrapperArgs = getSetupWrapperArgs(intent);
 
   if (intent.kind === 'interactive-shell') {
     if (intent.tmuxSessionName) {
@@ -300,7 +313,10 @@ function resolvePosixSpawn(intent: PtySpawnIntent, env: NodeJS.ProcessEnv): Reso
         : `exec ${quotePosixArg(shell)} ${interactiveArgs.join(' ')}`;
       return {
         command: shell,
-        args: [...commandArgs, buildTmuxShellLine(intent.tmuxSessionName, commandLine)],
+        args: [
+          ...(intent.shellSetup ? setupWrapperArgs : commandArgs),
+          buildTmuxShellLine(intent.tmuxSessionName, commandLine),
+        ],
         cwd: intent.cwd,
         warnings: [],
       };
@@ -310,7 +326,7 @@ function resolvePosixSpawn(intent: PtySpawnIntent, env: NodeJS.ProcessEnv): Reso
       return {
         command: shell,
         args: [
-          ...commandArgs,
+          ...setupWrapperArgs,
           `${intent.shellSetup} && exec ${quotePosixArg(shell)} ${interactiveArgs.join(' ')}`,
         ],
         cwd: intent.cwd,
