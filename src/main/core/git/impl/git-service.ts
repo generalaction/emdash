@@ -96,7 +96,6 @@ function classifyFetchError(stderr: string): FetchError {
     stderr.includes('does not appear to be a git repository') ||
     stderr.includes('repository not found') ||
     stderr.includes('Repository not found') ||
-    stderr.includes('not found') ||
     stderr.includes('ERROR: Repository not found')
   ) {
     return { type: 'remote_not_found', message: stderr };

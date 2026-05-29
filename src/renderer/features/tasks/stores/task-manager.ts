@@ -43,7 +43,7 @@ function formatFetchErrorDetail(error: FetchError): string {
     case 'remote_not_found':
       return 'The remote repository was not found, or your local Git credentials do not have access.';
     case 'error':
-      return error.message;
+      return 'An unexpected error occurred while fetching from the remote.';
   }
 }
 
