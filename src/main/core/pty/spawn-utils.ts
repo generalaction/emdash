@@ -11,6 +11,7 @@ import type { AgentSessionConfig } from '@shared/agent-session';
 import type { GeneralSessionConfig } from '@shared/general-session';
 import {
   isCshShell,
+  isRuntimeTerminalShellId,
   terminalCommandArgs,
   terminalEnvCaptureArgs,
   terminalInteractiveShellArgs,
@@ -91,8 +92,7 @@ function toResolvedShellProfile(
     const shellId = terminalShellBasename(executable) || 'sh';
     return {
       id: 'target-default',
-      resolvedShellId:
-        shellId === 'zsh' || shellId === 'bash' || shellId === 'ksh' ? shellId : 'sh',
+      resolvedShellId: isRuntimeTerminalShellId(shellId) ? shellId : 'sh',
       resolvedFromSystem: true,
       executable,
       available: true,

@@ -6,6 +6,15 @@ export const TERMINAL_SHELL_IDS = [
   'system',
   'bash',
   'cmd',
+  'fish',
+  'powershell',
+  'pwsh',
+  'zsh',
+] as const;
+
+export const RUNTIME_TERMINAL_SHELL_IDS = [
+  'bash',
+  'cmd',
   'csh',
   'dash',
   'fish',
@@ -19,6 +28,7 @@ export const TERMINAL_SHELL_IDS = [
 
 export type TerminalShellId = (typeof TERMINAL_SHELL_IDS)[number];
 export type ExplicitTerminalShellId = Exclude<TerminalShellId, 'system'>;
+export type RuntimeTerminalShellId = (typeof RUNTIME_TERMINAL_SHELL_IDS)[number];
 export type TerminalShellFamily = 'posix' | 'csh' | 'windows-cmd' | 'powershell';
 
 export type TerminalShellAvailability = {
@@ -38,6 +48,10 @@ export function terminalShellBasename(shell: string): string {
 
 export function isExplicitTerminalShellId(shell: string): shell is ExplicitTerminalShellId {
   return TERMINAL_SHELL_IDS.includes(shell as TerminalShellId) && shell !== 'system';
+}
+
+export function isRuntimeTerminalShellId(shell: string): shell is RuntimeTerminalShellId {
+  return RUNTIME_TERMINAL_SHELL_IDS.includes(shell as RuntimeTerminalShellId);
 }
 
 export function isCshShell(shell: string): boolean {

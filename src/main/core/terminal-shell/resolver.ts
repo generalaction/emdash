@@ -8,13 +8,14 @@ import {
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { quoteShellArg } from '@main/utils/shellEscape';
 import {
-  isExplicitTerminalShellId,
+  isRuntimeTerminalShellId,
   terminalCommandArgs,
   terminalEnvCaptureArgs,
   terminalInteractiveShellArgs,
   terminalShellBasename,
   terminalShellFamily,
   type ExplicitTerminalShellId,
+  type RuntimeTerminalShellId,
   type TerminalShellAvailability,
   type TerminalShellId,
 } from '@shared/terminal-settings';
@@ -89,13 +90,13 @@ function findOnPath(
 
 function shellIdFromExecutable(
   executable: string,
-  fallback: ExplicitTerminalShellId
-): ExplicitTerminalShellId {
+  fallback: RuntimeTerminalShellId
+): RuntimeTerminalShellId {
   const base = terminalShellBasename(executable).replace(/\.exe$/, '');
-  return isExplicitTerminalShellId(base) ? base : fallback;
+  return isRuntimeTerminalShellId(base) ? base : fallback;
 }
 
-function shellLabelFromExecutable(executable: string, fallback: ExplicitTerminalShellId): string {
+function shellLabelFromExecutable(executable: string, fallback: RuntimeTerminalShellId): string {
   const base = terminalShellBasename(executable).replace(/\.exe$/, '');
   return base || fallback;
 }
@@ -132,8 +133,8 @@ function buildProfile({
   remotePathLookup,
   shellForArgs = resolvedShellId,
 }: {
-  id: ExplicitTerminalShellId | 'target-default';
-  resolvedShellId: ExplicitTerminalShellId;
+  id: RuntimeTerminalShellId | 'target-default';
+  resolvedShellId: RuntimeTerminalShellId;
   executable: string;
   resolvedFromSystem: boolean;
   capturedEnv?: Record<string, string>;

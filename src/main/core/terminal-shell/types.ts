@@ -1,8 +1,8 @@
-import type { ExplicitTerminalShellId, TerminalShellFamily } from '@shared/terminal-settings';
+import type { RuntimeTerminalShellId, TerminalShellFamily } from '@shared/terminal-settings';
 
 export type ResolvedShellProfile = {
-  id: ExplicitTerminalShellId | 'target-default';
-  resolvedShellId: ExplicitTerminalShellId;
+  id: RuntimeTerminalShellId | 'target-default';
+  resolvedShellId: RuntimeTerminalShellId;
   resolvedFromSystem: boolean;
   executable: string;
   available: true;
