@@ -25,4 +25,12 @@ describe('buildSshCommand', () => {
       "'/bin/zsh' -lc 'export PATH='\\''/Users/jona/.local/bin:/opt/homebrew/bin:/usr/bin'\\''; cd '\\''/workspace/project'\\'' && which '\\''claude'\\'''"
     );
   });
+
+  it('disables interactive Git credential prompts for SSH exec commands', () => {
+    const command = buildSshCommand('/workspace/project', 'git', ['fetch', 'origin']);
+
+    expect(command).toBe(
+      "'/bin/sh' -c 'cd '\\''/workspace/project'\\'' && GIT_ASKPASS='\\'''\\'' GIT_TERMINAL_PROMPT='\\''0'\\'' GCM_INTERACTIVE='\\''never'\\'' SSH_ASKPASS='\\'''\\'' git '\\''fetch'\\'' '\\''origin'\\'''"
+    );
+  });
 });
