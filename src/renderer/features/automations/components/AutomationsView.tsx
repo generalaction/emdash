@@ -37,6 +37,7 @@ export function AutomationsView() {
     selectedAutomationId,
     openEdit,
     openCreate,
+    openCreateWithTemplate,
     close,
   } = useAutomationsPanel(automationItems);
 
@@ -226,6 +227,7 @@ export function AutomationsView() {
                   <AutomationsEmptyState
                     createPending={actions.createPending}
                     onNewAutomation={actions.requestCreate}
+                    onSelectTemplate={openCreateWithTemplate}
                   />
                 )
               ) : (
@@ -315,7 +317,7 @@ export function AutomationsView() {
       <AutomationPanelShell open={panelOpen}>
         {panel ? (
           <AutomationPanel
-            key={panel.kind === 'edit' ? panel.automation.id : 'create'}
+            key={panel.kind === 'edit' ? panel.automation.id : (panel.template?.id ?? 'create')}
             mode={panel}
             onClose={closePanel}
             onSaved={handleSaved}

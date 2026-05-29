@@ -38,7 +38,7 @@ export const builtinAutomationCatalog: BuiltinAutomationTemplate[] = [
   {
     id: 'codebase-vulnerability-scan',
     category: 'Security',
-    name: 'Scan codebase for vulnerabilities',
+    name: 'Scan for vulnerabilities',
     description:
       'Review the full repository on a schedule and alert on validated high-impact security issues',
     icon: 'Search',
@@ -140,6 +140,10 @@ export const builtinAutomationCatalog: BuiltinAutomationTemplate[] = [
     ],
   },
 ];
+
+export const pinnedAutomationTemplates = builtinAutomationCatalog.slice(0, 5);
+
+export const emptyStateAutomationTemplates = builtinAutomationCatalog.slice(0, 3);
 
 export const automationCatalogCategories = [
   'Status reports',

@@ -1,9 +1,9 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useParams } from '@renderer/lib/layout/navigation-provider';
-import type { Automation } from '@shared/automations/types';
+import type { Automation, BuiltinAutomationTemplate } from '@shared/automations/types';
 
 export type AutomationsPanelState =
-  | { kind: 'create' }
+  | { kind: 'create'; template?: BuiltinAutomationTemplate }
   | { kind: 'edit'; automation: Automation }
   | null;
 
@@ -13,6 +13,7 @@ export interface UseAutomationsPanel {
   isOpen: boolean;
   openEdit: (automation: Automation) => void;
   openCreate: () => void;
+  openCreateWithTemplate: (template: BuiltinAutomationTemplate) => void;
   close: () => void;
 }
 
@@ -54,12 +55,21 @@ export function useAutomationsPanel(automations: readonly Automation[]): UseAuto
     setLocal({ kind: 'create' });
   }, [clearRequestedParam]);
 
+  const openCreateWithTemplate = useCallback(
+    (template: BuiltinAutomationTemplate) => {
+      clearRequestedParam();
+      setLocal({ kind: 'create', template });
+    },
+    [clearRequestedParam]
+  );
+
   return {
     panel,
     selectedAutomationId: panel?.kind === 'edit' ? panel.automation.id : null,
     isOpen: panel !== null,
     openEdit,
     openCreate,
+    openCreateWithTemplate,
     close,
   };
 }
