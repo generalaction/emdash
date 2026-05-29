@@ -1,4 +1,5 @@
 import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
+import { getAppSettingValueSnapshot } from '@renderer/features/settings/app-settings-client';
 import { makeFileLinkHandlers } from '@renderer/features/tasks/stores/open-file-in-file-editor';
 import { rpc } from '@renderer/lib/ipc';
 import { PtySession } from '@renderer/lib/pty/pty-session';
@@ -73,11 +74,12 @@ export class TerminalManagerStore implements IDisposable {
   }
 
   async createTerminal(params: CreateTerminalParams): Promise<Terminal> {
+    const defaultShell = getAppSettingValueSnapshot('terminal')?.defaultShell ?? 'system';
     const optimistic: Terminal = {
       id: params.id,
       projectId: params.projectId,
       taskId: params.taskId,
-      shellId: params.shell ?? 'system',
+      shellId: params.shell ?? defaultShell,
       name: params.name,
     };
 
