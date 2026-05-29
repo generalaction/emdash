@@ -1,7 +1,10 @@
 // @i-know-the-amp-plugin-api-is-wip-and-very-experimental-right-now
 
 type AmpPluginAPI = {
-  on(event: 'agent.start', handler: (event: AmpAgentEvent, ctx?: AmpPluginContext) => unknown): void;
+  on(
+    event: 'agent.start',
+    handler: (event: AmpAgentEvent, ctx?: AmpPluginContext) => unknown
+  ): void;
   on(event: 'agent.end', handler: (event: unknown, ctx?: AmpPluginContext) => unknown): void;
 };
 
