@@ -190,6 +190,7 @@ export function createWorkspaceFactory(
             shellSetup,
             origin: 'auto-setup',
             policy: {
+              respawnAfterExit: true,
               logFailure: true,
               surfaceFailure: true,
               continueOnFailure: true,
