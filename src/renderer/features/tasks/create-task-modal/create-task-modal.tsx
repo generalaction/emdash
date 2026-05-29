@@ -9,6 +9,7 @@ import {
 } from '@renderer/features/projects/stores/project-selectors';
 import { nextDefaultConversationTitle } from '@renderer/features/tasks/conversations/conversation-title-utils';
 import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
+import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
@@ -119,6 +120,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
 
   const initialConversation = useInitialConversationState(selectedProjectId);
   const autoApproveDefaults = useAgentAutoApproveDefaults();
+  const { includeIssueContextByDefault } = useTaskSettings();
   const isWorkspaceProviderEnabled = useFeatureFlag('workspace-provider');
   const { navigate } = useNavigate();
 
@@ -307,6 +309,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
                   linkedIssue={
                     state.linkedType === 'issue' ? (state.linkedIssue ?? undefined) : undefined
                   }
+                  includeIssueContextByDefault={includeIssueContextByDefault}
                 />
               )}
               {sectionTab === 'workspace' && (

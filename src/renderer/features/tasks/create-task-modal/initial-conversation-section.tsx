@@ -50,9 +50,14 @@ export function useInitialConversationState(projectId?: string): InitialConversa
 interface InitialConversationFieldProps {
   state: InitialConversationState;
   linkedIssue?: Issue;
+  includeIssueContextByDefault: boolean;
 }
 
-export function InitialConversationField({ state, linkedIssue }: InitialConversationFieldProps) {
+export function InitialConversationField({
+  state,
+  linkedIssue,
+  includeIssueContextByDefault,
+}: InitialConversationFieldProps) {
   const { value: promptLibrary } = usePromptLibrary();
   const autoApproveDefaults = useAgentAutoApproveDefaults();
   const contextActions = useMemo(
@@ -62,9 +67,11 @@ export function InitialConversationField({ state, linkedIssue }: InitialConversa
 
   // Auto-inject issue context whenever the linked issue changes.
   useEffect(() => {
-    state.setIssueContext(linkedIssue ? buildIssueContextText(linkedIssue) : null);
+    state.setIssueContext(
+      includeIssueContextByDefault && linkedIssue ? buildIssueContextText(linkedIssue) : null
+    );
     // oxlint-disable-next-line react/exhaustive-deps
-  }, [linkedIssue?.identifier, linkedIssue?.provider]);
+  }, [includeIssueContextByDefault, linkedIssue?.identifier, linkedIssue?.provider]);
 
   const autoApprove = state.provider ? autoApproveDefaults.getDefault(state.provider) : false;
 
