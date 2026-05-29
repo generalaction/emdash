@@ -348,10 +348,27 @@ export class WorktreeCleanupService {
   private sizeStreamPromise: Promise<void> | undefined;
   private cleanupRun: Promise<ManagedWorktreesSummary> | undefined;
   private destructiveQueue: Promise<unknown> = Promise.resolve();
+  private cacheGeneration = 0;
   private readonly limitFs: FsLimit = createConcurrencyLimiter(FS_SIZE_CONCURRENCY);
 
+  private bumpCacheGeneration(): void {
+    this.cacheGeneration += 1;
+  }
+
+  private isCurrentGeneration(generation: number): boolean {
+    return generation === this.cacheGeneration;
+  }
+
   private enqueueDestructive<T>(task: () => Promise<T>): Promise<T> {
-    const run = this.destructiveQueue.then(task, task);
+    const runTask = async () => {
+      this.bumpCacheGeneration();
+      try {
+        return await task();
+      } finally {
+        this.bumpCacheGeneration();
+      }
+    };
+    const run = this.destructiveQueue.then(runTask, runTask);
     this.destructiveQueue = run.catch(() => {});
     return run;
   }
@@ -441,10 +458,15 @@ export class WorktreeCleanupService {
   }
 
   private async refreshManagedWorktrees(): Promise<ManagedWorktreesSummary> {
+    const generation = this.cacheGeneration;
     const preview = await this.buildPreview();
+    if (!this.isCurrentGeneration(generation)) {
+      return this.managedWorktreesCache?.summary ?? (await this.buildPreview());
+    }
+
     this.cacheSummary({ ...preview, isRefreshing: true });
 
-    this.sizeStreamPromise = this.streamSizes(preview)
+    this.sizeStreamPromise = this.streamSizes(preview, generation)
       .catch((error) => {
         log.warn('worktree-cleanup: size streaming failed', { error: String(error) });
       })
@@ -455,7 +477,7 @@ export class WorktreeCleanupService {
     return { ...preview, isRefreshing: true };
   }
 
-  private async streamSizes(preview: ManagedWorktreesSummary): Promise<void> {
+  private async streamSizes(preview: ManagedWorktreesSummary, generation: number): Promise<void> {
     const sizeLimit = createConcurrencyLimiter(SIZE_STREAM_CONCURRENCY);
     const sizes = new Map<string, number>();
 
@@ -464,10 +486,12 @@ export class WorktreeCleanupService {
         sizeLimit(async () => {
           const sizeBytes =
             worktree.status === 'missing' ? 0 : await directorySize(worktree.path, this.limitFs);
+          if (!this.isCurrentGeneration(generation)) return;
+
           sizes.set(worktree.workspaceId, sizeBytes);
 
           const current = this.managedWorktreesCache?.summary;
-          if (current) {
+          if (current && this.isCurrentGeneration(generation)) {
             const nextWorktrees = current.worktrees.map((entry) =>
               entry.workspaceId === worktree.workspaceId ? { ...entry, sizeBytes } : entry
             );
@@ -486,6 +510,8 @@ export class WorktreeCleanupService {
         })
       )
     );
+
+    if (!this.isCurrentGeneration(generation)) return;
 
     const final = this.managedWorktreesCache?.summary;
     if (final) {

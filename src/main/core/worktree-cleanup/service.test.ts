@@ -526,4 +526,60 @@ describe('WorktreeCleanupService', () => {
     expect(fs.existsSync(firstPath)).toBe(false);
     expect(fs.existsSync(secondPath)).toBe(false);
   });
+
+  it('ignores stale refresh results that resolve after a manual removal', async () => {
+    const { WorktreeCleanupService } = await import('./service');
+    const worktreePath = managedWorktreePath('stale-refresh-worktree');
+    fs.mkdirSync(worktreePath);
+    fs.writeFileSync(path.join(worktreePath, 'file.txt'), 'content');
+    rows = [
+      {
+        workspaceId: 'archived-workspace',
+        path: worktreePath,
+        workspaceUpdatedAt: '2026-05-01T00:00:00.000Z',
+        taskId: 'archived-task',
+        taskName: 'Archived task',
+        taskBranch: 'feature/archive',
+        taskStatus: 'done',
+        taskUpdatedAt: '2026-05-01T00:00:00.000Z',
+        lastInteractedAt: null,
+        archivedAt: '2026-05-02T00:00:00.000Z',
+        projectId: 'project',
+        projectName: 'Project',
+        projectPath: tempDir,
+      },
+    ];
+
+    const service = new WorktreeCleanupService();
+    const originalAccess = fs.promises.access.bind(fs.promises);
+    let accessCalls = 0;
+    let releaseFirstAccess: (() => void) | undefined;
+    const firstAccess = new Promise<void>((resolve) => {
+      releaseFirstAccess = resolve;
+    });
+    const accessSpy = vi.spyOn(fs.promises, 'access').mockImplementation(async (target, mode) => {
+      accessCalls += 1;
+      if (accessCalls === 1) await firstAccess;
+      return originalAccess(target, mode);
+    });
+
+    try {
+      const refresh = service.listManagedWorktrees({ forceRefresh: true });
+      for (let i = 0; i < 10 && accessCalls === 0; i++) {
+        await Promise.resolve();
+      }
+      expect(accessCalls).toBe(1);
+
+      await service.removeWorktreeById('archived-workspace');
+      releaseFirstAccess?.();
+      await refresh;
+
+      const after = await service.listManagedWorktrees();
+
+      expect(after.worktrees).toHaveLength(0);
+    } finally {
+      releaseFirstAccess?.();
+      accessSpy.mockRestore();
+    }
+  });
 });
