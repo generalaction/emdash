@@ -9,7 +9,6 @@ import type { CommandProvider } from '@renderer/lib/commands/types';
 import { showModal } from '@renderer/lib/modal/modal-provider';
 import { appState, sidebarStore } from '@renderer/lib/stores/app-state';
 import { TASK_COMMAND_DEFS, type CommandDef, type TaskCommandId } from '@shared/commands';
-import type { ShortcutSettingsKey } from '@shared/shortcuts';
 
 function taskDef(id: TaskCommandId): CommandDef {
   return TASK_COMMAND_DEFS.find((d) => d.id === id)!;
@@ -193,7 +192,6 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           id: `task.tab${n}`,
           label: `Go to Tab ${n}`,
           description: `Switch to tab ${n}`,
-          shortcutKey: `tab${n}` as ShortcutSettingsKey,
           group: 'Tabs',
           enabled: hasTabs,
           execute() {
