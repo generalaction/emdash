@@ -153,7 +153,7 @@ export function WorkspacesView() {
     <div className="relative flex h-full min-h-0 w-full flex-col">
       {/* Header with search */}
       <div className="shrink-0">
-        <PageHeader title="Workspaces" description="Git worktrees associated with this project.">
+        <PageHeader title="Workspaces" description="Manage your projects workspaces">
             {/* Cleanable worktrees alert */}
             {!isPending && !isError && cleanableWorktrees.length > 0 && (
                 <Alert variant="warning">
