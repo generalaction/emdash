@@ -121,11 +121,11 @@ export class HookConfigWriter {
 
     const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
 
-    const command = makeCodexNotifyHookCommand(this.codexNotifyScriptCommandPath(), {
-      platform: this.platform,
-    });
     for (const { hookKey } of CODEX_HOOK_EVENT_MAP) {
       const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
+      const command = makeCodexNotifyHookCommand(this.codexNotifyScriptCommandPath(), hookKey, {
+        platform: this.platform,
+      });
       hooks[hookKey] = this.buildHookEntries(existing, command);
     }
 
@@ -138,11 +138,21 @@ export class HookConfigWriter {
 
   private async writeCodexNotifyScripts(): Promise<void> {
     if (this.platform === 'win32') {
-      await this.userFs.write(CODEX_NOTIFY_POWERSHELL_PATH, makeCodexNotifyPowerShellContent());
+      await this.writeIfChanged(CODEX_NOTIFY_POWERSHELL_PATH, makeCodexNotifyPowerShellContent());
       return;
     }
 
-    await this.userFs.write(CODEX_NOTIFY_SCRIPT_PATH, makeCodexNotifyScriptContent());
+    await this.writeIfChanged(CODEX_NOTIFY_SCRIPT_PATH, makeCodexNotifyScriptContent());
+  }
+
+  private async writeIfChanged(path: string, content: string): Promise<void> {
+    const existing = await this.userFs
+      .read(path)
+      .then((r) => r.content)
+      .catch(() => undefined);
+    if (existing === content) return;
+
+    await this.userFs.write(path, content);
   }
 
   private codexNotifyScriptCommandPath(): string {

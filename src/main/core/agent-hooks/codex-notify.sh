@@ -14,6 +14,9 @@ if [ -z "$event" ]; then
     exec_approval_request|apply_patch_approval_request|request_user_input) event="PermissionRequest" ;;
   esac
 fi
+if [ -z "$event" ]; then
+  event="${EMDASH_HOOK_EVENT:-}"
+fi
 
 post_hook() {
   event_type="$1"

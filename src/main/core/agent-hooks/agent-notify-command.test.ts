@@ -41,20 +41,26 @@ describe('makeClaudeHookCommand', () => {
 
 describe('makeCodexNotifyHookCommand', () => {
   it('uses a short POSIX command that delegates native Codex hooks to the notify script', () => {
-    const content = makeCodexNotifyHookCommand('$HOME/.emdash/hooks/codex-notify.sh', {
+    const content = makeCodexNotifyHookCommand('$HOME/.emdash/hooks/codex-notify.sh', 'Stop', {
       platform: 'darwin',
     });
 
-    expect(content).toBe('EMDASH_AGENT_ID=codex sh "$HOME/.emdash/hooks/codex-notify.sh"');
+    expect(content).toBe(
+      'EMDASH_AGENT_ID=codex EMDASH_HOOK_EVENT=Stop sh "$HOME/.emdash/hooks/codex-notify.sh"'
+    );
   });
 
   it('uses a short Windows command that delegates native Codex hooks to the notify script', () => {
-    const content = makeCodexNotifyHookCommand('%USERPROFILE%\\.emdash\\hooks\\codex-notify.ps1', {
-      platform: 'win32',
-    });
+    const content = makeCodexNotifyHookCommand(
+      '%USERPROFILE%\\.emdash\\hooks\\codex-notify.ps1',
+      'PermissionRequest',
+      {
+        platform: 'win32',
+      }
+    );
 
     expect(content).toBe(
-      'cmd.exe /d /c "set EMDASH_AGENT_ID=codex&& powershell.exe -NoProfile -ExecutionPolicy Bypass -File ""%USERPROFILE%\\.emdash\\hooks\\codex-notify.ps1"""'
+      'cmd.exe /d /c "set EMDASH_AGENT_ID=codex&& set EMDASH_HOOK_EVENT=PermissionRequest&& powershell.exe -NoProfile -ExecutionPolicy Bypass -File ""%USERPROFILE%\\.emdash\\hooks\\codex-notify.ps1"""'
     );
   });
 });
@@ -69,6 +75,7 @@ describe('makeCodexNotifyScriptContent', () => {
     expect(content).toContain('X-Emdash-Agent-Id');
     expect(content).toContain('notification_type');
     expect(content).toContain('PermissionRequest');
+    expect(content).toContain('EMDASH_HOOK_EVENT');
     expect(content).toContain('input="${1:-$(cat)}"');
     expect(content).toContain('post_hook session-start');
     expect(content).toContain('-d @-');
@@ -86,6 +93,7 @@ describe('makeCodexNotifyPowerShellContent', () => {
     expect(content).toContain('notification_type');
     expect(content).toContain('[Console]::In.ReadToEnd()');
     expect(content).toContain('PermissionRequest');
+    expect(content).toContain('EMDASH_HOOK_EVENT');
     expect(content).toContain("'X-Emdash-Event-Type' = $eventType");
   });
 });

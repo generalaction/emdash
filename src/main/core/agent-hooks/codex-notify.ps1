@@ -1,5 +1,3 @@
-$ErrorActionPreference = 'SilentlyContinue'
-
 if (-not $env:EMDASH_HOOK_PORT -or -not $env:EMDASH_HOOK_TOKEN -or -not $env:EMDASH_PTY_ID) {
   exit 0
 }
@@ -25,7 +23,11 @@ try {
     }
   }
 } catch {
-  exit 0
+  $event = $null
+}
+
+if (-not $event) {
+  $event = $env:EMDASH_HOOK_EVENT
 }
 
 switch ($event) {
@@ -48,6 +50,7 @@ switch ($event) {
 
 try {
   Invoke-WebRequest -UseBasicParsing -Method POST `
+    -ErrorAction SilentlyContinue `
     -Uri ('http://127.0.0.1:' + $env:EMDASH_HOOK_PORT + '/hook') `
     -Headers @{
       'Content-Type' = 'application/json'

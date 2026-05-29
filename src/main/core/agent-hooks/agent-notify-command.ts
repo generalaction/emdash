@@ -83,11 +83,12 @@ export function makeCodexNotifyPowerShellContent(): string {
 
 export function makeCodexNotifyHookCommand(
   scriptPath: string,
+  hookEvent: string,
   options: HookCommandOptions = {}
 ): string {
   if ((options.platform ?? process.platform) === 'win32') {
-    return `cmd.exe /d /c "set EMDASH_AGENT_ID=codex&& powershell.exe -NoProfile -ExecutionPolicy Bypass -File ""${scriptPath}"""`;
+    return `cmd.exe /d /c "set EMDASH_AGENT_ID=codex&& set EMDASH_HOOK_EVENT=${hookEvent}&& powershell.exe -NoProfile -ExecutionPolicy Bypass -File ""${scriptPath}"""`;
   }
 
-  return `EMDASH_AGENT_ID=codex sh "${scriptPath}"`;
+  return `EMDASH_AGENT_ID=codex EMDASH_HOOK_EVENT=${hookEvent} sh "${scriptPath}"`;
 }
