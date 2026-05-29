@@ -32,6 +32,7 @@ import {
   type ImageReadResult,
   type LocalBranch,
   type MergeBaseRange,
+  type PdfReadResult,
   type PullError,
   type PushError,
   type RemoteBranch,
@@ -61,6 +62,7 @@ import {
 } from './status-parser';
 
 const MAX_IMAGE_BLOB_BYTES = 10 * 1024 * 1024;
+const MAX_PDF_BLOB_BYTES = 50 * 1024 * 1024;
 const STATUS_FINGERPRINT_TIMEOUT_MS: Record<GitStatusUntrackedMode, number> = {
   no: 5_000,
   normal: 10_000,
@@ -80,6 +82,10 @@ const IMAGE_MIME_BY_EXT: Record<string, string> = {
 function imageMimeForPath(filePath: string): string | null {
   const ext = filePath.split('.').pop()?.toLowerCase();
   return ext ? (IMAGE_MIME_BY_EXT[ext] ?? null) : null;
+}
+
+function pdfMimeForPath(filePath: string): string | null {
+  return filePath.split('.').pop()?.toLowerCase() === 'pdf' ? 'application/pdf' : null;
 }
 
 const LFS_POINTER_PREFIX = Buffer.from('version https://git-lfs.github.com/spec/');
@@ -483,17 +489,60 @@ export class GitService implements GitProvider, IDisposable {
   }
 
   async getImageAtRef(filePath: string, ref: string): Promise<ImageReadResult> {
-    return this._readImageBlob(`${ref}:${filePath}`, filePath);
+    const result = await this._readPreviewBlob(
+      `${ref}:${filePath}`,
+      filePath,
+      imageMimeForPath(filePath),
+      MAX_IMAGE_BLOB_BYTES
+    );
+    return result.kind === 'blob' ? { kind: 'image', image: result.blob } : result;
   }
 
   async getImageAtIndex(filePath: string): Promise<ImageReadResult> {
-    return this._readImageBlob(`:0:${filePath}`, filePath);
+    const result = await this._readPreviewBlob(
+      `:0:${filePath}`,
+      filePath,
+      imageMimeForPath(filePath),
+      MAX_IMAGE_BLOB_BYTES
+    );
+    return result.kind === 'blob' ? { kind: 'image', image: result.blob } : result;
+  }
+
+  async getPdfAtRef(filePath: string, ref: string): Promise<PdfReadResult> {
+    const result = await this._readPreviewBlob(
+      `${ref}:${filePath}`,
+      filePath,
+      pdfMimeForPath(filePath),
+      MAX_PDF_BLOB_BYTES
+    );
+    return result.kind === 'blob' ? { kind: 'pdf', pdf: result.blob } : result;
+  }
+
+  async getPdfAtIndex(filePath: string): Promise<PdfReadResult> {
+    const result = await this._readPreviewBlob(
+      `:0:${filePath}`,
+      filePath,
+      pdfMimeForPath(filePath),
+      MAX_PDF_BLOB_BYTES
+    );
+    return result.kind === 'blob' ? { kind: 'pdf', pdf: result.blob } : result;
   }
 
   // SSH workspaces have no binary-safe exec channel.
-  private async _readImageBlob(spec: string, filePath: string): Promise<ImageReadResult> {
+  private async _readPreviewBlob(
+    spec: string,
+    filePath: string,
+    mimeType: string | null,
+    maxBytes: number
+  ): Promise<
+    | { kind: 'blob'; blob: { dataUrl: string; mimeType: string; size: number } }
+    | { kind: 'missing' }
+    | {
+        kind: 'unavailable';
+        reason: 'ssh' | 'unsupported' | 'too-large' | 'lfs-pointer' | 'git-error';
+      }
+  > {
     if (!this.ctx.supportsLocalSpawn) return { kind: 'unavailable', reason: 'ssh' };
-    const mimeType = imageMimeForPath(filePath);
     if (!mimeType) return { kind: 'unavailable', reason: 'unsupported' };
 
     return new Promise((resolve) => {
@@ -507,7 +556,7 @@ export class GitService implements GitProvider, IDisposable {
       child.stdout.on('data', (chunk: Buffer) => {
         if (aborted) return;
         total += chunk.length;
-        if (total > MAX_IMAGE_BLOB_BYTES) {
+        if (total > maxBytes) {
           aborted = true;
           child.kill();
           resolve({ kind: 'unavailable', reason: 'too-large' });
@@ -535,8 +584,8 @@ export class GitService implements GitProvider, IDisposable {
           return;
         }
         resolve({
-          kind: 'image',
-          image: {
+          kind: 'blob',
+          blob: {
             dataUrl: `data:${mimeType};base64,${buffer.toString('base64')}`,
             mimeType,
             size: buffer.length,

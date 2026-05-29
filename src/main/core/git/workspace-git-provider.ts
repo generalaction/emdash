@@ -13,6 +13,7 @@ import type {
   GitStatusUntrackedMode,
   ImageReadResult,
   MergeBaseRange,
+  PdfReadResult,
   PullError,
   PushError,
   SoftResetError,
@@ -51,6 +52,9 @@ export interface WorkspaceGitProvider extends Hookable<WorkspaceGitHooks> {
   /** Reads a binary image blob with smudge filters (e.g. LFS) applied. */
   getImageAtRef(filePath: string, ref: string): Promise<ImageReadResult>;
   getImageAtIndex(filePath: string): Promise<ImageReadResult>;
+  /** Reads a PDF blob with smudge filters (e.g. LFS) applied. */
+  getPdfAtRef(filePath: string, ref: string): Promise<PdfReadResult>;
+  getPdfAtIndex(filePath: string): Promise<PdfReadResult>;
   getCommitFileDiff(commitHash: string, filePath: string): Promise<DiffResult>;
 
   stageFiles(filePaths: string[]): Promise<void>;

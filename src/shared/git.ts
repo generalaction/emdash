@@ -20,6 +20,11 @@ export type ImageReadResult =
   | { kind: 'missing' }
   | { kind: 'unavailable'; reason: ImageUnavailableReason };
 
+export type PdfReadResult =
+  | { kind: 'pdf'; pdf: ImageBlob }
+  | { kind: 'missing' }
+  | { kind: 'unavailable'; reason: ImageUnavailableReason };
+
 export type GitChangeStatus = 'added' | 'modified' | 'deleted' | 'renamed' | 'conflicted';
 
 export type GitChange = {

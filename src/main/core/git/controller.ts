@@ -155,6 +155,36 @@ export const gitController = createRPCController({
     }
   },
 
+  getPdfAtRef: async (projectId: string, workspaceId: string, filePath: string, ref: string) => {
+    try {
+      const env = resolveWorkspace(projectId, workspaceId);
+      if (!env) return err({ type: 'not_found' as const });
+      const result = await env.git.getPdfAtRef(filePath, ref);
+      return ok({ result });
+    } catch (e) {
+      log.error('gitCtrl.getPdfAtRef failed', {
+        projectId,
+        workspaceId,
+        filePath,
+        ref,
+        error: e,
+      });
+      return err({ type: 'git_error' as const, message: String(e) });
+    }
+  },
+
+  getPdfAtIndex: async (projectId: string, workspaceId: string, filePath: string) => {
+    try {
+      const env = resolveWorkspace(projectId, workspaceId);
+      if (!env) return err({ type: 'not_found' as const });
+      const result = await env.git.getPdfAtIndex(filePath);
+      return ok({ result });
+    } catch (e) {
+      log.error('gitCtrl.getPdfAtIndex failed', { projectId, workspaceId, filePath, error: e });
+      return err({ type: 'git_error' as const, message: String(e) });
+    }
+  },
+
   getFileDiff: async (projectId: string, workspaceId: string, filePath: string, base?: GitRef) => {
     try {
       const env = resolveWorkspace(projectId, workspaceId);
