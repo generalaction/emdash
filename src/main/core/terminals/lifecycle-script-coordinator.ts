@@ -73,6 +73,7 @@ export function stopLifecycleScriptSession({
   const pty = ptySessionRegistry.get(sessionId);
   if (!pty) return false;
   if (!activeSessions.has(sessionId)) return false;
+  if (stoppedSessions.has(sessionId)) return false;
 
   stoppedSessions.add(sessionId);
   pty.kill();
@@ -92,7 +93,8 @@ function labelFor(type: LifecycleScriptType): string {
 }
 
 function isSuccessfulResult(result: LifecycleScriptExecutionResult): boolean {
-  return result.kind === 'started' || (result.exitCode === 0 && result.signal === undefined);
+  if (result.kind === 'started') return true;
+  return result.signal === undefined && (result.exitCode === 0 || result.exitCode === undefined);
 }
 
 function failureMessage(type: LifecycleScriptType, result: LifecycleScriptExecutionResult): string {

@@ -166,6 +166,27 @@ describe('runLifecycleScriptWithPolicy', () => {
     );
   });
 
+  it('treats exited scripts without exit details as successful PTY exits', async () => {
+    const runLifecycleScript = vi.fn(async () => ({
+      kind: 'exited' as const,
+      outputTail: '',
+    }));
+
+    await expect(runLifecycleScriptWithPolicy(baseArgs(runLifecycleScript))).resolves.toMatchObject(
+      { kind: 'succeeded' }
+    );
+
+    expect(logError).not.toHaveBeenCalled();
+    expect(emit).toHaveBeenCalledWith(
+      lifecycleScriptStatusChannel,
+      expect.objectContaining({
+        status: 'succeeded',
+        type: 'run',
+        exitCode: undefined,
+      })
+    );
+  });
+
   it('keeps teardown failures log-only and non-throwing when policy says to continue', async () => {
     const runLifecycleScript = vi.fn(async () => ({
       kind: 'exited' as const,
@@ -229,15 +250,28 @@ describe('runLifecycleScriptWithPolicy', () => {
         origin: 'manual',
       })
     ).toBe(true);
+    expect(
+      stopLifecycleScriptSession({
+        projectId: 'project-1',
+        taskId: 'task-1',
+        workspaceId: 'workspace-1',
+        type: 'run',
+        origin: 'manual',
+      })
+    ).toBe(false);
 
     resolveResult({ kind: 'exited', signal: 'SIGTERM', outputTail: '' });
     await expect(coordinatorPromise).resolves.toEqual({ kind: 'stopped' });
 
     expect(pty.kill).toHaveBeenCalledTimes(1);
-    expect(emit).toHaveBeenCalledWith(
-      lifecycleScriptStatusChannel,
-      expect.objectContaining({ status: 'stopped', type: 'run' })
-    );
+    expect(
+      emit.mock.calls.filter(
+        ([channel, event]) =>
+          channel === lifecycleScriptStatusChannel &&
+          (event as { status?: string; type?: string }).status === 'stopped' &&
+          (event as { status?: string; type?: string }).type === 'run'
+      )
+    ).toHaveLength(1);
 
     ptySessionRegistry.unregister(sessionId);
   });
