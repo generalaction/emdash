@@ -201,7 +201,7 @@ export class LocalConversationProvider implements ConversationProvider {
         const count = (this.respawnCounts.get(sessionId) ?? 0) + 1;
         this.respawnCounts.set(sessionId, count);
 
-        if (count > MAX_RESPAWNS) {
+        if (count > MAX_RESPAWNS && !isResuming) {
           log.error('LocalConversationProvider: respawn limit reached, giving up', {
             conversationId: conversation.id,
           });

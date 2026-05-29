@@ -1,3 +1,4 @@
+import type { TerminalShellId } from '@shared/terminal-settings';
 import type { Terminal } from '@shared/terminals';
 
 export type LifecycleScriptSpawnRequest = {
@@ -10,11 +11,16 @@ export type LifecycleScriptSpawnRequest = {
   watchDevServer?: boolean;
 };
 
+export type TerminalSpawnOptions = {
+  command?: { command: string; args: string[] };
+  shell?: TerminalShellId;
+};
+
 export interface TerminalProvider {
   spawnTerminal(
     terminal: Terminal,
     initialSize?: { cols: number; rows: number },
-    command?: { command: string; args: string[] }
+    options?: TerminalSpawnOptions
   ): Promise<void>;
   spawnLifecycleScript(request: LifecycleScriptSpawnRequest): Promise<void>;
   killTerminal(terminalId: string): Promise<void>;

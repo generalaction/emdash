@@ -1584,19 +1584,10 @@ export class GitService implements GitProvider, IDisposable {
   async renameBranch(
     oldBranch: string,
     newBranch: string
-  ): Promise<Result<{ remotePushed: boolean }, RenameBranchError>> {
-    let remoteName: string | undefined;
-    try {
-      const { stdout } = await this.ctx.exec('git', [
-        'config',
-        '--get',
-        `branch.${oldBranch}.remote`,
-      ]);
-      remoteName = stdout.trim() || undefined;
-    } catch {}
-
+  ): Promise<Result<void, RenameBranchError>> {
     try {
       await this.ctx.exec('git', ['branch', '-m', oldBranch, newBranch]);
+      return ok();
     } catch (error: unknown) {
       const stderr = (error as { stderr?: string })?.stderr || String(error);
       if (stderr.includes('already exists')) {
@@ -1604,20 +1595,6 @@ export class GitService implements GitProvider, IDisposable {
       }
       return err({ type: 'error', message: stderr });
     }
-
-    if (remoteName) {
-      try {
-        await this.ctx.exec('git', ['push', remoteName, '--delete', oldBranch]);
-      } catch {}
-      try {
-        await this.ctx.exec('git', ['push', '-u', remoteName, newBranch]);
-      } catch (error: unknown) {
-        const stderr = (error as { stderr?: string })?.stderr || String(error);
-        return err({ type: 'remote_push_failed', message: stderr });
-      }
-    }
-
-    return ok({ remotePushed: !!remoteName });
   }
 
   async deleteBranch(branch: string, force = true): Promise<Result<void, DeleteBranchError>> {

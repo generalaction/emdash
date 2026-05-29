@@ -7,6 +7,7 @@ import { err, type Result } from '@shared/result';
 import type {
   Issue,
   RenameTaskError,
+  RenameTaskOptions,
   RenameTaskSuccess,
   Task,
   TaskLifecycleStatus,
@@ -181,16 +182,23 @@ export class TaskStore {
     return (this.data as Task).conversations;
   }
 
-  async rename(name: string): Promise<Result<RenameTaskSuccess, RenameTaskError>> {
+  async rename(
+    name: string,
+    options?: RenameTaskOptions
+  ): Promise<Result<RenameTaskSuccess, RenameTaskError>> {
     const task = registeredTaskData(this);
     if (!task) return err({ type: 'task-not-found', taskId: this.data.id });
     try {
-      const result = await rpc.tasks.renameTask(task.projectId, task.id, name);
+      const result = await rpc.tasks.renameTask(task.projectId, task.id, name, options);
       if (!result.success) {
         return result;
       }
       runInAction(() => {
-        this.data.name = name;
+        const current = registeredTaskData(this);
+        if (current) {
+          current.name = name;
+          current.taskBranch = result.data.task.taskBranch;
+        }
       });
       return result;
     } catch (e) {

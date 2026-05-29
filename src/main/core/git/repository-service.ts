@@ -98,7 +98,7 @@ export class GitRepositoryService {
   async renameBranch(
     oldBranch: string,
     newBranch: string
-  ): Promise<Result<{ remotePushed: boolean }, RenameBranchError>> {
+  ): Promise<Result<void, RenameBranchError>> {
     return this.git.renameBranch(oldBranch, newBranch);
   }
 

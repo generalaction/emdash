@@ -17,6 +17,7 @@ import type {
   TaskLifecycleStatus,
 } from '@shared/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
+import { formatPushErrorDetail } from '../utils';
 import { conversationRegistry } from './conversation-registry';
 import {
   createUnprovisionedTask,
@@ -64,10 +65,7 @@ function formatCreateTaskError(error: CreateTaskError): string {
 function formatCreateTaskWarning(warning: CreateTaskWarning): string {
   switch (warning.type) {
     case 'branch-publish-failed': {
-      const detail =
-        'message' in warning.error
-          ? (warning.error.message ?? warning.error.type)
-          : warning.error.type;
+      const detail = formatPushErrorDetail(warning.error);
       return `Failed to publish branch "${warning.branch}" to "${warning.remote}": ${detail}`;
     }
   }

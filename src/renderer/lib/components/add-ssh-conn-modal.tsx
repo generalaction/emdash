@@ -320,7 +320,7 @@ export function AddSshConnModal({
         </DialogFooter>
       }
     >
-      <DialogContentArea>
+      <DialogContentArea className="max-h-[calc(100dvh-10rem)] overflow-y-auto">
         <TooltipProvider delay={150}>
           <form
             id="add-ssh-conn-form"
