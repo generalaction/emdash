@@ -82,6 +82,8 @@ describe('HookConfigWriter', () => {
     expect(config.hooks.PermissionRequest[0].hooks[0].command).toContain(
       '{"notification_type":"permission_prompt"}'
     );
+    expect(config.hooks.SessionStart[0].hooks[0].command).toContain('session-start');
+    expect(config.hooks.SessionStart[0].hooks[0].command).toContain('INPUT="${1:-$(cat)}"');
     expect(config.hooks.Stop[0].hooks[0].command).toContain('X-Emdash-Pty-Id');
   });
 
@@ -154,6 +156,7 @@ describe('HookConfigWriter', () => {
     );
     expect(config.hooks.Stop[0].hooks[0].command).toContain('X-Emdash-Event-Type: stop');
     expect(config.hooks.Stop[0].hooks[0].command).toContain('X-Emdash-Pty-Id');
+    expect(config.hooks.SessionStart[0].hooks[0].command).toContain('X-Emdash-Event-Type: session');
     expect(fs.files.get('.gitignore')).toBe('.factory/settings.json\n');
   });
 
@@ -290,6 +293,33 @@ describe('HookConfigWriter', () => {
     await writer.writeForProvider('opencode');
 
     expect(fs.files.has('.opencode/plugins/emdash-notifications.js')).toBe(false);
+    expect(fs.files.has('.gitignore')).toBe(false);
+  });
+
+  it('writes the Amp lifecycle plugin and ignores it in git', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/amp');
+    const fs = new MemoryFs();
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('amp');
+
+    expect(fs.files.get('.amp/plugins/emdash-hook.ts')).toContain("amp.on('agent.start'");
+    expect(fs.files.get('.amp/plugins/emdash-hook.ts')).toContain(
+      '@i-know-the-amp-plugin-api-is-wip-and-very-experimental-right-now'
+    );
+    expect(fs.files.get('.amp/plugins/emdash-hook.ts')).toContain("amp.on('agent.end'");
+    expect(fs.files.get('.amp/plugins/emdash-hook.ts')).toContain('X-Emdash-Pty-Id');
+    expect(fs.files.get('.gitignore')).toBe('.amp/plugins/emdash-hook.ts\n');
+  });
+
+  it('skips the Amp plugin when amp is unavailable', async () => {
+    mockResolveCommandPath.mockResolvedValue(undefined);
+    const fs = new MemoryFs();
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('amp');
+
+    expect(fs.files.has('.amp/plugins/emdash-hook.ts')).toBe(false);
     expect(fs.files.has('.gitignore')).toBe(false);
   });
 });

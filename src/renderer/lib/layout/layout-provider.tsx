@@ -14,8 +14,8 @@ import { panelDragStore } from './panel-drag-store';
 export interface WorkspaceLayoutContextValue {
   isLeftOpen: boolean;
   leftPanelRef: RefObject<PanelImperativeHandle | null>;
-  setIsLeftOpen: (open: boolean) => void;
   handleDragging: (side: 'left', dragging: boolean) => void;
+  syncLeftOpenFromPanel: () => void;
   setCollapsed: (side: 'left', collapsed: boolean) => void;
   toggleLeft: () => void;
 }
@@ -48,6 +48,11 @@ export function useWorkspaceLayoutService() {
     };
   }, []);
 
+  const syncLeftOpenFromPanel = useCallback(() => {
+    if (panelDragStore.getIsSuppressing()) return;
+    setIsLeftOpen(!leftPanelRef.current?.isCollapsed());
+  }, [leftPanelRef]);
+
   const setCollapsed = useCallback(
     (side: 'left', collapsed: boolean) => {
       const panel = leftPanelRef.current;
@@ -56,6 +61,7 @@ export function useWorkspaceLayoutService() {
       // events. Suppress them and resize xterm once after the layout settles
       // to avoid repeated term.resize() calls during the burst.
       panelDragStore.suppressFor(140);
+      setIsLeftOpen(!collapsed);
       if (collapsed) {
         panel.collapse();
       } else {
@@ -72,7 +78,7 @@ export function useWorkspaceLayoutService() {
   return {
     leftPanelRef,
     handleDragging,
-    setIsLeftOpen,
+    syncLeftOpenFromPanel,
     isLeftOpen,
     setCollapsed,
     toggleLeft,

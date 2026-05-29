@@ -18,9 +18,12 @@ export class FileTabStore {
   renderer: FileRendererData;
   /** Data-URL for image files; empty string for Monaco-backed files. */
   content: string;
-  /** True only for image files while the data-URL is being fetched. */
+  /** True for image files while the data-URL is being fetched, or external files while content loads. */
   isLoading: boolean;
   totalSize: number | null;
+  /** Read-only absolute file opened from outside the workspace. */
+  isExternal: boolean;
+  externalError: string | undefined;
 
   constructor(path: string, isPreview: boolean, tabId?: string) {
     const fileKind = getFileKind(path);
@@ -32,6 +35,8 @@ export class FileTabStore {
     this.content = '';
     this.isLoading = fileKind === 'image';
     this.totalSize = null;
+    this.isExternal = false;
+    this.externalError = undefined;
 
     makeObservable(this, {
       path: observable,
@@ -41,11 +46,16 @@ export class FileTabStore {
       content: observable,
       isLoading: observable,
       totalSize: observable,
+      isExternal: observable,
+      externalError: observable,
       updateRenderer: action,
       setImageContent: action,
       setTotalSize: action,
       pin: action,
       resetForPath: action,
+      markExternalLoading: action,
+      setExternalContent: action,
+      setExternalError: action,
     });
   }
 
@@ -78,5 +88,26 @@ export class FileTabStore {
     this.content = '';
     this.isLoading = fileKind === 'image';
     this.totalSize = null;
+    this.isExternal = false;
+    this.externalError = undefined;
+  }
+
+  markExternalLoading(): void {
+    this.isExternal = true;
+    this.isLoading = true;
+    this.content = '';
+    this.externalError = undefined;
+  }
+
+  setExternalContent(content: string): void {
+    this.content = content;
+    this.isLoading = false;
+    this.externalError = undefined;
+  }
+
+  setExternalError(error: string): void {
+    this.content = '';
+    this.isLoading = false;
+    this.externalError = error;
   }
 }

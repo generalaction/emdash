@@ -1,12 +1,10 @@
 import { eq, sql } from 'drizzle-orm';
-import { mapConversationRowToConversation } from '@main/core/conversations/utils';
 import { projectManager } from '@main/core/projects/project-manager';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
-import { mapTerminalRowToTerminal } from '@main/core/terminals/core';
 import { workspaceBootstrapService } from '@main/core/workspaces/workspace-bootstrap-service';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { db } from '@main/db/client';
-import { conversations, tasks, terminals, workspaces } from '@main/db/schema';
+import { tasks, workspaces } from '@main/db/schema';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
 import { err, ok, type Result } from '@shared/result';
@@ -18,6 +16,7 @@ import type {
   Issue,
   ProvisionTaskResult,
   RenameTaskError,
+  RenameTaskOptions,
   RenameTaskSuccess,
   Task,
 } from '@shared/tasks';
@@ -79,20 +78,6 @@ export class TaskService implements Hookable<TaskCrudHooks> {
       });
     }
 
-    // Load existing sessions (empty arrays for brand-new tasks).
-    const [existingTerminals, existingConversations] = await Promise.all([
-      db
-        .select()
-        .from(terminals)
-        .where(eq(terminals.taskId, taskId))
-        .then((rows) => rows.map(mapTerminalRowToTerminal)),
-      db
-        .select()
-        .from(conversations)
-        .where(eq(conversations.taskId, taskId))
-        .then((rows) => rows.map((r) => mapConversationRowToConversation(r, true))),
-    ]);
-
     if (!row.workspaceId) throw new Error(`Task ${taskId} has no workspace — cannot provision`);
 
     const workspaceRow = await db
@@ -111,13 +96,7 @@ export class TaskService implements Hookable<TaskCrudHooks> {
       path: workspaceRow.path ?? undefined,
     };
 
-    const result = await taskManager.provisionTask(
-      project,
-      task,
-      existingConversations,
-      existingTerminals,
-      hint
-    );
+    const result = await taskManager.provisionTask(project, task, hint);
     if (!result.success) return err(result.error);
 
     const { persistData } = result.data;
@@ -201,9 +180,10 @@ export class TaskService implements Hookable<TaskCrudHooks> {
   async renameTask(
     projectId: string,
     taskId: string,
-    newName: string
+    newName: string,
+    options?: RenameTaskOptions
   ): Promise<Result<RenameTaskSuccess, RenameTaskError>> {
-    const result = await renameTask(projectId, taskId, newName);
+    const result = await renameTask(projectId, taskId, newName, options);
     if (result.success) this._hooks.callHookBackground('task:updated', result.data.task);
     return result;
   }

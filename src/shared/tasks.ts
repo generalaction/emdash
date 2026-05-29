@@ -2,7 +2,15 @@ import type { CreateConversationParams } from '@shared/conversations';
 import type { Branch, CreateBranchError, FetchPrForReviewError, PushError } from '@shared/git';
 import type { PullRequest } from '@shared/pull-requests';
 
-export type TaskLifecycleStatus = 'todo' | 'in_progress' | 'review' | 'done' | 'cancelled';
+export type TaskLifecycleStatus =
+  | 'todo'
+  | 'in_progress'
+  | 'review'
+  | 'done'
+  | 'cancelled'
+  | 'backlog'
+  | 'duplicate'
+  | 'triage';
 
 export type Issue = {
   provider: 'github' | 'linear' | 'jira' | 'gitlab' | 'plain' | 'forgejo' | 'featurebase' | 'asana';
@@ -101,18 +109,18 @@ export type CreateTaskSuccess = {
 export type RenameTaskError =
   | { type: 'task-not-found'; taskId: string }
   | { type: 'project-not-found'; projectId: string }
+  | { type: 'branch-managed-by-linked-issue'; provider: Issue['provider'] }
+  | { type: 'branch-has-open-pr'; branch: string }
+  | { type: 'branch-has-siblings'; branch: string }
   | { type: 'branch-already-exists'; branch: string }
   | { type: 'branch-rename-failed'; branch: string; message: string };
 
-export type RenameTaskWarning = {
-  type: 'branch-remote-push-failed';
-  branch: string;
-  message: string;
-};
-
 export type RenameTaskSuccess = {
   task: Task;
-  warning?: RenameTaskWarning;
+};
+
+export type RenameTaskOptions = {
+  renameBranch?: boolean;
 };
 
 export type ProvisionTaskResult = {

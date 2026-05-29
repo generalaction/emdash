@@ -2,7 +2,9 @@ import crypto from 'node:crypto';
 import { openFixture } from '@tooling/utils/db';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { toStoredBranch } from '@main/core/tasks/stored-branch';
 import { projects, tasks, workspaces } from '@main/db/schema';
+import type { Branch } from '@shared/git';
 import { WorkspaceBootstrapService, type WorktreeContext } from './workspace-bootstrap-service';
 import { computeWorkspaceKey } from './workspace-key';
 
@@ -240,10 +242,10 @@ describe('WorkspaceBootstrapService', () => {
     });
 
     it('uses checkoutBranchWorktree when sourceBranch differs from taskBranch', async () => {
-      const sourceBranch = { type: 'local', branch: 'main' };
+      const sourceBranch: Branch = { type: 'local', branch: 'main' };
       await fixture.db
         .update(tasks)
-        .set({ taskBranch: 'feature/x', sourceBranch: sourceBranch as never })
+        .set({ taskBranch: 'feature/x', sourceBranch: toStoredBranch(sourceBranch) })
         .where(eq(tasks.id, TASK_ID));
 
       const ctx = makeCtx({

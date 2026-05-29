@@ -2,9 +2,9 @@ import { useCallback, useMemo, useState } from 'react';
 import { useIntegrationsContext } from '@renderer/features/integrations/integrations-provider';
 import { ISSUE_PROVIDER_ORDER } from '@renderer/features/integrations/issue-provider-meta';
 import { useIssues } from '@renderer/features/integrations/use-issues';
-import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
+import { getProjectViewStore } from '@renderer/features/projects/stores/project-selectors';
+import type { ConnectionStatus } from '@shared/issue-providers';
 import type { Issue } from '@shared/tasks';
-import { isProviderUsable } from './issue-provider-usability';
 
 export type UseIssueSearchResult = ReturnType<typeof useIssueSearch>;
 
@@ -29,22 +29,45 @@ function sortByPriority(issues: Issue[]): Issue[] {
   );
 }
 
+function isProviderUsable(
+  status: ConnectionStatus | undefined,
+  context: { projectPath?: string; repositoryUrl?: string }
+): boolean {
+  if (!status?.connected) return false;
+  if (status.capabilities.requiresProjectPath && !context.projectPath) return false;
+  if (status.capabilities.requiresRepositoryUrl && !context.repositoryUrl) return false;
+  return true;
+}
+
 export function useIssueSearch(repositoryUrl: string, projectPath = '', projectId?: string) {
   const { connectionStatus, isCheckingConnections } = useIntegrationsContext();
   const context = useMemo(() => ({ projectPath, repositoryUrl }), [projectPath, repositoryUrl]);
-  const githubIssueHost =
-    (projectId ? getRepositoryStore(projectId)?.providerRepository?.host : null) ?? null;
 
-  const [selectedIssueProvider, setSelectedIssueProvider] = useState<Issue['provider'] | null>(
-    null
+  const projectView = projectId ? getProjectViewStore(projectId) : undefined;
+
+  const [localProvider, setLocalProvider] = useState<Issue['provider'] | null>(null);
+
+  // When a project is available, read from the MobX-observable store (auto-tracked in observer
+  // components) so the selection persists across modal opens. Fall back to local state otherwise.
+  const selectedIssueProvider = projectView?.selectedIssueProvider ?? localProvider;
+
+  const setSelectedIssueProvider = useCallback(
+    (provider: Issue['provider'] | null) => {
+      if (projectView) {
+        projectView.setSelectedIssueProvider(provider);
+      } else {
+        setLocalProvider(provider);
+      }
+    },
+    [projectView]
   );
 
   const connectedProviders = useMemo(
     () =>
       ISSUE_PROVIDER_ORDER.filter((provider) =>
-        isProviderUsable(provider, connectionStatus[provider], context, githubIssueHost)
+        isProviderUsable(connectionStatus[provider], context)
       ),
-    [connectionStatus, context, githubIssueHost]
+    [connectionStatus, context]
   );
 
   const hasAnyIntegration = connectedProviders.length > 0;
@@ -52,18 +75,13 @@ export function useIssueSearch(repositoryUrl: string, projectPath = '', projectI
   const issueProvider = useMemo(() => {
     if (
       selectedIssueProvider &&
-      isProviderUsable(
-        selectedIssueProvider,
-        connectionStatus[selectedIssueProvider],
-        context,
-        githubIssueHost
-      )
+      isProviderUsable(connectionStatus[selectedIssueProvider], context)
     ) {
       return selectedIssueProvider;
     }
 
     return connectedProviders[0] ?? null;
-  }, [connectedProviders, connectionStatus, context, githubIssueHost, selectedIssueProvider]);
+  }, [connectedProviders, connectionStatus, context, selectedIssueProvider]);
 
   const issuesHook = useIssues(issueProvider, {
     projectId,
@@ -81,9 +99,8 @@ export function useIssueSearch(repositoryUrl: string, projectPath = '', projectI
   );
 
   const isProviderDisabled = useCallback(
-    (provider: Issue['provider']) =>
-      !isProviderUsable(provider, connectionStatus[provider], context, githubIssueHost),
-    [connectionStatus, context, githubIssueHost]
+    (provider: Issue['provider']) => !isProviderUsable(connectionStatus[provider], context),
+    [connectionStatus, context]
   );
 
   const isProviderLoading =

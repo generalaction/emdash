@@ -21,7 +21,7 @@ import {
 } from './install-runner';
 import { resolveCommandPath, runVersionProbe } from './probe';
 import { DEPENDENCIES, getDependencyDescriptor } from './registry';
-import type { DependencyDescriptor, ProbeResult } from './types';
+import type { DependencyDescriptor, DependencyProbeOptions, ProbeResult } from './types';
 
 const VERSION_RE = /(\d+\.\d+[\d.]*)/;
 
@@ -158,7 +158,8 @@ export class DependencyManager implements IInitializable {
     return fullState;
   }
 
-  async probeAll(): Promise<void> {
+  async probeAll(options: DependencyProbeOptions = {}): Promise<void> {
+    await this.refreshShellEnvIfRequested(options);
     await Promise.all(
       DEPENDENCIES.map((d) =>
         this.probe(d.id).catch((err) => {
@@ -168,7 +169,11 @@ export class DependencyManager implements IInitializable {
     );
   }
 
-  async probeCategory(cat: DependencyCategory): Promise<void> {
+  async probeCategory(
+    cat: DependencyCategory,
+    options: DependencyProbeOptions = {}
+  ): Promise<void> {
+    await this.refreshShellEnvIfRequested(options);
     const targets = DEPENDENCIES.filter((d) => d.category === cat);
     await Promise.all(
       targets.map((d) =>
@@ -194,6 +199,8 @@ export class DependencyManager implements IInitializable {
 
     log.info(`[DependencyManager] Installing ${id}: ${descriptor.installCommand}`);
 
+    await this.ctx.refreshShellEnv?.();
+
     const installResult = await this.runInstallCommand(descriptor.installCommand);
     if (!installResult.success) {
       return err(installResult.error);
@@ -215,6 +222,12 @@ export class DependencyManager implements IInitializable {
       if (path) return path;
     }
     return null;
+  }
+
+  private async refreshShellEnvIfRequested(options: DependencyProbeOptions = {}): Promise<void> {
+    if (options.refreshShellEnv) {
+      await this.ctx.refreshShellEnv?.();
+    }
   }
 
   private updateState(state: DependencyState): void {

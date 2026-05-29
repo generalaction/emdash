@@ -26,6 +26,7 @@ describe('MarkdownRenderer', () => {
 
     expect(html).toContain('src="https://example.com/screenshot.png"');
     expect(html).toContain('alt="Screenshot"');
+    expect(html).toContain('aria-label="Expand image"');
     expect(html).toContain('max-w-full');
     expect(html).toContain('max-h-80');
     expect(html).toContain('object-contain');
@@ -42,8 +43,25 @@ describe('MarkdownRenderer', () => {
 
     expect(html).toContain('src="https://example.com/preview.png"');
     expect(html).toContain('alt="Preview"');
+    expect(html).toContain('aria-label="Expand image"');
     expect(html).toContain('max-w-full');
     expect(html).toContain('max-h-80');
     expect(html).toContain('object-contain');
+  });
+
+  it('renders compact markdown tables with visible structure', () => {
+    const html = renderToStaticMarkup(
+      React.createElement(MarkdownRenderer, {
+        content:
+          '| Layer | What | How |\n| --- | --- | --- |\n| Primary | Headline | Display size |',
+        variant: 'compact',
+      })
+    );
+
+    expect(html).toContain('<table');
+    expect(html).toContain('border-collapse');
+    expect(html).toContain('<th');
+    expect(html).toContain('<td');
+    expect(html).toContain('Primary');
   });
 });

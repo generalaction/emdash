@@ -10,6 +10,7 @@ import {
 } from '@renderer/lib/ui/context-menu';
 import { Separator } from '@renderer/lib/ui/separator';
 import { agentConfig } from '@renderer/utils/agentConfig';
+import { MAX_CONVERSATION_TITLE_LENGTH } from '@shared/conversations';
 import { AgentStatusIndicator } from '../../components/agent-status-indicator';
 import { formatConversationTitleForDisplay } from '../../conversations/conversation-title-utils';
 import type { ResolvedConversationTab } from '../../tabs/tab-manager-store';
@@ -31,7 +32,6 @@ export const ConversationTabItem = observer(function ConversationTabItem({
   onRenameSubmit: (newName: string) => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
-  const pendingRenameRef = useRef(false);
   const committedRef = useRef(false);
 
   const config = agentConfig[tab.store.data.providerId];
@@ -39,21 +39,19 @@ export const ConversationTabItem = observer(function ConversationTabItem({
   const rawTitle = tab.store.data.title ?? '';
 
   const handleRename = useCallback(() => {
-    pendingRenameRef.current = true;
+    committedRef.current = false;
+    window.setTimeout(() => setIsEditing(true), 0);
   }, []);
 
-  const handleContextMenuOpenChangeComplete = useCallback((open: boolean) => {
-    if (!open && pendingRenameRef.current) {
-      pendingRenameRef.current = false;
-      committedRef.current = false;
-      setIsEditing(true);
-    }
+  const handleRenameInputRef = useCallback((input: HTMLInputElement | null) => {
+    input?.focus();
+    input?.select();
   }, []);
 
   const commitRename = (value: string) => {
     if (committedRef.current) return;
     committedRef.current = true;
-    const trimmed = value.trim();
+    const trimmed = value.trim().slice(0, MAX_CONVERSATION_TITLE_LENGTH);
     if (trimmed && trimmed !== rawTitle) {
       onRenameSubmit(trimmed);
     }
@@ -74,12 +72,10 @@ export const ConversationTabItem = observer(function ConversationTabItem({
           />
         ) : null}
         <input
-          ref={(el) => {
-            el?.focus();
-            el?.select();
-          }}
+          ref={handleRenameInputRef}
           className="max-w-24 rounded bg-background-1 px-1 py-0.5 text-sm text-foreground ring-1 ring-foreground/20 outline-none focus:ring-foreground/40"
           defaultValue={rawTitle}
+          maxLength={MAX_CONVERSATION_TITLE_LENGTH}
           onBlur={(e) => commitRename(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') commitRename(e.currentTarget.value);
@@ -95,7 +91,7 @@ export const ConversationTabItem = observer(function ConversationTabItem({
   }
 
   return (
-    <ContextMenu onOpenChangeComplete={handleContextMenuOpenChangeComplete}>
+    <ContextMenu>
       <ContextMenuTrigger>
         <TabItemShell
           tabId={tab.tabId}
@@ -129,7 +125,7 @@ export const ConversationTabItem = observer(function ConversationTabItem({
           />
         </TabItemShell>
       </ContextMenuTrigger>
-      <ContextMenuContent>
+      <ContextMenuContent finalFocus={false}>
         <ContextMenuItem onClick={handleRename}>
           <Pencil className="size-4" />
           Rename

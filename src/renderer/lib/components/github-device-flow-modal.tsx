@@ -14,6 +14,7 @@ import {
   githubAuthSuccessChannel,
 } from '@shared/events/githubEvents';
 import type { GitHubUser } from '@shared/github';
+import { EMDASH_ISSUES_URL } from '@shared/urls';
 
 interface GithubDeviceFlowModalProps {
   onClose: () => void;
@@ -372,9 +373,7 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
               <p className="text-muted-foreground text-center text-xs">
                 Having{' '}
                 <button
-                  onClick={() =>
-                    rpc.app.openExternal('https://github.com/generalaction/emdash/issues')
-                  }
+                  onClick={() => rpc.app.openExternal(EMDASH_ISSUES_URL)}
                   className="text-primary hover:underline focus:underline focus:outline-none"
                 >
                   trouble
