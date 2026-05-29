@@ -26,8 +26,10 @@ function Slot({ children }: { children: React.ReactNode }) {
 
 export const TaskSidebarTrailingSlot = observer(function TaskSidebarTrailingSlot({
   task,
+  showTimestamp,
 }: {
   task: TaskStore;
+  showTimestamp: boolean;
 }) {
   const isBootstrapping =
     isUnregistered(task) ||
@@ -59,6 +61,8 @@ export const TaskSidebarTrailingSlot = observer(function TaskSidebarTrailingSlot
       </Slot>
     );
   }
+
+  if (!showTimestamp) return null;
 
   const instant = getSortInstant(task, sortKindFor(sidebarStore.taskSortBy));
   if (!instant) return null;

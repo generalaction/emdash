@@ -12,6 +12,7 @@ import KeyboardSettingsCard from './KeyboardSettingsCard';
 import NotificationSettingsCard from './NotificationSettingsCard';
 import RepositorySettingsCard from './RepositorySettingsCard';
 import ResourceMonitorSettingsCard from './ResourceMonitorSettingsCard';
+import SidebarMetadataSettingsCard from './SidebarMetadataSettingsCard';
 import { SshConnectionsSettingsCard } from './SshConnectionsSettingsCard';
 import {
   AutoGenerateTaskNamesRow,
@@ -142,6 +143,7 @@ export function SettingsPage({
       sections: [
         { component: <ThemeCard /> },
         { component: <TerminalSettingsCard /> },
+        { component: <SidebarMetadataSettingsCard /> },
         { component: <ResourceMonitorSettingsCard /> },
         { title: 'Keyboard shortcuts', component: <KeyboardSettingsCard /> },
         {

@@ -18,6 +18,7 @@ import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { cn } from '@renderer/utils/utils';
 import { selectCurrentPr } from '@shared/pull-requests';
 import { PrBadge } from '../../lib/components/pr-badge';
+import { useAppSettingsKey } from '../settings/use-app-settings-key';
 import { SidebarMenuRow } from './sidebar-primitives';
 
 interface SidebarTaskItemProps {
@@ -38,6 +39,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
 
   const { currentView } = useWorkspaceSlots();
   const { params } = useParams('task');
+  const { value: interfaceSettings } = useAppSettingsKey('interface');
   const isActive =
     currentView === 'task' && params.taskId === taskId && params.projectId === projectId;
 
@@ -77,6 +79,9 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
 
   const workspaceStore = getWorkspaceForTask(projectId, taskId);
   const git = getTaskGitStore(projectId, taskId);
+  const showLineChanges = interfaceSettings?.showLeftSidebarLineChanges ?? true;
+  const showPrStatus = interfaceSettings?.showLeftSidebarPrStatus ?? true;
+  const showTimestamps = interfaceSettings?.showLeftSidebarTimestamps ?? true;
   const branchName =
     git?.branchName ?? ('taskBranch' in task.data ? task.data.taskBranch : undefined);
   const handleReconnect =
@@ -116,9 +121,9 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
           {taskName}
         </span>
         <div className="ml-2 flex shrink-0 items-center justify-end gap-1.5">
-          <TaskGitDiffStats task={task} />
-          <RenderPrBadge task={task} />
-          <TaskSidebarTrailingSlot task={task} />
+          {showLineChanges && <TaskGitDiffStats task={task} />}
+          {showPrStatus && <RenderPrBadge task={task} />}
+          <TaskSidebarTrailingSlot task={task} showTimestamp={showTimestamps} />
         </div>
       </SidebarMenuRow>
     </TaskContextMenu>
