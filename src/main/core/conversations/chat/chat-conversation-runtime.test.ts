@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   getLatestAssistantMessage: vi.fn(),
   markUserMessageDeliveryStarted: vi.fn(),
   markUserMessageDelivered: vi.fn(),
+  markUserMessageCancelled: vi.fn(),
   requireChatConversation: vi.fn(),
   emit: vi.fn(),
   eventEmit: vi.fn(),
@@ -44,6 +45,7 @@ vi.mock('./chat-timeline-store', () => ({
     deleteItem: mocks.deleteItem,
     emitItem: mocks.emitItem,
     getLatestAssistantMessage: mocks.getLatestAssistantMessage,
+    markUserMessageCancelled: mocks.markUserMessageCancelled,
     markUserMessageDeliveryStarted: mocks.markUserMessageDeliveryStarted,
     markUserMessageDelivered: mocks.markUserMessageDelivered,
     recoverPendingUserMessages: mocks.recoverPendingUserMessages,
@@ -106,6 +108,7 @@ describe('ChatConversationRuntime', () => {
     mocks.deleteItem.mockResolvedValue(undefined);
     mocks.markUserMessageDeliveryStarted.mockResolvedValue(undefined);
     mocks.markUserMessageDelivered.mockResolvedValue(undefined);
+    mocks.markUserMessageCancelled.mockResolvedValue(undefined);
     mocks.resolveTask.mockReturnValue({
       conversations: {
         sendInput: mocks.sendInput,
@@ -242,7 +245,7 @@ describe('ChatConversationRuntime', () => {
     expect(mocks.append).not.toHaveBeenCalled();
   });
 
-  it('does not treat cancellation during delivery-start marking as a safely unsent turn', async () => {
+  it('cancels safely when cancellation races delivery-start marking before backend input', async () => {
     const deliveryStarted = deferred();
     mocks.markUserMessageDeliveryStarted.mockReturnValueOnce(deliveryStarted.promise);
     const runtime = new ChatConversationRuntime();
@@ -257,9 +260,227 @@ describe('ChatConversationRuntime', () => {
     deliveryStarted.resolve();
 
     await expect(sendPromise).rejects.toThrow('Message send was cancelled');
-    expect(mocks.interruptSession).toHaveBeenCalledWith('conversation-1');
+    expect(mocks.interruptSession).not.toHaveBeenCalled();
+    expect(mocks.markUserMessageCancelled).toHaveBeenCalledWith(
+      makeConversation(),
+      expect.objectContaining({ id: 'message-1' })
+    );
     expect(mocks.sendInput).not.toHaveBeenCalled();
     expect(mocks.deleteItem).toHaveBeenCalledWith(makeConversation(), 'message-1');
+  });
+
+  it('does not let a cancelled stale send clear a newer turn', async () => {
+    const deliveryStarted = deferred();
+    mocks.markUserMessageDeliveryStarted.mockReturnValueOnce(deliveryStarted.promise);
+    const runtime = new ChatConversationRuntime();
+    await runtime.hydrateConversation(makeConversation());
+
+    const firstSend = runtime.sendMessage('project-1', 'task-1', 'conversation-1', {
+      text: 'first',
+    });
+    await vi.waitFor(() => expect(mocks.markUserMessageDeliveryStarted).toHaveBeenCalled());
+
+    await runtime.cancelTurn('project-1', 'task-1', 'conversation-1');
+    await runtime.sendMessage('project-1', 'task-1', 'conversation-1', { text: 'second' });
+
+    deliveryStarted.resolve();
+    await expect(firstSend).rejects.toThrow('Message send was cancelled');
+    await expect(
+      runtime.sendMessage('project-1', 'task-1', 'conversation-1', { text: 'third' })
+    ).rejects.toThrow('Agent is still responding');
+    expect(mocks.sendInput).toHaveBeenCalledTimes(1);
+    expect(mocks.sendInput).toHaveBeenCalledWith(
+      'conversation-1',
+      expect.stringContaining('second')
+    );
+  });
+
+  it('does not let stale readiness failures clear a newer turn', async () => {
+    const ready = deferred();
+    mocks.waitUntilReadyForInput.mockReturnValueOnce(ready.promise);
+    const runtime = new ChatConversationRuntime();
+    await runtime.hydrateConversation(makeConversation());
+
+    const firstSend = runtime.sendMessage('project-1', 'task-1', 'conversation-1', {
+      text: 'first',
+    });
+    await vi.waitFor(() => expect(mocks.waitUntilReadyForInput).toHaveBeenCalled());
+
+    await runtime.cancelTurn('project-1', 'task-1', 'conversation-1');
+    await runtime.sendMessage('project-1', 'task-1', 'conversation-1', { text: 'second' });
+
+    mocks.emit.mockClear();
+    mocks.append.mockClear();
+    ready.reject(new Error('ready failed'));
+    await expect(firstSend).rejects.toThrow('ready failed');
+
+    await expect(
+      runtime.sendMessage('project-1', 'task-1', 'conversation-1', { text: 'third' })
+    ).rejects.toThrow('Agent is still responding');
+    expect(mocks.append).not.toHaveBeenCalled();
+    expect(mocks.emit).not.toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'conversation:status' }),
+      expect.objectContaining({
+        conversationId: 'conversation-1',
+        status: 'error',
+      })
+    );
+  });
+
+  it('reports cancellation when a cancelled readiness wait rejects without a newer turn', async () => {
+    const ready = deferred();
+    mocks.waitUntilReadyForInput.mockReturnValueOnce(ready.promise);
+    const runtime = new ChatConversationRuntime();
+    await runtime.hydrateConversation(makeConversation());
+
+    const sendPromise = runtime.sendMessage('project-1', 'task-1', 'conversation-1', {
+      text: 'hello',
+    });
+    await vi.waitFor(() => expect(mocks.waitUntilReadyForInput).toHaveBeenCalled());
+
+    await runtime.cancelTurn('project-1', 'task-1', 'conversation-1');
+
+    mocks.emit.mockClear();
+    ready.reject(new Error('ready failed'));
+    await expect(sendPromise).rejects.toThrow('Message send was cancelled');
+
+    expect(mocks.appendUserMessage).not.toHaveBeenCalled();
+    expect(mocks.emit).not.toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'conversation:status' }),
+      expect.objectContaining({
+        conversationId: 'conversation-1',
+        status: 'error',
+      })
+    );
+  });
+
+  it('does not let stale message persistence failures clear a newer turn', async () => {
+    const appendUserMessage = deferred<Awaited<ReturnType<typeof mocks.appendUserMessage>>>();
+    mocks.appendUserMessage.mockReturnValueOnce(appendUserMessage.promise).mockResolvedValueOnce({
+      id: 'message-2',
+      conversationId: 'conversation-1',
+      kind: 'user_message',
+      sequence: 2,
+      text: 'second',
+      createdAt: '2026-05-28T00:00:00.000Z',
+    });
+    const runtime = new ChatConversationRuntime();
+    await runtime.hydrateConversation(makeConversation());
+
+    const firstSend = runtime.sendMessage('project-1', 'task-1', 'conversation-1', {
+      text: 'first',
+    });
+    await vi.waitFor(() => expect(mocks.appendUserMessage).toHaveBeenCalled());
+
+    await runtime.cancelTurn('project-1', 'task-1', 'conversation-1');
+    await runtime.sendMessage('project-1', 'task-1', 'conversation-1', { text: 'second' });
+
+    mocks.emit.mockClear();
+    appendUserMessage.reject(new Error('db failed'));
+    await expect(firstSend).rejects.toThrow('db failed');
+
+    await expect(
+      runtime.sendMessage('project-1', 'task-1', 'conversation-1', { text: 'third' })
+    ).rejects.toThrow('Agent is still responding');
+    expect(mocks.emit).not.toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'conversation:status' }),
+      expect.objectContaining({
+        conversationId: 'conversation-1',
+        status: 'error',
+      })
+    );
+  });
+
+  it('reports cancellation when cancelled message persistence rejects without a newer turn', async () => {
+    const appendUserMessage = deferred<Awaited<ReturnType<typeof mocks.appendUserMessage>>>();
+    mocks.appendUserMessage.mockReturnValueOnce(appendUserMessage.promise);
+    const runtime = new ChatConversationRuntime();
+    await runtime.hydrateConversation(makeConversation());
+
+    const sendPromise = runtime.sendMessage('project-1', 'task-1', 'conversation-1', {
+      text: 'hello',
+    });
+    await vi.waitFor(() => expect(mocks.appendUserMessage).toHaveBeenCalled());
+
+    await runtime.cancelTurn('project-1', 'task-1', 'conversation-1');
+
+    mocks.emit.mockClear();
+    appendUserMessage.reject(new Error('db failed'));
+    await expect(sendPromise).rejects.toThrow('Message send was cancelled');
+
+    expect(mocks.emit).not.toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'conversation:status' }),
+      expect.objectContaining({
+        conversationId: 'conversation-1',
+        status: 'error',
+      })
+    );
+  });
+
+  it('does not let stale delivery-start failures clear a newer turn', async () => {
+    const deliveryStarted = deferred();
+    mocks.markUserMessageDeliveryStarted.mockReturnValueOnce(deliveryStarted.promise);
+    const runtime = new ChatConversationRuntime();
+    await runtime.hydrateConversation(makeConversation());
+
+    const firstSend = runtime.sendMessage('project-1', 'task-1', 'conversation-1', {
+      text: 'first',
+    });
+    await vi.waitFor(() => expect(mocks.markUserMessageDeliveryStarted).toHaveBeenCalled());
+
+    await runtime.cancelTurn('project-1', 'task-1', 'conversation-1');
+    await runtime.sendMessage('project-1', 'task-1', 'conversation-1', { text: 'second' });
+
+    mocks.emit.mockClear();
+    mocks.append.mockClear();
+    deliveryStarted.reject(new Error('delivery failed'));
+    await expect(firstSend).rejects.toThrow('delivery failed');
+
+    await expect(
+      runtime.sendMessage('project-1', 'task-1', 'conversation-1', { text: 'third' })
+    ).rejects.toThrow('Agent is still responding');
+    expect(mocks.append).not.toHaveBeenCalledWith(makeConversation(), {
+      kind: 'error',
+      payload: { message: 'Failed to send message to the agent backend' },
+    });
+    expect(mocks.emit).not.toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'conversation:status' }),
+      expect.objectContaining({
+        conversationId: 'conversation-1',
+        status: 'error',
+      })
+    );
+  });
+
+  it('reports cancellation when cancelled delivery-start marking rejects without a newer turn', async () => {
+    const deliveryStarted = deferred();
+    mocks.markUserMessageDeliveryStarted.mockReturnValueOnce(deliveryStarted.promise);
+    const runtime = new ChatConversationRuntime();
+    await runtime.hydrateConversation(makeConversation());
+
+    const sendPromise = runtime.sendMessage('project-1', 'task-1', 'conversation-1', {
+      text: 'hello',
+    });
+    await vi.waitFor(() => expect(mocks.markUserMessageDeliveryStarted).toHaveBeenCalled());
+
+    await runtime.cancelTurn('project-1', 'task-1', 'conversation-1');
+
+    mocks.emit.mockClear();
+    mocks.append.mockClear();
+    deliveryStarted.reject(new Error('delivery failed'));
+    await expect(sendPromise).rejects.toThrow('Message send was cancelled');
+
+    expect(mocks.append).not.toHaveBeenCalledWith(makeConversation(), {
+      kind: 'error',
+      payload: { message: 'Failed to send message to the agent backend' },
+    });
+    expect(mocks.emit).not.toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'conversation:status' }),
+      expect.objectContaining({
+        conversationId: 'conversation-1',
+        status: 'error',
+      })
+    );
   });
 
   it('checks input readiness again after successfully cancelling an active turn', async () => {
@@ -743,6 +964,49 @@ describe('ChatConversationRuntime', () => {
     );
   });
 
+  it('keeps a backend write failure as an error when cancellation also fails', async () => {
+    const send = deferred();
+    const cancel = deferred();
+    mocks.sendInput.mockReturnValue(send.promise);
+    mocks.interruptSession.mockReturnValueOnce(cancel.promise);
+    const runtime = new ChatConversationRuntime();
+    await runtime.hydrateConversation(makeConversation());
+
+    const sendPromise = runtime.sendMessage('project-1', 'task-1', 'conversation-1', {
+      text: 'hello',
+    });
+    await vi.waitFor(() => expect(mocks.sendInput).toHaveBeenCalled());
+
+    const cancelPromise = runtime.cancelTurn('project-1', 'task-1', 'conversation-1');
+    await vi.waitFor(() => expect(mocks.interruptSession).toHaveBeenCalled());
+    mocks.emit.mockClear();
+    mocks.append.mockClear();
+
+    send.reject(new Error('write failed'));
+    await expect(sendPromise).rejects.toThrow('write failed');
+    cancel.reject(new Error('interrupt failed'));
+    await expect(cancelPromise).rejects.toThrow('interrupt failed');
+
+    expect(mocks.append).toHaveBeenCalledWith(makeConversation(), {
+      kind: 'error',
+      payload: { message: 'Failed to send message to the agent backend' },
+    });
+    expect(mocks.emit).not.toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'conversation:status' }),
+      expect.objectContaining({
+        conversationId: 'conversation-1',
+        status: 'working',
+      })
+    );
+    expect(mocks.emit).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'conversation:status' }),
+      expect.objectContaining({
+        conversationId: 'conversation-1',
+        status: 'error',
+      })
+    );
+  });
+
   it('keeps the delivered message when backend cancellation fails after delivery resolves', async () => {
     const send = deferred();
     const cancel = deferred();
@@ -772,6 +1036,49 @@ describe('ChatConversationRuntime', () => {
       makeConversation(),
       expect.objectContaining({ id: 'message-1' })
     );
+  });
+
+  it('reveals a delivered message when cancellation succeeds after delivery resolves', async () => {
+    const cancel = deferred();
+    mocks.markUserMessageDelivered.mockImplementationOnce(async () => {
+      const cancelPromise = runtime.cancelTurn('project-1', 'task-1', 'conversation-1');
+      await vi.waitFor(() => expect(mocks.interruptSession).toHaveBeenCalled());
+      cancel.resolve();
+      await cancelPromise;
+    });
+    mocks.interruptSession.mockReturnValueOnce(cancel.promise);
+    const runtime = new ChatConversationRuntime();
+    await runtime.hydrateConversation(makeConversation());
+
+    await expect(
+      runtime.sendMessage('project-1', 'task-1', 'conversation-1', { text: 'hello' })
+    ).rejects.toThrow('Message send was cancelled');
+
+    expect(mocks.emitItem).toHaveBeenCalledWith(
+      makeConversation(),
+      expect.objectContaining({ id: 'message-1' })
+    );
+    expect(mocks.eventEmit).toHaveBeenCalledWith(
+      'conversation:input-submitted',
+      expect.objectContaining({ conversationId: 'conversation-1' })
+    );
+  });
+
+  it('rejects concurrent cancel callers when the in-flight cancellation fails', async () => {
+    const cancel = deferred();
+    mocks.interruptSession.mockReturnValueOnce(cancel.promise);
+    const runtime = new ChatConversationRuntime();
+    await runtime.hydrateConversation(makeConversation());
+    await runtime.sendMessage('project-1', 'task-1', 'conversation-1', { text: 'hello' });
+
+    const firstCancel = runtime.cancelTurn('project-1', 'task-1', 'conversation-1');
+    await vi.waitFor(() => expect(mocks.interruptSession).toHaveBeenCalled());
+    const secondCancel = runtime.cancelTurn('project-1', 'task-1', 'conversation-1');
+
+    cancel.reject(new Error('interrupt failed'));
+
+    await expect(firstCancel).rejects.toThrow('interrupt failed');
+    await expect(secondCancel).rejects.toThrow('interrupt failed');
   });
 
   it('buffers provider output for the next pending turn after cancellation', async () => {

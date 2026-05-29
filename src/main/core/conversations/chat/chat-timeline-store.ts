@@ -21,6 +21,7 @@ const DEFAULT_TIMELINE_LIMIT = 100;
 const MAX_TIMELINE_LIMIT = 500;
 const PENDING_DELIVERY_STATUS = '__emdash_pending_delivery__';
 const DELIVERY_STARTED_STATUS = '__emdash_delivery_started__';
+const CANCELLED_DELIVERY_STATUS = '__emdash_cancelled_delivery__';
 const DELIVERED_PENDING_EMIT_STATUS = '__emdash_delivered_pending_emit__';
 
 function normalizeLimit(limit: number | undefined): number {
@@ -42,7 +43,12 @@ function recoverPendingDeliveryPayload(
 ): { action: 'commit'; payload: string; warning?: string } | { action: 'delete' } | undefined {
   try {
     const payload = parsePayload(raw);
-    if (payload.deliveryStatus === PENDING_DELIVERY_STATUS) return { action: 'delete' };
+    if (
+      payload.deliveryStatus === PENDING_DELIVERY_STATUS ||
+      payload.deliveryStatus === CANCELLED_DELIVERY_STATUS
+    ) {
+      return { action: 'delete' };
+    }
     if (
       payload.deliveryStatus !== DELIVERY_STARTED_STATUS &&
       payload.deliveryStatus !== DELIVERED_PENDING_EMIT_STATUS
@@ -66,7 +72,21 @@ function recoverPendingDeliveryPayload(
 
 function deliveredTimelinePayloadPredicate() {
   const deliveryStatus = sql`case when json_valid(${conversationTimelineItems.payload}) then coalesce(json_extract(${conversationTimelineItems.payload}, '$.deliveryStatus'), '') else '' end`;
-  return sql`${deliveryStatus} != ${PENDING_DELIVERY_STATUS} and ${deliveryStatus} != ${DELIVERY_STARTED_STATUS} and ${deliveryStatus} != ${DELIVERED_PENDING_EMIT_STATUS}`;
+  return sql`${deliveryStatus} != ${PENDING_DELIVERY_STATUS} and ${deliveryStatus} != ${DELIVERY_STARTED_STATUS} and ${deliveryStatus} != ${CANCELLED_DELIVERY_STATUS} and ${deliveryStatus} != ${DELIVERED_PENDING_EMIT_STATUS}`;
+}
+
+function notCancelledDeliveryPredicate() {
+  return sql`case when json_valid(${conversationTimelineItems.payload}) then coalesce(json_extract(${conversationTimelineItems.payload}, '$.deliveryStatus'), '') else '' end != ${CANCELLED_DELIVERY_STATUS}`;
+}
+
+function cancellableDeliveryPredicate() {
+  const deliveryStatus = sql`case when json_valid(${conversationTimelineItems.payload}) then coalesce(json_extract(${conversationTimelineItems.payload}, '$.deliveryStatus'), '') else '' end`;
+  return sql`(${deliveryStatus} = ${PENDING_DELIVERY_STATUS} or ${deliveryStatus} = ${DELIVERY_STARTED_STATUS})`;
+}
+
+function deletableSilentItemPredicate() {
+  const deliveryStatus = sql`case when json_valid(${conversationTimelineItems.payload}) then coalesce(json_extract(${conversationTimelineItems.payload}, '$.deliveryStatus'), '') else '' end`;
+  return sql`(${conversationTimelineItems.kind} != 'user_message' or ${deliveryStatus} = ${PENDING_DELIVERY_STATUS} or ${deliveryStatus} = ${DELIVERY_STARTED_STATUS} or ${deliveryStatus} = ${CANCELLED_DELIVERY_STATUS})`;
 }
 
 function rowToTimelineItem(
@@ -320,16 +340,18 @@ export class ChatTimelineStore {
 
   async emitItem(conversation: Conversation, item: ConversationTimelineItem): Promise<void> {
     if (item.kind === 'user_message') {
-      await this.db
+      const [updatedRow] = await this.db
         .update(conversationTimelineItems)
         .set({ payload: JSON.stringify({ text: item.text }) })
         .where(
           and(
             eq(conversationTimelineItems.id, item.id),
-            eq(conversationTimelineItems.conversationId, conversation.id)
+            eq(conversationTimelineItems.conversationId, conversation.id),
+            notCancelledDeliveryPredicate()
           )
         )
-        .execute();
+        .returning();
+      if (!updatedRow) return;
     }
     this.emitTimelineItem(conversation, item);
   }
@@ -349,7 +371,8 @@ export class ChatTimelineStore {
       .where(
         and(
           eq(conversationTimelineItems.id, item.id),
-          eq(conversationTimelineItems.conversationId, conversation.id)
+          eq(conversationTimelineItems.conversationId, conversation.id),
+          notCancelledDeliveryPredicate()
         )
       )
       .execute();
@@ -370,7 +393,30 @@ export class ChatTimelineStore {
       .where(
         and(
           eq(conversationTimelineItems.id, item.id),
-          eq(conversationTimelineItems.conversationId, conversation.id)
+          eq(conversationTimelineItems.conversationId, conversation.id),
+          notCancelledDeliveryPredicate()
+        )
+      )
+      .execute();
+  }
+
+  async markUserMessageCancelled(
+    conversation: Conversation,
+    item: ConversationMessageTimelineItem
+  ): Promise<void> {
+    await this.db
+      .update(conversationTimelineItems)
+      .set({
+        payload: JSON.stringify({
+          text: item.text,
+          deliveryStatus: CANCELLED_DELIVERY_STATUS,
+        }),
+      })
+      .where(
+        and(
+          eq(conversationTimelineItems.id, item.id),
+          eq(conversationTimelineItems.conversationId, conversation.id),
+          cancellableDeliveryPredicate()
         )
       )
       .execute();
@@ -382,7 +428,8 @@ export class ChatTimelineStore {
       .where(
         and(
           eq(conversationTimelineItems.id, itemId),
-          eq(conversationTimelineItems.conversationId, conversation.id)
+          eq(conversationTimelineItems.conversationId, conversation.id),
+          deletableSilentItemPredicate()
         )
       )
       .execute();

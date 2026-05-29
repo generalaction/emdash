@@ -62,6 +62,17 @@ async function seedChatConversation(fixture: Awaited<ReturnType<typeof openFixtu
   });
 }
 
+async function seedSecondChatConversation(fixture: Awaited<ReturnType<typeof openFixture>>) {
+  await fixture.db.insert(conversations).values({
+    id: 'conversation-2',
+    projectId: 'project-1',
+    taskId: 'task-1',
+    title: 'Conversation 2',
+    provider: 'codex',
+    runtimeMode: 'chat',
+  });
+}
+
 function makeConversation(overrides: Partial<Conversation> = {}): Conversation {
   return {
     id: 'conversation-1',
@@ -223,6 +234,257 @@ describe('ChatTimelineStore', () => {
     await expect(
       chatTimelineStore.listTimeline('project-1', 'task-1', 'conversation-1')
     ).resolves.toMatchObject([{ id: 'message-1', kind: 'user_message', text: 'delivered' }]);
+  });
+
+  it('deletes cancelled delivery-started user messages during runtime recovery', async () => {
+    const conversation = makeConversation();
+    const item = await chatTimelineStore.appendUserMessage(
+      conversation,
+      {
+        messageId: 'message-1',
+        text: 'cancelled',
+      },
+      { emit: false }
+    );
+    await chatTimelineStore.markUserMessageDeliveryStarted(conversation, item);
+    await chatTimelineStore.markUserMessageCancelled(conversation, item);
+
+    await chatTimelineStore.recoverPendingUserMessages(conversation);
+
+    const rows = fixture.sqlite
+      .prepare(`SELECT id FROM conversation_timeline_items WHERE id = 'message-1'`)
+      .all();
+    expect(rows).toEqual([]);
+    await expect(
+      chatTimelineStore.listTimeline('project-1', 'task-1', 'conversation-1')
+    ).resolves.toEqual([]);
+  });
+
+  it('does not reveal or mark delivered user messages after cancellation wins', async () => {
+    const conversation = makeConversation();
+    const item = await chatTimelineStore.appendUserMessage(
+      conversation,
+      {
+        messageId: 'message-1',
+        text: 'cancelled',
+      },
+      { emit: false }
+    );
+    await chatTimelineStore.markUserMessageDeliveryStarted(conversation, item);
+    await chatTimelineStore.markUserMessageCancelled(conversation, item);
+
+    await chatTimelineStore.markUserMessageDelivered(conversation, item);
+    await chatTimelineStore.emitItem(conversation, item);
+
+    const rows = fixture.sqlite
+      .prepare(`SELECT payload FROM conversation_timeline_items WHERE id = 'message-1'`)
+      .all() as Array<{ payload: string }>;
+    expect(JSON.parse(rows[0]?.payload ?? '{}')).toMatchObject({
+      text: 'cancelled',
+      deliveryStatus: '__emdash_cancelled_delivery__',
+    });
+    expect(mocks.emit).not.toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'conversation:timeline' }),
+      expect.objectContaining({
+        item: expect.objectContaining({ id: 'message-1' }),
+      })
+    );
+    await expect(
+      chatTimelineStore.listTimeline('project-1', 'task-1', 'conversation-1')
+    ).resolves.toEqual([]);
+  });
+
+  it('does not mark already delivered or revealed user messages cancelled', async () => {
+    const conversation = makeConversation();
+    const deliveredItem = await chatTimelineStore.appendUserMessage(
+      conversation,
+      {
+        messageId: 'message-delivered',
+        text: 'delivered',
+      },
+      { emit: false }
+    );
+    await chatTimelineStore.markUserMessageDeliveryStarted(conversation, deliveredItem);
+    await chatTimelineStore.markUserMessageDelivered(conversation, deliveredItem);
+
+    await chatTimelineStore.markUserMessageCancelled(conversation, deliveredItem);
+
+    let rows = fixture.sqlite
+      .prepare(`SELECT payload FROM conversation_timeline_items WHERE id = 'message-delivered'`)
+      .all() as Array<{ payload: string }>;
+    expect(JSON.parse(rows[0]?.payload ?? '{}')).toMatchObject({
+      text: 'delivered',
+      deliveryStatus: '__emdash_delivered_pending_emit__',
+    });
+
+    const revealedItem = await chatTimelineStore.appendUserMessage(
+      conversation,
+      {
+        messageId: 'message-revealed',
+        text: 'revealed',
+      },
+      { emit: false }
+    );
+    await chatTimelineStore.emitItem(conversation, revealedItem);
+
+    await chatTimelineStore.markUserMessageCancelled(conversation, revealedItem);
+
+    rows = fixture.sqlite
+      .prepare(`SELECT payload FROM conversation_timeline_items WHERE id = 'message-revealed'`)
+      .all() as Array<{ payload: string }>;
+    expect(JSON.parse(rows[0]?.payload ?? '{}')).toEqual({ text: 'revealed' });
+    await expect(
+      chatTimelineStore.listTimeline('project-1', 'task-1', 'conversation-1')
+    ).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'message-revealed', text: 'revealed' }),
+      ])
+    );
+  });
+
+  it('does not delete already delivered or revealed user messages', async () => {
+    const conversation = makeConversation();
+    const deliveredItem = await chatTimelineStore.appendUserMessage(
+      conversation,
+      {
+        messageId: 'message-delivered',
+        text: 'delivered',
+      },
+      { emit: false }
+    );
+    await chatTimelineStore.markUserMessageDeliveryStarted(conversation, deliveredItem);
+    await chatTimelineStore.markUserMessageDelivered(conversation, deliveredItem);
+
+    await chatTimelineStore.deleteItem(conversation, deliveredItem.id);
+
+    let rows = fixture.sqlite
+      .prepare(`SELECT payload FROM conversation_timeline_items WHERE id = 'message-delivered'`)
+      .all() as Array<{ payload: string }>;
+    expect(JSON.parse(rows[0]?.payload ?? '{}')).toMatchObject({
+      text: 'delivered',
+      deliveryStatus: '__emdash_delivered_pending_emit__',
+    });
+
+    const revealedItem = await chatTimelineStore.appendUserMessage(
+      conversation,
+      {
+        messageId: 'message-revealed',
+        text: 'revealed',
+      },
+      { emit: false }
+    );
+    await chatTimelineStore.emitItem(conversation, revealedItem);
+
+    await chatTimelineStore.deleteItem(conversation, revealedItem.id);
+
+    rows = fixture.sqlite
+      .prepare(`SELECT payload FROM conversation_timeline_items WHERE id = 'message-revealed'`)
+      .all() as Array<{ payload: string }>;
+    expect(JSON.parse(rows[0]?.payload ?? '{}')).toEqual({ text: 'revealed' });
+  });
+
+  it('does not cancel delivery-started rows from other conversations', async () => {
+    await seedSecondChatConversation(fixture);
+    const conversation = makeConversation();
+    const otherConversation = makeConversation({
+      id: 'conversation-2',
+      title: 'Conversation 2',
+    });
+    const item = await chatTimelineStore.appendUserMessage(
+      conversation,
+      {
+        messageId: 'message-1',
+        text: 'cancelled',
+      },
+      { emit: false }
+    );
+    const otherItem = await chatTimelineStore.appendUserMessage(
+      otherConversation,
+      {
+        messageId: 'message-2',
+        text: 'other',
+      },
+      { emit: false }
+    );
+    await chatTimelineStore.markUserMessageDeliveryStarted(conversation, item);
+    await chatTimelineStore.markUserMessageDeliveryStarted(otherConversation, otherItem);
+
+    await chatTimelineStore.markUserMessageCancelled(conversation, item);
+
+    const rows = fixture.sqlite
+      .prepare(
+        `SELECT id, conversation_id AS conversationId, payload
+         FROM conversation_timeline_items
+         WHERE id IN ('message-1', 'message-2')
+         ORDER BY id`
+      )
+      .all() as Array<{ id: string; conversationId: string; payload: string }>;
+    expect(rows.map((row) => ({ ...row, payload: JSON.parse(row.payload) }))).toEqual([
+      {
+        id: 'message-1',
+        conversationId: 'conversation-1',
+        payload: {
+          text: 'cancelled',
+          deliveryStatus: '__emdash_cancelled_delivery__',
+        },
+      },
+      {
+        id: 'message-2',
+        conversationId: 'conversation-2',
+        payload: {
+          text: 'other',
+          deliveryStatus: '__emdash_delivery_started__',
+        },
+      },
+    ]);
+  });
+
+  it('does not delete silent rows from other conversations', async () => {
+    await seedSecondChatConversation(fixture);
+    const conversation = makeConversation();
+    const otherConversation = makeConversation({
+      id: 'conversation-2',
+      title: 'Conversation 2',
+    });
+    const item = await chatTimelineStore.appendUserMessage(
+      conversation,
+      {
+        messageId: 'message-1',
+        text: 'deleted',
+      },
+      { emit: false }
+    );
+    const otherItem = await chatTimelineStore.appendUserMessage(
+      otherConversation,
+      {
+        messageId: 'message-2',
+        text: 'other',
+      },
+      { emit: false }
+    );
+    await chatTimelineStore.markUserMessageDeliveryStarted(conversation, item);
+    await chatTimelineStore.markUserMessageDeliveryStarted(otherConversation, otherItem);
+
+    await chatTimelineStore.deleteItem(conversation, item.id);
+
+    const rows = fixture.sqlite
+      .prepare(
+        `SELECT id, conversation_id AS conversationId, payload
+         FROM conversation_timeline_items
+         WHERE id IN ('message-1', 'message-2')
+         ORDER BY id`
+      )
+      .all() as Array<{ id: string; conversationId: string; payload: string }>;
+    expect(rows.map((row) => ({ ...row, payload: JSON.parse(row.payload) }))).toEqual([
+      {
+        id: 'message-2',
+        conversationId: 'conversation-2',
+        payload: {
+          text: 'other',
+          deliveryStatus: '__emdash_delivery_started__',
+        },
+      },
+    ]);
   });
 
   it('recovers delivery-started user messages with an uncertainty error', async () => {

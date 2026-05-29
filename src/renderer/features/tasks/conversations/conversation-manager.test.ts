@@ -246,6 +246,7 @@ describe('ConversationManagerStore session hydration', () => {
     await store.cancelTurn('conversation-1');
 
     expect(sendMessage).toHaveBeenCalledWith('project-1', 'task-1', 'conversation-1', {
+      messageId: expect.any(String),
       text: 'hello',
     });
     expect(cancelTurn).toHaveBeenCalledWith('project-1', 'task-1', 'conversation-1');

@@ -3,6 +3,7 @@ import { conversationEvents } from '@main/core/conversations/conversation-events
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import {
+  type ConversationMessageTimelineItem,
   type ConversationPermissionResponse,
   type ConversationStatus,
   type SendConversationMessageInput,
@@ -23,6 +24,7 @@ type PendingTurn = {
   cancelled: boolean;
   deliveryStarted: boolean;
   id: number;
+  userMessage?: ConversationMessageTimelineItem;
 };
 
 type ActiveChatConversation = {
@@ -35,6 +37,7 @@ type ActiveChatConversation = {
   cancelled?: boolean;
   cancellationBackendExit?: AgentSessionExited;
   cancellationBufferedEvents?: AgentEvent[];
+  cancellationError?: unknown;
   cancellationInFlight?: boolean;
   cancellationPromise?: Promise<boolean>;
   resolveCancellation?: (cancelled: boolean) => void;
@@ -118,22 +121,21 @@ export class ChatConversationRuntime {
     try {
       await this.ensureBackendReadyForInput(active, backend, turnId);
     } catch (error) {
-      if (active.pendingTurn?.id === turnId) {
-        active.pendingTurn = undefined;
+      if (this.isClearedCancelledTurn(active, turnId)) {
+        throw new Error('Message send was cancelled');
       }
-      active.awaitingResponse = false;
-      active.suppressProviderEventsUntilNextSend = true;
-      this.emitStatus(conversation, 'error');
+      if (this.clearCurrentTurn(active, turnId)) {
+        active.suppressProviderEventsUntilNextSend = true;
+        this.emitStatus(conversation, 'error');
+      }
       throw error;
     }
     const backendExitVersionBeforeSend = active.backendExitVersion;
 
     if (await this.isTurnCancelled(active, turnId)) {
-      if (active.pendingTurn?.id === turnId) {
-        active.pendingTurn = undefined;
+      if (this.clearCurrentTurn(active, turnId)) {
+        this.emitStatus(conversation, 'idle');
       }
-      active.awaitingResponse = false;
-      this.emitStatus(conversation, 'idle');
       throw new Error('Message send was cancelled');
     }
 
@@ -147,28 +149,33 @@ export class ChatConversationRuntime {
         }
       );
     } catch (error) {
-      if (active.pendingTurn?.id === turnId) {
-        active.pendingTurn = undefined;
+      if (this.isClearedCancelledTurn(active, turnId)) {
+        throw new Error('Message send was cancelled');
       }
-      active.awaitingResponse = false;
-      active.suppressProviderEventsUntilNextSend = true;
-      this.emitStatus(conversation, 'error');
+      if (this.clearCurrentTurn(active, turnId)) {
+        active.suppressProviderEventsUntilNextSend = true;
+        this.emitStatus(conversation, 'error');
+      }
       throw error;
+    }
+
+    if (active.pendingTurn?.id === turnId) {
+      active.pendingTurn.userMessage = item;
     }
 
     if (active.pendingTurn?.id !== turnId) {
       await this.deleteSilentItem(conversation, item.id, 'turn superseded before backend send');
-      active.awaitingResponse = false;
+      this.clearCurrentTurn(active, turnId);
       throw new Error('Message send was cancelled');
     }
 
     if (await this.isTurnCancelled(active, turnId)) {
-      if (active.pendingTurn?.id === turnId) {
-        active.pendingTurn = undefined;
-      }
+      const cleared = this.clearCurrentTurn(active, turnId);
+      await this.markCancelledUserMessage(conversation, item);
       await this.deleteSilentItem(conversation, item.id, 'turn cancelled before backend send');
-      active.awaitingResponse = false;
-      this.emitStatus(conversation, 'idle');
+      if (cleared) {
+        this.emitStatus(conversation, 'idle');
+      }
       throw new Error('Message send was cancelled');
     }
 
@@ -188,24 +195,29 @@ export class ChatConversationRuntime {
       active.pendingTurn.deliveryStarted = true;
       await chatTimelineStore.markUserMessageDeliveryStarted(conversation, item);
     } catch (error) {
-      if (active.pendingTurn?.id === turnId) {
-        active.pendingTurn = undefined;
+      const cancelled = this.isClearedCancelledTurn(active, turnId);
+      const cleared = cancelled ? false : this.clearCurrentTurn(active, turnId);
+      if (cleared) {
+        active.suppressProviderEventsUntilNextSend = true;
       }
-      active.awaitingResponse = false;
-      active.suppressProviderEventsUntilNextSend = true;
       await this.deleteSilentItem(conversation, item.id, 'delivery state update failed');
-      await chatTimelineStore
-        .append(conversation, {
-          kind: 'error',
-          payload: { message: 'Failed to send message to the agent backend' },
-        })
-        .catch((appendError) => {
-          log.warn('ChatConversationRuntime: failed to append backend send error marker', {
-            conversationId,
-            error: String(appendError),
+      if (cancelled) {
+        throw new Error('Message send was cancelled');
+      }
+      if (cleared) {
+        await chatTimelineStore
+          .append(conversation, {
+            kind: 'error',
+            payload: { message: 'Failed to send message to the agent backend' },
+          })
+          .catch((appendError) => {
+            log.warn('ChatConversationRuntime: failed to append backend send error marker', {
+              conversationId,
+              error: String(appendError),
+            });
           });
-        });
-      this.emitStatus(conversation, 'error');
+        this.emitStatus(conversation, 'error');
+      }
       throw error;
     }
 
@@ -223,15 +235,17 @@ export class ChatConversationRuntime {
 
     if (active.pendingTurn?.id !== turnId) {
       await this.deleteSilentItem(conversation, item.id, 'turn superseded before backend send');
-      active.awaitingResponse = false;
+      this.clearCurrentTurn(active, turnId);
       throw new Error('Message send was cancelled');
     }
 
     if (await this.isTurnCancelled(active, turnId)) {
-      active.pendingTurn = undefined;
+      const cleared = this.clearCurrentTurn(active, turnId);
+      await this.markCancelledUserMessage(conversation, item);
       await this.deleteSilentItem(conversation, item.id, 'turn cancelled before backend send');
-      active.awaitingResponse = false;
-      this.emitStatus(conversation, 'idle');
+      if (cleared) {
+        this.emitStatus(conversation, 'idle');
+      }
       throw new Error('Message send was cancelled');
     }
 
@@ -242,20 +256,21 @@ export class ChatConversationRuntime {
         throw new Error('Message send was cancelled');
       }
       await this.markDeliveredUserMessage(conversation, item);
+      if (await this.isTurnCancelled(active, turnId)) {
+        await this.revealSentUserMessage(conversation, item);
+        this.emitInputSubmitted(conversation);
+        throw new Error('Message send was cancelled');
+      }
     } catch (error) {
       const deliveryCancelled =
         active.cancelled ||
-        active.cancellationInFlight ||
         active.pendingTurn?.cancelled === true ||
         (error instanceof Error && error.message === 'Message send was cancelled');
-      if (active.pendingTurn?.id === turnId) {
-        active.pendingTurn = undefined;
-      }
-      active.awaitingResponse = false;
+      const cleared = this.clearCurrentTurn(active, turnId);
       active.inputReady = false;
       await this.deleteSilentItem(conversation, item.id, 'backend delivery failed');
       if (deliveryCancelled) {
-        if (!active.cancellationInFlight) {
+        if (cleared && !active.cancellationInFlight) {
           this.emitStatus(conversation, 'idle');
         }
         throw new Error('Message send was cancelled');
@@ -277,15 +292,17 @@ export class ChatConversationRuntime {
 
     if (active.pendingTurn?.id !== turnId) {
       await this.deleteSilentItem(conversation, item.id, 'turn superseded after backend send');
-      active.awaitingResponse = false;
+      this.clearCurrentTurn(active, turnId);
       throw new Error('Message send was cancelled');
     }
 
     if (await this.isTurnCancelled(active, turnId)) {
-      active.pendingTurn = undefined;
+      const cleared = this.clearCurrentTurn(active, turnId);
+      await this.markCancelledUserMessage(conversation, item);
       await this.deleteSilentItem(conversation, item.id, 'turn cancelled after backend send');
-      active.awaitingResponse = false;
-      this.emitStatus(conversation, 'idle');
+      if (cleared) {
+        this.emitStatus(conversation, 'idle');
+      }
       throw new Error('Message send was cancelled');
     }
 
@@ -311,17 +328,22 @@ export class ChatConversationRuntime {
       return;
     }
 
-    if (
-      active?.pendingTurn &&
-      !active.pendingTurn.backendStarted &&
-      !active.pendingTurn.deliveryStarted
-    ) {
+    if (active?.pendingTurn && !active.pendingTurn.backendStarted) {
+      const userMessage = active.pendingTurn.userMessage;
       active.pendingTurn.cancelled = true;
       active.cancelled = true;
       active.awaitingInput = false;
       active.awaitingResponse = false;
       active.inputReady = false;
       active.pendingTurn = undefined;
+      if (userMessage) {
+        await this.markCancelledUserMessage(conversation, userMessage);
+        await this.deleteSilentItem(
+          conversation,
+          userMessage.id,
+          'turn cancelled before backend send'
+        );
+      }
       await this.appendCancellationMarker(conversation);
       this.emitStatus(conversation, 'idle');
       return;
@@ -330,10 +352,13 @@ export class ChatConversationRuntime {
     const hadPendingTurn = active?.pendingTurn !== undefined;
     if (active) {
       if (active.cancellationInFlight) {
-        await active.cancellationPromise;
+        const cancelled = await active.cancellationPromise;
+        if (!cancelled)
+          throw active.cancellationError ?? new Error('Failed to interrupt agent backend');
         return;
       }
       active.cancellationBufferedEvents = [];
+      active.cancellationError = undefined;
       active.cancellationInFlight = true;
       active.inputReady = false;
       active.cancellationPromise = new Promise((resolve) => {
@@ -350,13 +375,14 @@ export class ChatConversationRuntime {
       if (active) {
         active.cancelled = wasCancelled;
         active.awaitingInput = wasAwaitingInput;
-        active.awaitingResponse = wasAwaitingResponse;
+        active.cancellationError = error;
         active.cancellationInFlight = false;
         active.resolveCancellation?.(false);
         active.cancellationPromise = undefined;
         active.resolveCancellation = undefined;
         const backendExit = active.cancellationBackendExit;
         active.cancellationBackendExit = undefined;
+        active.awaitingResponse = backendExit || active.pendingTurn ? wasAwaitingResponse : false;
         if (pendingTurn && active.pendingTurn?.id === pendingTurn.id) {
           active.pendingTurn.cancelled = pendingTurnWasCancelled ?? false;
         }
@@ -394,6 +420,7 @@ export class ChatConversationRuntime {
     if (active) {
       active.cancellationBufferedEvents = undefined;
       active.cancellationBackendExit = undefined;
+      active.cancellationError = undefined;
       active.cancellationInFlight = false;
       active.resolveCancellation?.(true);
       active.cancellationPromise = undefined;
@@ -401,6 +428,9 @@ export class ChatConversationRuntime {
       active.cancelled = true;
       if (active.pendingTurn) {
         active.pendingTurn.cancelled = true;
+        if (active.pendingTurn.userMessage) {
+          await this.markCancelledUserMessage(conversation, active.pendingTurn.userMessage);
+        }
       }
       shouldEmitIdle = shouldEmitIdle || active.pendingTurn === undefined;
       active.awaitingInput = false;
@@ -624,6 +654,38 @@ export class ChatConversationRuntime {
         itemId: item.id,
       });
     }
+  }
+
+  private async markCancelledUserMessage(
+    conversation: Conversation,
+    item: Awaited<ReturnType<typeof chatTimelineStore.appendUserMessage>>
+  ): Promise<void> {
+    try {
+      await chatTimelineStore.markUserMessageCancelled(conversation, item);
+    } catch (error) {
+      log.warn('ChatConversationRuntime: failed to mark user message cancelled', {
+        conversationId: conversation.id,
+        error: String(error),
+        itemId: item.id,
+      });
+    }
+  }
+
+  private clearCurrentTurn(active: ActiveChatConversation, turnId: number): boolean {
+    if (active.pendingTurn?.id === turnId) {
+      active.pendingTurn = undefined;
+      active.awaitingResponse = false;
+      return true;
+    }
+    if (!active.pendingTurn && active.nextTurnId === turnId && !active.cancelled) {
+      active.awaitingResponse = false;
+      return true;
+    }
+    return false;
+  }
+
+  private isClearedCancelledTurn(active: ActiveChatConversation, turnId: number): boolean {
+    return !active.pendingTurn && active.nextTurnId === turnId && active.cancelled === true;
   }
 
   private async flushPendingTurn(

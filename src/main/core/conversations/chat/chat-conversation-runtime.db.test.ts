@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { conversations } from '@main/db/schema';
 import type { Conversation } from '@shared/conversations';
 import { ChatConversationRuntime } from './chat-conversation-runtime';
+import { chatTimelineStore } from './chat-timeline-store';
 
 const mocks = vi.hoisted(() => ({
   db: undefined as unknown,
@@ -124,6 +125,7 @@ describe('ChatConversationRuntime', () => {
 
   afterEach(() => {
     runtime.dehydrateConversation('conversation-1');
+    vi.restoreAllMocks();
     fixture.close();
     mocks.db = undefined;
   });
@@ -271,6 +273,148 @@ describe('ChatConversationRuntime', () => {
         item: expect.objectContaining({ kind: 'user_message' }),
       })
     );
+  });
+
+  it('does not recover a cancelled delivery-started row after restart', async () => {
+    await seedChatConversation(fixture);
+    const originalRuntime = runtime;
+    await originalRuntime.hydrateConversation(makeConversation());
+    const send = deferred();
+    const cancel = deferred();
+    mocks.sendInput.mockReturnValueOnce(send.promise);
+    mocks.interruptSession.mockReturnValueOnce(cancel.promise);
+
+    const sendPromise = originalRuntime.sendMessage('project-1', 'task-1', 'conversation-1', {
+      text: 'hello',
+    });
+    await vi.waitFor(() => {
+      const rows = fixture.sqlite
+        .prepare(
+          `SELECT payload
+           FROM conversation_timeline_items
+           WHERE conversation_id = 'conversation-1' AND kind = 'user_message'`
+        )
+        .all() as Array<{ payload: string }>;
+      expect(JSON.parse(rows[0]?.payload ?? '{}')).toMatchObject({
+        deliveryStatus: '__emdash_delivery_started__',
+      });
+    });
+
+    const cancelPromise = originalRuntime.cancelTurn('project-1', 'task-1', 'conversation-1');
+    await vi.waitFor(() => expect(mocks.interruptSession).toHaveBeenCalled());
+    cancel.resolve();
+    await cancelPromise;
+
+    runtime = new ChatConversationRuntime();
+    await runtime.hydrateConversation(makeConversation());
+
+    const rows = fixture.sqlite
+      .prepare(
+        `SELECT kind, payload
+         FROM conversation_timeline_items
+         WHERE conversation_id = 'conversation-1'
+         ORDER BY sequence`
+      )
+      .all() as Array<{ kind: string; payload: string }>;
+    expect(rows).toEqual([
+      {
+        kind: 'reasoning',
+        payload: JSON.stringify({ text: 'Turn cancelled.' }),
+      },
+    ]);
+
+    send.resolve();
+    await expect(sendPromise).rejects.toThrow('Message send was cancelled');
+  });
+
+  it('reveals a delivered user row when late cancellation succeeds', async () => {
+    await seedChatConversation(fixture);
+    await runtime.hydrateConversation(makeConversation());
+    const originalMarkDelivered =
+      chatTimelineStore.markUserMessageDelivered.bind(chatTimelineStore);
+    const markDelivered = vi
+      .spyOn(chatTimelineStore, 'markUserMessageDelivered')
+      .mockImplementationOnce(async (conversation, item) => {
+        await originalMarkDelivered(conversation, item);
+        await runtime.cancelTurn('project-1', 'task-1', 'conversation-1');
+      });
+
+    await expect(
+      runtime.sendMessage('project-1', 'task-1', 'conversation-1', { text: 'hello' })
+    ).rejects.toThrow('Message send was cancelled');
+
+    expect(markDelivered).toHaveBeenCalled();
+    const rows = fixture.sqlite
+      .prepare(
+        `SELECT kind, payload
+         FROM conversation_timeline_items
+         WHERE conversation_id = 'conversation-1'
+         ORDER BY sequence`
+      )
+      .all() as Array<{ kind: string; payload: string }>;
+    expect(rows).toEqual([
+      {
+        kind: 'user_message',
+        payload: JSON.stringify({ text: 'hello' }),
+      },
+      {
+        kind: 'reasoning',
+        payload: JSON.stringify({ text: 'Turn cancelled.' }),
+      },
+    ]);
+    expect(mocks.emit).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'conversation:timeline' }),
+      expect.objectContaining({
+        item: expect.objectContaining({
+          kind: 'user_message',
+          text: 'hello',
+        }),
+      })
+    );
+  });
+
+  it('does not recover a cancelled row when cancellation races delivery-start before backend input', async () => {
+    await seedChatConversation(fixture);
+    const originalRuntime = runtime;
+    await originalRuntime.hydrateConversation(makeConversation());
+    const deliveryStarted = deferred();
+    const originalMarkDeliveryStarted =
+      chatTimelineStore.markUserMessageDeliveryStarted.bind(chatTimelineStore);
+    const markDeliveryStarted = vi
+      .spyOn(chatTimelineStore, 'markUserMessageDeliveryStarted')
+      .mockImplementationOnce(async (conversation, item) => {
+        await deliveryStarted.promise;
+        await originalMarkDeliveryStarted(conversation, item);
+      });
+
+    const sendPromise = originalRuntime.sendMessage('project-1', 'task-1', 'conversation-1', {
+      text: 'hello',
+    });
+    await vi.waitFor(() => expect(markDeliveryStarted).toHaveBeenCalled());
+
+    await originalRuntime.cancelTurn('project-1', 'task-1', 'conversation-1');
+    deliveryStarted.resolve();
+    await expect(sendPromise).rejects.toThrow('Message send was cancelled');
+
+    expect(mocks.sendInput).not.toHaveBeenCalled();
+
+    runtime = new ChatConversationRuntime();
+    await runtime.hydrateConversation(makeConversation());
+
+    const rows = fixture.sqlite
+      .prepare(
+        `SELECT kind, payload
+         FROM conversation_timeline_items
+         WHERE conversation_id = 'conversation-1'
+         ORDER BY sequence`
+      )
+      .all() as Array<{ kind: string; payload: string }>;
+    expect(rows).toEqual([
+      {
+        kind: 'reasoning',
+        payload: JSON.stringify({ text: 'Turn cancelled.' }),
+      },
+    ]);
   });
 
   it('persists mapped assistant and error hook events', async () => {

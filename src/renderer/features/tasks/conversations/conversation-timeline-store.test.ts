@@ -48,16 +48,23 @@ describe('ConversationTimelineStore', () => {
     cancelTurn.mockReset();
     getTimeline.mockResolvedValue([]);
     cancelTurn.mockResolvedValue(undefined);
-    sendMessage.mockResolvedValue({
-      item: {
-        id: 'message-1',
-        conversationId: 'conversation-1',
-        kind: 'user_message',
-        sequence: 1,
-        text: 'hello',
-        createdAt: '2026-05-28T00:00:00.000Z',
-      },
-    });
+    sendMessage.mockImplementation(
+      async (
+        _projectId: string,
+        _taskId: string,
+        _conversationId: string,
+        input: { messageId: string; text: string }
+      ) => ({
+        item: {
+          id: input.messageId,
+          conversationId: 'conversation-1',
+          kind: 'user_message',
+          sequence: 1,
+          text: input.text,
+          createdAt: '2026-05-28T00:00:00.000Z',
+        },
+      })
+    );
   });
 
   it('loads timeline items through RPC', async () => {
@@ -75,12 +82,13 @@ describe('ConversationTimelineStore', () => {
     store.start();
 
     await store.sendMessage('hello');
+    const messageId = sendMessage.mock.calls[0]?.[3]?.messageId;
     listeners.timeline?.({
       projectId: 'project-1',
       taskId: 'task-1',
       conversationId: 'conversation-1',
       item: {
-        id: 'message-1',
+        id: messageId,
         conversationId: 'conversation-1',
         kind: 'user_message',
         sequence: 1,
@@ -91,11 +99,113 @@ describe('ConversationTimelineStore', () => {
 
     expect(store.items.data).toEqual([
       {
-        id: 'message-1',
+        id: messageId,
         conversationId: 'conversation-1',
         kind: 'user_message',
         sequence: 1,
         text: 'hello again',
+        createdAt: '2026-05-28T00:00:00.000Z',
+      },
+    ]);
+
+    store.dispose();
+  });
+
+  it('adds an optimistic user message while send RPC is pending', async () => {
+    const send = deferred<{
+      item: {
+        id: string;
+        conversationId: string;
+        kind: 'user_message';
+        sequence: number;
+        text: string;
+        createdAt: string;
+      };
+    }>();
+    sendMessage.mockReturnValueOnce(send.promise);
+    const store = new ConversationTimelineStore('project-1', 'task-1', 'conversation-1');
+
+    const sendPromise = store.sendMessage(' hello ');
+    const messageId = sendMessage.mock.calls[0]?.[3]?.messageId;
+
+    expect(store.items.data).toMatchObject([
+      {
+        id: messageId,
+        kind: 'user_message',
+        sequence: 1,
+        text: 'hello',
+      },
+    ]);
+    expect(sendMessage).toHaveBeenCalledWith('project-1', 'task-1', 'conversation-1', {
+      messageId,
+      text: 'hello',
+    });
+
+    send.resolve({
+      item: {
+        id: messageId,
+        conversationId: 'conversation-1',
+        kind: 'user_message',
+        sequence: 1,
+        text: 'hello',
+        createdAt: '2026-05-28T00:00:00.000Z',
+      },
+    });
+    await sendPromise;
+
+    expect(store.items.data?.[0]?.createdAt).toBe('2026-05-28T00:00:00.000Z');
+  });
+
+  it('removes the optimistic user message when send RPC fails', async () => {
+    sendMessage.mockRejectedValueOnce(new Error('send failed'));
+    const store = new ConversationTimelineStore('project-1', 'task-1', 'conversation-1');
+
+    await expect(store.sendMessage('hello')).rejects.toThrow('send failed');
+
+    expect(store.items.data).toEqual([]);
+  });
+
+  it('keeps a revealed user message when send RPC later rejects as cancelled', async () => {
+    const send = deferred<{
+      item: {
+        id: string;
+        conversationId: string;
+        kind: 'user_message';
+        sequence: number;
+        text: string;
+        createdAt: string;
+      };
+    }>();
+    sendMessage.mockReturnValueOnce(send.promise);
+    const store = new ConversationTimelineStore('project-1', 'task-1', 'conversation-1');
+    store.start();
+
+    const sendPromise = store.sendMessage('hello');
+    const messageId = sendMessage.mock.calls[0]?.[3]?.messageId;
+    listeners.timeline?.({
+      projectId: 'project-1',
+      taskId: 'task-1',
+      conversationId: 'conversation-1',
+      item: {
+        id: messageId,
+        conversationId: 'conversation-1',
+        kind: 'user_message',
+        sequence: 10,
+        text: 'hello',
+        createdAt: '2026-05-28T00:00:00.000Z',
+      },
+    });
+    send.reject(new Error('Message send was cancelled'));
+
+    await expect(sendPromise).rejects.toThrow('Message send was cancelled');
+
+    expect(store.items.data).toEqual([
+      {
+        id: messageId,
+        conversationId: 'conversation-1',
+        kind: 'user_message',
+        sequence: 10,
+        text: 'hello',
         createdAt: '2026-05-28T00:00:00.000Z',
       },
     ]);
@@ -110,13 +220,14 @@ describe('ConversationTimelineStore', () => {
     store.start();
 
     await store.sendMessage('hello');
+    const messageId = sendMessage.mock.calls[0]?.[3]?.messageId;
     staleLoad.resolve([]);
     await staleLoad.promise;
     await Promise.resolve();
 
     expect(store.items.data).toEqual([
       {
-        id: 'message-1',
+        id: messageId,
         conversationId: 'conversation-1',
         kind: 'user_message',
         sequence: 1,
@@ -139,8 +250,10 @@ describe('ConversationTimelineStore', () => {
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((innerResolve) => {
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((innerResolve, innerReject) => {
     resolve = innerResolve;
+    reject = innerReject;
   });
-  return { promise, resolve };
+  return { promise, resolve, reject };
 }

@@ -2,9 +2,12 @@ import { events, rpc } from '@renderer/lib/ipc';
 import type { IDisposable } from '@renderer/lib/stores/lifecycle';
 import { Resource } from '@renderer/lib/stores/resource';
 import {
+  type ConversationMessageTimelineItem,
   type ConversationTimelineItem,
   type SendConversationMessageInput,
 } from '@shared/conversation-timeline';
+
+type NormalizedSendMessageInput = SendConversationMessageInput & { messageId: string };
 import { conversationTimelineEventChannel } from '@shared/events/conversationEvents';
 
 export class ConversationTimelineStore implements IDisposable {
@@ -53,15 +56,23 @@ export class ConversationTimelineStore implements IDisposable {
   async sendMessage(
     input: SendConversationMessageInput | string
   ): Promise<ConversationTimelineItem> {
-    const payload = typeof input === 'string' ? { text: input } : input;
-    const { item } = await rpc.conversations.sendMessage(
-      this.projectId,
-      this.taskId,
-      this.conversationId,
-      payload
-    );
-    this.items.setValue(mergeTimelineItems(this.items.data ?? [], [item]));
-    return item;
+    const payload = normalizeMessageInput(input);
+    const optimisticItem = this.createOptimisticUserMessage(payload);
+    this.items.setValue(mergeTimelineItems(this.items.data ?? [], [optimisticItem]));
+
+    try {
+      const { item } = await rpc.conversations.sendMessage(
+        this.projectId,
+        this.taskId,
+        this.conversationId,
+        payload
+      );
+      this.items.setValue(mergeTimelineItems(this.items.data ?? [], [item]));
+      return item;
+    } catch (error) {
+      this.items.setValue(removeOptimisticTimelineItem(this.items.data ?? [], optimisticItem));
+      throw error;
+    }
   }
 
   async cancelTurn(): Promise<void> {
@@ -80,6 +91,38 @@ export class ConversationTimelineStore implements IDisposable {
     );
     return mergeTimelineItems(this.items.data ?? [], fetched);
   }
+
+  private createOptimisticUserMessage(
+    input: NormalizedSendMessageInput
+  ): ConversationMessageTimelineItem {
+    const items = this.items.data ?? [];
+    const maxSequence = items.reduce((max, item) => Math.max(max, item.sequence), 0);
+    return {
+      id: input.messageId,
+      conversationId: this.conversationId,
+      kind: 'user_message',
+      sequence: maxSequence + 1,
+      text: input.text.trim(),
+      createdAt: new Date().toISOString(),
+    };
+  }
+}
+
+function normalizeMessageInput(
+  input: SendConversationMessageInput | string
+): NormalizedSendMessageInput {
+  const payload = typeof input === 'string' ? { text: input } : input;
+  const text = payload.text.trim();
+  if (!text) throw new Error('Message text is required');
+  return {
+    ...payload,
+    messageId: payload.messageId ?? createClientMessageId(),
+    text,
+  };
+}
+
+function createClientMessageId(): string {
+  return globalThis.crypto?.randomUUID?.() ?? `message-${Date.now()}-${Math.random()}`;
 }
 
 function upsertTimelineItem(
@@ -103,4 +146,16 @@ function mergeTimelineItems(
     next = upsertTimelineItem(next, item);
   }
   return next;
+}
+
+function removeOptimisticTimelineItem(
+  items: ConversationTimelineItem[],
+  optimisticItem: ConversationMessageTimelineItem
+): ConversationTimelineItem[] {
+  return items.filter(
+    (item) =>
+      item.id !== optimisticItem.id ||
+      item.sequence !== optimisticItem.sequence ||
+      item.createdAt !== optimisticItem.createdAt
+  );
 }

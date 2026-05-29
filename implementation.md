@@ -289,3 +289,70 @@ Remaining risks and follow-ups:
 - Permission responses are still typed but unsupported until the tool-call/permission phase.
 - Codex remains the only registered chat adapter; broader provider support is intentionally deferred.
 - The chat UI is still MVP-level and will be refined in the dedicated UI step.
+
+## Step 4: Chat UI MVP
+
+Completed the chat UI MVP phase from `docs/design.md`.
+
+Files and modules changed:
+
+- Updated the renderer chat timeline store to add optimistic user messages, pass stable message ids
+  through `sendMessage`, reconcile the canonical persisted row, and roll back failed sends.
+- Expanded the chat composer with pending send/cancel state, local error display, IME-aware Enter
+  handling, duplicate-send protection, draft restoration on real send failure, and cancellation
+  handling that does not resurrect cancelled drafts.
+- Kept cancel available while a chat turn is working or awaiting input, including while the send RPC
+  is still settling.
+- Hardened `ChatConversationRuntime` around cancellation races before backend delivery, including
+  hidden-row cancellation markers, guarded delivery-start writes, stale-turn ownership checks, and
+  late cancelled readiness/append/delivery-start failures.
+- Added durable cancelled-delivery recovery behavior to `ChatTimelineStore` so cancelled hidden user
+  rows do not replay after restart.
+- Added focused renderer, runtime, DB, and timeline-store coverage for optimistic sends, rollback,
+  reconciliation, composer keyboard behavior, cancellation availability, stale cancelled sends, and
+  cancelled-row recovery.
+
+Key decisions:
+
+- The renderer may optimistically display only the user's own draft message; the DB-backed timeline
+  remains canonical and reconciles by message id.
+- Cancellation before backend delivery removes hidden user rows from the visible timeline and records
+  a cancellation marker rather than surfacing a backend-send error.
+- A cancelled turn owns only its own pending async work. Late failures from a cancelled or stale turn
+  must not clear, suppress, or mark error on a newer turn.
+- Chat composer state treats cancellation as an expected outcome for the cancelled send, not as a
+  reason to restore an old draft over newer user input.
+
+Validation:
+
+- Focused runtime tests:
+  `pnpm exec vitest run src/main/core/conversations/chat/chat-conversation-runtime.test.ts src/main/core/conversations/chat/chat-conversation-runtime.db.test.ts`:
+  passed, 70 tests.
+- `pnpm run format`: passed.
+- `pnpm run lint`: passed.
+- `pnpm run typecheck`: passed.
+- `pnpm run test`: passed, 200 files / 1353 tests.
+
+Review loop:
+
+- Architecture reviewer found medium issues around cancelled hidden user rows being recoverable after
+  restart and cancellation racing delivery-start marking. Fixed with a durable cancelled delivery
+  marker, guarded delivery-start writes, recovery filtering, and DB coverage.
+- Test reviewer found medium issues around optimistic renderer sends, composer duplicate/error/cancel
+  behavior, cancellation race coverage, and stale cancelled sends. Fixed with renderer store/component
+  tests, runtime unit tests, and DB-backed recovery tests.
+- Logic reviewer found medium issues around stale cancelled sends clearing newer turns, cancellation
+  being misreported as backend send failure, and cancel availability while a send RPC was pending.
+  Fixed with turn ownership checks, cancellation-aware failure handling, and composer run-id guards.
+- Follow-up test review found one remaining medium issue for cancelled pre-backend sends whose
+  pending readiness/append/delivery-start operation later rejected without a newer turn. Fixed by
+  treating already-cleared cancelled turns as cancellation and adding targeted coverage for all three
+  failure points.
+- Final architecture, logic, and test reviewers found no high/medium issues.
+
+Remaining risks and follow-ups:
+
+- Tool calls and permission responses remain intentionally unsupported until the next design phase.
+- The UI is functionally complete for the MVP but still intentionally plain; richer message/tool-call
+  rendering belongs in the next steps.
+- Codex remains the only implemented chat runtime target.

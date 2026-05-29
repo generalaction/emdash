@@ -63,6 +63,16 @@ function click(element: Element): void {
   element.dispatchEvent(new window.MouseEvent('click', { bubbles: true }));
 }
 
+function deferred<T = void>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((innerResolve, innerReject) => {
+    resolve = innerResolve;
+    reject = innerReject;
+  });
+  return { promise, resolve, reject };
+}
+
 function renderPanel(root: Root, conversation: Pick<ConversationStore, 'data' | 'status'>): void {
   root.render(
     React.createElement(ChatConversationPanel, {
@@ -127,6 +137,201 @@ describe('ChatConversationPanel', () => {
     expect(sendMessage).toHaveBeenCalledWith('conversation-1', 'hello');
   });
 
+  it('uses Enter to send and Shift+Enter to keep editing', async () => {
+    const conversation = { data: makeConversation(), status: 'idle' as const };
+
+    await act(async () => {
+      renderPanel(root, conversation);
+    });
+
+    const textarea = container.querySelector('textarea')!;
+    await act(async () => {
+      setTextareaValue(textarea, 'hello');
+      textarea.dispatchEvent(
+        new window.KeyboardEvent('keydown', { bubbles: true, key: 'Enter', shiftKey: true })
+      );
+    });
+    expect(sendMessage).not.toHaveBeenCalled();
+
+    await act(async () => {
+      textarea.dispatchEvent(new window.KeyboardEvent('keydown', { bubbles: true, key: 'Enter' }));
+    });
+
+    expect(sendMessage).toHaveBeenCalledWith('conversation-1', 'hello');
+  });
+
+  it('does not submit while IME composition is active', async () => {
+    const conversation = { data: makeConversation(), status: 'idle' as const };
+
+    await act(async () => {
+      renderPanel(root, conversation);
+    });
+
+    const textarea = container.querySelector('textarea')!;
+    await act(async () => {
+      setTextareaValue(textarea, '変換');
+      textarea.dispatchEvent(
+        new window.KeyboardEvent('keydown', {
+          bubbles: true,
+          isComposing: true,
+          key: 'Enter',
+        } as KeyboardEventInit)
+      );
+    });
+
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('prevents duplicate sends while the composer submit is pending', async () => {
+    const send = deferred();
+    sendMessage.mockReturnValueOnce(send.promise);
+    const conversation = { data: makeConversation(), status: 'idle' as const };
+
+    await act(async () => {
+      renderPanel(root, conversation);
+    });
+
+    const textarea = container.querySelector('textarea')!;
+    await act(async () => {
+      setTextareaValue(textarea, 'hello');
+    });
+    await act(async () => {
+      click(container.querySelector('[aria-label="Send message"]')!);
+      click(container.querySelector('[aria-label="Send message"]')!);
+    });
+
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      send.resolve();
+      await send.promise;
+    });
+  });
+
+  it('keeps cancellation available and ignores send cancellation after submit turns working', async () => {
+    const send = deferred();
+    sendMessage.mockReturnValueOnce(send.promise);
+    const idleConversation = { data: makeConversation(), status: 'idle' as const };
+    const workingConversation = { data: makeConversation(), status: 'working' as const };
+
+    await act(async () => {
+      renderPanel(root, idleConversation);
+    });
+
+    const textarea = container.querySelector('textarea')!;
+    await act(async () => {
+      setTextareaValue(textarea, 'hello');
+    });
+    await act(async () => {
+      click(container.querySelector('[aria-label="Send message"]')!);
+    });
+    await act(async () => {
+      renderPanel(root, workingConversation);
+    });
+
+    const cancelButton = container.querySelector<HTMLButtonElement>('[aria-label="Cancel turn"]')!;
+    expect(cancelButton.disabled).toBe(false);
+
+    await act(async () => {
+      click(cancelButton);
+    });
+
+    expect(cancelTurn).toHaveBeenCalledWith('conversation-1');
+
+    await act(async () => {
+      send.reject(new Error('Message send was cancelled'));
+      await send.promise.catch(() => {});
+    });
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it('does not restore a cancelled draft when the pending send rejects as cancelled', async () => {
+    const send = deferred();
+    sendMessage.mockReturnValueOnce(send.promise);
+    const idleConversation = { data: makeConversation(), status: 'idle' as const };
+    const workingConversation = { data: makeConversation(), status: 'working' as const };
+
+    await act(async () => {
+      renderPanel(root, idleConversation);
+    });
+
+    const textarea = container.querySelector('textarea')!;
+    await act(async () => {
+      setTextareaValue(textarea, 'cancel me');
+    });
+    await act(async () => {
+      click(container.querySelector('[aria-label="Send message"]')!);
+    });
+    await act(async () => {
+      renderPanel(root, workingConversation);
+    });
+    await act(async () => {
+      click(container.querySelector('[aria-label="Cancel turn"]')!);
+    });
+    await act(async () => {
+      renderPanel(root, idleConversation);
+    });
+    await act(async () => {
+      setTextareaValue(textarea, 'new prompt');
+    });
+    await act(async () => {
+      click(container.querySelector('[aria-label="Send message"]')!);
+    });
+
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(sendMessage).toHaveBeenLastCalledWith('conversation-1', 'new prompt');
+
+    await act(async () => {
+      send.reject(new Error('Message send was cancelled'));
+      await Promise.resolve();
+    });
+
+    expect(textarea.value).toBe('');
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it('ignores Electron-wrapped send cancellation errors', async () => {
+    sendMessage.mockRejectedValueOnce(
+      new Error('Error invoking remote method: Error: Message send was cancelled')
+    );
+    const conversation = { data: makeConversation(), status: 'idle' as const };
+
+    await act(async () => {
+      renderPanel(root, conversation);
+    });
+
+    const textarea = container.querySelector('textarea')!;
+    await act(async () => {
+      setTextareaValue(textarea, 'hello');
+    });
+    await act(async () => {
+      click(container.querySelector('[aria-label="Send message"]')!);
+    });
+
+    expect(textarea.value).toBe('');
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it('restores the draft and shows send errors', async () => {
+    sendMessage.mockRejectedValueOnce(new Error('send failed'));
+    const conversation = { data: makeConversation(), status: 'idle' as const };
+
+    await act(async () => {
+      renderPanel(root, conversation);
+    });
+
+    const textarea = container.querySelector('textarea')!;
+    await act(async () => {
+      setTextareaValue(textarea, 'hello');
+    });
+    await act(async () => {
+      click(container.querySelector('[aria-label="Send message"]')!);
+    });
+
+    expect(textarea.value).toBe('hello');
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe('send failed');
+  });
+
   it('disables sending and exposes cancellation while working', async () => {
     const conversation = { data: makeConversation(), status: 'working' as const };
 
@@ -148,6 +353,61 @@ describe('ChatConversationPanel', () => {
     });
 
     expect(cancelTurn).toHaveBeenCalledWith('conversation-1');
+  });
+
+  it('allows cancellation after a send switches the conversation to working while send is pending', async () => {
+    const send = deferred();
+    sendMessage.mockReturnValueOnce(send.promise);
+    const conversation = { data: makeConversation(), status: 'idle' as const };
+
+    await act(async () => {
+      renderPanel(root, conversation);
+    });
+
+    const textarea = container.querySelector('textarea')!;
+    await act(async () => {
+      setTextareaValue(textarea, 'hello');
+    });
+    await act(async () => {
+      click(container.querySelector('[aria-label="Send message"]')!);
+    });
+
+    await act(async () => {
+      renderPanel(root, { ...conversation, status: 'working' as const });
+    });
+
+    const cancelButton = container.querySelector('[aria-label="Cancel turn"]') as HTMLButtonElement;
+    expect(cancelButton.disabled).toBe(false);
+
+    await act(async () => {
+      click(cancelButton);
+    });
+
+    expect(cancelTurn).toHaveBeenCalledWith('conversation-1');
+    send.resolve();
+    await act(async () => {
+      await send.promise;
+    });
+  });
+
+  it('shows cancel errors without clearing the draft', async () => {
+    cancelTurn.mockRejectedValueOnce(new Error('cancel failed'));
+    const conversation = { data: makeConversation(), status: 'working' as const };
+
+    await act(async () => {
+      renderPanel(root, conversation);
+    });
+
+    const textarea = container.querySelector('textarea')!;
+    await act(async () => {
+      setTextareaValue(textarea, 'next');
+    });
+    await act(async () => {
+      click(container.querySelector('[aria-label="Cancel turn"]')!);
+    });
+
+    expect(textarea.value).toBe('next');
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe('cancel failed');
   });
 
   it('disables sending and exposes cancellation while awaiting provider input', async () => {
