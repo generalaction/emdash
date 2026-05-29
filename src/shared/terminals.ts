@@ -5,6 +5,7 @@ export type Terminal = {
   projectId: string;
   taskId: string;
   ssh?: boolean;
+  shellId: TerminalShellId;
   name: string;
 };
 

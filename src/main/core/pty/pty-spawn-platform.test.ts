@@ -14,9 +14,8 @@ const posixEnv = {
 const pwshProfile = {
   id: 'pwsh',
   resolvedShellId: 'pwsh',
-  resolvedFromAuto: false,
+  resolvedFromSystem: false,
   executable: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
-  displayName: 'pwsh',
   available: true,
   family: 'powershell',
   interactiveArgs: [],
@@ -37,9 +36,8 @@ function posixShellProfile({
   return {
     id: shell,
     resolvedShellId: shell,
-    resolvedFromAuto: false,
+    resolvedFromSystem: false,
     executable: shell,
-    displayName: shell,
     available: true,
     family,
     interactiveArgs,
@@ -363,9 +361,8 @@ describe('resolveLocalPtySpawn - POSIX', () => {
   const posixPwshProfile: ResolvedShellProfile = {
     id: 'pwsh',
     resolvedShellId: 'pwsh',
-    resolvedFromAuto: false,
+    resolvedFromSystem: false,
     executable: 'pwsh',
-    displayName: 'pwsh',
     available: true,
     family: 'powershell',
     interactiveArgs: [],

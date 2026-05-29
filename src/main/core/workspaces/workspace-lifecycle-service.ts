@@ -116,6 +116,7 @@ export class LifecycleScriptService implements IDisposable {
         id: terminalId,
         projectId: this.projectId,
         taskId: this.workspaceId,
+        shellId: 'system',
         name: script.type,
       },
       shellSetup: script.shellSetup,

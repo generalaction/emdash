@@ -8,6 +8,7 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
 import type { StoredBranch } from '@main/core/tasks/stored-branch';
+import type { TerminalShellId } from '@shared/terminal-settings';
 
 export const sshConnections = sqliteTable(
   'ssh_connections',
@@ -311,6 +312,7 @@ export const terminals = sqliteTable(
       .references(() => tasks.id, { onDelete: 'cascade' }),
     ssh: integer('ssh').notNull().default(0), // boolean, 0=false, 1=true
     name: text('name').notNull(),
+    shellId: text('shell_id').$type<TerminalShellId>().notNull().default('system'),
     createdAt: text('created_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
