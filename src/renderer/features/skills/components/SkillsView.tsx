@@ -18,9 +18,12 @@ export const SkillsView: React.FC = () => {
     searchQuery,
     setSearchQuery,
     selectedSkill,
+    isLoadingDetail,
     showDetailModal,
     installedSkills,
     recommendedSkills,
+    skillShSearchSkills,
+    isSearchingSkillSh,
     refresh,
     install,
     uninstall,
@@ -118,10 +121,25 @@ export const SkillsView: React.FC = () => {
               ))}
             </CardGridSection>
           )}
+          {(isSearchingSkillSh || skillShSearchSkills.length > 0) && (
+            <CardGridSection title={isSearchingSkillSh ? 'Searching Skills.SH...' : 'Skills.SH'}>
+              {skillShSearchSkills.map((skill) => (
+                <SkillCard
+                  key={skill.id}
+                  skill={skill}
+                  isInstalled={false}
+                  onInstall={install}
+                  onUninstall={handleUninstallRequest}
+                  onClick={() => openDetail(skill)}
+                />
+              ))}
+            </CardGridSection>
+          )}
         </div>
       </div>
       <SkillDetailModal
         skill={selectedSkill}
+        isLoading={isLoadingDetail}
         isOpen={showDetailModal}
         onClose={closeDetail}
         onInstall={install}

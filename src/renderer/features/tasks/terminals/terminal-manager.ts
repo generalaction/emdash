@@ -5,6 +5,7 @@ import { PtySession } from '@renderer/lib/pty/pty-session';
 import type { IDisposable } from '@renderer/lib/stores/lifecycle';
 import { Resource } from '@renderer/lib/stores/resource';
 import { makePtySessionId } from '@shared/ptySessionId';
+import type { TerminalShellId } from '@shared/terminal-settings';
 import { type CreateTerminalParams, type Terminal } from '@shared/terminals';
 import { nextTerminalName } from './terminal-tabs';
 
@@ -103,11 +104,17 @@ export class TerminalManagerStore implements IDisposable {
     }
   }
 
-  async createDefaultTerminal(): Promise<Terminal> {
+  async createDefaultTerminal(shell: TerminalShellId = 'auto'): Promise<Terminal> {
     const names = Array.from(this.terminals.values()).map((t) => t.data.name);
     const name = nextTerminalName(names);
     const id = crypto.randomUUID();
-    return this.createTerminal({ id, projectId: this.projectId, taskId: this.taskId, name });
+    return this.createTerminal({
+      id,
+      projectId: this.projectId,
+      taskId: this.taskId,
+      name,
+      shell,
+    });
   }
 
   async deleteTerminal(terminalId: string): Promise<void> {

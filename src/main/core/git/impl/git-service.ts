@@ -67,6 +67,42 @@ const STATUS_FINGERPRINT_TIMEOUT_MS: Record<GitStatusUntrackedMode, number> = {
   normal: 10_000,
 };
 
+function classifyFetchError(stderr: string): FetchError {
+  if (
+    stderr.includes('Authentication failed') ||
+    stderr.includes('authentication failed') ||
+    stderr.includes('Permission denied') ||
+    stderr.includes('could not read Username')
+  ) {
+    return { type: 'auth_failed', message: stderr };
+  }
+  if (
+    stderr.includes('Could not resolve host') ||
+    stderr.includes('could not resolve host') ||
+    stderr.includes('Network is unreachable') ||
+    stderr.includes('Connection refused') ||
+    stderr.includes('Connection timed out') ||
+    stderr.includes('No route to host') ||
+    stderr.includes('Network is down') ||
+    stderr.includes('Could not resolve hostname') ||
+    stderr.includes('Temporary failure in name resolution') ||
+    stderr.includes('Name or service not known') ||
+    stderr.includes('ssh: connect to host') ||
+    stderr.includes('unable to connect')
+  ) {
+    return { type: 'network_error', message: stderr };
+  }
+  if (
+    stderr.includes('does not appear to be a git repository') ||
+    stderr.includes('repository not found') ||
+    stderr.includes('Repository not found') ||
+    stderr.includes('ERROR: Repository not found')
+  ) {
+    return { type: 'remote_not_found', message: stderr };
+  }
+  return { type: 'error', message: stderr };
+}
+
 const IMAGE_MIME_BY_EXT: Record<string, string> = {
   png: 'image/png',
   jpg: 'image/jpeg',
@@ -1013,34 +1049,7 @@ export class GitService implements GitProvider, IDisposable {
       return ok();
     } catch (error: unknown) {
       const stderr = (error as { stderr?: string })?.stderr || String(error);
-      if (
-        stderr.includes('Authentication failed') ||
-        stderr.includes('authentication failed') ||
-        stderr.includes('Permission denied') ||
-        stderr.includes('could not read Username')
-      ) {
-        return err({ type: 'auth_failed', message: stderr });
-      }
-      if (
-        stderr.includes('Could not resolve host') ||
-        stderr.includes('could not resolve host') ||
-        stderr.includes('Network is unreachable') ||
-        stderr.includes('Connection refused') ||
-        stderr.includes('Connection timed out') ||
-        stderr.includes('unable to connect')
-      ) {
-        return err({ type: 'network_error', message: stderr });
-      }
-      if (
-        stderr.includes('does not appear to be a git repository') ||
-        stderr.includes('repository not found') ||
-        stderr.includes('Repository not found') ||
-        stderr.includes('not found') ||
-        stderr.includes('ERROR: Repository not found')
-      ) {
-        return err({ type: 'remote_not_found', message: stderr });
-      }
-      return err({ type: 'error', message: stderr });
+      return err(classifyFetchError(stderr));
     }
   }
 
@@ -1483,11 +1492,19 @@ export class GitService implements GitProvider, IDisposable {
     remote = 'origin'
   ): Promise<Result<void, CreateBranchError>> {
     if (syncWithRemote) {
-      await this.ctx
-        .exec('git', ['fetch', remote], {
+      try {
+        await this.ctx.exec('git', ['fetch', remote], {
           maxBuffer: MAX_REF_LIST_BYTES,
-        })
-        .catch(() => {});
+        });
+      } catch (error: unknown) {
+        const stderr = (error as { stderr?: string })?.stderr || String(error);
+        return err({
+          type: 'fetch_failed',
+          remote,
+          branch: from,
+          error: classifyFetchError(stderr),
+        });
+      }
     }
     const base = syncWithRemote ? `${remote}/${from}` : `refs/heads/${from}`;
     try {
@@ -1584,19 +1601,10 @@ export class GitService implements GitProvider, IDisposable {
   async renameBranch(
     oldBranch: string,
     newBranch: string
-  ): Promise<Result<{ remotePushed: boolean }, RenameBranchError>> {
-    let remoteName: string | undefined;
-    try {
-      const { stdout } = await this.ctx.exec('git', [
-        'config',
-        '--get',
-        `branch.${oldBranch}.remote`,
-      ]);
-      remoteName = stdout.trim() || undefined;
-    } catch {}
-
+  ): Promise<Result<void, RenameBranchError>> {
     try {
       await this.ctx.exec('git', ['branch', '-m', oldBranch, newBranch]);
+      return ok();
     } catch (error: unknown) {
       const stderr = (error as { stderr?: string })?.stderr || String(error);
       if (stderr.includes('already exists')) {
@@ -1604,20 +1612,6 @@ export class GitService implements GitProvider, IDisposable {
       }
       return err({ type: 'error', message: stderr });
     }
-
-    if (remoteName) {
-      try {
-        await this.ctx.exec('git', ['push', remoteName, '--delete', oldBranch]);
-      } catch {}
-      try {
-        await this.ctx.exec('git', ['push', '-u', remoteName, newBranch]);
-      } catch (error: unknown) {
-        const stderr = (error as { stderr?: string })?.stderr || String(error);
-        return err({ type: 'remote_push_failed', message: stderr });
-      }
-    }
-
-    return ok({ remotePushed: !!remoteName });
   }
 
   async deleteBranch(branch: string, force = true): Promise<Result<void, DeleteBranchError>> {

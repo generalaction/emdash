@@ -13,6 +13,7 @@ import { snapshotRegistry } from '@renderer/lib/stores/snapshot-registry';
 import { focusTracker } from '@renderer/utils/focus-tracker';
 import { log } from '@renderer/utils/logger';
 import { taskViewProfile, type Task, type TaskKind } from '@shared/tasks';
+import type { TerminalShellId } from '@shared/terminal-settings';
 import type {
   DiffViewSnapshot,
   TaskViewSnapshot,
@@ -326,7 +327,7 @@ export class WorkspaceViewModel implements ILifecycle {
         );
       },
       (shouldCreate) => {
-        if (shouldCreate) void this._createDefaultTerminal();
+        if (shouldCreate) void this._createDefaultTerminal('auto');
       }
     );
     this._sessionDisposers.push(terminalsDisposer);
@@ -425,11 +426,11 @@ export class WorkspaceViewModel implements ILifecycle {
   }
 
   /** Opens the terminal drawer and always creates a new terminal session. */
-  async openNewTerminal(): Promise<string | undefined> {
+  async openNewTerminal(shell: TerminalShellId = 'auto'): Promise<string | undefined> {
     this.isTerminalDrawerOpen = true;
     this.setFocusedRegion('bottom');
 
-    const terminalId = await this._createDefaultTerminal();
+    const terminalId = await this._createDefaultTerminal(shell);
     if (!terminalId) return undefined;
     runInAction(() => {
       this.terminalTabs.setActiveTab(terminalId);
@@ -438,12 +439,12 @@ export class WorkspaceViewModel implements ILifecycle {
     return terminalId;
   }
 
-  private async _createDefaultTerminal(): Promise<string | undefined> {
+  private async _createDefaultTerminal(shell: TerminalShellId): Promise<string | undefined> {
     if (this._isCreatingTerminal) return undefined;
 
     this._isCreatingTerminal = true;
     try {
-      const terminal = await terminalRegistry.get(this.taskId)?.createDefaultTerminal();
+      const terminal = await terminalRegistry.get(this.taskId)?.createDefaultTerminal(shell);
       if (!terminal) return undefined;
       return terminal.id;
     } catch (error) {

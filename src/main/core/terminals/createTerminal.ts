@@ -30,7 +30,8 @@ export async function createTerminal(params: CreateTerminalParams): Promise<Term
 
   const terminal = mapTerminalRowToTerminal(row);
   await withCompensation({
-    action: () => task.terminals.spawnTerminal(terminal, initialSize),
+    action: () =>
+      task.terminals.spawnTerminal(terminal, initialSize, { shell: params.shell ?? 'auto' }),
     compensate: async () => {
       await db.delete(terminals).where(eq(terminals.id, row.id)).execute();
     },

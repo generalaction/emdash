@@ -86,23 +86,39 @@ const { events } = await import('@main/lib/events');
 
 type RespawnState = {
   respawnCounts: Map<string, number>;
+  knownSessionIds: Set<string>;
+  sessions: Map<string, Pty>;
 };
 
-function localProvider() {
+function localProvider({
+  tmux = false,
+  ctx = {} as never,
+}: {
+  tmux?: boolean;
+  ctx?: ConstructorParameters<typeof LocalConversationProvider>[0]['ctx'];
+} = {}) {
   return new LocalConversationProvider({
     projectId: 'project-1',
     taskId: 'task-1',
     taskPath: '/tmp/task-1',
-    ctx: {} as never,
+    tmux,
+    ctx,
   });
 }
 
-function sshProvider(proxy = { getRemoteShellProfile: vi.fn(async () => ({})) }) {
+function sshProvider(
+  proxy = { getRemoteShellProfile: vi.fn(async () => ({})) },
+  {
+    tmux = false,
+    ctx = {} as never,
+  }: { tmux?: boolean; ctx?: ConstructorParameters<typeof SshConversationProvider>[0]['ctx'] } = {}
+) {
   return new SshConversationProvider({
     projectId: 'project-1',
     taskId: 'task-1',
     taskPath: '/tmp/task-1',
-    ctx: {} as never,
+    tmux,
+    ctx,
     proxy: proxy as never,
   });
 }
@@ -328,5 +344,147 @@ describe('conversation provider respawn state', () => {
     await provider.stopSession('conversation-1');
 
     expect((provider as unknown as RespawnState).respawnCounts.has(sessionId)).toBe(false);
+  });
+
+  it('detaches local tmux conversations without killing the tmux session', async () => {
+    const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
+    const pty = fakePty(exitHandlers);
+    spawnLocalPty.mockReturnValue(pty);
+    const ctx = {
+      exec: vi.fn(async () => ({ stdout: '', stderr: '' })),
+    };
+    const provider = localProvider({ tmux: true, ctx: ctx as never });
+    const item = conversation();
+    const sessionId = makePtySessionId(item.projectId, item.taskId, item.id);
+
+    await provider.startSession(item);
+    vi.mocked(events.emit).mockClear();
+    await provider.detachSession(item.id);
+    for (const handler of exitHandlers) handler({ exitCode: 0 });
+
+    expect(pty.kill).toHaveBeenCalledTimes(1);
+    expect(ctx.exec).not.toHaveBeenCalled();
+    expect(events.emit).not.toHaveBeenCalledWith(
+      agentSessionExitedChannel,
+      expect.objectContaining({ sessionId })
+    );
+    expect((provider as unknown as RespawnState).knownSessionIds.has(sessionId)).toBe(true);
+  });
+
+  it('detaches SSH tmux conversations without killing the tmux session', async () => {
+    const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
+    const pty = fakePty(exitHandlers);
+    openSsh2Pty.mockResolvedValue({ success: true, data: pty });
+    const ctx = {
+      exec: vi.fn(async () => ({ stdout: '', stderr: '' })),
+    };
+    const provider = sshProvider(undefined, { tmux: true, ctx: ctx as never });
+    const item = conversation();
+    const sessionId = makePtySessionId(item.projectId, item.taskId, item.id);
+
+    await provider.startSession(item);
+    vi.mocked(events.emit).mockClear();
+    await provider.detachSession(item.id);
+    for (const handler of exitHandlers) handler({ exitCode: 0 });
+
+    expect(pty.kill).toHaveBeenCalledTimes(1);
+    expect(ctx.exec).not.toHaveBeenCalled();
+    expect(events.emit).not.toHaveBeenCalledWith(
+      agentSessionExitedChannel,
+      expect.objectContaining({ sessionId })
+    );
+    expect((provider as unknown as RespawnState).knownSessionIds.has(sessionId)).toBe(true);
+  });
+
+  it('kills tmux when explicitly stopping a detached local conversation', async () => {
+    const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
+    spawnLocalPty.mockReturnValue(fakePty(exitHandlers));
+    const ctx = {
+      exec: vi.fn(async () => ({ stdout: '', stderr: '' })),
+    };
+    const provider = localProvider({ tmux: true, ctx: ctx as never });
+    const item = conversation();
+    const sessionId = makePtySessionId(item.projectId, item.taskId, item.id);
+
+    await provider.startSession(item);
+    await provider.detachSession(item.id);
+    await provider.stopSession(item.id);
+
+    expect(ctx.exec).toHaveBeenCalledWith('tmux', [
+      'kill-session',
+      '-t',
+      expect.stringContaining(Buffer.from(sessionId, 'utf8').toString('base64url')),
+    ]);
+    expect((provider as unknown as RespawnState).knownSessionIds.has(sessionId)).toBe(false);
+  });
+
+  it('kills tmux when explicitly stopping a detached SSH conversation', async () => {
+    const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
+    openSsh2Pty.mockResolvedValue({ success: true, data: fakePty(exitHandlers) });
+    const ctx = {
+      exec: vi.fn(async () => ({ stdout: '', stderr: '' })),
+    };
+    const provider = sshProvider(undefined, { tmux: true, ctx: ctx as never });
+    const item = conversation();
+    const sessionId = makePtySessionId(item.projectId, item.taskId, item.id);
+
+    await provider.startSession(item);
+    await provider.detachSession(item.id);
+    await provider.stopSession(item.id);
+
+    expect(ctx.exec).toHaveBeenCalledWith('tmux', [
+      'kill-session',
+      '-t',
+      expect.stringContaining(Buffer.from(sessionId, 'utf8').toString('base64url')),
+    ]);
+    expect((provider as unknown as RespawnState).knownSessionIds.has(sessionId)).toBe(false);
+  });
+
+  it('ignores stale local attach exits after a tmux conversation is rehydrated', async () => {
+    const firstExitHandlers: Array<(info: PtyExitInfo) => void> = [];
+    const secondExitHandlers: Array<(info: PtyExitInfo) => void> = [];
+    const firstPty = fakePty(firstExitHandlers);
+    const secondPty = fakePty(secondExitHandlers);
+    spawnLocalPty.mockReturnValueOnce(firstPty).mockReturnValueOnce(secondPty);
+    const provider = localProvider({ tmux: true });
+    const item = conversation();
+    const sessionId = makePtySessionId(item.projectId, item.taskId, item.id);
+
+    await provider.startSession(item);
+    await provider.detachSession(item.id);
+    await provider.startSession(item);
+    vi.mocked(events.emit).mockClear();
+    for (const handler of firstExitHandlers) handler({ exitCode: 0 });
+
+    expect((provider as unknown as RespawnState).sessions.get(sessionId)).toBe(secondPty);
+    expect(events.emit).not.toHaveBeenCalledWith(
+      agentSessionExitedChannel,
+      expect.objectContaining({ sessionId })
+    );
+  });
+
+  it('ignores stale SSH attach exits after a tmux conversation is rehydrated', async () => {
+    const firstExitHandlers: Array<(info: PtyExitInfo) => void> = [];
+    const secondExitHandlers: Array<(info: PtyExitInfo) => void> = [];
+    const firstPty = fakePty(firstExitHandlers);
+    const secondPty = fakePty(secondExitHandlers);
+    openSsh2Pty
+      .mockResolvedValueOnce({ success: true, data: firstPty })
+      .mockResolvedValueOnce({ success: true, data: secondPty });
+    const provider = sshProvider(undefined, { tmux: true });
+    const item = conversation();
+    const sessionId = makePtySessionId(item.projectId, item.taskId, item.id);
+
+    await provider.startSession(item);
+    await provider.detachSession(item.id);
+    await provider.startSession(item);
+    vi.mocked(events.emit).mockClear();
+    for (const handler of firstExitHandlers) handler({ exitCode: 0 });
+
+    expect((provider as unknown as RespawnState).sessions.get(sessionId)).toBe(secondPty);
+    expect(events.emit).not.toHaveBeenCalledWith(
+      agentSessionExitedChannel,
+      expect.objectContaining({ sessionId })
+    );
   });
 });
