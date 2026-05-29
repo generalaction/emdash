@@ -86,22 +86,25 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
     if (!script || script.isRunning) return;
     lifecycleScriptsMgr?.setActiveTab(id);
     taskView.setTerminalDrawerActiveItem({ kind: 'script', id });
-    script.markRunning();
     void rpc.terminals
       .runLifecycleScript({
         projectId,
+        taskId,
         workspaceId,
         type: script.data.type,
       })
-      .catch(() => {
-        script.markExited();
-      });
+      .catch(() => {});
   };
 
   const handleStopScript = (id: string) => {
     const script = lifecycleScriptsMgr?.tabs.find((s) => s.data.id === id);
     if (!script) return;
-    void rpc.pty.sendInput(script.session.sessionId, '\x03');
+    void rpc.terminals.stopLifecycleScript({
+      projectId,
+      taskId,
+      workspaceId,
+      type: script.data.type,
+    });
   };
 
   const emptyState = (

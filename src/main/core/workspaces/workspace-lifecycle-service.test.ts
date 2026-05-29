@@ -15,6 +15,7 @@ vi.mock('@main/lib/events', () => ({
 
 class FakePty implements Pty {
   writes: string[] = [];
+  private dataHandlers: Array<(data: string) => void> = [];
   private exitHandlers: Array<(info: PtyExitInfo) => void> = [];
 
   write(data: string): void {
@@ -23,9 +24,13 @@ class FakePty implements Pty {
 
   resize(): void {}
 
-  kill(): void {}
+  kill(): void {
+    this.emitExit({ signal: 'SIGTERM' });
+  }
 
-  onData(): void {}
+  onData(handler: (data: string) => void): void {
+    this.dataHandlers.push(handler);
+  }
 
   onExit(handler: (info: PtyExitInfo) => void): void {
     this.exitHandlers.push(handler);
@@ -34,6 +39,12 @@ class FakePty implements Pty {
   emitExit(info: PtyExitInfo = { exitCode: 0 }): void {
     for (const handler of this.exitHandlers) {
       handler(info);
+    }
+  }
+
+  emitData(data: string): void {
+    for (const handler of this.dataHandlers) {
+      handler(data);
     }
   }
 }
@@ -86,6 +97,21 @@ describe('WorkspaceLifecycleService', () => {
     expect(spawned[1].writes).toEqual([]);
   });
 
+  it('does not prepare a second lifecycle shell when one is already active', async () => {
+    const { provider, spawned, requests } = makeTerminalProvider();
+    const service = new LifecycleScriptService({
+      projectId: 'project-prepare',
+      workspaceId: 'branch:feature',
+      terminals: provider,
+    });
+
+    await service.prepareLifecycleScript({ type: 'run', script: 'pnpm dev' });
+    await service.prepareLifecycleScript({ type: 'run', script: 'pnpm dev' });
+
+    expect(spawned).toHaveLength(1);
+    expect(requests).toHaveLength(1);
+  });
+
   it('keeps the same lifecycle PTY when the script text changes', async () => {
     const { provider, spawned, requests } = makeTerminalProvider();
     const service = new LifecycleScriptService({
@@ -125,5 +151,106 @@ describe('WorkspaceLifecycleService', () => {
     await expect.poll(() => spawned.length).toBe(2);
     expect(requests).toHaveLength(2);
     expect(requests[1].shellSetup).toBe('source new-env');
+  });
+
+  it('resolves waitForExit when an exit-backed script exits successfully', async () => {
+    const { provider, spawned } = makeTerminalProvider();
+    const service = new LifecycleScriptService({
+      projectId: 'project-4',
+      workspaceId: 'branch:feature',
+      terminals: provider,
+    });
+
+    const runPromise = service.runLifecycleScript(
+      { type: 'setup', script: 'pnpm install' },
+      { exit: true, waitForExit: true }
+    );
+
+    await expect.poll(() => spawned[0]?.writes).toEqual(['pnpm install; exit\n']);
+
+    spawned[0].emitExit({ exitCode: 0 });
+
+    await expect(runPromise).resolves.toEqual({
+      kind: 'exited',
+      exitCode: 0,
+      signal: undefined,
+      outputTail: '',
+    });
+    expect(spawned).toHaveLength(1);
+  });
+
+  it('can restore an interactive lifecycle shell after an awaited script exits', async () => {
+    const { provider, spawned } = makeTerminalProvider();
+    const service = new LifecycleScriptService({
+      projectId: 'project-6',
+      workspaceId: 'branch:feature',
+      terminals: provider,
+    });
+
+    const runPromise = service.runLifecycleScript(
+      { type: 'run', script: 'pnpm dev' },
+      { exit: true, waitForExit: true, respawnAfterExit: true }
+    );
+
+    await expect.poll(() => spawned[0]?.writes).toEqual(['pnpm dev; exit\n']);
+
+    spawned[0].emitExit({ exitCode: 0 });
+
+    await expect(runPromise).resolves.toMatchObject({
+      kind: 'exited',
+      exitCode: 0,
+    });
+    await expect.poll(() => spawned.length).toBe(2);
+    expect(spawned[1].writes).toEqual([]);
+  });
+
+  it('can restore an interactive lifecycle shell after an awaited script is stopped', async () => {
+    const { provider, spawned } = makeTerminalProvider();
+    const service = new LifecycleScriptService({
+      projectId: 'project-7',
+      workspaceId: 'branch:feature',
+      terminals: provider,
+    });
+
+    const runPromise = service.runLifecycleScript(
+      { type: 'run', script: 'pnpm dev' },
+      { exit: true, waitForExit: true, respawnAfterExit: true }
+    );
+
+    await expect.poll(() => spawned[0]?.writes).toEqual(['pnpm dev; exit\n']);
+
+    spawned[0].kill();
+
+    await expect(runPromise).resolves.toMatchObject({
+      kind: 'exited',
+      signal: 'SIGTERM',
+    });
+    await expect.poll(() => spawned.length).toBe(2);
+    expect(spawned[1].writes).toEqual([]);
+  });
+
+  it('returns the output tail when an exit-backed script fails', async () => {
+    const { provider, spawned } = makeTerminalProvider();
+    const service = new LifecycleScriptService({
+      projectId: 'project-5',
+      workspaceId: 'branch:feature',
+      terminals: provider,
+    });
+
+    const runPromise = service.runLifecycleScript(
+      { type: 'setup', script: 'pnpm install' },
+      { exit: true, waitForExit: true }
+    );
+
+    await expect.poll(() => spawned[0]?.writes).toEqual(['pnpm install; exit\n']);
+
+    spawned[0].emitData('\u001b[31mdependency failed\u001b[0m\r\n');
+    spawned[0].emitExit({ exitCode: 1 });
+
+    await expect(runPromise).resolves.toMatchObject({
+      kind: 'exited',
+      exitCode: 1,
+      outputTail: 'dependency failed\n',
+    });
   });
 });
