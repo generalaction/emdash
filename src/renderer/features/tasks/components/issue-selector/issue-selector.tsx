@@ -31,7 +31,6 @@ import type { Issue } from '@shared/tasks';
 import { getLinkedIssueMap, type LinkedIssueInfo } from './use-linked-issue-urls';
 import { useIssueSearch } from './useIssueSearch';
 
-
 export function IssueIdentifier({
   identifier,
   provider,
@@ -115,9 +114,7 @@ function IssuePriorityIcon({
     <Tooltip>
       <TooltipTrigger
         render={
-          <span
-            className={cn('flex h-4 w-5 shrink-0 items-end justify-center gap-0.5', className)}
-          >
+          <span className={cn('flex h-4 w-5 shrink-0 items-end justify-center gap-0.5', className)}>
             {[1, 2, 3].map((bar) => (
               <span
                 key={bar}
@@ -184,7 +181,9 @@ export function IssueRow({
         />
         {shouldShowStatusDot(issue) ? (
           <Tooltip>
-            <TooltipTrigger render={<IssueStatusIndicator status={toIssueStatus(issue.status)} />} />
+            <TooltipTrigger
+              render={<IssueStatusIndicator status={toIssueStatus(issue.status)} />}
+            />
             <TooltipContent>{issue.status}</TooltipContent>
           </Tooltip>
         ) : null}
