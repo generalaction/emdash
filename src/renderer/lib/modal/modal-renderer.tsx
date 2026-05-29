@@ -38,9 +38,11 @@ export const ModalRenderer = observer(function ModalRenderer() {
   // oxlint-disable-next-line typescript/no-explicit-any
   const lastComponentRef = useRef<React.ComponentType<any> | null>(null);
   const lastArgsRef = useRef<Record<string, unknown> | null>(null);
+  const lastArgsKeyRef = useRef(0);
   const lastEntryRef = useRef<ModalRegistryEntry | null>(null);
 
   if (modalStore.isOpen && Component && modalStore.activeModalArgs) {
+    if (lastArgsRef.current !== modalStore.activeModalArgs) lastArgsKeyRef.current += 1;
     lastComponentRef.current = Component;
     lastArgsRef.current = modalStore.activeModalArgs;
     lastEntryRef.current = entry;
@@ -49,6 +51,7 @@ export const ModalRenderer = observer(function ModalRenderer() {
   const DisplayComponent = lastComponentRef.current;
   const displayArgs = lastArgsRef.current;
   const displayEntry = lastEntryRef.current;
+  const displayKey = lastArgsKeyRef.current;
 
   const handleOpenChange = (
     open: boolean,
@@ -111,7 +114,9 @@ export const ModalRenderer = observer(function ModalRenderer() {
             SIZE_CLASSES[displayEntry?.size ?? 'md']
           )}
         >
-          {DisplayComponent && displayArgs ? <DisplayComponent {...displayArgs} /> : null}
+          {DisplayComponent && displayArgs ? (
+            <DisplayComponent key={displayKey} {...displayArgs} />
+          ) : null}
         </DialogPrimitive.Popup>
       </DialogPortal>
     </Dialog>

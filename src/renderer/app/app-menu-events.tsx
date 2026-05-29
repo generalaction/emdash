@@ -20,7 +20,7 @@ function buildIssueFromDeepLink(deepLink: AppDeepLinkEvent): Issue {
   return {
     provider: 'linear',
     identifier: issue.identifier,
-    url: issue.url ?? `https://linear.app/issue/${issue.identifier}`,
+    url: issue.url ?? '',
     title: issue.title ?? issue.identifier,
     description: issue.description,
     branchName: issue.branchName,
