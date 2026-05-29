@@ -1,6 +1,9 @@
 import { EventEmitter } from 'node:events';
+import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { PassThrough, Writable } from 'node:stream';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ConversationPermissionRequestTimelineItem } from '@shared/conversation-timeline';
 import type { Conversation } from '@shared/conversations';
 import type { ChatProviderRuntimeEvent } from '../types';
@@ -16,7 +19,7 @@ class FakeCodexChild extends EventEmitter {
   readonly clientRequests: JsonMessage[] = [];
   readonly serverResponses: JsonMessage[] = [];
 
-  private readonly handlers = new Map<string, (params: unknown) => unknown>();
+  private readonly handlers = new Map<string, (params: unknown) => Promise<unknown> | unknown>();
 
   constructor() {
     super();
@@ -26,9 +29,19 @@ class FakeCodexChild extends EventEmitter {
           if (!line.trim()) continue;
           const message = JSON.parse(line) as JsonMessage;
           if (typeof message.method === 'string') {
+            const method = message.method;
             this.clientRequests.push(message);
-            const response = this.handlers.get(message.method)?.(message.params) ?? {};
-            this.writeStdout({ id: message.id, result: response });
+            void Promise.resolve()
+              .then(() => this.handlers.get(method)?.(message.params) ?? {})
+              .then((response) => {
+                this.writeStdout({ id: message.id, result: response });
+              })
+              .catch((error) => {
+                this.writeStdout({
+                  id: message.id,
+                  error: { message: error instanceof Error ? error.message : String(error) },
+                });
+              });
           } else {
             this.serverResponses.push(message);
           }
@@ -38,7 +51,7 @@ class FakeCodexChild extends EventEmitter {
     });
   }
 
-  handle(method: string, handler: (params: unknown) => unknown): void {
+  handle(method: string, handler: (params: unknown) => Promise<unknown> | unknown): void {
     this.handlers.set(method, handler);
   }
 
@@ -66,6 +79,7 @@ class FakeCodexChild extends EventEmitter {
 }
 
 let fakeChild: FakeCodexChild;
+let previousCodexHome: string | undefined;
 
 vi.mock('node:child_process', async () => {
   const actual = await vi.importActual('node:child_process');
@@ -75,9 +89,14 @@ vi.mock('node:child_process', async () => {
       (
         _command: string,
         _args: string[],
-        callback: (error: Error | null, stdout: string, stderr: string) => void
+        optionsOrCallback:
+          | { cwd?: string; timeout?: number }
+          | ((error: Error | null, stdout: string, stderr: string) => void),
+        callback?: (error: Error | null, stdout: string, stderr: string) => void
       ) => {
-        callback(null, 'codex 0.128.0', '');
+        const done = typeof optionsOrCallback === 'function' ? optionsOrCallback : callback;
+        if (!done) throw new Error('execFile callback missing');
+        done(null, 'codex 0.128.0', '');
         return {};
       }
     ),
@@ -116,6 +135,7 @@ function setupFakeChild(): void {
   fakeChild.handle('thread/compact/start', () => ({}));
   fakeChild.handle('thread/goal/set', () => ({}));
   fakeChild.handle('thread/goal/clear', () => ({}));
+  fakeChild.handle('skills/list', () => ({ data: [] }));
 }
 
 function deferred<T = void>(): {
@@ -150,7 +170,17 @@ async function createSession(
 
 describe('CodexChatAdapter app-server integration', () => {
   beforeEach(() => {
+    previousCodexHome = process.env.CODEX_HOME;
+    process.env.CODEX_HOME = path.join(os.tmpdir(), 'emdash-empty-codex-home');
     setupFakeChild();
+  });
+
+  afterEach(() => {
+    if (previousCodexHome === undefined) {
+      delete process.env.CODEX_HOME;
+    } else {
+      process.env.CODEX_HOME = previousCodexHome;
+    }
   });
 
   it('initializes app-server and sends valid Codex sandbox policy for turns', async () => {
@@ -1138,6 +1168,49 @@ describe('CodexChatAdapter app-server integration', () => {
     );
   });
 
+  it('does not enter pre-turn-start state while resolving prompt-like slash input', async () => {
+    const skills = deferred<unknown>();
+    fakeChild.handle('skills/list', () => skills.promise);
+    const { adapter, session } = await createSession([]);
+
+    const send = adapter.sendMessage(session, { text: '/review edge cases' });
+
+    await expect(adapter.cancel(session)).resolves.toBeUndefined();
+    expect(fakeChild.clientRequests.some((request) => request.method === 'turn/interrupt')).toBe(
+      false
+    );
+    expect(fakeChild.clientRequests.some((request) => request.method === 'turn/start')).toBe(false);
+
+    skills.resolve({ data: [] });
+    await expect(send).rejects.toThrow('Message send was cancelled');
+    expect(fakeChild.clientRequests.some((request) => request.method === 'turn/start')).toBe(false);
+  });
+
+  it('keeps overlapping prompt-like send preparations independently cancellable', async () => {
+    const firstSkills = deferred<unknown>();
+    const secondSkills = deferred<unknown>();
+    let callCount = 0;
+    fakeChild.handle('skills/list', () => {
+      callCount += 1;
+      return callCount === 1 ? firstSkills.promise : secondSkills.promise;
+    });
+    const { adapter, session } = await createSession([]);
+
+    const firstSend = adapter.sendMessage(session, { text: '/review first' });
+    await vi.waitFor(() => expect(callCount).toBe(1));
+    await adapter.cancel(session);
+    const secondSend = adapter.sendMessage(session, { text: '/review second' });
+    await vi.waitFor(() => expect(callCount).toBe(2));
+
+    firstSkills.resolve({ data: [] });
+    await expect(firstSend).rejects.toThrow('Message send was cancelled');
+
+    await adapter.cancel(session);
+    secondSkills.resolve({ data: [] });
+    await expect(secondSend).rejects.toThrow('Message send was cancelled');
+    expect(fakeChild.clientRequests.some((request) => request.method === 'turn/start')).toBe(false);
+  });
+
   it('executes every supported goal subcommand and reports usage for empty goal commands', async () => {
     const events: ChatProviderRuntimeEvent[] = [];
     const { adapter, session } = await createSession(events);
@@ -1172,6 +1245,284 @@ describe('CodexChatAdapter app-server integration', () => {
     });
   });
 
+  it('lists app-server skills and sends selected skills using Codex skill input', async () => {
+    fakeChild.handle('skills/list', () => ({
+      data: [
+        {
+          skills: [
+            {
+              name: 'review',
+              description: 'Review the current change',
+              path: '/tmp/project/.codex/skills/review',
+            },
+            {
+              name: 'disabled-review',
+              description: 'Disabled review',
+              enabled: false,
+              path: '/tmp/project/.codex/skills/disabled-review',
+            },
+          ],
+        },
+      ],
+    }));
+    const codexHome = await mkdtemp(path.join(os.tmpdir(), 'emdash-codex-home-'));
+    process.env.CODEX_HOME = codexHome;
+    await mkdir(path.join(codexHome, 'skills', 'disabled-review'), { recursive: true });
+    await writeFile(
+      path.join(codexHome, 'skills', 'disabled-review', 'SKILL.md'),
+      ['---', 'name: disabled-review', 'description: Disabled review', '---', 'Disabled.'].join(
+        '\n'
+      )
+    );
+    const { adapter, session } = await createSession([]);
+
+    await expect(adapter.listCommands(session)).resolves.toEqual([
+      {
+        name: 'compact',
+        description: 'Compact Codex context',
+        argumentHint: '',
+        execution: 'out-of-band',
+      },
+      {
+        name: 'goal',
+        description: 'Set, pause, resume, or clear the Codex goal',
+        argumentHint: '[<objective>|pause|resume|clear]',
+        execution: 'out-of-band',
+      },
+      {
+        name: 'review',
+        description: 'Review the current change',
+        argumentHint: '',
+        execution: 'prompt',
+      },
+    ]);
+
+    await adapter.sendMessage(session, { text: '/review "edge cases"' });
+
+    expect(
+      fakeChild.clientRequests.find((request) => request.method === 'turn/start')
+    ).toMatchObject({
+      params: {
+        input: [
+          { type: 'skill', name: 'review', path: '/tmp/project/.codex/skills/review' },
+          { type: 'text', text: '$review "edge cases"', text_elements: [] },
+        ],
+      },
+    });
+
+    await adapter.sendMessage(session, { text: '/disabled-review "edge cases"' });
+    expect(
+      fakeChild.clientRequests.filter((request) => request.method === 'turn/start')[1]
+    ).toMatchObject({
+      params: {
+        input: [{ type: 'text', text: '/disabled-review "edge cases"', text_elements: [] }],
+      },
+    });
+
+    fakeChild.handle('skills/list', () => {
+      throw new Error('skills unavailable');
+    });
+    await adapter.sendMessage(session, { text: '/review retry' });
+    expect(
+      fakeChild.clientRequests.filter((request) => request.method === 'turn/start')[2]
+    ).toMatchObject({
+      params: {
+        input: [
+          { type: 'skill', name: 'review', path: '/tmp/project/.codex/skills/review' },
+          { type: 'text', text: '$review retry', text_elements: [] },
+        ],
+      },
+    });
+  });
+
+  it('lists fallback filesystem skills when app-server skills are unavailable', async () => {
+    fakeChild.handle('skills/list', () => {
+      throw new Error('skills unavailable');
+    });
+    const codexHome = await mkdtemp(path.join(os.tmpdir(), 'emdash-codex-home-'));
+    const previousCodexHome = process.env.CODEX_HOME;
+    process.env.CODEX_HOME = codexHome;
+    try {
+      await mkdir(path.join(codexHome, 'skills', 'audit'), { recursive: true });
+      await writeFile(
+        path.join(codexHome, 'skills', 'audit', 'SKILL.md'),
+        [
+          '---',
+          'name: audit',
+          'description: Audit the implementation',
+          '---',
+          'Run an audit.',
+        ].join('\n')
+      );
+      await mkdir(path.join(codexHome, 'skills', 'disabled-audit'), { recursive: true });
+      await writeFile(
+        path.join(codexHome, 'skills', 'disabled-audit', 'SKILL.md'),
+        [
+          '---',
+          'name: disabled-audit',
+          'description: Disabled audit',
+          'enabled: false',
+          '---',
+          'Do not run.',
+        ].join('\n')
+      );
+      const { adapter, session } = await createSession([]);
+
+      const commands = await adapter.listCommands(session);
+      expect(commands).toContainEqual({
+        name: 'audit',
+        description: 'Audit the implementation',
+        argumentHint: '',
+        execution: 'prompt',
+      });
+      expect(commands).not.toContainEqual(
+        expect.objectContaining({
+          name: 'disabled-audit',
+        })
+      );
+
+      await adapter.sendMessage(session, { text: '/audit now' });
+      expect(
+        fakeChild.clientRequests.find((request) => request.method === 'turn/start')
+      ).toMatchObject({
+        params: {
+          input: [{ type: 'text', text: '$audit now', text_elements: [] }],
+        },
+      });
+    } finally {
+      if (previousCodexHome === undefined) {
+        delete process.env.CODEX_HOME;
+      } else {
+        process.env.CODEX_HOME = previousCodexHome;
+      }
+    }
+  });
+
+  it('does not use filesystem skills when app-server returns empty skill metadata', async () => {
+    fakeChild.handle('skills/list', () => ({ data: [{ skills: [] }] }));
+    const codexHome = await mkdtemp(path.join(os.tmpdir(), 'emdash-codex-home-'));
+    const previousCodexHome = process.env.CODEX_HOME;
+    process.env.CODEX_HOME = codexHome;
+    try {
+      await mkdir(path.join(codexHome, 'skills', 'audit'), { recursive: true });
+      await writeFile(
+        path.join(codexHome, 'skills', 'audit', 'SKILL.md'),
+        [
+          '---',
+          'name: audit',
+          'description: Audit the implementation',
+          '---',
+          'Run an audit.',
+        ].join('\n')
+      );
+      const { adapter, session } = await createSession([]);
+
+      const commands = await adapter.listCommands(session);
+      expect(commands).not.toContainEqual(expect.objectContaining({ name: 'audit' }));
+
+      await adapter.sendMessage(session, { text: '/audit now' });
+      expect(
+        fakeChild.clientRequests.find((request) => request.method === 'turn/start')
+      ).toMatchObject({
+        params: {
+          input: [{ type: 'text', text: '/audit now', text_elements: [] }],
+        },
+      });
+    } finally {
+      if (previousCodexHome === undefined) {
+        delete process.env.CODEX_HOME;
+      } else {
+        process.env.CODEX_HOME = previousCodexHome;
+      }
+    }
+  });
+
+  it('lists and expands Codex custom prompt slash commands', async () => {
+    const codexHome = await mkdtemp(path.join(os.tmpdir(), 'emdash-codex-home-'));
+    const previousCodexHome = process.env.CODEX_HOME;
+    process.env.CODEX_HOME = codexHome;
+    try {
+      await mkdir(path.join(codexHome, 'prompts'), { recursive: true });
+      await writeFile(
+        path.join(codexHome, 'prompts', 'fix.md'),
+        [
+          '---',
+          'description: Fix a defect',
+          'argument-hint: <file>',
+          '---',
+          'Fix $1 with $name. Args: $ARGUMENTS. Dollar: $$',
+        ].join('\n')
+      );
+      await writeFile(path.join(codexHome, 'prompts', 'empty.md'), '');
+      const { adapter, session } = await createSession([]);
+
+      await expect(adapter.listCommands(session)).resolves.toContainEqual({
+        name: 'prompts:fix',
+        description: 'Fix a defect',
+        argumentHint: '<file>',
+        execution: 'prompt',
+      });
+
+      await adapter.sendMessage(session, { text: '/prompts:fix src/app.ts name=tests' });
+      expect(
+        fakeChild.clientRequests.find((request) => request.method === 'turn/start')
+      ).toMatchObject({
+        params: {
+          input: [
+            {
+              type: 'text',
+              text: 'Fix src/app.ts with tests. Args: src/app.ts name=tests. Dollar: $',
+              text_elements: [],
+            },
+          ],
+        },
+      });
+
+      await adapter.sendMessage(session, { text: '/prompts:empty' });
+      expect(
+        fakeChild.clientRequests.filter((request) => request.method === 'turn/start')[1]
+      ).toMatchObject({
+        params: {
+          input: [{ type: 'text', text: '', text_elements: [] }],
+        },
+      });
+    } finally {
+      if (previousCodexHome === undefined) {
+        delete process.env.CODEX_HOME;
+      } else {
+        process.env.CODEX_HOME = previousCodexHome;
+      }
+    }
+  });
+
+  it('falls back to normal prompt text for unknown prompt-like slash commands', async () => {
+    const { adapter, session } = await createSession([]);
+
+    await adapter.sendMessage(session, { text: '/prompts:missing hello' });
+    await adapter.sendMessage(session, { text: '/prompts:..\\secret hello' });
+    await adapter.sendMessage(session, { text: '/unknown hello' });
+
+    const turnStarts = fakeChild.clientRequests.filter(
+      (request) => request.method === 'turn/start'
+    );
+    expect(turnStarts).toHaveLength(3);
+    expect(turnStarts[0]).toMatchObject({
+      params: {
+        input: [{ type: 'text', text: '/prompts:missing hello', text_elements: [] }],
+      },
+    });
+    expect(turnStarts[1]).toMatchObject({
+      params: {
+        input: [{ type: 'text', text: '/prompts:..\\secret hello', text_elements: [] }],
+      },
+    });
+    expect(turnStarts[2]).toMatchObject({
+      params: {
+        input: [{ type: 'text', text: '/unknown hello', text_elements: [] }],
+      },
+    });
+  });
+
   it('hides and does not intercept /goal when Codex goals are not enabled', async () => {
     const { execFile, spawn } = await import('node:child_process');
     vi.mocked(execFile).mockImplementationOnce((_command, _args, _options, callback) => {
@@ -1183,7 +1534,12 @@ describe('CodexChatAdapter app-server integration', () => {
     const { adapter, session } = await createSession([]);
 
     await expect(adapter.listCommands(session)).resolves.toEqual([
-      { name: 'compact', description: 'Compact Codex context' },
+      {
+        name: 'compact',
+        description: 'Compact Codex context',
+        argumentHint: '',
+        execution: 'out-of-band',
+      },
     ]);
     await expect(
       adapter.tryHandleOutOfBandCommand?.(session, { text: '/goal pause' })
@@ -1207,7 +1563,12 @@ describe('CodexChatAdapter app-server integration', () => {
     const { adapter, session } = await createSession([]);
 
     await expect(adapter.listCommands(session)).resolves.toEqual([
-      { name: 'compact', description: 'Compact Codex context' },
+      {
+        name: 'compact',
+        description: 'Compact Codex context',
+        argumentHint: '',
+        execution: 'out-of-band',
+      },
     ]);
     expect(spawn).toHaveBeenCalledWith(
       'codex',
@@ -1230,7 +1591,12 @@ describe('CodexChatAdapter app-server integration', () => {
       const { adapter, session } = await sessionPromise;
 
       await expect(adapter.listCommands(session)).resolves.toEqual([
-        { name: 'compact', description: 'Compact Codex context' },
+        {
+          name: 'compact',
+          description: 'Compact Codex context',
+          argumentHint: '',
+          execution: 'out-of-band',
+        },
       ]);
       expect(kill).toHaveBeenCalled();
       expect(spawn).toHaveBeenCalledWith(

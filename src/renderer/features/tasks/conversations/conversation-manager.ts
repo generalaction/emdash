@@ -29,6 +29,12 @@ import { makePtySessionId } from '@shared/ptySessionId';
 import { ConversationTimelineStore } from './conversation-timeline-store';
 
 export type AgentStatus = 'idle' | 'working' | 'awaiting-input' | 'error' | 'completed';
+export type ChatCommand = {
+  name: string;
+  description?: string;
+  argumentHint?: string;
+  execution?: 'out-of-band' | 'prompt';
+};
 
 export class ConversationManagerStore implements IDisposable {
   private offAgentEvents: (() => void) | null = null;
@@ -316,9 +322,7 @@ export class ConversationManagerStore implements IDisposable {
     await timeline.cancelTurn();
   }
 
-  async listCommands(
-    conversationId: string
-  ): Promise<Array<{ name: string; description?: string }>> {
+  async listCommands(conversationId: string): Promise<ChatCommand[]> {
     const timeline = this.timelines.get(conversationId);
     if (!timeline) throw new Error('Conversation timeline not found');
     return timeline.listCommands();

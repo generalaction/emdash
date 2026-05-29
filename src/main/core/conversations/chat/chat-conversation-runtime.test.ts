@@ -377,6 +377,34 @@ describe('ChatConversationRuntime app-server boundary', () => {
     expect(adapter.cancel).toHaveBeenCalled();
   });
 
+  it('does not append an error when send is cancelled before backend acceptance', async () => {
+    const adapter = installAdapter({
+      sendMessage: vi.fn(async () => {
+        throw new Error('Message send was cancelled');
+      }),
+    });
+    const runtime = new ChatConversationRuntime();
+    await runtime.hydrateConversation(makeConversation());
+
+    await expect(
+      runtime.sendMessage('project-1', 'task-1', 'conversation-1', { text: 'cancel me' })
+    ).rejects.toThrow('Message send was cancelled');
+
+    expect(state.store.deleteItem).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'conversation-1' }),
+      'message-1'
+    );
+    expect(state.store.append).not.toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'conversation-1' }),
+      expect.objectContaining({ kind: 'error' })
+    );
+    expect(state.emit).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'conversation:status' }),
+      expect.objectContaining({ status: 'idle' })
+    );
+    expect(adapter.sendMessage).toHaveBeenCalledWith(expect.any(Object), { text: 'cancel me' });
+  });
+
   it('keeps active-turn state blocked when interrupt delivery fails', async () => {
     installAdapter({
       cancel: vi.fn(async () => {

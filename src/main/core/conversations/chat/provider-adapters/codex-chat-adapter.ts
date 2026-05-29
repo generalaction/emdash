@@ -4,6 +4,10 @@ import {
   type ChildProcess,
   type ChildProcessWithoutNullStreams,
 } from 'node:child_process';
+import type { Dirent } from 'node:fs';
+import { readdir, readFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import path from 'node:path';
 import { buildAgentEnv } from '@main/core/pty/pty-env';
 import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
 import { log } from '@main/lib/logger';
@@ -21,6 +25,7 @@ import {
   CodexAppServerClient,
   type CodexAppServerNotification,
   type CodexSandboxPolicy,
+  type CodexSkill,
   type CodexUserInput,
 } from '../app-server/codex-app-server-client';
 import { CodexAppServerTransport } from '../app-server/codex-app-server-transport';
@@ -42,6 +47,7 @@ type PendingPermission = {
 
 const CODEX_GOALS_MIN_VERSION: readonly [number, number, number] = [0, 128, 0];
 const CODEX_VERSION_TIMEOUT_MS = 2_000;
+const GIT_ROOT_TIMEOUT_MS = 2_000;
 
 class CodexChatSession implements ChatProviderSession {
   readonly conversationId: string;
@@ -51,6 +57,10 @@ class CodexChatSession implements ChatProviderSession {
   readonly goalsEnabled: boolean;
   private readonly assistantTextByItemId = new Map<string, string>();
   private readonly callbacks = new Set<(event: ChatProviderRuntimeEvent) => void>();
+  private cachedSkills: CodexSkill[] = [];
+  private skillsLoadedFromAppServer = false;
+  private turnPreparationCancelGeneration = 0;
+  private readonly pendingTurnPreparationGenerations = new Set<number>();
   private eventQueue = Promise.resolve();
   private readonly commandOutputDeltaByCallId = new Map<string, string>();
   private readonly execCommandCallIds = new Set<string>();
@@ -149,6 +159,42 @@ class CodexChatSession implements ChatProviderSession {
     this.turnStartPending = false;
   }
 
+  beginTurnPreparation(): number {
+    const generation = this.turnPreparationCancelGeneration;
+    this.pendingTurnPreparationGenerations.add(generation);
+    return generation;
+  }
+
+  endTurnPreparation(generation: number): void {
+    this.pendingTurnPreparationGenerations.delete(generation);
+  }
+
+  throwIfTurnPreparationCancelled(generation: number): void {
+    if (generation !== this.turnPreparationCancelGeneration) {
+      throw new Error('Message send was cancelled');
+    }
+  }
+
+  async loadSkills(): Promise<void> {
+    try {
+      this.cachedSkills = await this.client.listSkills(this.cwd);
+      this.skillsLoadedFromAppServer = true;
+    } catch (error) {
+      log.debug('CodexChatAdapter: failed to load app-server skills', {
+        conversationId: this.conversationId,
+        error,
+      });
+    }
+  }
+
+  getSkills(): CodexSkill[] {
+    return this.cachedSkills;
+  }
+
+  hasAppServerSkillMetadata(): boolean {
+    return this.skillsLoadedFromAppServer;
+  }
+
   async cancel(): Promise<void> {
     const threadId = requireThreadId(this);
     if (this.activeTurnId) {
@@ -157,6 +203,10 @@ class CodexChatSession implements ChatProviderSession {
     }
     if (this.turnStartPending) {
       throw new Error('Cannot interrupt Codex turn before app-server reports turn start');
+    }
+    if (this.pendingTurnPreparationGenerations.size > 0) {
+      this.turnPreparationCancelGeneration += 1;
+      this.pendingTurnPreparationGenerations.clear();
     }
   }
 
@@ -552,15 +602,20 @@ export class CodexChatAdapter implements ChatProviderAdapter {
   ): Promise<void> {
     const codexSession = requireCodexSession(session);
     const threadId = requireThreadId(codexSession);
-    codexSession.markTurnStartPending();
+    const preparationGeneration = codexSession.beginTurnPreparation();
     try {
+      const inputItems = await this.buildPromptInput(codexSession, input.text);
+      codexSession.throwIfTurnPreparationCancelled(preparationGeneration);
+      codexSession.markTurnStartPending();
+      codexSession.endTurnPreparation(preparationGeneration);
       await codexSession.client.startTurn({
         threadId,
         cwd: codexSession.cwd,
-        input: [toCodexTextInput(input.text)],
+        input: inputItems,
         ...codexTurnPermissionParams(codexSession.autoApprove),
       });
     } catch (error) {
+      codexSession.endTurnPreparation(preparationGeneration);
       codexSession.clearTurnStartPending();
       throw error;
     }
@@ -600,14 +655,36 @@ export class CodexChatAdapter implements ChatProviderAdapter {
 
   async listCommands(session: ChatProviderSession): Promise<AgentSlashCommand[]> {
     const codexSession = requireCodexSession(session);
-    const commands = [{ name: 'compact', description: 'Compact Codex context' }];
+    await codexSession.loadSkills();
+    const appServerSkills = enabledCodexSkills(codexSession.getSkills()).map((skill) => ({
+      name: skill.name,
+      description: skill.description,
+      argumentHint: '',
+      execution: 'prompt' as const,
+    }));
+    const fallbackSkills = codexSession.hasAppServerSkillMetadata()
+      ? []
+      : await listCodexFallbackSkills(codexSession.cwd);
+    const commands: AgentSlashCommand[] = [
+      {
+        name: 'compact',
+        description: 'Compact Codex context',
+        argumentHint: '',
+        execution: 'out-of-band',
+      },
+    ];
     if (codexSession.goalsEnabled) {
       commands.push({
         name: 'goal',
         description: 'Set, pause, resume, or clear the Codex goal',
+        argumentHint: '[<objective>|pause|resume|clear]',
+        execution: 'out-of-band',
       });
     }
-    return commands;
+    const prompts = await listCodexCustomPrompts();
+    return [...commands, ...appServerSkills, ...fallbackSkills, ...prompts].sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
   }
 
   async executeSlashCommand(
@@ -634,6 +711,38 @@ export class CodexChatAdapter implements ChatProviderAdapter {
       return;
     }
     throw new Error(`Unsupported Codex command: /${command.name}`);
+  }
+
+  private async buildPromptInput(
+    codexSession: CodexChatSession,
+    text: string
+  ): Promise<CodexUserInput[]> {
+    const command = parseSlashCommand(text);
+    if (!command || command.name === 'compact' || command.name === 'goal') {
+      return [toCodexTextInput(text)];
+    }
+
+    const customPromptInput = await buildCustomPromptInput(command);
+    if (customPromptInput !== undefined) {
+      return [toCodexTextInput(customPromptInput)];
+    }
+
+    await codexSession.loadSkills();
+    const skill = enabledCodexSkills(codexSession.getSkills()).find(
+      (candidate) => candidate.name === command.name
+    );
+    if (skill) {
+      return toCodexSkillInput(skill, command.args);
+    }
+
+    const fallbackSkills = codexSession.hasAppServerSkillMetadata()
+      ? []
+      : await listCodexFallbackSkills(codexSession.cwd);
+    if (fallbackSkills.some((candidate) => candidate.name === command.name)) {
+      return [toCodexTextInput(toCodexSkillPrompt(command.name, command.args))];
+    }
+
+    return [toCodexTextInput(text)];
   }
 
   subscribe(
@@ -701,6 +810,263 @@ async function createCodexClient(
 
 function toCodexTextInput(text: string): CodexUserInput {
   return { type: 'text', text, text_elements: [] };
+}
+
+function toCodexSkillInput(skill: CodexSkill, args: string | undefined): CodexUserInput[] {
+  return [
+    { type: 'skill', name: skill.name, path: skill.path },
+    toCodexTextInput(toCodexSkillPrompt(skill.name, args)),
+  ];
+}
+
+function enabledCodexSkills(skills: CodexSkill[]): CodexSkill[] {
+  return skills.filter((skill) => skill.enabled !== false);
+}
+
+function toCodexSkillPrompt(name: string, args: string | undefined): string {
+  const trimmedArgs = args?.trim() ?? '';
+  return trimmedArgs ? `$${name} ${trimmedArgs}` : `$${name}`;
+}
+
+function resolveCodexHomeDir(): string {
+  return process.env.CODEX_HOME ?? path.join(homedir(), '.codex');
+}
+
+function parseFrontMatter(markdown: string): {
+  body: string;
+  frontMatter: Record<string, string>;
+} {
+  const lines = markdown.split('\n');
+  if (lines[0]?.trim() !== '---') {
+    return { body: markdown, frontMatter: {} };
+  }
+  let end = -1;
+  for (let index = 1; index < lines.length; index += 1) {
+    if (lines[index]?.trim() === '---') {
+      end = index;
+      break;
+    }
+  }
+  if (end === -1) {
+    return { body: markdown, frontMatter: {} };
+  }
+
+  const frontMatter: Record<string, string> = {};
+  for (const line of lines.slice(1, end)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const separator = trimmed.indexOf(':');
+    if (separator <= 0) continue;
+    const key = trimmed.slice(0, separator).trim();
+    const value = trimmed
+      .slice(separator + 1)
+      .trim()
+      .replace(/^['"]/, '')
+      .replace(/['"]$/, '');
+    if (key && value) {
+      frontMatter[key] = value;
+    }
+  }
+
+  return { body: lines.slice(end + 1).join('\n'), frontMatter };
+}
+
+async function listCodexCustomPrompts(): Promise<AgentSlashCommand[]> {
+  let entries: Dirent[];
+  try {
+    entries = await readdir(path.join(resolveCodexHomeDir(), 'prompts'), { withFileTypes: true });
+  } catch {
+    return [];
+  }
+
+  const commands = await Promise.all(
+    entries
+      .filter((entry) => entry.isFile() && entry.name.endsWith('.md') && entry.name !== '.md')
+      .map(async (entry): Promise<AgentSlashCommand | undefined> => {
+        const promptName = entry.name.slice(0, -'.md'.length);
+        try {
+          const content = await readFile(
+            path.join(resolveCodexHomeDir(), 'prompts', entry.name),
+            'utf8'
+          );
+          const { frontMatter } = parseFrontMatter(content);
+          return {
+            name: `prompts:${promptName}`,
+            description: frontMatter.description ?? 'Custom prompt',
+            argumentHint: frontMatter['argument-hint'] ?? frontMatter.argument_hint ?? '',
+            execution: 'prompt',
+          };
+        } catch {
+          return undefined;
+        }
+      })
+  );
+  return commands
+    .filter((command): command is AgentSlashCommand => Boolean(command))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+async function buildCustomPromptInput(
+  command: AgentSlashCommandInput
+): Promise<string | undefined> {
+  if (!command.name.startsWith('prompts:')) return undefined;
+  const promptName = command.name.slice('prompts:'.length);
+  if (!isSafeCodexPromptName(promptName)) return undefined;
+  try {
+    const content = await readFile(
+      path.join(resolveCodexHomeDir(), 'prompts', `${promptName}.md`),
+      {
+        encoding: 'utf8',
+      }
+    );
+    return expandCodexCustomPrompt(parseFrontMatter(content).body, command.args);
+  } catch {
+    return undefined;
+  }
+}
+
+async function listCodexFallbackSkills(cwd: string): Promise<AgentSlashCommand[]> {
+  const candidates = [path.join(cwd, '.codex', 'skills')];
+  const repoRoot = await resolveRepoRoot(cwd);
+  if (repoRoot) {
+    candidates.push(path.join(path.dirname(cwd), '.codex', 'skills'));
+    candidates.push(path.join(repoRoot, '.codex', 'skills'));
+  }
+  candidates.push(path.join(resolveCodexHomeDir(), 'skills'));
+
+  const commandsByName = new Map<string, AgentSlashCommand>();
+  for (const dir of candidates) {
+    let entries: Dirent[];
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
+      try {
+        const content = await readFile(path.join(dir, entry.name, 'SKILL.md'), 'utf8');
+        const { frontMatter } = parseFrontMatter(content);
+        const name = frontMatter.name;
+        const description = frontMatter.description;
+        const enabled = frontMatter.enabled?.toLowerCase();
+        if (enabled === 'false') continue;
+        if (!name || !description || commandsByName.has(name)) continue;
+        commandsByName.set(name, { name, description, argumentHint: '', execution: 'prompt' });
+      } catch {
+        continue;
+      }
+    }
+  }
+  return Array.from(commandsByName.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function isSafeCodexPromptName(name: string): boolean {
+  return (
+    Boolean(name) && !name.includes('/') && !name.includes('\\') && name !== '.' && name !== '..'
+  );
+}
+
+async function resolveRepoRoot(cwd: string): Promise<string | undefined> {
+  return new Promise((resolve) => {
+    const child = execFile(
+      'git',
+      ['rev-parse', '--show-toplevel'],
+      { cwd, timeout: GIT_ROOT_TIMEOUT_MS },
+      (error, stdout) => {
+        if (error) {
+          resolve(undefined);
+          return;
+        }
+        const root = stdout.trim();
+        resolve(root || undefined);
+      }
+    );
+    child.on('error', () => resolve(undefined));
+  });
+}
+
+function decodeEscapedChar(next: string): string {
+  if (next === 'n') return '\n';
+  if (next === 't') return '\t';
+  return next;
+}
+
+function tokenizeCommandArgs(args: string): string[] {
+  const tokens: string[] = [];
+  let current = '';
+  let quote: "'" | '"' | null = null;
+  for (let index = 0; index < args.length; index += 1) {
+    const character = args[index];
+    if (quote) {
+      if (character === quote) {
+        quote = null;
+        continue;
+      }
+      if (character === '\\' && index + 1 < args.length) {
+        const next = args[index + 1];
+        if (next === quote || next === '\\' || next === 'n' || next === 't') {
+          index += 1;
+          current += decodeEscapedChar(next);
+          continue;
+        }
+      }
+      current += character;
+      continue;
+    }
+
+    if (character === "'" || character === '"') {
+      quote = character;
+      continue;
+    }
+    if (/\s/.test(character)) {
+      if (current) {
+        tokens.push(current);
+        current = '';
+      }
+      continue;
+    }
+    current += character;
+  }
+  if (current) {
+    tokens.push(current);
+  }
+  return tokens;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function expandCodexCustomPrompt(template: string, args: string | undefined): string {
+  const trimmedArgs = args?.trim() ?? '';
+  const tokens = trimmedArgs ? tokenizeCommandArgs(trimmedArgs) : [];
+  const named: Record<string, string> = {};
+  const positional: string[] = [];
+
+  for (const token of tokens) {
+    const separator = token.indexOf('=');
+    if (separator > 0) {
+      const key = token.slice(0, separator);
+      const value = token.slice(separator + 1);
+      if (key) {
+        named[key] = value;
+        continue;
+      }
+    }
+    positional.push(token);
+  }
+
+  const dollarPlaceholder = '__CODEX_DOLLAR_PLACEHOLDER__';
+  let output = template.split('$$').join(dollarPlaceholder);
+  output = output.split('$ARGUMENTS').join(trimmedArgs);
+  for (let index = 1; index <= 9; index += 1) {
+    output = output.split(`$${index}`).join(positional[index - 1] ?? '');
+  }
+  for (const key of Object.keys(named).sort((a, b) => b.length - a.length)) {
+    output = output.replace(new RegExp(`\\$${escapeRegExp(key)}\\b`, 'g'), named[key] ?? '');
+  }
+  return output.split(dollarPlaceholder).join('$');
 }
 
 function codexPermissionParams(autoApprove: boolean | undefined): {

@@ -88,6 +88,39 @@ describe('CodexAppServerClient', () => {
     expect(transport.dispose).toHaveBeenCalled();
   });
 
+  it('lists skills with app-server description fallbacks', async () => {
+    const transport = new FakeTransport();
+    transport.setResponse('skills/list', {
+      data: [
+        {
+          skills: [
+            { name: 'review', description: 'Review code', path: '/skills/review' },
+            { name: 'audit', shortDescription: 'Audit code', path: '/skills/audit' },
+            { name: 'plain', path: '/skills/plain' },
+            { name: 'disabled', enabled: false, path: '/skills/disabled' },
+            { name: 'review', description: 'Duplicate', path: '/skills/duplicate' },
+            { name: 123, description: 'Invalid', path: '/skills/invalid' },
+          ],
+        },
+        { skills: 'invalid' },
+        null,
+      ],
+    });
+    const client = new CodexAppServerClient(transport);
+
+    await expect(client.listSkills('/repo')).resolves.toEqual([
+      { name: 'review', description: 'Review code', path: '/skills/review' },
+      { name: 'audit', description: 'Audit code', path: '/skills/audit' },
+      { name: 'plain', description: 'Skill', path: '/skills/plain' },
+      { name: 'disabled', description: 'Skill', enabled: false, path: '/skills/disabled' },
+    ]);
+    expect(transport.requests).toContainEqual({
+      method: 'skills/list',
+      params: { cwd: ['/repo'] },
+      timeoutMs: 10_000,
+    });
+  });
+
   it('parses known notifications and preserves unknown notifications', () => {
     const transport = new FakeTransport();
     const client = new CodexAppServerClient(transport);

@@ -24,14 +24,6 @@ export const ChatConversationPanel = observer(function ChatConversationPanel({
 
   const sendMessage = async (text: string) => {
     if (!timeline || isTurnBlocked) return;
-    const command = parseSlashCommand(text);
-    if (command) {
-      const commands = await conversations.listCommands(conversation.data.id);
-      if (commands.some((candidate) => candidate.name === command.name)) {
-        await conversations.executeCommand(conversation.data.id, command);
-        return;
-      }
-    }
     await conversations.sendMessage(conversation.data.id, text);
   };
 
@@ -65,14 +57,3 @@ export const ChatConversationPanel = observer(function ChatConversationPanel({
     </div>
   );
 });
-
-function parseSlashCommand(text: string): { name: string; args?: string } | undefined {
-  const trimmed = text.trim();
-  if (!trimmed.startsWith('/') || trimmed.length <= 1) return undefined;
-  const body = trimmed.slice(1);
-  const separator = body.search(/\s/);
-  const name = separator === -1 ? body : body.slice(0, separator);
-  if (!name || name.includes('/')) return undefined;
-  const args = separator === -1 ? undefined : body.slice(separator + 1).trim();
-  return args ? { name, args } : { name };
-}

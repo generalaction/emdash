@@ -149,8 +149,10 @@ describe('ChatConversationPanel', () => {
     expect(sendMessage).toHaveBeenCalledWith('conversation-1', 'hello');
   });
 
-  it('uses command RPC for recognized slash commands', async () => {
-    listCommands.mockResolvedValue([{ name: 'compact', description: 'Compact context' }]);
+  it('submits slash commands through the message send path', async () => {
+    listCommands.mockResolvedValue([
+      { name: 'compact', description: 'Compact context', execution: 'out-of-band' },
+    ]);
     const conversation = { data: makeConversation(), status: 'idle' as const };
 
     await act(async () => {
@@ -165,14 +167,13 @@ describe('ChatConversationPanel', () => {
       click(container.querySelector('[aria-label="Send message"]')!);
     });
 
-    expect(listCommands).toHaveBeenCalledWith('conversation-1');
-    expect(executeCommand).toHaveBeenCalledWith('conversation-1', { name: 'compact' });
-    expect(sendMessage).not.toHaveBeenCalled();
+    expect(executeCommand).not.toHaveBeenCalled();
+    expect(sendMessage).toHaveBeenCalledWith('conversation-1', '/compact');
   });
 
   it('shows slash command suggestions and inserts the selected command', async () => {
     listCommands.mockResolvedValue([
-      { name: 'compact', description: 'Compact context' },
+      { name: 'compact', description: 'Compact context', execution: 'out-of-band' },
       { name: 'goal', description: 'Update goal' },
     ]);
     const conversation = { data: makeConversation(), status: 'idle' as const };
@@ -206,13 +207,13 @@ describe('ChatConversationPanel', () => {
       click(container.querySelector('[aria-label="Send message"]')!);
     });
 
-    expect(executeCommand).toHaveBeenCalledWith('conversation-1', { name: 'compact' });
-    expect(sendMessage).not.toHaveBeenCalled();
+    expect(executeCommand).not.toHaveBeenCalled();
+    expect(sendMessage).toHaveBeenCalledWith('conversation-1', '/compact');
   });
 
   it('uses Enter to select the highlighted slash command suggestion', async () => {
     listCommands.mockResolvedValue([
-      { name: 'compact', description: 'Compact context' },
+      { name: 'compact', description: 'Compact context', execution: 'out-of-band' },
       { name: 'goal', description: 'Update goal' },
     ]);
     const conversation = { data: makeConversation(), status: 'idle' as const };
@@ -240,8 +241,33 @@ describe('ChatConversationPanel', () => {
       textarea.dispatchEvent(new window.KeyboardEvent('keydown', { bubbles: true, key: 'Enter' }));
     });
 
-    expect(executeCommand).toHaveBeenCalledWith('conversation-1', { name: 'compact' });
-    expect(sendMessage).not.toHaveBeenCalled();
+    expect(executeCommand).not.toHaveBeenCalled();
+    expect(sendMessage).toHaveBeenCalledWith('conversation-1', '/compact');
+  });
+
+  it('does not block slash submission on command suggestion loading', async () => {
+    const commands = deferred<Array<{ name: string; description?: string; execution?: string }>>();
+    listCommands.mockReturnValue(commands.promise);
+    const conversation = { data: makeConversation(), status: 'idle' as const };
+
+    await act(async () => {
+      renderPanel(root, conversation);
+    });
+
+    const textarea = container.querySelector('textarea')!;
+    await act(async () => {
+      setTextareaValue(textarea, '/prompts:fix src/app.ts');
+    });
+    await act(async () => {
+      click(container.querySelector('[aria-label="Send message"]')!);
+    });
+
+    expect(executeCommand).not.toHaveBeenCalled();
+    expect(sendMessage).toHaveBeenCalledWith('conversation-1', '/prompts:fix src/app.ts');
+    commands.resolve([{ name: 'prompts:fix', description: 'Fix a defect', execution: 'prompt' }]);
+    await act(async () => {
+      await commands.promise;
+    });
   });
 
   it('does not reload command suggestions for each slash query edit', async () => {

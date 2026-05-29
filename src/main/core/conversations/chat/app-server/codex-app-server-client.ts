@@ -208,10 +208,23 @@ export type CodexAppServerNotification =
   | { type: 'thread-compacted' }
   | { type: 'unknown'; method: string; params: unknown };
 
-export type CodexUserInput = {
-  type: 'text';
-  text: string;
-  text_elements: [];
+export type CodexUserInput =
+  | {
+      type: 'text';
+      text: string;
+      text_elements: [];
+    }
+  | {
+      type: 'skill';
+      name: string;
+      path: string;
+    };
+
+export type CodexSkill = {
+  name: string;
+  description: string;
+  enabled?: boolean;
+  path: string;
 };
 
 export type CodexSandboxPolicy =
@@ -284,6 +297,37 @@ export class CodexAppServerClient {
       : [];
   }
 
+  async listSkills(cwd: string): Promise<CodexSkill[]> {
+    const response = await this.transport.request('skills/list', { cwd: [cwd] }, 10_000);
+    const data =
+      typeof response === 'object' && response !== null && 'data' in response
+        ? (response as { data?: unknown }).data
+        : undefined;
+    if (!Array.isArray(data)) return [];
+
+    const skillsByName = new Map<string, CodexSkill>();
+    for (const entry of data) {
+      const skills =
+        typeof entry === 'object' && entry !== null && 'skills' in entry
+          ? (entry as { skills?: unknown }).skills
+          : undefined;
+      if (!Array.isArray(skills)) continue;
+      for (const skill of skills) {
+        if (typeof skill !== 'object' || skill === null) continue;
+        const record = skill as Record<string, unknown>;
+        if (typeof record.name !== 'string' || typeof record.path !== 'string') continue;
+        if (skillsByName.has(record.name)) continue;
+        skillsByName.set(record.name, {
+          name: record.name,
+          description: resolveSkillDescription(record),
+          enabled: typeof record.enabled === 'boolean' ? record.enabled : undefined,
+          path: record.path,
+        });
+      }
+    }
+    return Array.from(skillsByName.values());
+  }
+
   async startTurn(params: {
     approvalPolicy: string;
     cwd: string;
@@ -316,6 +360,12 @@ export class CodexAppServerClient {
   async dispose(): Promise<void> {
     await this.transport.dispose();
   }
+}
+
+function resolveSkillDescription(skill: Record<string, unknown>): string {
+  if (typeof skill.description === 'string') return skill.description;
+  if (typeof skill.shortDescription === 'string') return skill.shortDescription;
+  return 'Skill';
 }
 
 function parseNotification(method: string, params: unknown): CodexAppServerNotification {

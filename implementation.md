@@ -629,3 +629,54 @@ Review loop:
 - Test and logic reviewers found a medium issue where Enter on a highlighted partial slash command
   sent the partial command as a normal message. Fixed Enter selection and added regression coverage.
 - Final architecture, test, and logic reviewer reruns found no high/medium issues.
+
+## Step 8: Paseo Slash Command Parity
+
+Expanded Codex slash command behavior to cover Paseo-style prompt commands and skills, and tightened
+the command submission boundary.
+
+Changes made:
+
+- Added `skills/list` support to the Codex app-server client and preserved skill metadata, including
+  descriptions, paths, and disabled state.
+- Listed built-in out-of-band commands, app-server skills, fallback filesystem skills, and
+  `CODEX_HOME/prompts/*.md` custom prompts as slash suggestions.
+- Split command metadata into `out-of-band` and `prompt` execution modes. The renderer now submits
+  slash text through `sendMessage`; the runtime intercepts `/compact` and `/goal` before persistence,
+  while prompt-like skills and custom prompts flow through normal `turn/start`.
+- Converted app-server skills into Codex skill input blocks, fallback filesystem skills into `$skill`
+  prompt text, and custom prompts into expanded prompt text with Paseo-compatible `$ARGUMENTS`,
+  positional, named, and escaped-dollar substitution.
+- Added custom prompt filename validation so unsafe names fall back to visible slash text instead of
+  reading outside the prompts directory.
+- Filtered disabled app-server skills and disabled fallback `SKILL.md` entries. App-server skill
+  metadata is treated as authoritative once loaded, including the empty-list case; fallback
+  filesystem discovery only runs when app-server skill metadata is unavailable.
+- Preserved the last successful app-server skill metadata across later `skills/list` failures.
+- Added cancellable turn-preparation handling for prompt-like slash input so slow skill metadata
+  lookup cannot start a turn after the user cancels. Overlapping preparations are tracked by
+  generation to avoid stale cleanup from one send affecting another.
+- Updated the fake app-server test harness to handle async request handlers.
+
+Validation:
+
+- Focused runtime/provider/panel suites passed, 69 tests.
+- `pnpm run format`: passed.
+- `pnpm run lint`: passed.
+- `pnpm run typecheck`: passed.
+- `pnpm run test`: passed, 202 files / 1370 tests.
+- `pnpm run test:coverage:chat`: passed, 8 files / 84 tests, with 91.80% statements, 81.00%
+  branches, 92.94% functions, and 95.07% lines for the configured chat/app-server scope.
+
+Review loop:
+
+- Architecture reviewer found medium issues around prompt-like commands being routed through
+  out-of-band execution and unsafe custom prompt names. Fixed with command execution metadata,
+  prompt-name validation, and renderer routing changes.
+- Test reviewer found high/medium gaps around actual UI routing, empty custom prompt expansion, and
+  cache-preservation coverage. Fixed with panel and adapter regressions.
+- Logic reviewer found medium issues around disabled skills, fallback reintroduction, cache clearing,
+  successful empty app-server metadata, prompt-resolution cancellation, overlapping preparation
+  cancellation, and submit-time command lookup in the renderer. Fixed each path with focused
+  runtime/provider/renderer tests.
+- Final architecture, test, and logic reviewer reruns found no high/medium issues.

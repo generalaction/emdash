@@ -131,6 +131,10 @@ export class ChatConversationRuntime {
       if (item) {
         await this.deleteSilentItem(active.conversation, item.id, 'app-server send failed');
       }
+      if (isMessageSendCancelledError(error)) {
+        this.emitStatus(active.conversation, 'idle');
+        throw error;
+      }
       await chatTimelineStore
         .append(active.conversation, {
           kind: 'error',
@@ -459,4 +463,8 @@ function isPreTurnStartCancelError(error: unknown): boolean {
     error instanceof Error &&
     error.message.includes('Cannot interrupt Codex turn before app-server reports turn start')
   );
+}
+
+function isMessageSendCancelledError(error: unknown): boolean {
+  return error instanceof Error && error.message.includes('Message send was cancelled');
 }

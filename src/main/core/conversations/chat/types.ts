@@ -18,6 +18,8 @@ export type ChatProviderEventHandler = (event: ChatProviderRuntimeEvent) => void
 export type AgentSlashCommand = {
   name: string;
   description?: string;
+  argumentHint?: string;
+  execution?: 'out-of-band' | 'prompt';
 };
 
 export type AgentSlashCommandInput = {

@@ -7,6 +7,7 @@ import {
   type ConversationTimelineItem,
   type SendConversationMessageInput,
 } from '@shared/conversation-timeline';
+import type { ChatCommand } from './conversation-manager';
 
 type NormalizedSendMessageInput = SendConversationMessageInput & { messageId: string };
 import { conversationTimelineEventChannel } from '@shared/events/conversationEvents';
@@ -84,7 +85,7 @@ export class ConversationTimelineStore implements IDisposable {
     await rpc.conversations.cancelTurn(this.projectId, this.taskId, this.conversationId);
   }
 
-  async listCommands(): Promise<Array<{ name: string; description?: string }>> {
+  async listCommands(): Promise<ChatCommand[]> {
     return rpc.conversations.listCommands(this.projectId, this.taskId, this.conversationId);
   }
 

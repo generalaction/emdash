@@ -6,6 +6,8 @@ import { Textarea } from '@renderer/lib/ui/textarea';
 export interface ChatCommandSuggestion {
   name: string;
   description?: string;
+  argumentHint?: string;
+  execution?: 'out-of-band' | 'prompt';
 }
 
 interface ChatComposerProps {
