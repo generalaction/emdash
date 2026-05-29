@@ -152,15 +152,19 @@ export const EditorProvider = observer(function EditorProvider({
       if (event.key.toLowerCase() !== 's') return;
       if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
 
-      event.preventDefault();
-      event.stopPropagation();
       if (event.shiftKey) {
+        event.preventDefault();
+        event.stopPropagation();
         void editorView.saveAllFiles();
         return;
       }
 
       const path = paneTabManager.activeFilePath;
-      if (path) void editorView.saveFile(path);
+      if (!path) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      void editorView.saveFile(path);
     };
 
     window.addEventListener('keydown', handleKeyDown, { capture: true });
