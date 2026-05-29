@@ -12,6 +12,7 @@ const conversationsRef = vi.hoisted(() => ({
   current: undefined as
     | {
         cancelTurn: ReturnType<typeof vi.fn>;
+        respondToPermission: ReturnType<typeof vi.fn>;
         sendMessage: ReturnType<typeof vi.fn>;
         timelines: Map<
           string,
@@ -86,6 +87,7 @@ describe('ChatConversationPanel', () => {
   let container: HTMLDivElement;
   let sendMessage: ReturnType<typeof vi.fn>;
   let cancelTurn: ReturnType<typeof vi.fn>;
+  let respondToPermission: ReturnType<typeof vi.fn>;
   let startTimeline: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
@@ -95,9 +97,11 @@ describe('ChatConversationPanel', () => {
     root = createRoot(container);
     sendMessage = vi.fn().mockResolvedValue(undefined);
     cancelTurn = vi.fn().mockResolvedValue(undefined);
+    respondToPermission = vi.fn().mockResolvedValue(undefined);
     startTimeline = vi.fn();
     conversationsRef.current = {
       cancelTurn,
+      respondToPermission,
       sendMessage,
       timelines: new Map([
         [
@@ -456,5 +460,49 @@ describe('ChatConversationPanel', () => {
     });
 
     expect(container.querySelector('[data-testid="markdown"]')?.textContent).toBe('**done**');
+  });
+
+  it('responds to pending permission cards and keeps errors inline', async () => {
+    respondToPermission.mockRejectedValueOnce(new Error('permission failed'));
+    conversationsRef.current?.timelines.set('conversation-1', {
+      items: {
+        data: [
+          {
+            id: 'permission-item-1',
+            conversationId: 'conversation-1',
+            sequence: 1,
+            createdAt: '2026-01-01T00:00:00.000Z',
+            kind: 'permission_request',
+            requestId: 'permission-1',
+            title: 'Run command?',
+            body: 'Codex wants to run pnpm test.',
+            options: [
+              { id: 'approve', label: 'Approve', kind: 'primary' },
+              { id: 'deny', label: 'Deny', kind: 'danger' },
+            ],
+            status: 'pending',
+          },
+        ],
+      },
+      start: startTimeline,
+    });
+    const conversation = { data: makeConversation(), status: 'awaiting-input' as const };
+
+    await act(async () => {
+      renderPanel(root, conversation);
+    });
+
+    const approveButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Approve'
+    )!;
+    await act(async () => {
+      click(approveButton);
+    });
+
+    expect(respondToPermission).toHaveBeenCalledWith('conversation-1', {
+      requestId: 'permission-1',
+      optionId: 'approve',
+    });
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe('permission failed');
   });
 });

@@ -19,6 +19,7 @@ export async function deleteConversation(
   } finally {
     releaseBackendExitSuppression();
   }
+  await chatConversationRuntime.cancelPendingPermissionRequestsForConversation(conversationId);
   chatConversationRuntime.dehydrateConversation(conversationId);
 
   await db

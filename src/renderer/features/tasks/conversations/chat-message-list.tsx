@@ -11,12 +11,16 @@ interface ChatMessageListProps {
   title: string;
   timeline: ConversationTimelineStore | undefined;
   status: ConversationStatus;
+  permissionResponsesEnabled?: boolean;
+  onRespondToPermission?: (requestId: string, optionId: string) => Promise<void>;
 }
 
 export const ChatMessageList = observer(function ChatMessageList({
   title,
   timeline,
   status,
+  permissionResponsesEnabled = false,
+  onRespondToPermission,
 }: ChatMessageListProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const items = timeline?.items.data;
@@ -44,7 +48,12 @@ export const ChatMessageList = observer(function ChatMessageList({
             </div>
           ) : null}
           {renderItems.map((item) => (
-            <ChatMessage key={item.id} item={item} />
+            <ChatMessage
+              key={item.id}
+              item={item}
+              permissionResponsesEnabled={permissionResponsesEnabled}
+              onRespondToPermission={onRespondToPermission}
+            />
           ))}
           {isLoading ? (
             <div className="flex items-center gap-2 text-sm text-foreground-muted">
@@ -67,6 +76,12 @@ export const ChatMessageList = observer(function ChatMessageList({
 function renderItemScrollKey(item: ReturnType<typeof buildChatRenderItems>[number]): string {
   if (item.kind === 'message' || item.kind === 'reasoning') {
     return `${item.id}:${item.sourceIds.length}:${item.text.length}`;
+  }
+  if (item.kind === 'tool_call') {
+    return `${item.id}:${item.item.status}:${item.item.output?.length ?? 0}:${item.item.error?.length ?? 0}`;
+  }
+  if (item.kind === 'permission_request') {
+    return `${item.id}:${item.item.status}`;
   }
   return item.id;
 }

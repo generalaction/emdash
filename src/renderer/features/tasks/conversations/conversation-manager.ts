@@ -6,7 +6,10 @@ import type { IDisposable } from '@renderer/lib/stores/lifecycle';
 import { Resource } from '@renderer/lib/stores/resource';
 import { log } from '@renderer/utils/logger';
 import { soundPlayer } from '@renderer/utils/soundPlayer';
-import type { ConversationStatus } from '@shared/conversation-timeline';
+import type {
+  ConversationPermissionResponse,
+  ConversationStatus,
+} from '@shared/conversation-timeline';
 import {
   type Conversation,
   type CreateConversationParams,
@@ -311,6 +314,15 @@ export class ConversationManagerStore implements IDisposable {
     const timeline = this.timelines.get(conversationId);
     if (!timeline) throw new Error('Conversation timeline not found');
     await timeline.cancelTurn();
+  }
+
+  async respondToPermission(
+    conversationId: string,
+    response: ConversationPermissionResponse
+  ): Promise<void> {
+    const timeline = this.timelines.get(conversationId);
+    if (!timeline) throw new Error('Conversation timeline not found');
+    await timeline.respondToPermission(response);
   }
 
   async renameConversation(conversationId: string, name: string): Promise<void> {

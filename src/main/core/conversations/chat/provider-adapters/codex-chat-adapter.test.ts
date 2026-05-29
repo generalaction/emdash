@@ -58,6 +58,48 @@ describe('CodexChatAdapter', () => {
     expect(interruptSession).toHaveBeenCalledWith('conversation-1');
   });
 
+  it('sends Codex permission responses through the provider backend', async () => {
+    const adapter = new CodexChatAdapter();
+    const sendInput = vi.fn().mockResolvedValue(undefined);
+    const conversation = makeConversation();
+    const request = {
+      id: 'permission-item-1',
+      conversationId: conversation.id,
+      sequence: 1,
+      createdAt: '2026-05-29T00:00:00.000Z',
+      kind: 'permission_request' as const,
+      requestId: 'permission-1',
+      title: 'Run command?',
+      options: [
+        { id: 'approve', label: 'Approve', kind: 'primary' as const },
+        { id: 'deny', label: 'Deny', kind: 'danger' as const },
+      ],
+      status: 'pending' as const,
+    };
+
+    await adapter.respondToPermission?.(
+      conversation,
+      {
+        interruptSession: vi.fn(),
+        sendInput,
+      },
+      request,
+      { requestId: 'permission-1', optionId: 'approve' }
+    );
+    await adapter.respondToPermission?.(
+      conversation,
+      {
+        interruptSession: vi.fn(),
+        sendInput,
+      },
+      request,
+      { requestId: 'permission-1', optionId: 'deny' }
+    );
+
+    expect(sendInput).toHaveBeenNthCalledWith(1, 'conversation-1', 'y\r');
+    expect(sendInput).toHaveBeenNthCalledWith(2, 'conversation-1', 'n\r');
+  });
+
   it('maps assistant payloads and status events', () => {
     const adapter = new CodexChatAdapter();
 
@@ -78,21 +120,68 @@ describe('CodexChatAdapter', () => {
     expect(
       adapter.mapAgentEvent(
         makeEvent({
-          payload: { notificationType: 'permission_prompt' },
+          timestamp: 42,
+          payload: {
+            notificationType: 'permission_prompt',
+            requestId: 'permission-1',
+            title: 'Run shell command?',
+            message: 'Codex wants to run `pnpm test`.',
+          },
         })
       )
     ).toEqual([
       {
         type: 'timeline',
         item: {
-          kind: 'error',
+          id: 'permission-1',
+          kind: 'permission_request',
           payload: {
-            message:
-              'Codex requested interactive input that is not supported in chat UI yet. Cancel this turn or use terminal UI for this conversation.',
+            requestId: 'permission-1',
+            title: 'Run shell command?',
+            body: 'Codex wants to run `pnpm test`.',
+            options: [
+              { id: 'approve', label: 'Approve', kind: 'primary' },
+              { id: 'deny', label: 'Deny', kind: 'danger' },
+            ],
+            status: 'pending',
           },
         },
       },
       { type: 'status', status: 'awaiting-input' },
+    ]);
+  });
+
+  it('maps structured tool call payloads to stable timeline updates', () => {
+    const adapter = new CodexChatAdapter();
+
+    expect(
+      adapter.mapAgentEvent(
+        makeEvent({
+          timestamp: 42,
+          payload: {
+            toolCallId: 'tool-1',
+            toolName: 'shell',
+            toolStatus: 'completed',
+            toolInput: { command: 'pnpm test' },
+            toolOutput: 'passed',
+          },
+        })
+      )
+    ).toEqual([
+      {
+        type: 'timeline',
+        item: {
+          id: 'tool-1',
+          kind: 'tool_call',
+          payload: {
+            toolName: 'shell',
+            status: 'completed',
+            input: { command: 'pnpm test' },
+            output: 'passed',
+            error: undefined,
+          },
+        },
+      },
     ]);
   });
 

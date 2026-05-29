@@ -7,6 +7,7 @@ const createConversation = vi.hoisted(() => vi.fn());
 const getTimeline = vi.hoisted(() => vi.fn());
 const sendMessage = vi.hoisted(() => vi.fn());
 const cancelTurn = vi.hoisted(() => vi.fn());
+const respondToPermission = vi.hoisted(() => vi.fn());
 const frontendConnect = vi.hoisted(() => vi.fn());
 const frontendDispose = vi.hoisted(() => vi.fn());
 const listeners = vi.hoisted(() => ({
@@ -88,6 +89,7 @@ vi.mock('@renderer/lib/ipc', () => ({
       getConversationsForTask: vi.fn(),
       getTimeline,
       hydrateConversation,
+      respondToPermission,
       sendMessage,
     },
   },
@@ -127,6 +129,7 @@ describe('ConversationManagerStore session hydration', () => {
     getTimeline.mockReset();
     sendMessage.mockReset();
     cancelTurn.mockReset();
+    respondToPermission.mockReset();
     frontendConnect.mockReset();
     frontendDispose.mockReset();
 
@@ -144,6 +147,7 @@ describe('ConversationManagerStore session hydration', () => {
     });
     getTimeline.mockResolvedValue([]);
     cancelTurn.mockResolvedValue(undefined);
+    respondToPermission.mockResolvedValue(undefined);
     sendMessage.mockResolvedValue({
       item: {
         id: 'message-1',
@@ -244,12 +248,20 @@ describe('ConversationManagerStore session hydration', () => {
 
     await store.sendMessage('conversation-1', 'hello');
     await store.cancelTurn('conversation-1');
+    await store.respondToPermission('conversation-1', {
+      requestId: 'permission-1',
+      optionId: 'approve',
+    });
 
     expect(sendMessage).toHaveBeenCalledWith('project-1', 'task-1', 'conversation-1', {
       messageId: expect.any(String),
       text: 'hello',
     });
     expect(cancelTurn).toHaveBeenCalledWith('project-1', 'task-1', 'conversation-1');
+    expect(respondToPermission).toHaveBeenCalledWith('project-1', 'task-1', 'conversation-1', {
+      requestId: 'permission-1',
+      optionId: 'approve',
+    });
     expect(store.conversations.get('conversation-1')?.status).toBe('idle');
 
     store.dispose();

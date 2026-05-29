@@ -131,7 +131,7 @@ async function executeTeardown(
   } finally {
     releaseBackendExitSuppression();
   }
-  chatConversationRuntime.dehydrateTask(task.taskId);
+  await chatConversationRuntime.dehydrateTask(task.taskId);
   await workspaceRegistry.release(workspaceId, mode);
 }
 
@@ -254,14 +254,14 @@ class TaskManager {
       // Detach sessions but leave workspaces alive; provider.cleanup() will call
       // workspaceRegistry.releaseAllForProject to handle workspace teardown.
       await Promise.all(
-        taskIds.flatMap((id) => {
+        taskIds.map(async (id) => {
           const stored = this._lifecycle.get(id);
-          if (!stored) return [];
-          chatConversationRuntime.dehydrateTask(id);
-          return [
+          if (!stored) return;
+          await Promise.all([
             stored.taskProvider.conversations.detachAll(),
             stored.taskProvider.terminals.detachAll(),
-          ];
+          ]);
+          await chatConversationRuntime.dehydrateTask(id);
         })
       );
       // Remove entries from lifecycle maps without running workspace teardown.

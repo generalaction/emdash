@@ -2,6 +2,8 @@ import type { ConversationProvider } from '@main/core/conversations/types';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 import type {
   AppendConversationTimelineItemInput,
+  ConversationPermissionRequestTimelineItem,
+  ConversationPermissionResponse,
   ConversationStatus,
 } from '@shared/conversation-timeline';
 import type { Conversation } from '@shared/conversations';
@@ -21,4 +23,10 @@ export interface ChatProviderAdapter {
   buildMessageInput(conversation: Conversation, text: string): string;
   cancel(conversation: Conversation, backend: ChatProviderBackend): Promise<void>;
   mapAgentEvent(event: AgentEvent): ChatProviderRuntimeEvent[];
+  respondToPermission?(
+    conversation: Conversation,
+    backend: ChatProviderBackend,
+    request: ConversationPermissionRequestTimelineItem,
+    response: ConversationPermissionResponse
+  ): Promise<void>;
 }

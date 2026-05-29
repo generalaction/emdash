@@ -21,6 +21,7 @@ const listeners = vi.hoisted(() => ({
 const getTimeline = vi.hoisted(() => vi.fn());
 const sendMessage = vi.hoisted(() => vi.fn());
 const cancelTurn = vi.hoisted(() => vi.fn());
+const respondToPermission = vi.hoisted(() => vi.fn());
 
 vi.mock('@renderer/lib/ipc', () => ({
   events: {
@@ -35,6 +36,7 @@ vi.mock('@renderer/lib/ipc', () => ({
     conversations: {
       cancelTurn,
       getTimeline,
+      respondToPermission,
       sendMessage,
     },
   },
@@ -46,8 +48,10 @@ describe('ConversationTimelineStore', () => {
     getTimeline.mockReset();
     sendMessage.mockReset();
     cancelTurn.mockReset();
+    respondToPermission.mockReset();
     getTimeline.mockResolvedValue([]);
     cancelTurn.mockResolvedValue(undefined);
+    respondToPermission.mockResolvedValue(undefined);
     sendMessage.mockImplementation(
       async (
         _projectId: string,
@@ -75,6 +79,17 @@ describe('ConversationTimelineStore', () => {
     expect(getTimeline).toHaveBeenCalledWith('project-1', 'task-1', 'conversation-1');
 
     store.dispose();
+  });
+
+  it('responds to permission requests through RPC', async () => {
+    const store = new ConversationTimelineStore('project-1', 'task-1', 'conversation-1');
+
+    await store.respondToPermission({ requestId: 'permission-1', optionId: 'approve' });
+
+    expect(respondToPermission).toHaveBeenCalledWith('project-1', 'task-1', 'conversation-1', {
+      requestId: 'permission-1',
+      optionId: 'approve',
+    });
   });
 
   it('upserts locally returned and event-delivered items', async () => {

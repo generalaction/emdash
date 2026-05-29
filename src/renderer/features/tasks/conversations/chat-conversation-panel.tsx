@@ -31,12 +31,19 @@ export const ChatConversationPanel = observer(function ChatConversationPanel({
     await conversations.cancelTurn(conversation.data.id);
   };
 
+  const respondToPermission = async (requestId: string, optionId: string) => {
+    if (!timeline) return;
+    await conversations.respondToPermission(conversation.data.id, { requestId, optionId });
+  };
+
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
       <ChatMessageList
         title={conversation.data.title || 'Chat conversation'}
         timeline={timeline}
         status={conversation.status}
+        permissionResponsesEnabled={conversation.status === 'awaiting-input'}
+        onRespondToPermission={respondToPermission}
       />
       <ChatComposer
         disabled={!timeline}

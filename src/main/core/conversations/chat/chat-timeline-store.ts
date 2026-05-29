@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, asc, desc, eq, gt, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, or, sql } from 'drizzle-orm';
 import { db as defaultDb, type AppDb } from '@main/db/client';
 import { conversationTimelineItems, conversations } from '@main/db/schema';
 import { events } from '@main/lib/events';
@@ -7,6 +7,8 @@ import {
   type AppendConversationTimelineItemInput,
   type ConversationMessageTimelineItem,
   type ConversationPermissionOption,
+  type ConversationPermissionRequestTimelineItem,
+  type ConversationPermissionResponse,
   type ConversationTimelineItem,
   type ConversationTimelineItemKind,
   type ConversationTimelineItemPayload,
@@ -75,6 +77,19 @@ function deliveredTimelinePayloadPredicate() {
   return sql`${deliveryStatus} != ${PENDING_DELIVERY_STATUS} and ${deliveryStatus} != ${DELIVERY_STARTED_STATUS} and ${deliveryStatus} != ${CANCELLED_DELIVERY_STATUS} and ${deliveryStatus} != ${DELIVERED_PENDING_EMIT_STATUS}`;
 }
 
+function stableTimelineItemId(conversationId: string, itemId: string): string {
+  return `${conversationId}:${itemId}`;
+}
+
+function restoreStableTimelineItemId(
+  conversationId: string,
+  item: ConversationTimelineItem
+): ConversationTimelineItem {
+  const prefix = `${conversationId}:`;
+  if (!item.id.startsWith(prefix)) return item;
+  return { ...item, id: item.id.slice(prefix.length) };
+}
+
 function notCancelledDeliveryPredicate() {
   return sql`case when json_valid(${conversationTimelineItems.payload}) then coalesce(json_extract(${conversationTimelineItems.payload}, '$.deliveryStatus'), '') else '' end != ${CANCELLED_DELIVERY_STATUS}`;
 }
@@ -82,6 +97,11 @@ function notCancelledDeliveryPredicate() {
 function cancellableDeliveryPredicate() {
   const deliveryStatus = sql`case when json_valid(${conversationTimelineItems.payload}) then coalesce(json_extract(${conversationTimelineItems.payload}, '$.deliveryStatus'), '') else '' end`;
   return sql`(${deliveryStatus} = ${PENDING_DELIVERY_STATUS} or ${deliveryStatus} = ${DELIVERY_STARTED_STATUS})`;
+}
+
+function deliveredDeliveryPredicate() {
+  const deliveryStatus = sql`case when json_valid(${conversationTimelineItems.payload}) then coalesce(json_extract(${conversationTimelineItems.payload}, '$.deliveryStatus'), '') else '' end`;
+  return sql`(${deliveryStatus} = ${PENDING_DELIVERY_STATUS} or ${deliveryStatus} = ${DELIVERY_STARTED_STATUS} or ${deliveryStatus} = ${CANCELLED_DELIVERY_STATUS})`;
 }
 
 function deletableSilentItemPredicate() {
@@ -243,6 +263,21 @@ function isPermissionStatus(
   return value === 'pending' || value === 'approved' || value === 'denied' || value === 'cancelled';
 }
 
+function payloadForUpsert(
+  existing: typeof conversationTimelineItems.$inferSelect,
+  nextPayload: Record<string, unknown>
+): Record<string, unknown> {
+  if (existing.kind !== 'permission_request' || nextPayload.status !== 'pending') {
+    return nextPayload;
+  }
+  const existingPayload = validatePayload(
+    'permission_request',
+    parsePayload(existing.payload)
+  ) as ConversationTimelineItemPayload<'permission_request'>;
+  if (existingPayload.status === 'pending') return nextPayload;
+  return existingPayload;
+}
+
 export class ChatTimelineStore {
   constructor(private readonly storeDb?: AppDb) {}
 
@@ -278,7 +313,7 @@ export class ChatTimelineStore {
   async append(
     conversation: Conversation,
     input: AppendConversationTimelineItemInput,
-    options: { emit?: boolean } = {}
+    options: { emit?: boolean; upsert?: boolean } = {}
   ): Promise<ConversationTimelineItem> {
     validatePayload(input.kind, input.payload as Record<string, unknown>);
     const persisted = await this.requireChatConversation(
@@ -292,7 +327,40 @@ export class ChatTimelineStore {
         ? { ...input.payload, deliveryStatus: PENDING_DELIVERY_STATUS }
         : input.payload;
 
+    const storedId =
+      options.upsert === true && input.id ? stableTimelineItemId(persisted.id, input.id) : input.id;
+
     const [row] = this.db.transaction((tx) => {
+      if (options.upsert === true && input.id) {
+        const upsertId = stableTimelineItemId(persisted.id, input.id);
+        const [existing] = tx
+          .select()
+          .from(conversationTimelineItems)
+          .where(
+            and(
+              or(
+                eq(conversationTimelineItems.id, input.id),
+                eq(conversationTimelineItems.id, upsertId)
+              ),
+              eq(conversationTimelineItems.conversationId, persisted.id)
+            )
+          )
+          .limit(1)
+          .all();
+        if (existing) {
+          if (existing.kind !== input.kind) {
+            throw new Error('Conversation timeline item kind mismatch');
+          }
+          const updatedPayload = payloadForUpsert(existing, payload);
+          return tx
+            .update(conversationTimelineItems)
+            .set({ payload: JSON.stringify(updatedPayload) })
+            .where(eq(conversationTimelineItems.id, existing.id))
+            .returning()
+            .all();
+        }
+      }
+
       const [maxRow] = tx
         .select({ value: sql<number>`coalesce(max(${conversationTimelineItems.sequence}), 0)` })
         .from(conversationTimelineItems)
@@ -302,7 +370,7 @@ export class ChatTimelineStore {
       return tx
         .insert(conversationTimelineItems)
         .values({
-          id: input.id ?? randomUUID(),
+          id: storedId ?? randomUUID(),
           conversationId: persisted.id,
           sequence: (maxRow?.value ?? 0) + 1,
           kind: input.kind,
@@ -312,11 +380,80 @@ export class ChatTimelineStore {
         .all();
     });
 
-    const item = rowToTimelineItem(row);
+    const item =
+      input.id && options.upsert === true
+        ? restoreStableTimelineItemId(persisted.id, rowToTimelineItem(row))
+        : rowToTimelineItem(row);
+    if (input.id && options.upsert === true) {
+      if (options.emit !== false) {
+        this.emitTimelineItem(persisted, item);
+      }
+      return item;
+    }
     if (options.emit !== false) {
       this.emitTimelineItem(persisted, item);
     }
     return item;
+  }
+
+  async getPendingPermissionRequest(
+    conversation: Conversation,
+    response: ConversationPermissionResponse
+  ): Promise<ConversationPermissionRequestTimelineItem> {
+    const item = await this.findPermissionRequest(conversation, response.requestId);
+    if (!item) throw new Error('Permission request not found');
+    if (item.status !== 'pending') throw new Error('Permission request is not pending');
+    if (!item.options.some((option) => option.id === response.optionId)) {
+      throw new Error('Permission option not found');
+    }
+    return item;
+  }
+
+  async resolvePermissionRequest(
+    conversation: Conversation,
+    response: ConversationPermissionResponse
+  ): Promise<ConversationPermissionRequestTimelineItem> {
+    const request = await this.getPendingPermissionRequest(conversation, response);
+    const option = request.options.find((candidate) => candidate.id === response.optionId);
+    if (!option) throw new Error('Permission option not found');
+    const status = permissionResponseStatus(option);
+    const updated = (await this.append(
+      conversation,
+      {
+        id: request.id,
+        kind: 'permission_request',
+        payload: {
+          requestId: request.requestId,
+          title: request.title,
+          body: request.body,
+          options: request.options,
+          status,
+        },
+      },
+      { upsert: true }
+    )) as ConversationPermissionRequestTimelineItem;
+    return updated;
+  }
+
+  async cancelPendingPermissionRequests(conversation: Conversation): Promise<void> {
+    const requests = await this.listPendingPermissionRequests(conversation);
+    for (const request of requests) {
+      await this.append(
+        conversation,
+        {
+          id: request.id,
+          kind: 'permission_request',
+          payload: {
+            requestId: request.requestId,
+            title: request.title,
+            body: request.body,
+            options: request.options,
+            status: 'cancelled',
+          },
+        },
+        { upsert: true }
+      );
+    }
   }
 
   async appendUserMessage(
@@ -394,7 +531,7 @@ export class ChatTimelineStore {
         and(
           eq(conversationTimelineItems.id, item.id),
           eq(conversationTimelineItems.conversationId, conversation.id),
-          notCancelledDeliveryPredicate()
+          deliveredDeliveryPredicate()
         )
       )
       .execute();
@@ -517,7 +654,9 @@ export class ChatTimelineStore {
         .orderBy(desc(conversationTimelineItems.sequence))
         .limit(normalizeLimit(options.limit));
 
-      return rows.reverse().map(rowToTimelineItem);
+      return rows
+        .reverse()
+        .map((row) => restoreStableTimelineItemId(conversationId, rowToTimelineItem(row)));
     }
 
     const rows = await this.db
@@ -533,7 +672,7 @@ export class ChatTimelineStore {
       .orderBy(asc(conversationTimelineItems.sequence))
       .limit(normalizeLimit(options.limit));
 
-    return rows.map(rowToTimelineItem);
+    return rows.map((row) => restoreStableTimelineItemId(conversationId, rowToTimelineItem(row)));
   }
 
   async getLatestAssistantMessage(conversationId: string): Promise<string | undefined> {
@@ -562,6 +701,78 @@ export class ChatTimelineStore {
       item,
     });
   }
+
+  private async findPermissionRequest(
+    conversation: Conversation,
+    requestId: string
+  ): Promise<ConversationPermissionRequestTimelineItem | undefined> {
+    await this.requireChatConversation(
+      conversation.projectId,
+      conversation.taskId,
+      conversation.id
+    );
+    const [row] = await this.db
+      .select()
+      .from(conversationTimelineItems)
+      .where(
+        and(
+          eq(conversationTimelineItems.conversationId, conversation.id),
+          eq(conversationTimelineItems.kind, 'permission_request'),
+          sql`case when json_valid(${conversationTimelineItems.payload}) then json_extract(${conversationTimelineItems.payload}, '$.requestId') else null end = ${requestId}`
+        )
+      )
+      .orderBy(desc(conversationTimelineItems.sequence))
+      .limit(1);
+    if (!row) return undefined;
+    return restoreStableTimelineItemId(
+      conversation.id,
+      rowToTimelineItem(row)
+    ) as ConversationPermissionRequestTimelineItem;
+  }
+
+  private async listPendingPermissionRequests(
+    conversation: Conversation
+  ): Promise<ConversationPermissionRequestTimelineItem[]> {
+    await this.requireChatConversation(
+      conversation.projectId,
+      conversation.taskId,
+      conversation.id
+    );
+    const rows = await this.db
+      .select()
+      .from(conversationTimelineItems)
+      .where(
+        and(
+          eq(conversationTimelineItems.conversationId, conversation.id),
+          eq(conversationTimelineItems.kind, 'permission_request'),
+          sql`case when json_valid(${conversationTimelineItems.payload}) then json_extract(${conversationTimelineItems.payload}, '$.status') else null end = 'pending'`
+        )
+      )
+      .orderBy(asc(conversationTimelineItems.sequence));
+    return rows.map((row) => {
+      return restoreStableTimelineItemId(
+        conversation.id,
+        rowToTimelineItem(row)
+      ) as ConversationPermissionRequestTimelineItem;
+    });
+  }
 }
 
 export const chatTimelineStore = new ChatTimelineStore();
+
+function permissionResponseStatus(
+  option: ConversationPermissionOption
+): ConversationTimelineItemPayload<'permission_request'>['status'] {
+  const normalizedId = option.id.toLowerCase();
+  const normalizedLabel = option.label.toLowerCase();
+  if (
+    option.kind === 'danger' ||
+    normalizedId === 'deny' ||
+    normalizedId === 'reject' ||
+    normalizedLabel === 'deny' ||
+    normalizedLabel === 'reject'
+  ) {
+    return 'denied';
+  }
+  return 'approved';
+}

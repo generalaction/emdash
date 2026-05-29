@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { dehydrateConversation } from './dehydrateConversation';
 
 const mocks = vi.hoisted(() => ({
+  cancelPendingPermissions: vi.fn(),
   dehydrateRuntime: vi.fn(),
   resolveTask: vi.fn(),
   suppressBackendExitDuringStop: vi.fn(),
@@ -14,6 +15,7 @@ vi.mock('../projects/utils', () => ({
 
 vi.mock('./chat/chat-conversation-runtime', () => ({
   chatConversationRuntime: {
+    cancelPendingPermissionRequestsForConversation: mocks.cancelPendingPermissions,
     dehydrateConversation: mocks.dehydrateRuntime,
     suppressBackendExitDuringStop: mocks.suppressBackendExitDuringStop,
   },
@@ -22,6 +24,7 @@ vi.mock('./chat/chat-conversation-runtime', () => ({
 describe('dehydrateConversation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.cancelPendingPermissions.mockResolvedValue(undefined);
     mocks.stopSession.mockResolvedValue(undefined);
     mocks.suppressBackendExitDuringStop.mockReturnValue(vi.fn());
     mocks.resolveTask.mockReturnValue({
@@ -36,7 +39,11 @@ describe('dehydrateConversation', () => {
 
     expect(mocks.suppressBackendExitDuringStop).toHaveBeenCalledWith('conversation-1');
     expect(mocks.stopSession).toHaveBeenCalledWith('conversation-1');
+    expect(mocks.cancelPendingPermissions).toHaveBeenCalledWith('conversation-1');
     expect(mocks.stopSession.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.cancelPendingPermissions.mock.invocationCallOrder[0] ?? 0
+    );
+    expect(mocks.cancelPendingPermissions.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.dehydrateRuntime.mock.invocationCallOrder[0] ?? 0
     );
   });

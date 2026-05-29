@@ -145,6 +145,209 @@ describe('ChatTimelineStore', () => {
     expect(items.map((item) => item.id)).toEqual(['message-2']);
   });
 
+  it('updates stable tool call timeline rows without changing sequence', async () => {
+    const conversation = makeConversation();
+    await chatTimelineStore.append(
+      conversation,
+      {
+        id: 'tool-1',
+        kind: 'tool_call',
+        payload: {
+          toolName: 'shell',
+          status: 'running',
+          input: { command: 'pnpm test' },
+        },
+      },
+      { upsert: true }
+    );
+    await chatTimelineStore.append(
+      conversation,
+      {
+        id: 'tool-1',
+        kind: 'tool_call',
+        payload: {
+          toolName: 'shell',
+          status: 'completed',
+          input: { command: 'pnpm test' },
+          output: 'passed',
+        },
+      },
+      { upsert: true }
+    );
+
+    await expect(
+      chatTimelineStore.listTimeline('project-1', 'task-1', 'conversation-1')
+    ).resolves.toMatchObject([
+      {
+        id: 'tool-1',
+        sequence: 1,
+        kind: 'tool_call',
+        toolName: 'shell',
+        status: 'completed',
+        output: 'passed',
+      },
+    ]);
+  });
+
+  it('scopes stable provider timeline ids to each conversation', async () => {
+    await seedSecondChatConversation(fixture);
+    const firstConversation = makeConversation();
+    const secondConversation = makeConversation({
+      id: 'conversation-2',
+      title: 'Conversation 2',
+    });
+
+    await chatTimelineStore.append(
+      firstConversation,
+      {
+        id: 'tool-1',
+        kind: 'tool_call',
+        payload: { toolName: 'shell', status: 'running' },
+      },
+      { upsert: true }
+    );
+    await chatTimelineStore.append(
+      secondConversation,
+      {
+        id: 'tool-1',
+        kind: 'tool_call',
+        payload: { toolName: 'shell', status: 'completed', output: 'done' },
+      },
+      { upsert: true }
+    );
+
+    await expect(
+      chatTimelineStore.listTimeline('project-1', 'task-1', 'conversation-1')
+    ).resolves.toMatchObject([{ id: 'tool-1', status: 'running' }]);
+    await expect(
+      chatTimelineStore.listTimeline('project-1', 'task-1', 'conversation-2')
+    ).resolves.toMatchObject([{ id: 'tool-1', status: 'completed', output: 'done' }]);
+  });
+
+  it('resolves pending permission requests by request id', async () => {
+    const conversation = makeConversation();
+    await chatTimelineStore.append(conversation, {
+      id: 'permission-item-1',
+      kind: 'permission_request',
+      payload: {
+        requestId: 'permission-1',
+        title: 'Run command?',
+        body: 'Codex wants to run pnpm test.',
+        options: [
+          { id: 'approve', label: 'Approve', kind: 'primary' },
+          { id: 'deny', label: 'Deny', kind: 'danger' },
+        ],
+        status: 'pending',
+      },
+    });
+
+    const resolved = await chatTimelineStore.resolvePermissionRequest(conversation, {
+      requestId: 'permission-1',
+      optionId: 'deny',
+    });
+
+    expect(resolved).toMatchObject({
+      id: 'permission-item-1',
+      sequence: 1,
+      kind: 'permission_request',
+      requestId: 'permission-1',
+      status: 'denied',
+    });
+    expect(mocks.emit).toHaveBeenLastCalledWith(
+      expect.objectContaining({ name: 'conversation:timeline' }),
+      expect.objectContaining({
+        item: expect.objectContaining({
+          id: 'permission-item-1',
+          status: 'denied',
+        }),
+      })
+    );
+  });
+
+  it('does not reopen resolved permission requests on duplicate pending upserts', async () => {
+    const conversation = makeConversation();
+    await chatTimelineStore.append(conversation, {
+      id: 'permission-item-1',
+      kind: 'permission_request',
+      payload: {
+        requestId: 'permission-1',
+        title: 'Run command?',
+        body: 'Codex wants to run pnpm test.',
+        options: [
+          { id: 'approve', label: 'Approve', kind: 'primary' },
+          { id: 'deny', label: 'Deny', kind: 'danger' },
+        ],
+        status: 'pending',
+      },
+    });
+    await chatTimelineStore.resolvePermissionRequest(conversation, {
+      requestId: 'permission-1',
+      optionId: 'deny',
+    });
+
+    const upserted = await chatTimelineStore.append(
+      conversation,
+      {
+        id: 'permission-item-1',
+        kind: 'permission_request',
+        payload: {
+          requestId: 'permission-1',
+          title: 'Run command?',
+          body: 'Codex wants to run pnpm test.',
+          options: [
+            { id: 'approve', label: 'Approve', kind: 'primary' },
+            { id: 'deny', label: 'Deny', kind: 'danger' },
+          ],
+          status: 'pending',
+        },
+      },
+      { upsert: true }
+    );
+
+    expect(upserted).toMatchObject({
+      id: 'permission-item-1',
+      kind: 'permission_request',
+      status: 'denied',
+    });
+    await expect(
+      chatTimelineStore.getPendingPermissionRequest(conversation, {
+        requestId: 'permission-1',
+        optionId: 'deny',
+      })
+    ).rejects.toThrow('Permission request is not pending');
+  });
+
+  it('marks all pending permission requests cancelled', async () => {
+    const conversation = makeConversation();
+    await chatTimelineStore.append(
+      conversation,
+      {
+        id: 'permission-1',
+        kind: 'permission_request',
+        payload: {
+          requestId: 'permission-1',
+          title: 'Run command?',
+          options: [{ id: 'approve', label: 'Approve', kind: 'primary' }],
+          status: 'pending',
+        },
+      },
+      { upsert: true }
+    );
+
+    await chatTimelineStore.cancelPendingPermissionRequests(conversation);
+
+    await expect(
+      chatTimelineStore.listTimeline('project-1', 'task-1', 'conversation-1')
+    ).resolves.toMatchObject([
+      {
+        id: 'permission-1',
+        kind: 'permission_request',
+        requestId: 'permission-1',
+        status: 'cancelled',
+      },
+    ]);
+  });
+
   it('keeps silently appended user messages hidden until they are emitted', async () => {
     const conversation = makeConversation();
     const item = await chatTimelineStore.appendUserMessage(
@@ -260,7 +463,7 @@ describe('ChatTimelineStore', () => {
     ).resolves.toEqual([]);
   });
 
-  it('does not reveal or mark delivered user messages after cancellation wins', async () => {
+  it('marks cancelled delivery-started user messages delivered when backend acceptance wins late', async () => {
     const conversation = makeConversation();
     const item = await chatTimelineStore.appendUserMessage(
       conversation,
@@ -274,6 +477,34 @@ describe('ChatTimelineStore', () => {
     await chatTimelineStore.markUserMessageCancelled(conversation, item);
 
     await chatTimelineStore.markUserMessageDelivered(conversation, item);
+    await chatTimelineStore.emitItem(conversation, item);
+
+    const rows = fixture.sqlite
+      .prepare(`SELECT payload FROM conversation_timeline_items WHERE id = 'message-1'`)
+      .all() as Array<{ payload: string }>;
+    expect(JSON.parse(rows[0]?.payload ?? '{}')).toEqual({
+      text: 'cancelled',
+    });
+    expect(mocks.emit).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'conversation:timeline' }),
+      expect.objectContaining({
+        item: expect.objectContaining({ id: 'message-1' }),
+      })
+    );
+  });
+
+  it('does not reveal cancelled pending user messages', async () => {
+    const conversation = makeConversation();
+    const item = await chatTimelineStore.appendUserMessage(
+      conversation,
+      {
+        messageId: 'message-1',
+        text: 'cancelled',
+      },
+      { emit: false }
+    );
+    await chatTimelineStore.markUserMessageCancelled(conversation, item);
+
     await chatTimelineStore.emitItem(conversation, item);
 
     const rows = fixture.sqlite

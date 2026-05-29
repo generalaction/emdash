@@ -3,6 +3,7 @@ import type { IDisposable } from '@renderer/lib/stores/lifecycle';
 import { Resource } from '@renderer/lib/stores/resource';
 import {
   type ConversationMessageTimelineItem,
+  type ConversationPermissionResponse,
   type ConversationTimelineItem,
   type SendConversationMessageInput,
 } from '@shared/conversation-timeline';
@@ -77,6 +78,15 @@ export class ConversationTimelineStore implements IDisposable {
 
   async cancelTurn(): Promise<void> {
     await rpc.conversations.cancelTurn(this.projectId, this.taskId, this.conversationId);
+  }
+
+  async respondToPermission(response: ConversationPermissionResponse): Promise<void> {
+    await rpc.conversations.respondToPermission(
+      this.projectId,
+      this.taskId,
+      this.conversationId,
+      response
+    );
   }
 
   dispose(): void {

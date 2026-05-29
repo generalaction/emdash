@@ -84,10 +84,22 @@ describe('enrichEvent', () => {
       body: JSON.stringify({
         notification_type: 'idle_prompt',
         last_assistant_message: 'done',
+        request_id: 'permission-1',
+        tool_call_id: 'tool-1',
+        tool_name: 'shell',
+        tool_status: 'completed',
+        tool_input: { command: 'pnpm test' },
+        tool_output: 'passed',
       }),
     });
 
     expect(event.payload.notificationType).toBe('idle_prompt');
     expect(event.payload.lastAssistantMessage).toBe('done');
+    expect(event.payload.requestId).toBe('permission-1');
+    expect(event.payload.toolCallId).toBe('tool-1');
+    expect(event.payload.toolName).toBe('shell');
+    expect(event.payload.toolStatus).toBe('completed');
+    expect(event.payload.toolInput).toEqual({ command: 'pnpm test' });
+    expect(event.payload.toolOutput).toBe('passed');
   });
 });

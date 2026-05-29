@@ -12,11 +12,18 @@ function normalizePayload(
   const payload: AgentEvent['payload'] = {
     notificationType: (body.notification_type ??
       body.notificationType) as AgentEvent['payload']['notificationType'],
+    requestId: (body.request_id ?? body.requestId) as string | undefined,
     lastAssistantMessage: (body.last_assistant_message ?? body.lastAssistantMessage) as
       | string
       | undefined,
     title: body.title as string | undefined,
     message: body.message as string | undefined,
+    toolCallId: (body.tool_call_id ?? body.toolCallId) as string | undefined,
+    toolName: (body.tool_name ?? body.toolName) as string | undefined,
+    toolStatus: (body.tool_status ?? body.toolStatus) as AgentEvent['payload']['toolStatus'],
+    toolInput: body.tool_input ?? body.toolInput,
+    toolOutput: (body.tool_output ?? body.toolOutput) as string | undefined,
+    toolError: (body.tool_error ?? body.toolError) as string | undefined,
   };
 
   if (!payload.notificationType && providerId === 'codex' && body.type === 'agent-turn-complete') {

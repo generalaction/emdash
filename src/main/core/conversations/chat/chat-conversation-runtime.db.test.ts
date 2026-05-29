@@ -232,7 +232,7 @@ describe('ChatConversationRuntime', () => {
     ]);
   });
 
-  it('removes the hidden user row when cancelling an in-flight backend delivery', async () => {
+  it('keeps the user row when cancellation completes after backend delivery succeeds', async () => {
     await seedChatConversation(fixture);
     await runtime.hydrateConversation(makeConversation());
     const send = deferred();
@@ -263,11 +263,15 @@ describe('ChatConversationRuntime', () => {
 
     expect(rows).toEqual([
       {
+        kind: 'user_message',
+        payload: JSON.stringify({ text: 'hello' }),
+      },
+      {
         kind: 'reasoning',
         payload: JSON.stringify({ text: 'Turn cancelled.' }),
       },
     ]);
-    expect(mocks.emit).not.toHaveBeenCalledWith(
+    expect(mocks.emit).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'conversation:timeline' }),
       expect.objectContaining({
         item: expect.objectContaining({ kind: 'user_message' }),

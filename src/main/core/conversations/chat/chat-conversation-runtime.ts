@@ -80,6 +80,12 @@ export class ChatConversationRuntime {
     this.activeConversations.delete(conversationId);
   }
 
+  async cancelPendingPermissionRequestsForConversation(conversationId: string): Promise<void> {
+    const active = this.activeConversations.get(conversationId);
+    if (!active) return;
+    await this.cancelPendingPermissionRequests(active.conversation);
+  }
+
   isActive(conversationId: string): boolean {
     return this.activeConversations.has(conversationId);
   }
@@ -250,12 +256,11 @@ export class ChatConversationRuntime {
     }
 
     active.pendingTurn.backendStarted = true;
+    let deliveryAccepted = false;
     try {
       await backend.sendInput(conversation.id, adapter.buildMessageInput(conversation, text));
-      if (await this.isTurnCancelled(active, turnId)) {
-        throw new Error('Message send was cancelled');
-      }
       await this.markDeliveredUserMessage(conversation, item);
+      deliveryAccepted = true;
       if (await this.isTurnCancelled(active, turnId)) {
         await this.revealSentUserMessage(conversation, item);
         this.emitInputSubmitted(conversation);
@@ -268,7 +273,9 @@ export class ChatConversationRuntime {
         (error instanceof Error && error.message === 'Message send was cancelled');
       const cleared = this.clearCurrentTurn(active, turnId);
       active.inputReady = false;
-      await this.deleteSilentItem(conversation, item.id, 'backend delivery failed');
+      if (!deliveryAccepted) {
+        await this.deleteSilentItem(conversation, item.id, 'backend delivery failed');
+      }
       if (deliveryCancelled) {
         if (cleared && !active.cancellationInFlight) {
           this.emitStatus(conversation, 'idle');
@@ -291,15 +298,16 @@ export class ChatConversationRuntime {
     }
 
     if (active.pendingTurn?.id !== turnId) {
-      await this.deleteSilentItem(conversation, item.id, 'turn superseded after backend send');
       this.clearCurrentTurn(active, turnId);
+      await this.revealSentUserMessage(conversation, item);
+      this.emitInputSubmitted(conversation);
       throw new Error('Message send was cancelled');
     }
 
     if (await this.isTurnCancelled(active, turnId)) {
       const cleared = this.clearCurrentTurn(active, turnId);
-      await this.markCancelledUserMessage(conversation, item);
-      await this.deleteSilentItem(conversation, item.id, 'turn cancelled after backend send');
+      await this.revealSentUserMessage(conversation, item);
+      this.emitInputSubmitted(conversation);
       if (cleared) {
         this.emitStatus(conversation, 'idle');
       }
@@ -344,6 +352,7 @@ export class ChatConversationRuntime {
           'turn cancelled before backend send'
         );
       }
+      await this.cancelPendingPermissionRequests(conversation);
       await this.appendCancellationMarker(conversation);
       this.emitStatus(conversation, 'idle');
       return;
@@ -437,6 +446,7 @@ export class ChatConversationRuntime {
       active.awaitingResponse = false;
       active.inputReady = false;
     }
+    await this.cancelPendingPermissionRequests(conversation);
     await this.appendCancellationMarker(conversation);
     if (shouldEmitIdle) {
       this.emitStatus(conversation, 'idle');
@@ -478,10 +488,57 @@ export class ChatConversationRuntime {
     projectId: string,
     taskId: string,
     conversationId: string,
-    _response: ConversationPermissionResponse
+    response: ConversationPermissionResponse
   ): Promise<void> {
-    await this.requireActiveConversation(projectId, taskId, conversationId);
-    throw new Error('Permission responses are not supported by the chat runtime yet');
+    const conversation = await this.requireActiveConversation(projectId, taskId, conversationId);
+    const active = this.activeConversations.get(conversationId);
+    if (!active) throw new Error('Conversation chat runtime is not active');
+    if (!active.awaitingInput) {
+      throw new Error('Agent is not awaiting permission input');
+    }
+    if (active.cancellationInFlight) {
+      throw new Error('Agent cancellation is in progress');
+    }
+    const respondToPermission = active.adapter.respondToPermission;
+    if (!respondToPermission) {
+      throw new Error('Permission responses are not supported by this chat provider');
+    }
+
+    const request = await chatTimelineStore.getPendingPermissionRequest(conversation, response);
+    if (active.cancellationInFlight || !active.awaitingInput) {
+      throw new Error('Agent is not awaiting permission input');
+    }
+    await chatTimelineStore.resolvePermissionRequest(conversation, response);
+    active.awaitingInput = false;
+    active.awaitingResponse = true;
+    active.cancelled = false;
+    active.suppressProviderEventsUntilNextSend = false;
+    this.emitStatus(conversation, 'working');
+    try {
+      await respondToPermission.call(
+        active.adapter,
+        conversation,
+        this.getBackendProvider(conversation),
+        request,
+        response
+      );
+    } catch (error) {
+      active.awaitingResponse = false;
+      active.inputReady = false;
+      await chatTimelineStore
+        .append(conversation, {
+          kind: 'error',
+          payload: { message: 'Failed to send permission response to the agent backend' },
+        })
+        .catch((appendError) => {
+          log.warn('ChatConversationRuntime: failed to append permission response error marker', {
+            conversationId,
+            error: String(appendError),
+          });
+        });
+      this.emitStatus(conversation, 'error');
+      throw error;
+    }
   }
 
   async recordAgentEvent(event: AgentEvent): Promise<void> {
@@ -556,6 +613,7 @@ export class ChatConversationRuntime {
     if (active.cancelled) {
       active.awaitingInput = false;
       active.awaitingResponse = false;
+      await this.cancelPendingPermissionRequests(active.conversation);
       this.emitStatus(active.conversation, 'idle');
       return;
     }
@@ -564,6 +622,7 @@ export class ChatConversationRuntime {
     active.awaitingResponse = false;
     active.pendingTurn = undefined;
     const status = event.exitCode === 0 ? 'completed' : 'error';
+    await this.cancelPendingPermissionRequests(active.conversation);
     if (status === 'error') {
       await chatTimelineStore
         .append(active.conversation, {
@@ -671,6 +730,17 @@ export class ChatConversationRuntime {
     }
   }
 
+  private async cancelPendingPermissionRequests(conversation: Conversation): Promise<void> {
+    try {
+      await chatTimelineStore.cancelPendingPermissionRequests(conversation);
+    } catch (error) {
+      log.warn('ChatConversationRuntime: failed to cancel pending permission requests', {
+        conversationId: conversation.id,
+        error: String(error),
+      });
+    }
+  }
+
   private clearCurrentTurn(active: ActiveChatConversation, turnId: number): boolean {
     if (active.pendingTurn?.id === turnId) {
       active.pendingTurn = undefined;
@@ -757,8 +827,12 @@ export class ChatConversationRuntime {
     active: ActiveChatConversation,
     event: AgentEvent
   ): Promise<void> {
+    let duplicateResolvedPermissionRequest = false;
     for (const mapped of active.adapter.mapAgentEvent(event)) {
       if (mapped.type === 'status') {
+        if (mapped.status === 'awaiting-input' && duplicateResolvedPermissionRequest) {
+          continue;
+        }
         if (
           !active.awaitingResponse &&
           (mapped.status === 'completed' || mapped.status === 'awaiting-input')
@@ -786,7 +860,19 @@ export class ChatConversationRuntime {
       if (assistantText && assistantText === active.lastAssistantMessage) continue;
 
       try {
-        await chatTimelineStore.append(active.conversation, mapped.item);
+        if (mapped.item.id) {
+          const item = await chatTimelineStore.append(active.conversation, mapped.item, {
+            upsert: true,
+          });
+          duplicateResolvedPermissionRequest =
+            mapped.item.kind === 'permission_request' &&
+            mapped.item.payload.status === 'pending' &&
+            item.kind === 'permission_request' &&
+            item.status !== 'pending';
+        } else {
+          await chatTimelineStore.append(active.conversation, mapped.item);
+          duplicateResolvedPermissionRequest = false;
+        }
       } catch (error) {
         log.warn('ChatConversationRuntime: failed to append mapped timeline item', {
           conversationId: active.conversation.id,
@@ -801,9 +887,13 @@ export class ChatConversationRuntime {
     }
   }
 
-  dehydrateTask(taskId: string): void {
-    for (const [conversationId, active] of this.activeConversations) {
+  async dehydrateTask(taskId: string): Promise<void> {
+    const conversationsToDehydrate = Array.from(this.activeConversations).filter(
+      ([, active]) => active.conversation.taskId === taskId
+    );
+    for (const [conversationId, active] of conversationsToDehydrate) {
       if (active.conversation.taskId === taskId) {
+        await this.cancelPendingPermissionRequests(active.conversation);
         this.activeConversations.delete(conversationId);
       }
     }

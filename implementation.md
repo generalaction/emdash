@@ -356,3 +356,72 @@ Remaining risks and follow-ups:
 - The UI is functionally complete for the MVP but still intentionally plain; richer message/tool-call
   rendering belongs in the next steps.
 - Codex remains the only implemented chat runtime target.
+
+## Step 5: Tool Calls and Permissions
+
+Completed the tool-call and permission phase from `docs/design.md`.
+
+Files and modules changed:
+
+- Extended structured agent-event payloads and the event enricher to preserve provider request,
+  tool-call, tool-status, tool-input, tool-output, and tool-error metadata.
+- Updated the Codex chat adapter to map tool-call events into stable timeline items, map Codex
+  permission prompts into pending permission-request items, and send Codex permission responses
+  through the active PTY backend.
+- Extended the chat timeline store with conversation-scoped stable upserts, pending permission
+  lookup, permission resolution, pending permission cancellation, and delivery-status update
+  predicates for pending, started, delivered, and cancelled states.
+- Hardened the chat runtime permission-response flow, cancellation/dehydration cleanup, backend-exit
+  cleanup, and task-level teardown/detach cleanup.
+- Added renderer actions for permission responses, expanded tool-call rendering, and added
+  status-gated permission cards with inline response errors.
+- Added focused main-process, DB-backed, adapter, and renderer tests for structured hook fields,
+  tool-call upserts, permission response ordering, cancellation, backend failures, dehydrate/delete
+  cleanup, task teardown, and renderer response behavior.
+
+Key decisions:
+
+- Provider-specific tool-call and permission mapping stays inside chat provider adapters; renderer
+  code consumes provider-neutral timeline item types.
+- Stable provider ids are persisted as conversation-scoped timeline ids to avoid cross-conversation
+  primary-key collisions, then restored to provider-visible ids when rows are listed or emitted.
+- Permission delivery is backend-first. If backend delivery fails, the permission card stays pending
+  and retryable; if timeline resolution fails after delivery, the runtime moves forward and records a
+  best-effort error marker.
+- Pending permission requests are cancelled on user cancellation, backend exit, conversation
+  dehydrate/delete, and task teardown/detach to avoid stale actionable rows after restart.
+- Codex permission responses are a best-effort TUI mapping until a native structured permission API
+  is available.
+
+Validation:
+
+- Focused impacted suite:
+  `pnpm exec vitest run src/main/core/conversations/chat/provider-adapters/codex-chat-adapter.test.ts src/main/core/conversations/chat/chat-conversation-runtime.test.ts src/main/core/conversations/chat/chat-timeline-store.db.test.ts src/main/core/conversations/dehydrateConversation.test.ts src/main/core/agent-hooks/event-enricher.db.test.ts src/renderer/features/tasks/conversations/conversation-timeline-store.test.ts src/renderer/features/tasks/conversations/conversation-manager.test.ts src/renderer/features/tasks/conversations/chat-conversation-panel.test.ts`:
+  passed, 8 files / 139 tests.
+- `pnpm run format`: passed.
+- `pnpm run lint`: passed.
+- `pnpm run typecheck`: passed.
+- `pnpm run test`: passed, 200 files / 1371 tests.
+
+Review loop:
+
+- Round 1 found high/medium issues around cross-conversation stable-id collisions and stale
+  cancelled permission rows. Fixed with conversation-scoped persisted ids and pending permission
+  cancellation on cancel, backend exit, dehydrate, and delete paths.
+- Round 2 found high/medium issues around cancellation-in-flight races, backend-send failure
+  ordering, post-send timeline-resolution failures, and dehydrate/remount stale rows. Fixed with
+  runtime guards, backend-first permission delivery, retryable backend failures, best-effort
+  post-send error markers, renderer status gating, and dehydrate/delete cleanup.
+- Round 3 found a medium issue around task-level teardown leaving pending permission rows. Fixed by
+  making chat task dehydration asynchronous and awaiting pending-permission cleanup during task
+  manager teardown and project detach.
+- Round 4 found a remaining ordering issue where permission resolution could still happen before
+  backend delivery in one path and its tests. Fixed the final ordering and assertions.
+- Final architecture, test, and logic reviewers found no high/medium issues.
+
+Remaining risks and follow-ups:
+
+- Broader provider-native tool and permission schemas are still deferred to the broader provider
+  phase.
+- Codex permission responses remain TUI-keystroke based and should be revisited if Codex exposes a
+  structured permission-response API.

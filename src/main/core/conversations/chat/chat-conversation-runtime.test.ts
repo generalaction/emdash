@@ -8,11 +8,14 @@ const mocks = vi.hoisted(() => ({
   appendUserMessage: vi.fn(),
   deleteItem: vi.fn(),
   recoverPendingUserMessages: vi.fn(),
+  cancelPendingPermissionRequests: vi.fn(),
   emitItem: vi.fn(),
   getLatestAssistantMessage: vi.fn(),
   markUserMessageDeliveryStarted: vi.fn(),
   markUserMessageDelivered: vi.fn(),
   markUserMessageCancelled: vi.fn(),
+  getPendingPermissionRequest: vi.fn(),
+  resolvePermissionRequest: vi.fn(),
   requireChatConversation: vi.fn(),
   emit: vi.fn(),
   eventEmit: vi.fn(),
@@ -42,13 +45,16 @@ vi.mock('./chat-timeline-store', () => ({
   chatTimelineStore: {
     append: mocks.append,
     appendUserMessage: mocks.appendUserMessage,
+    cancelPendingPermissionRequests: mocks.cancelPendingPermissionRequests,
     deleteItem: mocks.deleteItem,
     emitItem: mocks.emitItem,
     getLatestAssistantMessage: mocks.getLatestAssistantMessage,
+    getPendingPermissionRequest: mocks.getPendingPermissionRequest,
     markUserMessageCancelled: mocks.markUserMessageCancelled,
     markUserMessageDeliveryStarted: mocks.markUserMessageDeliveryStarted,
     markUserMessageDelivered: mocks.markUserMessageDelivered,
     recoverPendingUserMessages: mocks.recoverPendingUserMessages,
+    resolvePermissionRequest: mocks.resolvePermissionRequest,
     requireChatConversation: mocks.requireChatConversation,
   },
 }));
@@ -105,10 +111,39 @@ describe('ChatConversationRuntime', () => {
     mocks.sendInput.mockResolvedValue(undefined);
     mocks.interruptSession.mockResolvedValue(undefined);
     mocks.waitUntilReadyForInput.mockResolvedValue(undefined);
+    mocks.cancelPendingPermissionRequests.mockResolvedValue(undefined);
     mocks.deleteItem.mockResolvedValue(undefined);
     mocks.markUserMessageDeliveryStarted.mockResolvedValue(undefined);
     mocks.markUserMessageDelivered.mockResolvedValue(undefined);
     mocks.markUserMessageCancelled.mockResolvedValue(undefined);
+    mocks.getPendingPermissionRequest.mockResolvedValue({
+      id: 'permission-item-1',
+      conversationId: conversation.id,
+      kind: 'permission_request',
+      sequence: 1,
+      createdAt: '2026-05-29T00:00:00.000Z',
+      requestId: 'permission-1',
+      title: 'Run command?',
+      options: [
+        { id: 'approve', label: 'Approve', kind: 'primary' },
+        { id: 'deny', label: 'Deny', kind: 'danger' },
+      ],
+      status: 'pending',
+    });
+    mocks.resolvePermissionRequest.mockResolvedValue({
+      id: 'permission-item-1',
+      conversationId: conversation.id,
+      kind: 'permission_request',
+      sequence: 1,
+      createdAt: '2026-05-29T00:00:00.000Z',
+      requestId: 'permission-1',
+      title: 'Run command?',
+      options: [
+        { id: 'approve', label: 'Approve', kind: 'primary' },
+        { id: 'deny', label: 'Deny', kind: 'danger' },
+      ],
+      status: 'approved',
+    });
     mocks.resolveTask.mockReturnValue({
       conversations: {
         sendInput: mocks.sendInput,
@@ -880,7 +915,7 @@ describe('ChatConversationRuntime', () => {
     expect(mocks.sendInput).toHaveBeenCalledTimes(1);
   });
 
-  it('does not emit a message that is cancelled while backend delivery is pending', async () => {
+  it('reveals a message accepted by the backend before cancellation settles', async () => {
     const send = deferred();
     mocks.sendInput.mockReturnValue(send.promise);
     const runtime = new ChatConversationRuntime();
@@ -910,10 +945,19 @@ describe('ChatConversationRuntime', () => {
       { text: 'hello' },
       { emit: false }
     );
-    expect(mocks.deleteItem).toHaveBeenCalledWith(makeConversation(), 'message-1');
-    expect(mocks.markUserMessageDelivered).not.toHaveBeenCalled();
-    expect(mocks.emitItem).not.toHaveBeenCalled();
-    expect(mocks.eventEmit).not.toHaveBeenCalled();
+    expect(mocks.deleteItem).not.toHaveBeenCalledWith(makeConversation(), 'message-1');
+    expect(mocks.markUserMessageDelivered).toHaveBeenCalledWith(
+      makeConversation(),
+      expect.objectContaining({ id: 'message-1' })
+    );
+    expect(mocks.emitItem).toHaveBeenCalledWith(
+      makeConversation(),
+      expect.objectContaining({ id: 'message-1' })
+    );
+    expect(mocks.eventEmit).toHaveBeenCalledWith(
+      'conversation:input-submitted',
+      expect.objectContaining({ conversationId: 'conversation-1' })
+    );
     expect(mocks.emit).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'conversation:status' }),
       expect.objectContaining({
@@ -923,7 +967,7 @@ describe('ChatConversationRuntime', () => {
     );
   });
 
-  it('does not reveal a cancelled delivery while backend cancellation is pending', async () => {
+  it('reveals a message accepted by the backend after cancellation is requested', async () => {
     const send = deferred();
     const cancel = deferred();
     mocks.sendInput.mockReturnValue(send.promise);
@@ -940,17 +984,25 @@ describe('ChatConversationRuntime', () => {
     await vi.waitFor(() => expect(mocks.interruptSession).toHaveBeenCalled());
     send.resolve();
 
-    await Promise.resolve();
-    expect(mocks.markUserMessageDelivered).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(mocks.markUserMessageDelivered).toHaveBeenCalled());
     expect(mocks.emitItem).not.toHaveBeenCalled();
     expect(mocks.eventEmit).not.toHaveBeenCalled();
 
     cancel.resolve();
     await cancelPromise;
     await expect(sendPromise).rejects.toThrow('Message send was cancelled');
-    expect(mocks.markUserMessageDelivered).not.toHaveBeenCalled();
-    expect(mocks.emitItem).not.toHaveBeenCalled();
-    expect(mocks.eventEmit).not.toHaveBeenCalled();
+    expect(mocks.markUserMessageDelivered).toHaveBeenCalledWith(
+      makeConversation(),
+      expect.objectContaining({ id: 'message-1' })
+    );
+    expect(mocks.emitItem).toHaveBeenCalledWith(
+      makeConversation(),
+      expect.objectContaining({ id: 'message-1' })
+    );
+    expect(mocks.eventEmit).toHaveBeenCalledWith(
+      'conversation:input-submitted',
+      expect.objectContaining({ conversationId: 'conversation-1' })
+    );
     expect(mocks.append).not.toHaveBeenCalledWith(makeConversation(), {
       kind: 'error',
       payload: { message: 'Failed to send message to the agent backend' },
@@ -1274,6 +1326,7 @@ describe('ChatConversationRuntime', () => {
       timestamp: Date.now(),
       payload: {
         notificationType: 'permission_prompt',
+        requestId: 'permission-1',
       },
     });
 
@@ -1402,16 +1455,246 @@ describe('ChatConversationRuntime', () => {
     );
   });
 
-  it('returns an explicit unsupported error for permission responses', async () => {
+  it('sends permission responses through the adapter and marks the turn working', async () => {
     const runtime = new ChatConversationRuntime();
     await runtime.hydrateConversation(makeConversation());
+    await runtime.sendMessage('project-1', 'task-1', 'conversation-1', { text: 'hello' });
+    await runtime.recordAgentEvent({
+      type: 'notification',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      conversationId: 'conversation-1',
+      timestamp: Date.now(),
+      payload: { notificationType: 'permission_prompt', requestId: 'permission-1' },
+    });
+
+    await runtime.respondToPermission('project-1', 'task-1', 'conversation-1', {
+      requestId: 'permission-1',
+      optionId: 'approve',
+    });
+
+    expect(mocks.getPendingPermissionRequest).toHaveBeenCalledWith(makeConversation(), {
+      requestId: 'permission-1',
+      optionId: 'approve',
+    });
+    expect(mocks.sendInput).toHaveBeenCalledWith('conversation-1', 'y\r');
+    expect(mocks.resolvePermissionRequest).toHaveBeenCalledWith(makeConversation(), {
+      requestId: 'permission-1',
+      optionId: 'approve',
+    });
+    expect(mocks.resolvePermissionRequest.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.sendInput.mock.invocationCallOrder.at(-1) ?? 0
+    );
+    expect(mocks.emit).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'conversation:status' }),
+      expect.objectContaining({ conversationId: 'conversation-1', status: 'working' })
+    );
+  });
+
+  it('processes fast completion events while a permission response is being sent', async () => {
+    const runtime = new ChatConversationRuntime();
+    await runtime.hydrateConversation(makeConversation());
+    await runtime.sendMessage('project-1', 'task-1', 'conversation-1', { text: 'hello' });
+    await runtime.recordAgentEvent({
+      type: 'notification',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      conversationId: 'conversation-1',
+      timestamp: Date.now(),
+      payload: { notificationType: 'permission_prompt', requestId: 'permission-1' },
+    });
+    mocks.emit.mockClear();
+
+    const responseSend = deferred();
+    mocks.sendInput.mockReturnValueOnce(responseSend.promise);
+    const responsePromise = runtime.respondToPermission('project-1', 'task-1', 'conversation-1', {
+      requestId: 'permission-1',
+      optionId: 'approve',
+    });
+    await vi.waitFor(() => expect(mocks.sendInput).toHaveBeenCalledWith('conversation-1', 'y\r'));
+
+    await runtime.recordAgentEvent({
+      type: 'notification',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      conversationId: 'conversation-1',
+      timestamp: Date.now(),
+      payload: { notificationType: 'idle_prompt' },
+    });
+
+    expect(mocks.emit).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'conversation:status' }),
+      expect.objectContaining({ conversationId: 'conversation-1', status: 'completed' })
+    );
+    responseSend.resolve();
+    await responsePromise;
+  });
+
+  it('cancels pending permission requests and rejects stale permission responses after cancel', async () => {
+    const runtime = new ChatConversationRuntime();
+    await runtime.hydrateConversation(makeConversation());
+    await runtime.sendMessage('project-1', 'task-1', 'conversation-1', { text: 'hello' });
+    await runtime.recordAgentEvent({
+      type: 'notification',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      conversationId: 'conversation-1',
+      timestamp: Date.now(),
+      payload: { notificationType: 'permission_prompt', requestId: 'permission-1' },
+    });
+
+    await runtime.cancelTurn('project-1', 'task-1', 'conversation-1');
+
+    expect(mocks.cancelPendingPermissionRequests).toHaveBeenCalledWith(makeConversation());
+    await expect(
+      runtime.respondToPermission('project-1', 'task-1', 'conversation-1', {
+        requestId: 'permission-1',
+        optionId: 'approve',
+      })
+    ).rejects.toThrow('Agent is not awaiting permission input');
+  });
+
+  it('rejects permission responses while cancellation is in flight', async () => {
+    const cancel = deferred();
+    mocks.interruptSession.mockReturnValueOnce(cancel.promise);
+    const runtime = new ChatConversationRuntime();
+    await runtime.hydrateConversation(makeConversation());
+    await runtime.sendMessage('project-1', 'task-1', 'conversation-1', { text: 'hello' });
+    await runtime.recordAgentEvent({
+      type: 'notification',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      conversationId: 'conversation-1',
+      timestamp: Date.now(),
+      payload: { notificationType: 'permission_prompt', requestId: 'permission-1' },
+    });
+    mocks.sendInput.mockClear();
+
+    const cancelPromise = runtime.cancelTurn('project-1', 'task-1', 'conversation-1');
+    await vi.waitFor(() => expect(mocks.interruptSession).toHaveBeenCalled());
 
     await expect(
       runtime.respondToPermission('project-1', 'task-1', 'conversation-1', {
         requestId: 'permission-1',
         optionId: 'approve',
       })
-    ).rejects.toThrow('Permission responses are not supported by the chat runtime yet');
+    ).rejects.toThrow('Agent cancellation is in progress');
+    expect(mocks.sendInput).not.toHaveBeenCalled();
+
+    cancel.resolve();
+    await cancelPromise;
+  });
+
+  it('marks permission responses resolved before reporting backend delivery failure', async () => {
+    const runtime = new ChatConversationRuntime();
+    await runtime.hydrateConversation(makeConversation());
+    await runtime.sendMessage('project-1', 'task-1', 'conversation-1', { text: 'hello' });
+    await runtime.recordAgentEvent({
+      type: 'notification',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      conversationId: 'conversation-1',
+      timestamp: Date.now(),
+      payload: { notificationType: 'permission_prompt', requestId: 'permission-1' },
+    });
+    mocks.sendInput.mockRejectedValueOnce(new Error('write failed'));
+
+    await expect(
+      runtime.respondToPermission('project-1', 'task-1', 'conversation-1', {
+        requestId: 'permission-1',
+        optionId: 'approve',
+      })
+    ).rejects.toThrow('write failed');
+
+    expect(mocks.resolvePermissionRequest).toHaveBeenCalledWith(makeConversation(), {
+      requestId: 'permission-1',
+      optionId: 'approve',
+    });
+    expect(mocks.resolvePermissionRequest.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.sendInput.mock.invocationCallOrder.at(-1) ?? 0
+    );
+    expect(mocks.append).toHaveBeenCalledWith(makeConversation(), {
+      kind: 'error',
+      payload: { message: 'Failed to send permission response to the agent backend' },
+    });
+    expect(mocks.emit).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'conversation:status' }),
+      expect.objectContaining({ conversationId: 'conversation-1', status: 'error' })
+    );
+  });
+
+  it('does not send permission responses when timeline resolution fails', async () => {
+    mocks.resolvePermissionRequest.mockRejectedValueOnce(new Error('db failed'));
+    const runtime = new ChatConversationRuntime();
+    await runtime.hydrateConversation(makeConversation());
+    await runtime.sendMessage('project-1', 'task-1', 'conversation-1', { text: 'hello' });
+    await runtime.recordAgentEvent({
+      type: 'notification',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      conversationId: 'conversation-1',
+      timestamp: Date.now(),
+      payload: { notificationType: 'permission_prompt', requestId: 'permission-1' },
+    });
+    mocks.sendInput.mockClear();
+
+    await expect(
+      runtime.respondToPermission('project-1', 'task-1', 'conversation-1', {
+        requestId: 'permission-1',
+        optionId: 'approve',
+      })
+    ).rejects.toThrow('db failed');
+
+    expect(mocks.sendInput).not.toHaveBeenCalled();
+  });
+
+  it('cancels pending permission requests on backend exit', async () => {
+    const runtime = new ChatConversationRuntime();
+    await runtime.hydrateConversation(makeConversation());
+    await runtime.sendMessage('project-1', 'task-1', 'conversation-1', { text: 'hello' });
+    await runtime.recordAgentEvent({
+      type: 'notification',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      conversationId: 'conversation-1',
+      timestamp: Date.now(),
+      payload: { notificationType: 'permission_prompt', requestId: 'permission-1' },
+    });
+
+    await runtime.recordBackendExit({
+      projectId: 'project-1',
+      taskId: 'task-1',
+      conversationId: 'conversation-1',
+      sessionId: 'conversation-1',
+      exitCode: 1,
+    });
+
+    expect(mocks.cancelPendingPermissionRequests).toHaveBeenCalledWith(makeConversation());
+    await expect(
+      runtime.respondToPermission('project-1', 'task-1', 'conversation-1', {
+        requestId: 'permission-1',
+        optionId: 'approve',
+      })
+    ).rejects.toThrow('Agent is not awaiting permission input');
+  });
+
+  it('cancels pending permission requests when dehydrating a task', async () => {
+    const runtime = new ChatConversationRuntime();
+    await runtime.hydrateConversation(makeConversation());
+    await runtime.sendMessage('project-1', 'task-1', 'conversation-1', { text: 'hello' });
+    await runtime.recordAgentEvent({
+      type: 'notification',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      conversationId: 'conversation-1',
+      timestamp: Date.now(),
+      payload: { notificationType: 'permission_prompt', requestId: 'permission-1' },
+    });
+
+    await runtime.dehydrateTask('task-1');
+
+    expect(mocks.cancelPendingPermissionRequests).toHaveBeenCalledWith(makeConversation());
+    expect(runtime.isActive('conversation-1')).toBe(false);
   });
 
   it('records assistant and error agent events into the timeline', async () => {
@@ -1484,6 +1767,7 @@ describe('ChatConversationRuntime', () => {
       timestamp: Date.now(),
       payload: {
         notificationType: 'permission_prompt',
+        requestId: 'permission-1',
       },
     });
     expect(mocks.emit).toHaveBeenCalledWith(
@@ -1493,13 +1777,24 @@ describe('ChatConversationRuntime', () => {
         status: 'awaiting-input',
       })
     );
-    expect(mocks.append).toHaveBeenCalledWith(makeConversation(), {
-      kind: 'error',
-      payload: {
-        message:
-          'Codex requested interactive input that is not supported in chat UI yet. Cancel this turn or use terminal UI for this conversation.',
+    expect(mocks.append).toHaveBeenCalledWith(
+      makeConversation(),
+      {
+        id: 'permission-1',
+        kind: 'permission_request',
+        payload: {
+          requestId: 'permission-1',
+          title: 'Codex permission request',
+          body: 'Codex is asking for permission to continue.',
+          options: [
+            { id: 'approve', label: 'Approve', kind: 'primary' },
+            { id: 'deny', label: 'Deny', kind: 'danger' },
+          ],
+          status: 'pending',
+        },
       },
-    });
+      { upsert: true }
+    );
     await expect(
       runtime.sendMessage('project-1', 'task-1', 'conversation-1', { text: 'while blocked' })
     ).rejects.toThrow('Agent is awaiting input');
@@ -1510,6 +1805,56 @@ describe('ChatConversationRuntime', () => {
     expect(mocks.sendInput).toHaveBeenLastCalledWith(
       'conversation-1',
       expect.stringContaining('after cancel')
+    );
+  });
+
+  it('does not reopen awaiting-input status for duplicate resolved permission events', async () => {
+    mocks.append.mockResolvedValueOnce({
+      id: 'permission-1',
+      conversationId: 'conversation-1',
+      kind: 'permission_request',
+      sequence: 2,
+      createdAt: '2026-05-28T00:00:00.000Z',
+      requestId: 'permission-1',
+      title: 'Codex permission request',
+      body: 'Codex is asking for permission to continue.',
+      options: [
+        { id: 'approve', label: 'Approve', kind: 'primary' },
+        { id: 'deny', label: 'Deny', kind: 'danger' },
+      ],
+      status: 'approved',
+    });
+    const runtime = new ChatConversationRuntime();
+    await runtime.hydrateConversation(makeConversation());
+    await runtime.sendMessage('project-1', 'task-1', 'conversation-1', { text: 'hello' });
+    mocks.emit.mockClear();
+
+    await runtime.recordAgentEvent({
+      type: 'notification',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      conversationId: 'conversation-1',
+      timestamp: Date.now(),
+      payload: {
+        notificationType: 'permission_prompt',
+        requestId: 'permission-1',
+      },
+    });
+
+    expect(mocks.append).toHaveBeenCalledWith(
+      makeConversation(),
+      expect.objectContaining({
+        id: 'permission-1',
+        kind: 'permission_request',
+      }),
+      { upsert: true }
+    );
+    expect(mocks.emit).not.toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'conversation:status' }),
+      expect.objectContaining({
+        conversationId: 'conversation-1',
+        status: 'awaiting-input',
+      })
     );
   });
 

@@ -1,4 +1,5 @@
 import { defineEvent } from '@shared/ipc/events';
+import type { ConversationToolCallStatus } from '../conversation-timeline';
 
 export type AgentEventType = 'notification' | 'stop' | 'error' | 'start';
 
@@ -29,9 +30,16 @@ export interface AgentEvent {
   timestamp: number;
   payload: {
     notificationType?: NotificationType;
+    requestId?: string;
     title?: string;
     message?: string;
     lastAssistantMessage?: string;
+    toolCallId?: string;
+    toolName?: string;
+    toolStatus?: ConversationToolCallStatus;
+    toolInput?: unknown;
+    toolOutput?: string;
+    toolError?: string;
   };
 }
 
