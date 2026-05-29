@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TaskRow } from '@main/db/schema';
+import { DEFAULT_TASK_KIND } from '@shared/tasks';
 import { toStoredBranch } from '../stored-branch';
 import { renameTask } from './renameTask';
 
@@ -35,6 +36,7 @@ function makeTaskRow(values: Partial<TaskRow>): TaskRow {
     id: values.id ?? 'task-1',
     projectId: values.projectId ?? 'project-1',
     name: values.name ?? 'old-title',
+    kind: values.kind ?? DEFAULT_TASK_KIND,
     status: values.status ?? 'in_progress',
     sourceBranch: values.sourceBranch ?? null,
     taskBranch: values.taskBranch ?? null,

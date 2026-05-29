@@ -8,14 +8,17 @@ import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import { log } from '@renderer/utils/logger';
 import { prSyncProgressChannel, prUpdatedChannel } from '@shared/events/prEvents';
 import { taskProvisionProgressChannel, taskStatusUpdatedChannel } from '@shared/events/taskEvents';
-import type { FetchError } from '@shared/git';
-import type {
-  CreateTaskError,
-  CreateTaskParams,
-  CreateTaskWarning,
-  DeleteTaskOptions,
-  Task,
-  TaskLifecycleStatus,
+import type { Branch, FetchError } from '@shared/git';
+import {
+  generateChatName,
+  resolveTaskKind,
+  TASK_KIND,
+  type CreateTaskError,
+  type CreateTaskParams,
+  type CreateTaskWarning,
+  type DeleteTaskOptions,
+  type Task,
+  type TaskLifecycleStatus,
 } from '@shared/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
 import { formatPushErrorDetail } from '../utils';
@@ -222,6 +225,28 @@ export class TaskManagerStore {
     return this._loadPromise;
   }
 
+  private resolveChatSourceBranch(): Branch {
+    const defaultBranch = this._repository.defaultBranch;
+    if (defaultBranch) return defaultBranch;
+    const current = this._repository.currentBranch;
+    if (current) return { type: 'local', branch: current };
+    return { type: 'local', branch: 'main' };
+  }
+
+  createChat(): string {
+    const id = crypto.randomUUID();
+    const name = generateChatName();
+    void this.createTask({
+      id,
+      projectId: this.projectId,
+      name,
+      kind: TASK_KIND.Chat,
+      sourceBranch: this.resolveChatSourceBranch(),
+      strategy: { kind: 'no-worktree' },
+    });
+    return id;
+  }
+
   async createTask(params: CreateTaskParams) {
     runInAction(() => {
       this.tasks.set(
@@ -231,6 +256,7 @@ export class TaskManagerStore {
           lastInteractedAt: new Date().toISOString(),
           createdAt: new Date().toISOString(),
           name: params.name,
+          kind: resolveTaskKind(params.kind),
           status: params.initialStatus ?? 'in_progress',
           statusChangedAt: new Date().toISOString(),
           isPinned: false,

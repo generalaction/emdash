@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TaskRow } from '@main/db/schema';
 import { err } from '@shared/result';
+import { DEFAULT_TASK_KIND, TASK_KIND } from '@shared/tasks';
 import { toStoredBranch } from '../stored-branch';
 import { createTask } from './createTask';
 
@@ -55,6 +56,7 @@ function makeTaskRow(values: Partial<TaskRow>): TaskRow {
     id: values.id ?? 'task-1',
     projectId: values.projectId ?? 'project-1',
     name: values.name ?? 'Review PR',
+    kind: values.kind ?? DEFAULT_TASK_KIND,
     status: values.status ?? 'in_progress',
     sourceBranch: values.sourceBranch ?? null,
     taskBranch: values.taskBranch ?? null,
@@ -195,6 +197,89 @@ describe('createTask', () => {
           type: 'local',
           branch: 'claude/add-french-translations-ud2fs',
         }),
+      })
+    );
+  });
+
+  it('inserts kind="chat" with no worktree when requested', async () => {
+    const insertTaskValues = vi.fn((values: Partial<TaskRow>) => ({
+      returning: vi.fn().mockResolvedValue([makeTaskRow(values)]),
+    }));
+    const insertWorkspaceValues = vi.fn().mockResolvedValue(undefined);
+    mocks.insert
+      .mockReturnValueOnce({ values: insertTaskValues })
+      .mockReturnValueOnce({ values: insertWorkspaceValues });
+
+    const result = await createTask({
+      id: 'chat-1',
+      projectId: 'project-1',
+      name: 'chat-may-27',
+      kind: TASK_KIND.Chat,
+      sourceBranch: { type: 'local', branch: 'main' },
+      strategy: { kind: 'no-worktree' },
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.success && result.data.task.kind).toBe(TASK_KIND.Chat);
+    expect(insertTaskValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: TASK_KIND.Chat,
+        taskBranch: undefined,
+      })
+    );
+  });
+
+  it('defaults kind to "task" when not provided', async () => {
+    const insertTaskValues = vi.fn((values: Partial<TaskRow>) => ({
+      returning: vi.fn().mockResolvedValue([makeTaskRow(values)]),
+    }));
+    const insertWorkspaceValues = vi.fn().mockResolvedValue(undefined);
+    mocks.insert
+      .mockReturnValueOnce({ values: insertTaskValues })
+      .mockReturnValueOnce({ values: insertWorkspaceValues });
+
+    await createTask({
+      id: 'task-1',
+      projectId: 'project-1',
+      name: 'Review PR',
+      sourceBranch: { type: 'local', branch: 'main' },
+      strategy: {
+        kind: 'from-pull-request',
+        prNumber: 123,
+        headBranch: 'feature',
+        headRepositoryUrl: 'https://github.com/example/repo.git',
+        isFork: false,
+      },
+    });
+
+    expect(insertTaskValues).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: TASK_KIND.Task })
+    );
+  });
+
+  it('creates a regular no-worktree task with kind task and no branch', async () => {
+    const insertTaskValues = vi.fn((values: Partial<TaskRow>) => ({
+      returning: vi.fn().mockResolvedValue([makeTaskRow(values)]),
+    }));
+    const insertWorkspaceValues = vi.fn().mockResolvedValue(undefined);
+    mocks.insert
+      .mockReturnValueOnce({ values: insertTaskValues })
+      .mockReturnValueOnce({ values: insertWorkspaceValues });
+
+    const result = await createTask({
+      id: 'blank-1',
+      projectId: 'project-1',
+      name: 'Blank task',
+      sourceBranch: { type: 'local', branch: 'main' },
+      strategy: { kind: 'no-worktree' },
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.success && result.data.task.kind).toBe(TASK_KIND.Task);
+    expect(insertTaskValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: TASK_KIND.Task,
+        taskBranch: undefined,
       })
     );
   });

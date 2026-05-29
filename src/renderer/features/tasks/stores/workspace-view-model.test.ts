@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Conversation } from '@shared/conversations';
 import type { Task } from '@shared/tasks';
+import { TASK_KIND } from '@shared/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
 import { conversationRegistry } from './conversation-registry';
 import type { TaskStore } from './task-store';
@@ -41,6 +42,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     id: 'task-1',
     projectId: 'project-1',
     name: 'Task 1',
+    kind: TASK_KIND.Task,
     status: 'todo',
     sourceBranch: undefined,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -77,6 +79,48 @@ function asHydrationHarness(viewModel: WorkspaceViewModel): HydrationHarness {
 
 afterEach(() => {
   conversationRegistry.release('task-1');
+});
+
+describe('WorkspaceViewModel.setSidebarTab', () => {
+  it('ignores changes and files tabs for chat tasks', () => {
+    const viewModel = new WorkspaceViewModel({
+      data: makeTask({ kind: TASK_KIND.Chat }),
+      state: 'unprovisioned',
+      phase: 'provision',
+    } as unknown as TaskStore);
+
+    viewModel.setSidebarTab('changes');
+    expect(viewModel.sidebarTab).toBe('conversations');
+
+    viewModel.setSidebarTab('files');
+    expect(viewModel.sidebarTab).toBe('conversations');
+
+    viewModel.setSidebarTab('conversations');
+    expect(viewModel.sidebarTab).toBe('conversations');
+  });
+
+  it('ignores changes and files tabs for optimistic unregistered chats', () => {
+    const viewModel = new WorkspaceViewModel({
+      data: {
+        id: 'chat-1',
+        name: 'chat-may-27',
+        kind: TASK_KIND.Chat,
+        status: 'in_progress',
+        lastInteractedAt: '2026-01-01T00:00:00.000Z',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        statusChangedAt: '2026-01-01T00:00:00.000Z',
+        isPinned: false,
+      },
+      state: 'unregistered',
+      phase: 'creating',
+    } as unknown as TaskStore);
+
+    viewModel.setSidebarTab('changes');
+    expect(viewModel.sidebarTab).toBe('conversations');
+
+    viewModel.setSidebarTab('files');
+    expect(viewModel.sidebarTab).toBe('conversations');
+  });
 });
 
 describe('WorkspaceViewModel terminal drawer snapshot', () => {

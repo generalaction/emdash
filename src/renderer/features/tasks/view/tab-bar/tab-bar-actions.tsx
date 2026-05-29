@@ -2,6 +2,7 @@ import { useHotkey } from '@tanstack/react-hotkeys';
 import { Columns2, FileSearch, MessageSquarePlus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { getRegisteredTaskData } from '@renderer/features/tasks/stores/task-selectors';
 import {
   getEffectiveHotkey,
   getHotkeyRegistration,
@@ -10,6 +11,7 @@ import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+import { taskViewProfile } from '@shared/tasks';
 import { useTabGroupContext } from '../../tabs/tab-group-context';
 import { useTaskViewContext, useWorkspaceViewModel } from '../../task-view-context';
 
@@ -25,6 +27,8 @@ export const TabBarActions = observer(function TabBarActions() {
     taskView.focusedRegion === 'main' && tabGroupManager.activeGroupId === groupId;
   const { value: keyboard } = useAppSettingsKey('keyboard');
   const canSplit = tabManager.resolvedTabs.length >= 2 && tabGroupManager.groups.length < 3;
+  const task = getRegisteredTaskData(projectId, taskId);
+  const viewProfile = task ? taskViewProfile(task.kind) : null;
 
   useHotkey(
     getHotkeyRegistration('splitPane', keyboard),
@@ -60,20 +64,22 @@ export const TabBarActions = observer(function TabBarActions() {
           New Conversations <BoundShortcut settingsKey="newConversation" variant="badge" />
         </TooltipContent>
       </Tooltip>
-      <Tooltip>
-        <TooltipTrigger>
-          <Button
-            size="icon-sm"
-            variant="ghost"
-            onClick={() =>
-              showCommandPalette({ projectId, taskId, workspaceId: workspaceId ?? undefined })
-            }
-          >
-            <FileSearch className="size-3.5" />
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>Open File</TooltipContent>
-      </Tooltip>
+      {viewProfile?.showFilePicker && (
+        <Tooltip>
+          <TooltipTrigger>
+            <Button
+              size="icon-sm"
+              variant="ghost"
+              onClick={() =>
+                showCommandPalette({ projectId, taskId, workspaceId: workspaceId ?? undefined })
+              }
+            >
+              <FileSearch className="size-3.5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Open File</TooltipContent>
+        </Tooltip>
+      )}
       {tabGroupManager.groups.length < 3 && (
         <Tooltip>
           <TooltipTrigger>

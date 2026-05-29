@@ -13,6 +13,7 @@ export function mapTaskRowToTask(
     id: row.id,
     projectId: row.projectId,
     name: row.name,
+    kind: row.kind,
     status: row.status as TaskLifecycleStatus,
     sourceBranch,
     taskBranch: row.taskBranch ?? undefined,

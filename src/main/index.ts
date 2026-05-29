@@ -129,6 +129,8 @@ void app.whenReady().then(async () => {
   await appSettingsService.initialize();
   await promptLibraryService.initialize();
 
+  await import('./core/telemetry/register-task-telemetry');
+
   agentHookService.initialize().catch((e) => {
     log.error('Failed to start agent event service:', e);
   });

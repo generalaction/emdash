@@ -10,8 +10,11 @@ import type {
   RenameTaskOptions,
   RenameTaskSuccess,
   Task,
+  TaskKind,
   TaskLifecycleStatus,
+  TaskViewProfile,
 } from '@shared/tasks';
+import { taskViewProfile } from '@shared/tasks';
 import { conversationRegistry } from './conversation-registry';
 import { workspaceRegistry } from './workspace-registry';
 import { WorkspaceViewModel } from './workspace-view-model';
@@ -28,6 +31,7 @@ export type UnprovisionedTaskPhase =
 export type UnregisteredTaskData = {
   id: string;
   name: string;
+  kind: TaskKind;
   status: TaskLifecycleStatus;
   lastInteractedAt: string;
   createdAt: string;
@@ -307,6 +311,15 @@ export function registeredTaskData(store: TaskStore): Task | undefined {
 
 export function unregisteredTaskData(store: TaskStore): UnregisteredTaskData | undefined {
   return isUnregistered(store) ? store.data : undefined;
+}
+
+export function taskKindForStore(store: TaskStore): TaskKind {
+  if (isRegistered(store)) return store.data.kind;
+  return unregisteredTaskData(store)!.kind;
+}
+
+export function taskViewProfileForStore(store: TaskStore): TaskViewProfile {
+  return taskViewProfile(taskKindForStore(store));
 }
 
 export function createUnregisteredTask(data: UnregisteredTaskData): TaskStore {

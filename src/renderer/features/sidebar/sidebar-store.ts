@@ -4,6 +4,7 @@ import {
   type UnregisteredProject,
 } from '@renderer/features/projects/stores/project';
 import type { ProjectManagerStore } from '@renderer/features/projects/stores/project-manager';
+import { partitionTasksBySidebarGroup } from '@renderer/features/tasks/stores/task-group';
 import {
   registeredTaskData,
   unregisteredTaskData,
@@ -11,6 +12,8 @@ import {
 } from '@renderer/features/tasks/stores/task-store';
 import type { Snapshottable } from '@renderer/lib/stores/snapshottable';
 import { type LocalProject, type SshProject } from '@shared/projects';
+import type { TaskSidebarGroup } from '@shared/tasks';
+import { TASK_SIDEBAR_GROUP } from '@shared/tasks';
 import type { SidebarSnapshot, SidebarTaskSortBy } from '@shared/view-state';
 
 function parseSidebarTaskSortBy(value: unknown): SidebarTaskSortBy | undefined {
@@ -33,7 +36,10 @@ export function getSortInstant(task: TaskStore, kind: 'created' | 'updated'): st
 
 export type SidebarRow =
   | { kind: 'project'; projectId: string }
-  | { kind: 'task'; projectId: string; taskId: string };
+  | { kind: 'group-header'; projectId: string; group: TaskSidebarGroup }
+  | { kind: 'group-item'; projectId: string; taskId: string; group: TaskSidebarGroup };
+
+const SIDEBAR_GROUPS: TaskSidebarGroup[] = [TASK_SIDEBAR_GROUP.Tasks, TASK_SIDEBAR_GROUP.Chats];
 
 export class SidebarStore implements Snapshottable<SidebarSnapshot> {
   projectOrder: string[] = [];
@@ -103,13 +109,20 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
         const tasks = Array.from(project.mountedProject.taskManager.tasks.values()).filter(
           (t) => t.state === 'unregistered' || !('archivedAt' in t.data && t.data.archivedAt)
         );
+        const byGroup = partitionTasksBySidebarGroup(tasks);
         const manualOrder = this.taskOrderByProject[projectId];
-        const ordered = manualOrder?.length
-          ? this.mergeTaskOrder(projectId, tasks)
-          : this.sortTasksForSidebar(tasks);
-        for (const task of ordered) {
-          if (task.data.isPinned) continue;
-          rows.push({ kind: 'task', projectId, taskId: task.data.id });
+        for (const group of SIDEBAR_GROUPS) {
+          const groupTasks = byGroup[group];
+          const ordered =
+            group === TASK_SIDEBAR_GROUP.Tasks && manualOrder?.length
+              ? this.mergeTaskOrder(projectId, groupTasks)
+              : this.sortTasksForSidebar(groupTasks);
+          const visible = ordered.filter((t) => !t.data.isPinned);
+          if (visible.length === 0) continue;
+          rows.push({ kind: 'group-header', projectId, group });
+          for (const task of visible) {
+            rows.push({ kind: 'group-item', projectId, taskId: task.data.id, group });
+          }
         }
       }
     }
@@ -147,11 +160,18 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
         !t.data.isPinned &&
         (t.state === 'unregistered' || !('archivedAt' in t.data && t.data.archivedAt))
     );
+    const byGroup = partitionTasksBySidebarGroup(tasks);
     const manualOrder = this.taskOrderByProject[projectId];
-    const ordered = manualOrder?.length
-      ? this.mergeTaskOrder(projectId, tasks)
-      : this.sortTasksForSidebar(tasks);
-    return ordered.map((t) => t.data.id);
+    const ids: string[] = [];
+    for (const group of SIDEBAR_GROUPS) {
+      const groupTasks = byGroup[group];
+      const ordered =
+        group === TASK_SIDEBAR_GROUP.Tasks && manualOrder?.length
+          ? this.mergeTaskOrder(projectId, groupTasks)
+          : this.sortTasksForSidebar(groupTasks);
+      ids.push(...ordered.map((t) => t.data.id));
+    }
+    return ids;
   }
 
   get isEmpty(): boolean {

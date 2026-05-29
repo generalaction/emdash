@@ -1,7 +1,9 @@
+import { MessageSquare } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { TaskSidebarAgentStatus } from '@renderer/features/sidebar/task-sidebar-agent-status';
 import { TaskContextMenu } from '@renderer/features/tasks/components/task-context-menu';
 import { TaskGitDiffStats } from '@renderer/features/tasks/components/task-git-diff-stats';
+import { taskSidebarGroupForStore } from '@renderer/features/tasks/stores/task-group';
 import {
   getTaskGitStore,
   getTaskManagerStore,
@@ -17,6 +19,8 @@ import {
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { cn } from '@renderer/utils/utils';
 import { selectCurrentPr } from '@shared/pull-requests';
+import type { TaskSidebarGroup } from '@shared/tasks';
+import { DEFAULT_TASK_SIDEBAR_GROUP, TASK_SIDEBAR_GROUP } from '@shared/tasks';
 import { PrBadge } from '../../lib/components/pr-badge';
 import { SidebarMenuRow } from './sidebar-primitives';
 
@@ -25,12 +29,15 @@ interface SidebarTaskItemProps {
   projectId: string;
   /** Pinned strip uses tighter padding than tasks nested under a project. */
   rowVariant?: 'underProject' | 'pinned';
+  /** Omitted for pinned rows — resolved from task data. */
+  group?: TaskSidebarGroup;
 }
 
 export const SidebarTaskItem = observer(function SidebarTaskItem({
   taskId,
   projectId,
   rowVariant = 'underProject',
+  group,
 }: SidebarTaskItemProps) {
   const { navigate } = useNavigate();
   const showRename = useShowModal('renameTaskModal');
@@ -43,6 +50,8 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
 
   const task = getTaskStore(projectId, taskId)!;
   const taskManager = getTaskManagerStore(projectId);
+  const resolvedGroup = group ?? taskSidebarGroupForStore(task) ?? DEFAULT_TASK_SIDEBAR_GROUP;
+  const isChatsGroup = resolvedGroup === TASK_SIDEBAR_GROUP.Chats;
 
   const isBootstrapping =
     task.state === 'unregistered' ||
@@ -77,8 +86,9 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
 
   const workspaceStore = getWorkspaceForTask(projectId, taskId);
   const git = getTaskGitStore(projectId, taskId);
-  const branchName =
-    git?.branchName ?? ('taskBranch' in task.data ? task.data.taskBranch : undefined);
+  const branchName = isChatsGroup
+    ? undefined
+    : (git?.branchName ?? ('taskBranch' in task.data ? task.data.taskBranch : undefined));
   const handleReconnect =
     workspaceStore?.connectionState != null ? () => workspaceStore.reconnect() : undefined;
 
@@ -108,6 +118,9 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
         }}
       >
         <div className="flex min-w-0 flex-1 items-center gap-1 self-stretch overflow-hidden">
+          {isChatsGroup && (
+            <MessageSquare className="h-3.5 w-3.5 shrink-0 text-foreground-passive" />
+          )}
           <span
             className={cn(
               'min-w-0 truncate text-left transition-colors',
@@ -116,8 +129,10 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
           >
             {taskName}
           </span>
-          <TaskGitDiffStats task={task} className="flex h-full shrink-0 items-center pr-1 pl-1" />
-          <RenderPrBadge task={task} />
+          {!isChatsGroup && (
+            <TaskGitDiffStats task={task} className="flex h-full shrink-0 items-center pr-1 pl-1" />
+          )}
+          {!isChatsGroup && <RenderPrBadge task={task} />}
         </div>
         <TaskSidebarAgentStatus task={task} />
       </SidebarMenuRow>
