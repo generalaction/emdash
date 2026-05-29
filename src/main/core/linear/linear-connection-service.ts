@@ -4,18 +4,31 @@ import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { ISSUE_PROVIDER_CAPABILITIES, type ConnectionStatus } from '@shared/issue-providers';
 
-function isAuthFailure(error: unknown): boolean {
-  return error instanceof AuthenticationLinearError || error instanceof ForbiddenLinearError;
+function isInvalidTokenError(error: unknown): boolean {
+  // @linear/sdk maps generic 4xx responses, including HTTP 408 timeouts,
+  // to AuthenticationLinearError. Only 401/403 prove the saved token is invalid.
+  if (error instanceof AuthenticationLinearError) {
+    return error.status === 401;
+  }
+
+  if (error instanceof ForbiddenLinearError) {
+    return error.status === 403;
+  }
+
+  return false;
 }
 
 export class LinearConnectionService {
   private readonly LINEAR_TOKEN_SECRET_KEY = 'emdash-linear-token';
 
+  /** Bumps when the stored credential changes, so in-flight checks cannot write stale state. */
+  private tokenVersion = 0;
   private cachedToken: string | null | undefined = undefined;
   private client: LinearClient | null = null;
   private clientToken: string | null = null;
   /** `null` = no successful verification yet; `undefined` = verified, name unavailable. */
   private lastVerifiedDisplayName: string | undefined | null = null;
+  private authFailure: { tokenVersion: number; message: string } | null = null;
 
   async saveToken(
     token: string
@@ -30,6 +43,7 @@ export class LinearConnectionService {
 
       await this.storeToken(clean);
       this.lastVerifiedDisplayName = displayName;
+      this.authFailure = null;
       telemetryService.capture('integration_connected', { provider: 'linear' });
 
       return {
@@ -48,10 +62,11 @@ export class LinearConnectionService {
   async clearToken(): Promise<{ success: boolean; error?: string }> {
     try {
       await encryptedAppSecretsStore.deleteSecret(this.LINEAR_TOKEN_SECRET_KEY);
-      this.cachedToken = null;
+      this.setCachedToken(null);
       this.client = null;
       this.clientToken = null;
       this.lastVerifiedDisplayName = null;
+      this.authFailure = null;
       telemetryService.capture('integration_disconnected', { provider: 'linear' });
       return { success: true };
     } catch (error) {
@@ -67,24 +82,37 @@ export class LinearConnectionService {
     const token = await this.getStoredToken();
     if (!token) {
       this.lastVerifiedDisplayName = null;
+      this.authFailure = null;
       return {
         connected: false,
         capabilities: ISSUE_PROVIDER_CAPABILITIES.linear,
       };
     }
 
+    const tokenVersion = this.tokenVersion;
+
     try {
       const displayName = await this.fetchViewerDisplayName(token);
+      if (this.tokenVersion !== tokenVersion) {
+        return this.currentConnectionStatus();
+      }
+
       this.lastVerifiedDisplayName = displayName;
+      this.authFailure = null;
       return {
         connected: true,
         displayName,
         capabilities: ISSUE_PROVIDER_CAPABILITIES.linear,
       };
     } catch (error) {
-      if (isAuthFailure(error)) {
+      if (this.tokenVersion !== tokenVersion) {
+        return this.currentConnectionStatus();
+      }
+
+      if (isInvalidTokenError(error)) {
         this.lastVerifiedDisplayName = null;
         const message = error instanceof Error ? error.message : 'Linear token rejected.';
+        this.authFailure = { tokenVersion, message };
         return {
           connected: false,
           error: message,
@@ -92,10 +120,10 @@ export class LinearConnectionService {
         };
       }
 
-      if (this.lastVerifiedDisplayName === null) {
+      if (this.authFailure?.tokenVersion === tokenVersion) {
         return {
           connected: false,
-          error: 'Unable to verify Linear connection. Please try again.',
+          error: this.authFailure.message,
           capabilities: ISSUE_PROVIDER_CAPABILITIES.linear,
         };
       }
@@ -103,7 +131,7 @@ export class LinearConnectionService {
       log.warn('Linear connection check failed transiently; keeping connected:', error);
       return {
         connected: true,
-        displayName: this.lastVerifiedDisplayName,
+        displayName: this.lastVerifiedDisplayName ?? undefined,
         capabilities: ISSUE_PROVIDER_CAPABILITIES.linear,
       };
     }
@@ -116,6 +144,29 @@ export class LinearConnectionService {
     }
 
     return this.getClientForToken(token);
+  }
+
+  private currentConnectionStatus(): ConnectionStatus {
+    if (!this.cachedToken) {
+      return {
+        connected: false,
+        capabilities: ISSUE_PROVIDER_CAPABILITIES.linear,
+      };
+    }
+
+    if (this.authFailure?.tokenVersion === this.tokenVersion) {
+      return {
+        connected: false,
+        error: this.authFailure.message,
+        capabilities: ISSUE_PROVIDER_CAPABILITIES.linear,
+      };
+    }
+
+    return {
+      connected: true,
+      displayName: this.lastVerifiedDisplayName ?? undefined,
+      capabilities: ISSUE_PROVIDER_CAPABILITIES.linear,
+    };
   }
 
   private async fetchViewerDisplayName(token: string): Promise<string | undefined> {
@@ -136,11 +187,21 @@ export class LinearConnectionService {
   private async storeToken(token: string): Promise<void> {
     try {
       await encryptedAppSecretsStore.setSecret(this.LINEAR_TOKEN_SECRET_KEY, token);
-      this.cachedToken = token;
+      this.setCachedToken(token);
     } catch (error) {
       log.error('Failed to store Linear token:', error);
       throw new Error('Unable to store Linear token securely.');
     }
+  }
+
+  private setCachedToken(token: string | null): void {
+    if (this.cachedToken === token) {
+      return;
+    }
+
+    this.cachedToken = token;
+    this.tokenVersion += 1;
+    this.authFailure = null;
   }
 
   private async getStoredToken(): Promise<string | null> {
@@ -149,8 +210,10 @@ export class LinearConnectionService {
     }
 
     try {
-      this.cachedToken = await encryptedAppSecretsStore.getSecret(this.LINEAR_TOKEN_SECRET_KEY);
-      return this.cachedToken;
+      const token =
+        (await encryptedAppSecretsStore.getSecret(this.LINEAR_TOKEN_SECRET_KEY)) ?? null;
+      this.setCachedToken(token);
+      return token;
     } catch (error) {
       log.error('Failed to read Linear token from secure storage:', error);
       return null;
