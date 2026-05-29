@@ -35,6 +35,7 @@ case "$event" in
     printf '%s' '{"notification_type":"permission_prompt"}' | post_hook notification
     ;;
   SessionStart)
+    printf '%s' "$input" | grep -qE '"hook_event_name"[[:space:]]*:[[:space:]]*"SessionStart"' || exit 0
     printf '%s' "$input" | post_hook session-start
     ;;
 esac
