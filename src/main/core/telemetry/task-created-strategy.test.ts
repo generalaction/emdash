@@ -59,6 +59,16 @@ describe('taskCreatedTelemetryStrategy', () => {
     expect(taskCreatedTelemetryStrategy(params())).toBe('branch');
   });
 
+  it('reports branch for checkout-existing tasks', () => {
+    expect(
+      taskCreatedTelemetryStrategy(
+        params({
+          strategy: { kind: 'checkout-existing' },
+        })
+      )
+    ).toBe('branch');
+  });
+
   it('reports pr for pull-request tasks', () => {
     expect(
       taskCreatedTelemetryStrategy(
@@ -69,6 +79,28 @@ describe('taskCreatedTelemetryStrategy', () => {
             headBranch: 'feature',
             headRepositoryUrl: 'https://github.com/acme/repo.git',
             isFork: false,
+          },
+        })
+      )
+    ).toBe('pr');
+  });
+
+  it('prefers pr over linked issues', () => {
+    expect(
+      taskCreatedTelemetryStrategy(
+        params({
+          strategy: {
+            kind: 'from-pull-request',
+            prNumber: 42,
+            headBranch: 'feature',
+            headRepositoryUrl: 'https://github.com/acme/repo.git',
+            isFork: false,
+          },
+          linkedIssue: {
+            provider: 'github',
+            url: 'https://github.com/acme/repo/issues/1',
+            title: 'Issue',
+            identifier: '#1',
           },
         })
       )
