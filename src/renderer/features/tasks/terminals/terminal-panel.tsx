@@ -15,10 +15,15 @@ import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
 import { BoundShortcut } from '@renderer/lib/ui/shortcut';
+import type { TerminalShellId } from '@shared/terminal-settings';
 import { useIsActiveTask } from '../hooks/use-is-active-task';
 import { TerminalDrawerSidebar } from './terminal-drawer-sidebar';
 import { resolveTerminalPanelActiveItem } from './terminal-panel-selection';
 import { TerminalPtyContent } from './terminal-pty-content';
+import {
+  DEFAULT_TERMINAL_SHELL_AVAILABILITY,
+  useTerminalShellAvailability,
+} from './use-terminal-shell-availability';
 
 export const TerminalsPanel = observer(function TerminalsPanel() {
   const { projectId, taskId } = useTaskViewContext();
@@ -31,6 +36,9 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
   const isActive = useIsActiveTask(taskId);
   const remoteConnectionId = workspace.sshConnectionId;
   const [isPanelFocused, setIsPanelFocused] = useState(false);
+  const [shouldLoadShellAvailability, setShouldLoadShellAvailability] = useState(false);
+  const { data: shellAvailability = DEFAULT_TERMINAL_SHELL_AVAILABILITY } =
+    useTerminalShellAvailability(remoteConnectionId, { enabled: shouldLoadShellAvailability });
 
   const autoFocus =
     isActive && taskView.isTerminalDrawerOpen && taskView.focusedRegion === 'bottom';
@@ -69,8 +77,8 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
     activeItem.kind === 'terminal' ? terminalTabView : (lifecycleScriptsMgr ?? undefined);
   useTabShortcuts(activeStore, { focused: isPanelFocused });
 
-  const handleCreate = async () => {
-    await taskView.openNewTerminal();
+  const handleCreate = async (shell: TerminalShellId = 'auto') => {
+    await taskView.openNewTerminal(shell);
   };
 
   const handleRunScript = (id: string) => {
@@ -105,7 +113,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
         <Button
           size="sm"
           variant="outline"
-          onClick={handleCreate}
+          onClick={() => void handleCreate()}
           className="flex items-center gap-2"
         >
           New terminal
@@ -164,11 +172,13 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
           onStopScript={handleStopScript}
           terminalTabView={terminalTabView}
           activeTerminalId={activeTerminalId}
+          shellAvailability={shellAvailability}
+          onShellMenuOpen={() => setShouldLoadShellAvailability(true)}
           onSelectTerminal={(id) => {
             terminalTabView.setActiveTab(id);
             taskView.setTerminalDrawerActiveItem({ kind: 'terminal', id });
           }}
-          onAddTerminal={() => void handleCreate()}
+          onAddTerminal={(shell) => void handleCreate(shell)}
           onRemoveTerminal={(id) => terminalTabView.removeTab(id)}
           onRenameTerminal={(id, name) => void terminalMgr?.renameTerminal(id, name)}
           onHoverTerminal={handleHoverTerminal}

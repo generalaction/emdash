@@ -38,6 +38,7 @@ export class LocalConversationProvider implements ConversationProvider {
   private sessions = new Map<string, Pty>();
   private knownSessionIds = new Set<string>();
   private respawnCounts = new Map<string, number>();
+  private suppressedExitPtys = new WeakSet<Pty>();
   private readonly projectId: string;
   private readonly taskPath: string;
   private readonly taskId: string;
@@ -196,22 +197,27 @@ export class LocalConversationProvider implements ConversationProvider {
     }
 
     pty.onExit(({ exitCode, signal }) => {
+      const currentPty = this.sessions.get(sessionId);
+      if (currentPty !== undefined && currentPty !== pty) return;
+
       ptySessionRegistry.unregister(sessionId);
-      const shouldRespawn =
-        this.sessions.has(sessionId) && isUnexpectedPtyExit({ exitCode, signal });
+      const shouldRespawn = currentPty === pty && isUnexpectedPtyExit({ exitCode, signal });
       this.sessions.delete(sessionId);
-      events.emit(agentSessionExitedChannel, {
-        sessionId,
-        projectId: conversation.projectId,
-        conversationId: conversation.id,
-        taskId: conversation.taskId,
-        exitCode,
-      });
+      const suppressExitEvent = this.suppressedExitPtys.has(pty);
+      if (!suppressExitEvent) {
+        events.emit(agentSessionExitedChannel, {
+          sessionId,
+          projectId: conversation.projectId,
+          conversationId: conversation.id,
+          taskId: conversation.taskId,
+          exitCode,
+        });
+      }
       if (shouldRespawn && !this.tmux) {
         const count = (this.respawnCounts.get(sessionId) ?? 0) + 1;
         this.respawnCounts.set(sessionId, count);
 
-        if (count > MAX_RESPAWNS) {
+        if (count > MAX_RESPAWNS && !isResuming) {
           log.error('LocalConversationProvider: respawn limit reached, giving up', {
             conversationId: conversation.id,
           });
@@ -268,20 +274,36 @@ export class LocalConversationProvider implements ConversationProvider {
     }
   }
 
-  async stopSession(conversationId: string): Promise<void> {
-    const sessionId = makePtySessionId(this.projectId, this.taskId, conversationId);
-    this.knownSessionIds.delete(sessionId);
+  private detachPty(sessionId: string): void {
     this.respawnCounts.delete(sessionId);
     const pty = this.sessions.get(sessionId);
+    this.sessions.delete(sessionId);
+    ptySessionRegistry.unregister(sessionId);
     if (pty) {
       try {
         pty.kill();
       } catch (e) {
         log.warn('LocalAgentProvider: error killing PTY', { sessionId, error: String(e) });
       }
-      this.sessions.delete(sessionId);
-      ptySessionRegistry.unregister(sessionId);
     }
+  }
+
+  async detachSession(conversationId: string): Promise<void> {
+    const sessionId = makePtySessionId(this.projectId, this.taskId, conversationId);
+    const pty = this.sessions.get(sessionId);
+    if (this.tmux && pty) {
+      this.suppressedExitPtys.add(pty);
+    }
+    this.detachPty(sessionId);
+    if (!this.tmux) {
+      this.knownSessionIds.delete(sessionId);
+    }
+  }
+
+  async stopSession(conversationId: string): Promise<void> {
+    const sessionId = makePtySessionId(this.projectId, this.taskId, conversationId);
+    this.knownSessionIds.delete(sessionId);
+    this.detachPty(sessionId);
     if (this.tmux) {
       await killTmuxSession(this.ctx, makeTmuxSessionName(sessionId));
     }
@@ -298,6 +320,9 @@ export class LocalConversationProvider implements ConversationProvider {
 
   async detachAll(): Promise<void> {
     for (const [sessionId, pty] of this.sessions) {
+      if (this.tmux) {
+        this.suppressedExitPtys.add(pty);
+      }
       try {
         pty.kill();
       } catch {}

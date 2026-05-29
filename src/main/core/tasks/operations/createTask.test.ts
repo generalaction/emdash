@@ -85,7 +85,7 @@ describe('createTask', () => {
     mocks.findBranchAnywhere.mockResolvedValue('/external/worktrees/pr-branch');
     mocks.fetchPrForReview.mockResolvedValue({ success: true });
     mocks.getConfiguredRemotes.mockResolvedValue({ baseRemote: 'origin', pushRemote: 'origin' });
-    mocks.getRepositoryInfo.mockResolvedValue({ currentBranch: 'main', isUnborn: false });
+    mocks.getRepositoryInfo.mockResolvedValue({ isUnborn: false, currentBranch: 'main' });
     mocks.createBranch.mockResolvedValue({ success: true, data: undefined });
     mocks.publishBranch.mockResolvedValue({ success: true, data: { output: '' } });
     mocks.getProject.mockReturnValue({
@@ -230,5 +230,81 @@ describe('createTask', () => {
     expect(insertTaskValues).toHaveBeenCalledWith(
       expect.objectContaining({ taskBranch: expect.any(String) })
     );
+  });
+
+  it('creates branch-based tasks from local source branches without remote sync', async () => {
+    const insertTaskValues = vi.fn((values: Partial<TaskRow>) => ({
+      returning: vi.fn().mockResolvedValue([makeTaskRow(values)]),
+    }));
+    const insertWorkspaceValues = vi.fn().mockResolvedValue(undefined);
+    mocks.insert
+      .mockReturnValueOnce({ values: insertTaskValues })
+      .mockReturnValueOnce({ values: insertWorkspaceValues });
+
+    const result = await createTask({
+      id: 'task-1',
+      projectId: 'project-1',
+      name: 'Local task',
+      sourceBranch: { type: 'local', branch: 'main' },
+      strategy: {
+        kind: 'new-branch',
+        taskBranch: 'task/local',
+        pushBranch: false,
+      },
+    });
+
+    expect(result.success).toBe(true);
+    expect(mocks.createBranch).toHaveBeenCalledWith('task/local', 'main', false, undefined);
+  });
+
+  it('blocks branch-based tasks when the selected remote source branch cannot be fetched', async () => {
+    mocks.createBranch.mockResolvedValueOnce(
+      err({
+        type: 'fetch_failed',
+        remote: 'origin',
+        branch: 'main',
+        error: {
+          type: 'auth_failed',
+          message:
+            "fatal: could not read Username for 'https://github.com': terminal prompts disabled",
+        },
+      })
+    );
+
+    const result = await createTask({
+      id: 'task-1',
+      projectId: 'project-1',
+      name: 'Remote task',
+      sourceBranch: {
+        type: 'remote',
+        branch: 'main',
+        remote: { name: 'origin', url: 'https://github.com/example/repo.git' },
+      },
+      strategy: {
+        kind: 'new-branch',
+        taskBranch: 'task/remote',
+        pushBranch: false,
+      },
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        type: 'branch-create-failed',
+        branch: 'task/remote',
+        error: {
+          type: 'fetch_failed',
+          remote: 'origin',
+          branch: 'main',
+          error: {
+            type: 'auth_failed',
+            message:
+              "fatal: could not read Username for 'https://github.com': terminal prompts disabled",
+          },
+        },
+      },
+    });
+    expect(mocks.createBranch).toHaveBeenCalledWith('task/remote', 'main', true, 'origin');
+    expect(mocks.insert).not.toHaveBeenCalled();
   });
 });

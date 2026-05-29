@@ -329,7 +329,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     commands: ['copilot'],
     versionArgs: ['--version'],
     cli: 'copilot',
-    autoApproveFlag: '--allow-all',
+    autoApproveFlag: '--allow-all-tools',
     initialPromptFlag: '-i',
     resumeFlag: '--resume',
     icon: 'gh-copilot.svg',
