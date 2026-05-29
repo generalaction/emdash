@@ -8,27 +8,6 @@ import type { Issue } from '@shared/tasks';
 
 export type UseIssueSearchResult = ReturnType<typeof useIssueSearch>;
 
-function getPrioritySortValue(priority?: string): number {
-  switch (priority?.toLowerCase()) {
-    case 'urgent':
-      return 0;
-    case 'high':
-      return 1;
-    case 'medium':
-      return 2;
-    case 'low':
-      return 3;
-    default:
-      return 4;
-  }
-}
-
-function sortByPriority(issues: Issue[]): Issue[] {
-  return [...issues].sort(
-    (a, b) => getPrioritySortValue(a.priority) - getPrioritySortValue(b.priority)
-  );
-}
-
 function isProviderUsable(
   status: ConnectionStatus | undefined,
   context: { projectPath?: string; repositoryUrl?: string }
@@ -106,13 +85,8 @@ export function useIssueSearch(repositoryUrl: string, projectPath = '', projectI
   const isProviderLoading =
     (!!issueProvider && (issuesHook.isLoading || issuesHook.isSearching)) || isCheckingConnections;
 
-  const issues = useMemo(
-    () => (issueProvider === 'linear' ? sortByPriority(issuesHook.issues) : issuesHook.issues),
-    [issueProvider, issuesHook.issues]
-  );
-
   return {
-    issues,
+    issues: issuesHook.issues,
     issueProvider,
     hasAnyIntegration,
     isProviderLoading,

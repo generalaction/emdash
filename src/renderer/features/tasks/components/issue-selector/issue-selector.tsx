@@ -91,46 +91,46 @@ function IssuePriorityIcon({
   if (provider !== 'linear') return null;
 
   if (!priority || priority.toLowerCase() === 'no priority') {
-    return reserveSpace ? <span className={cn('w-3 shrink-0', className)} /> : null;
+    return reserveSpace ? (
+      <span
+        className={cn(
+          'w-5 shrink-0 text-center text-xs font-semibold text-foreground-muted',
+          className
+        )}
+      >
+        ---
+      </span>
+    ) : null;
   }
 
   const normalizedPriority = priority.toLowerCase();
-  const activeBars = normalizedPriority === 'high' ? 3 : normalizedPriority === 'medium' ? 2 : 1;
+  const activeBars =
+    normalizedPriority === 'urgent' || normalizedPriority === 'high'
+      ? 3
+      : normalizedPriority === 'medium'
+        ? 2
+        : 1;
 
   return (
     <Tooltip>
       <TooltipTrigger
         render={
-          normalizedPriority === 'urgent' ? (
-            <span
-              className={cn(
-                'flex h-3 w-3 shrink-0 items-center justify-center rounded-[3px] bg-foreground-error text-[9px] leading-none font-bold text-white',
-                className
-              )}
-            >
-              !
-            </span>
-          ) : (
-            <span
-              className={cn(
-                'flex h-3 w-3 shrink-0 items-end justify-center gap-px text-foreground-muted',
-                className
-              )}
-            >
-              {[1, 2, 3].map((bar) => (
-                <span
-                  key={bar}
-                  className={cn(
-                    'w-1 rounded-full bg-current',
-                    bar === 1 && 'h-1',
-                    bar === 2 && 'h-2',
-                    bar === 3 && 'h-3',
-                    bar > activeBars && 'opacity-25'
-                  )}
-                />
-              ))}
-            </span>
-          )
+          <span
+            className={cn('flex h-4 w-5 shrink-0 items-end justify-center gap-0.5', className)}
+          >
+            {[1, 2, 3].map((bar) => (
+              <span
+                key={bar}
+                className={cn(
+                  'w-1 rounded-full',
+                  bar === 1 && 'h-1.5',
+                  bar === 2 && 'h-2.5',
+                  bar === 3 && 'h-3.5',
+                  bar <= activeBars ? 'bg-foreground-muted' : 'bg-foreground-muted/35'
+                )}
+              />
+            ))}
+          </span>
         }
       />
       <TooltipContent>Priority: {priority}</TooltipContent>
