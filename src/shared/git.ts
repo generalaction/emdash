@@ -294,7 +294,6 @@ export type CreateBranchError =
 
 export type RenameBranchError =
   | { type: 'already_exists'; name: string }
-  | { type: 'remote_push_failed'; message: string }
   | { type: 'error'; message: string };
 
 export type DeleteBranchError =

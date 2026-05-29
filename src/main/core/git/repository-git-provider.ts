@@ -24,10 +24,7 @@ export interface RepositoryGitProvider {
     syncWithRemote?: boolean,
     remote?: string
   ): Promise<Result<void, CreateBranchError>>;
-  renameBranch(
-    oldBranch: string,
-    newBranch: string
-  ): Promise<Result<{ remotePushed: boolean }, RenameBranchError>>;
+  renameBranch(oldBranch: string, newBranch: string): Promise<Result<void, RenameBranchError>>;
   deleteBranch(branch: string, force?: boolean): Promise<Result<void, DeleteBranchError>>;
   fetchPrForReview(
     prNumber: number,
