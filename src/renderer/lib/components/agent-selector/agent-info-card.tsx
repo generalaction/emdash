@@ -61,6 +61,7 @@ export const AgentInfoCard: React.FC<Props> = ({ id }) => {
       <div className="mb-2 flex items-center gap-2">
         <AgentLogo
           logo={config.logo}
+          logoDark={config.logoDark}
           alt={config.alt}
           isSvg={config.isSvg}
           invertInDark={config.invertInDark}

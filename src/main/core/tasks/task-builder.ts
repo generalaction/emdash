@@ -9,7 +9,6 @@ import { log } from '@main/lib/logger';
 import type { Conversation } from '@shared/conversations';
 import { taskProvisionProgressChannel } from '@shared/events/taskEvents';
 import type { Task } from '@shared/tasks';
-import type { Terminal } from '@shared/terminals';
 import type { ProvisionResult, TaskProvider } from '../projects/project-provider';
 import type { ProjectSettingsProvider } from '../projects/settings/provider';
 import { resolveTaskWorkDir } from '../projects/worktrees/utils';
@@ -29,8 +28,7 @@ export type BuildTaskResult = {
 
 export type ProvisionLocalTaskParams = {
   task: Task;
-  conversations: Conversation[];
-  terminals: Terminal[];
+  conversationsToHydrate?: Conversation[];
   workspaceId: string;
   type: WorkspaceType;
   projectId: string;
@@ -63,8 +61,7 @@ export async function provisionLocalTask(
 ): Promise<ProvisionLocalTaskResult> {
   const {
     task,
-    conversations,
-    terminals,
+    conversationsToHydrate = [],
     workspaceId,
     type,
     projectId,
@@ -111,7 +108,7 @@ export async function provisionLocalTask(
       taskId: task.id,
       projectId,
       step: 'starting-sessions',
-      message: 'Starting sessions…',
+      message: 'Preparing task…',
     });
     const buildTaskResult = await buildTaskFromWorkspace(
       task,
@@ -120,8 +117,7 @@ export async function provisionLocalTask(
       projectId,
       projectPath,
       settings,
-      { conversations, terminals },
-      logPrefix
+      conversationsToHydrate
     );
     log.debug(`${logPrefix}: provisionLocalTask DONE`, { taskId: task.id });
     provisionSucceeded = true;
@@ -151,8 +147,7 @@ export async function buildTaskFromWorkspace(
   projectId: string,
   projectPath: string,
   settings: ProjectSettingsProvider,
-  hydrate: { conversations: Conversation[]; terminals: Terminal[] },
-  logPrefix: string
+  conversationsToHydrate: Conversation[] = []
 ): Promise<BuildTaskResult> {
   const { taskEnvVars, tmuxEnabled, shellSetup } = await resolveTaskEnv(
     task,
@@ -182,21 +177,10 @@ export async function buildTaskFromWorkspace(
     terminals: terminalProvider,
   };
 
-  void Promise.all(
-    hydrate.terminals.map((term) =>
-      terminalProvider.spawnTerminal(term).catch((e) => {
-        log.error(`${logPrefix}: failed to hydrate terminal`, {
-          terminalId: term.id,
-          error: String(e),
-        });
-      })
-    )
-  );
-
-  void Promise.all(
-    hydrate.conversations.map((conv) =>
+  await Promise.all(
+    conversationsToHydrate.map((conv) =>
       conversationProvider.startSession(conv, undefined, true).catch((e) => {
-        log.error(`${logPrefix}: failed to hydrate conversation`, {
+        log.error('buildTaskFromWorkspace: failed to hydrate conversation from view state', {
           conversationId: conv.id,
           error: String(e),
         });

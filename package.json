@@ -1,6 +1,6 @@
 {
   "name": "emdash",
-  "version": "1.1.24",
+  "version": "1.1.26",
   "description": "A cross-platform Electron app that orchestrates multiple coding agents in parallel",
   "keywords": [
     "claude",
@@ -132,6 +132,7 @@
     "react-resizable-panels": "^4.7.3",
     "react-syntax-highlighter": "^15.6.6",
     "react-window": "^2.2.4",
+    "react-zoom-pan-pinch": "^4.0.3",
     "rehype-katex": "^7.0.1",
     "rehype-raw": "^7.0.0",
     "rehype-sanitize": "^6.0.0",
@@ -149,6 +150,7 @@
   "devDependencies": {
     "@electron/rebuild": "^4.0.1",
     "@tailwindcss/vite": "^4.2.1",
+    "@types/jsdom": "^28.0.3",
     "@types/katex": "^0.16.8",
     "@types/node": "^20.10.0",
     "@types/pidusage": "^2.0.5",

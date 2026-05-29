@@ -94,21 +94,53 @@ export function sortFileNodes(nodes: readonly FileNode[]): FileNode[] {
 // Visible rows derivation
 // ---------------------------------------------------------------------------
 
+export interface TreeRow {
+  node: FileNode;
+  chain: FileNode[];
+  renderDepth: number;
+}
+
+function extendChain(node: FileNode): FileNode[] {
+  const chain: FileNode[] = [node];
+  const visited = new Set<string>([node.path]);
+  let current = node;
+  while (
+    current.type === 'directory' &&
+    current.children.length === 1 &&
+    current.children[0].type === 'directory' &&
+    !visited.has(current.children[0].path)
+  ) {
+    current = current.children[0];
+    visited.add(current.path);
+    chain.push(current);
+  }
+  return chain;
+}
+
+export function isChainExpanded(chain: readonly FileNode[], expandedPaths: Set<string>): boolean {
+  for (const segment of chain) {
+    if (expandedPaths.has(segment.path)) return true;
+  }
+  return false;
+}
+
 export function buildVisibleRows(
   rootNodes: readonly FileNode[],
   expandedPaths: Set<string>
-): FileNode[] {
-  const rows: FileNode[] = [];
+): TreeRow[] {
+  const rows: TreeRow[] = [];
 
-  function walk(nodes: readonly FileNode[]) {
+  function walk(nodes: readonly FileNode[], renderDepth: number) {
     for (const node of nodes) {
-      rows.push(node);
-      if (node.type === 'directory' && expandedPaths.has(node.path)) {
-        walk(node.children);
+      const chain = node.type === 'directory' ? extendChain(node) : [node];
+      const terminus = chain[chain.length - 1];
+      rows.push({ node: terminus, chain, renderDepth });
+      if (terminus.type === 'directory' && isChainExpanded(chain, expandedPaths)) {
+        walk(terminus.children, renderDepth + 1);
       }
     }
   }
 
-  walk(rootNodes);
+  walk(rootNodes, 0);
   return rows;
 }

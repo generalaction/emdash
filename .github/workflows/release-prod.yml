@@ -15,17 +15,35 @@ jobs:
   release-linux:
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    container: ubuntu:22.04
     permissions:
       contents: read
     environment: release
     steps:
-      - uses: actions/checkout@v4
       - name: Install system build dependencies
-        run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config libsecret-1-dev rpm
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: >
+          apt-get update &&
+          apt-get install -y
+          build-essential
+          ca-certificates
+          curl
+          git
+          libsecret-1-dev
+          pkg-config
+          python-is-python3
+          python3
+          python3-setuptools
+          python3-wheel
+          rpm
+          xz-utils
+      - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-build
         with:
           posthog-key: ${{ secrets.POSTHOG_PROJECT_API_KEY }}
           posthog-host: ${{ secrets.POSTHOG_HOST }}
+          setup-python: 'false'
 
       - run: pnpm run build
 
@@ -35,6 +53,9 @@ jobs:
         run: >
           node --experimental-strip-types scripts/release/build.ts
           --platform linux --arch x64
+
+      - name: Verify Linux native modules
+        run: node --experimental-strip-types scripts/release/verify-linux.ts
 
       - uses: ./.github/actions/upload-r2
         with:

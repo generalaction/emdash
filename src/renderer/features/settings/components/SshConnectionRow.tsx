@@ -81,9 +81,6 @@ export const SshConnectionRow = observer(function SshConnectionRow({
             {connection.username}@{connection.host}:{connection.port}
           </p>
           <p className="truncate">Auth: {authLabel(connection)}</p>
-          {connection.worktreesDir && (
-            <p className="truncate">Worktrees: {connection.worktreesDir}</p>
-          )}
           <p className="truncate">Used by: {projectUsageText(projects)}</p>
         </div>
         {projectUsageNames && (

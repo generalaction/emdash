@@ -67,7 +67,8 @@ export class FilesStore {
             if (changed) ctx.set({ nodes: this._nodes, rootNodes: this._rootNodes });
           },
         },
-      ]
+      ],
+      { refData: true }
     );
   }
 
@@ -403,8 +404,9 @@ export class FilesStore {
   }
 
   private _bumpTreeDebounced(): void {
-    if (this._bumpTimer) clearTimeout(this._bumpTimer);
+    if (this._bumpTimer) return;
     this._bumpTimer = setTimeout(() => {
+      this._bumpTimer = null;
       this._bumpTree();
     }, 50);
   }

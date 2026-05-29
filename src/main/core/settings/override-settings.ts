@@ -10,7 +10,10 @@ export class OverrideSettings<TConfig extends object> {
   constructor(
     private readonly storageKey: string,
     private readonly getExternalDefaults: () => Record<string, TConfig>,
-    private readonly itemSchema: ZodType<Partial<TConfig>>
+    private readonly itemSchema: ZodType<Partial<TConfig>>,
+    private readonly normalizeStoredOverrides: (
+      overrides: Record<string, Partial<TConfig>>
+    ) => Record<string, Partial<TConfig>> = (overrides) => overrides
   ) {}
 
   private async readRawOverrides(): Promise<Record<string, Partial<TConfig>>> {
@@ -21,7 +24,9 @@ export class OverrideSettings<TConfig extends object> {
       .execute();
     if (!row) return {};
     try {
-      return JSON.parse(row.value) as Record<string, Partial<TConfig>>;
+      return this.normalizeStoredOverrides(
+        JSON.parse(row.value) as Record<string, Partial<TConfig>>
+      );
     } catch {
       return {};
     }

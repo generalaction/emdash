@@ -1,3 +1,4 @@
+import { toStoredBranch } from '@main/core/tasks/stored-branch';
 import type { AppDb } from '@main/db/client';
 import { conversations, projectRemotes, projects, projectSettings, tasks } from '@main/db/schema';
 import type { Branch } from '@shared/git';
@@ -63,7 +64,7 @@ export async function baseline(db: AppDb): Promise<void> {
       name: 'Add workspace database entity',
       status: 'in_progress',
       taskBranch: 'feat/workspace-db',
-      sourceBranch: mainBranch,
+      sourceBranch: toStoredBranch(mainBranch),
       workspaceId: `local:${PROJECT_A_ID}:branch:feat/workspace-db`,
     },
     {
@@ -72,7 +73,7 @@ export async function baseline(db: AppDb): Promise<void> {
       name: 'Improve migration test tooling',
       status: 'review',
       taskBranch: 'feat/migration-testing',
-      sourceBranch: mainBranch,
+      sourceBranch: toStoredBranch(mainBranch),
       workspaceId: `local:${PROJECT_A_ID}:branch:feat/migration-testing`,
     },
     {
@@ -81,7 +82,7 @@ export async function baseline(db: AppDb): Promise<void> {
       name: 'Fix SSH connection timeout',
       status: 'done',
       taskBranch: 'fix/ssh-timeout',
-      sourceBranch: mainBranch,
+      sourceBranch: toStoredBranch(mainBranch),
       archivedAt: '2026-04-01T10:00:00.000Z',
       workspaceId: `local:${PROJECT_A_ID}:branch:fix/ssh-timeout`,
     },
@@ -91,7 +92,7 @@ export async function baseline(db: AppDb): Promise<void> {
       name: 'Add rate limiting middleware',
       status: 'todo',
       taskBranch: 'feat/rate-limiting',
-      sourceBranch: mainBranch,
+      sourceBranch: toStoredBranch(mainBranch),
     },
   ]);
 

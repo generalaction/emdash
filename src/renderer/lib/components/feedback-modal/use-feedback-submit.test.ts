@@ -17,6 +17,29 @@ describe('buildFeedbackContent', () => {
     expect(content).toContain('Emdash Version: 1.2.3');
   });
 
+  it('notes diagnostic logs when user opts in', () => {
+    const content = buildFeedbackContent({
+      feedback: 'Something broke',
+      contactEmail: '',
+      githubUser: null,
+      appVersion: '1.2.3',
+      includeDiagnosticLogs: true,
+    });
+
+    expect(content).toContain('Diagnostic Logs: attached by user opt-in');
+  });
+
+  it('omits diagnostic-log note when user does not opt in', () => {
+    const content = buildFeedbackContent({
+      feedback: 'Something broke',
+      contactEmail: '',
+      githubUser: null,
+      appVersion: '1.2.3',
+    });
+
+    expect(content).not.toContain('Diagnostic Logs');
+  });
+
   it('omits empty metadata fields', () => {
     const content = buildFeedbackContent({
       feedback: 'Needs improvement',

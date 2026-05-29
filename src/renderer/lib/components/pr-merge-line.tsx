@@ -1,14 +1,14 @@
 import { ArrowRight, GitBranch } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
-import { parseGitHubRepository } from '@shared/github-repository';
 import type { PullRequest } from '@shared/pull-requests';
+import { parseRepositoryRef } from '@shared/repository-ref';
 
 export function PrMergeLine({ pr, className }: { pr: PullRequest; className?: string }) {
   const author = pr.author?.userName;
-  const baseOwner = parseGitHubRepository(pr.repositoryUrl)?.owner;
+  const baseOwner = parseRepositoryRef(pr.repositoryUrl)?.owner;
   const baseBranch = pr.baseRefName;
-  const headOwner = parseGitHubRepository(pr.headRepositoryUrl)?.owner ?? author;
+  const headOwner = parseRepositoryRef(pr.headRepositoryUrl)?.owner ?? author;
   const headBranch = pr.headRefName;
   const actionText = getPrMergeLineActionText(pr.status);
 

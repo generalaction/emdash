@@ -2,7 +2,7 @@ import { Field, FieldLabel } from '@renderer/lib/ui/field';
 import { Label } from '@renderer/lib/ui/label';
 import { RadioGroup, RadioGroupItem } from '@renderer/lib/ui/radio-group';
 import { Switch } from '@renderer/lib/ui/switch';
-import { type CheckoutMode } from './use-from-pull-request-mode';
+import { type CheckoutMode } from './use-create-task-state';
 
 interface CheckoutModeGroupProps {
   value: CheckoutMode;

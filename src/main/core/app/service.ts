@@ -1,7 +1,7 @@
 import { exec } from 'node:child_process';
 import { readFile, realpath, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { extname, resolve, sep } from 'node:path';
+import { extname, isAbsolute, join, resolve, sep } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { app, clipboard, dialog, shell } from 'electron';
 import { getMainWindow } from '@main/app/window';
@@ -50,6 +50,24 @@ const AUDIO_MIME_TYPES: Record<string, string> = {
   '.wav': 'audio/wav',
   '.webm': 'audio/webm',
 };
+
+function expandAbsoluteOrTildePath(rawPath: string): string {
+  if (!rawPath || typeof rawPath !== 'string') throw new Error('Invalid path');
+  const expanded = rawPath.startsWith('~/') ? join(homedir(), rawPath.slice(2)) : rawPath;
+  if (!isAbsolute(expanded)) throw new Error('Path must be absolute or start with ~/');
+  return expanded;
+}
+
+async function resolveHomeJailedPath(rawPath: string): Promise<string> {
+  const expanded = expandAbsoluteOrTildePath(rawPath);
+  const realPath = await realpath(expanded);
+  const realHome = await realpath(homedir());
+  const realHomeWithSep = realHome.endsWith(sep) ? realHome : realHome + sep;
+  if (realPath !== realHome && !realPath.startsWith(realHomeWithSep)) {
+    throw new Error('Path must be inside the user home directory');
+  }
+  return realPath;
+}
 
 type RemoteTerminalLaunchAttempt = {
   file: string;
@@ -185,6 +203,27 @@ class AppService implements IInitializable, IDisposable {
       );
     }
     await shell.openExternal(url);
+  }
+
+  async openPath(rawPath: string): Promise<void> {
+    const realPath = await resolveHomeJailedPath(rawPath);
+    const errorMessage = await shell.openPath(realPath);
+    if (errorMessage) throw new Error(errorMessage);
+  }
+
+  /**
+   * Restricted to the user home directory: terminal output drives these reads,
+   * and AI-injected paths must not be a vector for reading e.g. `/etc/passwd`.
+   * Symlinks are resolved before the home-jail check so they can't escape.
+   */
+  async readUserFile(rawPath: string, maxBytes = 1_048_576): Promise<{ content: string }> {
+    const realPath = await resolveHomeJailedPath(rawPath);
+    const stats = await stat(realPath);
+    if (stats.size > maxBytes) {
+      throw new Error(`File too large (${stats.size} bytes, max ${maxBytes})`);
+    }
+    const buffer = await readFile(realPath);
+    return { content: buffer.toString('utf8') };
   }
 
   clipboardWriteText(text: string): void {

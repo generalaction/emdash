@@ -8,6 +8,7 @@ import { CliAgentsList } from './CliAgentsList';
 import DefaultAgentSettingsCard from './DefaultAgentSettingsCard';
 import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
 import IntegrationsCard from './IntegrationsCard';
+import InterfaceSettingsCard from './InterfaceSettingsCard';
 import KeyboardSettingsCard from './KeyboardSettingsCard';
 import NotificationSettingsCard from './NotificationSettingsCard';
 import RepositorySettingsCard from './RepositorySettingsCard';
@@ -20,6 +21,7 @@ import {
   CreateBranchAndWorktreeRow,
   EnableTmuxRow,
   IncludeIssueContextByDefaultRow,
+  PreserveTaskNameCapitalizationRow,
 } from './TaskSettingsRows';
 import TelemetryCard from './TelemetryCard';
 import TerminalSettingsCard from './TerminalSettingsCard';
@@ -89,6 +91,9 @@ export function SettingsPage({
           component: <CreateBranchAndWorktreeRow />,
         },
         {
+          component: <PreserveTaskNameCapitalizationRow />,
+        },
+        {
           component: <IncludeIssueContextByDefaultRow />,
         },
         {
@@ -145,6 +150,7 @@ export function SettingsPage({
         { component: <TerminalSettingsCard /> },
         { component: <SidebarMetadataSettingsCard /> },
         { component: <ResourceMonitorSettingsCard /> },
+        { component: <InterfaceSettingsCard /> },
         { title: 'Keyboard shortcuts', component: <KeyboardSettingsCard /> },
         {
           title: 'Tools',

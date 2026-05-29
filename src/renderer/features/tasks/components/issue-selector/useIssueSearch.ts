@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useIntegrationsContext } from '@renderer/features/integrations/integrations-provider';
 import { ISSUE_PROVIDER_ORDER } from '@renderer/features/integrations/issue-provider-meta';
 import { useIssues } from '@renderer/features/integrations/use-issues';
+import { getProjectViewStore } from '@renderer/features/projects/stores/project-selectors';
 import type { ConnectionStatus } from '@shared/issue-providers';
 import type { Issue } from '@shared/tasks';
 
@@ -21,8 +22,23 @@ export function useIssueSearch(repositoryUrl: string, projectPath = '', projectI
   const { connectionStatus, isCheckingConnections } = useIntegrationsContext();
   const context = useMemo(() => ({ projectPath, repositoryUrl }), [projectPath, repositoryUrl]);
 
-  const [selectedIssueProvider, setSelectedIssueProvider] = useState<Issue['provider'] | null>(
-    null
+  const projectView = projectId ? getProjectViewStore(projectId) : undefined;
+
+  const [localProvider, setLocalProvider] = useState<Issue['provider'] | null>(null);
+
+  // When a project is available, read from the MobX-observable store (auto-tracked in observer
+  // components) so the selection persists across modal opens. Fall back to local state otherwise.
+  const selectedIssueProvider = projectView?.selectedIssueProvider ?? localProvider;
+
+  const setSelectedIssueProvider = useCallback(
+    (provider: Issue['provider'] | null) => {
+      if (projectView) {
+        projectView.setSelectedIssueProvider(provider);
+      } else {
+        setLocalProvider(provider);
+      }
+    },
+    [projectView]
   );
 
   const connectedProviders = useMemo(

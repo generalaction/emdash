@@ -13,6 +13,8 @@ type SshWorktreeFs = Pick<
 >;
 
 export class SshWorktreeHost implements WorktreeHost {
+  readonly pathApi = path.posix;
+
   constructor(private readonly fs: SshWorktreeFs) {}
 
   private validateAbsolute(input: string): string {

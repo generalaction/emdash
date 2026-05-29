@@ -109,6 +109,7 @@ export function buildAgentCommand({
   autoApprove,
   initialPrompt,
   sessionId,
+  providerSessionId,
   isResuming,
 }: {
   providerId: AgentProviderId;
@@ -116,10 +117,12 @@ export function buildAgentCommand({
   autoApprove?: boolean;
   initialPrompt?: string;
   sessionId: string;
+  providerSessionId?: string;
   isResuming?: boolean;
 }): AgentCommand {
   const providerDef = getProvider(providerId);
   const [command, ...args] = parseCliPrefix(providerConfig?.cli, providerId);
+  const initialPromptFlag = providerConfig?.initialPromptFlag;
 
   args.push(...(providerConfig?.defaultArgs ?? []));
 
@@ -128,8 +131,12 @@ export function buildAgentCommand({
     sessionIdFlag !== undefined && (!providerConfig?.sessionIdOnResumeOnly || isResuming);
 
   if (isResuming && providerConfig?.resumeFlag) {
-    if (providerConfig.sessionIdFlag) {
+    if (providerConfig.sessionIdFlag && providerSessionId) {
+      appendSessionId(args, providerConfig.resumeFlag, providerSessionId);
+    } else if (providerConfig.sessionIdFlag && !providerConfig.sessionIdOnResumeOnly) {
       appendSessionId(args, providerConfig.resumeFlag, sessionId);
+    } else if (providerConfig.resumeWithoutSessionFlag) {
+      args.push(...parseArgField(providerConfig.resumeWithoutSessionFlag));
     } else {
       args.push(...parseArgField(providerConfig.resumeFlag));
     }
@@ -149,7 +156,7 @@ export function buildAgentCommand({
     !providerDef?.useKeystrokeInjection &&
     !providerDef?.initialPromptViaStdinPipe
   ) {
-    args.push(...parseArgField(providerConfig?.initialPromptFlag), initialPrompt);
+    args.push(...parseArgField(initialPromptFlag), initialPrompt);
   }
 
   args.push(...parseArgField(providerConfig?.extraArgs));
@@ -169,6 +176,7 @@ export function buildAgentSessionCommand(args: {
   autoApprove?: boolean;
   initialPrompt?: string;
   sessionId: string;
+  providerSessionId?: string;
   isResuming?: boolean;
 }): AgentCommand {
   const command = buildAgentCommand(args);

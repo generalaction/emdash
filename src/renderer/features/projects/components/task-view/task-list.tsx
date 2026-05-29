@@ -1,12 +1,19 @@
+import { useHotkey } from '@tanstack/react-hotkeys';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { Archive, RotateCcw, Trash2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useRef } from 'react';
 import { asMounted, getProjectStore } from '@renderer/features/projects/stores/project-selectors';
+import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { getTaskManagerStore } from '@renderer/features/tasks/stores/task-selectors';
 import { ListPopoverCard } from '@renderer/lib/components/list-popover-card';
+import {
+  getEffectiveHotkey,
+  getHotkeyRegistration,
+} from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { useParams } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { modalStore } from '@renderer/lib/modal/modal-store';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { SearchInput } from '@renderer/lib/ui/search-input';
@@ -23,7 +30,7 @@ function TaskVirtualList({
 }: {
   tasks: ReadyTask[];
   selectedIds: Set<string>;
-  onToggleSelect: (id: string) => void;
+  onToggleSelect: (id: string, shiftKey: boolean) => void;
 }) {
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -67,7 +74,7 @@ function TaskVirtualList({
               <TaskRow
                 task={task}
                 isSelected={selectedIds.has(task.data.id)}
-                onToggleSelect={() => onToggleSelect(task.data.id)}
+                onToggleSelect={(shiftKey) => onToggleSelect(task.data.id, shiftKey)}
               />
             </div>
           );
@@ -112,7 +119,7 @@ function SelectionBar({
         )}
         <Button variant="destructive" size="sm" onClick={onDelete}>
           <Trash2 className="size-3.5" />
-          Delete
+          Delete <BoundShortcut settingsKey="deleteSelectedTasks" />
         </Button>
         <Button variant="ghost" size="icon-xs" onClick={onClear} aria-label="Clear selection">
           <X className="size-3.5" />
@@ -130,6 +137,7 @@ export const TaskList = observer(function TaskList() {
   const taskManager = getTaskManagerStore(projectId);
   const showDeleteTask = useShowModal('deleteTaskModal');
   const showCreateTaskModal = useShowModal('taskModal');
+  const { value: keyboard } = useAppSettingsKey('keyboard');
 
   const taskView = store?.view.taskView ?? null;
 
@@ -141,33 +149,34 @@ export const TaskList = observer(function TaskList() {
   const activeTasks = allTasks.filter((t) => !t.data.archivedAt);
   const archivedTasks = allTasks.filter((t) => Boolean(t.data.archivedAt));
 
-  if (!taskView) return null;
-
-  const displayTasks = taskView.tab === 'active' ? activeTasks : archivedTasks;
-  const q = taskView.searchQuery.trim().toLowerCase();
-  const filteredTasks = q
-    ? displayTasks.filter((t) => t.data.name.toLowerCase().includes(q))
-    : displayTasks;
-
-  const clearSelection = () => taskView.setSelectedIds(new Set());
+  const clearSelection = () => taskView?.setSelectedIds(new Set());
 
   const bulkArchive = () => {
+    if (!taskView) return;
+
     const ids = [...taskView.selectedIds];
     ids.forEach((id) => void taskManager?.archiveTask(id));
     clearSelection();
   };
 
   const bulkRestore = () => {
+    if (!taskView) return;
+
     const ids = [...taskView.selectedIds];
     ids.forEach((id) => void taskManager?.restoreTask(id));
     clearSelection();
   };
 
   const bulkDelete = () => {
+    if (!taskView) return;
+    if (taskView.selectedIds.size === 0) return;
+
     const selectedTasks = [...taskView.selectedIds]
       .map((id) => taskManager?.tasks.get(id))
       .filter((t): t is ReadyTask => !!t)
       .map((t) => ({ taskId: t.data.id, taskName: t.data.name }));
+
+    if (selectedTasks.length === 0) return;
 
     showDeleteTask({
       projectId,
@@ -178,6 +187,29 @@ export const TaskList = observer(function TaskList() {
       },
     });
   };
+
+  useHotkey(
+    getHotkeyRegistration('deleteSelectedTasks', keyboard),
+    (e) => {
+      e.preventDefault();
+      bulkDelete();
+    },
+    {
+      enabled:
+        (taskView?.selectedIds.size ?? 0) > 0 &&
+        !modalStore.isOpen &&
+        getEffectiveHotkey('deleteSelectedTasks', keyboard) !== null,
+      ignoreInputs: true,
+    }
+  );
+
+  if (!taskView) return null;
+
+  const displayTasks = taskView.tab === 'active' ? activeTasks : archivedTasks;
+  const q = taskView.searchQuery.trim().toLowerCase();
+  const filteredTasks = q
+    ? displayTasks.filter((t) => t.data.name.toLowerCase().includes(q))
+    : displayTasks;
 
   return (
     <div className="relative flex h-full min-h-0 w-full flex-col">
@@ -213,7 +245,16 @@ export const TaskList = observer(function TaskList() {
         <TaskVirtualList
           tasks={filteredTasks}
           selectedIds={taskView.selectedIds}
-          onToggleSelect={(id) => taskView.toggleSelect(id)}
+          onToggleSelect={(id, shiftKey) => {
+            if (shiftKey) {
+              taskView.selectRange(
+                filteredTasks.map((t) => t.data.id),
+                id
+              );
+            } else {
+              taskView.toggleSelect(id);
+            }
+          }}
         />
       )}
 

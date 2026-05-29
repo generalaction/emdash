@@ -10,6 +10,10 @@ export function quoteShellArg(arg: string): string {
   return `'${arg.replace(/'/g, "'\\''")}'`;
 }
 
+export function quoteCshArg(arg: string): string {
+  return quoteShellArg(arg).replace(/!/g, '\\!');
+}
+
 /**
  * Validates that a string is a safe POSIX environment variable name.
  * Must start with a letter or underscore, followed by letters, digits, or underscores.
