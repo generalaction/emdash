@@ -1,4 +1,4 @@
-import { ChevronDown, FolderOpen } from 'lucide-react';
+import { CheckCircle2, ChevronDown, FolderOpen } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState, type ReactNode } from 'react';
 import {
@@ -279,7 +279,11 @@ export const AutomationPanel = observer(function AutomationPanel({
             taskConfig,
             projectId: effectiveProjectId,
           });
-      toast({ title: automation ? 'Automation saved' : 'Automation created' });
+      toast({
+        title: automation ? 'Automation saved' : 'Automation created',
+        description: `“${saved.name}” is ready to go.`,
+        icon: <CheckCircle2 className="size-4 text-emerald-500" aria-hidden="true" />,
+      });
       onSaved?.(saved);
     } catch (saveError) {
       setError(formatAutomationError(saveError));
