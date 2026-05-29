@@ -15,6 +15,12 @@ const mocks = vi.hoisted(() => ({
   captureTelemetry: vi.fn(),
 }));
 
+const adapterMocks = vi.hoisted(() => ({
+  createSession: vi.fn(),
+  dispose: vi.fn(),
+  resumeSession: vi.fn(),
+}));
+
 vi.mock('@main/db/client', () => ({
   get db() {
     return mocks.db ?? {};
@@ -39,11 +45,24 @@ vi.mock('./conversation-events', () => ({
   },
 }));
 
+vi.mock('./chat/provider-adapters', () => ({
+  getChatProviderAdapter: () => ({
+    providerId: 'codex',
+    createSession: adapterMocks.createSession,
+    resumeSession: adapterMocks.resumeSession,
+    sendMessage: vi.fn(),
+    cancel: vi.fn(),
+    dispose: adapterMocks.dispose,
+  }),
+}));
+
 async function installTaskProvider(): Promise<void> {
   const taskProvider: TaskProvider = {
     taskId: 'task-1',
     taskBranch: undefined,
     sourceBranch: undefined,
+    taskPath: '/repo',
+    workspaceKind: 'local',
     taskEnvVars: {},
     conversations: {
       startSession: vi.fn(),
@@ -86,6 +105,12 @@ describe('deleteConversation runtime cleanup', () => {
     fixture = await openFixture('empty');
     mocks.db = fixture.db;
     mocks.stopSession.mockResolvedValue(undefined);
+    adapterMocks.resumeSession.mockResolvedValue({
+      conversationId: 'conversation-1',
+      providerId: 'codex',
+      providerSessionId: 'codex-thread-1',
+    });
+    adapterMocks.dispose.mockResolvedValue(undefined);
     await installTaskProvider();
 
     fixture.sqlite

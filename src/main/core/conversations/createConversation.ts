@@ -31,7 +31,7 @@ async function resolveRuntimeMode(
 
 export async function createConversation(params: CreateConversationParams): Promise<Conversation> {
   const id = params.id ?? randomUUID();
-  const runtimeMode = await resolveRuntimeMode(params.provider);
+  let runtimeMode = await resolveRuntimeMode(params.provider);
   const [existingConversation] = await db
     .select({ id: conversations.id })
     .from(conversations)
@@ -45,6 +45,9 @@ export async function createConversation(params: CreateConversationParams): Prom
   const task = resolveTask(params.projectId, params.taskId);
   if (!task) {
     throw new Error('Task not found');
+  }
+  if (runtimeMode === 'chat' && task.workspaceKind === 'ssh') {
+    runtimeMode = 'terminal';
   }
 
   const [row] = await db
@@ -65,22 +68,11 @@ export async function createConversation(params: CreateConversationParams): Prom
     .returning();
 
   const conversation = mapConversationRowToConversation(row);
-  let chatBackendSessionStarted = false;
 
   await withCompensation({
     action: async () => {
       if (shouldUseChatRuntime(conversation)) {
-        await chatConversationRuntime.startConversation(conversation);
-        await task.conversations.startSession(conversation, params.initialSize, false, undefined);
-        chatBackendSessionStarted = true;
-        if (params.initialPrompt?.trim()) {
-          await chatConversationRuntime.sendMessage(
-            conversation.projectId,
-            conversation.taskId,
-            conversation.id,
-            { text: params.initialPrompt }
-          );
-        }
+        await chatConversationRuntime.startConversation(conversation, params.initialPrompt);
         return;
       }
       await task.conversations.startSession(
@@ -94,13 +86,7 @@ export async function createConversation(params: CreateConversationParams): Prom
       await chatConversationRuntime.dehydrateConversation(row.id, {
         restoreHydrationRecovery: false,
       });
-      try {
-        if (chatBackendSessionStarted) {
-          await task.conversations.stopSession(row.id);
-        }
-      } finally {
-        await db.delete(conversations).where(eq(conversations.id, row.id)).execute();
-      }
+      await db.delete(conversations).where(eq(conversations.id, row.id)).execute();
     },
     onCompensationError: (error) => {
       log.error('createConversation: failed to roll back conversation row after spawn failure', {

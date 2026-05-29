@@ -21,6 +21,8 @@ const listeners = vi.hoisted(() => ({
 const getTimeline = vi.hoisted(() => vi.fn());
 const sendMessage = vi.hoisted(() => vi.fn());
 const cancelTurn = vi.hoisted(() => vi.fn());
+const executeCommand = vi.hoisted(() => vi.fn());
+const listCommands = vi.hoisted(() => vi.fn());
 const respondToPermission = vi.hoisted(() => vi.fn());
 
 vi.mock('@renderer/lib/ipc', () => ({
@@ -35,7 +37,9 @@ vi.mock('@renderer/lib/ipc', () => ({
   rpc: {
     conversations: {
       cancelTurn,
+      executeCommand,
       getTimeline,
+      listCommands,
       respondToPermission,
       sendMessage,
     },
@@ -48,9 +52,13 @@ describe('ConversationTimelineStore', () => {
     getTimeline.mockReset();
     sendMessage.mockReset();
     cancelTurn.mockReset();
+    executeCommand.mockReset();
+    listCommands.mockReset();
     respondToPermission.mockReset();
     getTimeline.mockResolvedValue([]);
     cancelTurn.mockResolvedValue(undefined);
+    executeCommand.mockResolvedValue(undefined);
+    listCommands.mockResolvedValue([]);
     respondToPermission.mockResolvedValue(undefined);
     sendMessage.mockImplementation(
       async (
@@ -92,6 +100,21 @@ describe('ConversationTimelineStore', () => {
     });
   });
 
+  it('lists and executes slash commands through RPC', async () => {
+    listCommands.mockResolvedValueOnce([{ name: 'compact', description: 'Compact context' }]);
+    const store = new ConversationTimelineStore('project-1', 'task-1', 'conversation-1');
+
+    await expect(store.listCommands()).resolves.toEqual([
+      { name: 'compact', description: 'Compact context' },
+    ]);
+    await store.executeCommand({ name: 'compact' });
+
+    expect(listCommands).toHaveBeenCalledWith('project-1', 'task-1', 'conversation-1');
+    expect(executeCommand).toHaveBeenCalledWith('project-1', 'task-1', 'conversation-1', {
+      name: 'compact',
+    });
+  });
+
   it('upserts locally returned and event-delivered items', async () => {
     const store = new ConversationTimelineStore('project-1', 'task-1', 'conversation-1');
     store.start();
@@ -124,6 +147,41 @@ describe('ConversationTimelineStore', () => {
     ]);
 
     store.dispose();
+  });
+
+  it('ignores timeline events for other conversations', async () => {
+    const store = new ConversationTimelineStore('project-1', 'task-1', 'conversation-1');
+    store.start();
+
+    listeners.timeline?.({
+      projectId: 'project-1',
+      taskId: 'task-1',
+      conversationId: 'other-conversation',
+      item: {
+        id: 'message-1',
+        conversationId: 'other-conversation',
+        kind: 'user_message',
+        sequence: 1,
+        text: 'ignore me',
+        createdAt: '2026-05-28T00:00:00.000Z',
+      },
+    });
+
+    expect(store.items.data).toEqual([]);
+
+    store.dispose();
+  });
+
+  it('removes the optimistic message when RPC handles an out-of-band command', async () => {
+    sendMessage.mockResolvedValueOnce({});
+    const store = new ConversationTimelineStore('project-1', 'task-1', 'conversation-1');
+
+    await expect(store.sendMessage('/compact')).resolves.toMatchObject({
+      kind: 'user_message',
+      text: '/compact',
+    });
+
+    expect(store.items.data).toEqual([]);
   });
 
   it('adds an optimistic user message while send RPC is pending', async () => {

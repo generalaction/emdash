@@ -53,6 +53,7 @@ export type ConversationPermissionRequestTimelineItem = ConversationTimelineItem
   requestId: string;
   title: string;
   body?: string;
+  input?: unknown;
   options: ConversationPermissionOption[];
   status: 'pending' | 'approved' | 'denied' | 'cancelled';
 };
@@ -113,10 +114,11 @@ export type SendConversationMessageInput = {
 };
 
 export type SendConversationMessageResult = {
-  item: ConversationMessageTimelineItem;
+  item?: ConversationMessageTimelineItem;
 };
 
 export type ConversationPermissionResponse = {
+  answers?: Record<string, string | string[]>;
   requestId: string;
   optionId: string;
 };

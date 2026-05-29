@@ -155,6 +155,7 @@ function rowToTimelineItem(
         requestId: validated.requestId,
         title: validated.title,
         body: validated.body,
+        ...(validated.input === undefined ? {} : { input: validated.input }),
         options: validated.options,
         status: validated.status,
       };
@@ -215,6 +216,7 @@ function validatePayload(
         requestId: payload.requestId,
         title: payload.title,
         body: payload.body,
+        input: payload.input,
         options: payload.options,
         status: payload.status,
       };
@@ -423,6 +425,7 @@ export class ChatTimelineStore {
       requestId: request.requestId,
       title: request.title,
       body: request.body,
+      input: request.input,
       options: request.options,
       status,
     });
@@ -527,6 +530,7 @@ export class ChatTimelineStore {
         requestId: item.requestId,
         title: item.title,
         body: item.body,
+        input: item.input,
         options: item.options,
         status: 'pending',
       });
@@ -559,6 +563,7 @@ export class ChatTimelineStore {
       requestId: request.requestId,
       title: request.title,
       body: request.body,
+      input: request.input,
       options: request.options,
       status: 'pending',
     });
@@ -596,6 +601,7 @@ export class ChatTimelineStore {
         requestId: request.requestId,
         title: request.title,
         body: request.body,
+        input: request.input,
         options: request.options,
         status: 'cancelled',
       });

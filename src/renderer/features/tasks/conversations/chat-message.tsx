@@ -13,13 +13,15 @@ import { useState } from 'react';
 import { Badge } from '@renderer/lib/ui/badge';
 import { Button } from '@renderer/lib/ui/button';
 import { MarkdownRenderer } from '@renderer/lib/ui/markdown-renderer';
+import { Textarea } from '@renderer/lib/ui/textarea';
 import { cn } from '@renderer/utils/utils';
+import type { ConversationPermissionResponse } from '@shared/conversation-timeline';
 import type { ChatRenderItem } from './chat-render-model';
 
 interface ChatMessageProps {
   item: ChatRenderItem;
   permissionResponsesEnabled?: boolean;
-  onRespondToPermission?: (requestId: string, optionId: string) => Promise<void>;
+  onRespondToPermission?: (response: ConversationPermissionResponse) => Promise<void>;
 }
 
 export function ChatMessage({
@@ -176,8 +178,17 @@ function PermissionActions({
 }: {
   item: Extract<ChatRenderItem, { kind: 'permission_request' }>;
   enabled: boolean;
-  onRespondToPermission?: (requestId: string, optionId: string) => Promise<void>;
+  onRespondToPermission?: (response: ConversationPermissionResponse) => Promise<void>;
 }) {
+  const questions = getPermissionQuestions(item.item.input);
+  const [answers, setAnswers] = useState<Record<string, string | string[]>>(() =>
+    Object.fromEntries(
+      questions.map((question) => [
+        question.id,
+        question.multiSelect ? [] : (question.options?.[0]?.label ?? ''),
+      ])
+    )
+  );
   const [pendingOptionId, setPendingOptionId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const disabled =
@@ -191,7 +202,11 @@ function PermissionActions({
     setPendingOptionId(optionId);
     setError(null);
     try {
-      await onRespondToPermission(item.item.requestId, optionId);
+      await onRespondToPermission({
+        answers: optionId === 'approve' && questions.length > 0 ? answers : undefined,
+        requestId: item.item.requestId,
+        optionId,
+      });
     } catch (respondError) {
       setError(respondError instanceof Error ? respondError.message : String(respondError));
     } finally {
@@ -203,6 +218,76 @@ function PermissionActions({
 
   return (
     <div className="mt-3 space-y-2">
+      {questions.length > 0 && item.item.status === 'pending' ? (
+        <div className="space-y-2">
+          {questions.map((question) => (
+            <label key={question.id} className="block space-y-1.5">
+              <span className="block text-xs font-medium text-foreground-secondary">
+                {question.header ?? question.question ?? question.id}
+              </span>
+              {question.question && question.header ? (
+                <span className="block text-xs text-foreground-muted">{question.question}</span>
+              ) : null}
+              {question.options && question.options.length > 0 && question.multiSelect ? (
+                <div className="space-y-1">
+                  {question.options.map((option) => {
+                    const selected = new Set(
+                      Array.isArray(answers[question.id]) ? answers[question.id] : []
+                    );
+                    return (
+                      <label key={option.label} className="flex items-center gap-2 text-xs">
+                        <input
+                          type="checkbox"
+                          disabled={disabled}
+                          checked={selected.has(option.label)}
+                          onChange={(event) =>
+                            setAnswers((current) => {
+                              const currentSelected = new Set(
+                                Array.isArray(current[question.id]) ? current[question.id] : []
+                              );
+                              if (event.target.checked) {
+                                currentSelected.add(option.label);
+                              } else {
+                                currentSelected.delete(option.label);
+                              }
+                              return { ...current, [question.id]: Array.from(currentSelected) };
+                            })
+                          }
+                        />
+                        <span>{option.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : question.options && question.options.length > 0 ? (
+                <select
+                  className="h-8 w-full rounded-md border border-border bg-background px-2 text-xs text-foreground"
+                  disabled={disabled}
+                  value={typeof answers[question.id] === 'string' ? answers[question.id] : ''}
+                  onChange={(event) =>
+                    setAnswers((current) => ({ ...current, [question.id]: event.target.value }))
+                  }
+                >
+                  {question.options.map((option) => (
+                    <option key={option.label} value={option.label}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <Textarea
+                  className="min-h-16 bg-background text-xs"
+                  disabled={disabled}
+                  value={answers[question.id] ?? ''}
+                  onChange={(event) =>
+                    setAnswers((current) => ({ ...current, [question.id]: event.target.value }))
+                  }
+                />
+              )}
+            </label>
+          ))}
+        </div>
+      ) : null}
       <div className="flex flex-wrap gap-2">
         {item.item.options.map((option) => (
           <Button
@@ -224,6 +309,32 @@ function PermissionActions({
       ) : null}
     </div>
   );
+}
+
+type PermissionQuestion = {
+  id: string;
+  header?: string;
+  question?: string;
+  multiSelect?: boolean;
+  options?: Array<{ label: string; description?: string }>;
+};
+
+function getPermissionQuestions(input: unknown): PermissionQuestion[] {
+  if (typeof input !== 'object' || input === null || !('questions' in input)) return [];
+  const questions = (input as { questions?: unknown }).questions;
+  if (!Array.isArray(questions)) return [];
+  return questions.filter((question): question is PermissionQuestion => {
+    if (typeof question !== 'object' || question === null) return false;
+    if (!('id' in question) || typeof question.id !== 'string') return false;
+    if (
+      'options' in question &&
+      question.options !== undefined &&
+      !Array.isArray(question.options)
+    ) {
+      return false;
+    }
+    return true;
+  });
 }
 
 function StatusBadge({ status }: { status: string }) {

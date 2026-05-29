@@ -35,6 +35,8 @@ export interface TaskProvider {
   readonly taskId: string;
   readonly taskBranch: string | undefined;
   readonly sourceBranch: Branch | undefined;
+  readonly taskPath?: string;
+  readonly workspaceKind?: WorkspaceType['kind'];
   readonly taskEnvVars: Record<string, string>;
   readonly conversations: ConversationProvider;
   readonly terminals: TerminalProvider;

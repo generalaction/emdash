@@ -12,6 +12,8 @@ const conversationsRef = vi.hoisted(() => ({
   current: undefined as
     | {
         cancelTurn: ReturnType<typeof vi.fn>;
+        executeCommand: ReturnType<typeof vi.fn>;
+        listCommands: ReturnType<typeof vi.fn>;
         respondToPermission: ReturnType<typeof vi.fn>;
         sendMessage: ReturnType<typeof vi.fn>;
         timelines: Map<
@@ -87,6 +89,8 @@ describe('ChatConversationPanel', () => {
   let container: HTMLDivElement;
   let sendMessage: ReturnType<typeof vi.fn>;
   let cancelTurn: ReturnType<typeof vi.fn>;
+  let executeCommand: ReturnType<typeof vi.fn>;
+  let listCommands: ReturnType<typeof vi.fn>;
   let respondToPermission: ReturnType<typeof vi.fn>;
   let startTimeline: ReturnType<typeof vi.fn>;
 
@@ -97,10 +101,14 @@ describe('ChatConversationPanel', () => {
     root = createRoot(container);
     sendMessage = vi.fn().mockResolvedValue(undefined);
     cancelTurn = vi.fn().mockResolvedValue(undefined);
+    executeCommand = vi.fn().mockResolvedValue(undefined);
+    listCommands = vi.fn().mockResolvedValue([]);
     respondToPermission = vi.fn().mockResolvedValue(undefined);
     startTimeline = vi.fn();
     conversationsRef.current = {
       cancelTurn,
+      executeCommand,
+      listCommands,
       respondToPermission,
       sendMessage,
       timelines: new Map([
@@ -139,6 +147,47 @@ describe('ChatConversationPanel', () => {
     });
 
     expect(sendMessage).toHaveBeenCalledWith('conversation-1', 'hello');
+  });
+
+  it('uses command RPC for recognized slash commands', async () => {
+    listCommands.mockResolvedValueOnce([{ name: 'compact', description: 'Compact context' }]);
+    const conversation = { data: makeConversation(), status: 'idle' as const };
+
+    await act(async () => {
+      renderPanel(root, conversation);
+    });
+
+    const textarea = container.querySelector('textarea')!;
+    await act(async () => {
+      setTextareaValue(textarea, '/compact');
+    });
+    await act(async () => {
+      click(container.querySelector('[aria-label="Send message"]')!);
+    });
+
+    expect(listCommands).toHaveBeenCalledWith('conversation-1');
+    expect(executeCommand).toHaveBeenCalledWith('conversation-1', { name: 'compact' });
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('sends unrecognized slash text as a normal message', async () => {
+    listCommands.mockResolvedValueOnce([{ name: 'compact', description: 'Compact context' }]);
+    const conversation = { data: makeConversation(), status: 'idle' as const };
+
+    await act(async () => {
+      renderPanel(root, conversation);
+    });
+
+    const textarea = container.querySelector('textarea')!;
+    await act(async () => {
+      setTextareaValue(textarea, '/unknown arg');
+    });
+    await act(async () => {
+      click(container.querySelector('[aria-label="Send message"]')!);
+    });
+
+    expect(executeCommand).not.toHaveBeenCalled();
+    expect(sendMessage).toHaveBeenCalledWith('conversation-1', '/unknown arg');
   });
 
   it('uses Enter to send and Shift+Enter to keep editing', async () => {
@@ -502,7 +551,125 @@ describe('ChatConversationPanel', () => {
     expect(respondToPermission).toHaveBeenCalledWith('conversation-1', {
       requestId: 'permission-1',
       optionId: 'approve',
+      answers: undefined,
     });
     expect(container.querySelector('[role="alert"]')?.textContent).toBe('permission failed');
+  });
+
+  it('submits answers for Codex question permission cards', async () => {
+    conversationsRef.current?.timelines.set('conversation-1', {
+      items: {
+        data: [
+          {
+            id: 'permission-item-1',
+            conversationId: 'conversation-1',
+            sequence: 1,
+            createdAt: '2026-01-01T00:00:00.000Z',
+            kind: 'permission_request',
+            requestId: 'permission-1',
+            title: 'Question',
+            input: {
+              questions: [
+                {
+                  id: 'confirm',
+                  header: 'Confirm',
+                  question: 'Proceed?',
+                  options: [{ label: 'Yes (Recommended)' }, { label: 'No' }],
+                },
+              ],
+            },
+            options: [
+              { id: 'approve', label: 'Approve', kind: 'primary' },
+              { id: 'deny', label: 'Deny', kind: 'danger' },
+            ],
+            status: 'pending',
+          },
+        ],
+      },
+      start: startTimeline,
+    });
+    const conversation = { data: makeConversation(), status: 'awaiting-input' as const };
+
+    await act(async () => {
+      renderPanel(root, conversation);
+    });
+
+    const select = container.querySelector('select')!;
+    await act(async () => {
+      select.value = 'No';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    const approveButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Approve'
+    )!;
+    await act(async () => {
+      click(approveButton);
+    });
+
+    expect(respondToPermission).toHaveBeenCalledWith('conversation-1', {
+      requestId: 'permission-1',
+      optionId: 'approve',
+      answers: { confirm: 'No' },
+    });
+  });
+
+  it('submits multiple answers for Codex multi-select question permission cards', async () => {
+    conversationsRef.current?.timelines.set('conversation-1', {
+      items: {
+        data: [
+          {
+            id: 'permission-item-1',
+            conversationId: 'conversation-1',
+            sequence: 1,
+            createdAt: '2026-01-01T00:00:00.000Z',
+            kind: 'permission_request',
+            requestId: 'permission-1',
+            title: 'Question',
+            input: {
+              questions: [
+                {
+                  id: 'steps',
+                  header: 'Steps',
+                  multiSelect: true,
+                  options: [{ label: 'Run tests' }, { label: 'Update docs' }],
+                },
+              ],
+            },
+            options: [
+              { id: 'approve', label: 'Approve', kind: 'primary' },
+              { id: 'deny', label: 'Deny', kind: 'danger' },
+            ],
+            status: 'pending',
+          },
+        ],
+      },
+      start: startTimeline,
+    });
+    const conversation = { data: makeConversation(), status: 'awaiting-input' as const };
+
+    await act(async () => {
+      renderPanel(root, conversation);
+    });
+
+    const checkboxes = Array.from(container.querySelectorAll('input[type="checkbox"]'));
+    await act(async () => {
+      for (const checkbox of checkboxes) {
+        click(checkbox);
+      }
+    });
+
+    const approveButton = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === 'Approve'
+    )!;
+    await act(async () => {
+      click(approveButton);
+    });
+
+    expect(respondToPermission).toHaveBeenCalledWith('conversation-1', {
+      requestId: 'permission-1',
+      optionId: 'approve',
+      answers: { steps: ['Run tests', 'Update docs'] },
+    });
   });
 });

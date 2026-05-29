@@ -5,18 +5,11 @@ const mocks = vi.hoisted(() => ({
   classify: vi.fn(),
   emit: vi.fn(),
   maybeShowNotification: vi.fn(),
-  recordAgentEvent: vi.fn(),
 }));
 
 vi.mock('electron', () => ({
   BrowserWindow: {
     getAllWindows: () => [],
-  },
-}));
-
-vi.mock('@main/core/conversations/chat/chat-conversation-runtime', () => ({
-  chatConversationRuntime: {
-    recordAgentEvent: mocks.recordAgentEvent,
   },
 }));
 
@@ -73,7 +66,6 @@ describe('wireAgentClassifier', () => {
           }
         : undefined
     );
-    mocks.recordAgentEvent.mockResolvedValue(undefined);
     mocks.maybeShowNotification.mockResolvedValue(undefined);
   });
 
@@ -81,49 +73,23 @@ describe('wireAgentClassifier', () => {
     vi.useRealTimers();
   });
 
-  it('records classifier events into the chat timeline before emitting agent events', async () => {
+  it('emits classifier events without writing to chat runtime', async () => {
     wireClassifier();
 
     onData?.('failed');
     await vi.advanceTimersByTimeAsync(2500);
 
-    expect(mocks.recordAgentEvent).toHaveBeenCalledWith(
+    expect(mocks.emit).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'agent:event' }),
       expect.objectContaining({
-        type: 'error',
-        conversationId: 'conversation-1',
-        payload: expect.objectContaining({
-          message: 'failed',
+        event: expect.objectContaining({
+          type: 'error',
+          conversationId: 'conversation-1',
+          payload: expect.objectContaining({ message: 'failed' }),
         }),
       })
     );
-    expect(mocks.recordAgentEvent.mock.calls[0]?.[0].payload).not.toHaveProperty(
-      'lastAssistantMessage'
-    );
-    expect(mocks.recordAgentEvent.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.emit.mock.invocationCallOrder[0] ?? 0
-    );
-    expect(mocks.emit).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'agent:event' }),
-      expect.objectContaining({
-        event: expect.objectContaining({ type: 'error' }),
-      })
-    );
     onExit?.({});
-  });
-
-  it('still emits agent events when chat timeline recording fails', async () => {
-    mocks.recordAgentEvent.mockRejectedValue(new Error('timeline failed'));
-    wireClassifier();
-
-    onData?.('failed');
-    await vi.advanceTimersByTimeAsync(2500);
-
-    expect(mocks.emit).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'agent:event' }),
-      expect.objectContaining({
-        event: expect.objectContaining({ type: 'error' }),
-      })
-    );
   });
 
   it('still emits agent events when notification display fails', async () => {
@@ -151,7 +117,6 @@ describe('wireAgentClassifier', () => {
     await vi.advanceTimersByTimeAsync(2500);
 
     expect(mocks.emit).not.toHaveBeenCalled();
-    expect(mocks.recordAgentEvent).not.toHaveBeenCalled();
   });
 
   it('clears an existing idle timer when later classifier input handling throws', async () => {
@@ -166,7 +131,6 @@ describe('wireAgentClassifier', () => {
     await vi.advanceTimersByTimeAsync(2500);
 
     expect(mocks.emit).not.toHaveBeenCalled();
-    expect(mocks.recordAgentEvent).not.toHaveBeenCalled();
   });
 
   it('does not emit agent events when idle classification throws', async () => {
@@ -180,6 +144,5 @@ describe('wireAgentClassifier', () => {
     await vi.advanceTimersByTimeAsync(2500);
 
     expect(mocks.emit).not.toHaveBeenCalled();
-    expect(mocks.recordAgentEvent).not.toHaveBeenCalled();
   });
 });

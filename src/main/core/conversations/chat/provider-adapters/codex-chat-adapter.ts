@@ -1,143 +1,781 @@
-import type { Conversation } from '@shared/conversations';
-import type { AgentEvent } from '@shared/events/agentEvents';
-import { buildPromptInjectionPayload } from '@shared/prompt-injection';
-import type { ChatProviderAdapter, ChatProviderBackend, ChatProviderRuntimeEvent } from '../types';
+import {
+  execFile,
+  spawn,
+  type ChildProcess,
+  type ChildProcessWithoutNullStreams,
+} from 'node:child_process';
+import { buildAgentEnv } from '@main/core/pty/pty-env';
+import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
+import { log } from '@main/lib/logger';
+import type {
+  AppendConversationTimelineItemInput,
+  ConversationPermissionRequestTimelineItem,
+  ConversationPermissionResponse,
+  ConversationStatus,
+  ConversationToolCallStatus,
+  SendConversationMessageInput,
+} from '@shared/conversation-timeline';
+import { parseShellWords } from '../../impl/agent-command';
+import { resolveProviderEnv } from '../../impl/provider-env';
+import {
+  CodexAppServerClient,
+  type CodexAppServerNotification,
+  type CodexSandboxPolicy,
+  type CodexUserInput,
+} from '../app-server/codex-app-server-client';
+import { CodexAppServerTransport } from '../app-server/codex-app-server-transport';
+import type {
+  AgentSlashCommand,
+  AgentSlashCommandInput,
+  ChatProviderAdapter,
+  ChatProviderRuntimeEvent,
+  ChatProviderSession,
+  ChatSessionConfig,
+} from '../types';
+
+type PendingPermission = {
+  kind: 'approval' | 'question';
+  defaultAnswers?: Record<string, { answers: string[] }>;
+  reject: (error: Error) => void;
+  resolve: (value: unknown) => void;
+};
+
+const CODEX_GOALS_MIN_VERSION: readonly [number, number, number] = [0, 128, 0];
+const CODEX_VERSION_TIMEOUT_MS = 2_000;
+
+class CodexChatSession implements ChatProviderSession {
+  readonly conversationId: string;
+  readonly providerId = 'codex' as const;
+  providerSessionId?: string;
+  activeTurnId?: string;
+  readonly goalsEnabled: boolean;
+  private readonly assistantTextByItemId = new Map<string, string>();
+  private readonly callbacks = new Set<(event: ChatProviderRuntimeEvent) => void>();
+  private eventQueue = Promise.resolve();
+  private readonly pendingPermissions = new Map<string, PendingPermission>();
+  private readonly reasoningTextByItemId = new Map<string, string>();
+  private turnStartPending = false;
+  private eventHandler: (event: ChatProviderRuntimeEvent) => void | Promise<void> = () => {};
+
+  constructor(
+    readonly client: CodexAppServerClient,
+    conversationId: string,
+    readonly cwd: string,
+    readonly autoApprove: boolean | undefined,
+    goalsEnabled: boolean,
+    providerSessionId?: string
+  ) {
+    this.conversationId = conversationId;
+    this.goalsEnabled = goalsEnabled;
+    this.providerSessionId = providerSessionId;
+    this.client.onNotification((notification) => this.handleNotification(notification));
+    this.client.onExit((error) => this.handleExit(error));
+    for (const method of [
+      'item/commandExecution/requestApproval',
+      'item/fileChange/requestApproval',
+      'item/tool/requestUserInput',
+      'tool/requestUserInput',
+    ]) {
+      this.client.onRequest(method, (params, requestId) =>
+        this.handlePermissionRequest(method, params, requestId)
+      );
+    }
+  }
+
+  subscribe(callback: (event: ChatProviderRuntimeEvent) => void): () => void {
+    this.callbacks.add(callback);
+    return () => this.callbacks.delete(callback);
+  }
+
+  async dispose(): Promise<void> {
+    for (const [requestId, pending] of this.pendingPermissions) {
+      pending.reject(new Error(`Permission request ${requestId} was cancelled`));
+    }
+    this.pendingPermissions.clear();
+    await this.client.dispose();
+  }
+
+  resolvePermission(
+    request: ConversationPermissionRequestTimelineItem,
+    response: ConversationPermissionResponse
+  ): void {
+    const pending = this.pendingPermissions.get(request.requestId);
+    if (!pending) throw new Error('Permission request not found');
+    this.pendingPermissions.delete(request.requestId);
+    const approved = response.optionId === 'approve';
+    if (pending.kind === 'question') {
+      pending.resolve({
+        answers: approved ? answersForQuestionResponse(response, pending.defaultAnswers) : {},
+      });
+      return;
+    }
+    pending.resolve({ decision: approved ? 'accept' : 'decline' });
+  }
+
+  emitStatusMessage(text: string): void {
+    this.emit({
+      type: 'timeline',
+      item: { kind: 'assistant_message', payload: { text } },
+    });
+  }
+
+  emitCompleted(): void {
+    this.activeTurnId = undefined;
+    this.turnStartPending = false;
+    this.emit({ type: 'status', status: 'completed' });
+  }
+
+  markTurnStartPending(): void {
+    this.turnStartPending = true;
+  }
+
+  clearTurnStartPending(): void {
+    this.turnStartPending = false;
+  }
+
+  async cancel(): Promise<void> {
+    const threadId = requireThreadId(this);
+    if (this.activeTurnId) {
+      await this.client.interruptTurn({ threadId, turnId: this.activeTurnId });
+      return;
+    }
+    if (this.turnStartPending) {
+      throw new Error('Cannot interrupt Codex turn before app-server reports turn start');
+    }
+  }
+
+  private handleExit(error: Error | undefined): void {
+    const message = error?.message ?? 'Codex app-server exited';
+    const hadActiveWork =
+      this.turnStartPending || Boolean(this.activeTurnId) || this.pendingPermissions.size > 0;
+    for (const [requestId, pending] of this.pendingPermissions) {
+      pending.reject(new Error(`Permission request ${requestId} was cancelled`));
+    }
+    this.pendingPermissions.clear();
+    if (hadActiveWork) {
+      this.activeTurnId = undefined;
+      this.turnStartPending = false;
+      this.emit({
+        type: 'timeline',
+        item: { kind: 'error', payload: { message } },
+      });
+      this.emit({ type: 'status', status: 'error' });
+    }
+  }
+
+  private handleNotification(notification: CodexAppServerNotification): void {
+    switch (notification.type) {
+      case 'thread-started': {
+        this.providerSessionId = notification.threadId;
+        this.emit({ type: 'provider-session', providerSessionId: notification.threadId });
+        break;
+      }
+      case 'turn-started': {
+        this.turnStartPending = false;
+        this.activeTurnId = notification.turnId;
+        this.emit({ type: 'status', status: 'working' });
+        break;
+      }
+      case 'turn-completed': {
+        const failed =
+          notification.status === 'failed' ||
+          notification.status === 'error' ||
+          Boolean(notification.errorMessage);
+        if (notification.errorMessage) {
+          this.emit({
+            type: 'timeline',
+            item: { kind: 'error', payload: { message: notification.errorMessage } },
+          });
+        }
+        const status: ConversationStatus = failed ? 'error' : 'completed';
+        this.activeTurnId = undefined;
+        this.turnStartPending = false;
+        this.emit({ type: 'status', status });
+        break;
+      }
+      case 'assistant-delta': {
+        this.emitTextDelta('assistant_message', this.assistantTextByItemId, notification);
+        break;
+      }
+      case 'reasoning-delta': {
+        this.emitTextDelta('reasoning', this.reasoningTextByItemId, notification);
+        break;
+      }
+      case 'item': {
+        const item = mapToolItem(notification);
+        if (item) this.emit({ type: 'timeline', item, upsert: true });
+        break;
+      }
+      case 'thread-compacted': {
+        this.emit({
+          type: 'timeline',
+          item: { kind: 'reasoning', payload: { text: 'Context compacted.' } },
+        });
+        break;
+      }
+      case 'unknown':
+        break;
+    }
+  }
+
+  private emitTextDelta(
+    kind: 'assistant_message' | 'reasoning',
+    textByItemId: Map<string, string>,
+    notification: Extract<
+      CodexAppServerNotification,
+      { type: 'assistant-delta' | 'reasoning-delta' }
+    >
+  ): void {
+    const text = `${textByItemId.get(notification.itemId) ?? ''}${notification.delta}`;
+    textByItemId.set(notification.itemId, text);
+    this.emit({
+      type: 'timeline',
+      item: {
+        id: notification.itemId,
+        kind,
+        payload: { text },
+      },
+      upsert: true,
+    });
+  }
+
+  private handlePermissionRequest(
+    method: string,
+    params: unknown,
+    requestId: number
+  ): Promise<unknown> {
+    const record = typeof params === 'object' && params !== null ? params : {};
+    const itemId =
+      'itemId' in record && typeof record.itemId === 'string' ? record.itemId : String(requestId);
+    const baseTimelineRequestId = `permission-${itemId}`;
+    const timelineRequestId = this.pendingPermissions.has(baseTimelineRequestId)
+      ? `${baseTimelineRequestId}-${requestId}`
+      : baseTimelineRequestId;
+    const title = titleForPermissionRequest(method, record);
+    const body = bodyForPermissionRequest(record);
+    const kind = permissionKindForMethod(method);
+    const questionsInput = kind === 'question' ? questionsInputForRequest(record) : undefined;
+    const defaultAnswers =
+      kind === 'question' ? defaultAnswersForQuestions(questionsInput) : undefined;
+    this.emit({
+      type: 'timeline',
+      item: {
+        id: timelineRequestId,
+        kind: 'permission_request',
+        payload: {
+          requestId: timelineRequestId,
+          title,
+          body,
+          input: questionsInput,
+          options: [
+            { id: 'approve', label: 'Approve', kind: 'primary' },
+            { id: 'deny', label: 'Deny', kind: 'danger' },
+          ],
+          status: 'pending',
+        },
+      },
+      upsert: true,
+    });
+    this.emit({ type: 'status', status: 'awaiting-input' });
+    return new Promise((resolve, reject) => {
+      this.pendingPermissions.set(timelineRequestId, {
+        defaultAnswers,
+        kind,
+        reject,
+        resolve,
+      });
+    });
+  }
+
+  private emit(event: ChatProviderRuntimeEvent): void {
+    this.eventQueue = this.eventQueue
+      .then(() => this.eventHandler(event))
+      .catch((error) => {
+        log.warn('CodexChatSession: failed to forward provider event', {
+          conversationId: this.conversationId,
+          error: String(error),
+        });
+      });
+    for (const callback of this.callbacks) {
+      callback(event);
+    }
+  }
+
+  setEventHandler(handler: (event: ChatProviderRuntimeEvent) => void | Promise<void>): void {
+    this.eventHandler = handler;
+  }
+}
 
 export class CodexChatAdapter implements ChatProviderAdapter {
   readonly providerId = 'codex' as const;
 
-  buildMessageInput(conversation: Conversation, text: string): string {
-    return `${buildPromptInjectionPayload({ providerId: conversation.providerId, text })}\r`;
+  async createSession(config: ChatSessionConfig): Promise<ChatProviderSession> {
+    return this.createOrResumeSession(config);
   }
 
-  async cancel(conversation: Conversation, backend: ChatProviderBackend): Promise<void> {
-    await backend.interruptSession(conversation.id);
+  async resumeSession(config: ChatSessionConfig): Promise<ChatProviderSession> {
+    return this.createOrResumeSession(config);
+  }
+
+  private async createOrResumeSession(config: ChatSessionConfig): Promise<ChatProviderSession> {
+    const { client, goalsEnabled } = await createCodexClient(config);
+    const session = new CodexChatSession(
+      client,
+      config.conversation.id,
+      config.cwd,
+      config.conversation.autoApprove,
+      goalsEnabled,
+      config.conversation.providerSessionId
+    );
+    session.setEventHandler(config.onEvent);
+    const threadId = config.conversation.providerSessionId;
+    if (threadId) {
+      const loadedThreadIds = await client.listLoadedThreads();
+      if (!loadedThreadIds.includes(threadId)) {
+        await client.resumeThread({
+          threadId,
+          cwd: config.cwd,
+        });
+      }
+      return session;
+    }
+
+    const providerSessionId = await client.startThread({
+      cwd: config.cwd,
+      ...codexPermissionParams(config.conversation.autoApprove),
+    });
+    session.providerSessionId = providerSessionId;
+    return session;
+  }
+
+  async sendMessage(
+    session: ChatProviderSession,
+    input: SendConversationMessageInput
+  ): Promise<void> {
+    const codexSession = requireCodexSession(session);
+    const threadId = requireThreadId(codexSession);
+    codexSession.markTurnStartPending();
+    try {
+      await codexSession.client.startTurn({
+        threadId,
+        cwd: codexSession.cwd,
+        input: [toCodexTextInput(input.text)],
+        ...codexTurnPermissionParams(codexSession.autoApprove),
+      });
+    } catch (error) {
+      codexSession.clearTurnStartPending();
+      throw error;
+    }
+  }
+
+  async tryHandleOutOfBandCommand(
+    session: ChatProviderSession,
+    input: SendConversationMessageInput
+  ): Promise<boolean> {
+    const slashCommand = parseSlashCommand(input.text);
+    if (!slashCommand || (slashCommand.name !== 'compact' && slashCommand.name !== 'goal')) {
+      return false;
+    }
+    const codexSession = requireCodexSession(session);
+    if (slashCommand.name === 'goal' && !codexSession.goalsEnabled) {
+      return false;
+    }
+    await this.executeSlashCommand(session, slashCommand);
+    return true;
+  }
+
+  async cancel(session: ChatProviderSession): Promise<void> {
+    await requireCodexSession(session).cancel();
   }
 
   async respondToPermission(
-    conversation: Conversation,
-    backend: ChatProviderBackend,
-    request: Parameters<NonNullable<ChatProviderAdapter['respondToPermission']>>[2],
-    response: Parameters<NonNullable<ChatProviderAdapter['respondToPermission']>>[3]
+    session: ChatProviderSession,
+    request: ConversationPermissionRequestTimelineItem,
+    response: ConversationPermissionResponse
   ): Promise<void> {
-    const option = request.options.find((candidate) => candidate.id === response.optionId);
-    if (!option) throw new Error('Permission option not found');
-    await backend.sendInput(conversation.id, buildPermissionResponseInput(option));
+    requireCodexSession(session).resolvePermission(request, response);
   }
 
-  mapAgentEvent(event: AgentEvent): ChatProviderRuntimeEvent[] {
-    const events: ChatProviderRuntimeEvent[] = [];
+  async dispose(session: ChatProviderSession): Promise<void> {
+    await requireCodexSession(session).dispose();
+  }
 
-    if (event.payload.toolName) {
-      events.push({
-        type: 'timeline',
-        item: {
-          id: event.payload.toolCallId ?? `codex-tool-${event.timestamp}`,
-          kind: 'tool_call',
-          payload: {
-            toolName: event.payload.toolName,
-            status: event.payload.toolStatus ?? 'running',
-            input: event.payload.toolInput,
-            output: event.payload.toolOutput,
-            error: event.payload.toolError,
-          },
-        },
+  async listCommands(session: ChatProviderSession): Promise<AgentSlashCommand[]> {
+    const codexSession = requireCodexSession(session);
+    const commands = [{ name: 'compact', description: 'Compact Codex context' }];
+    if (codexSession.goalsEnabled) {
+      commands.push({
+        name: 'goal',
+        description: 'Set, pause, resume, or clear the Codex goal',
       });
     }
+    return commands;
+  }
 
-    const assistantText =
-      event.source === 'classifier' ? undefined : event.payload.lastAssistantMessage?.trim();
-    if (assistantText) {
-      events.push({
-        type: 'timeline',
-        item: {
-          kind: 'assistant_message',
-          payload: { text: assistantText },
-        },
-      });
+  async executeSlashCommand(
+    session: ChatProviderSession,
+    command: AgentSlashCommandInput
+  ): Promise<void> {
+    const codexSession = requireCodexSession(session);
+    const threadId = requireThreadId(codexSession);
+    if (command.name === 'compact') {
+      await codexSession.client.compactThread(threadId);
+      codexSession.emitCompleted();
+      return;
     }
-
-    if (event.type === 'start') {
-      events.push({ type: 'status', status: 'working' });
-    } else if (event.type === 'stop') {
-      events.push({ type: 'status', status: 'completed' });
-    } else if (event.type === 'error') {
-      events.push({
-        type: 'timeline',
-        item: {
-          kind: 'error',
-          payload: { message: event.payload.message ?? 'Agent reported an error' },
-        },
-      });
-      events.push({ type: 'status', status: 'error' });
-    } else if (event.type === 'notification') {
-      if (event.payload.notificationType === 'idle_prompt') {
-        events.push({ type: 'status', status: 'completed' });
-      } else if (
-        event.payload.notificationType === 'permission_prompt' ||
-        event.payload.notificationType === 'elicitation_dialog'
-      ) {
-        events.push({
-          type: 'timeline',
-          item: {
-            id: event.payload.requestId ?? `codex-permission-${event.timestamp}`,
-            kind: 'permission_request',
-            payload: {
-              requestId: event.payload.requestId ?? `codex-permission-${event.timestamp}`,
-              title:
-                event.payload.title ??
-                (event.payload.notificationType === 'permission_prompt'
-                  ? 'Codex permission request'
-                  : 'Codex needs input'),
-              body:
-                event.payload.message ??
-                (event.payload.notificationType === 'permission_prompt'
-                  ? 'Codex is asking for permission to continue.'
-                  : 'Codex is asking for additional input.'),
-              options:
-                event.payload.notificationType === 'permission_prompt'
-                  ? [
-                      { id: 'approve', label: 'Approve', kind: 'primary' },
-                      { id: 'deny', label: 'Deny', kind: 'danger' },
-                    ]
-                  : [{ id: 'continue', label: 'Continue', kind: 'primary' }],
-              status: 'pending',
-            },
-          },
-        });
-        events.push({ type: 'status', status: 'awaiting-input' });
+    if (command.name === 'goal') {
+      if (!codexSession.goalsEnabled) {
+        throw new Error('Codex goals are not supported by this Codex version');
       }
+      const trimmed = command.args?.trim() ?? '';
+      if (trimmed) {
+        await executeGoalCommand(codexSession, threadId, trimmed);
+      }
+      codexSession.emitStatusMessage(goalStatusMessage(command.args));
+      codexSession.emitCompleted();
+      return;
     }
+    throw new Error(`Unsupported Codex command: /${command.name}`);
+  }
 
-    return events;
+  subscribe(
+    session: ChatProviderSession,
+    callback: (event: ChatProviderRuntimeEvent) => void
+  ): () => void {
+    return requireCodexSession(session).subscribe(callback);
   }
 }
 
 export const codexChatAdapter = new CodexChatAdapter();
 
-function buildPermissionResponseInput(
-  option: Parameters<NonNullable<ChatProviderAdapter['respondToPermission']>>[2]['options'][number]
-): string {
-  const normalizedId = option.id.toLowerCase();
-  const normalizedLabel = option.label.toLowerCase();
-  if (
-    option.kind === 'danger' ||
-    normalizedId === 'deny' ||
-    normalizedId === 'reject' ||
-    normalizedLabel === 'deny' ||
-    normalizedLabel === 'reject'
-  ) {
-    return 'n\r';
+function assertChildWithPipes(
+  child: ChildProcess
+): asserts child is ChildProcessWithoutNullStreams {
+  if (!child.stdin || !child.stdout || !child.stderr) {
+    throw new Error('Codex app-server did not expose stdio pipes');
   }
-  if (
-    option.kind === 'primary' ||
-    normalizedId === 'approve' ||
-    normalizedId === 'allow' ||
-    normalizedId === 'continue' ||
-    normalizedLabel === 'approve' ||
-    normalizedLabel === 'allow'
-  ) {
-    return 'y\r';
+}
+
+async function createCodexClient(
+  config: ChatSessionConfig
+): Promise<{ client: CodexAppServerClient; goalsEnabled: boolean }> {
+  const providerConfig = await providerOverrideSettings.getItem('codex');
+  const parsed = parseShellWords(providerConfig?.cli ?? 'codex', { rejectShellSyntax: true });
+  if (!parsed.ok || parsed.words.length === 0) {
+    throw new Error(parsed.ok ? 'Missing Codex CLI command' : parsed.reason);
   }
-  return `${option.label}\r`;
+  const [command, ...baseArgs] = parsed.words;
+  const goalsEnabled = await resolveGoalsEnabled(command, baseArgs);
+  const appServerArgs = [
+    ...baseArgs,
+    'app-server',
+    '--listen',
+    'stdio://',
+    ...(goalsEnabled ? ['--enable', 'goals'] : []),
+  ];
+  const providerEnv = resolveProviderEnv(providerConfig, {
+    providerId: 'codex',
+    autoApprove: config.conversation.autoApprove,
+  });
+  const child = spawn(command, appServerArgs, {
+    cwd: config.cwd,
+    env: {
+      ...buildAgentEnv({
+        includeShellVar: true,
+        providerVars: {
+          ...(providerEnv ?? {}),
+          ...(config.env ?? {}),
+        },
+      }),
+    },
+    stdio: 'pipe',
+  });
+  assertChildWithPipes(child);
+  child.on('spawn', () => {
+    log.info('CodexChatAdapter: started codex app-server', {
+      conversationId: config.conversation.id,
+    });
+  });
+  const client = new CodexAppServerClient(new CodexAppServerTransport(child));
+  await client.initialize();
+  return { client, goalsEnabled };
+}
+
+function toCodexTextInput(text: string): CodexUserInput {
+  return { type: 'text', text, text_elements: [] };
+}
+
+function codexPermissionParams(autoApprove: boolean | undefined): {
+  approvalPolicy: string;
+  sandbox: string;
+} {
+  if (autoApprove) {
+    return { approvalPolicy: 'never', sandbox: 'danger-full-access' };
+  }
+  return { approvalPolicy: 'on-request', sandbox: 'workspace-write' };
+}
+
+function codexTurnPermissionParams(autoApprove: boolean | undefined): {
+  approvalPolicy: string;
+  sandboxPolicy: CodexSandboxPolicy;
+} {
+  if (autoApprove) {
+    return {
+      approvalPolicy: 'never',
+      sandboxPolicy: { type: 'dangerFullAccess' },
+    };
+  }
+  return {
+    approvalPolicy: 'on-request',
+    sandboxPolicy: { type: 'workspaceWrite', networkAccess: false },
+  };
+}
+
+function requireCodexSession(session: ChatProviderSession): CodexChatSession {
+  if (!(session instanceof CodexChatSession)) {
+    throw new Error('Invalid Codex chat session');
+  }
+  return session;
+}
+
+function requireThreadId(session: CodexChatSession): string {
+  if (!session.providerSessionId) throw new Error('Codex thread is not initialized');
+  return session.providerSessionId;
+}
+
+function parseSlashCommand(text: string): AgentSlashCommandInput | undefined {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith('/') || trimmed.length <= 1) return undefined;
+  const body = trimmed.slice(1);
+  const separator = body.search(/\s/);
+  const name = separator === -1 ? body : body.slice(0, separator);
+  if (!name || name.includes('/')) return undefined;
+  const args = separator === -1 ? undefined : body.slice(separator + 1).trim();
+  return args ? { name, args } : { name };
+}
+
+function mapToolItem(
+  notification: Extract<CodexAppServerNotification, { type: 'item' }>
+): AppendConversationTimelineItemInput | undefined {
+  if (
+    !notification.itemType ||
+    notification.itemType === 'assistantMessage' ||
+    notification.itemType === 'reasoning'
+  ) {
+    return undefined;
+  }
+  return {
+    id: notification.itemId,
+    kind: 'tool_call',
+    payload: {
+      toolName: notification.name ?? notification.title ?? notification.itemType,
+      status: mapToolStatus(notification.phase, notification.status, notification.error),
+      output: notification.output,
+      error: notification.error,
+      input: notification.raw,
+    },
+  };
+}
+
+function mapToolStatus(
+  phase: 'started' | 'completed',
+  status: string | undefined,
+  error: string | undefined
+): ConversationToolCallStatus {
+  if (error || status === 'failed' || status === 'error') return 'failed';
+  if (status === 'cancelled' || status === 'canceled') return 'cancelled';
+  if (phase === 'completed' || status === 'completed' || status === 'success') return 'completed';
+  return 'running';
+}
+
+function titleForPermissionRequest(method: string, record: object): string {
+  if ('command' in record && typeof record.command === 'string' && record.command.trim()) {
+    return `Run command: ${record.command}`;
+  }
+  if (method === 'item/fileChange/requestApproval') return 'Apply file changes';
+  if (method.includes('requestUserInput')) {
+    return 'Codex needs input';
+  }
+  return 'Codex permission request';
+}
+
+function bodyForPermissionRequest(record: object): string | undefined {
+  if ('reason' in record && typeof record.reason === 'string') return record.reason;
+  if ('cwd' in record && typeof record.cwd === 'string') return `Working directory: ${record.cwd}`;
+  return undefined;
+}
+
+function permissionKindForMethod(method: string): PendingPermission['kind'] {
+  if (method.includes('requestUserInput')) return 'question';
+  return 'approval';
+}
+
+type CodexQuestionInput = {
+  questions: Array<{
+    id: string;
+    header?: string;
+    question?: string;
+    options?: Array<{ label: string; description?: string }>;
+    multiSelect?: boolean;
+  }>;
+};
+
+function questionsInputForRequest(record: object): CodexQuestionInput | undefined {
+  if (!('questions' in record) || !Array.isArray(record.questions)) return undefined;
+  const questions = record.questions
+    .map((question): CodexQuestionInput['questions'][number] | undefined => {
+      if (typeof question !== 'object' || question === null) return undefined;
+      if (!('id' in question) || typeof question.id !== 'string') return undefined;
+      const options =
+        'options' in question && Array.isArray(question.options)
+          ? question.options
+              .map((option: unknown): { label: string; description?: string } | undefined => {
+                if (typeof option !== 'object' || option === null) return undefined;
+                if (!('label' in option) || typeof option.label !== 'string') return undefined;
+                const description =
+                  'description' in option && typeof option.description === 'string'
+                    ? option.description
+                    : undefined;
+                return { label: option.label, description };
+              })
+              .filter(
+                (
+                  option: { label: string; description?: string } | undefined
+                ): option is {
+                  label: string;
+                  description?: string;
+                } => option !== undefined
+              )
+          : undefined;
+      const header =
+        'header' in question && typeof question.header === 'string' ? question.header : undefined;
+      const questionText =
+        'question' in question && typeof question.question === 'string'
+          ? question.question
+          : undefined;
+      const multiSelect =
+        'multiSelect' in question && typeof question.multiSelect === 'boolean'
+          ? question.multiSelect
+          : undefined;
+      return {
+        id: question.id,
+        header,
+        multiSelect,
+        question: questionText,
+        options,
+      };
+    })
+    .filter((question): question is CodexQuestionInput['questions'][number] => Boolean(question));
+  return questions.length > 0 ? { questions } : undefined;
+}
+
+function defaultAnswersForQuestions(
+  input: CodexQuestionInput | undefined
+): Record<string, { answers: string[] }> {
+  if (!input) return {};
+  return Object.fromEntries(
+    input.questions
+      .map((question) => {
+        const label = question.options?.map((option) => option.label.trim()).find(Boolean);
+        return label ? [question.id, { answers: [label] }] : undefined;
+      })
+      .filter((entry): entry is [string, { answers: string[] }] => entry !== undefined)
+  );
+}
+
+function answersForQuestionResponse(
+  response: ConversationPermissionResponse,
+  fallback: Record<string, { answers: string[] }> | undefined
+): Record<string, { answers: string[] }> {
+  if (!response.answers || Object.keys(response.answers).length === 0) {
+    return fallback ?? {};
+  }
+  return Object.fromEntries(
+    Object.entries(response.answers).map(([id, value]) => [
+      id,
+      { answers: Array.isArray(value) ? value : [value] },
+    ])
+  );
+}
+
+async function resolveGoalsEnabled(command: string, args: readonly string[]): Promise<boolean> {
+  try {
+    const { stdout, stderr } = await execFileVersion(command, [...args, '--version']);
+    return codexVersionAtLeast(`${stdout}\n${stderr}`, CODEX_GOALS_MIN_VERSION);
+  } catch (error) {
+    log.warn('CodexChatAdapter: failed to resolve Codex version for goals support', {
+      error: String(error),
+    });
+    return false;
+  }
+}
+
+function execFileVersion(
+  command: string,
+  args: readonly string[]
+): Promise<{ stderr: string; stdout: string }> {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const childRef: { current?: ReturnType<typeof execFile> } = {};
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      childRef.current?.kill();
+      reject(new Error('Codex version check timed out'));
+    }, CODEX_VERSION_TIMEOUT_MS);
+    timer.unref?.();
+    childRef.current = execFile(command, [...args], (error, stdout, stderr) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (error) {
+        reject(error);
+        return;
+      }
+      resolve({ stdout: String(stdout), stderr: String(stderr) });
+    });
+  });
+}
+
+function codexVersionAtLeast(
+  versionOutput: string,
+  min: readonly [number, number, number]
+): boolean {
+  const match = versionOutput.match(/(\d+)\.(\d+)\.(\d+)/);
+  if (!match) return false;
+  const version: [number, number, number] = [Number(match[1]), Number(match[2]), Number(match[3])];
+  for (let i = 0; i < min.length; i += 1) {
+    if (version[i] > min[i]) return true;
+    if (version[i] < min[i]) return false;
+  }
+  return true;
+}
+
+function goalStatusMessage(args: string | undefined): string {
+  const trimmed = args?.trim() ?? '';
+  if (!trimmed) return 'Usage: /goal <objective>|pause|resume|clear';
+  if (trimmed === 'pause') return 'Goal paused.';
+  if (trimmed === 'resume') return 'Goal resumed.';
+  if (trimmed === 'clear') return 'Goal cleared.';
+  return `Goal set: ${trimmed}`;
+}
+
+async function executeGoalCommand(
+  session: CodexChatSession,
+  threadId: string,
+  trimmed: string
+): Promise<void> {
+  if (trimmed === 'pause') {
+    await session.client.setGoal(threadId, { status: 'paused' });
+    return;
+  }
+  if (trimmed === 'resume') {
+    await session.client.setGoal(threadId, { status: 'active' });
+    return;
+  }
+  if (trimmed === 'clear') {
+    await session.client.clearGoal(threadId);
+    return;
+  }
+  await session.client.setGoal(threadId, { objective: trimmed, status: 'active' });
 }

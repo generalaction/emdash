@@ -7,6 +7,8 @@ const createConversation = vi.hoisted(() => vi.fn());
 const getTimeline = vi.hoisted(() => vi.fn());
 const sendMessage = vi.hoisted(() => vi.fn());
 const cancelTurn = vi.hoisted(() => vi.fn());
+const executeCommand = vi.hoisted(() => vi.fn());
+const listCommands = vi.hoisted(() => vi.fn());
 const respondToPermission = vi.hoisted(() => vi.fn());
 const frontendConnect = vi.hoisted(() => vi.fn());
 const frontendDispose = vi.hoisted(() => vi.fn());
@@ -89,6 +91,8 @@ vi.mock('@renderer/lib/ipc', () => ({
       getConversationsForTask: vi.fn(),
       getTimeline,
       hydrateConversation,
+      executeCommand,
+      listCommands,
       respondToPermission,
       sendMessage,
     },
@@ -129,6 +133,8 @@ describe('ConversationManagerStore session hydration', () => {
     getTimeline.mockReset();
     sendMessage.mockReset();
     cancelTurn.mockReset();
+    executeCommand.mockReset();
+    listCommands.mockReset();
     respondToPermission.mockReset();
     frontendConnect.mockReset();
     frontendDispose.mockReset();
@@ -147,6 +153,8 @@ describe('ConversationManagerStore session hydration', () => {
     });
     getTimeline.mockResolvedValue([]);
     cancelTurn.mockResolvedValue(undefined);
+    executeCommand.mockResolvedValue(undefined);
+    listCommands.mockResolvedValue([]);
     respondToPermission.mockResolvedValue(undefined);
     sendMessage.mockResolvedValue({
       item: {

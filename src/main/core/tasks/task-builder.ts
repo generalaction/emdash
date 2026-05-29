@@ -173,6 +173,8 @@ export async function buildTaskFromWorkspace(
     taskId: task.id,
     taskBranch: task.taskBranch,
     sourceBranch: task.sourceBranch,
+    taskPath: workspace.path,
+    workspaceKind: type.kind,
     taskEnvVars,
     conversations: conversationProvider,
     terminals: terminalProvider,

@@ -2,7 +2,10 @@ import { LoaderCircle } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useRef } from 'react';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
-import type { ConversationStatus } from '@shared/conversation-timeline';
+import type {
+  ConversationPermissionResponse,
+  ConversationStatus,
+} from '@shared/conversation-timeline';
 import { ChatMessage } from './chat-message';
 import { buildChatRenderItems } from './chat-render-model';
 import type { ConversationTimelineStore } from './conversation-timeline-store';
@@ -12,7 +15,7 @@ interface ChatMessageListProps {
   timeline: ConversationTimelineStore | undefined;
   status: ConversationStatus;
   permissionResponsesEnabled?: boolean;
-  onRespondToPermission?: (requestId: string, optionId: string) => Promise<void>;
+  onRespondToPermission?: (response: ConversationPermissionResponse) => Promise<void>;
 }
 
 export const ChatMessageList = observer(function ChatMessageList({

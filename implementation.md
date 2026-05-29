@@ -426,6 +426,83 @@ Remaining risks and follow-ups:
 - Codex permission responses remain TUI-keystroke based and should be revisited if Codex exposes a
   structured permission-response API.
 
+## Step 6 Follow-up: Codex App-Server Replacement
+
+Replaced the incorrect Codex TUI-backed chat runtime with a Codex app-server runtime boundary,
+following the current `docs/goal.md` direction to mirror Paseo's Codex server approach while keeping
+terminal UI as the fallback.
+
+Changes made:
+
+- Removed the chat runtime dependency on Codex TUI/PTY startup, terminal hook forwarding, backend
+  exit classifiers, and `y`/`n` permission keystroke injection.
+- Added a JSON-RPC stdio transport and typed Codex app-server client for `initialize`,
+  `thread/start`, `thread/loaded/list`, `thread/resume`, `turn/start`, `turn/interrupt`,
+  `thread/compact/start`, and goal methods.
+- Reworked `CodexChatAdapter` to spawn `codex app-server --listen stdio://`, gate
+  `--enable goals` by Codex version, map app-server notifications into timeline/status events, and
+  answer command/file/question permission requests with method-specific JSON-RPC result shapes.
+- Updated `ChatConversationRuntime` so chat conversations activate app-server sessions directly,
+  persist provider thread ids, append DB-backed user/timeline rows, handle out-of-band `/compact`
+  and supported `/goal` commands without storing them as prompts, and clear or preserve responding
+  state correctly across completion, command handling, cancellation, send failure, permission
+  failure, and app-server exit.
+- Added renderer command routing so advertised slash commands use the command RPC while unadvertised
+  slash text falls through as a normal prompt.
+- Added Codex user-input question metadata and answer transport, including multi-select answers,
+  through the shared timeline response type, renderer permission card, runtime, and adapter.
+- Serialized provider event forwarding so streamed app-server deltas cannot persist out of order.
+- Bounded Codex version probing before app-server launch and fall back to goals disabled on probe
+  failure or timeout.
+- Added task workspace metadata needed by the chat runtime and kept SSH or unsupported providers on
+  terminal fallback.
+- Added conversation command RPC endpoints and renderer timeline-store handling for out-of-band
+  command sends that do not return a persisted user message.
+- Added a focused `test:coverage:chat` script and Vitest coverage thresholds for the changed
+  chat/app-server scope.
+
+Validation:
+
+- `pnpm run format`: passed.
+- `pnpm run lint`: passed.
+- `pnpm run typecheck`: passed.
+- `pnpm run test`: passed, 202 files / 1354 tests.
+- `pnpm run test:coverage:chat`: passed, 8 files / 72 tests, with 91.74% statements, 80.63%
+  branches, 92.00% functions, and 95.23% lines for the configured chat/app-server scope.
+
+Review loop:
+
+- Round 1 architecture and logic reviewers found high issues around app-server events not reaching
+  runtime state, invalid Codex sandbox policy shapes, slash commands wedging `awaitingResponse`,
+  malformed user-input permission responses, and app-server exits leaving conversations stuck. Fixed
+  with direct runtime event forwarding, Codex `workspaceWrite` / `dangerFullAccess` sandbox policy
+  objects, out-of-band command handling before user-message append, question-specific `{ answers }`
+  responses, and transport/client exit propagation.
+- Round 1 test reviewer found high/medium issues around missing app-server lifecycle/timeline
+  coverage, permission method coverage, slash command coverage, and unenforced coverage goals.
+  Fixed with fake app-server adapter tests, app-server client/transport tests, runtime state tests,
+  DB-backed create/hydrate tests, renderer timeline-store tests, and the focused coverage gate.
+- Round 2 architecture reviewer found issues around disabled `/goal` still being intercepted,
+  Codex multi-select user-input requests being collapsed to one answer, and command RPC/runtime
+  ownership. Fixed by making disabled `/goal` fall through to normal prompt sends, adding
+  multi-answer question response support, routing renderer-recognized commands through the command
+  RPC, and guarding command RPC execution with runtime state.
+- Round 2 logic reviewer found issues around cancel-before-`turn/started`, concurrent provider
+  event persistence ordering, and unbounded Codex version probing. Fixed by distinguishing
+  pre-start cancellation, serializing provider event forwarding, and adding a timeout to the version
+  probe.
+- Round 3 logic reviewer found active-turn interrupt failures could clear runtime state while Codex
+  may still run. Fixed by preserving the blocked runtime state on active-turn interrupt failure
+  while still clearing the pre-start pending state.
+- Final architecture, logic, and test reviewers found no high/medium issues.
+
+Remaining risks and follow-ups:
+
+- This step hardens the main-process Codex app-server runtime boundary. The renderer still needs the
+  full Paseo-inspired chat composer/command UX using Emdash base components in the later UI step.
+- The Codex app-server protocol mapping is intentionally narrower than Paseo's complete mapper; more
+  detailed tool-call schemas and history replay can be expanded after the base server path is clean.
+
 ## Step 5 Follow-up: Recovery and Teardown Hardening
 
 Completed the reviewer-driven hardening pass for chat permission recovery, hydration replay, and

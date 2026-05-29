@@ -316,6 +316,23 @@ export class ConversationManagerStore implements IDisposable {
     await timeline.cancelTurn();
   }
 
+  async listCommands(
+    conversationId: string
+  ): Promise<Array<{ name: string; description?: string }>> {
+    const timeline = this.timelines.get(conversationId);
+    if (!timeline) throw new Error('Conversation timeline not found');
+    return timeline.listCommands();
+  }
+
+  async executeCommand(
+    conversationId: string,
+    command: { name: string; args?: string }
+  ): Promise<void> {
+    const timeline = this.timelines.get(conversationId);
+    if (!timeline) throw new Error('Conversation timeline not found');
+    await timeline.executeCommand(command);
+  }
+
   async respondToPermission(
     conversationId: string,
     response: ConversationPermissionResponse

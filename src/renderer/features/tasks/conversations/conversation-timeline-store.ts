@@ -2,8 +2,8 @@ import { events, rpc } from '@renderer/lib/ipc';
 import type { IDisposable } from '@renderer/lib/stores/lifecycle';
 import { Resource } from '@renderer/lib/stores/resource';
 import {
-  type ConversationMessageTimelineItem,
   type ConversationPermissionResponse,
+  type ConversationMessageTimelineItem,
   type ConversationTimelineItem,
   type SendConversationMessageInput,
 } from '@shared/conversation-timeline';
@@ -68,8 +68,12 @@ export class ConversationTimelineStore implements IDisposable {
         this.conversationId,
         payload
       );
-      this.items.setValue(mergeTimelineItems(this.items.data ?? [], [item]));
-      return item;
+      if (item) {
+        this.items.setValue(mergeTimelineItems(this.items.data ?? [], [item]));
+        return item;
+      }
+      this.items.setValue(removeOptimisticTimelineItem(this.items.data ?? [], optimisticItem));
+      return optimisticItem;
     } catch (error) {
       this.items.setValue(removeOptimisticTimelineItem(this.items.data ?? [], optimisticItem));
       throw error;
@@ -78,6 +82,19 @@ export class ConversationTimelineStore implements IDisposable {
 
   async cancelTurn(): Promise<void> {
     await rpc.conversations.cancelTurn(this.projectId, this.taskId, this.conversationId);
+  }
+
+  async listCommands(): Promise<Array<{ name: string; description?: string }>> {
+    return rpc.conversations.listCommands(this.projectId, this.taskId, this.conversationId);
+  }
+
+  async executeCommand(command: { name: string; args?: string }): Promise<void> {
+    await rpc.conversations.executeCommand(
+      this.projectId,
+      this.taskId,
+      this.conversationId,
+      command
+    );
   }
 
   async respondToPermission(response: ConversationPermissionResponse): Promise<void> {

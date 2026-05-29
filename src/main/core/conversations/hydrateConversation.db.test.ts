@@ -6,8 +6,16 @@ import { conversations } from '@main/db/schema';
 import { serializeConversationConfig } from '@shared/conversation-config';
 import { ok } from '@shared/result';
 import { chatConversationRuntime } from './chat/chat-conversation-runtime';
-import { chatTimelineStore } from './chat/chat-timeline-store';
 import { hydrateConversation } from './hydrateConversation';
+
+const adapterMocks = vi.hoisted(() => ({
+  cancel: vi.fn(),
+  createSession: vi.fn(),
+  dispose: vi.fn(),
+  resumeSession: vi.fn(),
+  sendMessage: vi.fn(),
+  tryHandleOutOfBandCommand: vi.fn(),
+}));
 
 const mocks = vi.hoisted(() => ({
   db: undefined as unknown,
@@ -20,10 +28,22 @@ vi.mock('@main/db/client', () => ({
   },
 }));
 
+vi.mock('./chat/provider-adapters', () => ({
+  getChatProviderAdapter: () => ({
+    providerId: 'codex',
+    createSession: adapterMocks.createSession,
+    resumeSession: adapterMocks.resumeSession,
+    sendMessage: adapterMocks.sendMessage,
+    tryHandleOutOfBandCommand: adapterMocks.tryHandleOutOfBandCommand,
+    cancel: adapterMocks.cancel,
+    dispose: adapterMocks.dispose,
+  }),
+}));
+
 async function seedConversation(
   fixture: Awaited<ReturnType<typeof openFixture>>,
   runtimeMode: 'terminal' | 'chat',
-  provider: 'codex' | 'claude' | 'grok' = 'codex',
+  provider: 'codex' | 'claude' = 'codex',
   config: Parameters<typeof serializeConversationConfig>[0] = {}
 ) {
   fixture.sqlite
@@ -71,6 +91,8 @@ async function installTaskProvider(): Promise<void> {
     taskId: 'task-1',
     taskBranch: undefined,
     sourceBranch: undefined,
+    taskPath: '/repo',
+    workspaceKind: 'local',
     taskEnvVars: {},
     conversations: {
       startSession: mocks.startSession,
@@ -113,6 +135,18 @@ describe('hydrateConversation runtime mode', () => {
     fixture = await openFixture('empty');
     mocks.db = fixture.db;
     mocks.startSession.mockResolvedValue(undefined);
+    adapterMocks.resumeSession.mockResolvedValue({
+      conversationId: 'conversation-1',
+      providerId: 'codex',
+      providerSessionId: 'codex-thread-1',
+    });
+    adapterMocks.createSession.mockResolvedValue({
+      conversationId: 'conversation-1',
+      providerId: 'codex',
+      providerSessionId: 'codex-thread-1',
+    });
+    adapterMocks.tryHandleOutOfBandCommand.mockResolvedValue(false);
+    adapterMocks.dispose.mockResolvedValue(undefined);
     await installTaskProvider();
   });
 
@@ -137,96 +171,31 @@ describe('hydrateConversation runtime mode', () => {
       undefined,
       true
     );
+    expect(adapterMocks.resumeSession).not.toHaveBeenCalled();
   });
 
-  it('hydrates chat conversations through the Codex chat runtime', async () => {
-    await seedConversation(fixture, 'chat');
-
-    await hydrateConversation('project-1', 'task-1', 'conversation-1');
-
-    expect(mocks.startSession).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: 'conversation-1',
-        runtimeMode: 'chat',
-        resume: true,
-      }),
-      undefined,
-      true
-    );
-    expect(chatConversationRuntime.isActive('conversation-1')).toBe(true);
-  });
-
-  it('hydrates Codex chat conversations with the stored provider session id for resume', async () => {
+  it('hydrates Codex chat conversations without starting a PTY session', async () => {
     await seedConversation(fixture, 'chat', 'codex', {
-      providerSessionId: '019c95f6-cd96-7812-ba15-574286674599',
+      providerSessionId: 'codex-thread-1',
     });
 
     await hydrateConversation('project-1', 'task-1', 'conversation-1');
 
-    expect(mocks.startSession).toHaveBeenCalledWith(
+    expect(mocks.startSession).not.toHaveBeenCalled();
+    expect(adapterMocks.resumeSession).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: 'conversation-1',
-        providerId: 'codex',
-        providerSessionId: '019c95f6-cd96-7812-ba15-574286674599',
-        runtimeMode: 'chat',
-        resume: true,
-      }),
-      undefined,
-      true
+        cwd: '/repo',
+        conversation: expect.objectContaining({
+          id: 'conversation-1',
+          providerSessionId: 'codex-thread-1',
+          runtimeMode: 'chat',
+        }),
+      })
     );
     expect(chatConversationRuntime.isActive('conversation-1')).toBe(true);
   });
 
-  it('restores permission recovery rows when chat backend resume fails', async () => {
-    await seedConversation(fixture, 'chat');
-    await chatTimelineStore.append(
-      {
-        id: 'conversation-1',
-        projectId: 'project-1',
-        taskId: 'task-1',
-        providerId: 'codex',
-        title: 'Conversation 1',
-        lastInteractedAt: null,
-        isInitialConversation: false,
-        runtimeMode: 'chat',
-      },
-      {
-        id: 'permission-1',
-        kind: 'permission_request',
-        payload: {
-          requestId: 'permission-1',
-          title: 'Run command?',
-          options: [{ id: 'approve', label: 'Approve', kind: 'primary' }],
-          status: 'pending',
-        },
-      },
-      { upsert: true }
-    );
-    mocks.startSession.mockRejectedValueOnce(new Error('resume failed'));
-
-    await expect(hydrateConversation('project-1', 'task-1', 'conversation-1')).rejects.toThrow(
-      'resume failed'
-    );
-
-    expect(chatConversationRuntime.isActive('conversation-1')).toBe(false);
-    await expect(
-      chatTimelineStore.getPendingPermissionRequest(
-        {
-          id: 'conversation-1',
-          projectId: 'project-1',
-          taskId: 'task-1',
-          providerId: 'codex',
-          title: 'Conversation 1',
-          lastInteractedAt: null,
-          isInitialConversation: false,
-          runtimeMode: 'chat',
-        },
-        { requestId: 'permission-1', optionId: 'approve' }
-      )
-    ).resolves.toMatchObject({ requestId: 'permission-1', status: 'pending' });
-  });
-
-  it('falls back to a PTY session for chat-capable rows without a chat runtime adapter', async () => {
+  it('falls back to a PTY session for chat rows without a structured adapter', async () => {
     await seedConversation(fixture, 'chat', 'claude');
 
     await hydrateConversation('project-1', 'task-1', 'conversation-1');
@@ -241,5 +210,27 @@ describe('hydrateConversation runtime mode', () => {
       undefined,
       true
     );
+    expect(adapterMocks.resumeSession).not.toHaveBeenCalled();
+  });
+
+  it('rejects hydration when the task is not mounted', async () => {
+    await seedConversation(fixture, 'chat', 'codex', {
+      providerSessionId: 'codex-thread-1',
+    });
+    await taskManager.teardownTask('task-1', 'terminate');
+
+    await expect(hydrateConversation('project-1', 'task-1', 'conversation-1')).rejects.toThrow(
+      'Task not found'
+    );
+  });
+
+  it('rejects hydration when the conversation row does not exist', async () => {
+    await seedConversation(fixture, 'chat', 'codex', {
+      providerSessionId: 'codex-thread-1',
+    });
+
+    await expect(
+      hydrateConversation('project-1', 'task-1', 'missing-conversation')
+    ).rejects.toThrow('Conversation not found');
   });
 });

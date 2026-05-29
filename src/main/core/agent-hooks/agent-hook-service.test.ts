@@ -9,7 +9,6 @@ const mocks = vi.hoisted(() => ({
   handler: undefined as ((raw: RawHookRequest) => Promise<void>) | undefined,
   isAppFocused: vi.fn(),
   maybeShowNotification: vi.fn(),
-  recordAgentEvent: vi.fn(),
 }));
 
 vi.mock('./hook-server', () => ({
@@ -45,12 +44,6 @@ vi.mock('./handle-provider-session-hook', () => ({
 vi.mock('./notification', () => ({
   isAppFocused: mocks.isAppFocused,
   maybeShowNotification: mocks.maybeShowNotification,
-}));
-
-vi.mock('@main/core/conversations/chat/chat-conversation-runtime', () => ({
-  chatConversationRuntime: {
-    recordAgentEvent: mocks.recordAgentEvent,
-  },
 }));
 
 vi.mock('@main/core/conversations/conversation-events', () => ({
@@ -102,18 +95,16 @@ describe('AgentHookService', () => {
     mocks.handler = undefined;
     mocks.isAppFocused.mockReturnValue(false);
     mocks.enrichEvent.mockResolvedValue(makeAgentEvent());
-    mocks.recordAgentEvent.mockResolvedValue(undefined);
     mocks.maybeShowNotification.mockResolvedValue(undefined);
     await agentHookService.initialize();
   });
 
-  it('records enriched hook events into the chat timeline before emitting agent events', async () => {
+  it('emits enriched hook events and notifications without writing to chat runtime', async () => {
     const event = makeAgentEvent();
     mocks.enrichEvent.mockResolvedValue(event);
 
     await mocks.handler?.({ ptyId: 'codex:conversation-1', type: 'notification', body: '{}' });
 
-    expect(mocks.recordAgentEvent).toHaveBeenCalledWith(event);
     expect(mocks.maybeShowNotification).toHaveBeenCalledWith(event, false);
     expect(mocks.emit).toHaveBeenCalledWith(expect.objectContaining({ name: 'agent:event' }), {
       event,
@@ -121,14 +112,12 @@ describe('AgentHookService', () => {
     });
   });
 
-  it('continues notification and event emission when chat timeline recording fails', async () => {
+  it('emits agent events after notification handling', async () => {
     const event = makeAgentEvent();
     mocks.enrichEvent.mockResolvedValue(event);
-    mocks.recordAgentEvent.mockRejectedValue(new Error('timeline failed'));
 
     await mocks.handler?.({ ptyId: 'codex:conversation-1', type: 'notification', body: '{}' });
 
-    expect(mocks.recordAgentEvent).toHaveBeenCalledWith(event);
     expect(mocks.maybeShowNotification).toHaveBeenCalledWith(event, false);
     expect(mocks.emit).toHaveBeenCalledWith(expect.objectContaining({ name: 'agent:event' }), {
       event,

@@ -23,6 +23,25 @@ const toolingAlias = {
 export default defineConfig({
   resolve: { alias },
   test: {
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'json-summary'],
+      include: [
+        'src/main/core/conversations/chat/app-server/*.ts',
+        'src/main/core/conversations/chat/provider-adapters/codex-chat-adapter.ts',
+        'src/main/core/conversations/chat/chat-conversation-runtime.ts',
+        'src/main/core/conversations/createConversation.ts',
+        'src/main/core/conversations/hydrateConversation.ts',
+        'src/main/core/tasks/hydrate-restored-conversation.ts',
+        'src/renderer/features/tasks/conversations/conversation-timeline-store.ts',
+      ],
+      thresholds: {
+        lines: 90,
+        functions: 90,
+        statements: 90,
+        branches: 80,
+      },
+    },
     projects: [
       {
         // All existing tests that run in a Node.js environment.

@@ -30,12 +30,6 @@ export async function hydrateConversation(
   const conversation = mapConversationRowToConversation(row, true);
   if (shouldUseChatRuntime(conversation)) {
     await chatConversationRuntime.hydrateConversation(conversation);
-    try {
-      await task.conversations.startSession(conversation, undefined, true);
-    } catch (error) {
-      await chatConversationRuntime.abortHydratedConversation(conversation.id);
-      throw error;
-    }
     return;
   }
 
