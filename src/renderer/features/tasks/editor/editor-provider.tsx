@@ -140,6 +140,34 @@ export const EditorProvider = observer(function EditorProvider({
   }, []);
 
   // ---------------------------------------------------------------------------
+  // Save shortcut — handle at the task-pane level so preview/source transitions
+  // (notably markdown/MDX source editing) do not depend on Monaco receiving the
+  // key event. Capture and stop propagation to avoid a second Monaco save.
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+      if (!isActive || taskView.focusedRegion !== 'main') return;
+      if (tabGroupManager.activeGroupId !== groupId) return;
+      if (event.key.toLowerCase() !== 's') return;
+      if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.shiftKey) {
+        void editorView.saveAllFiles();
+        return;
+      }
+
+      const path = paneTabManager.activeFilePath;
+      if (path) void editorView.saveFile(path);
+    };
+
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
+  }, [editorView, groupId, isActive, paneTabManager, tabGroupManager, taskView]);
+
+  // ---------------------------------------------------------------------------
   // Model attachment — autorun that re-evaluates whenever the pane-local active
   // file or model registration status changes.
   // ---------------------------------------------------------------------------
