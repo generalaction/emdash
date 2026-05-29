@@ -92,7 +92,7 @@ function parseCliPrefix(value: string | undefined, providerId: AgentProviderId):
   return parsed.words;
 }
 
-function appendSessionId(args: string[], flag: string, sessionId: string): void {
+function appendSessionId(args: string[], flag: string | undefined, sessionId: string): void {
   const parts = parseArgField(flag);
   if (parts[parts.length - 1]?.endsWith('=')) {
     parts[parts.length - 1] += sessionId;
@@ -127,13 +127,14 @@ export function buildAgentCommand({
   args.push(...(providerConfig?.defaultArgs ?? []));
 
   const sessionIdFlag = providerConfig?.sessionIdFlag;
+  const hasSessionIdArgument = sessionIdFlag !== undefined || providerConfig?.sessionIdPositional;
   const shouldPassSessionId =
-    sessionIdFlag !== undefined && (!providerConfig?.sessionIdOnResumeOnly || isResuming);
+    hasSessionIdArgument && (!providerConfig?.sessionIdOnResumeOnly || isResuming);
 
   if (isResuming && providerConfig?.resumeFlag) {
-    if (providerConfig.sessionIdFlag && providerSessionId) {
+    if (hasSessionIdArgument && providerSessionId) {
       appendSessionId(args, providerConfig.resumeFlag, providerSessionId);
-    } else if (providerConfig.sessionIdFlag && !providerConfig.sessionIdOnResumeOnly) {
+    } else if (hasSessionIdArgument && !providerConfig.sessionIdOnResumeOnly) {
       appendSessionId(args, providerConfig.resumeFlag, sessionId);
     } else if (providerConfig.resumeWithoutSessionFlag) {
       args.push(...parseArgField(providerConfig.resumeWithoutSessionFlag));

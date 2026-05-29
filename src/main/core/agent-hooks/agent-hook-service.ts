@@ -27,11 +27,12 @@ class AgentHookService implements IInitializable, IDisposable {
         return;
       }
 
+      const event = await enrichEvent(raw);
+
       if (raw.type === 'start') {
-        await handleAmpSessionStartHook(raw);
+        await handleAmpSessionStartHook(raw, event);
       }
 
-      const event = await enrichEvent(raw);
       event.source = 'hook';
       const appFocused = isAppFocused();
       await maybeShowNotification(event, appFocused);

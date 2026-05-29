@@ -1,13 +1,15 @@
 import { setProviderSessionId } from '@main/core/conversations/set-provider-session-id';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
+import type { AgentEvent } from '@shared/events/agentEvents';
 import { conversationChangedChannel } from '@shared/events/conversationEvents';
-import { enrichEvent } from './event-enricher';
 import type { RawHookRequest } from './hook-server';
 
-export async function handleAmpSessionStartHook(raw: RawHookRequest): Promise<void> {
+export async function handleAmpSessionStartHook(
+  raw: RawHookRequest,
+  event: AgentEvent
+): Promise<void> {
   try {
-    const event = await enrichEvent(raw);
     if (event.providerId !== 'amp') return;
 
     const body = raw.body ? (JSON.parse(raw.body) as Record<string, unknown>) : {};
@@ -42,7 +44,7 @@ export function extractAmpProviderSessionId(body: Record<string, unknown>): stri
   for (const candidate of candidates) {
     if (typeof candidate !== 'string') continue;
     const value = candidate.trim();
-    if (value.startsWith('T-')) return value;
+    if (value) return value;
   }
 
   return undefined;

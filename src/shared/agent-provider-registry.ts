@@ -68,6 +68,8 @@ export type AgentProviderDefinition = {
    * e.g. '--session-id' for Claude Code.
    */
   sessionIdFlag?: string;
+  /** Pass the session ID as a positional argument instead of after a flag. */
+  sessionIdPositional?: boolean;
   newConversationFlag?: string;
   sessionIdOnResumeOnly?: boolean;
   /** Resume flag used when sessionIdOnResumeOnly is set but no provider session id is stored yet. */
@@ -99,7 +101,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     autoApproveFlag: '--dangerously-bypass-approvals-and-sandbox',
     initialPromptFlag: '',
     resumeFlag: 'resume',
-    sessionIdFlag: ' ',
+    sessionIdPositional: true,
     sessionIdOnResumeOnly: true,
     resumeWithoutSessionFlag: 'resume --last',
     icon: 'openai.svg',
@@ -266,7 +268,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     initialPromptFlag: '',
     initialPromptViaStdinPipe: true,
     resumeFlag: 'threads continue',
-    sessionIdFlag: ' ',
+    sessionIdPositional: true,
     sessionIdOnResumeOnly: true,
     resumeWithoutSessionFlag: 'threads continue --last',
     icon: 'ampcode.svg',
