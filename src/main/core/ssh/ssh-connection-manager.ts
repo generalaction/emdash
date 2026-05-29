@@ -251,7 +251,7 @@ export class SshConnectionManager extends EventEmitter {
     // Ensure a stable proxy exists for this ID.
     const proxy = this.proxies.get(id) ?? new SshClientProxy(id, this);
     this.proxies.set(id, proxy);
-    this.hosts.set(id, config.host ?? '');
+    this.hosts.set(id, config.host ?? 'localhost');
 
     const client = new Client();
 

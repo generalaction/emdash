@@ -9,7 +9,7 @@ const { normalizeUrl } = await import('./dev-server-watcher');
 describe('normalizeUrl', () => {
   describe('without sshHost', () => {
     it('rewrites 0.0.0.0 to 127.0.0.1', () => {
-      expect(normalizeUrl('http://0.0.0.0:3000')).toBe('http://127.0.0.1:3000');
+      expect(normalizeUrl('http://0.0.0.0:3000')).toBe('http://127.0.0.1:3000/');
     });
 
     it('leaves 127.0.0.1 untouched', () => {
@@ -17,7 +17,11 @@ describe('normalizeUrl', () => {
     });
 
     it('leaves localhost untouched', () => {
-      expect(normalizeUrl('http://localhost:3000')).toBe('http://localhost:3000');
+      expect(normalizeUrl('http://localhost:3000')).toBe('http://localhost:3000/');
+    });
+
+    it('falls back to string replacement when the input is unparseable', () => {
+      expect(normalizeUrl('not a url with 0.0.0.0 in it')).toBe('not a url with 127.0.0.1 in it');
     });
   });
 

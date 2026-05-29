@@ -12,15 +12,18 @@ const URL_PATTERN = /https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d{2,5})?
 const MAX_BUFFER = 4096;
 
 export function normalizeUrl(raw: string, sshHost?: string): string {
-  if (!sshHost) return raw.replace('0.0.0.0', '127.0.0.1');
   try {
     const u = new URL(raw);
-    // The WHATWG URL.hostname setter requires IPv6 literals to be bracketed,
-    // otherwise it silently ignores the assignment.
-    u.hostname = sshHost.includes(':') && !sshHost.startsWith('[') ? `[${sshHost}]` : sshHost;
+    if (sshHost) {
+      // The WHATWG URL.hostname setter requires IPv6 literals to be bracketed,
+      // otherwise it silently ignores the assignment.
+      u.hostname = sshHost.includes(':') && !sshHost.startsWith('[') ? `[${sshHost}]` : sshHost;
+    } else if (u.hostname === '0.0.0.0') {
+      u.hostname = '127.0.0.1';
+    }
     return u.toString();
   } catch {
-    return raw;
+    return sshHost ? raw : raw.replace('0.0.0.0', '127.0.0.1');
   }
 }
 

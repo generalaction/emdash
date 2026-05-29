@@ -58,20 +58,22 @@ describe('SshConnectionManager host lifecycle', () => {
     expect(mgr.getHost('c1')).toBe('remote.example.com');
   });
 
-  it('keeps host populated when client emits transient close (reconnect path)', async () => {
+  it('does not clear host when the underlying client emits close', async () => {
     const mgr = new SshConnectionManager();
     const pending = mgr.connectFromConfig('c1', baseConfig);
     queueMicrotask(() => MockClient.lastInstance?.emit('ready'));
     await pending;
 
-    // The 'close' handler in createConnection schedules a reconnect. We don't
-    // care about that here — only that the host map stays intact so the
-    // SshTerminalProvider snapshot remains valid across the reconnect window.
+    // The 'close' handler must not nuke the host map — the SshTerminalProvider
+    // snapshot relies on getHost() staying valid across transient close events.
+    // (Note: connectFromConfig marks the id as intentional, so scheduleReconnect
+    // is not exercised here. The reconnect re-entry path is covered by the
+    // 'records host on successful connect' test, since reconnect re-enters
+    // connect() → createConnection() which always re-populates hosts.)
     MockClient.lastInstance?.emit('close');
 
     expect(mgr.getHost('c1')).toBe('remote.example.com');
 
-    // Tear down so the scheduled reconnect timer doesn't outlive the test.
     await mgr.disconnect('c1').catch(() => {});
   });
 
