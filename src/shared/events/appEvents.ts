@@ -1,3 +1,4 @@
+import type { AgentProviderId } from '@shared/agent-provider-registry';
 import type { DependencyStatusUpdatedEvent } from '@shared/dependencies';
 import { defineEvent } from '@shared/ipc/events';
 
@@ -25,6 +26,22 @@ export const notificationFocusTaskChannel = defineEvent<{
   taskId: string;
   conversationId?: string;
 }>('notification:focus-task');
+
+export type AppDeepLinkEvent = {
+  type: 'linear-agent';
+  projectId?: string;
+  agentProvider?: AgentProviderId;
+  prompt?: string;
+  issue: {
+    identifier: string;
+    url?: string;
+    title?: string;
+    description?: string;
+    branchName?: string;
+  };
+};
+
+export const appDeepLinkChannel = defineEvent<AppDeepLinkEvent>('app:deep-link');
 
 export const ptyStartedChannel = defineEvent<{
   id: string;

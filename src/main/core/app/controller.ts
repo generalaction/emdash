@@ -49,6 +49,7 @@ export const appController = createRPCController({
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   },
+  drainPendingDeepLinks: () => appService.drainPendingDeepLinks(),
   openIn: async (args: {
     app: OpenInAppId;
     path: string;

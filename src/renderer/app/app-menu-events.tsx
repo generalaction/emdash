@@ -6,17 +6,83 @@ import { useNavigate, useWorkspaceSlots } from '@renderer/lib/layout/navigation-
 import { toggleSettingsView } from '@renderer/lib/layout/settings-toggle';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import {
+  appDeepLinkChannel,
+  type AppDeepLinkEvent,
   menuGiveFeedbackChannel,
   menuOpenSettingsChannel,
   menuQuitRequestedChannel,
   notificationFocusTaskChannel,
 } from '@shared/events/appEvents';
+import type { Issue } from '@shared/tasks';
+
+function buildIssueFromDeepLink(deepLink: AppDeepLinkEvent): Issue {
+  const { issue } = deepLink;
+  return {
+    provider: 'linear',
+    identifier: issue.identifier,
+    url: issue.url ?? `https://linear.app/issue/${issue.identifier}`,
+    title: issue.title ?? issue.identifier,
+    description: issue.description,
+    branchName: issue.branchName,
+  };
+}
+
+async function resolveLinearIssueFromDeepLink(deepLink: AppDeepLinkEvent): Promise<Issue> {
+  const fallbackIssue = buildIssueFromDeepLink(deepLink);
+
+  const result = await rpc.issues
+    .getIssueContext('linear', { identifier: deepLink.issue.identifier })
+    .catch(() => null);
+
+  if (!result?.success) return fallbackIssue;
+
+  return {
+    ...fallbackIssue,
+    ...result.issue,
+    url: result.issue.url || fallbackIssue.url,
+    title: result.issue.title || fallbackIssue.title,
+  };
+}
 
 export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boolean | void }) {
   const { navigate } = useNavigate();
   const { currentView, lastNonSettingsView } = useWorkspaceSlots();
   const showConfirmQuitModal = useShowModal('confirmActionModal');
   const showFeedbackModal = useShowModal('feedbackModal');
+  const showTaskModal = useShowModal('taskModal');
+
+  useEffect(() => {
+    let disposed = false;
+    let latestDeepLinkId = 0;
+
+    const handleDeepLink = (deepLink: AppDeepLinkEvent) => {
+      if (deepLink.type !== 'linear-agent') return;
+      const deepLinkId = ++latestDeepLinkId;
+
+      void resolveLinearIssueFromDeepLink(deepLink).then((issue) => {
+        if (disposed || deepLinkId !== latestDeepLinkId) return;
+        showTaskModal({
+          strategy: 'from-issue',
+          projectId: deepLink.projectId,
+          initialIssue: issue,
+          initialAgentProvider: deepLink.agentProvider,
+          initialPrompt: deepLink.prompt,
+        });
+      });
+    };
+
+    const unlisten = events.on(appDeepLinkChannel, handleDeepLink);
+
+    void rpc.app.drainPendingDeepLinks().then((deepLinks) => {
+      if (disposed) return;
+      deepLinks.forEach(handleDeepLink);
+    });
+
+    return () => {
+      disposed = true;
+      unlisten();
+    };
+  }, [showTaskModal]);
 
   useEffect(() => {
     return events.on(menuOpenSettingsChannel, () => {

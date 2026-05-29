@@ -1,8 +1,10 @@
+import { createServer, request } from 'node:http';
+import type { Server } from 'node:http';
 import { join } from 'node:path';
 import { config as dotenvConfig } from 'dotenv';
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import dockIcon from '@/assets/images/emdash/icon-dock.png?asset';
-import { PRODUCT_NAME } from '@shared/app-identity';
+import { APP_NAME_LOWER, PRODUCT_NAME } from '@shared/app-identity';
 import { registerRPCRouter } from '@shared/ipc/rpc';
 import { setupApplicationMenu } from './app/menu';
 import { registerAppScheme, setupAppProtocol } from './app/protocol';
@@ -55,7 +57,141 @@ initializeFileLogger();
 registerProcessErrorLogging(log);
 registerRendererLogHandler(ipcMain);
 
-app.on('second-instance', () => {
+const appDeepLinkScheme = `${APP_NAME_LOWER}:`;
+const DEV_DEEP_LINK_BRIDGE_PORT = 49375;
+let devDeepLinkBridge: Server | null = null;
+
+function findDeepLinkUrl(args: string[]): string | undefined {
+  return args.find((arg) => arg.toLowerCase().startsWith(appDeepLinkScheme));
+}
+
+const initialDeepLinkUrl = findDeepLinkUrl(process.argv);
+
+function forwardDeepLinkToDevInstance(url: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const body = JSON.stringify({ url });
+    const req = request(
+      {
+        hostname: '127.0.0.1',
+        port: DEV_DEEP_LINK_BRIDGE_PORT,
+        path: '/deep-link',
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'content-length': Buffer.byteLength(body),
+        },
+        timeout: 500,
+      },
+      (res) => {
+        res.resume();
+        resolve((res.statusCode ?? 500) >= 200 && (res.statusCode ?? 500) < 300);
+      }
+    );
+
+    req.on('error', () => resolve(false));
+    req.on('timeout', () => {
+      req.destroy();
+      resolve(false);
+    });
+    req.end(body);
+  });
+}
+
+function startDevDeepLinkBridge(): void {
+  if (!import.meta.env.DEV || devDeepLinkBridge) return;
+
+  devDeepLinkBridge = createServer((req, res) => {
+    if (req.method !== 'POST' || req.url !== '/deep-link') {
+      res.writeHead(404).end();
+      return;
+    }
+
+    let body = '';
+    req.setEncoding('utf8');
+    req.on('data', (chunk) => {
+      body += chunk;
+      if (body.length > 8_192) req.destroy();
+    });
+    req.on('end', () => {
+      try {
+        const payload = JSON.parse(body) as { url?: unknown };
+        if (typeof payload.url !== 'string' || !payload.url.startsWith(appDeepLinkScheme)) {
+          res.writeHead(400).end();
+          return;
+        }
+
+        handleDeepLinkUrl(payload.url);
+        res.writeHead(204).end();
+      } catch {
+        res.writeHead(400).end();
+      }
+    });
+  });
+
+  devDeepLinkBridge.on('error', (error: NodeJS.ErrnoException) => {
+    if (error.code === 'EADDRINUSE') {
+      log.warn(
+        'Dev deep link bridge port is already in use; deeplinks may target another dev instance.'
+      );
+    } else {
+      log.warn('Dev deep link bridge failed:', error);
+    }
+    devDeepLinkBridge = null;
+  });
+
+  devDeepLinkBridge.listen(DEV_DEEP_LINK_BRIDGE_PORT, '127.0.0.1');
+}
+
+if (import.meta.env.DEV && initialDeepLinkUrl) {
+  const forwarded = await forwardDeepLinkToDevInstance(initialDeepLinkUrl);
+  if (forwarded) {
+    app.quit();
+    process.exit(0);
+  }
+}
+
+function registerDeepLinkProtocol(): void {
+  try {
+    if (import.meta.env.DEV) {
+      app.setAsDefaultProtocolClient(
+        APP_NAME_LOWER,
+        process.execPath,
+        process.argv[1] ? [process.argv[1]] : []
+      );
+    } else {
+      app.setAsDefaultProtocolClient(APP_NAME_LOWER);
+    }
+  } catch (error) {
+    log.warn('Failed to register app deep link protocol:', error);
+  }
+}
+
+function handleDeepLinkUrl(url: string): void {
+  if (!appService.handleDeepLink(url)) return;
+
+  if (!app.isReady()) return;
+
+  if (BrowserWindow.getAllWindows().length === 0) {
+    createMainWindow();
+  }
+
+  const win = BrowserWindow.getAllWindows()[0];
+  if (win?.isMinimized()) win.restore();
+  win?.focus();
+}
+
+app.on('open-url', (event, url) => {
+  event.preventDefault();
+  handleDeepLinkUrl(url);
+});
+
+app.on('second-instance', (_event, commandLine) => {
+  const deepLinkUrl = findDeepLinkUrl(commandLine);
+  if (deepLinkUrl) {
+    handleDeepLinkUrl(deepLinkUrl);
+    return;
+  }
+
   const win = BrowserWindow.getAllWindows()[0];
   if (win?.isMinimized()) win.restore();
   win?.focus();
@@ -87,6 +223,7 @@ app.on('activate', () => {
 });
 
 void app.whenReady().then(async () => {
+  registerDeepLinkProtocol();
   await resolveUserEnv();
 
   try {
@@ -126,6 +263,7 @@ void app.whenReady().then(async () => {
   projectSettingsService.initialize();
   prSyncScheduler.initialize();
   appService.initialize();
+  startDevDeepLinkBridge();
   await appSettingsService.initialize();
   await promptLibraryService.initialize();
 
@@ -152,6 +290,7 @@ void app.whenReady().then(async () => {
   setupAppProtocol(join(app.getAppPath(), 'out', 'renderer'));
   setupApplicationMenu();
   createMainWindow();
+  if (initialDeepLinkUrl) handleDeepLinkUrl(initialDeepLinkUrl);
 
   try {
     await updateService.initialize();
@@ -170,6 +309,8 @@ app.on('before-quit', (event) => {
     stopResourceSampler();
     updateService.dispose();
     prSyncScheduler.dispose();
+    devDeepLinkBridge?.close();
+    devDeepLinkBridge = null;
     void gitWatcherRegistry.dispose();
     void projectManager.dispose().catch((e) => {
       log.error('Failed to shutdown project manager:', e);
