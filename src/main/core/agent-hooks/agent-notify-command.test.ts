@@ -92,6 +92,7 @@ describe('makeAmpPluginContent', () => {
     expect(content).toContain('EMDASH_HOOK_PORT');
     expect(content).toContain("amp.on('agent.start'");
     expect(content).toContain('providerSessionId');
+    expect(content).toContain('event.thread?.id');
     expect(content).toContain('ctx?.thread?.id');
     expect(content).toContain("amp.on('agent.end'");
     expect(content).toContain("'X-Emdash-Event-Type': eventType");
