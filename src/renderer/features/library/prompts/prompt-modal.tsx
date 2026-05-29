@@ -62,7 +62,7 @@ export function PromptModal({ initialPrompt, onSuccess, onClose }: Props) {
               value={form.prompt}
               onChange={(e) => setForm((prev) => ({ ...prev, prompt: e.target.value }))}
               placeholder="Write the prompt agents should receive."
-              className="min-h-56 resize-y px-3 py-2.5 text-[14px] leading-relaxed"
+              className="max-h-[50dvh] min-h-56 resize-y overflow-y-auto px-3 py-2.5 text-[14px] leading-relaxed"
             />
           </Field>
         </FieldGroup>

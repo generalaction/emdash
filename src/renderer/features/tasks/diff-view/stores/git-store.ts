@@ -7,6 +7,7 @@ import { fsWatchEventChannel } from '@shared/events/fsEvents';
 import { gitRefChangedChannel, gitWorkspaceChangedChannel } from '@shared/events/gitEvents';
 import { localRef, refsEqual, type FullGitStatus, type GitChange } from '@shared/git';
 import { err, ok } from '@shared/result';
+import { formatPushErrorDetail } from '../../utils';
 
 const TOO_MANY_FILES_MSG = 'Too many files changed to display';
 
@@ -384,8 +385,7 @@ export class GitStore {
       this.repositoryStore.refreshRemote(); // remote now has the commits
       return ok();
     } else {
-      const detail =
-        'message' in result.error ? (result.error.message ?? result.error.type) : result.error.type;
+      const detail = formatPushErrorDetail(result.error);
       toast.error(`Failed to push: ${detail}`);
       return err(result.error);
     }
@@ -405,8 +405,7 @@ export class GitStore {
       this.repositoryStore.refreshRemote(); // branch now exists on remote
       return ok();
     } else {
-      const detail =
-        'message' in result.error ? (result.error.message ?? result.error.type) : result.error.type;
+      const detail = formatPushErrorDetail(result.error);
       toast.error(`Failed to publish branch: ${detail}`);
       return err(result.error);
     }

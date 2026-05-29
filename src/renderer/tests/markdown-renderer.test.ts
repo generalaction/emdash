@@ -48,4 +48,20 @@ describe('MarkdownRenderer', () => {
     expect(html).toContain('max-h-80');
     expect(html).toContain('object-contain');
   });
+
+  it('renders compact markdown tables with visible structure', () => {
+    const html = renderToStaticMarkup(
+      React.createElement(MarkdownRenderer, {
+        content:
+          '| Layer | What | How |\n| --- | --- | --- |\n| Primary | Headline | Display size |',
+        variant: 'compact',
+      })
+    );
+
+    expect(html).toContain('<table');
+    expect(html).toContain('border-collapse');
+    expect(html).toContain('<th');
+    expect(html).toContain('<td');
+    expect(html).toContain('Primary');
+  });
 });

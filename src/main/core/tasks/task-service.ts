@@ -16,6 +16,7 @@ import type {
   Issue,
   ProvisionTaskResult,
   RenameTaskError,
+  RenameTaskOptions,
   RenameTaskSuccess,
   Task,
 } from '@shared/tasks';
@@ -179,9 +180,10 @@ export class TaskService implements Hookable<TaskCrudHooks> {
   async renameTask(
     projectId: string,
     taskId: string,
-    newName: string
+    newName: string,
+    options?: RenameTaskOptions
   ): Promise<Result<RenameTaskSuccess, RenameTaskError>> {
-    const result = await renameTask(projectId, taskId, newName);
+    const result = await renameTask(projectId, taskId, newName, options);
     if (result.success) this._hooks.callHookBackground('task:updated', result.data.task);
     return result;
   }
