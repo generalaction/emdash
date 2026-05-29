@@ -35,6 +35,13 @@ Emdash is a provider-agnostic desktop app that lets you run multiple coding agen
 
 Emdash supports 27 CLI agents, including Claude Code, Codex, OpenCode, Gemini and Amp. Users can directly pass Linear, GitHub, Jira, Asana, or Featurebase tickets to an agent, review diffs, test changes, create PRs, see CI/CD checks, and merge.
 
+**A small poem**
+
+Worktrees waking side by side,  
+prompts like sparks across the screen,  
+each agent takes a careful stride,  
+and leaves the codebase clean.
+
 **Develop on remote servers via SSH**
 
 Connect to remote machines via SSH/SFTP to work with remote codebases. Emdash supports SSH agent and key authentication, with secure credential storage in your OS keychain. Run agents on remote projects using the same parallel workflow as local development. [Learn more](https://www.emdash.sh/cloud)
