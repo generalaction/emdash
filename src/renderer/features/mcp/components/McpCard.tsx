@@ -76,6 +76,7 @@ export const McpCard: React.FC<McpCardProps> = ({ server, catalogEntry, onEdit, 
               <AgentLogo
                 key={p.id}
                 logo={p.logo}
+                logoDark={p.logoDark}
                 alt={p.alt}
                 isSvg={p.isSvg}
                 invertInDark={p.invertInDark}
