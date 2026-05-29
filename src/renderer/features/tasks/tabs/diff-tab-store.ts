@@ -75,6 +75,7 @@ export class DiffTabStore {
 function resolveDiffRenderer(path: string): DiffRendererData {
   const kind = getFileKind(path);
   if (kind === 'image' || kind === 'svg') return { kind: 'image' };
+  if (kind === 'pdf') return { kind: 'pdf' };
   if (kind === 'binary') return { kind: 'binary' };
   return { kind: 'text' };
 }

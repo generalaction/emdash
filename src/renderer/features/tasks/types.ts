@@ -17,4 +17,5 @@ export type FileRendererData =
 export type DiffRendererData =
   | { kind: 'text' } // text, markdown, html → MonacoDiffRenderer
   | { kind: 'image' } // image, svg → ImageDiffView
+  | { kind: 'pdf' } // pdf → PdfDiffView
   | { kind: 'binary' }; // exe, zip, etc → fallback message
