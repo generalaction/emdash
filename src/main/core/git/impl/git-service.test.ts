@@ -424,6 +424,72 @@ describe('GitService.createBranch', () => {
       data: undefined,
     });
   });
+
+  it('fails remote source branch creation when fetch fails', async () => {
+    const svc = makeService(async (_cmd, args = []) => {
+      const key = args.join(' ');
+      if (key === 'fetch origin') {
+        throw Object.assign(new Error('fetch failed'), {
+          stdout: '',
+          stderr:
+            "fatal: could not read Username for 'https://github.com': terminal prompts disabled",
+          code: 128,
+        });
+      }
+      throw Object.assign(new Error(`Unexpected git command: git ${key}`), {
+        stdout: '',
+        stderr: 'fatal: not expected',
+        code: 128,
+      });
+    });
+
+    await expect(svc.createBranch('task/remote', 'main', true, 'origin')).resolves.toEqual({
+      success: false,
+      error: {
+        type: 'fetch_failed',
+        remote: 'origin',
+        branch: 'main',
+        error: {
+          type: 'auth_failed',
+          message:
+            "fatal: could not read Username for 'https://github.com': terminal prompts disabled",
+        },
+      },
+    });
+  });
+
+  it('classifies SSH connection failures while creating a remote source branch as network errors', async () => {
+    const message =
+      'ssh: connect to host github.com port 22: Undefined error: 0\nfatal: Could not read from remote repository.';
+    const svc = makeService(async (_cmd, args = []) => {
+      const key = args.join(' ');
+      if (key === 'fetch origin') {
+        throw Object.assign(new Error('fetch failed'), {
+          stdout: '',
+          stderr: message,
+          code: 128,
+        });
+      }
+      throw Object.assign(new Error(`Unexpected git command: git ${key}`), {
+        stdout: '',
+        stderr: 'fatal: not expected',
+        code: 128,
+      });
+    });
+
+    await expect(svc.createBranch('task/remote', 'main', true, 'origin')).resolves.toEqual({
+      success: false,
+      error: {
+        type: 'fetch_failed',
+        remote: 'origin',
+        branch: 'main',
+        error: {
+          type: 'network_error',
+          message,
+        },
+      },
+    });
+  });
 });
 
 describe('GitService.renameBranch', () => {

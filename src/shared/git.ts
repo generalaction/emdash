@@ -288,6 +288,7 @@ export type SoftResetError =
 
 export type CreateBranchError =
   | { type: 'already_exists'; name: string }
+  | { type: 'fetch_failed'; remote: string; branch: string; error: FetchError }
   | { type: 'invalid_base'; from: string }
   | { type: 'invalid_name'; name: string }
   | { type: 'error'; message: string };

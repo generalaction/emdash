@@ -8,6 +8,7 @@ import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import { log } from '@renderer/utils/logger';
 import { prSyncProgressChannel, prUpdatedChannel } from '@shared/events/prEvents';
 import { taskProvisionProgressChannel, taskStatusUpdatedChannel } from '@shared/events/taskEvents';
+import type { FetchError } from '@shared/git';
 import type {
   CreateTaskError,
   CreateTaskParams,
@@ -31,6 +32,21 @@ import {
 import { terminalRegistry } from './terminal-registry';
 import { workspaceRegistry } from './workspace-registry';
 
+function formatFetchErrorDetail(error: FetchError): string {
+  switch (error.type) {
+    case 'no_remote':
+      return 'No remote is configured for this repository.';
+    case 'auth_failed':
+      return 'Authentication failed. Authenticate Git on this machine, then try again.';
+    case 'network_error':
+      return 'Cannot reach the remote. Check your network connection, then try again.';
+    case 'remote_not_found':
+      return 'The remote repository was not found, or your local Git credentials do not have access.';
+    case 'error':
+      return 'An unexpected error occurred while fetching from the remote.';
+  }
+}
+
 function formatCreateTaskError(error: CreateTaskError): string {
   switch (error.type) {
     case 'project-not-found':
@@ -41,6 +57,8 @@ function formatCreateTaskError(error: CreateTaskError): string {
       switch (error.error.type) {
         case 'already_exists':
           return `Branch "${error.error.name}" already exists. Try a different task name.`;
+        case 'fetch_failed':
+          return `Could not update "${error.error.remote}/${error.error.branch}" before creating the task: ${formatFetchErrorDetail(error.error.error)}`;
         case 'invalid_base':
           return `Source branch "${error.error.from}" is not a valid base. Check that it exists locally or on the selected remote.`;
         case 'invalid_name':
