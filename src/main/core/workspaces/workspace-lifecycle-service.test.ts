@@ -46,6 +46,7 @@ function makeTerminalProvider(): {
   const spawned: FakePty[] = [];
   const requests: LifecycleScriptSpawnRequest[] = [];
   const provider: TerminalProvider = {
+    kind: 'local',
     async spawnTerminal() {},
     async spawnLifecycleScript(request) {
       const { terminal } = request;

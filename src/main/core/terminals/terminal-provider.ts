@@ -17,6 +17,7 @@ export type TerminalSpawnOptions = {
 };
 
 export interface TerminalProvider {
+  readonly kind: 'local' | 'ssh';
   spawnTerminal(
     terminal: Terminal,
     initialSize?: { cols: number; rows: number },

@@ -47,6 +47,7 @@ const terminal: Terminal = {
   id: 'terminal-1',
   projectId: 'project-1',
   taskId: 'task-1',
+  shellId: 'system',
   name: 'Terminal 1',
 };
 

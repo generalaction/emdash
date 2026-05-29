@@ -1,4 +1,5 @@
 import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
+import { getAppSettingValueSnapshot } from '@renderer/features/settings/app-settings-client';
 import { makeFileLinkHandlers } from '@renderer/features/tasks/stores/open-file-in-file-editor';
 import { rpc } from '@renderer/lib/ipc';
 import { PtySession } from '@renderer/lib/pty/pty-session';
@@ -73,10 +74,12 @@ export class TerminalManagerStore implements IDisposable {
   }
 
   async createTerminal(params: CreateTerminalParams): Promise<Terminal> {
+    const defaultShell = getAppSettingValueSnapshot('terminal')?.defaultShell ?? 'system';
     const optimistic: Terminal = {
       id: params.id,
       projectId: params.projectId,
       taskId: params.taskId,
+      shellId: params.shell ?? defaultShell,
       name: params.name,
     };
 
@@ -104,17 +107,18 @@ export class TerminalManagerStore implements IDisposable {
     }
   }
 
-  async createDefaultTerminal(shell: TerminalShellId = 'auto'): Promise<Terminal> {
+  async createDefaultTerminal(shell?: TerminalShellId): Promise<Terminal> {
     const names = Array.from(this.terminals.values()).map((t) => t.data.name);
     const name = nextTerminalName(names);
     const id = crypto.randomUUID();
-    return this.createTerminal({
+    const params: CreateTerminalParams = {
       id,
       projectId: this.projectId,
       taskId: this.taskId,
       name,
-      shell,
-    });
+    };
+    if (shell !== undefined) params.shell = shell;
+    return this.createTerminal(params);
   }
 
   async deleteTerminal(terminalId: string): Promise<void> {

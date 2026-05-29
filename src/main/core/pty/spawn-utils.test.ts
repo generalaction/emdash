@@ -44,9 +44,8 @@ const tcshLoginProfile: RemoteShellProfile = {
 const bashRemoteProfile: ResolvedShellProfile = {
   id: 'bash',
   resolvedShellId: 'bash',
-  resolvedFromAuto: false,
+  resolvedFromSystem: false,
   executable: 'bash',
-  displayName: 'bash',
   available: true,
   family: 'posix',
   interactiveArgs: ['-il'],
@@ -61,9 +60,8 @@ const bashRemoteProfile: ResolvedShellProfile = {
 const tcshRemoteProfile: ResolvedShellProfile = {
   id: 'tcsh',
   resolvedShellId: 'tcsh',
-  resolvedFromAuto: false,
+  resolvedFromSystem: false,
   executable: 'tcsh',
-  displayName: 'tcsh',
   available: true,
   family: 'csh',
   interactiveArgs: ['-i'],

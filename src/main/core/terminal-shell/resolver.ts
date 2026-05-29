@@ -8,14 +8,14 @@ import {
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { quoteShellArg } from '@main/utils/shellEscape';
 import {
-  isExplicitTerminalShellId,
+  isRuntimeTerminalShellId,
   terminalCommandArgs,
   terminalEnvCaptureArgs,
   terminalInteractiveShellArgs,
   terminalShellBasename,
-  terminalShellDisplayName,
   terminalShellFamily,
   type ExplicitTerminalShellId,
+  type RuntimeTerminalShellId,
   type TerminalShellAvailability,
   type TerminalShellId,
 } from '@shared/terminal-settings';
@@ -29,7 +29,7 @@ export class ShellUnavailableError extends Error {
   constructor(
     readonly shell: TerminalShellId,
     readonly target: ShellTarget['kind'],
-    message = `${terminalShellDisplayName(shell)} is not available on the ${target} target`
+    message = `${shell} is not available on the ${target} target`
   ) {
     super(message);
     this.name = 'ShellUnavailableError';
@@ -90,15 +90,15 @@ function findOnPath(
 
 function shellIdFromExecutable(
   executable: string,
-  fallback: ExplicitTerminalShellId
-): ExplicitTerminalShellId {
+  fallback: RuntimeTerminalShellId
+): RuntimeTerminalShellId {
   const base = terminalShellBasename(executable).replace(/\.exe$/, '');
-  return isExplicitTerminalShellId(base) ? base : fallback;
+  return isRuntimeTerminalShellId(base) ? base : fallback;
 }
 
-function shellLabelFromExecutable(executable: string, fallback: ExplicitTerminalShellId): string {
+function shellLabelFromExecutable(executable: string, fallback: RuntimeTerminalShellId): string {
   const base = terminalShellBasename(executable).replace(/\.exe$/, '');
-  return base || terminalShellDisplayName(fallback);
+  return base || fallback;
 }
 
 function localDefaultShell(platform: NodeJS.Platform, env: NodeJS.ProcessEnv): string {
@@ -114,8 +114,7 @@ function resolveLocalExplicitShell(
 ): string | undefined {
   if (platform === 'win32') {
     if (shell === 'cmd') return env.ComSpec || 'C:\\Windows\\System32\\cmd.exe';
-    if (shell === 'powershell')
-      return findOnPath('powershell.exe', env, platform, fileExists) ?? 'powershell.exe';
+    if (shell === 'powershell') return findOnPath('powershell.exe', env, platform, fileExists);
     if (shell === 'pwsh') return findOnPath('pwsh.exe', env, platform, fileExists);
     return findOnPath(shell, env, platform, fileExists);
   }
@@ -128,32 +127,25 @@ function buildProfile({
   id,
   resolvedShellId,
   executable,
-  resolvedFromAuto,
+  resolvedFromSystem,
   capturedEnv,
   remotePathLookup,
   shellForArgs = resolvedShellId,
-  displayName,
 }: {
-  id: ExplicitTerminalShellId | 'target-default';
-  resolvedShellId: ExplicitTerminalShellId;
+  id: RuntimeTerminalShellId | 'target-default';
+  resolvedShellId: RuntimeTerminalShellId;
   executable: string;
-  resolvedFromAuto: boolean;
+  resolvedFromSystem: boolean;
   capturedEnv?: Record<string, string>;
   remotePathLookup?: boolean;
   shellForArgs?: string;
-  displayName?: string;
 }): ResolvedShellProfile {
   const family = terminalShellFamily(shellForArgs);
   return {
     id,
     resolvedShellId,
-    resolvedFromAuto,
+    resolvedFromSystem,
     executable,
-    displayName:
-      displayName ??
-      (resolvedFromAuto
-        ? `Auto - ${terminalShellDisplayName(resolvedShellId)}`
-        : terminalShellDisplayName(resolvedShellId)),
     available: true,
     family,
     interactiveArgs: terminalInteractiveShellArgs(shellForArgs),
@@ -177,7 +169,7 @@ export async function resolveTerminalShell({
     const platform = target.platform ?? process.platform;
     const env = target.env ?? process.env;
 
-    if (intent === 'auto') {
+    if (intent === 'system') {
       const executable = localDefaultShell(platform, env);
       const resolvedShellId = shellIdFromExecutable(
         executable,
@@ -187,9 +179,8 @@ export async function resolveTerminalShell({
         id: 'target-default',
         resolvedShellId,
         executable,
-        resolvedFromAuto: true,
+        resolvedFromSystem: true,
         shellForArgs: executable,
-        displayName: `Auto - ${shellLabelFromExecutable(executable, resolvedShellId)}`,
       });
     }
 
@@ -199,21 +190,20 @@ export async function resolveTerminalShell({
       id: intent,
       resolvedShellId: intent,
       executable,
-      resolvedFromAuto: false,
+      resolvedFromSystem: false,
     });
   }
 
-  if (intent === 'auto') {
+  if (intent === 'system') {
     const executable = normalizeRemoteShell(target.profile.shell);
     const resolvedShellId = shellIdFromExecutable(executable, 'sh');
     return buildProfile({
       id: 'target-default',
       resolvedShellId,
       executable,
-      resolvedFromAuto: true,
+      resolvedFromSystem: true,
       capturedEnv: target.profile.env,
       shellForArgs: executable,
-      displayName: `Auto - ${shellLabelFromExecutable(executable, resolvedShellId)}`,
     });
   }
 
@@ -225,10 +215,32 @@ export async function resolveTerminalShell({
     id: intent,
     resolvedShellId: intent,
     executable: intent,
-    resolvedFromAuto: false,
+    resolvedFromSystem: false,
     capturedEnv: target.profile.env,
     remotePathLookup: true,
   });
+}
+
+export async function resolveTerminalShellWithSystemFallback({
+  intent,
+  target,
+  fileExists,
+  onFallback,
+}: {
+  intent: TerminalShellId;
+  target: ShellTarget;
+  fileExists?: FileExists;
+  onFallback?: (error: ShellUnavailableError) => void;
+}): Promise<ResolvedShellProfile> {
+  try {
+    return await resolveTerminalShell({ intent, target, fileExists });
+  } catch (error) {
+    if (intent === 'system' || !(error instanceof ShellUnavailableError)) {
+      throw error;
+    }
+    onFallback?.(error);
+    return await resolveTerminalShell({ intent: 'system', target, fileExists });
+  }
 }
 
 export async function getLocalTerminalShellAvailability({
@@ -246,22 +258,26 @@ export async function getLocalTerminalShellAvailability({
     platform === 'win32' ? 'cmd' : 'sh'
   );
   return sortShellAvailability(
-    shellIdsForLocalPlatform(platform).map((shell) => {
-      if (shell === 'auto') {
+    shellIdsForLocalPlatform(platform)
+      .filter((shell) => shell === 'system' || shell !== targetDefaultId)
+      .map((shell) => {
+        if (shell === 'system') {
+          return {
+            id: shell,
+            label: shellLabelFromExecutable(targetDefaultShell, targetDefaultId),
+            isSystemDefault: true,
+            available: true,
+          };
+        }
+        const executable = resolveLocalExplicitShell(shell, platform, env, fileExists);
         return {
-          shell,
-          displayName: `Auto - ${shellLabelFromExecutable(targetDefaultShell, targetDefaultId)}`,
-          available: true,
+          id: shell,
+          label: shell,
+          isSystemDefault: false,
+          available: executable !== undefined,
+          reason: executable === undefined ? 'Not found on this machine' : undefined,
         };
-      }
-      const executable = resolveLocalExplicitShell(shell, platform, env, fileExists);
-      return {
-        shell,
-        displayName: terminalShellDisplayName(shell),
-        available: executable !== undefined,
-        reason: executable === undefined ? 'Not found on this machine' : undefined,
-      };
-    })
+      })
   );
 }
 
@@ -269,24 +285,29 @@ export async function getRemoteTerminalShellAvailability(
   proxy: SshClientProxy,
   profile: RemoteShellProfile
 ): Promise<TerminalShellAvailability[]> {
-  const targetDefaultId = shellIdFromExecutable(normalizeRemoteShell(profile.shell), 'sh');
+  const targetDefaultShell = normalizeRemoteShell(profile.shell);
+  const targetDefaultId = shellIdFromExecutable(targetDefaultShell, 'sh');
   const availability = await Promise.all(
-    remoteShellIds().map(async (shell) => {
-      if (shell === 'auto') {
+    remoteShellIds()
+      .filter((shell) => shell === 'system' || shell !== targetDefaultId)
+      .map(async (shell) => {
+        if (shell === 'system') {
+          return {
+            id: shell,
+            label: shellLabelFromExecutable(targetDefaultShell, targetDefaultId),
+            isSystemDefault: true,
+            available: true,
+          };
+        }
+        const available = await isRemoteShellAvailable(proxy, shell, profile.env);
         return {
-          shell,
-          displayName: `Auto - ${terminalShellDisplayName(targetDefaultId)}`,
-          available: true,
+          id: shell,
+          label: shell,
+          isSystemDefault: false,
+          available,
+          reason: available ? undefined : 'Not found on this SSH target',
         };
-      }
-      const available = await isRemoteShellAvailable(proxy, shell, profile.env);
-      return {
-        shell,
-        displayName: terminalShellDisplayName(shell),
-        available,
-        reason: available ? undefined : 'Not found on this SSH target',
-      };
-    })
+      })
   );
   return sortShellAvailability(availability);
 }
@@ -308,18 +329,18 @@ async function isRemoteShellAvailable(
 }
 
 function shellIdsForLocalPlatform(platform: NodeJS.Platform): TerminalShellId[] {
-  if (platform === 'win32') return ['auto', 'cmd', 'powershell', 'pwsh', 'bash'];
-  return ['auto', 'bash', 'csh', 'dash', 'ksh', 'sh', 'tcsh', 'zsh'];
+  if (platform === 'win32') return ['system', 'pwsh', 'powershell', 'cmd', 'bash'];
+  return ['system', 'zsh', 'bash', 'fish'];
 }
 
 function remoteShellIds(): TerminalShellId[] {
-  return ['auto', 'bash', 'csh', 'dash', 'ksh', 'sh', 'tcsh', 'zsh'];
+  return ['system', 'zsh', 'bash', 'fish'];
 }
 
 function sortShellAvailability(entries: TerminalShellAvailability[]): TerminalShellAvailability[] {
   return [...entries].sort((a, b) => {
-    if (a.shell === 'auto') return -1;
-    if (b.shell === 'auto') return 1;
+    if (a.id === 'system') return -1;
+    if (b.id === 'system') return 1;
     if (a.available !== b.available) return a.available ? -1 : 1;
     return 0;
   });
