@@ -114,8 +114,7 @@ function resolveLocalExplicitShell(
 ): string | undefined {
   if (platform === 'win32') {
     if (shell === 'cmd') return env.ComSpec || 'C:\\Windows\\System32\\cmd.exe';
-    if (shell === 'powershell')
-      return findOnPath('powershell.exe', env, platform, fileExists) ?? 'powershell.exe';
+    if (shell === 'powershell') return findOnPath('powershell.exe', env, platform, fileExists);
     if (shell === 'pwsh') return findOnPath('pwsh.exe', env, platform, fileExists);
     return findOnPath(shell, env, platform, fileExists);
   }

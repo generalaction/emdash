@@ -88,6 +88,23 @@ describe('terminal shell resolver', () => {
     expect(availability.map((entry) => entry.id)).toEqual(['system', 'powershell', 'pwsh', 'bash']);
   });
 
+  it('marks Windows PowerShell unavailable when it is not found on PATH', async () => {
+    const availability = await getLocalTerminalShellAvailability({
+      platform: 'win32',
+      env: {
+        ComSpec: 'C:\\Windows\\System32\\cmd.exe',
+        Path: 'C:\\Windows\\System32',
+        PATHEXT: '.EXE;.CMD',
+      },
+      fileExists: () => false,
+    });
+
+    expect(availability.find((entry) => entry.id === 'powershell')).toMatchObject({
+      available: false,
+      reason: 'Not found on this machine',
+    });
+  });
+
   it('filters Windows-only shells out of POSIX local availability', async () => {
     const availability = await getLocalTerminalShellAvailability({
       platform: 'darwin',
