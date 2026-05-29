@@ -8,6 +8,10 @@ import {
   useWorkspaceId,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
+import {
+  DEFAULT_TERMINAL_SHELL_AVAILABILITY,
+  useTerminalShellAvailability,
+} from '@renderer/lib/hooks/use-terminal-shell-availability';
 import { useTabShortcuts } from '@renderer/lib/hooks/useTabShortcuts';
 import { rpc } from '@renderer/lib/ipc';
 import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
@@ -20,10 +24,6 @@ import { useIsActiveTask } from '../hooks/use-is-active-task';
 import { TerminalDrawerSidebar } from './terminal-drawer-sidebar';
 import { resolveTerminalPanelActiveItem } from './terminal-panel-selection';
 import { TerminalPtyContent } from './terminal-pty-content';
-import {
-  DEFAULT_TERMINAL_SHELL_AVAILABILITY,
-  useTerminalShellAvailability,
-} from './use-terminal-shell-availability';
 
 export const TerminalsPanel = observer(function TerminalsPanel() {
   const { projectId, taskId } = useTaskViewContext();

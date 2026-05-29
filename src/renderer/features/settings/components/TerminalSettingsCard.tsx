@@ -1,10 +1,12 @@
-import { useQuery } from '@tanstack/react-query';
 import { ChevronsUpDownIcon, LoaderCircle, Minus, Plus } from 'lucide-react';
 import React, { useCallback, useMemo, useState } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { useInstalledFonts } from '@renderer/features/settings/use-installed-fonts';
 import { TerminalShellOptionLabel } from '@renderer/lib/components/terminal-shell-option-label';
-import { rpc } from '@renderer/lib/ipc';
+import {
+  DEFAULT_TERMINAL_SHELL_AVAILABILITY,
+  useTerminalShellAvailability,
+} from '@renderer/lib/hooks/use-terminal-shell-availability';
 import { Button } from '@renderer/lib/ui/button';
 import {
   Combobox,
@@ -31,7 +33,6 @@ import {
   TERMINAL_FONT_SIZE_DEFAULT,
   TERMINAL_FONT_SIZE_MAX,
   TERMINAL_FONT_SIZE_MIN,
-  type TerminalShellAvailability,
   type TerminalShellId,
 } from '@shared/terminal-settings';
 import { SettingRow } from './SettingRow';
@@ -65,8 +66,6 @@ const DEFAULT_OPTION: FontOption = {
   label: `Default (${DEFAULT_FONT_FAMILY})`,
 };
 
-const DEFAULT_LOCAL_SHELL_AVAILABILITY: TerminalShellAvailability[] = [];
-
 const clampFontSize = (size: number) =>
   Math.min(TERMINAL_FONT_SIZE_MAX, Math.max(TERMINAL_FONT_SIZE_MIN, size));
 
@@ -80,13 +79,8 @@ const TerminalSettingsCard: React.FC = () => {
   const [pickerOpen, setPickerOpen] = useState<boolean>(false);
   const [query, setQuery] = useState<string>('');
   const { fonts: installedFonts, isLoading: loadingFonts } = useInstalledFonts();
-  const { data: localShellAvailability = DEFAULT_LOCAL_SHELL_AVAILABILITY } = useQuery<
-    TerminalShellAvailability[]
-  >({
-    queryKey: ['terminalShellAvailability', 'v2', 'local'],
-    queryFn: () => rpc.terminals.getTerminalShellAvailability({ kind: 'local' }),
-    staleTime: 60_000,
-  });
+  const { data: localShellAvailability = DEFAULT_TERMINAL_SHELL_AVAILABILITY } =
+    useTerminalShellAvailability(undefined);
 
   const fontFamily = terminal?.fontFamily ?? '';
   const fontSize = terminal?.fontSize ?? TERMINAL_FONT_SIZE_DEFAULT;
