@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useIntegrationsContext } from '@renderer/features/integrations/integrations-provider';
 import { ISSUE_PROVIDER_ORDER } from '@renderer/features/integrations/issue-provider-meta';
 import {
@@ -141,21 +141,21 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const autoApproveDefaults = useAgentAutoApproveDefaults();
   const isWorkspaceProviderEnabled = useFeatureFlag('workspace-provider');
   const { navigate } = useNavigate();
+  const isFirstProjectEffect = useRef(true);
 
   useEffect(() => setUseBYOI(false), [selectedProjectId]);
   useEffect(() => {
     if (!isWorkspaceProviderEnabled) setUseBYOI(false);
   }, [isWorkspaceProviderEnabled]);
   useEffect(() => {
-    initialConversation.setProvider(null);
+    initialConversation.setProvider(
+      isFirstProjectEffect.current ? (initialAgentProvider ?? null) : null
+    );
+    isFirstProjectEffect.current = false;
     initialConversation.setPrompt(initialPrompt ?? '');
     initialConversation.setIssueContext(null);
     // oxlint-disable-next-line react/exhaustive-deps
   }, [selectedProjectId]);
-  useEffect(() => {
-    if (initialAgentProvider) initialConversation.setProvider(initialAgentProvider);
-    // oxlint-disable-next-line react/exhaustive-deps
-  }, []);
 
   const canCreate = !!selectedProjectId && state.isValid;
 

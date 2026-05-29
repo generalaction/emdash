@@ -251,8 +251,6 @@ class AppService implements IInitializable, IDisposable {
 
     const win = getMainWindow();
     if (!win || win.isDestroyed()) this.rendererReadyForDeepLinks = false;
-    if (win?.isMinimized()) win.restore();
-    win?.focus();
 
     if (this.rendererReadyForDeepLinks && win && !win.isDestroyed()) {
       events.emit(appDeepLinkChannel, deepLink);
