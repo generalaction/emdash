@@ -77,9 +77,7 @@ describe('HookConfigWriter', () => {
     expect(fs.files.has('.codex/config.toml')).toBe(false);
     expect(fs.files.has('.gitignore')).toBe(false);
 
-    expect(userFs.files.get('.emdash/hooks/codex-notify.sh')).toContain(
-      'post_hook session-start'
-    );
+    expect(userFs.files.get('.emdash/hooks/codex-notify.sh')).toContain('post_hook session-start');
     const config = JSON.parse(userFs.files.get('.codex/hooks.json')!);
     expect(config.hooks.Stop[0].hooks[0].command).toBe(
       'EMDASH_AGENT_ID=codex sh "$HOME/.emdash/hooks/codex-notify.sh"'
