@@ -4,6 +4,7 @@ import { log } from '@main/lib/logger';
 
 export interface RawHookRequest {
   ptyId: string;
+  agentId?: string;
   type: string;
   body: string;
 }
@@ -42,6 +43,7 @@ export class HookServer {
 
       req.on('end', () => {
         const ptyId = String(req.headers['x-emdash-pty-id'] || '');
+        const agentId = String(req.headers['x-emdash-agent-id'] || '') || undefined;
         const type = String(req.headers['x-emdash-event-type'] || '');
         if (!ptyId || !type) {
           log.warn('HookServer: malformed request — missing ptyId or type headers');
@@ -49,7 +51,7 @@ export class HookServer {
           res.end();
           return;
         }
-        handler({ ptyId, type, body })
+        handler({ ptyId, agentId, type, body })
           .then(() => {
             res.writeHead(200);
             res.end();

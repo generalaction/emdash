@@ -9,17 +9,26 @@ import type { AgentProviderId } from '@shared/agent-provider-registry';
 import {
   makeAmpPluginContent,
   makeClaudeHookCommand,
-  makeCodexHookCommand,
-  makeCodexSessionStartHookCommand,
+  makeCodexNotifyHookCommand,
+  makeCodexNotifyPowerShellContent,
+  makeCodexNotifyScriptContent,
   makeOpenCodePluginContent,
 } from './agent-notify-command';
 import piEmdashExtension from './pi-emdash-extension.ts?raw';
 
-const EMDASH_MARKER = 'EMDASH_HOOK_PORT';
+const EMDASH_MARKERS = [
+  'EMDASH_HOOK_PORT',
+  'EMDASH_CODEX_EVENT',
+  'emdash-notify',
+  'codex-notify',
+  '.emdash/hooks',
+];
 
 const CLAUDE_SETTINGS_PATH = '.claude/settings.local.json';
 const CODEX_CONFIG_PATH = '.codex/config.toml';
 const CODEX_HOOKS_PATH = '.codex/hooks.json';
+const CODEX_NOTIFY_SCRIPT_PATH = '.emdash/hooks/codex-notify.sh';
+const CODEX_NOTIFY_POWERSHELL_PATH = '.emdash/hooks/codex-notify.ps1';
 const DROID_SETTINGS_PATH = '.factory/settings.json';
 const AMP_PLUGIN_PATH = '.amp/plugins/emdash-hook.ts';
 const PI_EMDASH_EXTENSION_PATH = '.pi/extensions/emdash-hook.ts';
@@ -34,10 +43,9 @@ const HOOK_EVENT_MAP = [
   { eventType: 'stop', hookKey: 'Stop' },
 ] satisfies { eventType: string; hookKey: string }[];
 
-const CODEX_HOOK_EVENT_MAP = [
-  { hookKey: 'Stop', notificationType: 'idle_prompt' },
-  { hookKey: 'PermissionRequest', notificationType: 'permission_prompt' },
-] satisfies { hookKey: CodexHookEvent; notificationType: 'idle_prompt' | 'permission_prompt' }[];
+const CODEX_HOOK_EVENT_MAP = [{ hookKey: 'Stop' }, { hookKey: 'PermissionRequest' }] satisfies {
+  hookKey: CodexHookEvent;
+}[];
 
 const CODEX_SESSION_HOOK_EVENT_MAP = [{ hookKey: 'SessionStart' as const }] satisfies {
   hookKey: CodexHookEvent;
@@ -102,6 +110,8 @@ export class HookConfigWriter {
   async writeCodexHooks(): Promise<boolean> {
     if (!(await resolveCommandPath('codex', this.exec))) return false;
 
+    await this.writeCodexNotifyScripts();
+
     const config: Record<string, unknown> = (await this.userFs.exists(CODEX_HOOKS_PATH))
       ? await this.userFs
           .read(CODEX_HOOKS_PATH)
@@ -111,11 +121,11 @@ export class HookConfigWriter {
 
     const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
 
-    for (const { hookKey, notificationType } of CODEX_HOOK_EVENT_MAP) {
+    for (const { hookKey } of CODEX_HOOK_EVENT_MAP) {
       const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
       hooks[hookKey] = this.buildHookEntries(
         existing,
-        makeCodexHookCommand(notificationType, { platform: this.platform })
+        makeCodexNotifyHookCommand(this.codexNotifyScriptCommandPath(), { platform: this.platform })
       );
     }
 
@@ -123,7 +133,7 @@ export class HookConfigWriter {
       const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
       hooks[hookKey] = this.buildHookEntries(
         existing,
-        makeCodexSessionStartHookCommand({ platform: this.platform })
+        makeCodexNotifyHookCommand(this.codexNotifyScriptCommandPath(), { platform: this.platform })
       );
     }
 
@@ -132,6 +142,21 @@ export class HookConfigWriter {
       log.warn('CodexHooks: failed to remove legacy notify entry', { error: String(err) });
     });
     return true;
+  }
+
+  private async writeCodexNotifyScripts(): Promise<void> {
+    if (this.platform === 'win32') {
+      await this.userFs.write(CODEX_NOTIFY_POWERSHELL_PATH, makeCodexNotifyPowerShellContent());
+      return;
+    }
+
+    await this.userFs.write(CODEX_NOTIFY_SCRIPT_PATH, makeCodexNotifyScriptContent());
+  }
+
+  private codexNotifyScriptCommandPath(): string {
+    return this.platform === 'win32'
+      ? '%USERPROFILE%\\.emdash\\hooks\\codex-notify.ps1'
+      : '$HOME/.emdash/hooks/codex-notify.sh';
   }
 
   async writeDroidHooks(): Promise<boolean> {
@@ -263,7 +288,10 @@ export class HookConfigWriter {
   }
 
   private buildHookEntries(existing: unknown[], command: string): unknown[] {
-    const userEntries = existing.filter((entry) => !JSON.stringify(entry).includes(EMDASH_MARKER));
+    const userEntries = existing.filter((entry) => {
+      const serialized = JSON.stringify(entry);
+      return !EMDASH_MARKERS.some((marker) => serialized.includes(marker));
+    });
     return [...userEntries, { hooks: [{ type: 'command', command }] }];
   }
 

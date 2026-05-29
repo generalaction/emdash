@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   makeAmpPluginContent,
   makeClaudeHookCommand,
-  makeCodexHookCommand,
-  makeCodexSessionStartHookCommand,
+  makeCodexNotifyHookCommand,
+  makeCodexNotifyPowerShellContent,
+  makeCodexNotifyScriptContent,
   makeOpenCodePluginContent,
 } from './agent-notify-command';
 
@@ -38,38 +39,54 @@ describe('makeClaudeHookCommand', () => {
   });
 });
 
-describe('makeCodexHookCommand', () => {
-  it('posts native Codex hook events to the Emdash hook server on POSIX', () => {
-    const content = makeCodexHookCommand('idle_prompt', { platform: 'darwin' });
+describe('makeCodexNotifyHookCommand', () => {
+  it('uses a short POSIX command that delegates native Codex hooks to the notify script', () => {
+    const content = makeCodexNotifyHookCommand('$HOME/.emdash/hooks/codex-notify.sh', {
+      platform: 'darwin',
+    });
+
+    expect(content).toBe('EMDASH_AGENT_ID=codex sh "$HOME/.emdash/hooks/codex-notify.sh"');
+  });
+
+  it('uses a short Windows command that delegates native Codex hooks to the notify script', () => {
+    const content = makeCodexNotifyHookCommand('%USERPROFILE%\\.emdash\\hooks\\codex-notify.ps1', {
+      platform: 'win32',
+    });
+
+    expect(content).toBe(
+      'cmd.exe /d /c "set EMDASH_AGENT_ID=codex&& powershell.exe -NoProfile -ExecutionPolicy Bypass -File ""%USERPROFILE%\\.emdash\\hooks\\codex-notify.ps1"""'
+    );
+  });
+});
+
+describe('makeCodexNotifyScriptContent', () => {
+  it('posts native Codex notification and SessionStart payloads to the Emdash hook server', () => {
+    const content = makeCodexNotifyScriptContent();
 
     expect(content).toContain('EMDASH_HOOK_PORT');
     expect(content).toContain('X-Emdash-Token');
     expect(content).toContain('X-Emdash-Pty-Id');
-    expect(content).toContain('{"notification_type":"idle_prompt"}');
-  });
-
-  it('posts native Codex hook events to the Emdash hook server on Windows', () => {
-    const content = makeCodexHookCommand('permission_prompt', { platform: 'win32' });
-    const script = decodeWindowsHookCommand(content);
-
-    expect(content).toContain('cmd.exe');
-    expect(content).toContain('powershell.exe');
-    expect(content).toContain('EMDASH_HOOK_PORT');
-    expect(content).toContain('-EncodedCommand');
-    expect(script).toContain('X-Emdash-Token');
-    expect(script).toContain('X-Emdash-Pty-Id');
-    expect(script).toContain('$payload = \'{"notification_type":"permission_prompt"}\'');
-    expect(script).toContain("'X-Emdash-Event-Type' = 'notification'");
+    expect(content).toContain('X-Emdash-Agent-Id');
+    expect(content).toContain('notification_type');
+    expect(content).toContain('PermissionRequest');
+    expect(content).toContain('input="${1:-$(cat)}"');
+    expect(content).toContain('X-Emdash-Event-Type: session-start');
+    expect(content).toContain('-d @-');
   });
 });
 
-describe('makeCodexSessionStartHookCommand', () => {
-  it('forwards Codex SessionStart hook stdin or argv to the Emdash hook server', () => {
-    const content = makeCodexSessionStartHookCommand({ platform: 'darwin' });
+describe('makeCodexNotifyPowerShellContent', () => {
+  it('posts native Codex notification and SessionStart payloads to the Emdash hook server', () => {
+    const content = makeCodexNotifyPowerShellContent();
 
-    expect(content).toContain('INPUT="${1:-$(cat)}"');
-    expect(content).toContain('X-Emdash-Event-Type: session-start');
-    expect(content).toContain('-d @-');
+    expect(content).toContain('EMDASH_HOOK_PORT');
+    expect(content).toContain('X-Emdash-Token');
+    expect(content).toContain('X-Emdash-Pty-Id');
+    expect(content).toContain('X-Emdash-Agent-Id');
+    expect(content).toContain('notification_type');
+    expect(content).toContain('[Console]::In.ReadToEnd()');
+    expect(content).toContain('PermissionRequest');
+    expect(content).toContain("'X-Emdash-Event-Type' = $eventType");
   });
 });
 

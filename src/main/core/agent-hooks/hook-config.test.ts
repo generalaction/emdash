@@ -77,14 +77,19 @@ describe('HookConfigWriter', () => {
     expect(fs.files.has('.codex/config.toml')).toBe(false);
     expect(fs.files.has('.gitignore')).toBe(false);
 
-    const config = JSON.parse(userFs.files.get('.codex/hooks.json')!);
-    expect(config.hooks.Stop[0].hooks[0].command).toContain('{"notification_type":"idle_prompt"}');
-    expect(config.hooks.PermissionRequest[0].hooks[0].command).toContain(
-      '{"notification_type":"permission_prompt"}'
+    expect(userFs.files.get('.emdash/hooks/codex-notify.sh')).toContain(
+      'X-Emdash-Event-Type: session-start'
     );
-    expect(config.hooks.SessionStart[0].hooks[0].command).toContain('session-start');
-    expect(config.hooks.SessionStart[0].hooks[0].command).toContain('INPUT="${1:-$(cat)}"');
-    expect(config.hooks.Stop[0].hooks[0].command).toContain('X-Emdash-Pty-Id');
+    const config = JSON.parse(userFs.files.get('.codex/hooks.json')!);
+    expect(config.hooks.Stop[0].hooks[0].command).toBe(
+      'EMDASH_AGENT_ID=codex sh "$HOME/.emdash/hooks/codex-notify.sh"'
+    );
+    expect(config.hooks.PermissionRequest[0].hooks[0].command).toBe(
+      'EMDASH_AGENT_ID=codex sh "$HOME/.emdash/hooks/codex-notify.sh"'
+    );
+    expect(config.hooks.SessionStart[0].hooks[0].command).toBe(
+      'EMDASH_AGENT_ID=codex sh "$HOME/.emdash/hooks/codex-notify.sh"'
+    );
   });
 
   it('preserves unrelated Codex hooks while replacing Emdash-managed entries', async () => {
@@ -109,7 +114,9 @@ describe('HookConfigWriter', () => {
     const config = JSON.parse(userFs.files.get('.codex/hooks.json')!);
     expect(config.hooks.Stop).toHaveLength(2);
     expect(config.hooks.Stop[0].hooks[0].command).toBe('echo user hook');
-    expect(config.hooks.Stop[1].hooks[0].command).toContain('{"notification_type":"idle_prompt"}');
+    expect(config.hooks.Stop[1].hooks[0].command).toBe(
+      'EMDASH_AGENT_ID=codex sh "$HOME/.emdash/hooks/codex-notify.sh"'
+    );
   });
 
   it('removes only the legacy Emdash Codex notify key from project-local config', async () => {
