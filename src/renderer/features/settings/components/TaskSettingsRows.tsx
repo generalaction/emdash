@@ -114,6 +114,58 @@ export const CreateBranchAndWorktreeRow: React.FC = () => {
   );
 };
 
+export const PreserveTaskNameCapitalizationRow: React.FC = () => {
+  const taskSettings = useTaskSettings();
+
+  return (
+    <SettingRow
+      title="Preserve task name capitalization"
+      description="Keep uppercase letters in generated and manually entered task names. Defaults to lowercase."
+      control={
+        <>
+          <ResetToDefaultButton
+            visible={taskSettings.isFieldOverridden('preserveNameCapitalization')}
+            defaultLabel="off"
+            onReset={taskSettings.resetPreserveNameCapitalization}
+            disabled={taskSettings.loading || taskSettings.saving}
+          />
+          <Switch
+            checked={taskSettings.preserveNameCapitalization}
+            disabled={taskSettings.loading || taskSettings.saving}
+            onCheckedChange={taskSettings.updatePreserveNameCapitalization}
+          />
+        </>
+      }
+    />
+  );
+};
+
+export const IncludeIssueContextByDefaultRow: React.FC = () => {
+  const taskSettings = useTaskSettings();
+
+  return (
+    <SettingRow
+      title="Include issue context by default"
+      description="Add the selected issue to the initial agent prompt when creating a task from an issue."
+      control={
+        <>
+          <ResetToDefaultButton
+            visible={taskSettings.isFieldOverridden('includeIssueContextByDefault')}
+            defaultLabel="on"
+            onReset={taskSettings.resetIncludeIssueContextByDefault}
+            disabled={taskSettings.loading || taskSettings.saving}
+          />
+          <Switch
+            checked={taskSettings.includeIssueContextByDefault}
+            disabled={taskSettings.loading || taskSettings.saving}
+            onCheckedChange={taskSettings.updateIncludeIssueContextByDefault}
+          />
+        </>
+      }
+    />
+  );
+};
+
 export const EnableTmuxRow: React.FC = () => {
   const {
     value: projects,

@@ -760,8 +760,8 @@ export class MonacoModelRegistry {
               entry.filePath,
               gitRefToString(entry.ref)
             );
-      if (res.success && res.data.content !== null) {
-        entry.model.setValue(res.data.content);
+      if (res.success) {
+        entry.model.setValue(res.data.content ?? '');
       }
     }
   }

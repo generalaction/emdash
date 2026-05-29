@@ -55,16 +55,18 @@ export function PromptActionsMenu({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <Tooltip>
-        <TooltipTrigger>
-          <PopoverTrigger
-            disabled={disabled}
-            className="relative flex h-7 max-w-full items-center gap-1.5 self-center rounded-md border border-border bg-background-1 px-2 text-xs font-normal text-foreground hover:bg-background-1/80 disabled:pointer-events-none disabled:opacity-50"
-          >
-            <FileSearch className="size-3.5 shrink-0" />
-            <span className="max-w-72 truncate">Prompts</span>
-            <ChevronDown className="size-3 shrink-0" />
-          </PopoverTrigger>
-        </TooltipTrigger>
+        <TooltipTrigger
+          render={
+            <PopoverTrigger
+              disabled={disabled}
+              className="relative flex h-7 max-w-full items-center gap-1.5 self-center rounded-md border border-border bg-background-1 px-2 text-xs font-normal text-foreground hover:bg-background-1/80 disabled:pointer-events-none disabled:opacity-50"
+            >
+              <FileSearch className="size-3.5 shrink-0" />
+              <span className="max-w-72 truncate">Prompts</span>
+              <ChevronDown className="size-3 shrink-0" />
+            </PopoverTrigger>
+          }
+        />
         <TooltipContent>{disabled ? disabledTooltip : actionTooltip}</TooltipContent>
       </Tooltip>
 

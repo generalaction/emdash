@@ -188,7 +188,7 @@ export class LocalFileSystem implements FileSystemProvider {
    * Get relative path from absolute path
    */
   private relPath(fullPath: string): string {
-    return relative(this.projectPath, fullPath);
+    return relative(this.projectPath, fullPath).replace(/\\/g, '/');
   }
 
   /**

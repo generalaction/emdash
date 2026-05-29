@@ -221,6 +221,7 @@ export function tagRef(name: string): GitObjectRef {
 
 export type Commit = {
   hash: string;
+  parents: string[];
   subject: string;
   body: string;
   author: string;
@@ -231,7 +232,7 @@ export type Commit = {
 
 export type CommitFile = {
   path: string;
-  status: string;
+  status: GitChangeStatus;
   additions: number;
   deletions: number;
 };

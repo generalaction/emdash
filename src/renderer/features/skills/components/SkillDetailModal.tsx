@@ -20,7 +20,7 @@ interface SkillDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   onInstall: (skillId: string) => Promise<boolean>;
-  onUninstall: (skillId: string) => Promise<boolean>;
+  onUninstall: (skillId: string) => void;
   onOpenTerminal?: (skillPath: string) => void;
 }
 
@@ -45,16 +45,10 @@ export const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
     }
   }, [skill, onInstall, onClose]);
 
-  const handleUninstall = useCallback(async () => {
+  const handleUninstall = useCallback(() => {
     if (!skill) return;
-    setIsProcessing(true);
-    try {
-      const success = await onUninstall(skill.id);
-      if (success) onClose();
-    } finally {
-      setIsProcessing(false);
-    }
-  }, [skill, onUninstall, onClose]);
+    onUninstall(skill.id);
+  }, [skill, onUninstall]);
 
   const handleOpen = useCallback(() => {
     if (skill?.localPath && onOpenTerminal) {

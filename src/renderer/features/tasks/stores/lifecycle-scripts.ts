@@ -33,7 +33,13 @@ export class LifecycleScriptStore {
 
   constructor(data: LifecycleScriptData, projectId: string, workspaceId: string) {
     this.data = data;
-    this.session = new PtySession(makePtySessionId(projectId, workspaceId, data.id));
+    this.session = new PtySession(makePtySessionId(projectId, workspaceId, data.id), () =>
+      rpc.terminals.prepareLifecycleScript({
+        projectId,
+        workspaceId,
+        type: data.type,
+      })
+    );
     this.offPtyExit = events.on(ptyExitChannel, () => this.markExited(), this.session.sessionId);
     makeObservable(this, {
       data: observable,
@@ -178,7 +184,7 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
   private async reload(): Promise<void> {
     if (this._disposed) return;
     const refreshSeq = ++this._refreshSeq;
-    const settings = await rpc.tasks.getWorkspaceSettings(this.projectId, this.workspaceId);
+    const settings = await rpc.projectSettings.getSettings(this.workspaceId);
     if (this._disposed) return;
 
     const entries: { type: ScriptType; command: string; label: string }[] = [];
@@ -218,7 +224,6 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
           const store = new LifecycleScriptStore(data, this.projectId, this.workspaceId);
           this.scripts.set(entry.id, store);
           addTabId(this, entry.id);
-          void store.session.connect();
         }
       }
 

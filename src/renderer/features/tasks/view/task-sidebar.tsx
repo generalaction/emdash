@@ -8,6 +8,7 @@ import { EditorFileTree } from '../editor/editor-file-tree';
 export const TaskSidebar = observer(function TaskSidebar() {
   const taskView = useWorkspaceViewModel();
   const { isSidebarCollapsed, sidebarTab: activeTab } = taskView;
+
   return (
     <div
       className="h-full min-h-0 overflow-hidden"
@@ -16,7 +17,7 @@ export const TaskSidebar = observer(function TaskSidebar() {
       <ShowHide visible={activeTab === 'conversations'}>
         <SidebarConversationsList />
       </ShowHide>
-      <ShowHide visible={activeTab === 'changes'}>
+      <ShowHide visible={!isSidebarCollapsed && activeTab === 'changes'} lazy>
         <ChangesPanel />
       </ShowHide>
       <ShowHide visible={activeTab === 'files'}>

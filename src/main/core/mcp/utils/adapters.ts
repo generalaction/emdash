@@ -100,14 +100,13 @@ function fwdOpencode(servers: ServerMap): ServerMap {
       };
       ensureHeader(headers, 'Accept', 'application/json, text/event-stream');
       const entry: RawServerEntry = { type: 'remote', url: v.url ?? '', headers, enabled: true };
-      if (v.env && typeof v.env === 'object') entry.env = v.env;
       result[k] = entry;
     } else if (isStdio(v)) {
       const cmdVec: string[] = [];
       if (typeof v.command === 'string' && v.command) cmdVec.push(v.command);
       if (Array.isArray(v.args)) cmdVec.push(...(v.args as string[]));
       const entry: RawServerEntry = { type: 'local', command: cmdVec, enabled: true };
-      if (v.env && typeof v.env === 'object') entry.env = v.env;
+      if (v.env && typeof v.env === 'object') entry.environment = v.env;
       result[k] = entry;
     } else {
       result[k] = deepClone(v);
@@ -183,6 +182,9 @@ function revOpencode(servers: ServerMap): ServerMap {
       const entry: RawServerEntry = {};
       if (command) entry.command = command;
       if (args.length) entry.args = args;
+      if (v.environment && typeof v.environment === 'object') {
+        entry.env = v.environment;
+      }
       result[k] = entry;
     } else {
       result[k] = deepClone(v);
