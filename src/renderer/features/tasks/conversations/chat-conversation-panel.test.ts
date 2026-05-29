@@ -150,7 +150,7 @@ describe('ChatConversationPanel', () => {
   });
 
   it('uses command RPC for recognized slash commands', async () => {
-    listCommands.mockResolvedValueOnce([{ name: 'compact', description: 'Compact context' }]);
+    listCommands.mockResolvedValue([{ name: 'compact', description: 'Compact context' }]);
     const conversation = { data: makeConversation(), status: 'idle' as const };
 
     await act(async () => {
@@ -170,8 +170,108 @@ describe('ChatConversationPanel', () => {
     expect(sendMessage).not.toHaveBeenCalled();
   });
 
+  it('shows slash command suggestions and inserts the selected command', async () => {
+    listCommands.mockResolvedValue([
+      { name: 'compact', description: 'Compact context' },
+      { name: 'goal', description: 'Update goal' },
+    ]);
+    const conversation = { data: makeConversation(), status: 'idle' as const };
+
+    await act(async () => {
+      renderPanel(root, conversation);
+    });
+
+    const textarea = container.querySelector('textarea')!;
+    await act(async () => {
+      setTextareaValue(textarea, '/c');
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    const commandMenu = container.querySelector('[role="listbox"]')!;
+    expect(commandMenu.textContent).toContain('/compact');
+    expect(commandMenu.textContent).not.toContain('/goal');
+
+    const compactOption = Array.from(commandMenu.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('/compact')
+    )!;
+    await act(async () => {
+      click(compactOption);
+    });
+
+    expect(textarea.value).toBe('/compact ');
+
+    await act(async () => {
+      click(container.querySelector('[aria-label="Send message"]')!);
+    });
+
+    expect(executeCommand).toHaveBeenCalledWith('conversation-1', { name: 'compact' });
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('uses Enter to select the highlighted slash command suggestion', async () => {
+    listCommands.mockResolvedValue([
+      { name: 'compact', description: 'Compact context' },
+      { name: 'goal', description: 'Update goal' },
+    ]);
+    const conversation = { data: makeConversation(), status: 'idle' as const };
+
+    await act(async () => {
+      renderPanel(root, conversation);
+    });
+
+    const textarea = container.querySelector('textarea')!;
+    await act(async () => {
+      setTextareaValue(textarea, '/c');
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    await act(async () => {
+      textarea.dispatchEvent(new window.KeyboardEvent('keydown', { bubbles: true, key: 'Enter' }));
+    });
+
+    expect(textarea.value).toBe('/compact ');
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(executeCommand).not.toHaveBeenCalled();
+
+    await act(async () => {
+      textarea.dispatchEvent(new window.KeyboardEvent('keydown', { bubbles: true, key: 'Enter' }));
+    });
+
+    expect(executeCommand).toHaveBeenCalledWith('conversation-1', { name: 'compact' });
+    expect(sendMessage).not.toHaveBeenCalled();
+  });
+
+  it('does not reload command suggestions for each slash query edit', async () => {
+    listCommands.mockResolvedValue([
+      { name: 'compact', description: 'Compact context' },
+      { name: 'goal', description: 'Update goal' },
+    ]);
+    const conversation = { data: makeConversation(), status: 'idle' as const };
+
+    await act(async () => {
+      renderPanel(root, conversation);
+    });
+
+    const textarea = container.querySelector('textarea')!;
+    await act(async () => {
+      setTextareaValue(textarea, '/');
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    await act(async () => {
+      setTextareaValue(textarea, '/c');
+      setTextareaValue(textarea, '/co');
+    });
+
+    expect(listCommands).toHaveBeenCalledTimes(1);
+  });
+
   it('sends unrecognized slash text as a normal message', async () => {
-    listCommands.mockResolvedValueOnce([{ name: 'compact', description: 'Compact context' }]);
+    listCommands.mockResolvedValue([{ name: 'compact', description: 'Compact context' }]);
     const conversation = { data: makeConversation(), status: 'idle' as const };
 
     await act(async () => {

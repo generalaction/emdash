@@ -591,3 +591,41 @@ Remaining risks and follow-ups:
 - The mapping now covers the documented Paseo notification families, but Emdash still renders them
   through the current generic tool-call timeline model. Richer per-tool UI can be layered on top of
   these persisted rows later.
+
+## Step 7: Slash Command Suggestions
+
+Added the Paseo-style slash command suggestion path to the Emdash chat composer.
+
+Changes made:
+
+- Wired `ChatComposer` to load conversation-scoped slash commands through the existing
+  `conversations.listCommands` path.
+- Added an Emdash-native inline command menu that appears when the draft starts with `/`, filters
+  known commands locally, and displays command names and descriptions.
+- Added mouse, Tab, Enter, and arrow-key interaction for the command menu. Enter selects a
+  highlighted partial match instead of sending an unrecognized partial slash command to the agent.
+- Kept command execution at the existing panel boundary: selected text is still submitted through
+  the same `executeCommand` path used by direct `/compact` and `/goal` entry.
+- Cached successful command lists per conversation scope and allowed failures to retry on the next
+  slash activation instead of caching an empty failure result.
+- Added renderer regression tests for command-menu rendering, mouse selection, Enter selection, and
+  command-list load caching.
+
+Validation:
+
+- Focused `chat-conversation-panel` suite passed, 21 tests.
+- `pnpm run format`: passed.
+- `pnpm run lint`: passed.
+- `pnpm run typecheck`: passed.
+- `pnpm run test`: passed, 202 files / 1360 tests.
+- `pnpm run test:coverage:chat`: passed, 8 files / 75 tests, with 92.70% statements, 82.30%
+  branches, 93.10% functions, and 95.89% lines for the configured chat/app-server scope.
+
+Review loop:
+
+- Architecture reviewer found a medium issue where command loading was coupled to every slash-query
+  edit and transient failures were cached. Fixed with conversation-scoped successful caching,
+  local filtering, and retryable failed loads.
+- Test and logic reviewers found a medium issue where Enter on a highlighted partial slash command
+  sent the partial command as a normal message. Fixed Enter selection and added regression coverage.
+- Final architecture, test, and logic reviewer reruns found no high/medium issues.

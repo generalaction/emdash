@@ -57,6 +57,8 @@ export const ChatConversationPanel = observer(function ChatConversationPanel({
       <ChatComposer
         disabled={!timeline}
         working={isTurnBlocked}
+        loadCommands={() => conversations.listCommands(conversation.data.id)}
+        commandScopeKey={conversation.data.id}
         onSend={sendMessage}
         onCancel={cancelTurn}
       />

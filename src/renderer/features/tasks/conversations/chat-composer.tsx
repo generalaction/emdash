@@ -1,25 +1,47 @@
 import { LoaderCircle, Paperclip, Send, Square } from 'lucide-react';
-import { useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@renderer/lib/ui/button';
 import { Textarea } from '@renderer/lib/ui/textarea';
+
+export interface ChatCommandSuggestion {
+  name: string;
+  description?: string;
+}
 
 interface ChatComposerProps {
   disabled: boolean;
   working: boolean;
+  loadCommands?: () => Promise<ChatCommandSuggestion[]>;
+  commandScopeKey?: string;
   onSend: (text: string) => Promise<void>;
   onCancel: () => Promise<void>;
 }
 
-export function ChatComposer({ disabled, working, onSend, onCancel }: ChatComposerProps) {
+export function ChatComposer({
+  disabled,
+  working,
+  loadCommands,
+  commandScopeKey,
+  onSend,
+  onCancel,
+}: ChatComposerProps) {
   const [draft, setDraft] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
+  const [commands, setCommands] = useState<ChatCommandSuggestion[]>([]);
+  const [commandsLoaded, setCommandsLoaded] = useState(false);
+  const [activeCommandIndex, setActiveCommandIndex] = useState(0);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const commandsLoadingRef = useRef(false);
   const sendInFlightRef = useRef(false);
   const cancelInFlightRef = useRef(false);
   const cancelledSendRunIdsRef = useRef(new Set<number>());
   const sendRunIdRef = useRef(0);
   const trimmedDraft = draft.trim();
+  const commandQuery = parseCommandQuery(draft);
+  const commandQueryText = commandQuery?.query;
+  const commandQueryActive = commandQueryText !== undefined;
   const canSend =
     !disabled &&
     !working &&
@@ -28,6 +50,48 @@ export function ChatComposer({ disabled, working, onSend, onCancel }: ChatCompos
     !sendInFlightRef.current &&
     trimmedDraft.length > 0;
   const canCancel = !disabled && working && !isCancelling;
+  const filteredCommands = useMemo(() => {
+    if (commandQueryText === undefined) return [];
+    const query = commandQueryText.toLowerCase();
+    return commands.filter((command) => command.name.toLowerCase().startsWith(query));
+  }, [commandQueryText, commands]);
+  const showCommandMenu =
+    !disabled && !working && commandQuery !== undefined && filteredCommands.length > 0;
+
+  useEffect(() => {
+    setCommands([]);
+    setCommandsLoaded(false);
+    commandsLoadingRef.current = false;
+    setActiveCommandIndex(0);
+  }, [commandScopeKey]);
+
+  useEffect(() => {
+    if (!commandQueryActive || commandsLoaded || commandsLoadingRef.current || !loadCommands) {
+      return;
+    }
+    let cancelled = false;
+    commandsLoadingRef.current = true;
+    void loadCommands()
+      .then((loadedCommands) => {
+        if (cancelled) return;
+        setCommands(loadedCommands);
+        commandsLoadingRef.current = false;
+        setCommandsLoaded(true);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setCommands([]);
+        commandsLoadingRef.current = false;
+      });
+    return () => {
+      cancelled = true;
+      commandsLoadingRef.current = false;
+    };
+  }, [commandQueryActive, commandsLoaded, loadCommands]);
+
+  useEffect(() => {
+    setActiveCommandIndex(0);
+  }, [commandQueryText, filteredCommands.length]);
 
   const sendMessage = async () => {
     if (!canSend || sendInFlightRef.current) return;
@@ -50,6 +114,12 @@ export function ChatComposer({ disabled, working, onSend, onCancel }: ChatCompos
         setIsSending(false);
       }
     }
+  };
+
+  const selectCommand = (command: ChatCommandSuggestion) => {
+    setDraft(`/${command.name} `);
+    setError(null);
+    textareaRef.current?.focus();
   };
 
   const cancelTurn = async () => {
@@ -82,6 +152,32 @@ export function ChatComposer({ disabled, working, onSend, onCancel }: ChatCompos
             {error}
           </div>
         ) : null}
+        {showCommandMenu ? (
+          <div
+            role="listbox"
+            aria-label="Slash commands"
+            className="max-h-56 overflow-y-auto rounded-md border border-border bg-background p-1 shadow-sm"
+          >
+            {filteredCommands.map((command, index) => (
+              <button
+                key={command.name}
+                type="button"
+                role="option"
+                aria-selected={index === activeCommandIndex}
+                className="flex w-full min-w-0 items-start gap-3 rounded-md px-3 py-2 text-left text-sm text-foreground outline-none hover:bg-background-1 focus-visible:bg-background-1 aria-selected:bg-background-1"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => selectCommand(command)}
+              >
+                <span className="shrink-0 font-mono text-xs text-foreground">{`/${command.name}`}</span>
+                {command.description ? (
+                  <span className="min-w-0 flex-1 truncate text-xs text-foreground-muted">
+                    {command.description}
+                  </span>
+                ) : null}
+              </button>
+            ))}
+          </div>
+        ) : null}
         <div className="flex items-end gap-2">
           <Button
             size="icon"
@@ -93,6 +189,7 @@ export function ChatComposer({ disabled, working, onSend, onCancel }: ChatCompos
             <Paperclip className="size-4" />
           </Button>
           <Textarea
+            ref={textareaRef}
             className="max-h-32 min-h-10 resize-none bg-background"
             placeholder="Message agent"
             aria-label="Message agent"
@@ -105,6 +202,20 @@ export function ChatComposer({ disabled, working, onSend, onCancel }: ChatCompos
             }}
             onKeyDown={(event) => {
               if (event.nativeEvent.isComposing) return;
+              if (showCommandMenu && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+                event.preventDefault();
+                setActiveCommandIndex((current) => {
+                  const direction = event.key === 'ArrowDown' ? 1 : -1;
+                  return (current + direction + filteredCommands.length) % filteredCommands.length;
+                });
+                return;
+              }
+              if (showCommandMenu && (event.key === 'Tab' || event.key === 'Enter')) {
+                event.preventDefault();
+                const command = filteredCommands[activeCommandIndex];
+                if (command) selectCommand(command);
+                return;
+              }
               if (event.key !== 'Enter' || event.shiftKey) return;
               event.preventDefault();
               void sendMessage();
@@ -141,4 +252,13 @@ export function ChatComposer({ disabled, working, onSend, onCancel }: ChatCompos
 
 function isCancellationError(error: unknown): boolean {
   return error instanceof Error && error.message.includes('Message send was cancelled');
+}
+
+function parseCommandQuery(draft: string): { query: string } | undefined {
+  if (!draft.startsWith('/') || draft.includes('\n')) return undefined;
+  const body = draft.slice(1);
+  if (body.includes('/')) return undefined;
+  const separator = body.search(/\s/);
+  if (separator !== -1) return undefined;
+  return { query: body };
 }
