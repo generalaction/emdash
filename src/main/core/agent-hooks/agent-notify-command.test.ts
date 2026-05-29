@@ -70,7 +70,7 @@ describe('makeCodexNotifyScriptContent', () => {
     expect(content).toContain('notification_type');
     expect(content).toContain('PermissionRequest');
     expect(content).toContain('input="${1:-$(cat)}"');
-    expect(content).toContain('X-Emdash-Event-Type: session-start');
+    expect(content).toContain('post_hook session-start');
     expect(content).toContain('-d @-');
   });
 });

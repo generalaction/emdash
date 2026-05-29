@@ -43,11 +43,11 @@ const HOOK_EVENT_MAP = [
   { eventType: 'stop', hookKey: 'Stop' },
 ] satisfies { eventType: string; hookKey: string }[];
 
-const CODEX_HOOK_EVENT_MAP = [{ hookKey: 'Stop' }, { hookKey: 'PermissionRequest' }] satisfies {
-  hookKey: CodexHookEvent;
-}[];
-
-const CODEX_SESSION_HOOK_EVENT_MAP = [{ hookKey: 'SessionStart' as const }] satisfies {
+const CODEX_HOOK_EVENT_MAP = [
+  { hookKey: 'Stop' },
+  { hookKey: 'PermissionRequest' },
+  { hookKey: 'SessionStart' },
+] satisfies {
   hookKey: CodexHookEvent;
 }[];
 
@@ -121,20 +121,12 @@ export class HookConfigWriter {
 
     const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
 
+    const command = makeCodexNotifyHookCommand(this.codexNotifyScriptCommandPath(), {
+      platform: this.platform,
+    });
     for (const { hookKey } of CODEX_HOOK_EVENT_MAP) {
       const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
-      hooks[hookKey] = this.buildHookEntries(
-        existing,
-        makeCodexNotifyHookCommand(this.codexNotifyScriptCommandPath(), { platform: this.platform })
-      );
-    }
-
-    for (const { hookKey } of CODEX_SESSION_HOOK_EVENT_MAP) {
-      const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
-      hooks[hookKey] = this.buildHookEntries(
-        existing,
-        makeCodexNotifyHookCommand(this.codexNotifyScriptCommandPath(), { platform: this.platform })
-      );
+      hooks[hookKey] = this.buildHookEntries(existing, command);
     }
 
     await this.userFs.write(CODEX_HOOKS_PATH, JSON.stringify({ ...config, hooks }, null, 2) + '\n');

@@ -78,7 +78,7 @@ describe('HookConfigWriter', () => {
     expect(fs.files.has('.gitignore')).toBe(false);
 
     expect(userFs.files.get('.emdash/hooks/codex-notify.sh')).toContain(
-      'X-Emdash-Event-Type: session-start'
+      'post_hook session-start'
     );
     const config = JSON.parse(userFs.files.get('.codex/hooks.json')!);
     expect(config.hooks.Stop[0].hooks[0].command).toBe(

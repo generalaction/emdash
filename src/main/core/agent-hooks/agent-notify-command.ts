@@ -1,5 +1,7 @@
 import { Buffer } from 'node:buffer';
 import ampPluginContent from './amp-emdash-plugin.ts?raw';
+import codexNotifyPowerShellContent from './codex-notify.ps1?raw';
+import codexNotifyScriptContent from './codex-notify.sh?raw';
 import openCodePluginContent from './opencode-notifications-plugin.js?raw';
 
 type HookPostPayload = 'stdin' | { json: Record<string, string> };
@@ -72,126 +74,11 @@ export function makeAmpPluginContent(): string {
 }
 
 export function makeCodexNotifyScriptContent(): string {
-  return `#!/bin/sh
-set -u
-
-if [ -z "\${EMDASH_HOOK_PORT:-}" ] || [ -z "\${EMDASH_HOOK_TOKEN:-}" ] || [ -z "\${EMDASH_PTY_ID:-}" ]; then
-  exit 0
-fi
-
-input="\${1:-$(cat)}"
-event=$(printf '%s' "$input" | grep -oE '"hook_event_name"[[:space:]]*:[[:space:]]*"[^"]*"' | grep -oE '"[^"]*"$' | tr -d '"')
-if [ -z "$event" ]; then
-  codex_type=$(printf '%s' "$input" | grep -oE '"type"[[:space:]]*:[[:space:]]*"[^"]*"' | grep -oE '"[^"]*"$' | tr -d '"')
-  case "$codex_type" in
-    agent-turn-complete|task_complete) event="Stop" ;;
-    exec_approval_request|apply_patch_approval_request|request_user_input) event="PermissionRequest" ;;
-  esac
-fi
-
-case "$event" in
-  Stop)
-    payload="{\"notification_type\":\"idle_prompt\"}"
-    printf '%s' "$payload" | curl -sf -X POST \\
-      -H "Content-Type: application/json" \\
-      -H "X-Emdash-Token: $EMDASH_HOOK_TOKEN" \\
-      -H "X-Emdash-Pty-Id: $EMDASH_PTY_ID" \\
-      -H "X-Emdash-Agent-Id: \${EMDASH_AGENT_ID:-}" \\
-      -H "X-Emdash-Event-Type: notification" \\
-      -d @- \\
-      "http://127.0.0.1:$EMDASH_HOOK_PORT/hook" >/dev/null || true
-    ;;
-  PermissionRequest)
-    payload="{\"notification_type\":\"permission_prompt\"}"
-    printf '%s' "$payload" | curl -sf -X POST \\
-      -H "Content-Type: application/json" \\
-      -H "X-Emdash-Token: $EMDASH_HOOK_TOKEN" \\
-      -H "X-Emdash-Pty-Id: $EMDASH_PTY_ID" \\
-      -H "X-Emdash-Agent-Id: \${EMDASH_AGENT_ID:-}" \\
-      -H "X-Emdash-Event-Type: notification" \\
-      -d @- \\
-      "http://127.0.0.1:$EMDASH_HOOK_PORT/hook" >/dev/null || true
-    ;;
-  SessionStart)
-    printf '%s' "$input" | curl -sf -X POST \\
-      -H "Content-Type: application/json" \\
-      -H "X-Emdash-Token: $EMDASH_HOOK_TOKEN" \\
-      -H "X-Emdash-Pty-Id: $EMDASH_PTY_ID" \\
-      -H "X-Emdash-Agent-Id: \${EMDASH_AGENT_ID:-}" \\
-      -H "X-Emdash-Event-Type: session-start" \\
-      -d @- \\
-      "http://127.0.0.1:$EMDASH_HOOK_PORT/hook" >/dev/null || true
-    ;;
-esac
-`;
+  return codexNotifyScriptContent;
 }
 
 export function makeCodexNotifyPowerShellContent(): string {
-  return [
-    "$ErrorActionPreference = 'SilentlyContinue'",
-    '',
-    'if (-not $env:EMDASH_HOOK_PORT -or -not $env:EMDASH_HOOK_TOKEN -or -not $env:EMDASH_PTY_ID) {',
-    '  exit 0',
-    '}',
-    '',
-    'if ($args.Count -gt 0) {',
-    '  $inputPayload = $args[0]',
-    '} else {',
-    '  $inputPayload = [Console]::In.ReadToEnd()',
-    '}',
-    '',
-    '$event = $null',
-    'try {',
-    '  $body = $inputPayload | ConvertFrom-Json',
-    '  if ($body.hook_event_name) {',
-    '    $event = [string]$body.hook_event_name',
-    '  } elseif ($body.type) {',
-    '    switch ([string]$body.type) {',
-    "      'agent-turn-complete' { $event = 'Stop' }",
-    "      'task_complete' { $event = 'Stop' }",
-    "      'exec_approval_request' { $event = 'PermissionRequest' }",
-    "      'apply_patch_approval_request' { $event = 'PermissionRequest' }",
-    "      'request_user_input' { $event = 'PermissionRequest' }",
-    '    }',
-    '  }',
-    '} catch {',
-    '  exit 0',
-    '}',
-    '',
-    'switch ($event) {',
-    "  'Stop' {",
-    "    $payload = @{ notification_type = 'idle_prompt' } | ConvertTo-Json -Compress",
-    "    $eventType = 'notification'",
-    '  }',
-    "  'PermissionRequest' {",
-    "    $payload = @{ notification_type = 'permission_prompt' } | ConvertTo-Json -Compress",
-    "    $eventType = 'notification'",
-    '  }',
-    "  'SessionStart' {",
-    '    $payload = $inputPayload',
-    "    $eventType = 'session-start'",
-    '  }',
-    '  default {',
-    '    exit 0',
-    '  }',
-    '}',
-    '',
-    'try {',
-    '  Invoke-WebRequest -UseBasicParsing -Method POST `',
-    "    -Uri ('http://127.0.0.1:' + $env:EMDASH_HOOK_PORT + '/hook') `",
-    '    -Headers @{',
-    "      'Content-Type' = 'application/json'",
-    "      'X-Emdash-Token' = $env:EMDASH_HOOK_TOKEN",
-    "      'X-Emdash-Pty-Id' = $env:EMDASH_PTY_ID",
-    "      'X-Emdash-Agent-Id' = $env:EMDASH_AGENT_ID",
-    "      'X-Emdash-Event-Type' = $eventType",
-    '    } `',
-    '    -Body $payload | Out-Null',
-    '} catch {',
-    '  exit 0',
-    '}',
-    '',
-  ].join('\n');
+  return codexNotifyPowerShellContent;
 }
 
 export function makeCodexNotifyHookCommand(
