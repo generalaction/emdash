@@ -18,6 +18,8 @@ interface BranchPickerFieldProps {
   label?: string;
   className?: string;
   isUnborn?: boolean;
+  /** When true, always shows branch creation options without the create-branch toggle. */
+  alwaysCreate?: boolean;
 }
 
 export function BranchPickerField({
@@ -28,12 +30,13 @@ export function BranchPickerField({
   label = 'From Branch',
   className,
   isUnborn = false,
+  alwaysCreate = false,
 }: BranchPickerFieldProps) {
   const { createBranchAndWorktree, setCreateBranchAndWorktree, pushBranch, setPushBranch } = state;
 
   return (
     <div className={cn('border border-border rounded-md overflow-hidden', className)}>
-      {!createBranchAndWorktree && currentBranch ? (
+      {!alwaysCreate && !createBranchAndWorktree && currentBranch ? (
         <BranchDisplay label={label} branchName={currentBranch} />
       ) : projectId ? (
         <ProjectBranchSelector
@@ -60,7 +63,20 @@ export function BranchPickerField({
           }
         />
       ) : null}
-      {!isUnborn && (
+
+      {/* alwaysCreate: always show branch name + push options inline, no toggle */}
+      {alwaysCreate && !isUnborn && (
+        <div className="flex flex-col gap-2 border-t border-border p-2">
+          {branchNameState && <BranchNameField state={branchNameState} />}
+          <Field orientation="horizontal">
+            <Switch checked={pushBranch} onCheckedChange={setPushBranch} />
+            <FieldLabel>Push branch to remote</FieldLabel>
+          </Field>
+        </div>
+      )}
+
+      {/* Standard collapsible for legacy / non-alwaysCreate usage */}
+      {!alwaysCreate && !isUnborn && (
         <Collapsible className="border-t border-border">
           <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 p-2 text-xs text-foreground-muted hover:bg-background-1 data-open:bg-background-1">
             Should create and push feature branch
@@ -88,6 +104,7 @@ export function BranchPickerField({
           </CollapsibleContent>
         </Collapsible>
       )}
+
       {isUnborn && (
         <p className="border-t border-border bg-background-1 px-2 py-1 text-xs text-foreground-muted">
           Create an initial commit to enable branch-based tasks.

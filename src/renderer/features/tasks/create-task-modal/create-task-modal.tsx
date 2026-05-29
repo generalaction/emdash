@@ -35,6 +35,7 @@ import { IssueComboboxField } from './issue-combobox-field';
 import { PrComboboxField } from './pr-combobox-field';
 import { TaskNameField } from './task-name-field';
 import { type LinkedType, useCreateTaskState } from './use-create-task-state';
+import { useWorkspaceMode } from './use-workspace-mode';
 import { WorkspaceSettingsSection } from './workspace-settings-section';
 
 type SectionTab = 'conversation' | 'workspace';
@@ -68,6 +69,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
 
   const [sectionTab, setSectionTab] = useState<SectionTab>('conversation');
   const [useBYOI, setUseBYOI] = useState(false);
+  const workspaceMode = useWorkspaceMode(selectedProjectId);
 
   const projectData = selectedProjectId
     ? mountedProjectData(getProjectManagerStore().projects.get(selectedProjectId))
@@ -133,7 +135,18 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     // oxlint-disable-next-line react/exhaustive-deps
   }, [selectedProjectId]);
 
-  const canCreate = !!selectedProjectId && state.isValid;
+  const { linkedType, linkedIssue, linkedPR, branchSelection, branchNameState } = state;
+
+  const canCreate =
+    !!selectedProjectId &&
+    state.taskName.effectiveTaskName.trim().length > 0 &&
+    !state.taskName.isPending &&
+    (linkedType === 'pr' && linkedPR
+      ? true
+      : workspaceMode.mode === 'existing'
+        ? workspaceMode.selectedEntry !== null
+        : branchNameState.branchName.trim().length > 0 &&
+          branchSelection.selectedBranch !== undefined);
 
   const handleCreateTask = useCallback(() => {
     if (!selectedProjectId) return;
@@ -158,13 +171,10 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         }
       : undefined;
 
-    const { linkedType, linkedIssue, linkedPR, checkoutMode, branchSelection, branchNameState } =
-      state;
-
     if (linkedType === 'pr' && linkedPR) {
       const reviewBranch = linkedPR.headRefName;
       const taskStrategy = resolvePullRequestTaskStrategy({
-        checkoutMode,
+        checkoutMode: state.checkoutMode,
         prNumber: getPrNumber(linkedPR) ?? 0,
         headBranch: reviewBranch,
         headRepositoryUrl: linkedPR.headRepositoryUrl,
@@ -182,11 +192,32 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         workspaceProvider: useBYOI ? 'byoi' : undefined,
         initialConversation: builtInitialConversation,
       });
+    } else if (workspaceMode.mode === 'existing') {
+      const entry = workspaceMode.selectedEntry;
+      if (!entry) return;
+      const sourceBranch =
+        entry.isMain || !entry.branch
+          ? { type: 'local' as const, branch: currentBranch ?? '' }
+          : { type: 'local' as const, branch: entry.branch };
+      const strategy =
+        entry.isMain || !entry.branch
+          ? ({ kind: 'no-worktree' } as const)
+          : ({ kind: 'checkout-existing' } as const);
+      void projectStore.mountedProject!.taskManager.createTask({
+        id,
+        projectId: selectedProjectId,
+        name: state.taskName.effectiveTaskName,
+        sourceBranch,
+        strategy: useBYOI ? { kind: 'no-worktree' } : strategy,
+        linkedIssue: linkedType === 'issue' ? (linkedIssue ?? undefined) : undefined,
+        workspaceProvider: useBYOI ? 'byoi' : undefined,
+        initialConversation: builtInitialConversation,
+      });
     } else {
       if (!branchSelection.selectedBranch) return;
       const taskStrategy = resolveBranchLikeTaskStrategy({
         isUnborn,
-        createBranchAndWorktree: branchSelection.createBranchAndWorktree,
+        createBranchAndWorktree: true,
         taskBranch: branchNameState.branchName,
         pushBranch: branchSelection.pushBranch,
       });
@@ -207,7 +238,14 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   }, [
     selectedProjectId,
     state,
+    linkedType,
+    linkedIssue,
+    linkedPR,
+    branchSelection,
+    branchNameState,
+    workspaceMode,
     isUnborn,
+    currentBranch,
     useBYOI,
     initialConversation,
     autoApproveDefaults,
@@ -309,6 +347,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
                   projectId={selectedProjectId}
                   currentBranch={currentBranch}
                   isUnborn={isUnborn}
+                  workspaceMode={workspaceMode}
                   useBYOI={useBYOI}
                   setUseBYOI={setUseBYOI}
                   isWorkspaceProviderEnabled={isWorkspaceProviderEnabled}

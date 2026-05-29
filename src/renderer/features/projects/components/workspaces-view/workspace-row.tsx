@@ -48,7 +48,7 @@ function WorkspaceRowShell({
 }) {
   return (
 
-      <div className={cn('flex h-16 items-center hover:bg-background-1 border-b border-border', className)}>
+      <div className={cn('flex h-16 items-center hover:bg-background-1 rounded-lg transition-colors', className)}>
         {children}
       </div>
 
@@ -201,7 +201,7 @@ function WorktreeRow({
       <ContextMenuTrigger>
         <WorkspaceRowShell className="group px-2 gap-2">
           <div className="flex size-8 h-full items-center">
-            <div className="h-full w-px bg-border mx-auto opacity-20" />
+            <div className="h-full w-px bg-background-2 mx-auto" />
           </div>
           <div className="flex size-8 items-center justify-center">
             <TreePine className='size-5 text-foreground-muted' absoluteStrokeWidth strokeWidth={1.5} />
