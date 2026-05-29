@@ -202,6 +202,37 @@ describe('buildAgentCommand', () => {
     });
   });
 
+  it('continues the stored Amp thread when resuming', () => {
+    const result = buildAgentCommand({
+      providerId: 'amp',
+      providerConfig: providerConfigDefaults.amp,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+      providerSessionId: 'T-abc123-def456',
+      isResuming: true,
+    });
+
+    expect(result).toEqual({
+      command: 'amp',
+      args: ['threads', 'continue', 'T-abc123-def456'],
+    });
+  });
+
+  it('falls back to the latest Amp thread when resuming before a thread id was captured', () => {
+    const result = buildAgentCommand({
+      providerId: 'amp',
+      providerConfig: providerConfigDefaults.amp,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+      isResuming: true,
+    });
+
+    expect(result).toEqual({
+      command: 'amp',
+      args: ['threads', 'continue', '--last'],
+    });
+  });
+
   it('passes Droid resume flag with session id when resuming', () => {
     const result = buildAgentCommand({
       providerId: 'droid',
@@ -381,6 +412,6 @@ describe('buildAgentSessionCommand', () => {
       isResuming: true,
     });
 
-    expect(result).toEqual({ command: 'amp', args: [] });
+    expect(result).toEqual({ command: 'amp', args: ['threads', 'continue', '--last'] });
   });
 });

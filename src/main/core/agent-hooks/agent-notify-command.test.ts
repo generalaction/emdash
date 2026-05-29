@@ -91,6 +91,8 @@ describe('makeAmpPluginContent', () => {
     expect(content).toContain('@i-know-the-amp-plugin-api-is-wip-and-very-experimental-right-now');
     expect(content).toContain('EMDASH_HOOK_PORT');
     expect(content).toContain("amp.on('agent.start'");
+    expect(content).toContain('providerSessionId');
+    expect(content).toContain('ctx?.thread?.id');
     expect(content).toContain("amp.on('agent.end'");
     expect(content).toContain("'X-Emdash-Event-Type': eventType");
   });

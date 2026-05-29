@@ -1,8 +1,14 @@
 // @i-know-the-amp-plugin-api-is-wip-and-very-experimental-right-now
 
 type AmpPluginAPI = {
-  on(event: 'agent.start', handler: () => unknown): void;
-  on(event: 'agent.end', handler: () => unknown): void;
+  on(event: 'agent.start', handler: (event: unknown, ctx?: AmpPluginContext) => unknown): void;
+  on(event: 'agent.end', handler: (event: unknown, ctx?: AmpPluginContext) => unknown): void;
+};
+
+type AmpPluginContext = {
+  thread?: {
+    id?: string;
+  };
 };
 
 async function notifyEmdash(eventType: 'start' | 'stop', body: Record<string, unknown> = {}) {
@@ -28,9 +34,14 @@ async function notifyEmdash(eventType: 'start' | 'stop', body: Record<string, un
   }
 }
 
+function getThreadId(ctx?: AmpPluginContext): string | undefined {
+  const threadId = ctx?.thread?.id;
+  return typeof threadId === 'string' && threadId.trim() ? threadId.trim() : undefined;
+}
+
 export default function (amp: AmpPluginAPI) {
-  amp.on('agent.start', async () => {
-    await notifyEmdash('start');
+  amp.on('agent.start', async (_event, ctx) => {
+    await notifyEmdash('start', { providerSessionId: getThreadId(ctx) });
   });
 
   amp.on('agent.end', async () => {
