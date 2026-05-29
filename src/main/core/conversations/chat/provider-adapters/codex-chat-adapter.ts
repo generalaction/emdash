@@ -11,6 +11,7 @@ import path from 'node:path';
 import { buildAgentEnv } from '@main/core/pty/pty-env';
 import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
 import { log } from '@main/lib/logger';
+import type { ConversationControls } from '@shared/conversation-controls';
 import type {
   AppendConversationTimelineItemInput,
   ConversationPermissionRequestTimelineItem,
@@ -23,6 +24,7 @@ import { parseShellWords } from '../../impl/agent-command';
 import { resolveProviderEnv } from '../../impl/provider-env';
 import {
   CodexAppServerClient,
+  type CodexModel,
   type CodexAppServerNotification,
   type CodexSandboxPolicy,
   type CodexSkill,
@@ -48,6 +50,7 @@ type PendingPermission = {
 const CODEX_GOALS_MIN_VERSION: readonly [number, number, number] = [0, 128, 0];
 const CODEX_VERSION_TIMEOUT_MS = 2_000;
 const GIT_ROOT_TIMEOUT_MS = 2_000;
+const CODEX_FAST_MODE_SUPPORTED_MODEL_PREFIXES = ['gpt-5', 'gpt-4.1', 'o3', 'o4-mini'] as const;
 
 class CodexChatSession implements ChatProviderSession {
   readonly conversationId: string;
@@ -80,6 +83,8 @@ class CodexChatSession implements ChatProviderSession {
     string,
     { input?: unknown; output?: string; toolName: string }
   >();
+  private model: string | undefined;
+  private serviceTier: 'fast' | undefined;
   private turnStartPending = false;
   private eventHandler: (event: ChatProviderRuntimeEvent) => void | Promise<void> = () => {};
 
@@ -143,6 +148,25 @@ class CodexChatSession implements ChatProviderSession {
       type: 'timeline',
       item: { kind: 'assistant_message', payload: { text } },
     });
+  }
+
+  getModel(): string | undefined {
+    return this.model;
+  }
+
+  setModel(model: string | undefined): void {
+    this.model = model;
+    if (!codexModelSupportsFastMode(model)) {
+      this.serviceTier = undefined;
+    }
+  }
+
+  getServiceTier(): 'fast' | undefined {
+    return this.serviceTier;
+  }
+
+  setFastMode(enabled: boolean): void {
+    this.serviceTier = enabled ? 'fast' : undefined;
   }
 
   emitCompleted(): void {
@@ -612,6 +636,8 @@ export class CodexChatAdapter implements ChatProviderAdapter {
         threadId,
         cwd: codexSession.cwd,
         input: inputItems,
+        ...(codexSession.getModel() ? { model: codexSession.getModel() } : {}),
+        ...(codexSession.getServiceTier() ? { serviceTier: codexSession.getServiceTier() } : {}),
         ...codexTurnPermissionParams(codexSession.autoApprove),
       });
     } catch (error) {
@@ -711,6 +737,40 @@ export class CodexChatAdapter implements ChatProviderAdapter {
       return;
     }
     throw new Error(`Unsupported Codex command: /${command.name}`);
+  }
+
+  async getControls(session: ChatProviderSession): Promise<ConversationControls> {
+    return buildCodexControls(requireCodexSession(session));
+  }
+
+  async setModel(session: ChatProviderSession, modelId: string): Promise<ConversationControls> {
+    const codexSession = requireCodexSession(session);
+    const models = await codexSession.client.listModels();
+    if (models.length > 0 && !models.some((model) => model.id === modelId)) {
+      throw new Error(`Unknown Codex model: ${modelId}`);
+    }
+    codexSession.setModel(modelId);
+    return buildCodexControls(codexSession, models);
+  }
+
+  async setFeature(
+    session: ChatProviderSession,
+    featureId: string,
+    value: unknown
+  ): Promise<ConversationControls> {
+    const codexSession = requireCodexSession(session);
+    if (featureId !== 'fast_mode') {
+      throw new Error(`Unknown Codex feature: ${featureId}`);
+    }
+    const models = await codexSession.client.listModels();
+    const selectedModel = resolveSelectedCodexModel(codexSession, models);
+    if (Boolean(value) && !codexModelSupportsFastMode(selectedModel?.id)) {
+      throw new Error(
+        `Codex fast mode is not available for model '${selectedModel?.id ?? 'default'}'`
+      );
+    }
+    codexSession.setFastMode(Boolean(value));
+    return buildCodexControls(codexSession, models);
   }
 
   private async buildPromptInput(
@@ -1583,4 +1643,58 @@ async function executeGoalCommand(
     return;
   }
   await session.client.setGoal(threadId, { objective: trimmed, status: 'active' });
+}
+
+async function buildCodexControls(
+  session: CodexChatSession,
+  loadedModels?: CodexModel[]
+): Promise<ConversationControls> {
+  const models = loadedModels ?? (await session.client.listModels());
+  const selectedModel = resolveSelectedCodexModel(session, models);
+  return {
+    ...(selectedModel?.id ? { selectedModelId: selectedModel.id } : {}),
+    models: models.map((model) => ({
+      id: model.id,
+      label: normalizeCodexModelLabel(model.displayName, model.id),
+      ...(model.description ? { description: model.description } : {}),
+      ...(model.isDefault ? { isDefault: true } : {}),
+    })),
+    features: codexModelSupportsFastMode(selectedModel?.id)
+      ? [
+          {
+            type: 'toggle',
+            id: 'fast_mode',
+            label: 'Fast',
+            description: 'Priority inference at 2x usage',
+            value: session.getServiceTier() === 'fast',
+          },
+        ]
+      : [],
+  };
+}
+
+function resolveSelectedCodexModel(
+  session: CodexChatSession,
+  models: CodexModel[]
+): CodexModel | undefined {
+  const configuredModel = session.getModel();
+  return (
+    (configuredModel ? models.find((model) => model.id === configuredModel) : undefined) ??
+    models.find((model) => model.isDefault) ??
+    models[0]
+  );
+}
+
+function normalizeCodexModelLabel(displayName: string | undefined, id: string): string {
+  const normalized = displayName?.trim();
+  if (!normalized) return id;
+  return normalized;
+}
+
+function codexModelSupportsFastMode(modelId: string | null | undefined): boolean {
+  const normalized = modelId?.trim();
+  if (!normalized) return false;
+  return CODEX_FAST_MODE_SUPPORTED_MODEL_PREFIXES.some(
+    (prefix) => normalized === prefix || normalized.startsWith(prefix)
+  );
 }

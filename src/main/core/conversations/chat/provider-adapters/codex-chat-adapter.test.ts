@@ -136,6 +136,20 @@ function setupFakeChild(): void {
   fakeChild.handle('thread/goal/set', () => ({}));
   fakeChild.handle('thread/goal/clear', () => ({}));
   fakeChild.handle('skills/list', () => ({ data: [] }));
+  fakeChild.handle('model/list', () => ({
+    data: [
+      {
+        id: 'gpt-5',
+        displayName: 'GPT-5',
+        description: 'Default model',
+        isDefault: true,
+      },
+      {
+        id: 'gpt-3.5-turbo',
+        displayName: 'GPT-3.5 Turbo',
+      },
+    ],
+  }));
 }
 
 function deferred<T = void>(): {
@@ -1333,6 +1347,59 @@ describe('CodexChatAdapter app-server integration', () => {
         ],
       },
     });
+  });
+
+  it('exposes model and fast controls and applies selected values to future turns', async () => {
+    const { adapter, session } = await createSession([]);
+
+    await expect(adapter.getControls(session)).resolves.toMatchObject({
+      selectedModelId: 'gpt-5',
+      models: [
+        { id: 'gpt-5', label: 'GPT-5', isDefault: true },
+        { id: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
+      ],
+      features: [
+        {
+          id: 'fast_mode',
+          label: 'Fast',
+          type: 'toggle',
+          value: false,
+        },
+      ],
+    });
+
+    await adapter.setFeature(session, 'fast_mode', true);
+    await adapter.setModel(session, 'gpt-5');
+    await adapter.sendMessage(session, { text: 'hello' });
+
+    expect(
+      fakeChild.clientRequests.find((request) => request.method === 'turn/start')
+    ).toMatchObject({
+      params: {
+        model: 'gpt-5',
+        serviceTier: 'fast',
+      },
+    });
+  });
+
+  it('clears unavailable fast mode when switching to an unsupported model', async () => {
+    const { adapter, session } = await createSession([]);
+
+    await adapter.setFeature(session, 'fast_mode', true);
+    await expect(adapter.setModel(session, 'gpt-3.5-turbo')).resolves.toMatchObject({
+      selectedModelId: 'gpt-3.5-turbo',
+      features: [],
+    });
+    await adapter.sendMessage(session, { text: 'hello' });
+
+    const turnStart = fakeChild.clientRequests.find((request) => request.method === 'turn/start');
+    expect(turnStart).toBeDefined();
+    expect(turnStart).toMatchObject({
+      params: {
+        model: 'gpt-3.5-turbo',
+      },
+    });
+    expect((turnStart!.params as { serviceTier?: unknown }).serviceTier).toBeUndefined();
   });
 
   it('lists fallback filesystem skills when app-server skills are unavailable', async () => {

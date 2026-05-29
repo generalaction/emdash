@@ -12,10 +12,15 @@ const conversationsRef = vi.hoisted(() => ({
   current: undefined as
     | {
         cancelTurn: ReturnType<typeof vi.fn>;
+        conversations: Map<string, Pick<ConversationStore, 'data'>>;
+        createConversation: ReturnType<typeof vi.fn>;
         executeCommand: ReturnType<typeof vi.fn>;
+        getControls: ReturnType<typeof vi.fn>;
         listCommands: ReturnType<typeof vi.fn>;
         respondToPermission: ReturnType<typeof vi.fn>;
         sendMessage: ReturnType<typeof vi.fn>;
+        setFeature: ReturnType<typeof vi.fn>;
+        setModel: ReturnType<typeof vi.fn>;
         timelines: Map<
           string,
           {
@@ -29,6 +34,14 @@ const conversationsRef = vi.hoisted(() => ({
 
 vi.mock('@renderer/features/tasks/task-view-context', () => ({
   useConversations: () => conversationsRef.current,
+}));
+
+vi.mock('@renderer/features/tasks/tabs/tab-group-context', () => ({
+  useTabGroupContext: () => ({
+    tabManager: {
+      openConversation: vi.fn(),
+    },
+  }),
 }));
 
 vi.mock('@renderer/lib/ui/markdown-renderer', () => ({
@@ -89,9 +102,13 @@ describe('ChatConversationPanel', () => {
   let container: HTMLDivElement;
   let sendMessage: ReturnType<typeof vi.fn>;
   let cancelTurn: ReturnType<typeof vi.fn>;
+  let createConversation: ReturnType<typeof vi.fn>;
   let executeCommand: ReturnType<typeof vi.fn>;
+  let getControls: ReturnType<typeof vi.fn>;
   let listCommands: ReturnType<typeof vi.fn>;
   let respondToPermission: ReturnType<typeof vi.fn>;
+  let setFeature: ReturnType<typeof vi.fn>;
+  let setModel: ReturnType<typeof vi.fn>;
   let startTimeline: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
@@ -101,16 +118,25 @@ describe('ChatConversationPanel', () => {
     root = createRoot(container);
     sendMessage = vi.fn().mockResolvedValue(undefined);
     cancelTurn = vi.fn().mockResolvedValue(undefined);
+    createConversation = vi.fn().mockResolvedValue(undefined);
     executeCommand = vi.fn().mockResolvedValue(undefined);
+    getControls = vi.fn().mockResolvedValue({ models: [], features: [] });
     listCommands = vi.fn().mockResolvedValue([]);
     respondToPermission = vi.fn().mockResolvedValue(undefined);
+    setFeature = vi.fn().mockResolvedValue({ models: [], features: [] });
+    setModel = vi.fn().mockResolvedValue({ models: [], features: [] });
     startTimeline = vi.fn();
     conversationsRef.current = {
       cancelTurn,
+      conversations: new Map(),
+      createConversation,
       executeCommand,
+      getControls,
       listCommands,
       respondToPermission,
       sendMessage,
+      setFeature,
+      setModel,
       timelines: new Map([
         [
           'conversation-1',
@@ -184,7 +210,7 @@ describe('ChatConversationPanel', () => {
 
     const textarea = container.querySelector('textarea')!;
     await act(async () => {
-      setTextareaValue(textarea, '/c');
+      setTextareaValue(textarea, '/co');
     });
     await act(async () => {
       await Promise.resolve();
@@ -224,7 +250,7 @@ describe('ChatConversationPanel', () => {
 
     const textarea = container.querySelector('textarea')!;
     await act(async () => {
-      setTextareaValue(textarea, '/c');
+      setTextareaValue(textarea, '/co');
     });
     await act(async () => {
       await Promise.resolve();

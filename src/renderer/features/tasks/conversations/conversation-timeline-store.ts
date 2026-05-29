@@ -1,6 +1,7 @@
 import { events, rpc } from '@renderer/lib/ipc';
 import type { IDisposable } from '@renderer/lib/stores/lifecycle';
 import { Resource } from '@renderer/lib/stores/resource';
+import type { ConversationControls } from '@shared/conversation-controls';
 import {
   type ConversationPermissionResponse,
   type ConversationMessageTimelineItem,
@@ -87,6 +88,24 @@ export class ConversationTimelineStore implements IDisposable {
 
   async listCommands(): Promise<ChatCommand[]> {
     return rpc.conversations.listCommands(this.projectId, this.taskId, this.conversationId);
+  }
+
+  async getControls(): Promise<ConversationControls> {
+    return rpc.conversations.getControls(this.projectId, this.taskId, this.conversationId);
+  }
+
+  async setModel(modelId: string): Promise<ConversationControls> {
+    return rpc.conversations.setModel(this.projectId, this.taskId, this.conversationId, modelId);
+  }
+
+  async setFeature(featureId: string, value: unknown): Promise<ConversationControls> {
+    return rpc.conversations.setFeature(
+      this.projectId,
+      this.taskId,
+      this.conversationId,
+      featureId,
+      value
+    );
   }
 
   async executeCommand(command: { name: string; args?: string }): Promise<void> {

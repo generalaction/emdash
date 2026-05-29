@@ -1,4 +1,5 @@
 import type { AgentProviderId } from '@shared/agent-provider-registry';
+import type { ConversationControls } from '@shared/conversation-controls';
 import type {
   AppendConversationTimelineItemInput,
   ConversationPermissionRequestTimelineItem,
@@ -61,4 +62,11 @@ export interface ChatProviderAdapter {
     session: ChatProviderSession,
     command: AgentSlashCommandInput
   ): Promise<void>;
+  getControls?(session: ChatProviderSession): Promise<ConversationControls>;
+  setModel?(session: ChatProviderSession, modelId: string): Promise<ConversationControls>;
+  setFeature?(
+    session: ChatProviderSession,
+    featureId: string,
+    value: unknown
+  ): Promise<ConversationControls>;
 }

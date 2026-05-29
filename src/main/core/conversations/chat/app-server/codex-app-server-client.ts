@@ -21,6 +21,35 @@ const ThreadStartResponseSchema = z
   })
   .passthrough();
 
+const CodexModelListResponseSchema = z
+  .object({
+    data: z
+      .array(
+        z
+          .object({
+            id: z.string(),
+            displayName: z.string().optional(),
+            description: z.string().optional(),
+            isDefault: z.boolean().optional(),
+            model: z.string().optional(),
+            defaultReasoningEffort: z.string().optional(),
+            supportedReasoningEfforts: z
+              .array(
+                z
+                  .object({
+                    reasoningEffort: z.string().optional(),
+                    description: z.string().optional(),
+                  })
+                  .passthrough()
+              )
+              .optional(),
+          })
+          .passthrough()
+      )
+      .optional(),
+  })
+  .passthrough();
+
 const ThreadStartedNotificationSchema = z
   .object({
     thread: z.object({ id: z.string() }).passthrough(),
@@ -227,6 +256,19 @@ export type CodexSkill = {
   path: string;
 };
 
+export type CodexModel = {
+  id: string;
+  displayName?: string;
+  description?: string;
+  isDefault?: boolean;
+  model?: string;
+  defaultReasoningEffort?: string;
+  supportedReasoningEfforts?: Array<{
+    reasoningEffort?: string;
+    description?: string;
+  }>;
+};
+
 export type CodexSandboxPolicy =
   | { type: 'readOnly' }
   | { type: 'workspaceWrite'; networkAccess: boolean }
@@ -328,11 +370,21 @@ export class CodexAppServerClient {
     return Array.from(skillsByName.values());
   }
 
+  async listModels(): Promise<CodexModel[]> {
+    const response = CodexModelListResponseSchema.parse(
+      await this.transport.request('model/list', {}, 10_000)
+    );
+    return response.data ?? [];
+  }
+
   async startTurn(params: {
     approvalPolicy: string;
     cwd: string;
+    effort?: string;
     input: CodexUserInput[];
+    model?: string;
     sandboxPolicy: CodexSandboxPolicy;
+    serviceTier?: 'fast';
     threadId: string;
   }): Promise<void> {
     await this.transport.request('turn/start', params, 90_000);

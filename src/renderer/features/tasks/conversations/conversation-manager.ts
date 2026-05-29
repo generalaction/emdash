@@ -6,6 +6,7 @@ import type { IDisposable } from '@renderer/lib/stores/lifecycle';
 import { Resource } from '@renderer/lib/stores/resource';
 import { log } from '@renderer/utils/logger';
 import { soundPlayer } from '@renderer/utils/soundPlayer';
+import type { ConversationControls } from '@shared/conversation-controls';
 import type {
   ConversationPermissionResponse,
   ConversationStatus,
@@ -326,6 +327,28 @@ export class ConversationManagerStore implements IDisposable {
     const timeline = this.timelines.get(conversationId);
     if (!timeline) throw new Error('Conversation timeline not found');
     return timeline.listCommands();
+  }
+
+  async getControls(conversationId: string): Promise<ConversationControls> {
+    const timeline = this.timelines.get(conversationId);
+    if (!timeline) throw new Error('Conversation timeline not found');
+    return timeline.getControls();
+  }
+
+  async setModel(conversationId: string, modelId: string): Promise<ConversationControls> {
+    const timeline = this.timelines.get(conversationId);
+    if (!timeline) throw new Error('Conversation timeline not found');
+    return timeline.setModel(modelId);
+  }
+
+  async setFeature(
+    conversationId: string,
+    featureId: string,
+    value: unknown
+  ): Promise<ConversationControls> {
+    const timeline = this.timelines.get(conversationId);
+    if (!timeline) throw new Error('Conversation timeline not found');
+    return timeline.setFeature(featureId, value);
   }
 
   async executeCommand(

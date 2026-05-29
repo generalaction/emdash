@@ -1,5 +1,6 @@
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
+import type { ConversationControls } from '@shared/conversation-controls';
 import {
   type ConversationMessageTimelineItem,
   type ConversationPermissionResponse,
@@ -234,6 +235,47 @@ export class ChatConversationRuntime {
   ): Promise<AgentSlashCommand[]> {
     const active = await this.requireActive(projectId, taskId, conversationId);
     return active.adapter.listCommands?.(active.session) ?? [];
+  }
+
+  async getControls(
+    projectId: string,
+    taskId: string,
+    conversationId: string
+  ): Promise<ConversationControls> {
+    const active = await this.requireActive(projectId, taskId, conversationId);
+    return (
+      active.adapter.getControls?.(active.session) ?? {
+        models: [],
+        features: [],
+      }
+    );
+  }
+
+  async setModel(
+    projectId: string,
+    taskId: string,
+    conversationId: string,
+    modelId: string
+  ): Promise<ConversationControls> {
+    const active = await this.requireActive(projectId, taskId, conversationId);
+    if (!active.adapter.setModel) {
+      throw new Error('Model selection is not supported by this chat provider');
+    }
+    return active.adapter.setModel(active.session, modelId);
+  }
+
+  async setFeature(
+    projectId: string,
+    taskId: string,
+    conversationId: string,
+    featureId: string,
+    value: unknown
+  ): Promise<ConversationControls> {
+    const active = await this.requireActive(projectId, taskId, conversationId);
+    if (!active.adapter.setFeature) {
+      throw new Error('Feature controls are not supported by this chat provider');
+    }
+    return active.adapter.setFeature(active.session, featureId, value);
   }
 
   async executeSlashCommand(

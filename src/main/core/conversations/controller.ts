@@ -4,6 +4,7 @@ import { createConversation } from './createConversation';
 import { dehydrateConversation } from './dehydrateConversation';
 import { deleteConversation } from './deleteConversation';
 import { executeCommand } from './executeConversationCommand';
+import { getControls } from './getConversationControls';
 import { getConversations } from './getConversations';
 import { getConversationsForTask } from './getConversationsForTask';
 import { getTimeline } from './getConversationTimeline';
@@ -12,6 +13,8 @@ import { listCommands } from './listConversationCommands';
 import { renameConversation } from './renameConversation';
 import { respondToPermission } from './respondToConversationPermission';
 import { sendMessage } from './sendConversationMessage';
+import { setFeature } from './setConversationFeature';
+import { setModel } from './setConversationModel';
 
 export const conversationController = createRPCController({
   getConversations,
@@ -27,4 +30,7 @@ export const conversationController = createRPCController({
   respondToPermission,
   listCommands,
   executeCommand,
+  getControls,
+  setModel,
+  setFeature,
 });
