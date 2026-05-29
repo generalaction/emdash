@@ -25,6 +25,17 @@ describe('formatPushErrorDetail', () => {
     );
   });
 
+  it('does not classify generic fatal repository messages as repository-not-found failures', () => {
+    const message =
+      "fatal: repository 'https://github.com/orbit-logistics/orbit/' is not accessible (You are missing read permission...)";
+    const detail = formatPushErrorDetail({
+      type: 'error',
+      message,
+    });
+
+    expect(detail).toBe(message);
+  });
+
   it('preserves unrelated git error messages', () => {
     const detail = formatPushErrorDetail({
       type: 'rejected',

@@ -45,7 +45,7 @@ export function formatPushErrorDetail(error: PushLikeError): string {
   if (
     normalized.includes('github.com') &&
     (normalized.includes('repository not found') ||
-      normalized.includes('fatal: repository') ||
+      (normalized.includes('fatal: repository') && normalized.includes('not found')) ||
       normalized.includes('not found'))
   ) {
     return GITHUB_REPOSITORY_ACCESS_ERROR;
