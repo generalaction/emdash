@@ -1,5 +1,7 @@
 import type { SkillFrontmatter } from './types';
 
+type BlockScalarStyle = 'literal' | 'folded';
+
 /** Validate a skill name: lowercase, hyphens, 1-64 chars */
 export function isValidSkillName(name: string): boolean {
   return /^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]?$/.test(name) && !name.includes('--');
@@ -21,21 +23,21 @@ export function parseFrontmatter(content: string): {
   const yamlBlock = match[1];
   const body = match[2];
   const frontmatter: Record<string, string> = {};
+  const lines = yamlBlock.split('\n');
 
-  for (const line of yamlBlock.split('\n')) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     const colonIdx = line.indexOf(':');
     if (colonIdx === -1) continue;
     const key = line.slice(0, colonIdx).trim();
     let value = line.slice(colonIdx + 1).trim();
-    const wasDoubleQuoted = value.startsWith('"') && value.endsWith('"');
-    const wasSingleQuoted = value.startsWith("'") && value.endsWith("'");
-    if (wasDoubleQuoted || wasSingleQuoted) {
-      value = value.slice(1, -1);
-      if (wasDoubleQuoted) {
-        value = value.replace(/\\"/g, '"').replace(/\\\\/g, '\\');
-      } else if (wasSingleQuoted) {
-        value = value.replace(/''/g, "'");
-      }
+    const blockScalarStyle = getBlockScalarStyle(value);
+    if (blockScalarStyle) {
+      const { value: blockValue, nextIndex } = parseBlockScalar(lines, i, blockScalarStyle);
+      value = blockValue;
+      i = nextIndex;
+    } else {
+      value = unquoteYamlValue(value);
     }
     if (key) {
       frontmatter[key] = value;
@@ -52,6 +54,58 @@ export function parseFrontmatter(content: string): {
     },
     body,
   };
+}
+
+function getBlockScalarStyle(value: string): BlockScalarStyle | null {
+  if (/^\|[+-]?$/.test(value)) return 'literal';
+  if (/^>[+-]?$/.test(value)) return 'folded';
+  return null;
+}
+
+function parseBlockScalar(
+  lines: string[],
+  headerIndex: number,
+  style: BlockScalarStyle
+): { value: string; nextIndex: number } {
+  const headerIndent = countIndent(lines[headerIndex]);
+  const blockLines: string[] = [];
+  let nextIndex = headerIndex;
+
+  for (let i = headerIndex + 1; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.trim() && countIndent(line) <= headerIndent) break;
+    blockLines.push(line);
+    nextIndex = i;
+  }
+
+  const contentIndent = Math.min(
+    ...blockLines.filter((line) => line.trim()).map((line) => countIndent(line))
+  );
+  const normalizedLines = blockLines.map((line) =>
+    Number.isFinite(contentIndent) ? line.slice(contentIndent) : ''
+  );
+
+  if (style === 'folded') {
+    return {
+      value: normalizedLines.join(' ').replace(/\s+/g, ' ').trim(),
+      nextIndex,
+    };
+  }
+
+  return { value: normalizedLines.join('\n').trim(), nextIndex };
+}
+
+function countIndent(line: string): number {
+  const match = line.match(/^\s*/);
+  return match ? match[0].length : 0;
+}
+
+function unquoteYamlValue(value: string): string {
+  const wasDoubleQuoted = value.startsWith('"') && value.endsWith('"');
+  const wasSingleQuoted = value.startsWith("'") && value.endsWith("'");
+  if (wasDoubleQuoted) return value.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+  if (wasSingleQuoted) return value.slice(1, -1).replace(/''/g, "'");
+  return value;
 }
 
 function escapeYamlDoubleQuoted(s: string): string {

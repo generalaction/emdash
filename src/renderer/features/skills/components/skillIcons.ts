@@ -1,9 +1,9 @@
-const skillSvgs = import.meta.glob<string>('../../assets/images/skills/*.svg', {
+const skillSvgs = import.meta.glob<string>('../../../../assets/images/skills/*.svg', {
   query: '?raw',
   import: 'default',
   eager: true,
 });
-const mcpSvgs = import.meta.glob<string>('../../assets/images/mcp/*.svg', {
+const mcpSvgs = import.meta.glob<string>('../../../../assets/images/mcp/*.svg', {
   query: '?raw',
   import: 'default',
   eager: true,
@@ -47,6 +47,7 @@ const skillToIcon: Record<string, string> = {
   wrangler: 'cloudflare',
   'ai-sdk': 'vercel',
   'vercel-react-best-practices': 'vercel',
+  'find-docs': 'context7',
   'gh-issue-fix-flow': 'github',
   shadcn: 'shadcn',
   mysql: 'mysql',
@@ -60,6 +61,9 @@ const skillToIcon: Record<string, string> = {
   'frontend-design': 'anthropic',
   'webapp-testing': 'anthropic',
   'web-artifacts-builder': 'anthropic',
+  'find-skills': 'anthropic',
+  'review-and-refactor': 'anthropic',
+  'web-design-guidelines': 'anthropic',
   'mcp-builder': 'anthropic',
   'algorithmic-art': 'anthropic',
   'canvas-design': 'anthropic',
