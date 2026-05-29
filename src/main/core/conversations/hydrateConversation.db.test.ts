@@ -3,8 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TaskProvider } from '@main/core/projects/project-provider';
 import { taskManager } from '@main/core/tasks/task-manager';
 import { conversations } from '@main/db/schema';
+import { serializeConversationConfig } from '@shared/conversation-config';
 import { ok } from '@shared/result';
 import { chatConversationRuntime } from './chat/chat-conversation-runtime';
+import { chatTimelineStore } from './chat/chat-timeline-store';
 import { hydrateConversation } from './hydrateConversation';
 
 const mocks = vi.hoisted(() => ({
@@ -21,7 +23,8 @@ vi.mock('@main/db/client', () => ({
 async function seedConversation(
   fixture: Awaited<ReturnType<typeof openFixture>>,
   runtimeMode: 'terminal' | 'chat',
-  provider: 'codex' | 'claude' | 'grok' = 'codex'
+  provider: 'codex' | 'claude' | 'grok' = 'codex',
+  config: Parameters<typeof serializeConversationConfig>[0] = {}
 ) {
   fixture.sqlite
     .prepare(
@@ -58,6 +61,7 @@ async function seedConversation(
     taskId: 'task-1',
     title: 'Conversation 1',
     provider,
+    config: Object.keys(config).length > 0 ? serializeConversationConfig(config) : undefined,
     runtimeMode,
   });
 }
@@ -113,7 +117,7 @@ describe('hydrateConversation runtime mode', () => {
   });
 
   afterEach(async () => {
-    chatConversationRuntime.dehydrateConversation('conversation-1');
+    await chatConversationRuntime.dehydrateConversation('conversation-1');
     fixture.close();
     mocks.db = undefined;
     await taskManager.teardownTask('task-1', 'terminate');
@@ -152,15 +156,85 @@ describe('hydrateConversation runtime mode', () => {
     expect(chatConversationRuntime.isActive('conversation-1')).toBe(true);
   });
 
-  it('falls back to a PTY session for terminal-only chat rows', async () => {
-    await seedConversation(fixture, 'chat', 'grok');
+  it('hydrates Codex chat conversations with the stored provider session id for resume', async () => {
+    await seedConversation(fixture, 'chat', 'codex', {
+      providerSessionId: '019c95f6-cd96-7812-ba15-574286674599',
+    });
 
     await hydrateConversation('project-1', 'task-1', 'conversation-1');
 
     expect(mocks.startSession).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 'conversation-1',
-        providerId: 'grok',
+        providerId: 'codex',
+        providerSessionId: '019c95f6-cd96-7812-ba15-574286674599',
+        runtimeMode: 'chat',
+        resume: true,
+      }),
+      undefined,
+      true
+    );
+    expect(chatConversationRuntime.isActive('conversation-1')).toBe(true);
+  });
+
+  it('restores permission recovery rows when chat backend resume fails', async () => {
+    await seedConversation(fixture, 'chat');
+    await chatTimelineStore.append(
+      {
+        id: 'conversation-1',
+        projectId: 'project-1',
+        taskId: 'task-1',
+        providerId: 'codex',
+        title: 'Conversation 1',
+        lastInteractedAt: null,
+        isInitialConversation: false,
+        runtimeMode: 'chat',
+      },
+      {
+        id: 'permission-1',
+        kind: 'permission_request',
+        payload: {
+          requestId: 'permission-1',
+          title: 'Run command?',
+          options: [{ id: 'approve', label: 'Approve', kind: 'primary' }],
+          status: 'pending',
+        },
+      },
+      { upsert: true }
+    );
+    mocks.startSession.mockRejectedValueOnce(new Error('resume failed'));
+
+    await expect(hydrateConversation('project-1', 'task-1', 'conversation-1')).rejects.toThrow(
+      'resume failed'
+    );
+
+    expect(chatConversationRuntime.isActive('conversation-1')).toBe(false);
+    await expect(
+      chatTimelineStore.getPendingPermissionRequest(
+        {
+          id: 'conversation-1',
+          projectId: 'project-1',
+          taskId: 'task-1',
+          providerId: 'codex',
+          title: 'Conversation 1',
+          lastInteractedAt: null,
+          isInitialConversation: false,
+          runtimeMode: 'chat',
+        },
+        { requestId: 'permission-1', optionId: 'approve' }
+      )
+    ).resolves.toMatchObject({ requestId: 'permission-1', status: 'pending' });
+  });
+
+  it('falls back to a PTY session for chat-capable rows without a chat runtime adapter', async () => {
+    await seedConversation(fixture, 'chat', 'claude');
+
+    await hydrateConversation('project-1', 'task-1', 'conversation-1');
+
+    expect(mocks.startSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'conversation-1',
+        providerId: 'claude',
         runtimeMode: 'chat',
         resume: true,
       }),

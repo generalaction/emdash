@@ -10,6 +10,8 @@ import { deleteConversation } from './deleteConversation';
 const mocks = vi.hoisted(() => ({
   db: undefined as unknown,
   stopSession: vi.fn(),
+  emitDeleted: vi.fn(),
+  logWarn: vi.fn(),
   captureTelemetry: vi.fn(),
 }));
 
@@ -22,6 +24,18 @@ vi.mock('@main/db/client', () => ({
 vi.mock('@main/lib/telemetry', () => ({
   telemetryService: {
     capture: mocks.captureTelemetry,
+  },
+}));
+
+vi.mock('@main/lib/logger', () => ({
+  log: {
+    warn: mocks.logWarn,
+  },
+}));
+
+vi.mock('./conversation-events', () => ({
+  conversationEvents: {
+    _emit: mocks.emitDeleted,
   },
 }));
 
@@ -124,7 +138,7 @@ describe('deleteConversation runtime cleanup', () => {
   });
 
   afterEach(async () => {
-    chatConversationRuntime.dehydrateConversation('conversation-1');
+    await chatConversationRuntime.dehydrateConversation('conversation-1');
     fixture.close();
     mocks.db = undefined;
     await taskManager.teardownTask('task-1', 'terminate');
@@ -137,5 +151,45 @@ describe('deleteConversation runtime cleanup', () => {
 
     expect(chatConversationRuntime.isActive('conversation-1')).toBe(false);
     expect(mocks.stopSession).toHaveBeenCalledWith('conversation-1');
+    expect(mocks.emitDeleted).toHaveBeenCalledWith('conversation:deleted', 'conversation-1');
+  });
+
+  it('keeps runtime active when the database delete fails', async () => {
+    const where = vi.fn().mockRejectedValue(new Error('delete failed'));
+    const deleteFrom = vi.fn().mockReturnValue({ where });
+    mocks.db = { delete: deleteFrom };
+
+    await expect(deleteConversation('project-1', 'task-1', 'conversation-1')).rejects.toThrow(
+      'delete failed'
+    );
+
+    expect(mocks.stopSession).not.toHaveBeenCalled();
+    expect(chatConversationRuntime.isActive('conversation-1')).toBe(true);
+    expect(mocks.emitDeleted).not.toHaveBeenCalled();
+  });
+
+  it('keeps deletion successful when backend stop fails after database deletion', async () => {
+    mocks.stopSession.mockRejectedValueOnce(new Error('stop failed'));
+
+    await expect(deleteConversation('project-1', 'task-1', 'conversation-1')).resolves.toBe(
+      undefined
+    );
+
+    const row = await fixture.db.query.conversations.findFirst({
+      where: (table, { eq }) => eq(table.id, 'conversation-1'),
+    });
+    expect(row).toBeUndefined();
+    expect(mocks.stopSession).toHaveBeenCalledWith('conversation-1');
+    expect(mocks.logWarn).toHaveBeenCalledWith(
+      'deleteConversation: failed to stop deleted conversation backend',
+      expect.objectContaining({ conversationId: 'conversation-1' })
+    );
+    expect(chatConversationRuntime.isActive('conversation-1')).toBe(false);
+    expect(mocks.emitDeleted).toHaveBeenCalledWith('conversation:deleted', 'conversation-1');
+    expect(mocks.captureTelemetry).toHaveBeenCalledWith('conversation_deleted', {
+      project_id: 'project-1',
+      task_id: 'task-1',
+      conversation_id: 'conversation-1',
+    });
   });
 });

@@ -136,7 +136,7 @@ describe('createConversation runtime mode', () => {
   });
 
   afterEach(async () => {
-    chatConversationRuntime.dehydrateConversation('conversation-1');
+    await chatConversationRuntime.dehydrateConversation('conversation-1');
     fixture.close();
     mocks.db = undefined;
     await taskManager.teardownTask('task-1', 'terminate');
@@ -272,7 +272,7 @@ describe('createConversation runtime mode', () => {
     emit.mockRestore();
   });
 
-  it('falls back to terminal runtime for terminal-only providers', async () => {
+  it('falls back to terminal runtime for chat-capable providers without chat runtime adapters', async () => {
     await setConversationUiMode('chat');
 
     const conversation = await createConversation({
@@ -280,7 +280,7 @@ describe('createConversation runtime mode', () => {
       projectId: 'project-1',
       taskId: 'task-1',
       title: 'Terminal fallback',
-      provider: 'grok',
+      provider: 'claude',
     });
 
     const [row] = await fixture.db

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { and, asc, desc, eq, gt, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, or, sql } from 'drizzle-orm';
 import { db as defaultDb, type AppDb } from '@main/db/client';
 import { conversationTimelineItems, conversations } from '@main/db/schema';
 import { events } from '@main/lib/events';
@@ -274,7 +274,9 @@ function payloadForUpsert(
     'permission_request',
     parsePayload(existing.payload)
   ) as ConversationTimelineItemPayload<'permission_request'>;
-  if (existingPayload.status === 'pending') return nextPayload;
+  if (existingPayload.status === 'pending') {
+    return nextPayload;
+  }
   return existingPayload;
 }
 
@@ -417,43 +419,210 @@ export class ChatTimelineStore {
     const option = request.options.find((candidate) => candidate.id === response.optionId);
     if (!option) throw new Error('Permission option not found');
     const status = permissionResponseStatus(option);
-    const updated = (await this.append(
-      conversation,
-      {
-        id: request.id,
-        kind: 'permission_request',
-        payload: {
-          requestId: request.requestId,
-          title: request.title,
-          body: request.body,
-          options: request.options,
-          status,
-        },
-      },
-      { upsert: true }
-    )) as ConversationPermissionRequestTimelineItem;
+    const payload = JSON.stringify({
+      requestId: request.requestId,
+      title: request.title,
+      body: request.body,
+      options: request.options,
+      status,
+    });
+    const [row] = await this.db
+      .update(conversationTimelineItems)
+      .set({ payload })
+      .where(
+        and(
+          eq(conversationTimelineItems.conversationId, conversation.id),
+          eq(conversationTimelineItems.kind, 'permission_request'),
+          or(
+            eq(conversationTimelineItems.id, request.id),
+            eq(conversationTimelineItems.id, stableTimelineItemId(conversation.id, request.id))
+          ),
+          sql`case when json_valid(${conversationTimelineItems.payload}) then json_extract(${conversationTimelineItems.payload}, '$.status') else null end = 'pending'`
+        )
+      )
+      .returning();
+    if (!row) throw new Error('Permission request is not pending');
+    const updated = restoreStableTimelineItemId(
+      conversation.id,
+      rowToTimelineItem(row)
+    ) as ConversationPermissionRequestTimelineItem;
+    this.emitTimelineItem(conversation, updated);
     return updated;
   }
 
-  async cancelPendingPermissionRequests(conversation: Conversation): Promise<void> {
-    const requests = await this.listPendingPermissionRequests(conversation);
-    for (const request of requests) {
-      await this.append(
-        conversation,
-        {
-          id: request.id,
-          kind: 'permission_request',
-          payload: {
-            requestId: request.requestId,
-            title: request.title,
-            body: request.body,
-            options: request.options,
-            status: 'cancelled',
-          },
-        },
-        { upsert: true }
+  async reopenCancelledPermissionRequest(
+    conversation: Conversation,
+    input: Extract<AppendConversationTimelineItemInput, { kind: 'permission_request' }>,
+    cancelledIds: readonly string[]
+  ): Promise<ConversationPermissionRequestTimelineItem | undefined> {
+    if (input.payload.status !== 'pending' || cancelledIds.length === 0) return undefined;
+    validatePayload(input.kind, input.payload as Record<string, unknown>);
+    const persisted = await this.requireChatConversation(
+      conversation.projectId,
+      conversation.taskId,
+      conversation.id
+    );
+    const scopedIds = cancelledIds.flatMap((id) => [id, stableTimelineItemId(persisted.id, id)]);
+    const exactIds =
+      input.id && scopedIds.includes(input.id)
+        ? [input.id, stableTimelineItemId(persisted.id, input.id)]
+        : undefined;
+    const payload = JSON.stringify(input.payload);
+    const [row] = this.db.transaction((tx) => {
+      const [candidate] = tx
+        .select()
+        .from(conversationTimelineItems)
+        .where(
+          and(
+            eq(conversationTimelineItems.conversationId, persisted.id),
+            eq(conversationTimelineItems.kind, 'permission_request'),
+            inArray(conversationTimelineItems.id, exactIds ?? scopedIds),
+            sql`case when json_valid(${conversationTimelineItems.payload}) then json_extract(${conversationTimelineItems.payload}, '$.status') else null end = 'cancelled'`
+          )
+        )
+        .orderBy(desc(conversationTimelineItems.sequence))
+        .limit(1)
+        .all();
+      if (!candidate) return [];
+      return tx
+        .update(conversationTimelineItems)
+        .set({ payload })
+        .where(eq(conversationTimelineItems.id, candidate.id))
+        .returning()
+        .all();
+    });
+    if (!row) return undefined;
+    const updated = restoreStableTimelineItemId(
+      persisted.id,
+      rowToTimelineItem(row)
+    ) as ConversationPermissionRequestTimelineItem;
+    this.emitTimelineItem(persisted, updated);
+    return updated;
+  }
+
+  async restoreCancelledPermissionRequests(
+    conversation: Conversation,
+    ids: readonly string[]
+  ): Promise<ConversationPermissionRequestTimelineItem[]> {
+    if (ids.length === 0) return [];
+    const scopedIds = ids.flatMap((id) => [id, stableTimelineItemId(conversation.id, id)]);
+    const rows = await this.db
+      .select()
+      .from(conversationTimelineItems)
+      .where(
+        and(
+          eq(conversationTimelineItems.conversationId, conversation.id),
+          eq(conversationTimelineItems.kind, 'permission_request'),
+          inArray(conversationTimelineItems.id, scopedIds),
+          sql`case when json_valid(${conversationTimelineItems.payload}) then json_extract(${conversationTimelineItems.payload}, '$.status') else null end = 'cancelled'`
+        )
       );
+    const restored: ConversationPermissionRequestTimelineItem[] = [];
+    for (const row of rows) {
+      const item = restoreStableTimelineItemId(
+        conversation.id,
+        rowToTimelineItem(row)
+      ) as ConversationPermissionRequestTimelineItem;
+      const payload = JSON.stringify({
+        requestId: item.requestId,
+        title: item.title,
+        body: item.body,
+        options: item.options,
+        status: 'pending',
+      });
+      const [updatedRow] = await this.db
+        .update(conversationTimelineItems)
+        .set({ payload })
+        .where(
+          and(
+            eq(conversationTimelineItems.id, row.id),
+            sql`case when json_valid(${conversationTimelineItems.payload}) then json_extract(${conversationTimelineItems.payload}, '$.status') else null end = 'cancelled'`
+          )
+        )
+        .returning();
+      if (!updatedRow) continue;
+      const updated = restoreStableTimelineItemId(
+        conversation.id,
+        rowToTimelineItem(updatedRow)
+      ) as ConversationPermissionRequestTimelineItem;
+      restored.push(updated);
+      this.emitTimelineItem(conversation, updated);
     }
+    return restored;
+  }
+
+  async restorePendingPermissionRequest(
+    conversation: Conversation,
+    request: ConversationPermissionRequestTimelineItem
+  ): Promise<ConversationPermissionRequestTimelineItem> {
+    const payload = JSON.stringify({
+      requestId: request.requestId,
+      title: request.title,
+      body: request.body,
+      options: request.options,
+      status: 'pending',
+    });
+    const [row] = await this.db
+      .update(conversationTimelineItems)
+      .set({ payload })
+      .where(
+        and(
+          eq(conversationTimelineItems.conversationId, conversation.id),
+          eq(conversationTimelineItems.kind, 'permission_request'),
+          or(
+            eq(conversationTimelineItems.id, request.id),
+            eq(conversationTimelineItems.id, stableTimelineItemId(conversation.id, request.id))
+          ),
+          sql`case when json_valid(${conversationTimelineItems.payload}) then json_extract(${conversationTimelineItems.payload}, '$.status') else null end in ('approved', 'denied')`
+        )
+      )
+      .returning();
+    if (!row) throw new Error('Permission request could not be restored');
+    const restored = restoreStableTimelineItemId(
+      conversation.id,
+      rowToTimelineItem(row)
+    ) as ConversationPermissionRequestTimelineItem;
+    this.emitTimelineItem(conversation, restored);
+    return restored;
+  }
+
+  async cancelPendingPermissionRequests(
+    conversation: Conversation
+  ): Promise<ConversationPermissionRequestTimelineItem[]> {
+    const requests = await this.listPendingPermissionRequests(conversation);
+    const cancelled: ConversationPermissionRequestTimelineItem[] = [];
+    for (const request of requests) {
+      const payload = JSON.stringify({
+        requestId: request.requestId,
+        title: request.title,
+        body: request.body,
+        options: request.options,
+        status: 'cancelled',
+      });
+      const [row] = await this.db
+        .update(conversationTimelineItems)
+        .set({ payload })
+        .where(
+          and(
+            eq(conversationTimelineItems.conversationId, conversation.id),
+            eq(conversationTimelineItems.kind, 'permission_request'),
+            or(
+              eq(conversationTimelineItems.id, request.id),
+              eq(conversationTimelineItems.id, stableTimelineItemId(conversation.id, request.id))
+            ),
+            sql`case when json_valid(${conversationTimelineItems.payload}) then json_extract(${conversationTimelineItems.payload}, '$.status') else null end = 'pending'`
+          )
+        )
+        .returning();
+      if (!row) continue;
+      const item = restoreStableTimelineItemId(
+        conversation.id,
+        rowToTimelineItem(row)
+      ) as ConversationPermissionRequestTimelineItem;
+      cancelled.push(item);
+      this.emitTimelineItem(conversation, item);
+    }
+    return cancelled;
   }
 
   async appendUserMessage(

@@ -24,13 +24,38 @@ describe('resolveConversationRuntimeMode', () => {
     ).toBe('terminal');
   });
 
-  it('falls back to terminal for Paseo-supported providers before an Emdash runtime exists', () => {
-    expect(
-      resolveConversationRuntimeMode({
-        providerId: 'claude',
-        requestedMode: 'chat',
-      })
-    ).toBe('terminal');
+  it('falls back to terminal for Paseo-supported providers before an Emdash runtime adapter exists', () => {
+    const unsupportedProviders = [
+      'claude',
+      'copilot',
+      'cursor',
+      'opencode',
+      'pi',
+      'devin',
+      'gemini',
+      'qwen',
+      'droid',
+      'amp',
+      'hermes',
+      'auggie',
+      'goose',
+      'kimi',
+      'kilocode',
+      'kiro',
+      'cline',
+      'mistral',
+      'junie',
+      'autohand',
+    ] as const;
+
+    for (const providerId of unsupportedProviders) {
+      expect(
+        resolveConversationRuntimeMode({
+          providerId,
+          requestedMode: 'chat',
+        })
+      ).toBe('terminal');
+    }
   });
 
   it('keeps terminal mode when terminal is requested for a chat-capable provider', () => {
@@ -47,6 +72,7 @@ describe('supportsChatRuntime', () => {
   it('requires an Emdash runtime adapter, not only provider UI capability', () => {
     expect(supportsChatRuntime('codex')).toBe(true);
     expect(supportsChatRuntime('claude')).toBe(false);
+    expect(supportsChatRuntime('opencode')).toBe(false);
   });
 });
 
@@ -54,5 +80,6 @@ describe('shouldUseChatRuntime', () => {
   it('uses chat rows only when an adapter is available', () => {
     expect(shouldUseChatRuntime({ providerId: 'codex', runtimeMode: 'chat' })).toBe(true);
     expect(shouldUseChatRuntime({ providerId: 'claude', runtimeMode: 'chat' })).toBe(false);
+    expect(shouldUseChatRuntime({ providerId: 'opencode', runtimeMode: 'chat' })).toBe(false);
   });
 });

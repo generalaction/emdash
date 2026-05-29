@@ -45,6 +45,10 @@ type ActiveChatConversation = {
   lastAssistantMessage?: string;
   nextTurnId: number;
   pendingTurn?: PendingTurn;
+  permissionResponseRestoredDuringCancellation?: boolean;
+  permissionResponseInFlight?: boolean;
+  recoveringFromHydration?: boolean;
+  recoveryCancelledPermissionIds?: string[];
   suppressProviderEventsUntilNextSend?: boolean;
 };
 
@@ -67,17 +71,35 @@ export class ChatConversationRuntime {
         text,
       });
     } catch (error) {
-      this.dehydrateConversation(conversation.id);
+      await this.dehydrateConversation(conversation.id);
       throw error;
     }
   }
 
   async hydrateConversation(conversation: Conversation): Promise<void> {
-    await this.activateConversation(conversation);
+    const active = this.activeConversations.get(conversation.id);
+    if (active) {
+      active.conversation = conversation;
+      return;
+    }
+    await this.activateConversation(conversation, { recoveringFromHydration: true });
   }
 
-  dehydrateConversation(conversationId: string): void {
+  async dehydrateConversation(
+    conversationId: string,
+    options: { restoreHydrationRecovery?: boolean } = {}
+  ): Promise<void> {
+    const active = this.activeConversations.get(conversationId);
     this.activeConversations.delete(conversationId);
+    if (!active || options.restoreHydrationRecovery === false) return;
+    await this.restoreHydrationPermissionRecovery(active);
+  }
+
+  async abortHydratedConversation(conversationId: string): Promise<void> {
+    const active = this.activeConversations.get(conversationId);
+    this.activeConversations.delete(conversationId);
+    if (!active) return;
+    await this.restoreHydrationPermissionRecovery(active);
   }
 
   async cancelPendingPermissionRequestsForConversation(conversationId: string): Promise<void> {
@@ -105,6 +127,7 @@ export class ChatConversationRuntime {
     if (!active) throw new Error('Conversation chat runtime is not active');
     if (active.awaitingInput) throw new Error('Agent is awaiting input');
     if (active.awaitingResponse) throw new Error('Agent is still responding');
+    if (active.permissionResponseInFlight) throw new Error('Agent is still responding');
     if (active.pendingTurn) throw new Error('A message is already being sent');
 
     const turnId = ++active.nextTurnId;
@@ -114,6 +137,8 @@ export class ChatConversationRuntime {
     active.cancellationBufferedEvents = undefined;
     active.cancellationInFlight = false;
     active.lastAssistantMessage = undefined;
+    active.permissionResponseInFlight = false;
+    this.clearHydrationRecovery(active);
     active.suppressProviderEventsUntilNextSend = false;
     active.pendingTurn = {
       backendStarted: false,
@@ -328,7 +353,6 @@ export class ChatConversationRuntime {
     const active = this.activeConversations.get(conversationId);
     const wasCancelled = active?.cancelled;
     const wasAwaitingInput = active?.awaitingInput;
-    const wasAwaitingResponse = active?.awaitingResponse;
     const pendingTurn = active?.pendingTurn;
     const pendingTurnWasCancelled = pendingTurn?.cancelled;
     if (active?.cancelled && !active.awaitingResponse && !active.pendingTurn) {
@@ -340,6 +364,7 @@ export class ChatConversationRuntime {
       const userMessage = active.pendingTurn.userMessage;
       active.pendingTurn.cancelled = true;
       active.cancelled = true;
+      this.clearHydrationRecovery(active);
       active.awaitingInput = false;
       active.awaitingResponse = false;
       active.inputReady = false;
@@ -382,8 +407,11 @@ export class ChatConversationRuntime {
     } catch (error) {
       let processedBackendExit = false;
       if (active) {
+        const restoredPermissionDuringCancellation =
+          active.permissionResponseRestoredDuringCancellation ?? false;
         active.cancelled = wasCancelled;
-        active.awaitingInput = wasAwaitingInput;
+        active.awaitingInput = restoredPermissionDuringCancellation || wasAwaitingInput;
+        active.permissionResponseRestoredDuringCancellation = undefined;
         active.cancellationError = error;
         active.cancellationInFlight = false;
         active.resolveCancellation?.(false);
@@ -391,7 +419,9 @@ export class ChatConversationRuntime {
         active.resolveCancellation = undefined;
         const backendExit = active.cancellationBackendExit;
         active.cancellationBackendExit = undefined;
-        active.awaitingResponse = backendExit || active.pendingTurn ? wasAwaitingResponse : false;
+        active.awaitingResponse = restoredPermissionDuringCancellation
+          ? false
+          : active.awaitingResponse;
         if (pendingTurn && active.pendingTurn?.id === pendingTurn.id) {
           active.pendingTurn.cancelled = pendingTurnWasCancelled ?? false;
         }
@@ -435,6 +465,7 @@ export class ChatConversationRuntime {
       active.cancellationPromise = undefined;
       active.resolveCancellation = undefined;
       active.cancelled = true;
+      this.clearHydrationRecovery(active);
       if (active.pendingTurn) {
         active.pendingTurn.cancelled = true;
         if (active.pendingTurn.userMessage) {
@@ -445,6 +476,8 @@ export class ChatConversationRuntime {
       active.awaitingInput = false;
       active.awaitingResponse = false;
       active.inputReady = false;
+      active.permissionResponseInFlight = false;
+      active.permissionResponseRestoredDuringCancellation = undefined;
     }
     await this.cancelPendingPermissionRequests(conversation);
     await this.appendCancellationMarker(conversation);
@@ -499,18 +532,75 @@ export class ChatConversationRuntime {
     if (active.cancellationInFlight) {
       throw new Error('Agent cancellation is in progress');
     }
+    if (active.permissionResponseInFlight) {
+      throw new Error('Agent is not awaiting permission input');
+    }
     const respondToPermission = active.adapter.respondToPermission;
     if (!respondToPermission) {
       throw new Error('Permission responses are not supported by this chat provider');
     }
 
-    const request = await chatTimelineStore.getPendingPermissionRequest(conversation, response);
-    if (active.cancellationInFlight || !active.awaitingInput) {
-      throw new Error('Agent is not awaiting permission input');
-    }
-    await chatTimelineStore.resolvePermissionRequest(conversation, response);
+    active.permissionResponseInFlight = true;
     active.awaitingInput = false;
+    let request: Awaited<ReturnType<typeof chatTimelineStore.getPendingPermissionRequest>>;
+    const backendExitVersion = active.backendExitVersion;
+    try {
+      request = await chatTimelineStore.getPendingPermissionRequest(conversation, response);
+      await chatTimelineStore.resolvePermissionRequest(conversation, response);
+    } catch (error) {
+      active.permissionResponseInFlight = false;
+      if (
+        this.activeConversations.get(conversationId) === active &&
+        active.cancellationInFlight &&
+        !active.cancelled &&
+        active.backendExitVersion === backendExitVersion
+      ) {
+        active.awaitingInput = true;
+        active.permissionResponseRestoredDuringCancellation = true;
+      }
+      if (active.backendExitVersion !== backendExitVersion) {
+        throw new Error('Agent backend exited before permission response was sent');
+      }
+      if (
+        this.activeConversations.get(conversationId) === active &&
+        !active.cancelled &&
+        !active.cancellationInFlight
+      ) {
+        active.awaitingInput = true;
+      }
+      throw error;
+    }
+    if (this.activeConversations.get(conversationId) !== active) {
+      active.permissionResponseInFlight = false;
+      await this.revertPermissionResolutionBeforeBackendSend(conversation, active, request, {
+        cancel: false,
+      });
+      throw new Error('Conversation chat runtime is not active');
+    }
+    if (active.backendExitVersion !== backendExitVersion) {
+      active.permissionResponseInFlight = false;
+      await this.revertPermissionResolutionBeforeBackendSend(conversation, active, request, {
+        cancel: true,
+      });
+      throw new Error('Agent backend exited before permission response was sent');
+    }
+    if (active.cancellationInFlight) {
+      active.permissionResponseInFlight = false;
+      await this.revertPermissionResolutionBeforeBackendSend(conversation, active, request, {
+        cancel: false,
+        duringCancellation: true,
+      });
+      throw new Error('Agent cancellation is in progress');
+    }
+    if (active.cancelled) {
+      active.permissionResponseInFlight = false;
+      await this.revertPermissionResolutionBeforeBackendSend(conversation, active, request, {
+        cancel: true,
+      });
+      throw new Error('Agent cancellation is in progress');
+    }
     active.awaitingResponse = true;
+    active.permissionResponseInFlight = false;
     active.cancelled = false;
     active.suppressProviderEventsUntilNextSend = false;
     this.emitStatus(conversation, 'working');
@@ -523,8 +613,44 @@ export class ChatConversationRuntime {
         response
       );
     } catch (error) {
+      const cancellationWriteFailure =
+        this.activeConversations.get(conversationId) === active &&
+        active.backendExitVersion === backendExitVersion &&
+        active.cancellationInFlight &&
+        !active.cancelled;
+      if (cancellationWriteFailure) {
+        active.awaitingResponse = false;
+        active.inputReady = false;
+        await this.revertPermissionResolutionBeforeBackendSend(conversation, active, request, {
+          cancel: false,
+          duringCancellation: true,
+        });
+        throw error;
+      }
+      const staleFailure =
+        this.activeConversations.get(conversationId) !== active ||
+        active.backendExitVersion !== backendExitVersion ||
+        active.cancelled ||
+        active.cancellationInFlight ||
+        !active.awaitingResponse;
+      if (staleFailure) {
+        throw error;
+      }
       active.awaitingResponse = false;
       active.inputReady = false;
+      try {
+        await chatTimelineStore.restorePendingPermissionRequest(conversation, request);
+        active.awaitingInput = true;
+      } catch (restoreError) {
+        log.warn(
+          'ChatConversationRuntime: failed to restore permission request after backend write failure',
+          {
+            conversationId,
+            error: String(restoreError),
+            requestId: request.requestId,
+          }
+        );
+      }
       await chatTimelineStore
         .append(conversation, {
           kind: 'error',
@@ -536,7 +662,7 @@ export class ChatConversationRuntime {
             error: String(appendError),
           });
         });
-      this.emitStatus(conversation, 'error');
+      this.emitStatus(conversation, active.awaitingInput ? 'awaiting-input' : 'error');
       throw error;
     }
   }
@@ -563,9 +689,15 @@ export class ChatConversationRuntime {
       event.type === 'notification' &&
       !event.payload.lastAssistantMessage?.trim() &&
       (event.payload.notificationType === 'idle_prompt' ||
-        event.payload.notificationType === 'permission_prompt' ||
-        event.payload.notificationType === 'elicitation_dialog')
+        (event.payload.notificationType === 'permission_prompt' &&
+          !active.recoveringFromHydration) ||
+        (event.payload.notificationType === 'elicitation_dialog' &&
+          !active.recoveringFromHydration))
     ) {
+      if (active.recoveringFromHydration && event.payload.notificationType === 'idle_prompt') {
+        this.clearHydrationRecovery(active);
+        this.emitStatus(active.conversation, 'completed');
+      }
       return;
     }
 
@@ -596,7 +728,13 @@ export class ChatConversationRuntime {
 
     active.backendExitVersion += 1;
     active.inputReady = false;
-    if (!active.awaitingResponse && !active.pendingTurn && !active.awaitingInput) {
+    if (
+      !active.awaitingResponse &&
+      !active.pendingTurn &&
+      !active.awaitingInput &&
+      !active.permissionResponseInFlight &&
+      !active.recoveringFromHydration
+    ) {
       return;
     }
 
@@ -613,6 +751,7 @@ export class ChatConversationRuntime {
     if (active.cancelled) {
       active.awaitingInput = false;
       active.awaitingResponse = false;
+      active.permissionResponseInFlight = false;
       await this.cancelPendingPermissionRequests(active.conversation);
       this.emitStatus(active.conversation, 'idle');
       return;
@@ -620,9 +759,16 @@ export class ChatConversationRuntime {
 
     active.awaitingInput = false;
     active.awaitingResponse = false;
+    active.permissionResponseInFlight = false;
     active.pendingTurn = undefined;
     const status = event.exitCode === 0 ? 'completed' : 'error';
-    await this.cancelPendingPermissionRequests(active.conversation);
+    if (active.recoveringFromHydration && status === 'error') {
+      await this.restoreHydrationPermissionRecovery(active);
+    } else if (active.recoveringFromHydration) {
+      this.clearHydrationRecovery(active);
+    } else {
+      await this.cancelPendingPermissionRequests(active.conversation);
+    }
     if (status === 'error') {
       await chatTimelineStore
         .append(active.conversation, {
@@ -730,14 +876,17 @@ export class ChatConversationRuntime {
     }
   }
 
-  private async cancelPendingPermissionRequests(conversation: Conversation): Promise<void> {
+  private async cancelPendingPermissionRequests(
+    conversation: Conversation
+  ): Promise<Awaited<ReturnType<typeof chatTimelineStore.cancelPendingPermissionRequests>>> {
     try {
-      await chatTimelineStore.cancelPendingPermissionRequests(conversation);
+      return await chatTimelineStore.cancelPendingPermissionRequests(conversation);
     } catch (error) {
       log.warn('ChatConversationRuntime: failed to cancel pending permission requests', {
         conversationId: conversation.id,
         error: String(error),
       });
+      return [];
     }
   }
 
@@ -828,30 +977,12 @@ export class ChatConversationRuntime {
     event: AgentEvent
   ): Promise<void> {
     let duplicateResolvedPermissionRequest = false;
-    for (const mapped of active.adapter.mapAgentEvent(event)) {
+    let pendingPermissionRequestPersisted = false;
+    const statuses: ConversationStatus[] = [];
+    const mappedEvents = active.adapter.mapAgentEvent(event);
+    for (const mapped of mappedEvents) {
       if (mapped.type === 'status') {
-        if (mapped.status === 'awaiting-input' && duplicateResolvedPermissionRequest) {
-          continue;
-        }
-        if (
-          !active.awaitingResponse &&
-          (mapped.status === 'completed' || mapped.status === 'awaiting-input')
-        ) {
-          continue;
-        }
-        this.emitStatus(active.conversation, mapped.status);
-        if (
-          mapped.status === 'completed' ||
-          mapped.status === 'error' ||
-          mapped.status === 'awaiting-input'
-        ) {
-          active.awaitingResponse = false;
-        }
-        if (mapped.status === 'awaiting-input') {
-          active.awaitingInput = true;
-        } else if (mapped.status === 'completed' || mapped.status === 'error') {
-          active.awaitingInput = false;
-        }
+        statuses.push(mapped.status);
         continue;
       }
 
@@ -861,17 +992,30 @@ export class ChatConversationRuntime {
 
       try {
         if (mapped.item.id) {
-          const item = await chatTimelineStore.append(active.conversation, mapped.item, {
-            upsert: true,
-          });
+          const item =
+            active.recoveringFromHydration &&
+            mapped.item.kind === 'permission_request' &&
+            mapped.item.payload.status === 'pending'
+              ? await chatTimelineStore.reopenCancelledPermissionRequest(
+                  active.conversation,
+                  mapped.item,
+                  active.recoveryCancelledPermissionIds ?? []
+                )
+              : await chatTimelineStore.append(active.conversation, mapped.item, { upsert: true });
           duplicateResolvedPermissionRequest =
             mapped.item.kind === 'permission_request' &&
             mapped.item.payload.status === 'pending' &&
-            item.kind === 'permission_request' &&
+            item?.kind === 'permission_request' &&
             item.status !== 'pending';
+          pendingPermissionRequestPersisted =
+            mapped.item.kind === 'permission_request' &&
+            mapped.item.payload.status === 'pending' &&
+            item !== undefined &&
+            !duplicateResolvedPermissionRequest;
         } else {
           await chatTimelineStore.append(active.conversation, mapped.item);
           duplicateResolvedPermissionRequest = false;
+          pendingPermissionRequestPersisted = false;
         }
       } catch (error) {
         log.warn('ChatConversationRuntime: failed to append mapped timeline item', {
@@ -879,11 +1023,54 @@ export class ChatConversationRuntime {
           error: String(error),
           kind: mapped.item.kind,
         });
+        if (mapped.item.kind === 'permission_request' && mapped.item.payload.status === 'pending') {
+          pendingPermissionRequestPersisted = false;
+        }
         continue;
       }
       if (assistantText) {
         active.lastAssistantMessage = assistantText;
       }
+    }
+
+    for (const status of statuses) {
+      if (status === 'awaiting-input' && duplicateResolvedPermissionRequest) {
+        active.recoveringFromHydration = false;
+        active.recoveryCancelledPermissionIds = undefined;
+        continue;
+      }
+      if (status === 'awaiting-input' && !pendingPermissionRequestPersisted) {
+        active.recoveringFromHydration = false;
+        active.recoveryCancelledPermissionIds = undefined;
+        continue;
+      }
+      if (
+        !active.awaitingResponse &&
+        ((status === 'completed' && !active.recoveringFromHydration) ||
+          (status === 'awaiting-input' && !active.recoveringFromHydration))
+      ) {
+        if (status === 'completed' || status === 'awaiting-input') {
+          active.recoveringFromHydration = false;
+          active.recoveryCancelledPermissionIds = undefined;
+        }
+        continue;
+      }
+      this.emitStatus(active.conversation, status);
+      if (status === 'completed' || status === 'error' || status === 'awaiting-input') {
+        active.awaitingResponse = false;
+      }
+      if (status === 'awaiting-input') {
+        active.awaitingInput = true;
+        active.recoveringFromHydration = false;
+        active.recoveryCancelledPermissionIds = undefined;
+      } else if (status === 'completed' || status === 'error' || status === 'working') {
+        if (status === 'completed' || status === 'error') {
+          active.awaitingInput = false;
+          active.recoveringFromHydration = false;
+          active.recoveryCancelledPermissionIds = undefined;
+        }
+      }
+      pendingPermissionRequestPersisted = false;
     }
   }
 
@@ -893,8 +1080,10 @@ export class ChatConversationRuntime {
     );
     for (const [conversationId, active] of conversationsToDehydrate) {
       if (active.conversation.taskId === taskId) {
-        await this.cancelPendingPermissionRequests(active.conversation);
-        this.activeConversations.delete(conversationId);
+        if (!active.recoveringFromHydration) {
+          await this.cancelPendingPermissionRequests(active.conversation);
+        }
+        await this.dehydrateConversation(conversationId);
       }
     }
   }
@@ -945,16 +1134,95 @@ export class ChatConversationRuntime {
     return task.conversations;
   }
 
-  private async activateConversation(conversation: Conversation): Promise<void> {
+  private async activateConversation(
+    conversation: Conversation,
+    options: { recoveringFromHydration?: boolean } = {}
+  ): Promise<void> {
     await chatTimelineStore.recoverPendingUserMessages(conversation);
+    const cancelledPermissions = await this.cancelPendingPermissionRequests(conversation);
+    let lastAssistantMessage: string | undefined;
+    try {
+      lastAssistantMessage = await chatTimelineStore.getLatestAssistantMessage(conversation.id);
+    } catch (error) {
+      await this.restoreCancelledPermissionIds(
+        conversation,
+        cancelledPermissions.map((permission) => permission.id),
+        'activation failure'
+      );
+      throw error;
+    }
     this.activeConversations.set(conversation.id, {
       conversation,
       adapter: getChatProviderAdapter(conversation.providerId),
       backendExitVersion: 0,
       inputReady: false,
-      lastAssistantMessage: await chatTimelineStore.getLatestAssistantMessage(conversation.id),
+      lastAssistantMessage,
       nextTurnId: 0,
+      recoveringFromHydration:
+        (options.recoveringFromHydration ?? false) && cancelledPermissions.length > 0,
+      recoveryCancelledPermissionIds: cancelledPermissions.map((permission) => permission.id),
     });
+  }
+
+  private async restoreHydrationPermissionRecovery(active: ActiveChatConversation): Promise<void> {
+    if (!active.recoveringFromHydration) {
+      this.clearHydrationRecovery(active);
+      return;
+    }
+    const permissionIds = active.recoveryCancelledPermissionIds;
+    this.clearHydrationRecovery(active);
+    if (!permissionIds?.length) return;
+    await this.restoreCancelledPermissionIds(
+      active.conversation,
+      permissionIds,
+      'hydration permission recovery'
+    );
+  }
+
+  private async revertPermissionResolutionBeforeBackendSend(
+    conversation: Conversation,
+    active: ActiveChatConversation,
+    request: Awaited<ReturnType<typeof chatTimelineStore.getPendingPermissionRequest>>,
+    options: { cancel: boolean; duringCancellation?: boolean }
+  ): Promise<void> {
+    try {
+      await chatTimelineStore.restorePendingPermissionRequest(conversation, request);
+      if (options.duringCancellation) {
+        active.awaitingInput = true;
+        active.permissionResponseRestoredDuringCancellation = true;
+      }
+      if (options.cancel) {
+        await this.cancelPendingPermissionRequests(conversation);
+      }
+    } catch (error) {
+      log.warn('ChatConversationRuntime: failed to revert unsent permission response resolution', {
+        conversationId: active.conversation.id,
+        error: String(error),
+        requestId: request.requestId,
+      });
+    }
+  }
+
+  private async restoreCancelledPermissionIds(
+    conversation: Conversation,
+    permissionIds: string[],
+    reason: string
+  ): Promise<void> {
+    if (permissionIds.length === 0) return;
+    await chatTimelineStore
+      .restoreCancelledPermissionRequests(conversation, permissionIds)
+      .catch((error) => {
+        log.warn('ChatConversationRuntime: failed to restore cancelled permission rows', {
+          conversationId: conversation.id,
+          error: String(error),
+          reason,
+        });
+      });
+  }
+
+  private clearHydrationRecovery(active: ActiveChatConversation): void {
+    active.recoveringFromHydration = false;
+    active.recoveryCancelledPermissionIds = undefined;
   }
 
   private emitInputSubmitted(conversation: Conversation): void {

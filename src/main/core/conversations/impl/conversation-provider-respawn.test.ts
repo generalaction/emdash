@@ -9,6 +9,7 @@ import { SshConversationProvider } from './ssh-conversation';
 const spawnLocalPty = vi.hoisted(() => vi.fn());
 const openSsh2Pty = vi.hoisted(() => vi.fn());
 const agentSessionEmit = vi.hoisted(() => vi.fn());
+const killTmuxSession = vi.hoisted(() => vi.fn());
 
 vi.mock('@main/core/agent-hooks/agent-hook-service', () => ({
   agentHookService: {
@@ -52,6 +53,11 @@ vi.mock('@main/core/pty/ssh2-pty', () => ({
   openSsh2Pty,
 }));
 
+vi.mock('@main/core/pty/tmux-session-name', () => ({
+  killTmuxSession,
+  makeTmuxSessionName: vi.fn((sessionId: string) => `tmux-${sessionId}`),
+}));
+
 vi.mock('./agent-command', () => ({
   buildAgentSessionCommand: vi.fn(() => ({ command: 'agent', args: [] })),
 }));
@@ -92,6 +98,7 @@ vi.mock('@main/core/settings/settings-service', () => ({
 const { events } = await import('@main/lib/events');
 
 type RespawnState = {
+  knownSessionIds: Set<string>;
   respawnCounts: Map<string, number>;
 };
 
@@ -144,6 +151,7 @@ describe('conversation provider respawn state', () => {
     spawnLocalPty.mockReset();
     openSsh2Pty.mockReset();
     agentSessionEmit.mockReset();
+    killTmuxSession.mockReset();
     vi.mocked(events.emit).mockClear();
   });
 
@@ -341,5 +349,73 @@ describe('conversation provider respawn state', () => {
     await provider.stopSession('conversation-1');
 
     expect((provider as unknown as RespawnState).respawnCounts.has(sessionId)).toBe(false);
+  });
+
+  it('keeps local stop best-effort when tmux cleanup fails', async () => {
+    killTmuxSession.mockRejectedValueOnce(new Error('tmux failed'));
+    const provider = new LocalConversationProvider({
+      projectId: 'project-1',
+      taskId: 'task-1',
+      taskPath: '/tmp/task-1',
+      ctx: {} as never,
+      tmux: true,
+    });
+
+    await expect(provider.stopSession('conversation-1')).resolves.toBeUndefined();
+
+    expect(killTmuxSession).toHaveBeenCalledOnce();
+  });
+
+  it('keeps SSH stop best-effort when tmux cleanup fails', async () => {
+    killTmuxSession.mockRejectedValueOnce(new Error('tmux failed'));
+    const provider = new SshConversationProvider({
+      projectId: 'project-1',
+      taskId: 'task-1',
+      taskPath: '/tmp/task-1',
+      ctx: {} as never,
+      proxy: { getRemoteShellProfile: vi.fn(async () => ({})) } as never,
+      tmux: true,
+    });
+
+    await expect(provider.stopSession('conversation-1')).resolves.toBeUndefined();
+
+    expect(killTmuxSession).toHaveBeenCalledOnce();
+  });
+
+  it('keeps local destroyAll best-effort when tmux cleanup fails', async () => {
+    killTmuxSession.mockRejectedValueOnce(new Error('tmux failed'));
+    const provider = new LocalConversationProvider({
+      projectId: 'project-1',
+      taskId: 'task-1',
+      taskPath: '/tmp/task-1',
+      ctx: {} as never,
+      tmux: true,
+    });
+    const sessionId = makePtySessionId('project-1', 'task-1', 'conversation-1');
+    (provider as unknown as RespawnState).knownSessionIds.add(sessionId);
+
+    await expect(provider.destroyAll()).resolves.toBeUndefined();
+
+    expect(killTmuxSession).toHaveBeenCalledOnce();
+    expect((provider as unknown as RespawnState).knownSessionIds.has(sessionId)).toBe(false);
+  });
+
+  it('keeps SSH destroyAll best-effort when tmux cleanup fails', async () => {
+    killTmuxSession.mockRejectedValueOnce(new Error('tmux failed'));
+    const provider = new SshConversationProvider({
+      projectId: 'project-1',
+      taskId: 'task-1',
+      taskPath: '/tmp/task-1',
+      ctx: {} as never,
+      proxy: { getRemoteShellProfile: vi.fn(async () => ({})) } as never,
+      tmux: true,
+    });
+    const sessionId = makePtySessionId('project-1', 'task-1', 'conversation-1');
+    (provider as unknown as RespawnState).knownSessionIds.add(sessionId);
+
+    await expect(provider.destroyAll()).resolves.toBeUndefined();
+
+    expect(killTmuxSession).toHaveBeenCalledOnce();
+    expect((provider as unknown as RespawnState).knownSessionIds.has(sessionId)).toBe(false);
   });
 });

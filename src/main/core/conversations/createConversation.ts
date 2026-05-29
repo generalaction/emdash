@@ -91,7 +91,9 @@ export async function createConversation(params: CreateConversationParams): Prom
       );
     },
     compensate: async () => {
-      chatConversationRuntime.dehydrateConversation(row.id);
+      await chatConversationRuntime.dehydrateConversation(row.id, {
+        restoreHydrationRecovery: false,
+      });
       try {
         if (chatBackendSessionStarted) {
           await task.conversations.stopSession(row.id);

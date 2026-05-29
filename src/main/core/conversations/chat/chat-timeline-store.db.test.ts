@@ -264,6 +264,95 @@ describe('ChatTimelineStore', () => {
     );
   });
 
+  it('rejects a second permission resolution after the pending row is claimed', async () => {
+    const conversation = makeConversation();
+    await chatTimelineStore.append(conversation, {
+      id: 'permission-item-1',
+      kind: 'permission_request',
+      payload: {
+        requestId: 'permission-1',
+        title: 'Run command?',
+        body: 'Codex wants to run pnpm test.',
+        options: [
+          { id: 'approve', label: 'Approve', kind: 'primary' },
+          { id: 'deny', label: 'Deny', kind: 'danger' },
+        ],
+        status: 'pending',
+      },
+    });
+
+    await chatTimelineStore.resolvePermissionRequest(conversation, {
+      requestId: 'permission-1',
+      optionId: 'deny',
+    });
+
+    await expect(
+      chatTimelineStore.resolvePermissionRequest(conversation, {
+        requestId: 'permission-1',
+        optionId: 'approve',
+      })
+    ).rejects.toThrow('Permission request is not pending');
+    await expect(
+      chatTimelineStore.listTimeline('project-1', 'task-1', 'conversation-1')
+    ).resolves.toMatchObject([
+      {
+        id: 'permission-item-1',
+        kind: 'permission_request',
+        status: 'denied',
+      },
+    ]);
+  });
+
+  it('rejects stale permission resolution reads at the conditional update', async () => {
+    const conversation = makeConversation();
+    const pending = await chatTimelineStore.append(conversation, {
+      id: 'permission-item-1',
+      kind: 'permission_request',
+      payload: {
+        requestId: 'permission-1',
+        title: 'Run command?',
+        body: 'Codex wants to run pnpm test.',
+        options: [
+          { id: 'approve', label: 'Approve', kind: 'primary' },
+          { id: 'deny', label: 'Deny', kind: 'danger' },
+        ],
+        status: 'pending',
+      },
+    });
+    await chatTimelineStore.resolvePermissionRequest(conversation, {
+      requestId: 'permission-1',
+      optionId: 'approve',
+    });
+    if (pending.kind !== 'permission_request') {
+      throw new Error('Expected permission request item');
+    }
+    const staleRead = vi
+      .spyOn(chatTimelineStore, 'getPendingPermissionRequest')
+      .mockResolvedValueOnce(pending);
+
+    try {
+      await expect(
+        chatTimelineStore.resolvePermissionRequest(conversation, {
+          requestId: 'permission-1',
+          optionId: 'deny',
+        })
+      ).rejects.toThrow('Permission request is not pending');
+    } finally {
+      staleRead.mockRestore();
+    }
+
+    await expect(
+      chatTimelineStore.listTimeline('project-1', 'task-1', 'conversation-1')
+    ).resolves.toMatchObject([
+      {
+        id: 'permission-item-1',
+        kind: 'permission_request',
+        requestId: 'permission-1',
+        status: 'approved',
+      },
+    ]);
+  });
+
   it('does not reopen resolved permission requests on duplicate pending upserts', async () => {
     const conversation = makeConversation();
     await chatTimelineStore.append(conversation, {
@@ -317,6 +406,150 @@ describe('ChatTimelineStore', () => {
     ).rejects.toThrow('Permission request is not pending');
   });
 
+  it('does not reopen cancelled permission requests through default duplicate upserts', async () => {
+    const conversation = makeConversation();
+    await chatTimelineStore.append(
+      conversation,
+      {
+        id: 'permission-item-1',
+        kind: 'permission_request',
+        payload: {
+          requestId: 'permission-1',
+          title: 'Run command?',
+          options: [{ id: 'approve', label: 'Approve', kind: 'primary' }],
+          status: 'pending',
+        },
+      },
+      { upsert: true }
+    );
+    await chatTimelineStore.cancelPendingPermissionRequests(conversation);
+
+    const upserted = await chatTimelineStore.append(
+      conversation,
+      {
+        id: 'permission-item-1',
+        kind: 'permission_request',
+        payload: {
+          requestId: 'permission-1',
+          title: 'Run command?',
+          options: [{ id: 'approve', label: 'Approve', kind: 'primary' }],
+          status: 'pending',
+        },
+      },
+      { upsert: true }
+    );
+
+    expect(upserted).toMatchObject({
+      id: 'permission-item-1',
+      kind: 'permission_request',
+      status: 'cancelled',
+    });
+    await expect(
+      chatTimelineStore.getPendingPermissionRequest(conversation, {
+        requestId: 'permission-1',
+        optionId: 'approve',
+      })
+    ).rejects.toThrow('Permission request is not pending');
+  });
+
+  it('reopens cancelled permission requests when explicitly requested during recovery', async () => {
+    const conversation = makeConversation();
+    await chatTimelineStore.append(
+      conversation,
+      {
+        id: 'permission-item-1',
+        kind: 'permission_request',
+        payload: {
+          requestId: 'permission-1',
+          title: 'Run command?',
+          options: [{ id: 'approve', label: 'Approve', kind: 'primary' }],
+          status: 'pending',
+        },
+      },
+      { upsert: true }
+    );
+    await chatTimelineStore.cancelPendingPermissionRequests(conversation);
+
+    const upserted = await chatTimelineStore.reopenCancelledPermissionRequest(
+      conversation,
+      {
+        id: 'permission-item-1',
+        kind: 'permission_request',
+        payload: {
+          requestId: 'permission-1',
+          title: 'Run command?',
+          options: [{ id: 'approve', label: 'Approve', kind: 'primary' }],
+          status: 'pending',
+        },
+      },
+      ['permission-item-1']
+    );
+
+    expect(upserted).toMatchObject({
+      id: 'permission-item-1',
+      kind: 'permission_request',
+      status: 'pending',
+    });
+    await expect(
+      chatTimelineStore.getPendingPermissionRequest(conversation, {
+        requestId: 'permission-1',
+        optionId: 'approve',
+      })
+    ).resolves.toMatchObject({
+      id: 'permission-item-1',
+      status: 'pending',
+    });
+  });
+
+  it('reopens only one scoped cancelled permission for requestless recovery replay', async () => {
+    const conversation = makeConversation();
+    for (const id of ['permission-1', 'permission-2']) {
+      await chatTimelineStore.append(
+        conversation,
+        {
+          id,
+          kind: 'permission_request',
+          payload: {
+            requestId: id,
+            title: 'Run command?',
+            options: [{ id: 'approve', label: 'Approve', kind: 'primary' }],
+            status: 'pending',
+          },
+        },
+        { upsert: true }
+      );
+    }
+    const cancelled = await chatTimelineStore.cancelPendingPermissionRequests(conversation);
+
+    const reopened = await chatTimelineStore.reopenCancelledPermissionRequest(
+      conversation,
+      {
+        id: 'codex-permission-12345',
+        kind: 'permission_request',
+        payload: {
+          requestId: 'codex-permission-12345',
+          title: 'Run command?',
+          options: [{ id: 'approve', label: 'Approve', kind: 'primary' }],
+          status: 'pending',
+        },
+      },
+      cancelled.map((item) => item.id)
+    );
+
+    expect(reopened).toMatchObject({ id: 'permission-2', status: 'pending' });
+    await expect(
+      chatTimelineStore.listTimeline('project-1', 'task-1', 'conversation-1')
+    ).resolves.toMatchObject([
+      { id: 'permission-1', kind: 'permission_request', status: 'cancelled' },
+      {
+        id: 'permission-2',
+        kind: 'permission_request',
+        requestId: 'codex-permission-12345',
+        status: 'pending',
+      },
+    ]);
+  });
+
   it('marks all pending permission requests cancelled', async () => {
     const conversation = makeConversation();
     await chatTimelineStore.append(
@@ -344,6 +577,52 @@ describe('ChatTimelineStore', () => {
         kind: 'permission_request',
         requestId: 'permission-1',
         status: 'cancelled',
+      },
+    ]);
+  });
+
+  it('does not overwrite resolved permission requests with stale cancellation reads', async () => {
+    const conversation = makeConversation();
+    const pending = await chatTimelineStore.append(conversation, {
+      id: 'permission-1',
+      kind: 'permission_request',
+      payload: {
+        requestId: 'permission-1',
+        title: 'Run command?',
+        options: [
+          { id: 'approve', label: 'Approve', kind: 'primary' },
+          { id: 'deny', label: 'Deny', kind: 'danger' },
+        ],
+        status: 'pending',
+      },
+    });
+    await chatTimelineStore.resolvePermissionRequest(conversation, {
+      requestId: 'permission-1',
+      optionId: 'approve',
+    });
+    const staleList = vi
+      .spyOn(
+        chatTimelineStore as unknown as {
+          listPendingPermissionRequests: () => Promise<(typeof pending)[]>;
+        },
+        'listPendingPermissionRequests'
+      )
+      .mockResolvedValueOnce([pending]);
+
+    try {
+      await chatTimelineStore.cancelPendingPermissionRequests(conversation);
+    } finally {
+      staleList.mockRestore();
+    }
+
+    await expect(
+      chatTimelineStore.listTimeline('project-1', 'task-1', 'conversation-1')
+    ).resolves.toMatchObject([
+      {
+        id: 'permission-1',
+        kind: 'permission_request',
+        requestId: 'permission-1',
+        status: 'approved',
       },
     ]);
   });

@@ -11,7 +11,7 @@ export async function hydrateRestoredConversation(
     try {
       await conversationProvider.startSession(conversation, undefined, true);
     } catch (error) {
-      chatConversationRuntime.dehydrateConversation(conversation.id);
+      await chatConversationRuntime.abortHydratedConversation(conversation.id);
       throw error;
     }
     return;

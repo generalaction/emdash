@@ -263,7 +263,14 @@ export class SshConversationProvider implements ConversationProvider {
       ptySessionRegistry.unregister(sessionId);
     }
     if (this.tmux) {
-      await killTmuxSession(this.ctx, makeTmuxSessionName(sessionId));
+      try {
+        await killTmuxSession(this.ctx, makeTmuxSessionName(sessionId));
+      } catch (error) {
+        log.warn('SshAgentProvider: error killing tmux session', {
+          sessionId,
+          error: String(error),
+        });
+      }
     }
   }
 
@@ -289,7 +296,18 @@ export class SshConversationProvider implements ConversationProvider {
     const sessionIds = Array.from(this.knownSessionIds);
     await this.detachAll();
     if (this.tmux) {
-      await Promise.all(sessionIds.map((id) => killTmuxSession(this.ctx, makeTmuxSessionName(id))));
+      await Promise.all(
+        sessionIds.map(async (id) => {
+          try {
+            await killTmuxSession(this.ctx, makeTmuxSessionName(id));
+          } catch (error) {
+            log.warn('SshAgentProvider: error killing tmux session during destroyAll', {
+              sessionId: id,
+              error: String(error),
+            });
+          }
+        })
+      );
     }
     this.knownSessionIds.clear();
   }

@@ -328,13 +328,13 @@ describe('ConversationManagerStore session hydration', () => {
     store.dispose();
   });
 
-  it('recreates terminal fallback sessions for chat-mode providers without chat runtime', async () => {
+  it('recreates terminal fallback sessions for chat-capable providers without chat runtime', async () => {
     const store = new ConversationManagerStore('project-1', 'task-1', [
       {
         id: 'conversation-1',
         projectId: 'project-1',
         taskId: 'task-1',
-        providerId: 'grok',
+        providerId: 'claude',
         title: 'Conversation 1',
         lastInteractedAt: null,
         isInitialConversation: false,

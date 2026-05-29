@@ -425,3 +425,42 @@ Remaining risks and follow-ups:
   phase.
 - Codex permission responses remain TUI-keystroke based and should be revisited if Codex exposes a
   structured permission-response API.
+
+## Step 5 Follow-up: Recovery and Teardown Hardening
+
+Completed the reviewer-driven hardening pass for chat permission recovery, hydration replay, and
+provider teardown.
+
+Changes made:
+
+- Made chat hydration recovery idempotent for already-active conversations and restored cancelled
+  permission rows when hydration activation or backend resume fails.
+- Hardened permission-response races across backend exit, dehydrate, completion, cancellation,
+  failed cancellation, and backend-write failure so retryable permission rows remain retryable and
+  stale states do not resurrect.
+- Preserved correct conversation status when hydration replay completes, including idle prompts with
+  assistant text and working-to-idle recovery.
+- Made local and SSH conversation tmux cleanup best-effort for both per-conversation stop and
+  task-level destroy paths.
+- Kept delete semantics DB-first while making backend/runtime cleanup best-effort after successful
+  deletion.
+- Added regression coverage for restored-chat hydration failure, activation failure, repeated
+  hydration, clean/error backend exits, cancellation races, permission backend-write races, and
+  local/SSH tmux cleanup failures.
+
+Validation:
+
+- Focused runtime/provider suites passed repeatedly while fixing reviewer findings.
+- `pnpm run format:check`: passed.
+- `pnpm run lint`: passed.
+- `pnpm run typecheck`: passed.
+- `pnpm run test`: passed, 200 files / 1417 tests.
+
+Review loop:
+
+- Architecture, coverage, and logic reviewers found medium issues across hydration activation,
+  cancellation/permission races, delete/teardown ordering, and tmux cleanup. Each issue was fixed
+  with targeted runtime/provider changes and regression tests.
+- Per the updated reviewer-loop instruction, roles that returned clean were not rerun for the same
+  step. Logic returned clean first; after the final hardening pass, architecture and coverage also
+  returned no high/medium findings.

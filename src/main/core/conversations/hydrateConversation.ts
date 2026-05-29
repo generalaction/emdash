@@ -33,7 +33,7 @@ export async function hydrateConversation(
     try {
       await task.conversations.startSession(conversation, undefined, true);
     } catch (error) {
-      chatConversationRuntime.dehydrateConversation(conversation.id);
+      await chatConversationRuntime.abortHydratedConversation(conversation.id);
       throw error;
     }
     return;

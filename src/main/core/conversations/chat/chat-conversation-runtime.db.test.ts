@@ -123,8 +123,8 @@ describe('ChatConversationRuntime', () => {
     runtime = new ChatConversationRuntime();
   });
 
-  afterEach(() => {
-    runtime.dehydrateConversation('conversation-1');
+  afterEach(async () => {
+    await runtime.dehydrateConversation('conversation-1');
     vi.restoreAllMocks();
     fixture.close();
     mocks.db = undefined;
@@ -163,6 +163,196 @@ describe('ChatConversationRuntime', () => {
       'conversation:input-submitted',
       expect.objectContaining({ conversationId: 'conversation-1' })
     );
+  });
+
+  it('cancels stale pending permission requests during hydration', async () => {
+    await seedChatConversation(fixture);
+    await chatTimelineStore.append(
+      makeConversation(),
+      {
+        id: 'permission-1',
+        kind: 'permission_request',
+        payload: {
+          requestId: 'permission-1',
+          title: 'Run command?',
+          options: [{ id: 'approve', label: 'Approve', kind: 'primary' }],
+          status: 'pending',
+        },
+      },
+      { upsert: true }
+    );
+
+    await runtime.hydrateConversation(makeConversation());
+
+    await expect(
+      chatTimelineStore.listTimeline('project-1', 'task-1', 'conversation-1')
+    ).resolves.toMatchObject([
+      {
+        id: 'permission-1',
+        kind: 'permission_request',
+        requestId: 'permission-1',
+        status: 'cancelled',
+      },
+    ]);
+  });
+
+  it('reopens a cancelled requestless permission prompt during hydration replay', async () => {
+    await seedChatConversation(fixture);
+    await chatTimelineStore.append(
+      makeConversation(),
+      {
+        id: 'codex-permission-1000',
+        kind: 'permission_request',
+        payload: {
+          requestId: 'codex-permission-1000',
+          title: 'Codex permission request',
+          options: [
+            { id: 'approve', label: 'Approve', kind: 'primary' },
+            { id: 'deny', label: 'Deny', kind: 'danger' },
+          ],
+          status: 'pending',
+        },
+      },
+      { upsert: true }
+    );
+
+    await runtime.hydrateConversation(makeConversation());
+    await runtime.recordAgentEvent({
+      type: 'notification',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      conversationId: 'conversation-1',
+      timestamp: 2000,
+      payload: { notificationType: 'permission_prompt' },
+    });
+
+    await expect(
+      chatTimelineStore.listTimeline('project-1', 'task-1', 'conversation-1')
+    ).resolves.toMatchObject([
+      {
+        id: 'codex-permission-1000',
+        kind: 'permission_request',
+        requestId: 'codex-permission-2000',
+        status: 'pending',
+      },
+    ]);
+    await runtime.respondToPermission('project-1', 'task-1', 'conversation-1', {
+      requestId: 'codex-permission-2000',
+      optionId: 'approve',
+    });
+    expect(mocks.sendInput).toHaveBeenCalledWith('conversation-1', 'y\r');
+  });
+
+  it('keeps permission responses retryable when backend delivery fails', async () => {
+    await seedChatConversation(fixture);
+    await runtime.hydrateConversation(makeConversation());
+    await runtime.sendMessage('project-1', 'task-1', 'conversation-1', { text: 'hello' });
+    await runtime.recordAgentEvent({
+      type: 'notification',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      conversationId: 'conversation-1',
+      timestamp: 12345,
+      payload: { notificationType: 'permission_prompt', requestId: 'permission-1' },
+    });
+    mocks.sendInput.mockRejectedValueOnce(new Error('write failed'));
+
+    await expect(
+      runtime.respondToPermission('project-1', 'task-1', 'conversation-1', {
+        requestId: 'permission-1',
+        optionId: 'approve',
+      })
+    ).rejects.toThrow('write failed');
+    await expect(
+      chatTimelineStore.getPendingPermissionRequest(makeConversation(), {
+        requestId: 'permission-1',
+        optionId: 'approve',
+      })
+    ).resolves.toMatchObject({ requestId: 'permission-1', status: 'pending' });
+
+    await runtime.respondToPermission('project-1', 'task-1', 'conversation-1', {
+      requestId: 'permission-1',
+      optionId: 'approve',
+    });
+
+    expect(mocks.sendInput).toHaveBeenLastCalledWith('conversation-1', 'y\r');
+    await expect(
+      chatTimelineStore.listTimeline('project-1', 'task-1', 'conversation-1')
+    ).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'permission_request',
+          requestId: 'permission-1',
+          status: 'approved',
+        }),
+      ])
+    );
+  });
+
+  it('does not rewrite historical cancelled permissions during requestless hydration replay', async () => {
+    await seedChatConversation(fixture);
+    await chatTimelineStore.append(
+      makeConversation(),
+      {
+        id: 'old-permission',
+        kind: 'permission_request',
+        payload: {
+          requestId: 'old-permission',
+          title: 'Old request',
+          options: [
+            { id: 'approve', label: 'Approve', kind: 'primary' },
+            { id: 'deny', label: 'Deny', kind: 'danger' },
+          ],
+          status: 'pending',
+        },
+      },
+      { upsert: true }
+    );
+    await chatTimelineStore.cancelPendingPermissionRequests(makeConversation());
+    await chatTimelineStore.append(
+      makeConversation(),
+      {
+        id: 'stale-permission',
+        kind: 'permission_request',
+        payload: {
+          requestId: 'stale-permission',
+          title: 'Stale request',
+          options: [
+            { id: 'approve', label: 'Approve', kind: 'primary' },
+            { id: 'deny', label: 'Deny', kind: 'danger' },
+          ],
+          status: 'pending',
+        },
+      },
+      { upsert: true }
+    );
+
+    await runtime.hydrateConversation(makeConversation());
+    await runtime.recordAgentEvent({
+      type: 'notification',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      conversationId: 'conversation-1',
+      timestamp: 3000,
+      payload: { notificationType: 'permission_prompt' },
+    });
+
+    await expect(
+      chatTimelineStore.listTimeline('project-1', 'task-1', 'conversation-1')
+    ).resolves.toMatchObject([
+      {
+        id: 'old-permission',
+        kind: 'permission_request',
+        requestId: 'old-permission',
+        status: 'cancelled',
+      },
+      {
+        id: 'stale-permission',
+        kind: 'permission_request',
+        requestId: 'codex-permission-3000',
+        status: 'pending',
+      },
+    ]);
   });
 
   it('removes the silent user row when backend delivery fails', async () => {

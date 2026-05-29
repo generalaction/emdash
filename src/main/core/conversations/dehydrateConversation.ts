@@ -15,5 +15,5 @@ export async function dehydrateConversation(
     releaseBackendExitSuppression();
   }
   await chatConversationRuntime.cancelPendingPermissionRequestsForConversation(conversationId);
-  chatConversationRuntime.dehydrateConversation(conversationId);
+  await chatConversationRuntime.dehydrateConversation(conversationId);
 }
