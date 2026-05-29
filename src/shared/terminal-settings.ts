@@ -3,11 +3,12 @@ export const TERMINAL_FONT_SIZE_MIN = 8;
 export const TERMINAL_FONT_SIZE_MAX = 32;
 
 export const TERMINAL_SHELL_IDS = [
-  'auto',
+  'system',
   'bash',
   'cmd',
   'csh',
   'dash',
+  'fish',
   'ksh',
   'powershell',
   'pwsh',
@@ -17,12 +18,13 @@ export const TERMINAL_SHELL_IDS = [
 ] as const;
 
 export type TerminalShellId = (typeof TERMINAL_SHELL_IDS)[number];
-export type ExplicitTerminalShellId = Exclude<TerminalShellId, 'auto'>;
+export type ExplicitTerminalShellId = Exclude<TerminalShellId, 'system'>;
 export type TerminalShellFamily = 'posix' | 'csh' | 'windows-cmd' | 'powershell';
 
 export type TerminalShellAvailability = {
-  shell: TerminalShellId;
-  displayName: string;
+  id: TerminalShellId;
+  label: string;
+  isSystemDefault: boolean;
   available: boolean;
   reason?: string;
 };
@@ -35,22 +37,7 @@ export function terminalShellBasename(shell: string): string {
 }
 
 export function isExplicitTerminalShellId(shell: string): shell is ExplicitTerminalShellId {
-  return TERMINAL_SHELL_IDS.includes(shell as TerminalShellId) && shell !== 'auto';
-}
-
-export function terminalShellDisplayName(shell: TerminalShellId): string {
-  switch (shell) {
-    case 'auto':
-      return 'Auto';
-    case 'cmd':
-      return 'cmd';
-    case 'powershell':
-      return 'powershell';
-    case 'pwsh':
-      return 'pwsh';
-    default:
-      return shell;
-  }
+  return TERMINAL_SHELL_IDS.includes(shell as TerminalShellId) && shell !== 'system';
 }
 
 export function isCshShell(shell: string): boolean {

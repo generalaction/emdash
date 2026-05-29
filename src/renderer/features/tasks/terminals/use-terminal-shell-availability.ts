@@ -2,9 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { rpc } from '@renderer/lib/ipc';
 import type { TerminalShellAvailability } from '@shared/terminal-settings';
 
-export const DEFAULT_TERMINAL_SHELL_AVAILABILITY: TerminalShellAvailability[] = [
-  { shell: 'auto', displayName: 'Auto', available: true },
-];
+export const DEFAULT_TERMINAL_SHELL_AVAILABILITY: TerminalShellAvailability[] = [];
 
 export function useTerminalShellAvailability(
   remoteConnectionId: string | undefined,

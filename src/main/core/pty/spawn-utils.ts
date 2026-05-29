@@ -93,9 +93,8 @@ function toResolvedShellProfile(
       id: 'target-default',
       resolvedShellId:
         shellId === 'zsh' || shellId === 'bash' || shellId === 'ksh' ? shellId : 'sh',
-      resolvedFromAuto: true,
+      resolvedFromSystem: true,
       executable,
-      displayName: `Auto - ${shellId}`,
       available: true,
       family: isCshShell(executable) ? 'csh' : 'posix',
       interactiveArgs: terminalInteractiveShellArgs(executable),
@@ -107,9 +106,8 @@ function toResolvedShellProfile(
   return {
     id: 'target-default',
     resolvedShellId: 'sh',
-    resolvedFromAuto: true,
+    resolvedFromSystem: true,
     executable: FALLBACK_REMOTE_SHELL_PROFILE.shell,
-    displayName: 'Auto - sh',
     available: true,
     family: 'posix',
     interactiveArgs: ['-i'],

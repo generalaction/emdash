@@ -77,6 +77,7 @@ export class TerminalManagerStore implements IDisposable {
       id: params.id,
       projectId: params.projectId,
       taskId: params.taskId,
+      shellId: params.shell ?? 'system',
       name: params.name,
     };
 
@@ -104,17 +105,18 @@ export class TerminalManagerStore implements IDisposable {
     }
   }
 
-  async createDefaultTerminal(shell: TerminalShellId = 'auto'): Promise<Terminal> {
+  async createDefaultTerminal(shell?: TerminalShellId): Promise<Terminal> {
     const names = Array.from(this.terminals.values()).map((t) => t.data.name);
     const name = nextTerminalName(names);
     const id = crypto.randomUUID();
-    return this.createTerminal({
+    const params: CreateTerminalParams = {
       id,
       projectId: this.projectId,
       taskId: this.taskId,
       name,
-      shell,
-    });
+    };
+    if (shell !== undefined) params.shell = shell;
+    return this.createTerminal(params);
   }
 
   async deleteTerminal(terminalId: string): Promise<void> {

@@ -8,7 +8,7 @@ import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-sessio
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import type { SshConnectionManagerEvent } from '@main/core/ssh/lifecycle/ssh-connection-manager';
-import { resolveTerminalShell } from '@main/core/terminal-shell/resolver';
+import { resolveTerminalShellWithSystemFallback } from '@main/core/terminal-shell/resolver';
 import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
 import {
   type LifecycleScriptSpawnRequest,
@@ -34,6 +34,8 @@ type SpawnPolicy = {
 };
 
 export class SshTerminalProvider implements TerminalProvider {
+  readonly kind = 'ssh' as const;
+
   private sessions = new Map<string, Pty>();
   private knownSessionIds = new Set<string>();
   private shellProfiles = new Map<string, ResolvedShellProfile>();
@@ -104,7 +106,7 @@ export class SshTerminalProvider implements TerminalProvider {
       initialSize,
       options.command,
       undefined,
-      options.shell ?? 'auto',
+      options.shell ?? terminal.shellId,
       {
         respawnOnExit: true,
         preserveBufferOnExit: false,
@@ -128,7 +130,7 @@ export class SshTerminalProvider implements TerminalProvider {
       initialSize,
       command === undefined ? undefined : { command, args: [] },
       shellSetup,
-      'auto',
+      'system',
       {
         respawnOnExit,
         preserveBufferOnExit,
@@ -246,9 +248,15 @@ export class SshTerminalProvider implements TerminalProvider {
     const existing = this.shellProfiles.get(sessionId);
     if (existing) return existing;
     const remoteProfile = await this.proxy.getRemoteShellProfile();
-    const profile = await resolveTerminalShell({
+    const profile = await resolveTerminalShellWithSystemFallback({
       intent: shellIntent,
       target: { kind: 'ssh', proxy: this.proxy, profile: remoteProfile },
+      onFallback: () => {
+        log.warn('SshTerminalProvider: stored shell unavailable, using system shell', {
+          shell: shellIntent,
+          sessionId,
+        });
+      },
     });
     this.shellProfiles.set(sessionId, profile);
     return profile;

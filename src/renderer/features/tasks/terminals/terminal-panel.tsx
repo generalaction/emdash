@@ -77,7 +77,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
     activeItem.kind === 'terminal' ? terminalTabView : (lifecycleScriptsMgr ?? undefined);
   useTabShortcuts(activeStore, { focused: isPanelFocused });
 
-  const handleCreate = async (shell: TerminalShellId = 'auto') => {
+  const handleCreate = async (shell?: TerminalShellId) => {
     await taskView.openNewTerminal(shell);
   };
 

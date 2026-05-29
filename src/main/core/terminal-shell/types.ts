@@ -3,9 +3,8 @@ import type { ExplicitTerminalShellId, TerminalShellFamily } from '@shared/termi
 export type ResolvedShellProfile = {
   id: ExplicitTerminalShellId | 'target-default';
   resolvedShellId: ExplicitTerminalShellId;
-  resolvedFromAuto: boolean;
+  resolvedFromSystem: boolean;
   executable: string;
-  displayName: string;
   available: true;
   family: TerminalShellFamily;
   interactiveArgs: string[];

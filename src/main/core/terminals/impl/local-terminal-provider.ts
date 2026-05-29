@@ -11,7 +11,7 @@ import {
   type PtySpawnIntent,
 } from '@main/core/pty/pty-spawn-platform';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
-import { resolveTerminalShell } from '@main/core/terminal-shell/resolver';
+import { resolveTerminalShellWithSystemFallback } from '@main/core/terminal-shell/resolver';
 import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
 import { log } from '@main/lib/logger';
 import { makePtySessionId } from '@shared/ptySessionId';
@@ -35,6 +35,8 @@ type SpawnPolicy = {
 };
 
 export class LocalTerminalProvider implements TerminalProvider {
+  readonly kind = 'local' as const;
+
   private sessions = new Map<string, Pty>();
   private knownSessionIds = new Set<string>();
   private shellProfiles = new Map<string, ResolvedShellProfile>();
@@ -85,7 +87,7 @@ export class LocalTerminalProvider implements TerminalProvider {
         ? { kind: 'argv', command: options.command.command, args: options.command.args }
         : undefined,
       undefined,
-      options.shell ?? 'auto',
+      options.shell ?? terminal.shellId,
       {
         respawnOnExit: true,
         preserveBufferOnExit: false,
@@ -108,7 +110,7 @@ export class LocalTerminalProvider implements TerminalProvider {
       initialSize,
       command === undefined ? undefined : { kind: 'shell-line', commandLine: command },
       shellSetup,
-      'auto',
+      'system',
       {
         respawnOnExit,
         preserveBufferOnExit,
@@ -226,9 +228,15 @@ export class LocalTerminalProvider implements TerminalProvider {
   ): Promise<ResolvedShellProfile> {
     const existing = this.shellProfiles.get(sessionId);
     if (existing) return existing;
-    const profile = await resolveTerminalShell({
+    const profile = await resolveTerminalShellWithSystemFallback({
       intent: shellIntent,
       target: { kind: 'local' },
+      onFallback: () => {
+        log.warn('LocalTerminalProvider: stored shell unavailable, using system shell', {
+          shell: shellIntent,
+          sessionId,
+        });
+      },
     });
     this.shellProfiles.set(sessionId, profile);
     return profile;
