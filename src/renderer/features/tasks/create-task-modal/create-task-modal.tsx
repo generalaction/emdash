@@ -45,6 +45,7 @@ function resolveMountedProjectId(projectId: string | undefined): string | undefi
   if (projectId && mountedProjectData(getProjectManagerStore().projects.get(projectId))) {
     return projectId;
   }
+  if (projectId) return undefined;
 
   const nav = appState.navigation;
   const navProjectId =

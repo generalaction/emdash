@@ -18,7 +18,12 @@ function isProviderUsable(
   return true;
 }
 
-export function useIssueSearch(repositoryUrl: string, projectPath = '', projectId?: string) {
+export function useIssueSearch(
+  repositoryUrl: string,
+  projectPath = '',
+  projectId?: string,
+  preferredProvider?: Issue['provider']
+) {
   const { connectionStatus, isCheckingConnections } = useIntegrationsContext();
   const context = useMemo(() => ({ projectPath, repositoryUrl }), [projectPath, repositoryUrl]);
 
@@ -52,6 +57,10 @@ export function useIssueSearch(repositoryUrl: string, projectPath = '', projectI
   const hasAnyIntegration = connectedProviders.length > 0;
 
   const issueProvider = useMemo(() => {
+    if (preferredProvider && isProviderUsable(connectionStatus[preferredProvider], context)) {
+      return preferredProvider;
+    }
+
     if (
       selectedIssueProvider &&
       isProviderUsable(connectionStatus[selectedIssueProvider], context)
@@ -60,7 +69,7 @@ export function useIssueSearch(repositoryUrl: string, projectPath = '', projectI
     }
 
     return connectedProviders[0] ?? null;
-  }, [connectedProviders, connectionStatus, context, selectedIssueProvider]);
+  }, [connectedProviders, connectionStatus, context, preferredProvider, selectedIssueProvider]);
 
   const issuesHook = useIssues(issueProvider, {
     projectId,

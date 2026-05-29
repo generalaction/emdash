@@ -44,6 +44,8 @@ async function resolveLinearIssueFromDeepLink(deepLink: AppDeepLinkEvent): Promi
     ...result.issue,
     url: result.issue.url || fallbackIssue.url,
     title: result.issue.title || fallbackIssue.title,
+    description: result.issue.description ?? fallbackIssue.description,
+    branchName: result.issue.branchName ?? fallbackIssue.branchName,
   };
 }
 

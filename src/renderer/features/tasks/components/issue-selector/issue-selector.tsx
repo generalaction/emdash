@@ -150,7 +150,7 @@ export const IssueSelector = observer(function IssueSelector({
     connectedProviderCount,
     handleSetSearchTerm,
     setSelectedIssueProvider,
-  } = useIssueSearch(repositoryUrl, projectPath, projectId);
+  } = useIssueSearch(repositoryUrl, projectPath, projectId, value?.provider);
 
   const [comboboxOpen, setComboboxOpen] = useState(false);
   const providerSelectOpenRef = useRef(false);

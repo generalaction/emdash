@@ -67,6 +67,15 @@ function findDeepLinkUrl(args: string[]): string | undefined {
 
 const initialDeepLinkUrl = findDeepLinkUrl(process.argv);
 
+function createTrackedMainWindow(): BrowserWindow {
+  appService.markRendererDeepLinksNotReady();
+  const win = createMainWindow();
+  win.webContents.on('did-start-loading', () => appService.markRendererDeepLinksNotReady());
+  win.webContents.on('render-process-gone', () => appService.markRendererDeepLinksNotReady());
+  win.on('closed', () => appService.markRendererDeepLinksNotReady());
+  return win;
+}
+
 function forwardDeepLinkToDevInstance(url: string): Promise<boolean> {
   return new Promise((resolve) => {
     const body = JSON.stringify({ url });
@@ -176,7 +185,7 @@ function handleDeepLinkUrl(url: string): boolean {
   if (!app.isReady()) return true;
 
   if (BrowserWindow.getAllWindows().length === 0) {
-    createMainWindow();
+    createTrackedMainWindow();
   }
 
   const win = BrowserWindow.getAllWindows()[0];
@@ -192,8 +201,7 @@ app.on('open-url', (event, url) => {
 
 app.on('second-instance', (_event, commandLine) => {
   const deepLinkUrl = findDeepLinkUrl(commandLine);
-  if (deepLinkUrl) {
-    handleDeepLinkUrl(deepLinkUrl);
+  if (deepLinkUrl && handleDeepLinkUrl(deepLinkUrl)) {
     return;
   }
 
@@ -223,7 +231,7 @@ app.on('window-all-closed', () => {
 
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
-    createMainWindow();
+    createTrackedMainWindow();
   }
 });
 
@@ -294,7 +302,7 @@ void app.whenReady().then(async () => {
 
   setupAppProtocol(join(app.getAppPath(), 'out', 'renderer'));
   setupApplicationMenu();
-  createMainWindow();
+  createTrackedMainWindow();
   if (initialDeepLinkUrl) handleDeepLinkUrl(initialDeepLinkUrl);
 
   try {
