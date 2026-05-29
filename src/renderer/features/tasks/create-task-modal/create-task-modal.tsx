@@ -21,7 +21,9 @@ import {
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
+import type { AgentProviderId } from '@shared/agent-provider-registry';
 import { getPrNumber, isForkPr, type PullRequest } from '@shared/pull-requests';
+import type { Issue } from '@shared/tasks';
 import {
   resolveBranchLikeTaskStrategy,
   resolvePullRequestTaskStrategy,
@@ -42,12 +44,18 @@ type SectionTab = 'conversation' | 'workspace';
 export const CreateTaskModal = observer(function CreateTaskModal({
   projectId,
   strategy: initialStrategy = 'from-branch',
+  initialIssue,
   initialPR,
+  initialAgentProvider,
+  initialPrompt,
   onClose,
 }: BaseModalProps & {
   projectId?: string;
   strategy?: 'from-branch' | 'from-issue' | 'from-pull-request';
+  initialIssue?: Issue;
   initialPR?: PullRequest;
+  initialAgentProvider?: AgentProviderId;
+  initialPrompt?: string;
 }) {
   const [selectedProjectId, _setSelectedProjectId] = useState<string | undefined>(() => {
     if (projectId) return projectId;
@@ -108,12 +116,14 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   }, []); // computed once on mount
 
   const resolvedInitialPR = initialStrategy === 'from-pull-request' ? initialPR : undefined;
+  const resolvedInitialIssue = initialStrategy === 'from-issue' ? initialIssue : undefined;
   const state = useCreateTaskState(
     selectedProjectId,
     defaultBranch,
     isUnborn,
     currentBranch,
     resolvedInitialPR,
+    resolvedInitialIssue,
     defaultLinkedType
   );
 
@@ -128,10 +138,14 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   }, [isWorkspaceProviderEnabled]);
   useEffect(() => {
     initialConversation.setProvider(null);
-    initialConversation.setPrompt('');
+    initialConversation.setPrompt(initialPrompt ?? '');
     initialConversation.setIssueContext(null);
     // oxlint-disable-next-line react/exhaustive-deps
   }, [selectedProjectId]);
+  useEffect(() => {
+    if (initialAgentProvider) initialConversation.setProvider(initialAgentProvider);
+    // oxlint-disable-next-line react/exhaustive-deps
+  }, []);
 
   const canCreate = !!selectedProjectId && state.isValid;
 

@@ -21,12 +21,15 @@ export function useCreateTaskState(
   isUnborn: boolean,
   currentBranch: string | null,
   initialPR?: PullRequest,
+  initialIssue?: Issue,
   initialLinkedType: LinkedType = null
 ) {
   const { autoGenerateName, createBranchAndWorktree } = useTaskSettings();
 
-  const [linkedType, setLinkedTypeRaw] = useState<LinkedType>(initialPR ? 'pr' : initialLinkedType);
-  const [linkedIssue, setLinkedIssueRaw] = useState<Issue | null>(null);
+  const [linkedType, setLinkedTypeRaw] = useState<LinkedType>(
+    initialPR ? 'pr' : initialIssue ? 'issue' : initialLinkedType
+  );
+  const [linkedIssue, setLinkedIssueRaw] = useState<Issue | null>(initialIssue ?? null);
   const [linkedPR, setLinkedPRRaw] = useState<PullRequest | null>(initialPR ?? null);
   const [checkoutMode, setCheckoutMode] = useState<CheckoutMode>('checkout');
   const [prevProjectId, setPrevProjectId] = useState(projectId);
