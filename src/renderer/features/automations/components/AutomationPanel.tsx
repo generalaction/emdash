@@ -387,6 +387,15 @@ export const AutomationPanel = observer(function AutomationPanel({
 
           <section className="flex flex-col gap-2">
             <h3 className="text-muted-foreground text-xs font-medium">Execution</h3>
+            <BranchPickerField
+              key={workspaceSettingsKey}
+              state={branchSelection}
+              branchNameState={branchNameState}
+              projectId={effectiveProjectId}
+              currentBranch={currentBranch}
+              isUnborn={isUnborn}
+            />
+
             <div className="bg-muted/10 rounded-md border border-border">
               <RowField label="Project">
                 <ProjectSelector
@@ -419,15 +428,6 @@ export const AutomationPanel = observer(function AutomationPanel({
                 <span className="text-muted-foreground text-sm">Use BYOI infrastructure</span>
               </div>
             ) : null}
-
-            <BranchPickerField
-              key={workspaceSettingsKey}
-              state={branchSelection}
-              branchNameState={branchNameState}
-              projectId={effectiveProjectId}
-              currentBranch={currentBranch}
-              isUnborn={isUnborn}
-            />
           </section>
 
           {error && <p className="text-destructive text-xs">{error}</p>}
