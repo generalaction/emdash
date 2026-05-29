@@ -64,11 +64,11 @@ export const AutoTrustWorktreesRow: React.FC = () => {
           Auto-trust worktree directories
           <InfoTooltip
             label="More info about auto-trust worktrees"
-            content="Only applies to Claude Code. Writes trust entries to ~/.claude.json before launching."
+            content="Applies to Claude Code and GitHub Copilot. Writes trust entries before launching."
           />
         </div>
       }
-      description="Skip the folder trust prompt in Claude Code for new tasks."
+      description="Skip the folder trust prompt in supported CLIs for new tasks."
       control={
         <>
           <ResetToDefaultButton
