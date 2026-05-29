@@ -1,14 +1,13 @@
-import { events } from '@main/lib/events';
 import type { IDisposable } from '@main/lib/lifecycle';
-import { ptyExitChannel } from '@shared/events/ptyEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { createLifecycleScriptTerminalId } from '@shared/terminals';
-import type { Pty } from '../pty/pty';
+import type { Pty, PtyExitInfo } from '../pty/pty';
 import { ptySessionRegistry } from '../pty/pty-session-registry';
 import type { TerminalProvider } from '../terminals/terminal-provider';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
+const OUTPUT_TAIL_CAP = 16 * 1024;
 
 type LifecycleScript = {
   type: 'setup' | 'run' | 'teardown';
@@ -21,11 +20,35 @@ type LifecycleRespawnRequest = {
   initialSize: { cols: number; rows: number };
 };
 
+export type LifecycleScriptExecutionResult =
+  | { kind: 'started' }
+  | { kind: 'already-running' }
+  | {
+      kind: 'exited';
+      exitCode?: number;
+      signal?: string | number;
+      outputTail: string;
+    };
+
+function stripTerminalControls(value: string): string {
+  return value
+    .replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')
+    .replace(/\x1b\][^\x07]*\x07/g, '')
+    .replace(/\x1b\][^\x1b]*\x1b\\/g, '')
+    .replace(/\r/g, '');
+}
+
+function appendOutputTail(current: string, chunk: string): string {
+  const next = current + stripTerminalControls(chunk);
+  return next.length > OUTPUT_TAIL_CAP ? next.slice(-OUTPUT_TAIL_CAP) : next;
+}
+
 export class LifecycleScriptService implements IDisposable {
   private readonly projectId: string;
   private readonly workspaceId: string;
   private readonly terminals: TerminalProvider;
   private readonly sessionsWithRespawnHandler = new Set<string>();
+  private readonly sessionsWaitingForExit = new Set<string>();
   private readonly latestRespawnRequest = new Map<string, LifecycleRespawnRequest>();
   private disposed = false;
 
@@ -64,6 +87,8 @@ export class LifecycleScriptService implements IDisposable {
     script: LifecycleScript;
     initialSize: { cols: number; rows: number };
   }): void {
+    // Restores the user-facing prompt after manual script completion/stop. Later reruns
+    // already work because the PTY registry drops exited sessions.
     this.latestRespawnRequest.set(sessionId, { script, initialSize });
     if (this.sessionsWithRespawnHandler.has(sessionId)) return;
 
@@ -85,7 +110,8 @@ export class LifecycleScriptService implements IDisposable {
     options: { initialSize?: { cols: number; rows: number } } = {}
   ): Promise<void> {
     const { initialSize = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS } } = options;
-    const { terminalId } = this.resolveIds(script);
+    const { terminalId, sessionId } = this.resolveIds(script);
+    if (ptySessionRegistry.get(sessionId)) return;
 
     await this.terminals.spawnLifecycleScript({
       terminal: {
@@ -108,12 +134,14 @@ export class LifecycleScriptService implements IDisposable {
     options: {
       waitForExit?: boolean;
       exit?: boolean;
+      respawnAfterExit?: boolean;
       initialSize?: { cols: number; rows: number };
     } = {}
-  ): Promise<void> {
+  ): Promise<LifecycleScriptExecutionResult> {
     const {
       waitForExit = false,
       exit = false,
+      respawnAfterExit = false,
       initialSize = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS },
     } = options;
 
@@ -130,40 +158,53 @@ export class LifecycleScriptService implements IDisposable {
       );
     }
 
-    if (exit && !waitForExit) {
+    if (waitForExit) {
+      if (this.sessionsWaitingForExit.has(sessionId)) {
+        return { kind: 'already-running' };
+      }
+      this.sessionsWaitingForExit.add(sessionId);
+    }
+
+    if (exit && (respawnAfterExit || !waitForExit)) {
       this.ensureRespawnAfterExit({ sessionId, pty, script, initialSize });
     }
 
-    const exitPromise = waitForExit
-      ? new Promise<void>((resolve) => {
-          events.once(ptyExitChannel, () => resolve(), sessionId);
-        })
-      : null;
+    try {
+      let outputTail = '';
+      const exitPromise = waitForExit
+        ? new Promise<PtyExitInfo>((resolve) => {
+            pty.onData((data) => {
+              outputTail = appendOutputTail(outputTail, data);
+            });
+            pty.onExit((info) => resolve(info));
+          })
+        : null;
 
-    const command = exit ? `${script.script}; exit` : script.script;
-    pty.write(`${command}\n`);
+      const command = exit ? `${script.script}; exit` : script.script;
+      pty.write(`${command}\n`);
 
-    if (exitPromise) {
-      await exitPromise;
+      if (!exitPromise) {
+        return { kind: 'started' };
+      }
+
+      const exitInfo = await exitPromise;
+      return {
+        kind: 'exited',
+        exitCode: exitInfo.exitCode,
+        signal: exitInfo.signal,
+        outputTail,
+      };
+    } finally {
+      if (waitForExit) {
+        this.sessionsWaitingForExit.delete(sessionId);
+      }
     }
-  }
-
-  async prepareAndRunLifecycleScript(
-    script: LifecycleScript,
-    options: {
-      waitForExit?: boolean;
-      exit?: boolean;
-      initialSize?: { cols: number; rows: number };
-    } = {}
-  ): Promise<void> {
-    const { initialSize = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS }, ...executeOptions } = options;
-    await this.prepareLifecycleScript(script, { initialSize });
-    await this.runLifecycleScript(script, { initialSize, ...executeOptions });
   }
 
   async dispose(): Promise<void> {
     this.disposed = true;
     this.sessionsWithRespawnHandler.clear();
+    this.sessionsWaitingForExit.clear();
     this.latestRespawnRequest.clear();
     await this.terminals.destroyAll();
   }

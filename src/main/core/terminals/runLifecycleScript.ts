@@ -1,26 +1,38 @@
-import { getEffectiveTaskSettings } from '../projects/settings/effective-task-settings';
-import { resolveWorkspace } from '../projects/utils';
+import { runLifecycleScriptWithPolicy } from './lifecycle-script-coordinator';
+import { resolveLifecycleScript } from './lifecycle-script-settings';
 
 export async function runLifecycleScript({
   projectId,
+  taskId,
   workspaceId,
   type,
 }: {
   projectId: string;
+  taskId: string;
   workspaceId: string;
   type: 'setup' | 'run' | 'teardown';
 }) {
-  const workspace = resolveWorkspace(projectId, workspaceId);
-  if (!workspace) throw new Error('Workspace not found');
-
-  const settings = await getEffectiveTaskSettings({
-    projectSettings: workspace.settings,
-    taskFs: workspace.fs,
+  const { workspace, script, shellSetup } = await resolveLifecycleScript({
+    projectId,
+    workspaceId,
+    type,
   });
-  const script = settings.scripts?.[type];
   if (!script) return;
-  await workspace.lifecycleService.runLifecycleScript(
-    { type, script, shellSetup: settings.shellSetup },
-    { exit: true }
-  );
+  await runLifecycleScriptWithPolicy({
+    workspace,
+    projectId,
+    taskId,
+    workspaceId,
+    type,
+    script,
+    shellSetup,
+    origin: 'manual',
+    policy: {
+      respawnAfterExit: true,
+      logFailure: true,
+      surfaceFailure: true,
+      continueOnFailure: false,
+    },
+    logPrefix: 'TerminalsController',
+  });
 }
