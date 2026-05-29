@@ -25,7 +25,8 @@ export type LifecycleScriptPolicy = {
 export type LifecycleScriptCoordinatorResult =
   | { kind: 'succeeded'; result: LifecycleScriptExecutionResult }
   | { kind: 'failed'; message: string; result?: LifecycleScriptExecutionResult }
-  | { kind: 'stopped' };
+  | { kind: 'stopped' }
+  | { kind: 'already-running' };
 
 const activeSessions = new Set<string>();
 const stoppedSessions = new Set<string>();
@@ -93,13 +94,14 @@ function labelFor(type: LifecycleScriptType): string {
 }
 
 function isSuccessfulResult(result: LifecycleScriptExecutionResult): boolean {
-  if (result.kind === 'started') return true;
+  if (result.kind === 'started' || result.kind === 'already-running') return true;
   return result.signal === undefined && (result.exitCode === 0 || result.exitCode === undefined);
 }
 
 function failureMessage(type: LifecycleScriptType, result: LifecycleScriptExecutionResult): string {
   const label = labelFor(type);
   if (result.kind === 'started') return `${label} script did not report an exit status.`;
+  if (result.kind === 'already-running') return `${label} script is already running.`;
   if (result.signal !== undefined) return `${label} script exited with signal ${result.signal}.`;
   return `${label} script exited with code ${result.exitCode ?? 'unknown'}.`;
 }
@@ -128,6 +130,9 @@ export async function runLifecycleScriptWithPolicy({
   logPrefix: string;
 }): Promise<LifecycleScriptCoordinatorResult> {
   const sessionId = lifecycleScriptSessionId({ projectId, workspaceId, type });
+  if (activeSessions.has(sessionId)) {
+    return { kind: 'already-running' };
+  }
 
   activeSessions.add(sessionId);
   events.emit(lifecycleScriptStatusChannel, {
@@ -153,6 +158,10 @@ export async function runLifecycleScriptWithPolicy({
       policy.timeoutMs === undefined
         ? await execution
         : await withLifecycleTimeout(execution, policy.timeoutMs);
+
+    if (result.kind === 'already-running') {
+      return { kind: 'already-running' };
+    }
 
     if (stoppedSessions.delete(sessionId)) {
       return { kind: 'stopped' };

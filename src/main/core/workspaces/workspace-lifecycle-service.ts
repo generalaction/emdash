@@ -22,6 +22,7 @@ type LifecycleRespawnRequest = {
 
 export type LifecycleScriptExecutionResult =
   | { kind: 'started' }
+  | { kind: 'already-running' }
   | {
       kind: 'exited';
       exitCode?: number;
@@ -47,6 +48,7 @@ export class LifecycleScriptService implements IDisposable {
   private readonly workspaceId: string;
   private readonly terminals: TerminalProvider;
   private readonly sessionsWithRespawnHandler = new Set<string>();
+  private readonly sessionsWaitingForExit = new Set<string>();
   private readonly latestRespawnRequest = new Map<string, LifecycleRespawnRequest>();
   private disposed = false;
 
@@ -156,39 +158,53 @@ export class LifecycleScriptService implements IDisposable {
       );
     }
 
+    if (waitForExit) {
+      if (this.sessionsWaitingForExit.has(sessionId)) {
+        return { kind: 'already-running' };
+      }
+      this.sessionsWaitingForExit.add(sessionId);
+    }
+
     if (exit && (respawnAfterExit || !waitForExit)) {
       this.ensureRespawnAfterExit({ sessionId, pty, script, initialSize });
     }
 
-    let outputTail = '';
-    const exitPromise = waitForExit
-      ? new Promise<PtyExitInfo>((resolve) => {
-          pty.onData((data) => {
-            outputTail = appendOutputTail(outputTail, data);
-          });
-          pty.onExit((info) => resolve(info));
-        })
-      : null;
+    try {
+      let outputTail = '';
+      const exitPromise = waitForExit
+        ? new Promise<PtyExitInfo>((resolve) => {
+            pty.onData((data) => {
+              outputTail = appendOutputTail(outputTail, data);
+            });
+            pty.onExit((info) => resolve(info));
+          })
+        : null;
 
-    const command = exit ? `${script.script}; exit` : script.script;
-    pty.write(`${command}\n`);
+      const command = exit ? `${script.script}; exit` : script.script;
+      pty.write(`${command}\n`);
 
-    if (!exitPromise) {
-      return { kind: 'started' };
+      if (!exitPromise) {
+        return { kind: 'started' };
+      }
+
+      const exitInfo = await exitPromise;
+      return {
+        kind: 'exited',
+        exitCode: exitInfo.exitCode,
+        signal: exitInfo.signal,
+        outputTail,
+      };
+    } finally {
+      if (waitForExit) {
+        this.sessionsWaitingForExit.delete(sessionId);
+      }
     }
-
-    const exitInfo = await exitPromise;
-    return {
-      kind: 'exited',
-      exitCode: exitInfo.exitCode,
-      signal: exitInfo.signal,
-      outputTail,
-    };
   }
 
   async dispose(): Promise<void> {
     this.disposed = true;
     this.sessionsWithRespawnHandler.clear();
+    this.sessionsWaitingForExit.clear();
     this.latestRespawnRequest.clear();
     await this.terminals.destroyAll();
   }

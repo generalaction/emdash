@@ -180,6 +180,33 @@ describe('WorkspaceLifecycleService', () => {
     expect(spawned).toHaveLength(1);
   });
 
+  it('does not attach another awaited execution to a PTY that is already running', async () => {
+    const { provider, spawned } = makeTerminalProvider();
+    const service = new LifecycleScriptService({
+      projectId: 'project-concurrent',
+      workspaceId: 'branch:feature',
+      terminals: provider,
+    });
+
+    const firstRun = service.runLifecycleScript(
+      { type: 'setup', script: 'pnpm install' },
+      { exit: true, waitForExit: true }
+    );
+
+    await expect.poll(() => spawned[0]?.writes).toEqual(['pnpm install; exit\n']);
+
+    await expect(
+      service.runLifecycleScript(
+        { type: 'setup', script: 'pnpm install' },
+        { exit: true, waitForExit: true }
+      )
+    ).resolves.toEqual({ kind: 'already-running' });
+    expect(spawned[0].writes).toEqual(['pnpm install; exit\n']);
+
+    spawned[0].emitExit({ exitCode: 0 });
+    await expect(firstRun).resolves.toMatchObject({ kind: 'exited', exitCode: 0 });
+  });
+
   it('can restore an interactive lifecycle shell after an awaited script exits', async () => {
     const { provider, spawned } = makeTerminalProvider();
     const service = new LifecycleScriptService({

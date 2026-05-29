@@ -276,6 +276,33 @@ describe('runLifecycleScriptWithPolicy', () => {
     ptySessionRegistry.unregister(sessionId);
   });
 
+  it('does not start a second coordinator run while a session is already active', async () => {
+    let resolveResult: (result: LifecycleScriptExecutionResult) => void = () => {};
+    const runLifecycleScript = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          resolveResult = resolve as typeof resolveResult;
+        })
+    );
+
+    const firstRun = runLifecycleScriptWithPolicy(baseArgs(runLifecycleScript));
+    const secondRun = runLifecycleScriptWithPolicy(baseArgs(runLifecycleScript));
+
+    await expect(secondRun).resolves.toEqual({ kind: 'already-running' });
+    expect(runLifecycleScript).toHaveBeenCalledTimes(1);
+    expect(
+      emit.mock.calls.filter(
+        ([channel, event]) =>
+          channel === lifecycleScriptStatusChannel &&
+          (event as { status?: string; type?: string }).status === 'running' &&
+          (event as { status?: string; type?: string }).type === 'run'
+      )
+    ).toHaveLength(1);
+
+    resolveResult({ kind: 'exited', exitCode: 0, outputTail: '' });
+    await expect(firstRun).resolves.toMatchObject({ kind: 'succeeded' });
+  });
+
   it('runs a manual respawn policy script again after the first PTY exits', async () => {
     const { provider, spawned } = makeTerminalProvider();
     const projectId = 'project-rerun';
