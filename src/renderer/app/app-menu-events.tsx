@@ -15,6 +15,8 @@ import {
 } from '@shared/events/appEvents';
 import type { Issue } from '@shared/tasks';
 
+const ISSUE_CONTEXT_TIMEOUT_MS = 2_000;
+
 function buildIssueFromDeepLink(deepLink: AppDeepLinkEvent): Issue {
   const { issue } = deepLink;
   return {
@@ -30,9 +32,10 @@ function buildIssueFromDeepLink(deepLink: AppDeepLinkEvent): Issue {
 async function resolveLinearIssueFromDeepLink(deepLink: AppDeepLinkEvent): Promise<Issue> {
   const fallbackIssue = buildIssueFromDeepLink(deepLink);
 
-  const result = await rpc.issues
-    .getIssueContext('linear', { identifier: deepLink.issue.identifier })
-    .catch(() => null);
+  const result = await Promise.race([
+    rpc.issues.getIssueContext('linear', { identifier: deepLink.issue.identifier }),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), ISSUE_CONTEXT_TIMEOUT_MS)),
+  ]).catch(() => null);
 
   if (!result?.success) return fallbackIssue;
 
@@ -53,14 +56,12 @@ export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boole
 
   useEffect(() => {
     let disposed = false;
-    let latestDeepLinkId = 0;
 
     const handleDeepLink = (deepLink: AppDeepLinkEvent) => {
       if (deepLink.type !== 'linear-agent') return;
-      const deepLinkId = ++latestDeepLinkId;
 
       void resolveLinearIssueFromDeepLink(deepLink).then((issue) => {
-        if (disposed || deepLinkId !== latestDeepLinkId) return;
+        if (disposed) return;
         showTaskModal({
           strategy: 'from-issue',
           projectId: deepLink.projectId,

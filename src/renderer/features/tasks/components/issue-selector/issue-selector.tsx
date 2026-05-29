@@ -296,6 +296,8 @@ export const IssueSelector = observer(function IssueSelector({
             </ComboboxList>
           </ComboboxContent>
         </Combobox>
+      ) : value ? (
+        selectedContent
       ) : (
         <ConnectIssueIntegrationPlaceholder />
       )}

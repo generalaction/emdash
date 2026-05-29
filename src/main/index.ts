@@ -120,7 +120,11 @@ function startDevDeepLinkBridge(): void {
           return;
         }
 
-        handleDeepLinkUrl(payload.url);
+        if (!handleDeepLinkUrl(payload.url)) {
+          res.writeHead(422).end();
+          return;
+        }
+
         res.writeHead(204).end();
       } catch {
         res.writeHead(400).end();
@@ -166,10 +170,10 @@ function registerDeepLinkProtocol(): void {
   }
 }
 
-function handleDeepLinkUrl(url: string): void {
-  if (!appService.handleDeepLink(url)) return;
+function handleDeepLinkUrl(url: string): boolean {
+  if (!appService.handleDeepLink(url)) return false;
 
-  if (!app.isReady()) return;
+  if (!app.isReady()) return true;
 
   if (BrowserWindow.getAllWindows().length === 0) {
     createMainWindow();
@@ -178,6 +182,7 @@ function handleDeepLinkUrl(url: string): void {
   const win = BrowserWindow.getAllWindows()[0];
   if (win?.isMinimized()) win.restore();
   win?.focus();
+  return true;
 }
 
 app.on('open-url', (event, url) => {

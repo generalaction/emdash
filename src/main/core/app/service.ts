@@ -130,7 +130,8 @@ function parseLinearAgentDeepLink(rawUrl: string): AppDeepLinkEvent | null {
     action.startsWith('linear/agent/') ||
     action === 'linear/agents' ||
     action.startsWith('linear/agents/') ||
-    action === 'agents/linear';
+    action === 'agents/linear' ||
+    action.startsWith('agents/linear/');
 
   if (!isLinearAgentAction) return null;
 
@@ -334,6 +335,7 @@ class AppService implements IInitializable, IDisposable {
     if (!deepLink) return false;
 
     const win = getMainWindow();
+    if (!win || win.isDestroyed()) this.rendererReadyForDeepLinks = false;
     if (win?.isMinimized()) win.restore();
     win?.focus();
 

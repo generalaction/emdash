@@ -41,6 +41,28 @@ import { WorkspaceSettingsSection } from './workspace-settings-section';
 
 type SectionTab = 'conversation' | 'workspace';
 
+function resolveMountedProjectId(projectId: string | undefined): string | undefined {
+  if (projectId && mountedProjectData(getProjectManagerStore().projects.get(projectId))) {
+    return projectId;
+  }
+
+  const nav = appState.navigation;
+  const navProjectId =
+    nav.currentViewId === 'task'
+      ? (nav.viewParamsStore['task'] as { projectId?: string } | undefined)?.projectId
+      : nav.currentViewId === 'project'
+        ? (nav.viewParamsStore['project'] as { projectId?: string } | undefined)?.projectId
+        : undefined;
+
+  if (navProjectId && mountedProjectData(getProjectManagerStore().projects.get(navProjectId))) {
+    return navProjectId;
+  }
+
+  return Array.from(getProjectManagerStore().projects.values())
+    .reverse()
+    .find((p) => p.state === 'mounted')?.data?.id;
+}
+
 export const CreateTaskModal = observer(function CreateTaskModal({
   projectId,
   strategy: initialStrategy = 'from-branch',
@@ -58,20 +80,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   initialPrompt?: string;
 }) {
   const [selectedProjectId, _setSelectedProjectId] = useState<string | undefined>(() => {
-    if (projectId) return projectId;
-    const nav = appState.navigation;
-    const navProjectId =
-      nav.currentViewId === 'task'
-        ? (nav.viewParamsStore['task'] as { projectId?: string } | undefined)?.projectId
-        : nav.currentViewId === 'project'
-          ? (nav.viewParamsStore['project'] as { projectId?: string } | undefined)?.projectId
-          : undefined;
-    return (
-      navProjectId ??
-      Array.from(getProjectManagerStore().projects.values())
-        .reverse()
-        .find((p) => p.state === 'mounted')?.data?.id
-    );
+    return resolveMountedProjectId(projectId);
   });
 
   const [sectionTab, setSectionTab] = useState<SectionTab>('conversation');
