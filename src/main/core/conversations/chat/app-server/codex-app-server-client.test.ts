@@ -103,6 +103,13 @@ describe('CodexAppServerClient', () => {
       threadId: 'thread-1',
       turn: { status: 'failed', error: { message: 'bad turn' } },
     });
+    transport.notificationHandler?.('turn/plan/updated', {
+      plan: [{ step: 'Implement chat', status: 'in_progress' }],
+    });
+    transport.notificationHandler?.('turn/diff/updated', { diff: 'diff --git a/a b/a' });
+    transport.notificationHandler?.('thread/tokenUsage/updated', {
+      tokenUsage: { totalTokens: 123 },
+    });
     transport.notificationHandler?.('item/agentMessage/delta', {
       itemId: 'assistant-1',
       delta: 'Hello',
@@ -124,6 +131,58 @@ describe('CodexAppServerClient', () => {
         error: { message: 'boom' },
       },
     });
+    transport.notificationHandler?.('codex/event/item_started', {
+      msg: { type: 'item_started', item: { id: 'tool-3', type: 'webSearch', status: 'running' } },
+    });
+    transport.notificationHandler?.('codex/event/item_completed', {
+      msg: {
+        type: 'item_completed',
+        item: { id: 'tool-3', type: 'webSearch', status: 'completed' },
+      },
+    });
+    transport.notificationHandler?.('codex/event/exec_command_begin', {
+      msg: { type: 'exec_command_begin', call_id: 'cmd-1', command: 'pnpm test', cwd: '/repo' },
+    });
+    transport.notificationHandler?.('codex/event/exec_command_output_delta', {
+      msg: { type: 'exec_command_output_delta', call_id: 'cmd-1', stream: 'stdout', chunk: 'SGk=' },
+    });
+    transport.notificationHandler?.('codex/event/exec_command_end', {
+      msg: {
+        type: 'exec_command_end',
+        call_id: 'cmd-1',
+        command: 'pnpm test',
+        aggregated_output: 'ok',
+        exit_code: 0,
+        success: true,
+      },
+    });
+    transport.notificationHandler?.('item/commandExecution/terminalInteraction', {
+      itemId: 'cmd-1',
+      processId: 42,
+      stdin: 'y',
+    });
+    transport.notificationHandler?.('codex/event/terminal_interaction', {
+      msg: { type: 'terminal_interaction', call_id: 'cmd-2', process_id: '99', stdin: 'n' },
+    });
+    transport.notificationHandler?.('codex/event/patch_apply_begin', {
+      msg: { type: 'patch_apply_begin', call_id: 'patch-1', changes: { files: [] } },
+    });
+    transport.notificationHandler?.('item/fileChange/outputDelta', {
+      itemId: 'patch-1',
+      delta: 'applied',
+    });
+    transport.notificationHandler?.('codex/event/patch_apply_end', {
+      msg: { type: 'patch_apply_end', call_id: 'patch-1', stdout: 'done', success: true },
+    });
+    transport.notificationHandler?.('codex/event/turn_diff', {
+      msg: { type: 'turn_diff', unified_diff: 'diff --git a/b b/b' },
+    });
+    transport.notificationHandler?.('codex/event/turn_aborted', {
+      msg: { type: 'turn_aborted', reason: 'user_cancelled' },
+    });
+    transport.notificationHandler?.('codex/event/task_complete', {
+      msg: { type: 'task_complete' },
+    });
     transport.notificationHandler?.('thread/compacted', {});
     transport.notificationHandler?.('custom/event', { value: true });
     transport.notificationHandler?.('thread/started', { thread: {} });
@@ -137,6 +196,9 @@ describe('CodexAppServerClient', () => {
         status: 'failed',
         errorMessage: 'bad turn',
       },
+      { type: 'plan-updated', plan: [{ step: 'Implement chat', status: 'in_progress' }] },
+      { type: 'diff-updated', diff: 'diff --git a/a b/a' },
+      { type: 'token-usage-updated', tokenUsage: { totalTokens: 123 } },
       { type: 'assistant-delta', itemId: 'assistant-1', delta: 'Hello' },
       { type: 'reasoning-delta', itemId: 'reasoning-1', delta: 'Thinking' },
       {
@@ -172,6 +234,128 @@ describe('CodexAppServerClient', () => {
           },
         },
       },
+      {
+        type: 'item',
+        phase: 'started',
+        itemId: 'tool-3',
+        itemType: 'webSearch',
+        status: 'running',
+        name: undefined,
+        title: undefined,
+        output: undefined,
+        error: undefined,
+        raw: {
+          msg: {
+            type: 'item_started',
+            item: { id: 'tool-3', type: 'webSearch', status: 'running' },
+          },
+        },
+      },
+      {
+        type: 'item',
+        phase: 'completed',
+        itemId: 'tool-3',
+        itemType: 'webSearch',
+        status: 'completed',
+        name: undefined,
+        title: undefined,
+        output: undefined,
+        error: undefined,
+        raw: {
+          msg: {
+            type: 'item_completed',
+            item: { id: 'tool-3', type: 'webSearch', status: 'completed' },
+          },
+        },
+      },
+      {
+        type: 'exec-command',
+        phase: 'started',
+        callId: 'cmd-1',
+        command: 'pnpm test',
+        cwd: '/repo',
+        raw: {
+          msg: {
+            type: 'exec_command_begin',
+            call_id: 'cmd-1',
+            command: 'pnpm test',
+            cwd: '/repo',
+          },
+        },
+      },
+      {
+        type: 'exec-command-output-delta',
+        callId: 'cmd-1',
+        stream: 'stdout',
+        delta: 'SGk=',
+      },
+      {
+        type: 'exec-command',
+        phase: 'completed',
+        callId: 'cmd-1',
+        command: 'pnpm test',
+        cwd: undefined,
+        output: 'ok',
+        stderr: undefined,
+        exitCode: 0,
+        success: true,
+        raw: {
+          msg: {
+            type: 'exec_command_end',
+            call_id: 'cmd-1',
+            command: 'pnpm test',
+            aggregated_output: 'ok',
+            exit_code: 0,
+            success: true,
+          },
+        },
+      },
+      {
+        type: 'terminal-interaction',
+        callId: 'cmd-1',
+        processId: '42',
+        stdin: 'y',
+        raw: { itemId: 'cmd-1', processId: 42, stdin: 'y' },
+      },
+      {
+        type: 'terminal-interaction',
+        callId: 'cmd-2',
+        processId: '99',
+        stdin: 'n',
+        raw: {
+          msg: {
+            type: 'terminal_interaction',
+            call_id: 'cmd-2',
+            process_id: '99',
+            stdin: 'n',
+          },
+        },
+      },
+      {
+        type: 'patch-apply',
+        phase: 'started',
+        callId: 'patch-1',
+        changes: { files: [] },
+        raw: {
+          msg: { type: 'patch_apply_begin', call_id: 'patch-1', changes: { files: [] } },
+        },
+      },
+      { type: 'file-change-output-delta', itemId: 'patch-1', delta: 'applied' },
+      {
+        type: 'patch-apply',
+        phase: 'completed',
+        callId: 'patch-1',
+        changes: undefined,
+        stdout: 'done',
+        stderr: undefined,
+        success: true,
+        raw: {
+          msg: { type: 'patch_apply_end', call_id: 'patch-1', stdout: 'done', success: true },
+        },
+      },
+      { type: 'diff-updated', diff: 'diff --git a/b b/b' },
+      { type: 'turn-completed', status: 'interrupted' },
+      { type: 'turn-completed', status: 'completed' },
       { type: 'thread-compacted' },
       { type: 'unknown', method: 'custom/event', params: { value: true } },
       { type: 'unknown', method: 'thread/started', params: { thread: {} } },

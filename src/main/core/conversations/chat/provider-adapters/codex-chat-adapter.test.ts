@@ -486,6 +486,454 @@ describe('CodexChatAdapter app-server integration', () => {
     });
   });
 
+  it('maps Paseo-style app-server progress notifications into timeline events', async () => {
+    const events: ChatProviderRuntimeEvent[] = [];
+    await createSession(events);
+
+    fakeChild.notify('turn/started', { threadId: 'thread-1', turn: { id: 'turn-1' } });
+    fakeChild.notify('turn/plan/updated', {
+      plan: [
+        { step: 'Inspect Paseo', status: 'completed' },
+        { step: 'Port protocol events', status: 'in_progress' },
+      ],
+    });
+    fakeChild.notify('turn/diff/updated', { diff: 'diff --git a/file.ts b/file.ts' });
+    fakeChild.notify('thread/tokenUsage/updated', { tokenUsage: { totalTokens: 42 } });
+    fakeChild.notify('codex/event/exec_command_begin', {
+      msg: { type: 'exec_command_begin', call_id: 'cmd-1', command: 'pnpm test', cwd: '/repo' },
+    });
+    fakeChild.notify('codex/event/exec_command_output_delta', {
+      msg: { type: 'exec_command_output_delta', call_id: 'cmd-1', chunk: 'bGluZSAxCg==' },
+    });
+    fakeChild.notify('codex/event/exec_command_end', {
+      msg: { type: 'exec_command_end', call_id: 'cmd-1', success: true },
+    });
+    fakeChild.notify('item/completed', {
+      item: { id: 'cmd-1', type: 'commandExecution', status: 'completed' },
+    });
+    fakeChild.notify('item/commandExecution/terminalInteraction', {
+      itemId: 'cmd-1',
+      processId: 7,
+      stdin: 'q',
+    });
+    fakeChild.notify('item/fileChange/outputDelta', {
+      itemId: 'patch-1',
+      delta: 'patched output',
+    });
+    fakeChild.notify('item/completed', {
+      item: { id: 'patch-1', type: 'fileChange', status: 'completed', title: 'Patch' },
+    });
+    fakeChild.notify('codex/event/exec_command_begin', {
+      msg: { type: 'exec_command_begin', call_id: 'cmd-cancelled', command: 'sleep 10' },
+    });
+    fakeChild.notify('codex/event/turn_aborted', {
+      msg: { type: 'turn_aborted', reason: 'cancelled' },
+    });
+
+    await vi.waitFor(() => {
+      expect(events).toContainEqual({ type: 'status', status: 'idle' });
+    });
+    expect(events).toContainEqual({
+      type: 'timeline',
+      item: {
+        id: 'plan:turn-1',
+        kind: 'tool_call',
+        payload: {
+          toolName: 'plan',
+          status: 'running',
+          output: '- [completed] Inspect Paseo\n- [in_progress] Port protocol events',
+          input: {
+            plan: [
+              { step: 'Inspect Paseo', status: 'completed' },
+              { step: 'Port protocol events', status: 'in_progress' },
+            ],
+          },
+        },
+      },
+      upsert: true,
+    });
+    expect(events).toContainEqual({
+      type: 'timeline',
+      item: {
+        id: 'plan:turn-1',
+        kind: 'tool_call',
+        payload: {
+          toolName: 'plan',
+          status: 'cancelled',
+          output: '- [completed] Inspect Paseo\n- [in_progress] Port protocol events',
+          input: {
+            plan: [
+              { step: 'Inspect Paseo', status: 'completed' },
+              { step: 'Port protocol events', status: 'in_progress' },
+            ],
+          },
+        },
+      },
+      upsert: true,
+    });
+    expect(events).toContainEqual({
+      type: 'timeline',
+      item: {
+        id: 'diff:turn-1',
+        kind: 'tool_call',
+        payload: {
+          toolName: 'diff',
+          status: 'running',
+          output: 'diff --git a/file.ts b/file.ts',
+        },
+      },
+      upsert: true,
+    });
+    expect(events).toContainEqual({
+      type: 'timeline',
+      item: {
+        id: 'diff:turn-1',
+        kind: 'tool_call',
+        payload: {
+          toolName: 'diff',
+          status: 'cancelled',
+          output: 'diff --git a/file.ts b/file.ts',
+          input: undefined,
+        },
+      },
+      upsert: true,
+    });
+    expect(events).toContainEqual({
+      type: 'timeline',
+      item: expect.objectContaining({
+        id: 'cmd-1',
+        payload: expect.objectContaining({
+          toolName: 'shell',
+          status: 'completed',
+          output: 'line 1\n',
+          input: {
+            command: 'pnpm test',
+            cwd: '/repo',
+          },
+        }),
+      }),
+      upsert: true,
+    });
+    expect(events).toContainEqual({
+      type: 'timeline',
+      item: expect.objectContaining({
+        id: 'cmd-cancelled',
+        payload: expect.objectContaining({
+          toolName: 'shell',
+          status: 'cancelled',
+        }),
+      }),
+      upsert: true,
+    });
+    expect(
+      events.some(
+        (event) =>
+          event.type === 'timeline' &&
+          event.item.id === 'cmd-1' &&
+          event.item.kind === 'tool_call' &&
+          event.item.payload.toolName === 'commandExecution'
+      )
+    ).toBe(false);
+    expect(events).toContainEqual({
+      type: 'timeline',
+      item: expect.objectContaining({
+        id: 'terminal:7',
+        payload: expect.objectContaining({
+          toolName: 'terminal',
+          output: 'Input sent to terminal:\nq',
+        }),
+      }),
+      upsert: true,
+    });
+    expect(events).toContainEqual({
+      type: 'timeline',
+      item: expect.objectContaining({
+        id: 'patch-1',
+        payload: expect.objectContaining({
+          toolName: 'Patch',
+          status: 'completed',
+          output: 'patched output',
+        }),
+      }),
+      upsert: true,
+    });
+  });
+
+  it('maps fallback and failure branches for Paseo-style progress notifications', async () => {
+    const events: ChatProviderRuntimeEvent[] = [];
+    await createSession(events);
+
+    fakeChild.notify('turn/plan/updated', { plan: [{ status: 'pending' }] });
+    fakeChild.notify('codex/event/turn_diff', { msg: { type: 'turn_diff', diff: 'legacy diff' } });
+    fakeChild.notify('codex/event/exec_command_output_delta', {
+      msg: { type: 'exec_command_output_delta', call_id: 'plain-chunk', delta: 'done' },
+    });
+    fakeChild.notify('codex/event/exec_command_end', {
+      msg: { type: 'exec_command_end', call_id: 'plain-chunk', success: true },
+    });
+    fakeChild.notify('codex/event/exec_command_end', {
+      msg: { type: 'exec_command_end', call_id: 'mirror-filled', success: true },
+    });
+    fakeChild.notify('item/completed', {
+      item: {
+        id: 'mirror-filled',
+        type: 'commandExecution',
+        status: 'completed',
+        command: ['pnpm', 'test'],
+        cwd: '/repo',
+        aggregatedOutput: 'mirror output',
+        exitCode: 0,
+      },
+    });
+    fakeChild.notify('codex/event/exec_command_begin', {
+      msg: {
+        type: 'exec_command_begin',
+        call_id: 'begin-then-mirror',
+        command: 'pnpm typecheck',
+      },
+    });
+    fakeChild.notify('codex/event/exec_command_end', {
+      msg: { type: 'exec_command_end', call_id: 'begin-then-mirror', success: true },
+    });
+    fakeChild.notify('item/completed', {
+      item: {
+        id: 'begin-then-mirror',
+        type: 'commandExecution',
+        status: 'completed',
+        aggregatedOutput: 'typecheck ok',
+      },
+    });
+    fakeChild.notify('codex/event/exec_command_end', {
+      msg: {
+        type: 'exec_command_end',
+        call_id: 'exit-failed',
+        command: 'pnpm test',
+        exit_code: 1,
+        stderr: 'failed',
+      },
+    });
+    fakeChild.notify('codex/event/exec_command_end', {
+      msg: {
+        type: 'exec_command_end',
+        command: 'pnpm lint',
+        stderr: 'lint failed',
+        success: false,
+      },
+    });
+    fakeChild.notify('codex/event/terminal_interaction', {
+      msg: { type: 'terminal_interaction' },
+    });
+    fakeChild.notify('codex/event/patch_apply_begin', {
+      msg: { type: 'patch_apply_begin', call_id: 'patch-fail', changes: { path: 'a.ts' } },
+    });
+    fakeChild.notify('codex/event/patch_apply_end', {
+      msg: {
+        type: 'patch_apply_end',
+        call_id: 'patch-fail',
+        stderr: 'patch failed',
+        success: false,
+      },
+    });
+    fakeChild.notify('item/fileChange/outputDelta', {
+      itemId: 'file-change-chunk',
+      chunk: 'chunk output',
+    });
+    fakeChild.notify('item/completed', {
+      item: { id: 'file-change-chunk', type: 'fileChange', status: 'completed' },
+    });
+    fakeChild.notify('item/agentMessage/delta', {
+      itemId: 'assistant-uppercase',
+      delta: 'hello',
+    });
+    fakeChild.notify('item/completed', {
+      item: { id: 'assistant-uppercase', type: 'AgentMessage', status: 'completed' },
+    });
+    fakeChild.notify('item/completed', {
+      item: { id: 'user-uppercase', type: 'UserMessage', status: 'completed' },
+    });
+    fakeChild.notify('turn/plan/updated', { plan: [{ step: 'will fail', status: 'in_progress' }] });
+    fakeChild.notify('turn/diff/updated', { diff: 'failed diff' });
+    fakeChild.notify('codex/event/exec_command_begin', {
+      msg: { type: 'exec_command_begin', call_id: 'cmd-failed-running', command: 'pnpm fail' },
+    });
+    fakeChild.notify('turn/completed', {
+      threadId: 'thread-1',
+      turn: { status: 'failed', error: { message: 'turn failed' } },
+    });
+
+    await vi.waitFor(() => {
+      expect(events).toContainEqual({
+        type: 'timeline',
+        item: expect.objectContaining({
+          id: expect.stringMatching(/^exec:/),
+          payload: expect.objectContaining({
+            toolName: 'shell',
+            status: 'failed',
+            output: undefined,
+            error: 'lint failed',
+          }),
+        }),
+        upsert: true,
+      });
+    });
+    expect(events).toContainEqual({
+      type: 'timeline',
+      item: expect.objectContaining({
+        id: 'plain-chunk',
+        payload: expect.objectContaining({
+          toolName: 'shell',
+          status: 'completed',
+          output: 'done',
+        }),
+      }),
+      upsert: true,
+    });
+    expect(events).toContainEqual({
+      type: 'timeline',
+      item: expect.objectContaining({
+        id: 'begin-then-mirror',
+        payload: expect.objectContaining({
+          toolName: 'shell',
+          status: 'completed',
+          input: {
+            command: 'pnpm typecheck',
+            cwd: undefined,
+          },
+          output: 'typecheck ok',
+        }),
+      }),
+      upsert: true,
+    });
+    expect(events).toContainEqual({
+      type: 'timeline',
+      item: expect.objectContaining({
+        id: 'mirror-filled',
+        payload: expect.objectContaining({
+          toolName: 'shell',
+          status: 'completed',
+          input: {
+            command: 'pnpm test',
+            cwd: '/repo',
+          },
+          output: 'mirror output',
+        }),
+      }),
+      upsert: true,
+    });
+    expect(events).toContainEqual({
+      type: 'timeline',
+      item: expect.objectContaining({
+        id: 'exit-failed',
+        payload: expect.objectContaining({
+          toolName: 'shell',
+          status: 'failed',
+          error: 'failed',
+        }),
+      }),
+      upsert: true,
+    });
+    expect(events).toContainEqual({
+      type: 'timeline',
+      item: expect.objectContaining({
+        id: 'plan:thread-1',
+        payload: expect.objectContaining({ output: 'Plan updated.' }),
+      }),
+      upsert: true,
+    });
+    expect(events).toContainEqual({
+      type: 'timeline',
+      item: expect.objectContaining({
+        id: 'diff:thread-1',
+        payload: expect.objectContaining({ output: 'legacy diff' }),
+      }),
+      upsert: true,
+    });
+    expect(events).toContainEqual({
+      type: 'timeline',
+      item: expect.objectContaining({
+        id: expect.stringMatching(/^terminal:terminal:/),
+        payload: expect.objectContaining({
+          toolName: 'terminal',
+          output: undefined,
+        }),
+      }),
+      upsert: true,
+    });
+    expect(events).toContainEqual({
+      type: 'timeline',
+      item: expect.objectContaining({
+        id: 'patch-fail',
+        payload: expect.objectContaining({
+          toolName: 'fileChange',
+          status: 'failed',
+          error: 'patch failed',
+        }),
+      }),
+      upsert: true,
+    });
+    expect(events).toContainEqual({
+      type: 'timeline',
+      item: expect.objectContaining({
+        id: 'file-change-chunk',
+        payload: expect.objectContaining({
+          toolName: 'fileChange',
+          output: 'chunk output',
+        }),
+      }),
+      upsert: true,
+    });
+    expect(
+      events.some(
+        (event) =>
+          event.type === 'timeline' &&
+          event.item.id === 'assistant-uppercase' &&
+          event.item.kind === 'tool_call'
+      )
+    ).toBe(false);
+    expect(
+      events.some(
+        (event) =>
+          event.type === 'timeline' &&
+          event.item.id === 'user-uppercase' &&
+          event.item.kind === 'tool_call'
+      )
+    ).toBe(false);
+    expect(events).toContainEqual({
+      type: 'timeline',
+      item: expect.objectContaining({
+        id: 'plan:thread-1',
+        payload: expect.objectContaining({
+          status: 'failed',
+          output: '- [in_progress] will fail',
+        }),
+      }),
+      upsert: true,
+    });
+    expect(events).toContainEqual({
+      type: 'timeline',
+      item: expect.objectContaining({
+        id: 'diff:thread-1',
+        payload: expect.objectContaining({
+          status: 'failed',
+          output: 'failed diff',
+        }),
+      }),
+      upsert: true,
+    });
+    expect(events).toContainEqual({
+      type: 'timeline',
+      item: expect.objectContaining({
+        id: 'cmd-failed-running',
+        payload: expect.objectContaining({
+          toolName: 'shell',
+          status: 'failed',
+          error: 'turn failed',
+        }),
+      }),
+      upsert: true,
+    });
+  });
+
   it('serializes runtime event forwarding so streaming deltas cannot persist out of order', async () => {
     const adapter = new CodexChatAdapter();
     const handled: ChatProviderRuntimeEvent[] = [];
@@ -617,6 +1065,31 @@ describe('CodexChatAdapter app-server integration', () => {
         result: { decision: 'decline' },
       });
     });
+  });
+
+  it('cancels pending app-server permission requests when a turn aborts', async () => {
+    const events: ChatProviderRuntimeEvent[] = [];
+    await createSession(events);
+
+    fakeChild.request(100, 'item/commandExecution/requestApproval', {
+      itemId: 'cmd-1',
+      command: 'pnpm test',
+    });
+    await vi.waitFor(() => {
+      expect(permissionRequest(events, 'permission-cmd-1')).toBeDefined();
+    });
+
+    fakeChild.notify('codex/event/turn_aborted', {
+      msg: { type: 'turn_aborted', reason: 'cancelled' },
+    });
+
+    await vi.waitFor(() => {
+      expect(fakeChild.serverResponses).toContainEqual({
+        id: 100,
+        error: { message: 'Permission request permission-cmd-1 was cancelled: Turn completed' },
+      });
+    });
+    expect(events).toContainEqual({ type: 'status', status: 'idle' });
   });
 
   it('handles out-of-band slash commands without starting a turn', async () => {
@@ -795,6 +1268,12 @@ describe('CodexChatAdapter app-server integration', () => {
 
     await adapter.sendMessage(session, { text: 'hello' });
     fakeChild.notify('turn/started', { threadId: 'thread-1', turn: { id: 'turn-1' } });
+    fakeChild.notify('turn/plan/updated', {
+      plan: [{ step: 'wait for server', status: 'in_progress' }],
+    });
+    fakeChild.notify('codex/event/exec_command_begin', {
+      msg: { type: 'exec_command_begin', call_id: 'cmd-running', command: 'pnpm test' },
+    });
     await vi.waitFor(() => {
       expect(events).toContainEqual({ type: 'status', status: 'working' });
     });
@@ -810,6 +1289,30 @@ describe('CodexChatAdapter app-server integration', () => {
         kind: 'error',
         payload: { message: expect.stringContaining('fatal app-server error') },
       },
+    });
+    expect(events).toContainEqual({
+      type: 'timeline',
+      item: expect.objectContaining({
+        id: 'plan:turn-1',
+        payload: expect.objectContaining({
+          toolName: 'plan',
+          status: 'failed',
+          output: '- [in_progress] wait for server',
+        }),
+      }),
+      upsert: true,
+    });
+    expect(events).toContainEqual({
+      type: 'timeline',
+      item: expect.objectContaining({
+        id: 'cmd-running',
+        payload: expect.objectContaining({
+          toolName: 'shell',
+          status: 'failed',
+          error: expect.stringContaining('fatal app-server error'),
+        }),
+      }),
+      upsert: true,
     });
   });
 });

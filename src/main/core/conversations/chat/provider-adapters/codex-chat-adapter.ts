@@ -52,8 +52,24 @@ class CodexChatSession implements ChatProviderSession {
   private readonly assistantTextByItemId = new Map<string, string>();
   private readonly callbacks = new Set<(event: ChatProviderRuntimeEvent) => void>();
   private eventQueue = Promise.resolve();
+  private readonly commandOutputDeltaByCallId = new Map<string, string>();
+  private readonly execCommandCallIds = new Set<string>();
+  private readonly execCommandInputByCallId = new Map<
+    string,
+    { command?: unknown; cwd?: string }
+  >();
+  private readonly fileChangeOutputDeltaByItemId = new Map<string, string>();
   private readonly pendingPermissions = new Map<string, PendingPermission>();
+  private readonly progressToolCallIds = new Set<string>();
+  private readonly progressToolCallPayloads = new Map<
+    string,
+    { input?: unknown; output?: string; toolName: string }
+  >();
   private readonly reasoningTextByItemId = new Map<string, string>();
+  private readonly runningToolCallPayloads = new Map<
+    string,
+    { input?: unknown; output?: string; toolName: string }
+  >();
   private turnStartPending = false;
   private eventHandler: (event: ChatProviderRuntimeEvent) => void | Promise<void> = () => {};
 
@@ -148,13 +164,13 @@ class CodexChatSession implements ChatProviderSession {
     const message = error?.message ?? 'Codex app-server exited';
     const hadActiveWork =
       this.turnStartPending || Boolean(this.activeTurnId) || this.pendingPermissions.size > 0;
-    for (const [requestId, pending] of this.pendingPermissions) {
-      pending.reject(new Error(`Permission request ${requestId} was cancelled`));
-    }
-    this.pendingPermissions.clear();
+    this.cancelPendingPermissions('Codex app-server exited');
     if (hadActiveWork) {
+      this.completeProgressToolCalls('failed');
+      this.finalizeRunningToolCalls('failed', message);
       this.activeTurnId = undefined;
       this.turnStartPending = false;
+      this.clearTurnBuffers();
       this.emit({
         type: 'timeline',
         item: { kind: 'error', payload: { message } },
@@ -187,10 +203,54 @@ class CodexChatSession implements ChatProviderSession {
             item: { kind: 'error', payload: { message: notification.errorMessage } },
           });
         }
-        const status: ConversationStatus = failed ? 'error' : 'completed';
+        const status: ConversationStatus = failed
+          ? 'error'
+          : notification.status === 'interrupted'
+            ? 'idle'
+            : 'completed';
+        const terminalToolStatus: ConversationToolCallStatus = failed
+          ? 'failed'
+          : notification.status === 'interrupted'
+            ? 'cancelled'
+            : 'completed';
+        this.completeProgressToolCalls(terminalToolStatus);
+        this.finalizeRunningToolCalls(
+          terminalToolStatus,
+          notification.errorMessage ?? `Turn ${terminalToolStatus}`
+        );
         this.activeTurnId = undefined;
         this.turnStartPending = false;
+        this.cancelPendingPermissions('Turn completed');
+        this.clearTurnBuffers();
         this.emit({ type: 'status', status });
+        break;
+      }
+      case 'plan-updated': {
+        const id = `plan:${this.activeTurnId ?? this.providerSessionId ?? 'current'}`;
+        this.progressToolCallIds.add(id);
+        const payload = {
+          toolName: 'plan',
+          status: 'running' as const,
+          output: renderPlan(notification.plan),
+          input: { plan: notification.plan },
+        };
+        this.progressToolCallPayloads.set(id, payload);
+        this.emitToolCall(id, payload);
+        break;
+      }
+      case 'diff-updated': {
+        const id = `diff:${this.activeTurnId ?? this.providerSessionId ?? 'current'}`;
+        this.progressToolCallIds.add(id);
+        const payload = {
+          toolName: 'diff',
+          status: 'running' as const,
+          output: notification.diff,
+        };
+        this.progressToolCallPayloads.set(id, payload);
+        this.emitToolCall(id, payload);
+        break;
+      }
+      case 'token-usage-updated': {
         break;
       }
       case 'assistant-delta': {
@@ -201,9 +261,66 @@ class CodexChatSession implements ChatProviderSession {
         this.emitTextDelta('reasoning', this.reasoningTextByItemId, notification);
         break;
       }
+      case 'exec-command-output-delta': {
+        appendBufferedDelta(
+          this.commandOutputDeltaByCallId,
+          notification.callId,
+          notification.delta,
+          { decodeBase64: true }
+        );
+        break;
+      }
+      case 'exec-command': {
+        if (notification.callId) {
+          if (notification.phase === 'started') {
+            this.execCommandInputByCallId.set(notification.callId, {
+              command: notification.command,
+              cwd: notification.cwd,
+            });
+          }
+        }
+        const item = mapExecCommandNotification(
+          notification,
+          this.commandOutputDeltaByCallId,
+          this.execCommandInputByCallId,
+          this.cwd
+        );
+        if (notification.callId && hasAuthoritativeExecPayload(item)) {
+          this.execCommandCallIds.add(notification.callId);
+        }
+        if (item) this.emitToolCallItem(item);
+        break;
+      }
+      case 'terminal-interaction': {
+        const item = mapTerminalInteractionNotification(notification);
+        if (item) this.emitToolCallItem(item);
+        break;
+      }
+      case 'patch-apply': {
+        const item = mapPatchApplyNotification(
+          notification,
+          this.fileChangeOutputDeltaByItemId,
+          this.cwd
+        );
+        if (item) this.emitToolCallItem(item);
+        break;
+      }
+      case 'file-change-output-delta': {
+        appendBufferedDelta(
+          this.fileChangeOutputDeltaByItemId,
+          notification.itemId,
+          notification.delta
+        );
+        break;
+      }
       case 'item': {
-        const item = mapToolItem(notification);
-        if (item) this.emit({ type: 'timeline', item, upsert: true });
+        const item = mapToolItem(
+          notification,
+          this.fileChangeOutputDeltaByItemId,
+          this.execCommandCallIds,
+          this.execCommandInputByCallId
+        );
+        if (item) this.emitToolCallItem(item);
         break;
       }
       case 'thread-compacted': {
@@ -303,6 +420,87 @@ class CodexChatSession implements ChatProviderSession {
 
   setEventHandler(handler: (event: ChatProviderRuntimeEvent) => void | Promise<void>): void {
     this.eventHandler = handler;
+  }
+
+  private clearTurnBuffers(): void {
+    this.commandOutputDeltaByCallId.clear();
+    this.execCommandCallIds.clear();
+    this.execCommandInputByCallId.clear();
+    this.fileChangeOutputDeltaByItemId.clear();
+    this.progressToolCallIds.clear();
+    this.progressToolCallPayloads.clear();
+    this.runningToolCallPayloads.clear();
+  }
+
+  private completeProgressToolCalls(status: ConversationToolCallStatus): void {
+    for (const id of this.progressToolCallIds) {
+      const existing = this.progressToolCallPayloads.get(id);
+      this.emit({
+        type: 'timeline',
+        item: {
+          id,
+          kind: 'tool_call',
+          payload: {
+            input: existing?.input,
+            output: existing?.output,
+            toolName: existing?.toolName ?? (id.startsWith('plan:') ? 'plan' : 'diff'),
+            status,
+          },
+        },
+        upsert: true,
+      });
+    }
+  }
+
+  private finalizeRunningToolCalls(status: ConversationToolCallStatus, message: string): void {
+    for (const [id, existing] of this.runningToolCallPayloads) {
+      this.emitToolCall(id, {
+        ...existing,
+        status,
+        error: status === 'failed' ? message : undefined,
+      });
+    }
+  }
+
+  private cancelPendingPermissions(reason: string): void {
+    for (const [requestId, pending] of this.pendingPermissions) {
+      pending.reject(new Error(`Permission request ${requestId} was cancelled: ${reason}`));
+    }
+    this.pendingPermissions.clear();
+  }
+
+  private emitToolCall(
+    id: string,
+    payload: {
+      error?: string;
+      input?: unknown;
+      output?: string;
+      status: ConversationToolCallStatus;
+      toolName: string;
+    }
+  ): void {
+    if (payload.status === 'running') {
+      this.runningToolCallPayloads.set(id, payload);
+    } else {
+      this.runningToolCallPayloads.delete(id);
+    }
+    this.emit({
+      type: 'timeline',
+      item: {
+        id,
+        kind: 'tool_call',
+        payload,
+      },
+      upsert: true,
+    });
+  }
+
+  private emitToolCallItem(item: AppendConversationTimelineItemInput): void {
+    if (item.kind !== 'tool_call') {
+      this.emit({ type: 'timeline', item, upsert: true });
+      return;
+    }
+    this.emitToolCall(item.id ?? `tool:${Date.now()}`, item.payload);
   }
 }
 
@@ -555,26 +753,218 @@ function parseSlashCommand(text: string): AgentSlashCommandInput | undefined {
 }
 
 function mapToolItem(
-  notification: Extract<CodexAppServerNotification, { type: 'item' }>
+  notification: Extract<CodexAppServerNotification, { type: 'item' }>,
+  fileChangeOutputDeltaByItemId: Map<string, string>,
+  execCommandCallIds: Set<string>,
+  execCommandInputByCallId: Map<string, { command?: unknown; cwd?: string }>
 ): AppendConversationTimelineItemInput | undefined {
+  if (!notification.itemType || isTextualCodexItemType(notification.itemType)) {
+    return undefined;
+  }
   if (
-    !notification.itemType ||
-    notification.itemType === 'assistantMessage' ||
-    notification.itemType === 'reasoning'
+    isCommandExecutionItemType(notification.itemType) &&
+    execCommandCallIds.has(notification.itemId)
   ) {
     return undefined;
   }
+  if (isCommandExecutionItemType(notification.itemType)) {
+    return mapCommandExecutionItem(notification, execCommandInputByCallId);
+  }
+  const bufferedOutput =
+    notification.phase === 'completed'
+      ? consumeBufferedDelta(fileChangeOutputDeltaByItemId, notification.itemId)
+      : undefined;
   return {
     id: notification.itemId,
     kind: 'tool_call',
     payload: {
       toolName: notification.name ?? notification.title ?? notification.itemType,
       status: mapToolStatus(notification.phase, notification.status, notification.error),
-      output: notification.output,
+      output: notification.output ?? bufferedOutput,
       error: notification.error,
       input: notification.raw,
     },
   };
+}
+
+function mapCommandExecutionItem(
+  notification: Extract<CodexAppServerNotification, { type: 'item' }>,
+  execCommandInputByCallId: Map<string, { command?: unknown; cwd?: string }>
+): AppendConversationTimelineItemInput | undefined {
+  const item = itemRecordFromRaw(notification.raw);
+  const rememberedInput = execCommandInputByCallId.get(notification.itemId);
+  const command = commandTextFromValue(item?.command) ?? rememberedInput?.command;
+  const cwd = (typeof item?.cwd === 'string' ? item.cwd : undefined) ?? rememberedInput?.cwd;
+  const output =
+    stringField(item, 'aggregatedOutput') ??
+    stringField(item, 'aggregated_output') ??
+    notification.output;
+  const exitCode = numberField(item, 'exitCode') ?? numberField(item, 'exit_code');
+  const error = notification.error;
+  return {
+    id: notification.itemId,
+    kind: 'tool_call',
+    payload: {
+      toolName: 'shell',
+      status:
+        error || isFailedExitCode(exitCode)
+          ? 'failed'
+          : mapToolStatus(notification.phase, notification.status, error),
+      input: { command, cwd },
+      output,
+      error: error ?? (isFailedExitCode(exitCode) ? `Exit code ${exitCode}` : undefined),
+    },
+  };
+}
+
+function mapExecCommandNotification(
+  notification: Extract<CodexAppServerNotification, { type: 'exec-command' }>,
+  outputDeltaByCallId: Map<string, string>,
+  inputByCallId: Map<string, { command?: unknown; cwd?: string }>,
+  cwd: string
+): AppendConversationTimelineItemInput | undefined {
+  const callId = notification.callId ?? `exec:${Date.now()}`;
+  const rememberedInput = inputByCallId.get(callId);
+  const bufferedOutput =
+    notification.phase === 'completed'
+      ? consumeBufferedDelta(outputDeltaByCallId, callId)
+      : undefined;
+  const output = notification.output ?? bufferedOutput;
+  const error =
+    notification.stderr &&
+    (notification.success === false || isFailedExitCode(notification.exitCode))
+      ? notification.stderr
+      : undefined;
+  return {
+    id: callId,
+    kind: 'tool_call',
+    payload: {
+      toolName: 'shell',
+      status:
+        notification.phase === 'started'
+          ? 'running'
+          : notification.success === false || isFailedExitCode(notification.exitCode)
+            ? 'failed'
+            : 'completed',
+      input: {
+        command: notification.command ?? rememberedInput?.command,
+        cwd: notification.cwd ?? rememberedInput?.cwd ?? cwd,
+      },
+      output,
+      error:
+        error ??
+        (isFailedExitCode(notification.exitCode)
+          ? `Exit code ${notification.exitCode}`
+          : undefined),
+    },
+  };
+}
+
+function mapTerminalInteractionNotification(
+  notification: Extract<CodexAppServerNotification, { type: 'terminal-interaction' }>
+): AppendConversationTimelineItemInput | undefined {
+  const id = notification.processId ?? notification.callId ?? `terminal:${Date.now()}`;
+  return {
+    id: `terminal:${id}`,
+    kind: 'tool_call',
+    payload: {
+      toolName: 'terminal',
+      status: 'completed',
+      input: notification.raw,
+      output: notification.stdin ? `Input sent to terminal:\n${notification.stdin}` : undefined,
+    },
+  };
+}
+
+function mapPatchApplyNotification(
+  notification: Extract<CodexAppServerNotification, { type: 'patch-apply' }>,
+  outputDeltaByItemId: Map<string, string>,
+  cwd: string
+): AppendConversationTimelineItemInput | undefined {
+  const callId = notification.callId ?? `patch:${Date.now()}`;
+  const bufferedOutput =
+    notification.phase === 'completed'
+      ? consumeBufferedDelta(outputDeltaByItemId, callId)
+      : undefined;
+  const output = notification.stdout ?? bufferedOutput;
+  return {
+    id: callId,
+    kind: 'tool_call',
+    payload: {
+      toolName: 'fileChange',
+      status:
+        notification.phase === 'started'
+          ? 'running'
+          : notification.success === false
+            ? 'failed'
+            : 'completed',
+      input: {
+        changes: notification.changes,
+        cwd,
+      },
+      output,
+      error:
+        notification.stderr && notification.success === false ? notification.stderr : undefined,
+    },
+  };
+}
+
+function isTextualCodexItemType(itemType: string): boolean {
+  const normalized = itemType.toLowerCase();
+  return (
+    normalized === 'assistantmessage' ||
+    normalized === 'agentmessage' ||
+    normalized === 'reasoning' ||
+    normalized === 'usermessage'
+  );
+}
+
+function isCommandExecutionItemType(itemType: string): boolean {
+  return itemType.toLowerCase() === 'commandexecution';
+}
+
+function hasAuthoritativeExecPayload(
+  item: AppendConversationTimelineItemInput | undefined
+): boolean {
+  if (!item || item.kind !== 'tool_call') return false;
+  return item.payload.output !== undefined || item.payload.error !== undefined;
+}
+
+function itemRecordFromRaw(raw: unknown): Record<string, unknown> | undefined {
+  if (typeof raw !== 'object' || raw === null || !('item' in raw)) return undefined;
+  const item = raw.item;
+  return typeof item === 'object' && item !== null && !Array.isArray(item)
+    ? (item as Record<string, unknown>)
+    : undefined;
+}
+
+function stringField(
+  record: Record<string, unknown> | undefined,
+  field: string
+): string | undefined {
+  const value = record?.[field];
+  return typeof value === 'string' ? value : undefined;
+}
+
+function numberField(
+  record: Record<string, unknown> | undefined,
+  field: string
+): number | undefined {
+  const value = record?.[field];
+  return typeof value === 'number' ? value : undefined;
+}
+
+function commandTextFromValue(value: unknown): string | undefined {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) {
+    const parts = value.filter((part): part is string => typeof part === 'string');
+    return parts.length > 0 ? parts.join(' ') : undefined;
+  }
+  return undefined;
+}
+
+function isFailedExitCode(exitCode: number | null | undefined): boolean {
+  return typeof exitCode === 'number' && exitCode !== 0;
 }
 
 function mapToolStatus(
@@ -586,6 +976,55 @@ function mapToolStatus(
   if (status === 'cancelled' || status === 'canceled') return 'cancelled';
   if (phase === 'completed' || status === 'completed' || status === 'success') return 'completed';
   return 'running';
+}
+
+function renderPlan(plan: Array<{ step?: string; status?: string }>): string {
+  const rows = plan
+    .map((entry) => {
+      const step = entry.step?.trim();
+      if (!step) return undefined;
+      const status = entry.status?.trim();
+      return status ? `- [${status}] ${step}` : `- ${step}`;
+    })
+    .filter((entry): entry is string => entry !== undefined);
+  return rows.length > 0 ? rows.join('\n') : 'Plan updated.';
+}
+
+function appendBufferedDelta(
+  store: Map<string, string>,
+  key: string | undefined,
+  delta: string | undefined,
+  options: { decodeBase64?: boolean } = {}
+): void {
+  if (!key || !delta) return;
+  const chunk = options.decodeBase64 ? decodeBase64Text(delta) : delta;
+  store.set(key, `${store.get(key) ?? ''}${chunk}`);
+}
+
+function consumeBufferedDelta(
+  store: Map<string, string>,
+  key: string | undefined
+): string | undefined {
+  if (!key) return undefined;
+  const value = store.get(key);
+  store.delete(key);
+  return value;
+}
+
+function decodeBase64Text(value: string): string {
+  const normalized = value.trim();
+  if (!normalized || normalized.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(normalized)) {
+    return value;
+  }
+  try {
+    const decoded = Buffer.from(normalized, 'base64').toString('utf8');
+    return Buffer.from(decoded, 'utf8').toString('base64').replace(/=+$/u, '') ===
+      normalized.replace(/=+$/u, '')
+      ? decoded
+      : value;
+  } catch {
+    return value;
+  }
 }
 
 function titleForPermissionRequest(method: string, record: object): string {

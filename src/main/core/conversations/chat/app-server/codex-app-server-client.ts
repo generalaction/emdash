@@ -46,6 +46,31 @@ const TurnCompletedNotificationSchema = z
   })
   .passthrough();
 
+const TurnPlanUpdatedNotificationSchema = z
+  .object({
+    plan: z.array(
+      z
+        .object({
+          step: z.string().optional(),
+          status: z.string().optional(),
+        })
+        .passthrough()
+    ),
+  })
+  .passthrough();
+
+const TurnDiffUpdatedNotificationSchema = z
+  .object({
+    diff: z.string(),
+  })
+  .passthrough();
+
+const ThreadTokenUsageUpdatedNotificationSchema = z
+  .object({
+    tokenUsage: z.unknown(),
+  })
+  .passthrough();
+
 const TextDeltaNotificationSchema = z
   .object({
     itemId: z.string(),
@@ -74,12 +99,100 @@ const ItemNotificationSchema = z
   })
   .passthrough();
 
+const CodexEventNotificationSchema = z
+  .object({
+    msg: z
+      .object({
+        type: z.string(),
+        call_id: z.string().optional(),
+        command: z.unknown().optional(),
+        cwd: z.string().optional(),
+        stdout: z.string().optional(),
+        stderr: z.string().optional(),
+        aggregated_output: z.string().optional(),
+        aggregatedOutput: z.string().optional(),
+        formatted_output: z.string().optional(),
+        exit_code: z.number().nullable().optional(),
+        exitCode: z.number().nullable().optional(),
+        success: z.boolean().optional(),
+        stream: z.string().optional(),
+        chunk: z.string().optional(),
+        delta: z.string().optional(),
+        process_id: z.union([z.string(), z.number()]).optional(),
+        stdin: z.string().optional(),
+        changes: z.unknown().optional(),
+        unified_diff: z.string().optional(),
+        diff: z.string().optional(),
+        reason: z.string().optional(),
+        item: z
+          .object({
+            id: z.string().optional(),
+            type: z.string().optional(),
+          })
+          .passthrough()
+          .optional(),
+      })
+      .passthrough(),
+    threadId: z.string().optional(),
+  })
+  .passthrough();
+
+const TerminalInteractionNotificationSchema = z
+  .object({
+    itemId: z.string().optional(),
+    processId: z.union([z.string(), z.number()]).optional(),
+    stdin: z.string().optional(),
+  })
+  .passthrough();
+
+const FileChangeOutputDeltaNotificationSchema = z
+  .object({
+    itemId: z.string(),
+    delta: z.string().optional(),
+    chunk: z.string().optional(),
+  })
+  .passthrough();
+
 export type CodexAppServerNotification =
   | { type: 'thread-started'; threadId: string }
   | { type: 'turn-started'; threadId?: string; turnId: string }
   | { type: 'turn-completed'; threadId?: string; status?: string; errorMessage?: string }
+  | { type: 'plan-updated'; plan: Array<{ step?: string; status?: string }> }
+  | { type: 'diff-updated'; diff: string }
+  | { type: 'token-usage-updated'; tokenUsage: unknown }
   | { type: 'assistant-delta'; itemId: string; delta: string }
   | { type: 'reasoning-delta'; itemId: string; delta: string }
+  | {
+      type: 'exec-command';
+      phase: 'started' | 'completed';
+      callId?: string;
+      command?: unknown;
+      cwd?: string;
+      output?: string;
+      stderr?: string;
+      exitCode?: number | null;
+      success?: boolean;
+      raw: unknown;
+    }
+  | { type: 'exec-command-output-delta'; callId?: string; stream?: string; delta?: string }
+  | {
+      type: 'terminal-interaction';
+      callId?: string;
+      processId?: string;
+      stdin?: string;
+      raw: unknown;
+    }
+  | {
+      type: 'patch-apply';
+      phase: 'started' | 'completed';
+      callId?: string;
+      changes?: unknown;
+      stdout?: string;
+      stderr?: string;
+      success?: boolean;
+      raw: unknown;
+    }
+  | { type: 'file-change-output-delta'; itemId: string; delta?: string }
   | {
       type: 'item';
       phase: 'started' | 'completed';
@@ -231,6 +344,28 @@ function parseNotification(method: string, params: unknown): CodexAppServerNotif
       };
     }
   }
+  if (method === 'turn/plan/updated') {
+    const parsed = TurnPlanUpdatedNotificationSchema.safeParse(params);
+    if (parsed.success) {
+      return {
+        type: 'plan-updated',
+        plan: parsed.data.plan.map((entry) => ({
+          step: entry.step,
+          status: entry.status,
+        })),
+      };
+    }
+  }
+  if (method === 'turn/diff/updated') {
+    const parsed = TurnDiffUpdatedNotificationSchema.safeParse(params);
+    if (parsed.success) return { type: 'diff-updated', diff: parsed.data.diff };
+  }
+  if (method === 'thread/tokenUsage/updated') {
+    const parsed = ThreadTokenUsageUpdatedNotificationSchema.safeParse(params);
+    if (parsed.success) {
+      return { type: 'token-usage-updated', tokenUsage: parsed.data.tokenUsage };
+    }
+  }
   if (method === 'item/agentMessage/delta') {
     const parsed = TextDeltaNotificationSchema.safeParse(params);
     if (parsed.success) {
@@ -251,30 +386,169 @@ function parseNotification(method: string, params: unknown): CodexAppServerNotif
       };
     }
   }
-  if (method === 'item/started' || method === 'item/completed') {
-    const parsed = ItemNotificationSchema.safeParse(params);
+  if (method.startsWith('codex/event/')) {
+    const parsed = CodexEventNotificationSchema.safeParse(params);
     if (parsed.success) {
-      const item = parsed.data.item;
-      const error = item?.error;
+      const msg = parsed.data.msg;
+      if (method === 'codex/event/item_started' && msg.item) {
+        return parseItemLifecycle('started', params, msg.item, parsed.data.threadId);
+      }
+      if (method === 'codex/event/item_completed' && msg.item) {
+        return parseItemLifecycle('completed', params, msg.item, parsed.data.threadId);
+      }
+      if (method === 'codex/event/exec_command_begin') {
+        return {
+          type: 'exec-command',
+          phase: 'started',
+          callId: msg.call_id,
+          command: msg.command,
+          cwd: msg.cwd,
+          raw: params,
+        };
+      }
+      if (method === 'codex/event/exec_command_end') {
+        return {
+          type: 'exec-command',
+          phase: 'completed',
+          callId: msg.call_id,
+          command: msg.command,
+          cwd: msg.cwd,
+          output:
+            msg.aggregated_output ?? msg.aggregatedOutput ?? msg.formatted_output ?? msg.stdout,
+          stderr: msg.stderr,
+          exitCode: msg.exit_code ?? msg.exitCode,
+          success: msg.success,
+          raw: params,
+        };
+      }
+      if (method === 'codex/event/exec_command_output_delta') {
+        return {
+          type: 'exec-command-output-delta',
+          callId: msg.call_id,
+          stream: msg.stream,
+          delta: msg.chunk ?? msg.delta,
+        };
+      }
+      if (method === 'codex/event/terminal_interaction') {
+        return {
+          type: 'terminal-interaction',
+          callId: msg.call_id,
+          processId: normalizeProcessId(msg.process_id),
+          stdin: msg.stdin,
+          raw: params,
+        };
+      }
+      if (method === 'codex/event/patch_apply_begin') {
+        return {
+          type: 'patch-apply',
+          phase: 'started',
+          callId: msg.call_id,
+          changes: msg.changes,
+          raw: params,
+        };
+      }
+      if (method === 'codex/event/patch_apply_end') {
+        return {
+          type: 'patch-apply',
+          phase: 'completed',
+          callId: msg.call_id,
+          changes: msg.changes,
+          stdout: msg.stdout,
+          stderr: msg.stderr,
+          success: msg.success,
+          raw: params,
+        };
+      }
+      if (method === 'codex/event/turn_diff') {
+        return { type: 'diff-updated', diff: msg.unified_diff ?? msg.diff ?? '' };
+      }
+      if (method === 'codex/event/turn_aborted') {
+        return { type: 'turn-completed', status: 'interrupted' };
+      }
+      if (method === 'codex/event/task_complete') {
+        return { type: 'turn-completed', status: 'completed' };
+      }
+    }
+  }
+  if (method === 'item/commandExecution/terminalInteraction') {
+    const parsed = TerminalInteractionNotificationSchema.safeParse(params);
+    if (parsed.success) {
       return {
-        type: 'item',
-        phase: method === 'item/started' ? 'started' : 'completed',
-        itemId: item?.id ?? parsed.data.itemId ?? `${method}:${Date.now()}`,
-        itemType: item?.type ?? parsed.data.type,
-        status: item?.status,
-        name: item?.name,
-        title: item?.title,
-        output: item?.output ?? item?.text,
-        error:
-          typeof error === 'string'
-            ? error
-            : typeof error?.message === 'string'
-              ? error.message
-              : undefined,
+        type: 'terminal-interaction',
+        callId: parsed.data.itemId,
+        processId: normalizeProcessId(parsed.data.processId),
+        stdin: parsed.data.stdin,
         raw: params,
       };
     }
   }
+  if (method === 'item/fileChange/outputDelta') {
+    const parsed = FileChangeOutputDeltaNotificationSchema.safeParse(params);
+    if (parsed.success) {
+      return {
+        type: 'file-change-output-delta',
+        itemId: parsed.data.itemId,
+        delta: parsed.data.delta ?? parsed.data.chunk,
+      };
+    }
+  }
+  if (method === 'item/started' || method === 'item/completed') {
+    const parsed = ItemNotificationSchema.safeParse(params);
+    if (parsed.success) {
+      const item = parsed.data.item;
+      return parseItemLifecycle(
+        method === 'item/started' ? 'started' : 'completed',
+        params,
+        item,
+        undefined,
+        parsed.data.itemId,
+        parsed.data.type
+      );
+    }
+  }
   if (method === 'thread/compacted') return { type: 'thread-compacted' };
   return { type: 'unknown', method, params };
+}
+
+function parseItemLifecycle(
+  phase: 'started' | 'completed',
+  raw: unknown,
+  item:
+    | {
+        id?: string;
+        type?: string;
+        status?: string;
+        name?: string;
+        title?: string;
+        text?: string;
+        output?: string;
+        error?: string | { message?: string };
+      }
+    | undefined,
+  _threadId?: string,
+  itemId?: string,
+  itemType?: string
+): CodexAppServerNotification {
+  const error = item?.error;
+  return {
+    type: 'item',
+    phase,
+    itemId: item?.id ?? itemId ?? `item:${phase}:${Date.now()}`,
+    itemType: item?.type ?? itemType,
+    status: item?.status,
+    name: item?.name,
+    title: item?.title,
+    output: item?.output ?? item?.text,
+    error:
+      typeof error === 'string'
+        ? error
+        : typeof error?.message === 'string'
+          ? error.message
+          : undefined,
+    raw,
+  };
+}
+
+function normalizeProcessId(value: string | number | undefined): string | undefined {
+  return value === undefined ? undefined : String(value);
 }

@@ -387,7 +387,7 @@ export class ChatConversationRuntime {
     ) {
       active.awaitingInput = false;
       active.awaitingResponse = false;
-      if (event.status !== 'idle') await this.cancelPendingPermissionRequests(active.conversation);
+      await this.cancelPendingPermissionRequests(active.conversation);
     }
     this.emitStatus(active.conversation, event.status);
   }

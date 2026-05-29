@@ -541,3 +541,53 @@ Review loop:
 - Per the updated reviewer-loop instruction, roles that returned clean were not rerun for the same
   step. Logic returned clean first; after the final hardening pass, architecture and coverage also
   returned no high/medium findings.
+
+## Step 6 Follow-up: Paseo Notification Parity
+
+Expanded the Codex app-server adapter toward Paseo-equivalent notification behavior.
+
+Changes made:
+
+- Added Codex app-server parsing for plan, diff, token usage, Codex event item lifecycle, exec
+  command begin/end/output deltas, terminal interaction, patch apply begin/end, file-change output
+  deltas, task-complete, and turn-aborted notifications.
+- Mapped progress notifications into Emdash timeline rows using the existing provider-neutral
+  `tool_call`, `assistant_message`, `reasoning`, `error`, and status models.
+- Preserved command metadata across exec begin/end and canonical `commandExecution` mirror events.
+- Buffered command and file-change output deltas and consumed them into completed tool rows.
+- Prevented canonical mirrored `commandExecution` items from overwriting authoritative exec rows
+  while still allowing richer mirrors to fill sparse exec completions.
+- Ignored non-tool lifecycle rows such as assistant, agent, reasoning, and user-message items.
+- Finalized progress and running tool rows as completed, cancelled, or failed on turn completion,
+  abort, failure, and app-server exit so hydration cannot replay stale running rows.
+- Cancelled pending app-server permission requests when terminal turn statuses arrive, including
+  abort/idle status.
+
+Validation:
+
+- `pnpm run format`: passed.
+- `pnpm run lint`: passed.
+- `pnpm run typecheck`: passed.
+- `pnpm run test`: passed, 202 files / 1357 tests.
+- `pnpm run test:coverage:chat`: passed, 8 files / 75 tests, with 92.70% statements, 82.30%
+  branches, 93.10% functions, and 95.89% lines for the configured chat/app-server scope.
+
+Review loop:
+
+- Architecture reviewer found medium issues around mirrored `commandExecution` rows overwriting
+  authoritative exec rows and turn buffers surviving abort/completion. Fixed with richer exec mirror
+  handling, per-turn buffer cleanup, and running-row finalization.
+- Logic reviewer found medium issues around abort status, pending permission cleanup, non-zero exit
+  codes, base64-shaped plain output chunks, text item casing, failed progress finalization, user
+  message lifecycle rows, and app-server exit leaving running rows. Fixed each path and added
+  regression coverage.
+- Test reviewer found medium coverage gaps for exit-code handling, base64-shaped chunks, command
+  preservation, sparse exec-end plus mirror ordering, begin/end/mirror ordering, and running tool
+  rows on abort/failure/exit. Added focused fake app-server tests for those cases.
+- Final architecture, test, and logic reviewer reruns found no high/medium issues.
+
+Remaining risks and follow-ups:
+
+- The mapping now covers the documented Paseo notification families, but Emdash still renders them
+  through the current generic tool-call timeline model. Richer per-tool UI can be layered on top of
+  these persisted rows later.
