@@ -1,4 +1,9 @@
-import { getRegisteredTaskData, getTaskStore, getTaskGitStore, getTaskView } from '@renderer/features/tasks/stores/task-selectors';
+import {
+  getRegisteredTaskData,
+  getTaskStore,
+  getTaskGitStore,
+  getTaskView,
+} from '@renderer/features/tasks/stores/task-selectors';
 import { taskViewProfileForStore } from '@renderer/features/tasks/stores/task-store';
 import { closeActiveTabWithConfirm } from '@renderer/features/tasks/tabs/close-tab-with-confirm';
 import type { CommandProvider } from '@renderer/lib/commands/types';

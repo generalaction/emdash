@@ -28,7 +28,9 @@ function makeTaskRow(overrides: Partial<TaskRow> = {}): TaskRow {
 
 describe('mapTaskRowToTask', () => {
   it('passes through chat kind from the database row', () => {
-    const task = mapTaskRowToTask(makeTaskRow({ id: 'chat-1', kind: TASK_KIND.Chat, name: 'chat-may-27' }));
+    const task = mapTaskRowToTask(
+      makeTaskRow({ id: 'chat-1', kind: TASK_KIND.Chat, name: 'chat-may-27' })
+    );
     expect(task.kind).toBe(TASK_KIND.Chat);
   });
 

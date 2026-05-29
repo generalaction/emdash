@@ -24,9 +24,7 @@ export const TaskSidebar = observer(function TaskSidebar() {
       style={isSidebarCollapsed ? { display: 'none' } : undefined}
     >
       <ShowHide
-        visible={
-          activeTab === 'conversations' || viewProfile?.group === TASK_SIDEBAR_GROUP.Chats
-        }
+        visible={activeTab === 'conversations' || viewProfile?.group === TASK_SIDEBAR_GROUP.Chats}
       >
         <SidebarConversationsList />
       </ShowHide>

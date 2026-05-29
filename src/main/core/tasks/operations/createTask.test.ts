@@ -252,7 +252,9 @@ describe('createTask', () => {
       },
     });
 
-    expect(insertTaskValues).toHaveBeenCalledWith(expect.objectContaining({ kind: TASK_KIND.Task }));
+    expect(insertTaskValues).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: TASK_KIND.Task })
+    );
   });
 
   it('creates a regular no-worktree task with kind task and no branch', async () => {
