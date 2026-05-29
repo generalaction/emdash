@@ -115,7 +115,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
         >
           {taskName}
         </span>
-        <div className="flex shrink-0 items-center justify-end gap-2">
+        <div className="ml-2 flex shrink-0 items-center justify-end gap-1.5">
           <TaskGitDiffStats task={task} />
           <RenderPrBadge task={task} />
           <TaskSidebarTrailingSlot task={task} />
