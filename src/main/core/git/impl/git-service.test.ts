@@ -426,6 +426,21 @@ describe('GitService.createBranch', () => {
   });
 });
 
+describe('GitService.renameBranch', () => {
+  it('renames only the local branch ref', async () => {
+    const svc = makeService(
+      makeExec({
+        'branch -m emdash/old-name emdash/new-name': '',
+      })
+    );
+
+    await expect(svc.renameBranch('emdash/old-name', 'emdash/new-name')).resolves.toEqual({
+      success: true,
+      data: undefined,
+    });
+  });
+});
+
 describe('GitService.fetch', () => {
   it('fetches through plain git without injected GitHub auth config', async () => {
     const svc = makeService(

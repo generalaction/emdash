@@ -70,7 +70,7 @@ export const repositoryController = createRPCController({
     if (!project) return err({ type: 'not_found' as const });
     const result = await project.repository.renameBranch(oldBranch, newBranch);
     if (!result.success) return err(result.error);
-    return ok({ remotePushed: result.data.remotePushed });
+    return ok();
   },
 
   fetch: async (projectId: string, workspaceId?: string) => {
