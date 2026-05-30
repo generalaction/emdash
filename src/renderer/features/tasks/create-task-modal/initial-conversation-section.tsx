@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query';
 import { CheckCheckIcon, PlusIcon, X } from 'lucide-react';
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
@@ -7,8 +8,10 @@ import {
   buildIssueContextText,
   buildTaskContextActions,
 } from '@renderer/features/tasks/conversations/context-actions';
+import { resolveContextActionText } from '@renderer/features/tasks/conversations/resolve-context-action-text';
 import { useEffectiveProvider } from '@renderer/features/tasks/conversations/use-effective-provider';
 import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
+import { resolveLinkedIssueContextText } from '@renderer/features/tasks/issue-context/refresh-linked-issue-context';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
 import { Button } from '@renderer/lib/ui/button';
 import { Field } from '@renderer/lib/ui/field';
@@ -50,12 +53,14 @@ export function useInitialConversationState(projectId?: string): InitialConversa
 interface InitialConversationFieldProps {
   state: InitialConversationState;
   linkedIssue?: Issue;
+  projectId?: string;
   includeIssueContextByDefault: boolean;
 }
 
 export function InitialConversationField({
   state,
   linkedIssue,
+  projectId,
   includeIssueContextByDefault,
 }: InitialConversationFieldProps) {
   const { value: promptLibrary } = usePromptLibrary();
@@ -64,6 +69,15 @@ export function InitialConversationField({
     () => buildTaskContextActions(linkedIssue, [], promptLibrary),
     [linkedIssue, promptLibrary]
   );
+  const resolvedIssueContext = useQuery({
+    queryKey: ['linkedIssueContextText', projectId, linkedIssue?.provider, linkedIssue?.identifier],
+    queryFn: () => resolveLinkedIssueContextText(linkedIssue!, projectId),
+    enabled: Boolean(projectId && linkedIssue && state.issueContext),
+    refetchOnWindowFocus: false,
+  });
+  const issueContextText = state.issueContext
+    ? (resolvedIssueContext.data?.text ?? state.issueContext)
+    : null;
 
   // Auto-inject issue context whenever the linked issue changes.
   useEffect(() => {
@@ -99,6 +113,9 @@ export function InitialConversationField({
             <AddContextPopover
               actions={contextActions}
               disabled={contextActions.length === 0}
+              resolveActionText={(action) =>
+                resolveContextActionText({ action, linkedIssue, projectId })
+              }
               onApplyAction={handleActionClick}
               renderTrigger={({ disabled: isDisabled }) => (
                 <Button variant="ghost" size="icon-xs" disabled={isDisabled}>
@@ -125,7 +142,7 @@ export function InitialConversationField({
         </div>
 
         {/* Issue context pill */}
-        {state.issueContext && linkedIssue && (
+        {issueContextText && linkedIssue && (
           <div className="px-2 py-1">
             <Popover>
               <PopoverTrigger
@@ -157,7 +174,7 @@ export function InitialConversationField({
               </PopoverTrigger>
               <PopoverContent side="bottom" align="start" sideOffset={6} className="w-80 gap-0 p-0">
                 <pre className="p-3 font-mono text-xs whitespace-pre-wrap text-foreground-passive">
-                  {state.issueContext}
+                  {issueContextText}
                 </pre>
               </PopoverContent>
             </Popover>

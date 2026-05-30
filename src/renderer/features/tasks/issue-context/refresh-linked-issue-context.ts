@@ -1,3 +1,4 @@
+import { buildIssueContextText } from '@renderer/features/tasks/conversations/context-actions';
 import { rpc } from '@renderer/lib/ipc';
 import type { Issue } from '@shared/tasks';
 
@@ -18,4 +19,15 @@ export async function refreshLinkedIssueContext(
   if (!result?.success) return issue;
 
   return result.issue;
+}
+
+export async function resolveLinkedIssueContextText(
+  issue: Issue,
+  projectId: string | undefined
+): Promise<{ issue: Issue; text: string }> {
+  const refreshedIssue = await refreshLinkedIssueContext(issue, projectId);
+  return {
+    issue: refreshedIssue,
+    text: buildIssueContextText(refreshedIssue),
+  };
 }

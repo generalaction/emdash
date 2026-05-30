@@ -23,6 +23,7 @@ import {
 } from '@renderer/lib/ui/dialog';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { getPrNumber, isForkPr, type PullRequest } from '@shared/pull-requests';
+import { resolveLinkedIssueContextText } from '../issue-context/refresh-linked-issue-context';
 import {
   resolveBranchLikeTaskStrategy,
   resolvePullRequestTaskStrategy,
@@ -69,6 +70,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
 
   const [sectionTab, setSectionTab] = useState<SectionTab>('conversation');
   const [useBYOI, setUseBYOI] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
 
   const projectData = selectedProjectId
     ? mountedProjectData(getProjectManagerStore().projects.get(selectedProjectId))
@@ -135,14 +137,33 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     // oxlint-disable-next-line react/exhaustive-deps
   }, [selectedProjectId]);
 
-  const canCreate = !!selectedProjectId && state.isValid;
+  const canCreate = !!selectedProjectId && state.isValid && !isCreating;
 
-  const handleCreateTask = useCallback(() => {
+  const handleCreateTask = useCallback(async () => {
     if (!selectedProjectId) return;
     const projectStore = getProjectManagerStore().projects.get(selectedProjectId);
     if (projectStore?.state !== 'mounted') return;
+    if (isCreating) return;
+
+    const { linkedType, linkedIssue, linkedPR, checkoutMode, branchSelection, branchNameState } =
+      state;
+    if (!(linkedType === 'pr' && linkedPR) && !branchSelection.selectedBranch) return;
+
+    setIsCreating(true);
 
     const id = crypto.randomUUID();
+
+    let linkedIssueForCreate = linkedType === 'issue' ? (linkedIssue ?? undefined) : undefined;
+    let issueContextForPrompt = initialConversation.issueContext;
+
+    if (linkedIssueForCreate && issueContextForPrompt) {
+      const resolvedIssueContext = await resolveLinkedIssueContextText(
+        linkedIssueForCreate,
+        selectedProjectId
+      );
+      linkedIssueForCreate = resolvedIssueContext.issue;
+      issueContextForPrompt = resolvedIssueContext.text;
+    }
 
     const conversationProvider = initialConversation.provider;
     const builtInitialConversation = conversationProvider
@@ -152,16 +173,11 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           taskId: id,
           provider: conversationProvider,
           title: nextDefaultConversationTitle(conversationProvider, []),
-          initialPrompt: buildFinalPrompt(
-            initialConversation.issueContext,
-            initialConversation.prompt
-          ),
+          initialPrompt: buildFinalPrompt(issueContextForPrompt, initialConversation.prompt),
           autoApprove: autoApproveDefaults.getDefault(conversationProvider),
         }
       : undefined;
 
-    const { linkedType, linkedIssue, linkedPR, checkoutMode, branchSelection, branchNameState } =
-      state;
     const taskManager = projectStore.mountedProject!.taskManager;
     const swallowHandledCreateError = () => {};
 
@@ -203,7 +219,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           name: state.taskName.effectiveTaskName,
           sourceBranch: branchSelection.selectedBranch,
           strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
-          linkedIssue: linkedType === 'issue' ? (linkedIssue ?? undefined) : undefined,
+          linkedIssue: linkedIssueForCreate,
           workspaceProvider: useBYOI ? 'byoi' : undefined,
           initialConversation: builtInitialConversation,
         })
@@ -216,6 +232,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     selectedProjectId,
     state,
     isUnborn,
+    isCreating,
     useBYOI,
     initialConversation,
     autoApproveDefaults,
@@ -309,6 +326,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
                   linkedIssue={
                     state.linkedType === 'issue' ? (state.linkedIssue ?? undefined) : undefined
                   }
+                  projectId={selectedProjectId}
                   includeIssueContextByDefault={includeIssueContextByDefault}
                 />
               )}

@@ -15,6 +15,7 @@ import { rpc } from '@renderer/lib/ipc';
 import { pastePromptInjection } from '@renderer/lib/pty/prompt-injection';
 import { AddContextPopover } from './add-context-popover';
 import { buildTaskContextActions, type ContextAction } from './context-actions';
+import { resolveContextActionText } from './resolve-context-action-text';
 
 interface ContextBarProps {
   conversationId: string | undefined;
@@ -76,6 +77,9 @@ export const ContextBar = observer(function ContextBar({ conversationId }: Conte
         actions={actions}
         disabled={!canApplyContext || isSavingPromptLibrary}
         isActivePane={isActivePane}
+        resolveActionText={(action) =>
+          resolveContextActionText({ action, linkedIssue: task?.linkedIssue, projectId })
+        }
         onApplyAction={handleApplyAction}
       />
     </div>

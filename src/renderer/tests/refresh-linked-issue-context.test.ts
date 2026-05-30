@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { refreshLinkedIssueContext } from '@renderer/features/tasks/issue-context/refresh-linked-issue-context';
+import {
+  refreshLinkedIssueContext,
+  resolveLinkedIssueContextText,
+} from '@renderer/features/tasks/issue-context/refresh-linked-issue-context';
 import type { Issue } from '@shared/tasks';
 
 const mocks = vi.hoisted(() => ({
@@ -46,6 +49,24 @@ describe('refreshLinkedIssueContext', () => {
       identifier: 'ENG-1201',
       projectId: 'project-1',
     });
+  });
+
+  it('builds context text from refreshed Linear issue activity', async () => {
+    const issue = makeIssue({ description: 'Existing fields stay present.' });
+    const refreshedIssue = makeIssue({
+      description: 'Existing fields stay present.',
+      context: 'Linear issue activity\n\nComments:\n- 2026-04-17 by Jona: Looks good',
+    });
+    mocks.getIssueContext.mockResolvedValue({ success: true, issue: refreshedIssue });
+
+    const result = await resolveLinkedIssueContextText(issue, 'project-1');
+
+    expect(result.issue).toBe(refreshedIssue);
+    expect(result.text).toContain('Provider: Linear');
+    expect(result.text).toContain('Description: Existing fields stay present.');
+    expect(result.text).toContain(
+      'Context:\nLinear issue activity\n\nComments:\n- 2026-04-17 by Jona: Looks good'
+    );
   });
 
   it('falls back to the original issue when refresh fails', async () => {

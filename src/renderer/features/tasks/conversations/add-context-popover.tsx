@@ -76,6 +76,7 @@ export interface AddContextPopoverProps {
   actions: ContextAction[];
   disabled: boolean;
   isActivePane?: boolean;
+  resolveActionText?: (action: ContextAction) => string | Promise<string>;
   onApplyAction: (
     text: string,
     action: ContextAction,
@@ -89,6 +90,7 @@ export function AddContextPopover({
   actions,
   disabled,
   isActivePane = true,
+  resolveActionText,
   onApplyAction,
   renderTrigger,
 }: AddContextPopoverProps) {
@@ -121,8 +123,12 @@ export function AddContextPopover({
 
   const handleConfirm = (action: ContextAction | null, opts?: { andSend?: boolean }) => {
     if (!action) return;
-    const text = buildContextActionText(action);
-    void onApplyAction(text, action, opts);
+    void (async () => {
+      const text = resolveActionText
+        ? await resolveActionText(action)
+        : buildContextActionText(action);
+      await onApplyAction(text, action, opts);
+    })();
     setOpen(false);
   };
 
