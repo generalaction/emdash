@@ -33,13 +33,38 @@ vi.mock('@renderer/lib/components/pr-status-icon', async () => {
 
 vi.mock('@renderer/lib/ui/select', async () => {
   const React = await import('react');
+  type SelectContextValue = {
+    onValueChange?: (value: string) => void;
+  };
+  const SelectContext = React.createContext<SelectContextValue>({});
+  function MockSelectItem({ children, value }: { children: React.ReactNode; value: string }) {
+    const { onValueChange } = React.useContext(SelectContext);
+    return React.createElement(
+      'button',
+      {
+        'data-testid': `status-${value}`,
+        onClick: () => onValueChange?.(value),
+      },
+      children
+    );
+  }
+
   return {
-    Select: ({ children }: { children: React.ReactNode }) =>
-      React.createElement('div', {}, children),
+    Select: ({
+      children,
+      onValueChange,
+    }: {
+      children: React.ReactNode;
+      onValueChange?: (value: string) => void;
+    }) =>
+      React.createElement(
+        SelectContext.Provider,
+        { value: { onValueChange } },
+        React.createElement('div', {}, children)
+      ),
     SelectContent: ({ children }: { children: React.ReactNode }) =>
       React.createElement('div', {}, children),
-    SelectItem: ({ children }: { children: React.ReactNode }) =>
-      React.createElement('div', {}, children),
+    SelectItem: MockSelectItem,
     SelectTrigger: ({ children }: { children: React.ReactNode }) =>
       React.createElement('div', {}, children),
   };
@@ -54,14 +79,25 @@ vi.mock('@renderer/lib/ui/combobox', async () => {
   };
 
   const ComboboxContext = React.createContext<ComboboxContextValue>({});
-  function MockComboboxInput({ placeholder }: { placeholder?: string }) {
+  function MockComboboxInput({
+    placeholder,
+    rightAddon,
+  }: {
+    placeholder?: string;
+    rightAddon?: React.ReactNode;
+  }) {
     const { inputValue, onInputValueChange } = React.useContext(ComboboxContext);
-    return React.createElement('button', {
-      'data-testid': 'search-input',
-      placeholder,
-      'data-input-value': inputValue ?? '',
-      onClick: () => onInputValueChange?.('eng-1463', { reason: 'input' }),
-    });
+    return React.createElement(
+      'div',
+      {},
+      React.createElement('button', {
+        'data-testid': 'search-input',
+        placeholder,
+        'data-input-value': inputValue ?? '',
+        onClick: () => onInputValueChange?.('eng-1463', { reason: 'input' }),
+      }),
+      rightAddon
+    );
   }
 
   return {
@@ -202,6 +238,55 @@ describe('PrSelector', () => {
     expect(mocks.listPullRequests).toHaveBeenLastCalledWith(
       PROJECT_ID,
       expect.objectContaining({ searchQuery: 'eng-1463' })
+    );
+  });
+
+  it('clears the active search query immediately when the status filter changes', async () => {
+    await act(async () => {
+      root.render(
+        React.createElement(
+          QueryClientProvider,
+          { client: queryClient },
+          React.createElement(PrSelector, {
+            value: null,
+            onValueChange: vi.fn(),
+            projectId: PROJECT_ID,
+            repositoryUrl: REPOSITORY_URL,
+          })
+        )
+      );
+    });
+
+    const input = container.querySelector('[data-testid="search-input"]');
+    expect(input).not.toBeNull();
+
+    await act(async () => {
+      input!.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    });
+    await act(async () => {
+      vi.advanceTimersByTime(200);
+    });
+    expect(mocks.listPullRequests).toHaveBeenLastCalledWith(
+      PROJECT_ID,
+      expect.objectContaining({
+        filters: { status: 'open' },
+        searchQuery: 'eng-1463',
+      })
+    );
+
+    const closedStatus = container.querySelector('[data-testid="status-not-open"]');
+    expect(closedStatus).not.toBeNull();
+
+    await act(async () => {
+      closedStatus!.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    });
+
+    expect(mocks.listPullRequests).toHaveBeenLastCalledWith(
+      PROJECT_ID,
+      expect.objectContaining({
+        filters: { status: 'not-open' },
+        searchQuery: undefined,
+      })
     );
   });
 });

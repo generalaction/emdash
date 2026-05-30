@@ -74,6 +74,7 @@ export function PrSelector({
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('open');
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebounce(query.trim(), 200);
+  const searchQuery = query.trim() ? debouncedQuery : '';
 
   // Trigger a background incremental sync when the selector mounts, at most once per 60 s.
   useQuery({
@@ -84,13 +85,13 @@ export function PrSelector({
   });
 
   const { data } = useQuery({
-    queryKey: ['pull-requests-selector', projectId, repositoryUrl, statusFilter, debouncedQuery],
+    queryKey: ['pull-requests-selector', projectId, repositoryUrl, statusFilter, searchQuery],
     queryFn: async () => {
       const response = await rpc.pullRequests.listPullRequests(projectId!, {
         limit: 50,
         offset: 0,
         filters: { status: statusFilter },
-        searchQuery: debouncedQuery || undefined,
+        searchQuery: searchQuery || undefined,
         repositoryUrl,
       });
       if (!response?.success) {
