@@ -56,6 +56,11 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
     void taskManager?.provisionTask(taskId);
   };
 
+  const openTask = () => {
+    handleProvision();
+    navigate('task', { projectId, taskId });
+  };
+
   const handleArchive = () => {
     if (isActive) navigate('project', { projectId });
     void taskManager?.archiveTask(taskId);
@@ -101,13 +106,11 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
           rowVariant === 'pinned' ? 'pl-2' : 'pl-8'
         )}
         isActive={isActive}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={openTask}
       >
         <SidebarMenuAction
           aria-label={`Open task ${taskName || 'task'}`}
-          onClick={() => {
-            handleProvision();
-            navigate('task', { projectId, taskId });
-          }}
           className="gap-1 overflow-hidden"
         >
           <span
@@ -119,8 +122,8 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
             {taskName}
           </span>
           <TaskGitDiffStats task={task} className="flex h-full shrink-0 items-center pr-1 pl-1" />
-          <RenderPrBadge task={task} />
         </SidebarMenuAction>
+        <RenderPrBadge task={task} />
         <TaskSidebarAgentStatus task={task} />
       </SidebarMenuRow>
     </TaskContextMenu>
@@ -130,5 +133,9 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
 const RenderPrBadge = observer(function RenderPrBadge({ task }: { task: TaskStore }) {
   if (!('prs' in task.data)) return null;
   const pr = selectCurrentPr(task.data.prs);
-  return pr ? <PrBadge variant="compact" pr={pr} hoverDelay={100} /> : null;
+  return pr ? (
+    <span onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+      <PrBadge variant="compact" pr={pr} hoverDelay={100} />
+    </span>
+  ) : null;
 });

@@ -101,6 +101,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
   const ProjectIcon = isSshProject ? FolderInput : FolderClosed;
   const projectLabel = project.name ?? 'project';
   const deleteProjectLabel = project.name ?? 'this project';
+  const openProject = () => navigate('project', { projectId });
 
   const renderSpinnerWithTooltip = () => {
     if (!isUnregisteredProject(project)) return null;
@@ -124,6 +125,8 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
           className={cn('group/row h-8 justify-between flex px-1')}
           data-active={isProjectActive || undefined}
           isActive={isProjectActive}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={openProject}
         >
           <div className="flex min-w-0 flex-1 items-center gap-1">
             {project.state === 'unregistered' ? (
@@ -149,7 +152,6 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
             )}
             <SidebarMenuAction
               aria-label={`Open project ${projectLabel}`}
-              onClick={() => navigate('project', { projectId })}
               className={cn(
                 'truncate transition-colors select-none',
                 projectViewKind(getProjectStore(projectId)) === 'bootstrapping' &&
