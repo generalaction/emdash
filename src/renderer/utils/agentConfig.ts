@@ -109,6 +109,6 @@ export const agentConfig: Record<AgentProviderId, AgentInfo> = {
     isSvg: true,
     invertInDark: true,
   },
-  charm: { name: 'Charm', logo: charmLogo, alt: 'Charm Crush', invertInDark: true },
+  charm: { name: 'Charm', logo: charmLogo, alt: 'Charm Crush' },
   rovo: { name: 'Rovo Dev', logo: atlassianLogo, alt: 'Rovo Dev' },
 };

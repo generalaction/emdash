@@ -336,7 +336,6 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     autoApproveFlag: '--yolo',
     icon: 'charm.png',
     alt: 'Charm CLI',
-    invertInDark: true,
     terminalOnly: true,
   },
   {
