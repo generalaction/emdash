@@ -20,6 +20,7 @@ export class PtySessionRegistry {
   private activeConsumers: Set<string> = new Set();
   private metadata: Map<string, PtySessionMetadata> = new Map();
   private lastSizes: Map<string, { cols: number; rows: number }> = new Map();
+  private pendingFlushes: Map<string, () => void> = new Map();
   private epoch = 0;
 
   register(
@@ -32,6 +33,7 @@ export class PtySessionRegistry {
     // Clear any stale ring buffer and consumer from a previous PTY at this sessionId (respawn)
     this.ptyInputSubscriptions.get(sessionId)?.();
     this.ptyInputSubscriptions.delete(sessionId);
+    this.pendingFlushes.delete(sessionId);
     this.ringBuffers.delete(sessionId);
     this.activeConsumers.delete(sessionId);
     this.metadata.delete(sessionId);
@@ -56,6 +58,7 @@ export class PtySessionRegistry {
       }
       flushTimer = null;
     };
+    this.pendingFlushes.set(sessionId, flush);
 
     pty.onData((data) => {
       if (this.ptyMap.get(sessionId) !== pty) return;
@@ -84,6 +87,7 @@ export class PtySessionRegistry {
         this.ptyMap.delete(sessionId);
         this.ptyInputSubscriptions.get(sessionId)?.();
         this.ptyInputSubscriptions.delete(sessionId);
+        this.pendingFlushes.delete(sessionId);
         this.lastSizes.delete(sessionId);
       } else {
         this.unregister(sessionId);
@@ -103,9 +107,11 @@ export class PtySessionRegistry {
   }
 
   unregister(sessionId: string): void {
+    this.pendingFlushes.get(sessionId)?.();
     this.ptyMap.delete(sessionId);
     this.ptyInputSubscriptions.get(sessionId)?.();
     this.ptyInputSubscriptions.delete(sessionId);
+    this.pendingFlushes.delete(sessionId);
     this.ringBuffers.delete(sessionId);
     this.activeConsumers.delete(sessionId);
     this.metadata.delete(sessionId);

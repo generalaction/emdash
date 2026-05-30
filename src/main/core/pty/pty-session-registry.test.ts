@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ptyStartedChannel } from '@shared/events/appEvents';
+import { ptyDataChannel } from '@shared/events/ptyEvents';
 import type { Pty, PtyExitInfo } from './pty';
 import { PtySessionRegistry } from './pty-session-registry';
 
@@ -85,6 +86,17 @@ describe('PtySessionRegistry', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('flushes buffered output when unregistering the current PTY before the flush timer fires', () => {
+    const registry = new PtySessionRegistry();
+    const pty = fakePty();
+
+    registry.register('session-1', pty);
+    pty.emitData('final output');
+    registry.unregister('session-1');
+
+    expect(events.emit).toHaveBeenCalledWith(ptyDataChannel, 'final output', 'session-1');
   });
 
   it('records resize dimensions before forwarding to the current PTY', () => {
