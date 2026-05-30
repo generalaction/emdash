@@ -559,6 +559,17 @@ export async function enqueueAutomationRun(input: {
         AND status IN ('queued', 'running')
         ${input.triggerKind === 'cron' ? sql`AND scheduled_at = ${input.scheduledAt}` : sql``}
     )
+    ${
+      input.triggerKind === 'cron'
+        ? sql`AND NOT EXISTS (
+            SELECT 1
+            FROM automation_runs
+            WHERE automation_id = ${input.automationId}
+              AND status = 'queued'
+              AND trigger_kind = 'manual'
+          )`
+        : sql``
+    }
     RETURNING
       id,
       automation_id AS automationId,
