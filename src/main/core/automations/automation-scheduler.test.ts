@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { events } from '@main/lib/events';
+import { log } from '@main/lib/logger';
 import type { Automation } from '@shared/automations/types';
 import { automationRunUpdatedChannel } from '@shared/events/automationEvents';
 import { automationEvents } from './automation-events';
@@ -185,6 +186,15 @@ describe('AutomationScheduler missed runs', () => {
     await Promise.all([firstReload, secondReload]);
 
     expect(enabledCronAutomations).toHaveBeenCalledTimes(2);
+  });
+
+  it('logs bootstrap failures without rejecting fire-and-forget reload callers', async () => {
+    vi.mocked(enabledCronAutomations).mockRejectedValueOnce(new Error('db failed'));
+
+    await expect(new AutomationScheduler().reload()).resolves.toBeUndefined();
+    expect(log.error).toHaveBeenCalledWith('AutomationScheduler bootstrap failed', {
+      error: 'Error: db failed',
+    });
   });
 
   it('skips orphan automations without claiming a worker', async () => {
@@ -376,6 +386,15 @@ describe('AutomationScheduler missed runs', () => {
         taskId: failedRun.taskId,
       })
     );
+  });
+
+  it('logs queue drain failures without rejecting fire-and-forget drain callers', async () => {
+    vi.mocked(listQueuedRuns).mockRejectedValueOnce(new Error('db failed'));
+
+    await expect(new AutomationScheduler().drainQueue()).resolves.toBeUndefined();
+    expect(log.error).toHaveBeenCalledWith('AutomationScheduler queue drain failed', {
+      error: 'Error: db failed',
+    });
   });
 });
 

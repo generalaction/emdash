@@ -105,7 +105,7 @@ export class AutomationScheduler {
     this.bootstrapTail = run.catch((error) => {
       log.error('AutomationScheduler bootstrap failed', { error: String(error) });
     });
-    await run;
+    await this.bootstrapTail;
   }
 
   private async recoverAndBootstrap(): Promise<void> {
@@ -200,7 +200,7 @@ export class AutomationScheduler {
     this.drainTail = run.catch((error) => {
       log.error('AutomationScheduler queue drain failed', { error: String(error) });
     });
-    await run;
+    await this.drainTail;
   }
 
   private async pumpQueue(): Promise<void> {
