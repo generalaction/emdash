@@ -100,9 +100,9 @@ describe('buildAgentCommand', () => {
     expect(command).toEqual({
       command: 'agy',
       args: ['--conversation=session-1', '--dangerously-skip-permissions', '-i', 'Fix the issue'],
-    }); 
-  }); 
- 
+    });
+  });
+
   it('supports custom CLI command prefixes and appends managed provider args', () => {
     const result = buildAgentCommand({
       providerId: 'claude',
