@@ -46,6 +46,7 @@ export const modalRegistry = {
   changeProjectConnectionModal: createModal(ChangeProjectConnectionModal, { size: 'sm' }),
   githubDeviceFlowModal: createModal(GithubDeviceFlowModalOverlay, { size: 'md' }),
   confirmActionModal: createModal(ConfirmActionDialog, { size: 'xs' }),
+  confirmExternalLinkModal: createModal(ConfirmActionDialog, { size: 'sm' }),
   unsavedChangesModal: createModal(UnsavedChangesDialog, { size: 'xs' }),
   createConversationModal: createModal(CreateConversationModal),
   feedbackModal: createModal(FeedbackModal),
