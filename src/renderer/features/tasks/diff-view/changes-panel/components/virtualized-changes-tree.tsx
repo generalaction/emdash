@@ -1,6 +1,13 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronRight, Folder, FolderOpen } from 'lucide-react';
-import { forwardRef, useCallback, useMemo, useRef, useState, type ButtonHTMLAttributes } from 'react';
+import {
+  forwardRef,
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  type ButtonHTMLAttributes,
+} from 'react';
 import {
   buildVisibleRows,
   isChainExpanded,
