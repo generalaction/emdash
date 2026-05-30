@@ -26,6 +26,7 @@ function createAppCommandProvider(): CommandProvider {
       const projectId = params?.projectId;
 
       const settingsDef = appDef('app.settings');
+      const libraryDef = appDef('app.library');
       const newProjectDef = appDef('app.newProject');
       const giveFeedbackDef = appDef('app.giveFeedback');
       const toggleThemeDef = appDef('app.toggleTheme');
@@ -45,6 +46,16 @@ function createAppCommandProvider(): CommandProvider {
               appState.navigation.currentViewId,
               appState.navigation.lastNonSettingsView
             );
+          },
+        },
+        {
+          id: libraryDef.id,
+          label: libraryDef.label,
+          description: libraryDef.description,
+          shortcutKey: libraryDef.shortcutKey,
+          group: libraryDef.group,
+          execute() {
+            appState.navigation.navigate('library');
           },
         },
         {
