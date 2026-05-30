@@ -97,3 +97,36 @@ describe('SshFileSystem.watch', () => {
     watcher.close();
   });
 });
+
+describe('SshFileSystem.copyLocalFileToTemp', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('trims the remote uid before building the temp path', async () => {
+    const fastPut = vi.fn((_local: string, _remote: string, cb: (error?: Error) => void) => cb());
+    const fs = new SshFileSystem(
+      {
+        sftp: (cb: (error: Error | undefined, sftp: unknown) => void) =>
+          cb(undefined, { fastPut, on: vi.fn() }),
+      } as never,
+      '/repo'
+    );
+    vi.spyOn(
+      fs as unknown as {
+        exec: (command: string) => Promise<{ stdout: string; stderr: string; exitCode: number }>;
+      },
+      'exec'
+    )
+      .mockResolvedValueOnce({ stdout: '501\n', stderr: '', exitCode: 0 })
+      .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 })
+      .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 })
+      .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 });
+
+    const remotePath = await fs.copyLocalFileToTemp('/tmp/local-image.png', 'local-image.png');
+
+    expect(remotePath).toMatch(/^\/tmp\/emdash-initial-prompt-images-501\//);
+    expect(remotePath).not.toContain('\n');
+    expect(fastPut).toHaveBeenCalledWith('/tmp/local-image.png', remotePath, expect.any(Function));
+  });
+});

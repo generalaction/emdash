@@ -1,7 +1,8 @@
 import { exec } from 'node:child_process';
-import { readFile, realpath, stat } from 'node:fs/promises';
-import { homedir } from 'node:os';
-import { extname, isAbsolute, join, resolve, sep } from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { chmod, mkdir, readFile, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises';
+import { homedir, tmpdir } from 'node:os';
+import { basename, extname, isAbsolute, join, resolve, sep } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { app, clipboard, dialog, shell } from 'electron';
 import { getMainWindow } from '@main/app/window';
@@ -16,6 +17,7 @@ import {
   buildRemoteSshCommand,
   buildRemoteTerminalExecArgs,
 } from '@main/utils/remoteOpenIn';
+import { INITIAL_PROMPT_IMAGE_MAX_BYTES } from '@shared/conversations';
 import { appPasteChannel, appRedoChannel, appUndoChannel } from '@shared/events/appEvents';
 import {
   getAppById,
@@ -67,6 +69,97 @@ async function resolveHomeJailedPath(rawPath: string): Promise<string> {
     throw new Error('Path must be inside the user home directory');
   }
   return realPath;
+}
+
+const INITIAL_PROMPT_IMAGE_DIR = join(tmpdir(), 'emdash-initial-prompt-images');
+const INITIAL_PROMPT_IMAGE_TTL_MS = 24 * 60 * 60 * 1000;
+const TEMP_CLEANUP_INTERVAL_MS = 10 * 60 * 1000;
+const INITIAL_PROMPT_IMAGE_EXTENSIONS = new Set([
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.gif',
+  '.webp',
+  '.bmp',
+  '.svg',
+]);
+const INITIAL_PROMPT_IMAGE_MIME_EXTENSIONS: Record<string, string> = {
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/gif': '.gif',
+  'image/webp': '.webp',
+  'image/bmp': '.bmp',
+  'image/svg+xml': '.svg',
+};
+
+let lastTempCleanupAt = 0;
+
+function extensionForImage(name: string, mimeType: string): string {
+  const nameExt = extname(name).toLowerCase();
+  if (INITIAL_PROMPT_IMAGE_EXTENSIONS.has(nameExt)) return nameExt;
+
+  const mappedExt = INITIAL_PROMPT_IMAGE_MIME_EXTENSIONS[mimeType.toLowerCase()];
+  if (mappedExt) return mappedExt;
+
+  const mimeExt = mimeType.startsWith('image/') ? `.${mimeType.slice('image/'.length)}` : '.png';
+  return INITIAL_PROMPT_IMAGE_EXTENSIONS.has(mimeExt) ? mimeExt : '.png';
+}
+
+function safeImageFileName(name: string, mimeType: string): string {
+  const ext = extensionForImage(name, mimeType);
+  const rawName = basename(name || `image-${randomUUID()}${ext}`);
+  const rawExt = extname(rawName);
+  const stem = rawExt ? basename(rawName, rawExt) : rawName;
+  const withExt = `${stem || `image-${randomUUID()}`}${ext}`;
+  return withExt.replace(/[^a-zA-Z0-9._ -]/g, '_');
+}
+
+async function cleanupOldTempFiles(dir: string, ttlMs: number): Promise<void> {
+  try {
+    const entries = await readdir(dir);
+    const now = Date.now();
+    await Promise.all(
+      entries.map(async (entry) => {
+        const path = join(dir, entry);
+        const info = await stat(path).catch(() => null);
+        if (info && now - info.mtimeMs > ttlMs) {
+          await rm(path, { force: true });
+        }
+      })
+    );
+  } catch {
+    // Best-effort cleanup only.
+  }
+}
+
+function triggerTempCleanupIfNeeded(): void {
+  const now = Date.now();
+  if (now - lastTempCleanupAt < TEMP_CLEANUP_INTERVAL_MS) return;
+  lastTempCleanupAt = now;
+  void cleanupOldTempFiles(INITIAL_PROMPT_IMAGE_DIR, INITIAL_PROMPT_IMAGE_TTL_MS);
+}
+
+async function saveTempFile(args: {
+  dir: string;
+  maxBytes: number;
+  fileName: string;
+  data: Uint8Array;
+}): Promise<string> {
+  if (!(args.data instanceof Uint8Array)) {
+    throw new Error('Invalid file data');
+  }
+  if (args.data.byteLength === 0) {
+    throw new Error('File data is empty');
+  }
+  if (args.data.byteLength > args.maxBytes) {
+    throw new Error('File is too large');
+  }
+
+  await mkdir(args.dir, { recursive: true, mode: 0o700 });
+  await chmod(args.dir, 0o700).catch(() => undefined);
+  const path = join(args.dir, `${randomUUID()}-${args.fileName}`);
+  await writeFile(path, args.data, { mode: 0o600 });
+  return path;
 }
 
 type RemoteTerminalLaunchAttempt = {
@@ -233,6 +326,20 @@ class AppService implements IInitializable, IDisposable {
 
   quit(): void {
     app.quit();
+  }
+
+  async saveInitialPromptImage(args: {
+    name: string;
+    mimeType: string;
+    data: Uint8Array;
+  }): Promise<string> {
+    triggerTempCleanupIfNeeded();
+    return saveTempFile({
+      dir: INITIAL_PROMPT_IMAGE_DIR,
+      maxBytes: INITIAL_PROMPT_IMAGE_MAX_BYTES,
+      fileName: safeImageFileName(args.name, args.mimeType),
+      data: args.data,
+    });
   }
 
   async openIn(args: {

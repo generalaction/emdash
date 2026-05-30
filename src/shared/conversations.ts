@@ -1,6 +1,7 @@
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 
 export const MAX_CONVERSATION_TITLE_LENGTH = 100;
+export const INITIAL_PROMPT_IMAGE_MAX_BYTES = 25 * 1024 * 1024;
 
 export type Conversation = {
   id: string;
@@ -21,6 +22,11 @@ export type RenameConversationParams = {
   newTitle: string;
 };
 
+export type InitialPromptImage = {
+  name: string;
+  path: string;
+};
+
 export type CreateConversationParams = {
   id: string;
   projectId: string;
@@ -31,4 +37,5 @@ export type CreateConversationParams = {
   isInitialConversation?: boolean;
   initialSize?: { cols: number; rows: number };
   initialPrompt?: string;
+  initialPromptImages?: InitialPromptImage[];
 };

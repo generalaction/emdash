@@ -264,6 +264,13 @@ export interface FileSystemProvider {
   copyLocalFile?(localAbsPath: string, destRelPath: string): Promise<void>;
 
   /**
+   * Copy an absolute local file into a filesystem-managed temporary location and
+   * return the absolute destination path. SSH implementations use this for local
+   * clipboard/drop files that must be readable by commands running remotely.
+   */
+  copyLocalFileToTemp?(localAbsPath: string, fileName: string): Promise<string>;
+
+  /**
    * Watch the worktree for filesystem changes. Returns a FileWatcher handle;
    * call update() to hint which paths matter (SSH uses this for polling),
    * call close() to stop. Batches events and delivers them via callback.

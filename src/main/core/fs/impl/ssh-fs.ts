@@ -3,6 +3,7 @@
  * Uses SFTP over SSH for remote filesystem operations
  */
 
+import { randomUUID } from 'node:crypto';
 import type { SFTPWrapper } from 'ssh2';
 import { buildRemoteShellCommand } from '@main/core/ssh/lifecycle/remote-shell-profile';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
@@ -48,6 +49,14 @@ const MAX_READ_SIZE = 100 * 1024 * 1024;
  * Default max bytes for read operations
  */
 const DEFAULT_MAX_BYTES = 200 * 1024;
+const REMOTE_TEMP_UPLOAD_DIR_PREFIX = '/tmp/emdash-initial-prompt-images';
+const REMOTE_TEMP_UPLOAD_TTL_MINUTES = 24 * 60;
+
+function safeRemoteFileName(fileName: string, fallbackPath: string): string {
+  const baseName = (fileName || fallbackPath).replace(/\\/g, '/').split('/').pop() || 'image';
+  const safeName = baseName.replace(/[^a-zA-Z0-9._ -]/g, '_');
+  return safeName || 'image';
+}
 
 function fileEntryMetadataChanged(prev: FileEntry, next: FileEntry): boolean {
   return (
@@ -502,6 +511,36 @@ export class SshFileSystem implements FileSystemProvider {
     await new Promise<void>((resolve, reject) => {
       sftp.fastPut(localAbsPath, remoteFull, (e) => (e ? reject(e) : resolve()));
     });
+  }
+
+  async copyLocalFileToTemp(localAbsPath: string, fileName: string): Promise<string> {
+    const safeName = safeRemoteFileName(fileName, localAbsPath);
+    const uidResult = await this.exec('id -u');
+    const uid = uidResult.stdout.trim();
+    if (uidResult.exitCode !== 0 || !/^\d+$/.test(uid)) {
+      throw new Error(`Failed to resolve remote user id: ${uidResult.stderr}`);
+    }
+
+    const remoteTempUploadDir = `${REMOTE_TEMP_UPLOAD_DIR_PREFIX}-${uid}`;
+    const remoteFull = `${remoteTempUploadDir}/${randomUUID()}-${safeName}`;
+    const tempDir = quoteShellArg(remoteTempUploadDir);
+    const mkdirResult = await this.exec(`mkdir -p -m 700 ${tempDir} && chmod 700 ${tempDir}`);
+    if (mkdirResult.exitCode !== 0) {
+      throw new Error(`Failed to create remote temp directory: ${mkdirResult.stderr}`);
+    }
+    void this.exec(
+      `find ${tempDir} -type f -mmin +${REMOTE_TEMP_UPLOAD_TTL_MINUTES} -exec rm -f {} +`
+    ).catch(() => undefined);
+
+    const sftp = await this.getSftp();
+    await new Promise<void>((resolve, reject) => {
+      sftp.fastPut(localAbsPath, remoteFull, (e) => (e ? reject(e) : resolve()));
+    });
+    const chmodResult = await this.exec(`chmod 600 ${quoteShellArg(remoteFull)}`);
+    if (chmodResult.exitCode !== 0) {
+      throw new Error(`Failed to secure remote temp file: ${chmodResult.stderr}`);
+    }
+    return remoteFull;
   }
 
   async copyFile(src: string, dest: string): Promise<void> {

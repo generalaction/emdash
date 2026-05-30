@@ -79,6 +79,8 @@ export const appController = createRPCController({
       return { success: false, error: error instanceof Error ? error.message : String(error) };
     }
   },
+  saveInitialPromptImage: (args: { name: string; mimeType: string; data: Uint8Array }) =>
+    appService.saveInitialPromptImage(args),
   getAppVersion: () => appService.getCachedAppVersion(),
   getElectronVersion: () => process.versions.electron,
   getPlatform: () => process.platform,
