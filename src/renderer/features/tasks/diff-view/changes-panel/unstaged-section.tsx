@@ -6,8 +6,6 @@ import {
   useWorkspaceId,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
-import { toast } from '@renderer/lib/hooks/use-toast';
-import { rpc } from '@renderer/lib/ipc';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { ContextMenuItem, ContextMenuSeparator } from '@renderer/lib/ui/context-menu';
@@ -18,6 +16,7 @@ import { ChangesListOrTree } from './components/changes-list-or-tree';
 import { ChangesViewModeToggle } from './components/changes-view-mode-toggle';
 import { CommitCard } from './components/commit-card';
 import { SectionHeader } from './components/section-header';
+import { copyRelativePaths } from './git-clipboard-utils';
 import { useChangesViewMode } from './hooks/use-changes-view-mode';
 import { usePrefetchDiffModels } from './hooks/use-prefetch-diff-models';
 
@@ -121,19 +120,6 @@ export const UnstagedSection = observer(function UnstagedSection() {
 
   const handleStageAll = () => {
     void git.stageAllFiles();
-  };
-
-  const copyRelativePaths = async (paths: string[]) => {
-    try {
-      await rpc.app.clipboardWriteText(paths.join('\n'));
-      toast({ title: paths.length > 1 ? 'Relative paths copied' : 'Relative path copied' });
-    } catch (error) {
-      toast({
-        title: 'Copy failed',
-        description: error instanceof Error ? error.message : 'The path could not be copied.',
-        variant: 'destructive',
-      });
-    }
   };
 
   return (

@@ -2,6 +2,7 @@ import { SquareArrowRight, SquareDot, SquareMinus, SquarePlus, SquareX } from 'l
 import {
   forwardRef,
   useMemo,
+  useState,
   type ButtonHTMLAttributes,
   type ReactElement,
   type ReactNode,
@@ -25,13 +26,16 @@ export function ChangeContextMenu({
   renderContextMenu?: RenderChangeContextMenu;
   children: ReactElement;
 }) {
-  const content = renderContextMenu?.(change);
-  if (!content) return <>{children}</>;
+  const [open, setOpen] = useState(false);
+
+  if (!renderContextMenu) return <>{children}</>;
 
   return (
-    <ContextMenu>
+    <ContextMenu open={open} onOpenChange={setOpen}>
       <ContextMenuTrigger render={children} />
-      <ContextMenuContent finalFocus={false}>{content}</ContextMenuContent>
+      <ContextMenuContent finalFocus={false}>
+        {open ? renderContextMenu(change) : null}
+      </ContextMenuContent>
     </ContextMenu>
   );
 }
