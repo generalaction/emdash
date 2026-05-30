@@ -18,7 +18,7 @@ import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { cn } from '@renderer/utils/utils';
 import { selectCurrentPr } from '@shared/pull-requests';
 import { PrBadge } from '../../lib/components/pr-badge';
-import { SidebarMenuRow } from './sidebar-primitives';
+import { SidebarMenuAction, SidebarMenuRow } from './sidebar-primitives';
 
 interface SidebarTaskItemProps {
   taskId: string;
@@ -101,13 +101,15 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
           rowVariant === 'pinned' ? 'pl-2' : 'pl-8'
         )}
         isActive={isActive}
-        onMouseDown={(e) => e.preventDefault()}
-        onClick={() => {
-          handleProvision();
-          navigate('task', { projectId, taskId });
-        }}
       >
-        <div className="flex min-w-0 flex-1 items-center gap-1 self-stretch overflow-hidden">
+        <SidebarMenuAction
+          aria-label={`Open task ${taskName}`}
+          onClick={() => {
+            handleProvision();
+            navigate('task', { projectId, taskId });
+          }}
+          className="gap-1 overflow-hidden"
+        >
           <span
             className={cn(
               'min-w-0 truncate text-left transition-colors',
@@ -118,7 +120,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
           </span>
           <TaskGitDiffStats task={task} className="flex h-full shrink-0 items-center pr-1 pl-1" />
           <RenderPrBadge task={task} />
-        </div>
+        </SidebarMenuAction>
         <TaskSidebarAgentStatus task={task} />
       </SidebarMenuRow>
     </TaskContextMenu>
