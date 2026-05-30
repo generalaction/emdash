@@ -2,7 +2,7 @@ import { buildIssueContextText } from '@renderer/features/tasks/conversations/co
 import { rpc } from '@renderer/lib/ipc';
 import type { Issue } from '@shared/tasks';
 
-const PROVIDERS_WITH_CONTEXT = new Set<Issue['provider']>(['linear', 'plain']);
+export const PROVIDERS_WITH_CONTEXT = new Set<Issue['provider']>(['linear', 'plain']);
 
 export async function refreshLinkedIssueContext(
   issue: Issue,

@@ -151,83 +151,87 @@ export const CreateTaskModal = observer(function CreateTaskModal({
 
     setIsCreating(true);
 
-    const id = crypto.randomUUID();
+    try {
+      const id = crypto.randomUUID();
 
-    let linkedIssueForCreate = linkedType === 'issue' ? (linkedIssue ?? undefined) : undefined;
-    let issueContextForPrompt = initialConversation.issueContext;
+      let linkedIssueForCreate = linkedType === 'issue' ? (linkedIssue ?? undefined) : undefined;
+      let issueContextForPrompt = initialConversation.issueContext;
 
-    if (linkedIssueForCreate && issueContextForPrompt) {
-      const resolvedIssueContext = await resolveLinkedIssueContextText(
-        linkedIssueForCreate,
-        selectedProjectId
-      );
-      linkedIssueForCreate = resolvedIssueContext.issue;
-      issueContextForPrompt = resolvedIssueContext.text;
+      if (linkedIssueForCreate && issueContextForPrompt) {
+        const resolvedIssueContext = await resolveLinkedIssueContextText(
+          linkedIssueForCreate,
+          selectedProjectId
+        );
+        linkedIssueForCreate = resolvedIssueContext.issue;
+        issueContextForPrompt = resolvedIssueContext.text;
+      }
+
+      const conversationProvider = initialConversation.provider;
+      const builtInitialConversation = conversationProvider
+        ? {
+            id: crypto.randomUUID(),
+            projectId: selectedProjectId,
+            taskId: id,
+            provider: conversationProvider,
+            title: nextDefaultConversationTitle(conversationProvider, []),
+            initialPrompt: buildFinalPrompt(issueContextForPrompt, initialConversation.prompt),
+            autoApprove: autoApproveDefaults.getDefault(conversationProvider),
+          }
+        : undefined;
+
+      const taskManager = projectStore.mountedProject!.taskManager;
+      const swallowHandledCreateError = () => {};
+
+      if (linkedType === 'pr' && linkedPR) {
+        const reviewBranch = linkedPR.headRefName;
+        const taskStrategy = resolvePullRequestTaskStrategy({
+          checkoutMode,
+          prNumber: getPrNumber(linkedPR) ?? 0,
+          headBranch: reviewBranch,
+          headRepositoryUrl: linkedPR.headRepositoryUrl,
+          isFork: isForkPr(linkedPR),
+          taskBranch: state.taskName.effectiveTaskName,
+          pushBranch: branchSelection.pushBranch,
+        });
+        void taskManager
+          .createTask({
+            id,
+            projectId: selectedProjectId,
+            name: state.taskName.effectiveTaskName,
+            sourceBranch: { type: 'local', branch: reviewBranch },
+            initialStatus: linkedPR.status === 'open' && !linkedPR.isDraft ? 'review' : undefined,
+            strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
+            workspaceProvider: useBYOI ? 'byoi' : undefined,
+            initialConversation: builtInitialConversation,
+          })
+          .catch(swallowHandledCreateError);
+      } else {
+        if (!branchSelection.selectedBranch) return;
+        const taskStrategy = resolveBranchLikeTaskStrategy({
+          isUnborn,
+          createBranchAndWorktree: branchSelection.createBranchAndWorktree,
+          taskBranch: branchNameState.branchName,
+          pushBranch: branchSelection.pushBranch,
+        });
+        void taskManager
+          .createTask({
+            id,
+            projectId: selectedProjectId,
+            name: state.taskName.effectiveTaskName,
+            sourceBranch: branchSelection.selectedBranch,
+            strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
+            linkedIssue: linkedIssueForCreate,
+            workspaceProvider: useBYOI ? 'byoi' : undefined,
+            initialConversation: builtInitialConversation,
+          })
+          .catch(swallowHandledCreateError);
+      }
+
+      navigate('task', { projectId: selectedProjectId, taskId: id });
+      onClose();
+    } finally {
+      setIsCreating(false);
     }
-
-    const conversationProvider = initialConversation.provider;
-    const builtInitialConversation = conversationProvider
-      ? {
-          id: crypto.randomUUID(),
-          projectId: selectedProjectId,
-          taskId: id,
-          provider: conversationProvider,
-          title: nextDefaultConversationTitle(conversationProvider, []),
-          initialPrompt: buildFinalPrompt(issueContextForPrompt, initialConversation.prompt),
-          autoApprove: autoApproveDefaults.getDefault(conversationProvider),
-        }
-      : undefined;
-
-    const taskManager = projectStore.mountedProject!.taskManager;
-    const swallowHandledCreateError = () => {};
-
-    if (linkedType === 'pr' && linkedPR) {
-      const reviewBranch = linkedPR.headRefName;
-      const taskStrategy = resolvePullRequestTaskStrategy({
-        checkoutMode,
-        prNumber: getPrNumber(linkedPR) ?? 0,
-        headBranch: reviewBranch,
-        headRepositoryUrl: linkedPR.headRepositoryUrl,
-        isFork: isForkPr(linkedPR),
-        taskBranch: state.taskName.effectiveTaskName,
-        pushBranch: branchSelection.pushBranch,
-      });
-      void taskManager
-        .createTask({
-          id,
-          projectId: selectedProjectId,
-          name: state.taskName.effectiveTaskName,
-          sourceBranch: { type: 'local', branch: reviewBranch },
-          initialStatus: linkedPR.status === 'open' && !linkedPR.isDraft ? 'review' : undefined,
-          strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
-          workspaceProvider: useBYOI ? 'byoi' : undefined,
-          initialConversation: builtInitialConversation,
-        })
-        .catch(swallowHandledCreateError);
-    } else {
-      if (!branchSelection.selectedBranch) return;
-      const taskStrategy = resolveBranchLikeTaskStrategy({
-        isUnborn,
-        createBranchAndWorktree: branchSelection.createBranchAndWorktree,
-        taskBranch: branchNameState.branchName,
-        pushBranch: branchSelection.pushBranch,
-      });
-      void taskManager
-        .createTask({
-          id,
-          projectId: selectedProjectId,
-          name: state.taskName.effectiveTaskName,
-          sourceBranch: branchSelection.selectedBranch,
-          strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
-          linkedIssue: linkedIssueForCreate,
-          workspaceProvider: useBYOI ? 'byoi' : undefined,
-          initialConversation: builtInitialConversation,
-        })
-        .catch(swallowHandledCreateError);
-    }
-
-    navigate('task', { projectId: selectedProjectId, taskId: id });
-    onClose();
   }, [
     selectedProjectId,
     state,

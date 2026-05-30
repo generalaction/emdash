@@ -1,8 +1,9 @@
-import { resolveLinkedIssueContextText } from '@renderer/features/tasks/issue-context/refresh-linked-issue-context';
+import {
+  PROVIDERS_WITH_CONTEXT,
+  resolveLinkedIssueContextText,
+} from '@renderer/features/tasks/issue-context/refresh-linked-issue-context';
 import type { Issue } from '@shared/tasks';
 import { buildContextActionText, type ContextAction } from './context-actions';
-
-const PROVIDERS_WITH_CONTEXT = new Set<Issue['provider']>(['linear', 'plain']);
 
 export async function resolveContextActionText(args: {
   action: ContextAction;
