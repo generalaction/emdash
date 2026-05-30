@@ -81,6 +81,20 @@ describe('handleProviderSessionHook', () => {
     });
   });
 
+  it('skips enrichment when the Grok session id is already stored', async () => {
+    mockSetProviderSessionId.mockResolvedValue(false);
+
+    await handleProviderSessionHook({
+      ptyId: 'grok-conv-conversation-1',
+      type: 'session',
+      body: JSON.stringify({ sessionId: 'grok-session-1' }),
+    });
+
+    expect(mockSetProviderSessionId).toHaveBeenCalledWith('conversation-1', 'grok-session-1');
+    expect(mockEnrichEvent).not.toHaveBeenCalled();
+    expect(mockEvents.emit).not.toHaveBeenCalled();
+  });
+
   it('keeps Droid session ids on the Droid validation path', async () => {
     await handleProviderSessionHook({
       ptyId: 'droid-conv-conversation-1',

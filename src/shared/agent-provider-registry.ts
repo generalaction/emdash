@@ -142,6 +142,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     resumeFlag: '-r',
     sessionIdFlag: '-r',
     sessionIdOnResumeOnly: true,
+    resumeWithoutSessionFlag: '-r',
     icon: 'xai.svg',
     alt: 'Grok CLI',
     invertInDark: true,

@@ -45,9 +45,10 @@ export async function handleProviderSessionHook(raw: RawHookRequest): Promise<vo
     return;
   }
 
-  const event = await enrichEvent(raw);
   const updated = await setProviderSessionId(parsed.conversationId, providerSessionId);
   if (!updated) return;
+
+  const event = await enrichEvent(raw);
 
   events.emit(conversationChangedChannel, {
     conversationId: parsed.conversationId,
