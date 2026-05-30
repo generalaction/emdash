@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { type ReactNode, useState } from 'react';
 import { StatusIcon } from '@renderer/lib/components/pr-status-icon';
+import { useDebounce } from '@renderer/lib/hooks/useDebounce';
 import { rpc } from '@renderer/lib/ipc';
 import {
   Combobox,
@@ -71,6 +72,8 @@ export function PrSelector({
   renderPlaceholder,
 }: PrSelectorProps) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('open');
+  const [query, setQuery] = useState('');
+  const debouncedQuery = useDebounce(query.trim(), 200);
 
   // Trigger a background incremental sync when the selector mounts, at most once per 60 s.
   useQuery({
@@ -81,12 +84,13 @@ export function PrSelector({
   });
 
   const { data } = useQuery({
-    queryKey: ['pull-requests-selector', projectId, repositoryUrl, statusFilter],
+    queryKey: ['pull-requests-selector', projectId, repositoryUrl, statusFilter, debouncedQuery],
     queryFn: async () => {
       const response = await rpc.pullRequests.listPullRequests(projectId!, {
         limit: 50,
         offset: 0,
         filters: { status: statusFilter },
+        searchQuery: debouncedQuery || undefined,
         repositoryUrl,
       });
       if (!response?.success) {
@@ -122,7 +126,10 @@ export function PrSelector({
     <Select
       value={statusFilter}
       onValueChange={(v) => {
-        if (v === 'open' || v === 'not-open') setStatusFilter(v);
+        if (v === 'open' || v === 'not-open') {
+          setStatusFilter(v);
+          setQuery('');
+        }
       }}
     >
       <SelectTrigger
@@ -148,7 +155,14 @@ export function PrSelector({
           pr ? `${pr.identifier ?? ''} ${pr.title} ${pr.headRefName}` : ''
         }
         value={value}
-        onValueChange={(next: PullRequest | null) => onValueChange(next)}
+        onValueChange={(next: PullRequest | null) => {
+          onValueChange(next);
+          setQuery('');
+        }}
+        inputValue={query}
+        onInputValueChange={(nextQuery: string, { reason }: { reason: string }) => {
+          if (reason !== 'item-press') setQuery(nextQuery);
+        }}
         disabled={disabled}
       >
         <ComboboxTrigger
