@@ -154,12 +154,10 @@ describe('conversation provider respawn state', () => {
     vi.mocked(events.emit).mockClear();
   });
 
-  it('passes global editor and shell variables to local agent sessions', async () => {
+  it('passes global editor variables to local agent sessions', async () => {
     const previousEditor = process.env.EDITOR;
-    const previousShell = process.env.SHELL;
     try {
       process.env.EDITOR = 'zed';
-      process.env.SHELL = '/bin/zsh';
       const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
       spawnLocalPty.mockReturnValue(fakePty(exitHandlers));
 
@@ -167,17 +165,12 @@ describe('conversation provider respawn state', () => {
 
       const request = spawnLocalPty.mock.calls[0][0] as { env: Record<string, string> };
       expect(request.env.EDITOR).toBe('zed');
-      expect(request.env.SHELL).toBe('/bin/zsh');
+      expect(request.env.SHELL).toBeUndefined();
     } finally {
       if (previousEditor === undefined) {
         delete process.env.EDITOR;
       } else {
         process.env.EDITOR = previousEditor;
-      }
-      if (previousShell === undefined) {
-        delete process.env.SHELL;
-      } else {
-        process.env.SHELL = previousShell;
       }
     }
   });
