@@ -218,7 +218,7 @@ export class ConversationManagerStore implements IDisposable {
 
     try {
       await rpc.conversations.deleteConversation(this.projectId, this.taskId, conversationId);
-      session?.dispose();
+      session?.destroy();
     } catch (err) {
       runInAction(() => {
         this.conversations.set(conversationId, store);
@@ -257,7 +257,7 @@ export class ConversationManagerStore implements IDisposable {
     this.offConversationChanges?.();
     this.offConversationChanges = null;
     for (const session of this.sessions.values()) {
-      session.dispose();
+      session.destroy();
     }
   }
 

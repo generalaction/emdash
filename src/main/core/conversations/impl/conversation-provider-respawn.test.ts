@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Pty, PtyExitInfo } from '@main/core/pty/pty';
+import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import type { Conversation } from '@shared/conversations';
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
+import { ptyExitChannel } from '@shared/events/ptyEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { LocalConversationProvider } from './local-conversation';
 import { SshConversationProvider } from './ssh-conversation';
@@ -83,9 +85,9 @@ vi.mock('@main/core/settings/settings-service', () => ({
 }));
 
 const { events } = await import('@main/lib/events');
+const { buildAgentSessionCommand } = await import('./agent-command');
 
 type RespawnState = {
-  respawnCounts: Map<string, number>;
   knownSessionIds: Set<string>;
   sessions: Map<string, Pty>;
 };
@@ -111,7 +113,10 @@ function sshProvider(
   {
     tmux = false,
     ctx = {} as never,
-  }: { tmux?: boolean; ctx?: ConstructorParameters<typeof SshConversationProvider>[0]['ctx'] } = {}
+  }: {
+    tmux?: boolean;
+    ctx?: ConstructorParameters<typeof SshConversationProvider>[0]['ctx'];
+  } = {}
 ) {
   return new SshConversationProvider({
     projectId: 'project-1',
@@ -152,6 +157,8 @@ describe('conversation provider respawn state', () => {
     spawnLocalPty.mockReset();
     openSsh2Pty.mockReset();
     vi.mocked(events.emit).mockClear();
+    vi.mocked(buildAgentSessionCommand).mockClear();
+    ptySessionRegistry.unregister('project-1:task-1:conversation-1');
   });
 
   it('passes global editor variables to local agent sessions', async () => {
@@ -175,73 +182,7 @@ describe('conversation provider respawn state', () => {
     }
   });
 
-  it('preserves resume mode when a local resumed session respawns within budget', async () => {
-    vi.useFakeTimers();
-    try {
-      const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
-      spawnLocalPty.mockReturnValue(fakePty(exitHandlers));
-      const provider = localProvider();
-      const size = { cols: 100, rows: 40 };
-      const initialPrompt = 'continue';
-      const item = { ...conversation(), providerSessionId: undefined };
-
-      await provider.startSession(item, size, true, initialPrompt);
-      const respawn = vi.spyOn(provider, 'startSession').mockResolvedValue(undefined);
-
-      for (const handler of exitHandlers) handler({ exitCode: 1 });
-      await vi.advanceTimersByTimeAsync(500);
-
-      expect(respawn).toHaveBeenCalledWith(item, size, true, initialPrompt);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('preserves resume mode when an SSH resumed session respawns within budget', async () => {
-    vi.useFakeTimers();
-    try {
-      const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
-      openSsh2Pty.mockResolvedValue({ success: true, data: fakePty(exitHandlers) });
-      const provider = sshProvider();
-      const size = { cols: 100, rows: 40 };
-      const initialPrompt = 'continue';
-      const item = { ...conversation(), providerSessionId: undefined };
-
-      await provider.startSession(item, size, true, initialPrompt);
-      const respawn = vi.spyOn(provider, 'startSession').mockResolvedValue(undefined);
-
-      for (const handler of exitHandlers) handler({ exitCode: 1 });
-      await vi.advanceTimersByTimeAsync(500);
-
-      expect(respawn).toHaveBeenCalledWith(item, size, true, initialPrompt);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('preserves resume mode on immediate exit within budget', async () => {
-    vi.useFakeTimers();
-    try {
-      const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
-      spawnLocalPty.mockReturnValue(fakePty(exitHandlers));
-      const provider = localProvider();
-      const size = { cols: 100, rows: 40 };
-      const initialPrompt = 'continue';
-      const item = conversation();
-
-      await provider.startSession(item, size, true, initialPrompt);
-      const respawn = vi.spyOn(provider, 'startSession').mockResolvedValue(undefined);
-
-      for (const handler of exitHandlers) handler({ exitCode: 1 });
-      await vi.advanceTimersByTimeAsync(500);
-
-      expect(respawn).toHaveBeenCalledWith(item, size, true, initialPrompt);
-    } finally {
-      vi.useRealTimers();
-    }
-  });
-
-  it('falls back to fresh local session after resume exceeds respawn budget', async () => {
+  it('replaces a local conversation after clean exit by resuming the same provider session', async () => {
     vi.useFakeTimers();
     try {
       const exitHandlers: Array<Array<(info: PtyExitInfo) => void>> = [];
@@ -251,30 +192,24 @@ describe('conversation provider respawn state', () => {
         return fakePty(handlers);
       });
       const provider = localProvider();
-      const startSession = vi.spyOn(provider, 'startSession');
       const size = { cols: 100, rows: 40 };
       const initialPrompt = 'continue';
       const item = conversation();
 
       await provider.startSession(item, size, true, initialPrompt);
-
-      for (const handler of exitHandlers[0] ?? []) handler({ exitCode: 1 });
+      for (const handler of exitHandlers[0] ?? []) handler({ exitCode: 0 });
       await vi.advanceTimersByTimeAsync(500);
-      expect(startSession).toHaveBeenLastCalledWith(item, size, true, initialPrompt);
 
-      for (const handler of exitHandlers[1] ?? []) handler({ exitCode: 1 });
-      await vi.advanceTimersByTimeAsync(500);
-      expect(startSession).toHaveBeenLastCalledWith(item, size, true, initialPrompt);
-
-      for (const handler of exitHandlers[2] ?? []) handler({ exitCode: 1 });
-      await vi.advanceTimersByTimeAsync(500);
-      expect(startSession).toHaveBeenLastCalledWith(item, size, false, initialPrompt);
+      expect(spawnLocalPty).toHaveBeenCalledTimes(2);
+      expect(buildAgentSessionCommand).toHaveBeenLastCalledWith(
+        expect.objectContaining({ isResuming: true })
+      );
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it('falls back to fresh SSH session after resume exceeds respawn budget', async () => {
+  it('replaces an SSH conversation after clean exit by resuming the same provider session', async () => {
     vi.useFakeTimers();
     try {
       const exitHandlers: Array<Array<(info: PtyExitInfo) => void>> = [];
@@ -284,24 +219,227 @@ describe('conversation provider respawn state', () => {
         return Promise.resolve({ success: true, data: fakePty(handlers) });
       });
       const provider = sshProvider();
-      const startSession = vi.spyOn(provider, 'startSession');
       const size = { cols: 100, rows: 40 };
       const initialPrompt = 'continue';
       const item = conversation();
 
       await provider.startSession(item, size, true, initialPrompt);
+      for (const handler of exitHandlers[0] ?? []) handler({ exitCode: 0 });
+      await vi.advanceTimersByTimeAsync(500);
+
+      expect(openSsh2Pty).toHaveBeenCalledTimes(2);
+      expect(buildAgentSessionCommand).toHaveBeenLastCalledWith(
+        expect.objectContaining({ isResuming: true })
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('emits PTY exit when a local conversation unregisters before the registry exit handler runs', async () => {
+    const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
+    const exitInfo = { exitCode: 0 };
+    spawnLocalPty.mockReturnValue(fakePty(exitHandlers));
+    const provider = localProvider();
+    const item = conversation();
+    const sessionId = makePtySessionId(item.projectId, item.taskId, item.id);
+
+    await provider.startSession(item);
+    vi.mocked(events.emit).mockClear();
+    for (const handler of exitHandlers) handler(exitInfo);
+
+    expect(events.emit).toHaveBeenCalledWith(ptyExitChannel, exitInfo, sessionId);
+  });
+
+  it('emits PTY exit when an SSH conversation unregisters before the registry exit handler runs', async () => {
+    const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
+    const exitInfo = { exitCode: 0 };
+    openSsh2Pty.mockResolvedValue({
+      success: true,
+      data: fakePty(exitHandlers),
+    });
+    const provider = sshProvider();
+    const item = conversation();
+    const sessionId = makePtySessionId(item.projectId, item.taskId, item.id);
+
+    await provider.startSession(item);
+    vi.mocked(events.emit).mockClear();
+    for (const handler of exitHandlers) handler(exitInfo);
+
+    expect(events.emit).toHaveBeenCalledWith(ptyExitChannel, exitInfo, sessionId);
+  });
+
+  it('uses the last observed terminal size when replacing a local conversation', async () => {
+    vi.useFakeTimers();
+    try {
+      const exitHandlers: Array<Array<(info: PtyExitInfo) => void>> = [];
+      spawnLocalPty.mockImplementation(() => {
+        const handlers: Array<(info: PtyExitInfo) => void> = [];
+        exitHandlers.push(handlers);
+        return fakePty(handlers);
+      });
+      const provider = localProvider();
+      const item = conversation();
+      const sessionId = makePtySessionId(item.projectId, item.taskId, item.id);
+
+      await provider.startSession(item, { cols: 100, rows: 40 }, true);
+      ptySessionRegistry.resize(sessionId, 68, 42);
+      for (const handler of exitHandlers[0] ?? []) handler({ exitCode: 0 });
+      await vi.advanceTimersByTimeAsync(500);
+
+      expect(spawnLocalPty).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ cols: 68, rows: 42 })
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('uses the last observed terminal size when replacing an SSH conversation', async () => {
+    vi.useFakeTimers();
+    try {
+      const exitHandlers: Array<Array<(info: PtyExitInfo) => void>> = [];
+      openSsh2Pty.mockImplementation(() => {
+        const handlers: Array<(info: PtyExitInfo) => void> = [];
+        exitHandlers.push(handlers);
+        return Promise.resolve({ success: true, data: fakePty(handlers) });
+      });
+      const provider = sshProvider();
+      const item = conversation();
+      const sessionId = makePtySessionId(item.projectId, item.taskId, item.id);
+
+      await provider.startSession(item, { cols: 100, rows: 40 }, true);
+      ptySessionRegistry.resize(sessionId, 68, 42);
+      for (const handler of exitHandlers[0] ?? []) handler({ exitCode: 0 });
+      await vi.advanceTimersByTimeAsync(500);
+
+      expect(openSsh2Pty).toHaveBeenNthCalledWith(
+        2,
+        expect.anything(),
+        expect.objectContaining({ cols: 68, rows: 42 })
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not loop if the replacement exits inside the failure window', async () => {
+    vi.useFakeTimers();
+    try {
+      const exitHandlers: Array<Array<(info: PtyExitInfo) => void>> = [];
+      spawnLocalPty.mockImplementation(() => {
+        const handlers: Array<(info: PtyExitInfo) => void> = [];
+        exitHandlers.push(handlers);
+        return fakePty(handlers);
+      });
+      const provider = localProvider();
+      const item = conversation();
+
+      await provider.startSession(item);
 
       for (const handler of exitHandlers[0] ?? []) handler({ exitCode: 1 });
       await vi.advanceTimersByTimeAsync(500);
-      expect(startSession).toHaveBeenLastCalledWith(item, size, true, initialPrompt);
+      expect(spawnLocalPty).toHaveBeenCalledTimes(2);
 
       for (const handler of exitHandlers[1] ?? []) handler({ exitCode: 1 });
       await vi.advanceTimersByTimeAsync(500);
-      expect(startSession).toHaveBeenLastCalledWith(item, size, true, initialPrompt);
 
-      for (const handler of exitHandlers[2] ?? []) handler({ exitCode: 1 });
+      expect(spawnLocalPty).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not loop when local replacement spawn fails', async () => {
+    vi.useFakeTimers();
+    try {
+      const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
+      spawnLocalPty.mockReturnValueOnce(fakePty(exitHandlers)).mockImplementationOnce(() => {
+        throw new Error('spawn failed');
+      });
+      const provider = localProvider();
+      const item = conversation();
+
+      await provider.startSession(item);
+      for (const handler of exitHandlers) handler({ exitCode: 0 });
       await vi.advanceTimersByTimeAsync(500);
-      expect(startSession).toHaveBeenLastCalledWith(item, size, false, initialPrompt);
+
+      expect(spawnLocalPty).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not start a delayed local replacement after explicit stop', async () => {
+    vi.useFakeTimers();
+    try {
+      const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
+      spawnLocalPty.mockReturnValue(fakePty(exitHandlers));
+      const provider = localProvider();
+      const item = conversation();
+
+      await provider.startSession(item);
+      for (const handler of exitHandlers) handler({ exitCode: 0 });
+      await provider.stopSession(item.id);
+      await vi.advanceTimersByTimeAsync(500);
+
+      expect(spawnLocalPty).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not replace a local tmux attachment after it exits', async () => {
+    vi.useFakeTimers();
+    try {
+      const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
+      spawnLocalPty.mockReturnValue(fakePty(exitHandlers));
+      const provider = localProvider({ tmux: true });
+      const item = conversation();
+
+      await provider.startSession(item);
+      vi.mocked(events.emit).mockClear();
+      for (const handler of exitHandlers) handler({ exitCode: 0 });
+      await vi.advanceTimersByTimeAsync(500);
+
+      expect(spawnLocalPty).toHaveBeenCalledTimes(1);
+      expect(events.emit).toHaveBeenCalledWith(
+        agentSessionExitedChannel,
+        expect.objectContaining({
+          conversationId: item.id,
+          taskId: item.taskId,
+        })
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not replace an SSH tmux attachment after it exits', async () => {
+    vi.useFakeTimers();
+    try {
+      const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
+      openSsh2Pty.mockResolvedValue({
+        success: true,
+        data: fakePty(exitHandlers),
+      });
+      const provider = sshProvider(undefined, { tmux: true });
+      const item = conversation();
+
+      await provider.startSession(item);
+      vi.mocked(events.emit).mockClear();
+      for (const handler of exitHandlers) handler({ exitCode: 0 });
+      await vi.advanceTimersByTimeAsync(500);
+
+      expect(openSsh2Pty).toHaveBeenCalledTimes(1);
+      expect(events.emit).toHaveBeenCalledWith(
+        agentSessionExitedChannel,
+        expect.objectContaining({
+          conversationId: item.id,
+          taskId: item.taskId,
+        })
+      );
     } finally {
       vi.useRealTimers();
     }
@@ -313,8 +451,14 @@ describe('conversation provider respawn state', () => {
       const firstExitHandlers: Array<(info: PtyExitInfo) => void> = [];
       const secondExitHandlers: Array<(info: PtyExitInfo) => void> = [];
       openSsh2Pty
-        .mockResolvedValueOnce({ success: true, data: fakePty(firstExitHandlers) })
-        .mockResolvedValueOnce({ success: true, data: fakePty(secondExitHandlers) });
+        .mockResolvedValueOnce({
+          success: true,
+          data: fakePty(firstExitHandlers),
+        })
+        .mockResolvedValueOnce({
+          success: true,
+          data: fakePty(secondExitHandlers),
+        });
       const proxy = {
         getRemoteShellProfile: vi.fn(async () => ({})),
         refreshRemoteShellProfile: vi.fn(async () => ({})),
@@ -328,10 +472,7 @@ describe('conversation provider respawn state', () => {
 
       expect(proxy.refreshRemoteShellProfile).toHaveBeenCalledTimes(1);
       expect(openSsh2Pty).toHaveBeenCalledTimes(2);
-      expect(events.emit).not.toHaveBeenCalledWith(
-        agentSessionExitedChannel,
-        expect.objectContaining({ exitCode: 127 })
-      );
+      expect(events.emit).not.toHaveBeenCalledWith(agentSessionExitedChannel, expect.anything());
 
       for (const handler of secondExitHandlers) handler({ exitCode: 127 });
       await vi.advanceTimersByTimeAsync(500);
@@ -340,31 +481,41 @@ describe('conversation provider respawn state', () => {
       expect(openSsh2Pty).toHaveBeenCalledTimes(2);
       expect(events.emit).toHaveBeenCalledWith(
         agentSessionExitedChannel,
-        expect.objectContaining({ exitCode: 127 })
+        expect.objectContaining({
+          conversationId: item.id,
+          taskId: item.taskId,
+        })
       );
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it('clears local respawn counts when explicitly stopping a session', async () => {
-    const provider = localProvider();
-    const sessionId = makePtySessionId('project-1', 'task-1', 'conversation-1');
-    (provider as unknown as RespawnState).respawnCounts.set(sessionId, 3);
+  it('does not refresh the SSH shell profile after explicit stop cancels a missing-command retry', async () => {
+    vi.useFakeTimers();
+    try {
+      const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
+      openSsh2Pty.mockResolvedValue({
+        success: true,
+        data: fakePty(exitHandlers),
+      });
+      const proxy = {
+        getRemoteShellProfile: vi.fn(async () => ({})),
+        refreshRemoteShellProfile: vi.fn(async () => ({})),
+      };
+      const provider = sshProvider(proxy);
+      const item = conversation();
 
-    await provider.stopSession('conversation-1');
+      await provider.startSession(item);
+      for (const handler of exitHandlers) handler({ exitCode: 127 });
+      await provider.stopSession(item.id);
+      await vi.advanceTimersByTimeAsync(500);
 
-    expect((provider as unknown as RespawnState).respawnCounts.has(sessionId)).toBe(false);
-  });
-
-  it('clears SSH respawn counts when explicitly stopping a session', async () => {
-    const provider = sshProvider();
-    const sessionId = makePtySessionId('project-1', 'task-1', 'conversation-1');
-    (provider as unknown as RespawnState).respawnCounts.set(sessionId, 3);
-
-    await provider.stopSession('conversation-1');
-
-    expect((provider as unknown as RespawnState).respawnCounts.has(sessionId)).toBe(false);
+      expect(proxy.refreshRemoteShellProfile).not.toHaveBeenCalled();
+      expect(openSsh2Pty).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('detaches local tmux conversations without killing the tmux session', async () => {
@@ -385,10 +536,7 @@ describe('conversation provider respawn state', () => {
 
     expect(pty.kill).toHaveBeenCalledTimes(1);
     expect(ctx.exec).not.toHaveBeenCalled();
-    expect(events.emit).not.toHaveBeenCalledWith(
-      agentSessionExitedChannel,
-      expect.objectContaining({ sessionId })
-    );
+    expect(events.emit).not.toHaveBeenCalledWith(agentSessionExitedChannel, expect.anything());
     expect((provider as unknown as RespawnState).knownSessionIds.has(sessionId)).toBe(true);
   });
 
@@ -410,10 +558,7 @@ describe('conversation provider respawn state', () => {
 
     expect(pty.kill).toHaveBeenCalledTimes(1);
     expect(ctx.exec).not.toHaveBeenCalled();
-    expect(events.emit).not.toHaveBeenCalledWith(
-      agentSessionExitedChannel,
-      expect.objectContaining({ sessionId })
-    );
+    expect(events.emit).not.toHaveBeenCalledWith(agentSessionExitedChannel, expect.anything());
     expect((provider as unknown as RespawnState).knownSessionIds.has(sessionId)).toBe(true);
   });
 
@@ -441,7 +586,10 @@ describe('conversation provider respawn state', () => {
 
   it('kills tmux when explicitly stopping a detached SSH conversation', async () => {
     const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
-    openSsh2Pty.mockResolvedValue({ success: true, data: fakePty(exitHandlers) });
+    openSsh2Pty.mockResolvedValue({
+      success: true,
+      data: fakePty(exitHandlers),
+    });
     const ctx = {
       exec: vi.fn(async () => ({ stdout: '', stderr: '' })),
     };
@@ -478,10 +626,7 @@ describe('conversation provider respawn state', () => {
     for (const handler of firstExitHandlers) handler({ exitCode: 0 });
 
     expect((provider as unknown as RespawnState).sessions.get(sessionId)).toBe(secondPty);
-    expect(events.emit).not.toHaveBeenCalledWith(
-      agentSessionExitedChannel,
-      expect.objectContaining({ sessionId })
-    );
+    expect(events.emit).not.toHaveBeenCalledWith(agentSessionExitedChannel, expect.anything());
   });
 
   it('ignores stale SSH attach exits after a tmux conversation is rehydrated', async () => {
@@ -503,9 +648,6 @@ describe('conversation provider respawn state', () => {
     for (const handler of firstExitHandlers) handler({ exitCode: 0 });
 
     expect((provider as unknown as RespawnState).sessions.get(sessionId)).toBe(secondPty);
-    expect(events.emit).not.toHaveBeenCalledWith(
-      agentSessionExitedChannel,
-      expect.objectContaining({ sessionId })
-    );
+    expect(events.emit).not.toHaveBeenCalledWith(agentSessionExitedChannel, expect.anything());
   });
 });

@@ -173,14 +173,15 @@ export class LocalTerminalProvider implements TerminalProvider {
       wireTerminalDevServerWatcher({ pty, scopeId: this.scopeId, terminalId: terminal.id });
     }
 
-    pty.onExit(({ exitCode, signal }) => {
+    pty.onExit((info) => {
+      const { exitCode, signal } = info;
       const shouldRespawn =
         policy.respawnOnExit &&
         this.sessions.has(sessionId) &&
         isUnexpectedPtyExit({ exitCode, signal });
       this.sessions.delete(sessionId);
       if (!policy.preserveBufferOnExit) {
-        ptySessionRegistry.unregister(sessionId);
+        ptySessionRegistry.unregister(sessionId, { pty, exitInfo: info });
       }
       if (shouldRespawn && !this.tmux) {
         const count = (this.respawnCounts.get(sessionId) ?? 0) + 1;

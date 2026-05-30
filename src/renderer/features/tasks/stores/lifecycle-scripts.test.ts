@@ -38,6 +38,7 @@ vi.mock('@renderer/lib/pty/pty-session', () => ({
 
     connect = vi.fn(async () => {});
     dispose = vi.fn();
+    destroy = vi.fn();
   },
 }));
 

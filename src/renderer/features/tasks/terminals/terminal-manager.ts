@@ -59,7 +59,7 @@ export class TerminalManagerStore implements IDisposable {
           // Remove stale entries.
           const staleIds = Array.from(this.terminals.keys()).filter((id) => !incomingIds.has(id));
           for (const id of staleIds) {
-            this.sessions.get(id)?.dispose();
+            this.sessions.get(id)?.destroy();
             this.sessions.delete(id);
             this.terminals.delete(id);
           }
@@ -99,7 +99,7 @@ export class TerminalManagerStore implements IDisposable {
       return terminal;
     } catch (err) {
       runInAction(() => {
-        this.sessions.get(params.id)?.dispose();
+        this.sessions.get(params.id)?.destroy();
         this.sessions.delete(params.id);
         this.terminals.delete(params.id);
       });
@@ -137,7 +137,7 @@ export class TerminalManagerStore implements IDisposable {
         taskId: this.taskId,
         terminalId,
       });
-      session?.dispose();
+      session?.destroy();
     } catch (err) {
       runInAction(() => {
         this.terminals.set(terminalId, store);
@@ -160,7 +160,7 @@ export class TerminalManagerStore implements IDisposable {
   dispose(): void {
     this._disposeReaction();
     for (const session of this.sessions.values()) {
-      session.dispose();
+      session.destroy();
     }
     this.list.dispose();
   }

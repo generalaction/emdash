@@ -75,7 +75,7 @@ export class LifecycleScriptStore {
   dispose() {
     this.offStatus?.();
     this.offStatus = null;
-    this.session.dispose();
+    this.session.destroy();
   }
 }
 
