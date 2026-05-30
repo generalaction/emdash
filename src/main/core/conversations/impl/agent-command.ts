@@ -103,6 +103,27 @@ function appendSessionId(args: string[], flag: string, sessionId: string): void 
   args.push(...parts, sessionId);
 }
 
+function hasSettingsArg(args: string[]): boolean {
+  return args.some((arg) => arg === '--settings' || arg.startsWith('--settings='));
+}
+
+function mergeDefaultArgs(defaultArgs: string[], managedDefaultArgs: string[]): string[] {
+  if (!hasSettingsArg(defaultArgs)) return [...defaultArgs, ...managedDefaultArgs];
+
+  const filteredManagedArgs: string[] = [];
+  for (let i = 0; i < managedDefaultArgs.length; i += 1) {
+    const arg = managedDefaultArgs[i];
+    if (arg === '--settings') {
+      i += 1;
+      continue;
+    }
+    if (arg.startsWith('--settings=')) continue;
+    filteredManagedArgs.push(arg);
+  }
+
+  return [...defaultArgs, ...filteredManagedArgs];
+}
+
 export function buildAgentCommand({
   providerId,
   providerConfig,
@@ -126,8 +147,7 @@ export function buildAgentCommand({
   const [command, ...args] = parseCliPrefix(providerConfig?.cli, providerId);
   const initialPromptFlag = providerConfig?.initialPromptFlag;
 
-  args.push(...(providerConfig?.defaultArgs ?? []));
-  args.push(...(managedDefaultArgs ?? []));
+  args.push(...mergeDefaultArgs(providerConfig?.defaultArgs ?? [], managedDefaultArgs ?? []));
 
   const sessionIdFlag = providerConfig?.sessionIdFlag;
   const shouldPassSessionId =

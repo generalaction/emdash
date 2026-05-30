@@ -153,6 +153,19 @@ describe('buildAgentCommand', () => {
     });
   });
 
+  it('does not duplicate managed settings when default args include user settings', () => {
+    const result = buildAgentCommand({
+      providerId: 'claude',
+      providerConfig: makeConfig({
+        defaultArgs: ['--settings', '{"theme":"dark"}'],
+      }),
+      managedDefaultArgs: ['--settings', '{"theme":"auto"}'],
+      sessionId: 'conv-1',
+    });
+
+    expect(result.args).toEqual(['--settings', '{"theme":"dark"}', '--session-id', 'conv-1']);
+  });
+
   it('preserves quoted custom CLI and flag arguments', () => {
     const result = buildAgentCommand({
       providerId: 'claude',
