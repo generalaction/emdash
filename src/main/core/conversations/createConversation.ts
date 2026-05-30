@@ -70,18 +70,15 @@ async function prepareInitialPrompt(params: CreateConversationParams): Promise<s
     return buildInitialPrompt(params.provider, params.initialPrompt, images);
 
   const copiedImages = await Promise.all(
-    images.map(async (image) => {
+    images.map(async (image, index) => {
       try {
         return {
           ...image,
           path: await copyLocalFileToTemp(image.path, image.name),
         };
       } catch (error) {
-        log.warn('createConversation: failed to copy initial prompt image to remote temp storage', {
-          imageName: image.name,
-          error: error instanceof Error ? error.message : String(error),
-        });
-        return { ...image, path: '' };
+        const reason = error instanceof Error ? error.message : String(error);
+        throw new Error(`Failed to attach image "${normalizedImageName(image, index)}": ${reason}`);
       }
     })
   );

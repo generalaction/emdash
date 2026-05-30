@@ -58,7 +58,9 @@ function formatImageSize(bytes: number): string {
 
 async function saveInitialPromptImage(file: File): Promise<string> {
   if (file.size > INITIAL_PROMPT_IMAGE_MAX_BYTES) {
-    throw new Error(`Image "${file.name}" is larger than 25 MB.`);
+    throw new Error(
+      `Image "${file.name}" is larger than ${formatImageSize(INITIAL_PROMPT_IMAGE_MAX_BYTES)}.`
+    );
   }
 
   const buffer = await file.arrayBuffer();
@@ -72,12 +74,14 @@ async function saveInitialPromptImage(file: File): Promise<string> {
 export async function getInitialPromptImages(
   attachments: Attachment[]
 ): Promise<InitialPromptImage[]> {
-  return Promise.all(
-    attachments.map(async (attachment, index) => ({
+  const images: InitialPromptImage[] = [];
+  for (const [index, attachment] of attachments.entries()) {
+    images.push({
       name: imageDisplayName(attachment.file, index),
       path: await saveInitialPromptImage(attachment.file),
-    }))
-  );
+    });
+  }
+  return images;
 }
 
 export function useInitialConversationState(projectId?: string): InitialConversationState {

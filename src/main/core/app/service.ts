@@ -1,6 +1,16 @@
 import { exec } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { chmod, mkdir, readFile, readdir, realpath, rm, stat, writeFile } from 'node:fs/promises';
+import {
+  chmod,
+  lstat,
+  mkdir,
+  readFile,
+  readdir,
+  realpath,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { basename, extname, isAbsolute, join, resolve, sep } from 'node:path';
 import { eq } from 'drizzle-orm';
@@ -74,23 +84,22 @@ async function resolveHomeJailedPath(rawPath: string): Promise<string> {
 const INITIAL_PROMPT_IMAGE_DIR = join(tmpdir(), 'emdash-initial-prompt-images');
 const INITIAL_PROMPT_IMAGE_TTL_MS = 24 * 60 * 60 * 1000;
 const TEMP_CLEANUP_INTERVAL_MS = 10 * 60 * 1000;
-const INITIAL_PROMPT_IMAGE_EXTENSIONS = new Set([
-  '.png',
-  '.jpg',
-  '.jpeg',
-  '.gif',
-  '.webp',
-  '.bmp',
-  '.svg',
-]);
+const INITIAL_PROMPT_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp']);
 const INITIAL_PROMPT_IMAGE_MIME_EXTENSIONS: Record<string, string> = {
   'image/png': '.png',
   'image/jpeg': '.jpg',
   'image/gif': '.gif',
   'image/webp': '.webp',
   'image/bmp': '.bmp',
-  'image/svg+xml': '.svg',
 };
+const INITIAL_PROMPT_IMAGE_MIME_TYPES = new Set(Object.keys(INITIAL_PROMPT_IMAGE_MIME_EXTENSIONS));
+
+function isSupportedInitialPromptImage(name: string, mimeType: string): boolean {
+  const normalizedMimeType = mimeType.toLowerCase();
+  if (normalizedMimeType === 'image/svg+xml') return false;
+  if (INITIAL_PROMPT_IMAGE_MIME_TYPES.has(normalizedMimeType)) return true;
+  return INITIAL_PROMPT_IMAGE_EXTENSIONS.has(extname(name).toLowerCase());
+}
 
 let lastTempCleanupAt = 0;
 
@@ -123,7 +132,7 @@ async function cleanupOldTempFiles(dir: string, ttlMs: number): Promise<void> {
         const path = join(dir, entry);
         const info = await stat(path).catch(() => null);
         if (info && now - info.mtimeMs > ttlMs) {
-          await rm(path, { force: true });
+          await rm(path, { force: true, recursive: info.isDirectory() });
         }
       })
     );
@@ -156,8 +165,19 @@ async function saveTempFile(args: {
   }
 
   await mkdir(args.dir, { recursive: true, mode: 0o700 });
-  await chmod(args.dir, 0o700).catch(() => undefined);
-  const path = join(args.dir, `${randomUUID()}-${args.fileName}`);
+  await chmod(args.dir, 0o700);
+  const rootInfo = await lstat(args.dir);
+  if (rootInfo.isSymbolicLink()) {
+    throw new Error('Temporary file directory must not be a symlink');
+  }
+  const processUid = typeof process.getuid === 'function' ? process.getuid() : undefined;
+  if (processUid !== undefined && rootInfo.uid !== processUid) {
+    throw new Error('Temporary file directory is not owned by the current user');
+  }
+
+  const fileDir = join(args.dir, randomUUID());
+  await mkdir(fileDir, { mode: 0o700 });
+  const path = join(fileDir, args.fileName);
   await writeFile(path, args.data, { mode: 0o600 });
   return path;
 }
@@ -333,6 +353,10 @@ class AppService implements IInitializable, IDisposable {
     mimeType: string;
     data: Uint8Array;
   }): Promise<string> {
+    if (!isSupportedInitialPromptImage(args.name, args.mimeType)) {
+      throw new Error('Unsupported image type');
+    }
+
     triggerTempCleanupIfNeeded();
     return saveTempFile({
       dir: INITIAL_PROMPT_IMAGE_DIR,

@@ -7,13 +7,13 @@ export type Attachment = {
   previewUrl: string;
 };
 
-const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg']);
+const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp']);
 
 function isImageFile(file: File): boolean {
-  if (file.type.startsWith('image/')) return true;
   const dotIndex = file.name.lastIndexOf('.');
-  if (dotIndex === -1) return false;
-  const extension = file.name.slice(dotIndex).toLowerCase();
+  const extension = dotIndex === -1 ? '' : file.name.slice(dotIndex).toLowerCase();
+  if (extension === '.svg' || file.type === 'image/svg+xml') return false;
+  if (file.type.startsWith('image/')) return true;
   return IMAGE_EXTENSIONS.has(extension);
 }
 
@@ -70,7 +70,7 @@ export function useAttachments() {
       for (const item of items) {
         if (item.type.startsWith('image/')) {
           const file = item.getAsFile();
-          if (file) imageFiles.push(file);
+          if (file && isImageFile(file)) imageFiles.push(file);
         }
       }
       addFiles(imageFiles);

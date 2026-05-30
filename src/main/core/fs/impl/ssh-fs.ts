@@ -3,7 +3,6 @@
  * Uses SFTP over SSH for remote filesystem operations
  */
 
-import { randomUUID } from 'node:crypto';
 import type { SFTPWrapper } from 'ssh2';
 import { buildRemoteShellCommand } from '@main/core/ssh/lifecycle/remote-shell-profile';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
@@ -515,21 +514,23 @@ export class SshFileSystem implements FileSystemProvider {
 
   async copyLocalFileToTemp(localAbsPath: string, fileName: string): Promise<string> {
     const safeName = safeRemoteFileName(fileName, localAbsPath);
-    const uidResult = await this.exec('id -u');
-    const uid = uidResult.stdout.trim();
-    if (uidResult.exitCode !== 0 || !/^\d+$/.test(uid)) {
-      throw new Error(`Failed to resolve remote user id: ${uidResult.stderr}`);
+    const template = `${REMOTE_TEMP_UPLOAD_DIR_PREFIX}-XXXXXX`;
+    const mktempResult = await this.exec(`mktemp -d ${quoteShellArg(template)}`);
+    const remoteTempUploadDir = mktempResult.stdout.trim();
+    if (mktempResult.exitCode !== 0 || !remoteTempUploadDir.startsWith('/tmp/')) {
+      throw new Error(`Failed to create remote temp directory: ${mktempResult.stderr}`);
+    }
+    const tempDir = quoteShellArg(remoteTempUploadDir);
+    const chmodDirResult = await this.exec(`chmod 700 ${tempDir}`);
+    if (chmodDirResult.exitCode !== 0) {
+      throw new Error(`Failed to secure remote temp directory: ${chmodDirResult.stderr}`);
     }
 
-    const remoteTempUploadDir = `${REMOTE_TEMP_UPLOAD_DIR_PREFIX}-${uid}`;
-    const remoteFull = `${remoteTempUploadDir}/${randomUUID()}-${safeName}`;
-    const tempDir = quoteShellArg(remoteTempUploadDir);
-    const mkdirResult = await this.exec(`mkdir -p -m 700 ${tempDir} && chmod 700 ${tempDir}`);
-    if (mkdirResult.exitCode !== 0) {
-      throw new Error(`Failed to create remote temp directory: ${mkdirResult.stderr}`);
-    }
+    const remoteFull = `${remoteTempUploadDir}/${safeName}`;
     void this.exec(
-      `find ${tempDir} -type f -mmin +${REMOTE_TEMP_UPLOAD_TTL_MINUTES} -exec rm -f {} +`
+      `find /tmp -maxdepth 1 -type d -name ${quoteShellArg(
+        'emdash-initial-prompt-images-*'
+      )} -mmin +${REMOTE_TEMP_UPLOAD_TTL_MINUTES} -exec rm -rf {} +`
     ).catch(() => undefined);
 
     const sftp = await this.getSftp();
