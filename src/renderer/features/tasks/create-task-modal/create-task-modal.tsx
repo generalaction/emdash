@@ -69,7 +69,8 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   });
 
   const [sectionTab, setSectionTab] = useState<SectionTab>('conversation');
-  const [useBYOI, setUseBYOI] = useState(false);
+  const [workspaceType, setWorkspaceType] = useState<'worktree' | 'byoi'>('worktree');
+  const [byoiRepoUrl, setByoiRepoUrl] = useState('');
   const workspaceMode = useWorkspaceMode(selectedProjectId);
 
   const projectData = selectedProjectId
@@ -125,9 +126,12 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const isWorkspaceProviderEnabled = useFeatureFlag('workspace-provider');
   const { navigate } = useNavigate();
 
-  useEffect(() => setUseBYOI(false), [selectedProjectId]);
   useEffect(() => {
-    if (!isWorkspaceProviderEnabled) setUseBYOI(false);
+    setWorkspaceType('worktree');
+    setByoiRepoUrl(repositoryUrl ?? '');
+  }, [selectedProjectId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!isWorkspaceProviderEnabled) setWorkspaceType('worktree');
   }, [isWorkspaceProviderEnabled]);
   useEffect(() => {
     initialConversation.setProvider(null);
@@ -194,9 +198,9 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         name: state.taskName.effectiveTaskName,
         sourceBranch: { type: 'local', branch: reviewBranch },
         initialStatus: linkedPR.status === 'open' && !linkedPR.isDraft ? 'review' : undefined,
-        strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
+        strategy: workspaceType === 'byoi' ? { kind: 'no-worktree' } : taskStrategy,
         workspace: workspaceLocation,
-        workspaceProvider: useBYOI ? 'byoi' : undefined,
+        workspaceProvider: workspaceType === 'byoi' ? 'byoi' : undefined,
         initialConversation: builtInitialConversation,
       });
     } else if (workspaceMode.mode === 'existing') {
@@ -215,10 +219,10 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         projectId: selectedProjectId,
         name: state.taskName.effectiveTaskName,
         sourceBranch,
-        strategy: useBYOI ? { kind: 'no-worktree' } : strategy,
+        strategy: workspaceType === 'byoi' ? { kind: 'no-worktree' } : strategy,
         workspace: workspaceLocation,
         linkedIssue: linkedType === 'issue' ? (linkedIssue ?? undefined) : undefined,
-        workspaceProvider: useBYOI ? 'byoi' : undefined,
+        workspaceProvider: workspaceType === 'byoi' ? 'byoi' : undefined,
         initialConversation: builtInitialConversation,
       });
     } else {
@@ -237,10 +241,10 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         projectId: selectedProjectId,
         name: state.taskName.effectiveTaskName,
         sourceBranch: branchSelection.selectedBranch,
-        strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
+        strategy: workspaceType === 'byoi' ? { kind: 'no-worktree' } : taskStrategy,
         workspace: workspaceLocation,
         linkedIssue: linkedType === 'issue' ? (linkedIssue ?? undefined) : undefined,
-        workspaceProvider: useBYOI ? 'byoi' : undefined,
+        workspaceProvider: workspaceType === 'byoi' ? 'byoi' : undefined,
         initialConversation: builtInitialConversation,
       });
     }
@@ -258,7 +262,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     workspaceMode,
     isUnborn,
     currentBranch,
-    useBYOI,
+    workspaceType,
     initialConversation,
     autoApproveDefaults,
     navigate,
@@ -350,8 +354,11 @@ export const CreateTaskModal = observer(function CreateTaskModal({
                   currentBranch={currentBranch}
                   isUnborn={isUnborn}
                   workspaceMode={workspaceMode}
-                  useBYOI={useBYOI}
-                  setUseBYOI={setUseBYOI}
+                  workspaceType={workspaceType}
+                  setWorkspaceType={setWorkspaceType}
+                  byoiRepoUrl={byoiRepoUrl}
+                  setByoiRepoUrl={setByoiRepoUrl}
+                  defaultRepoUrl={repositoryUrl}
                   isWorkspaceProviderEnabled={isWorkspaceProviderEnabled}
                 />
               )}

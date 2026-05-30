@@ -79,7 +79,7 @@ export function InitialConversationField({ state, linkedIssue }: InitialConversa
 
   return (
     <Field>
-      <div className="flex flex-col rounded-md border border-border">
+      <div className="flex flex-col rounded-lg border border-border">
         <div className="flex w-full items-center justify-between gap-2 px-2 pt-1">
           <AgentSelector
             value={state.provider}

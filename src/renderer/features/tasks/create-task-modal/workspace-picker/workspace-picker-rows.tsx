@@ -1,5 +1,6 @@
 import { FolderGit2, GitBranch, Laptop, Link, Server, TreePine } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { type ReactNode } from 'react';
 import { appState } from '@renderer/lib/stores/app-state';
 import { cn } from '@renderer/utils/utils';
 import type { ConnectionState } from '@shared/ssh';
@@ -39,21 +40,18 @@ export function TaskCountBadge({ count }: { count: number }) {
 
 function PathLine({ path, branch }: { path: string; branch: string | null | undefined }) {
   return (
-    <div className="flex min-w-0 items-center w-full gap-2 relative">
+    <div className="flex min-w-0 items-center w-full gap-2">
       <span
-        className="min-w-0 relative  text-xs text-foreground-passive flex items-center gap-1 overflow-hidden whitespace-nowrap"
+        className="min-w-0 text-xs text-foreground-passive flex items-center gap-1 truncate whitespace-nowrap"
         title={path}
       >
-        {path}sdfsdfsdsdfsdfsdf
-        <div className="pointer-events-none absolute inset-y-0 right-0 w-4 bg-gradient-to-l from-[var(--color-background-2)] to-transparent" />
+        {path}
       </span>
-
-
+        <span className="size-0.5 shrink-0 rounded-full bg-border" />
       {branch && (
-        <span className="flex shrink-0 items-center gap-1 text-xs text-foreground-muted relative">
+        <span className="flex shrink-0 items-center gap-0.5 text-xs text-foreground-passive relative">
           <GitBranch absoluteStrokeWidth strokeWidth={2} className="size-3 shrink-0" />
-          <span className="max-w-52 min-w-10 overflow-hidden whitespace-nowrap">{branch}sdfsdffsdsdfsdf</span>
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-4 bg-gradient-to-l from-[var(--color-background-2)] to-transparent" />
+          <span className="max-w-52 min-w-10 truncate whitespace-nowrap">{branch}</span>
         </span>
       )}
     </div>
@@ -86,7 +84,7 @@ export const PickerHostRow = observer(function PickerHostRow({
       : null;
 
   return (
-    <div className="flex h-6 items-center gap-2 px-3 bg-background-2">
+    <div className="flex h-6 items-center gap-2 px-2.5 bg-background-2">
       {item.kind === 'local' ? (
         <Laptop absoluteStrokeWidth strokeWidth={1.5} className="size-3 shrink-0 text-foreground-muted" />
       ) : (
@@ -126,7 +124,7 @@ export function PickerRepoRowContent({ item, className }: { item: PickerRepoItem
   const branch = item.mainEntry?.branch;
 
   return (
-    <div className={cn('flex flex-col py-2 px-2 h-14 gap-0.5 justify-center w-full', className)}>
+    <div className={cn('flex flex-col h-14 gap-0.5 justify-center w-full', className)}>
       <div className="flex items-center gap-1.5">
         <FolderGit2
           absoluteStrokeWidth
@@ -150,27 +148,42 @@ export function PickerRepoRowContent({ item, className }: { item: PickerRepoItem
 }
 
 // ---------------------------------------------------------------------------
-// PickerRepoRow
+// PickerRow — generic wrapper (replaces PickerRepoRow / PickerWorktreeRow)
 // ---------------------------------------------------------------------------
 
-export function PickerRepoRow({
-  item,
+export function PickerRow({
+  depth,
   isSelected,
-  selectable,
+  isSelectable,
   onClick,
+  children,
 }: {
-  item: PickerRepoItem;
+  /** 0 = host (sticky header), 1 = repo, 2 = worktree */
+  depth: 0 | 1 | 2;
   isSelected: boolean;
-  selectable: boolean;
+  isSelectable: boolean;
   onClick?: () => void;
+  children: ReactNode;
 }) {
   return (
     <div
-      role={selectable ? 'option' : undefined}
-      aria-selected={selectable ? isSelected : undefined}
-      onClick={selectable ? onClick : undefined}
+      className={cn(
+        'relative w-full',
+        depth === 0 && 'bg-background-2',
+        depth === 1 && 'px-3',
+        depth === 2 && 'pl-8 pr-3',
+        isSelectable && 'cursor-pointer',
+        isSelectable && !isSelected && 'hover:bg-background-2',
+        isSelectable && isSelected && 'bg-background-2'
+      )}
+      role={isSelectable ? 'option' : undefined}
+      aria-selected={isSelectable ? isSelected : undefined}
+      onClick={isSelectable ? onClick : undefined}
     >
-      <PickerRepoRowContent item={item} />
+      {depth >= 2 && (
+        <div className="absolute left-4 inset-y-0 w-px bg-border " />
+      )}
+      {children}
     </div>
   );
 }
@@ -184,7 +197,7 @@ export function PickerWorktreeRowContent({ item, className }: { item: PickerWork
   const name = displayPath[displayPath.length - 1] ?? item.entry.path;
 
   return (
-    <div className={cn('flex flex-col gap-0.5 p-2 h-14 justify-center', className)}>
+    <div className={cn('flex flex-col gap-0.5 h-14 justify-center', className)}>
       <div className="flex items-center gap-1.5">
         <TreePine
           absoluteStrokeWidth
@@ -206,34 +219,3 @@ export function PickerWorktreeRowContent({ item, className }: { item: PickerWork
   );
 }
 
-// ---------------------------------------------------------------------------
-// PickerWorktreeRow
-// ---------------------------------------------------------------------------
-
-export function PickerWorktreeRow({
-  item,
-  isSelected,
-  onClick,
-}: {
-  item: PickerWorktreeItem;
-  isSelected: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <div className="relative pl-7">
-      {/* Vertical connector line */}
-      <div className="absolute left-4 top-0 h-full w-px bg-border" />
-      <div
-        role="option"
-        aria-selected={isSelected}
-        onClick={onClick}
-        className={cn(
-          'flex flex-col cursor-pointer rounded-md px-2.5 hover:bg-background-1',
-          isSelected && 'bg-background-2'
-        )}
-      >
-        <PickerWorktreeRowContent item={item} />
-      </div>
-    </div>
-  );
-}

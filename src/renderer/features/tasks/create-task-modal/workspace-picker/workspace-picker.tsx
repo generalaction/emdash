@@ -155,14 +155,12 @@ export function WorkspacePicker({ projectId, value, onChange, renderSelection, r
               placeholder="Search workspaces…"
             />
 
-            <div className="max-h-72 overflow-y-auto">
-              <WorkspacePickerList
-                items={items}
-                mode="worktree"
-                selectedValue={selectedPath}
-                onSelect={handleSelect}
-              />
-            </div>
+            <WorkspacePickerList
+              items={items}
+              mode="worktree"
+              selectedValue={selectedPath}
+              onSelect={handleSelect}
+            />
           </PopoverPrimitive.Popup>
         </PopoverPrimitive.Positioner>
       </PopoverPrimitive.Portal>
