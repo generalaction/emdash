@@ -4,7 +4,6 @@ import { wireAgentClassifier } from '@main/core/agent-hooks/classifier-wiring';
 import { claudeTrustService } from '@main/core/agent-hooks/claude-trust-service';
 import { HookConfigWriter } from '@main/core/agent-hooks/hook-config';
 import { ConversationSessionSupervisor } from '@main/core/conversations/conversation-session-supervisor';
-import type { ConversationStartReason } from '@main/core/conversations/conversation-session-supervisor';
 import { resolveAgentSessionCommandArgs } from '@main/core/conversations/resolve-agent-session-command';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import type { IExecutionContext } from '@main/core/execution-context/types';
@@ -22,11 +21,7 @@ import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { getProvider } from '@shared/agent-provider-registry';
 import type { Conversation } from '@shared/conversations';
-import {
-  agentSessionExitedChannel,
-  agentSessionRuntimeFailureChannel,
-  agentSessionRuntimeStatusChannel,
-} from '@shared/events/agentEvents';
+import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { makePtyId } from '@shared/ptyId';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { buildAgentSessionCommand } from './agent-command';
@@ -84,17 +79,14 @@ export class LocalConversationProvider implements ConversationProvider {
 
   async startSession(
     conversation: Conversation,
-    initialSize: { cols: number; rows: number } = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS },
+    initialSize: { cols: number; rows: number } = {
+      cols: DEFAULT_COLS,
+      rows: DEFAULT_ROWS,
+    },
     isResuming: boolean = false,
     initialPrompt?: string
   ): Promise<void> {
-    return this.startSessionInternal(
-      conversation,
-      initialSize,
-      isResuming,
-      initialPrompt,
-      'hydrate'
-    );
+    return this.startSessionInternal(conversation, initialSize, isResuming, initialPrompt, false);
   }
 
   private async startSessionInternal(
@@ -102,7 +94,7 @@ export class LocalConversationProvider implements ConversationProvider {
     initialSize: { cols: number; rows: number },
     isResuming: boolean,
     initialPrompt: string | undefined,
-    startReason: ConversationStartReason
+    requireDesired: boolean
   ): Promise<void> {
     const sessionId = makePtySessionId(
       conversation.projectId,
@@ -112,9 +104,7 @@ export class LocalConversationProvider implements ConversationProvider {
     this.knownSessionIds.add(sessionId);
 
     const spawnSize = ptySessionRegistry.getLastSize(sessionId) ?? initialSize;
-    const spawnToken = this.supervisor.beginStart(sessionId, spawnSize, startReason, {
-      requireDesired: startReason === 'replace-after-exit',
-    });
+    const spawnToken = this.supervisor.beginStart(sessionId, { requireDesired });
     if (!spawnToken) return;
 
     try {
@@ -212,7 +202,7 @@ export class LocalConversationProvider implements ConversationProvider {
         });
       }
 
-      pty.onExit(({ exitCode }) => {
+      pty.onExit(() => {
         const decision = this.supervisor.handleExit(sessionId, pty);
         if (decision.kind === 'stale') return;
         const replacementSize = ptySessionRegistry.getLastSize(sessionId) ?? spawnSize;
@@ -222,29 +212,18 @@ export class LocalConversationProvider implements ConversationProvider {
         if (decision.kind === 'stopped') return;
 
         events.emit(agentSessionExitedChannel, {
-          sessionId,
-          projectId: conversation.projectId,
           conversationId: conversation.id,
           taskId: conversation.taskId,
-          exitCode,
         });
 
         if (decision.kind === 'failed') {
-          this.emitRuntimeFailure(conversation, sessionId, {
-            reason: 'replacement-failed',
-            commandShape: command,
-            attempt: 1,
-            message: 'Agent process exited during the replacement failure window.',
-          });
           return;
         }
 
         if (this.supervisor.isDesired(sessionId)) {
           this.scheduleReplacement({
             conversation,
-            sessionId,
             initialSize: replacementSize,
-            initialPrompt,
           });
         }
       });
@@ -256,17 +235,14 @@ export class LocalConversationProvider implements ConversationProvider {
         if (ptySessionRegistry.get(sessionId) === pty) {
           ptySessionRegistry.unregister(sessionId);
         }
-        this.emitRuntimeFailure(conversation, sessionId, {
-          reason: 'stopped-during-replacement',
-          commandShape: command,
-          attempt: 1,
-          message: 'Spawn completed after the conversation was stopped.',
-        });
         return;
       }
 
       ptySessionRegistry.register(sessionId, pty, {
-        metadata: { providerId: conversation.providerId, title: conversation.title },
+        metadata: {
+          providerId: conversation.providerId,
+          title: conversation.title,
+        },
       });
       this.sessions.set(sessionId, pty);
       scheduleInitialPromptInjection({
@@ -282,15 +258,7 @@ export class LocalConversationProvider implements ConversationProvider {
         conversation_id: conversation.id,
       });
     } catch (error) {
-      const shouldSurface = this.supervisor.failSpawn(sessionId, spawnToken);
-      if (shouldSurface) {
-        this.emitRuntimeFailure(conversation, sessionId, {
-          reason: startReason === 'replace-after-exit' ? 'replacement-failed' : 'spawn-failed',
-          commandShape: 'agent',
-          attempt: 1,
-          message: String((error as Error)?.message || error),
-        });
-      }
+      this.supervisor.failSpawn(sessionId, spawnToken);
       throw error;
     }
   }
@@ -307,7 +275,10 @@ export class LocalConversationProvider implements ConversationProvider {
       const hooksAvailable = await this.hookConfigWriter.writeForProvider(providerId, {
         writeGitIgnoreEntries,
       });
-      this.preparedHookProviders.set(providerId, { writeGitIgnoreEntries, hooksAvailable });
+      this.preparedHookProviders.set(providerId, {
+        writeGitIgnoreEntries,
+        hooksAvailable,
+      });
       return hooksAvailable;
     } catch (error) {
       log.warn('LocalConversationProvider: failed to prepare hook config', {
@@ -320,14 +291,17 @@ export class LocalConversationProvider implements ConversationProvider {
   }
 
   private detachPty(sessionId: string): void {
-    const pty = this.supervisor.stop(sessionId, 'dehydrate') ?? this.sessions.get(sessionId);
+    const pty = this.supervisor.stop(sessionId) ?? this.sessions.get(sessionId);
     this.sessions.delete(sessionId);
     ptySessionRegistry.unregister(sessionId);
     if (pty) {
       try {
         pty.kill();
       } catch (e) {
-        log.warn('LocalAgentProvider: error killing PTY', { sessionId, error: String(e) });
+        log.warn('LocalAgentProvider: error killing PTY', {
+          sessionId,
+          error: String(e),
+        });
       }
     }
   }
@@ -344,14 +318,17 @@ export class LocalConversationProvider implements ConversationProvider {
   async stopSession(conversationId: string): Promise<void> {
     const sessionId = makePtySessionId(this.projectId, this.taskId, conversationId);
     this.knownSessionIds.delete(sessionId);
-    const pty = this.supervisor.stop(sessionId, 'user-stop') ?? this.sessions.get(sessionId);
+    const pty = this.supervisor.stop(sessionId) ?? this.sessions.get(sessionId);
     this.sessions.delete(sessionId);
     ptySessionRegistry.unregister(sessionId);
     if (pty) {
       try {
         pty.kill();
       } catch (e) {
-        log.warn('LocalAgentProvider: error killing PTY', { sessionId, error: String(e) });
+        log.warn('LocalAgentProvider: error killing PTY', {
+          sessionId,
+          error: String(e),
+        });
       }
     }
     if (this.tmux) {
@@ -374,7 +351,7 @@ export class LocalConversationProvider implements ConversationProvider {
 
   async detachAll(): Promise<void> {
     for (const [sessionId, pty] of this.sessions) {
-      this.supervisor.stop(sessionId, 'dehydrate');
+      this.supervisor.stop(sessionId);
       try {
         pty.kill();
       } catch {}
@@ -385,86 +362,18 @@ export class LocalConversationProvider implements ConversationProvider {
 
   private scheduleReplacement({
     conversation,
-    sessionId,
     initialSize,
-    initialPrompt,
   }: {
     conversation: Conversation;
-    sessionId: string;
     initialSize: { cols: number; rows: number };
-    initialPrompt: string | undefined;
   }): void {
-    events.emit(
-      agentSessionRuntimeStatusChannel,
-      {
-        providerId: conversation.providerId,
-        conversationId: conversation.id,
-        sessionId,
-        status: 'replacing',
-        reason: 'process-exit',
-      },
-      conversation.taskId
-    );
-
     setTimeout(() => {
-      this.startSessionInternal(
-        conversation,
-        initialSize,
-        true,
-        initialPrompt,
-        'replace-after-exit'
-      )
-        .then(() => {
-          if (!this.supervisor.isDesired(sessionId)) return;
-          events.emit(
-            agentSessionRuntimeStatusChannel,
-            {
-              providerId: conversation.providerId,
-              conversationId: conversation.id,
-              sessionId,
-              status: 'replaced',
-              reason: 'process-exit',
-            },
-            conversation.taskId
-          );
-        })
-        .catch((e) => {
-          log.error('LocalConversationProvider: replacement failed', {
-            conversationId: conversation.id,
-            error: String(e),
-          });
+      this.startSessionInternal(conversation, initialSize, true, undefined, true).catch((e) => {
+        log.error('LocalConversationProvider: replacement failed', {
+          conversationId: conversation.id,
+          error: String(e),
         });
+      });
     }, RESPAWN_DELAY_MS);
-  }
-
-  private emitRuntimeFailure(
-    conversation: Conversation,
-    sessionId: string,
-    failure: {
-      reason:
-        | 'spawn-failed'
-        | 'replacement-failed'
-        | 'binding-demote-and-fresh-failed'
-        | 'stopped-during-replacement';
-      commandShape: string;
-      attempt: number;
-      message: string;
-    }
-  ): void {
-    events.emit(
-      agentSessionRuntimeFailureChannel,
-      {
-        providerId: conversation.providerId,
-        conversationId: conversation.id,
-        sessionId,
-        reason: failure.reason,
-        commandShape: failure.commandShape,
-        cwd: this.taskPath,
-        transport: 'local',
-        attempt: failure.attempt,
-        message: failure.message,
-      },
-      conversation.taskId
-    );
   }
 }

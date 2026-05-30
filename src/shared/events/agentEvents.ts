@@ -45,47 +45,9 @@ export type SoundEvent = 'needs_attention' | 'task_complete';
 export const agentEventChannel = defineEvent<AgentEventEnvelope>('agent:event');
 
 export interface AgentSessionExited {
-  /** PTY session ID (= conversationId for agent sessions). */
-  projectId: string;
-  sessionId: string;
   conversationId: string;
   taskId: string;
-  exitCode: number | undefined;
 }
 
 /** Emitted when an agent PTY session exits. Topic = taskId. */
 export const agentSessionExitedChannel = defineEvent<AgentSessionExited>('agent:session-exited');
-
-export interface AgentSessionRuntimeFailure {
-  providerId: string;
-  conversationId: string;
-  sessionId: string;
-  reason:
-    | 'spawn-failed'
-    | 'replacement-failed'
-    | 'binding-demote-and-fresh-failed'
-    | 'stopped-during-replacement';
-  commandShape: string;
-  cwd: string;
-  transport: 'local' | 'ssh';
-  attempt: number;
-  message: string;
-}
-
-/** Emitted when an agent PTY session cannot be started or replaced. Topic = taskId. */
-export const agentSessionRuntimeFailureChannel = defineEvent<AgentSessionRuntimeFailure>(
-  'agent:session-runtime-failure'
-);
-
-export interface AgentSessionRuntimeStatus {
-  providerId: string;
-  conversationId: string;
-  sessionId: string;
-  status: 'replacing' | 'replaced';
-  reason: 'process-exit';
-}
-
-/** Emitted when an agent PTY process is replaced under the same logical session. Topic = taskId. */
-export const agentSessionRuntimeStatusChannel = defineEvent<AgentSessionRuntimeStatus>(
-  'agent:session-runtime-status'
-);

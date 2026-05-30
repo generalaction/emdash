@@ -1,18 +1,7 @@
 import type { Pty } from '@main/core/pty/pty';
 
-export type ConversationStartReason = 'create' | 'hydrate' | 'replace-after-exit' | 'manual-retry';
-
-export type ConversationStopReason =
-  | 'dehydrate'
-  | 'delete'
-  | 'task-destroy'
-  | 'resource-monitor'
-  | 'user-stop';
-
 export type ConversationSpawnToken = {
-  sessionId: string;
   generation: number;
-  reason: ConversationStartReason;
 };
 
 type ConversationRuntime = {
@@ -22,7 +11,6 @@ type ConversationRuntime = {
   replacementGeneration: number;
   replacementAttemptedInWindow: boolean;
   stableTimer?: ReturnType<typeof setTimeout>;
-  lastStopReason?: ConversationStopReason;
 };
 
 export const CONVERSATION_REPLACEMENT_SUSTAINED_MS = 5_000;
@@ -38,8 +26,6 @@ export class ConversationSessionSupervisor {
 
   beginStart(
     sessionId: string,
-    _size: { cols: number; rows: number },
-    reason: ConversationStartReason,
     options: { requireDesired?: boolean } = {}
   ): ConversationSpawnToken | undefined {
     const runtime = this.getOrCreateRuntime(sessionId);
@@ -47,11 +33,10 @@ export class ConversationSessionSupervisor {
     if (options.requireDesired === true && !runtime.desired) return undefined;
 
     runtime.desired = true;
-    runtime.lastStopReason = undefined;
     runtime.replacementGeneration += 1;
     runtime.spawnInFlightGeneration = runtime.replacementGeneration;
 
-    return { sessionId, generation: runtime.replacementGeneration, reason };
+    return { generation: runtime.replacementGeneration };
   }
 
   acceptSpawn(sessionId: string, token: ConversationSpawnToken, pty: Pty): boolean {
@@ -66,20 +51,18 @@ export class ConversationSessionSupervisor {
     return true;
   }
 
-  failSpawn(sessionId: string, token: ConversationSpawnToken): boolean {
+  failSpawn(sessionId: string, token: ConversationSpawnToken): void {
     const runtime = this.runtimes.get(sessionId);
-    if (!runtime || runtime.spawnInFlightGeneration !== token.generation) return false;
+    if (!runtime || runtime.spawnInFlightGeneration !== token.generation) return;
     runtime.spawnInFlightGeneration = undefined;
     runtime.replacementAttemptedInWindow = false;
-    return runtime.desired;
   }
 
-  stop(sessionId: string, reason: ConversationStopReason): Pty | undefined {
+  stop(sessionId: string): Pty | undefined {
     const runtime = this.runtimes.get(sessionId);
     if (!runtime) return undefined;
 
     runtime.desired = false;
-    runtime.lastStopReason = reason;
     runtime.replacementGeneration += 1;
     runtime.spawnInFlightGeneration = undefined;
     this.clearStableTimer(runtime);
@@ -90,16 +73,8 @@ export class ConversationSessionSupervisor {
     return pty;
   }
 
-  getCurrentPty(sessionId: string): Pty | undefined {
-    return this.runtimes.get(sessionId)?.pty;
-  }
-
   isDesired(sessionId: string): boolean {
     return this.runtimes.get(sessionId)?.desired === true;
-  }
-
-  isCurrentPty(sessionId: string, pty: Pty): boolean {
-    return this.runtimes.get(sessionId)?.pty === pty;
   }
 
   handleExit(sessionId: string, pty: Pty): ExitDecision {
@@ -112,7 +87,7 @@ export class ConversationSessionSupervisor {
 
     if (!runtime.desired) return { kind: 'stopped' };
 
-    if (runtime.replacementAttemptedInWindow || runtime.spawnInFlightGeneration !== undefined) {
+    if (runtime.replacementAttemptedInWindow) {
       runtime.desired = false;
       runtime.replacementAttemptedInWindow = false;
       return { kind: 'failed' };

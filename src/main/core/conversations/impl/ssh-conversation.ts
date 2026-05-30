@@ -1,7 +1,6 @@
 import { wireAgentClassifier } from '@main/core/agent-hooks/classifier-wiring';
 import { claudeTrustService } from '@main/core/agent-hooks/claude-trust-service';
 import { ConversationSessionSupervisor } from '@main/core/conversations/conversation-session-supervisor';
-import type { ConversationStartReason } from '@main/core/conversations/conversation-session-supervisor';
 import { resolveAgentSessionCommandArgs } from '@main/core/conversations/resolve-agent-session-command';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import type { IExecutionContext } from '@main/core/execution-context/types';
@@ -18,11 +17,7 @@ import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import type { AgentSessionConfig } from '@shared/agent-session';
 import type { Conversation } from '@shared/conversations';
-import {
-  agentSessionExitedChannel,
-  agentSessionRuntimeFailureChannel,
-  agentSessionRuntimeStatusChannel,
-} from '@shared/events/agentEvents';
+import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { buildAgentSessionCommand } from './agent-command';
 import { scheduleInitialPromptInjection } from './keystroke-injection';
@@ -76,18 +71,16 @@ export class SshConversationProvider implements ConversationProvider {
 
   async startSession(
     conversation: Conversation,
-    initialSize: { cols: number; rows: number } = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS },
+    initialSize: { cols: number; rows: number } = {
+      cols: DEFAULT_COLS,
+      rows: DEFAULT_ROWS,
+    },
     isResuming: boolean = false,
     initialPrompt?: string
   ): Promise<void> {
-    return this.startSessionInternal(
-      conversation,
-      initialSize,
-      isResuming,
-      initialPrompt,
-      'hydrate',
-      { shellRefreshRetried: false }
-    );
+    return this.startSessionInternal(conversation, initialSize, isResuming, initialPrompt, false, {
+      shellRefreshRetried: false,
+    });
   }
 
   private async startSessionInternal(
@@ -95,7 +88,7 @@ export class SshConversationProvider implements ConversationProvider {
     initialSize: { cols: number; rows: number },
     isResuming: boolean,
     initialPrompt: string | undefined,
-    startReason: ConversationStartReason,
+    requireDesired: boolean,
     options: { shellRefreshRetried: boolean }
   ): Promise<void> {
     const sessionId = makePtySessionId(
@@ -106,9 +99,7 @@ export class SshConversationProvider implements ConversationProvider {
     this.knownSessionIds.add(sessionId);
 
     const spawnSize = ptySessionRegistry.getLastSize(sessionId) ?? initialSize;
-    const spawnToken = this.supervisor.beginStart(sessionId, spawnSize, startReason, {
-      requireDesired: startReason === 'replace-after-exit',
-    });
+    const spawnToken = this.supervisor.beginStart(sessionId, { requireDesired });
     if (!spawnToken) return;
 
     try {
@@ -197,17 +188,8 @@ export class SshConversationProvider implements ConversationProvider {
 
         if (decision.kind === 'failed') {
           events.emit(agentSessionExitedChannel, {
-            sessionId,
-            projectId: conversation.projectId,
             conversationId: conversation.id,
             taskId: conversation.taskId,
-            exitCode,
-          });
-          this.emitRuntimeFailure(conversation, sessionId, {
-            reason: 'replacement-failed',
-            commandShape: command,
-            attempt: 1,
-            message: 'Agent process exited during the replacement failure window.',
           });
           return;
         }
@@ -215,29 +197,22 @@ export class SshConversationProvider implements ConversationProvider {
         if (!this.tmux && !options.shellRefreshRetried && exitCode === 127) {
           this.scheduleShellRefreshRetry({
             conversation,
-            sessionId,
             initialSize: replacementSize,
             isResuming,
             initialPrompt,
-            commandShape: command,
           });
           return;
         }
 
         events.emit(agentSessionExitedChannel, {
-          sessionId,
-          projectId: conversation.projectId,
           conversationId: conversation.id,
           taskId: conversation.taskId,
-          exitCode,
         });
 
         if (this.supervisor.isDesired(sessionId)) {
           this.scheduleReplacement({
             conversation,
-            sessionId,
             initialSize: replacementSize,
-            initialPrompt,
           });
         }
       });
@@ -249,12 +224,6 @@ export class SshConversationProvider implements ConversationProvider {
         if (ptySessionRegistry.get(sessionId) === pty) {
           ptySessionRegistry.unregister(sessionId);
         }
-        this.emitRuntimeFailure(conversation, sessionId, {
-          reason: 'stopped-during-replacement',
-          commandShape: command,
-          attempt: 1,
-          message: 'Spawn completed after the conversation was stopped.',
-        });
         return;
       }
 
@@ -279,28 +248,23 @@ export class SshConversationProvider implements ConversationProvider {
         conversation_id: conversation.id,
       });
     } catch (error) {
-      const shouldSurface = this.supervisor.failSpawn(sessionId, spawnToken);
-      if (shouldSurface) {
-        this.emitRuntimeFailure(conversation, sessionId, {
-          reason: startReason === 'replace-after-exit' ? 'replacement-failed' : 'spawn-failed',
-          commandShape: 'agent',
-          attempt: 1,
-          message: String((error as Error)?.message || error),
-        });
-      }
+      this.supervisor.failSpawn(sessionId, spawnToken);
       throw error;
     }
   }
 
   private detachPty(sessionId: string): void {
-    const pty = this.supervisor.stop(sessionId, 'dehydrate') ?? this.sessions.get(sessionId);
+    const pty = this.supervisor.stop(sessionId) ?? this.sessions.get(sessionId);
     this.sessions.delete(sessionId);
     ptySessionRegistry.unregister(sessionId);
     if (pty) {
       try {
         pty.kill();
       } catch (e) {
-        log.warn('SshAgentProvider: error killing PTY', { sessionId, error: String(e) });
+        log.warn('SshAgentProvider: error killing PTY', {
+          sessionId,
+          error: String(e),
+        });
       }
     }
   }
@@ -317,14 +281,17 @@ export class SshConversationProvider implements ConversationProvider {
   async stopSession(conversationId: string): Promise<void> {
     const sessionId = makePtySessionId(this.projectId, this.taskId, conversationId);
     this.knownSessionIds.delete(sessionId);
-    const pty = this.supervisor.stop(sessionId, 'user-stop') ?? this.sessions.get(sessionId);
+    const pty = this.supervisor.stop(sessionId) ?? this.sessions.get(sessionId);
     this.sessions.delete(sessionId);
     ptySessionRegistry.unregister(sessionId);
     if (pty) {
       try {
         pty.kill();
       } catch (e) {
-        log.warn('SshAgentProvider: error killing PTY', { sessionId, error: String(e) });
+        log.warn('SshAgentProvider: error killing PTY', {
+          sessionId,
+          error: String(e),
+        });
       }
     }
     if (this.tmux) {
@@ -347,7 +314,7 @@ export class SshConversationProvider implements ConversationProvider {
 
   async detachAll(): Promise<void> {
     for (const [sessionId, pty] of this.sessions) {
-      this.supervisor.stop(sessionId, 'dehydrate');
+      this.supervisor.stop(sessionId);
       try {
         pty.kill();
       } catch {}
@@ -358,31 +325,25 @@ export class SshConversationProvider implements ConversationProvider {
 
   private scheduleShellRefreshRetry({
     conversation,
-    sessionId,
     initialSize,
     isResuming,
     initialPrompt,
-    commandShape,
   }: {
     conversation: Conversation;
-    sessionId: string;
     initialSize: { cols: number; rows: number };
     isResuming: boolean;
     initialPrompt: string | undefined;
-    commandShape: string;
   }): void {
-    let refreshed = false;
     setTimeout(() => {
       this.proxy
         .refreshRemoteShellProfile()
         .then(() => {
-          refreshed = true;
           return this.startSessionInternal(
             conversation,
             initialSize,
             isResuming,
             initialPrompt,
-            'replace-after-exit',
+            true,
             { shellRefreshRetried: true }
           );
         })
@@ -391,103 +352,26 @@ export class SshConversationProvider implements ConversationProvider {
             conversationId: conversation.id,
             error: String(e),
           });
-          if (!refreshed) {
-            this.emitRuntimeFailure(conversation, sessionId, {
-              reason: 'replacement-failed',
-              commandShape,
-              attempt: 1,
-              message: String((e as Error)?.message || e),
-            });
-          }
         });
     }, RESPAWN_DELAY_MS);
   }
 
   private scheduleReplacement({
     conversation,
-    sessionId,
     initialSize,
-    initialPrompt,
   }: {
     conversation: Conversation;
-    sessionId: string;
     initialSize: { cols: number; rows: number };
-    initialPrompt: string | undefined;
   }): void {
-    events.emit(
-      agentSessionRuntimeStatusChannel,
-      {
-        providerId: conversation.providerId,
-        conversationId: conversation.id,
-        sessionId,
-        status: 'replacing',
-        reason: 'process-exit',
-      },
-      conversation.taskId
-    );
-
     setTimeout(() => {
-      this.startSessionInternal(
-        conversation,
-        initialSize,
-        true,
-        initialPrompt,
-        'replace-after-exit',
-        {
-          shellRefreshRetried: false,
-        }
-      )
-        .then(() => {
-          if (!this.supervisor.isDesired(sessionId)) return;
-          events.emit(
-            agentSessionRuntimeStatusChannel,
-            {
-              providerId: conversation.providerId,
-              conversationId: conversation.id,
-              sessionId,
-              status: 'replaced',
-              reason: 'process-exit',
-            },
-            conversation.taskId
-          );
-        })
-        .catch((e) => {
-          log.error('SshConversationProvider: replacement failed', {
-            conversationId: conversation.id,
-            error: String(e),
-          });
+      this.startSessionInternal(conversation, initialSize, true, undefined, true, {
+        shellRefreshRetried: false,
+      }).catch((e) => {
+        log.error('SshConversationProvider: replacement failed', {
+          conversationId: conversation.id,
+          error: String(e),
         });
+      });
     }, RESPAWN_DELAY_MS);
-  }
-
-  private emitRuntimeFailure(
-    conversation: Conversation,
-    sessionId: string,
-    failure: {
-      reason:
-        | 'spawn-failed'
-        | 'replacement-failed'
-        | 'binding-demote-and-fresh-failed'
-        | 'stopped-during-replacement';
-      commandShape: string;
-      attempt: number;
-      message: string;
-    }
-  ): void {
-    events.emit(
-      agentSessionRuntimeFailureChannel,
-      {
-        providerId: conversation.providerId,
-        conversationId: conversation.id,
-        sessionId,
-        reason: failure.reason,
-        commandShape: failure.commandShape,
-        cwd: this.taskPath,
-        transport: 'ssh',
-        attempt: failure.attempt,
-        message: failure.message,
-      },
-      conversation.taskId
-    );
   }
 }

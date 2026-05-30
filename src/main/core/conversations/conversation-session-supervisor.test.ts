@@ -18,10 +18,10 @@ function fakePty(): Pty {
 describe('ConversationSessionSupervisor', () => {
   it('rejects and kills a spawn that returns after explicit stop invalidated its generation', () => {
     const supervisor = new ConversationSessionSupervisor();
-    const token = supervisor.beginStart('session-1', { cols: 80, rows: 24 }, 'hydrate');
+    const token = supervisor.beginStart('session-1');
     expect(token).toBeDefined();
 
-    supervisor.stop('session-1', 'user-stop');
+    supervisor.stop('session-1');
 
     const pty = fakePty();
     expect(supervisor.acceptSpawn('session-1', token!, pty)).toBe(false);
@@ -33,30 +33,24 @@ describe('ConversationSessionSupervisor', () => {
       const supervisor = new ConversationSessionSupervisor();
       const first = fakePty();
       const second = fakePty();
-      const firstToken = supervisor.beginStart('session-1', { cols: 80, rows: 24 }, 'hydrate');
+      const firstToken = supervisor.beginStart('session-1');
       expect(supervisor.acceptSpawn('session-1', firstToken!, first)).toBe(true);
 
       expect(supervisor.handleExit('session-1', first)).toEqual({ kind: 'replace' });
-      const secondToken = supervisor.beginStart(
-        'session-1',
-        { cols: 80, rows: 24 },
-        'replace-after-exit',
-        { requireDesired: true }
-      );
+      const secondToken = supervisor.beginStart('session-1', {
+        requireDesired: true,
+      });
       expect(supervisor.acceptSpawn('session-1', secondToken!, second)).toBe(true);
       expect(supervisor.handleExit('session-1', second)).toEqual({ kind: 'failed' });
 
       const third = fakePty();
-      const thirdToken = supervisor.beginStart('session-2', { cols: 80, rows: 24 }, 'hydrate');
+      const thirdToken = supervisor.beginStart('session-2');
       expect(supervisor.acceptSpawn('session-2', thirdToken!, third)).toBe(true);
       expect(supervisor.handleExit('session-2', third)).toEqual({ kind: 'replace' });
       const fourth = fakePty();
-      const fourthToken = supervisor.beginStart(
-        'session-2',
-        { cols: 80, rows: 24 },
-        'replace-after-exit',
-        { requireDesired: true }
-      );
+      const fourthToken = supervisor.beginStart('session-2', {
+        requireDesired: true,
+      });
       expect(supervisor.acceptSpawn('session-2', fourthToken!, fourth)).toBe(true);
       vi.advanceTimersByTime(CONVERSATION_REPLACEMENT_SUSTAINED_MS);
       expect(supervisor.handleExit('session-2', fourth)).toEqual({ kind: 'replace' });
@@ -68,25 +62,21 @@ describe('ConversationSessionSupervisor', () => {
   it('clears the replacement failure window after a spawn failure', () => {
     const supervisor = new ConversationSessionSupervisor();
     const first = fakePty();
-    const firstToken = supervisor.beginStart('session-1', { cols: 80, rows: 24 }, 'hydrate');
+    const firstToken = supervisor.beginStart('session-1');
     expect(supervisor.acceptSpawn('session-1', firstToken!, first)).toBe(true);
 
     expect(supervisor.handleExit('session-1', first)).toEqual({ kind: 'replace' });
-    const failedToken = supervisor.beginStart(
-      'session-1',
-      { cols: 80, rows: 24 },
-      'replace-after-exit',
-      { requireDesired: true }
-    );
+    const failedToken = supervisor.beginStart('session-1', {
+      requireDesired: true,
+    });
     expect(failedToken).toBeDefined();
-    expect(supervisor.failSpawn('session-1', failedToken!)).toBe(true);
+    supervisor.failSpawn('session-1', failedToken!);
 
     const retry = fakePty();
-    const retryToken = supervisor.beginStart('session-1', { cols: 80, rows: 24 }, 'manual-retry', {
+    const retryToken = supervisor.beginStart('session-1', {
       requireDesired: true,
     });
     expect(supervisor.acceptSpawn('session-1', retryToken!, retry)).toBe(true);
     expect(supervisor.handleExit('session-1', retry)).toEqual({ kind: 'replace' });
   });
-
 });
