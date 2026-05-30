@@ -107,21 +107,32 @@ function hasSettingsArg(args: string[]): boolean {
   return args.some((arg) => arg === '--settings' || arg.startsWith('--settings='));
 }
 
-function mergeDefaultArgs(defaultArgs: string[], managedDefaultArgs: string[]): string[] {
-  if (!hasSettingsArg(defaultArgs)) return [...defaultArgs, ...managedDefaultArgs];
-
-  const filteredManagedArgs: string[] = [];
-  for (let i = 0; i < managedDefaultArgs.length; i += 1) {
-    const arg = managedDefaultArgs[i];
+function removeSettingsArg(args: string[]): string[] {
+  const filteredArgs: string[] = [];
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i];
     if (arg === '--settings') {
       i += 1;
       continue;
     }
     if (arg.startsWith('--settings=')) continue;
-    filteredManagedArgs.push(arg);
+    filteredArgs.push(arg);
   }
 
-  return [...defaultArgs, ...filteredManagedArgs];
+  return filteredArgs;
+}
+
+function mergeDefaultArgs(
+  defaultArgs: string[],
+  managedDefaultArgs: string[],
+  extraArgs: string[]
+): string[] {
+  const shouldSkipManagedSettings = hasSettingsArg(defaultArgs) || hasSettingsArg(extraArgs);
+  const nextManagedDefaultArgs = shouldSkipManagedSettings
+    ? removeSettingsArg(managedDefaultArgs)
+    : managedDefaultArgs;
+
+  return [...defaultArgs, ...nextManagedDefaultArgs];
 }
 
 export function buildAgentCommand({
@@ -147,7 +158,10 @@ export function buildAgentCommand({
   const [command, ...args] = parseCliPrefix(providerConfig?.cli, providerId);
   const initialPromptFlag = providerConfig?.initialPromptFlag;
 
-  args.push(...mergeDefaultArgs(providerConfig?.defaultArgs ?? [], managedDefaultArgs ?? []));
+  const extraArgs = parseArgField(providerConfig?.extraArgs);
+  args.push(
+    ...mergeDefaultArgs(providerConfig?.defaultArgs ?? [], managedDefaultArgs ?? [], extraArgs)
+  );
 
   const sessionIdFlag = providerConfig?.sessionIdFlag;
   const shouldPassSessionId =
@@ -182,7 +196,7 @@ export function buildAgentCommand({
     args.push(...parseArgField(initialPromptFlag), initialPrompt);
   }
 
-  args.push(...parseArgField(providerConfig?.extraArgs));
+  args.push(...extraArgs);
 
   return { command, args };
 }
