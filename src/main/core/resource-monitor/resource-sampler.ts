@@ -22,6 +22,7 @@ const STALE_LOCAL_PTY_MEMORY_BYTES = 2 * 1024 * 1024;
 
 type ProcessUsage = { cpu: number; memory: number; ppid?: number };
 type ProcessUsageMap = Record<string, ProcessUsage>;
+type ProcessTreeSnapshot = { trees: Map<number, number[]>; sampledPids: number[] };
 
 export async function sampleOnce(): Promise<ResourceSnapshot> {
   const active = ptySessionRegistry.listActiveSessions();
@@ -29,8 +30,7 @@ export async function sampleOnce(): Promise<ResourceSnapshot> {
     .map((a) => a.pid)
     .filter((p): p is number => typeof p === 'number' && p > 0);
 
-  const processTrees = await listProcessTrees(localPids);
-  const sampledPids = [...new Set([...processTrees.values()].flat())];
+  const { trees: processTrees, sampledPids } = await listProcessTrees(localPids);
   const usage = await samplePidUsage(sampledPids);
 
   const entries: ResourcePtyEntry[] = [];
@@ -94,18 +94,21 @@ async function samplePidUsage(localPids: number[]): Promise<ProcessUsageMap> {
  * resource cost of the whole PTY session. Windows falls back to root PID
  * sampling, matching the previous behavior.
  */
-async function listProcessTrees(localPids: number[]): Promise<Map<number, number[]>> {
+async function listProcessTrees(localPids: number[]): Promise<ProcessTreeSnapshot> {
   const fallback = new Map(localPids.map((pid) => [pid, [pid]]));
-  if (localPids.length === 0 || process.platform === 'win32') return fallback;
+  const fallbackSnapshot = { trees: fallback, sampledPids: localPids };
+  if (localPids.length === 0 || process.platform === 'win32') return fallbackSnapshot;
 
   try {
     const stdout = await execFileText('ps', ['-axo', 'pid=,ppid=']);
+    const livePids = new Set<number>();
     const childrenByParent = new Map<number, number[]>();
     for (const line of stdout.split('\n')) {
       const [pidText, ppidText] = line.trim().split(/\s+/);
       const pid = Number(pidText);
       const ppid = Number(ppidText);
       if (!Number.isInteger(pid) || !Number.isInteger(ppid) || pid <= 0 || ppid < 0) continue;
+      livePids.add(pid);
       const siblings = childrenByParent.get(ppid) ?? [];
       siblings.push(pid);
       childrenByParent.set(ppid, siblings);
@@ -124,10 +127,11 @@ async function listProcessTrees(localPids: number[]): Promise<Map<number, number
       }
       trees.set(rootPid, [...visited]);
     }
-    return trees;
+    const sampledPids = [...new Set([...trees.values()].flat())].filter((pid) => livePids.has(pid));
+    return { trees, sampledPids };
   } catch (err) {
     log.warn('resource-sampler: process tree lookup failed', err);
-    return fallback;
+    return fallbackSnapshot;
   }
 }
 

@@ -119,6 +119,70 @@ describe('resource sampler', () => {
     });
   });
 
+  it('samples only the root PID on Windows without calling ps', async () => {
+    setPlatform('win32');
+    pidusageMock.mockResolvedValue({
+      100: stat(4, 12 * MiB, 1),
+    });
+
+    const snapshot = await sampleOnce();
+
+    expect(execFileMock).not.toHaveBeenCalled();
+    expect(pidusageMock).toHaveBeenCalledWith([100]);
+    expect(snapshot.entries[0]).toMatchObject({
+      pid: 100,
+      ppid: 1,
+      cpu: 4,
+      memory: 12 * MiB,
+    });
+  });
+
+  it('attributes separate process trees to separate active sessions', async () => {
+    registryState.active = [
+      {
+        sessionId: 'project-1:task-1:conversation-1',
+        pid: 100,
+        metadata: { providerId: 'amp', title: 'Amp 1' },
+      },
+      {
+        sessionId: 'project-2:task-2:conversation-2',
+        pid: 200,
+        metadata: { providerId: 'amp', title: 'Amp 2' },
+      },
+    ];
+    mockProcessTree(
+      ['PID PPID', '100 1', '101 100', '102 100', '200 1', '201 200', ''].join('\n')
+    );
+    pidusageMock.mockResolvedValue({
+      100: stat(1, 3 * MiB, 1),
+      101: stat(2, 10 * MiB, 100),
+      102: stat(3, 20 * MiB, 100),
+      200: stat(4, 4 * MiB, 1),
+      201: stat(5, 40 * MiB, 200),
+    });
+
+    const snapshot = await sampleOnce();
+
+    expect(pidusageMock).toHaveBeenCalledWith([100, 102, 101, 200, 201]);
+    expect(snapshot.entries).toHaveLength(2);
+    expect(snapshot.entries[0]).toMatchObject({
+      sessionId: 'project-1:task-1:conversation-1',
+      pid: 100,
+      ppid: 1,
+      cpu: 6,
+      memory: 33 * MiB,
+      title: 'Amp 1',
+    });
+    expect(snapshot.entries[1]).toMatchObject({
+      sessionId: 'project-2:task-2:conversation-2',
+      pid: 200,
+      ppid: 1,
+      cpu: 9,
+      memory: 44 * MiB,
+      title: 'Amp 2',
+    });
+  });
+
   it('falls back to sampling the root PID when process tree lookup fails', async () => {
     execFileMock.mockImplementation((_file, _args, _options, callback) => {
       callback(new Error('ps failed'));
