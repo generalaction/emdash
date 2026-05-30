@@ -29,11 +29,19 @@ export const viewEvents: Record<
   mcp: 'mcp_viewed',
 };
 
+type LibraryViewId = 'library' | 'skills' | 'mcp';
+type NonLibraryViewId = Exclude<ViewId, LibraryViewId>;
+
+function isLibraryView(viewId: ViewId): viewId is LibraryViewId {
+  return viewId === 'library' || viewId === 'skills' || viewId === 'mcp';
+}
+
 export class NavigationStore implements Snapshottable<NavigationSnapshot> {
   currentViewId: ViewId = 'home';
   viewParamsStore: ViewParamsStore = {};
   isNavigating: boolean = false;
   lastNonSettingsView: NonSettingsViewId = 'home';
+  lastNonLibraryView: NonLibraryViewId = 'home';
 
   private readonly _guards = new Map<ViewId, (params: unknown) => GuardResult>();
   private readonly _registeredViewIds = new Set<ViewId>();
@@ -97,6 +105,9 @@ export class NavigationStore implements Snapshottable<NavigationSnapshot> {
       if (viewId !== 'settings') {
         this.lastNonSettingsView = viewId;
       }
+      if (!isLibraryView(viewId)) {
+        this.lastNonLibraryView = viewId;
+      }
       this.isNavigating = true;
     }
     if (params !== undefined) {
@@ -127,6 +138,9 @@ export class NavigationStore implements Snapshottable<NavigationSnapshot> {
       if (snapshot.currentViewId !== 'settings') {
         this.lastNonSettingsView = snapshot.currentViewId as NonSettingsViewId;
       }
+      if (!isLibraryView(snapshot.currentViewId)) {
+        this.lastNonLibraryView = snapshot.currentViewId;
+      }
     }
     if (snapshot.viewParams) {
       const filtered: ViewParamsStore = {};
@@ -144,6 +158,9 @@ export class NavigationStore implements Snapshottable<NavigationSnapshot> {
       this.currentViewId = guard.redirect;
       if (guard.redirect !== 'settings') {
         this.lastNonSettingsView = guard.redirect as NonSettingsViewId;
+      }
+      if (!isLibraryView(guard.redirect)) {
+        this.lastNonLibraryView = guard.redirect;
       }
       if (guard.params !== undefined) {
         this.viewParamsStore = { ...this.viewParamsStore, [guard.redirect]: guard.params };
