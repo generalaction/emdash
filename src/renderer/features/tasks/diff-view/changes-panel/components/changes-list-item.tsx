@@ -1,11 +1,40 @@
 import { SquareArrowRight, SquareDot, SquareMinus, SquarePlus, SquareX } from 'lucide-react';
-import { forwardRef, useMemo, type ButtonHTMLAttributes } from 'react';
+import {
+  forwardRef,
+  useMemo,
+  type ButtonHTMLAttributes,
+  type ReactElement,
+  type ReactNode,
+} from 'react';
 import { splitPath } from '@renderer/features/tasks/utils';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { Checkbox } from '@renderer/lib/ui/checkbox';
+import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from '@renderer/lib/ui/context-menu';
 import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
 import { cn } from '@renderer/utils/utils';
 import { type GitChange, type GitChangeStatus } from '@shared/git';
+
+export type RenderChangeContextMenu = (change: GitChange) => ReactNode;
+
+export function ChangeContextMenu({
+  change,
+  renderContextMenu,
+  children,
+}: {
+  change: GitChange;
+  renderContextMenu?: RenderChangeContextMenu;
+  children: ReactElement;
+}) {
+  const content = renderContextMenu?.(change);
+  if (!content) return <>{children}</>;
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger render={children} />
+      <ContextMenuContent finalFocus={false}>{content}</ContextMenuContent>
+    </ContextMenu>
+  );
+}
 
 interface ChangesListItemProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   change: GitChange;
@@ -19,6 +48,7 @@ export const ChangesListItem = forwardRef<HTMLButtonElement, ChangesListItemProp
     const { filename, directory } = useMemo(() => splitPath(change.path), [change.path]);
     return (
       <button
+        type="button"
         className={cn(
           'group/item w-full flex items-center gap-2 justify-between px-2 py-1 hover:bg-background-1 h-7 rounded-md',
           isActive && 'bg-background-2 hover:bg-background-2',

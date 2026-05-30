@@ -2,7 +2,11 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useRef } from 'react';
 import { cn } from '@renderer/utils/utils';
 import { type GitChange } from '@shared/git';
-import { ChangesListItem } from './changes-list-item';
+import {
+  ChangeContextMenu,
+  ChangesListItem,
+  type RenderChangeContextMenu,
+} from './changes-list-item';
 
 export interface VirtualizedChangesListProps {
   changes: GitChange[];
@@ -11,6 +15,7 @@ export interface VirtualizedChangesListProps {
   isSelected?: (path: string) => boolean;
   onToggleSelect?: (path: string) => void;
   onPrefetch?: (change: GitChange) => void;
+  renderContextMenu?: RenderChangeContextMenu;
   activePath?: string;
   className?: string;
 }
@@ -24,6 +29,7 @@ export function VirtualizedChangesList({
   isSelected,
   onToggleSelect,
   onPrefetch,
+  renderContextMenu,
   activePath,
   className,
 }: VirtualizedChangesListProps) {
@@ -44,23 +50,28 @@ export function VirtualizedChangesList({
         {virtualizer.getVirtualItems().map((virtualItem) => {
           const change = changes[virtualItem.index]!;
           return (
-            <ChangesListItem
+            <ChangeContextMenu
               key={change.path}
               change={change}
-              isSelected={isSelected?.(change.path)}
-              isActive={change.path === activePath}
-              onToggleSelect={onToggleSelect}
-              style={{
-                position: 'absolute',
-                top: virtualItem.start,
-                left: 0,
-                width: '100%',
-                height: ITEM_HEIGHT,
-              }}
-              onClick={() => onSelectChange?.(change)}
-              onDoubleClick={() => onDoubleClickChange?.(change)}
-              onMouseEnter={() => onPrefetch?.(change)}
-            />
+              renderContextMenu={renderContextMenu}
+            >
+              <ChangesListItem
+                change={change}
+                isSelected={isSelected?.(change.path)}
+                isActive={change.path === activePath}
+                onToggleSelect={onToggleSelect}
+                style={{
+                  position: 'absolute',
+                  top: virtualItem.start,
+                  left: 0,
+                  width: '100%',
+                  height: ITEM_HEIGHT,
+                }}
+                onClick={() => onSelectChange?.(change)}
+                onDoubleClick={() => onDoubleClickChange?.(change)}
+                onMouseEnter={() => onPrefetch?.(change)}
+              />
+            </ChangeContextMenu>
           );
         })}
       </div>

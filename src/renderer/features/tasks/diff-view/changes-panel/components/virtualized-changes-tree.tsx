@@ -1,6 +1,6 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ChevronDown, ChevronRight, Folder, FolderOpen } from 'lucide-react';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { forwardRef, useCallback, useMemo, useRef, useState, type ButtonHTMLAttributes } from 'react';
 import {
   buildVisibleRows,
   isChainExpanded,
@@ -9,7 +9,11 @@ import {
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { cn } from '@renderer/utils/utils';
 import { type GitChange } from '@shared/git';
-import { ChangeStatusAffordance } from './changes-list-item';
+import {
+  ChangeContextMenu,
+  ChangeStatusAffordance,
+  type RenderChangeContextMenu,
+} from './changes-list-item';
 import { buildChangesTree } from './changes-tree-utils';
 
 export interface VirtualizedChangesTreeProps {
@@ -19,6 +23,7 @@ export interface VirtualizedChangesTreeProps {
   isSelected?: (path: string) => boolean;
   onToggleSelect?: (path: string) => void;
   onPrefetch?: (change: GitChange) => void;
+  renderContextMenu?: RenderChangeContextMenu;
   activePath?: string;
   className?: string;
 }
@@ -32,6 +37,7 @@ export function VirtualizedChangesTree({
   isSelected,
   onToggleSelect,
   onPrefetch,
+  renderContextMenu,
   activePath,
   className,
 }: VirtualizedChangesTreeProps) {
@@ -103,18 +109,23 @@ export function VirtualizedChangesTree({
           const change = tree.changeByPath.get(node.path);
           if (!change) return null;
           return (
-            <FileRow
+            <ChangeContextMenu
               key={`${node.type}:${node.path}`}
-              row={row}
               change={change}
-              isSelected={isSelected?.(change.path) ?? false}
-              isActive={change.path === activePath}
-              onToggleSelect={onToggleSelect}
-              onClick={() => onSelectChange?.(change)}
-              onDoubleClick={() => onDoubleClickChange?.(change)}
-              onMouseEnter={() => onPrefetch?.(change)}
-              style={style}
-            />
+              renderContextMenu={renderContextMenu}
+            >
+              <FileRow
+                row={row}
+                change={change}
+                isSelected={isSelected?.(change.path) ?? false}
+                isActive={change.path === activePath}
+                onToggleSelect={onToggleSelect}
+                onClick={() => onSelectChange?.(change)}
+                onDoubleClick={() => onDoubleClickChange?.(change)}
+                onMouseEnter={() => onPrefetch?.(change)}
+                style={style}
+              />
+            </ChangeContextMenu>
           );
         })}
       </div>
@@ -158,40 +169,31 @@ function DirectoryRow({
   );
 }
 
-function FileRow({
-  row,
-  change,
-  isSelected,
-  isActive,
-  onToggleSelect,
-  onClick,
-  onDoubleClick,
-  onMouseEnter,
-  style,
-}: {
+interface FileRowProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   row: TreeRow;
   change: GitChange;
   isSelected: boolean;
   isActive: boolean;
   onToggleSelect?: (path: string) => void;
-  onClick: () => void;
-  onDoubleClick: () => void;
-  onMouseEnter: () => void;
-  style: React.CSSProperties;
-}) {
+}
+
+const FileRow = forwardRef<HTMLButtonElement, FileRowProps>(function FileRow(
+  { row, change, isSelected, isActive, onToggleSelect, className, style, ...props },
+  ref
+) {
   const paddingLeft = row.renderDepth * 12 + 4;
   const node = row.node;
   return (
     <button
       type="button"
-      onClick={onClick}
-      onDoubleClick={onDoubleClick}
-      onMouseEnter={onMouseEnter}
+      ref={ref}
       style={{ ...style, paddingLeft }}
       className={cn(
         'group/item flex h-7 w-full select-none items-center gap-2 rounded-md pr-2 hover:bg-background-1',
-        isActive && 'bg-background-2 hover:bg-background-2'
+        isActive && 'bg-background-2 hover:bg-background-2',
+        className
       )}
+      {...props}
     >
       <span className="inline-block w-3.5 shrink-0" />
       <span className="shrink-0">
@@ -213,4 +215,4 @@ function FileRow({
       />
     </button>
   );
-}
+});

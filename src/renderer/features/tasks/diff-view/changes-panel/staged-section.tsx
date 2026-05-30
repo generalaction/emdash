@@ -1,4 +1,4 @@
-import { Minus } from 'lucide-react';
+import { Copy, Minus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import {
   useTaskViewContext,
@@ -6,7 +6,10 @@ import {
   useWorkspaceId,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
+import { toast } from '@renderer/lib/hooks/use-toast';
+import { rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
+import { ContextMenuItem, ContextMenuSeparator } from '@renderer/lib/ui/context-menu';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { commitRef, type GitChange, HEAD_REF } from '@shared/git';
 import { ActionCard } from './components/action-card';
@@ -65,14 +68,38 @@ export const StagedSection = observer(function StagedSection() {
     );
   };
 
-  const handleUnstageSelection = () => {
-    const paths = [...changesView.stagedSelection];
+  const getContextSelection = (change: GitChange) => {
+    if (changesView.stagedSelection.has(change.path)) {
+      return { paths: [...changesView.stagedSelection], clearSelection: true };
+    }
+
+    return { paths: [change.path], clearSelection: false };
+  };
+
+  const handleUnstagePaths = (paths: string[], clearSelection: boolean) => {
     void git.unstageFiles(paths);
-    changesView.clearStagedSelection();
+    if (clearSelection) changesView.clearStagedSelection();
+  };
+
+  const handleUnstageSelection = () => {
+    handleUnstagePaths([...changesView.stagedSelection], true);
   };
 
   const handleUnstageAll = () => {
     void git.unstageAllFiles();
+  };
+
+  const copyRelativePaths = async (paths: string[]) => {
+    try {
+      await rpc.app.clipboardWriteText(paths.join('\n'));
+      toast({ title: paths.length > 1 ? 'Relative paths copied' : 'Relative path copied' });
+    } catch (error) {
+      toast({
+        title: 'Copy failed',
+        description: error instanceof Error ? error.message : 'The path could not be copied.',
+        variant: 'destructive',
+      });
+    }
   };
 
   return (
@@ -131,6 +158,24 @@ export const StagedSection = observer(function StagedSection() {
             onSelectChange={handleSelectChange}
             onDoubleClickChange={handleDoubleClickChange}
             onPrefetch={(change) => prefetch(change.path)}
+            renderContextMenu={(change) => {
+              const { paths, clearSelection } = getContextSelection(change);
+              const isMultiple = paths.length > 1;
+
+              return (
+                <>
+                  <ContextMenuItem onClick={() => handleUnstagePaths(paths, clearSelection)}>
+                    <Minus className="size-4" />
+                    {isMultiple ? `Unstage ${paths.length} files` : 'Unstage file'}
+                  </ContextMenuItem>
+                  <ContextMenuSeparator />
+                  <ContextMenuItem onClick={() => void copyRelativePaths(paths)}>
+                    <Copy className="size-4" />
+                    {isMultiple ? 'Copy relative paths' : 'Copy relative path'}
+                  </ContextMenuItem>
+                </>
+              );
+            }}
           />
         </div>
         {hasChanges && <CommitCard />}

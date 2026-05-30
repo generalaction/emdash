@@ -1,4 +1,4 @@
-import { Plus, Undo2 } from 'lucide-react';
+import { Copy, Plus, Undo2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import {
   useTaskViewContext,
@@ -6,8 +6,11 @@ import {
   useWorkspaceId,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
+import { toast } from '@renderer/lib/hooks/use-toast';
+import { rpc } from '@renderer/lib/ipc';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
+import { ContextMenuItem, ContextMenuSeparator } from '@renderer/lib/ui/context-menu';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { commitRef, type GitChange, HEAD_REF } from '@shared/git';
 import { ActionCard } from './components/action-card';
@@ -69,20 +72,33 @@ export const UnstagedSection = observer(function UnstagedSection() {
     );
   };
 
-  const handleDiscardSelection = () => {
-    const paths = [...changesView.unstagedSelection];
+  const getContextSelection = (change: GitChange) => {
+    if (changesView.unstagedSelection.has(change.path)) {
+      return { paths: [...changesView.unstagedSelection], clearSelection: true };
+    }
+
+    return { paths: [change.path], clearSelection: false };
+  };
+
+  const handleDiscardPaths = (paths: string[], clearSelection: boolean) => {
+    const isMultiple = paths.length > 1;
     showConfirmActionModal({
-      title: 'Discard Files Changes',
+      title: isMultiple ? 'Discard Selected Changes' : 'Discard Changes',
       variant: 'destructive',
-      description:
-        'Are you sure you want to discard the changes to the selected files? This can not be undone.',
+      description: isMultiple
+        ? 'Are you sure you want to discard the changes to the selected files? This cannot be undone.'
+        : 'Are you sure you want to discard the changes to this file? This cannot be undone.',
       onSuccess: () => {
         void (async () => {
           await git.discardFiles(paths);
-          changesView.clearUnstagedSelection();
+          if (clearSelection) changesView.clearUnstagedSelection();
         })();
       },
     });
+  };
+
+  const handleDiscardSelection = () => {
+    handleDiscardPaths([...changesView.unstagedSelection], true);
   };
 
   const handleDiscardAll = () => {
@@ -94,14 +110,30 @@ export const UnstagedSection = observer(function UnstagedSection() {
     });
   };
 
-  const handleStageSelection = () => {
-    const paths = [...changesView.unstagedSelection];
+  const handleStagePaths = (paths: string[], clearSelection: boolean) => {
     void git.stageFiles(paths);
-    changesView.clearUnstagedSelection();
+    if (clearSelection) changesView.clearUnstagedSelection();
+  };
+
+  const handleStageSelection = () => {
+    handleStagePaths([...changesView.unstagedSelection], true);
   };
 
   const handleStageAll = () => {
     void git.stageAllFiles();
+  };
+
+  const copyRelativePaths = async (paths: string[]) => {
+    try {
+      await rpc.app.clipboardWriteText(paths.join('\n'));
+      toast({ title: paths.length > 1 ? 'Relative paths copied' : 'Relative path copied' });
+    } catch (error) {
+      toast({
+        title: 'Copy failed',
+        description: error instanceof Error ? error.message : 'The path could not be copied.',
+        variant: 'destructive',
+      });
+    }
   };
 
   return (
@@ -182,6 +214,31 @@ export const UnstagedSection = observer(function UnstagedSection() {
             onSelectChange={handleSelectChange}
             onDoubleClickChange={handleDoubleClickChange}
             onPrefetch={(change) => prefetch(change.path)}
+            renderContextMenu={(change) => {
+              const { paths, clearSelection } = getContextSelection(change);
+              const isMultiple = paths.length > 1;
+
+              return (
+                <>
+                  <ContextMenuItem onClick={() => handleStagePaths(paths, clearSelection)}>
+                    <Plus className="size-4" />
+                    {isMultiple ? `Stage ${paths.length} files` : 'Stage file'}
+                  </ContextMenuItem>
+                  <ContextMenuItem
+                    variant="destructive"
+                    onClick={() => handleDiscardPaths(paths, clearSelection)}
+                  >
+                    <Undo2 className="size-4" />
+                    {isMultiple ? `Discard ${paths.length} files` : 'Discard changes'}
+                  </ContextMenuItem>
+                  <ContextMenuSeparator />
+                  <ContextMenuItem onClick={() => void copyRelativePaths(paths)}>
+                    <Copy className="size-4" />
+                    {isMultiple ? 'Copy relative paths' : 'Copy relative path'}
+                  </ContextMenuItem>
+                </>
+              );
+            }}
           />
         </div>
         {hasChanges && !hasStagedChanges && <CommitCard autoStage />}
