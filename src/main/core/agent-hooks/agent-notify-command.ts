@@ -68,7 +68,7 @@ export function makeGrokSessionStartHookCommand(options: HookCommandOptions = {}
     const script = [
       "$ErrorActionPreference = 'SilentlyContinue'",
       'if (-not $env:EMDASH_HOOK_PORT -or -not $env:EMDASH_HOOK_TOKEN -or -not $env:EMDASH_PTY_ID) { exit 0 }',
-      "$payload = @{ session_id = $env:GROK_SESSION_ID } | ConvertTo-Json -Compress",
+      '$payload = @{ session_id = $env:GROK_SESSION_ID } | ConvertTo-Json -Compress',
       'try { Invoke-WebRequest -UseBasicParsing -Method POST ' +
         "-Uri ('http://127.0.0.1:' + $env:EMDASH_HOOK_PORT + '/hook') " +
         '-Headers @{ ' +
