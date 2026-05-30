@@ -67,7 +67,6 @@ describe('buildAgentEnv provider env forwarding', () => {
       GIT_EDITOR: 'zed --wait',
       HOME: '/Users/dev',
       HOSTNAME: 'dev-machine',
-      SHELL: '/bin/zsh',
       LANG: 'en_US.UTF-8',
       TZ: 'America/Los_Angeles',
     });
@@ -80,9 +79,18 @@ describe('buildAgentEnv provider env forwarding', () => {
     expect(env.GIT_EDITOR).toBe('zed --wait');
     expect(env.HOME).toBe('/Users/dev');
     expect(env.HOSTNAME).toBe('dev-machine');
-    expect(env.SHELL).toBe('/bin/zsh');
     expect(env.LANG).toBe('en_US.UTF-8');
     expect(env.TZ).toBe('America/Los_Angeles');
+  });
+
+  it('only passes SHELL when requested', async () => {
+    setPlatform('linux');
+    process.env.SHELL = '/bin/zsh';
+
+    const { buildAgentEnv } = await loadPtyEnv();
+
+    expect(buildAgentEnv({ agentApiVars: false }).SHELL).toBeUndefined();
+    expect(buildAgentEnv({ agentApiVars: false, includeShellVar: true }).SHELL).toBe('/bin/zsh');
   });
 
   it('passes through documented provider launch environment variables', async () => {

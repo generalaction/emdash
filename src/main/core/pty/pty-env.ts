@@ -93,15 +93,7 @@ const DISPLAY_ENV_VARS = [
   'DBUS_SESSION_BUS_ADDRESS', // Needed by gio open and desktop portals
 ] as const;
 
-const GLOBAL_AGENT_ENV_VARS = [
-  'EDITOR',
-  'VISUAL',
-  'GIT_EDITOR',
-  'HOSTNAME',
-  'SHELL',
-  'LANG',
-  'TZ',
-] as const;
+const GLOBAL_AGENT_ENV_VARS = ['EDITOR', 'VISUAL', 'GIT_EDITOR', 'HOSTNAME', 'LANG', 'TZ'] as const;
 
 function getAllowlistedEnv(keys: readonly string[]): Record<string, string> {
   const env: Record<string, string> = {};
@@ -152,8 +144,8 @@ export interface AgentEnvOptions {
   agentApiVars?: boolean;
 
   /**
-   * Synthesize a SHELL fallback when process.env.SHELL is unavailable (needed
-   * for shell-wrapper spawns so the shell can reconstruct login env via -il flags).
+   * Include SHELL in the env (needed for shell-wrapper spawns so the shell
+   * can reconstruct login env via -il flags).
    */
   includeShellVar?: boolean;
 
@@ -247,7 +239,6 @@ export function buildAgentEnv(options: AgentEnvOptions = {}): Record<string, str
     HOME: process.env.HOME || os.homedir(),
     USER: process.env.USER || os.userInfo().username,
     PATH: resolvedPath,
-    ...(process.env.LANG && { LANG: process.env.LANG }),
     ...(process.env.TMPDIR && { TMPDIR: process.env.TMPDIR }),
     ...getAllowlistedEnv(GLOBAL_AGENT_ENV_VARS),
     ...getAllowlistedEnv(DISPLAY_ENV_VARS),

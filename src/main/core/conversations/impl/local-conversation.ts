@@ -154,6 +154,7 @@ export class LocalConversationProvider implements ConversationProvider {
       cwd: resolved.cwd,
       env: {
         ...buildAgentEnv({
+          includeShellVar: true,
           hook: port > 0 ? { port, ptyId, token } : undefined,
           providerVars: providerEnv,
         }),
