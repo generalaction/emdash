@@ -39,7 +39,7 @@ export const APP_SHORTCUTS = defineShortcuts({
     category: 'Navigation',
   },
   library: {
-    defaultHotkey: 'Mod+Alt+L',
+    defaultHotkey: 'Mod+L',
     label: 'Library',
     description: 'Open the Library',
     category: 'Navigation',
