@@ -98,6 +98,8 @@ export const SidebarMenuButton = React.forwardRef<HTMLButtonElement, SidebarMenu
   )
 );
 
+// Sidebar row labels use this as the named voice-control target. Primary
+// activation is handled by the parent row's click handler via bubbling.
 export const SidebarMenuAction = React.forwardRef<
   HTMLButtonElement,
   React.ButtonHTMLAttributes<HTMLButtonElement>
