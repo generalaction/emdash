@@ -100,9 +100,9 @@ describe('buildAgentCommand', () => {
     expect(command).toEqual({
       command: 'agy',
       args: ['--conversation=session-1', '--dangerously-skip-permissions', '-i', 'Fix the issue'],
-    });
-  });
-
+    }); 
+  }); 
+ 
   it('supports custom CLI command prefixes and appends managed provider args', () => {
     const result = buildAgentCommand({
       providerId: 'claude',
@@ -122,6 +122,29 @@ describe('buildAgentCommand', () => {
         'exec',
         '.',
         'claude',
+        '--session-id',
+        'conv-1',
+        '--dangerously-skip-permissions',
+        'Fix the bug',
+      ],
+    });
+  });
+
+  it('puts managed default args before session, permission, and prompt args', () => {
+    const result = buildAgentCommand({
+      providerId: 'claude',
+      providerConfig: makeConfig(),
+      managedDefaultArgs: ['--settings', '{"theme":"auto"}'],
+      autoApprove: true,
+      initialPrompt: 'Fix the bug',
+      sessionId: 'conv-1',
+    });
+
+    expect(result).toEqual({
+      command: 'claude',
+      args: [
+        '--settings',
+        '{"theme":"auto"}',
         '--session-id',
         'conv-1',
         '--dangerously-skip-permissions',

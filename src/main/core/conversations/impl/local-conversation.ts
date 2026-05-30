@@ -25,6 +25,7 @@ import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { makePtyId } from '@shared/ptyId';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { buildAgentSessionCommand } from './agent-command';
+import { getClaudeThemeSettingsArgs } from './claude-theme-settings';
 import { syncGrokThemeWithAppTheme } from './grok-theme-config';
 import { scheduleInitialPromptInjection } from './keystroke-injection';
 import { resolveProviderEnv } from './provider-env';
@@ -118,9 +119,12 @@ export class LocalConversationProvider implements ConversationProvider {
       const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
       const providerDef = getProvider(conversation.providerId);
       const agentSession = resolveAgentSessionCommandArgs(conversation, isResuming);
+      const managedDefaultArgs =
+        conversation.providerId === 'claude' ? getClaudeThemeSettingsArgs() : undefined;
       const { command, args } = buildAgentSessionCommand({
         providerId: conversation.providerId,
         providerConfig,
+        managedDefaultArgs,
         autoApprove: conversation.autoApprove,
         sessionId: agentSession.sessionId,
         providerSessionId: conversation.providerSessionId,

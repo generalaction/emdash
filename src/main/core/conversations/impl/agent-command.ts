@@ -111,6 +111,7 @@ export function buildAgentCommand({
   sessionId,
   providerSessionId,
   isResuming,
+  managedDefaultArgs,
 }: {
   providerId: AgentProviderId;
   providerConfig: ProviderCustomConfig | undefined;
@@ -119,12 +120,14 @@ export function buildAgentCommand({
   sessionId: string;
   providerSessionId?: string;
   isResuming?: boolean;
+  managedDefaultArgs?: string[];
 }): AgentCommand {
   const providerDef = getProvider(providerId);
   const [command, ...args] = parseCliPrefix(providerConfig?.cli, providerId);
   const initialPromptFlag = providerConfig?.initialPromptFlag;
 
   args.push(...(providerConfig?.defaultArgs ?? []));
+  args.push(...(managedDefaultArgs ?? []));
 
   const sessionIdFlag = providerConfig?.sessionIdFlag;
   const shouldPassSessionId =
@@ -178,6 +181,7 @@ export function buildAgentSessionCommand(args: {
   sessionId: string;
   providerSessionId?: string;
   isResuming?: boolean;
+  managedDefaultArgs?: string[];
 }): AgentCommand {
   const command = buildAgentCommand(args);
   const prompt = args.initialPrompt?.trim();

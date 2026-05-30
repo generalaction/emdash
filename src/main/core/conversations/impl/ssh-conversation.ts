@@ -20,6 +20,7 @@ import type { Conversation } from '@shared/conversations';
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { buildAgentSessionCommand } from './agent-command';
+import { getClaudeThemeSettingsArgs } from './claude-theme-settings';
 import { scheduleInitialPromptInjection } from './keystroke-injection';
 import { resolveProviderEnv } from './provider-env';
 
@@ -114,9 +115,12 @@ export class SshConversationProvider implements ConversationProvider {
       const agentSession = resolveAgentSessionCommandArgs(conversation, isResuming, {
         requireProviderSessionId: false,
       });
+      const managedDefaultArgs =
+        conversation.providerId === 'claude' ? getClaudeThemeSettingsArgs() : undefined;
       const { command, args } = buildAgentSessionCommand({
         providerId: conversation.providerId,
         providerConfig,
+        managedDefaultArgs,
         autoApprove: conversation.autoApprove,
         sessionId: agentSession.sessionId,
         providerSessionId: conversation.providerSessionId,
