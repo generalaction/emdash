@@ -194,9 +194,18 @@ export class SshConversationProvider implements ConversationProvider {
           return;
         }
 
-        if (!this.tmux && !options.shellRefreshRetried && exitCode === 127) {
+        if (this.tmux) {
+          events.emit(agentSessionExitedChannel, {
+            conversationId: conversation.id,
+            taskId: conversation.taskId,
+          });
+          return;
+        }
+
+        if (!options.shellRefreshRetried && exitCode === 127) {
           this.scheduleShellRefreshRetry({
             conversation,
+            sessionId,
             initialSize: replacementSize,
             isResuming,
             initialPrompt,
@@ -325,19 +334,23 @@ export class SshConversationProvider implements ConversationProvider {
 
   private scheduleShellRefreshRetry({
     conversation,
+    sessionId,
     initialSize,
     isResuming,
     initialPrompt,
   }: {
     conversation: Conversation;
+    sessionId: string;
     initialSize: { cols: number; rows: number };
     isResuming: boolean;
     initialPrompt: string | undefined;
   }): void {
     setTimeout(() => {
+      if (!this.supervisor.isDesired(sessionId)) return;
       this.proxy
         .refreshRemoteShellProfile()
         .then(() => {
+          if (!this.supervisor.isDesired(sessionId)) return;
           return this.startSessionInternal(
             conversation,
             initialSize,

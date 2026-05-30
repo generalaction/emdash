@@ -335,6 +335,61 @@ describe('conversation provider respawn state', () => {
     }
   });
 
+  it('does not replace a local tmux attachment after it exits', async () => {
+    vi.useFakeTimers();
+    try {
+      const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
+      spawnLocalPty.mockReturnValue(fakePty(exitHandlers));
+      const provider = localProvider({ tmux: true });
+      const item = conversation();
+
+      await provider.startSession(item);
+      vi.mocked(events.emit).mockClear();
+      for (const handler of exitHandlers) handler({ exitCode: 0 });
+      await vi.advanceTimersByTimeAsync(500);
+
+      expect(spawnLocalPty).toHaveBeenCalledTimes(1);
+      expect(events.emit).toHaveBeenCalledWith(
+        agentSessionExitedChannel,
+        expect.objectContaining({
+          conversationId: item.id,
+          taskId: item.taskId,
+        })
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not replace an SSH tmux attachment after it exits', async () => {
+    vi.useFakeTimers();
+    try {
+      const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
+      openSsh2Pty.mockResolvedValue({
+        success: true,
+        data: fakePty(exitHandlers),
+      });
+      const provider = sshProvider(undefined, { tmux: true });
+      const item = conversation();
+
+      await provider.startSession(item);
+      vi.mocked(events.emit).mockClear();
+      for (const handler of exitHandlers) handler({ exitCode: 0 });
+      await vi.advanceTimersByTimeAsync(500);
+
+      expect(openSsh2Pty).toHaveBeenCalledTimes(1);
+      expect(events.emit).toHaveBeenCalledWith(
+        agentSessionExitedChannel,
+        expect.objectContaining({
+          conversationId: item.id,
+          taskId: item.taskId,
+        })
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('refreshes the SSH shell profile and retries once when an agent command is missing', async () => {
     vi.useFakeTimers();
     try {
@@ -376,6 +431,33 @@ describe('conversation provider respawn state', () => {
           taskId: item.taskId,
         })
       );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not refresh the SSH shell profile after explicit stop cancels a missing-command retry', async () => {
+    vi.useFakeTimers();
+    try {
+      const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
+      openSsh2Pty.mockResolvedValue({
+        success: true,
+        data: fakePty(exitHandlers),
+      });
+      const proxy = {
+        getRemoteShellProfile: vi.fn(async () => ({})),
+        refreshRemoteShellProfile: vi.fn(async () => ({})),
+      };
+      const provider = sshProvider(proxy);
+      const item = conversation();
+
+      await provider.startSession(item);
+      for (const handler of exitHandlers) handler({ exitCode: 127 });
+      await provider.stopSession(item.id);
+      await vi.advanceTimersByTimeAsync(500);
+
+      expect(proxy.refreshRemoteShellProfile).not.toHaveBeenCalled();
+      expect(openSsh2Pty).toHaveBeenCalledTimes(1);
     } finally {
       vi.useRealTimers();
     }

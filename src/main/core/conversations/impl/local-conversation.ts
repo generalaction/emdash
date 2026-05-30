@@ -220,6 +220,10 @@ export class LocalConversationProvider implements ConversationProvider {
           return;
         }
 
+        if (this.tmux) {
+          return;
+        }
+
         if (this.supervisor.isDesired(sessionId)) {
           this.scheduleReplacement({
             conversation,
