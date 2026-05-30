@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { PtyExitInfo } from '@main/core/pty/pty';
+import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { makePtySessionId } from '@shared/ptySessionId';
 import type { Terminal } from '@shared/terminals';
@@ -68,10 +69,31 @@ const proxy = {
 describe('SshTerminalProvider', () => {
   beforeEach(() => {
     ptyMock.exitHandlers.length = 0;
+    vi.mocked(ptySessionRegistry.register).mockClear();
     proxy.getRemoteShellProfile = vi.fn(async () => ({
       shell: '/bin/bash',
       env: { PATH: '/usr/bin', HOME: '/home/me' },
     }));
+  });
+
+  it('registers user terminals with their display name for resource monitor labels', async () => {
+    const provider = new SshTerminalProvider({
+      projectId: terminal.projectId,
+      scopeId: terminal.taskId,
+      taskPath: '/repo',
+      ctx,
+      proxy,
+      connectionId: 'ssh-1',
+    });
+
+    await provider.spawnTerminal(terminal);
+
+    const sessionId = makePtySessionId(terminal.projectId, terminal.taskId, terminal.id);
+    expect(ptySessionRegistry.register).toHaveBeenCalledWith(
+      sessionId,
+      expect.anything(),
+      expect.objectContaining({ metadata: { title: terminal.name, isRemote: true } })
+    );
   });
 
   it('cleans up cached shell profiles after a non-respawned exit', async () => {
