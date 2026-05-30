@@ -1,6 +1,7 @@
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal, type ITerminalOptions } from '@xterm/xterm';
 import { events, rpc } from '@renderer/lib/ipc';
+import { confirmOpenExternalLink } from '@renderer/lib/open-external-link';
 import { cssColorToHex, cssVar } from '@renderer/utils/cssVars';
 import { log } from '@renderer/utils/logger';
 import { ptyDataChannel } from '@shared/events/ptyEvents';
@@ -90,7 +91,7 @@ export class FrontendPty {
       scrollOnUserInput: false,
       linkHandler: {
         activate: (_event: MouseEvent, text: string) => {
-          rpc.app.openExternal(text).catch((error) => {
+          confirmOpenExternalLink(text, (error) => {
             log.warn('FrontendPty: failed to open external link', { text, error });
           });
         },
@@ -103,7 +104,7 @@ export class FrontendPty {
 
     const webLinksAddon = new WebLinksAddon((event, uri) => {
       event.preventDefault();
-      rpc.app.openExternal(uri).catch(() => {});
+      confirmOpenExternalLink(uri);
     });
 
     this.terminal.loadAddon(webLinksAddon);
