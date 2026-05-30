@@ -99,6 +99,18 @@ describe('PtySessionRegistry', () => {
     expect(registry.getLastSize('session-1')).toEqual({ cols: 120, rows: 50 });
   });
 
+  it('clears last observed size when preserving output after exit', () => {
+    const registry = new PtySessionRegistry();
+    const pty = fakePty();
+
+    registry.register('session-1', pty, { preserveBufferOnExit: true });
+    registry.resize('session-1', 120, 50);
+    pty.emitExit({ exitCode: 0 });
+
+    expect(registry.get('session-1')).toBeUndefined();
+    expect(registry.getLastSize('session-1')).toBeUndefined();
+  });
+
   it('emits a monotonically increasing epoch for every registered PTY', () => {
     const registry = new PtySessionRegistry();
 

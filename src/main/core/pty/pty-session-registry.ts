@@ -84,6 +84,7 @@ export class PtySessionRegistry {
         this.ptyMap.delete(sessionId);
         this.ptyInputSubscriptions.get(sessionId)?.();
         this.ptyInputSubscriptions.delete(sessionId);
+        this.lastSizes.delete(sessionId);
       } else {
         this.unregister(sessionId);
       }
