@@ -103,7 +103,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
         isActive={isActive}
       >
         <SidebarMenuAction
-          aria-label={`Open task ${taskName}`}
+          aria-label={`Open task ${taskName || 'task'}`}
           onClick={() => {
             handleProvision();
             navigate('task', { projectId, taskId });
