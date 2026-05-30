@@ -8,12 +8,14 @@ import {
 import { Button } from '@renderer/lib/ui/button';
 import { Dialog, DialogContent } from '@renderer/lib/ui/dialog';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+import { cn } from '@renderer/utils/utils';
 
 interface ZoomableContentDialogProps {
   open: boolean;
   ariaLabel: string;
   contentKey: string;
   onOpenChange: (open: boolean) => void;
+  contentClassName?: string;
   wrapperClassName?: string;
   children: (api: { fitToView: (animationTime?: number) => void }) => React.ReactNode;
 }
@@ -138,6 +140,7 @@ export function ZoomableContentDialog({
   ariaLabel,
   contentKey,
   onOpenChange,
+  contentClassName,
   wrapperClassName,
   children,
 }: ZoomableContentDialogProps) {
@@ -160,7 +163,10 @@ export function ZoomableContentDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         aria-label={ariaLabel}
-        className="top-[calc(50%+1rem)] h-[calc(100dvh-4rem)] max-h-[calc(100dvh-4rem)] max-w-[calc(100vw-2rem)] sm:max-w-[calc(100vw-2rem)]"
+        className={cn(
+          'top-[calc(50%+1rem)] h-[calc(100dvh-4rem)] max-h-[calc(100dvh-4rem)] max-w-[calc(100vw-2rem)] sm:max-w-[calc(100vw-2rem)]',
+          contentClassName
+        )}
       >
         <TransformWrapper
           key={`${contentKey}:${openSession}`}

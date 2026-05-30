@@ -1,5 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
 import { useIntegrationsContext } from '@renderer/features/integrations/integrations-provider';
 import { ISSUE_PROVIDER_ORDER } from '@renderer/features/integrations/issue-provider-meta';
 import {
@@ -28,6 +29,7 @@ import {
   resolvePullRequestTaskStrategy,
 } from './create-task-strategy';
 import {
+  getInitialPromptImages,
   InitialConversationField,
   useInitialConversationState,
 } from './initial-conversation-section';
@@ -69,6 +71,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
 
   const [sectionTab, setSectionTab] = useState<SectionTab>('conversation');
   const [useBYOI, setUseBYOI] = useState(false);
+  const [isPreparingInitialConversation, setIsPreparingInitialConversation] = useState(false);
 
   const projectData = selectedProjectId
     ? mountedProjectData(getProjectManagerStore().projects.get(selectedProjectId))
@@ -132,15 +135,27 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     initialConversation.setProvider(null);
     initialConversation.setPrompt('');
     initialConversation.setIssueContext(null);
+    initialConversation.resetImages();
     // oxlint-disable-next-line react/exhaustive-deps
   }, [selectedProjectId]);
 
   const canCreate = !!selectedProjectId && state.isValid;
 
-  const handleCreateTask = useCallback(() => {
-    if (!selectedProjectId) return;
+  const handleCreateTask = useCallback(async () => {
+    if (!selectedProjectId || isPreparingInitialConversation) return;
     const projectStore = getProjectManagerStore().projects.get(selectedProjectId);
     if (projectStore?.state !== 'mounted') return;
+
+    setIsPreparingInitialConversation(true);
+
+    let initialPromptImages: Awaited<ReturnType<typeof getInitialPromptImages>> = [];
+    try {
+      initialPromptImages = await getInitialPromptImages(initialConversation.imageAttachments);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to attach image.');
+      setIsPreparingInitialConversation(false);
+      return;
+    }
 
     const id = crypto.randomUUID();
 
@@ -156,6 +171,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
             initialConversation.issueContext,
             initialConversation.prompt
           ),
+          initialPromptImages: initialPromptImages.length > 0 ? initialPromptImages : undefined,
           autoApprove: autoApproveDefaults.getDefault(conversationProvider),
         }
       : undefined;
@@ -214,6 +230,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     onClose();
   }, [
     selectedProjectId,
+    isPreparingInitialConversation,
     state,
     isUnborn,
     useBYOI,
@@ -329,8 +346,12 @@ export const CreateTaskModal = observer(function CreateTaskModal({
       </DialogContentArea>
 
       <DialogFooter>
-        <ConfirmButton size="sm" onClick={handleCreateTask} disabled={!canCreate}>
-          Create
+        <ConfirmButton
+          size="sm"
+          onClick={() => void handleCreateTask()}
+          disabled={!canCreate || isPreparingInitialConversation}
+        >
+          {isPreparingInitialConversation ? 'Preparing…' : 'Create'}
         </ConfirmButton>
       </DialogFooter>
     </>

@@ -1,11 +1,21 @@
 import type React from 'react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-type Attachment = {
+export type Attachment = {
   id: string;
   file: File;
   previewUrl: string;
 };
+
+const IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.svg']);
+
+function isImageFile(file: File): boolean {
+  if (file.type.startsWith('image/')) return true;
+  const dotIndex = file.name.lastIndexOf('.');
+  if (dotIndex === -1) return false;
+  const extension = file.name.slice(dotIndex).toLowerCase();
+  return IMAGE_EXTENSIONS.has(extension);
+}
 
 export function useAttachments() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -75,7 +85,7 @@ export function useAttachments() {
       dragCounterRef.current = 0;
       setIsDraggingOver(false);
       const files = Array.from(event.dataTransfer?.files ?? []);
-      addFiles(files.filter((file) => file.type.startsWith('image/')));
+      addFiles(files.filter(isImageFile));
     },
     [addFiles]
   );

@@ -1,4 +1,5 @@
-import { CheckCheckIcon, PlusIcon, X } from 'lucide-react';
+import { CheckCheckIcon, ImageIcon, PlusIcon, X } from 'lucide-react';
+import type React from 'react';
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
 import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
@@ -10,13 +11,18 @@ import {
 import { useEffectiveProvider } from '@renderer/features/tasks/conversations/use-effective-provider';
 import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
+import { useAttachments, type Attachment } from '@renderer/lib/hooks/use-attachments';
+import { rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
+import { ContainedImage } from '@renderer/lib/ui/contained-image';
 import { Field } from '@renderer/lib/ui/field';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
 import { Textarea } from '@renderer/lib/ui/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+import { ZoomableContentDialog } from '@renderer/lib/ui/zoomable-content-dialog';
 import { cn } from '@renderer/utils/utils';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
+import { INITIAL_PROMPT_IMAGE_MAX_BYTES, type InitialPromptImage } from '@shared/conversations';
 import type { Issue } from '@shared/tasks';
 import { ProviderLogo } from '../components/issue-selector/issue-selector';
 import { appendInitialConversationText } from './initial-conversation-text';
@@ -28,14 +34,69 @@ export type InitialConversationState = {
   setPrompt: Dispatch<SetStateAction<string>>;
   issueContext: string | null;
   setIssueContext: (ctx: string | null) => void;
+  imageAttachments: Attachment[];
+  removeImageAttachment: (index: number) => void;
+  isImageDraggingOver: boolean;
+  handleImagePaste: (event: React.ClipboardEvent<HTMLTextAreaElement>) => void;
+  handleImageDrop: (event: React.DragEvent<HTMLElement>) => void;
+  handleImageDragOver: (event: React.DragEvent<HTMLElement>) => void;
+  handleImageDragEnter: (event: React.DragEvent<HTMLElement>) => void;
+  handleImageDragLeave: (event: React.DragEvent<HTMLElement>) => void;
+  resetImages: () => void;
   connectionId?: string;
 };
+
+function imageDisplayName(file: File, index: number): string {
+  return file.name && file.name !== 'image.png' ? file.name : `Pasted image ${index + 1}.png`;
+}
+
+function formatImageSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+async function saveInitialPromptImage(file: File): Promise<string> {
+  if (file.size > INITIAL_PROMPT_IMAGE_MAX_BYTES) {
+    throw new Error(`Image "${file.name}" is larger than 25 MB.`);
+  }
+
+  const buffer = await file.arrayBuffer();
+  return rpc.app.saveInitialPromptImage({
+    name: file.name,
+    mimeType: file.type,
+    data: new Uint8Array(buffer),
+  });
+}
+
+export async function getInitialPromptImages(
+  attachments: Attachment[]
+): Promise<InitialPromptImage[]> {
+  return Promise.all(
+    attachments.map(async (attachment, index) => ({
+      name: imageDisplayName(attachment.file, index),
+      path: await saveInitialPromptImage(attachment.file),
+    }))
+  );
+}
 
 export function useInitialConversationState(projectId?: string): InitialConversationState {
   const connectionId = projectId ? getProjectSshConnectionId(projectId) : undefined;
   const { providerId, setProviderOverride } = useEffectiveProvider(connectionId);
   const [prompt, setPrompt] = useState('');
   const [issueContext, setIssueContext] = useState<string | null>(null);
+  const {
+    attachments,
+    isDraggingOver,
+    removeAttachment,
+    handlePaste,
+    handleDrop,
+    handleDragOver,
+    handleDragEnter,
+    handleDragLeave,
+    reset,
+  } = useAttachments();
+
   return {
     provider: providerId,
     setProvider: setProviderOverride,
@@ -43,6 +104,15 @@ export function useInitialConversationState(projectId?: string): InitialConversa
     setPrompt,
     issueContext,
     setIssueContext,
+    imageAttachments: attachments,
+    removeImageAttachment: removeAttachment,
+    isImageDraggingOver: isDraggingOver,
+    handleImagePaste: handlePaste,
+    handleImageDrop: handleDrop,
+    handleImageDragOver: handleDragOver,
+    handleImageDragEnter: handleDragEnter,
+    handleImageDragLeave: handleDragLeave,
+    resetImages: reset,
     connectionId,
   };
 }
@@ -60,12 +130,12 @@ export function InitialConversationField({
 }: InitialConversationFieldProps) {
   const { value: promptLibrary } = usePromptLibrary();
   const autoApproveDefaults = useAgentAutoApproveDefaults();
+  const [previewAttachment, setPreviewAttachment] = useState<Attachment | null>(null);
   const contextActions = useMemo(
     () => buildTaskContextActions(linkedIssue, [], promptLibrary),
     [linkedIssue, promptLibrary]
   );
 
-  // Auto-inject issue context whenever the linked issue changes.
   useEffect(() => {
     state.setIssueContext(
       includeIssueContextByDefault && linkedIssue ? buildIssueContextText(linkedIssue) : null
@@ -74,6 +144,12 @@ export function InitialConversationField({
   }, [includeIssueContextByDefault, linkedIssue?.identifier, linkedIssue?.provider]);
 
   const autoApprove = state.provider ? autoApproveDefaults.getDefault(state.provider) : false;
+  const previewAttachmentIndex = previewAttachment
+    ? state.imageAttachments.findIndex((attachment) => attachment.id === previewAttachment.id)
+    : -1;
+  const previewAttachmentName = previewAttachment
+    ? imageDisplayName(previewAttachment.file, Math.max(0, previewAttachmentIndex))
+    : '';
 
   const handleToggleAutoApprove = () => {
     if (!state.provider) return;
@@ -86,7 +162,24 @@ export function InitialConversationField({
 
   return (
     <Field>
-      <div className="flex flex-col rounded-md border border-border">
+      <div
+        className={cn(
+          'relative flex flex-col rounded-md border border-border overflow-hidden',
+          state.isImageDraggingOver && 'border-primary/60 ring-2 ring-primary/20'
+        )}
+        onDrop={state.handleImageDrop}
+        onDragOver={state.handleImageDragOver}
+        onDragEnter={state.handleImageDragEnter}
+        onDragLeave={state.handleImageDragLeave}
+      >
+        {state.isImageDraggingOver ? (
+          <div className="bg-primary/5 pointer-events-none absolute inset-0 z-10 flex items-center justify-center backdrop-blur-[1px]">
+            <div className="border-primary/25 text-primary flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-sm shadow-sm">
+              <ImageIcon className="size-4" />
+              Drop image to attach
+            </div>
+          </div>
+        ) : null}
         <div className="flex w-full items-center justify-between gap-2 px-2 pt-1">
           <AgentSelector
             value={state.provider}
@@ -124,7 +217,6 @@ export function InitialConversationField({
           </div>
         </div>
 
-        {/* Issue context pill */}
         {state.issueContext && linkedIssue && (
           <div className="px-2 py-1">
             <Popover>
@@ -168,8 +260,80 @@ export function InitialConversationField({
           placeholder="Add an optional initial message..."
           value={state.prompt}
           onChange={(e) => state.setPrompt(e.target.value)}
+          onPaste={state.handleImagePaste}
           className="max-h-64 min-h-8 resize-none rounded-none border-0 focus-visible:border-0 focus-visible:ring-0"
         />
+        {state.imageAttachments.length > 0 ? (
+          <div className="flex flex-wrap gap-1.5 border-t border-border bg-background-1/40 p-2">
+            {state.imageAttachments.map((attachment, index) => {
+              const displayName = imageDisplayName(attachment.file, index);
+              return (
+                <div
+                  key={attachment.id}
+                  className="group/image-chip hover:border-border-active flex max-w-full items-center gap-2 rounded-md border border-border bg-background pr-1 shadow-xs transition-colors hover:bg-background-1"
+                >
+                  <button
+                    type="button"
+                    className="focus-visible:ring-ring flex min-w-0 items-center gap-2 py-1 pr-1 pl-1 text-left focus-visible:ring-2 focus-visible:outline-none"
+                    onClick={() => setPreviewAttachment(attachment)}
+                    aria-label={`Preview ${displayName}`}
+                  >
+                    <img
+                      src={attachment.previewUrl}
+                      alt=""
+                      className="size-8 shrink-0 rounded-sm border border-border object-cover"
+                    />
+                    <span className="min-w-0">
+                      <span
+                        className="block max-w-40 truncate text-xs font-medium text-foreground"
+                        title={displayName}
+                      >
+                        {displayName}
+                      </span>
+                      <span className="block text-[11px] text-foreground-muted">
+                        {formatImageSize(attachment.file.size)}
+                      </span>
+                    </span>
+                  </button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    className="opacity-70 transition-opacity group-hover/image-chip:opacity-100"
+                    onClick={() => {
+                      if (previewAttachment?.id === attachment.id) setPreviewAttachment(null);
+                      state.removeImageAttachment(index);
+                    }}
+                    aria-label={`Remove ${displayName}`}
+                  >
+                    <X className="size-3" />
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
+        {previewAttachment ? (
+          <ZoomableContentDialog
+            open={Boolean(previewAttachment)}
+            ariaLabel={previewAttachmentName ? `Image: ${previewAttachmentName}` : 'Image preview'}
+            contentKey={`${previewAttachment.id}:${previewAttachment.previewUrl}`}
+            onOpenChange={(open) => {
+              if (!open) setPreviewAttachment(null);
+            }}
+            contentClassName="h-[min(72dvh,680px)] max-h-[min(72dvh,680px)] w-[min(78vw,920px)] max-w-[min(78vw,920px)] sm:max-w-[min(78vw,920px)]"
+            wrapperClassName="rounded-md bg-muted/20"
+          >
+            {({ fitToView }) => (
+              <ContainedImage
+                src={previewAttachment.previewUrl}
+                alt={previewAttachmentName}
+                className="block h-auto max-h-none max-w-none rounded-none"
+                onLoad={() => fitToView()}
+              />
+            )}
+          </ZoomableContentDialog>
+        ) : null}
       </div>
     </Field>
   );
