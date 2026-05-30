@@ -99,7 +99,9 @@ describe('resource sampler', () => {
   it('samples a local PTY as the whole descendant process tree', async () => {
     mockProcessTree(['PID PPID', '100 1', '101 100', '102 101', '200 1', ''].join('\n'));
     pidusageMock.mockResolvedValue({
-      100: stat(1, 3 * MiB, 1),
+      // The PTY root is often just an idle shell wrapper. By itself this would
+      // have been filtered as stale, so this guards the "no PTYs visible" case.
+      100: stat(0, 1 * MiB, 1),
       101: stat(5, 50 * MiB, 100),
       102: stat(2, 20 * MiB, 101),
     });
@@ -112,8 +114,8 @@ describe('resource sampler', () => {
       sessionId: 'project-1:task-1:conversation-1',
       pid: 100,
       ppid: 1,
-      cpu: 8,
-      memory: 73 * MiB,
+      cpu: 7,
+      memory: 71 * MiB,
       providerId: 'amp',
       title: 'Amp',
     });
@@ -150,9 +152,7 @@ describe('resource sampler', () => {
         metadata: { providerId: 'amp', title: 'Amp 2' },
       },
     ];
-    mockProcessTree(
-      ['PID PPID', '100 1', '101 100', '102 100', '200 1', '201 200', ''].join('\n')
-    );
+    mockProcessTree(['PID PPID', '100 1', '101 100', '102 100', '200 1', '201 200', ''].join('\n'));
     pidusageMock.mockResolvedValue({
       100: stat(1, 3 * MiB, 1),
       101: stat(2, 10 * MiB, 100),
