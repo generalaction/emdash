@@ -64,6 +64,7 @@ describe('jiraIssueProvider', () => {
     expect(buildSearchJql('deprecated "search" endpoint')).toBe(
       'text ~ "deprecated \\"search\\" endpoint"'
     );
+    expect(buildSearchJql('path \\')).toBe('text ~ "path \\\\"');
   });
 
   it('lists Jira issues through enhanced search with nextPageToken pagination', async () => {
@@ -120,6 +121,24 @@ describe('jiraIssueProvider', () => {
     expect(mockDoJiraPost).toHaveBeenCalledTimes(2);
     expect(postPayload(0).jql).toBe(buildListJql('mine'));
     expect(postPayload(1).jql).toBe(buildListJql('mine-fallback'));
+  });
+
+  it('continues to broad list fallback when assignee-only JQL fails', async () => {
+    mockDoJiraPost
+      .mockRejectedValueOnce(new Error('Jira API error 403: reporter is not queryable'))
+      .mockRejectedValueOnce(new Error('Jira API error 500: temporary outage'))
+      .mockResolvedValueOnce(JSON.stringify({ issues: [jiraIssue('ENG-4')], isLast: true }));
+
+    const result = await jiraIssueProvider.listIssues({ limit: 10 });
+
+    expect(result).toEqual({
+      success: true,
+      issues: [expect.objectContaining({ provider: 'jira', identifier: 'ENG-4' })],
+    });
+    expect(mockDoJiraPost).toHaveBeenCalledTimes(3);
+    expect(postPayload(0).jql).toBe(buildListJql('mine'));
+    expect(postPayload(1).jql).toBe(buildListJql('mine-fallback'));
+    expect(postPayload(2).jql).toBe(buildListJql('all'));
   });
 
   it('does not hide auth failures behind broad list fallbacks', async () => {

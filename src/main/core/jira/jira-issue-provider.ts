@@ -62,15 +62,19 @@ async function listIssues(limit = 50): Promise<IssueListResult> {
         throw error;
       }
 
-      const issues = await searchJql(
-        siteUrl,
-        email,
-        token,
-        buildListJql('mine-fallback'),
-        sanitizedLimit
-      );
-      if (issues.length > 0) {
-        return { success: true, issues: normalizeIssues(siteUrl, issues) };
+      try {
+        const issues = await searchJql(
+          siteUrl,
+          email,
+          token,
+          buildListJql('mine-fallback'),
+          sanitizedLimit
+        );
+        if (issues.length > 0) {
+          return { success: true, issues: normalizeIssues(siteUrl, issues) };
+        }
+      } catch {
+        // Try all-issues and picker fallbacks.
       }
     }
 
@@ -124,7 +128,7 @@ async function smartSearchIssues(searchTerm: string, limit = 20): Promise<IssueL
   try {
     const { siteUrl, email, token } = await jiraConnectionService.requireAuth();
 
-    const looksLikeKey = /^[A-Za-z][A-Za-z0-9_]*-\d+$/.test(term);
+    const looksLikeKey = JIRA_KEY_PATTERN.test(term);
     if (looksLikeKey) {
       const keyUpper = term.toUpperCase();
       try {
@@ -192,7 +196,7 @@ export function buildSearchJql(searchTerm: string): string {
 }
 
 function escapeJqlValue(value: string): string {
-  return value.replace(/"/g, '\\"');
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
 function isJqlPermissionError(error: unknown): boolean {
