@@ -1,11 +1,28 @@
 import { saveProviderSessionId } from '@main/core/conversations/save-provider-session-id';
+import { setProviderSessionId } from '@main/core/conversations/set-provider-session-id';
+import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
+import { conversationChangedChannel } from '@shared/events/conversationEvents';
 import { parsePtyId } from '@shared/ptyId';
+import { enrichEvent } from './event-enricher';
 import type { RawHookRequest } from './hook-server';
+
+export function extractProviderSessionId(body: Record<string, unknown>): string | undefined {
+  const candidates = [
+    body.session_id,
+    body.provider_session_id,
+    body.providerSessionId,
+    body.sessionId,
+  ];
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+  }
+  return undefined;
+}
 
 export async function handleProviderSessionHook(raw: RawHookRequest): Promise<void> {
   const parsed = parsePtyId(raw.ptyId);
-  if (!parsed || parsed.providerId !== 'droid') return;
+  if (!parsed || (parsed.providerId !== 'droid' && parsed.providerId !== 'grok')) return;
 
   let body: Record<string, unknown> = {};
   if (raw.body) {
@@ -20,8 +37,22 @@ export async function handleProviderSessionHook(raw: RawHookRequest): Promise<vo
     }
   }
 
-  const providerSessionId = body.session_id ?? body.provider_session_id ?? body.providerSessionId;
-  if (typeof providerSessionId !== 'string' || providerSessionId.length === 0) return;
+  const providerSessionId = extractProviderSessionId(body);
+  if (!providerSessionId) return;
 
-  await saveProviderSessionId(parsed.conversationId, providerSessionId);
+  if (parsed.providerId === 'droid') {
+    await saveProviderSessionId(parsed.conversationId, providerSessionId);
+    return;
+  }
+
+  const event = await enrichEvent(raw);
+  const updated = await setProviderSessionId(parsed.conversationId, providerSessionId);
+  if (!updated) return;
+
+  events.emit(conversationChangedChannel, {
+    conversationId: parsed.conversationId,
+    taskId: event.taskId,
+    projectId: event.projectId,
+    changes: { providerSessionId },
+  });
 }

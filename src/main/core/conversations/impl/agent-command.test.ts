@@ -214,6 +214,18 @@ describe('buildAgentCommand', () => {
     expect(result.args).toEqual(['--resume', '31477a03-961a-4451-82d4-efded56947fc']);
   });
 
+  it('resumes Grok by stored provider session id when available', () => {
+    const result = buildAgentCommand({
+      providerId: 'grok',
+      providerConfig: providerConfigDefaults.grok,
+      sessionId: 'conv-1',
+      providerSessionId: 'grok-session-1',
+      isResuming: true,
+    });
+
+    expect(result.args).toEqual(['-r', 'grok-session-1']);
+  });
+
   it.each<{
     providerId: AgentProviderId;
     freshArgs: string[];

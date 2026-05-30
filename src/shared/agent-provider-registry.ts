@@ -140,10 +140,13 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     autoApproveFlag: '--always-approve',
     useKeystrokeInjection: true,
     resumeFlag: '-r',
+    sessionIdFlag: '-r',
+    sessionIdOnResumeOnly: true,
     icon: 'xai.svg',
     alt: 'Grok CLI',
     invertInDark: true,
     terminalOnly: true,
+    supportsHooks: true,
   },
   {
     id: 'devin',
