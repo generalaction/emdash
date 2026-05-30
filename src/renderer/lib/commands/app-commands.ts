@@ -12,6 +12,10 @@ function appDef(id: AppCommandId): CommandDef {
   return APP_COMMAND_DEFS.find((d) => d.id === id)!;
 }
 
+function isLibraryView(viewId: string): boolean {
+  return viewId === 'library' || viewId === 'skills' || viewId === 'mcp';
+}
+
 function createAppCommandProvider(): CommandProvider {
   return {
     scopeId: 'app',
@@ -55,6 +59,11 @@ function createAppCommandProvider(): CommandProvider {
           shortcutKey: libraryDef.shortcutKey,
           group: libraryDef.group,
           execute() {
+            if (isLibraryView(appState.navigation.currentViewId)) {
+              appState.navigation.navigate(appState.navigation.lastNonLibraryView);
+              return;
+            }
+
             appState.navigation.navigate('library');
           },
         },
