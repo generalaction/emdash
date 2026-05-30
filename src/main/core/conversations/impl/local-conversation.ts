@@ -3,10 +3,12 @@ import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
 import { wireAgentClassifier } from '@main/core/agent-hooks/classifier-wiring';
 import { claudeTrustService } from '@main/core/agent-hooks/claude-trust-service';
 import { HookConfigWriter } from '@main/core/agent-hooks/hook-config';
+import { ConversationSessionSupervisor } from '@main/core/conversations/conversation-session-supervisor';
+import type { ConversationStartReason } from '@main/core/conversations/conversation-session-supervisor';
+import { resolveAgentSessionCommandArgs } from '@main/core/conversations/resolve-agent-session-command';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
-import { isUnexpectedPtyExit } from '@main/core/pty/exit-classification';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import type { Pty } from '@main/core/pty/pty';
 import { buildAgentEnv } from '@main/core/pty/pty-env';
@@ -20,10 +22,13 @@ import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { getProvider } from '@shared/agent-provider-registry';
 import type { Conversation } from '@shared/conversations';
-import { agentSessionExitedChannel } from '@shared/events/agentEvents';
+import {
+  agentSessionExitedChannel,
+  agentSessionRuntimeFailureChannel,
+  agentSessionRuntimeStatusChannel,
+} from '@shared/events/agentEvents';
 import { makePtyId } from '@shared/ptyId';
 import { makePtySessionId } from '@shared/ptySessionId';
-import { resolveAgentSessionCommandArgs } from '../resolve-agent-session-command';
 import { buildAgentSessionCommand } from './agent-command';
 import { syncGrokThemeWithAppTheme } from './grok-theme-config';
 import { scheduleInitialPromptInjection } from './keystroke-injection';
@@ -31,13 +36,12 @@ import { resolveProviderEnv } from './provider-env';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
-const MAX_RESPAWNS = 2;
+const RESPAWN_DELAY_MS = 500;
 
 export class LocalConversationProvider implements ConversationProvider {
   private sessions = new Map<string, Pty>();
   private knownSessionIds = new Set<string>();
-  private respawnCounts = new Map<string, number>();
-  private suppressedExitPtys = new WeakSet<Pty>();
+  private supervisor = new ConversationSessionSupervisor();
   private readonly projectId: string;
   private readonly taskPath: string;
   private readonly taskId: string;
@@ -84,117 +88,139 @@ export class LocalConversationProvider implements ConversationProvider {
     isResuming: boolean = false,
     initialPrompt?: string
   ): Promise<void> {
+    return this.startSessionInternal(
+      conversation,
+      initialSize,
+      isResuming,
+      initialPrompt,
+      'hydrate'
+    );
+  }
+
+  private async startSessionInternal(
+    conversation: Conversation,
+    initialSize: { cols: number; rows: number },
+    isResuming: boolean,
+    initialPrompt: string | undefined,
+    startReason: ConversationStartReason
+  ): Promise<void> {
     const sessionId = makePtySessionId(
       conversation.projectId,
       conversation.taskId,
       conversation.id
     );
     this.knownSessionIds.add(sessionId);
-    if (this.sessions.has(sessionId)) return;
 
-    await claudeTrustService.maybeAutoTrustLocal({
-      providerId: conversation.providerId,
-      cwd: this.taskPath,
-      homedir: homedir(),
+    const spawnSize = ptySessionRegistry.getLastSize(sessionId) ?? initialSize;
+    const spawnToken = this.supervisor.beginStart(sessionId, spawnSize, startReason, {
+      requireDesired: startReason === 'replace-after-exit',
     });
-    const hooksAvailable = await this.prepareHookConfig(conversation.providerId);
+    if (!spawnToken) return;
 
-    const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
-    const providerDef = getProvider(conversation.providerId);
-    const agentSession = resolveAgentSessionCommandArgs(conversation, isResuming);
-    const { command, args } = buildAgentSessionCommand({
-      providerId: conversation.providerId,
-      providerConfig,
-      autoApprove: conversation.autoApprove,
-      sessionId: conversation.id,
-      providerSessionId: conversation.providerSessionId,
-      isResuming: agentSession.isResuming,
-      initialPrompt,
-    });
-    const providerEnv = resolveProviderEnv(providerConfig, {
-      providerId: conversation.providerId,
-      autoApprove: conversation.autoApprove,
-    });
-    if (conversation.providerId === 'grok') {
-      await syncGrokThemeWithAppTheme({ env: providerEnv });
-    }
-
-    const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
-
-    const resolved = resolveLocalPtySpawn({
-      platform: process.platform,
-      env: process.env,
-      intent: {
-        kind: 'run-command',
-        cwd: this.taskPath,
-        command: { kind: 'argv', command, args },
-        shellSetup: this.shellSetup,
-        tmuxSessionName,
-      },
-    });
-
-    logLocalPtySpawnWarnings('LocalConversationProvider', resolved.warnings, {
-      conversationId: conversation.id,
-      sessionId,
-    });
-
-    const ptyId = makePtyId(conversation.providerId, conversation.id);
-    const port = agentHookService.getPort();
-    const token = agentHookService.getToken();
-    const hookActive = port > 0;
-    const ampHooksAvailable =
-      hookActive &&
-      conversation.providerId === 'amp' &&
-      providerDef?.supportsHooks &&
-      hooksAvailable;
-    const pty = spawnLocalPty({
-      id: sessionId,
-      command: resolved.command,
-      args: resolved.args,
-      cwd: resolved.cwd,
-      env: {
-        ...buildAgentEnv({
-          hook: port > 0 ? { port, ptyId, token } : undefined,
-          providerVars: providerEnv,
-        }),
-        ...this.taskEnvVars,
-        ...(ampHooksAvailable && !this.taskEnvVars['PLUGINS'] ? { PLUGINS: 'all' } : {}),
-      },
-      cols: initialSize.cols,
-      rows: initialSize.rows,
-    });
-
-    /*
-     * Codex hooks can be skipped by the CLI in some live-session edge cases.
-     * Amp hooks only cover lifecycle events today. Keep the output classifier
-     * active as a fallback so the UI can leave "working" and catch prompts.
-     */
-    const useHooksOnly =
-      hookActive &&
-      providerDef?.supportsHooks &&
-      hooksAvailable &&
-      conversation.providerId !== 'codex' &&
-      conversation.providerId !== 'amp';
-
-    if (!useHooksOnly) {
-      wireAgentClassifier({
-        pty,
+    try {
+      await claudeTrustService.maybeAutoTrustLocal({
         providerId: conversation.providerId,
-        projectId: conversation.projectId,
-        taskId: conversation.taskId,
-        conversationId: conversation.id,
+        cwd: this.taskPath,
+        homedir: homedir(),
       });
-    }
+      const hooksAvailable = await this.prepareHookConfig(conversation.providerId);
 
-    pty.onExit(({ exitCode, signal }) => {
-      const currentPty = this.sessions.get(sessionId);
-      if (currentPty !== undefined && currentPty !== pty) return;
+      const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
+      const providerDef = getProvider(conversation.providerId);
+      const agentSession = resolveAgentSessionCommandArgs(conversation, isResuming);
+      const { command, args } = buildAgentSessionCommand({
+        providerId: conversation.providerId,
+        providerConfig,
+        autoApprove: conversation.autoApprove,
+        sessionId: agentSession.sessionId,
+        providerSessionId: conversation.providerSessionId,
+        isResuming: agentSession.isResuming,
+        initialPrompt,
+      });
+      const providerEnv = resolveProviderEnv(providerConfig, {
+        providerId: conversation.providerId,
+        autoApprove: conversation.autoApprove,
+      });
+      if (conversation.providerId === 'grok') {
+        await syncGrokThemeWithAppTheme({ env: providerEnv });
+      }
 
-      ptySessionRegistry.unregister(sessionId);
-      const shouldRespawn = currentPty === pty && isUnexpectedPtyExit({ exitCode, signal });
-      this.sessions.delete(sessionId);
-      const suppressExitEvent = this.suppressedExitPtys.has(pty);
-      if (!suppressExitEvent) {
+      const tmuxSessionName = this.tmux ? makeTmuxSessionName(sessionId) : undefined;
+
+      const resolved = resolveLocalPtySpawn({
+        platform: process.platform,
+        env: process.env,
+        intent: {
+          kind: 'run-command',
+          cwd: this.taskPath,
+          command: { kind: 'argv', command, args },
+          shellSetup: this.shellSetup,
+          tmuxSessionName,
+        },
+      });
+
+      logLocalPtySpawnWarnings('LocalConversationProvider', resolved.warnings, {
+        conversationId: conversation.id,
+        sessionId,
+      });
+
+      const ptyId = makePtyId(conversation.providerId, conversation.id);
+      const port = agentHookService.getPort();
+      const token = agentHookService.getToken();
+      const hookActive = port > 0;
+      const ampHooksAvailable =
+        hookActive &&
+        conversation.providerId === 'amp' &&
+        providerDef?.supportsHooks &&
+        hooksAvailable;
+      const pty = spawnLocalPty({
+        id: sessionId,
+        command: resolved.command,
+        args: resolved.args,
+        cwd: resolved.cwd,
+        env: {
+          ...buildAgentEnv({
+            hook: port > 0 ? { port, ptyId, token } : undefined,
+            providerVars: providerEnv,
+          }),
+          ...this.taskEnvVars,
+          ...(ampHooksAvailable && !this.taskEnvVars['PLUGINS'] ? { PLUGINS: 'all' } : {}),
+        },
+        cols: spawnSize.cols,
+        rows: spawnSize.rows,
+      });
+
+      /*
+       * Codex hooks can be skipped by the CLI in some live-session edge cases.
+       * Amp hooks only cover lifecycle events today. Keep the output classifier
+       * active as a fallback so the UI can leave "working" and catch prompts.
+       */
+      const useHooksOnly =
+        hookActive &&
+        providerDef?.supportsHooks &&
+        hooksAvailable &&
+        conversation.providerId !== 'codex' &&
+        conversation.providerId !== 'amp';
+
+      if (!useHooksOnly) {
+        wireAgentClassifier({
+          pty,
+          providerId: conversation.providerId,
+          projectId: conversation.projectId,
+          taskId: conversation.taskId,
+          conversationId: conversation.id,
+        });
+      }
+
+      pty.onExit(({ exitCode }) => {
+        const decision = this.supervisor.handleExit(sessionId, pty);
+        if (decision.kind === 'stale') return;
+        const replacementSize = ptySessionRegistry.getLastSize(sessionId) ?? spawnSize;
+
+        ptySessionRegistry.unregister(sessionId);
+        this.sessions.delete(sessionId);
+        if (decision.kind === 'stopped') return;
+
         events.emit(agentSessionExitedChannel, {
           sessionId,
           projectId: conversation.projectId,
@@ -202,42 +228,71 @@ export class LocalConversationProvider implements ConversationProvider {
           taskId: conversation.taskId,
           exitCode,
         });
-      }
-      if (shouldRespawn && !this.tmux) {
-        const count = (this.respawnCounts.get(sessionId) ?? 0) + 1;
-        this.respawnCounts.set(sessionId, count);
 
-        if (count > MAX_RESPAWNS && !isResuming) {
-          log.error('LocalConversationProvider: respawn limit reached, giving up', {
-            conversationId: conversation.id,
+        if (decision.kind === 'failed') {
+          this.emitRuntimeFailure(conversation, sessionId, {
+            reason: 'replacement-failed',
+            commandShape: command,
+            attempt: 1,
+            message: 'Agent process exited during the replacement failure window.',
           });
-          this.respawnCounts.delete(sessionId);
           return;
         }
 
-        const resumeNext = isResuming && count <= MAX_RESPAWNS;
-        setTimeout(() => {
-          this.startSession(conversation, initialSize, resumeNext, initialPrompt).catch((e) => {
-            log.error('LocalConversationProvider: respawn failed', {
-              conversationId: conversation.id,
-              error: String(e),
-            });
+        if (this.supervisor.isDesired(sessionId)) {
+          this.scheduleReplacement({
+            conversation,
+            sessionId,
+            initialSize: replacementSize,
+            initialPrompt,
           });
-        }, 500);
-      }
-    });
+        }
+      });
 
-    ptySessionRegistry.register(sessionId, pty, {
-      metadata: { providerId: conversation.providerId, title: conversation.title },
-    });
-    this.sessions.set(sessionId, pty);
-    scheduleInitialPromptInjection({ pty, conversation, initialPrompt, isResuming });
-    telemetryService.capture('agent_run_started', {
-      provider: conversation.providerId,
-      project_id: conversation.projectId,
-      task_id: conversation.taskId,
-      conversation_id: conversation.id,
-    });
+      if (!this.supervisor.acceptSpawn(sessionId, spawnToken, pty)) {
+        try {
+          pty.kill();
+        } catch {}
+        if (ptySessionRegistry.get(sessionId) === pty) {
+          ptySessionRegistry.unregister(sessionId);
+        }
+        this.emitRuntimeFailure(conversation, sessionId, {
+          reason: 'stopped-during-replacement',
+          commandShape: command,
+          attempt: 1,
+          message: 'Spawn completed after the conversation was stopped.',
+        });
+        return;
+      }
+
+      ptySessionRegistry.register(sessionId, pty, {
+        metadata: { providerId: conversation.providerId, title: conversation.title },
+      });
+      this.sessions.set(sessionId, pty);
+      scheduleInitialPromptInjection({
+        pty,
+        conversation,
+        initialPrompt,
+        isResuming: agentSession.isResuming,
+      });
+      telemetryService.capture('agent_run_started', {
+        provider: conversation.providerId,
+        project_id: conversation.projectId,
+        task_id: conversation.taskId,
+        conversation_id: conversation.id,
+      });
+    } catch (error) {
+      const shouldSurface = this.supervisor.failSpawn(sessionId, spawnToken);
+      if (shouldSurface) {
+        this.emitRuntimeFailure(conversation, sessionId, {
+          reason: startReason === 'replace-after-exit' ? 'replacement-failed' : 'spawn-failed',
+          commandShape: 'agent',
+          attempt: 1,
+          message: String((error as Error)?.message || error),
+        });
+      }
+      throw error;
+    }
   }
 
   private async prepareHookConfig(providerId: Conversation['providerId']): Promise<boolean> {
@@ -265,8 +320,7 @@ export class LocalConversationProvider implements ConversationProvider {
   }
 
   private detachPty(sessionId: string): void {
-    this.respawnCounts.delete(sessionId);
-    const pty = this.sessions.get(sessionId);
+    const pty = this.supervisor.stop(sessionId, 'dehydrate') ?? this.sessions.get(sessionId);
     this.sessions.delete(sessionId);
     ptySessionRegistry.unregister(sessionId);
     if (pty) {
@@ -280,23 +334,30 @@ export class LocalConversationProvider implements ConversationProvider {
 
   async detachSession(conversationId: string): Promise<void> {
     const sessionId = makePtySessionId(this.projectId, this.taskId, conversationId);
-    const pty = this.sessions.get(sessionId);
-    if (this.tmux && pty) {
-      this.suppressedExitPtys.add(pty);
-    }
     this.detachPty(sessionId);
     if (!this.tmux) {
       this.knownSessionIds.delete(sessionId);
+      this.supervisor.forget(sessionId);
     }
   }
 
   async stopSession(conversationId: string): Promise<void> {
     const sessionId = makePtySessionId(this.projectId, this.taskId, conversationId);
     this.knownSessionIds.delete(sessionId);
-    this.detachPty(sessionId);
+    const pty = this.supervisor.stop(sessionId, 'user-stop') ?? this.sessions.get(sessionId);
+    this.sessions.delete(sessionId);
+    ptySessionRegistry.unregister(sessionId);
+    if (pty) {
+      try {
+        pty.kill();
+      } catch (e) {
+        log.warn('LocalAgentProvider: error killing PTY', { sessionId, error: String(e) });
+      }
+    }
     if (this.tmux) {
       await killTmuxSession(this.ctx, makeTmuxSessionName(sessionId));
     }
+    this.supervisor.forget(sessionId);
   }
 
   async destroyAll(): Promise<void> {
@@ -305,20 +366,105 @@ export class LocalConversationProvider implements ConversationProvider {
     if (this.tmux) {
       await Promise.all(sessionIds.map((id) => killTmuxSession(this.ctx, makeTmuxSessionName(id))));
     }
+    for (const sessionId of sessionIds) {
+      this.supervisor.forget(sessionId);
+    }
     this.knownSessionIds.clear();
   }
 
   async detachAll(): Promise<void> {
     for (const [sessionId, pty] of this.sessions) {
-      if (this.tmux) {
-        this.suppressedExitPtys.add(pty);
-      }
+      this.supervisor.stop(sessionId, 'dehydrate');
       try {
         pty.kill();
       } catch {}
       ptySessionRegistry.unregister(sessionId);
     }
     this.sessions.clear();
-    this.respawnCounts.clear();
+  }
+
+  private scheduleReplacement({
+    conversation,
+    sessionId,
+    initialSize,
+    initialPrompt,
+  }: {
+    conversation: Conversation;
+    sessionId: string;
+    initialSize: { cols: number; rows: number };
+    initialPrompt: string | undefined;
+  }): void {
+    events.emit(
+      agentSessionRuntimeStatusChannel,
+      {
+        providerId: conversation.providerId,
+        conversationId: conversation.id,
+        sessionId,
+        status: 'replacing',
+        reason: 'process-exit',
+      },
+      conversation.taskId
+    );
+
+    setTimeout(() => {
+      this.startSessionInternal(
+        conversation,
+        initialSize,
+        true,
+        initialPrompt,
+        'replace-after-exit'
+      )
+        .then(() => {
+          if (!this.supervisor.isDesired(sessionId)) return;
+          events.emit(
+            agentSessionRuntimeStatusChannel,
+            {
+              providerId: conversation.providerId,
+              conversationId: conversation.id,
+              sessionId,
+              status: 'replaced',
+              reason: 'process-exit',
+            },
+            conversation.taskId
+          );
+        })
+        .catch((e) => {
+          log.error('LocalConversationProvider: replacement failed', {
+            conversationId: conversation.id,
+            error: String(e),
+          });
+        });
+    }, RESPAWN_DELAY_MS);
+  }
+
+  private emitRuntimeFailure(
+    conversation: Conversation,
+    sessionId: string,
+    failure: {
+      reason:
+        | 'spawn-failed'
+        | 'replacement-failed'
+        | 'binding-demote-and-fresh-failed'
+        | 'stopped-during-replacement';
+      commandShape: string;
+      attempt: number;
+      message: string;
+    }
+  ): void {
+    events.emit(
+      agentSessionRuntimeFailureChannel,
+      {
+        providerId: conversation.providerId,
+        conversationId: conversation.id,
+        sessionId,
+        reason: failure.reason,
+        commandShape: failure.commandShape,
+        cwd: this.taskPath,
+        transport: 'local',
+        attempt: failure.attempt,
+        message: failure.message,
+      },
+      conversation.taskId
+    );
   }
 }
