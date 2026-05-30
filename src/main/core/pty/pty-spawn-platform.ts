@@ -339,7 +339,7 @@ function resolvePosixSpawn(intent: PtySpawnIntent, env: NodeJS.ProcessEnv): Reso
     intent.shellProfile?.family === 'windows-cmd'
   ) {
     throw new Error(
-      `Cannot run POSIX shell-wrapped commands through ${intent.shellProfile.displayName}`
+      `Cannot run POSIX shell-wrapped commands through ${intent.shellProfile.resolvedShellId}`
     );
   }
 

@@ -8,6 +8,10 @@ import {
   useWorkspaceId,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
+import {
+  DEFAULT_TERMINAL_SHELL_AVAILABILITY,
+  useTerminalShellAvailability,
+} from '@renderer/lib/hooks/use-terminal-shell-availability';
 import { useTabShortcuts } from '@renderer/lib/hooks/useTabShortcuts';
 import { rpc } from '@renderer/lib/ipc';
 import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
@@ -20,10 +24,6 @@ import { useIsActiveTask } from '../hooks/use-is-active-task';
 import { TerminalDrawerSidebar } from './terminal-drawer-sidebar';
 import { resolveTerminalPanelActiveItem } from './terminal-panel-selection';
 import { TerminalPtyContent } from './terminal-pty-content';
-import {
-  DEFAULT_TERMINAL_SHELL_AVAILABILITY,
-  useTerminalShellAvailability,
-} from './use-terminal-shell-availability';
 
 export const TerminalsPanel = observer(function TerminalsPanel() {
   const { projectId, taskId } = useTaskViewContext();
@@ -77,7 +77,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
     activeItem.kind === 'terminal' ? terminalTabView : (lifecycleScriptsMgr ?? undefined);
   useTabShortcuts(activeStore, { focused: isPanelFocused });
 
-  const handleCreate = async (shell: TerminalShellId = 'auto') => {
+  const handleCreate = async (shell?: TerminalShellId) => {
     await taskView.openNewTerminal(shell);
   };
 
@@ -86,22 +86,25 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
     if (!script || script.isRunning) return;
     lifecycleScriptsMgr?.setActiveTab(id);
     taskView.setTerminalDrawerActiveItem({ kind: 'script', id });
-    script.markRunning();
     void rpc.terminals
       .runLifecycleScript({
         projectId,
+        taskId,
         workspaceId,
         type: script.data.type,
       })
-      .catch(() => {
-        script.markExited();
-      });
+      .catch(() => {});
   };
 
   const handleStopScript = (id: string) => {
     const script = lifecycleScriptsMgr?.tabs.find((s) => s.data.id === id);
     if (!script) return;
-    void rpc.pty.sendInput(script.session.sessionId, '\x03');
+    void rpc.terminals.stopLifecycleScript({
+      projectId,
+      taskId,
+      workspaceId,
+      type: script.data.type,
+    });
   };
 
   const emptyState = (

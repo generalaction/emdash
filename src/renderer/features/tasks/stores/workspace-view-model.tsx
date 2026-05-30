@@ -327,7 +327,7 @@ export class WorkspaceViewModel implements ILifecycle {
         );
       },
       (shouldCreate) => {
-        if (shouldCreate) void this._createDefaultTerminal('auto');
+        if (shouldCreate) void this._createDefaultTerminal();
       }
     );
     this._sessionDisposers.push(terminalsDisposer);
@@ -415,7 +415,7 @@ export class WorkspaceViewModel implements ILifecycle {
   }
 
   /** Opens the terminal drawer and always creates a new terminal session. */
-  async openNewTerminal(shell: TerminalShellId = 'auto'): Promise<string | undefined> {
+  async openNewTerminal(shell?: TerminalShellId): Promise<string | undefined> {
     this.isTerminalDrawerOpen = true;
     this.setFocusedRegion('bottom');
 
@@ -428,7 +428,7 @@ export class WorkspaceViewModel implements ILifecycle {
     return terminalId;
   }
 
-  private async _createDefaultTerminal(shell: TerminalShellId): Promise<string | undefined> {
+  private async _createDefaultTerminal(shell?: TerminalShellId): Promise<string | undefined> {
     if (this._isCreatingTerminal) return undefined;
 
     this._isCreatingTerminal = true;

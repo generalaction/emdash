@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { asMounted, getProjectStore } from '@renderer/features/projects/stores/project-selectors';
 import { type LifecycleScriptsStore } from '@renderer/features/tasks/stores/lifecycle-scripts';
 import { type TerminalTabViewStore } from '@renderer/features/tasks/terminals/terminal-tab-view-store';
+import { TerminalShellOptionLabel } from '@renderer/lib/components/terminal-shell-option-label';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { Button } from '@renderer/lib/ui/button';
 import {
@@ -72,7 +73,7 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
               <TooltipTrigger>
                 <button
                   className="flex size-5 items-center justify-center rounded-l text-foreground-muted hover:bg-background-2 hover:text-foreground"
-                  onClick={() => onAddTerminal('auto')}
+                  onClick={() => onAddTerminal()}
                 >
                   <Plus className="size-3" />
                 </button>
@@ -94,15 +95,15 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
               >
                 <ChevronDown className="size-3" />
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-40">
+              <DropdownMenuContent align="end" className="w-48">
                 {shellAvailability.map((entry) => (
                   <DropdownMenuItem
-                    key={entry.shell}
+                    key={entry.id}
                     disabled={!entry.available}
                     title={entry.reason}
-                    onClick={() => onAddTerminal(entry.shell)}
+                    onClick={() => onAddTerminal(entry.id)}
                   >
-                    {entry.displayName}
+                    <TerminalShellOptionLabel entry={entry} />
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>

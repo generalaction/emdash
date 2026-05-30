@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { getProvider } from '@shared/agent-provider-registry';
 import type { Conversation } from '@shared/conversations';
+import { buildAgentSessionCommand } from './impl/agent-command';
 import { resolveAgentSessionCommandArgs } from './resolve-agent-session-command';
 
 function makeConversation(overrides: Partial<Conversation> = {}): Conversation {
@@ -72,5 +74,50 @@ describe('resolveAgentSessionCommandArgs', () => {
         true
       )
     ).toEqual({ sessionId: 'conv-1', isResuming: true });
+  });
+
+  it('builds a Claude replacement resume command from the logical conversation id', () => {
+    const conversation = makeConversation({
+      id: '6fac6620-9fa8-4604-b7e0-1fe361589104',
+      providerId: 'claude',
+    });
+    const spawnPlan = resolveAgentSessionCommandArgs(conversation, true);
+
+    expect(
+      buildAgentSessionCommand({
+        providerId: conversation.providerId,
+        providerConfig: getProvider(conversation.providerId),
+        autoApprove: false,
+        sessionId: spawnPlan.sessionId,
+        providerSessionId: conversation.providerSessionId,
+        isResuming: spawnPlan.isResuming,
+      })
+    ).toEqual({
+      command: 'claude',
+      args: ['--resume', conversation.id],
+    });
+  });
+
+  it('builds a Codex replacement resume command from the stored provider session id', () => {
+    const conversation = makeConversation({
+      id: '6fac6620-9fa8-4604-b7e0-1fe361589104',
+      providerId: 'codex',
+      providerSessionId: 'provider-session-1',
+    });
+    const spawnPlan = resolveAgentSessionCommandArgs(conversation, true);
+
+    expect(
+      buildAgentSessionCommand({
+        providerId: conversation.providerId,
+        providerConfig: getProvider(conversation.providerId),
+        autoApprove: false,
+        sessionId: spawnPlan.sessionId,
+        providerSessionId: conversation.providerSessionId,
+        isResuming: spawnPlan.isResuming,
+      })
+    ).toEqual({
+      command: 'codex',
+      args: ['resume', 'provider-session-1'],
+    });
   });
 });

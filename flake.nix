@@ -29,7 +29,7 @@
             builtins.getAttr requiredPnpmAttr pkgs
           else
             null;
-        nodejs = pkgs.nodejs_22;
+        nodejs = pkgs.nodejs_24;
         pnpmBase =
           if majorPnpm != null && lib.versionAtLeast majorPnpm.version requiredPnpmCompatVersion then
             majorPnpm
@@ -43,14 +43,21 @@
           else
             pnpmBase;
 
-        # Electron version must match package.json
-        electronVersion = "30.5.1";
+        electronPackageSpec = packageJson.devDependencies.electron or (packageJson.dependencies.electron or "");
+        electronVersionMatch = builtins.match "[\\^~]?([0-9]+\\.[0-9]+\\.[0-9]+).*" electronPackageSpec;
+        # Electron version must match package.json. Update the fixed-output hash below
+        # whenever the package.json Electron version changes.
+        electronVersion =
+          if electronVersionMatch != null then
+            builtins.elemAt electronVersionMatch 0
+          else
+            throw "package.json must define electron as a semver version";
 
         # Pre-fetch Electron binary for Linux x64
         # electron-builder expects zips named: electron-v${version}-linux-x64.zip
         electronLinuxZip = pkgs.fetchurl {
           url = "https://github.com/electron/electron/releases/download/v${electronVersion}/electron-v${electronVersion}-linux-x64.zip";
-          sha256 = "sha256-7EcHeD056GAF9CiZ4wrlnlDdXZx/KFMe1JTrQ/I2FAM=";
+          sha256 = "sha256-D3utkbADhMTStZ6++QRBW+lb8G7b/llfD8tX9R/RR+Q=";
         };
 
         # Create a directory with the electron zip for electronDist
