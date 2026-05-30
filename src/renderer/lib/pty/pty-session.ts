@@ -44,8 +44,8 @@ export class PtySession {
       if (version !== this.version) return;
       if (this.pty) return;
       const pty = new FrontendPty(this.sessionId, undefined, this.onOpenFile, this.onOpenExternal);
-      this.pty = pty;
       runInAction(() => {
+        this.pty = pty;
         this.status = 'connecting';
       });
       await pty.connect();
