@@ -94,6 +94,7 @@ export class TaskService implements Hookable<TaskCrudHooks> {
       id: workspaceRow.id,
       type: workspaceRow.type,
       path: workspaceRow.path ?? undefined,
+      repoInstanceId: workspaceRow.repoInstanceId ?? undefined,
     };
 
     const result = await taskManager.provisionTask(project, task, hint);
@@ -113,10 +114,13 @@ export class TaskService implements Hookable<TaskCrudHooks> {
       .where(eq(tasks.id, taskId));
 
     if (!workspaceRow.path && workspacePath) {
+      // Prefer the connectionId from the provisioned result (set by task-manager when a
+      // secondary repo instance is used); fall back to the project's default transport.
       const connectionId =
-        project.defaultWorkspaceType.kind === 'ssh'
+        persistData.sshConnectionId ??
+        (project.defaultWorkspaceType.kind === 'ssh'
           ? project.defaultWorkspaceType.connectionId
-          : undefined;
+          : undefined);
       await workspaceBootstrapService.persistPath(
         workspaceRow.id,
         workspacePath,

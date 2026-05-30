@@ -1,6 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { rpc } from '@renderer/lib/ipc';
 import type { WorktreeEntry } from '@shared/workspaces';
 
 export type WorkspaceMode = 'new' | 'existing';
@@ -18,13 +16,6 @@ export function useWorkspaceMode(projectId: string | undefined) {
     setSelectedEntry(null);
   }
 
-  const { data: worktrees, isPending } = useQuery({
-    queryKey: ['listWorktrees', projectId],
-    queryFn: () => rpc.projects.listWorktrees(projectId!),
-    enabled: !!projectId && mode === 'existing',
-    refetchOnWindowFocus: false,
-  });
-
   // Wrap setMode to also clear the selected entry on mode change.
   const changeMode = (m: WorkspaceMode) => {
     setMode(m);
@@ -33,5 +24,11 @@ export function useWorkspaceMode(projectId: string | undefined) {
 
   const isValid = mode === 'new' || selectedEntry !== null;
 
-  return { mode, setMode: changeMode, selectedEntry, setSelectedEntry, worktrees, isPending, isValid };
+  return {
+    mode,
+    setMode: changeMode,
+    selectedEntry,
+    setSelectedEntry,
+    isValid,
+  };
 }

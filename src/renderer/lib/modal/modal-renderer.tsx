@@ -15,7 +15,7 @@ import { modalStore } from './modal-store';
 const SIZE_CLASSES: Record<ModalSize, string> = {
   xs: 'sm:max-w-xs',
   sm: 'sm:max-w-sm',
-  md: 'sm:max-w-lg',
+  md: 'sm:max-w-xl',
   lg: 'sm:max-w-2xl',
 };
 

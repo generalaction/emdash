@@ -20,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
+import { MiniTabs } from '@renderer/lib/ui/mini-tabs';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { getPrNumber, isForkPr, type PullRequest } from '@shared/pull-requests';
 import {
@@ -145,8 +146,8 @@ export const CreateTaskModal = observer(function CreateTaskModal({
       ? true
       : workspaceMode.mode === 'existing'
         ? workspaceMode.selectedEntry !== null
-        : branchNameState.branchName.trim().length > 0 &&
-          branchSelection.selectedBranch !== undefined);
+        : branchSelection.selectedBranch !== undefined &&
+          (state.branchTab === 'checkout' || branchNameState.branchName.trim().length > 0));
 
   const handleCreateTask = useCallback(() => {
     if (!selectedProjectId) return;
@@ -171,6 +172,11 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         }
       : undefined;
 
+    const workspaceLocation =
+      state.selectedInstanceId !== null
+        ? { kind: 'repo-instance' as const, instanceId: state.selectedInstanceId }
+        : { kind: 'primary' as const };
+
     if (linkedType === 'pr' && linkedPR) {
       const reviewBranch = linkedPR.headRefName;
       const taskStrategy = resolvePullRequestTaskStrategy({
@@ -189,6 +195,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         sourceBranch: { type: 'local', branch: reviewBranch },
         initialStatus: linkedPR.status === 'open' && !linkedPR.isDraft ? 'review' : undefined,
         strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
+        workspace: workspaceLocation,
         workspaceProvider: useBYOI ? 'byoi' : undefined,
         initialConversation: builtInitialConversation,
       });
@@ -209,24 +216,29 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         name: state.taskName.effectiveTaskName,
         sourceBranch,
         strategy: useBYOI ? { kind: 'no-worktree' } : strategy,
+        workspace: workspaceLocation,
         linkedIssue: linkedType === 'issue' ? (linkedIssue ?? undefined) : undefined,
         workspaceProvider: useBYOI ? 'byoi' : undefined,
         initialConversation: builtInitialConversation,
       });
     } else {
       if (!branchSelection.selectedBranch) return;
-      const taskStrategy = resolveBranchLikeTaskStrategy({
-        isUnborn,
-        createBranchAndWorktree: true,
-        taskBranch: branchNameState.branchName,
-        pushBranch: branchSelection.pushBranch,
-      });
+      const taskStrategy =
+        state.branchTab === 'create'
+          ? resolveBranchLikeTaskStrategy({
+              isUnborn,
+              createBranchAndWorktree: true,
+              taskBranch: branchNameState.branchName,
+              pushBranch: branchSelection.pushBranch,
+            })
+          : { kind: 'checkout-existing' as const };
       void projectStore.mountedProject!.taskManager.createTask({
         id,
         projectId: selectedProjectId,
         name: state.taskName.effectiveTaskName,
         sourceBranch: branchSelection.selectedBranch,
         strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
+        workspace: workspaceLocation,
         linkedIssue: linkedType === 'issue' ? (linkedIssue ?? undefined) : undefined,
         workspaceProvider: useBYOI ? 'byoi' : undefined,
         initialConversation: builtInitialConversation,
@@ -311,26 +323,16 @@ export const CreateTaskModal = observer(function CreateTaskModal({
           {/* Section tabs */}
           <div className="flex flex-col gap-2">
             <div className="flex w-full items-center justify-between gap-2">
-              <ToggleGroup
-                className="w-full shrink-0 gap-1 border-none bg-transparent"
-                value={[sectionTab]}
-                onValueChange={([v]) => {
-                  if (v) setSectionTab(v as SectionTab);
-                }}
-              >
-                <ToggleGroupItem
-                  className="h-6! flex-1 rounded-lg! px-2! py-0.5! text-xs"
-                  value="conversation"
-                >
-                  Initial Conversation
-                </ToggleGroupItem>
-                <ToggleGroupItem
-                  className="h-6! flex-1 rounded-lg! px-2! py-0.5! text-xs"
-                  value="workspace"
-                >
-                  Workspace Settings
-                </ToggleGroupItem>
-              </ToggleGroup>
+              <MiniTabs
+                className="w-full"
+                stretch
+                value={sectionTab}
+                onValueChange={(v) => setSectionTab(v as SectionTab)}
+                tabs={[
+                  { value: 'conversation', label: 'Initial Conversation' },
+                  { value: 'workspace', label: 'Workspace Settings' },
+                ]}
+              />
             </div>
             <div className="">
               {sectionTab === 'conversation' && (

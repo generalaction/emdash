@@ -25,12 +25,14 @@ import {
   type ProvisionTaskError,
   type TeardownTaskError,
 } from './provision-task-error';
+import { buildInstanceResources } from './instance-workspace-builder';
 import { provisionLocalTask } from './task-builder';
 
 export type WorkspaceHint = {
   id: string;
   type: SharedWorkspaceType;
   path?: string;
+  repoInstanceId?: string;
 };
 
 type StoredTask = ProvisionResult & { projectId: string; ctx: IExecutionContext };
@@ -79,14 +81,25 @@ async function executeProvision(
     });
   }
 
+  // When a secondary repo instance was selected at task-creation time, build its
+  // specific resources (execution context, WorktreeService, pool path) to override
+  // the project's primary transport for this provision.
+  const instanceResources = hint.repoInstanceId
+    ? await buildInstanceResources(hint.repoInstanceId)
+    : null;
+
+  const effectiveType = instanceResources?.type ?? provider.defaultWorkspaceType;
+  const effectiveProjectPath = instanceResources?.projectPath ?? provider.repoPath;
+  const effectiveWorktreeService = instanceResources?.worktreeService ?? provider.worktreeService;
+
   const { provisionResult, workspace } = await provisionLocalTask({
     task,
     workspaceId,
-    type: provider.defaultWorkspaceType,
+    type: effectiveType,
     projectId: provider.projectId,
-    projectPath: provider.repoPath,
+    projectPath: effectiveProjectPath,
     settings: provider.settings,
-    worktreeService: provider.worktreeService,
+    worktreeService: effectiveWorktreeService,
     fetchService: provider.gitFetchService,
     repository: provider.repository,
     logPrefix: `${provider.type}ProjectProvider`,
@@ -94,8 +107,8 @@ async function executeProvision(
     conversationsToHydrate,
   });
 
-  if (provider.defaultWorkspaceType.kind === 'local') {
-    const mainDotGitAbs = path.resolve(provider.repoPath, '.git');
+  if (effectiveType.kind === 'local') {
+    const mainDotGitAbs = path.resolve(effectiveProjectPath, '.git');
     const worktreeGitDir = await workspace.git.getWorktreeGitDir(mainDotGitAbs);
     return {
       ...provisionResult,
@@ -103,11 +116,17 @@ async function executeProvision(
     };
   }
 
+  const effectiveConnectionId =
+    instanceResources?.connectionId ??
+    (provider.defaultWorkspaceType.kind === 'ssh'
+      ? provider.defaultWorkspaceType.connectionId
+      : undefined);
+
   return {
     ...provisionResult,
     persistData: {
       ...provisionResult.persistData,
-      sshConnectionId: provider.defaultWorkspaceType.connectionId,
+      sshConnectionId: effectiveConnectionId,
     },
   };
 }

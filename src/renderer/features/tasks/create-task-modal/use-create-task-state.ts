@@ -29,6 +29,8 @@ export function useCreateTaskState(
   const [linkedIssue, setLinkedIssueRaw] = useState<Issue | null>(null);
   const [linkedPR, setLinkedPRRaw] = useState<PullRequest | null>(initialPR ?? null);
   const [checkoutMode, setCheckoutMode] = useState<CheckoutMode>('checkout');
+  const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
+  const [branchTab, setBranchTab] = useState<'create' | 'checkout'>('create');
   const [prevProjectId, setPrevProjectId] = useState(projectId);
 
   // Reset linked state when project changes.
@@ -38,6 +40,8 @@ export function useCreateTaskState(
     setLinkedIssueRaw(null);
     setLinkedPRRaw(null);
     setCheckoutMode('checkout');
+    setSelectedInstanceId(null);
+    setBranchTab('create');
   }
 
   // Stable random key for the "plain task" name generation — one per modal session.
@@ -158,6 +162,10 @@ export function useCreateTaskState(
     setLinkedPR,
     checkoutMode,
     setCheckoutMode,
+    selectedInstanceId,
+    setSelectedInstanceId,
+    branchTab,
+    setBranchTab,
     taskName,
     branchSelection,
     branchNameState,

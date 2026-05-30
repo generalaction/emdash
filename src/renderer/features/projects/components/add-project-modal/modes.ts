@@ -11,13 +11,11 @@ export function usePickMode() {
   const [nameIsTouched, setNameIsTouched] = useState<boolean>(false);
   const [initGitRepository, setinitGitRepository] = useState<boolean>(false);
 
+  const namePlaceholder = basenameFromAnyPath(path) || 'Project name...';
+
   const handlePathChange = (newPath: string) => {
     setPath(newPath);
     setinitGitRepository(false);
-    if (!nameIsTouched) {
-      const dirName = basenameFromAnyPath(newPath);
-      if (dirName && !nameIsTouched) setName(dirName);
-    }
   };
 
   const handleNameChange = (newName: string) => {
@@ -25,11 +23,14 @@ export function usePickMode() {
     setNameIsTouched(true);
   };
 
-  const isValid = name.trim().length > 0 && path.trim().length > 0;
+  const effectiveName = nameIsTouched ? name : '';
+  const isValid = (name.trim().length > 0 || !!basenameFromAnyPath(path)) && path.trim().length > 0;
 
   return {
     path,
     name,
+    namePlaceholder,
+    effectiveName,
     initGitRepository,
     setinitGitRepository,
     handlePathChange,
@@ -45,7 +46,7 @@ export type CloneModeState = ReturnType<typeof useCloneMode>;
 export function useNewMode(defaultPath: string) {
   const { authenticated } = useGithubContext();
   const [name, setName] = useState('');
-  const [_, setNameIsTouched] = useState<boolean>(false);
+  const [_nameIsTouched, setNameIsTouched] = useState<boolean>(false);
   const [repositoryName, setRepositoryName] = useState('');
   const [repositoryNameIsTouched, setRepositoryNameIsTouched] = useState<boolean>(false);
   const [repositoryOwnerOverride, setRepositoryOwnerOverride] = useState<
@@ -56,6 +57,8 @@ export function useNewMode(defaultPath: string) {
   const path = pathOverride ?? defaultPath;
 
   const [ownerIsTouched, setOwnerIsTouched] = useState<boolean>(false);
+
+  const namePlaceholder = repositoryName || 'Project name...';
 
   const handleNameChange = (newName: string) => {
     setName(newName);
@@ -94,14 +97,18 @@ export function useNewMode(defaultPath: string) {
     setOwnerIsTouched(true);
   };
 
+  const effectiveName = name || repositoryName;
+
   const isValid =
-    name.trim().length > 0 &&
+    effectiveName.trim().length > 0 &&
     repositoryName.trim().length > 0 &&
     !!repositoryOwner &&
     path.trim().length > 0;
 
   return {
     name,
+    namePlaceholder,
+    effectiveName,
     repositoryName,
     repositoryOwner,
     repositoryVisibility,
@@ -123,9 +130,10 @@ export function useCloneMode(defaultPath: string) {
   const [pathOverride, setPathOverride] = useState<string | undefined>(undefined);
   const path = pathOverride ?? defaultPath;
 
+  const namePlaceholder = extractRepoName(repositoryUrl) || 'Project name...';
+
   const handleRepositoryUrlChange = (newRepositoryUrl: string) => {
     setRepositoryUrl(newRepositoryUrl);
-    if (!nameIsTouched) setName(extractRepoName(newRepositoryUrl));
   };
 
   const handleNameChange = (newName: string) => {
@@ -133,12 +141,18 @@ export function useCloneMode(defaultPath: string) {
     setNameIsTouched(true);
   };
 
+  const effectiveName = nameIsTouched ? name : extractRepoName(repositoryUrl);
+
   const isValid =
-    name.trim().length > 0 && repositoryUrl.trim().length > 0 && path.trim().length > 0;
+    (name.trim().length > 0 || !!extractRepoName(repositoryUrl)) &&
+    repositoryUrl.trim().length > 0 &&
+    path.trim().length > 0;
 
   return {
     repositoryUrl,
     name,
+    namePlaceholder,
+    effectiveName,
     path,
     setPath: setPathOverride,
     handleRepositoryUrlChange,

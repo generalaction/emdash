@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Home, Server } from 'lucide-react';
+import { GitFork, FolderOpen, Plus } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
 import { SshConnectionSelector } from '@renderer/features/projects/components/add-project-modal/ssh-connection-selector';
@@ -22,6 +22,7 @@ import {
 } from '@renderer/lib/modal/modal-provider';
 import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
 import { appState } from '@renderer/lib/stores/app-state';
+import { OptionButtonCard } from '@renderer/lib/components/option-button-card';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
   DialogContentArea,
@@ -30,12 +31,13 @@ import {
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
 import { Field, FieldLabel } from '@renderer/lib/ui/field';
+import { Input } from '@renderer/lib/ui/input';
+import { MiniTabs } from '@renderer/lib/ui/mini-tabs';
 import { ModalLayout } from '@renderer/lib/ui/modal-layout';
-import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { log } from '@renderer/utils/logger';
 import { ClonePanel, CreateNewPanel, PickExistingPanel } from './content';
 import { useCloneMode, useNewMode, usePickMode } from './modes';
+
 
 export type Strategy = 'local' | 'ssh';
 
@@ -46,6 +48,11 @@ export interface AddProjectModalProps extends BaseModalProps<void> {
   mode?: Mode;
   connectionId?: string;
 }
+
+const LOCATION_TABS = [
+  { value: 'local', label: 'Local' },
+  { value: 'ssh', label: 'Remote' },
+];
 
 export const AddProjectModal = observer(function AddProjectModal({
   strategy: strategyProp,
@@ -234,6 +241,8 @@ export const AddProjectModal = observer(function AddProjectModal({
     pickPathStatusQuery.data.isGitRepo === false;
   const isCheckingPickPathStatus = shouldCheckPickPathStatus && pickPathStatusQuery.isPending;
 
+  const effectiveName = activeMode.effectiveName;
+
   const canSubmit =
     activeMode.isValid &&
     (strategy === 'local' || !!selectedConnectionId) &&
@@ -257,7 +266,7 @@ export const AddProjectModal = observer(function AddProjectModal({
       case 'pick':
         data = {
           mode: 'pick',
-          name: pickState.name,
+          name: effectiveName || pickState.namePlaceholder,
           path: pickState.path,
           initGitRepository: pickState.initGitRepository,
         };
@@ -265,7 +274,7 @@ export const AddProjectModal = observer(function AddProjectModal({
       case 'new':
         data = {
           mode: 'new',
-          name: newState.name,
+          name: effectiveName || newState.namePlaceholder,
           path: newState.path,
           repositoryName: newState.repositoryName,
           repositoryOwner: newState.repositoryOwner?.value ?? '',
@@ -275,7 +284,7 @@ export const AddProjectModal = observer(function AddProjectModal({
       case 'clone':
         data = {
           mode: 'clone',
-          name: cloneState.name,
+          name: effectiveName || cloneState.namePlaceholder,
           path: cloneState.path,
           repositoryUrl: cloneState.repositoryUrl,
         };
@@ -331,52 +340,30 @@ export const AddProjectModal = observer(function AddProjectModal({
       }
     >
       <DialogContentArea data-autofocus tabIndex={-1} className="gap-4">
-        <div className="flex items-center gap-2">
-          <ToggleGroup
-            className="w-full flex-1"
-            value={[mode]}
-            onValueChange={([value]) => {
-              if (value) setMode(value as Mode);
-            }}
-          >
-            <ToggleGroupItem value="pick" className="flex-1">
-              Pick
-            </ToggleGroupItem>
-            <ToggleGroupItem value="new" className="flex-1">
-              New
-            </ToggleGroupItem>
-            <ToggleGroupItem value="clone" className="flex-1">
-              Clone
-            </ToggleGroupItem>
-          </ToggleGroup>
-          <ToggleGroup
-            value={[strategy]}
-            onValueChange={([value]) => {
-              if (value) setStrategy(value as Strategy);
-            }}
-          >
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <ToggleGroupItem value="local" aria-label="Local">
-                    <Home className="size-3.5" />
-                  </ToggleGroupItem>
-                }
-              />
-              <TooltipContent>Local</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <ToggleGroupItem value="ssh" aria-label="SSH">
-                    <Server className="size-3.5" />
-                  </ToggleGroupItem>
-                }
-              />
-              <TooltipContent>SSH</TooltipContent>
-            </Tooltip>
-          </ToggleGroup>
+        {/* Project name with location tabs */}
+        <div className="flex flex-col gap-1">
+        <FieldLabel>Project Name</FieldLabel>
+          <Input
+            data-autofocus
+            value={activeMode.name}
+            placeholder={activeMode.namePlaceholder}
+            className="border-none px-0 text-lg! focus-visible:ring-0"
+            onChange={(e) => activeMode.handleNameChange(e.target.value)}
+          />
         </div>
+
+<div className="flex flex-col gap-1">
+          <div className="flex items-center justify-between">
+            <FieldLabel>Add a Repository</FieldLabel>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-foreground-passive">Location</span>
+              <MiniTabs
+                value={strategy}
+                onValueChange={(v) => setStrategy(v as Strategy)}
+                tabs={LOCATION_TABS}
+              />
+            </div>
+          </div>
         {strategy === 'ssh' && !showGithubAuthDisclaimer && (
           <Field>
             <FieldLabel>SSH Connection</FieldLabel>
@@ -389,6 +376,33 @@ export const AddProjectModal = observer(function AddProjectModal({
             />
           </Field>
         )}
+
+        {/* Mode cards */}
+        <div className="flex gap-2">
+          <OptionButtonCard
+            active={mode === 'pick'}
+            onClick={() => setMode('pick')}
+            icon={<FolderOpen className="size-4" />}
+            title="Select"
+            description="Open an existing local repository"
+          />
+          <OptionButtonCard
+            active={mode === 'clone'}
+            onClick={() => setMode('clone')}
+            icon={<GitFork className="size-4" />}
+            title="Clone"
+            description="Clone a remote repository by URL"
+          />
+          <OptionButtonCard
+            active={mode === 'new'}
+            onClick={() => setMode('new')}
+            icon={<Plus className="size-4" />}
+            title="Create"
+            description="Create a new GitHub repository"
+          />
+        </div>
+        </div>
+
         {mode === 'pick' && (
           <PickExistingPanel
             strategy={strategy}
@@ -409,6 +423,7 @@ export const AddProjectModal = observer(function AddProjectModal({
         {mode === 'clone' && (
           <ClonePanel strategy={strategy} connectionId={selectedConnectionId} state={cloneState} />
         )}
+
       </DialogContentArea>
     </ModalLayout>
   );

@@ -69,6 +69,14 @@ export type CreateTaskStrategy =
     }
   | { kind: 'no-worktree' };
 
+/**
+ * Where the task's worktree will be created.
+ * Absence of this field (or kind: 'primary') means use the project's main location.
+ * Bootstrap integration for secondary instances is Phase 2; for now this is stored
+ * on the params and passed through to the task record but not yet acted upon.
+ */
+export type WorkspaceLocation = { kind: 'primary' } | { kind: 'repo-instance'; instanceId: string };
+
 export type CreateTaskParams = {
   id: string;
   projectId: string;
@@ -77,6 +85,8 @@ export type CreateTaskParams = {
   sourceBranch: Branch;
   /** Controls branch creation, worktree setup, and git fetch strategy */
   strategy: CreateTaskStrategy;
+  /** Where to create the task's worktree. Defaults to primary instance when absent. */
+  workspace?: WorkspaceLocation;
   /** The issue to link to the task */
   linkedIssue?: Issue;
   /**  */

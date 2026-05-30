@@ -10,6 +10,7 @@
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { parseRepositoryRef } from '@shared/repository-ref';
+import type { WorktreeEntry } from '@shared/workspaces';
 
 // ---------------------------------------------------------------------------
 // cloneRepository
@@ -33,6 +34,39 @@ export async function cloneRepository(
       success: false,
       error: error instanceof Error ? error.message : 'Clone failed',
     };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// listWorktreesFromContext
+// ---------------------------------------------------------------------------
+
+/**
+ * List git worktrees for a repository at `repoPath` using the given execution
+ * context. The context's root should be the repository root so that git runs
+ * there. Returns an empty array on any failure (e.g. not a git repo, SSH
+ * connection lost) to keep callers simple.
+ */
+export async function listWorktreesFromContext(
+  ctx: IExecutionContext,
+  repoPath: string
+): Promise<WorktreeEntry[]> {
+  try {
+    const { stdout } = await ctx.exec('git', ['worktree', 'list', '--porcelain']);
+    const entries: WorktreeEntry[] = [];
+    for (const block of stdout.split('\n\n')) {
+      const pathMatch = /^worktree (.+)$/m.exec(block);
+      if (!pathMatch) continue;
+      const branchMatch = /^branch refs\/heads\/(.+)$/m.exec(block);
+      entries.push({
+        path: pathMatch[1],
+        branch: branchMatch?.[1] ?? null,
+        isMain: pathMatch[1] === repoPath,
+      });
+    }
+    return entries;
+  } catch {
+    return [];
   }
 }
 

@@ -78,3 +78,31 @@ export type ProjectRemoteState = {
   hasRemote: boolean;
   selectedRemoteUrl: string | null;
 };
+
+export type RepoInstance = {
+  id: string;
+  projectId: string;
+  label: string | null;
+  kind: 'local' | 'ssh' | 'byoi';
+  connectionId: string | null;
+  path: string | null;
+  remoteUrl: string | null;
+  isFork: boolean;
+  isPrimary: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type AddRepoInstanceParams = {
+  projectId: string;
+  label?: string;
+  kind: 'local' | 'ssh' | 'byoi';
+  connectionId?: string;
+  path?: string;
+  remoteUrl?: string;
+  isFork?: boolean;
+  /** When set, clone this URL to `path` before registering the instance. */
+  cloneUrl?: string;
+};
+
+export type RemoveRepoInstanceResult = { success: true } | { success: false; error: string };

@@ -1,6 +1,7 @@
 import { promises as fsPromises } from 'node:fs';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
+import { listWorktreesFromContext } from '@main/core/git/impl/git-repo-utils';
 import { log } from '@main/lib/logger';
 import type { Branch } from '@shared/git';
 import { DEFAULT_REMOTE_NAME } from '@shared/git-utils';
@@ -105,23 +106,7 @@ export class WorktreeService {
   }
 
   async listWorktrees(): Promise<WorktreeEntry[]> {
-    try {
-      const { stdout } = await this.ctx.exec('git', ['worktree', 'list', '--porcelain']);
-      const entries: WorktreeEntry[] = [];
-      for (const block of stdout.split('\n\n')) {
-        const pathMatch = /^worktree (.+)$/m.exec(block);
-        if (!pathMatch) continue;
-        const branchMatch = /^branch refs\/heads\/(.+)$/m.exec(block);
-        entries.push({
-          path: pathMatch[1],
-          branch: branchMatch?.[1] ?? null,
-          isMain: pathMatch[1] === this.repoPath,
-        });
-      }
-      return entries;
-    } catch {
-      return [];
-    }
+    return listWorktreesFromContext(this.ctx, this.repoPath);
   }
 
   private async resolveSourceBaseRef(

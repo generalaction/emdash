@@ -3,7 +3,7 @@ import { eq, sql } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
 import { providerRepositoryService } from '@main/core/repository/provider-repository-service';
 import { db } from '@main/db/client';
-import { tasks, workspaces } from '@main/db/schema';
+import { projectRepoInstances, tasks, workspaces } from '@main/db/schema';
 import { resolveTaskBranchName } from '@shared/resolveTaskBranchName';
 import { err, ok, type Result } from '@shared/result';
 import type {
@@ -198,13 +198,24 @@ export async function createTask(
 
   const task = mapTaskRowToTask(taskRow, prs);
 
-  const workspaceType = ((): 'local' | 'project-ssh' | 'byoi' => {
+  let repoInstanceId: string | null = null;
+  const workspaceType = await (async (): Promise<'local' | 'project-ssh' | 'byoi'> => {
     if (params.workspaceProvider === 'byoi') return 'byoi';
+    if (params.workspace?.kind === 'repo-instance') {
+      const [inst] = await db
+        .select()
+        .from(projectRepoInstances)
+        .where(eq(projectRepoInstances.id, params.workspace.instanceId));
+      if (inst) {
+        repoInstanceId = inst.id;
+        return inst.kind === 'ssh' ? 'project-ssh' : 'local';
+      }
+    }
     if (project.defaultWorkspaceType.kind === 'ssh') return 'project-ssh';
     return 'local';
   })();
   const workspaceId = crypto.randomUUID();
-  await db.insert(workspaces).values({ id: workspaceId, type: workspaceType });
+  await db.insert(workspaces).values({ id: workspaceId, type: workspaceType, repoInstanceId });
   await db.update(tasks).set({ workspaceId }).where(eq(tasks.id, params.id));
 
   return ok({ task: { ...task, workspaceId }, warning });

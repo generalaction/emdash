@@ -1,58 +1,64 @@
-import { observer } from 'mobx-react-lite';
-import { ChevronRight, FolderGit2, GitBranch, Globe, GithubIcon, Laptop, CopyIcon, Folder, Trash2, TreePine } from 'lucide-react';
 import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuItem,
-  ContextMenuTrigger,
-} from '@renderer/lib/ui/context-menu';
-import { rpc } from '@renderer/lib/ipc';
+  ChevronRight,
+  FolderGit2,
+  GitBranch,
+  Laptop,
+  MoreHorizontal,
+  Server,
+  Trash2,
+  TreePine,
+} from 'lucide-react';
+import { observer } from 'mobx-react-lite';
+import { appState } from '@renderer/lib/stores/app-state';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@renderer/lib/ui/dropdown-menu';
 import { cn } from '@renderer/utils/utils';
-import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
-import { isGitHubDotComHost, parseRepositoryRef } from '@shared/repository-ref';
+import type { RepoInstance } from '@shared/projects';
+import type { ConnectionState } from '@shared/ssh';
 import type { WorktreeEntry } from '@shared/workspaces';
 
-export const ROW_HEIGHT = 64;
+export const HOST_ROW_HEIGHT = 40;
+export const INSTANCE_ROW_HEIGHT = 40;
 
 export type FlatItem =
   | {
-      type: 'main';
-      entry: WorktreeEntry;
+      type: 'host';
+      hostKey: string;
+      label: string;
+      /** For local hosts: machine name displayed before the "This machine" pill. */
+      username?: string;
+      /** For SSH hosts: the connection ID used to look up live state. */
+      connectionId?: string;
+      kind: 'local' | 'ssh';
+      isExpanded: boolean;
+    }
+  | {
+      type: 'instance-header';
+      instance: RepoInstance;
+      isPrimary: boolean;
       isExpanded: boolean;
       worktreeCount: number;
       taskCount: number;
-      username: string;
+      mainEntry?: WorktreeEntry;
       projectId: string;
+      depth?: number;
     }
   | {
       type: 'worktree';
       entry: WorktreeEntry;
+      instanceId: string;
       taskCount: number;
       repoName: string;
       hasUncommittedChanges: boolean;
       projectId: string;
     };
 
-
 export function splitWorkspacePath(absPath: string): string[] {
-  const segments = absPath.split('/').filter(Boolean);
-  return segments
-}
-
-function WorkspaceRowShell({
-  children,
-  className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-
-      <div className={cn('flex h-16 items-center hover:bg-background-1 rounded-lg transition-colors', className)}>
-        {children}
-      </div>
-
-  );
+  return absPath.split('/').filter(Boolean);
 }
 
 function BranchLabel({ text, className }: { text: string; className?: string }) {
@@ -68,60 +74,55 @@ function BranchLabel({ text, className }: { text: string; className?: string }) 
   );
 }
 
-function CopyPathButton({ path }: { path: string }) {
+function connectionStatePill(state: ConnectionState) {
+  const styles: Record<ConnectionState, string> = {
+    connected: 'border-border-success text-foreground-success bg-background-success',
+    connecting: 'border-border-info text-foreground-info bg-background-info',
+    reconnecting: 'border-border-warning text-foreground-warning bg-background-warning',
+    disconnected: 'border-border text-foreground-passive',
+    error: 'border-border-destructive text-foreground-destructive bg-background-destructive',
+  };
   return (
-    <button
-      type="button"
-      title="Copy full path"
-      className="opacity-0 group-hover:opacity-100 transition-opacity duration-150 rounded p-0.5 hover:bg-background-2 text-foreground-muted hover:text-foreground"
-      onClick={async (e) => {
-        e.stopPropagation();
-        await rpc.app.clipboardWriteText(path);
-      }}
-    >
-      <CopyIcon className="size-2.5" />
-    </button>
+    <span className={cn('rounded-full border px-2 py-0.5 text-xs', styles[state])}>
+      {state}
+    </span>
   );
 }
 
-const MainRepoRow = observer(function MainRepoRow({
+const HostRow = observer(function HostRow({
   item,
   onToggle,
 }: {
-  item: Extract<FlatItem, { type: 'main' }>;
+  item: Extract<FlatItem, { type: 'host' }>;
   onToggle: () => void;
 }) {
-  const repo = getRepositoryStore(item.projectId);
-  const repositoryUrl = repo?.canonicalRepositoryUrl ?? null;
-  const parsed = parseRepositoryRef(repositoryUrl);
-  const isGithub = parsed ? isGitHubDotComHost(parsed.host) : false;
-  const remoteUrl = repo?.baseRemote.url;
-  const repoLabel =
-    parsed?.nameWithOwner ?? remoteUrl?.replace(/^https?:\/\//, '') ?? null;
-
-  const displayPath = splitWorkspacePath(item.entry.path);
-  const branchText = item.entry.branch ?? 'detached HEAD';
-  const taskLabel =
-    item.taskCount === 0
-      ? null
-      : item.taskCount === 1
-        ? '1 task'
-        : `${item.taskCount} tasks`;
+  const connState =
+    item.kind === 'ssh' && item.connectionId
+      ? appState.sshConnections.stateFor(item.connectionId)
+      : null;
 
   return (
-    <WorkspaceRowShell className="group gap-2 p-2">
+    <div className="group flex h-10 w-full items-center gap-2 rounded-lg px-2 bg-background-1">
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={item.isExpanded}
-        aria-label={item.isExpanded ? 'Collapse worktrees' : 'Expand worktrees'}
-        className="relative flex size-8 shrink-0 items-center justify-center rounded-lg hover:bg-background-2"
+        aria-label={item.isExpanded ? 'Collapse' : 'Expand'}
+        className="relative flex size-7 shrink-0 items-center justify-center rounded-md hover:bg-background-2"
       >
-        <FolderGit2
-          absoluteStrokeWidth
-          strokeWidth={1.5}
-          className="absolute size-5 text-foreground-muted opacity-100 transition-opacity duration-150 group-hover:opacity-0"
-        />
+        {item.kind === 'ssh' ? (
+          <Server
+            absoluteStrokeWidth
+            strokeWidth={1.5}
+            className="absolute size-4 text-foreground-passive opacity-100 transition-opacity duration-150 group-hover:opacity-0"
+          />
+        ) : (
+          <Laptop
+            absoluteStrokeWidth
+            strokeWidth={1.5}
+            className="absolute size-4 text-foreground-passive opacity-100 transition-opacity duration-150 group-hover:opacity-0"
+          />
+        )}
         <ChevronRight
           absoluteStrokeWidth
           strokeWidth={2}
@@ -131,53 +132,141 @@ const MainRepoRow = observer(function MainRepoRow({
           )}
         />
       </button>
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="text-sm text-foreground">
-            {displayPath[displayPath.length - 1]}
-            </span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1 text-xs text-foreground-passive">
-              <Folder className='size-3' />
-              {displayPath[displayPath.length - 2]}
-            {/* <CopyPathButton path={item.entry.path} /> */}
-            </span>
-          <span className="flex shrink-0 items-center gap-1 text-xs text-foreground-passive">
-            <Laptop absoluteStrokeWidth strokeWidth={2} className="size-3.5" />
-            <span>{item.username}</span>
-          </span>
-          </div>
-        </div>
 
-        {/* Bottom row: branch + remote repo + task count + worktree count */}
-        <div className="flex items-center justify-between gap-2 text-xs">
-          <div className="flex shrink-0 items-center gap-2 text-foreground-passive">
-            <BranchLabel text={branchText} className="text-foreground-muted" />
-            {taskLabel && <span className="text-foreground-info">{taskLabel}</span>}
-          </div>
-          <div className="flex min-w-0 items-center gap-2">
-            {repoLabel && (
-              <span className="flex items-center gap-1 text-foreground-muted">
-                {isGithub ? (
-                  <GithubIcon absoluteStrokeWidth strokeWidth={2} className="size-3" />
-                ) : (
-                  <Globe absoluteStrokeWidth strokeWidth={2} className="size-3" />
-                )}
-                <span className="truncate">{repoLabel}</span>
-              </span>
-            )}
-            {item.worktreeCount > 0 && (
-              <span className="flex items-center gap-1 text-foreground-muted">
-                <TreePine className='size-3' />
-                {item.worktreeCount} {item.worktreeCount === 1 ? 'worktree' : 'worktrees'}
-              </span>
-            )}
-          </div>
+      {item.kind === 'local' ? (
+        <div className="flex items-center gap-2">
+          {item.username && (
+            <span className="text-sm text-foreground-muted">{item.username}</span>
+          )}
+          <span className="rounded-full border border-border px-2 py-0.5 text-xs text-foreground-passive">
+            {item.label}
+          </span>
         </div>
-      </div>
-    </WorkspaceRowShell>
+      ) : (
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-foreground-muted">{item.label}</span>
+          <span className="rounded-full border border-border px-2 py-0.5 text-xs text-foreground-passive">
+            ssh
+          </span>
+          {connState && connectionStatePill(connState)}
+        </div>
+      )}
+    </div>
+  );
+});
+
+const RepositoryRow = observer(function RepositoryRow({
+  item,
+  onToggle,
+  onRemove,
+}: {
+  item: Extract<FlatItem, { type: 'instance-header' }>;
+  onToggle: () => void;
+  onRemove?: () => void;
+}) {
+  const displayPath = item.mainEntry
+    ? splitWorkspacePath(item.mainEntry.path)
+    : item.instance.path
+      ? splitWorkspacePath(item.instance.path)
+      : [];
+
+  const name =
+    item.instance.label ??
+    displayPath[displayPath.length - 1] ??
+    (item.instance.kind === 'byoi' ? 'Sandbox' : item.instance.kind);
+
+  const branch = item.mainEntry?.branch ?? null;
+  const fullPath = item.instance.path ?? item.mainEntry?.path ?? '';
+
+  return (
+    <div
+      className={cn(
+        'group relative flex h-10 w-full items-center gap-2 rounded-lg px-2 transition-colors hover:bg-background-1'
+      )}
+    >
+      {/* Expand/collapse button — icon fades to chevron on hover */}
+      {item.instance.kind !== 'byoi' ? (
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={item.isExpanded}
+          aria-label={item.isExpanded ? 'Collapse' : 'Expand'}
+          className="relative flex size-7 shrink-0 items-center justify-center rounded-md hover:bg-background-2"
+        >
+          <FolderGit2
+            absoluteStrokeWidth
+            strokeWidth={1.5}
+            className="absolute size-4 text-foreground-passive opacity-100 transition-opacity duration-150 group-hover:opacity-0"
+          />
+          <ChevronRight
+            absoluteStrokeWidth
+            strokeWidth={2}
+            className={cn(
+              'absolute size-4 text-foreground-passive opacity-0 transition-all duration-150 group-hover:opacity-100',
+              item.isExpanded && 'rotate-90'
+            )}
+          />
+        </button>
+      ) : (
+        <div className="flex size-7 shrink-0 items-center justify-center">
+          <FolderGit2
+            absoluteStrokeWidth
+            strokeWidth={1.5}
+            className="size-4 text-foreground-muted"
+          />
+        </div>
+      )}
+
+      {/* Label + tags */}
+      <span className="max-w-40 truncate text-sm text-foreground-muted group-hover:text-foreground" title={name}>{name}</span>
+      {/* {item.instance.isFork && <GitFork className="size-3 shrink-0 text-foreground-muted" />}
+      <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-xs text-foreground-passive">
+        Repository
+      </span> */}
+      {item.taskCount > 0 && (
+        <span className="shrink-0 rounded-full border border-border-info px-2 py-0.5 text-xs text-foreground-info">
+          used by {item.taskCount} {item.taskCount === 1 ? 'task' : 'tasks'}
+        </span>
+      )}
+
+      {/* Spacer */}
+      <div className="min-w-0 flex-1" />
+
+      {/* Right side: full path + branch tag */}
+      {fullPath && (
+        <span
+          className="max-w-48 truncate text-xs text-foreground-passive"
+          title={fullPath}
+          dir="rtl"
+        >
+          {fullPath}
+        </span>
+      )}
+      {branch && (
+        <BranchLabel
+          text={branch}
+          className="shrink-0 text-xs text-foreground-muted"
+        />
+      )}
+
+      {/* Three-dots menu — absolutely positioned, visible on hover */}
+      {onRemove && (
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            className="absolute right-2 flex size-6 items-center justify-center rounded-md opacity-0 transition-opacity hover:bg-background-2 group-hover:opacity-100"
+            aria-label="Repository options"
+          >
+            <MoreHorizontal absoluteStrokeWidth strokeWidth={2} className="size-4 text-foreground-muted" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" side="bottom">
+            <DropdownMenuItem variant="destructive" onClick={onRemove}>
+              <Trash2 />
+              Remove repository
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
+    </div>
   );
 });
 
@@ -189,56 +278,62 @@ function WorktreeRow({
   onRemove?: () => void;
 }) {
   const displayPath = splitWorkspacePath(item.entry.path);
-  const taskLabel =
-    item.taskCount === 0
-      ? null
-      : item.taskCount === 1
-        ? '1 task'
-        : `${item.taskCount} tasks`;
+  const name = displayPath[displayPath.length - 1] ?? item.entry.path;
 
   return (
-    <ContextMenu>
-      <ContextMenuTrigger>
-        <WorkspaceRowShell className="group px-2 gap-2">
-          <div className="flex size-8 h-full items-center">
-            <div className="h-full w-px bg-background-2 mx-auto" />
-          </div>
-          <div className="flex size-8 items-center justify-center">
-            <TreePine className='size-5 text-foreground-muted' absoluteStrokeWidth strokeWidth={1.5} />
-          </div>
-          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <div className="flex items-center justify-between gap-2">
-              <span
-                className="truncate text-sm text-foreground"
-                title={item.entry.path}
-              >
-                {displayPath[displayPath.length - 1]}
-              </span>
-              <span className='flex items-center text-xs gap-1 text-foreground-passive'>
-                <Folder className='size-3' />
-                {displayPath[displayPath.length - 2]}
-              </span>
-            </div>
-            <div className="flex items-center gap-1 justify-between">
-              <div className='flex items-center gap-2'>
-                <BranchLabel text={item.entry.branch ?? 'detached HEAD'} className="text-foreground-muted text-xs" />
-                {taskLabel && <span className="shrink-0 text-xs text-foreground-info">{taskLabel}</span>}
-              </div>
-              <span className='flex items-center text-xs gap-1 text-foreground-passive'>
-                <FolderGit2 className='size-3' />
-                {item.repoName}
-              </span>
-            </div>
-          </div>
-        </WorkspaceRowShell>
-      </ContextMenuTrigger>
-      <ContextMenuContent>
-        <ContextMenuItem variant="destructive" onClick={onRemove}>
-          <Trash2 />
-          Remove worktree
-        </ContextMenuItem>
-      </ContextMenuContent>
-    </ContextMenu>
+    <div className="group relative flex h-10 w-full items-center rounded-lg px-2 hover:bg-background-1 transition-colors">
+      <div className="min-w-7 h-full flex items-center justify-center">
+        <div className="w-px h-full bg-background-2" />
+      </div>
+      <div className="flex size-7 shrink-0 items-center justify-center">
+        <TreePine
+          absoluteStrokeWidth
+          strokeWidth={1.5}
+          className="size-4 text-foreground-passive"
+        />
+      </div>
+      <span className="max-w-40 truncate text-sm text-foreground-muted group-hover:text-foreground" title={name}>{name}</span>
+      {/* <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-xs text-foreground-passive">
+        worktree
+      </span> */}
+      {item.taskCount > 0 && (
+        <span className="shrink-0 rounded-full border border-border-info px-2 py-0.5 text-xs text-foreground-info">
+          used by {item.taskCount} {item.taskCount === 1 ? 'task' : 'tasks'}
+        </span>
+      )}
+
+
+      <div className="min-w-0 flex-1" />
+      <span
+        className="max-w-48 truncate text-xs text-foreground-passive"
+        title={item.entry.path}
+        dir="rtl"
+      >
+        {item.entry.path}
+      </span>
+      {item.entry.branch && (
+        <BranchLabel
+          text={item.entry.branch}
+          className="shrink-0 text-xs text-foreground-muted"
+        />
+      )}
+
+      {/* Three-dots menu — absolutely positioned, visible on hover */}
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          className="absolute right-2 flex size-6 items-center justify-center rounded-md opacity-0 transition-opacity hover:bg-background-2 group-hover:opacity-100 bg-background-1"
+          aria-label="Worktree options"
+        >
+          <MoreHorizontal absoluteStrokeWidth strokeWidth={2} className="size-4 text-foreground-muted" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" side="bottom" className="min-w-48">
+          <DropdownMenuItem variant="destructive"  onClick={onRemove}>
+            <Trash2 />
+            Remove worktree
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 }
 
@@ -251,8 +346,11 @@ export function WorkspaceRow({
   onToggle: () => void;
   onRemove?: () => void;
 }) {
-  if (item.type === 'main') {
-    return <MainRepoRow item={item} onToggle={onToggle} />;
+  if (item.type === 'host') {
+    return <HostRow item={item} onToggle={onToggle} />;
+  }
+  if (item.type === 'instance-header') {
+    return <RepositoryRow item={item} onToggle={onToggle} onRemove={onRemove} />;
   }
   return <WorktreeRow item={item} onRemove={onRemove} />;
 }

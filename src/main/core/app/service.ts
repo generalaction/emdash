@@ -1,6 +1,6 @@
 import { exec } from 'node:child_process';
 import { readFile, realpath, stat } from 'node:fs/promises';
-import { homedir, userInfo } from 'node:os';
+import { homedir, hostname, userInfo } from 'node:os';
 import { extname, isAbsolute, join, resolve, sep } from 'node:path';
 import { eq } from 'drizzle-orm';
 import { app, clipboard, dialog, shell } from 'electron';
@@ -101,9 +101,9 @@ class AppService implements IInitializable, IDisposable {
     this._unsubscribes = [];
   }
 
-  getSystemInfo(): { username: string; homedir: string } {
+  getSystemInfo(): { username: string; homedir: string; hostname: string } {
     const info = userInfo();
-    return { username: info.username, homedir: homedir() };
+    return { username: info.username, homedir: homedir(), hostname: hostname() };
   }
 
   getCachedAppVersion(): Promise<string> {

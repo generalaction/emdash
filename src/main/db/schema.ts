@@ -58,6 +58,35 @@ export const projects = sqliteTable(
   })
 );
 
+export const projectRepoInstances = sqliteTable(
+  'project_repo_instances',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    label: text('label'),
+    kind: text('kind').notNull().$type<'local' | 'ssh' | 'byoi'>(),
+    connectionId: text('connection_id').references(() => sshConnections.id, {
+      onDelete: 'set null',
+    }),
+    path: text('path'), // null for byoi
+    remoteUrl: text('remote_url'), // null = inherits project's primary remote; set for forks
+    isFork: integer('is_fork').notNull().default(0), // boolean, 0=false, 1=true
+    isPrimary: integer('is_primary').notNull().default(0), // boolean, 0=false, 1=true
+    createdAt: text('created_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text('updated_at')
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    projectIdIdx: index('idx_project_repo_instances_project_id').on(table.projectId),
+    connectionIdIdx: index('idx_project_repo_instances_connection_id').on(table.connectionId),
+  })
+);
+
 export const projectRemotes = sqliteTable(
   'project_remotes',
   {
@@ -142,6 +171,7 @@ export const workspaces = sqliteTable(
     type: text('type').notNull().$type<'local' | 'project-ssh' | 'byoi'>(),
     data: text('data'),
     path: text('path'),
+    repoInstanceId: text('repo_instance_id'),
     linesAdded: integer('lines_added'),
     linesDeleted: integer('lines_deleted'),
     createdAt: text('created_at')
@@ -402,6 +432,18 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
     fields: [projects.sshConnectionId],
     references: [sshConnections.id],
   }),
+  repoInstances: many(projectRepoInstances),
+}));
+
+export const projectRepoInstancesRelations = relations(projectRepoInstances, ({ one }) => ({
+  project: one(projects, {
+    fields: [projectRepoInstances.projectId],
+    references: [projects.id],
+  }),
+  sshConnection: one(sshConnections, {
+    fields: [projectRepoInstances.connectionId],
+    references: [sshConnections.id],
+  }),
 }));
 
 export const projectSettingsRelations = relations(projectSettings, ({ one }) => ({
@@ -451,3 +493,5 @@ export type AppSecretRow = typeof appSecrets.$inferSelect;
 export type AppSecretInsert = typeof appSecrets.$inferInsert;
 export type WorkspaceRow = typeof workspaces.$inferSelect;
 export type WorkspaceInsert = typeof workspaces.$inferInsert;
+export type ProjectRepoInstanceRow = typeof projectRepoInstances.$inferSelect;
+export type ProjectRepoInstanceInsert = typeof projectRepoInstances.$inferInsert;
