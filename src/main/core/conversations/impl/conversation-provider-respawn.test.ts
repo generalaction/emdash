@@ -160,6 +160,27 @@ describe('conversation provider respawn state', () => {
     ptySessionRegistry.unregister('project-1:task-1:conversation-1');
   });
 
+  it('passes global editor variables to local agent sessions', async () => {
+    const previousEditor = process.env.EDITOR;
+    try {
+      process.env.EDITOR = 'zed';
+      const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
+      spawnLocalPty.mockReturnValue(fakePty(exitHandlers));
+
+      await localProvider().startSession(conversation());
+
+      const request = spawnLocalPty.mock.calls[0][0] as { env: Record<string, string> };
+      expect(request.env.EDITOR).toBe('zed');
+      expect(request.env.SHELL).toBeUndefined();
+    } finally {
+      if (previousEditor === undefined) {
+        delete process.env.EDITOR;
+      } else {
+        process.env.EDITOR = previousEditor;
+      }
+    }
+  });
+
   it('replaces a local conversation after clean exit by resuming the same provider session', async () => {
     vi.useFakeTimers();
     try {
