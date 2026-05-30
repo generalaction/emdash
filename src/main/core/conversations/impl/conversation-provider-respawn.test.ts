@@ -3,6 +3,7 @@ import type { Pty, PtyExitInfo } from '@main/core/pty/pty';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import type { Conversation } from '@shared/conversations';
 import { agentSessionExitedChannel } from '@shared/events/agentEvents';
+import { ptyExitChannel } from '@shared/events/ptyEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { LocalConversationProvider } from './local-conversation';
 import { SshConversationProvider } from './ssh-conversation';
@@ -233,6 +234,39 @@ describe('conversation provider respawn state', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('emits PTY exit when a local conversation unregisters before the registry exit handler runs', async () => {
+    const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
+    const exitInfo = { exitCode: 0 };
+    spawnLocalPty.mockReturnValue(fakePty(exitHandlers));
+    const provider = localProvider();
+    const item = conversation();
+    const sessionId = makePtySessionId(item.projectId, item.taskId, item.id);
+
+    await provider.startSession(item);
+    vi.mocked(events.emit).mockClear();
+    for (const handler of exitHandlers) handler(exitInfo);
+
+    expect(events.emit).toHaveBeenCalledWith(ptyExitChannel, exitInfo, sessionId);
+  });
+
+  it('emits PTY exit when an SSH conversation unregisters before the registry exit handler runs', async () => {
+    const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
+    const exitInfo = { exitCode: 0 };
+    openSsh2Pty.mockResolvedValue({
+      success: true,
+      data: fakePty(exitHandlers),
+    });
+    const provider = sshProvider();
+    const item = conversation();
+    const sessionId = makePtySessionId(item.projectId, item.taskId, item.id);
+
+    await provider.startSession(item);
+    vi.mocked(events.emit).mockClear();
+    for (const handler of exitHandlers) handler(exitInfo);
+
+    expect(events.emit).toHaveBeenCalledWith(ptyExitChannel, exitInfo, sessionId);
   });
 
   it('uses the last observed terminal size when replacing a local conversation', async () => {

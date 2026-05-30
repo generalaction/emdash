@@ -202,12 +202,12 @@ export class LocalConversationProvider implements ConversationProvider {
         });
       }
 
-      pty.onExit(() => {
+      pty.onExit((info) => {
         const decision = this.supervisor.handleExit(sessionId, pty);
         if (decision.kind === 'stale') return;
         const replacementSize = ptySessionRegistry.getLastSize(sessionId) ?? spawnSize;
 
-        ptySessionRegistry.unregister(sessionId);
+        ptySessionRegistry.unregister(sessionId, { pty, exitInfo: info });
         this.sessions.delete(sessionId);
         if (decision.kind === 'stopped') return;
 

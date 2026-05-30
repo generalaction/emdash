@@ -177,12 +177,13 @@ export class SshConversationProvider implements ConversationProvider {
         conversationId: conversation.id,
       });
 
-      pty.onExit(({ exitCode }) => {
+      pty.onExit((info) => {
+        const { exitCode } = info;
         const decision = this.supervisor.handleExit(sessionId, pty);
         if (decision.kind === 'stale') return;
         const replacementSize = ptySessionRegistry.getLastSize(sessionId) ?? spawnSize;
 
-        ptySessionRegistry.unregister(sessionId);
+        ptySessionRegistry.unregister(sessionId, { pty, exitInfo: info });
         this.sessions.delete(sessionId);
         if (decision.kind === 'stopped') return;
 

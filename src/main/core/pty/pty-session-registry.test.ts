@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ptyStartedChannel } from '@shared/events/appEvents';
-import { ptyDataChannel } from '@shared/events/ptyEvents';
+import { ptyDataChannel, ptyExitChannel } from '@shared/events/ptyEvents';
 import type { Pty, PtyExitInfo } from './pty';
 import { PtySessionRegistry } from './pty-session-registry';
 
@@ -97,6 +97,33 @@ describe('PtySessionRegistry', () => {
     registry.unregister('session-1');
 
     expect(events.emit).toHaveBeenCalledWith(ptyDataChannel, 'final output', 'session-1');
+  });
+
+  it('emits exit when unregistering the current PTY with exit info', () => {
+    const registry = new PtySessionRegistry();
+    const pty = fakePty();
+    const exitInfo = { exitCode: 0 };
+
+    registry.register('session-1', pty);
+    registry.unregister('session-1', { pty, exitInfo });
+
+    expect(events.emit).toHaveBeenCalledWith(ptyExitChannel, exitInfo, 'session-1');
+  });
+
+  it('does not emit exit or unregister when unregister is called for a stale PTY', () => {
+    const registry = new PtySessionRegistry();
+    const first = fakePty();
+    const second = fakePty();
+    const exitInfo = { exitCode: 0 };
+
+    registry.register('session-1', first);
+    registry.register('session-1', second);
+    vi.mocked(events.emit).mockClear();
+
+    registry.unregister('session-1', { pty: first, exitInfo });
+
+    expect(registry.get('session-1')).toBe(second);
+    expect(events.emit).not.toHaveBeenCalledWith(ptyExitChannel, exitInfo, 'session-1');
   });
 
   it('records resize dimensions before forwarding to the current PTY', () => {

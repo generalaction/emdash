@@ -2,7 +2,7 @@ import { events } from '@main/lib/events';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 import { ptyStartedChannel } from '@shared/events/appEvents';
 import { ptyDataChannel, ptyExitChannel, ptyInputChannel } from '@shared/events/ptyEvents';
-import type { Pty } from './pty';
+import type { Pty, PtyExitInfo } from './pty';
 
 export interface PtySessionMetadata {
   providerId?: AgentProviderId;
@@ -106,8 +106,12 @@ export class PtySessionRegistry {
     events.emit(ptyStartedChannel, { id: sessionId, epoch });
   }
 
-  unregister(sessionId: string): void {
+  unregister(sessionId: string, options: { pty?: Pty; exitInfo?: PtyExitInfo } = {}): void {
+    if (options.pty !== undefined && this.ptyMap.get(sessionId) !== options.pty) return;
     this.pendingFlushes.get(sessionId)?.();
+    if (options.exitInfo !== undefined) {
+      events.emit(ptyExitChannel, options.exitInfo, sessionId);
+    }
     this.ptyMap.delete(sessionId);
     this.ptyInputSubscriptions.get(sessionId)?.();
     this.ptyInputSubscriptions.delete(sessionId);
