@@ -321,7 +321,8 @@ export function InitialConversationField({
             onOpenChange={(open) => {
               if (!open) setPreviewAttachment(null);
             }}
-            contentClassName="h-[min(72dvh,680px)] max-h-[min(72dvh,680px)] w-[min(78vw,920px)] max-w-[min(78vw,920px)] sm:max-w-[min(78vw,920px)]"
+            contentClassName="z-[10001] h-[min(72dvh,680px)] max-h-[min(72dvh,680px)] w-[min(78vw,920px)] max-w-[min(78vw,920px)] sm:max-w-[min(78vw,920px)]"
+            overlayClassName="z-[10000]"
             wrapperClassName="rounded-md bg-muted/20"
           >
             {({ fitToView }) => (

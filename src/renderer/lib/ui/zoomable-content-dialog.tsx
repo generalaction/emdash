@@ -16,6 +16,7 @@ interface ZoomableContentDialogProps {
   contentKey: string;
   onOpenChange: (open: boolean) => void;
   contentClassName?: string;
+  overlayClassName?: string;
   wrapperClassName?: string;
   children: (api: { fitToView: (animationTime?: number) => void }) => React.ReactNode;
 }
@@ -141,6 +142,7 @@ export function ZoomableContentDialog({
   contentKey,
   onOpenChange,
   contentClassName,
+  overlayClassName,
   wrapperClassName,
   children,
 }: ZoomableContentDialogProps) {
@@ -163,6 +165,7 @@ export function ZoomableContentDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         aria-label={ariaLabel}
+        overlayClassName={overlayClassName}
         className={cn(
           'top-[calc(50%+1rem)] h-[calc(100dvh-4rem)] max-h-[calc(100dvh-4rem)] max-w-[calc(100vw-2rem)] sm:max-w-[calc(100vw-2rem)]',
           contentClassName
