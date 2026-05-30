@@ -55,7 +55,5 @@ export function buildPullRequestConversationItems(
   comments: PullRequestComment[]
 ): PullRequestConversationItem[] {
   const description = descriptionItemForPr(pr);
-  return [...(description ? [description] : []), ...comments].sort(
-    sortPullRequestConversationItems
-  );
+  return [...(description ? [description] : []), ...comments];
 }

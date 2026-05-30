@@ -124,6 +124,18 @@ describe('CommentsList', () => {
 
     expect(html.indexOf('First comment')).toBeLessThan(html.indexOf('Second comment edited later'));
   });
+
+  it('keeps the error state visible when conversation items are present', () => {
+    const html = renderToStaticMarkup(
+      React.createElement(CommentsList, {
+        comments: [makeComment('PR body')],
+        error: new Error('failed'),
+      })
+    );
+
+    expect(html).toContain('PR body');
+    expect(html).toContain('Unable to load comments');
+  });
 });
 
 describe('buildPullRequestConversationItems', () => {

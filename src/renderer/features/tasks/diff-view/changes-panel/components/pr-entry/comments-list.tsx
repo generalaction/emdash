@@ -109,6 +109,12 @@ export function CommentsList({
       {sorted.map((comment) => (
         <CommentItem key={comment.id} comment={comment} />
       ))}
+      {isLoading && (
+        <div className="px-3 py-2 text-xs text-foreground-passive">Loading comments...</div>
+      )}
+      {error && (
+        <div className="px-3 py-2 text-xs text-foreground-passive">Unable to load comments</div>
+      )}
     </div>
   );
 }
