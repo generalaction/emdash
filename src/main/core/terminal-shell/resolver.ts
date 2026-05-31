@@ -213,6 +213,11 @@ function buildProfile({
   };
 }
 
+function withAutomationPowerShellArgs(profile: ResolvedShellProfile): ResolvedShellProfile {
+  if (profile.family !== 'powershell') return profile;
+  return { ...profile, commandArgs: ['-NoLogo', '-Command'] };
+}
+
 export async function resolveTerminalShell({
   intent,
   target,
@@ -338,7 +343,9 @@ export async function resolveLocalAutomationShellWithSystemFallback({
 
   if (intent !== 'system') {
     try {
-      return await resolveTerminalShell({ intent, target, fileExists, readDirNames: readDirs });
+      return withAutomationPowerShellArgs(
+        await resolveTerminalShell({ intent, target, fileExists, readDirNames: readDirs })
+      );
     } catch (error) {
       if (!(error instanceof ShellUnavailableError)) throw error;
       onFallback?.(error);
@@ -350,14 +357,17 @@ export async function resolveLocalAutomationShellWithSystemFallback({
   );
   for (const candidate of fallbackCandidates) {
     try {
-      return await resolveTerminalShell({
-        intent: candidate,
-        target,
-        fileExists,
-        readDirNames: readDirs,
-      });
+      return withAutomationPowerShellArgs(
+        await resolveTerminalShell({
+          intent: candidate,
+          target,
+          fileExists,
+          readDirNames: readDirs,
+        })
+      );
     } catch (error) {
       if (!(error instanceof ShellUnavailableError)) throw error;
+      onFallback?.(error);
     }
   }
 

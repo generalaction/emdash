@@ -89,6 +89,24 @@ describe('terminal shell resolver', () => {
       executable: 'C:\\Program Files\\PowerShell\\7.5.1\\pwsh.exe',
       family: 'powershell',
     });
+    expect(profile.commandArgs).toEqual(['-NoLogo', '-Command']);
+  });
+
+  it('keeps regular PowerShell command profiles non-profile-loading by default', async () => {
+    const profile = await resolveTerminalShell({
+      intent: 'pwsh',
+      target: {
+        kind: 'local',
+        platform: 'win32',
+        env: {
+          Path: 'C:\\Program Files\\PowerShell\\7',
+          PATHEXT: '.EXE;.CMD',
+        },
+      },
+      fileExists: (candidate) => candidate === 'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
+    });
+
+    expect(profile.commandArgs).toEqual(['-NoProfile', '-Command']);
   });
 
   it('falls Windows automation shell back to Windows PowerShell before cmd', async () => {
@@ -134,6 +152,30 @@ describe('terminal shell resolver', () => {
       executable: 'C:\\Windows\\System32\\powershell.exe',
     });
     expect(readDirNames).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports each unavailable Windows automation fallback candidate', async () => {
+    const onFallback = vi.fn();
+
+    const profile = await resolveLocalAutomationShellWithSystemFallback({
+      intent: 'pwsh',
+      platform: 'win32',
+      env: {
+        ComSpec: 'C:\\Windows\\System32\\cmd.exe',
+        ProgramFiles: 'C:\\Program Files',
+        Path: 'C:\\Windows\\System32',
+        PATHEXT: '.EXE;.CMD',
+      },
+      onFallback,
+      fileExists: () => false,
+    });
+
+    expect(profile).toMatchObject({
+      id: 'target-default',
+      resolvedShellId: 'cmd',
+    });
+    expect(onFallback).toHaveBeenCalledTimes(2);
+    expect(onFallback.mock.calls.map(([error]) => error.shell)).toEqual(['pwsh', 'powershell']);
   });
 
   it('reports Windows shells separately from POSIX shells', async () => {

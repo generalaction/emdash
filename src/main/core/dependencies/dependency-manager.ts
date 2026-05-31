@@ -1,6 +1,7 @@
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
 import type { IExecutionContext } from '@main/core/execution-context/types';
+import { appSettingsService } from '@main/core/settings/settings-service';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import { resolveLocalAutomationShellWithSystemFallback } from '@main/core/terminal-shell/resolver';
 import { events } from '@main/lib/events';
@@ -244,8 +245,15 @@ export class DependencyManager implements IInitializable {
 }
 
 async function resolveLocalInstallShellProfile() {
+  const { defaultShell } = await appSettingsService.get('terminal');
   return await resolveLocalAutomationShellWithSystemFallback({
-    intent: 'system',
+    intent: defaultShell,
+    onFallback: (error) => {
+      log.warn('[DependencyManager] Preferred install shell unavailable, using fallback', {
+        shell: error.shell,
+        target: error.target,
+      });
+    },
   });
 }
 

@@ -78,7 +78,7 @@ export function terminalCommandArgs(shell: string): string[] {
     case 'windows-cmd':
       return ['/d', '/s', '/c'];
     case 'powershell':
-      return ['-NoLogo', '-Command'];
+      return ['-NoProfile', '-Command'];
     case 'posix':
     case 'csh':
       return BASIC_INTERACTIVE_SHELLS.has(terminalShellBasename(shell)) ? ['-c'] : ['-lc'];
