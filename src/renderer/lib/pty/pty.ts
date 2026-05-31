@@ -61,6 +61,7 @@ export class FrontendPty {
   readonly ownedContainer: HTMLDivElement;
   private theme?: SessionTheme;
   private offData: (() => void) | null = null;
+  private lastMountedSize: { width: number; height: number } | null = null;
   /** Last { cols, rows } sent to rpc.pty.resize(). Used by PaneSizingContext to skip redundant IPC calls. */
   lastSentDims: { cols: number; rows: number } | null = null;
 
@@ -179,6 +180,10 @@ export class FrontendPty {
     ) {
       this.terminal.resize(targetDims.cols, targetDims.rows);
     }
+    Object.assign(this.ownedContainer.style, {
+      width: '100%',
+      height: '100%',
+    });
     mountTarget.appendChild(this.ownedContainer);
     // Force a Canvas2D repaint after reparenting in the DOM.
     const t = this.terminal;
@@ -196,6 +201,16 @@ export class FrontendPty {
    * the visible mount target have been disconnected.
    */
   unmount(): void {
+    const rect = this.ownedContainer.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      this.lastMountedSize = { width: rect.width, height: rect.height };
+    }
+    if (this.lastMountedSize) {
+      Object.assign(this.ownedContainer.style, {
+        width: `${this.lastMountedSize.width}px`,
+        height: `${this.lastMountedSize.height}px`,
+      });
+    }
     ensureXtermHost().appendChild(this.ownedContainer);
   }
 
