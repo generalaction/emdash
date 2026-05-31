@@ -12,6 +12,10 @@ import { Toaster } from '@renderer/lib/ui/toaster';
 
 type AnyViewDefinition = ViewDefinition<Record<string, unknown>>;
 
+function NoOpTitlebar() {
+  return null;
+}
+
 function resolveView(viewId: ViewId): AnyViewDefinition {
   return (views[viewId] ?? views.home) as AnyViewDefinition;
 }
@@ -29,7 +33,7 @@ function resolveWrapView(
 }
 
 function ViewContent({ view }: { view: AnyViewDefinition }) {
-  const TitlebarSlot = view.TitlebarSlot ?? (() => null);
+  const TitlebarSlot = view.TitlebarSlot ?? NoOpTitlebar;
   const MainPanel = view.MainPanel;
   return <WorkspaceContentLayout titlebarSlot={<TitlebarSlot />} mainPanel={<MainPanel />} />;
 }
@@ -44,9 +48,9 @@ export const Workspace = observer(function Workspace() {
   const BaseWrapView = resolveWrapView(baseView);
   const baseWrapParams = resolveViewParams(baseViewId);
   const isSettingsOpen = currentViewId === 'settings';
-  const settingsView = resolveView('settings');
-  const SettingsWrapView = resolveWrapView(settingsView);
-  const settingsWrapParams = resolveViewParams('settings');
+  const settingsView = isSettingsOpen ? resolveView('settings') : null;
+  const SettingsWrapView = settingsView ? resolveWrapView(settingsView) : null;
+  const settingsWrapParams = settingsView ? resolveViewParams('settings') : null;
 
   return (
     <>
@@ -60,7 +64,7 @@ export const Workspace = observer(function Workspace() {
             <BaseWrapView {...baseWrapParams}>
               <ViewContent view={baseView} />
             </BaseWrapView>
-            {isSettingsOpen ? (
+            {settingsView && SettingsWrapView && settingsWrapParams ? (
               <div className="absolute inset-0 z-10 bg-background">
                 <SettingsWrapView {...settingsWrapParams}>
                   <ViewContent view={settingsView} />
