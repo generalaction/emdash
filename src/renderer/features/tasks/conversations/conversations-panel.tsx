@@ -1,5 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useRef } from 'react';
+import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { useIsActiveTask } from '@renderer/features/tasks/hooks/use-is-active-task';
 import { useTabGroupContext } from '@renderer/features/tasks/tabs/tab-group-context';
 import {
@@ -12,6 +13,7 @@ import { PaneSizingProvider } from '@renderer/lib/pty/pane-sizing-context';
 import { PtyPane } from '@renderer/lib/pty/pty-pane';
 import { TerminalSearchOverlay } from '@renderer/lib/pty/terminal-search-overlay';
 import { useTerminalSearch } from '@renderer/lib/pty/use-terminal-search';
+import { resolveContextBarLayout } from '@shared/context-bar-settings';
 import { ContextBar } from './context-bar';
 import type { ConversationStore } from './conversation-manager';
 
@@ -20,6 +22,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
   const taskView = useWorkspaceViewModel();
   const conversations = useConversations();
   const workspace = useWorkspace();
+  const { value: interfaceSettings } = useAppSettingsKey('interface');
   const { groupId, tabManager: tm } = useTabGroupContext();
   const isActive = useIsActiveTask(taskId);
   const remoteConnectionId = workspace.sshConnectionId;
@@ -80,14 +83,27 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
   }, [sessionStatus]);
 
   const onInterruptPress = activeConversation ? () => activeConversation.clearWorking() : undefined;
+  const { position: contextBarPosition, alignment: contextBarAlignment } = resolveContextBarLayout(
+    interfaceSettings?.contextBarPosition,
+    interfaceSettings?.contextBarAlignment
+  );
+  const showTopContextBar = contextBarPosition === 'top';
+  const showBottomContextBar = contextBarPosition === 'bottom';
 
   return (
     <div className="flex h-full flex-col">
-      <div className="min-h-0 flex-1">
+      {showTopContextBar && (
+        <ContextBar
+          conversationId={tm.activeConversationId}
+          position="top"
+          alignment={contextBarAlignment}
+        />
+      )}
+      <div className="flex min-h-0 flex-1">
         <div
           ref={containerRef}
           tabIndex={-1}
-          className="flex h-full flex-col outline-none"
+          className="flex h-full min-w-0 flex-1 flex-col outline-none"
           onFocus={() => {
             if (isActive) taskView.setFocusedRegion('main');
           }}
@@ -126,7 +142,13 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
           </PaneSizingProvider>
         </div>
       </div>
-      <ContextBar conversationId={tm.activeConversationId} />
+      {showBottomContextBar && (
+        <ContextBar
+          conversationId={tm.activeConversationId}
+          position="bottom"
+          alignment={contextBarAlignment}
+        />
+      )}
     </div>
   );
 });

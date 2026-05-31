@@ -1,6 +1,6 @@
 import { useHotkey, type Hotkey } from '@tanstack/react-hotkeys';
 import { ChevronDown, ChevronUp, MessageSquare, TextInitial } from 'lucide-react';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Combobox,
   ComboboxCollection,
@@ -95,6 +95,7 @@ export function AddContextPopover({
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<ContextAction | null>(null);
   const [query, setQuery] = useState('');
+  const ignoreOpenUntilRef = useRef(0);
 
   const filteredActions = useMemo(() => {
     if (!query) return actions;
@@ -127,8 +128,21 @@ export function AddContextPopover({
   };
 
   const handleOpenChange = (nextOpen: boolean) => {
+    if (nextOpen && Date.now() < ignoreOpenUntilRef.current) {
+      return;
+    }
     setOpen(nextOpen);
     if (!nextOpen) setQuery('');
+  };
+
+  const blockComboboxOpenForContextMenu = () => {
+    ignoreOpenUntilRef.current = Date.now() + 500;
+  };
+
+  const blockSyntheticClickAfterContextMenu = (event: React.SyntheticEvent) => {
+    if (Date.now() >= ignoreOpenUntilRef.current) return;
+    event.preventDefault();
+    event.stopPropagation();
   };
 
   return (
@@ -147,6 +161,17 @@ export function AddContextPopover({
     >
       <ComboboxTrigger
         disabled={disabled}
+        onContextMenuCapture={() => blockComboboxOpenForContextMenu()}
+        onPointerDownCapture={(event) => {
+          if (event.button !== 0) blockComboboxOpenForContextMenu();
+        }}
+        onMouseDownCapture={(event) => {
+          if (event.button !== 0) blockComboboxOpenForContextMenu();
+        }}
+        onClickCapture={(event) => {
+          if (event.button !== 0) blockComboboxOpenForContextMenu();
+          blockSyntheticClickAfterContextMenu(event);
+        }}
         className={
           renderTrigger
             ? undefined
