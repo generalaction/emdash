@@ -15,6 +15,7 @@ import { issueController } from './core/issues/controller';
 import { jiraController } from './core/jira/controller';
 import { linearController } from './core/linear/controller';
 import { mcpController } from './core/mcp/controller';
+import { mondayController } from './core/monday/controller';
 import { plainController } from './core/plain/controller';
 import { projectController } from './core/projects/controller';
 import { promptLibraryController } from './core/prompt-library/controller';
@@ -55,6 +56,7 @@ export const rpcRouter = createRPCRouter({
   issues: issueController,
   jira: jiraController,
   linear: linearController,
+  monday: mondayController,
   plain: plainController,
   promptLibrary: promptLibraryController,
   skills: skillsController,
