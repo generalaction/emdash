@@ -102,6 +102,12 @@ function formatContext(updates: MondayItemWithContext['updates']): string | unde
 
 const ORDER_BY_UPDATED_AT_DESC = { column_id: '__last_updated__', direction: 'desc' };
 
+function sortByUpdatedAtDesc(issues: Issue[]): Issue[] {
+  return issues.sort(
+    (a, b) => new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime()
+  );
+}
+
 async function listIssues(limit: number): Promise<IssueListResult> {
   const credentials = await mondayConnectionService.getStoredCredentials();
   if (!credentials) {
@@ -131,8 +137,8 @@ async function listIssues(limit: number): Promise<IssueListResult> {
       variables
     );
 
-    const issues: Issue[] = data.boards.flatMap((board) =>
-      board.items_page.items.map((item) => toIssue(item, board))
+    const issues = sortByUpdatedAtDesc(
+      data.boards.flatMap((board) => board.items_page.items.map((item) => toIssue(item, board)))
     );
 
     return { success: true, issues: issues.slice(0, sanitizedLimit) };
@@ -191,8 +197,8 @@ async function searchIssues(searchTerm: string, limit: number): Promise<IssueLis
       variables
     );
 
-    const issues: Issue[] = data.boards.flatMap((board) =>
-      board.items_page.items.map((item) => toIssue(item, board))
+    const issues = sortByUpdatedAtDesc(
+      data.boards.flatMap((board) => board.items_page.items.map((item) => toIssue(item, board)))
     );
 
     return { success: true, issues: issues.slice(0, sanitizedLimit) };
@@ -239,7 +245,7 @@ async function getIssueContext(opts: IssueContextOpts): Promise<IssueContextResu
         board { id name url }
         group { title }
         column_values { id type text value }
-        updates { id text_body created_at creator { name } }
+        updates(limit: 25) { id text_body created_at creator { name } }
       }
     }`;
 
