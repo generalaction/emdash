@@ -10,9 +10,12 @@ import {
   type CheckRun,
   type CheckRunBucket,
 } from '@renderer/utils/github';
-import type { PullRequest } from '@shared/pull-requests';
+import type { PullRequest, PullRequestComment } from '@shared/pull-requests';
 import { CommentsList } from './comments-list';
+import { buildPullRequestConversationItems } from './pull-request-conversation';
 import { usePullRequestComments } from './use-pull-request-comments';
+
+const EMPTY_COMMENTS: PullRequestComment[] = [];
 
 const bucketOrder: Record<CheckRunBucket, number> = {
   fail: 0,
@@ -106,9 +109,13 @@ export function ChecksList({ checks }: { checks: CheckRun[] }) {
 export const PrChecksList = observer(function PrChecksList({ pr }: { pr: PullRequest }) {
   const { checks } = useSyncCheckRuns(pr);
   const commentsQuery = usePullRequestComments(pr);
-  const comments = commentsQuery.data ?? [];
+  const comments = commentsQuery.data ?? EMPTY_COMMENTS;
+  const conversationItems = useMemo(
+    () => buildPullRequestConversationItems(pr, comments),
+    [pr, comments]
+  );
 
-  if (checks.length === 0 && comments.length === 0 && !commentsQuery.isLoading) {
+  if (checks.length === 0 && conversationItems.length === 0 && !commentsQuery.isLoading) {
     return <EmptyState label="No checks or comments" description="Nothing available yet" />;
   }
 
@@ -125,7 +132,7 @@ export const PrChecksList = observer(function PrChecksList({ pr }: { pr: PullReq
           Comments
         </div>
         <CommentsList
-          comments={comments}
+          comments={conversationItems}
           isLoading={commentsQuery.isLoading}
           error={commentsQuery.error}
         />
