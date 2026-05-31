@@ -103,6 +103,32 @@ function appendSessionId(args: string[], flag: string, sessionId: string): void 
   args.push(...parts, sessionId);
 }
 
+function includesSequence(args: string[], sequence: string[]): boolean {
+  if (sequence.length === 0 || sequence.length > args.length) return false;
+
+  return args.some((_, index) => sequence.every((value, offset) => args[index + offset] === value));
+}
+
+function hasAutoApproveFlag(
+  providerId: AgentProviderId,
+  argsGroups: string[][],
+  autoApproveArgs: string[]
+): boolean {
+  if (autoApproveArgs.length === 0) return false;
+
+  if (argsGroups.some((args) => includesSequence(args, autoApproveArgs))) return true;
+
+  if (
+    providerId === 'codex' &&
+    autoApproveArgs.length === 1 &&
+    autoApproveArgs[0] === '--dangerously-bypass-approvals-and-sandbox'
+  ) {
+    return argsGroups.some((args) => args.includes('--yolo'));
+  }
+
+  return false;
+}
+
 export function buildAgentCommand({
   providerId,
   providerConfig,
@@ -123,6 +149,7 @@ export function buildAgentCommand({
   const providerDef = getProvider(providerId);
   const [command, ...args] = parseCliPrefix(providerConfig?.cli, providerId);
   const initialPromptFlag = providerConfig?.initialPromptFlag;
+  const extraArgs = parseArgField(providerConfig?.extraArgs);
 
   args.push(...(providerConfig?.defaultArgs ?? []));
 
@@ -146,8 +173,15 @@ export function buildAgentCommand({
     args.push(providerDef.newConversationFlag);
   }
 
-  if (autoApprove && providerConfig?.autoApproveFlag) {
-    args.push(...parseArgField(providerConfig.autoApproveFlag));
+  if (autoApprove) {
+    const autoApproveArgs = parseArgField(providerConfig?.autoApproveFlag);
+
+    if (
+      autoApproveArgs.length > 0 &&
+      !hasAutoApproveFlag(providerId, [args, extraArgs], autoApproveArgs)
+    ) {
+      args.push(...autoApproveArgs);
+    }
   }
 
   if (
@@ -159,7 +193,7 @@ export function buildAgentCommand({
     args.push(...parseArgField(initialPromptFlag), initialPrompt);
   }
 
-  args.push(...parseArgField(providerConfig?.extraArgs));
+  args.push(...extraArgs);
 
   return { command, args };
 }

@@ -35,6 +35,98 @@ describe('buildAgentCommand', () => {
     });
   });
 
+  it('does not append the Codex bypass flag when the custom CLI already uses --yolo', () => {
+    const command = buildAgentCommand({
+      providerId: 'codex',
+      providerConfig: {
+        ...providerConfigDefaults.codex,
+        cli: 'codex --yolo',
+      },
+      autoApprove: true,
+      initialPrompt: 'Fix the issue',
+      sessionId: 'session-1',
+    });
+
+    expect(command).toEqual({
+      command: 'codex',
+      args: ['--yolo', 'Fix the issue'],
+    });
+  });
+
+  it('does not append a duplicate auto-approve flag already present in a custom CLI', () => {
+    const command = buildAgentCommand({
+      providerId: 'gemini',
+      providerConfig: {
+        ...providerConfigDefaults.gemini,
+        cli: 'gemini --yolo',
+      },
+      autoApprove: true,
+      initialPrompt: 'Fix the issue',
+      sessionId: 'session-1',
+    });
+
+    expect(command).toEqual({
+      command: 'gemini',
+      args: ['--yolo', '-i', 'Fix the issue'],
+    });
+  });
+
+  it('does not append a duplicate auto-approve flag already present in extra args', () => {
+    const command = buildAgentCommand({
+      providerId: 'gemini',
+      providerConfig: {
+        ...providerConfigDefaults.gemini,
+        extraArgs: '--yolo',
+      },
+      autoApprove: true,
+      initialPrompt: 'Fix the issue',
+      sessionId: 'session-1',
+    });
+
+    expect(command).toEqual({
+      command: 'gemini',
+      args: ['-i', 'Fix the issue', '--yolo'],
+    });
+  });
+
+  it('does not treat a shared flag name with a different value as auto-approve', () => {
+    const command = buildAgentCommand({
+      providerId: 'claude',
+      providerConfig: {
+        cli: 'claude --permission-mode ask',
+        autoApproveFlag: '--permission-mode bypass',
+        initialPromptFlag: '',
+      },
+      autoApprove: true,
+      initialPrompt: 'Fix the issue',
+      sessionId: 'session-1',
+    });
+
+    expect(command).toEqual({
+      command: 'claude',
+      args: ['--permission-mode', 'ask', '--permission-mode', 'bypass', 'Fix the issue'],
+    });
+  });
+
+  it('does not parse auto-approve args when auto-approve is disabled', () => {
+    const command = buildAgentCommand({
+      providerId: 'claude',
+      providerConfig: {
+        cli: 'claude',
+        autoApproveFlag: '--permission-mode "bypass',
+        initialPromptFlag: '',
+      },
+      autoApprove: false,
+      initialPrompt: 'Fix the issue',
+      sessionId: 'session-1',
+    });
+
+    expect(command).toEqual({
+      command: 'claude',
+      args: ['Fix the issue'],
+    });
+  });
+
   it('resumes Codex by stored provider session id when available', () => {
     const result = buildAgentCommand({
       providerId: 'codex',
@@ -47,7 +139,7 @@ describe('buildAgentCommand', () => {
     expect(result.args).toEqual(['resume', '019c95f6-cd96-7812-ba15-574286674599']);
   });
 
-  it('falls back to Codex --last when resuming without a stored provider session id', () => {
+  it('builds Codex --last when explicitly asked to resume without a stored provider session id', () => {
     const result = buildAgentCommand({
       providerId: 'codex',
       providerConfig: providerConfigDefaults.codex,
