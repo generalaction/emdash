@@ -1,8 +1,8 @@
 import type { ILink } from '@xterm/xterm';
 import { describe, expect, it } from 'vitest';
+import { findFileLinks } from '@renderer/lib/pty/file-link-detection';
 import {
   FileLinkProvider,
-  findFileLinks,
   isActivationModifierPressed,
 } from '@renderer/lib/pty/file-link-provider';
 
