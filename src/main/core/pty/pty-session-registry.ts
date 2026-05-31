@@ -12,6 +12,17 @@ export interface PtySessionMetadata {
 
 const FLUSH_INTERVAL_MS = 16; // ~60 fps
 const RING_BUFFER_CAP = 64 * 1024; // 64 KB per session
+const CLEAR_SCROLLBACK_SEQUENCE = '\x1b[3J';
+
+function appendToRingBuffer(current: string, data: string): string {
+  let next = current + data;
+  const clearIndex = next.lastIndexOf(CLEAR_SCROLLBACK_SEQUENCE);
+  if (clearIndex !== -1) {
+    next = next.slice(clearIndex + CLEAR_SCROLLBACK_SEQUENCE.length);
+  }
+  if (next.length > RING_BUFFER_CAP) next = next.slice(-RING_BUFFER_CAP);
+  return next;
+}
 
 export class PtySessionRegistry {
   private ptyMap: Map<string, Pty> = new Map();
@@ -67,9 +78,10 @@ export class PtySessionRegistry {
         flushTimer = setTimeout(flush, FLUSH_INTERVAL_MS);
       }
       // Accumulate into ring buffer for late-connecting renderers
-      let rb = (this.ringBuffers.get(sessionId) ?? '') + data;
-      if (rb.length > RING_BUFFER_CAP) rb = rb.slice(-RING_BUFFER_CAP);
-      this.ringBuffers.set(sessionId, rb);
+      this.ringBuffers.set(
+        sessionId,
+        appendToRingBuffer(this.ringBuffers.get(sessionId) ?? '', data)
+      );
     });
 
     pty.onExit((info) => {

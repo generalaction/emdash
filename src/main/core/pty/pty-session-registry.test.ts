@@ -99,6 +99,28 @@ describe('PtySessionRegistry', () => {
     expect(events.emit).toHaveBeenCalledWith(ptyDataChannel, 'final output', 'session-1');
   });
 
+  it('does not replay output that was cleared from terminal scrollback', () => {
+    const registry = new PtySessionRegistry();
+    const pty = fakePty();
+
+    registry.register('session-1', pty);
+    pty.emitData('old output\n');
+    pty.emitData('\x1b[3Jfresh output\n');
+
+    expect(registry.subscribe('session-1')).toBe('fresh output\n');
+  });
+
+  it('detects clear scrollback sequences split across data chunks', () => {
+    const registry = new PtySessionRegistry();
+    const pty = fakePty();
+
+    registry.register('session-1', pty);
+    pty.emitData('old output\n\x1b[');
+    pty.emitData('3Jfresh output\n');
+
+    expect(registry.subscribe('session-1')).toBe('fresh output\n');
+  });
+
   it('emits exit when unregistering the current PTY with exit info', () => {
     const registry = new PtySessionRegistry();
     const pty = fakePty();
