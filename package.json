@@ -18,6 +18,8 @@
   "main": "./out/main/index.js",
   "scripts": {
     "d": "pnpm install && pnpm run dev",
+    "cli": "ELECTRON_RUN_AS_NODE=1 electron bin/emdash-cli.mjs",
+    "build:cli": "node scripts/build-cli.mjs",
     "dev": "electron-vite dev",
     "dev:debug": "VITE_LOG_LEVEL=debug electron-vite dev",
     "dev:main": "electron-vite dev --watch main",
