@@ -80,11 +80,20 @@ vi.mock('@main/core/settings/provider-settings-service', () => ({
 
 vi.mock('@main/core/settings/settings-service', () => ({
   appSettingsService: {
-    get: vi.fn(async () => ({ writeAgentConfigToGitIgnore: true })),
+    get: vi.fn(async (key: string) =>
+      key === 'terminal'
+        ? { autoCopyOnSelection: false, defaultShell: 'system', fontSize: 13 }
+        : {
+            defaultProjectsDirectory: '',
+            defaultWorktreeDirectory: '',
+            writeAgentConfigToGitIgnore: true,
+          }
+    ),
   },
 }));
 
 const { events } = await import('@main/lib/events');
+const { appSettingsService } = await import('@main/core/settings/settings-service');
 const { buildAgentSessionCommand } = await import('./agent-command');
 
 type RespawnState = {
@@ -94,9 +103,20 @@ type RespawnState = {
 
 function localProvider({
   tmux = false,
+  shellProfile = {
+    id: 'sh',
+    resolvedShellId: 'sh',
+    resolvedFromSystem: true,
+    executable: 'sh',
+    available: true,
+    family: 'posix',
+    interactiveArgs: ['-i'],
+    commandArgs: ['-c'],
+  },
   ctx = {} as never,
 }: {
   tmux?: boolean;
+  shellProfile?: ConstructorParameters<typeof LocalConversationProvider>[0]['shellProfile'];
   ctx?: ConstructorParameters<typeof LocalConversationProvider>[0]['ctx'];
 } = {}) {
   return new LocalConversationProvider({
@@ -104,6 +124,7 @@ function localProvider({
     taskId: 'task-1',
     taskPath: '/tmp/task-1',
     tmux,
+    shellProfile,
     ctx,
   });
 }
@@ -151,11 +172,25 @@ function fakePty(exitHandlers: Array<(info: PtyExitInfo) => void>): Pty {
   };
 }
 
+function mockSettings(): void {
+  vi.mocked(appSettingsService.get).mockImplementation(async (key) => {
+    if (key === 'localProject') {
+      return {
+        defaultProjectsDirectory: '',
+        defaultWorktreeDirectory: '',
+        writeAgentConfigToGitIgnore: true,
+      } as never;
+    }
+    throw new Error(`Unexpected settings key: ${key}`);
+  });
+}
+
 describe('conversation provider respawn state', () => {
   beforeEach(() => {
     vi.useRealTimers();
     spawnLocalPty.mockReset();
     openSsh2Pty.mockReset();
+    mockSettings();
     vi.mocked(events.emit).mockClear();
     vi.mocked(buildAgentSessionCommand).mockClear();
     ptySessionRegistry.unregister('project-1:task-1:conversation-1');
@@ -180,6 +215,31 @@ describe('conversation provider respawn state', () => {
         process.env.EDITOR = previousEditor;
       }
     }
+  });
+
+  it('uses the injected shell profile for local agent sessions', async () => {
+    const shellProfile: ConstructorParameters<typeof LocalConversationProvider>[0]['shellProfile'] =
+      {
+        id: 'bash',
+        resolvedShellId: 'bash',
+        resolvedFromSystem: false,
+        executable: 'bash',
+        available: true,
+        family: 'posix',
+        interactiveArgs: ['-il'],
+        commandArgs: ['-lc'],
+      };
+    const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
+    spawnLocalPty.mockReturnValue(fakePty(exitHandlers));
+
+    await localProvider({ shellProfile }).startSession(conversation());
+
+    expect(spawnLocalPty).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: 'bash',
+        args: ['-lc', 'agent'],
+      })
+    );
   });
 
   it('replaces a local conversation after clean exit by resuming the same provider session', async () => {

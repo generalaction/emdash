@@ -16,6 +16,7 @@ import { logLocalPtySpawnWarnings, resolveLocalPtySpawn } from '@main/core/pty/p
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
 import { appSettingsService } from '@main/core/settings/settings-service';
+import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
@@ -42,6 +43,7 @@ export class LocalConversationProvider implements ConversationProvider {
   private readonly taskId: string;
   private readonly tmux: boolean;
   private readonly shellSetup?: string;
+  private readonly shellProfile: ResolvedShellProfile;
   private readonly ctx: IExecutionContext;
   private readonly taskEnvVars: Record<string, string>;
   private readonly hookConfigWriter: HookConfigWriter;
@@ -56,6 +58,7 @@ export class LocalConversationProvider implements ConversationProvider {
     taskId,
     tmux = false,
     shellSetup,
+    shellProfile,
     ctx,
     taskEnvVars = {},
   }: {
@@ -64,6 +67,7 @@ export class LocalConversationProvider implements ConversationProvider {
     taskId: string;
     tmux?: boolean;
     shellSetup?: string;
+    shellProfile: ResolvedShellProfile;
     ctx: IExecutionContext;
     taskEnvVars?: Record<string, string>;
   }) {
@@ -72,6 +76,7 @@ export class LocalConversationProvider implements ConversationProvider {
     this.taskId = taskId;
     this.tmux = tmux;
     this.shellSetup = shellSetup;
+    this.shellProfile = shellProfile;
     this.ctx = ctx;
     this.taskEnvVars = taskEnvVars;
     this.hookConfigWriter = new HookConfigWriter(new LocalFileSystem(taskPath), ctx);
@@ -144,6 +149,7 @@ export class LocalConversationProvider implements ConversationProvider {
           kind: 'run-command',
           cwd: this.taskPath,
           command: { kind: 'argv', command, args },
+          shellProfile: this.shellProfile,
           shellSetup: this.shellSetup,
           tmuxSessionName,
         },
