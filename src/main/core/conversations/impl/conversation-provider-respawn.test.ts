@@ -151,6 +151,49 @@ function fakePty(exitHandlers: Array<(info: PtyExitInfo) => void>): Pty {
   };
 }
 
+async function startAndRespawnConversation(
+  kind: 'local' | 'ssh',
+  item: Conversation,
+  options: {
+    size?: { cols: number; rows: number };
+    autoApprove?: boolean;
+    initialPrompt?: string;
+  } = {}
+): Promise<void> {
+  const exitHandlers: Array<Array<(info: PtyExitInfo) => void>> = [];
+
+  if (kind === 'local') {
+    spawnLocalPty.mockImplementation(() => {
+      const handlers: Array<(info: PtyExitInfo) => void> = [];
+      exitHandlers.push(handlers);
+      return fakePty(handlers);
+    });
+
+    await localProvider().startSession(
+      item,
+      options.size,
+      options.autoApprove,
+      options.initialPrompt
+    );
+  } else {
+    openSsh2Pty.mockImplementation(() => {
+      const handlers: Array<(info: PtyExitInfo) => void> = [];
+      exitHandlers.push(handlers);
+      return Promise.resolve({ success: true, data: fakePty(handlers) });
+    });
+
+    await sshProvider().startSession(
+      item,
+      options.size,
+      options.autoApprove,
+      options.initialPrompt
+    );
+  }
+
+  for (const handler of exitHandlers[0] ?? []) handler({ exitCode: 0 });
+  await vi.advanceTimersByTimeAsync(500);
+}
+
 describe('conversation provider respawn state', () => {
   beforeEach(() => {
     vi.useRealTimers();
@@ -185,20 +228,11 @@ describe('conversation provider respawn state', () => {
   it('replaces a local conversation after clean exit by resuming the same provider session', async () => {
     vi.useFakeTimers();
     try {
-      const exitHandlers: Array<Array<(info: PtyExitInfo) => void>> = [];
-      spawnLocalPty.mockImplementation(() => {
-        const handlers: Array<(info: PtyExitInfo) => void> = [];
-        exitHandlers.push(handlers);
-        return fakePty(handlers);
+      await startAndRespawnConversation('local', conversation(), {
+        size: { cols: 100, rows: 40 },
+        autoApprove: true,
+        initialPrompt: 'continue',
       });
-      const provider = localProvider();
-      const size = { cols: 100, rows: 40 };
-      const initialPrompt = 'continue';
-      const item = conversation();
-
-      await provider.startSession(item, size, true, initialPrompt);
-      for (const handler of exitHandlers[0] ?? []) handler({ exitCode: 0 });
-      await vi.advanceTimersByTimeAsync(500);
 
       expect(spawnLocalPty).toHaveBeenCalledTimes(2);
       expect(buildAgentSessionCommand).toHaveBeenLastCalledWith(
@@ -212,25 +246,56 @@ describe('conversation provider respawn state', () => {
   it('replaces an SSH conversation after clean exit by resuming the same provider session', async () => {
     vi.useFakeTimers();
     try {
-      const exitHandlers: Array<Array<(info: PtyExitInfo) => void>> = [];
-      openSsh2Pty.mockImplementation(() => {
-        const handlers: Array<(info: PtyExitInfo) => void> = [];
-        exitHandlers.push(handlers);
-        return Promise.resolve({ success: true, data: fakePty(handlers) });
+      await startAndRespawnConversation('ssh', conversation(), {
+        size: { cols: 100, rows: 40 },
+        autoApprove: true,
+        initialPrompt: 'continue',
       });
-      const provider = sshProvider();
-      const size = { cols: 100, rows: 40 };
-      const initialPrompt = 'continue';
-      const item = conversation();
-
-      await provider.startSession(item, size, true, initialPrompt);
-      for (const handler of exitHandlers[0] ?? []) handler({ exitCode: 0 });
-      await vi.advanceTimersByTimeAsync(500);
 
       expect(openSsh2Pty).toHaveBeenCalledTimes(2);
       expect(buildAgentSessionCommand).toHaveBeenLastCalledWith(
         expect.objectContaining({ isResuming: true })
       );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not automatically resume the last Codex session when a local conversation has no provider session id', async () => {
+    vi.useFakeTimers();
+    try {
+      const item = { ...conversation(), providerSessionId: undefined };
+
+      await startAndRespawnConversation('local', item);
+
+      expect(spawnLocalPty).toHaveBeenCalledTimes(2);
+      expect(buildAgentSessionCommand).toHaveBeenLastCalledWith(
+        expect.objectContaining({ isResuming: false })
+      );
+      expect(events.emit).toHaveBeenCalledWith(agentSessionExitedChannel, {
+        conversationId: item.id,
+        taskId: item.taskId,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not automatically resume the last Codex session when an SSH conversation has no provider session id', async () => {
+    vi.useFakeTimers();
+    try {
+      const item = { ...conversation(), providerSessionId: undefined };
+
+      await startAndRespawnConversation('ssh', item);
+
+      expect(openSsh2Pty).toHaveBeenCalledTimes(2);
+      expect(buildAgentSessionCommand).toHaveBeenLastCalledWith(
+        expect.objectContaining({ isResuming: false })
+      );
+      expect(events.emit).toHaveBeenCalledWith(agentSessionExitedChannel, {
+        conversationId: item.id,
+        taskId: item.taskId,
+      });
     } finally {
       vi.useRealTimers();
     }

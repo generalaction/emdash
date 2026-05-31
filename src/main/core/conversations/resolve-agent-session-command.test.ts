@@ -34,6 +34,28 @@ describe('resolveAgentSessionCommandArgs', () => {
     });
   });
 
+  it('starts fresh when resuming Codex without a stored provider session id', () => {
+    expect(
+      resolveAgentSessionCommandArgs(makeConversation({ providerId: 'codex' }), true, {
+        requireProviderSessionId: false,
+      })
+    ).toEqual({
+      sessionId: 'conv-1',
+      isResuming: false,
+    });
+  });
+
+  it('starts fresh when resuming Grok without a stored provider session id', () => {
+    expect(
+      resolveAgentSessionCommandArgs(makeConversation({ providerId: 'grok' }), true, {
+        requireProviderSessionId: false,
+      })
+    ).toEqual({
+      sessionId: 'conv-1',
+      isResuming: false,
+    });
+  });
+
   it('keeps resume enabled when provider session ids are unavailable', () => {
     expect(
       resolveAgentSessionCommandArgs(makeConversation(), true, { requireProviderSessionId: false })

@@ -72,6 +72,11 @@ export type AgentProviderDefinition = {
   sessionIdOnResumeOnly?: boolean;
   /** Resume flag used when sessionIdOnResumeOnly is set but no provider session id is stored yet. */
   resumeWithoutSessionFlag?: string;
+  /**
+   * When true, Emdash must not synthesize a resume command without a provider-native session id.
+   * CLIs with "resume last" fallback behavior can otherwise attach the wrong conversation.
+   */
+  resumeRequiresProviderSessionId?: boolean;
   defaultArgs?: string[];
   planActivateCommand?: string;
   autoStartCommand?: string;
@@ -102,6 +107,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     sessionIdFlag: ' ',
     sessionIdOnResumeOnly: true,
     resumeWithoutSessionFlag: 'resume --last',
+    resumeRequiresProviderSessionId: true,
     icon: 'openai.svg',
     alt: 'Codex',
     terminalOnly: true,
@@ -143,6 +149,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     sessionIdFlag: '-r',
     sessionIdOnResumeOnly: true,
     resumeWithoutSessionFlag: '-r',
+    resumeRequiresProviderSessionId: true,
     icon: 'xai.svg',
     alt: 'Grok CLI',
     invertInDark: true,
