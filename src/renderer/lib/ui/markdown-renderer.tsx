@@ -10,7 +10,7 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import type { PluggableList } from 'unified';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
-import { rpc } from '@renderer/lib/ipc';
+import { confirmOpenExternalLink } from '@renderer/lib/open-external-link';
 import { cn } from '@renderer/utils/utils';
 import { ExpandableImage } from './expandable-image';
 import { normalizeLatexDelimiters } from './markdown-latex';
@@ -209,7 +209,7 @@ function useFullComponents(
         const handleClick = (e: React.MouseEvent) => {
           if (isHttp) {
             e.preventDefault();
-            rpc.app.openExternal(href).catch(() => {});
+            confirmOpenExternalLink(href);
           }
         };
         return (
@@ -356,7 +356,7 @@ function useCompactComponents(isDark: boolean) {
         const handleClick = (e: React.MouseEvent) => {
           if (isHttp) {
             e.preventDefault();
-            rpc.app.openExternal(href).catch(() => {});
+            confirmOpenExternalLink(href);
           }
         };
         return (

@@ -89,12 +89,13 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
               }
               onClick={() => navigate('library')}
               aria-label="Library"
-              className="w-full justify-start"
+              className="w-full justify-between"
             >
               <span className="flex items-center gap-2">
                 <Library className="h-5 w-5 sm:h-4 sm:w-4" />
                 Library
               </span>
+              <BoundShortcut settingsKey="library" />
             </SidebarMenuButton>
             <SidebarMenuButton
               isActive={isCurrentView(currentView, 'settings')}

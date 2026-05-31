@@ -152,10 +152,14 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     autoApproveFlag: '--always-approve',
     useKeystrokeInjection: true,
     resumeFlag: '-r',
+    sessionIdFlag: '-r',
+    sessionIdOnResumeOnly: true,
+    resumeWithoutSessionFlag: '-r',
     icon: 'xai.svg',
     alt: 'Grok CLI',
     invertInDark: true,
     terminalOnly: true,
+    supportsHooks: true,
   },
   {
     id: 'devin',
@@ -349,7 +353,6 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     autoApproveFlag: '--yolo',
     icon: 'charm.png',
     alt: 'Charm CLI',
-    invertInDark: true,
     terminalOnly: true,
   },
   {
