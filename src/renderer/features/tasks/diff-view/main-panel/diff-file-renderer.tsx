@@ -1,10 +1,9 @@
 import { observer } from 'mobx-react-lite';
 import type * as monaco from 'monaco-editor';
 import { useCallback, useEffect, useState } from 'react';
-import { HEAD_REF, STAGED_REF } from '@shared/git';
-import type { ActiveFile } from '@shared/view-state';
 import { useDiffEditorComments } from '@renderer/features/tasks/diff-view/comments/use-diff-editor-comments';
 import { ImageDiffView } from '@renderer/features/tasks/diff-view/main-panel/image-diff-view';
+import { isMissingFileError } from '@renderer/features/tasks/diff-view/main-panel/missing-file-error';
 import { getTaskStore } from '@renderer/features/tasks/stores/task-selectors';
 import type { DiffTabStore } from '@renderer/features/tasks/tabs/diff-tab-store';
 import {
@@ -16,6 +15,9 @@ import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import { StickyDiffEditor } from '@renderer/lib/monaco/sticky-diff-editor';
 import { getLanguageFromPath } from '@renderer/utils/languageUtils';
+import { gitRefToString, HEAD_REF, STAGED_REF, type GitObjectRef } from '@shared/git';
+import { getDraftCommentTargetKey, type DraftCommentTarget } from '@shared/lineComments';
+import type { ActiveFile } from '@shared/view-state';
 
 interface DiffFileRendererProps {
   tab: DiffTabStore;
@@ -45,7 +47,7 @@ export const DiffFileRenderer = observer(function DiffFileRenderer({ tab }: Diff
     }
     case 'binary':
       return (
-        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+        <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
           Binary file — no diff available
         </div>
       );
@@ -64,20 +66,21 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
 
   const [editor, setEditor] = useState<monaco.editor.IStandaloneDiffEditor | null>(null);
 
-  const filePath = tab.path;
-  const comments = draftComments?.getCommentsForFile(filePath) ?? [];
+  const commentTarget = diffTabToCommentTarget(tab);
+  const commentTargetKey = getDraftCommentTargetKey(commentTarget);
+  const comments = draftComments?.getCommentsForTarget(commentTargetKey) ?? [];
 
   const handleAddComment = useCallback(
     (lineNumber: number, content: string, lineContent?: string) => {
       if (!draftComments) return;
       draftComments.addComment({
-        filePath,
+        target: commentTarget,
         lineNumber,
         lineContent: lineContent ?? null,
         content,
       });
     },
-    [filePath, draftComments]
+    [commentTarget, draftComments]
   );
 
   const handleEditComment = useCallback(
@@ -107,6 +110,9 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
   const language = getLanguageFromPath(tab.path);
 
   const originalUri = (() => {
+    if (tab.diffGroup === 'disk') {
+      return modelRegistry.toGitUri(uri, STAGED_REF);
+    }
     if (tab.diffGroup === 'git' || tab.diffGroup === 'pr') {
       return modelRegistry.toGitUri(uri, tab.originalRef);
     }
@@ -119,7 +125,7 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
       return modelRegistry.toGitUri(uri, tab.modifiedRef ?? HEAD_REF);
     }
     if (tab.diffGroup === 'git') {
-      return modelRegistry.toGitUri(uri, HEAD_REF);
+      return modelRegistry.toGitUri(uri, tab.modifiedRef ?? HEAD_REF);
     }
     return uri;
   })();
@@ -130,7 +136,20 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
     if (tab.diffGroup === 'disk') {
       const diskUri = modelRegistry.toDiskUri(uri);
       void (async () => {
-        await modelRegistry.registerModel(projectId, workspaceId, root, tab.path, language, 'disk');
+        if (tab.status !== 'deleted') {
+          try {
+            await modelRegistry.registerModel(
+              projectId,
+              workspaceId,
+              root,
+              tab.path,
+              language,
+              'disk'
+            );
+          } catch (err) {
+            if (!isMissingFileError(err)) throw err;
+          }
+        }
         if (disposed) {
           modelRegistry.unregisterModel(diskUri);
           return;
@@ -148,7 +167,7 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
         }
       })().catch(() => {});
       void modelRegistry
-        .registerModel(projectId, workspaceId, root, tab.path, language, 'git', tab.originalRef)
+        .registerModel(projectId, workspaceId, root, tab.path, language, 'git', STAGED_REF)
         .catch(() => {});
     } else if (tab.diffGroup === 'staged') {
       void modelRegistry
@@ -161,8 +180,7 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
       void modelRegistry
         .registerModel(projectId, workspaceId, root, tab.path, language, 'git', tab.originalRef)
         .catch(() => {});
-      const effectiveModifiedRef =
-        tab.diffGroup === 'pr' ? (tab.modifiedRef ?? HEAD_REF) : HEAD_REF;
+      const effectiveModifiedRef = tab.modifiedRef ?? HEAD_REF;
       void modelRegistry
         .registerModel(
           projectId,
@@ -192,6 +210,7 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
     tab.diffGroup,
     tab.originalRef,
     tab.modifiedRef,
+    tab.status,
     projectId,
     workspaceId,
     root,
@@ -214,6 +233,35 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
   );
 });
 
+function refShaOrString(ref: GitObjectRef | undefined): string {
+  if (!ref) return gitRefToString(HEAD_REF);
+  return ref.kind === 'commit' ? ref.sha : gitRefToString(ref);
+}
+
+function diffTabToCommentTarget(tab: DiffTabStore): DraftCommentTarget {
+  if (tab.diffGroup === 'disk' || tab.diffGroup === 'staged') {
+    return { kind: 'working-tree', group: tab.diffGroup, path: tab.path };
+  }
+
+  if (tab.diffGroup === 'pr') {
+    return {
+      kind: 'pr',
+      prNumber: tab.prNumber ?? 0,
+      baseOid: tab.prBaseOid ?? refShaOrString(tab.originalRef),
+      headOid: tab.prHeadOid ?? refShaOrString(tab.modifiedRef),
+      path: tab.path,
+    };
+  }
+
+  return {
+    kind: 'commit',
+    originalSha:
+      tab.commitOriginalSha !== undefined ? tab.commitOriginalSha : refShaOrString(tab.originalRef),
+    modifiedSha: tab.commitModifiedSha ?? refShaOrString(tab.modifiedRef),
+    path: tab.path,
+  };
+}
+
 function tabToActiveFile(tab: DiffTabStore): ActiveFile {
   return {
     path: tab.path,
@@ -222,5 +270,9 @@ function tabToActiveFile(tab: DiffTabStore): ActiveFile {
     originalRef: tab.originalRef,
     modifiedRef: tab.modifiedRef,
     prNumber: tab.prNumber,
+    prBaseOid: tab.prBaseOid,
+    prHeadOid: tab.prHeadOid,
+    commitOriginalSha: tab.commitOriginalSha,
+    commitModifiedSha: tab.commitModifiedSha,
   };
 }

@@ -1,6 +1,6 @@
 import { useDroppable } from '@dnd-kit/core';
 import { observer } from 'mobx-react-lite';
-import { Activity } from 'react';
+import { ShowHide } from '@renderer/lib/ui/show-hide';
 import { ConversationsPanel } from '../conversations/conversations-panel';
 import { DiffView } from '../diff-view/main-panel/diff-view';
 import { useTabGroupContext } from '../tabs/tab-group-context';
@@ -29,15 +29,11 @@ export const PaneContent = observer(function PaneContent() {
         {isOverContent && (
           <div className="pointer-events-none absolute inset-0 z-20 bg-foreground/10" />
         )}
-        <Activity mode={paneRenderer.kind === 'pty-agent' ? 'visible' : 'hidden'}>
+        <ShowHide visible={paneRenderer.kind === 'pty-agent'}>
           <ConversationsPanel />
-        </Activity>
-        <Activity mode={paneRenderer.kind === 'file' ? 'visible' : 'hidden'}>
-          {paneRenderer.kind === 'file' && <FileRenderer tab={paneRenderer.tab} />}
-        </Activity>
-        <Activity mode={paneRenderer.kind === 'file-diff' ? 'visible' : 'hidden'}>
-          {paneRenderer.kind === 'file-diff' && <DiffView tab={paneRenderer.tab} />}
-        </Activity>
+        </ShowHide>
+        {paneRenderer.kind === 'file' && <FileRenderer tab={paneRenderer.tab} />}
+        {paneRenderer.kind === 'file-diff' && <DiffView tab={paneRenderer.tab} />}
       </div>
     </div>
   );

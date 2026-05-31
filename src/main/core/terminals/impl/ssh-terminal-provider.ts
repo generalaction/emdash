@@ -1,22 +1,25 @@
-import type { GeneralSessionConfig } from '@shared/general-session';
-import { makePtySessionId } from '@shared/ptySessionId';
-import type { Terminal } from '@shared/terminals';
 import type { IExecutionContext } from '@main/core/execution-context/types';
+import { isUnexpectedPtyExit } from '@main/core/pty/exit-classification';
 import type { Pty } from '@main/core/pty/pty';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { resolveSshCommand } from '@main/core/pty/spawn-utils';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
-import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
-import {
-  sshConnectionManager,
-  type SshConnectionManagerEvent,
-} from '@main/core/ssh/ssh-connection-manager';
+import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
+import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
+import type { SshConnectionManagerEvent } from '@main/core/ssh/lifecycle/ssh-connection-manager';
+import { resolveTerminalShellWithSystemFallback } from '@main/core/terminal-shell/resolver';
+import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
 import {
   type LifecycleScriptSpawnRequest,
   type TerminalProvider,
+  type TerminalSpawnOptions,
 } from '@main/core/terminals/terminal-provider';
 import { log } from '@main/lib/logger';
+import type { GeneralSessionConfig } from '@shared/general-session';
+import { makePtySessionId } from '@shared/ptySessionId';
+import type { TerminalShellId } from '@shared/terminal-settings';
+import type { Terminal } from '@shared/terminals';
 import { wireTerminalDevServerWatcher } from '../dev-server-watcher';
 
 const DEFAULT_COLS = 80;
@@ -31,8 +34,11 @@ type SpawnPolicy = {
 };
 
 export class SshTerminalProvider implements TerminalProvider {
+  readonly kind = 'ssh' as const;
+
   private sessions = new Map<string, Pty>();
   private knownSessionIds = new Set<string>();
+  private shellProfiles = new Map<string, ResolvedShellProfile>();
   private respawnCounts = new Map<string, number>();
   private terminals = new Map<string, Terminal>();
   private readonly projectId: string;
@@ -93,14 +99,21 @@ export class SshTerminalProvider implements TerminalProvider {
   async spawnTerminal(
     terminal: Terminal,
     initialSize: { cols: number; rows: number } = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS },
-    command?: { command: string; args: string[] }
+    options: TerminalSpawnOptions = {}
   ): Promise<void> {
-    return this.spawnWithPolicy(terminal, initialSize, command, undefined, {
-      respawnOnExit: true,
-      preserveBufferOnExit: false,
-      watchDevServer: true,
-      trackForRehydrate: true,
-    });
+    return this.spawnWithPolicy(
+      terminal,
+      initialSize,
+      options.command,
+      undefined,
+      options.shell ?? terminal.shellId,
+      {
+        respawnOnExit: true,
+        preserveBufferOnExit: false,
+        watchDevServer: true,
+        trackForRehydrate: true,
+      }
+    );
   }
 
   async spawnLifecycleScript({
@@ -117,6 +130,7 @@ export class SshTerminalProvider implements TerminalProvider {
       initialSize,
       command === undefined ? undefined : { command, args: [] },
       shellSetup,
+      'system',
       {
         respawnOnExit,
         preserveBufferOnExit,
@@ -131,6 +145,7 @@ export class SshTerminalProvider implements TerminalProvider {
     initialSize: { cols: number; rows: number },
     command: { command: string; args: string[] } | undefined,
     shellSetup: string | undefined,
+    shellIntent: TerminalShellId,
     policy: SpawnPolicy
   ): Promise<void> {
     const sessionId = makePtySessionId(terminal.projectId, terminal.taskId, terminal.id);
@@ -149,8 +164,8 @@ export class SshTerminalProvider implements TerminalProvider {
       args: command?.args,
     };
 
-    const profile = await this.proxy.getRemoteShellProfile();
-    const sshCommand = resolveSshCommand('general', cfg, this.taskEnvVars, profile);
+    const shellProfile = await this.getSessionShellProfile(sessionId, shellIntent);
+    const sshCommand = resolveSshCommand('general', cfg, this.taskEnvVars, shellProfile);
 
     const result = await openSsh2Pty(this.proxy, {
       id: sessionId,
@@ -177,11 +192,15 @@ export class SshTerminalProvider implements TerminalProvider {
       });
     }
 
-    pty.onExit(() => {
-      const shouldRespawn = policy.respawnOnExit && this.sessions.has(sessionId);
+    pty.onExit((info) => {
+      const { exitCode, signal } = info;
+      const shouldRespawn =
+        policy.respawnOnExit &&
+        this.sessions.has(sessionId) &&
+        isUnexpectedPtyExit({ exitCode, signal });
       this.sessions.delete(sessionId);
       if (!policy.preserveBufferOnExit) {
-        ptySessionRegistry.unregister(sessionId);
+        ptySessionRegistry.unregister(sessionId, { pty, exitInfo: info });
       }
       if (shouldRespawn && !this.tmux) {
         const count = (this.respawnCounts.get(sessionId) ?? 0) + 1;
@@ -193,17 +212,27 @@ export class SshTerminalProvider implements TerminalProvider {
             respawnCount: count,
           });
           this.respawnCounts.delete(sessionId);
+          this.shellProfiles.delete(sessionId);
           return;
         }
 
         setTimeout(() => {
-          this.spawnWithPolicy(terminal, initialSize, command, shellSetup, policy).catch((e) => {
+          this.spawnWithPolicy(
+            terminal,
+            initialSize,
+            command,
+            shellSetup,
+            shellIntent,
+            policy
+          ).catch((e) => {
             log.error('SshTerminalProvider: respawn failed', {
               terminalId: terminal.id,
               error: String(e),
             });
           });
         }, 500);
+      } else {
+        this.shellProfiles.delete(sessionId);
       }
     });
 
@@ -211,6 +240,27 @@ export class SshTerminalProvider implements TerminalProvider {
       preserveBufferOnExit: policy.preserveBufferOnExit,
     });
     this.sessions.set(sessionId, pty);
+  }
+
+  private async getSessionShellProfile(
+    sessionId: string,
+    shellIntent: TerminalShellId
+  ): Promise<ResolvedShellProfile> {
+    const existing = this.shellProfiles.get(sessionId);
+    if (existing) return existing;
+    const remoteProfile = await this.proxy.getRemoteShellProfile();
+    const profile = await resolveTerminalShellWithSystemFallback({
+      intent: shellIntent,
+      target: { kind: 'ssh', proxy: this.proxy, profile: remoteProfile },
+      onFallback: () => {
+        log.warn('SshTerminalProvider: stored shell unavailable, using system shell', {
+          shell: shellIntent,
+          sessionId,
+        });
+      },
+    });
+    this.shellProfiles.set(sessionId, profile);
+    return profile;
   }
 
   /**
@@ -246,6 +296,7 @@ export class SshTerminalProvider implements TerminalProvider {
       ptySessionRegistry.unregister(sessionId);
     }
     this.terminals.delete(terminalId);
+    this.shellProfiles.delete(sessionId);
     if (this.tmux) {
       await killTmuxSession(this.ctx, makeTmuxSessionName(sessionId));
     }
@@ -260,6 +311,7 @@ export class SshTerminalProvider implements TerminalProvider {
     }
     this.knownSessionIds.clear();
     this.terminals.clear();
+    this.shellProfiles.clear();
   }
 
   async detachAll(): Promise<void> {
@@ -268,6 +320,7 @@ export class SshTerminalProvider implements TerminalProvider {
         pty.kill();
       } catch {}
       ptySessionRegistry.unregister(sessionId);
+      this.shellProfiles.delete(sessionId);
     }
     this.sessions.clear();
   }

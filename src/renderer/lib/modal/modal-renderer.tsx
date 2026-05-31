@@ -30,12 +30,12 @@ export const ModalRenderer = observer(function ModalRenderer() {
       ? modalRegistry[modalStore.activeModalId as keyof typeof modalRegistry]
       : null
   ) as ModalRegistryEntry | null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line typescript/no-explicit-any
   const Component = entry?.component as React.ComponentType<any> | undefined;
 
   // Preserve the last rendered content and entry config so the close animation plays with the
   // correct dimensions and full content rather than collapsing while the popup fades out.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line typescript/no-explicit-any
   const lastComponentRef = useRef<React.ComponentType<any> | null>(null);
   const lastArgsRef = useRef<Record<string, unknown> | null>(null);
   const lastEntryRef = useRef<ModalRegistryEntry | null>(null);

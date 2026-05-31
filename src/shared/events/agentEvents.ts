@@ -1,6 +1,6 @@
 import { defineEvent } from '@shared/ipc/events';
 
-export type AgentEventType = 'notification' | 'stop' | 'error';
+export type AgentEventType = 'notification' | 'stop' | 'error' | 'start';
 
 export type NotificationType =
   | 'permission_prompt'
@@ -20,7 +20,7 @@ export function isAttentionNotification(nt: NotificationType | undefined): nt is
 
 export interface AgentEvent {
   type: AgentEventType;
-  source?: 'hook' | 'classifier';
+  source?: 'hook' | 'classifier' | 'input';
   ptyId?: string;
   providerId?: string;
   projectId: string;
@@ -45,12 +45,8 @@ export type SoundEvent = 'needs_attention' | 'task_complete';
 export const agentEventChannel = defineEvent<AgentEventEnvelope>('agent:event');
 
 export interface AgentSessionExited {
-  /** PTY session ID (= conversationId for agent sessions). */
-  projectId: string;
-  sessionId: string;
   conversationId: string;
   taskId: string;
-  exitCode: number | undefined;
 }
 
 /** Emitted when an agent PTY session exits. Topic = taskId. */

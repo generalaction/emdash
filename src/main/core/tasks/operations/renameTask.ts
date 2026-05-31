@@ -1,18 +1,19 @@
 import { and, eq, sql } from 'drizzle-orm';
-import { err, ok, type Result } from '@shared/result';
-import type { RenameTaskError, RenameTaskSuccess, RenameTaskWarning } from '@shared/tasks';
 import { projectManager } from '@main/core/projects/project-manager';
-import { taskEvents } from '@main/core/tasks/task-events';
+import { pullRequestRepositoryScope } from '@main/core/pull-requests/pr-utils';
 import { mapTaskRowToTask } from '@main/core/tasks/utils/utils';
 import { db } from '@main/db/client';
-import { tasks } from '@main/db/schema';
+import { projectRemotes, pullRequests, tasks } from '@main/db/schema';
+import { resolveTaskBranchName } from '@shared/resolveTaskBranchName';
+import { err, ok, type Result } from '@shared/result';
+import type { Issue, RenameTaskError, RenameTaskOptions, RenameTaskSuccess } from '@shared/tasks';
 import { appSettingsService } from '../../settings/settings-service';
-import { resolveTaskBranchName } from '../resolveTaskBranchName';
+import { fromStoredBranch } from '../stored-branch';
 
-function parseLinkedIssueProvider(linkedIssue: unknown): unknown {
+function parseLinkedIssue(linkedIssue: unknown): Issue | undefined {
   if (!linkedIssue || typeof linkedIssue !== 'string') return undefined;
   try {
-    return (JSON.parse(linkedIssue) as { provider?: unknown }).provider;
+    return JSON.parse(linkedIssue) as Issue;
   } catch {
     return undefined;
   }
@@ -21,41 +22,74 @@ function parseLinkedIssueProvider(linkedIssue: unknown): unknown {
 export async function renameTask(
   projectId: string,
   taskId: string,
-  newName: string
+  newName: string,
+  options: RenameTaskOptions = {}
 ): Promise<Result<RenameTaskSuccess, RenameTaskError>> {
-  const [row] = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
+  const [row] = await db
+    .select()
+    .from(tasks)
+    .where(and(eq(tasks.id, taskId), eq(tasks.projectId, projectId)))
+    .limit(1);
   if (!row) return err({ type: 'task-not-found', taskId });
 
-  const project = projectManager.getProject(projectId);
-  if (!project) return err({ type: 'project-not-found', projectId });
+  let taskBranch = row.taskBranch;
 
-  const oldBranch = row.taskBranch;
-  const sourceBranch = row.sourceBranch ?? undefined;
-  let newBranch: string | null = null;
-  let warning: RenameTaskWarning | undefined;
+  if (options.renameBranch && row.taskBranch) {
+    const linkedIssue = parseLinkedIssue(row.linkedIssue);
+    if (linkedIssue?.provider === 'linear') {
+      return err({ type: 'branch-managed-by-linked-issue', provider: linkedIssue.provider });
+    }
 
-  if (oldBranch) {
-    if (sourceBranch && oldBranch !== sourceBranch.branch) {
+    const sourceBranch = fromStoredBranch(row.sourceBranch);
+
+    if (sourceBranch && row.taskBranch !== sourceBranch.branch) {
       const siblings = await db
         .select({ id: tasks.id })
         .from(tasks)
-        .where(and(eq(tasks.projectId, row.projectId), eq(tasks.taskBranch, oldBranch)))
+        .where(and(eq(tasks.projectId, row.projectId), eq(tasks.taskBranch, row.taskBranch)))
         .limit(2);
 
-      if (siblings.length === 1) {
-        const suffix = Math.random().toString(36).slice(2, 7);
-        const projectDefaults = await appSettingsService.get('project');
-        const branchPrefix = projectDefaults.branchPrefix ?? '';
-        const linkedIssueProvider = parseLinkedIssueProvider(row.linkedIssue);
-        newBranch = resolveTaskBranchName({
-          rawBranch: newName,
-          branchPrefix,
-          suffix,
-          appendRandomSuffix: projectDefaults.appendRandomBranchSuffix ?? true,
-          disableRandomSuffix: linkedIssueProvider === 'linear',
-        });
+      if (siblings.length > 1) {
+        return err({ type: 'branch-has-siblings', branch: row.taskBranch });
+      }
 
-        const renameResult = await project.repository.renameBranch(oldBranch, newBranch);
+      const remoteRows = await db
+        .select({ remoteUrl: projectRemotes.remoteUrl })
+        .from(projectRemotes)
+        .where(eq(projectRemotes.projectId, row.projectId));
+      const repositoryUrls = remoteRows.map((remote) => remote.remoteUrl);
+
+      if (repositoryUrls.length > 0) {
+        const openPrRows = await db
+          .select({ url: pullRequests.url })
+          .from(pullRequests)
+          .where(
+            and(
+              eq(pullRequests.headRefName, row.taskBranch),
+              eq(pullRequests.status, 'open'),
+              pullRequestRepositoryScope(repositoryUrls)
+            )
+          )
+          .limit(1);
+
+        if (openPrRows.length > 0) {
+          return err({ type: 'branch-has-open-pr', branch: row.taskBranch });
+        }
+      }
+
+      const project = projectManager.getProject(projectId);
+      if (!project) return err({ type: 'project-not-found', projectId });
+
+      const projectDefaults = await appSettingsService.get('project');
+      const newBranch = resolveTaskBranchName({
+        rawBranch: newName,
+        branchPrefix: projectDefaults.branchPrefix ?? '',
+        suffix: '',
+        appendRandomSuffix: false,
+      });
+
+      if (newBranch !== row.taskBranch) {
+        const renameResult = await project.repository.renameBranch(row.taskBranch, newBranch);
         if (!renameResult.success) {
           switch (renameResult.error.type) {
             case 'already_exists':
@@ -63,13 +97,6 @@ export async function renameTask(
                 type: 'branch-already-exists',
                 branch: renameResult.error.name,
               });
-            case 'remote_push_failed':
-              warning = {
-                type: 'branch-remote-push-failed',
-                branch: newBranch,
-                message: renameResult.error.message,
-              };
-              break;
             case 'error':
               return err({
                 type: 'branch-rename-failed',
@@ -78,6 +105,8 @@ export async function renameTask(
               });
           }
         }
+
+        taskBranch = newBranch;
       }
     }
   }
@@ -86,15 +115,14 @@ export async function renameTask(
     .update(tasks)
     .set({
       name: newName,
-      taskBranch: newBranch ?? row.taskBranch,
+      ...(taskBranch !== row.taskBranch ? { taskBranch } : {}),
       updatedAt: sql`CURRENT_TIMESTAMP`,
     })
-    .where(eq(tasks.id, taskId))
+    .where(and(eq(tasks.id, taskId), eq(tasks.projectId, projectId)))
     .returning();
 
-  if (updatedRow) {
-    taskEvents._emit('task:updated', mapTaskRowToTask(updatedRow));
-  }
-
-  return ok({ warning });
+  const task = updatedRow
+    ? mapTaskRowToTask(updatedRow)
+    : mapTaskRowToTask({ ...row, name: newName });
+  return ok({ task });
 }

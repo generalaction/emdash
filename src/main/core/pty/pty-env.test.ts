@@ -57,6 +57,80 @@ describe('pty env Windows shell handling', () => {
 
     expect(env.SHELL).toBe('/bin/bash');
   });
+});
+
+describe('buildAgentEnv provider env forwarding', () => {
+  it('passes through global user environment variables by default', async () => {
+    Object.assign(process.env, {
+      EDITOR: 'zed',
+      VISUAL: 'zed --wait',
+      GIT_EDITOR: 'zed --wait',
+      HOME: '/Users/dev',
+      HOSTNAME: 'dev-machine',
+      LANG: 'en_US.UTF-8',
+      TZ: 'America/Los_Angeles',
+    });
+
+    const { buildAgentEnv } = await loadPtyEnv();
+    const env = buildAgentEnv({ agentApiVars: false });
+
+    expect(env.EDITOR).toBe('zed');
+    expect(env.VISUAL).toBe('zed --wait');
+    expect(env.GIT_EDITOR).toBe('zed --wait');
+    expect(env.HOME).toBe('/Users/dev');
+    expect(env.HOSTNAME).toBe('dev-machine');
+    expect(env.LANG).toBe('en_US.UTF-8');
+    expect(env.TZ).toBe('America/Los_Angeles');
+  });
+
+  it('only passes SHELL when requested', async () => {
+    setPlatform('linux');
+    process.env.SHELL = '/bin/zsh';
+
+    const { buildAgentEnv } = await loadPtyEnv();
+
+    expect(buildAgentEnv({ agentApiVars: false }).SHELL).toBeUndefined();
+    expect(buildAgentEnv({ agentApiVars: false, includeShellVar: true }).SHELL).toBe('/bin/zsh');
+  });
+
+  it('passes through documented provider launch environment variables', async () => {
+    const providerEnv = {
+      CLAUDE_CONFIG_DIR: '/tmp/claude-config',
+      ANTHROPIC_AUTH_TOKEN: 'anthropic-token',
+      ANTHROPIC_BASE_URL: 'https://anthropic.example.test',
+      CODEX_HOME: '/tmp/codex-home',
+      OPENAI_ORGANIZATION: 'org_123',
+      OPENAI_PROJECT: 'proj_123',
+      GEMINI_MODEL: 'gemini-2.5-pro',
+      GOOGLE_GENAI_API_VERSION: 'v1beta',
+      GROK_CODE_XAI_API_KEY: 'xai-key',
+      GROK_HOME: '/tmp/grok-home',
+      BAILIAN_CODING_PLAN_API_KEY: 'bailian-key',
+      GOOSE_PROVIDER: 'openai',
+      GOOSE_MODEL: 'gpt-5.1',
+      GOOSE_PROVIDER__HOST: 'https://goose.example.test',
+      OPENCODE_MODEL: 'anthropic/claude-sonnet-4-5',
+      AMP_TOOLBOX: '/tmp/amp-toolbox',
+      ALL_PROXY: 'socks5://127.0.0.1:9000',
+    };
+    Object.assign(process.env, providerEnv, {
+      CLAUDE_PROJECT_DIR: '/tmp/hook-owned',
+      CODEX_ACCESS_TOKEN: 'do-not-pass',
+      GOOSE_TERMINAL: 'do-not-pass',
+      TOOLBOX_ACTION: 'do-not-pass',
+    });
+
+    const { buildAgentEnv } = await loadPtyEnv();
+    const env = buildAgentEnv();
+
+    for (const [key, value] of Object.entries(providerEnv)) {
+      expect(env[key]).toBe(value);
+    }
+    expect(env.CLAUDE_PROJECT_DIR).toBeUndefined();
+    expect(env.CODEX_ACCESS_TOKEN).toBeUndefined();
+    expect(env.GOOSE_TERMINAL).toBeUndefined();
+    expect(env.TOOLBOX_ACTION).toBeUndefined();
+  });
 
   it('adds provider vars while keeping hook variables authoritative', async () => {
     const { buildAgentEnv } = await loadPtyEnv();
@@ -65,6 +139,7 @@ describe('pty env Windows shell handling', () => {
       hook: { port: 1234, ptyId: 'claude:conv-1', token: 'real-token' },
       providerVars: {
         ANTHROPIC_BASE_URL: 'https://example.test',
+        EDITOR: 'vim',
         EMDASH_HOOK_PORT: '9999',
         EMDASH_PTY_ID: 'wrong',
         EMDASH_HOOK_TOKEN: 'wrong-token',
@@ -72,6 +147,7 @@ describe('pty env Windows shell handling', () => {
     });
 
     expect(env.ANTHROPIC_BASE_URL).toBe('https://example.test');
+    expect(env.EDITOR).toBe('vim');
     expect(env.EMDASH_HOOK_PORT).toBe('1234');
     expect(env.EMDASH_PTY_ID).toBe('claude:conv-1');
     expect(env.EMDASH_HOOK_TOKEN).toBe('real-token');

@@ -1,10 +1,11 @@
 import crypto from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
-import type { WorkspaceResolution, WorkspaceType } from '@shared/workspaces';
 import { db as appDb, type AppDb } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
+import type { WorkspaceResolution, WorkspaceType } from '@shared/workspaces';
 import type { WorktreeBootstrapOps } from '../projects/worktrees/worktree-service';
 import { mapWorktreeErrorToProvisionError } from '../tasks/provision-task-error';
+import { fromStoredBranch } from '../tasks/stored-branch';
 import { computeWorkspaceKey } from './workspace-key';
 
 export type WorktreeContext = {
@@ -108,20 +109,22 @@ export class WorkspaceBootstrapService {
 
     if (!taskRow.taskBranch) {
       worktreePath = ctx.repoPath;
-    } else if (
-      !taskRow.sourceBranch ||
-      taskRow.taskBranch === (taskRow.sourceBranch as { branch?: string }).branch
-    ) {
-      const result = await ctx.worktreeService.checkoutExistingBranch(taskRow.taskBranch);
-      if (!result.success) throw mapWorktreeErrorToProvisionError(taskRow.taskBranch, result.error);
-      worktreePath = result.data;
     } else {
-      const result = await ctx.worktreeService.checkoutBranchWorktree(
-        taskRow.sourceBranch as Parameters<typeof ctx.worktreeService.checkoutBranchWorktree>[0],
-        taskRow.taskBranch
-      );
-      if (!result.success) throw mapWorktreeErrorToProvisionError(taskRow.taskBranch, result.error);
-      worktreePath = result.data;
+      const sourceBranch = fromStoredBranch(taskRow.sourceBranch);
+      if (!sourceBranch || taskRow.taskBranch === sourceBranch.branch) {
+        const result = await ctx.worktreeService.checkoutExistingBranch(taskRow.taskBranch);
+        if (!result.success)
+          throw mapWorktreeErrorToProvisionError(taskRow.taskBranch, result.error);
+        worktreePath = result.data;
+      } else {
+        const result = await ctx.worktreeService.checkoutBranchWorktree(
+          sourceBranch,
+          taskRow.taskBranch
+        );
+        if (!result.success)
+          throw mapWorktreeErrorToProvisionError(taskRow.taskBranch, result.error);
+        worktreePath = result.data;
+      }
     }
 
     await this._persistPathForTask(

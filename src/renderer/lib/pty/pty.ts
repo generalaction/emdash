@@ -1,9 +1,13 @@
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { Terminal, type ITerminalOptions } from '@xterm/xterm';
-import { ptyDataChannel } from '@shared/events/ptyEvents';
 import { events, rpc } from '@renderer/lib/ipc';
-import { cssVar } from '@renderer/utils/cssVars';
+import { confirmOpenExternalLink } from '@renderer/lib/open-external-link';
+import { cssColorToHex, cssVar } from '@renderer/utils/cssVars';
 import { log } from '@renderer/utils/logger';
+import { ptyDataChannel } from '@shared/events/ptyEvents';
+import { FileLinkProvider } from './file-link-provider';
+import { decodeOsc52ClipboardData } from './pty-clipboard';
+import { buildTerminalFontFamily } from './terminal-font';
 import { ensureXtermHost } from './xterm-host';
 
 const SCROLLBACK_LINES = 100_000;
@@ -15,13 +19,14 @@ export interface SessionTheme {
 }
 
 export function readXtermCssVars(): ITerminalOptions['theme'] {
+  const color = (name: string) => cssColorToHex(cssVar(name));
   return {
-    background: cssVar('--xterm-bg'),
-    foreground: cssVar('--xterm-fg'),
-    cursor: cssVar('--xterm-cursor'),
-    cursorAccent: cssVar('--xterm-cursor-accent'),
-    selectionBackground: cssVar('--xterm-selection-bg'),
-    selectionForeground: cssVar('--xterm-selection-fg'),
+    background: color('--xterm-bg'),
+    foreground: color('--xterm-fg'),
+    cursor: color('--xterm-cursor'),
+    cursorAccent: color('--xterm-cursor-accent'),
+    selectionBackground: color('--xterm-selection-bg'),
+    selectionForeground: color('--xterm-selection-fg'),
   };
 }
 
@@ -62,7 +67,9 @@ export class FrontendPty {
 
   constructor(
     readonly sessionId: string,
-    theme?: SessionTheme
+    theme?: SessionTheme,
+    onOpenFile?: (filePath: string) => void,
+    onOpenExternal?: (filePath: string) => void
   ) {
     this.theme = theme;
     this.ownedContainer = document.createElement('div');
@@ -76,6 +83,7 @@ export class FrontendPty {
       rows: 32,
       scrollback: SCROLLBACK_LINES,
       convertEol: true,
+      fontFamily: buildTerminalFontFamily(),
       fontSize: 13,
       lineHeight: 1.2,
       letterSpacing: 0,
@@ -83,7 +91,7 @@ export class FrontendPty {
       scrollOnUserInput: false,
       linkHandler: {
         activate: (_event: MouseEvent, text: string) => {
-          rpc.app.openExternal(text).catch((error) => {
+          confirmOpenExternalLink(text, (error) => {
             log.warn('FrontendPty: failed to open external link', { text, error });
           });
         },
@@ -96,10 +104,26 @@ export class FrontendPty {
 
     const webLinksAddon = new WebLinksAddon((event, uri) => {
       event.preventDefault();
-      rpc.app.openExternal(uri).catch(() => {});
+      confirmOpenExternalLink(uri);
     });
 
     this.terminal.loadAddon(webLinksAddon);
+    if (onOpenFile && onOpenExternal) {
+      this.terminal.registerLinkProvider(
+        new FileLinkProvider(this.terminal, onOpenFile, onOpenExternal)
+      );
+    }
+
+    this.terminal.parser.registerOscHandler(52, (data) => {
+      const text = decodeOsc52ClipboardData(data);
+      if (text === null) return false;
+
+      void rpc.app.clipboardWriteText(text).catch((error) => {
+        log.warn('FrontendPty: failed to write OSC 52 clipboard payload', { error });
+      });
+      return true;
+    });
+
     this.terminal.open(this.ownedContainer);
 
     const el = (this.terminal as unknown as { element?: HTMLElement }).element;

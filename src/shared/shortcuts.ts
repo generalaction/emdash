@@ -38,6 +38,12 @@ export const APP_SHORTCUTS = defineShortcuts({
     description: 'Open application settings',
     category: 'Navigation',
   },
+  library: {
+    defaultHotkey: 'Mod+L',
+    label: 'Library',
+    description: 'Open the Library',
+    category: 'Navigation',
+  },
   toggleLeftSidebar: {
     defaultHotkey: 'Mod+B',
     label: 'Toggle Left Sidebar',
@@ -48,12 +54,6 @@ export const APP_SHORTCUTS = defineShortcuts({
     defaultHotkey: 'Mod+.',
     label: 'Toggle Right Sidebar',
     description: 'Show or hide the right sidebar',
-    category: 'View',
-  },
-  toggleTheme: {
-    defaultHotkey: 'Mod+T',
-    label: 'Toggle Theme',
-    description: 'Cycle through light, dark navy, and dark black themes',
     category: 'View',
   },
   closeModal: {
@@ -67,6 +67,12 @@ export const APP_SHORTCUTS = defineShortcuts({
     defaultHotkey: 'Mod+N',
     label: 'New Task',
     description: 'Create a new task',
+    category: 'Navigation',
+  },
+  deleteSelectedTasks: {
+    defaultHotkey: 'Mod+Backspace',
+    label: 'Delete Selected Tasks',
+    description: 'Delete the selected tasks',
     category: 'Navigation',
   },
   newProject: {
@@ -88,13 +94,13 @@ export const APP_SHORTCUTS = defineShortcuts({
     category: 'Task View',
   },
   sidebarConversations: {
-    defaultHotkey: 'Mod+Shift+2',
+    defaultHotkey: 'Mod+Shift+3',
     label: 'View Conversations',
     description: 'Open the right sidebar to the Conversations panel',
     category: 'Task View',
   },
   sidebarFiles: {
-    defaultHotkey: 'Mod+Shift+3',
+    defaultHotkey: 'Mod+Shift+2',
     label: 'View Files',
     description: 'Open the right sidebar to the Files panel',
     category: 'Task View',
@@ -121,7 +127,7 @@ export const APP_SHORTCUTS = defineShortcuts({
     conflictBehavior: 'allow',
   },
   newConversation: {
-    defaultHotkey: 'Mod+Shift+C',
+    defaultHotkey: 'Mod+T',
     label: 'New Conversation',
     description: 'Create a new conversation in the current task',
     category: 'Task View',

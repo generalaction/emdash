@@ -1,12 +1,23 @@
-import { Pause, Play, Plus, Settings, Terminal, X } from 'lucide-react';
+import { ChevronDown, Pause, Play, Plus, Settings, Terminal, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { asMounted, getProjectStore } from '@renderer/features/projects/stores/project-selectors';
 import { type LifecycleScriptsStore } from '@renderer/features/tasks/stores/lifecycle-scripts';
 import { type TerminalTabViewStore } from '@renderer/features/tasks/terminals/terminal-tab-view-store';
+import { TerminalShellOptionLabel } from '@renderer/lib/components/terminal-shell-option-label';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
+import { Button } from '@renderer/lib/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@renderer/lib/ui/dropdown-menu';
 import { MicroLabel } from '@renderer/lib/ui/label';
+import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
+import type { TerminalShellAvailability, TerminalShellId } from '@shared/terminal-settings';
 import { scriptIcon } from './terminal-tabs';
 
 interface TerminalDrawerSidebarProps {
@@ -17,8 +28,10 @@ interface TerminalDrawerSidebarProps {
   onStopScript: (id: string) => void;
   terminalTabView: TerminalTabViewStore;
   activeTerminalId: string | undefined;
+  shellAvailability: TerminalShellAvailability[];
+  onShellMenuOpen: () => void;
   onSelectTerminal: (id: string) => void;
-  onAddTerminal: () => void;
+  onAddTerminal: (shell?: TerminalShellId) => void;
   onRemoveTerminal: (id: string) => void;
   onRenameTerminal: (id: string, name: string) => void;
   onHoverTerminal?: (id: string) => void;
@@ -34,6 +47,8 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
   onStopScript,
   terminalTabView,
   activeTerminalId,
+  shellAvailability,
+  onShellMenuOpen,
   onSelectTerminal,
   onAddTerminal,
   onRemoveTerminal,
@@ -46,23 +61,54 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
   const terminals = terminalTabView.tabs;
 
   const { navigate } = useNavigate();
+  const project = asMounted(getProjectStore(projectId));
 
   return (
     <div className={cn('flex flex-col overflow-y-auto text-sm', className)}>
       <Section
         label="Terminals"
         action={
-          <Tooltip>
-            <TooltipTrigger>
-              <button
-                className="flex items-center justify-center size-5 rounded hover:bg-background-2 text-foreground-muted hover:text-foreground"
-                onClick={onAddTerminal}
+          <div className="flex items-center">
+            <Tooltip>
+              <TooltipTrigger>
+                <button
+                  className="flex size-5 items-center justify-center rounded-l text-foreground-muted hover:bg-background-2 hover:text-foreground"
+                  onClick={() => onAddTerminal()}
+                >
+                  <Plus className="size-3" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>
+                New terminal <BoundShortcut settingsKey="newTerminal" variant="badge" />
+              </TooltipContent>
+            </Tooltip>
+            <DropdownMenu onOpenChange={(open) => open && onShellMenuOpen()}>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    className="size-5 rounded-l-none px-0 text-foreground-muted hover:bg-background-2 hover:text-foreground"
+                    aria-label="New terminal with shell"
+                  />
+                }
               >
-                <Plus className="size-3" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>New terminal</TooltipContent>
-          </Tooltip>
+                <ChevronDown className="size-3" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                {shellAvailability.map((entry) => (
+                  <DropdownMenuItem
+                    key={entry.id}
+                    disabled={!entry.available}
+                    title={entry.reason}
+                    onClick={() => onAddTerminal(entry.id)}
+                  >
+                    <TerminalShellOptionLabel entry={entry} />
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         }
       >
         {terminals.map((terminal) => (
@@ -78,7 +124,7 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
               <Tooltip>
                 <TooltipTrigger>
                   <button
-                    className="ml-1 shrink-0 flex items-center justify-center size-5 rounded opacity-0 group-hover:opacity-100 hover:bg-background text-foreground-muted hover:text-foreground"
+                    className="ml-1 flex size-5 shrink-0 items-center justify-center rounded text-foreground-muted opacity-0 group-hover:opacity-100 hover:bg-background hover:text-foreground"
                     onClick={(e) => {
                       e.stopPropagation();
                       onRemoveTerminal(terminal.data.id);
@@ -100,8 +146,13 @@ export const TerminalDrawerSidebar = observer(function TerminalDrawerSidebar({
             <Tooltip>
               <TooltipTrigger>
                 <button
-                  onClick={() => navigate('project', { projectId })}
-                  className="flex items-center justify-center size-5 rounded hover:bg-background-2 text-foreground-muted hover:text-foreground"
+                  onClick={() => {
+                    if (!project) return;
+                    project.view.setProjectView('settings');
+                    navigate('project', { projectId });
+                  }}
+                  disabled={!project}
+                  className="flex size-5 items-center justify-center rounded text-foreground-muted hover:bg-background-2 hover:text-foreground"
                 >
                   <Settings className="size-3" />
                 </button>
@@ -245,7 +296,7 @@ function InlineRenameInput({
   return (
     <input
       ref={ref}
-      className="w-full bg-transparent outline-none text-sm border border-border px-1 py-0.5 rounded text-foreground"
+      className="w-full rounded border border-border bg-transparent px-1 py-0.5 text-sm text-foreground outline-none"
       value={value}
       onChange={(e) => setValue(e.target.value)}
       onBlur={() => onConfirm(value)}

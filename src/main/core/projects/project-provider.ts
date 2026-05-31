@@ -1,12 +1,12 @@
-import type { Branch, FetchError } from '@shared/git';
-import type { ProjectRemoteState } from '@shared/projects';
-import type { Result } from '@shared/result';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import type { GitFetchService } from '@main/core/git/git-fetch-service';
 import type { GitRepositoryService } from '@main/core/git/repository-service';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import type { IDisposable } from '@main/lib/lifecycle';
+import type { Branch, FetchError } from '@shared/git';
+import type { ProjectRemoteState } from '@shared/projects';
+import type { Result } from '@shared/result';
 import type { ConversationProvider } from '../conversations/types';
 import { taskManager } from '../tasks/task-manager';
 import type { TerminalProvider } from '../terminals/terminal-provider';
@@ -48,11 +48,9 @@ export type ProjectProviderTransport = {
   readonly kind: string;
   readonly defaultWorkspaceType: WorkspaceType;
   readonly ctx: IExecutionContext;
-  readonly authCtx: IExecutionContext;
   readonly fs: FileSystemProvider;
   readonly settings: ProjectSettingsProvider;
   readonly worktreeHost: WorktreeHost;
-  readonly worktreePoolPath: string;
 };
 
 export class ProjectProvider implements IDisposable {

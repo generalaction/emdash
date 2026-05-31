@@ -38,10 +38,13 @@ const ICON_PATHS = {
   windsurf: 'windsurf.png',
   xcode: 'xcode.png',
   terminal: 'terminal.png',
+  kaku: 'kaku.png',
+  alacritty: 'alacritty.svg',
   warp: 'warp.svg',
   iterm2: 'iterm2.png',
   ghostty: 'ghostty.png',
   kitty: 'kitty.png',
+  termy: 'termy.png',
   zed: 'zed.png',
   trae: 'trae.png',
   'intellij-idea': 'intellij-idea.svg',
@@ -89,7 +92,7 @@ const _OPEN_IN_APPS = {
         appNames: ['Cursor'],
       },
       win32: {
-        openCommands: ['start "" cursor {{path}}'],
+        openCommands: ['cursor {{path}}'],
         checkCommands: ['cursor'],
       },
       linux: {
@@ -116,7 +119,7 @@ const _OPEN_IN_APPS = {
         appNames: ['Visual Studio Code'],
       },
       win32: {
-        openCommands: ['start "" code {{path}}', 'start "" code-insiders {{path}}'],
+        openCommands: ['code {{path}}', 'code-insiders {{path}}'],
         checkCommands: ['code', 'code-insiders'],
       },
       linux: {
@@ -143,7 +146,7 @@ const _OPEN_IN_APPS = {
         appNames: ['VSCodium'],
       },
       win32: {
-        openCommands: ['start "" codium {{path}}'],
+        openCommands: ['codium {{path}}'],
         checkCommands: ['codium'],
       },
       linux: {
@@ -169,7 +172,7 @@ const _OPEN_IN_APPS = {
         appNames: ['Windsurf'],
       },
       win32: {
-        openCommands: ['start "" windsurf {{path}}'],
+        openCommands: ['windsurf {{path}}'],
         checkCommands: ['windsurf'],
       },
       linux: {
@@ -212,6 +215,55 @@ const _OPEN_IN_APPS = {
           'gnome-terminal --working-directory={{path}}',
           'konsole --workdir {{path}}',
         ],
+      },
+    },
+  },
+  kaku: {
+    id: 'kaku',
+    label: 'Kaku',
+    iconPath: ICON_PATHS.kaku,
+    supportsRemote: true,
+    platforms: {
+      darwin: {
+        openCommands: [
+          'command -v kaku >/dev/null 2>&1 && kaku start --cwd {{path}}',
+          'open -na "Kaku" --args start --cwd {{path}}',
+        ],
+        checkCommands: ['kaku'],
+        appNames: ['Kaku'],
+      },
+      linux: {
+        openCommands: ['kaku start --cwd {{path}}'],
+        checkCommands: ['kaku'],
+      },
+    },
+  },
+  alacritty: {
+    id: 'alacritty',
+    label: 'Alacritty',
+    iconPath: ICON_PATHS.alacritty,
+    supportsRemote: true,
+    platforms: {
+      darwin: {
+        openCommands: [
+          'command -v alacritty >/dev/null 2>&1 && alacritty --working-directory {{path}}',
+          'open -n -b org.alacritty --args --working-directory {{path}}',
+          'open -na "Alacritty" --args --working-directory {{path}}',
+        ],
+        checkCommands: ['alacritty'],
+        bundleIds: ['org.alacritty'],
+        appNames: ['Alacritty'],
+      },
+      win32: {
+        openCommands: [
+          'start "" alacritty --working-directory "{{path_raw}}"',
+          'alacritty --working-directory "{{path_raw}}"',
+        ],
+        checkCommands: ['alacritty'],
+      },
+      linux: {
+        openCommands: ['alacritty --working-directory {{path}}'],
+        checkCommands: ['alacritty'],
       },
     },
   },
@@ -284,11 +336,35 @@ const _OPEN_IN_APPS = {
       },
     },
   },
+  termy: {
+    id: 'termy',
+    label: 'Termy',
+    iconPath: ICON_PATHS.termy,
+    platforms: {
+      darwin: {
+        openCommands: [
+          'command -v termy >/dev/null 2>&1 && termy --working-directory={{path}}',
+          'open -a "Termy" {{path}}',
+        ],
+        checkCommands: ['termy'],
+        appNames: ['Termy'],
+      },
+      win32: {
+        openCommands: ['start "" termy --working-directory={{path}}'],
+        checkCommands: ['termy'],
+      },
+      linux: {
+        openCommands: ['termy --working-directory={{path}}'],
+        checkCommands: ['termy'],
+      },
+    },
+  },
   zed: {
     id: 'zed',
     label: 'Zed',
     iconPath: ICON_PATHS.zed,
     autoInstall: true,
+    supportsRemote: true,
     platforms: {
       darwin: {
         openCommands: ['command -v zed >/dev/null 2>&1 && zed {{path}}', 'open -a "Zed" {{path}}'],
@@ -297,6 +373,10 @@ const _OPEN_IN_APPS = {
       },
       linux: {
         openCommands: ['zed {{path}}', 'xdg-open {{path}}'],
+        checkCommands: ['zed'],
+      },
+      win32: {
+        openCommands: ['zed {{path}}'],
         checkCommands: ['zed'],
       },
     },
@@ -317,7 +397,7 @@ const _OPEN_IN_APPS = {
         appNames: ['Kiro'],
       },
       win32: {
-        openCommands: ['start "" kiro {{path}}'],
+        openCommands: ['kiro {{path}}'],
         checkCommands: ['kiro'],
       },
       linux: {
@@ -341,7 +421,7 @@ const _OPEN_IN_APPS = {
         appNames: ['Antigravity'],
       },
       win32: {
-        openCommands: ['start "" antigravity {{path}}'],
+        openCommands: ['antigravity {{path}}'],
         checkCommands: ['antigravity'],
       },
       linux: {
@@ -365,7 +445,7 @@ const _OPEN_IN_APPS = {
         appNames: ['Trae'],
       },
       win32: {
-        openCommands: ['start "" trae "{{path_raw}}"'],
+        openCommands: ['trae "{{path_raw}}"'],
         checkCommands: ['trae'],
       },
       linux: {
@@ -389,7 +469,7 @@ const _OPEN_IN_APPS = {
         appNames: ['Trae Solo'],
       },
       win32: {
-        openCommands: ['start "" trae-solo "{{path_raw}}"'],
+        openCommands: ['trae-solo "{{path_raw}}"'],
         checkCommands: ['trae-solo'],
       },
       linux: {

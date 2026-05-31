@@ -28,3 +28,29 @@ export const taskProvisionProgressChannel = defineEvent<{
   step: ProvisionStep;
   message: string;
 }>('task:provision-progress');
+
+export type LifecycleScriptType = 'setup' | 'run' | 'teardown';
+export type LifecycleScriptOrigin = 'auto-setup' | 'manual' | 'workspace-destroy';
+
+export type LifecycleScriptStatusEvent = {
+  taskId: string;
+  projectId: string;
+  workspaceId: string;
+  type: LifecycleScriptType;
+  origin: LifecycleScriptOrigin;
+} & (
+  | { status: 'running' }
+  | { status: 'succeeded'; exitCode?: number }
+  | {
+      status: 'failed';
+      message: string;
+      surfaceFailure: boolean;
+      exitCode?: number;
+      signal?: string | number;
+    }
+  | { status: 'stopped'; message?: string }
+);
+
+export const lifecycleScriptStatusChannel = defineEvent<LifecycleScriptStatusEvent>(
+  'task:lifecycle-script-status'
+);

@@ -1,11 +1,11 @@
 import { makeObservable, observable, runInAction } from 'mobx';
-import { sshConnectionEventChannel } from '@shared/events/sshEvents';
-import { type LocalProject, type SshProject } from '@shared/projects';
-import type { ProjectViewSnapshot } from '@shared/view-state';
 import { events, rpc } from '@renderer/lib/ipc';
 import { appState } from '@renderer/lib/stores/app-state';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
+import { sshConnectionEventChannel } from '@shared/events/sshEvents';
+import { type LocalProject, type SshProject } from '@shared/projects';
+import type { ProjectViewSnapshot } from '@shared/view-state';
 import {
   createUnmountedProject,
   createUnregisteredProject,
@@ -15,32 +15,12 @@ import {
   type ProjectStore,
   type UnregisteredProjectPhase,
 } from './project';
-
-interface BaseModeData {
-  name: string;
-  path: string;
-}
-
-export interface PickModeData extends BaseModeData {
-  mode: 'pick';
-  initGitRepository?: boolean;
-}
-
-export interface CloneModeData extends BaseModeData {
-  mode: 'clone';
-  repositoryUrl: string;
-}
-
-export interface NewModeData extends BaseModeData {
-  mode: 'new';
-  repositoryName: string;
-  repositoryOwner: string;
-  repositoryVisibility: 'public' | 'private';
-}
-
-export type ModeData = PickModeData | CloneModeData | NewModeData;
-
-export type ProjectType = { type: 'local' } | { type: 'ssh'; connectionId: string };
+import type {
+  ModeData,
+  ProjectType,
+  StartProjectCreationOptions,
+  StartProjectCreationResult,
+} from './project-creation-types';
 
 export class ProjectManagerStore {
   projects = observable.map<string, ProjectStore>();
@@ -91,46 +71,66 @@ export class ProjectManagerStore {
     data: ModeData,
     id?: string
   ): Promise<string | undefined> {
-    const projectId = id ?? crypto.randomUUID();
-    runInAction(() => this.pendingCreationIds.add(projectId));
-    try {
-      return await this._doCreateProject(projectType, data, projectId);
-    } finally {
-      runInAction(() => this.pendingCreationIds.delete(projectId));
+    const result = await this.startProjectCreation(projectType, data, { id });
+    if (result.kind === 'existing') return result.projectId;
+
+    await result.completion;
+    return result.projectId;
+  }
+
+  async startProjectCreation(
+    projectType: ProjectType,
+    data: ModeData,
+    options: StartProjectCreationOptions = {}
+  ): Promise<StartProjectCreationResult> {
+    const isSsh = projectType.type === 'ssh';
+    const projectId = options.id ?? crypto.randomUUID();
+    const targetPath = data.mode === 'pick' ? data.path : `${data.path}/${data.name}`;
+    const inspection = await rpc.projects.inspectProjectPath(
+      isSsh
+        ? { type: 'ssh', path: targetPath, connectionId: projectType.connectionId }
+        : { type: 'local', path: targetPath }
+    );
+    if (inspection.existingProject) {
+      return { kind: 'existing', projectId: inspection.existingProject.id };
     }
+
+    runInAction(() => {
+      this.pendingCreationIds.add(projectId);
+      this.projects.set(
+        projectId,
+        createUnregisteredProject(projectId, data.name, initialCreationPhase(data.mode), data.mode)
+      );
+    });
+
+    const completion = this._doCreateProject(projectType, data, projectId, targetPath).finally(
+      () => {
+        runInAction(() => this.pendingCreationIds.delete(projectId));
+      }
+    );
+
+    return { kind: 'creating', projectId, completion };
   }
 
   private async _doCreateProject(
     projectType: ProjectType,
     data: ModeData,
-    projectId: string
-  ): Promise<string | undefined> {
+    projectId: string,
+    targetPath: string
+  ): Promise<void> {
     const isSsh = projectType.type === 'ssh';
-    const inspection = await rpc.projects.inspectProjectPath(
-      isSsh
-        ? { type: 'ssh', path: data.path, connectionId: projectType.connectionId }
-        : { type: 'local', path: data.path }
-    );
-    if (inspection.existingProject) return inspection.existingProject.id;
-
     const projectTelemetryType: 'local' | 'ssh' = isSsh ? 'ssh' : 'local';
     const projectTelemetryStrategy: 'open' | 'create' | 'clone' =
       data.mode === 'clone' ? 'clone' : data.mode === 'new' ? 'create' : 'open';
 
     switch (data.mode) {
       case 'pick': {
-        runInAction(() => {
-          this.projects.set(
-            projectId,
-            createUnregisteredProject(projectId, data.name, 'registering', 'pick')
-          );
-        });
         try {
           const project = isSsh
             ? await rpc.projects.createProject({
                 type: 'ssh',
                 id: projectId,
-                path: data.path,
+                path: targetPath,
                 name: data.name,
                 connectionId: projectType.connectionId,
                 initGitRepository: data.initGitRepository,
@@ -138,7 +138,7 @@ export class ProjectManagerStore {
             : await rpc.projects.createProject({
                 type: 'local',
                 id: projectId,
-                path: data.path,
+                path: targetPath,
                 name: data.name,
                 initGitRepository: data.initGitRepository,
               });
@@ -161,18 +161,11 @@ export class ProjectManagerStore {
       }
 
       case 'clone': {
-        runInAction(() => {
-          this.projects.set(
-            projectId,
-            createUnregisteredProject(projectId, data.name, 'cloning', 'clone')
-          );
-        });
         try {
-          const clonePath = `${data.path}/${data.name}`;
           const connectionId = isSsh ? projectType.connectionId : undefined;
           const cloneResult = await rpc.github.cloneRepository(
             data.repositoryUrl,
-            clonePath,
+            targetPath,
             connectionId
           );
           if (!cloneResult.success) throw new Error(cloneResult.error);
@@ -181,14 +174,14 @@ export class ProjectManagerStore {
             ? await rpc.projects.createProject({
                 type: 'ssh',
                 id: projectId,
-                path: clonePath,
+                path: targetPath,
                 name: data.name,
                 connectionId: projectType.connectionId,
               })
             : await rpc.projects.createProject({
                 type: 'local',
                 id: projectId,
-                path: clonePath,
+                path: targetPath,
                 name: data.name,
               });
           this._setAndOpenProject(projectId, project);
@@ -210,12 +203,6 @@ export class ProjectManagerStore {
       }
 
       case 'new': {
-        runInAction(() => {
-          this.projects.set(
-            projectId,
-            createUnregisteredProject(projectId, data.name, 'creating-repo', 'new')
-          );
-        });
         try {
           const connectionId = isSsh ? projectType.connectionId : undefined;
           const repoResult = await rpc.github.createRepository({
@@ -226,13 +213,12 @@ export class ProjectManagerStore {
           if (!repoResult.success || !repoResult.repoUrl) throw new Error(repoResult.error);
 
           this._updatePhase(projectId, 'cloning');
-          const clonePath = `${data.path}/${data.name}`;
           const cloneUrl = `https://github.com/${repoResult.nameWithOwner}.git`;
-          const cloneResult = await rpc.github.cloneRepository(cloneUrl, clonePath, connectionId);
+          const cloneResult = await rpc.github.cloneRepository(cloneUrl, targetPath, connectionId);
           if (!cloneResult.success) throw new Error(cloneResult.error);
 
           const initResult = await rpc.github.initializeProject({
-            targetPath: clonePath,
+            targetPath,
             name: data.name,
             connectionId,
           });
@@ -243,14 +229,14 @@ export class ProjectManagerStore {
             ? await rpc.projects.createProject({
                 type: 'ssh',
                 id: projectId,
-                path: clonePath,
+                path: targetPath,
                 name: data.name,
                 connectionId: projectType.connectionId,
               })
             : await rpc.projects.createProject({
                 type: 'local',
                 id: projectId,
-                path: clonePath,
+                path: targetPath,
                 name: data.name,
               });
           this._setAndOpenProject(projectId, project);
@@ -271,8 +257,6 @@ export class ProjectManagerStore {
         break;
       }
     }
-
-    return projectId;
   }
 
   mountProject(projectId: string): Promise<void> {
@@ -437,5 +421,16 @@ export class ProjectManagerStore {
         store.error = err instanceof Error ? err.message : String(err);
       }
     });
+  }
+}
+
+function initialCreationPhase(mode: ModeData['mode']): UnregisteredProjectPhase {
+  switch (mode) {
+    case 'pick':
+      return 'registering';
+    case 'clone':
+      return 'cloning';
+    case 'new':
+      return 'creating-repo';
   }
 }

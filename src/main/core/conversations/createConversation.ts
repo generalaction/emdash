@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
-import { type Conversation, type CreateConversationParams } from '@shared/conversations';
 import { withCompensation } from '@main/core/utils/compensation';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
+import { serializeConversationConfig } from '@shared/conversation-config';
+import { type Conversation, type CreateConversationParams } from '@shared/conversations';
 import { resolveTask } from '../projects/utils';
 import { conversationEvents } from './conversation-events';
 import { mapConversationRowToConversation } from './utils';
@@ -21,7 +22,7 @@ export async function createConversation(params: CreateConversationParams): Prom
   const config =
     params.autoApprove === undefined
       ? undefined
-      : JSON.stringify({ autoApprove: params.autoApprove });
+      : serializeConversationConfig({ autoApprove: params.autoApprove });
 
   const [row] = await db
     .insert(conversations)

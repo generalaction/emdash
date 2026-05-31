@@ -1,20 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TaskRow } from '@main/db/schema';
+import { err } from '@shared/result';
+import { toStoredBranch } from '../stored-branch';
 import { createTask } from './createTask';
 
 const mocks = vi.hoisted(() => ({
   insert: vi.fn(),
   update: vi.fn(),
   getProject: vi.fn(),
-  provisionTask: vi.fn(),
   getAppSetting: vi.fn(),
-  getProjectRemoteInfo: vi.fn(),
+  resolveProviderRepository: vi.fn(),
   getTaskPullRequests: vi.fn(),
-  createConversation: vi.fn(),
-  telemetryCapture: vi.fn(),
   findBranchAnywhere: vi.fn(),
   fetchPrForReview: vi.fn(),
   getConfiguredRemotes: vi.fn(),
+  getRepositoryInfo: vi.fn(),
+  createBranch: vi.fn(),
+  publishBranch: vi.fn(),
 }));
 
 vi.mock('@main/db/client', () => ({
@@ -30,12 +32,6 @@ vi.mock('@main/core/projects/project-manager', () => ({
   },
 }));
 
-vi.mock('@main/core/tasks/task-manager', () => ({
-  taskManager: {
-    provisionTask: mocks.provisionTask,
-  },
-}));
-
 vi.mock('../../settings/settings-service', () => ({
   appSettingsService: {
     get: mocks.getAppSetting,
@@ -44,18 +40,13 @@ vi.mock('../../settings/settings-service', () => ({
 
 vi.mock('../../pull-requests/pr-query-service', () => ({
   prQueryService: {
-    getProjectRemoteInfo: mocks.getProjectRemoteInfo,
     getTaskPullRequests: mocks.getTaskPullRequests,
   },
 }));
 
-vi.mock('../../conversations/createConversation', () => ({
-  createConversation: mocks.createConversation,
-}));
-
-vi.mock('@main/lib/telemetry', () => ({
-  telemetryService: {
-    capture: mocks.telemetryCapture,
+vi.mock('@main/core/repository/provider-repository-service', () => ({
+  providerRepositoryService: {
+    resolveProject: mocks.resolveProviderRepository,
   },
 }));
 
@@ -88,15 +79,15 @@ describe('createTask', () => {
       if (key === 'project') {
         return Promise.resolve({ branchPrefix: 'emdash', appendRandomBranchSuffix: true });
       }
-      if (key === 'agentAutoApproveDefaults') {
-        return Promise.resolve({});
-      }
       return Promise.resolve(undefined);
     });
 
     mocks.findBranchAnywhere.mockResolvedValue('/external/worktrees/pr-branch');
     mocks.fetchPrForReview.mockResolvedValue({ success: true });
     mocks.getConfiguredRemotes.mockResolvedValue({ baseRemote: 'origin', pushRemote: 'origin' });
+    mocks.getRepositoryInfo.mockResolvedValue({ isUnborn: false, currentBranch: 'main' });
+    mocks.createBranch.mockResolvedValue({ success: true, data: undefined });
+    mocks.publishBranch.mockResolvedValue({ success: true, data: { output: '' } });
     mocks.getProject.mockReturnValue({
       defaultWorkspaceType: { kind: 'local' },
       worktreeService: {
@@ -104,11 +95,13 @@ describe('createTask', () => {
       },
       repository: {
         getConfiguredRemotes: mocks.getConfiguredRemotes,
+        getRepositoryInfo: mocks.getRepositoryInfo,
+        createBranch: mocks.createBranch,
+        publishBranch: mocks.publishBranch,
         fetchPrForReview: mocks.fetchPrForReview,
       },
     });
-    mocks.getProjectRemoteInfo.mockResolvedValue({ status: 'unavailable' });
-    mocks.provisionTask.mockResolvedValue({ success: true, data: undefined });
+    mocks.resolveProviderRepository.mockResolvedValue(err({ type: 'unsupported_provider' }));
 
     const updateWhere = vi.fn().mockResolvedValue(undefined);
     const updateSet = vi.fn(() => ({ where: updateWhere }));
@@ -148,18 +141,11 @@ describe('createTask', () => {
     expect(insertTaskValues).toHaveBeenCalledWith(
       expect.objectContaining({
         taskBranch: 'claude/add-french-translations-ud2fs',
-        sourceBranch: { type: 'local', branch: 'claude/add-french-translations-ud2fs' },
+        sourceBranch: toStoredBranch({
+          type: 'local',
+          branch: 'claude/add-french-translations-ud2fs',
+        }),
       })
-    );
-    expect(mocks.provisionTask).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        taskBranch: 'claude/add-french-translations-ud2fs',
-        sourceBranch: { type: 'local', branch: 'claude/add-french-translations-ud2fs' },
-      }),
-      [],
-      [],
-      expect.objectContaining({ type: 'local' })
     );
   });
 
@@ -205,8 +191,87 @@ describe('createTask', () => {
     expect(insertTaskValues).toHaveBeenCalledWith(
       expect.objectContaining({
         taskBranch: 'claude/add-french-translations-ud2fs',
-        sourceBranch: { type: 'local', branch: 'claude/add-french-translations-ud2fs' },
+        sourceBranch: toStoredBranch({
+          type: 'local',
+          branch: 'claude/add-french-translations-ud2fs',
+        }),
       })
     );
+  });
+
+  it('creates branch-based tasks from local source branches without remote sync', async () => {
+    const insertTaskValues = vi.fn((values: Partial<TaskRow>) => ({
+      returning: vi.fn().mockResolvedValue([makeTaskRow(values)]),
+    }));
+    const insertWorkspaceValues = vi.fn().mockResolvedValue(undefined);
+    mocks.insert
+      .mockReturnValueOnce({ values: insertTaskValues })
+      .mockReturnValueOnce({ values: insertWorkspaceValues });
+
+    const result = await createTask({
+      id: 'task-1',
+      projectId: 'project-1',
+      name: 'Local task',
+      sourceBranch: { type: 'local', branch: 'main' },
+      strategy: {
+        kind: 'new-branch',
+        taskBranch: 'task/local',
+        pushBranch: false,
+      },
+    });
+
+    expect(result.success).toBe(true);
+    expect(mocks.createBranch).toHaveBeenCalledWith('task/local', 'main', false, undefined);
+  });
+
+  it('blocks branch-based tasks when the selected remote source branch cannot be fetched', async () => {
+    mocks.createBranch.mockResolvedValueOnce(
+      err({
+        type: 'fetch_failed',
+        remote: 'origin',
+        branch: 'main',
+        error: {
+          type: 'auth_failed',
+          message:
+            "fatal: could not read Username for 'https://github.com': terminal prompts disabled",
+        },
+      })
+    );
+
+    const result = await createTask({
+      id: 'task-1',
+      projectId: 'project-1',
+      name: 'Remote task',
+      sourceBranch: {
+        type: 'remote',
+        branch: 'main',
+        remote: { name: 'origin', url: 'https://github.com/example/repo.git' },
+      },
+      strategy: {
+        kind: 'new-branch',
+        taskBranch: 'task/remote',
+        pushBranch: false,
+      },
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        type: 'branch-create-failed',
+        branch: 'task/remote',
+        error: {
+          type: 'fetch_failed',
+          remote: 'origin',
+          branch: 'main',
+          error: {
+            type: 'auth_failed',
+            message:
+              "fatal: could not read Username for 'https://github.com': terminal prompts disabled",
+          },
+        },
+      },
+    });
+    expect(mocks.createBranch).toHaveBeenCalledWith('task/remote', 'main', true, 'origin');
+    expect(mocks.insert).not.toHaveBeenCalled();
   });
 });

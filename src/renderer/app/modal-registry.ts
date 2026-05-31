@@ -10,6 +10,7 @@ import { CreateSkillModal } from '@renderer/features/skills/components/CreateSki
 import { AddRemoteModal } from '@renderer/features/tasks/add-remote-modal';
 import { CreateConversationModal } from '@renderer/features/tasks/conversations/create-conversation-modal';
 import { CreateTaskModal } from '@renderer/features/tasks/create-task-modal/create-task-modal';
+import { DeleteTaskModal } from '@renderer/features/tasks/delete-task-modal';
 import { CreatePrModal } from '@renderer/features/tasks/diff-view/changes-panel/components/pr-entry/create-pr-modal';
 import { ConflictDialog } from '@renderer/features/tasks/editor/conflict-dialog';
 import { RenameTaskModal } from '@renderer/features/tasks/rename-task-modal';
@@ -45,6 +46,7 @@ export const modalRegistry = {
   changeProjectConnectionModal: createModal(ChangeProjectConnectionModal, { size: 'sm' }),
   githubDeviceFlowModal: createModal(GithubDeviceFlowModalOverlay, { size: 'md' }),
   confirmActionModal: createModal(ConfirmActionDialog, { size: 'xs' }),
+  confirmExternalLinkModal: createModal(ConfirmActionDialog, { size: 'sm' }),
   unsavedChangesModal: createModal(UnsavedChangesDialog, { size: 'xs' }),
   createConversationModal: createModal(CreateConversationModal),
   feedbackModal: createModal(FeedbackModal),
@@ -59,5 +61,6 @@ export const modalRegistry = {
   integrationSetupModal: createModal(IntegrationSetupModal, { size: 'md' }),
   githubConnectModal: createModal(GithubConnectModal, { size: 'md' }),
   addRemoteModal: createModal(AddRemoteModal),
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  deleteTaskModal: createModal(DeleteTaskModal, { size: 'sm' }),
+  // oxlint-disable-next-line typescript/no-explicit-any
 } satisfies Record<string, ModalRegistryEntry<any, any>>;

@@ -1,5 +1,6 @@
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
+import { rpc } from '@renderer/lib/ipc';
 import {
   pullRequestErrorMessage,
   type ListPrOptions,
@@ -7,7 +8,6 @@ import {
   type PrFilters,
   type PrSortField,
 } from '@shared/pull-requests';
-import { rpc } from '@renderer/lib/ipc';
 
 const PAGE_SIZE = 50;
 

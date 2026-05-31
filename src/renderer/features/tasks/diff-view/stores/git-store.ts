@@ -1,12 +1,13 @@
 import { computed, makeObservable } from 'mobx';
 import { toast } from 'sonner';
-import { fsWatchEventChannel } from '@shared/events/fsEvents';
-import { gitWorkspaceChangedChannel } from '@shared/events/gitEvents';
-import type { FullGitStatus, GitChange } from '@shared/git';
-import { err, ok } from '@shared/result';
 import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
+import { fsWatchEventChannel } from '@shared/events/fsEvents';
+import { gitRefChangedChannel, gitWorkspaceChangedChannel } from '@shared/events/gitEvents';
+import { localRef, refsEqual, type FullGitStatus, type GitChange } from '@shared/git';
+import { err, ok } from '@shared/result';
+import { formatPushErrorDetail } from '../../utils';
 
 const TOO_MANY_FILES_MSG = 'Too many files changed to display';
 
@@ -42,6 +43,29 @@ export class GitStore {
             }),
           onEvent: 'reload',
           debounceMs: 300,
+        },
+        {
+          kind: 'event',
+          subscribe: (handler) =>
+            events.on(gitRefChangedChannel, (payload) => {
+              if (payload.projectId !== this.projectId) return;
+              if (payload.workspaceId !== undefined && payload.workspaceId !== this.workspaceId)
+                return;
+              if (payload.kind !== 'local-refs') return;
+
+              const currentBranch = this.fullStatus.data?.currentBranch;
+              if (
+                currentBranch &&
+                payload.changedRefs &&
+                !payload.changedRefs.some((ref) => refsEqual(ref, localRef(currentBranch)))
+              ) {
+                return;
+              }
+
+              handler();
+            }),
+          onEvent: 'reload',
+          debounceMs: 500,
         },
         {
           kind: 'event',
@@ -361,8 +385,7 @@ export class GitStore {
       this.repositoryStore.refreshRemote(); // remote now has the commits
       return ok();
     } else {
-      const detail =
-        'message' in result.error ? (result.error.message ?? result.error.type) : result.error.type;
+      const detail = formatPushErrorDetail(result.error);
       toast.error(`Failed to push: ${detail}`);
       return err(result.error);
     }
@@ -382,8 +405,7 @@ export class GitStore {
       this.repositoryStore.refreshRemote(); // branch now exists on remote
       return ok();
     } else {
-      const detail =
-        'message' in result.error ? (result.error.message ?? result.error.type) : result.error.type;
+      const detail = formatPushErrorDetail(result.error);
       toast.error(`Failed to publish branch: ${detail}`);
       return err(result.error);
     }

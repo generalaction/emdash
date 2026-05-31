@@ -1,8 +1,15 @@
+import { detectPlatform, matchesKeyboardEvent } from '@tanstack/react-hotkeys';
 import { motion, type Variants } from 'framer-motion';
+import { useEffect } from 'react';
 import IconLight from '@/assets/images/emdash/icon-light.png';
-import YTBanner from '@/assets/images/ytbanner.png';
+import YTBanner from '@/assets/images/ytbanner.webp';
+import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { getEffectiveHotkey } from '@renderer/lib/hooks/useKeyboardShortcuts';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { Button } from '@renderer/lib/ui/button';
+import { BoundShortcut } from '@renderer/lib/ui/shortcut';
+
+const PLATFORM = detectPlatform();
 
 interface WelcomeScreenProps {
   onGetStarted: () => void;
@@ -10,6 +17,24 @@ interface WelcomeScreenProps {
 
 export function WelcomeScreen({ onGetStarted }: WelcomeScreenProps) {
   const { effectiveTheme } = useTheme();
+  const { value: keyboard } = useAppSettingsKey('keyboard');
+  const confirmHotkey = getEffectiveHotkey('confirm', keyboard);
+
+  useEffect(() => {
+    if (confirmHotkey === null) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!matchesKeyboardEvent(event, confirmHotkey, PLATFORM)) return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      onGetStarted();
+    };
+
+    document.addEventListener('keydown', handleKeyDown, { capture: true });
+    return () => document.removeEventListener('keydown', handleKeyDown, { capture: true });
+  }, [confirmHotkey, onGetStarted]);
 
   const containerVariants: Variants = {
     hidden: { opacity: 0 },
@@ -36,7 +61,7 @@ export function WelcomeScreen({ onGetStarted }: WelcomeScreenProps) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-background">
-      <div className="absolute bottom-0 left-0 right-0 h-3/5">
+      <div className="absolute right-0 bottom-0 left-0 h-3/5">
         <div
           className="absolute inset-0 opacity-40"
           style={{
@@ -58,7 +83,7 @@ export function WelcomeScreen({ onGetStarted }: WelcomeScreenProps) {
         animate="visible"
       >
         <motion.div
-          className="rounded-md border border-border/40 bg-white p-1.5 shadow-lg shadow-black/5 ring-1 ring-black/5 dark:shadow-white/5 dark:ring-white/10"
+          className="rounded-md border border-border/40 bg-white p-1.5 shadow-lg ring-1 shadow-black/5 ring-black/5 dark:shadow-white/5 dark:ring-white/10"
           variants={itemVariants}
         >
           <img src={IconLight} alt="Emdash" className="h-12 w-12 rounded-sm" />
@@ -84,7 +109,10 @@ export function WelcomeScreen({ onGetStarted }: WelcomeScreenProps) {
               effectiveTheme === 'emdark' ? 'bg-gray-200 text-gray-900 hover:bg-gray-300' : ''
             }
           >
-            Start shipping
+            <span className="flex items-center gap-2">
+              Start shipping
+              <BoundShortcut settingsKey="confirm" />
+            </span>
           </Button>
         </motion.div>
       </motion.div>

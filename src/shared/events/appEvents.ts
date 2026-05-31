@@ -28,6 +28,7 @@ export const notificationFocusTaskChannel = defineEvent<{
 
 export const ptyStartedChannel = defineEvent<{
   id: string;
+  epoch: number;
 }>('pty:started');
 
 export type PlanEvent = {

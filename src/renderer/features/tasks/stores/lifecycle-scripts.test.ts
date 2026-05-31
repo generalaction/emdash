@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fsWatchEventChannel } from '@shared/events/fsEvents';
 import { projectSettingsChangedChannel } from '@shared/events/projectEvents';
-import { ptyExitChannel } from '@shared/events/ptyEvents';
+import { lifecycleScriptStatusChannel } from '@shared/events/taskEvents';
 import { createLifecycleScriptTerminalId } from '@shared/terminals';
 import { LifecycleScriptsStore, LifecycleScriptStore } from './lifecycle-scripts';
 
 const eventHandlers = new Map<string, (data: unknown) => void>();
-const offPtyExit = vi.fn();
-const getWorkspaceSettings = vi.hoisted(() => vi.fn());
+const offEvent = vi.fn();
+const getSettings = vi.hoisted(() => vi.fn());
 const watchSetPaths = vi.hoisted(() => vi.fn(async () => ({ success: true, data: {} })));
 const watchStop = vi.hoisted(() => vi.fn(async () => ({ success: true, data: {} })));
 
@@ -15,12 +15,12 @@ vi.mock('@renderer/lib/ipc', () => ({
   events: {
     on: vi.fn((event: { name: string }, cb: (data: unknown) => void, topic?: string) => {
       eventHandlers.set(`${event.name}.${topic ?? ''}`, cb);
-      return offPtyExit;
+      return offEvent;
     }),
   },
   rpc: {
-    tasks: {
-      getWorkspaceSettings,
+    projectSettings: {
+      getSettings,
     },
     fs: {
       watchSetPaths,
@@ -38,19 +38,20 @@ vi.mock('@renderer/lib/pty/pty-session', () => ({
 
     connect = vi.fn(async () => {});
     dispose = vi.fn();
+    destroy = vi.fn();
   },
 }));
 
 describe('LifecycleScriptStore', () => {
   beforeEach(() => {
     eventHandlers.clear();
-    offPtyExit.mockClear();
-    getWorkspaceSettings.mockReset();
+    offEvent.mockClear();
+    getSettings.mockReset();
     watchSetPaths.mockClear();
     watchStop.mockClear();
   });
 
-  it('tracks a running script until its PTY exits', () => {
+  it('tracks script running state from lifecycle status events', () => {
     const store = new LifecycleScriptStore(
       { id: 'script-id', type: 'run', label: 'Run', command: 'pnpm dev' },
       'project-1',
@@ -59,16 +60,33 @@ describe('LifecycleScriptStore', () => {
 
     expect(store.isRunning).toBe(false);
 
-    store.markRunning();
+    eventHandlers.get(`${lifecycleScriptStatusChannel.name}.`)?.({
+      projectId: 'project-1',
+      taskId: 'task-1',
+      workspaceId: 'branch:feature',
+      type: 'run',
+      origin: 'manual',
+      status: 'running',
+    });
 
     expect(store.isRunning).toBe(true);
+    expect(store.status).toBe('running');
 
-    eventHandlers.get(`${ptyExitChannel.name}.${store.session.sessionId}`)?.({ exitCode: 0 });
+    eventHandlers.get(`${lifecycleScriptStatusChannel.name}.`)?.({
+      projectId: 'project-1',
+      taskId: 'task-1',
+      workspaceId: 'branch:feature',
+      type: 'run',
+      origin: 'manual',
+      status: 'succeeded',
+      exitCode: 0,
+    });
 
     expect(store.isRunning).toBe(false);
+    expect(store.status).toBe('succeeded');
   });
 
-  it('unsubscribes from PTY exit events on dispose', () => {
+  it('unsubscribes from lifecycle status events on dispose', () => {
     const store = new LifecycleScriptStore(
       { id: 'script-id', type: 'run', label: 'Run', command: 'pnpm dev' },
       'project-1',
@@ -77,21 +95,21 @@ describe('LifecycleScriptStore', () => {
 
     store.dispose();
 
-    expect(offPtyExit).toHaveBeenCalledTimes(1);
+    expect(offEvent).toHaveBeenCalledTimes(1);
   });
 });
 
 describe('LifecycleScriptsStore', () => {
   beforeEach(() => {
     eventHandlers.clear();
-    offPtyExit.mockClear();
-    getWorkspaceSettings.mockReset();
+    offEvent.mockClear();
+    getSettings.mockReset();
     watchSetPaths.mockClear();
     watchStop.mockClear();
   });
 
   it('uses stable script IDs and reconciles command changes from .emdash.json watch events', async () => {
-    getWorkspaceSettings
+    getSettings
       .mockResolvedValueOnce({ scripts: { run: 'pnpm dev' } })
       .mockResolvedValueOnce({ scripts: { run: 'pnpm start' } });
     const store = new LifecycleScriptsStore('project-1', 'workspace-1');
@@ -122,7 +140,7 @@ describe('LifecycleScriptsStore', () => {
   });
 
   it('reloads lifecycle scripts when project settings change', async () => {
-    getWorkspaceSettings
+    getSettings
       .mockResolvedValueOnce({ scripts: { setup: 'pnpm install' } })
       .mockResolvedValueOnce({ scripts: { setup: 'corepack install', run: 'pnpm dev' } });
     const store = new LifecycleScriptsStore('project-1', 'workspace-1');
@@ -138,7 +156,7 @@ describe('LifecycleScriptsStore', () => {
 
   it('does not recreate script sessions when an in-flight load completes after dispose', async () => {
     let resolveSettings: (settings: unknown) => void = () => {};
-    getWorkspaceSettings.mockReturnValue(
+    getSettings.mockReturnValue(
       new Promise((resolve) => {
         resolveSettings = resolve;
       })

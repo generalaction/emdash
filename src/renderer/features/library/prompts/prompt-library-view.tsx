@@ -1,13 +1,14 @@
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import type { PromptLibraryPrompt } from '@shared/prompt-library';
 import { MultiLineListItem } from '@renderer/lib/components/multi-line-list-item';
 import { PageHeader } from '@renderer/lib/components/page-header';
+import { toast } from '@renderer/lib/hooks/use-toast';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { SearchInput } from '@renderer/lib/ui/search-input';
 import { cn } from '@renderer/utils/utils';
+import type { PromptLibraryPrompt } from '@shared/prompt-library';
 import type { PromptFormResult } from './prompt-modal';
 import { usePromptLibrary } from './use-prompt-library';
 
@@ -46,12 +47,12 @@ function PromptRow({
         onClick={onEdit}
         disabled={disabled}
       >
-        <div className="truncate text-md text-foreground">{item.title}</div>
+        <div className="text-md truncate text-foreground">{item.title}</div>
         <div className="mt-1 line-clamp-1 text-xs leading-relaxed text-foreground-muted">
           {item.prompt}
         </div>
       </button>
-      <div className="flex shrink-0 items-center gap-1 opacity-100 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
+      <div className="flex shrink-0 items-center gap-1 opacity-100 sm:opacity-0 sm:transition-opacity sm:group-focus-within:opacity-100 sm:group-hover:opacity-100">
         <Button
           variant="ghost"
           size="icon-xs"
@@ -94,18 +95,20 @@ export function PromptLibraryView() {
     [promptLibrary, search]
   );
 
-  const upsertPrompt = (prompt: PromptLibraryPrompt) => {
+  const upsertPrompt = (prompt: PromptLibraryPrompt, successTitle: string) => {
     const exists = promptLibrary.some((item) => item.id === prompt.id);
     const nextPrompts = exists
       ? promptLibrary.map((item) => (item.id === prompt.id ? prompt : item))
       : [...promptLibrary, prompt];
-    updatePromptLibrary(nextPrompts);
+    updatePromptLibrary(nextPrompts, {
+      onSuccess: () => toast({ title: successTitle }),
+    });
   };
 
   const createPrompt = () => {
     showPromptModal({
       onSuccess: (result: PromptFormResult) => {
-        upsertPrompt({ id: createPromptId(), ...result });
+        upsertPrompt({ id: createPromptId(), ...result }, 'Prompt added');
       },
     });
   };
@@ -113,7 +116,8 @@ export function PromptLibraryView() {
   const editPrompt = (prompt: PromptLibraryPrompt) => {
     showPromptModal({
       initialPrompt: prompt,
-      onSuccess: (result: PromptFormResult) => upsertPrompt({ ...prompt, ...result }),
+      onSuccess: (result: PromptFormResult) =>
+        upsertPrompt({ ...prompt, ...result }, 'Prompt updated'),
     });
   };
 
@@ -122,7 +126,13 @@ export function PromptLibraryView() {
       title: 'Delete prompt?',
       description: `"${prompt.title}" will be removed from the prompt library.`,
       confirmLabel: 'Delete',
-      onSuccess: () => updatePromptLibrary(promptLibrary.filter((item) => item.id !== prompt.id)),
+      onSuccess: () =>
+        updatePromptLibrary(
+          promptLibrary.filter((item) => item.id !== prompt.id),
+          {
+            onSuccess: () => toast({ title: 'Prompt deleted' }),
+          }
+        ),
     });
   };
 
@@ -133,7 +143,7 @@ export function PromptLibraryView() {
           title="Prompts"
           description="Manage reusable prompts that can be sent from task prompt menus."
         >
-          <div className="flex gap-2 w-full justify-between">
+          <div className="flex w-full justify-between gap-2">
             <SearchInput
               value={search}
               onChange={(e) => setSearch(e.target.value)}

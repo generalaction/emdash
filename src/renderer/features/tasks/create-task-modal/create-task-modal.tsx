@@ -1,21 +1,19 @@
-import { ChevronRight, FolderOpen } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useCallback, useEffect, useState } from 'react';
-import { getPrNumber, isForkPr, type PullRequest } from '@shared/pull-requests';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useIntegrationsContext } from '@renderer/features/integrations/integrations-provider';
+import { ISSUE_PROVIDER_ORDER } from '@renderer/features/integrations/issue-provider-meta';
 import {
   getProjectManagerStore,
   getRepositoryStore,
   mountedProjectData,
 } from '@renderer/features/projects/stores/project-selectors';
 import { nextDefaultConversationTitle } from '@renderer/features/tasks/conversations/conversation-title-utils';
-import { ProjectSelector } from '@renderer/features/tasks/create-task-modal/project-selector';
 import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
+import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
-import { AnimatedHeight } from '@renderer/lib/ui/animated-height';
-import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
   DialogContentArea,
@@ -23,33 +21,36 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
-import { Switch } from '@renderer/lib/ui/switch';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
+import { getPrNumber, isForkPr, type PullRequest } from '@shared/pull-requests';
 import {
   resolveBranchLikeTaskStrategy,
   resolvePullRequestTaskStrategy,
 } from './create-task-strategy';
-import { FromBranchContent } from './from-branch-content';
-import { FromIssueContent } from './from-issue-content';
-import { FromPrContent } from './from-pr-content';
-import { useInitialConversationState } from './initial-conversation-section';
-import { useFromBranchMode } from './use-from-branch-mode';
-import { useFromIssueMode } from './use-from-issue-mode';
-import { useFromPullRequestMode } from './use-from-pull-request-mode';
+import {
+  InitialConversationField,
+  useInitialConversationState,
+} from './initial-conversation-section';
+import { buildFinalPrompt } from './initial-conversation-text';
+import { IssueComboboxField } from './issue-combobox-field';
+import { PrComboboxField } from './pr-combobox-field';
+import { TaskNameField } from './task-name-field';
+import { type LinkedType, useCreateTaskState } from './use-create-task-state';
+import { WorkspaceSettingsSection } from './workspace-settings-section';
 
-type CreateTaskStrategy = 'from-branch' | 'from-issue' | 'from-pull-request';
+type SectionTab = 'conversation' | 'workspace';
 
 export const CreateTaskModal = observer(function CreateTaskModal({
   projectId,
-  strategy = 'from-branch',
+  strategy: initialStrategy = 'from-branch',
   initialPR,
   onClose,
 }: BaseModalProps & {
   projectId?: string;
-  strategy?: CreateTaskStrategy;
+  strategy?: 'from-branch' | 'from-issue' | 'from-pull-request';
   initialPR?: PullRequest;
 }) {
-  const [selectedProjectId, setSelectedProjectId] = useState<string | undefined>(() => {
+  const [selectedProjectId, _setSelectedProjectId] = useState<string | undefined>(() => {
     if (projectId) return projectId;
     const nav = appState.navigation;
     const navProjectId =
@@ -65,144 +66,155 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         .find((p) => p.state === 'mounted')?.data?.id
     );
   });
-  const [selectedStrategy, setSelectedStrategy] = useState<CreateTaskStrategy>(strategy);
-  const [isTransitioning, setIsTransitioning] = useState(false);
+
+  const [sectionTab, setSectionTab] = useState<SectionTab>('conversation');
   const [useBYOI, setUseBYOI] = useState(false);
 
   const projectData = selectedProjectId
     ? mountedProjectData(getProjectManagerStore().projects.get(selectedProjectId))
     : null;
-  const initialConversation = useInitialConversationState(selectedProjectId);
-  const autoApproveDefaults = useAgentAutoApproveDefaults();
-
-  useEffect(() => setUseBYOI(false), [selectedProjectId]);
-  useEffect(() => {
-    initialConversation.setProvider(null);
-    initialConversation.setPrompt('');
-    // setProvider and setPrompt are stable useState setters
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedProjectId]);
-
-  const isWorkspaceProviderEnabled = useFeatureFlag('workspace-provider');
-  useEffect(() => {
-    if (!isWorkspaceProviderEnabled) setUseBYOI(false);
-  }, [isWorkspaceProviderEnabled]);
 
   const repo = selectedProjectId ? getRepositoryStore(selectedProjectId) : undefined;
   const defaultBranch = repo?.defaultBranch;
   const isUnborn = repo?.isUnborn ?? false;
   const currentBranch = repo?.currentBranch ?? null;
-  const { navigate } = useNavigate();
 
   const repositoryUrl = selectedProjectId
-    ? (getRepositoryStore(selectedProjectId)?.repositoryUrl ?? undefined)
+    ? (getRepositoryStore(selectedProjectId)?.pullRequestRepositoryUrl ?? undefined)
     : undefined;
 
-  const fromBranch = useFromBranchMode(selectedProjectId, defaultBranch, isUnborn, currentBranch);
-  const fromIssue = useFromIssueMode(selectedProjectId, defaultBranch, isUnborn, currentBranch);
-  const fromPR = useFromPullRequestMode(selectedProjectId, defaultBranch, isUnborn, initialPR);
-  const fromPrUnavailable = selectedStrategy === 'from-pull-request' && !repositoryUrl;
+  const { connectionStatus } = useIntegrationsContext();
 
-  const activeMode = {
-    'from-branch': fromBranch,
-    'from-issue': fromIssue,
-    'from-pull-request': fromPR,
-  }[selectedStrategy];
-  const canCreate = !!selectedProjectId && activeMode.isValid && !fromPrUnavailable;
+  const hasAnyIssueIntegration = useMemo(
+    () =>
+      ISSUE_PROVIDER_ORDER.some((p) => {
+        const s = connectionStatus[p];
+        if (!s?.connected) return false;
+        if (s.capabilities.requiresRepositoryUrl && !repositoryUrl) return false;
+        if (s.capabilities.requiresProjectPath && !projectData?.path) return false;
+        return true;
+      }),
+    [connectionStatus, repositoryUrl, projectData?.path]
+  );
+
+  const hasPrSupport = !!repositoryUrl;
+
+  const defaultLinkedType = useMemo((): LinkedType => {
+    if (initialStrategy === 'from-pull-request') return 'pr';
+    if (initialStrategy === 'from-issue') return 'issue';
+    if (hasAnyIssueIntegration) return 'issue';
+    if (hasPrSupport) return 'pr';
+    return null;
+    // oxlint-disable-next-line react/exhaustive-deps
+  }, []); // computed once on mount
+
+  const resolvedInitialPR = initialStrategy === 'from-pull-request' ? initialPR : undefined;
+  const state = useCreateTaskState(
+    selectedProjectId,
+    defaultBranch,
+    isUnborn,
+    currentBranch,
+    resolvedInitialPR,
+    defaultLinkedType
+  );
+
+  const initialConversation = useInitialConversationState(selectedProjectId);
+  const autoApproveDefaults = useAgentAutoApproveDefaults();
+  const { includeIssueContextByDefault } = useTaskSettings();
+  const isWorkspaceProviderEnabled = useFeatureFlag('workspace-provider');
+  const { navigate } = useNavigate();
+
+  useEffect(() => setUseBYOI(false), [selectedProjectId]);
+  useEffect(() => {
+    if (!isWorkspaceProviderEnabled) setUseBYOI(false);
+  }, [isWorkspaceProviderEnabled]);
+  useEffect(() => {
+    initialConversation.setProvider(null);
+    initialConversation.setPrompt('');
+    initialConversation.setIssueContext(null);
+    // oxlint-disable-next-line react/exhaustive-deps
+  }, [selectedProjectId]);
+
+  const canCreate = !!selectedProjectId && state.isValid;
 
   const handleCreateTask = useCallback(() => {
     if (!selectedProjectId) return;
-    const id = crypto.randomUUID();
     const projectStore = getProjectManagerStore().projects.get(selectedProjectId);
     if (projectStore?.state !== 'mounted') return;
 
-    const builtInitialConversation = initialConversation.provider
+    const id = crypto.randomUUID();
+
+    const conversationProvider = initialConversation.provider;
+    const builtInitialConversation = conversationProvider
       ? {
           id: crypto.randomUUID(),
           projectId: selectedProjectId,
           taskId: id,
-          provider: initialConversation.provider,
-          title: nextDefaultConversationTitle(initialConversation.provider, []),
-          initialPrompt: initialConversation.prompt.trim() || undefined,
-          autoApprove: autoApproveDefaults.getDefault(initialConversation.provider),
+          provider: conversationProvider,
+          title: nextDefaultConversationTitle(conversationProvider, []),
+          initialPrompt: buildFinalPrompt(
+            initialConversation.issueContext,
+            initialConversation.prompt
+          ),
+          autoApprove: autoApproveDefaults.getDefault(conversationProvider),
         }
       : undefined;
 
-    switch (selectedStrategy) {
-      case 'from-branch': {
-        if (!fromBranch.selectedBranch) return;
-        const taskStrategy = resolveBranchLikeTaskStrategy({
-          isUnborn,
-          createBranchAndWorktree: fromBranch.createBranchAndWorktree,
-          taskBranch: fromBranch.taskName,
-          pushBranch: fromBranch.pushBranch,
-        });
-        void projectStore.mountedProject!.taskManager.createTask({
+    const { linkedType, linkedIssue, linkedPR, checkoutMode, branchSelection, branchNameState } =
+      state;
+    const taskManager = projectStore.mountedProject!.taskManager;
+    const swallowHandledCreateError = () => {};
+
+    if (linkedType === 'pr' && linkedPR) {
+      const reviewBranch = linkedPR.headRefName;
+      const taskStrategy = resolvePullRequestTaskStrategy({
+        checkoutMode,
+        prNumber: getPrNumber(linkedPR) ?? 0,
+        headBranch: reviewBranch,
+        headRepositoryUrl: linkedPR.headRepositoryUrl,
+        isFork: isForkPr(linkedPR),
+        taskBranch: state.taskName.effectiveTaskName,
+        pushBranch: branchSelection.pushBranch,
+      });
+      void taskManager
+        .createTask({
           id,
           projectId: selectedProjectId,
-          name: fromBranch.taskName,
-          sourceBranch: fromBranch.selectedBranch,
-          strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
-          workspaceProvider: useBYOI ? 'byoi' : undefined,
-          initialConversation: builtInitialConversation,
-        });
-        break;
-      }
-      case 'from-issue': {
-        if (!fromIssue.selectedBranch) return;
-        const taskStrategy = resolveBranchLikeTaskStrategy({
-          isUnborn,
-          createBranchAndWorktree: fromIssue.createBranchAndWorktree,
-          taskBranch: fromIssue.taskName,
-          pushBranch: fromIssue.pushBranch,
-        });
-        void projectStore.mountedProject!.taskManager.createTask({
-          id,
-          projectId: selectedProjectId,
-          name: fromIssue.taskName,
-          sourceBranch: fromIssue.selectedBranch,
-          strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
-          linkedIssue: fromIssue.linkedIssue ?? undefined,
-          workspaceProvider: useBYOI ? 'byoi' : undefined,
-          initialConversation: builtInitialConversation,
-        });
-        break;
-      }
-      case 'from-pull-request': {
-        if (!fromPR.linkedPR) return;
-        const reviewBranch = fromPR.linkedPR.headRefName;
-        const taskStrategy = resolvePullRequestTaskStrategy({
-          checkoutMode: fromPR.checkoutMode,
-          prNumber: getPrNumber(fromPR.linkedPR) ?? 0,
-          headBranch: reviewBranch,
-          headRepositoryUrl: fromPR.linkedPR.headRepositoryUrl,
-          isFork: isForkPr(fromPR.linkedPR),
-          taskBranch: fromPR.taskName,
-          pushBranch: fromPR.branchSelection.pushBranch,
-        });
-        void projectStore.mountedProject!.taskManager.createTask({
-          id,
-          projectId: selectedProjectId,
-          name: fromPR.taskName,
+          name: state.taskName.effectiveTaskName,
           sourceBranch: { type: 'local', branch: reviewBranch },
-          initialStatus:
-            fromPR.linkedPR.status === 'open' && !fromPR.linkedPR.isDraft ? 'review' : undefined,
+          initialStatus: linkedPR.status === 'open' && !linkedPR.isDraft ? 'review' : undefined,
           strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
           workspaceProvider: useBYOI ? 'byoi' : undefined,
           initialConversation: builtInitialConversation,
-        });
-        break;
-      }
+        })
+        .catch(swallowHandledCreateError);
+    } else {
+      if (!branchSelection.selectedBranch) return;
+      const taskStrategy = resolveBranchLikeTaskStrategy({
+        isUnborn,
+        createBranchAndWorktree: branchSelection.createBranchAndWorktree,
+        taskBranch: branchNameState.branchName,
+        pushBranch: branchSelection.pushBranch,
+      });
+      void taskManager
+        .createTask({
+          id,
+          projectId: selectedProjectId,
+          name: state.taskName.effectiveTaskName,
+          sourceBranch: branchSelection.selectedBranch,
+          strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
+          linkedIssue: linkedType === 'issue' ? (linkedIssue ?? undefined) : undefined,
+          workspaceProvider: useBYOI ? 'byoi' : undefined,
+          initialConversation: builtInitialConversation,
+        })
+        .catch(swallowHandledCreateError);
     }
 
     navigate('task', { projectId: selectedProjectId, taskId: id });
     onClose();
   }, [
     selectedProjectId,
-    selectedStrategy,
-    fromBranch,
-    fromIssue,
-    fromPR,
+    state,
     isUnborn,
     useBYOI,
     initialConversation,
@@ -214,87 +226,108 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   return (
     <>
       <DialogHeader className="flex items-center gap-2">
-        <ProjectSelector
-          value={selectedProjectId}
-          onChange={setSelectedProjectId}
-          trigger={
-            <ComboboxTrigger className="h-6 flex items-center gap-2 border border-border rounded-md px-2.5 py-1 text-sm outline-none">
-              <FolderOpen className="size-3.5 shrink-0 text-muted-foreground" />
-              <ComboboxValue placeholder="Select a project" />
-            </ComboboxTrigger>
-          }
-        />
-        <ChevronRight className="size-3.5 text-foreground-passive" />
         <DialogTitle>Create Task</DialogTitle>
       </DialogHeader>
-      <div className="flex flex-col gap-4 px-6 pb-4 shrink-0">
-        <ToggleGroup
-          className="w-full"
-          value={[selectedStrategy]}
-          onValueChange={([value]) => {
-            if (value) {
-              setSelectedStrategy(value as CreateTaskStrategy);
-            }
-          }}
-        >
-          <ToggleGroupItem className="flex-1" value="from-branch">
-            From Branch
-          </ToggleGroupItem>
-          <ToggleGroupItem className="flex-1" value="from-issue">
-            From Issue
-          </ToggleGroupItem>
-          <ToggleGroupItem className="flex-1" value="from-pull-request">
-            From Pull Request
-          </ToggleGroupItem>
-        </ToggleGroup>
-        {isWorkspaceProviderEnabled && (
-          <div className="flex items-center gap-2">
-            <Switch size="sm" checked={useBYOI} onCheckedChange={setUseBYOI} />
-            <span className="text-sm text-muted-foreground">Use BYOI infrastructure</span>
-          </div>
-        )}
-      </div>
       <DialogContentArea>
-        <AnimatedHeight onAnimatingChange={setIsTransitioning}>
-          {selectedStrategy === 'from-branch' && (
-            <FromBranchContent
-              state={fromBranch}
-              projectId={selectedProjectId}
-              currentBranch={currentBranch}
-              isUnborn={isUnborn}
-              initialConversation={initialConversation}
-            />
-          )}
-          {selectedStrategy === 'from-issue' && (
-            <FromIssueContent
-              state={fromIssue}
-              projectId={selectedProjectId}
-              currentBranch={currentBranch}
-              repositoryUrl={repositoryUrl}
-              projectPath={projectData?.path}
-              disabled={isTransitioning}
-              isUnborn={isUnborn}
-              initialConversation={initialConversation}
-            />
-          )}
-          {selectedStrategy === 'from-pull-request' && (
-            <div className="flex flex-col gap-3">
-              {!repositoryUrl && (
-                <p className="text-sm text-muted-foreground">
-                  Pull requests are currently available only for configured GitHub remotes.
-                </p>
-              )}
-              <FromPrContent
-                state={fromPR}
+        <div className="flex w-full flex-col gap-5">
+          {/* Task name */}
+          <TaskNameField state={state.taskName} />
+          <div className="flex w-full flex-col justify-between overflow-hidden rounded-lg border">
+            <div
+              className={`flex w-full items-center justify-between gap-2 px-2 py-1 ${state.linkedType ? 'border-b' : ''}`}
+            >
+              <span className="shrink-0 text-sm text-foreground-muted">Based on</span>
+              <ToggleGroup
+                className="gap-1! border-none bg-transparent p-0!"
+                value={state.linkedType ? [state.linkedType] : []}
+                onValueChange={([v]) => {
+                  state.setLinkedType((v as LinkedType) ?? null);
+                }}
+              >
+                <ToggleGroupItem
+                  className="h-6! min-w-0! rounded-lg! px-2! py-0.5! text-xs"
+                  value="issue"
+                  disabled={!hasAnyIssueIntegration}
+                >
+                  Issue
+                </ToggleGroupItem>
+                <ToggleGroupItem
+                  className="h-6! min-w-0! rounded-lg! px-2! py-0.5! text-xs"
+                  value="pr"
+                  disabled={!hasPrSupport}
+                >
+                  Pull Request
+                </ToggleGroupItem>
+              </ToggleGroup>
+            </div>
+            {state.linkedType === 'issue' && (
+              <IssueComboboxField
+                value={state.linkedIssue}
+                onValueChange={state.setLinkedIssue}
                 projectId={selectedProjectId}
                 repositoryUrl={repositoryUrl}
-                disabled={isTransitioning || fromPrUnavailable}
-                initialConversation={initialConversation}
+                projectPath={projectData?.path}
               />
+            )}
+            {state.linkedType === 'pr' && (
+              <PrComboboxField
+                value={state.linkedPR}
+                onValueChange={state.setLinkedPR}
+                projectId={selectedProjectId}
+                repositoryUrl={repositoryUrl}
+              />
+            )}
+          </div>
+          {/* Section tabs */}
+          <div className="flex flex-col gap-2">
+            <div className="flex w-full items-center justify-between gap-2">
+              <ToggleGroup
+                className="w-full shrink-0 gap-1 border-none bg-transparent"
+                value={[sectionTab]}
+                onValueChange={([v]) => {
+                  if (v) setSectionTab(v as SectionTab);
+                }}
+              >
+                <ToggleGroupItem
+                  className="h-6! flex-1 rounded-lg! px-2! py-0.5! text-xs"
+                  value="conversation"
+                >
+                  Initial Conversation
+                </ToggleGroupItem>
+                <ToggleGroupItem
+                  className="h-6! flex-1 rounded-lg! px-2! py-0.5! text-xs"
+                  value="workspace"
+                >
+                  Workspace Settings
+                </ToggleGroupItem>
+              </ToggleGroup>
             </div>
-          )}
-        </AnimatedHeight>
+            <div className="">
+              {sectionTab === 'conversation' && (
+                <InitialConversationField
+                  state={initialConversation}
+                  linkedIssue={
+                    state.linkedType === 'issue' ? (state.linkedIssue ?? undefined) : undefined
+                  }
+                  includeIssueContextByDefault={includeIssueContextByDefault}
+                />
+              )}
+              {sectionTab === 'workspace' && (
+                <WorkspaceSettingsSection
+                  state={state}
+                  projectId={selectedProjectId}
+                  currentBranch={currentBranch}
+                  isUnborn={isUnborn}
+                  useBYOI={useBYOI}
+                  setUseBYOI={setUseBYOI}
+                  isWorkspaceProviderEnabled={isWorkspaceProviderEnabled}
+                />
+              )}
+            </div>
+          </div>
+        </div>
       </DialogContentArea>
+
       <DialogFooter>
         <ConfirmButton size="sm" onClick={handleCreateTask} disabled={!canCreate}>
           Create

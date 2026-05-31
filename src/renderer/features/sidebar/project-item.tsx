@@ -36,9 +36,15 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from '@renderer/lib/ui/context-menu';
+import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
-import { SidebarItemMiniButton, SidebarMenuButton, SidebarMenuRow } from './sidebar-primitives';
+import {
+  SidebarItemMiniButton,
+  SidebarMenuAction,
+  SidebarMenuButton,
+  SidebarMenuRow,
+} from './sidebar-primitives';
 
 const UNREGISTERED_PHASE_LABEL: Record<UnregisteredProject['phase'], string> = {
   'creating-repo': 'Creating repository…',
@@ -93,6 +99,9 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
     : null;
   const canReconnect = sshConnectionState !== 'connected';
   const ProjectIcon = isSshProject ? FolderInput : FolderClosed;
+  const projectLabel = project.name ?? 'project';
+  const deleteProjectLabel = project.name ?? 'this project';
+  const openProject = () => navigate('project', { projectId });
 
   const renderSpinnerWithTooltip = () => {
     if (!isUnregisteredProject(project)) return null;
@@ -117,21 +126,22 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
           data-active={isProjectActive || undefined}
           isActive={isProjectActive}
           onMouseDown={(e) => e.preventDefault()}
-          onClick={() => navigate('project', { projectId })}
+          onClick={openProject}
         >
-          <div className="flex items-center gap-1 flex-1 min-w-0">
+          <div className="flex min-w-0 flex-1 items-center gap-1">
             {project.state === 'unregistered' ? (
               renderSpinnerWithTooltip()
             ) : (
               <SidebarItemMiniButton
                 type="button"
+                aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${projectLabel}`}
                 className="relative"
                 onClick={(e) => {
                   e.stopPropagation();
                   sidebarStore.toggleProjectExpanded(projectId);
                 }}
               >
-                <ProjectIcon className="absolute h-4 w-4 transition-opacity duration-150 opacity-100 group-hover/row:opacity-0" />
+                <ProjectIcon className="absolute h-4 w-4 opacity-100 transition-opacity duration-150 group-hover/row:opacity-0" />
                 <ChevronRight
                   className={cn(
                     'absolute h-4 w-4 transition-all duration-150 opacity-0 group-hover/row:opacity-100',
@@ -140,20 +150,21 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
                 />
               </SidebarItemMiniButton>
             )}
-            <span
+            <SidebarMenuAction
+              aria-label={`Open project ${projectLabel}`}
               className={cn(
-                'flex-1 min-w-0 self-stretch flex items-center truncate text-left transition-colors select-none',
+                'truncate transition-colors select-none',
                 projectViewKind(getProjectStore(projectId)) === 'bootstrapping' &&
                   'text-foreground-tertiary-passive'
               )}
             >
               {isSshProject ? (
-                <span className="min-w-0 flex items-center gap-2">
+                <span className="flex min-w-0 items-center gap-2">
                   <span className="truncate">{project.name}</span>
                   <ConnectionStatusDot state={sshConnectionState} />
                 </span>
               ) : (
-                <span className="min-w-0 flex items-center gap-1.5">
+                <span className="flex min-w-0 items-center gap-1.5">
                   <span className="truncate">{project.name}</span>
                   {projectViewKind(project) === 'path_not_found' && (
                     <Tooltip>
@@ -165,20 +176,34 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
                   )}
                 </span>
               )}
-            </span>
+            </SidebarMenuAction>
           </div>
-          <SidebarItemMiniButton
-            type="button"
-            className={'opacity-0 group-hover/row:opacity-100 transition-opacity duration-150'}
-            onPointerEnter={() => prefetchRepository()}
-            onClick={(e) => {
-              e.stopPropagation();
-              showCreateTaskModal({ projectId });
-            }}
-            disabled={project.state === 'unregistered'}
-          >
-            <Plus className="h-4 w-4" />
-          </SidebarItemMiniButton>
+          <Tooltip>
+            <TooltipTrigger
+              className="h-6"
+              render={
+                <SidebarItemMiniButton
+                  type="button"
+                  aria-label={`New task for ${projectLabel}`}
+                  className={
+                    'opacity-0 transition-opacity duration-150 group-hover/row:opacity-100'
+                  }
+                  onPointerEnter={() => prefetchRepository()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    showCreateTaskModal({ projectId });
+                  }}
+                  disabled={project.state === 'unregistered'}
+                >
+                  <Plus className="h-4 w-4" />
+                </SidebarItemMiniButton>
+              }
+            />
+            <TooltipContent>
+              New Task
+              <BoundShortcut settingsKey="newTask" variant="badge" />
+            </TooltipContent>
+          </Tooltip>
         </SidebarMenuRow>
       </ContextMenuTrigger>
       <ContextMenuContent>
@@ -210,10 +235,9 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
         <ContextMenuItem
           variant="destructive"
           onClick={() => {
-            const projectLabel = project.name ?? 'this project';
             showConfirmDeleteProject({
               title: 'Delete project',
-              description: `"${projectLabel}" will be deleted. The project folder and worktrees will stay on the filesystem.`,
+              description: `"${deleteProjectLabel}" will be deleted. The project folder and worktrees will stay on the filesystem.`,
               confirmLabel: 'Delete',
               onSuccess: () => {
                 void getProjectManagerStore().deleteProject(projectId);

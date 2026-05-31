@@ -1,8 +1,8 @@
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { reaction } from 'mobx';
 import { observer } from 'mobx-react-lite';
-import { Activity, useEffect, useMemo, useRef, useState } from 'react';
-import { HEAD_REF, STAGED_REF } from '@shared/git';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { isMissingFileError } from '@renderer/features/tasks/diff-view/main-panel/missing-file-error';
 import type { DiffViewStore } from '@renderer/features/tasks/diff-view/stores/diff-view-store';
 import {
   StackedDiffPanelStore,
@@ -18,8 +18,10 @@ import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { StickyDiffEditor } from '@renderer/lib/monaco/sticky-diff-editor';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
+import { ShowHide } from '@renderer/lib/ui/show-hide';
 import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
 import { cn } from '@renderer/utils/utils';
+import { HEAD_REF, STAGED_REF } from '@shared/git';
 
 const LARGE_DIFF_LINE_THRESHOLD = 1500;
 
@@ -34,13 +36,13 @@ export const StackedDiffView = observer(function StackedDiffView() {
 
   const panelStore = useMemo(
     () => (diffView ? new StackedDiffPanelStore(projectId, workspaceId, diffView, git, pr!) : null),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
     []
   );
 
   useEffect(() => {
     return () => panelStore?.dispose();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, []);
 
   if (!panelStore) return null;
@@ -117,7 +119,13 @@ const StackedDiffPanel = observer(function StackedDiffPanel({ panelStore }: Stac
         type: slot.diffType === 'disk' ? 'disk' : 'git',
         group: slot.diffType,
         originalRef: slot.originalRef,
-        modifiedRef: slot.diffType === 'pr' ? slot.modifiedRef : undefined,
+        modifiedRef:
+          slot.diffType === 'git' || slot.diffType === 'pr' ? slot.modifiedRef : undefined,
+        prNumber: slot.prNumber,
+        prBaseOid: slot.prBaseOid,
+        prHeadOid: slot.prHeadOid,
+        commitOriginalSha: slot.commitOriginalSha,
+        commitModifiedSha: slot.commitModifiedSha,
       });
     }, 150);
   }
@@ -178,7 +186,7 @@ const StackedFileSlot = observer(function StackedFileSlot({
         .registerModel(projectId, workspaceId, root, file.path, language, 'git', STAGED_REF)
         .catch(() => {});
     } else if (diffType === 'git' || diffType === 'pr') {
-      const effectiveModifiedRef = diffType === 'pr' ? modifiedRef : HEAD_REF;
+      const effectiveModifiedRef = modifiedRef ?? HEAD_REF;
       void modelRegistry
         .registerModel(projectId, workspaceId, root, file.path, language, 'git', originalRef)
         .catch(() => {});
@@ -196,14 +204,20 @@ const StackedFileSlot = observer(function StackedFileSlot({
     } else {
       const diskUri = modelRegistry.toDiskUri(modifiedUri);
       void (async () => {
-        await modelRegistry.registerModel(
-          projectId,
-          workspaceId,
-          root,
-          file.path,
-          language,
-          'disk'
-        );
+        if (file.status !== 'deleted') {
+          try {
+            await modelRegistry.registerModel(
+              projectId,
+              workspaceId,
+              root,
+              file.path,
+              language,
+              'disk'
+            );
+          } catch (err) {
+            if (!isMissingFileError(err)) throw err;
+          }
+        }
         if (disposed) {
           modelRegistry.unregisterModel(diskUri);
           return;
@@ -221,7 +235,7 @@ const StackedFileSlot = observer(function StackedFileSlot({
         }
       })().catch(() => {});
       void modelRegistry
-        .registerModel(projectId, workspaceId, root, file.path, language, 'git', originalRef)
+        .registerModel(projectId, workspaceId, root, file.path, language, 'git', STAGED_REF)
         .catch(() => {});
     }
     return () => {
@@ -241,6 +255,7 @@ const StackedFileSlot = observer(function StackedFileSlot({
     originalRef,
     modifiedRef,
     file,
+    file?.status,
     slotStore,
   ]);
 
@@ -263,7 +278,7 @@ const StackedFileSlot = observer(function StackedFileSlot({
     <div
       ref={sectionRef}
       data-file-path={file.path}
-      className="border-border mb-2 overflow-hidden rounded-lg border"
+      className="mb-2 overflow-hidden rounded-lg border border-border"
     >
       <div
         className={cn(
@@ -292,7 +307,7 @@ const StackedFileSlot = observer(function StackedFileSlot({
         </span>
       </div>
 
-      <Activity mode={expanded ? 'visible' : 'hidden'}>
+      <ShowHide visible={expanded}>
         <div style={{ height: isBinary || (isLarge && !forceLoad) ? 80 : editorHeight }}>
           {isBinary ? (
             <div className="flex h-full items-center justify-center text-sm text-foreground-passive">
@@ -319,7 +334,7 @@ const StackedFileSlot = observer(function StackedFileSlot({
             />
           )}
         </div>
-      </Activity>
+      </ShowHide>
     </div>
   );
 });

@@ -2,7 +2,7 @@ import { Field, FieldLabel } from '@renderer/lib/ui/field';
 import { Label } from '@renderer/lib/ui/label';
 import { RadioGroup, RadioGroupItem } from '@renderer/lib/ui/radio-group';
 import { Switch } from '@renderer/lib/ui/switch';
-import { type CheckoutMode } from './use-from-pull-request-mode';
+import { type CheckoutMode } from './use-create-task-state';
 
 interface CheckoutModeGroupProps {
   value: CheckoutMode;
@@ -24,11 +24,11 @@ export function CheckoutModeGroup({
   return (
     <div className="flex flex-col gap-2">
       <RadioGroup value={value} onValueChange={(v) => onValueChange(v as CheckoutMode)}>
-        <Label className="flex items-center gap-3 cursor-pointer font-normal">
+        <Label className="flex cursor-pointer items-center gap-3 font-normal">
           <RadioGroupItem value="checkout" disabled={disabled} />
           Checkout branch for review
         </Label>
-        <Label className="flex items-center gap-3 cursor-pointer font-normal">
+        <Label className="flex cursor-pointer items-center gap-3 font-normal">
           <RadioGroupItem value="new-branch" disabled={disabled} />
           Create task branch and worktree
         </Label>

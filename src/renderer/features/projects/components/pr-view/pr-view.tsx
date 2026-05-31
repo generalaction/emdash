@@ -2,12 +2,11 @@ import { CheckIcon, ChevronDownIcon, Github, RefreshCw, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { motion } from 'motion/react';
 import { useState } from 'react';
-import type { PrSortField } from '@shared/pull-requests';
+import type { UserItem } from '@renderer/features/projects/components/pr-view/pr-filter-items';
 import {
   usePrViewState,
   type LabelItem,
   type StatusFilter,
-  type UserItem,
 } from '@renderer/features/projects/components/pr-view/usePrViewState';
 import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { useNavigate, useParams } from '@renderer/lib/layout/navigation-provider';
@@ -30,6 +29,8 @@ import {
   SelectValue,
 } from '@renderer/lib/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
+import type { PrSortField } from '@shared/pull-requests';
+import { isGitHubDotComHost } from '@shared/repository-ref';
 import { PrSyncStatusCard } from './pr-sync-status-card';
 import { PrVirtualList } from './pr-virtual-list';
 
@@ -55,14 +56,14 @@ function FilterButton({
       <PopoverTrigger
         disabled={disabled}
         className={
-          'flex items-center text-sm gap-1 hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed' +
-          (active ? 'text-foreground font-medium' : 'text-foreground-muted')
+          'flex items-center gap-1 text-sm hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40' +
+          (active ? 'font-medium text-foreground' : 'text-foreground-muted')
         }
       >
         {label}
         <ChevronDownIcon className="size-3.5" />
       </PopoverTrigger>
-      <PopoverContent align="start" className="w-56 p-2 gap-0">
+      <PopoverContent align="start" className="w-56 gap-0 p-2">
         {children}
       </PopoverContent>
     </Popover>
@@ -96,7 +97,7 @@ function UserFilterPopover({
         {filtered.map((item) => (
           <li key={item.value}>
             <button
-              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted"
+              className="hover:bg-muted flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm"
               onClick={() => onChange(selected === item.value ? null : item.value)}
             >
               {item.avatarUrl ? (
@@ -106,7 +107,7 @@ function UserFilterPopover({
                   className="size-4 shrink-0 rounded-full"
                 />
               ) : (
-                <span className="size-4 shrink-0 rounded-full bg-muted-foreground/20" />
+                <span className="bg-muted-foreground/20 size-4 shrink-0 rounded-full" />
               )}
               <span className="flex-1 truncate text-left">{item.label}</span>
               {selected === item.value && (
@@ -116,7 +117,7 @@ function UserFilterPopover({
           </li>
         ))}
         {filtered.length === 0 && (
-          <li className="px-2 py-3 text-xs text-center text-muted-foreground">No results</li>
+          <li className="text-muted-foreground px-2 py-3 text-center text-xs">No results</li>
         )}
       </ul>
     </FilterButton>
@@ -151,7 +152,7 @@ function LabelFilterPopover({
         {filtered.map((item) => (
           <li key={item.value}>
             <button
-              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted"
+              className="hover:bg-muted flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm"
               onClick={() => toggle(item.value)}
             >
               {item.color ? (
@@ -160,7 +161,7 @@ function LabelFilterPopover({
                   style={{ backgroundColor: `#${item.color}` }}
                 />
               ) : (
-                <span className="size-3 shrink-0 rounded-full bg-muted-foreground/20" />
+                <span className="bg-muted-foreground/20 size-3 shrink-0 rounded-full" />
               )}
               <span className="flex-1 truncate text-left">{item.label}</span>
               {selected.includes(item.value) && (
@@ -170,7 +171,7 @@ function LabelFilterPopover({
           </li>
         ))}
         {filtered.length === 0 && (
-          <li className="px-2 py-3 text-xs text-center text-muted-foreground">No results</li>
+          <li className="text-muted-foreground px-2 py-3 text-center text-xs">No results</li>
         )}
       </ul>
     </FilterButton>
@@ -189,14 +190,14 @@ function FilterPill({
   onRemove: () => void;
 }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-0.5 text-xs">
+    <span className="bg-muted inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs">
       {avatarUrl && <img src={avatarUrl} alt={label} className="size-3.5 rounded-full" />}
       {color && (
-        <span className="size-2 rounded-full shrink-0" style={{ backgroundColor: `#${color}` }} />
+        <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: `#${color}` }} />
       )}
       {label}
       <button
-        className="ml-0.5 rounded-full text-muted-foreground hover:text-foreground"
+        className="text-muted-foreground ml-0.5 rounded-full hover:text-foreground"
         onClick={onRemove}
         aria-label={`Remove ${label} filter`}
       >
@@ -210,7 +211,9 @@ export const PullRequestView = observer(function PullRequestView() {
   const {
     params: { projectId },
   } = useParams('project');
-  const repositoryUrl = getRepositoryStore(projectId)?.repositoryUrl ?? null;
+  const repositoryStore = getRepositoryStore(projectId);
+  const repositoryUrl = repositoryStore?.pullRequestRepositoryUrl ?? null;
+  const repositoryHost = repositoryStore?.providerRepository?.host ?? null;
   const { needsGhAuth } = useGithubContext();
   const { navigate } = useNavigate();
 
@@ -248,7 +251,7 @@ export const PullRequestView = observer(function PullRequestView() {
   if (!repositoryUrl) {
     return (
       <div className="flex h-full min-h-0 w-full flex-col">
-        <p className="text-sm text-muted-foreground text-center py-4">
+        <p className="text-muted-foreground py-4 text-center text-sm">
           Pull requests are currently available only for configured GitHub remotes. You can change
           the remote in the project settings.
         </p>
@@ -256,10 +259,10 @@ export const PullRequestView = observer(function PullRequestView() {
     );
   }
 
-  if (needsGhAuth) {
+  if (needsGhAuth && repositoryHost && isGitHubDotComHost(repositoryHost)) {
     return (
       <div className="flex h-full min-h-0 w-full flex-col">
-        <div className="flex w-full flex-col items-center justify-center gap-5 rounded-md border border-border border-dashed p-8 mt-4">
+        <div className="mt-4 flex w-full flex-col items-center justify-center gap-5 rounded-md border border-dashed border-border p-8">
           <span className="relative flex size-8 items-center justify-center overflow-hidden rounded-full bg-background-2">
             <Github className="size-4 text-foreground-muted" />
           </span>
@@ -288,7 +291,7 @@ export const PullRequestView = observer(function PullRequestView() {
     <div className="relative flex h-full min-h-0 w-full flex-col">
       {/* ── Header controls ── */}
       <div className="flex flex-col gap-4 border-b border-border pb-2">
-        <div className="flex items-center gap-2 shrink-0 flex-wrap justify-between">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
           <ToggleGroup
             value={[statusFilter]}
             onValueChange={(values) => {
@@ -328,14 +331,14 @@ export const PullRequestView = observer(function PullRequestView() {
         </div>
 
         {/* ── Sort + filter row ── */}
-        <div className="flex gap-2 flex-wrap flex-col">
-          <div className="flex items-center gap-2 flex-wrap justify-between">
+        <div className="flex flex-col flex-wrap gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-1.5">
               <span className="text-sm text-foreground-passive">Sort</span>
               <Select value={sortFilter} onValueChange={handleSortChange}>
                 <SelectTrigger
                   size="sm"
-                  className="w-auto border-none p-0 gap-1 text-foreground-muted hover:text-foreground"
+                  className="w-auto gap-1 border-none p-0 text-foreground-muted hover:text-foreground"
                 >
                   <SelectValue />
                 </SelectTrigger>
@@ -373,7 +376,7 @@ export const PullRequestView = observer(function PullRequestView() {
 
           {/* ── Active filter pills ── */}
           {hasPills && (
-            <div className="flex items-center gap-1.5 flex-wrap">
+            <div className="flex flex-wrap items-center gap-1.5">
               {selectedAuthorItem && (
                 <FilterPill
                   label={selectedAuthorItem.label}

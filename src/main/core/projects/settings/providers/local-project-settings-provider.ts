@@ -1,9 +1,9 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { appSettingsService } from '@main/core/settings/settings-service';
 import type { UpdateProjectSettingsError } from '@shared/projects';
 import type { Result } from '@shared/result';
-import { appSettingsService } from '@main/core/settings/settings-service';
 import {
   normalizeWorktreeDirectory,
   resolveAndValidateWorktreeDirectory,

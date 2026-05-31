@@ -1,11 +1,11 @@
 import React from 'react';
-import { type AgentProviderId } from '@shared/agent-provider-registry';
-import type { McpProvidersResponse } from '@shared/mcp/types';
 import AgentLogo from '@renderer/lib/components/agent-logo';
 import { Button } from '@renderer/lib/ui/button';
 import { Field, FieldLabel } from '@renderer/lib/ui/field';
 import { agentConfig } from '@renderer/utils/agentConfig';
 import { cn } from '@renderer/utils/utils';
+import { type AgentProviderId } from '@shared/agent-provider-registry';
+import type { McpProvidersResponse } from '@shared/mcp/types';
 
 interface ProviderSelectProps {
   providers: McpProvidersResponse[];
@@ -57,6 +57,7 @@ export const ProviderSelect: React.FC<ProviderSelectProps> = ({
                 {logo && (
                   <AgentLogo
                     logo={logo.logo}
+                    logoDark={logo.logoDark}
                     alt={logo.alt}
                     isSvg={logo.isSvg}
                     invertInDark={logo.invertInDark}
@@ -70,7 +71,7 @@ export const ProviderSelect: React.FC<ProviderSelectProps> = ({
           })}
       </div>
       {transport === 'http' && providers.some((p) => p.installed && !p.supportsHttp) && (
-        <p className="mt-1.5 text-xs text-muted-foreground">
+        <p className="text-muted-foreground mt-1.5 text-xs">
           Some agents don't support HTTP servers and are disabled.
         </p>
       )}

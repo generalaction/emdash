@@ -1,6 +1,6 @@
-import { remoteNameFromQualifiedRef, resolveBaseRefFromRemoteDefault } from '@shared/git-utils';
 import type { GitService } from '@main/core/git/impl/git-service';
 import { log } from '@main/lib/logger';
+import { remoteNameFromQualifiedRef, resolveBaseRefFromRemoteDefault } from '@shared/git-utils';
 
 export async function resolveProjectBaseRef(
   git: GitService,

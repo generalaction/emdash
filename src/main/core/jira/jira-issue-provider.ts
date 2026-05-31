@@ -1,10 +1,10 @@
-import { request } from 'node:https';
 import { URL } from 'node:url';
+import { clampIssueLimit, normalizeSearchTerm } from '@main/core/issues/helpers/provider-inputs';
+import type { IssueProvider } from '@main/core/issues/issue-provider';
 import { ISSUE_PROVIDER_CAPABILITIES, type IssueListResult } from '@shared/issue-providers';
 import type { Issue } from '@shared/tasks';
-import { normalizeSearchTerm } from '@main/core/issues/helpers/provider-inputs';
-import type { IssueProvider } from '@main/core/issues/issue-provider';
 import { jiraConnectionService } from './jira-connection-service';
+import { doJiraGet, doJiraPost } from './jira-http-client';
 
 interface RawJiraIssueFields {
   summary?: string;
@@ -24,6 +24,8 @@ interface RawJiraIssue {
 
 interface RawJiraSearchResult {
   issues?: RawJiraIssue[];
+  nextPageToken?: string;
+  isLast?: boolean;
 }
 
 interface AdfNode {
@@ -42,35 +44,54 @@ interface JiraPickerResult {
 
 let projectKeys: string[] = [];
 
-function encodeBasic(email: string, token: string): string {
-  return Buffer.from(`${email}:${token}`).toString('base64');
-}
+const SEARCH_FIELDS = ['summary', 'description', 'updated', 'project', 'status', 'assignee'];
+const PAGE_SIZE = 100;
+const JIRA_KEY_PATTERN = /^[A-Za-z][A-Za-z0-9_]*-\d+$/;
 
 async function listIssues(limit = 50): Promise<IssueListResult> {
   try {
     const { siteUrl, email, token } = await jiraConnectionService.requireAuth();
-    const jqlCandidates = [
-      'assignee = currentUser() ORDER BY updated DESC',
-      'reporter = currentUser() ORDER BY updated DESC',
-      'ORDER BY updated DESC',
-    ];
+    const sanitizedLimit = clampIssueLimit(limit, 50, 500);
+    try {
+      const issues = await searchJql(siteUrl, email, token, buildListJql('mine'), sanitizedLimit);
+      if (issues.length > 0) {
+        return { success: true, issues: normalizeIssues(siteUrl, issues) };
+      }
+    } catch (error) {
+      if (!isJqlPermissionError(error)) {
+        throw error;
+      }
 
-    for (const jql of jqlCandidates) {
       try {
-        const issues = await searchRaw(siteUrl, email, token, jql, limit);
+        const issues = await searchJql(
+          siteUrl,
+          email,
+          token,
+          buildListJql('mine-fallback'),
+          sanitizedLimit
+        );
         if (issues.length > 0) {
           return { success: true, issues: normalizeIssues(siteUrl, issues) };
         }
       } catch {
-        // Try next candidate.
+        // Try all-issues and picker fallbacks.
       }
     }
 
     try {
-      const keys = await getRecentIssueKeys(siteUrl, email, token, limit);
+      const issues = await searchJql(siteUrl, email, token, buildListJql('all'), sanitizedLimit);
+      if (issues.length > 0) {
+        return { success: true, issues: normalizeIssues(siteUrl, issues) };
+      }
+    } catch {
+      // Try picker fallback.
+    }
+
+    try {
+      const keys = await getRecentIssueKeys(siteUrl, email, token, sanitizedLimit);
       if (keys.length > 0) {
         const results: RawJiraIssue[] = [];
-        for (const key of keys.slice(0, limit)) {
+        for (const key of keys.slice(0, sanitizedLimit)) {
           try {
             const issue = await getIssueByKey(siteUrl, email, token, key);
             if (issue) {
@@ -91,7 +112,10 @@ async function listIssues(limit = 50): Promise<IssueListResult> {
 
     return { success: true, issues: [] };
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) };
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
   }
 }
 
@@ -104,7 +128,7 @@ async function smartSearchIssues(searchTerm: string, limit = 20): Promise<IssueL
   try {
     const { siteUrl, email, token } = await jiraConnectionService.requireAuth();
 
-    const looksLikeKey = /^[A-Za-z][A-Za-z0-9_]*-\d+$/.test(term);
+    const looksLikeKey = JIRA_KEY_PATTERN.test(term);
     if (looksLikeKey) {
       const keyUpper = term.toUpperCase();
       try {
@@ -117,9 +141,6 @@ async function smartSearchIssues(searchTerm: string, limit = 20): Promise<IssueL
       }
     }
 
-    const sanitized = term.replace(/"/g, '\\"');
-    const extraKey = looksLikeKey ? ` OR issueKey = ${term.toUpperCase()}` : '';
-
     const isNumeric = /^\d+$/.test(term);
     if (isNumeric && projectKeys.length === 0) {
       projectKeys = await fetchProjectKeys(siteUrl, email, token);
@@ -127,44 +148,121 @@ async function smartSearchIssues(searchTerm: string, limit = 20): Promise<IssueL
 
     const keyClause =
       isNumeric && projectKeys.length
-        ? ` OR key IN (${projectKeys.map((projectKey) => `"${projectKey}-${term}"`).join(',')})`
+        ? ` OR key IN (${projectKeys
+            .map((projectKey) => `"${escapeJqlValue(`${projectKey}-${term}`)}"`)
+            .join(',')})`
         : '';
 
-    const jql = `text ~ "${sanitized}"${extraKey}${keyClause}`;
-    const data = await searchRaw(siteUrl, email, token, jql, limit);
+    const data = await searchJql(
+      siteUrl,
+      email,
+      token,
+      `${buildSearchJql(term)}${keyClause} ORDER BY updated DESC`,
+      clampIssueLimit(limit, 20, 500)
+    );
 
     return { success: true, issues: normalizeIssues(siteUrl, data) };
   } catch (error) {
-    return { success: false, error: error instanceof Error ? error.message : String(error) };
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
   }
 }
 
-async function searchRaw(
+type ListMode = 'mine' | 'mine-fallback' | 'all';
+
+export function buildListJql(mode: ListMode): string {
+  if (mode === 'mine') {
+    return '(assignee = currentUser() OR reporter = currentUser()) ORDER BY updated DESC';
+  }
+
+  if (mode === 'mine-fallback') {
+    return 'assignee = currentUser() ORDER BY updated DESC';
+  }
+
+  return 'updated >= -90d ORDER BY updated DESC';
+}
+
+export function buildSearchJql(searchTerm: string): string {
+  const term = normalizeSearchTerm(searchTerm);
+  const escaped = escapeJqlValue(term);
+
+  if (JIRA_KEY_PATTERN.test(term)) {
+    return `(key = "${escaped}" OR text ~ "${escaped}")`;
+  }
+
+  return `text ~ "${escaped}"`;
+}
+
+function escapeJqlValue(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+function isJqlPermissionError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /Jira API error (400|403)/.test(message);
+}
+
+async function searchJql(
   siteUrl: string,
   email: string,
   token: string,
   jql: string,
   limit: number
 ): Promise<RawJiraIssue[]> {
-  const url = new URL('/rest/api/3/search', siteUrl);
-  const payload = JSON.stringify({
+  const effectiveLimit = clampIssueLimit(limit, 20, 500);
+  const issues: RawJiraIssue[] = [];
+  let nextPageToken: string | undefined;
+
+  while (issues.length < effectiveLimit) {
+    const remaining = effectiveLimit - issues.length;
+    const data = await fetchSearchPage(
+      siteUrl,
+      email,
+      token,
+      jql,
+      Math.min(PAGE_SIZE, remaining),
+      nextPageToken
+    );
+    const pageIssues = Array.isArray(data?.issues) ? data.issues : [];
+    issues.push(...pageIssues);
+
+    if (pageIssues.length === 0 || data?.isLast === true || !data?.nextPageToken) {
+      break;
+    }
+    nextPageToken = data.nextPageToken;
+  }
+
+  return issues.slice(0, effectiveLimit);
+}
+
+async function fetchSearchPage(
+  siteUrl: string,
+  email: string,
+  token: string,
+  jql: string,
+  maxResults: number,
+  nextPageToken?: string
+): Promise<RawJiraSearchResult> {
+  const url = new URL('/rest/api/3/search/jql', siteUrl);
+  const payload: Record<string, unknown> = {
     jql,
-    maxResults: Math.min(Math.max(limit, 1), 100),
-    fields: ['summary', 'description', 'updated', 'project', 'status', 'assignee'],
-  });
+    maxResults,
+    fields: SEARCH_FIELDS,
+  };
+  if (nextPageToken) {
+    payload.nextPageToken = nextPageToken;
+  }
 
-  const body = await doRequest(url, email, token, 'POST', payload, {
-    'Content-Type': 'application/json',
-  });
-
-  const data = JSON.parse(body || '{}') as RawJiraSearchResult;
-  return Array.isArray(data?.issues) ? data.issues : [];
+  const body = await doJiraPost(url, email, token, JSON.stringify(payload));
+  return JSON.parse(body || '{}') as RawJiraSearchResult;
 }
 
 async function fetchProjectKeys(siteUrl: string, email: string, token: string): Promise<string[]> {
   try {
     const url = new URL('/rest/api/3/project', siteUrl);
-    const body = await doGet(url, email, token);
+    const body = await doJiraGet(url, email, token);
     const data = JSON.parse(body || '[]') as Array<{ key?: string }>;
     if (!Array.isArray(data)) return [];
     return data.map((project) => String(project?.key || '')).filter(Boolean);
@@ -182,7 +280,7 @@ async function getIssueByKey(
   const url = new URL(`/rest/api/3/issue/${encodeURIComponent(key)}`, siteUrl);
   url.searchParams.set('fields', 'summary,description,updated,project,status,assignee');
 
-  const body = await doGet(url, email, token);
+  const body = await doJiraGet(url, email, token);
   const data = JSON.parse(body || '{}') as RawJiraIssue;
   if (!data || data.errorMessages) {
     return null;
@@ -201,7 +299,7 @@ async function getRecentIssueKeys(
   url.searchParams.set('query', '');
   url.searchParams.set('currentJQL', '');
 
-  const body = await doGet(url, email, token);
+  const body = await doJiraGet(url, email, token);
   const data = JSON.parse(body || '{}') as JiraPickerResult;
 
   const keys: string[] = [];
@@ -223,58 +321,6 @@ async function getRecentIssueKeys(
   }
 
   return keys;
-}
-
-async function doGet(url: URL, email: string, token: string): Promise<string> {
-  return doRequest(url, email, token, 'GET');
-}
-
-async function doRequest(
-  url: URL,
-  email: string,
-  token: string,
-  method: 'GET' | 'POST',
-  payload?: string,
-  extraHeaders?: Record<string, string>
-): Promise<string> {
-  const auth = encodeBasic(email, token);
-
-  return new Promise<string>((resolve, reject) => {
-    const req = request(
-      {
-        hostname: url.hostname,
-        path: url.pathname + url.search,
-        protocol: url.protocol,
-        method,
-        headers: {
-          Authorization: `Basic ${auth}`,
-          Accept: 'application/json',
-          ...(extraHeaders || {}),
-        },
-      },
-      (res) => {
-        let data = '';
-        res.on('data', (chunk) => {
-          data += chunk;
-        });
-        res.on('end', () => {
-          if (res.statusCode && res.statusCode >= 400) {
-            const snippet = data?.slice(0, 200) || '';
-            reject(new Error(`Jira API error ${res.statusCode}${snippet ? `: ${snippet}` : ''}`));
-            return;
-          }
-
-          resolve(data);
-        });
-      }
-    );
-
-    req.on('error', reject);
-    if (payload && method === 'POST') {
-      req.write(payload);
-    }
-    req.end();
-  });
 }
 
 function flattenAdf(node: AdfNode | string | null | undefined): string {

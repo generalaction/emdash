@@ -1,4 +1,4 @@
-import { FolderInput, FolderPlus, Library, MessageSquareShare, Settings } from 'lucide-react';
+import { FolderInput, Library, MessageSquareShare, Settings } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React from 'react';
 import {
@@ -7,7 +7,7 @@ import {
   useWorkspaceSlots,
 } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
-import { ShortcutHint } from '@renderer/lib/ui/shortcut-hint';
+import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { cn } from '@renderer/utils/utils';
 import { SidebarPinnedTaskList } from './pinned-task-list';
 import { ProjectsGroupLabel } from './projects-group-label';
@@ -30,7 +30,6 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
   const { navigate } = useNavigate();
   const { currentView } = useWorkspaceSlots();
 
-  const showAddProjectModal = useShowModal('addProjectModal');
   const showFeedbackModal = useShowModal('feedbackModal');
   const { isDragOver, onDragOver, onDragEnter, onDragLeave, onDrop } = useSidebarDrop();
 
@@ -46,20 +45,19 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
       onDrop={onDrop}
     >
       {isDragOver && (
-        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-2 bg-background-tertiary/80 backdrop-blur-sm pointer-events-none">
+        <div className="pointer-events-none absolute inset-0 z-50 flex flex-col items-center justify-center gap-2 bg-background-tertiary/80 backdrop-blur-sm">
           <FolderInput className="size-8 text-foreground" />
           <span className="text-xs font-medium text-foreground">Drop to add project</span>
         </div>
       )}
       <SidebarSpace />
-      <SidebarContainer className="w-full border-r-0 flex-1 min-h-0">
+      <SidebarContainer className="min-h-0 w-full flex-1 border-r-0">
         <SidebarContent className="flex flex-col">
-          <SidebarSearchTrigger />
           <SidebarPinnedTaskList />
-          <SidebarGroup className="mb-0 min-h-0 flex-1 flex flex-col">
+          <SidebarGroup className="mb-0 flex min-h-0 flex-1 flex-col">
             <ProjectsGroupLabel />
-            <SidebarGroupContent className="min-h-0 flex-1 flex flex-col">
-              <SidebarMenu className="flex-1 min-h-0 flex flex-col">
+            <SidebarGroupContent className="flex min-h-0 flex-1 flex-col">
+              <SidebarMenu className="flex min-h-0 flex-1 flex-col">
                 <SidebarVirtualList />
               </SidebarMenu>
             </SidebarGroupContent>
@@ -67,18 +65,7 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
         </SidebarContent>
         <SidebarFooter>
           <SidebarMenu>
-            <SidebarMenuButton
-              isActive={false}
-              onClick={() => showAddProjectModal({})}
-              aria-label="Add Project"
-              className="w-full justify-between"
-            >
-              <span className="flex items-center gap-2 min-w-0 w-full">
-                <FolderPlus className="h-5 w-5 sm:h-4 sm:w-4 shrink-0" />
-                <span className="truncate min-w-0">Add Project</span>
-              </span>
-              <ShortcutHint settingsKey="newProject" />
-            </SidebarMenuButton>
+            <SidebarSearchTrigger />
             <SidebarMenuButton
               isActive={
                 isCurrentView(currentView, 'library') ||
@@ -87,10 +74,13 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
               }
               onClick={() => navigate('library')}
               aria-label="Library"
-              className="w-full justify-start"
+              className="w-full justify-between"
             >
-              <Library className="h-5 w-5 sm:h-4 sm:w-4" />
-              Library
+              <span className="flex items-center gap-2">
+                <Library className="h-5 w-5 sm:h-4 sm:w-4" />
+                Library
+              </span>
+              <BoundShortcut settingsKey="library" />
             </SidebarMenuButton>
             <SidebarMenuButton
               isActive={isCurrentView(currentView, 'settings')}
@@ -102,14 +92,14 @@ export const LeftSidebar: React.FC = observer(function LeftSidebar() {
                 <Settings className="h-5 w-5 sm:h-4 sm:w-4" />
                 Settings
               </span>
-              <ShortcutHint settingsKey="settings" />
+              <BoundShortcut settingsKey="settings" />
             </SidebarMenuButton>
           </SidebarMenu>
         </SidebarFooter>
-        <div className="flex items-center gap-2 justify-between px-3 py-2 border-t border-border">
+        <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2">
           <button
             type="button"
-            className="flex h-6 items-center min-w-0 w-full cursor-pointer gap-2 rounded-lg px-3 text-sm text-foreground-muted focus:outline-none focus-visible:outline-none"
+            className="flex h-6 w-full min-w-0 cursor-pointer items-center gap-2 rounded-lg px-3 text-sm text-foreground-muted focus:outline-none focus-visible:outline-none"
             onClick={() => showFeedbackModal({})}
           >
             <MessageSquareShare className="size-4 shrink-0" />

@@ -2,6 +2,7 @@ import { ArrowUpRight } from 'lucide-react';
 import { action, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
 import { createElement, type ReactNode } from 'react';
 import { toast } from 'sonner';
+import { events, rpc } from '@renderer/lib/ipc';
 import { PRODUCT_NAME } from '@shared/app-identity';
 import { menuCheckForUpdatesChannel } from '@shared/events/appEvents';
 import {
@@ -14,7 +15,6 @@ import {
   updateNotAvailableEvent,
   updateProgressEvent,
 } from '@shared/events/updateEvents';
-import { events, rpc } from '@renderer/lib/ipc';
 import { normalizeDownloadProgress, type DownloadProgress } from './update-progress';
 
 const LAST_NOTIFIED_KEY = 'emdash:update:lastNotified';
@@ -159,7 +159,10 @@ export class UpdateStore {
       }
       if (!res.success) {
         runInAction(() => {
-          this.state = { status: 'error', message: res.error ?? 'Failed to check for updates' };
+          this.state = {
+            status: 'error',
+            message: res.error ?? 'Failed to check for updates',
+          };
         });
       } else if (res.result === null) {
         runInAction(() => {
@@ -168,7 +171,10 @@ export class UpdateStore {
       }
     } catch {
       runInAction(() => {
-        this.state = { status: 'error', message: 'Failed to check for updates' };
+        this.state = {
+          status: 'error',
+          message: 'Failed to check for updates',
+        };
       });
     }
   }
@@ -218,7 +224,10 @@ export class UpdateStore {
       }
       if (!res.success) {
         runInAction(() => {
-          this.state = { status: 'error', message: res.error ?? 'Failed to install update' };
+          this.state = {
+            status: 'error',
+            message: res.error ?? 'Failed to install update',
+          };
         });
       }
     } catch {
@@ -373,7 +382,10 @@ export class UpdateStore {
   private _toastContent(): {
     title: string;
     description: string;
-    action?: { label: ReactNode; onClick: (event: { preventDefault: () => void }) => void };
+    action?: {
+      label: ReactNode;
+      onClick: (event: { preventDefault: () => void }) => void;
+    };
   } | null {
     const version = this.availableVersion;
     switch (this.state.status) {

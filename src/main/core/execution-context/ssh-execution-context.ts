@@ -2,10 +2,19 @@ import {
   buildRemoteShellCommand,
   FALLBACK_REMOTE_SHELL_PROFILE,
   type RemoteShellProfile,
-} from '@main/core/ssh/remote-shell-profile';
-import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
+} from '@main/core/ssh/lifecycle/remote-shell-profile';
+import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { quoteShellArg } from '@main/utils/shellEscape';
+import { NON_INTERACTIVE_GIT_ENV } from './non-interactive-git-env';
 import type { ExecOptions, ExecResult, IExecutionContext } from './types';
+
+function withNonInteractiveGitEnv(command: string): string {
+  if (command !== 'git') return command;
+  const envPrefix = Object.entries(NON_INTERACTIVE_GIT_ENV)
+    .map(([key, value]) => `${key}=${quoteShellArg(value)}`)
+    .join(' ');
+  return `${envPrefix} ${command}`;
+}
 
 /**
  * Builds the full shell command string to send over SSH.
@@ -19,7 +28,8 @@ export function buildSshCommand(
   profile?: RemoteShellProfile
 ): string {
   const escaped = args.map(quoteShellArg).join(' ');
-  const inner = args.length ? `${command} ${escaped}` : command;
+  const executable = withNonInteractiveGitEnv(command);
+  const inner = args.length ? `${executable} ${escaped}` : executable;
   const body = root ? `cd ${quoteShellArg(root)} && ${inner}` : inner;
   return buildRemoteShellCommand(profile ?? FALLBACK_REMOTE_SHELL_PROFILE, body);
 }

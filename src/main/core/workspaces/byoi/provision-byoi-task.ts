@@ -1,12 +1,7 @@
-import type { Conversation } from '@shared/conversations';
-import { taskProvisionProgressChannel } from '@shared/events/taskEvents';
-import type { ProjectSettings } from '@shared/project-settings';
-import type { Task } from '@shared/tasks';
-import type { Terminal } from '@shared/terminals';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { ProvisionResult } from '@main/core/projects/project-provider';
 import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
-import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
+import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import { buildTaskFromWorkspace } from '@main/core/tasks/task-builder';
 import { parseProvisionOutput } from '@main/core/workspaces/byoi/provision-output';
 import { createWorkspaceFactory } from '@main/core/workspaces/workspace-factory';
@@ -14,11 +9,13 @@ import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { quoteShellArg } from '@main/utils/shellEscape';
+import type { Conversation } from '@shared/conversations';
+import { taskProvisionProgressChannel } from '@shared/events/taskEvents';
+import type { ProjectSettings } from '@shared/project-settings';
+import type { Task } from '@shared/tasks';
 
 export type ProvisionBYOITaskParams = {
   task: Task;
-  conversations: Conversation[];
-  terminals: Terminal[];
   /** Workspace provider config read from project settings (`workspaceProvider.type === 'script'`). */
   wpConfig: NonNullable<ProjectSettings['workspaceProvider']>;
   /** Execution context for running provision/terminate scripts. */
@@ -29,6 +26,7 @@ export type ProvisionBYOITaskParams = {
   logPrefix: string;
   /** UUID from the workspaces table — used as the workspace registry key. */
   workspaceId: string;
+  conversationsToHydrate?: Conversation[];
 };
 
 /**
@@ -40,14 +38,13 @@ export type ProvisionBYOITaskParams = {
 export async function provisionBYOITask(params: ProvisionBYOITaskParams): Promise<ProvisionResult> {
   const {
     task,
-    conversations,
-    terminals,
     wpConfig,
     ctx,
     projectId,
     projectPath,
     settings,
     logPrefix,
+    conversationsToHydrate = [],
   } = params;
 
   events.emit(taskProvisionProgressChannel, {
@@ -127,7 +124,7 @@ export async function provisionBYOITask(params: ProvisionBYOITaskParams): Promis
       taskId: task.id,
       projectId,
       step: 'starting-sessions',
-      message: 'Starting sessions…',
+      message: 'Preparing task…',
     });
     const { taskProvider } = await buildTaskFromWorkspace(
       task,
@@ -136,8 +133,7 @@ export async function provisionBYOITask(params: ProvisionBYOITaskParams): Promis
       projectId,
       projectPath,
       settings,
-      { conversations, terminals },
-      logPrefix
+      conversationsToHydrate
     );
     log.debug(`${logPrefix}: provisionBYOITask DONE`, { taskId: task.id });
     provisionSucceeded = true;

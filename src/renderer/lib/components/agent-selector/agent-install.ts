@@ -1,6 +1,6 @@
+import { agentConfig } from '@renderer/utils/agentConfig';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 import type { DependencyInstallError } from '@shared/dependencies';
-import { agentConfig } from '@renderer/utils/agentConfig';
 
 export type AgentInstallActionState = {
   render: boolean;

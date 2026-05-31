@@ -1,3 +1,4 @@
+import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
 import type {
   Branch,
   BranchesPayload,
@@ -15,7 +16,6 @@ import type {
 import { resolveConfiguredRemotes } from '@shared/git-utils';
 import type { ProjectRemoteState } from '@shared/projects';
 import type { Result } from '@shared/result';
-import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
 import type { RepositoryGitProvider } from './repository-git-provider';
 
 export class GitRepositoryService {
@@ -98,7 +98,7 @@ export class GitRepositoryService {
   async renameBranch(
     oldBranch: string,
     newBranch: string
-  ): Promise<Result<{ remotePushed: boolean }, RenameBranchError>> {
+  ): Promise<Result<void, RenameBranchError>> {
     return this.git.renameBranch(oldBranch, newBranch);
   }
 

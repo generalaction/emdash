@@ -1,9 +1,21 @@
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
-import { GIT_EXECUTABLE } from '@main/core/utils/exec';
+import {
+  GIT_EXECUTABLE,
+  isMissingGitExecutableError,
+  missingGitExecutableError,
+} from '@main/core/utils/exec';
+import { NON_INTERACTIVE_GIT_ENV } from './non-interactive-git-env';
 import type { ExecOptions, ExecResult, IExecutionContext } from './types';
 
 const execFileAsync = promisify(execFile);
+
+function buildNonInteractiveGitEnv(): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    ...NON_INTERACTIVE_GIT_ENV,
+  };
+}
 
 export class LocalExecutionContext implements IExecutionContext {
   readonly root: string;
@@ -29,9 +41,15 @@ export class LocalExecutionContext implements IExecutionContext {
     const { timeout, maxBuffer } = opts;
     return execFileAsync(this.resolveCommand(command), args, {
       cwd: this.root || undefined,
+      env: command === 'git' ? buildNonInteractiveGitEnv() : undefined,
       timeout,
       maxBuffer,
       signal: this._signal(opts.signal),
+    }).catch((error) => {
+      if (command === 'git' && isMissingGitExecutableError(error)) {
+        throw missingGitExecutableError();
+      }
+      throw error;
     }) as Promise<ExecResult>;
   }
 
@@ -49,7 +67,10 @@ export class LocalExecutionContext implements IExecutionContext {
         return;
       }
 
-      const child = spawn(this.resolveCommand(command), args, { cwd: this.root || undefined });
+      const child = spawn(this.resolveCommand(command), args, {
+        cwd: this.root || undefined,
+        env: command === 'git' ? buildNonInteractiveGitEnv() : undefined,
+      });
 
       let settled = false;
 
@@ -73,7 +94,11 @@ export class LocalExecutionContext implements IExecutionContext {
         signal.removeEventListener('abort', onAbort);
         if (!settled) {
           settled = true;
-          reject(err);
+          reject(
+            command === 'git' && isMissingGitExecutableError(err)
+              ? missingGitExecutableError()
+              : err
+          );
         }
       });
 

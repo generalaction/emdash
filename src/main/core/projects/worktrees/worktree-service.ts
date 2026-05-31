@@ -1,11 +1,10 @@
 import { promises as fsPromises } from 'node:fs';
-import path from 'node:path';
-import type { Branch } from '@shared/git';
-import { DEFAULT_REMOTE_NAME } from '@shared/git-utils';
-import { err, ok, type Result } from '@shared/result';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { log } from '@main/lib/logger';
+import type { Branch } from '@shared/git';
+import { DEFAULT_REMOTE_NAME } from '@shared/git-utils';
+import { err, ok, type Result } from '@shared/result';
 import { getEffectiveTaskSettings } from '../settings/effective-task-settings';
 import type { ProjectSettingsProvider } from '../settings/provider';
 import type { WorktreeHost } from './hosts/worktree-host';
@@ -16,20 +15,20 @@ export type ServeWorktreeError =
 
 export class WorktreeService {
   private gitOpQueue: Promise<unknown> = Promise.resolve();
-  private readonly worktreePoolPath: string;
+  private readonly resolveWorktreePoolPath: () => Promise<string>;
   private readonly repoPath: string;
   private readonly ctx: IExecutionContext;
   private readonly host: WorktreeHost;
   private readonly projectSettings: ProjectSettingsProvider;
 
   constructor(args: {
-    worktreePoolPath: string;
     repoPath: string;
     ctx: IExecutionContext;
     host: WorktreeHost;
     projectSettings: ProjectSettingsProvider;
+    resolveWorktreePoolPath: () => Promise<string>;
   }) {
-    this.worktreePoolPath = args.worktreePoolPath;
+    this.resolveWorktreePoolPath = args.resolveWorktreePoolPath;
     this.repoPath = args.repoPath;
     this.projectSettings = args.projectSettings;
     this.ctx = args.ctx;
@@ -51,17 +50,17 @@ export class WorktreeService {
     // For SSH we rely on the host (SshWorktreeHost has no root restrictions).
     if (this.ctx.supportsLocalSpawn) {
       try {
-        await fsPromises.access(path.join(worktreePath, '.git'));
+        await fsPromises.access(this.host.pathApi.join(worktreePath, '.git'));
         return true;
       } catch {
         return false;
       }
     }
-    return this.host.existsAbsolute(path.join(worktreePath, '.git'));
+    return this.host.existsAbsolute(this.host.pathApi.join(worktreePath, '.git'));
   }
 
   private async ensureWorktreePoolDirExists(): Promise<void> {
-    await this.host.mkdirAbsolute(this.worktreePoolPath, { recursive: true });
+    await this.host.mkdirAbsolute(await this.resolveWorktreePoolPath(), { recursive: true });
   }
 
   private async getRemoteCandidates(): Promise<string[]> {
@@ -130,15 +129,44 @@ export class WorktreeService {
     }
   }
 
+  private getBranchBaseConfigValue(sourceBranch: Branch | undefined): string | undefined {
+    if (!sourceBranch) return undefined;
+    if (sourceBranch.type === 'local') return sourceBranch.branch;
+    return `${sourceBranch.remote.name}/${sourceBranch.branch}`;
+  }
+
+  private async ensureBranchBaseConfig(
+    branchName: string,
+    baseRef: string | undefined
+  ): Promise<void> {
+    if (!baseRef) return;
+    const key = `branch.${branchName}.base`;
+    try {
+      const { stdout } = await this.ctx.exec('git', ['config', '--get', key]);
+      if (stdout.trim()) return;
+    } catch {}
+
+    try {
+      await this.ctx.exec('git', ['config', key, baseRef]);
+    } catch (error) {
+      log.warn('WorktreeService: failed to set branch base metadata', {
+        branchName,
+        baseRef,
+        error: String(error),
+      });
+    }
+  }
+
   async getWorktree(branchName: string): Promise<string | undefined> {
-    const worktreePath = path.join(this.worktreePoolPath, branchName);
+    const worktreePoolPath = await this.resolveWorktreePoolPath();
+    const worktreePath = this.host.pathApi.join(worktreePoolPath, branchName);
     if (await this.host.existsAbsolute(worktreePath)) {
       if (await this.isValidWorktree(worktreePath)) return worktreePath;
       await this.host.removeAbsolute(worktreePath, { recursive: true }).catch(() => {});
     }
 
     try {
-      const realPoolPath = await this.host.realPathAbsolute(this.worktreePoolPath);
+      const realPoolPath = await this.host.realPathAbsolute(worktreePoolPath);
       const { stdout } = await this.ctx.exec('git', ['worktree', 'list', '--porcelain']);
       const branchLine = `branch refs/heads/${branchName}`;
       for (const block of stdout.split('\n\n')) {
@@ -166,14 +194,19 @@ export class WorktreeService {
     sourceBranch: Branch | undefined,
     branchName: string
   ): Promise<Result<string, ServeWorktreeError>> {
+    const baseConfigValue = this.getBranchBaseConfigValue(sourceBranch);
     const checkedOutPath = await this.findBranchAnywhere(branchName);
     if (checkedOutPath) {
+      await this.ensureBranchBaseConfig(branchName, baseConfigValue);
       return ok(checkedOutPath);
     }
 
-    const targetPath = path.join(this.worktreePoolPath, branchName);
+    const targetPath = this.host.pathApi.join(await this.resolveWorktreePoolPath(), branchName);
     if (await this.host.existsAbsolute(targetPath)) {
-      if (await this.isValidWorktree(targetPath)) return ok(targetPath);
+      if (await this.isValidWorktree(targetPath)) {
+        await this.ensureBranchBaseConfig(branchName, baseConfigValue);
+        return ok(targetPath);
+      }
       await this.host.removeAbsolute(targetPath, { recursive: true }).catch(() => {});
       await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
     }
@@ -192,8 +225,9 @@ export class WorktreeService {
         }
         await this.ctx.exec('git', ['branch', '--no-track', branchName, sourceRef]);
       }
+      await this.ensureBranchBaseConfig(branchName, baseConfigValue);
 
-      await this.host.mkdirAbsolute(path.dirname(targetPath), { recursive: true });
+      await this.host.mkdirAbsolute(this.host.pathApi.dirname(targetPath), { recursive: true });
       await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
       await this.ctx.exec('git', ['worktree', 'add', targetPath, branchName]);
     } catch (cause) {
@@ -223,7 +257,7 @@ export class WorktreeService {
       return ok(checkedOutPath);
     }
 
-    const targetPath = path.join(this.worktreePoolPath, branchName);
+    const targetPath = this.host.pathApi.join(await this.resolveWorktreePoolPath(), branchName);
     const remoteCandidates = await this.getRemoteCandidates();
 
     if (await this.host.existsAbsolute(targetPath)) {
@@ -233,7 +267,7 @@ export class WorktreeService {
     }
 
     try {
-      await this.host.mkdirAbsolute(path.dirname(targetPath), { recursive: true });
+      await this.host.mkdirAbsolute(this.host.pathApi.dirname(targetPath), { recursive: true });
       for (const remoteName of remoteCandidates) {
         await this.ctx.exec('git', ['fetch', remoteName]).catch(() => {});
       }
@@ -294,9 +328,11 @@ export class WorktreeService {
 
   private taskConfigFs(targetPath: string): Pick<FileSystemProvider, 'exists' | 'read'> {
     return {
-      exists: (filePath) => this.host.existsAbsolute(path.join(targetPath, filePath)),
+      exists: (filePath) => this.host.existsAbsolute(this.host.pathApi.join(targetPath, filePath)),
       read: async (filePath) => {
-        const content = await this.host.readFileAbsolute(path.join(targetPath, filePath));
+        const content = await this.host.readFileAbsolute(
+          this.host.pathApi.join(targetPath, filePath)
+        );
         return {
           content,
           truncated: false,
@@ -328,11 +364,11 @@ export class WorktreeService {
       });
       for (const relPath of matches) {
         if (relPath === '.emdash.json' || (await this.isTrackedSourcePath(relPath))) continue;
-        const src = path.join(this.repoPath, relPath);
+        const src = this.host.pathApi.join(this.repoPath, relPath);
         const stat = await this.host.statAbsolute(src).catch(() => null);
         if (!stat || stat.type !== 'file') continue;
-        const dest = path.join(targetPath, relPath);
-        await this.host.mkdirAbsolute(path.dirname(dest), { recursive: true });
+        const dest = this.host.pathApi.join(targetPath, relPath);
+        await this.host.mkdirAbsolute(this.host.pathApi.dirname(dest), { recursive: true });
         await this.host.copyFileAbsolute(src, dest);
       }
     }

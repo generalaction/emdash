@@ -37,9 +37,9 @@ export function shouldHandleInterruptFromTerminal(event: KeyEventLike): boolean 
 export function shouldCopySelectionFromTerminal(
   event: KeyEventLike,
   isMacPlatform: boolean,
-  hasSelection: boolean
+  hasSelection: boolean,
+  hasRecentSelection = false
 ): boolean {
-  if (!hasSelection) return false;
   if (event.type !== 'keydown') return false;
   if (event.key.toLowerCase() !== 'c') return false;
 
@@ -49,7 +49,9 @@ export function shouldCopySelectionFromTerminal(
   const shift = event.shiftKey === true;
 
   // Ctrl+Shift+C should copy on all platforms
-  if (ctrl && shift && !meta && !alt) return true;
+  if (ctrl && shift && !meta && !alt) return hasSelection || hasRecentSelection;
+
+  if (!hasSelection) return false;
 
   // Platform-specific default copy shortcuts
   if (isMacPlatform) {
@@ -76,24 +78,33 @@ export function shouldKillLineFromTerminal(event: KeyEventLike, isMacPlatform: b
 }
 
 /**
- * Detect Ctrl+Shift+V paste shortcut on Linux.
- * Linux terminals use Ctrl+Shift+V as the standard paste shortcut,
- * unlike Windows/macOS which use Ctrl+V/Cmd+V.
+ * Detect paste shortcut for the terminal.
+ * - Windows: Ctrl+V (native convention) and Ctrl+Shift+V both paste from clipboard.
+ * - Linux: Ctrl+Shift+V (standard Linux terminal convention).
+ * - macOS: no interception — Cmd+V is handled natively by xterm/Electron.
  */
-export function shouldPasteToTerminal(event: KeyEventLike, isMacPlatform: boolean): boolean {
+export function shouldPasteToTerminal(
+  event: KeyEventLike,
+  isMacPlatform: boolean,
+  isWindowsPlatform = false
+): boolean {
   if (event.type !== 'keydown') return false;
   if (event.key.toLowerCase() !== 'v') return false;
+  if (isMacPlatform) return false;
 
   const ctrl = event.ctrlKey === true;
   const meta = event.metaKey === true;
   const alt = event.altKey === true;
   const shift = event.shiftKey === true;
 
-  // Ctrl+Shift+V is the standard paste shortcut in Linux terminals
-  // Only apply on non-Mac platforms (Linux/Windows with Linux-style terminals)
-  if (!isMacPlatform && ctrl && shift && !meta && !alt) {
+  if (meta || alt) return false;
+  if (!ctrl) return false;
+
+  if (isWindowsPlatform) {
+    // Windows: accept Ctrl+V and Ctrl+Shift+V.
     return true;
   }
 
-  return false;
+  // Linux: Ctrl+Shift+V only.
+  return shift;
 }

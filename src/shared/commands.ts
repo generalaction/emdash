@@ -30,6 +30,15 @@ export const APP_COMMAND_DEFS = defineCommandDefs([
     iconKey: 'settings',
   },
   {
+    id: 'app.library',
+    label: 'Open Library',
+    description: 'Open the Library',
+    scope: 'app',
+    shortcutKey: 'library',
+    group: 'App',
+    iconKey: 'library',
+  },
+  {
     id: 'app.newProject',
     label: 'New Project',
     description: 'Add a new local or SSH project',
@@ -54,6 +63,14 @@ export const APP_COMMAND_DEFS = defineCommandDefs([
     scope: 'app',
     group: 'App',
     iconKey: 'message-square-share',
+  },
+  {
+    id: 'app.toggleTheme',
+    label: 'Toggle Theme',
+    description: 'Switch between light and dark themes',
+    scope: 'app',
+    group: 'View',
+    iconKey: 'palette',
   },
   {
     id: 'app.navigateBack',
