@@ -165,7 +165,6 @@ async function saveTempFile(args: {
   }
 
   await mkdir(args.dir, { recursive: true, mode: 0o700 });
-  await chmod(args.dir, 0o700);
   const rootInfo = await lstat(args.dir);
   if (rootInfo.isSymbolicLink()) {
     throw new Error('Temporary file directory must not be a symlink');
@@ -174,6 +173,7 @@ async function saveTempFile(args: {
   if (processUid !== undefined && rootInfo.uid !== processUid) {
     throw new Error('Temporary file directory is not owned by the current user');
   }
+  await chmod(args.dir, 0o700);
 
   const fileDir = join(args.dir, randomUUID());
   await mkdir(fileDir, { mode: 0o700 });
