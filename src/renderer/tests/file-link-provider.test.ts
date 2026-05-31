@@ -2,6 +2,7 @@ import type { ILink } from '@xterm/xterm';
 import { describe, expect, it } from 'vitest';
 import { findFileLinks } from '@renderer/lib/pty/file-link-detection';
 import {
+  ActivationModifierTracker,
   FileLinkProvider,
   isActivationModifierPressed,
 } from '@renderer/lib/pty/file-link-provider';
@@ -115,6 +116,16 @@ describe('file link provider', () => {
     expect(isActivationModifierPressed({ metaKey: true, ctrlKey: false }, false)).toBe(false);
     expect(isActivationModifierPressed({ metaKey: true, ctrlKey: true }, true)).toBe(false);
     expect(isActivationModifierPressed({ metaKey: true, ctrlKey: true }, false)).toBe(false);
+  });
+
+  it('clears initial underline decorations from mouse events without the modifier', () => {
+    const tracker = new ActivationModifierTracker(true);
+
+    expect(tracker.update({ metaKey: true, ctrlKey: false })).toBe(true);
+    expect(tracker.decorations()).toEqual({ pointerCursor: true, underline: true });
+
+    expect(tracker.update({ metaKey: false, ctrlKey: false })).toBe(false);
+    expect(tracker.decorations()).toEqual({ pointerCursor: false, underline: false });
   });
 
   it('only opens links when the activation modifier is pressed', () => {

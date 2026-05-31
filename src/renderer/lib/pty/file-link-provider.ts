@@ -1,10 +1,34 @@
 import type { ILink, ILinkProvider, Terminal } from '@xterm/xterm';
 import { findFileLinks, type FileLinkMatch } from './file-link-detection';
 
-let activationModifierPressed = false;
 let activationModifierListenersAttached = false;
 
 type LinkDecorations = NonNullable<ILink['decorations']>;
+type ActivationModifierEvent = Pick<MouseEvent, 'ctrlKey' | 'metaKey'>;
+
+export class ActivationModifierTracker {
+  private pressed = false;
+
+  constructor(private readonly isMac = isMacPlatform()) {}
+
+  decorations(): LinkDecorations {
+    return {
+      pointerCursor: this.pressed,
+      underline: this.pressed,
+    };
+  }
+
+  update(event: ActivationModifierEvent): boolean {
+    this.pressed = isActivationModifierPressed(event, this.isMac);
+    return this.pressed;
+  }
+
+  reset(): void {
+    this.pressed = false;
+  }
+}
+
+const activationModifierTracker = new ActivationModifierTracker();
 
 export class FileLinkProvider implements ILinkProvider {
   constructor(
@@ -23,16 +47,13 @@ export class FileLinkProvider implements ILinkProvider {
   }
 
   private toXtermLink(match: FileLinkMatch): ILink {
-    const decorations: LinkDecorations = {
-      pointerCursor: activationModifierPressed,
-      underline: activationModifierPressed,
-    };
+    const decorations = activationModifierTracker.decorations();
     const link: ILink = {
       range: match.range,
       text: match.text,
       decorations,
       hover: (event) => {
-        setDecorations(link.decorations ?? decorations, isActivationModifierPressed(event));
+        setDecorations(link.decorations ?? decorations, activationModifierTracker.update(event));
       },
       leave: () => {
         setDecorations(link.decorations ?? decorations, false);
@@ -67,21 +88,24 @@ function attachActivationModifierListeners(): void {
   activationModifierListenersAttached = true;
   window.addEventListener('keydown', updateActivationModifierState, true);
   window.addEventListener('keyup', updateActivationModifierState, true);
+  window.addEventListener('mousemove', updateActivationModifierState, true);
+  window.addEventListener('mousedown', updateActivationModifierState, true);
+  window.addEventListener('mouseup', updateActivationModifierState, true);
   window.addEventListener(
     'blur',
     () => {
-      activationModifierPressed = false;
+      activationModifierTracker.reset();
     },
     true
   );
 }
 
-function updateActivationModifierState(event: KeyboardEvent): void {
-  activationModifierPressed = isActivationModifierPressed(event);
+function updateActivationModifierState(event: ActivationModifierEvent): void {
+  activationModifierTracker.update(event);
 }
 
 export function isActivationModifierPressed(
-  event: Pick<MouseEvent, 'ctrlKey' | 'metaKey'>,
+  event: ActivationModifierEvent,
   isMac = isMacPlatform()
 ): boolean {
   return isMac ? event.metaKey && !event.ctrlKey : event.ctrlKey && !event.metaKey;
