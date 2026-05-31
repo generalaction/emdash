@@ -178,6 +178,7 @@ export class LocalConversationProvider implements ConversationProvider {
           ...buildAgentEnv({
             hook: port > 0 ? { port, ptyId, token } : undefined,
             providerVars: providerEnv,
+            shellProfile: this.shellProfile,
           }),
           ...this.taskEnvVars,
           ...(ampHooksAvailable && !this.taskEnvVars['PLUGINS'] ? { PLUGINS: 'all' } : {}),

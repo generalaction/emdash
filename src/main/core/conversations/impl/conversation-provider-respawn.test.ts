@@ -198,8 +198,10 @@ describe('conversation provider respawn state', () => {
 
   it('passes global editor variables to local agent sessions', async () => {
     const previousEditor = process.env.EDITOR;
+    const previousShell = process.env.SHELL;
     try {
       process.env.EDITOR = 'zed';
+      process.env.SHELL = '/bin/zsh';
       const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
       spawnLocalPty.mockReturnValue(fakePty(exitHandlers));
 
@@ -207,12 +209,17 @@ describe('conversation provider respawn state', () => {
 
       const request = spawnLocalPty.mock.calls[0][0] as { env: Record<string, string> };
       expect(request.env.EDITOR).toBe('zed');
-      expect(request.env.SHELL).toBeUndefined();
+      expect(request.env.SHELL).toBe('sh');
     } finally {
       if (previousEditor === undefined) {
         delete process.env.EDITOR;
       } else {
         process.env.EDITOR = previousEditor;
+      }
+      if (previousShell === undefined) {
+        delete process.env.SHELL;
+      } else {
+        process.env.SHELL = previousShell;
       }
     }
   });
@@ -238,6 +245,30 @@ describe('conversation provider respawn state', () => {
       expect.objectContaining({
         command: 'bash',
         args: ['-lc', 'agent'],
+      })
+    );
+  });
+
+  it('sets SHELL to the injected POSIX shell for local agent sessions', async () => {
+    const shellProfile: ConstructorParameters<typeof LocalConversationProvider>[0]['shellProfile'] =
+      {
+        id: 'bash',
+        resolvedShellId: 'bash',
+        resolvedFromSystem: false,
+        executable: '/bin/bash',
+        available: true,
+        family: 'posix',
+        interactiveArgs: ['-il'],
+        commandArgs: ['-lc'],
+      };
+    const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
+    spawnLocalPty.mockReturnValue(fakePty(exitHandlers));
+
+    await localProvider({ shellProfile }).startSession(conversation());
+
+    expect(spawnLocalPty).toHaveBeenCalledWith(
+      expect.objectContaining({
+        env: expect.objectContaining({ SHELL: '/bin/bash' }),
       })
     );
   });
