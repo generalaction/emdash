@@ -45,6 +45,7 @@ export type AgentProviderDefinition = {
   detectable?: boolean;
   cli?: string;
   autoApproveFlag?: string;
+  autoApproveAliases?: string[];
   initialPromptFlag?: string;
   /**
    * When true, the initial prompt is delivered via keystroke injection
@@ -102,6 +103,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     versionArgs: ['--version'],
     cli: 'codex',
     autoApproveFlag: '--dangerously-bypass-approvals-and-sandbox',
+    autoApproveAliases: ['--yolo'],
     initialPromptFlag: '',
     resumeFlag: 'resume',
     sessionIdFlag: ' ',

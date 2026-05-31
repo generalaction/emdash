@@ -106,27 +106,23 @@ function appendSessionId(args: string[], flag: string, sessionId: string): void 
 function includesSequence(args: string[], sequence: string[]): boolean {
   if (sequence.length === 0 || sequence.length > args.length) return false;
 
-  return args.some((_, index) => sequence.every((value, offset) => args[index + offset] === value));
+  return args.some(
+    (_, index) =>
+      index + sequence.length <= args.length &&
+      sequence.every((value, offset) => args[index + offset] === value)
+  );
 }
 
 function hasAutoApproveFlag(
-  providerId: AgentProviderId,
   argsGroups: string[][],
-  autoApproveArgs: string[]
+  autoApproveArgs: string[],
+  autoApproveAliases: string[] = []
 ): boolean {
   if (autoApproveArgs.length === 0) return false;
 
   if (argsGroups.some((args) => includesSequence(args, autoApproveArgs))) return true;
 
-  if (
-    providerId === 'codex' &&
-    autoApproveArgs.length === 1 &&
-    autoApproveArgs[0] === '--dangerously-bypass-approvals-and-sandbox'
-  ) {
-    return argsGroups.some((args) => args.includes('--yolo'));
-  }
-
-  return false;
+  return autoApproveAliases.some((alias) => argsGroups.some((args) => args.includes(alias)));
 }
 
 export function buildAgentCommand({
@@ -178,7 +174,7 @@ export function buildAgentCommand({
 
     if (
       autoApproveArgs.length > 0 &&
-      !hasAutoApproveFlag(providerId, [args, extraArgs], autoApproveArgs)
+      !hasAutoApproveFlag([args, extraArgs], autoApproveArgs, providerDef?.autoApproveAliases)
     ) {
       args.push(...autoApproveArgs);
     }
