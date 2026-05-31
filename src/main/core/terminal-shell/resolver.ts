@@ -37,6 +37,7 @@ export class ShellUnavailableError extends Error {
 }
 
 type FileExists = (candidate: string) => boolean;
+type ReadDirNames = (candidate: string) => string[];
 
 function isExecutable(filePath: string): boolean {
   try {
@@ -44,6 +45,17 @@ function isExecutable(filePath: string): boolean {
     return fs.statSync(filePath).isFile();
   } catch {
     return false;
+  }
+}
+
+function readDirNames(dirPath: string): string[] {
+  try {
+    return fs
+      .readdirSync(dirPath, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
+  } catch {
+    return [];
   }
 }
 
@@ -88,6 +100,50 @@ function findOnPath(
   return undefined;
 }
 
+function compareVersionParts(a: number[], b: number[]): number {
+  const len = Math.max(a.length, b.length);
+  for (let i = 0; i < len; i += 1) {
+    const diff = (a[i] ?? 0) - (b[i] ?? 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
+function powerShellVersionParts(name: string): number[] | null {
+  const match = /^(\d+(?:\.\d+)*)(?:-.+)?$/.exec(name);
+  if (!match) return null;
+  return match[1].split('.').map((part) => Number(part));
+}
+
+function findLatestWindowsPwsh(
+  env: NodeJS.ProcessEnv,
+  fileExists: FileExists = isExecutable,
+  readDirs: ReadDirNames = readDirNames
+): string | undefined {
+  const roots = [
+    env.ProgramFiles,
+    env.ProgramW6432,
+    env.LOCALAPPDATA ? path.win32.join(env.LOCALAPPDATA, 'Microsoft') : undefined,
+  ]
+    .filter((root): root is string => Boolean(root))
+    .map((root) => path.win32.join(root, 'PowerShell'));
+
+  let best: { version: number[]; candidate: string } | undefined;
+  for (const root of [...new Set(roots)]) {
+    for (const dir of readDirs(root)) {
+      const version = powerShellVersionParts(dir);
+      if (!version) continue;
+      const candidate = path.win32.join(root, dir, 'pwsh.exe');
+      if (!fileExists(candidate)) continue;
+      if (!best || compareVersionParts(version, best.version) > 0) {
+        best = { version, candidate };
+      }
+    }
+  }
+
+  return best?.candidate ?? findOnPath('pwsh.exe', env, 'win32', fileExists);
+}
+
 function shellIdFromExecutable(
   executable: string,
   fallback: RuntimeTerminalShellId
@@ -110,12 +166,13 @@ function resolveLocalExplicitShell(
   shell: ExplicitTerminalShellId,
   platform: NodeJS.Platform,
   env: NodeJS.ProcessEnv,
-  fileExists?: FileExists
+  fileExists?: FileExists,
+  readDirs?: ReadDirNames
 ): string | undefined {
   if (platform === 'win32') {
     if (shell === 'cmd') return env.ComSpec || 'C:\\Windows\\System32\\cmd.exe';
     if (shell === 'powershell') return findOnPath('powershell.exe', env, platform, fileExists);
-    if (shell === 'pwsh') return findOnPath('pwsh.exe', env, platform, fileExists);
+    if (shell === 'pwsh') return findLatestWindowsPwsh(env, fileExists, readDirs);
     return findOnPath(shell, env, platform, fileExists);
   }
 
@@ -160,10 +217,12 @@ export async function resolveTerminalShell({
   intent,
   target,
   fileExists,
+  readDirNames: readDirs,
 }: {
   intent: TerminalShellId;
   target: ShellTarget;
   fileExists?: FileExists;
+  readDirNames?: ReadDirNames;
 }): Promise<ResolvedShellProfile> {
   if (target.kind === 'local') {
     const platform = target.platform ?? process.platform;
@@ -184,7 +243,7 @@ export async function resolveTerminalShell({
       });
     }
 
-    const executable = resolveLocalExplicitShell(intent, platform, env, fileExists);
+    const executable = resolveLocalExplicitShell(intent, platform, env, fileExists, readDirs);
     if (!executable) throw new ShellUnavailableError(intent, 'local');
     return buildProfile({
       id: intent,
@@ -225,32 +284,98 @@ export async function resolveTerminalShellWithSystemFallback({
   intent,
   target,
   fileExists,
+  readDirNames: readDirs,
   onFallback,
 }: {
   intent: TerminalShellId;
   target: ShellTarget;
   fileExists?: FileExists;
+  readDirNames?: ReadDirNames;
   onFallback?: (error: ShellUnavailableError) => void;
 }): Promise<ResolvedShellProfile> {
   try {
-    return await resolveTerminalShell({ intent, target, fileExists });
+    return await resolveTerminalShell({ intent, target, fileExists, readDirNames: readDirs });
   } catch (error) {
     if (intent === 'system' || !(error instanceof ShellUnavailableError)) {
       throw error;
     }
     onFallback?.(error);
-    return await resolveTerminalShell({ intent: 'system', target, fileExists });
+    return await resolveTerminalShell({
+      intent: 'system',
+      target,
+      fileExists,
+      readDirNames: readDirs,
+    });
   }
+}
+
+export async function resolveLocalAutomationShellWithSystemFallback({
+  intent,
+  platform = process.platform,
+  env = process.env,
+  fileExists,
+  readDirNames: readDirs,
+  onFallback,
+}: {
+  intent: TerminalShellId;
+  platform?: NodeJS.Platform;
+  env?: NodeJS.ProcessEnv;
+  fileExists?: FileExists;
+  readDirNames?: ReadDirNames;
+  onFallback?: (error: ShellUnavailableError) => void;
+}): Promise<ResolvedShellProfile> {
+  const target: ShellTarget = { kind: 'local', platform, env };
+
+  if (platform !== 'win32') {
+    return await resolveTerminalShellWithSystemFallback({
+      intent,
+      target,
+      fileExists,
+      readDirNames: readDirs,
+      onFallback,
+    });
+  }
+
+  if (intent !== 'system') {
+    try {
+      return await resolveTerminalShell({ intent, target, fileExists, readDirNames: readDirs });
+    } catch (error) {
+      if (!(error instanceof ShellUnavailableError)) throw error;
+      onFallback?.(error);
+    }
+  }
+
+  for (const candidate of ['pwsh', 'powershell'] as const) {
+    try {
+      return await resolveTerminalShell({
+        intent: candidate,
+        target,
+        fileExists,
+        readDirNames: readDirs,
+      });
+    } catch (error) {
+      if (!(error instanceof ShellUnavailableError)) throw error;
+    }
+  }
+
+  return await resolveTerminalShell({
+    intent: 'system',
+    target,
+    fileExists,
+    readDirNames: readDirs,
+  });
 }
 
 export async function getLocalTerminalShellAvailability({
   platform = process.platform,
   env = process.env,
   fileExists,
+  readDirNames: readDirs,
 }: {
   platform?: NodeJS.Platform;
   env?: NodeJS.ProcessEnv;
   fileExists?: FileExists;
+  readDirNames?: ReadDirNames;
 } = {}): Promise<TerminalShellAvailability[]> {
   const targetDefaultShell = localDefaultShell(platform, env);
   const targetDefaultId = shellIdFromExecutable(
@@ -269,7 +394,7 @@ export async function getLocalTerminalShellAvailability({
             available: true,
           };
         }
-        const executable = resolveLocalExplicitShell(shell, platform, env, fileExists);
+        const executable = resolveLocalExplicitShell(shell, platform, env, fileExists, readDirs);
         return {
           id: shell,
           label: shell,

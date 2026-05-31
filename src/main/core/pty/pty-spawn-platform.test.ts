@@ -19,7 +19,7 @@ const pwshProfile = {
   available: true,
   family: 'powershell',
   interactiveArgs: [],
-  commandArgs: ['-NoProfile', '-Command'],
+  commandArgs: ['-NoLogo', '-Command'],
 } satisfies ResolvedShellProfile;
 
 function posixShellProfile({
@@ -204,7 +204,7 @@ describe('resolveLocalPtySpawn - Windows', () => {
     });
   });
 
-  it('wraps cmd and bat argv commands through cmd.exe when PowerShell is selected', () => {
+  it('runs cmd and bat argv commands through selected PowerShell when PowerShell is selected', () => {
     const result = resolveLocalPtySpawn({
       platform: 'win32',
       env: winEnv,
@@ -217,8 +217,8 @@ describe('resolveLocalPtySpawn - Windows', () => {
     });
 
     expect(result).toEqual({
-      command: 'C:\\Windows\\System32\\cmd.exe',
-      args: ['/d', '/s', '/c', 'pnpm.cmd run dev'],
+      command: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
+      args: ['-NoLogo', '-Command', '& pnpm.cmd run dev'],
       cwd: 'C:\\repo',
       warnings: [],
     });
@@ -290,7 +290,7 @@ describe('resolveLocalPtySpawn - Windows', () => {
 
     expect(result).toEqual({
       command: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
-      args: ['-NoProfile', '-Command', 'pnpm run dev'],
+      args: ['-NoLogo', '-Command', 'pnpm run dev'],
       cwd: 'C:\\repo',
       warnings: [],
     });
@@ -311,7 +311,37 @@ describe('resolveLocalPtySpawn - Windows', () => {
 
     expect(result).toEqual({
       command: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
-      args: ['-NoProfile', '-Command', "& codex 'hello world' 'it''s ok'"],
+      args: ['-NoLogo', '-Command', "& codex 'hello world' 'it''s ok'"],
+      cwd: 'C:\\repo',
+      warnings: [],
+    });
+  });
+
+  it('prefers ps1 shims over cmd shims for selected PowerShell extensionless commands', () => {
+    const result = resolveLocalPtySpawn({
+      platform: 'win32',
+      env: windowsPathEnv,
+      fileExists: (candidate) =>
+        candidate === 'C:\\Users\\me\\AppData\\Roaming\\npm\\codex.CMD' ||
+        candidate === 'C:\\Users\\me\\AppData\\Roaming\\npm\\codex.PS1',
+      intent: {
+        kind: 'run-command',
+        cwd: 'C:\\repo',
+        shellProfile: pwshProfile,
+        command: { kind: 'argv', command: 'codex', args: ['hello world'] },
+      },
+    });
+
+    expect(result).toEqual({
+      command: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
+      args: [
+        '-NoLogo',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-File',
+        'C:\\Users\\me\\AppData\\Roaming\\npm\\codex.PS1',
+        'hello world',
+      ],
       cwd: 'C:\\repo',
       warnings: [],
     });
@@ -366,7 +396,7 @@ describe('resolveLocalPtySpawn - POSIX', () => {
     available: true,
     family: 'powershell',
     interactiveArgs: [],
-    commandArgs: ['-NoProfile', '-Command'],
+    commandArgs: ['-NoLogo', '-Command'],
   };
 
   it('uses SHELL -il for interactive shells', () => {
