@@ -136,6 +136,17 @@ describe('file link provider', () => {
     expect(tracker.decorations()).toEqual({ pointerCursor: false, underline: false });
   });
 
+  it('updates hovered decorations when the modifier changes without mouse movement', () => {
+    const tracker = new ActivationModifierTracker(true);
+    const decorations = tracker.decorations();
+
+    tracker.hover(decorations, { metaKey: true, ctrlKey: false });
+    expect(decorations).toEqual({ pointerCursor: true, underline: true });
+
+    tracker.update({ metaKey: false, ctrlKey: false });
+    expect(decorations).toEqual({ pointerCursor: false, underline: false });
+  });
+
   it('only opens links when the activation modifier is pressed', () => {
     const openedFiles: string[] = [];
     const openedExternal: string[] = [];

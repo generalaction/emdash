@@ -5,8 +5,12 @@ let activationModifierListenersAttached = false;
 
 type LinkDecorations = NonNullable<ILink['decorations']>;
 type ActivationModifierEvent = Pick<MouseEvent, 'ctrlKey' | 'metaKey'>;
+type NavigatorWithUserAgentData = Navigator & {
+  userAgentData?: { platform?: string };
+};
 
 export class ActivationModifierTracker {
+  private hoveredDecorations: LinkDecorations | null = null;
   private pressed = false;
 
   constructor(private readonly isMac = isMacPlatform()) {}
@@ -20,11 +24,30 @@ export class ActivationModifierTracker {
 
   update(event: ActivationModifierEvent): boolean {
     this.pressed = isActivationModifierPressed(event, this.isMac);
+    this.syncHoveredDecorations();
     return this.pressed;
+  }
+
+  hover(decorations: LinkDecorations, event: ActivationModifierEvent): void {
+    this.hoveredDecorations = decorations;
+    this.update(event);
+  }
+
+  leave(decorations: LinkDecorations): void {
+    if (this.hoveredDecorations === decorations) {
+      this.hoveredDecorations = null;
+    }
+    setDecorations(decorations, false);
   }
 
   reset(): void {
     this.pressed = false;
+    this.syncHoveredDecorations();
+  }
+
+  private syncHoveredDecorations(): void {
+    if (!this.hoveredDecorations) return;
+    setDecorations(this.hoveredDecorations, this.pressed);
   }
 }
 
@@ -53,10 +76,10 @@ export class FileLinkProvider implements ILinkProvider {
       text: match.text,
       decorations,
       hover: (event) => {
-        setDecorations(link.decorations ?? decorations, activationModifierTracker.update(event));
+        activationModifierTracker.hover(link.decorations ?? decorations, event);
       },
       leave: () => {
-        setDecorations(link.decorations ?? decorations, false);
+        activationModifierTracker.leave(link.decorations ?? decorations);
       },
       activate: (event, linkText) => {
         if (!isActivationModifierPressed(event)) return;
@@ -67,7 +90,7 @@ export class FileLinkProvider implements ILinkProvider {
         }
       },
       dispose: () => {
-        setDecorations(link.decorations ?? decorations, false);
+        activationModifierTracker.leave(link.decorations ?? decorations);
       },
     };
     return link;
@@ -112,5 +135,8 @@ export function isActivationModifierPressed(
 }
 
 function isMacPlatform(): boolean {
-  return typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+  if (typeof navigator === 'undefined') return false;
+  const platform =
+    (navigator as NavigatorWithUserAgentData).userAgentData?.platform ?? navigator.platform;
+  return /Mac|iPod|iPhone|iPad/i.test(platform);
 }
