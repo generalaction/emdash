@@ -246,12 +246,6 @@ export class DependencyManager implements IInitializable {
 async function resolveLocalInstallShellProfile() {
   return await resolveLocalAutomationShellWithSystemFallback({
     intent: 'system',
-    onFallback: (error) => {
-      log.warn('[DependencyManager] Preferred install shell unavailable, using fallback', {
-        shell: error.shell,
-        target: error.target,
-      });
-    },
   });
 }
 

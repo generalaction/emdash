@@ -240,8 +240,8 @@ function cmdShellLineSpawn({
   };
 }
 
-function powerShellFileArgs(loadProfile: boolean): string[] {
-  return [loadProfile ? '-NoLogo' : '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File'];
+function powerShellFileArgs(suppressProfile: boolean): string[] {
+  return [suppressProfile ? '-NoProfile' : '-NoLogo', '-ExecutionPolicy', 'Bypass', '-File'];
 }
 
 function resolveWindowsSpawn(
@@ -305,7 +305,7 @@ function resolveWindowsSpawn(
       intent.shellProfile?.family === 'powershell' ? intent.shellProfile : undefined;
     return {
       command: selectedPowerShell?.executable ?? 'powershell.exe',
-      args: [...powerShellFileArgs(selectedPowerShell !== undefined), resolvedCommand, ...args],
+      args: [...powerShellFileArgs(selectedPowerShell === undefined), resolvedCommand, ...args],
       cwd: intent.cwd,
       warnings,
     };

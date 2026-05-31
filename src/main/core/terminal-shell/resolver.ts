@@ -345,7 +345,10 @@ export async function resolveLocalAutomationShellWithSystemFallback({
     }
   }
 
-  for (const candidate of ['pwsh', 'powershell'] as const) {
+  const fallbackCandidates = (['pwsh', 'powershell'] as const).filter(
+    (candidate) => candidate !== intent
+  );
+  for (const candidate of fallbackCandidates) {
     try {
       return await resolveTerminalShell({
         intent: candidate,

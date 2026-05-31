@@ -111,6 +111,31 @@ describe('terminal shell resolver', () => {
     });
   });
 
+  it('does not retry a failed explicit pwsh lookup before falling back', async () => {
+    const readDirNames = vi.fn((candidate: string) =>
+      candidate === 'C:\\Program Files\\PowerShell' ? ['7'] : []
+    );
+
+    const profile = await resolveLocalAutomationShellWithSystemFallback({
+      intent: 'pwsh',
+      platform: 'win32',
+      env: {
+        ComSpec: 'C:\\Windows\\System32\\cmd.exe',
+        ProgramFiles: 'C:\\Program Files',
+        Path: 'C:\\Windows\\System32',
+        PATHEXT: '.EXE;.CMD',
+      },
+      readDirNames,
+      fileExists: (candidate) => candidate === 'C:\\Windows\\System32\\powershell.exe',
+    });
+
+    expect(profile).toMatchObject({
+      id: 'powershell',
+      executable: 'C:\\Windows\\System32\\powershell.exe',
+    });
+    expect(readDirNames).toHaveBeenCalledTimes(1);
+  });
+
   it('reports Windows shells separately from POSIX shells', async () => {
     const availability = await getLocalTerminalShellAvailability({
       platform: 'win32',
