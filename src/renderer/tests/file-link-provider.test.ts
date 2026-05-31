@@ -56,16 +56,24 @@ describe('file link provider', () => {
       ),
     ]);
 
-    const expectedLink = {
+    const expectedFirstLineLink = {
       range: {
         start: { x: 66, y: 1 },
+        end: { x: 79, y: 1 },
+      },
+      text: 'src/main/core/conversations/impl/local-conversation.ts',
+      isExternal: false,
+    };
+    const expectedSecondLineLink = {
+      range: {
+        start: { x: 3, y: 2 },
         end: { x: 42, y: 2 },
       },
       text: 'src/main/core/conversations/impl/local-conversation.ts',
       isExternal: false,
     };
-    expect(findFileLinks(buffer, 1)).toEqual([expectedLink]);
-    expect(findFileLinks(buffer, 2)).toEqual([expectedLink]);
+    expect(findFileLinks(buffer, 1)).toEqual([expectedFirstLineLink]);
+    expect(findFileLinks(buffer, 2)).toEqual([expectedSecondLineLink]);
   });
 
   it('does not join unrelated hard line breaks', () => {

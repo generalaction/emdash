@@ -46,11 +46,16 @@ export function findFileLinks(buffer: BufferLike, bufferLineNumber: number): Fil
     const range = mapOffsetRangeToBufferRange(logicalLine, startOffset, endOffset);
     if (!range) continue;
 
-    links.push({
-      range,
-      text: matched,
-      isExternal: matched.startsWith('~/') || matched.startsWith('/'),
-    });
+    const visibleRanges = mapOffsetRangeToVisibleBufferRanges(logicalLine, startOffset, endOffset);
+    const linkRanges = shouldUseVisibleRanges(visibleRanges) ? visibleRanges : [range];
+    for (const linkRange of linkRanges) {
+      if (!rangeContainsBufferLine(linkRange, bufferLineNumber)) continue;
+      links.push({
+        range: linkRange,
+        text: matched,
+        isExternal: matched.startsWith('~/') || matched.startsWith('/'),
+      });
+    }
   }
   return links;
 }
@@ -178,6 +183,45 @@ function mapOffsetRangeToBufferRange(
   const end = mapOffsetToBufferPosition(logicalLine, endOffset - 1);
   if (!start || !end) return null;
   return { start, end };
+}
+
+function mapOffsetRangeToVisibleBufferRanges(
+  logicalLine: LogicalLine,
+  startOffset: number,
+  endOffset: number
+): ILink['range'][] {
+  const ranges: ILink['range'][] = [];
+  let lineStartOffset = 0;
+  for (let lineIndex = 0; lineIndex < logicalLine.lineTexts.length; lineIndex += 1) {
+    const lineLength = logicalLine.lineTexts[lineIndex]?.length ?? 0;
+    const lineEndOffset = lineStartOffset + lineLength;
+    const segmentStartOffset = Math.max(startOffset, lineStartOffset);
+    const segmentEndOffset = Math.min(endOffset, lineEndOffset);
+    if (segmentStartOffset < segmentEndOffset) {
+      const xOffset = logicalLine.lineStartColumns[lineIndex] ?? 0;
+      const y = logicalLine.startBufferIndex + lineIndex + 1;
+      ranges.push({
+        start: {
+          x: xOffset + segmentStartOffset - lineStartOffset + 1,
+          y,
+        },
+        end: {
+          x: xOffset + segmentEndOffset - lineStartOffset,
+          y,
+        },
+      });
+    }
+    lineStartOffset = lineEndOffset;
+  }
+  return ranges;
+}
+
+function shouldUseVisibleRanges(ranges: ILink['range'][]): boolean {
+  return ranges.some((range, index) => index > 0 && range.start.x > 1);
+}
+
+function rangeContainsBufferLine(range: ILink['range'], bufferLineNumber: number): boolean {
+  return range.start.y <= bufferLineNumber && range.end.y >= bufferLineNumber;
 }
 
 function mapOffsetToBufferPosition(
