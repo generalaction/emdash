@@ -35,7 +35,19 @@ export class UpdateStore {
   state: UpdateState = { status: 'idle' };
   currentVersion = '';
   availableVersion: string | undefined = undefined;
+  // Integer percent shown in the UI. The real updater fires `download-progress`
+  // events in coarse chunks (often ~10% at a time), so between events we
+  // project forward using the updater's own `bytesPerSecond` measurement — the
+  // displayed percent is therefore a real bandwidth-driven estimate of bytes
+  // actually transferred, not an arbitrary easing.
+  displayedPercent = 0;
   private _downloadSimulationTimer: ReturnType<typeof setInterval> | undefined;
+  private _percentAnimationFrame: number | undefined;
+  // Anchor for forward projection: the last real progress event we saw.
+  private _lastProgressTransferred = 0;
+  private _lastProgressTotal = 0;
+  private _lastProgressBytesPerSecond = 0;
+  private _lastProgressAt = 0;
   // Whether the update toast is currently meant to be on screen. Gates the
   // reaction so background progress events don't resurrect a dismissed toast.
   private _toastActive = false;
@@ -48,6 +60,7 @@ export class UpdateStore {
       state: observable,
       currentVersion: observable,
       availableVersion: observable,
+      displayedPercent: observable,
       setState: action,
       hasUpdate: computed,
       progressLabel: computed,
@@ -65,8 +78,7 @@ export class UpdateStore {
 
   get progressLabel(): string {
     if (this.state.status !== 'downloading') return '';
-    const p = this.state.progress?.percent ?? 0;
-    return `${p.toFixed(0)}%`;
+    return `${this.displayedPercent}%`;
   }
 
   start(): void {
@@ -97,24 +109,31 @@ export class UpdateStore {
     });
 
     events.on(updateDownloadingEvent, (_d) => {
+      this._resetPercentAnimation();
       runInAction(() => {
         this.state = { status: 'downloading', progress: { percent: 0 } };
       });
+      this._anchorProgress({ percent: 0, transferred: 0, total: 0, bytesPerSecond: 0 });
+      this._startPercentAnimation();
     });
 
     events.on(updateProgressEvent, (d) => {
+      const normalized = normalizeDownloadProgress(d);
       runInAction(() => {
         this.state = {
           status: 'downloading',
-          progress: normalizeDownloadProgress(d),
+          progress: normalized,
         };
       });
+      this._anchorProgress(normalized);
+      this._startPercentAnimation();
     });
 
     events.on(updateDownloadedEvent, () => {
       runInAction(() => {
         this.state = { status: 'downloaded' };
       });
+      this._completePercentAnimation();
     });
 
     events.on(updateInstallingEvent, () => {
@@ -184,6 +203,7 @@ export class UpdateStore {
       this.simulateDownloadProgress();
       return;
     }
+    this._resetPercentAnimation();
     try {
       const res = await rpc.update.download();
       if (!res) {
@@ -258,45 +278,46 @@ export class UpdateStore {
     if (!import.meta.env.DEV) return;
 
     this._stopDownloadSimulation();
+    this._resetPercentAnimation();
     this._simulating = true;
     this._showToast();
 
     const total = 100 * 1024 * 1024;
     let transferred = 0;
 
+    const initial = normalizeDownloadProgress({
+      bytesPerSecond: 0,
+      percent: 0,
+      transferred,
+      total,
+    });
     runInAction(() => {
       this.availableVersion = 'test';
-      this.state = {
-        status: 'downloading',
-        progress: normalizeDownloadProgress({
-          bytesPerSecond: 0,
-          percent: 0,
-          transferred,
-          total,
-        }),
-      };
+      this.state = { status: 'downloading', progress: initial };
     });
+    this._anchorProgress(initial);
+    this._startPercentAnimation();
 
     this._downloadSimulationTimer = setInterval(() => {
       transferred = Math.min(total, transferred + total / 20);
 
-      runInAction(() => {
-        this.state = {
-          status: 'downloading',
-          progress: normalizeDownloadProgress({
-            bytesPerSecond: total / 10,
-            percent: 0,
-            transferred,
-            total,
-          }),
-        };
+      const next = normalizeDownloadProgress({
+        bytesPerSecond: total / 10,
+        percent: 0,
+        transferred,
+        total,
       });
+      runInAction(() => {
+        this.state = { status: 'downloading', progress: next };
+      });
+      this._anchorProgress(next);
 
       if (transferred >= total) {
         this._stopDownloadSimulation();
         runInAction(() => {
           this.state = { status: 'downloaded' };
         });
+        this._completePercentAnimation();
       }
     }, 250);
   }
@@ -320,6 +341,7 @@ export class UpdateStore {
   resetUpdateState(): void {
     if (!import.meta.env.DEV) return;
     this._stopDownloadSimulation();
+    this._resetPercentAnimation();
     this._simulating = false;
     runInAction(() => {
       this.availableVersion = undefined;
@@ -334,6 +356,103 @@ export class UpdateStore {
       clearInterval(this._downloadSimulationTimer);
       this._downloadSimulationTimer = undefined;
     }
+  }
+
+  /**
+   * Snapshot the latest real progress event. The animation loop uses this
+   * anchor plus the elapsed time and the updater's reported `bytesPerSecond`
+   * to project how many bytes have actually been transferred since.
+   */
+  private _anchorProgress(progress: DownloadProgress): void {
+    const transferred = progress.transferred ?? 0;
+    const total = progress.total ?? 0;
+    this._lastProgressTransferred = transferred;
+    this._lastProgressTotal = total;
+    this._lastProgressBytesPerSecond = progress.bytesPerSecond ?? 0;
+    this._lastProgressAt = this._now();
+    // Snap to the real percent immediately on each event so we never drift
+    // ahead of (or behind) what the updater actually reported.
+    const real = total > 0 ? (transferred / total) * 100 : (progress.percent ?? 0);
+    const rounded = Math.max(this.displayedPercent, Math.floor(real));
+    if (rounded !== this.displayedPercent) {
+      runInAction(() => {
+        this.displayedPercent = rounded;
+      });
+    }
+  }
+
+  /**
+   * Project bytes transferred between progress events using the real measured
+   * bandwidth from the updater, then derive percent from bytes. This is a
+   * bandwidth-grounded estimate — when the network truly stalls, the displayed
+   * percent stalls too. We cap the projection just shy of the next 10%-chunk
+   * boundary so we don't claim to have crossed a chunk before the real event
+   * confirms it.
+   */
+  private _startPercentAnimation(): void {
+    if (typeof requestAnimationFrame === 'undefined') {
+      // Non-browser environments (tests): just reflect the anchor.
+      return;
+    }
+    if (this._percentAnimationFrame !== undefined) return;
+    const step = (): void => {
+      if (this.state.status !== 'downloading') {
+        this._percentAnimationFrame = undefined;
+        return;
+      }
+
+      const total = this._lastProgressTotal;
+      const bps = this._lastProgressBytesPerSecond;
+      if (total > 0 && bps > 0) {
+        const elapsed = (this._now() - this._lastProgressAt) / 1000;
+        const projectedBytes = this._lastProgressTransferred + bps * elapsed;
+        // Stay just shy of the next expected chunk boundary so the projection
+        // can never overtake reality before the next event confirms it. The
+        // updater tends to fire `download-progress` in ~10% steps, so 9% lets
+        // the counter cover almost the whole gap without ever leaping past it.
+        const ceiling = Math.min(total, this._lastProgressTransferred + total * 0.09);
+        const projected = Math.min(projectedBytes, ceiling, total);
+        const projectedPercent = (projected / total) * 100;
+        const rounded = Math.floor(projectedPercent);
+        if (rounded > this.displayedPercent && rounded < 100) {
+          runInAction(() => {
+            this.displayedPercent = rounded;
+          });
+        }
+      }
+
+      this._percentAnimationFrame = requestAnimationFrame(step);
+    };
+    this._percentAnimationFrame = requestAnimationFrame(step);
+  }
+
+  private _completePercentAnimation(): void {
+    this._stopPercentAnimation();
+    runInAction(() => {
+      this.displayedPercent = 100;
+    });
+  }
+
+  private _stopPercentAnimation(): void {
+    if (this._percentAnimationFrame !== undefined && typeof cancelAnimationFrame !== 'undefined') {
+      cancelAnimationFrame(this._percentAnimationFrame);
+    }
+    this._percentAnimationFrame = undefined;
+  }
+
+  private _resetPercentAnimation(): void {
+    this._stopPercentAnimation();
+    this._lastProgressTransferred = 0;
+    this._lastProgressTotal = 0;
+    this._lastProgressBytesPerSecond = 0;
+    this._lastProgressAt = 0;
+    runInAction(() => {
+      this.displayedPercent = 0;
+    });
+  }
+
+  private _now(): number {
+    return typeof performance !== 'undefined' ? performance.now() : Date.now();
   }
 
   private _maybeToastAvailable(version: string): void {
@@ -355,7 +474,7 @@ export class UpdateStore {
   /** A primitive key that changes whenever the toast's content should change. */
   private get _toastKey(): string {
     const s = this.state;
-    if (s.status === 'downloading') return `downloading:${Math.round(s.progress?.percent ?? 0)}`;
+    if (s.status === 'downloading') return `downloading:${this.displayedPercent}`;
     if (s.status === 'error') return `error:${s.message}`;
     return s.status;
   }
@@ -410,7 +529,7 @@ export class UpdateStore {
           // Mirror the "Update available" layout: the action button now reports
           // progress. preventDefault keeps clicking it from dismissing the toast.
           action: {
-            label: `${Math.round(this.state.progress?.percent ?? 0)}%`,
+            label: this._percentLabel(this.displayedPercent),
             onClick: (event) => event.preventDefault(),
           },
         };
@@ -458,6 +577,15 @@ export class UpdateStore {
           'h-3 w-3 transition-transform duration-150 ease-out group-hover/update-action:translate-x-0.5 group-hover/update-action:-translate-y-0.5',
       })
     );
+  }
+
+  /**
+   * Percent label with tabular figures so each digit has the same width. The
+   * toast button only resizes when the digit count itself changes (9→10 and
+   * 99→100) instead of on every tick.
+   */
+  private _percentLabel(percent: number): ReactNode {
+    return createElement('span', { className: 'tabular-nums' }, `${percent}%`);
   }
 
   private _shouldNotify(version: string): boolean {

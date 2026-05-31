@@ -12,7 +12,11 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
   const update = appState.update;
   const downloadProgress =
     update.state.status === 'downloading' ? update.state.progress : undefined;
-  const progressPercent = Math.round(downloadProgress?.percent ?? 0);
+  // Bar width follows the raw updater percent so CSS can animate the 10% jumps
+  // smoothly. The textual counter uses `displayedPercent` so it ticks up one
+  // integer at a time instead of leaping.
+  const barPercent = downloadProgress?.percent ?? 0;
+  const progressPercent = update.displayedPercent;
   const hasByteProgress =
     downloadProgress !== undefined &&
     ((downloadProgress.total ?? 0) > 0 || (downloadProgress.transferred ?? 0) > 0);
@@ -62,14 +66,14 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
 
       {update.state.status === 'downloading' && downloadProgress && (
         <div className="space-y-2">
-          <div className="bg-muted h-1.5 w-full overflow-hidden rounded-full">
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-background-2">
             <div
-              className="bg-primary h-full transition-all duration-300 ease-out"
-              style={{ width: `${downloadProgress.percent || 0}%` }}
+              className="h-full bg-primary-button-background transition-all duration-300 ease-out"
+              style={{ width: `${barPercent}%` }}
             />
           </div>
           {hasByteProgress && (
-            <p className="text-muted-foreground text-xs">
+            <p className="text-muted-foreground text-xs tabular-nums">
               {formatBytes(downloadProgress.transferred || 0)} /{' '}
               {formatBytes(downloadProgress.total || 0)}
             </p>
@@ -181,7 +185,7 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
         return (
           <Button size="default" variant="outline" disabled>
             <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-            Downloading {progressPercent}%
+            Downloading <span className="ml-1 tabular-nums">{progressPercent}%</span>
           </Button>
         );
 
