@@ -93,6 +93,28 @@ describe('buildAgentEnv provider env forwarding', () => {
     expect(buildAgentEnv({ agentApiVars: false, includeShellVar: true }).SHELL).toBe('/bin/zsh');
   });
 
+  it('uses the resolved POSIX shell profile for agent SHELL', async () => {
+    setPlatform('darwin');
+    process.env.SHELL = '/bin/zsh';
+
+    const { buildAgentEnv } = await loadPtyEnv();
+    const env = buildAgentEnv({
+      agentApiVars: false,
+      shellProfile: {
+        id: 'bash',
+        resolvedShellId: 'bash',
+        resolvedFromSystem: false,
+        executable: '/bin/bash',
+        available: true,
+        family: 'posix',
+        interactiveArgs: ['-il'],
+        commandArgs: ['-lc'],
+      },
+    });
+
+    expect(env.SHELL).toBe('/bin/bash');
+  });
+
   it('passes through documented provider launch environment variables', async () => {
     const providerEnv = {
       CLAUDE_CONFIG_DIR: '/tmp/claude-config',

@@ -156,17 +156,15 @@ export async function buildTaskFromWorkspace(
     settings
   );
 
-  const { conversations: conversationProvider, terminals: terminalProvider } = buildTaskProviders(
-    type,
-    {
+  const { conversations: conversationProvider, terminals: terminalProvider } =
+    await buildTaskProviders(type, {
       projectId,
       taskId: task.id,
       taskPath: workspace.path,
       tmuxEnabled,
       shellSetup,
       taskEnvVars,
-    }
-  );
+    });
 
   const taskProvider: TaskProvider = {
     taskId: task.id,
