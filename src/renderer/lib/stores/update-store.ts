@@ -1,4 +1,6 @@
+import { ArrowUpRight } from 'lucide-react';
 import { action, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
+import { createElement, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { PRODUCT_NAME } from '@shared/app-identity';
 import { menuCheckForUpdatesChannel } from '@shared/events/appEvents';
@@ -306,48 +308,6 @@ export class UpdateStore {
     this._showToast();
   }
 
-  simulateUpdateToast(): void {
-    if (!import.meta.env.DEV) return;
-    const version = 'test';
-    this._stopDownloadSimulation();
-    this._simulating = true;
-    runInAction(() => {
-      this.availableVersion = version;
-      this.state = { status: 'available', info: { version } };
-    });
-    this._showToast();
-  }
-
-  simulateDownloaded(): void {
-    if (!import.meta.env.DEV) return;
-    this._stopDownloadSimulation();
-    this._simulating = true;
-    runInAction(() => {
-      this.availableVersion = this.availableVersion ?? 'test';
-      this.state = { status: 'downloaded' };
-    });
-    this._showToast();
-  }
-
-  simulateInstalling(): void {
-    if (!import.meta.env.DEV) return;
-    this._stopDownloadSimulation();
-    runInAction(() => {
-      this.state = { status: 'installing' };
-    });
-    this._showToast();
-  }
-
-  simulateUpdateError(): void {
-    if (!import.meta.env.DEV) return;
-    this._stopDownloadSimulation();
-    this._simulating = true;
-    runInAction(() => {
-      this.state = { status: 'error', message: 'Simulated update failure' };
-    });
-    this._showToast();
-  }
-
   resetUpdateState(): void {
     if (!import.meta.env.DEV) return;
     this._stopDownloadSimulation();
@@ -413,7 +373,7 @@ export class UpdateStore {
   private _toastContent(): {
     title: string;
     description: string;
-    action?: { label: string; onClick: (event: { preventDefault: () => void }) => void };
+    action?: { label: ReactNode; onClick: (event: { preventDefault: () => void }) => void };
   } | null {
     const version = this.availableVersion;
     switch (this.state.status) {
@@ -423,7 +383,13 @@ export class UpdateStore {
           description: version
             ? `Version ${version} is ready to download.`
             : 'A new version is ready to download.',
-          action: { label: 'Update', onClick: () => void this.download() },
+          action: {
+            label: this._actionLabel('Update'),
+            onClick: (event) => {
+              event.preventDefault();
+              void this.download();
+            },
+          },
         };
       case 'downloading':
         return {
@@ -440,7 +406,13 @@ export class UpdateStore {
         return {
           title: 'Update ready',
           description: `Restart ${PRODUCT_NAME} to finish updating.`,
-          action: { label: 'Restart', onClick: () => void this.install() },
+          action: {
+            label: this._actionLabel('Restart'),
+            onClick: (event) => {
+              event.preventDefault();
+              void this.install();
+            },
+          },
         };
       case 'installing':
         return {
@@ -451,11 +423,29 @@ export class UpdateStore {
         return {
           title: 'Update failed',
           description: this.state.message,
-          action: { label: 'Retry', onClick: () => void this.download() },
+          action: {
+            label: this._actionLabel('Retry'),
+            onClick: (event) => {
+              event.preventDefault();
+              void this.download();
+            },
+          },
         };
       default:
         return null;
     }
+  }
+
+  private _actionLabel(label: string): ReactNode {
+    return createElement(
+      'span',
+      { className: 'inline-flex items-center gap-1' },
+      label,
+      createElement(ArrowUpRight, {
+        className:
+          'h-3 w-3 transition-transform duration-150 ease-out group-hover/update-action:translate-x-0.5 group-hover/update-action:-translate-y-0.5',
+      })
+    );
   }
 
   private _shouldNotify(version: string): boolean {

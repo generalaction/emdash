@@ -63,65 +63,16 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
       {import.meta.env.DEV && (
         <div className="flex flex-col gap-1.5">
           <span className="text-xs font-medium text-foreground-passive">Dev: simulate update</span>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="default"
-              size="sm"
-              onClick={() => update.simulateUpdateFlow()}
-            >
-              <Play className="mr-1.5 h-3 w-3" />
-              Run flow
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => update.simulateUpdateToast()}
-            >
-              Available
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => update.simulateDownloadProgress()}
-            >
-              Downloading
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => update.simulateDownloaded()}
-            >
-              Downloaded
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => update.simulateInstalling()}
-            >
-              Installing
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => update.simulateUpdateError()}
-            >
-              Error
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => update.resetUpdateState()}
-            >
-              Reset
-            </Button>
-          </div>
+          <Button
+            type="button"
+            variant="default"
+            size="sm"
+            className="w-fit"
+            onClick={() => update.simulateUpdateFlow()}
+          >
+            <Play className="mr-1.5 h-3 w-3" />
+            Play successful update flow
+          </Button>
         </div>
       )}
     </div>

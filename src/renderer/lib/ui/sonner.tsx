@@ -13,7 +13,7 @@ export function Toaster() {
         classNames: {
           toast: 'group toast bg-background text-foreground border border-border shadow-lg',
           description: 'text-muted-foreground',
-          actionButton: 'bg-primary text-primary-foreground',
+          actionButton: 'group/update-action bg-primary text-primary-foreground',
           cancelButton: 'bg-muted text-muted-foreground',
           error: 'text-destructive border-destructive/50',
         },
