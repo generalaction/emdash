@@ -164,7 +164,8 @@ describe('file link provider', () => {
     const provider = new FileLinkProvider(
       { buffer: { active: buffer } } as never,
       (filePath) => openedFiles.push(filePath),
-      (filePath) => openedExternal.push(filePath)
+      (filePath) => openedExternal.push(filePath),
+      new ActivationModifierTracker(true)
     );
 
     let links: ILink[] = [];

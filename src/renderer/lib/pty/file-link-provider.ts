@@ -23,9 +23,13 @@ export class ActivationModifierTracker {
   }
 
   update(event: ActivationModifierEvent): boolean {
-    this.pressed = isActivationModifierPressed(event, this.isMac);
+    this.pressed = this.isPressed(event);
     this.syncHoveredDecorations();
     return this.pressed;
+  }
+
+  isPressed(event: ActivationModifierEvent): boolean {
+    return isActivationModifierPressed(event, this.isMac);
   }
 
   hover(decorations: LinkDecorations, event: ActivationModifierEvent): void {
@@ -57,7 +61,8 @@ export class FileLinkProvider implements ILinkProvider {
   constructor(
     private readonly terminal: Terminal,
     private readonly onOpenFile: (filePath: string) => void,
-    private readonly onOpenExternal: (filePath: string) => void
+    private readonly onOpenExternal: (filePath: string) => void,
+    private readonly tracker = activationModifierTracker
   ) {
     attachActivationModifierListeners();
   }
@@ -70,19 +75,19 @@ export class FileLinkProvider implements ILinkProvider {
   }
 
   private toXtermLink(match: FileLinkMatch): ILink {
-    const decorations = activationModifierTracker.decorations();
+    const decorations = this.tracker.decorations();
     const link: ILink = {
       range: match.range,
       text: match.text,
       decorations,
       hover: (event) => {
-        activationModifierTracker.hover(link.decorations ?? decorations, event);
+        this.tracker.hover(link.decorations ?? decorations, event);
       },
       leave: () => {
-        activationModifierTracker.leave(link.decorations ?? decorations);
+        this.tracker.leave(link.decorations ?? decorations);
       },
       activate: (event, linkText) => {
-        if (!isActivationModifierPressed(event)) return;
+        if (!this.tracker.isPressed(event)) return;
         if (match.isExternal) {
           this.onOpenExternal(linkText);
         } else {
@@ -90,7 +95,7 @@ export class FileLinkProvider implements ILinkProvider {
         }
       },
       dispose: () => {
-        activationModifierTracker.leave(link.decorations ?? decorations);
+        this.tracker.leave(link.decorations ?? decorations);
       },
     };
     return link;
