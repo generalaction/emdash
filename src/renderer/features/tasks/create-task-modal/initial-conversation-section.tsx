@@ -74,14 +74,12 @@ async function saveInitialPromptImage(file: File): Promise<string> {
 export async function getInitialPromptImages(
   attachments: Attachment[]
 ): Promise<InitialPromptImage[]> {
-  const images: InitialPromptImage[] = [];
-  for (const [index, attachment] of attachments.entries()) {
-    images.push({
+  return Promise.all(
+    attachments.map(async (attachment, index) => ({
       name: imageDisplayName(attachment.file, index),
       path: await saveInitialPromptImage(attachment.file),
-    });
-  }
-  return images;
+    }))
+  );
 }
 
 export function useInitialConversationState(projectId?: string): InitialConversationState {

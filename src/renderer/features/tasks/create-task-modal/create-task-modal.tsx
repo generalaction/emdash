@@ -205,7 +205,10 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         })
         .catch(swallowHandledCreateError);
     } else {
-      if (!branchSelection.selectedBranch) return;
+      if (!branchSelection.selectedBranch) {
+        setIsPreparingInitialConversation(false);
+        return;
+      }
       const taskStrategy = resolveBranchLikeTaskStrategy({
         isUnborn,
         createBranchAndWorktree: branchSelection.createBranchAndWorktree,
