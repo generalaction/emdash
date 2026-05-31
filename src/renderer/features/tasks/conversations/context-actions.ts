@@ -41,6 +41,7 @@ const PROVIDER_LABELS: Record<Issue['provider'], string> = {
   forgejo: 'Forgejo',
   featurebase: 'Featurebase',
   asana: 'Asana',
+  monday: 'Monday.com',
 };
 
 export function buildIssueContextText(issue: Issue): string {

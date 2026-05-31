@@ -1,7 +1,7 @@
 import { rpc } from '@renderer/lib/ipc';
 import type { Issue } from '@shared/tasks';
 
-const PROVIDERS_WITH_CONTEXT = new Set<Issue['provider']>(['linear', 'plain']);
+const PROVIDERS_WITH_CONTEXT = new Set<Issue['provider']>(['linear', 'plain', 'monday']);
 
 export async function refreshLinkedIssueContext(
   issue: Issue,
