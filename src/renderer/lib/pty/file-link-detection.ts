@@ -108,7 +108,10 @@ function expandHardLineBreakPathContinuations(
 ): LogicalLine {
   let expanded = logicalLine;
   const firstLine = expanded.lineTexts[0];
-  const previousLine = buffer.getLine(expanded.startBufferIndex - 1)?.translateToString(true);
+  const previousBufferLine = buffer.getLine(expanded.startBufferIndex - 1);
+  const previousLine = previousBufferLine?.isWrapped
+    ? undefined
+    : previousBufferLine?.translateToString(true);
   if (
     firstLine !== undefined &&
     previousLine !== undefined &&

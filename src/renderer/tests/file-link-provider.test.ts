@@ -86,6 +86,16 @@ describe('file link provider', () => {
     expect(findFileLinks(buffer, 2)).toEqual([]);
   });
 
+  it('does not join backward from the middle of a wrapped line chain', () => {
+    const buffer = makeBuffer([
+      new MockBufferLine('src/foo/'),
+      new MockBufferLine('bar/', true),
+      new MockBufferLine('  baz.ts'),
+    ]);
+
+    expect(findFileLinks(buffer, 3)).toEqual([]);
+  });
+
   it('classifies absolute and home-relative paths as external', () => {
     const buffer = makeBuffer([
       new MockBufferLine('open /tmp/output/report.md and ~/notes/todo.md'),
