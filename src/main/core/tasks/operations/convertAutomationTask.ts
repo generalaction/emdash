@@ -27,10 +27,7 @@ export async function convertAutomationTask(taskId: string): Promise<Task | null
       .where(eq(automationRuns.createdTaskId, taskId))
       .run();
 
-    tx.update(automationRuns)
-      .set({ taskId: null })
-      .where(eq(automationRuns.taskId, taskId))
-      .run();
+    tx.update(automationRuns).set({ taskId: null }).where(eq(automationRuns.taskId, taskId)).run();
 
     tx.update(tasks)
       .set({ updatedAt: sql`CURRENT_TIMESTAMP` })
