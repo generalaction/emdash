@@ -99,7 +99,7 @@ describe('MergeFooter', () => {
     dom.window.close();
   });
 
-  function renderFooter(uiState: MergeUiState) {
+  function renderFooter(uiState: MergeUiState, bypassRequirements = false) {
     act(() => {
       root.render(
         React.createElement(MergeFooter, {
@@ -113,24 +113,38 @@ describe('MergeFooter', () => {
           ],
           isMerging: false,
           isMarkingReady: false,
+          bypassRequirements,
           onMarkReady: vi.fn(),
+          onBypassRequirementsChange: vi.fn(),
         })
       );
     });
   }
 
-  it('enables the merge action when requirements can be bypassed', () => {
+  function getMergeButton() {
+    return Array.from(container.querySelectorAll('button')).find((button) =>
+      button.textContent?.includes('Merge')
+    ) as HTMLButtonElement | undefined;
+  }
+
+  it('requires acknowledging bypass before enabling the merge action', () => {
     renderFooter(computeMergeUiState(makePr({ mergeStateStatus: 'BLOCKED' })));
 
-    const mergeButton = container.querySelector('button') as HTMLButtonElement | null;
-    expect(mergeButton?.disabled).toBe(false);
-    expect(container.textContent).toContain('Merge without waiting');
+    expect(getMergeButton()?.disabled).toBe(true);
+    expect(container.textContent).toContain(
+      'Merge without waiting for requirements to be met (bypass rules)'
+    );
+  });
+
+  it('enables the merge action after bypass is acknowledged', () => {
+    renderFooter(computeMergeUiState(makePr({ mergeStateStatus: 'BLOCKED' })), true);
+
+    expect(getMergeButton()?.disabled).toBe(false);
   });
 
   it('keeps the merge action disabled for conflicts', () => {
     renderFooter(computeMergeUiState(makePr({ mergeStateStatus: 'DIRTY' })));
 
-    const mergeButton = container.querySelector('button') as HTMLButtonElement | null;
-    expect(mergeButton?.disabled).toBe(true);
+    expect(getMergeButton()?.disabled).toBe(true);
   });
 });

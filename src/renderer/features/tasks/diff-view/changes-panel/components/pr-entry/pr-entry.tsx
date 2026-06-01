@@ -7,7 +7,6 @@ import { PrNumberBadge } from '@renderer/lib/components/pr-number-badge';
 import { StatusIcon } from '@renderer/lib/components/pr-status-icon';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { type SplitButtonAction } from '@renderer/lib/ui/split-button';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { cn } from '@renderer/utils/utils';
@@ -48,14 +47,15 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
   const taskView = useWorkspaceViewModel();
   const prStore = taskView.prStore!;
   const diffView = taskView.diffView;
-  const showConfirm = useShowModal('confirmActionModal');
   const [isMerging, setIsMerging] = useState(false);
   const [isMarkingReady, setIsMarkingReady] = useState(false);
+  const [bypassRequirements, setBypassRequirements] = useState(false);
   if (!diffView) return null;
   const tab = diffView.effectivePrTab;
   const isOpen = pr.status === 'open';
 
   const uiState = computeMergeUiState(pr);
+  const shouldBypassRequirements = uiState.canBypassRequirements && bypassRequirements;
 
   const doMerge = async (strategy: MergeMode, bypassRequirements: boolean) => {
     setIsMerging(true);
@@ -82,24 +82,16 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
   const handleMergeClick = (strategy: MergeMode) => {
     if (uiState.canMerge) {
       void doMerge(strategy, false);
-    } else if (uiState.canBypassRequirements) {
-      const bypassLabel = bypassMergeLabels[strategy];
-      showConfirm({
-        title: `${bypassLabel}?`,
-        description:
-          (uiState.detail ?? uiState.title) +
-          ' GitHub will only complete this merge if your account can bypass rules.',
-        confirmLabel: bypassLabel,
-        onSuccess: () => void doMerge(strategy, true),
-      });
+    } else if (shouldBypassRequirements) {
+      void doMerge(strategy, true);
     }
   };
 
   const mergeActions: SplitButtonAction[] = (['merge', 'squash', 'rebase'] as const).map(
     (strategy) => ({
       value: strategy,
-      label: uiState.canBypassRequirements ? bypassMergeLabels[strategy] : mergeLabels[strategy],
-      description: uiState.canBypassRequirements
+      label: shouldBypassRequirements ? bypassMergeLabels[strategy] : mergeLabels[strategy],
+      description: shouldBypassRequirements
         ? bypassMergeDescriptions[strategy]
         : mergeDescriptions[strategy],
       action: () => handleMergeClick(strategy),
@@ -157,6 +149,7 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
           mergeActions={mergeActions}
           isMerging={isMerging}
           isMarkingReady={isMarkingReady}
+          bypassRequirements={bypassRequirements}
           onMarkReady={() => {
             setIsMarkingReady(true);
             prStore
@@ -170,6 +163,7 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
               })
               .finally(() => setIsMarkingReady(false));
           }}
+          onBypassRequirementsChange={setBypassRequirements}
         />
       )}
     </div>

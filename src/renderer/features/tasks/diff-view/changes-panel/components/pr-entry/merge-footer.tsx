@@ -8,6 +8,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@renderer/lib/ui/button';
+import { Checkbox } from '@renderer/lib/ui/checkbox';
 import { SplitButton, type SplitButtonAction } from '@renderer/lib/ui/split-button';
 import { cn } from '@renderer/utils/utils';
 import { type MergeSeverity, type MergeUiState } from './merge-ui-state';
@@ -26,20 +27,25 @@ export function MergeFooter({
   mergeActions,
   isMerging,
   isMarkingReady,
+  bypassRequirements,
   onMarkReady,
+  onBypassRequirementsChange,
 }: {
   uiState: MergeUiState;
   mergeActions: SplitButtonAction[];
   isMerging: boolean;
   isMarkingReady: boolean;
+  bypassRequirements: boolean;
   onMarkReady: () => void;
+  onBypassRequirementsChange: (checked: boolean) => void;
 }) {
   const isDraft = uiState.kind === 'draft';
-  const mergeDisabled = !isMerging && !uiState.canMerge && !uiState.canBypassRequirements;
+  const mergeDisabled =
+    !isMerging && !uiState.canMerge && (!uiState.canBypassRequirements || !bypassRequirements);
   const { icon: MergeStatusIcon, iconClass } = severityConfig[uiState.severity];
 
   return (
-    <div className="flex shrink-0 items-center gap-3 border-t border-border px-3 py-2.5">
+    <div className="flex shrink-0 flex-col gap-2 border-t border-border px-3 py-2.5">
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <div className="flex items-center justify-between gap-1.5">
           <div className="flex min-w-0 items-center gap-1.5">
@@ -72,6 +78,16 @@ export function MergeFooter({
           </div>
         </div>
       </div>
+      {uiState.canBypassRequirements && (
+        <label className="flex cursor-pointer items-start gap-2 text-xs leading-snug text-foreground-error">
+          <Checkbox
+            className="mt-px"
+            checked={bypassRequirements}
+            onCheckedChange={(checked) => onBypassRequirementsChange(Boolean(checked))}
+          />
+          <span>Merge without waiting for requirements to be met (bypass rules)</span>
+        </label>
+      )}
     </div>
   );
 }
