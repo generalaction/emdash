@@ -669,6 +669,15 @@ export async function taskExists(taskId: string): Promise<boolean> {
   return rows.length > 0;
 }
 
+export async function taskWasCreatedByAutomationRun(taskIdValue: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: automationRuns.id })
+    .from(automationRuns)
+    .where(eq(automationRuns.createdTaskId, taskIdValue))
+    .limit(1);
+  return rows.length > 0;
+}
+
 export async function recoverQueuedRuns(): Promise<number> {
   const rows = await db
     .update(automationRuns)
