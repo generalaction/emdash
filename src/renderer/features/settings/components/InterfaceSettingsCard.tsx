@@ -66,10 +66,10 @@ const InterfaceSettingsCard: React.FC = () => {
         control={
           <>
             <ResetToDefaultButton
-              visible={isFieldOverridden('contextBarAlignment')}
+              visible={isFieldOverridden('contextBarAlignment') && !contextBarHidden}
               defaultLabel="center"
               onReset={() => resetField('contextBarAlignment')}
-              disabled={loading || saving}
+              disabled={loading || saving || contextBarHidden}
             />
             <Select
               value={contextBarAlignment}

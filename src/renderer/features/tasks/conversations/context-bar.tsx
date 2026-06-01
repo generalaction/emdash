@@ -124,6 +124,7 @@ export const ContextBar = observer(function ContextBar({
             disabled={!canApplyContext || isSavingPromptLibrary}
             isActivePane={isActivePane}
             onApplyAction={handleApplyAction}
+            side={position === 'top' ? 'bottom' : 'top'}
           />
         </div>
       </ContextMenuTrigger>

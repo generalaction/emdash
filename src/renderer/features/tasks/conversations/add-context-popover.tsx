@@ -18,6 +18,7 @@ import { ProviderLogo } from '../components/issue-selector/issue-selector';
 import { buildContextActionText, type ContextAction } from './context-actions';
 
 const ADD_CONTEXT_HOTKEY: Hotkey = 'Mod+Shift+A';
+type AddContextPopoverSide = 'top' | 'bottom';
 
 export function ActionItemBaseRow({
   icon,
@@ -83,6 +84,7 @@ export interface AddContextPopoverProps {
   ) => Promise<void>;
   /** Replace the default "Add context" button with a custom trigger. */
   renderTrigger?: (ctx: { open: boolean; disabled: boolean }) => ReactNode;
+  side?: AddContextPopoverSide;
 }
 
 export function AddContextPopover({
@@ -91,6 +93,7 @@ export function AddContextPopover({
   isActivePane = true,
   onApplyAction,
   renderTrigger,
+  side = 'top',
 }: AddContextPopoverProps) {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<ContextAction | null>(null);
@@ -196,7 +199,7 @@ export function AddContextPopover({
       </ComboboxTrigger>
 
       <ComboboxContent
-        side="top"
+        side={side}
         align="center"
         className="flex min-h-[200px] max-w-[92vw] min-w-[440px] flex-col"
         onKeyDown={(e) => {
