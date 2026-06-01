@@ -212,4 +212,4 @@ class TaskSessionManager {
   }
 }
 
-export const taskManager = new TaskSessionManager();
+export const taskSessionManager = new TaskSessionManager();

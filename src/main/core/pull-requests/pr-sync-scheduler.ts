@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { gitWatcherRegistry } from '@main/core/git/git-watcher-registry';
 import { githubRepositoryResolver } from '@main/core/github/services/github-repository-resolver';
 import { projectManager } from '@main/core/projects/project-manager';
-import { taskManager } from '@main/core/tasks/task-session-manager';
+import { taskSessionManager } from '@main/core/tasks/task-session-manager';
 import { db } from '@main/db/client';
 import { projectRemotes } from '@main/db/schema';
 import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
@@ -28,7 +28,7 @@ export class PrSyncScheduler implements IInitializable, IDisposable {
     this._unsubscribes = [
       projectManager.on('projectOpened', (id) => this.onProjectMounted(id)),
       projectManager.on('projectClosed', (id) => this.onProjectUnmounted(id)),
-      taskManager.hooks.on('task:provisioned', ({ projectId, taskBranch }) => {
+      taskSessionManager.hooks.on('task:provisioned', ({ projectId, taskBranch }) => {
         void this.onTaskProvisioned(projectId, taskBranch);
       }),
       gitWatcherRegistry.on('ref:changed', (p) => {

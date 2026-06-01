@@ -1,6 +1,6 @@
 import { telemetryService } from '@main/lib/telemetry';
 import { taskService } from '../tasks/task-service';
-import { taskManager } from '../tasks/task-session-manager';
+import { taskSessionManager } from '../tasks/task-session-manager';
 
 taskService.on('task:created', (task, params) => {
   const { gitSetup } = params;
@@ -27,6 +27,6 @@ taskService.on('task:created', (task, params) => {
   }
 });
 
-taskManager.hooks.on('task:provisioned', ({ projectId, taskId }) => {
+taskSessionManager.hooks.on('task:provisioned', ({ projectId, taskId }) => {
   telemetryService.capture('task_provisioned', { project_id: projectId, task_id: taskId });
 });

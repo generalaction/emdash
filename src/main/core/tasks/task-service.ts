@@ -37,7 +37,7 @@ import { setTaskPinned } from './operations/setTaskPinned';
 import { updateLinkedIssue } from './operations/updateLinkedIssue';
 import { updateTaskStatus } from './operations/updateTaskStatus';
 import type { TeardownTaskError } from './provision-task-error';
-import { taskManager } from './task-session-manager';
+import { taskSessionManager } from './task-session-manager';
 import { mapTaskRowToTask } from './utils/utils';
 
 type ProvisionResult = ProvisionTaskResult & { sshConnectionId?: string };
@@ -87,9 +87,9 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     const { projectId } = row;
 
     // Idempotency: task is already live — return current state.
-    const existingTask = taskManager.getTask(taskId);
+    const existingTask = taskSessionManager.getTask(taskId);
     if (existingTask) {
-      const pd = taskManager.getPersistData(taskId);
+      const pd = taskSessionManager.getPersistData(taskId);
       const wsId = pd?.workspaceId ?? '';
       const provisionResult: ProvisionResult = {
         path: workspaceRegistry.get(wsId)?.path ?? '',
@@ -133,7 +133,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     const project = projectManager.getProject(task.projectId);
     if (!project) throw new Error(`Project not found: ${task.projectId}`);
 
-    await taskManager.registerTask(taskId, data, task.projectId, project.ctx);
+    await taskSessionManager.registerTask(taskId, data, task.projectId, project.ctx);
 
     await db
       .update(tasks)
@@ -155,9 +155,9 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
 
   async teardown(
     taskId: string,
-    mode: Parameters<typeof taskManager.teardownTask>[1] = 'terminate'
+    mode: Parameters<typeof taskSessionManager.teardownTask>[1] = 'terminate'
   ): Promise<Result<void, TeardownTaskError>> {
-    return taskManager.teardownTask(taskId, mode);
+    return taskSessionManager.teardownTask(taskId, mode);
   }
 
   async getDeletePreflight(projectId: string, taskIds: string[]) {

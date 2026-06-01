@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
-import { taskManager } from '@main/core/tasks/task-session-manager';
+import { taskSessionManager } from '@main/core/tasks/task-session-manager';
 import { viewStateService } from '@main/core/view-state/view-state-service';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
@@ -24,7 +24,7 @@ export async function deleteTask(
   const project = projectManager.getProject(projectId);
 
   if (project) {
-    const teardownResult = await taskManager.teardownTask(taskId, 'terminate').catch((e) => {
+    const teardownResult = await taskSessionManager.teardownTask(taskId, 'terminate').catch((e) => {
       log.warn('deleteTask: teardown failed', { taskId, error: String(e) });
       return null;
     });

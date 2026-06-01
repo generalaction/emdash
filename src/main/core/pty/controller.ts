@@ -5,7 +5,7 @@ import { log } from '@main/lib/logger';
 import { createRPCController } from '@shared/ipc/rpc';
 import { parsePtySessionId } from '@shared/ptySessionId';
 import { err, ok } from '@shared/result';
-import { taskManager } from '../tasks/task-session-manager';
+import { taskSessionManager } from '../tasks/task-session-manager';
 import { workspaceRegistry } from '../workspaces/workspace-registry';
 import {
   cleanupExpiredDroppedBlobs,
@@ -99,7 +99,7 @@ export const ptyController = createRPCController({
     // Agents and terminals are scoped by task id, so the task lookup resolves
     // the owning provider. Conversation PTYs carry a providerId in their
     // registry metadata; plain terminals do not — that distinguishes the two.
-    const task = taskManager.getTask(scopeId);
+    const task = taskSessionManager.getTask(scopeId);
     if (task) {
       const isConversation = ptySessionRegistry.getMetadata(sessionId)?.providerId !== undefined;
       try {
@@ -148,10 +148,10 @@ export const ptyController = createRPCController({
       }
       const { scopeId } = parsed;
 
-      const taskProvider = taskManager.getTask(scopeId);
+      const taskProvider = taskSessionManager.getTask(scopeId);
       if (!taskProvider) return err({ type: 'not_ssh' as const });
 
-      const workspaceId = taskManager.getWorkspaceId(scopeId) ?? '';
+      const workspaceId = taskSessionManager.getWorkspaceId(scopeId) ?? '';
       const workspace = workspaceRegistry.get(workspaceId);
       if (!workspace?.fs.copyLocalFile) return err({ type: 'not_ssh' as const });
 

@@ -11,7 +11,7 @@ import {
 } from '@shared/events/gitEvents';
 import { branchRef, remoteRef, toRefString, type GitObjectRef } from '@shared/git';
 import { projectManager } from '../projects/project-manager';
-import { taskManager } from '../tasks/task-session-manager';
+import { taskSessionManager } from '../tasks/task-session-manager';
 
 export type GitWatcherHooks = {
   'ref:changed': (change: GitRefChange) => void | Promise<void>;
@@ -45,12 +45,12 @@ class GitWatcherRegistry implements Hookable<GitWatcherHooks>, IInitializable, I
       void this._stopWatching(projectId);
     });
 
-    taskManager.hooks.on('task:provisioned', ({ projectId, workspaceId, worktreeGitDir }) => {
+    taskSessionManager.hooks.on('task:provisioned', ({ projectId, workspaceId, worktreeGitDir }) => {
       if (!worktreeGitDir) return;
       this._worktrees.get(projectId)?.set(workspaceId, worktreeGitDir);
     });
 
-    taskManager.hooks.on('task:torn-down', ({ projectId, workspaceId }) => {
+    taskSessionManager.hooks.on('task:torn-down', ({ projectId, workspaceId }) => {
       this._worktrees.get(projectId)?.delete(workspaceId);
     });
   }

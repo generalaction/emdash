@@ -8,7 +8,7 @@ import type { Branch, FetchError } from '@shared/git';
 import type { ProjectRemoteState } from '@shared/projects';
 import type { Result } from '@shared/result';
 import type { ConversationProvider } from '../conversations/types';
-import { taskManager } from '../tasks/task-session-manager';
+import { taskSessionManager } from '../tasks/task-session-manager';
 import type { TerminalProvider } from '../terminals/terminal-provider';
 import type { WorkspaceType } from '../workspaces/workspace-factory';
 import type { ProjectSettingsProvider } from './settings/provider';
@@ -118,7 +118,7 @@ export class ProjectProvider implements IDisposable {
     this.gitFetchService.stop();
     const projectSettings = await this.settings.get();
     const mode = projectSettings.tmux ? 'detach' : 'terminate';
-    await taskManager.teardownAllForProject(this.projectId, mode);
+    await taskSessionManager.teardownAllForProject(this.projectId, mode);
     await workspaceRegistry.releaseAllForProject(this.projectId, mode);
   }
 }
