@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { log } from '@main/lib/logger';
 import type { AgentEvent } from '@shared/events/agentEvents';
 import { taskWasCreatedByAutomationRun } from '../automations/repo';
 import { taskManager } from '../tasks/task-manager';
@@ -46,5 +47,16 @@ describe('stopAutomationSessionAfterDone', () => {
     await stopAutomationSessionAfterDone({ ...stopEvent, type: 'start' });
 
     expect(taskWasCreatedByAutomationRun).not.toHaveBeenCalled();
+  });
+
+  it('logs lookup failures instead of rejecting', async () => {
+    vi.mocked(taskWasCreatedByAutomationRun).mockRejectedValue(new Error('db closed'));
+
+    await expect(stopAutomationSessionAfterDone(stopEvent)).resolves.toBeUndefined();
+
+    expect(log.warn).toHaveBeenCalledWith(
+      'agent-hooks: failed to stop completed automation PTY',
+      expect.objectContaining({ taskId: 'task-1', error: 'Error: db closed' })
+    );
   });
 });

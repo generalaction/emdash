@@ -24,7 +24,12 @@ export async function convertAutomationTask(taskId: string): Promise<Task | null
 
     tx.update(automationRuns)
       .set({ createdTaskId: null })
-      .where(or(eq(automationRuns.createdTaskId, taskId), eq(automationRuns.taskId, taskId)))
+      .where(eq(automationRuns.createdTaskId, taskId))
+      .run();
+
+    tx.update(automationRuns)
+      .set({ taskId: null })
+      .where(eq(automationRuns.taskId, taskId))
       .run();
 
     tx.update(tasks)

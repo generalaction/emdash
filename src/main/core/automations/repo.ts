@@ -673,7 +673,12 @@ export async function taskWasCreatedByAutomationRun(taskIdValue: string): Promis
   const rows = await db
     .select({ id: automationRuns.id })
     .from(automationRuns)
-    .where(eq(automationRuns.createdTaskId, taskIdValue))
+    .where(
+      or(
+        eq(automationRuns.createdTaskId, taskIdValue),
+        and(eq(automationRuns.taskId, taskIdValue), isNotNull(automationRuns.createdTaskId))
+      )
+    )
     .limit(1);
   return rows.length > 0;
 }
