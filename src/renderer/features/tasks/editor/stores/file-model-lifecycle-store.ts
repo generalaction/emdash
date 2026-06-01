@@ -176,7 +176,7 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
     if (accept) {
       modelRegistry.reloadFromDisk(uri);
       const filePath = uri.replace(`file://${this.modelRootPath}/`, '');
-      void rpc.editorBuffer.clearBuffer(this.projectId, this.workspaceId, filePath);
+      void rpc.workspace.editor.clearBuffer(this.projectId, this.workspaceId, filePath);
     } else {
       runInAction(() => {
         this.isSaving = true;
@@ -197,7 +197,7 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
    */
   async restoreBuffers(): Promise<void> {
     try {
-      const buffers = await rpc.editorBuffer.listBuffers(this.projectId, this.workspaceId);
+      const buffers = await rpc.workspace.editor.listBuffers(this.projectId, this.workspaceId);
       for (const { filePath, content } of buffers) {
         const uri = buildMonacoModelPath(this.modelRootPath, filePath);
         const model = modelRegistry.getModelByUri(uri);
@@ -242,7 +242,7 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
     const kind = getFileKind(filePath);
 
     if (kind === 'image') {
-      const result = await rpc.fs.readImage(this.projectId, this.workspaceId, filePath);
+      const result = await rpc.workspace.fs.readImage(this.projectId, this.workspaceId, filePath);
       const imageContent = result.success ? (result.data?.dataUrl ?? '') : '';
       runInAction(() => {
         for (const { tabManager } of this.tabGroupManager.groups) {
@@ -309,6 +309,6 @@ export class FileModelLifecycleStore implements Snapshottable<EditorViewSnapshot
     modelRegistry.unregisterModel(uri);
     modelRegistry.unregisterModel(modelRegistry.toDiskUri(uri));
     modelRegistry.unregisterModel(modelRegistry.toGitUri(uri, HEAD_REF));
-    void rpc.editorBuffer.clearBuffer(this.projectId, this.workspaceId, filePath);
+    void rpc.workspace.editor.clearBuffer(this.projectId, this.workspaceId, filePath);
   }
 }

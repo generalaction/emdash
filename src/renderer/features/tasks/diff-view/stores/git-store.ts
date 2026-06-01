@@ -70,7 +70,7 @@ export class GitStore {
         {
           kind: 'event',
           subscribe: (handler) => {
-            rpc.fs.watchSetPaths(projectId, workspaceId, [''], 'git-store-status').catch(() => {});
+            rpc.workspace.fs.watchSetPaths(projectId, workspaceId, [''], 'git-store-status').catch(() => {});
             const unsub = events.on(fsWatchEventChannel, (payload) => {
               if (payload.workspaceId !== workspaceId) return;
               const relevant = payload.events.some((e) => {
@@ -82,7 +82,7 @@ export class GitStore {
             });
             return () => {
               unsub();
-              rpc.fs.watchStop(projectId, workspaceId, 'git-store-status').catch(() => {});
+              rpc.workspace.fs.watchStop(projectId, workspaceId, 'git-store-status').catch(() => {});
             };
           },
           onEvent: 'reload',
@@ -254,7 +254,7 @@ export class GitStore {
       };
     });
     try {
-      await rpc.git.stageFiles(this.projectId, this.workspaceId, paths);
+      await rpc.workspace.git.stageFiles(this.projectId, this.workspaceId, paths);
       this.fullStatus.invalidate();
     } catch (e) {
       if (previous) this.fullStatus.setValue(previous);
@@ -274,7 +274,7 @@ export class GitStore {
       };
     });
     try {
-      await rpc.git.stageAllFiles(this.projectId, this.workspaceId);
+      await rpc.workspace.git.stageAllFiles(this.projectId, this.workspaceId);
       this.fullStatus.invalidate();
     } catch (e) {
       if (previous) this.fullStatus.setValue(previous);
@@ -295,7 +295,7 @@ export class GitStore {
       };
     });
     try {
-      await rpc.git.unstageFiles(this.projectId, this.workspaceId, paths);
+      await rpc.workspace.git.unstageFiles(this.projectId, this.workspaceId, paths);
       this.fullStatus.invalidate();
     } catch (e) {
       if (previous) this.fullStatus.setValue(previous);
@@ -312,7 +312,7 @@ export class GitStore {
       totalDeleted: 0,
     }));
     try {
-      await rpc.git.unstageAllFiles(this.projectId, this.workspaceId);
+      await rpc.workspace.git.unstageAllFiles(this.projectId, this.workspaceId);
       this.fullStatus.invalidate();
     } catch (e) {
       if (previous) this.fullStatus.setValue(previous);
@@ -327,7 +327,7 @@ export class GitStore {
       unstaged: prev.unstaged.filter((c) => !pathSet.has(c.path)),
     }));
     try {
-      await rpc.git.revertFiles(this.projectId, this.workspaceId, paths);
+      await rpc.workspace.git.revertFiles(this.projectId, this.workspaceId, paths);
       this.fullStatus.invalidate();
     } catch (e) {
       if (previous) this.fullStatus.setValue(previous);
@@ -338,7 +338,7 @@ export class GitStore {
   async discardAllFiles(): Promise<void> {
     const previous = this._applyOptimistic((prev) => ({ ...prev, unstaged: [] }));
     try {
-      await rpc.git.revertAllFiles(this.projectId, this.workspaceId);
+      await rpc.workspace.git.revertAllFiles(this.projectId, this.workspaceId);
       this.fullStatus.invalidate();
     } catch (e) {
       if (previous) this.fullStatus.setValue(previous);
@@ -347,7 +347,7 @@ export class GitStore {
   }
 
   async commit(message: string) {
-    const result = await rpc.git.commit(this.projectId, this.workspaceId, message);
+    const result = await rpc.workspace.git.commit(this.projectId, this.workspaceId, message);
     if (result.success) {
       // Clear staged list immediately so the UI doesn't flash stale state
       // while the authoritative reload is in flight.
@@ -379,7 +379,7 @@ export class GitStore {
 
   async push() {
     const remote = this.repositoryStore.pushRemote.name;
-    const result = await rpc.git.push(this.projectId, this.workspaceId, remote);
+    const result = await rpc.workspace.git.push(this.projectId, this.workspaceId, remote);
     if (result.success) {
       this.repositoryStore.refreshLocal(); // divergence resets to 0
       this.repositoryStore.refreshRemote(); // remote now has the commits
@@ -395,7 +395,7 @@ export class GitStore {
     const branchName = this.branchName;
     if (!branchName) return err({ type: 'git_error' as const, message: 'No branch checked out' });
     const remote = this.repositoryStore.pushRemote.name;
-    const result = await rpc.git.publishBranch(
+    const result = await rpc.workspace.git.publishBranch(
       this.projectId,
       this.workspaceId,
       branchName,
@@ -412,7 +412,7 @@ export class GitStore {
   }
 
   async pull() {
-    const result = await rpc.git.pull(this.projectId, this.workspaceId);
+    const result = await rpc.workspace.git.pull(this.projectId, this.workspaceId);
     if (result.success) {
       this.fullStatus.invalidate();
       this.repositoryStore.refreshLocal(); // local branch updated with pulled commits
@@ -424,7 +424,7 @@ export class GitStore {
   }
 
   private async _fetchFullStatus(): Promise<FullGitStatus> {
-    const result = await rpc.git.getFullStatus(this.projectId, this.workspaceId);
+    const result = await rpc.workspace.git.getFullStatus(this.projectId, this.workspaceId);
     if (!result.success) {
       if (result.error.type === 'too_many_files') {
         throw new Error(TOO_MANY_FILES_MSG);
