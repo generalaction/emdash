@@ -31,6 +31,7 @@ import type {
   PullRequest,
   PullRequestComment,
   PullRequestFile,
+  PullRequestMergeOptions,
   PullRequestStatus,
   PullRequestUser,
 } from '@shared/pull-requests';
@@ -1085,7 +1086,7 @@ export class PrSyncEngine {
   async mergePullRequest(
     repositoryUrl: string,
     prNumber: number,
-    options: { strategy: 'merge' | 'squash' | 'rebase'; commitHeadOid?: string }
+    options: PullRequestMergeOptions
   ): Promise<Result<{ sha: string | null; merged: boolean }, PrSyncEngineError>> {
     const repository = parseRepositoryRefResult(repositoryUrl);
     if (!repository.success) return err(repository.error);
@@ -1093,6 +1094,9 @@ export class PrSyncEngine {
     const octokit = await this.getOctokit(repository.data.host);
     if (!octokit.success) return err(octokit.error);
     try {
+      // GitHub exposes bypassing branch protection/rulesets through the caller's permissions,
+      // not a REST merge parameter. `bypassRequirements` is captured by the UI/telemetry path;
+      // the merge request itself remains identical and GitHub accepts or rejects it server-side.
       const response = await octokit.data.rest.pulls.merge({
         owner,
         repo,

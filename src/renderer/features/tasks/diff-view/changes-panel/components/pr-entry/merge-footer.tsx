@@ -10,7 +10,7 @@ import {
 import { Button } from '@renderer/lib/ui/button';
 import { SplitButton, type SplitButtonAction } from '@renderer/lib/ui/split-button';
 import { cn } from '@renderer/utils/utils';
-import { type MergeSeverity, type MergeUiState } from './pr-entry';
+import { type MergeSeverity, type MergeUiState } from './merge-ui-state';
 
 const severityConfig: Record<MergeSeverity, SeverityConfig> = {
   success: { icon: CheckCircle2, iconClass: 'text-foreground-success' },
@@ -35,6 +35,7 @@ export function MergeFooter({
   onMarkReady: () => void;
 }) {
   const isDraft = uiState.kind === 'draft';
+  const mergeDisabled = !uiState.canMerge && !uiState.canBypassRequirements;
   const { icon: MergeStatusIcon, iconClass } = severityConfig[uiState.severity];
 
   return (
@@ -65,7 +66,7 @@ export function MergeFooter({
                 loadingLabel="Merging..."
                 icon={<GitMerge className="size-3" />}
                 actions={mergeActions}
-                disabled={!uiState.canMerge && !isMerging}
+                disabled={mergeDisabled}
               />
             )}
           </div>
