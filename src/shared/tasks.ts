@@ -2,6 +2,39 @@ import type { CreateConversationParams } from '@shared/conversations';
 import type { Branch, CreateBranchError, FetchPrForReviewError, PushError } from '@shared/git';
 import type { PullRequest } from '@shared/pull-requests';
 
+// ---------------------------------------------------------------------------
+// Workspace intent types — stored on the task row as JSON in `workspace_intent`
+// ---------------------------------------------------------------------------
+
+/**
+ * Describes the git operations to perform when setting up a workspace.
+ * Stored in `tasks.workspace_intent` as part of a `WorkspaceIntent` JSON blob.
+ */
+export type GitSetup =
+  | { kind: 'none' }
+  | { kind: 'use-branch'; branchName: string }
+  | { kind: 'create-branch'; branchName: string; fromBranch: Branch; pushBranch?: boolean }
+  | {
+      kind: 'pr-branch';
+      prNumber: number;
+      headBranch: string;
+      headRepositoryUrl: string;
+      isFork: boolean;
+      /** When set, a new branch is created on top of the PR head for the task. */
+      taskBranch?: string;
+      pushBranch?: boolean;
+    };
+
+/**
+ * Describes the physical location of a workspace.
+ * `path` is set when reusing an existing directory; omitted when a new worktree
+ * must be created.
+ */
+export type WorkspaceLocation =
+  | { host: 'local'; path?: string }
+  | { host: 'project-ssh'; path?: string }
+  | { host: 'byoi'; remoteWorkspaceId?: string };
+
 export type TaskLifecycleStatus =
   | 'todo'
   | 'in_progress'

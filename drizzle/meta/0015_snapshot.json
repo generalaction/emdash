@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "12e47c24-8440-4e16-a687-5394d07f5869",
+  "id": "bb91303b-3d65-4602-a254-a08a3700d93e",
   "prevId": "eb5ea80c-9f3e-4b7b-b526-2b21ade9c003",
   "tables": {
     "app_secrets": {
@@ -1693,13 +1693,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
           "autoincrement": false
         },
         "data": {

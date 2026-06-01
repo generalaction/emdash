@@ -1,161 +1,156 @@
-import crypto from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
+import { projectManager } from '@main/core/projects/project-manager';
+import type { ProjectProvider } from '@main/core/projects/project-provider';
+import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import { db as appDb, type AppDb } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
-import type { WorkspaceResolution, WorkspaceType } from '@shared/workspaces';
-import type { WorktreeBootstrapOps } from '../projects/worktrees/worktree-service';
-import { mapWorktreeErrorToProvisionError } from '../tasks/provision-task-error';
-import { fromStoredBranch } from '../tasks/stored-branch';
+import { err, ok, type Result } from '@shared/result';
+import { compileSetupSpec } from '@shared/workspace-setup-spec';
+import type { WorkspaceType } from '@shared/workspaces';
+import { resolveWorkspaceIntent } from '../tasks/resolve-workspace-intent';
+import { LocalWorkspaceSetupExecutor } from './local-workspace-setup-executor';
+import { applyRecovery } from './recovery-strategy';
 import { computeWorkspaceKey } from './workspace-key';
 
-export type WorktreeContext = {
-  /** undefined for local projects, set for SSH */
-  connectionId?: string;
-  /** Absolute path to the project repo root — used when a task has no taskBranch */
-  repoPath: string;
-  worktreeService: WorktreeBootstrapOps;
-};
+export type ProvisionWorkspaceError =
+  | { type: 'no-intent' }
+  | { type: 'setup-failed'; stepKind: string; stepErrorType: string; message?: string };
+
+export function formatProvisionWorkspaceError(error: ProvisionWorkspaceError): string {
+  switch (error.type) {
+    case 'no-intent':
+      return 'Workspace has no intent and no resolved path — cannot provision.';
+    case 'setup-failed':
+      return `Setup step '${error.stepKind}' failed (${error.stepErrorType})${error.message ? `: ${error.message}` : ''}.`;
+  }
+}
 
 export class WorkspaceBootstrapService {
   constructor(private readonly db: AppDb) {}
 
   /**
-   * Resolves the bootstrap state for a task's workspace.
-   * Handles legacy workspace ID migration, path existence checks, and branch discovery.
+   * Ensures the workspace for a task is fully set up on disk.
+   *
+   * - **Fast path (idempotent)**: if `workspaceRow.path` is set and the directory
+   *   exists on disk, returns immediately.
+   * - **BYOI workspaces**: return early — their path is managed by the BYOI provision
+   *   flow (`provisionBYOITask`) which runs during task session setup.
+   * - **Local/SSH workspaces**: compiles and executes the `WorkspaceSetupSpec`,
+   *   applies recovery on failure, and persists the resolved path.
+   * - **SSH channel recovery**: calls `reportChannelRecovered` after a successful
+   *   setup on an SSH project.
    */
-  async resolveBootstrap(taskId: string, ctx: WorktreeContext): Promise<WorkspaceResolution> {
-    const [taskRow] = await this.db.select().from(tasks).where(eq(tasks.id, taskId));
-    if (!taskRow) throw new Error(`Task not found: ${taskId}`);
-
-    const rawWorkspaceId = taskRow.workspaceId;
-    let workspaceId: string;
-
-    if (!rawWorkspaceId || this._isLegacyWorkspaceId(rawWorkspaceId)) {
-      workspaceId = await this._migrateLegacyWorkspaceId(taskId, taskRow, rawWorkspaceId, ctx);
-    } else {
-      workspaceId = rawWorkspaceId;
+  async ensureWorkspaceSetup(
+    workspaceRow: {
+      id: string;
+      type: WorkspaceType;
+      path: string | null;
+    },
+    taskRow: {
+      workspaceIntent: string | null;
+      taskBranch: string | null;
+      sourceBranch: unknown;
+      workspaceProvider: string | null;
+    },
+    project: ProjectProvider
+  ): Promise<Result<string, ProvisionWorkspaceError>> {
+    // Fast path: path already persisted and still exists on disk.
+    if (workspaceRow.path) {
+      const exists = await project.worktreeHost.existsAbsolute(workspaceRow.path);
+      if (exists) return ok(workspaceRow.path);
     }
 
-    const [workspace] = await this.db
-      .select()
-      .from(workspaces)
-      .where(eq(workspaces.id, workspaceId));
-    if (!workspace) throw new Error(`Workspace not found: ${workspaceId}`);
-
-    if (workspace.type === 'byoi') {
-      return { kind: 'ready' };
+    // BYOI workspaces are managed by provisionBYOITask during session provisioning.
+    if (workspaceRow.type === 'byoi') {
+      return ok(workspaceRow.path ?? '');
     }
 
-    const taskBranch = taskRow.taskBranch ?? null;
-    const { worktreeService } = ctx;
+    const intent = resolveWorkspaceIntent(taskRow, workspaceRow);
+    if (!intent) {
+      return err({ type: 'no-intent' });
+    }
 
-    if (workspace.path) {
-      const pathExists = await worktreeService.existsAtAbsolutePath(workspace.path);
-      if (pathExists) {
-        return { kind: 'ready' };
+    const connectionId =
+      project.defaultWorkspaceType.kind === 'ssh'
+        ? project.defaultWorkspaceType.connectionId
+        : undefined;
+
+    const { baseRemote, pushRemote } = await project.repository.getConfiguredRemotes();
+    const spec = compileSetupSpec(intent.git, intent.workspace, { baseRemote, pushRemote });
+
+    if (spec.length === 0) {
+      // No git operations needed — use existing project root or provided path.
+      const path =
+        'path' in intent.workspace && intent.workspace.path
+          ? intent.workspace.path
+          : project.repoPath;
+      await this.persistPath(workspaceRow.id, path, workspaceRow.type, connectionId);
+      return ok(path);
+    }
+
+    const worktreePoolPath = await project.worktreeService.getWorktreePoolPath();
+    const stepCtx = {
+      ctx: project.ctx,
+      repoPath: project.repoPath,
+      worktreePoolPath,
+      host: project.worktreeHost,
+      projectSettings: project.settings,
+    };
+
+    const executor = new LocalWorkspaceSetupExecutor(stepCtx);
+    let setupResult = await executor.execute(spec);
+
+    if (!setupResult.success) {
+      const recovery = await applyRecovery(setupResult.error, stepCtx);
+
+      if (recovery.kind === 'resolved') {
+        setupResult = ok({ path: recovery.path, warnings: [] });
+      } else if (recovery.kind === 'retry') {
+        setupResult = await executor.execute(spec);
       }
-
-      if (!taskBranch) {
-        return { kind: 'path_missing', previousPath: workspace.path, taskBranch: null };
-      }
-
-      const candidatePath = await worktreeService.findBranchAnywhere(taskBranch);
-      if (candidatePath && candidatePath !== workspace.path) {
-        return {
-          kind: 'branch_elsewhere',
-          taskBranch,
-          candidatePath,
-          previousPath: workspace.path,
-        };
-      }
-
-      return { kind: 'path_missing', previousPath: workspace.path, taskBranch };
+      // 'failed' falls through to the error check below
     }
 
-    if (!taskBranch) {
-      return { kind: 'needs_create' };
+    if (!setupResult.success) {
+      const { kind, type } = setupResult.error;
+      const message = 'message' in setupResult.error ? setupResult.error.message : undefined;
+      return err({ type: 'setup-failed', stepKind: kind, stepErrorType: type, message });
     }
 
-    const candidatePath = await worktreeService.findBranchAnywhere(taskBranch);
-    if (candidatePath) {
-      await this._persistPathForTask(
-        workspace.id,
-        taskId,
-        candidatePath,
-        workspace.type,
-        ctx.connectionId
-      );
-      return { kind: 'ready' };
+    const resolvedPath = setupResult.data.path;
+    if (resolvedPath) {
+      await this.persistPath(workspaceRow.id, resolvedPath, workspaceRow.type, connectionId);
     }
 
-    return { kind: 'needs_create' };
+    if (connectionId) {
+      sshConnectionManager.reportChannelRecovered(connectionId);
+    }
+
+    return ok(resolvedPath ?? '');
   }
 
   /**
-   * Creates a worktree for a task and persists the resolved path.
-   * Falls back to repoPath when the task has no taskBranch.
+   * Public entry point for the RPC controller.
+   * Loads the workspace + task rows from DB, resolves the project,
+   * and delegates to `ensureWorkspaceSetup`.
    */
-  async createWorktreeForTask(taskId: string, ctx: WorktreeContext): Promise<void> {
-    const [taskRow] = await this.db.select().from(tasks).where(eq(tasks.id, taskId));
-    if (!taskRow?.workspaceId) throw new Error(`Task or workspace not found: ${taskId}`);
+  async ensureWorkspaceSetupForTask(
+    taskId: string
+  ): Promise<Result<string, ProvisionWorkspaceError>> {
+    const [row] = await this.db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
+    if (!row?.workspaceId) throw new Error(`Task ${taskId} has no workspaceId`);
 
-    const [workspace] = await this.db
+    const [wsRow] = await this.db
       .select()
       .from(workspaces)
-      .where(eq(workspaces.id, taskRow.workspaceId));
-    if (!workspace) throw new Error(`Workspace not found: ${taskRow.workspaceId}`);
+      .where(eq(workspaces.id, row.workspaceId))
+      .limit(1);
+    if (!wsRow) throw new Error(`Workspace ${row.workspaceId} not found for task ${taskId}`);
 
-    let worktreePath: string;
+    const project = projectManager.getProject(row.projectId);
+    if (!project) throw new Error(`Project ${row.projectId} not found`);
 
-    if (!taskRow.taskBranch) {
-      worktreePath = ctx.repoPath;
-    } else {
-      const sourceBranch = fromStoredBranch(taskRow.sourceBranch);
-      if (!sourceBranch || taskRow.taskBranch === sourceBranch.branch) {
-        const result = await ctx.worktreeService.checkoutExistingBranch(taskRow.taskBranch);
-        if (!result.success)
-          throw mapWorktreeErrorToProvisionError(taskRow.taskBranch, result.error);
-        worktreePath = result.data;
-      } else {
-        const result = await ctx.worktreeService.checkoutBranchWorktree(
-          sourceBranch,
-          taskRow.taskBranch
-        );
-        if (!result.success)
-          throw mapWorktreeErrorToProvisionError(taskRow.taskBranch, result.error);
-        worktreePath = result.data;
-      }
-    }
-
-    await this._persistPathForTask(
-      workspace.id,
-      taskId,
-      worktreePath,
-      workspace.type,
-      ctx.connectionId
-    );
-  }
-
-  /**
-   * Adopts an existing path as the workspace location for a task.
-   */
-  async adoptPath(taskId: string, candidatePath: string, ctx: WorktreeContext): Promise<void> {
-    const [taskRow] = await this.db.select().from(tasks).where(eq(tasks.id, taskId));
-    if (!taskRow?.workspaceId) throw new Error(`Task or workspace not found: ${taskId}`);
-
-    const [workspace] = await this.db
-      .select()
-      .from(workspaces)
-      .where(eq(workspaces.id, taskRow.workspaceId));
-    if (!workspace) throw new Error(`Workspace not found: ${taskRow.workspaceId}`);
-
-    await this._persistPathForTask(
-      workspace.id,
-      taskId,
-      candidatePath,
-      workspace.type,
-      ctx.connectionId
-    );
+    return this.ensureWorkspaceSetup(wsRow, row, project);
   }
 
   /**
@@ -164,6 +159,8 @@ export class WorkspaceBootstrapService {
    * If another workspace already owns that path (same key), its ID is returned
    * so the caller can re-point any tasks. Returns the original workspaceId when
    * the update succeeds normally.
+   *
+   * @internal Exposed for unit testing; prefer `ensureWorkspaceSetup` in application code.
    */
   async persistPath(
     workspaceId: string,
@@ -185,59 +182,6 @@ export class WorkspaceBootstrapService {
       .set({ path, key, updatedAt: sql`CURRENT_TIMESTAMP` })
       .where(eq(workspaces.id, workspaceId));
     return workspaceId;
-  }
-
-  // ---------------------------------------------------------------------------
-  // Private helpers
-  // ---------------------------------------------------------------------------
-
-  private async _persistPathForTask(
-    workspaceId: string,
-    taskId: string,
-    path: string,
-    type: WorkspaceType,
-    connectionId?: string
-  ): Promise<void> {
-    const resolvedId = await this.persistPath(workspaceId, path, type, connectionId);
-    if (resolvedId !== workspaceId) {
-      // Key conflict: re-point the task to the workspace that already owns this path.
-      await this.db.update(tasks).set({ workspaceId: resolvedId }).where(eq(tasks.id, taskId));
-    }
-  }
-
-  private _isLegacyWorkspaceId(id: string): boolean {
-    return id.startsWith('local:') || id.startsWith('ssh:') || id.startsWith('remote:');
-  }
-
-  private async _migrateLegacyWorkspaceId(
-    taskId: string,
-    taskRow: { workspaceProvider?: string | null; workspaceId?: string | null },
-    rawWorkspaceId: string | null | undefined,
-    ctx: WorktreeContext
-  ): Promise<string> {
-    const newId = crypto.randomUUID();
-    const workspaceType = this._resolveWorkspaceType(
-      rawWorkspaceId,
-      taskRow.workspaceProvider,
-      ctx
-    );
-
-    this.db.transaction((tx) => {
-      tx.insert(workspaces).values({ id: newId, type: workspaceType }).run();
-      tx.update(tasks).set({ workspaceId: newId }).where(eq(tasks.id, taskId)).run();
-    });
-
-    return newId;
-  }
-
-  private _resolveWorkspaceType(
-    rawWorkspaceId: string | null | undefined,
-    workspaceProvider: string | null | undefined,
-    ctx: WorktreeContext
-  ): WorkspaceType {
-    if (rawWorkspaceId?.startsWith('remote:') || workspaceProvider === 'byoi') return 'byoi';
-    if (rawWorkspaceId?.startsWith('ssh:') || ctx.connectionId !== undefined) return 'project-ssh';
-    return 'local';
   }
 }
 

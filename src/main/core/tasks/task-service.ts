@@ -1,7 +1,5 @@
 import { eq, sql } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
-import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
-import { workspaceBootstrapService } from '@main/core/workspaces/workspace-bootstrap-service';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { db } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
@@ -96,6 +94,7 @@ export class TaskService implements Hookable<TaskCrudHooks> {
       throw new Error(`Workspace ${row.workspaceId} not found for task ${taskId}`);
     }
 
+    // Workspace path is set by `provisionWorkspace` (phase 1) before this RPC is called.
     const hint: WorkspaceHint = {
       id: workspaceRow.id,
       type: workspaceRow.type,
@@ -106,11 +105,6 @@ export class TaskService implements Hookable<TaskCrudHooks> {
     if (!result.success) return err(result.error);
 
     const { persistData } = result.data;
-
-    if (persistData.sshConnectionId) {
-      sshConnectionManager.reportChannelRecovered(persistData.sshConnectionId);
-    }
-
     const workspacePath = workspaceRegistry.get(persistData.workspaceId)?.path ?? '';
 
     await db
@@ -118,19 +112,8 @@ export class TaskService implements Hookable<TaskCrudHooks> {
       .set({ lastInteractedAt: sql`CURRENT_TIMESTAMP`, workspaceId: persistData.workspaceId })
       .where(eq(tasks.id, taskId));
 
-    if (!workspaceRow.path && workspacePath) {
-      const connectionId =
-        project.defaultWorkspaceType.kind === 'ssh'
-          ? project.defaultWorkspaceType.connectionId
-          : undefined;
-      await workspaceBootstrapService.persistPath(
-        workspaceRow.id,
-        workspacePath,
-        workspaceRow.type,
-        connectionId
-      );
-    }
-
+    // BYOI: persist the provider data (remote workspace ID, connection details) returned by
+    // the provision script so it can be reused on the next session.
     if (workspaceRow.type === 'byoi' && persistData.workspaceProviderData) {
       await db
         .update(workspaces)

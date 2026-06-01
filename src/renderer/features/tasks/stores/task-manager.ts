@@ -368,126 +368,28 @@ export class TaskManagerStore {
     const task = this.tasks.get(taskId);
     if (!task || !isUnprovisioned(task)) return;
 
-    let resolution: Awaited<ReturnType<typeof rpc.workspaces.resolveBootstrap>>;
-
-    runInAction(() => {
-      const current = this.tasks.get(taskId);
-      if (current && isUnprovisioned(current)) {
-        const wsId = (current.data as Task).workspaceId;
-        if (wsId) {
-          workspaceRegistry.setBootstrapState(this.projectId, wsId, { kind: 'resolving' });
-        }
-      }
-    });
-
-    try {
-      resolution = await rpc.workspaces.resolveBootstrap({ projectId: this.projectId, taskId });
-    } catch (err) {
-      runInAction(() => {
-        const current = this.tasks.get(taskId);
-        if (current && isUnprovisioned(current)) {
-          current.phase = 'provision-error';
-          current.errorMessage = err instanceof Error ? err.message : String(err);
-          const wsId = (current.data as Task).workspaceId;
-          if (wsId) {
-            workspaceRegistry.setBootstrapState(this.projectId, wsId, {
-              kind: 'error',
-              message: current.errorMessage,
-            });
-          }
-        }
-      });
-      throw err;
-    }
-
-    if (resolution.kind === 'branch_elsewhere' || resolution.kind === 'path_missing') {
-      runInAction(() => {
-        const current = this.tasks.get(taskId);
-        if (current && isUnprovisioned(current)) {
-          const wsId = (current.data as Task).workspaceId;
-          if (wsId) {
-            workspaceRegistry.setBootstrapState(this.projectId, wsId, {
-              kind: 'needs-resolution',
-              resolution,
-            });
-          }
-          // phase stays 'provision' — the registry holds the resolution details
-        }
-      });
-      return;
-    }
-
-    if (resolution.kind === 'needs_create') {
-      try {
-        await rpc.workspaces.createWorktree({ projectId: this.projectId, taskId });
-      } catch (err) {
-        runInAction(() => {
-          const current = this.tasks.get(taskId);
-          if (current && isUnprovisioned(current)) {
-            current.phase = 'provision-error';
-            current.errorMessage = err instanceof Error ? err.message : String(err);
-          }
-        });
-        throw err;
-      }
-    }
-
-    await this._finishProvision(taskId);
-  }
-
-  async continueProvision(
-    taskId: string,
-    action: 'adopt' | 'create' | 'cancel',
-    candidatePath?: string
-  ): Promise<void> {
-    const task = this.tasks.get(taskId);
-    if (!task || !isUnprovisioned(task)) return;
-
     const wsId = (task.data as Task).workspaceId;
 
-    if (action === 'cancel') {
+    // Phase 1: workspace bootstrap — idempotent, independently retryable.
+    if (wsId) workspaceRegistry.setBootstrapState(this.projectId, wsId, { kind: 'resolving' });
+    try {
+      await rpc.workspaces.provisionWorkspace(taskId);
+      if (wsId) workspaceRegistry.setBootstrapState(this.projectId, wsId, { kind: 'ready' });
+    } catch (wsErr) {
+      const message = wsErr instanceof Error ? wsErr.message : String(wsErr);
+      if (wsId)
+        workspaceRegistry.setBootstrapState(this.projectId, wsId, { kind: 'error', message });
       runInAction(() => {
         const current = this.tasks.get(taskId);
         if (current && isUnprovisioned(current)) {
-          current.phase = 'idle';
-          if (wsId) {
-            workspaceRegistry.setBootstrapState(this.projectId, wsId, { kind: 'pending' });
-          }
+          current.phase = 'provision-error';
+          current.errorMessage = message;
         }
       });
       return;
     }
 
-    runInAction(() => {
-      const current = this.tasks.get(taskId);
-      if (current && isUnprovisioned(current)) {
-        current.phase = 'provision';
-        if (wsId) {
-          workspaceRegistry.setBootstrapState(this.projectId, wsId, { kind: 'resolving' });
-        }
-      }
-    });
-
-    try {
-      if (action === 'adopt') {
-        if (!candidatePath) {
-          throw new Error('adoptWorktree called without a candidatePath');
-        }
-        await rpc.workspaces.adoptWorktree({ projectId: this.projectId, taskId, candidatePath });
-      } else if (action === 'create') {
-        await rpc.workspaces.createWorktree({ projectId: this.projectId, taskId });
-      }
-    } catch (err) {
-      runInAction(() => {
-        const current = this.tasks.get(taskId);
-        if (current && isUnprovisioned(current)) {
-          current.phase = 'provision-error';
-          current.errorMessage = err instanceof Error ? err.message : String(err);
-        }
-      });
-      throw err;
-    }
-
+    // Phase 2: task session provisioning — independently retryable.
     await this._finishProvision(taskId);
   }
 

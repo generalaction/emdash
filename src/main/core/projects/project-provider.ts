@@ -64,6 +64,7 @@ export class ProjectProvider implements IDisposable {
   readonly gitFetchService: GitFetchService;
   /** Workspace type for standard worktree tasks. BYOI tasks use their own remote workspace type. */
   readonly defaultWorkspaceType: WorkspaceType;
+  readonly worktreeHost: WorktreeHost;
 
   private readonly _ctx: IExecutionContext;
 
@@ -86,6 +87,7 @@ export class ProjectProvider implements IDisposable {
     this.worktreeService = worktreeService;
     this.gitFetchService = gitFetchService;
     this.defaultWorkspaceType = transport.defaultWorkspaceType;
+    this.worktreeHost = transport.worktreeHost;
   }
 
   get ctx(): IExecutionContext {
