@@ -28,7 +28,14 @@ export async function createTask(
   if (!project) {
     return err({ type: 'project-not-found' });
   }
-  const { baseRemote, pushRemote } = await project.repository.getConfiguredRemotes();
+  const configuredRemotes = await project.repository
+    .getConfiguredRemotes()
+    .catch((error: unknown) => ({
+      baseRemote: 'unknown',
+      pushRemote: 'unknown',
+      error: error instanceof Error ? error.message : String(error),
+    }));
+  const { baseRemote, pushRemote } = configuredRemotes;
 
   // Settings used by from-pull-request branch resolution (new-branch and from-issue resolve
   // the branch name on the FE via resolveTaskBranchName before submission).
@@ -71,6 +78,15 @@ export async function createTask(
           });
         }
       } else if (strategy.pushBranch) {
+        if ('error' in configuredRemotes) {
+          warning = {
+            type: 'branch-publish-failed',
+            branch: taskBranch,
+            remote: 'unknown',
+            error: { type: 'error', message: configuredRemotes.error },
+          };
+          break;
+        }
         const publishResult = await project.repository.publishBranch(taskBranch, pushRemote);
         if (!publishResult.success) {
           warning = {
@@ -98,6 +114,13 @@ export async function createTask(
       );
 
       if (!existingWorktree) {
+        if ('error' in configuredRemotes) {
+          return err({
+            type: 'pr-fetch-failed',
+            error: { type: 'error', message: configuredRemotes.error },
+            remote: 'unknown',
+          });
+        }
         // Fetch the PR head — handles same-repo and fork PRs.
         // Uses headRefName directly as the local branch name (same as `gh pr checkout`).
         const fetchResult = await project.repository.fetchPrForReview(
@@ -141,6 +164,15 @@ export async function createTask(
           });
         }
         if (strategy.pushBranch) {
+          if ('error' in configuredRemotes) {
+            warning = {
+              type: 'branch-publish-failed',
+              branch: taskBranch,
+              remote: 'unknown',
+              error: { type: 'error', message: configuredRemotes.error },
+            };
+            break;
+          }
           const publishResult = await project.repository.publishBranch(taskBranch, pushRemote);
           if (!publishResult.success) {
             warning = {

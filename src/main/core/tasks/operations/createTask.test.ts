@@ -257,6 +257,72 @@ describe('createTask', () => {
     expect(mocks.createBranch).toHaveBeenCalledWith('task/local', 'main', false, undefined);
   });
 
+  it('uses unknown remote in publish warning when configured remotes fail', async () => {
+    const insertTaskValues = vi.fn((values: Partial<TaskRow>) => ({
+      returning: vi.fn().mockResolvedValue([makeTaskRow(values)]),
+    }));
+    const insertWorkspaceValues = vi.fn().mockResolvedValue(undefined);
+    mocks.insert
+      .mockReturnValueOnce({ values: insertTaskValues })
+      .mockReturnValueOnce({ values: insertWorkspaceValues });
+    mocks.getConfiguredRemotes.mockRejectedValueOnce(new Error('failed to read remotes'));
+
+    const result = await createTask({
+      id: 'task-1',
+      projectId: 'project-1',
+      name: 'Publish task',
+      sourceBranch: { type: 'local', branch: 'main' },
+      strategy: {
+        kind: 'new-branch',
+        taskBranch: 'task/publish',
+        pushBranch: true,
+      },
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.success && result.data.warning).toEqual({
+      type: 'branch-publish-failed',
+      branch: 'task/publish',
+      remote: 'unknown',
+      error: { type: 'error', message: 'failed to read remotes' },
+    });
+    expect(mocks.publishBranch).not.toHaveBeenCalled();
+  });
+
+  it('uses unknown remote in PR fetch error when configured remotes fail', async () => {
+    mocks.findBranchAnywhere.mockResolvedValue(undefined);
+    mocks.getConfiguredRemotes.mockRejectedValueOnce(new Error('failed to read remotes'));
+
+    const result = await createTask({
+      id: 'task-1',
+      projectId: 'project-1',
+      name: 'Review PR',
+      sourceBranch: {
+        type: 'remote',
+        branch: 'main',
+        remote: { name: 'origin', url: 'https://github.com/example/repo.git' },
+      },
+      strategy: {
+        kind: 'from-pull-request',
+        prNumber: 123,
+        headBranch: 'feature-branch',
+        headRepositoryUrl: 'https://github.com/example/repo.git',
+        isFork: false,
+      },
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        type: 'pr-fetch-failed',
+        error: { type: 'error', message: 'failed to read remotes' },
+        remote: 'unknown',
+      },
+    });
+    expect(mocks.fetchPrForReview).not.toHaveBeenCalled();
+    expect(mocks.insert).not.toHaveBeenCalled();
+  });
+
   it('blocks branch-based tasks when the selected remote source branch cannot be fetched', async () => {
     mocks.createBranch.mockResolvedValueOnce(
       err({
