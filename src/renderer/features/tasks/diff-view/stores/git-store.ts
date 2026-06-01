@@ -70,7 +70,9 @@ export class GitStore {
         {
           kind: 'event',
           subscribe: (handler) => {
-            rpc.workspace.fs.watchSetPaths(projectId, workspaceId, [''], 'git-store-status').catch(() => {});
+            rpc.workspace.fs
+              .watchSetPaths(projectId, workspaceId, [''], 'git-store-status')
+              .catch(() => {});
             const unsub = events.on(fsWatchEventChannel, (payload) => {
               if (payload.workspaceId !== workspaceId) return;
               const relevant = payload.events.some((e) => {
@@ -82,7 +84,9 @@ export class GitStore {
             });
             return () => {
               unsub();
-              rpc.workspace.fs.watchStop(projectId, workspaceId, 'git-store-status').catch(() => {});
+              rpc.workspace.fs
+                .watchStop(projectId, workspaceId, 'git-store-status')
+                .catch(() => {});
             };
           },
           onEvent: 'reload',

@@ -119,7 +119,9 @@ function loadModified(
     case 'disk':
       return loadFromDisk(projectId, workspaceId, activeFile.path);
     case 'staged':
-      return loadGitImage(() => rpc.workspace.git.getImageAtIndex(projectId, workspaceId, activeFile.path));
+      return loadGitImage(() =>
+        rpc.workspace.git.getImageAtIndex(projectId, workspaceId, activeFile.path)
+      );
     case 'git':
     case 'pr':
       return loadFromRef(

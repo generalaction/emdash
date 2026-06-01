@@ -184,7 +184,12 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
   private async watchConfig(): Promise<void> {
     if (this._watchingConfig || this._disposed) return;
     try {
-      await rpc.workspace.fs.watchSetPaths(this.projectId, this.workspaceId, [''], 'lifecycle-scripts');
+      await rpc.workspace.fs.watchSetPaths(
+        this.projectId,
+        this.workspaceId,
+        [''],
+        'lifecycle-scripts'
+      );
       if (this._disposed) {
         void rpc.workspace.fs.watchStop(this.projectId, this.workspaceId, 'lifecycle-scripts');
         return;

@@ -187,7 +187,11 @@ export class PrStore {
     const range = mergeBaseRange(baseRef, headRef);
 
     const tryRange = async (): Promise<GitChange[] | null> => {
-      const result = await rpc.workspace.git.getChangedFiles(this.projectId, this.workspaceId, range);
+      const result = await rpc.workspace.git.getChangedFiles(
+        this.projectId,
+        this.workspaceId,
+        range
+      );
       if (!result.success) return null;
       const changes = result.data.changes;
       const expectedChangedFiles = pr.changedFiles;

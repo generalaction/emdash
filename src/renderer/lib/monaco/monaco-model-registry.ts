@@ -727,7 +727,12 @@ export class MonacoModelRegistry {
     if (!buf || buf.type !== 'buffer') return null;
 
     const content = buf.model.getValue();
-    const result = await rpc.workspace.fs.writeFile(buf.projectId, buf.workspaceId, buf.filePath, content);
+    const result = await rpc.workspace.fs.writeFile(
+      buf.projectId,
+      buf.workspaceId,
+      buf.filePath,
+      content
+    );
     if (!result.success) return null;
 
     this.markSaved(uri);
@@ -748,12 +753,20 @@ export class MonacoModelRegistry {
     const entry = this.modelMap.get(uri);
     if (!entry) return;
     if (entry.type === 'disk') {
-      const res = await rpc.workspace.fs.readFile(entry.projectId, entry.workspaceId, entry.filePath);
+      const res = await rpc.workspace.fs.readFile(
+        entry.projectId,
+        entry.workspaceId,
+        entry.filePath
+      );
       if (res.success) this.applyDiskUpdate(uri, entry, res.data.content);
     } else if (entry.type === 'git') {
       const res =
         entry.ref.kind === 'staged'
-          ? await rpc.workspace.git.getFileAtIndex(entry.projectId, entry.workspaceId, entry.filePath)
+          ? await rpc.workspace.git.getFileAtIndex(
+              entry.projectId,
+              entry.workspaceId,
+              entry.filePath
+            )
           : await rpc.workspace.git.getFileAtRef(
               entry.projectId,
               entry.workspaceId,

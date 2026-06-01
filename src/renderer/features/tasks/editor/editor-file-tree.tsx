@@ -75,9 +75,15 @@ async function importLocalFiles(args: {
   );
 
   try {
-    const result = await rpc.workspace.fs.copyLocalFiles(projectId, workspaceId, srcPaths, destDirPath, {
-      overwrite,
-    });
+    const result = await rpc.workspace.fs.copyLocalFiles(
+      projectId,
+      workspaceId,
+      srcPaths,
+      destDirPath,
+      {
+        overwrite,
+      }
+    );
     if (!result.success) throw new Error(resultErrorMessage(result.error));
   } catch (error) {
     for (const p of inserted) files.removeNode(p);
@@ -186,7 +192,12 @@ const FileTreeRow = observer(function FileTreeRow({
     if (node.type !== 'file') return;
 
     try {
-      const result = await rpc.workspace.fs.readFile(projectId, workspaceId, node.path, MAX_COPY_FILE_BYTES);
+      const result = await rpc.workspace.fs.readFile(
+        projectId,
+        workspaceId,
+        node.path,
+        MAX_COPY_FILE_BYTES
+      );
       if (!result.success) throw new Error(resultErrorMessage(result.error));
       if (result.data.truncated) throw new Error('File is too large to copy.');
       await rpc.app.clipboardWriteText(result.data.content);
