@@ -197,6 +197,14 @@ export const TASK_COMMAND_DEFS = defineCommandDefs([
     iconKey: 'pin',
   },
   {
+    id: 'task.convertAutomation',
+    label: 'Convert to Regular Task',
+    description: 'Detach this task from its automation run',
+    scope: 'task',
+    group: 'Task',
+    iconKey: 'message-square',
+  },
+  {
     id: 'task.nextTask',
     label: 'Next Task',
     description: 'Switch to the next task',

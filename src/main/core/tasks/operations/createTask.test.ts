@@ -199,6 +199,39 @@ describe('createTask', () => {
     );
   });
 
+  it('reuses an existing local branch when creating a new branch task', async () => {
+    const insertTaskValues = vi.fn((values: Partial<TaskRow>) => ({
+      returning: vi.fn().mockResolvedValue([makeTaskRow(values)]),
+    }));
+    const insertWorkspaceValues = vi.fn().mockResolvedValue(undefined);
+    mocks.insert
+      .mockReturnValueOnce({ values: insertTaskValues })
+      .mockReturnValueOnce({ values: insertWorkspaceValues });
+    mocks.createBranch.mockResolvedValueOnce({
+      success: false,
+      error: { type: 'already_exists', name: 'existing-branch' },
+    });
+
+    const result = await createTask({
+      id: 'task-1',
+      projectId: 'project-1',
+      name: 'Review PR',
+      sourceBranch: { type: 'local', branch: 'main' },
+      strategy: {
+        kind: 'new-branch',
+        taskBranch: 'Review PR',
+        pushBranch: true,
+      },
+    });
+
+    expect(result.success).toBe(true);
+    expect(mocks.createBranch).toHaveBeenCalledOnce();
+    expect(mocks.publishBranch).not.toHaveBeenCalled();
+    expect(insertTaskValues).toHaveBeenCalledWith(
+      expect.objectContaining({ taskBranch: expect.any(String) })
+    );
+  });
+
   it('creates branch-based tasks from local source branches without remote sync', async () => {
     const insertTaskValues = vi.fn((values: Partial<TaskRow>) => ({
       returning: vi.fn().mockResolvedValue([makeTaskRow(values)]),

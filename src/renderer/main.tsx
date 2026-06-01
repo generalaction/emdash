@@ -1,5 +1,6 @@
 import ReactDOM from 'react-dom/client';
 import { setupNavigationGuards } from '@renderer/app/view-registry';
+import { wireAutomationCacheInvalidation } from '@renderer/features/automations/automation-cache-invalidation';
 import { prefetchAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import './index.css';
 import 'devicon/devicon.min.css';
@@ -26,6 +27,7 @@ async function bootstrap() {
   wireModelRegistryInvalidation(modelRegistry);
   wirePrCacheInvalidation();
   wireCommitHistoryInvalidation();
+  wireAutomationCacheInvalidation();
 
   appState.update.start();
   initSoundPlayer();

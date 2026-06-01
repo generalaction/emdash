@@ -42,6 +42,8 @@ function mapPrSyncEngineError(
             host: error.host,
             hint: error.hint ?? `Run: gh auth login --hostname ${error.host}`,
           };
+    case 'host_unreachable':
+      return { type: 'host_unreachable', host: error.host, reason: error.reason };
     case 'api_error':
       return { type: fallbackType, message: error.message };
   }

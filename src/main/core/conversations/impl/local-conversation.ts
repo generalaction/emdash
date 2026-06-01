@@ -1,8 +1,8 @@
 import { homedir } from 'node:os';
 import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
 import { wireAgentClassifier } from '@main/core/agent-hooks/classifier-wiring';
-import { claudeTrustService } from '@main/core/agent-hooks/claude-trust-service';
 import { HookConfigWriter } from '@main/core/agent-hooks/hook-config';
+import { workspaceTrustService } from '@main/core/agent-hooks/workspace-trust-service';
 import { ConversationSessionSupervisor } from '@main/core/conversations/conversation-session-supervisor';
 import { resolveAgentSessionCommandArgs } from '@main/core/conversations/resolve-agent-session-command';
 import type { ConversationProvider } from '@main/core/conversations/types';
@@ -27,6 +27,7 @@ import { makePtyId } from '@shared/ptyId';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { buildAgentSessionCommand } from './agent-command';
 import { syncGrokThemeWithAppTheme } from './grok-theme-config';
+import { createInitialPromptDelivery } from './initial-prompt-delivery';
 import { scheduleInitialPromptInjection } from './keystroke-injection';
 import { resolveProviderEnv } from './provider-env';
 
@@ -113,24 +114,33 @@ export class LocalConversationProvider implements ConversationProvider {
     if (!spawnToken) return;
 
     try {
-      await claudeTrustService.maybeAutoTrustLocal({
+      await workspaceTrustService.maybeAutoTrustLocal({
         providerId: conversation.providerId,
         cwd: this.taskPath,
         homedir: homedir(),
+        force: conversation.autoApprove === true,
       });
       const hooksAvailable = await this.prepareHookConfig(conversation.providerId);
 
       const providerConfig = await providerOverrideSettings.getItem(conversation.providerId);
       const providerDef = getProvider(conversation.providerId);
       const agentSession = resolveAgentSessionCommandArgs(conversation, isResuming);
+      const initialPromptDelivery = createInitialPromptDelivery({
+        providerId: conversation.providerId,
+        conversationId: conversation.id,
+        providerConfig,
+        initialPrompt,
+        isResuming: agentSession.isResuming,
+      });
       const { command, args } = buildAgentSessionCommand({
         providerId: conversation.providerId,
         providerConfig,
         autoApprove: conversation.autoApprove,
+        extraInitialArgs: initialPromptDelivery.argvAddition(),
+        initialPrompt,
         sessionId: agentSession.sessionId,
         providerSessionId: conversation.providerSessionId,
         isResuming: agentSession.isResuming,
-        initialPrompt,
       });
       const providerEnv = resolveProviderEnv(providerConfig, {
         providerId: conversation.providerId,

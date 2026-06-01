@@ -32,7 +32,7 @@ export function ConfirmActionDialog({
         <DialogTitle>{title}</DialogTitle>
       </DialogHeader>
       <DialogContentArea className="pt-0">
-        <div>{description}</div>
+        {typeof description === 'string' ? <p>{description}</p> : description}
       </DialogContentArea>
       <DialogFooter>
         <Button variant="outline" onClick={onClose}>

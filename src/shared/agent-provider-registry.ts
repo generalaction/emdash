@@ -45,6 +45,8 @@ export type AgentProviderDefinition = {
   detectable?: boolean;
   cli?: string;
   autoApproveFlag?: string;
+  /** Auto-approval is provided by provider-specific environment variables instead of CLI args. */
+  autoApproveViaEnv?: boolean;
   initialPromptFlag?: string;
   /**
    * When true, the initial prompt is delivered via keystroke injection
@@ -52,6 +54,10 @@ export type AgentProviderDefinition = {
    * Use for agents whose CLI has no flag for interactive-mode prompt delivery.
    */
   useKeystrokeInjection?: boolean;
+  /** Input sequence sent after keystroke-injected prompt text. Defaults to Enter. */
+  keystrokeSubmitSequence?: string;
+  /** Delay between injected prompt text and submit, for TUIs that need paste settling time. */
+  keystrokeSubmitDelayMs?: number;
   /**
    * When true, the initial prompt is piped to the agent via stdin and the
    * spawn becomes `bash -c 'printf ... | <agent...>'`.
@@ -96,7 +102,13 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     commands: ['codex'],
     versionArgs: ['--version'],
     cli: 'codex',
-    autoApproveFlag: '--dangerously-bypass-approvals-and-sandbox',
+    // `--dangerously-bypass-hook-trust` lets Codex run emdash's own hooks (notably the
+    // SessionStart hook that reports the rollout session id) without an interactive trust
+    // prompt. Automations always auto-approve and can't answer that prompt, so without this
+    // the session id is never captured and resume falls back to `codex resume --last`,
+    // reattaching the globally-most-recent Codex session instead of this conversation.
+    autoApproveFlag:
+      '-c approval_policy="never" -c sandbox_mode="danger-full-access" --dangerously-bypass-hook-trust',
     initialPromptFlag: '',
     resumeFlag: 'resume',
     sessionIdFlag: ' ',
@@ -177,7 +189,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     commands: ['cursor-agent'],
     versionArgs: ['--version'],
     cli: 'cursor-agent',
-    autoApproveFlag: '-f',
+    autoApproveFlag: '-f --approve-mcps',
     initialPromptFlag: '',
     resumeFlag: '--resume',
     icon: 'cursor.svg',
@@ -195,7 +207,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     commands: ['gemini'],
     versionArgs: ['--version'],
     cli: 'gemini',
-    autoApproveFlag: '--yolo',
+    autoApproveFlag: '--approval-mode=yolo --skip-trust',
     initialPromptFlag: '-i',
     resumeFlag: '--resume',
     icon: 'gemini.svg',
@@ -284,6 +296,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     commands: ['opencode'],
     versionArgs: ['--version'],
     cli: 'opencode',
+    autoApproveViaEnv: true,
     initialPromptFlag: '--prompt',
     resumeFlag: '--continue',
     icon: 'opencode.svg',

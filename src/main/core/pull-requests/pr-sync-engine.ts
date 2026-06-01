@@ -36,7 +36,12 @@ import type {
 } from '@shared/pull-requests';
 import { parseRepositoryRef, parseRepositoryRefResult } from '@shared/repository-ref';
 import { err, ok, type Result } from '@shared/result';
-import { prSyncEngineErrorMessage, toPrApiError, type PrSyncEngineError } from './pr-sync-errors';
+import {
+  isPrSyncHostUnreachable,
+  prSyncEngineErrorMessage,
+  toPrApiError,
+  type PrSyncEngineError,
+} from './pr-sync-errors';
 import { assemblePullRequest } from './pr-utils';
 
 const PR_SYNC_MAX_COUNT = 300;
@@ -192,6 +197,16 @@ export class PrSyncEngine {
       })
       .catch((e: unknown) => {
         if ((e as { name?: string }).name !== 'AbortError') {
+          const repository = parseRepositoryRef(repositoryUrl);
+          const error = toPrApiError(e, 'Unable to sync pull requests', repository?.host);
+          if (isPrSyncHostUnreachable(error)) {
+            log.warn('PrSyncEngine: sync skipped; GitHub host unreachable', {
+              repositoryUrl,
+              host: error.host,
+              error: error.reason,
+            });
+            return;
+          }
           log.error('PrSyncEngine: sync failed', { repositoryUrl, error: String(e) });
         }
       })
@@ -327,7 +342,8 @@ export class PrSyncEngine {
         const batch: GqlPrNode[] = nodes.slice();
 
         if (batch.length > 0) {
-          await this._upsertBatch(repositoryUrl, batch);
+          const upserted = await this._upsertBatch(repositoryUrl, batch);
+          this._notifyPrsUpdated(upserted);
           synced += batch.length;
         }
 
@@ -464,7 +480,8 @@ export class PrSyncEngine {
         }
 
         if (batch.length > 0) {
-          await this._upsertBatch(repositoryUrl, batch);
+          const upserted = await this._upsertBatch(repositoryUrl, batch);
+          this._notifyPrsUpdated(upserted);
           synced += batch.length;
           lastUpdatedAt = batch[0].updatedAt; // most recent first
         }
@@ -1043,6 +1060,11 @@ export class PrSyncEngine {
 
   private _notifyPrUpdated(pr: PullRequest): void {
     events.emit(prUpdatedChannel, { prs: [pr] });
+  }
+
+  private _notifyPrsUpdated(prs: PullRequest[]): void {
+    if (prs.length === 0) return;
+    events.emit(prUpdatedChannel, { prs });
   }
 
   private _emitProgress(progress: PrSyncProgress): void {

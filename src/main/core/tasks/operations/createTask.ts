@@ -196,7 +196,7 @@ export async function createTask(
     }
   }
 
-  const task = mapTaskRowToTask(taskRow, prs);
+  const task = { ...mapTaskRowToTask(taskRow, prs), automationId: params.automationId };
 
   const workspaceType = ((): 'local' | 'project-ssh' | 'byoi' => {
     if (params.workspaceProvider === 'byoi') return 'byoi';

@@ -1,5 +1,6 @@
 import type { ComponentType, ReactNode } from 'react';
 import { homeView } from '@renderer/app/home-view';
+import { automationsView } from '@renderer/features/automations/automations-view';
 import { libraryView } from '@renderer/features/library/library-view';
 import { mcpView } from '@renderer/features/mcp/mcp-view';
 import { projectView } from '@renderer/features/projects/view';
@@ -12,6 +13,7 @@ import { appState } from '@renderer/lib/stores/app-state';
 // Define views here so we can use them in the navigate function
 export const views = {
   home: homeView,
+  automations: automationsView,
   library: libraryView,
   skills: skillsView,
   mcp: mcpView,

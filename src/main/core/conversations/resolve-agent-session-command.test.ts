@@ -18,6 +18,27 @@ function makeConversation(overrides: Partial<Conversation> = {}): Conversation {
 }
 
 describe('resolveAgentSessionCommandArgs', () => {
+  it('uses stored Codex session id when resuming', () => {
+    expect(
+      resolveAgentSessionCommandArgs(
+        makeConversation({
+          providerId: 'codex',
+          providerSessionId: '019c95f6-cd96-7812-ba15-574286674599',
+        }),
+        true
+      )
+    ).toEqual({ sessionId: '019c95f6-cd96-7812-ba15-574286674599', isResuming: true });
+  });
+
+  it('starts fresh instead of resuming Codex --last without a stored session id', () => {
+    expect(resolveAgentSessionCommandArgs(makeConversation({ providerId: 'codex' }), true)).toEqual(
+      {
+        sessionId: 'conv-1',
+        isResuming: false,
+      }
+    );
+  });
+
   it('uses stored Droid session id when resuming', () => {
     expect(
       resolveAgentSessionCommandArgs(

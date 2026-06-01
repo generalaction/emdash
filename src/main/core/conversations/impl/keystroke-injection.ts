@@ -36,7 +36,14 @@ export function scheduleInitialPromptInjection(args: {
     if (quietTimer) clearTimeout(quietTimer);
     clearTimeout(maxWaitTimer);
     try {
-      args.pty.write(`${payload}\r`);
+      const submitSequence = provider.keystrokeSubmitSequence ?? '\r';
+      const submitDelayMs = provider.keystrokeSubmitDelayMs;
+      if (submitDelayMs) {
+        args.pty.write(payload);
+        setTimeout(() => args.pty.write(submitSequence), submitDelayMs);
+        return;
+      }
+      args.pty.write(`${payload}${submitSequence}`);
     } catch (error) {
       log.warn('ConversationProvider: failed to inject initial prompt', {
         providerId: args.conversation.providerId,

@@ -114,6 +114,7 @@ export function useCreateTaskState(
     defaultBranch,
     isUnborn,
     currentBranch,
+    undefined,
     createBranchAndWorktree
   );
 

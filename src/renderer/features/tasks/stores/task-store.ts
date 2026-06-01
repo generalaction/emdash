@@ -33,6 +33,7 @@ export type UnregisteredTaskData = {
   createdAt: string;
   statusChangedAt: string;
   isPinned: boolean;
+  automationId?: string;
 };
 
 export class TaskStore {
@@ -240,6 +241,31 @@ export class TaskStore {
     } catch (e) {
       runInAction(() => {
         task.isPinned = previous;
+      });
+      log.error(e);
+      throw e;
+    }
+  }
+
+  async convertAutomationTask(): Promise<void> {
+    if (this.state === 'unregistered') return;
+    const task = registeredTaskData(this);
+    if (!task?.automationId) return;
+    const previousAutomationId = task.automationId;
+    runInAction(() => {
+      delete task.automationId;
+    });
+    try {
+      const updatedTask = await rpc.tasks.convertAutomationTask(task.id);
+      if (!updatedTask) {
+        throw new Error(`Task not found: ${task.id}`);
+      }
+      runInAction(() => {
+        this.data = updatedTask;
+      });
+    } catch (e) {
+      runInAction(() => {
+        task.automationId = previousAutomationId;
       });
       log.error(e);
       throw e;

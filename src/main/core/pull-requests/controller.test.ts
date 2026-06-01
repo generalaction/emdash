@@ -158,6 +158,22 @@ describe('pullRequestController', () => {
     );
   });
 
+  it('forwards PR sync host reachability failures', async () => {
+    mockPrSyncEngine.syncSingle.mockResolvedValue(
+      err({
+        type: 'host_unreachable',
+        host: 'github.com',
+        reason: 'Connect Timeout Error',
+      })
+    );
+
+    await expect(
+      pullRequestController.refreshPullRequest('https://github.com/acme/repo', 12)
+    ).resolves.toEqual(
+      err({ type: 'host_unreachable', host: 'github.com', reason: 'Connect Timeout Error' })
+    );
+  });
+
   it('maps create API errors to create_failed', async () => {
     mockPrSyncEngine.createPullRequest.mockResolvedValue(
       err({ type: 'api_error', message: 'Validation failed' })

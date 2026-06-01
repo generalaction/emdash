@@ -9,6 +9,7 @@ import { log } from '@renderer/utils/logger';
 import { prSyncProgressChannel, prUpdatedChannel } from '@shared/events/prEvents';
 import {
   lifecycleScriptStatusChannel,
+  taskCreatedChannel,
   taskProvisionProgressChannel,
   taskStatusUpdatedChannel,
 } from '@shared/events/taskEvents';
@@ -81,6 +82,10 @@ function formatCreateTaskError(error: CreateTaskError): string {
       return error.message
         ? `Could not set up the worktree for branch "${error.branch}": ${error.message}`
         : `Could not set up the worktree for branch "${error.branch}".`;
+    case 'provision-failed':
+      return error.message;
+    case 'provision-timeout':
+      return `Provisioning timed out after ${error.timeoutMs}ms.`;
   }
 }
 
@@ -102,6 +107,7 @@ export class TaskManagerStore {
   private _teardownPromises = new Map<string, Promise<void>>();
   private _provisionPromises = new Map<string, Promise<void>>();
 
+  private _unsubTaskCreated: (() => void) | null = null;
   private _unsubPrUpdated: (() => void) | null = null;
   private _unsubPrSyncProgress: (() => void) | null = null;
   private _unsubProvisionProgress: (() => void) | null = null;
@@ -122,6 +128,18 @@ export class TaskManagerStore {
     this._settingsStore = settingsStore;
     this._baseRef = baseRef;
     makeObservable(this, { tasks: observable });
+
+    this._unsubTaskCreated = events.on(taskCreatedChannel, ({ task }) => {
+      if (task.projectId !== this.projectId || this.tasks.has(task.id)) return;
+      runInAction(() => {
+        this.tasks.set(task.id, createUnprovisionedTask(task));
+        // Acquire conversation/terminal managers inside the same action so the
+        // WorkspaceViewModel's reaction on `conversations.size` registers the
+        // manager's observable map as a dependency on its first evaluation.
+        conversationRegistry.acquire(task.id, this.projectId);
+        terminalRegistry.acquire(task.id, this.projectId);
+      });
+    });
 
     this._unsubStatusUpdated = events.on(
       taskStatusUpdatedChannel,
@@ -259,6 +277,7 @@ export class TaskManagerStore {
           status: params.initialStatus ?? 'in_progress',
           statusChangedAt: new Date().toISOString(),
           isPinned: false,
+          automationId: params.automationId,
         })
       );
     });
@@ -640,6 +659,8 @@ export class TaskManagerStore {
   }
 
   dispose(): void {
+    this._unsubTaskCreated?.();
+    this._unsubTaskCreated = null;
     this._unsubPrUpdated?.();
     this._unsubPrUpdated = null;
     this._unsubPrSyncProgress?.();

@@ -1,5 +1,6 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import { fsEvents } from '@main/core/fs/fs-events';
 import { events } from '@main/lib/events';
 import { planEventChannel } from '@shared/events/appEvents';
 import { fsWatchEventChannel } from '@shared/events/fsEvents';
@@ -315,7 +316,9 @@ export const filesController = createRPCController({
       existing.update(union);
     } else {
       const watcher = env.fs.watch((evts) => {
-        events.emit(fsWatchEventChannel, { projectId, workspaceId, events: evts });
+        const event = { projectId, workspaceId, events: evts };
+        events.emit(fsWatchEventChannel, event);
+        fsEvents.emitWatchEvent(event);
       });
       watcher.update(union);
       watcherRegistry.set(key, watcher);

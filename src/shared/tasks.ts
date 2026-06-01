@@ -46,6 +46,8 @@ export type Task = {
   conversations: Record<string, number>;
   workspaceGit?: { linesAdded: number; linesDeleted: number };
   workspaceId?: string;
+  workspaceProviderData?: string; // JSON, BYOI only
+  automationId?: string;
 };
 
 export type TaskBootstrapStatus =
@@ -83,6 +85,7 @@ export type CreateTaskParams = {
   initialConversation?: CreateConversationParams;
   initialStatus?: TaskLifecycleStatus;
   workspaceProvider?: 'byoi';
+  automationId?: string;
 };
 
 export type CreateTaskError =
@@ -91,7 +94,9 @@ export type CreateTaskError =
   | { type: 'branch-create-failed'; branch: string; error: CreateBranchError }
   | { type: 'pr-fetch-failed'; error: FetchPrForReviewError; remote: string }
   | { type: 'branch-not-found'; branch: string }
-  | { type: 'worktree-setup-failed'; branch: string; message?: string };
+  | { type: 'worktree-setup-failed'; branch: string; message?: string }
+  | { type: 'provision-failed'; message: string }
+  | { type: 'provision-timeout'; timeoutMs: number; step?: string };
 
 export type CreateTaskWarning = {
   type: 'branch-publish-failed';
