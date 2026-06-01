@@ -257,7 +257,7 @@ async function readWorkspaceText(
   workspaceId: string,
   filePath: string
 ): Promise<string | null> {
-  const result = await rpc.fs.readFile(projectId, workspaceId, filePath);
+  const result = await rpc.workspace.fs.readFile(projectId, workspaceId, filePath);
   return result.success ? (result.data?.content ?? null) : null;
 }
 
@@ -266,7 +266,7 @@ async function readWorkspaceImage(
   workspaceId: string,
   filePath: string
 ): Promise<string | null> {
-  const result = await rpc.fs.readImage(projectId, workspaceId, filePath);
+  const result = await rpc.workspace.fs.readImage(projectId, workspaceId, filePath);
   return result.success ? (result.data?.dataUrl ?? null) : null;
 }
 

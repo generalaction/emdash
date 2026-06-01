@@ -60,6 +60,61 @@ describe('pty env Windows shell handling', () => {
 });
 
 describe('buildAgentEnv provider env forwarding', () => {
+  it('passes through global user environment variables by default', async () => {
+    Object.assign(process.env, {
+      EDITOR: 'zed',
+      VISUAL: 'zed --wait',
+      GIT_EDITOR: 'zed --wait',
+      HOME: '/Users/dev',
+      HOSTNAME: 'dev-machine',
+      LANG: 'en_US.UTF-8',
+      TZ: 'America/Los_Angeles',
+    });
+
+    const { buildAgentEnv } = await loadPtyEnv();
+    const env = buildAgentEnv({ agentApiVars: false });
+
+    expect(env.EDITOR).toBe('zed');
+    expect(env.VISUAL).toBe('zed --wait');
+    expect(env.GIT_EDITOR).toBe('zed --wait');
+    expect(env.HOME).toBe('/Users/dev');
+    expect(env.HOSTNAME).toBe('dev-machine');
+    expect(env.LANG).toBe('en_US.UTF-8');
+    expect(env.TZ).toBe('America/Los_Angeles');
+  });
+
+  it('only passes SHELL when requested', async () => {
+    setPlatform('linux');
+    process.env.SHELL = '/bin/zsh';
+
+    const { buildAgentEnv } = await loadPtyEnv();
+
+    expect(buildAgentEnv({ agentApiVars: false }).SHELL).toBeUndefined();
+    expect(buildAgentEnv({ agentApiVars: false, includeShellVar: true }).SHELL).toBe('/bin/zsh');
+  });
+
+  it('uses the resolved POSIX shell profile for agent SHELL', async () => {
+    setPlatform('darwin');
+    process.env.SHELL = '/bin/zsh';
+
+    const { buildAgentEnv } = await loadPtyEnv();
+    const env = buildAgentEnv({
+      agentApiVars: false,
+      shellProfile: {
+        id: 'bash',
+        resolvedShellId: 'bash',
+        resolvedFromSystem: false,
+        executable: '/bin/bash',
+        available: true,
+        family: 'posix',
+        interactiveArgs: ['-il'],
+        commandArgs: ['-lc'],
+      },
+    });
+
+    expect(env.SHELL).toBe('/bin/bash');
+  });
+
   it('passes through documented provider launch environment variables', async () => {
     const providerEnv = {
       CLAUDE_CONFIG_DIR: '/tmp/claude-config',
@@ -106,6 +161,7 @@ describe('buildAgentEnv provider env forwarding', () => {
       hook: { port: 1234, ptyId: 'claude:conv-1', token: 'real-token' },
       providerVars: {
         ANTHROPIC_BASE_URL: 'https://example.test',
+        EDITOR: 'vim',
         EMDASH_HOOK_PORT: '9999',
         EMDASH_PTY_ID: 'wrong',
         EMDASH_HOOK_TOKEN: 'wrong-token',
@@ -113,6 +169,7 @@ describe('buildAgentEnv provider env forwarding', () => {
     });
 
     expect(env.ANTHROPIC_BASE_URL).toBe('https://example.test');
+    expect(env.EDITOR).toBe('vim');
     expect(env.EMDASH_HOOK_PORT).toBe('1234');
     expect(env.EMDASH_PTY_ID).toBe('claude:conv-1');
     expect(env.EMDASH_HOOK_TOKEN).toBe('real-token');

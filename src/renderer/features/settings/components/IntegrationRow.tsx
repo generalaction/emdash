@@ -85,6 +85,7 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
   const { effectiveTheme } = useTheme();
   const isDark = effectiveTheme === 'emdark';
   const themedLogoSrc = isDark && logoSrcDark ? logoSrcDark : logoSrc;
+  const shouldInvertLogo = isDark && !!invertInDark && !logoSrcDark;
   const resolvedStatus = STATUS_CLASSES[status] ? status : 'disconnected';
   const showConnect = resolvedStatus !== 'connected' && status !== 'loading' && !!onConnect;
   const showDisconnect = resolvedStatus === 'connected' && !!onDisconnect;
@@ -101,26 +102,20 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
 
   const isSvg = themedLogoSrc?.trimStart().startsWith('<svg');
 
-  // Match AgentLogo: only strip colors for logos that explicitly opt into dark inversion.
-  const processedSvg =
-    isSvg && themedLogoSrc
-      ? isDark && invertInDark && !logoSrcDark
-        ? themedLogoSrc
-            .replace(/\bfill="[^"]*"/g, 'fill="currentColor"')
-            .replace(/\bstroke="[^"]*"/g, 'stroke="currentColor"')
-        : themedLogoSrc
-      : null;
-
   const avatar = (
     <span className={themedLogoSrc ? LOGO_WRAPPER : ICON_WRAPPER}>
       {themedLogoSrc ? (
         isSvg ? (
           <span
-            className={`${isDark ? 'text-primary' : ''} inline-flex h-5 w-5 items-center justify-center [&_svg]:h-full [&_svg]:w-full [&_svg]:shrink-0`}
-            dangerouslySetInnerHTML={{ __html: processedSvg ?? '' }}
+            className={`${shouldInvertLogo ? 'invert' : ''} inline-flex h-5 w-5 items-center justify-center [&_svg]:h-full [&_svg]:w-full [&_svg]:shrink-0`}
+            dangerouslySetInnerHTML={{ __html: themedLogoSrc }}
           />
         ) : (
-          <img src={themedLogoSrc} alt="" className="h-5 w-5 object-contain" />
+          <img
+            src={themedLogoSrc}
+            alt=""
+            className={`${shouldInvertLogo ? 'invert' : ''} h-5 w-5 object-contain`}
+          />
         )
       ) : icon ? (
         icon

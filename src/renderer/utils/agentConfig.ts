@@ -19,7 +19,7 @@ import hermesLogo from '../../assets/images/hermesagent.jpg';
 import julesLogoSvg from '../../assets/images/jules.svg?raw';
 import junieLogo from '../../assets/images/junie-color.png';
 import kilocodeLogo from '../../assets/images/kilocode.png';
-import kimiLogo from '../../assets/images/kimi.svg';
+import kimiLogoSvg from '../../assets/images/kimi.svg?raw';
 import kiroLogo from '../../assets/images/kiro.png';
 import lettaLogoSvg from '../../assets/images/letta.svg?raw';
 import mistralLogo from '../../assets/images/mistral.svg';
@@ -75,7 +75,7 @@ export const agentConfig: Record<AgentProviderId, AgentInfo> = {
     invertInDark: true,
   },
   goose: { name: 'Goose', logo: gooseLogo, alt: 'Goose CLI' },
-  kimi: { name: 'Kimi', logo: kimiLogo, alt: 'Kimi CLI' },
+  kimi: { name: 'Kimi', logo: kimiLogoSvg, alt: 'Kimi CLI', isSvg: true },
   kilocode: { name: 'Kilocode', logo: kilocodeLogo, alt: 'Kilocode CLI' },
   letta: {
     name: 'Letta',
@@ -109,6 +109,6 @@ export const agentConfig: Record<AgentProviderId, AgentInfo> = {
     isSvg: true,
     invertInDark: true,
   },
-  charm: { name: 'Charm', logo: charmLogo, alt: 'Charm Crush', invertInDark: true },
+  charm: { name: 'Charm', logo: charmLogo, alt: 'Charm Crush' },
   rovo: { name: 'Rovo Dev', logo: atlassianLogo, alt: 'Rovo Dev' },
 };

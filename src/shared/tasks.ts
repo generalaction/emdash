@@ -2,7 +2,15 @@ import type { CreateConversationParams } from '@shared/conversations';
 import type { Branch, CreateBranchError, FetchPrForReviewError, PushError } from '@shared/git';
 import type { PullRequest } from '@shared/pull-requests';
 
-export type TaskLifecycleStatus = 'todo' | 'in_progress' | 'review' | 'done' | 'cancelled';
+export type TaskLifecycleStatus =
+  | 'todo'
+  | 'in_progress'
+  | 'review'
+  | 'done'
+  | 'cancelled'
+  | 'backlog'
+  | 'duplicate'
+  | 'triage';
 
 export type Issue = {
   provider:
@@ -47,6 +55,8 @@ export type Task = {
   conversations: Record<string, number>;
   workspaceGit?: { linesAdded: number; linesDeleted: number };
   workspaceId?: string;
+  workspaceProviderData?: string; // JSON, BYOI only
+  automationId?: string;
 };
 
 export type TaskBootstrapStatus =
@@ -84,6 +94,7 @@ export type CreateTaskParams = {
   initialConversation?: CreateConversationParams;
   initialStatus?: TaskLifecycleStatus;
   workspaceProvider?: 'byoi';
+  automationId?: string;
 };
 
 export type CreateTaskError =
@@ -92,7 +103,9 @@ export type CreateTaskError =
   | { type: 'branch-create-failed'; branch: string; error: CreateBranchError }
   | { type: 'pr-fetch-failed'; error: FetchPrForReviewError; remote: string }
   | { type: 'branch-not-found'; branch: string }
-  | { type: 'worktree-setup-failed'; branch: string; message?: string };
+  | { type: 'worktree-setup-failed'; branch: string; message?: string }
+  | { type: 'provision-failed'; message: string }
+  | { type: 'provision-timeout'; timeoutMs: number; step?: string };
 
 export type CreateTaskWarning = {
   type: 'branch-publish-failed';
@@ -109,18 +122,18 @@ export type CreateTaskSuccess = {
 export type RenameTaskError =
   | { type: 'task-not-found'; taskId: string }
   | { type: 'project-not-found'; projectId: string }
+  | { type: 'branch-managed-by-linked-issue'; provider: Issue['provider'] }
+  | { type: 'branch-has-open-pr'; branch: string }
+  | { type: 'branch-has-siblings'; branch: string }
   | { type: 'branch-already-exists'; branch: string }
   | { type: 'branch-rename-failed'; branch: string; message: string };
 
-export type RenameTaskWarning = {
-  type: 'branch-remote-push-failed';
-  branch: string;
-  message: string;
-};
-
 export type RenameTaskSuccess = {
   task: Task;
-  warning?: RenameTaskWarning;
+};
+
+export type RenameTaskOptions = {
+  renameBranch?: boolean;
 };
 
 export type ProvisionTaskResult = {

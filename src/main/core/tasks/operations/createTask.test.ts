@@ -14,6 +14,9 @@ const mocks = vi.hoisted(() => ({
   findBranchAnywhere: vi.fn(),
   fetchPrForReview: vi.fn(),
   getConfiguredRemotes: vi.fn(),
+  getRepositoryInfo: vi.fn(),
+  createBranch: vi.fn(),
+  publishBranch: vi.fn(),
 }));
 
 vi.mock('@main/db/client', () => ({
@@ -82,6 +85,9 @@ describe('createTask', () => {
     mocks.findBranchAnywhere.mockResolvedValue('/external/worktrees/pr-branch');
     mocks.fetchPrForReview.mockResolvedValue({ success: true });
     mocks.getConfiguredRemotes.mockResolvedValue({ baseRemote: 'origin', pushRemote: 'origin' });
+    mocks.getRepositoryInfo.mockResolvedValue({ isUnborn: false, currentBranch: 'main' });
+    mocks.createBranch.mockResolvedValue({ success: true, data: undefined });
+    mocks.publishBranch.mockResolvedValue({ success: true, data: { output: '' } });
     mocks.getProject.mockReturnValue({
       defaultWorkspaceType: { kind: 'local' },
       worktreeService: {
@@ -89,6 +95,9 @@ describe('createTask', () => {
       },
       repository: {
         getConfiguredRemotes: mocks.getConfiguredRemotes,
+        getRepositoryInfo: mocks.getRepositoryInfo,
+        createBranch: mocks.createBranch,
+        publishBranch: mocks.publishBranch,
         fetchPrForReview: mocks.fetchPrForReview,
       },
     });
@@ -188,5 +197,180 @@ describe('createTask', () => {
         }),
       })
     );
+  });
+
+  it('reuses an existing local branch when creating a new branch task', async () => {
+    const insertTaskValues = vi.fn((values: Partial<TaskRow>) => ({
+      returning: vi.fn().mockResolvedValue([makeTaskRow(values)]),
+    }));
+    const insertWorkspaceValues = vi.fn().mockResolvedValue(undefined);
+    mocks.insert
+      .mockReturnValueOnce({ values: insertTaskValues })
+      .mockReturnValueOnce({ values: insertWorkspaceValues });
+    mocks.createBranch.mockResolvedValueOnce({
+      success: false,
+      error: { type: 'already_exists', name: 'existing-branch' },
+    });
+
+    const result = await createTask({
+      id: 'task-1',
+      projectId: 'project-1',
+      name: 'Review PR',
+      sourceBranch: { type: 'local', branch: 'main' },
+      strategy: {
+        kind: 'new-branch',
+        taskBranch: 'Review PR',
+        pushBranch: true,
+      },
+    });
+
+    expect(result.success).toBe(true);
+    expect(mocks.createBranch).toHaveBeenCalledOnce();
+    expect(mocks.publishBranch).not.toHaveBeenCalled();
+    expect(insertTaskValues).toHaveBeenCalledWith(
+      expect.objectContaining({ taskBranch: expect.any(String) })
+    );
+  });
+
+  it('creates branch-based tasks from local source branches without remote sync', async () => {
+    const insertTaskValues = vi.fn((values: Partial<TaskRow>) => ({
+      returning: vi.fn().mockResolvedValue([makeTaskRow(values)]),
+    }));
+    const insertWorkspaceValues = vi.fn().mockResolvedValue(undefined);
+    mocks.insert
+      .mockReturnValueOnce({ values: insertTaskValues })
+      .mockReturnValueOnce({ values: insertWorkspaceValues });
+
+    const result = await createTask({
+      id: 'task-1',
+      projectId: 'project-1',
+      name: 'Local task',
+      sourceBranch: { type: 'local', branch: 'main' },
+      strategy: {
+        kind: 'new-branch',
+        taskBranch: 'task/local',
+        pushBranch: false,
+      },
+    });
+
+    expect(result.success).toBe(true);
+    expect(mocks.createBranch).toHaveBeenCalledWith('task/local', 'main', false, undefined);
+  });
+
+  it('uses unknown remote in publish warning when configured remotes fail', async () => {
+    const insertTaskValues = vi.fn((values: Partial<TaskRow>) => ({
+      returning: vi.fn().mockResolvedValue([makeTaskRow(values)]),
+    }));
+    const insertWorkspaceValues = vi.fn().mockResolvedValue(undefined);
+    mocks.insert
+      .mockReturnValueOnce({ values: insertTaskValues })
+      .mockReturnValueOnce({ values: insertWorkspaceValues });
+    mocks.getConfiguredRemotes.mockRejectedValueOnce(new Error('failed to read remotes'));
+
+    const result = await createTask({
+      id: 'task-1',
+      projectId: 'project-1',
+      name: 'Publish task',
+      sourceBranch: { type: 'local', branch: 'main' },
+      strategy: {
+        kind: 'new-branch',
+        taskBranch: 'task/publish',
+        pushBranch: true,
+      },
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.success && result.data.warning).toEqual({
+      type: 'branch-publish-failed',
+      branch: 'task/publish',
+      remote: 'unknown',
+      error: { type: 'error', message: 'failed to read remotes' },
+    });
+    expect(mocks.publishBranch).not.toHaveBeenCalled();
+  });
+
+  it('uses unknown remote in PR fetch error when configured remotes fail', async () => {
+    mocks.findBranchAnywhere.mockResolvedValue(undefined);
+    mocks.getConfiguredRemotes.mockRejectedValueOnce(new Error('failed to read remotes'));
+
+    const result = await createTask({
+      id: 'task-1',
+      projectId: 'project-1',
+      name: 'Review PR',
+      sourceBranch: {
+        type: 'remote',
+        branch: 'main',
+        remote: { name: 'origin', url: 'https://github.com/example/repo.git' },
+      },
+      strategy: {
+        kind: 'from-pull-request',
+        prNumber: 123,
+        headBranch: 'feature-branch',
+        headRepositoryUrl: 'https://github.com/example/repo.git',
+        isFork: false,
+      },
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        type: 'pr-fetch-failed',
+        error: { type: 'error', message: 'failed to read remotes' },
+        remote: 'unknown',
+      },
+    });
+    expect(mocks.fetchPrForReview).not.toHaveBeenCalled();
+    expect(mocks.insert).not.toHaveBeenCalled();
+  });
+
+  it('blocks branch-based tasks when the selected remote source branch cannot be fetched', async () => {
+    mocks.createBranch.mockResolvedValueOnce(
+      err({
+        type: 'fetch_failed',
+        remote: 'origin',
+        branch: 'main',
+        error: {
+          type: 'auth_failed',
+          message:
+            "fatal: could not read Username for 'https://github.com': terminal prompts disabled",
+        },
+      })
+    );
+
+    const result = await createTask({
+      id: 'task-1',
+      projectId: 'project-1',
+      name: 'Remote task',
+      sourceBranch: {
+        type: 'remote',
+        branch: 'main',
+        remote: { name: 'origin', url: 'https://github.com/example/repo.git' },
+      },
+      strategy: {
+        kind: 'new-branch',
+        taskBranch: 'task/remote',
+        pushBranch: false,
+      },
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        type: 'branch-create-failed',
+        branch: 'task/remote',
+        error: {
+          type: 'fetch_failed',
+          remote: 'origin',
+          branch: 'main',
+          error: {
+            type: 'auth_failed',
+            message:
+              "fatal: could not read Username for 'https://github.com': terminal prompts disabled",
+          },
+        },
+      },
+    });
+    expect(mocks.createBranch).toHaveBeenCalledWith('task/remote', 'main', true, 'origin');
+    expect(mocks.insert).not.toHaveBeenCalled();
   });
 });

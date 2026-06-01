@@ -5,8 +5,10 @@ import { workspaceBootstrapService } from '@main/core/workspaces/workspace-boots
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { db } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
+import { events } from '@main/lib/events';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
+import { taskCreatedChannel } from '@shared/events/taskEvents';
 import { err, ok, type Result } from '@shared/result';
 import type {
   CreateTaskError,
@@ -16,10 +18,12 @@ import type {
   Issue,
   ProvisionTaskResult,
   RenameTaskError,
+  RenameTaskOptions,
   RenameTaskSuccess,
   Task,
 } from '@shared/tasks';
 import { archiveTask } from './operations/archiveTask';
+import { convertAutomationTask } from './operations/convertAutomationTask';
 import { createTask } from './operations/createTask';
 import { deleteTask } from './operations/deleteTask';
 import { getDeletePreflight } from './operations/getDeletePreflight';
@@ -53,7 +57,10 @@ export class TaskService implements Hookable<TaskCrudHooks> {
 
   async createTask(params: CreateTaskParams): Promise<Result<CreateTaskSuccess, CreateTaskError>> {
     const result = await createTask(params);
-    if (result.success) this._hooks.callHookBackground('task:created', result.data.task, params);
+    if (result.success) {
+      this._hooks.callHookBackground('task:created', result.data.task, params);
+      events.emit(taskCreatedChannel, { task: result.data.task });
+    }
     return result;
   }
 
@@ -179,9 +186,10 @@ export class TaskService implements Hookable<TaskCrudHooks> {
   async renameTask(
     projectId: string,
     taskId: string,
-    newName: string
+    newName: string,
+    options?: RenameTaskOptions
   ): Promise<Result<RenameTaskSuccess, RenameTaskError>> {
-    const result = await renameTask(projectId, taskId, newName);
+    const result = await renameTask(projectId, taskId, newName, options);
     if (result.success) this._hooks.callHookBackground('task:updated', result.data.task);
     return result;
   }
@@ -189,6 +197,12 @@ export class TaskService implements Hookable<TaskCrudHooks> {
   async updateLinkedIssue(taskId: string, issue?: Issue): Promise<void> {
     const task = await updateLinkedIssue(taskId, issue);
     if (task) this._hooks.callHookBackground('task:updated', task);
+  }
+
+  async convertAutomationTask(taskId: string): Promise<Task | null> {
+    const task = await convertAutomationTask(taskId);
+    if (task) this._hooks.callHookBackground('task:updated', task);
+    return task;
   }
 
   // Operations with no hook — thin pass-throughs

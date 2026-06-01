@@ -14,12 +14,14 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@renderer/lib/ipc', () => ({
   rpc: {
-    git: {
-      getFullStatus: mocks.getFullStatus,
-    },
-    fs: {
-      watchSetPaths: mocks.watchSetPaths,
-      watchStop: mocks.watchStop,
+    workspace: {
+      git: {
+        getFullStatus: mocks.getFullStatus,
+      },
+      fs: {
+        watchSetPaths: mocks.watchSetPaths,
+        watchStop: mocks.watchStop,
+      },
     },
   },
   events: {

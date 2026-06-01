@@ -1,31 +1,33 @@
-import { useMemo, useState, type Dispatch, type SetStateAction } from 'react';
+import { CheckCheckIcon, PlusIcon, X } from 'lucide-react';
+import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
 import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
+import { AddContextPopover } from '@renderer/features/tasks/conversations/add-context-popover';
 import {
-  buildContextActionText,
+  buildIssueContextText,
   buildTaskContextActions,
-  type ContextAction,
 } from '@renderer/features/tasks/conversations/context-actions';
-import { resolveContextActionText } from '@renderer/features/tasks/conversations/resolve-context-action-text';
 import { useEffectiveProvider } from '@renderer/features/tasks/conversations/use-effective-provider';
 import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
-import { Field, FieldLabel } from '@renderer/lib/ui/field';
-import { Switch } from '@renderer/lib/ui/switch';
+import { Button } from '@renderer/lib/ui/button';
+import { Field } from '@renderer/lib/ui/field';
+import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
 import { Textarea } from '@renderer/lib/ui/textarea';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+import { cn } from '@renderer/utils/utils';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 import type { Issue } from '@shared/tasks';
-import {
-  appendInitialConversationText,
-  upsertInitialIssueContext,
-} from './initial-conversation-text';
-import { ModalContextBar } from './modal-context-bar';
+import { ProviderLogo } from '../components/issue-selector/issue-selector';
+import { appendInitialConversationText } from './initial-conversation-text';
 
 export type InitialConversationState = {
   provider: AgentProviderId | null;
   setProvider: (provider: AgentProviderId | null) => void;
   prompt: string;
   setPrompt: Dispatch<SetStateAction<string>>;
+  issueContext: string | null;
+  setIssueContext: (ctx: string | null) => void;
   connectionId?: string;
 };
 
@@ -33,11 +35,14 @@ export function useInitialConversationState(projectId?: string): InitialConversa
   const connectionId = projectId ? getProjectSshConnectionId(projectId) : undefined;
   const { providerId, setProviderOverride } = useEffectiveProvider(connectionId);
   const [prompt, setPrompt] = useState('');
+  const [issueContext, setIssueContext] = useState<string | null>(null);
   return {
     provider: providerId,
     setProvider: setProviderOverride,
     prompt,
     setPrompt,
+    issueContext,
+    setIssueContext,
     connectionId,
   };
 }
@@ -45,15 +50,13 @@ export function useInitialConversationState(projectId?: string): InitialConversa
 interface InitialConversationFieldProps {
   state: InitialConversationState;
   linkedIssue?: Issue;
-  projectId?: string;
-  issueActionPending?: boolean;
+  includeIssueContextByDefault: boolean;
 }
 
 export function InitialConversationField({
   state,
   linkedIssue,
-  projectId,
-  issueActionPending = false,
+  includeIssueContextByDefault,
 }: InitialConversationFieldProps) {
   const { value: promptLibrary } = usePromptLibrary();
   const autoApproveDefaults = useAgentAutoApproveDefaults();
@@ -62,55 +65,112 @@ export function InitialConversationField({
     [linkedIssue, promptLibrary]
   );
 
-  const handleActionClick = async (action: ContextAction) => {
-    const text =
-      action.kind === 'linked-issue'
-        ? await resolveContextActionText({ action, linkedIssue, projectId })
-        : buildContextActionText(action);
-
-    state.setPrompt((current) =>
-      action.kind === 'linked-issue'
-        ? upsertInitialIssueContext(current, text)
-        : appendInitialConversationText(current, text)
+  // Auto-inject issue context whenever the linked issue changes.
+  useEffect(() => {
+    state.setIssueContext(
+      includeIssueContextByDefault && linkedIssue ? buildIssueContextText(linkedIssue) : null
     );
+    // oxlint-disable-next-line react/exhaustive-deps
+  }, [includeIssueContextByDefault, linkedIssue?.identifier, linkedIssue?.provider]);
+
+  const autoApprove = state.provider ? autoApproveDefaults.getDefault(state.provider) : false;
+
+  const handleToggleAutoApprove = () => {
+    if (!state.provider) return;
+    autoApproveDefaults.setDefault(state.provider, !autoApprove);
+  };
+
+  const handleActionClick = async (text: string) => {
+    state.setPrompt((current) => appendInitialConversationText(current, text));
   };
 
   return (
-    <>
-      <Field>
-        <FieldLabel>Initial conversation</FieldLabel>
-        <div className="flex flex-col rounded-md border border-border">
+    <Field>
+      <div className="flex flex-col rounded-md border border-border">
+        <div className="flex w-full items-center justify-between gap-2 px-2 pt-1">
           <AgentSelector
             value={state.provider}
             onChange={(provider) => state.setProvider(provider)}
             connectionId={state.connectionId}
-            className="rounded-none border-0 border-b"
+            className="h-6! w-fit! rounded-none border-0 p-0! text-sm!"
+            contentClassName="w-64"
           />
-          <Textarea
-            placeholder="Start with a prompt... (optional)"
-            value={state.prompt}
-            onChange={(e) => state.setPrompt(e.target.value)}
-            className="h-24 resize-none overflow-y-auto rounded-none border-0 focus-visible:border-0 focus-visible:ring-0"
-          />
-          <ModalContextBar
-            actions={contextActions}
-            onActionClick={(action) => void handleActionClick(action)}
-            issueActionPending={issueActionPending}
-          />
+          <div className="flex items-center gap-2">
+            <AddContextPopover
+              actions={contextActions}
+              disabled={contextActions.length === 0}
+              onApplyAction={handleActionClick}
+              renderTrigger={({ disabled: isDisabled }) => (
+                <Button variant="ghost" size="icon-xs" disabled={isDisabled}>
+                  <PlusIcon className="size-4" />
+                </Button>
+              )}
+            />
+            <Tooltip>
+              <TooltipTrigger>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  onClick={handleToggleAutoApprove}
+                  disabled={!state.provider}
+                  data-active={autoApprove || undefined}
+                  className="transition-colors data-active:bg-background-destructive data-active:text-foreground-destructive"
+                >
+                  <CheckCheckIcon className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Auto approve</TooltipContent>
+            </Tooltip>
+          </div>
         </div>
-      </Field>
-      <Field>
-        <div className="flex items-center gap-2">
-          <Switch
-            checked={state.provider ? autoApproveDefaults.getDefault(state.provider) : false}
-            disabled={!state.provider || autoApproveDefaults.loading || autoApproveDefaults.saving}
-            onCheckedChange={(checked) => {
-              if (state.provider) autoApproveDefaults.setDefault(state.provider, checked);
-            }}
-          />
-          <FieldLabel>Auto-approve permissions</FieldLabel>
-        </div>
-      </Field>
-    </>
+
+        {/* Issue context pill */}
+        {state.issueContext && linkedIssue && (
+          <div className="px-2 py-1">
+            <Popover>
+              <PopoverTrigger
+                className={cn(
+                  'group relative flex items-center gap-1.5 rounded bg-background-2 py-0.5 pr-6 pl-2 text-xs text-foreground-muted',
+                  'hover:bg-background-3 cursor-pointer'
+                )}
+              >
+                <ProviderLogo provider={linkedIssue.provider} className="size-3 shrink-0" />
+                <span className="font-mono">{linkedIssue.identifier}</span>
+                {linkedIssue.title && (
+                  <span className="max-w-48 truncate text-foreground-passive">
+                    {linkedIssue.title}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    state.setIssueContext(null);
+                  }}
+                  className={cn(
+                    'absolute right-1 flex items-center justify-center rounded p-0.5',
+                    'text-foreground-passive opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100'
+                  )}
+                >
+                  <X className="size-3" />
+                </button>
+              </PopoverTrigger>
+              <PopoverContent side="bottom" align="start" sideOffset={6} className="w-80 gap-0 p-0">
+                <pre className="p-3 font-mono text-xs whitespace-pre-wrap text-foreground-passive">
+                  {state.issueContext}
+                </pre>
+              </PopoverContent>
+            </Popover>
+          </div>
+        )}
+
+        <Textarea
+          placeholder="Add an optional initial message..."
+          value={state.prompt}
+          onChange={(e) => state.setPrompt(e.target.value)}
+          className="max-h-64 min-h-8 resize-none rounded-none border-0 focus-visible:border-0 focus-visible:ring-0"
+        />
+      </div>
+    </Field>
   );
 }

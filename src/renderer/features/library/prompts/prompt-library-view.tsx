@@ -2,6 +2,7 @@ import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { MultiLineListItem } from '@renderer/lib/components/multi-line-list-item';
 import { PageHeader } from '@renderer/lib/components/page-header';
+import { toast } from '@renderer/lib/hooks/use-toast';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
@@ -94,18 +95,20 @@ export function PromptLibraryView() {
     [promptLibrary, search]
   );
 
-  const upsertPrompt = (prompt: PromptLibraryPrompt) => {
+  const upsertPrompt = (prompt: PromptLibraryPrompt, successTitle: string) => {
     const exists = promptLibrary.some((item) => item.id === prompt.id);
     const nextPrompts = exists
       ? promptLibrary.map((item) => (item.id === prompt.id ? prompt : item))
       : [...promptLibrary, prompt];
-    updatePromptLibrary(nextPrompts);
+    updatePromptLibrary(nextPrompts, {
+      onSuccess: () => toast({ title: successTitle }),
+    });
   };
 
   const createPrompt = () => {
     showPromptModal({
       onSuccess: (result: PromptFormResult) => {
-        upsertPrompt({ id: createPromptId(), ...result });
+        upsertPrompt({ id: createPromptId(), ...result }, 'Prompt added');
       },
     });
   };
@@ -113,7 +116,8 @@ export function PromptLibraryView() {
   const editPrompt = (prompt: PromptLibraryPrompt) => {
     showPromptModal({
       initialPrompt: prompt,
-      onSuccess: (result: PromptFormResult) => upsertPrompt({ ...prompt, ...result }),
+      onSuccess: (result: PromptFormResult) =>
+        upsertPrompt({ ...prompt, ...result }, 'Prompt updated'),
     });
   };
 
@@ -122,7 +126,13 @@ export function PromptLibraryView() {
       title: 'Delete prompt?',
       description: `"${prompt.title}" will be removed from the prompt library.`,
       confirmLabel: 'Delete',
-      onSuccess: () => updatePromptLibrary(promptLibrary.filter((item) => item.id !== prompt.id)),
+      onSuccess: () =>
+        updatePromptLibrary(
+          promptLibrary.filter((item) => item.id !== prompt.id),
+          {
+            onSuccess: () => toast({ title: 'Prompt deleted' }),
+          }
+        ),
     });
   };
 

@@ -7,6 +7,7 @@ import type { RawHookRequest } from './hook-server';
 
 function normalizePayload(
   providerId: string,
+  eventType: string,
   body: Record<string, unknown>
 ): AgentEvent['payload'] {
   const payload: AgentEvent['payload'] = {
@@ -21,6 +22,10 @@ function normalizePayload(
 
   if (!payload.notificationType && providerId === 'codex' && body.type === 'agent-turn-complete') {
     payload.notificationType = 'idle_prompt';
+  }
+
+  if (!payload.notificationType && providerId === 'grok' && eventType === 'notification') {
+    payload.notificationType = 'permission_prompt';
   }
 
   return payload;
@@ -41,7 +46,7 @@ export async function enrichEvent(raw: RawHookRequest): Promise<AgentEvent> {
   const taskId = convRows.taskId;
   const projectId = convRows.projectId;
   const body = raw.body ? JSON.parse(raw.body) : {};
-  const payload = normalizePayload(parsed.providerId, body);
+  const payload = normalizePayload(parsed.providerId, raw.type, body);
 
   return {
     type: raw.type as AgentEvent['type'],

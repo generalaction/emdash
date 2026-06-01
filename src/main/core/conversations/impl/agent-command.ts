@@ -71,7 +71,7 @@ export function parseShellWords(
   return { ok: true, words };
 }
 
-function parseArgField(value: string | undefined): string[] {
+export function parseArgField(value: string | undefined): string[] {
   if (!value) return [];
   const parsed = parseShellWords(value);
   if (!parsed.ok) throw new Error(parsed.reason);
@@ -103,10 +103,22 @@ function appendSessionId(args: string[], flag: string, sessionId: string): void 
   args.push(...parts, sessionId);
 }
 
+function dedupeSingletonArgs(args: string[], singletonArgs: readonly string[]): string[] {
+  const singletons = new Set(singletonArgs);
+  const seen = new Set<string>();
+  return args.filter((arg) => {
+    if (!singletons.has(arg)) return true;
+    if (seen.has(arg)) return false;
+    seen.add(arg);
+    return true;
+  });
+}
+
 export function buildAgentCommand({
   providerId,
   providerConfig,
   autoApprove,
+  extraInitialArgs,
   initialPrompt,
   sessionId,
   providerSessionId,
@@ -115,6 +127,7 @@ export function buildAgentCommand({
   providerId: AgentProviderId;
   providerConfig: ProviderCustomConfig | undefined;
   autoApprove?: boolean;
+  extraInitialArgs?: readonly string[];
   initialPrompt?: string;
   sessionId: string;
   providerSessionId?: string;
@@ -122,6 +135,7 @@ export function buildAgentCommand({
 }): AgentCommand {
   const providerDef = getProvider(providerId);
   const [command, ...args] = parseCliPrefix(providerConfig?.cli, providerId);
+  const initialPromptFlag = providerConfig?.initialPromptFlag;
 
   args.push(...(providerConfig?.defaultArgs ?? []));
 
@@ -149,18 +163,25 @@ export function buildAgentCommand({
     args.push(...parseArgField(providerConfig.autoApproveFlag));
   }
 
-  if (
+  if (!isResuming && extraInitialArgs?.length) {
+    args.push(...extraInitialArgs);
+  } else if (
     !isResuming &&
     initialPrompt &&
     !providerDef?.useKeystrokeInjection &&
     !providerDef?.initialPromptViaStdinPipe
   ) {
-    args.push(...parseArgField(providerConfig?.initialPromptFlag), initialPrompt);
+    args.push(...parseArgField(initialPromptFlag), initialPrompt);
   }
 
   args.push(...parseArgField(providerConfig?.extraArgs));
 
-  return { command, args };
+  const finalArgs =
+    providerId === 'codex'
+      ? dedupeSingletonArgs(args, ['--dangerously-bypass-approvals-and-sandbox'])
+      : args;
+
+  return { command, args: finalArgs };
 }
 
 export function wrapAgentCommandWithStdinPipe(agent: AgentCommand, prompt: string): AgentCommand {
@@ -173,6 +194,7 @@ export function buildAgentSessionCommand(args: {
   providerId: AgentProviderId;
   providerConfig: ProviderCustomConfig | undefined;
   autoApprove?: boolean;
+  extraInitialArgs?: readonly string[];
   initialPrompt?: string;
   sessionId: string;
   providerSessionId?: string;

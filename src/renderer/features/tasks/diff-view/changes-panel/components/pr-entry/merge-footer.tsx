@@ -54,17 +54,7 @@ export function MergeFooter({
                 disabled={isMarkingReady}
                 aria-label={isMarkingReady ? 'Marking ready...' : 'Mark ready'}
               >
-                <span
-                  aria-hidden
-                  className={cn(
-                    'grid overflow-hidden transition-[grid-template-columns,opacity,margin] duration-200 ease-out',
-                    isMarkingReady
-                      ? 'grid-cols-[1fr] opacity-100'
-                      : '-ml-1 grid-cols-[0fr] opacity-0'
-                  )}
-                >
-                  <Loader2 className="size-3 min-w-0 animate-spin" />
-                </span>
+                {isMarkingReady && <Loader2 className="size-3 animate-spin" aria-hidden />}
                 Mark ready
               </Button>
             ) : (

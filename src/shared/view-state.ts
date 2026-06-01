@@ -106,6 +106,7 @@ export type TaskViewSnapshot = {
 export type ProjectViewSnapshot = {
   activeView: string;
   taskViewTab: 'active' | 'archived';
+  selectedIssueProvider?: string;
 };
 
 export type NavigationSnapshot = {

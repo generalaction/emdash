@@ -3,6 +3,16 @@ import type { IExecutionContext } from '@main/core/execution-context/types';
 import { err, ok } from '@shared/result';
 import { DependencyManager } from './dependency-manager';
 
+vi.mock('@main/core/settings/settings-service', () => ({
+  appSettingsService: {
+    get: vi.fn(async () => ({
+      autoCopyOnSelection: false,
+      defaultShell: 'system',
+      fontSize: 13,
+    })),
+  },
+}));
+
 vi.mock('@main/lib/events', () => ({
   events: {
     emit: vi.fn(),

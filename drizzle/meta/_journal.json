@@ -85,6 +85,20 @@
       "when": 1778682711721,
       "tag": "0011_chunky_scarecrow",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1778867637595,
+      "tag": "0012_kind_norman_osborn",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1780138463727,
+      "tag": "0013_chief_toad_men",
+      "breakpoints": true
     }
   ]
 }

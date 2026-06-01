@@ -3,6 +3,7 @@ import type {
   CreateTaskParams,
   DeleteTaskOptions,
   Issue,
+  RenameTaskOptions,
   TaskLifecycleStatus,
 } from '@shared/tasks';
 import { generateTaskName } from './name-generation/generateTaskName';
@@ -31,8 +32,13 @@ export const taskController = createRPCController({
   async restoreTask(id: string) {
     return taskService.restoreTask(id);
   },
-  async renameTask(projectId: string, taskId: string, newName: string) {
-    return taskService.renameTask(projectId, taskId, newName);
+  async renameTask(
+    projectId: string,
+    taskId: string,
+    newName: string,
+    options?: RenameTaskOptions
+  ) {
+    return taskService.renameTask(projectId, taskId, newName, options);
   },
   async updateLinkedIssue(taskId: string, issue?: Issue) {
     return taskService.updateLinkedIssue(taskId, issue);
@@ -42,6 +48,9 @@ export const taskController = createRPCController({
   },
   async setTaskPinned(taskId: string, isPinned: boolean) {
     return taskService.setTaskPinned(taskId, isPinned);
+  },
+  async convertAutomationTask(taskId: string) {
+    return taskService.convertAutomationTask(taskId);
   },
   async provisionTask(taskId: string) {
     const result = await taskService.provision(taskId);

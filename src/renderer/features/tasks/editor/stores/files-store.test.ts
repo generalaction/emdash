@@ -11,10 +11,12 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@renderer/lib/ipc', () => ({
   rpc: {
-    fs: {
-      listFiles: mocks.listFiles,
-      watchSetPaths: mocks.watchSetPaths,
-      watchStop: mocks.watchStop,
+    workspace: {
+      fs: {
+        listFiles: mocks.listFiles,
+        watchSetPaths: mocks.watchSetPaths,
+        watchStop: mocks.watchStop,
+      },
     },
   },
   events: {

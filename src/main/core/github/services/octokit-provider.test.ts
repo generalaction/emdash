@@ -29,19 +29,27 @@ describe('getOctokit', () => {
   it('uses api.github.com for github.com', async () => {
     mockGetToken.mockResolvedValue(ok('github-token'));
 
-    await expect(getOctokit('github.com')).resolves.toEqual({
-      success: true,
-      data: { options: { auth: 'github-token', baseUrl: 'https://api.github.com' } },
-    });
+    await expect(getOctokit('github.com')).resolves.toMatchObject({ success: true });
+    expect(mockOctokit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        auth: 'github-token',
+        baseUrl: 'https://api.github.com',
+        log: expect.objectContaining({ error: expect.any(Function) }),
+      })
+    );
   });
 
   it('uses the enterprise API base URL for GHES hosts', async () => {
     mockGetToken.mockResolvedValue(ok('ghes-token'));
 
-    await expect(getOctokit('ghe.example.com')).resolves.toEqual({
-      success: true,
-      data: { options: { auth: 'ghes-token', baseUrl: 'https://ghe.example.com/api/v3' } },
-    });
+    await expect(getOctokit('ghe.example.com')).resolves.toMatchObject({ success: true });
+    expect(mockOctokit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        auth: 'ghes-token',
+        baseUrl: 'https://ghe.example.com/api/v3',
+        log: expect.objectContaining({ error: expect.any(Function) }),
+      })
+    );
   });
 
   it('forwards typed auth errors', async () => {
