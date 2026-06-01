@@ -186,10 +186,10 @@ export class MondayConnectionService {
     const normalizedUrls = new Set<string>();
 
     for (const url of urls) {
-      const match = url.match(/monday\.com\/boards\/(\d+)/);
+      const match = url.match(/(https?:\/\/[^/]+)\/boards\/(\d+)/);
       if (!match) return null;
-      ids.add(match[1]);
-      normalizedUrls.add(url);
+      ids.add(match[2]);
+      normalizedUrls.add(`${match[1]}/boards/${match[2]}`);
     }
 
     return { boardIds: [...ids], boardUrls: [...normalizedUrls] };

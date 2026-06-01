@@ -83,6 +83,32 @@ describe('MondayConnectionService', () => {
       );
     });
 
+    it('strips query parameters from board URLs', async () => {
+      const meResponse = {
+        data: { me: { id: '123', name: 'Snir', account: { name: 'My Team' } } },
+      };
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => meResponse,
+      });
+
+      const input = {
+        token: 'valid-token',
+        boardUrls: 'https://myteam.monday.com/boards/123456?workspaceId=987654',
+      };
+      const result = await service.saveCredentials(input);
+
+      expect(result.success).toBe(true);
+      expect(mockSetSecret).toHaveBeenCalledWith(
+        'emdash-monday-credentials',
+        JSON.stringify({
+          token: input.token,
+          boardIds: ['123456'],
+          boardUrls: ['https://myteam.monday.com/boards/123456'],
+        })
+      );
+    });
+
     it('returns error for invalid board URL format', async () => {
       const result = await service.saveCredentials({
         token: 'valid-token',
