@@ -11,6 +11,8 @@ import { log } from '@renderer/utils/logger';
 import { events, rpc } from '../../lib/ipc';
 import { Resource } from './resource';
 
+const FOCUS_AGENT_REFRESH_COOLDOWN_MS = 10_000;
+
 export class DependenciesStore {
   readonly local: Resource<DependencyStatusMap, DependencyStatusUpdatedEvent>;
 
@@ -18,6 +20,7 @@ export class DependenciesStore {
   private readonly _installingDependencyKeys = observable.set<string>();
   private readonly _inFlightInstalls = new Map<string, Promise<DependencyInstallResult>>();
   private _focusRefresh: Promise<void> | null = null;
+  private _lastFocusRefreshAt = 0;
   private _stopFocusRefresh: (() => void) | null = null;
 
   constructor() {
@@ -171,7 +174,15 @@ export class DependenciesStore {
     if (this._stopFocusRefresh || typeof window === 'undefined') return;
 
     const refreshLocalAgents = () => {
-      if (this._focusRefresh) return;
+      const now = Date.now();
+      if (
+        this._focusRefresh ||
+        now - this._lastFocusRefreshAt < FOCUS_AGENT_REFRESH_COOLDOWN_MS
+      ) {
+        return;
+      }
+
+      this._lastFocusRefreshAt = now;
       this._focusRefresh = this.refreshAgents(undefined, { refreshShellEnv: true })
         .catch((error) => {
           log.warn('DependenciesStore: failed to refresh local agents on focus', { error });
