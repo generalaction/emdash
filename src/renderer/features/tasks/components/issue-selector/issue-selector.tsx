@@ -304,42 +304,42 @@ export const IssueSelector = observer(function IssueSelector({
 });
 
 export function SelectedIssueValue({ issue }: { issue: Issue }) {
-    return (
-      <div className="flex w-full flex-col gap-1">
-        <div className="flex w-full items-center">
-          <div className="flex w-full min-w-0 gap-2">
-            <span className="mt-1 flex size-3.5 shrink-0 items-center justify-center">
-              <IssueStatusIndicator status={toIssueStatus(issue.status)} />
-            </span>
-            <div className="flex w-full min-w-0 flex-col gap-1 pr-1.5">
-              <span className="mt-0.5 flex items-center justify-between gap-2">
-                <span className="group flex min-w-0 items-center gap-1">
-                  <div className="text-muted-foreground min-w-0 truncate">{issue.title}</div>
-                  <button
-                    className="opacity-0 group-hover:opacity-100"
-                    disabled={!issue.url}
-                    onClick={() => issue.url && rpc.app.openExternal(issue.url)}
-                  >
-                    <ExternalLink className="size-3" />
-                  </button>
-                </span>
-                <span className="flex items-center gap-1">
-                  <ProviderLogo provider={issue.provider} className="size-3 opacity-40" />
-                  <IssueIdentifier identifier={issue.identifier} provider={issue.provider} />
-                </span>
+  return (
+    <div className="flex w-full flex-col gap-1">
+      <div className="flex w-full items-center">
+        <div className="flex w-full min-w-0 gap-2">
+          <span className="mt-1 flex size-3.5 shrink-0 items-center justify-center">
+            <IssueStatusIndicator status={toIssueStatus(issue.status)} />
+          </span>
+          <div className="flex w-full min-w-0 flex-col gap-1 pr-1.5">
+            <span className="mt-0.5 flex items-center justify-between gap-2">
+              <span className="group flex min-w-0 items-center gap-1">
+                <div className="text-muted-foreground min-w-0 truncate">{issue.title}</div>
+                <button
+                  className="opacity-0 group-hover:opacity-100"
+                  disabled={!issue.url}
+                  onClick={() => issue.url && rpc.app.openExternal(issue.url)}
+                >
+                  <ExternalLink className="size-3" />
+                </button>
               </span>
-              {issue.description ? (
-                <InlineMarkdown
-                  content={issue.description}
-                  className="line-clamp-1 min-w-0 text-xs text-foreground-muted"
-                />
-              ) : null}
-            </div>
+              <span className="flex items-center gap-1">
+                <ProviderLogo provider={issue.provider} className="size-3 opacity-40" />
+                <IssueIdentifier identifier={issue.identifier} provider={issue.provider} />
+              </span>
+            </span>
+            {issue.description ? (
+              <InlineMarkdown
+                content={issue.description}
+                className="line-clamp-1 min-w-0 text-xs text-foreground-muted"
+              />
+            ) : null}
           </div>
         </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
 export function ConnectIssueIntegrationPlaceholder() {
   const { navigate } = useNavigate();
