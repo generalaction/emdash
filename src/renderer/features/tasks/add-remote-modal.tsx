@@ -112,7 +112,7 @@ export function AddRemoteModal({
         return;
       }
 
-      const publishResult = await rpc.git.publishBranch(
+      const publishResult = await rpc.workspace.git.publishBranch(
         projectId,
         workspaceId,
         branchName,

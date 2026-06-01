@@ -9,25 +9,27 @@ const rpcState = vi.hoisted(() => ({
 
 vi.mock('@renderer/lib/ipc', () => ({
   rpc: {
-    fs: {
-      readFile: vi.fn(async () => ({
-        success: true,
-        data: { content: 'base', truncated: false, totalSize: 4 },
-      })),
-    },
-    git: {
-      getFileAtIndex: vi.fn(async () => ({
-        success: true,
-        data: { content: rpcState.indexContent },
-      })),
-      getFileAtRef: vi.fn(async () => ({
-        success: true,
-        data: { content: rpcState.refContent },
-      })),
-    },
-    editorBuffer: {
-      saveBuffer: vi.fn(),
-      clearBuffer: vi.fn(),
+    workspace: {
+      fs: {
+        readFile: vi.fn(async () => ({
+          success: true,
+          data: { content: 'base', truncated: false, totalSize: 4 },
+        })),
+      },
+      git: {
+        getFileAtIndex: vi.fn(async () => ({
+          success: true,
+          data: { content: rpcState.indexContent },
+        })),
+        getFileAtRef: vi.fn(async () => ({
+          success: true,
+          data: { content: rpcState.refContent },
+        })),
+      },
+      editor: {
+        saveBuffer: vi.fn(),
+        clearBuffer: vi.fn(),
+      },
     },
   },
 }));

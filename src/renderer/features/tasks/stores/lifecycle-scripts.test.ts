@@ -22,9 +22,11 @@ vi.mock('@renderer/lib/ipc', () => ({
     projectSettings: {
       getSettings,
     },
-    fs: {
-      watchSetPaths,
-      watchStop,
+    workspace: {
+      fs: {
+        watchSetPaths,
+        watchStop,
+      },
     },
   },
 }));

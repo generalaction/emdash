@@ -75,7 +75,7 @@ function loadFromRef(
   ref: GitRef
 ): Promise<SideState> {
   return loadGitImage(() =>
-    rpc.git.getImageAtRef(projectId, workspaceId, filePath, gitRefToString(ref))
+    rpc.workspace.git.getImageAtRef(projectId, workspaceId, filePath, gitRefToString(ref))
   );
 }
 
@@ -84,7 +84,7 @@ async function loadFromDisk(
   workspaceId: string,
   filePath: string
 ): Promise<SideState> {
-  const res = await rpc.fs.readImage(projectId, workspaceId, filePath);
+  const res = await rpc.workspace.fs.readImage(projectId, workspaceId, filePath);
   if (!res.success) return { status: 'unavailable', reason: 'git-error' };
   const image = res.data;
   if (!image?.success) {
@@ -119,7 +119,9 @@ function loadModified(
     case 'disk':
       return loadFromDisk(projectId, workspaceId, activeFile.path);
     case 'staged':
-      return loadGitImage(() => rpc.git.getImageAtIndex(projectId, workspaceId, activeFile.path));
+      return loadGitImage(() =>
+        rpc.workspace.git.getImageAtIndex(projectId, workspaceId, activeFile.path)
+      );
     case 'git':
     case 'pr':
       return loadFromRef(

@@ -48,14 +48,16 @@ export class FilesStore {
         {
           kind: 'event',
           subscribe: (handler) => {
-            rpc.fs.watchSetPaths(projectId, workspaceId, [''], 'filetree').catch(() => {});
+            rpc.workspace.fs
+              .watchSetPaths(projectId, workspaceId, [''], 'filetree')
+              .catch(() => {});
             const unsub = events.on(fsWatchEventChannel, (data) => {
               if (data.workspaceId !== workspaceId) return;
               handler(data.events);
             });
             return () => {
               unsub();
-              rpc.fs.watchStop(projectId, workspaceId, 'filetree').catch(() => {});
+              rpc.workspace.fs.watchStop(projectId, workspaceId, 'filetree').catch(() => {});
             };
           },
           onEvent: (watchEvents, ctx) => {
@@ -202,10 +204,15 @@ export class FilesStore {
     this._pendingPaths.add(dirPath);
 
     try {
-      const result = await rpc.fs.listFiles(this.projectId, this.workspaceId, dirPath || '.', {
-        recursive: false,
-        includeHidden: true,
-      });
+      const result = await rpc.workspace.fs.listFiles(
+        this.projectId,
+        this.workspaceId,
+        dirPath || '.',
+        {
+          recursive: false,
+          includeHidden: true,
+        }
+      );
 
       if (!result.success) return;
 

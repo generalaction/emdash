@@ -45,7 +45,7 @@ export const MarkdownEditorRenderer = observer(function MarkdownEditorRenderer({
   const resolveImage = useCallback(
     async (src: string): Promise<string | null> => {
       const imagePath = fileDir ? `${fileDir}/${src}` : src;
-      const result = await rpc.fs.readImage(projectId, workspaceId, imagePath);
+      const result = await rpc.workspace.fs.readImage(projectId, workspaceId, imagePath);
       return result.success ? (result.data?.dataUrl ?? null) : null;
     },
     [projectId, workspaceId, fileDir]

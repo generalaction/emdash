@@ -1,4 +1,4 @@
-import { createRPCRouter } from '../shared/ipc/rpc';
+import { createRPCNamespace, createRPCRouter } from '../shared/ipc/rpc';
 import { accountController } from './core/account/controller';
 import { appController } from './core/app/controller';
 import { asanaController } from './core/asana/controller';
@@ -45,7 +45,6 @@ export const rpcRouter = createRPCRouter({
   appSettings: appSettingsController,
   providerSettings: providerSettingsController,
   repository: repositoryController,
-  fs: filesController,
   update: updateController,
   pty: ptyController,
   resourceMonitor: resourceMonitorController,
@@ -65,16 +64,19 @@ export const rpcRouter = createRPCRouter({
   tasks: taskController,
   conversations: conversationController,
   terminals: terminalsController,
-  git: gitController,
   dependencies: dependenciesController,
   mcp: mcpController,
-  editorBuffer: editorBufferController,
   telemetry: telemetryController,
   pullRequests: pullRequestController,
   viewState: viewStateController,
   search: searchController,
   workspaces: workspaceController,
   projectSettings: projectSettingsController,
+  workspace: createRPCNamespace({
+    git: gitController,
+    fs: filesController,
+    editor: editorBufferController,
+  }),
 });
 
 export type RpcRouter = typeof rpcRouter;
