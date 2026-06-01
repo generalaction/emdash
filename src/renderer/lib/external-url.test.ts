@@ -19,6 +19,12 @@ describe('normalizeExternalHttpUrl', () => {
     expect(normalizeExternalHttpUrl('https://example.com/path).')).toBe('https://example.com/path');
   });
 
+  it('preserves balanced trailing parentheses inside URLs', () => {
+    expect(
+      normalizeExternalHttpUrl('https://en.wikipedia.org/wiki/Lisp_(programming_language)')
+    ).toBe('https://en.wikipedia.org/wiki/Lisp_(programming_language)');
+  });
+
   it('preserves query strings and fragments', () => {
     expect(normalizeExternalHttpUrl('https://example.com/path?a=1&b=2#section')).toBe(
       'https://example.com/path?a=1&b=2#section'

@@ -1,4 +1,18 @@
-const TRAILING_URL_CHARS_PATTERN = /[),.!?;:'"<>}\]]+$/;
+const TRAILING_URL_CHARS_PATTERN = /[,.!?;:'"<>}\]]+$/;
+
+function hasExtraClosingParen(value: string): boolean {
+  let balance = 0;
+
+  for (const char of value) {
+    if (char === '(') {
+      balance += 1;
+    } else if (char === ')') {
+      balance -= 1;
+    }
+  }
+
+  return balance < 0;
+}
 
 export function normalizeExternalHttpUrl(value: string): string {
   let url = value.trim();
@@ -6,5 +20,11 @@ export function normalizeExternalHttpUrl(value: string): string {
   if (trailingTextIndex !== -1) {
     url = url.slice(0, trailingTextIndex);
   }
-  return url.replace(TRAILING_URL_CHARS_PATTERN, '');
+  url = url.replace(TRAILING_URL_CHARS_PATTERN, '');
+
+  while (url.endsWith(')') && hasExtraClosingParen(url)) {
+    url = url.slice(0, -1);
+  }
+
+  return url;
 }
