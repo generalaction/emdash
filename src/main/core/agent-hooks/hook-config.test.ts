@@ -182,6 +182,60 @@ describe('HookConfigWriter', () => {
     expect(fs.files.has('.gitignore')).toBe(false);
   });
 
+  it('writes Devin stop and permission hooks and ignores the project hooks file in git', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/devin');
+    const fs = new MemoryFs();
+    const writer = makeWriter(fs);
+
+    const wroteConfig = await writer.writeForProvider('devin');
+
+    expect(wroteConfig).toBe(true);
+    const hooks = JSON.parse(fs.files.get('.devin/hooks.v1.json')!);
+    expect(hooks.UserPromptSubmit).toBeUndefined();
+    expect(hooks.PreToolUse).toBeUndefined();
+    expect(hooks.PostToolUse).toBeUndefined();
+    expect(hooks.PostCompaction).toBeUndefined();
+    expect(hooks.PermissionRequest[0].hooks[0].command).toContain(
+      '{"notification_type":"permission_prompt"}'
+    );
+    expect(hooks.Stop[0].hooks[0].command).toContain('X-Emdash-Event-Type: stop');
+    expect(hooks.SessionEnd[0].hooks[0].command).toContain('X-Emdash-Event-Type: stop');
+    expect(fs.files.get('.gitignore')).toBe('.devin/hooks.v1.json\n');
+  });
+
+  it('preserves unrelated Devin hooks while replacing Emdash-managed entries', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/devin');
+    const fs = new MemoryFs();
+    fs.files.set(
+      '.devin/hooks.v1.json',
+      JSON.stringify({
+        Stop: [
+          { hooks: [{ type: 'command', command: 'echo user hook' }] },
+          { hooks: [{ type: 'command', command: 'echo $EMDASH_HOOK_PORT' }] },
+        ],
+      })
+    );
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('devin');
+
+    const hooks = JSON.parse(fs.files.get('.devin/hooks.v1.json')!);
+    expect(hooks.Stop).toHaveLength(2);
+    expect(hooks.Stop[0].hooks[0].command).toBe('echo user hook');
+    expect(hooks.Stop[1].hooks[0].command).toContain('X-Emdash-Event-Type: stop');
+  });
+
+  it('skips Devin hooks when devin is unavailable', async () => {
+    mockResolveCommandPath.mockResolvedValue(undefined);
+    const fs = new MemoryFs();
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('devin');
+
+    expect(fs.files.has('.devin/hooks.v1.json')).toBe(false);
+    expect(fs.files.has('.gitignore')).toBe(false);
+  });
+
   it('removes only the legacy Emdash Codex notify key from project-local config', async () => {
     mockResolveCommandPath.mockResolvedValue('/usr/local/bin/codex');
     const fs = new MemoryFs();

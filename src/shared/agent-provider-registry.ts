@@ -178,6 +178,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'devin.png',
     alt: 'Devin',
     terminalOnly: true,
+    supportsHooks: true,
   },
   {
     id: 'cursor',
