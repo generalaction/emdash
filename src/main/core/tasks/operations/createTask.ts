@@ -82,7 +82,7 @@ export async function createTask(
           warning = {
             type: 'branch-publish-failed',
             branch: taskBranch,
-            remote: 'remote',
+            remote: 'unknown',
             error: { type: 'error', message: remotes.error },
           };
           break;
@@ -115,7 +115,7 @@ export async function createTask(
         return err({
           type: 'pr-fetch-failed',
           error: { type: 'error', message: remotes.error },
-          remote: 'remote',
+          remote: 'unknown',
         });
       }
       const { baseRemote, pushRemote } = remotes;
