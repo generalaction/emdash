@@ -18,6 +18,7 @@ import { withTimeout } from '../projects/utils';
 import { loadConversationsForInitialHydration } from './load-initial-conversations';
 import {
   formatProvisionTaskError,
+  formatTeardownTaskError,
   TASK_TIMEOUT_MS,
   toProvisionError,
   toTeardownError,
@@ -145,16 +146,18 @@ class TaskSessionManager {
   private readonly _hooks = new HookCore<TaskManagerHooks>((name, e) =>
     log.error(`TaskManager: ${String(name)} hook error`, e)
   );
-  private readonly _lifecycle = new LifecycleMap<StoredTask, ProvisionTaskError>({
-    postTeardown: (taskId, stored) => {
-      this._tasksByProject.get(stored.projectId)?.delete(taskId);
-      this._hooks.callHookBackground('task:torn-down', {
-        projectId: stored.projectId,
-        taskId,
-        workspaceId: stored.persistData.workspaceId,
-      });
-    },
-  });
+  private readonly _lifecycle = new LifecycleMap<StoredTask, ProvisionTaskError, TeardownTaskError>(
+    {
+      postTeardown: (taskId, stored) => {
+        this._tasksByProject.get(stored.projectId)?.delete(taskId);
+        this._hooks.callHookBackground('task:torn-down', {
+          projectId: stored.projectId,
+          taskId,
+          workspaceId: stored.persistData.workspaceId,
+        });
+      },
+    }
+  );
   private readonly _tasksByProject = new Map<string, Set<string>>();
 
   readonly hooks: Hookable<TaskManagerHooks> = this._hooks;
@@ -280,6 +283,10 @@ class TaskSessionManager {
 
   getBootstrapStatus(taskId: string): TaskBootstrapStatus {
     return this._lifecycle.bootstrapStatus(taskId, formatProvisionTaskError);
+  }
+
+  getTeardownStatus(taskId: string): TaskBootstrapStatus {
+    return this._lifecycle.teardownStatus(taskId, formatTeardownTaskError);
   }
 }
 

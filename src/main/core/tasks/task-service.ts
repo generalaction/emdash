@@ -1,5 +1,9 @@
 import { eq, sql } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
+import {
+  workspaceBootstrapService,
+  type ProvisionWorkspaceError,
+} from '@main/core/workspaces/workspace-bootstrap-service';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { db } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
@@ -35,21 +39,26 @@ import { type ProvisionTaskError, type TeardownTaskError } from './provision-tas
 import { taskManager, type WorkspaceHint } from './task-session-manager';
 import { mapTaskRowToTask } from './utils/utils';
 
-export type TaskCrudHooks = {
+type ProvisionResult = ProvisionTaskResult & { sshConnectionId?: string };
+
+export type TaskLifecycleHooks = {
   'task:created': (task: Task, params: CreateTaskParams) => void | Promise<void>;
   'task:updated': (task: Task) => void | Promise<void>;
   'task:archived': (taskId: string, projectId: string) => void | Promise<void>;
   'task:deleted': (taskId: string, projectId: string) => void | Promise<void>;
+  'task:workspace-ready': (taskId: string, path: string) => void | Promise<void>;
+  'task:session-ready': (taskId: string, result: ProvisionResult) => void | Promise<void>;
 };
 
-type ProvisionResult = ProvisionTaskResult & { sshConnectionId?: string };
+/** @deprecated Use TaskLifecycleHooks */
+export type TaskCrudHooks = TaskLifecycleHooks;
 
-export class TaskService implements Hookable<TaskCrudHooks> {
-  private readonly _hooks = new HookCore<TaskCrudHooks>((name, e) =>
+export class TaskService implements Hookable<TaskLifecycleHooks> {
+  private readonly _hooks = new HookCore<TaskLifecycleHooks>((name, e) =>
     log.error(`TaskService: ${String(name)} hook error`, e)
   );
 
-  on<K extends keyof TaskCrudHooks>(name: K, handler: TaskCrudHooks[K]) {
+  on<K extends keyof TaskLifecycleHooks>(name: K, handler: TaskLifecycleHooks[K]) {
     return this._hooks.on(name, handler);
   }
 
@@ -62,7 +71,25 @@ export class TaskService implements Hookable<TaskCrudHooks> {
     return result;
   }
 
-  async provision(taskId: string): Promise<Result<ProvisionResult, ProvisionTaskError>> {
+  /**
+   * Phase 2: Ensures the workspace for a task is set up on disk.
+   * Idempotent — fast-paths when the path is already persisted.
+   * Fires the `task:workspace-ready` hook on success.
+   */
+  async provisionWorkspace(taskId: string): Promise<Result<string, ProvisionWorkspaceError>> {
+    const result = await workspaceBootstrapService.ensureWorkspaceSetupForTask(taskId);
+    if (result.success) {
+      this._hooks.callHookBackground('task:workspace-ready', taskId, result.data);
+    }
+    return result;
+  }
+
+  /**
+   * Phase 3: Provisions the task session (lifecycle scripts, SSH, BYOI).
+   * Expects the workspace path to already be persisted by `provisionWorkspace`.
+   * Fires the `task:session-ready` hook on success.
+   */
+  async provisionSession(taskId: string): Promise<Result<ProvisionResult, ProvisionTaskError>> {
     const [row] = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
     if (!row) throw new Error(`Task not found: ${taskId}`);
 
@@ -94,7 +121,7 @@ export class TaskService implements Hookable<TaskCrudHooks> {
       throw new Error(`Workspace ${row.workspaceId} not found for task ${taskId}`);
     }
 
-    // Workspace path is set by `provisionWorkspace` (phase 1) before this RPC is called.
+    // Workspace path is set by `provisionWorkspace` (phase 2) before this is called.
     const hint: WorkspaceHint = {
       id: workspaceRow.id,
       type: workspaceRow.type,
@@ -124,11 +151,27 @@ export class TaskService implements Hookable<TaskCrudHooks> {
         .where(eq(workspaces.id, workspaceRow.id));
     }
 
-    return ok({
+    const provisionResult: ProvisionResult = {
       path: workspacePath,
       workspaceId: persistData.workspaceId,
       sshConnectionId: persistData.sshConnectionId,
-    });
+    };
+
+    this._hooks.callHookBackground('task:session-ready', taskId, provisionResult);
+
+    return ok(provisionResult);
+  }
+
+  /**
+   * Phases 2 + 3 combined: provisions workspace then session.
+   * Used by the automation path which runs entirely in the main process.
+   */
+  async launch(
+    taskId: string
+  ): Promise<Result<ProvisionResult, ProvisionWorkspaceError | ProvisionTaskError>> {
+    const ws = await this.provisionWorkspace(taskId);
+    if (!ws.success) return err(ws.error);
+    return this.provisionSession(taskId);
   }
 
   async teardown(

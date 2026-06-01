@@ -21,7 +21,11 @@ vi.mock('@main/core/tasks/name-generation/generateTaskName', () => ({
   generateTaskName: vi.fn(() => 'generated-task'),
 }));
 vi.mock('@main/core/tasks/task-service', () => ({
-  taskService: { createTask: vi.fn(), provision: vi.fn() },
+  taskService: { createTask: vi.fn(), launch: vi.fn() },
+}));
+vi.mock('@main/core/workspaces/workspace-bootstrap-service', () => ({
+  formatProvisionWorkspaceError: vi.fn((e: { type: string }) => e.type),
+  workspaceBootstrapService: { ensureWorkspaceSetupForTask: vi.fn() },
 }));
 vi.mock('@main/lib/events', () => ({ events: { emit: vi.fn() } }));
 vi.mock('@main/lib/logger', () => ({ log: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
@@ -85,7 +89,7 @@ describe('executeTaskCreate', () => {
     vi.clearAllMocks();
     vi.mocked(generateTaskName).mockReturnValue('generated-task');
     vi.mocked(appSettingsService.get).mockResolvedValue(null as never);
-    vi.mocked(taskService.provision).mockResolvedValue({
+    vi.mocked(taskService.launch).mockResolvedValue({
       success: true,
       data: { path: '/tmp/task', workspaceId: 'workspace-1' },
     });
@@ -234,90 +238,6 @@ describe('executeTaskCreate', () => {
     });
   });
 
-  it('converts legacy stored strategy configs to gitSetup (backward compat)', async () => {
-    vi.mocked(projectManager.getProject).mockReturnValue({} as never);
-    vi.mocked(generateTaskName).mockImplementation(({ title }) =>
-      title === 'stored-task-branch' ? 'stored-task-branch-run' : 'stored-task-run'
-    );
-    vi.mocked(taskService.createTask).mockResolvedValueOnce({
-      success: true,
-      data: { task: {} as never },
-    });
-
-    const legacyAutomation = {
-      ...automation,
-      taskConfig: {
-        ...automation.taskConfig!,
-        // Legacy format: strategy + sourceBranch instead of gitSetup + workspaceLocation
-        gitSetup: undefined as never,
-        workspaceLocation: undefined as never,
-        sourceBranch: { type: 'local' as const, branch: 'main' },
-        strategy: {
-          kind: 'new-branch' as const,
-          taskBranch: 'stored-task-branch',
-          pushBranch: false,
-        },
-      },
-    };
-
-    const result = await executeTaskCreate(automation.actions[0]!, {
-      automation: legacyAutomation,
-      run,
-    });
-
-    expect(result.success).toBe(true);
-    const taskConfig = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
-    // Should be converted to create-branch gitSetup
-    expect(taskConfig?.gitSetup).toEqual({
-      kind: 'create-branch',
-      branchName: 'stored-task-branch-run',
-      fromBranch: { type: 'local', branch: 'main' },
-      pushBranch: false,
-    });
-    expect(taskConfig?.workspaceLocation).toEqual({ host: 'local' });
-  });
-
-  it('upgrades none gitSetup to create-branch for non-BYOI projects', async () => {
-    vi.mocked(projectManager.getProject).mockReturnValue({
-      repository: {
-        getBranchesPayload: vi.fn().mockResolvedValue({
-          gitDefaultBranch: 'main',
-          branches: [{ type: 'local', branch: 'main' }],
-        }),
-        getRepositoryInfo: vi.fn().mockResolvedValue({ isUnborn: false, currentBranch: 'main' }),
-        getConfiguredRemotes: vi.fn().mockResolvedValue({ baseRemote: 'origin' }),
-        defaultWorkspaceType: { kind: 'local' },
-      },
-      defaultWorkspaceType: { kind: 'local' },
-    } as never);
-    vi.mocked(generateTaskName).mockReturnValue('stored-task-run');
-    vi.mocked(taskService.createTask).mockResolvedValueOnce({
-      success: true,
-      data: { task: {} as never },
-    });
-
-    const result = await executeTaskCreate(automation.actions[0]!, {
-      automation: {
-        ...automation,
-        taskConfig: {
-          ...automation.taskConfig!,
-          gitSetup: { kind: 'none' },
-          workspaceLocation: { host: 'local' },
-        },
-      },
-      run,
-    });
-
-    expect(result.success).toBe(true);
-    const taskConfig = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
-    expect(taskConfig?.gitSetup).toEqual({
-      kind: 'create-branch',
-      branchName: 'stored-task-run',
-      fromBranch: { type: 'local', branch: 'main' },
-      pushBranch: false,
-    });
-  });
-
   it('preserves none gitSetup for BYOI automation tasks', async () => {
     vi.mocked(projectManager.getProject).mockReturnValue({} as never);
     vi.mocked(taskService.createTask).mockResolvedValueOnce({
@@ -429,7 +349,7 @@ describe('executeTaskCreate', () => {
 
     expect(result.success).toBe(true);
     if (!result.success) return;
-    expect(taskService.provision).toHaveBeenCalledWith(result.data.taskId);
+    expect(taskService.launch).toHaveBeenCalledWith(result.data.taskId);
     expect(createConversation).toHaveBeenCalledWith(
       expect.objectContaining({
         projectId: 'project-1',
@@ -438,7 +358,7 @@ describe('executeTaskCreate', () => {
         isInitialConversation: true,
       })
     );
-    expect(vi.mocked(taskService.provision).mock.invocationCallOrder[0]).toBeLessThan(
+    expect(vi.mocked(taskService.launch).mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(createConversation).mock.invocationCallOrder[0]
     );
   });
@@ -449,7 +369,7 @@ describe('executeTaskCreate', () => {
       success: true,
       data: { task: {} as never },
     });
-    vi.mocked(taskService.provision).mockResolvedValueOnce({
+    vi.mocked(taskService.launch).mockResolvedValueOnce({
       success: false,
       error: {
         type: 'timeout',
@@ -485,7 +405,7 @@ describe('executeTaskCreate', () => {
       success: false,
       error: { message: 'run_update_failed', taskId: expect.any(String) },
     });
-    expect(taskService.provision).not.toHaveBeenCalled();
+    expect(taskService.launch).not.toHaveBeenCalled();
     expect(createConversation).not.toHaveBeenCalled();
   });
 
@@ -501,7 +421,7 @@ describe('executeTaskCreate', () => {
 
     expect(result).toEqual({ success: false, error: { message: 'after_uuid' } });
     expect(taskService.createTask).not.toHaveBeenCalled();
-    expect(taskService.provision).not.toHaveBeenCalled();
+    expect(taskService.launch).not.toHaveBeenCalled();
     expect(createConversation).not.toHaveBeenCalled();
   });
 });

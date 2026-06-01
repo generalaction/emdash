@@ -7,18 +7,16 @@ import { appSettingsService } from '@main/core/settings/settings-service';
 import { generateTaskName } from '@main/core/tasks/name-generation/generateTaskName';
 import type { ProvisionTaskError } from '@main/core/tasks/provision-task-error';
 import { taskService } from '@main/core/tasks/task-service';
+import {
+  formatProvisionWorkspaceError,
+  type ProvisionWorkspaceError,
+} from '@main/core/workspaces/workspace-bootstrap-service';
 import { resolveAutomationAgentAutoApprove } from '@shared/agent-auto-approve-defaults';
 import type { TaskCreateAction } from '@shared/automations/actions';
 import type { Branch } from '@shared/git';
 import { bareRefName } from '@shared/git-utils';
 import { err, ok, type Result } from '@shared/result';
-import type {
-  CreateTaskError,
-  CreateTaskParams,
-  CreateTaskStrategy,
-  GitSetup,
-  WorkspaceLocation,
-} from '@shared/tasks';
+import type { CreateTaskError, CreateTaskParams, GitSetup, WorkspaceLocation } from '@shared/tasks';
 import { linkRunTask } from '../run-transitions';
 import type { ActionContext, ActionError, ActionOutcome } from './types';
 
@@ -49,7 +47,10 @@ function formatCreateTaskActionError(error: CreateTaskError): string {
   }
 }
 
-function formatProvisionActionError(error: ProvisionTaskError): string {
+function formatProvisionActionError(error: ProvisionWorkspaceError | ProvisionTaskError): string {
+  if (error.type === 'no-intent' || error.type === 'setup-failed') {
+    return formatProvisionWorkspaceError(error);
+  }
   switch (error.type) {
     case 'timeout':
       return error.step ? `${error.message} (step: ${error.step})` : error.message;
@@ -77,13 +78,9 @@ async function ensureProjectOpen(projectId: string) {
 }
 
 async function resolveProjectDefaults(
-  projectId: string,
+  project: NonNullable<ReturnType<typeof projectManager.getProject>>,
   taskName: string
-): Promise<Result<{ gitSetup: GitSetup; workspaceLocation: WorkspaceLocation }, string>> {
-  const projectResult = await ensureProjectOpen(projectId);
-  if (!projectResult.success) return projectResult;
-  const project = projectResult.data;
-
+): Promise<{ gitSetup: GitSetup; workspaceLocation: WorkspaceLocation }> {
   const [branchesPayload, repoInfo, configuredRemotes] = await Promise.all([
     project.repository.getBranchesPayload(),
     project.repository.getRepositoryInfo(),
@@ -113,7 +110,7 @@ async function resolveProjectDefaults(
   const workspaceLocation: WorkspaceLocation =
     project.defaultWorkspaceType.kind === 'ssh' ? { host: 'project-ssh' } : { host: 'local' };
 
-  return ok({ gitSetup, workspaceLocation });
+  return { gitSetup, workspaceLocation };
 }
 
 function makeRunTaskName(storedConfig: CreateTaskParams | null | undefined, ctx: ActionContext) {
@@ -127,96 +124,12 @@ function makeRunBranchName(baseBranch: string, runId: string) {
   return generateTaskName({ title: baseBranch, description: runId });
 }
 
-/**
- * Legacy stored configs (before the gitSetup migration) have `strategy` and `sourceBranch`.
- * This helper normalises them to a `GitSetup` value.
- */
-type LegacyStoredConfig = CreateTaskParams & {
-  strategy?: CreateTaskStrategy;
-  sourceBranch?: Branch;
-  workspaceProvider?: 'byoi';
-};
-
-function gitSetupFromConfig(config: LegacyStoredConfig): GitSetup {
-  // New format: gitSetup is always present (cast needed because old runtime data may omit it).
-  const gitSetup = config.gitSetup as GitSetup | undefined;
-  if (gitSetup) return gitSetup;
-
-  // Legacy format: convert strategy → GitSetup.
-  const { strategy, sourceBranch } = config;
-  if (!strategy) return { kind: 'none' };
-
-  switch (strategy.kind) {
-    case 'new-branch':
-      return {
-        kind: 'create-branch',
-        branchName: strategy.taskBranch,
-        fromBranch: sourceBranch ?? { type: 'local', branch: 'main' },
-        pushBranch: strategy.pushBranch,
-      };
-    case 'checkout-existing':
-      return { kind: 'use-branch', branchName: sourceBranch?.branch ?? 'main' };
-    case 'from-pull-request':
-      return {
-        kind: 'pr-branch',
-        prNumber: strategy.prNumber,
-        headBranch: strategy.headBranch,
-        headRepositoryUrl: strategy.headRepositoryUrl,
-        isFork: strategy.isFork,
-        taskBranch: strategy.taskBranch,
-        pushBranch: strategy.pushBranch,
-      };
-    case 'no-worktree':
-      return { kind: 'none' };
-  }
-}
-
-function workspaceLocationFromConfig(config: LegacyStoredConfig): WorkspaceLocation {
-  // New format
-  const loc = config.workspaceLocation as WorkspaceLocation | undefined;
-  if (loc) return loc;
-  // Legacy format
-  return config.workspaceProvider === 'byoi' ? { host: 'byoi' } : { host: 'local' };
-}
-
-async function resolveRunScopedGitSetup(
-  config: LegacyStoredConfig,
-  projectId: string,
-  taskName: string,
-  runId: string
-): Promise<Result<{ gitSetup: GitSetup; workspaceLocation: WorkspaceLocation }, string>> {
-  const gitSetup = gitSetupFromConfig(config);
-  const workspaceLocation = workspaceLocationFromConfig(config);
-
-  if (gitSetup.kind === 'create-branch') {
-    return ok({
-      gitSetup: { ...gitSetup, branchName: makeRunBranchName(gitSetup.branchName, runId) },
-      workspaceLocation,
-    });
-  }
-
-  if (gitSetup.kind === 'pr-branch' && gitSetup.taskBranch) {
-    return ok({
-      gitSetup: { ...gitSetup, taskBranch: makeRunBranchName(gitSetup.taskBranch, runId) },
-      workspaceLocation,
-    });
-  }
-
-  // Upgrade `none` → `create-branch` for non-BYOI repos that are no longer unborn.
-  if (gitSetup.kind === 'none' && workspaceLocation.host !== 'byoi') {
-    const defaults = await resolveProjectDefaults(projectId, taskName);
-    if (!defaults.success) return err(defaults.error);
-    const defaultGitSetup = defaults.data.gitSetup;
-    if (defaultGitSetup.kind === 'create-branch') {
-      return ok({
-        gitSetup: { ...defaultGitSetup, pushBranch: false },
-        workspaceLocation,
-      });
-    }
-    // Repo is still unborn per defaults → keep none.
-  }
-
-  return ok({ gitSetup, workspaceLocation });
+function scopeGitSetupToRun(gitSetup: GitSetup, runId: string): GitSetup {
+  if (gitSetup.kind === 'create-branch')
+    return { ...gitSetup, branchName: makeRunBranchName(gitSetup.branchName, runId) };
+  if (gitSetup.kind === 'pr-branch' && gitSetup.taskBranch)
+    return { ...gitSetup, taskBranch: makeRunBranchName(gitSetup.taskBranch, runId) };
+  return gitSetup;
 }
 
 export async function executeTaskCreate(
@@ -230,74 +143,54 @@ export async function executeTaskCreate(
   if (!projectId) return err({ message: 'no_project_attached' });
 
   try {
-    const storedConfig = ctx.automation.taskConfig as LegacyStoredConfig | null | undefined;
+    const storedConfig = ctx.automation.taskConfig as CreateTaskParams | null | undefined;
     const taskId = randomUUID();
     const conversationId = randomUUID();
     const taskName = makeRunTaskName(storedConfig, ctx);
 
-    let taskConfig: CreateTaskParams;
-    if (storedConfig?.initialConversation) {
-      const projectResult = await ensureProjectOpen(projectId);
-      if (!projectResult.success) return err({ message: projectResult.error });
-      const resolved = await resolveRunScopedGitSetup(
-        storedConfig,
-        projectId,
-        taskName,
-        ctx.run.id
-      );
-      if (!resolved.success) return err({ message: resolved.error });
+    const projectResult = await ensureProjectOpen(projectId);
+    if (!projectResult.success) return err({ message: projectResult.error });
+    const project = projectResult.data;
 
-      taskConfig = {
-        ...storedConfig,
-        id: taskId,
-        projectId,
-        name: taskName,
-        gitSetup: resolved.data.gitSetup,
-        workspaceLocation: resolved.data.workspaceLocation,
-        automationId: ctx.automation.id,
-        initialConversation: {
-          ...storedConfig.initialConversation,
-          id: conversationId,
-          projectId,
-          taskId,
-          autoApprove: resolveAutomationAgentAutoApprove(
-            storedConfig.initialConversation.provider,
-            storedConfig.initialConversation.autoApprove
-          ),
-          initialPrompt: prompt,
-        },
-      };
+    // Resolve git setup and workspace location from stored config or project defaults.
+    let gitSetup: GitSetup;
+    let workspaceLocation: WorkspaceLocation;
+    if (storedConfig) {
+      gitSetup = scopeGitSetupToRun(storedConfig.gitSetup, ctx.run.id);
+      workspaceLocation = storedConfig.workspaceLocation;
     } else {
-      const defaults = await resolveProjectDefaults(projectId, taskName);
-      if (!defaults.success) return err({ message: defaults.error });
-      const provider = (await appSettingsService.get('defaultAgent')) ?? DEFAULT_AGENT_ID;
-      const resolved = storedConfig
-        ? await resolveRunScopedGitSetup(storedConfig, projectId, taskName, ctx.run.id)
-        : ok(defaults.data);
-      if (!resolved.success) return err({ message: resolved.error });
-
-      taskConfig = {
-        ...storedConfig,
-        id: taskId,
-        projectId,
-        name: taskName,
-        gitSetup: resolved.data.gitSetup,
-        workspaceLocation: resolved.data.workspaceLocation,
-        automationId: ctx.automation.id,
-        initialConversation: {
-          id: conversationId,
-          projectId,
-          taskId,
-          provider,
-          title: ctx.automation.name,
-          autoApprove: resolveAutomationAgentAutoApprove(
-            provider,
-            storedConfig?.initialConversation?.autoApprove
-          ),
-          initialPrompt: prompt,
-        },
-      };
+      ({ gitSetup, workspaceLocation } = await resolveProjectDefaults(project, taskName));
     }
+
+    const provider =
+      storedConfig?.initialConversation?.provider ??
+      (await appSettingsService.get('defaultAgent')) ??
+      DEFAULT_AGENT_ID;
+
+    const initialConversation = {
+      ...(storedConfig?.initialConversation ?? {}),
+      id: conversationId,
+      projectId,
+      taskId,
+      provider,
+      title: storedConfig?.initialConversation?.title ?? ctx.automation.name,
+      autoApprove: resolveAutomationAgentAutoApprove(
+        provider,
+        storedConfig?.initialConversation?.autoApprove
+      ),
+      initialPrompt: prompt,
+    };
+
+    const taskConfig: CreateTaskParams = {
+      ...storedConfig,
+      id: taskId,
+      projectId,
+      name: taskName,
+      gitSetup,
+      workspaceLocation,
+      automationId: ctx.automation.id,
+      initialConversation,
+    };
 
     const result = await taskService.createTask(taskConfig);
     if (!result.success) {
@@ -313,17 +206,12 @@ export async function executeTaskCreate(
     }
 
     try {
-      const provision = await taskService.provision(taskId);
+      const provision = await taskService.launch(taskId);
       if (!provision.success) {
         return err({ message: formatProvisionActionError(provision.error), taskId });
       }
 
-      if (taskConfig.initialConversation) {
-        await createConversation({
-          ...taskConfig.initialConversation,
-          isInitialConversation: true,
-        });
-      }
+      await createConversation({ ...initialConversation, isInitialConversation: true });
     } catch (error) {
       return err({ message: error instanceof Error ? error.message : String(error), taskId });
     }

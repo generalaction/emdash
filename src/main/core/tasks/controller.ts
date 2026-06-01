@@ -53,7 +53,7 @@ export const taskController = createRPCController({
     return taskService.convertAutomationTask(taskId);
   },
   async provisionTask(taskId: string) {
-    const result = await taskService.provision(taskId);
+    const result = await taskService.provisionSession(taskId);
     if (!result.success) {
       throw new Error(`Failed to provision task: ${formatProvisionTaskError(result.error)}`);
     }

@@ -38,12 +38,7 @@ import {
 } from '@shared/automations/types';
 import { assertValidCronTrigger } from '@shared/automations/validation';
 import type { Branch } from '@shared/git';
-import type {
-  CreateTaskParams,
-  CreateTaskStrategy,
-  GitSetup,
-  WorkspaceLocation,
-} from '@shared/tasks';
+import type { CreateTaskParams, GitSetup, WorkspaceLocation } from '@shared/tasks';
 import { useAutomations } from '../useAutomations';
 import { AutomationPanelHeader } from './AutomationPanelHeader';
 import { SchedulePicker } from './pickers/SchedulePicker';
@@ -78,50 +73,24 @@ function cronTzFromTrigger(trigger: CronTrigger | undefined): string {
   return trigger?.tz ?? getLocalTimeZone();
 }
 
-/**
- * Derives initial branch picker state from a stored task config.
- * Handles both new-format configs (`gitSetup`) and legacy configs (`strategy`/`sourceBranch`).
- */
-type StoredTaskConfig = CreateTaskParams & {
-  strategy?: CreateTaskStrategy;
-  sourceBranch?: Branch;
-  workspaceProvider?: 'byoi';
-};
-
-function branchInitialFromConfig(rawConfig: CreateTaskParams | null | undefined): {
+/** Derives initial branch picker state from a stored task config. */
+function branchInitialFromConfig(config: CreateTaskParams | null | undefined): {
   createBranchAndWorktree: boolean;
   pushBranch?: boolean;
   branchOverride?: Branch;
 } {
-  const config = rawConfig as StoredTaskConfig | null | undefined;
   if (!config) return { createBranchAndWorktree: true };
 
-  // New format: gitSetup is present (cast required since TS sees it as always-required).
-  const gitSetup = config.gitSetup as GitSetup | undefined;
-  if (gitSetup) {
-    if (gitSetup.kind === 'create-branch') {
-      return {
-        createBranchAndWorktree: true,
-        pushBranch: gitSetup.pushBranch,
-        branchOverride: gitSetup.fromBranch,
-      };
-    }
-    if (gitSetup.kind === 'none') {
-      return { createBranchAndWorktree: false };
-    }
-    return { createBranchAndWorktree: true };
-  }
-
-  // Legacy format (stored before gitSetup migration).
-  if (config.strategy?.kind === 'new-branch') {
+  const { gitSetup } = config;
+  if (gitSetup.kind === 'create-branch') {
     return {
       createBranchAndWorktree: true,
-      pushBranch: config.strategy.pushBranch,
-      branchOverride: config.sourceBranch,
+      pushBranch: gitSetup.pushBranch,
+      branchOverride: gitSetup.fromBranch,
     };
   }
-  if (config.strategy?.kind === 'no-worktree') {
-    return { createBranchAndWorktree: false, branchOverride: config.sourceBranch };
+  if (gitSetup.kind === 'none') {
+    return { createBranchAndWorktree: false };
   }
   return { createBranchAndWorktree: true };
 }
@@ -179,8 +148,7 @@ export const AutomationPanel = observer(function AutomationPanel({
   const [cronExpr, setCronExpr] = useState<string>(cronExprFromTrigger(seedTrigger));
   const [cronTz, setCronTz] = useState<string>(cronTzFromTrigger(seedTrigger));
   const [useBYOI, setUseBYOI] = useState(() => {
-    const c = seedConfig as StoredTaskConfig | undefined;
-    return c?.workspaceLocation?.host === 'byoi' || c?.workspaceProvider === 'byoi';
+    return seedConfig?.workspaceLocation?.host === 'byoi';
   });
   const [error, setError] = useState<string | null>(null);
   const [cronError, setCronError] = useState<string | null>(null);

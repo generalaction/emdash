@@ -1,6 +1,8 @@
 export type Args = {
   branchName: string;
   remote: string;
+  /** When true, passes -u to `git push` to set upstream tracking in one operation. */
+  setUpstream?: boolean;
 };
 
 export type Success = Record<string, never>;

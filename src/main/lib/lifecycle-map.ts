@@ -16,20 +16,27 @@ export type LifecycleHooks<T> = {
 /**
  * Manages the lifecycle state machine for a collection of async resources.
  *
- * Encapsulates four maps (active, in-flight provision, in-flight teardown, errors)
- * and provides deduplicated provision/teardown with a consistent bootstrap status query.
+ * Encapsulates five maps (active, in-flight provision, in-flight teardown, provision errors,
+ * teardown errors) and provides deduplicated provision/teardown with a consistent status query.
  *
  * Callers own timeout, error conversion, and logging — only the state transitions
  * and deduplication logic live here.
  *
  * Hooks are awaited in sequence. To fire-and-forget, return void from the hook body
  * without returning the Promise.
+ *
+ * Type parameters:
+ *   T  — the provisioned resource type
+ *   PE — provision error type (stored in _errors, surfaced by bootstrapStatus)
+ *   TE — teardown error type (stored in _teardownErrors, surfaced by teardownStatus);
+ *        defaults to PE when provision and teardown share the same error type
  */
-export class LifecycleMap<T, E> {
+export class LifecycleMap<T, PE, TE> {
   private readonly _active = new Map<string, T>();
-  private readonly _provisioning = new Map<string, Promise<Result<T, E>>>();
-  private readonly _tearingDown = new Map<string, Promise<Result<void, E>>>();
-  private readonly _errors = new Map<string, E>();
+  private readonly _provisioning = new Map<string, Promise<Result<T, PE>>>();
+  private readonly _tearingDown = new Map<string, Promise<Result<void, TE>>>();
+  private readonly _errors = new Map<string, PE>();
+  private readonly _teardownErrors = new Map<string, TE>();
 
   constructor(private readonly _hooks: LifecycleHooks<T> = {}) {}
 
@@ -54,10 +61,23 @@ export class LifecycleMap<T, E> {
     this._active.clear();
   }
 
-  bootstrapStatus(id: string, formatError: (e: E) => string): LifecycleStatus {
+  bootstrapStatus(id: string, formatError: (e: PE) => string): LifecycleStatus {
     if (this._active.has(id)) return { status: 'ready' };
     if (this._provisioning.has(id)) return { status: 'bootstrapping' };
     const error = this._errors.get(id);
+    if (error) return { status: 'error', message: formatError(error) };
+    return { status: 'not-started' };
+  }
+
+  /**
+   * Returns the teardown status for a resource.
+   * - bootstrapping: teardown is in-flight
+   * - error: teardown completed with a failure (cleared when provision succeeds)
+   * - not-started: no teardown error recorded
+   */
+  teardownStatus(id: string, formatError: (e: TE) => string): LifecycleStatus {
+    if (this._tearingDown.has(id)) return { status: 'bootstrapping' };
+    const error = this._teardownErrors.get(id);
     if (error) return { status: 'error', message: formatError(error) };
     return { status: 'not-started' };
   }
@@ -67,8 +87,9 @@ export class LifecycleMap<T, E> {
    * - If already active, returns the existing value immediately.
    * - If already in-flight, returns the existing promise.
    * - Otherwise runs: preProvision → run() → _active.set() → postProvision.
+   * - Clears any previously recorded teardown error for this id on success.
    */
-  provision(id: string, run: () => Promise<Result<T, E>>): Promise<Result<T, E>> {
+  provision(id: string, run: () => Promise<Result<T, PE>>): Promise<Result<T, PE>> {
     const existing = this._active.get(id);
     if (existing !== undefined) return Promise.resolve(ok(existing));
 
@@ -81,6 +102,7 @@ export class LifecycleMap<T, E> {
         const result = await run();
         if (result.success) {
           this._active.set(id, result.data);
+          this._teardownErrors.delete(id);
           await this._hooks.postProvision?.(id, result.data);
         } else {
           this._errors.set(id, result.error);
@@ -101,12 +123,13 @@ export class LifecycleMap<T, E> {
    * - If not found in the active map, returns `null` — caller decides what to do.
    * - Otherwise runs: preTeardown → run() → _active.delete() → postTeardown.
    * - postTeardown always fires (via finally), even if run() fails.
+   * - Stores teardown errors in _teardownErrors so they can be queried after the promise settles.
    */
-  teardown<TE>(
+  teardown(
     id: string,
     run: (value: T) => Promise<Result<void, TE>>
   ): Promise<Result<void, TE>> | null {
-    const inFlight = this._tearingDown.get(id) as Promise<Result<void, TE>> | undefined;
+    const inFlight = this._tearingDown.get(id);
     if (inFlight) return inFlight;
 
     const value = this._active.get(id);
@@ -116,6 +139,9 @@ export class LifecycleMap<T, E> {
       try {
         await this._hooks.preTeardown?.(id, value);
         const result = await run(value);
+        if (!result.success) {
+          this._teardownErrors.set(id, result.error);
+        }
         return result.success ? ok<void>() : err(result.error);
       } finally {
         this._active.delete(id);
@@ -124,7 +150,7 @@ export class LifecycleMap<T, E> {
       }
     })();
 
-    this._tearingDown.set(id, promise as Promise<Result<void, E>>);
+    this._tearingDown.set(id, promise);
     return promise;
   }
 }

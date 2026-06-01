@@ -89,21 +89,6 @@ export type TaskBootstrapStatus =
   | { status: 'error'; message: string }
   | { status: 'not-started' };
 
-export type CreateTaskStrategy =
-  | { kind: 'new-branch'; taskBranch: string; pushBranch?: boolean }
-  | { kind: 'checkout-existing' }
-  | {
-      kind: 'from-pull-request';
-      prNumber: number;
-      /** The PR's headRefName, used as the local branch name (same as `gh pr checkout`). */
-      headBranch: string;
-      headRepositoryUrl: string;
-      isFork: boolean;
-      taskBranch?: string;
-      pushBranch?: boolean;
-    }
-  | { kind: 'no-worktree' };
-
 export type CreateTaskParams = {
   id: string;
   projectId: string;

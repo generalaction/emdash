@@ -64,10 +64,6 @@ export function compileSetupSpec(
         kind: 'create-local-branch',
         args: { branchName, fromRef, noTrack: true },
       });
-      steps.push({
-        kind: 'set-branch-tracking',
-        args: { branchName, remote: ctx.pushRemote, remoteBranch: branchName },
-      });
       steps.push({ kind: 'set-branch-base', args: { branchName, baseRef: fromRef } });
     } else {
       // Local source branch
@@ -85,7 +81,10 @@ export function compileSetupSpec(
     steps.push({ kind: 'copy-preserved-files', args: {} });
 
     if (git.pushBranch) {
-      steps.push({ kind: 'push-branch', args: { branchName, remote: ctx.pushRemote } });
+      steps.push({
+        kind: 'push-branch',
+        args: { branchName, remote: ctx.pushRemote, setUpstream: true },
+      });
     }
 
     return steps;
