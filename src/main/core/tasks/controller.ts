@@ -6,6 +6,7 @@ import type {
   RenameTaskOptions,
   TaskLifecycleStatus,
 } from '@shared/tasks';
+import { formatProvisionWorkspaceError } from '../workspaces/workspace-bootstrap-service';
 import { generateTaskName } from './name-generation/generateTaskName';
 import { taskService } from './task-service';
 
@@ -53,6 +54,11 @@ export const taskController = createRPCController({
   },
   async teardownTask(_projectId: string, taskId: string) {
     return taskService.teardown(taskId, 'terminate');
+  },
+  async provisionWorkspace(taskId: string) {
+    const result = await taskService.provisionWorkspace(taskId);
+    if (!result.success) throw new Error(formatProvisionWorkspaceError(result.error));
+    return result.data;
   },
   generateTaskName,
 });

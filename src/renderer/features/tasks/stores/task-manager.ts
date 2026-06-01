@@ -385,9 +385,9 @@ export class TaskManagerStore {
 
     // Single-phase provision: workspace bootstrap + task provider construction + registration.
     if (wsId) workspaceRegistry.setBootstrapState(this.projectId, wsId, { kind: 'resolving' });
-    let result: Awaited<ReturnType<typeof rpc.workspaces.provisionWorkspace>>;
+    let result: Awaited<ReturnType<typeof rpc.tasks.provisionWorkspace>>;
     try {
-      result = await rpc.workspaces.provisionWorkspace(taskId);
+      result = await rpc.tasks.provisionWorkspace(taskId);
       if (wsId) workspaceRegistry.setBootstrapState(this.projectId, wsId, { kind: 'ready' });
     } catch (wsErr) {
       const message = wsErr instanceof Error ? wsErr.message : String(wsErr);
