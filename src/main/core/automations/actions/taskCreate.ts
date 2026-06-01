@@ -9,9 +9,16 @@ import type { ProvisionTaskError } from '@main/core/tasks/provision-task-error';
 import { taskService } from '@main/core/tasks/task-service';
 import { resolveAutomationAgentAutoApprove } from '@shared/agent-auto-approve-defaults';
 import type { TaskCreateAction } from '@shared/automations/actions';
+import type { Branch } from '@shared/git';
 import { bareRefName } from '@shared/git-utils';
 import { err, ok, type Result } from '@shared/result';
-import type { CreateTaskError, CreateTaskParams, CreateTaskStrategy } from '@shared/tasks';
+import type {
+  CreateTaskError,
+  CreateTaskParams,
+  CreateTaskStrategy,
+  GitSetup,
+  WorkspaceLocation,
+} from '@shared/tasks';
 import { linkRunTask } from '../run-transitions';
 import type { ActionContext, ActionError, ActionOutcome } from './types';
 
@@ -69,7 +76,10 @@ async function ensureProjectOpen(projectId: string) {
   return ok(project);
 }
 
-async function resolveProjectDefaults(projectId: string, taskName: string) {
+async function resolveProjectDefaults(
+  projectId: string,
+  taskName: string
+): Promise<Result<{ gitSetup: GitSetup; workspaceLocation: WorkspaceLocation }, string>> {
   const projectResult = await ensureProjectOpen(projectId);
   if (!projectResult.success) return projectResult;
   const project = projectResult.data;
@@ -81,10 +91,10 @@ async function resolveProjectDefaults(projectId: string, taskName: string) {
   ]);
   const defaultBranchName = bareRefName(branchesPayload.gitDefaultBranch);
   const localDefault = branchesPayload.branches.find(
-    (branch) => branch.type === 'local' && branch.branch === defaultBranchName
+    (branch: Branch) => branch.type === 'local' && branch.branch === defaultBranchName
   );
   const remoteDefault = branchesPayload.branches.find(
-    (branch) =>
+    (branch: Branch) =>
       branch.type === 'remote' &&
       branch.branch === defaultBranchName &&
       branch.remote.name === configuredRemotes.baseRemote
@@ -92,14 +102,18 @@ async function resolveProjectDefaults(projectId: string, taskName: string) {
   const currentBranch = repoInfo.currentBranch
     ? { type: 'local' as const, branch: repoInfo.currentBranch }
     : undefined;
-  const sourceBranch = localDefault ??
+  const fromBranch: Branch = localDefault ??
     remoteDefault ??
     currentBranch ?? { type: 'local' as const, branch: defaultBranchName };
-  const strategy = repoInfo.isUnborn
-    ? { kind: 'no-worktree' as const }
-    : { kind: 'new-branch' as const, taskBranch: taskName, pushBranch: true };
 
-  return ok({ sourceBranch, strategy });
+  const gitSetup: GitSetup = repoInfo.isUnborn
+    ? { kind: 'none' }
+    : { kind: 'create-branch', branchName: taskName, fromBranch, pushBranch: true };
+
+  const workspaceLocation: WorkspaceLocation =
+    project.defaultWorkspaceType.kind === 'ssh' ? { host: 'project-ssh' } : { host: 'local' };
+
+  return ok({ gitSetup, workspaceLocation });
 }
 
 function makeRunTaskName(storedConfig: CreateTaskParams | null | undefined, ctx: ActionContext) {
@@ -113,39 +127,96 @@ function makeRunBranchName(baseBranch: string, runId: string) {
   return generateTaskName({ title: baseBranch, description: runId });
 }
 
-async function resolveRunScopedStrategy(
-  config: CreateTaskParams,
+/**
+ * Legacy stored configs (before the gitSetup migration) have `strategy` and `sourceBranch`.
+ * This helper normalises them to a `GitSetup` value.
+ */
+type LegacyStoredConfig = CreateTaskParams & {
+  strategy?: CreateTaskStrategy;
+  sourceBranch?: Branch;
+  workspaceProvider?: 'byoi';
+};
+
+function gitSetupFromConfig(config: LegacyStoredConfig): GitSetup {
+  // New format: gitSetup is always present (cast needed because old runtime data may omit it).
+  const gitSetup = config.gitSetup as GitSetup | undefined;
+  if (gitSetup) return gitSetup;
+
+  // Legacy format: convert strategy → GitSetup.
+  const { strategy, sourceBranch } = config;
+  if (!strategy) return { kind: 'none' };
+
+  switch (strategy.kind) {
+    case 'new-branch':
+      return {
+        kind: 'create-branch',
+        branchName: strategy.taskBranch,
+        fromBranch: sourceBranch ?? { type: 'local', branch: 'main' },
+        pushBranch: strategy.pushBranch,
+      };
+    case 'checkout-existing':
+      return { kind: 'use-branch', branchName: sourceBranch?.branch ?? 'main' };
+    case 'from-pull-request':
+      return {
+        kind: 'pr-branch',
+        prNumber: strategy.prNumber,
+        headBranch: strategy.headBranch,
+        headRepositoryUrl: strategy.headRepositoryUrl,
+        isFork: strategy.isFork,
+        taskBranch: strategy.taskBranch,
+        pushBranch: strategy.pushBranch,
+      };
+    case 'no-worktree':
+      return { kind: 'none' };
+  }
+}
+
+function workspaceLocationFromConfig(config: LegacyStoredConfig): WorkspaceLocation {
+  // New format
+  const loc = config.workspaceLocation as WorkspaceLocation | undefined;
+  if (loc) return loc;
+  // Legacy format
+  return config.workspaceProvider === 'byoi' ? { host: 'byoi' } : { host: 'local' };
+}
+
+async function resolveRunScopedGitSetup(
+  config: LegacyStoredConfig,
   projectId: string,
   taskName: string,
   runId: string
-): Promise<Result<CreateTaskStrategy, string>> {
-  const strategy = config.strategy;
+): Promise<Result<{ gitSetup: GitSetup; workspaceLocation: WorkspaceLocation }, string>> {
+  const gitSetup = gitSetupFromConfig(config);
+  const workspaceLocation = workspaceLocationFromConfig(config);
 
-  if (strategy.kind === 'new-branch') {
+  if (gitSetup.kind === 'create-branch') {
     return ok({
-      ...strategy,
-      taskBranch: makeRunBranchName(strategy.taskBranch, runId),
+      gitSetup: { ...gitSetup, branchName: makeRunBranchName(gitSetup.branchName, runId) },
+      workspaceLocation,
     });
   }
 
-  if (strategy.kind === 'from-pull-request' && strategy.taskBranch) {
+  if (gitSetup.kind === 'pr-branch' && gitSetup.taskBranch) {
     return ok({
-      ...strategy,
-      taskBranch: makeRunBranchName(strategy.taskBranch, runId),
+      gitSetup: { ...gitSetup, taskBranch: makeRunBranchName(gitSetup.taskBranch, runId) },
+      workspaceLocation,
     });
   }
 
-  if (strategy.kind === 'no-worktree' && config.workspaceProvider !== 'byoi') {
-    const projectResult = await ensureProjectOpen(projectId);
-    if (!projectResult.success) return err(projectResult.error);
-
-    const repoInfo = await projectResult.data.repository.getRepositoryInfo();
-    if (!repoInfo.isUnborn) {
-      return ok({ kind: 'new-branch', taskBranch: taskName, pushBranch: false });
+  // Upgrade `none` → `create-branch` for non-BYOI repos that are no longer unborn.
+  if (gitSetup.kind === 'none' && workspaceLocation.host !== 'byoi') {
+    const defaults = await resolveProjectDefaults(projectId, taskName);
+    if (!defaults.success) return err(defaults.error);
+    const defaultGitSetup = defaults.data.gitSetup;
+    if (defaultGitSetup.kind === 'create-branch') {
+      return ok({
+        gitSetup: { ...defaultGitSetup, pushBranch: false },
+        workspaceLocation,
+      });
     }
+    // Repo is still unborn per defaults → keep none.
   }
 
-  return ok(strategy);
+  return ok({ gitSetup, workspaceLocation });
 }
 
 export async function executeTaskCreate(
@@ -159,7 +230,7 @@ export async function executeTaskCreate(
   if (!projectId) return err({ message: 'no_project_attached' });
 
   try {
-    const storedConfig = ctx.automation.taskConfig;
+    const storedConfig = ctx.automation.taskConfig as LegacyStoredConfig | null | undefined;
     const taskId = randomUUID();
     const conversationId = randomUUID();
     const taskName = makeRunTaskName(storedConfig, ctx);
@@ -168,20 +239,21 @@ export async function executeTaskCreate(
     if (storedConfig?.initialConversation) {
       const projectResult = await ensureProjectOpen(projectId);
       if (!projectResult.success) return err({ message: projectResult.error });
-      const strategyResult = await resolveRunScopedStrategy(
+      const resolved = await resolveRunScopedGitSetup(
         storedConfig,
         projectId,
         taskName,
         ctx.run.id
       );
-      if (!strategyResult.success) return err({ message: strategyResult.error });
+      if (!resolved.success) return err({ message: resolved.error });
 
       taskConfig = {
         ...storedConfig,
         id: taskId,
         projectId,
         name: taskName,
-        strategy: strategyResult.data,
+        gitSetup: resolved.data.gitSetup,
+        workspaceLocation: resolved.data.workspaceLocation,
         automationId: ctx.automation.id,
         initialConversation: {
           ...storedConfig.initialConversation,
@@ -199,18 +271,18 @@ export async function executeTaskCreate(
       const defaults = await resolveProjectDefaults(projectId, taskName);
       if (!defaults.success) return err({ message: defaults.error });
       const provider = (await appSettingsService.get('defaultAgent')) ?? DEFAULT_AGENT_ID;
-      const strategyResult = storedConfig
-        ? await resolveRunScopedStrategy(storedConfig, projectId, taskName, ctx.run.id)
-        : ok(defaults.data.strategy);
-      if (!strategyResult.success) return err({ message: strategyResult.error });
+      const resolved = storedConfig
+        ? await resolveRunScopedGitSetup(storedConfig, projectId, taskName, ctx.run.id)
+        : ok(defaults.data);
+      if (!resolved.success) return err({ message: resolved.error });
 
       taskConfig = {
         ...storedConfig,
         id: taskId,
         projectId,
         name: taskName,
-        sourceBranch: storedConfig?.sourceBranch ?? defaults.data.sourceBranch,
-        strategy: strategyResult.data,
+        gitSetup: resolved.data.gitSetup,
+        workspaceLocation: resolved.data.workspaceLocation,
         automationId: ctx.automation.id,
         initialConversation: {
           id: conversationId,

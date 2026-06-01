@@ -39,8 +39,13 @@ const automation: Automation = {
     id: 'stored-task-id',
     projectId: 'project-1',
     name: 'Stored task',
-    sourceBranch: { type: 'local', branch: 'main' },
-    strategy: { kind: 'new-branch', taskBranch: 'stored-task-branch', pushBranch: false },
+    gitSetup: {
+      kind: 'create-branch',
+      branchName: 'stored-task-branch',
+      fromBranch: { type: 'local', branch: 'main' },
+      pushBranch: false,
+    },
+    workspaceLocation: { host: 'local' },
     initialConversation: {
       id: 'stored-conversation-id',
       projectId: 'project-1',
@@ -216,9 +221,10 @@ describe('executeTaskCreate', () => {
     expect(result.success).toBe(true);
     const taskConfig = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
     expect(taskConfig?.name).toBe('stored-task-run');
-    expect(taskConfig?.strategy).toEqual({
-      kind: 'new-branch',
-      taskBranch: 'stored-task-branch-run',
+    expect(taskConfig?.gitSetup).toEqual({
+      kind: 'create-branch',
+      branchName: 'stored-task-branch-run',
+      fromBranch: { type: 'local', branch: 'main' },
       pushBranch: false,
     });
     expect(generateTaskName).toHaveBeenCalledWith({ title: 'Stored task', description: run.id });
@@ -228,9 +234,61 @@ describe('executeTaskCreate', () => {
     });
   });
 
-  it('converts stored no-worktree configs into isolated run worktrees for normal projects', async () => {
+  it('converts legacy stored strategy configs to gitSetup (backward compat)', async () => {
+    vi.mocked(projectManager.getProject).mockReturnValue({} as never);
+    vi.mocked(generateTaskName).mockImplementation(({ title }) =>
+      title === 'stored-task-branch' ? 'stored-task-branch-run' : 'stored-task-run'
+    );
+    vi.mocked(taskService.createTask).mockResolvedValueOnce({
+      success: true,
+      data: { task: {} as never },
+    });
+
+    const legacyAutomation = {
+      ...automation,
+      taskConfig: {
+        ...automation.taskConfig!,
+        // Legacy format: strategy + sourceBranch instead of gitSetup + workspaceLocation
+        gitSetup: undefined as never,
+        workspaceLocation: undefined as never,
+        sourceBranch: { type: 'local' as const, branch: 'main' },
+        strategy: {
+          kind: 'new-branch' as const,
+          taskBranch: 'stored-task-branch',
+          pushBranch: false,
+        },
+      },
+    };
+
+    const result = await executeTaskCreate(automation.actions[0]!, {
+      automation: legacyAutomation,
+      run,
+    });
+
+    expect(result.success).toBe(true);
+    const taskConfig = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
+    // Should be converted to create-branch gitSetup
+    expect(taskConfig?.gitSetup).toEqual({
+      kind: 'create-branch',
+      branchName: 'stored-task-branch-run',
+      fromBranch: { type: 'local', branch: 'main' },
+      pushBranch: false,
+    });
+    expect(taskConfig?.workspaceLocation).toEqual({ host: 'local' });
+  });
+
+  it('upgrades none gitSetup to create-branch for non-BYOI projects', async () => {
     vi.mocked(projectManager.getProject).mockReturnValue({
-      repository: { getRepositoryInfo: vi.fn().mockResolvedValue({ isUnborn: false }) },
+      repository: {
+        getBranchesPayload: vi.fn().mockResolvedValue({
+          gitDefaultBranch: 'main',
+          branches: [{ type: 'local', branch: 'main' }],
+        }),
+        getRepositoryInfo: vi.fn().mockResolvedValue({ isUnborn: false, currentBranch: 'main' }),
+        getConfiguredRemotes: vi.fn().mockResolvedValue({ baseRemote: 'origin' }),
+        defaultWorkspaceType: { kind: 'local' },
+      },
+      defaultWorkspaceType: { kind: 'local' },
     } as never);
     vi.mocked(generateTaskName).mockReturnValue('stored-task-run');
     vi.mocked(taskService.createTask).mockResolvedValueOnce({
@@ -241,21 +299,26 @@ describe('executeTaskCreate', () => {
     const result = await executeTaskCreate(automation.actions[0]!, {
       automation: {
         ...automation,
-        taskConfig: { ...automation.taskConfig!, strategy: { kind: 'no-worktree' } },
+        taskConfig: {
+          ...automation.taskConfig!,
+          gitSetup: { kind: 'none' },
+          workspaceLocation: { host: 'local' },
+        },
       },
       run,
     });
 
     expect(result.success).toBe(true);
     const taskConfig = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
-    expect(taskConfig?.strategy).toEqual({
-      kind: 'new-branch',
-      taskBranch: 'stored-task-run',
+    expect(taskConfig?.gitSetup).toEqual({
+      kind: 'create-branch',
+      branchName: 'stored-task-run',
+      fromBranch: { type: 'local', branch: 'main' },
       pushBranch: false,
     });
   });
 
-  it('preserves no-worktree configs for BYOI automation tasks', async () => {
+  it('preserves none gitSetup for BYOI automation tasks', async () => {
     vi.mocked(projectManager.getProject).mockReturnValue({} as never);
     vi.mocked(taskService.createTask).mockResolvedValueOnce({
       success: true,
@@ -267,8 +330,8 @@ describe('executeTaskCreate', () => {
         ...automation,
         taskConfig: {
           ...automation.taskConfig!,
-          strategy: { kind: 'no-worktree' },
-          workspaceProvider: 'byoi',
+          gitSetup: { kind: 'none' },
+          workspaceLocation: { host: 'byoi' },
         },
       },
       run,
@@ -276,12 +339,13 @@ describe('executeTaskCreate', () => {
 
     expect(result.success).toBe(true);
     const taskConfig = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
-    expect(taskConfig?.strategy).toEqual({ kind: 'no-worktree' });
-    expect(taskConfig?.workspaceProvider).toBe('byoi');
+    expect(taskConfig?.gitSetup).toEqual({ kind: 'none' });
+    expect(taskConfig?.workspaceLocation).toEqual({ host: 'byoi' });
   });
 
   it('uses the run id when generating default task names', async () => {
     vi.mocked(projectManager.getProject).mockReturnValue({
+      defaultWorkspaceType: { kind: 'local' },
       repository: {
         getBranchesPayload: vi.fn().mockResolvedValue({
           gitDefaultBranch: 'main',
@@ -312,6 +376,7 @@ describe('executeTaskCreate', () => {
       key === 'defaultAgent' ? 'cursor' : (null as never)
     );
     vi.mocked(projectManager.getProject).mockReturnValue({
+      defaultWorkspaceType: { kind: 'local' },
       repository: {
         getBranchesPayload: vi.fn().mockResolvedValue({
           gitDefaultBranch: 'main',

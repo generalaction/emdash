@@ -22,11 +22,8 @@ import {
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
-import { getPrNumber, isForkPr, type PullRequest } from '@shared/pull-requests';
-import {
-  resolveBranchLikeTaskStrategy,
-  resolvePullRequestTaskStrategy,
-} from './create-task-strategy';
+import type { PullRequest } from '@shared/pull-requests';
+import { buildGitSetup, buildWorkspaceLocation } from './build-create-task-params';
 import {
   InitialConversationField,
   useInitialConversationState,
@@ -160,60 +157,36 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         }
       : undefined;
 
-    const { linkedType, linkedIssue, linkedPR, checkoutMode, branchSelection, branchNameState } =
-      state;
+    const { linkedType, linkedIssue, linkedPR } = state;
     const taskManager = projectStore.mountedProject!.taskManager;
-    const swallowHandledCreateError = () => {};
 
-    if (linkedType === 'pr' && linkedPR) {
-      const reviewBranch = linkedPR.headRefName;
-      const taskStrategy = resolvePullRequestTaskStrategy({
-        checkoutMode,
-        prNumber: getPrNumber(linkedPR) ?? 0,
-        headBranch: reviewBranch,
-        headRepositoryUrl: linkedPR.headRepositoryUrl,
-        isFork: isForkPr(linkedPR),
-        taskBranch: state.taskName.effectiveTaskName,
-        pushBranch: branchSelection.pushBranch,
-      });
-      void taskManager
-        .createTask({
-          id,
-          projectId: selectedProjectId,
-          name: state.taskName.effectiveTaskName,
-          sourceBranch: { type: 'local', branch: reviewBranch },
-          initialStatus: linkedPR.status === 'open' && !linkedPR.isDraft ? 'review' : undefined,
-          strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
-          workspaceProvider: useBYOI ? 'byoi' : undefined,
-          initialConversation: builtInitialConversation,
-        })
-        .catch(swallowHandledCreateError);
-    } else {
-      if (!branchSelection.selectedBranch) return;
-      const taskStrategy = resolveBranchLikeTaskStrategy({
-        isUnborn,
-        createBranchAndWorktree: branchSelection.createBranchAndWorktree,
-        taskBranch: branchNameState.branchName,
-        pushBranch: branchSelection.pushBranch,
-      });
-      void taskManager
-        .createTask({
-          id,
-          projectId: selectedProjectId,
-          name: state.taskName.effectiveTaskName,
-          sourceBranch: branchSelection.selectedBranch,
-          strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
-          linkedIssue: linkedType === 'issue' ? (linkedIssue ?? undefined) : undefined,
-          workspaceProvider: useBYOI ? 'byoi' : undefined,
-          initialConversation: builtInitialConversation,
-        })
-        .catch(swallowHandledCreateError);
-    }
+    const gitSetup = buildGitSetup(state, isUnborn);
+    const workspaceLocation = buildWorkspaceLocation(projectData, useBYOI);
+    const initialStatus =
+      linkedType === 'pr' && linkedPR
+        ? linkedPR.status === 'open' && !linkedPR.isDraft
+          ? 'review'
+          : undefined
+        : undefined;
+
+    void taskManager
+      .createTask({
+        id,
+        projectId: selectedProjectId,
+        name: state.taskName.effectiveTaskName,
+        gitSetup,
+        workspaceLocation,
+        linkedIssue: linkedType === 'issue' ? (linkedIssue ?? undefined) : undefined,
+        initialStatus,
+        initialConversation: builtInitialConversation,
+      })
+      .catch(() => {});
 
     navigate('task', { projectId: selectedProjectId, taskId: id });
     onClose();
   }, [
     selectedProjectId,
+    projectData,
     state,
     isUnborn,
     useBYOI,

@@ -282,9 +282,7 @@ export class TaskManagerStore {
       );
     });
 
-    const sourceBranch = structuredClone(toJS(params.sourceBranch));
-
-    const result = await rpc.tasks.createTask({ ...params, sourceBranch }).catch((e: unknown) => {
+    const result = await rpc.tasks.createTask(structuredClone(toJS(params))).catch((e: unknown) => {
       const message = e instanceof Error ? e.message : String(e);
       runInAction(() => {
         const current = this.tasks.get(params.id);

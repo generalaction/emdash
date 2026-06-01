@@ -108,16 +108,14 @@ export type CreateTaskParams = {
   id: string;
   projectId: string;
   name: string;
-  /** The branch to fork the new worktree from (not used for `from-pull-request` strategy) */
-  sourceBranch: Branch;
-  /** Controls branch creation, worktree setup, and git fetch strategy */
-  strategy: CreateTaskStrategy;
+  /** Describes the git operations to perform when setting up the workspace. */
+  gitSetup: GitSetup;
+  /** Describes the physical location of the workspace. */
+  workspaceLocation: WorkspaceLocation;
   /** The issue to link to the task */
   linkedIssue?: Issue;
-  /**  */
   initialConversation?: CreateConversationParams;
   initialStatus?: TaskLifecycleStatus;
-  workspaceProvider?: 'byoi';
   automationId?: string;
 };
 

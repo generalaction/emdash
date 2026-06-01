@@ -4,168 +4,55 @@ import { projectManager } from '@main/core/projects/project-manager';
 import { providerRepositoryService } from '@main/core/repository/provider-repository-service';
 import { db } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
-import { resolveTaskBranchName } from '@shared/resolveTaskBranchName';
+import type { Branch } from '@shared/git';
 import { err, ok, type Result } from '@shared/result';
 import type {
   CreateTaskError,
   CreateTaskParams,
   CreateTaskSuccess,
-  CreateTaskWarning,
+  GitSetup,
   TaskLifecycleStatus,
 } from '@shared/tasks';
 import { prQueryService } from '../../pull-requests/pr-query-service';
-import { appSettingsService } from '../../settings/settings-service';
 import { toStoredBranch } from '../stored-branch';
 import { mapTaskRowToTask } from '../utils/utils';
+
+/** Derives the display/legacy DB columns from the `gitSetup` intent — no git I/O. */
+function deriveDbColumns(gitSetup: GitSetup): {
+  taskBranch: string | undefined;
+  dbSourceBranch: Branch | undefined;
+} {
+  switch (gitSetup.kind) {
+    case 'none':
+      return { taskBranch: undefined, dbSourceBranch: undefined };
+    case 'use-branch':
+      return {
+        taskBranch: gitSetup.branchName,
+        dbSourceBranch: { type: 'local', branch: gitSetup.branchName },
+      };
+    case 'create-branch':
+      return { taskBranch: gitSetup.branchName, dbSourceBranch: gitSetup.fromBranch };
+    case 'pr-branch':
+      return {
+        taskBranch: gitSetup.taskBranch ?? gitSetup.headBranch,
+        dbSourceBranch: { type: 'local', branch: gitSetup.headBranch },
+      };
+  }
+}
 
 export async function createTask(
   params: CreateTaskParams
 ): Promise<Result<CreateTaskSuccess, CreateTaskError>> {
-  const { strategy } = params;
-  let warning: CreateTaskWarning | undefined;
-
-  const project = projectManager.getProject(params.projectId);
-  if (!project) {
+  if (!projectManager.getProject(params.projectId)) {
     return err({ type: 'project-not-found' });
   }
-  const { baseRemote, pushRemote } = await project.repository.getConfiguredRemotes();
 
-  // Settings used by from-pull-request branch resolution (new-branch and from-issue resolve
-  // the branch name on the FE via resolveTaskBranchName before submission).
-  const projectDefaults = await appSettingsService.get('project');
-  const branchPrefix = projectDefaults.branchPrefix ?? '';
-  const appendRandomSuffix = projectDefaults.appendRandomBranchSuffix ?? true;
-  const suffix = Math.random().toString(36).slice(2, 7);
-
-  // Determines what gets stored as taskBranch in the DB and how the worktree is prepared.
-  let taskBranch: string | undefined;
-  // sourceBranch stored in the DB — defaults to params.sourceBranch but overridden for PRs.
-  let dbSourceBranch = params.sourceBranch;
-
-  switch (strategy.kind) {
-    case 'new-branch': {
-      // The FE resolves the final branch name before submission via resolveTaskBranchName.
-      taskBranch = strategy.taskBranch;
-      const repoInfo = await project.repository.getRepositoryInfo();
-      if (repoInfo.isUnborn) {
-        return err({
-          type: 'initial-commit-required',
-          branch: repoInfo.currentBranch ?? params.sourceBranch.branch,
-        });
-      }
-      const createResult = await project.repository.createBranch(
-        taskBranch,
-        params.sourceBranch.branch,
-        params.sourceBranch.type === 'remote',
-        params.sourceBranch.type === 'remote' ? params.sourceBranch.remote.name : undefined
-      );
-      if (!createResult.success) {
-        // If the branch already exists locally (e.g. a prior task was deleted but branch
-        // cleanup failed), treat it as non-fatal — checkoutBranchWorktree will find and
-        // reuse it during provision.
-        if (createResult.error.type !== 'already_exists') {
-          return err({
-            type: 'branch-create-failed',
-            branch: taskBranch,
-            error: createResult.error,
-          });
-        }
-      } else if (strategy.pushBranch) {
-        const publishResult = await project.repository.publishBranch(taskBranch, pushRemote);
-        if (!publishResult.success) {
-          warning = {
-            type: 'branch-publish-failed',
-            branch: taskBranch,
-            remote: pushRemote,
-            error: publishResult.error,
-          };
-        }
-      }
-      break;
-    }
-
-    case 'checkout-existing': {
-      // taskBranch === sourceBranch tells the provider to use checkoutExistingBranch.
-      taskBranch = params.sourceBranch.branch;
-      break;
-    }
-
-    case 'from-pull-request': {
-      // If the head branch is already checked out in a valid worktree, skip the fetch.
-      // Git refuses to update a branch that is currently checked out, even with --force.
-      const existingWorktree = await project.worktreeService.findBranchAnywhere(
-        strategy.headBranch
-      );
-
-      if (!existingWorktree) {
-        // Fetch the PR head — handles same-repo and fork PRs.
-        // Uses headRefName directly as the local branch name (same as `gh pr checkout`).
-        const fetchResult = await project.repository.fetchPrForReview(
-          strategy.prNumber,
-          strategy.headBranch,
-          strategy.headRepositoryUrl,
-          strategy.headBranch,
-          strategy.isFork,
-          baseRemote
-        );
-        if (!fetchResult.success) {
-          return err({
-            type: 'pr-fetch-failed',
-            error: fetchResult.error,
-            remote: baseRemote,
-          });
-        }
-      }
-
-      dbSourceBranch = { type: 'local', branch: strategy.headBranch };
-
-      if (strategy.taskBranch) {
-        // Create a new task branch on top of the just-fetched local head branch.
-        const rawBranch = strategy.taskBranch;
-        taskBranch = resolveTaskBranchName({
-          rawBranch,
-          branchPrefix,
-          suffix,
-          appendRandomSuffix,
-        });
-        const createResult = await project.repository.createBranch(
-          taskBranch,
-          strategy.headBranch,
-          false
-        );
-        if (!createResult.success) {
-          return err({
-            type: 'branch-create-failed',
-            branch: taskBranch,
-            error: createResult.error,
-          });
-        }
-        if (strategy.pushBranch) {
-          const publishResult = await project.repository.publishBranch(taskBranch, pushRemote);
-          if (!publishResult.success) {
-            warning = {
-              type: 'branch-publish-failed',
-              branch: taskBranch,
-              remote: pushRemote,
-              error: publishResult.error,
-            };
-          }
-        }
-      } else {
-        // Check out the PR head branch directly — taskBranch === sourceBranch signals
-        // the provider to use checkoutExistingBranch (local branch now exists from fetchPrForReview).
-        taskBranch = strategy.headBranch;
-      }
-      break;
-    }
-
-    case 'no-worktree': {
-      // taskBranch remains undefined → provider uses the project root directory.
-      break;
-    }
-  }
+  const { gitSetup, workspaceLocation } = params;
+  const { taskBranch, dbSourceBranch } = deriveDbColumns(gitSetup);
 
   const initialStatus: TaskLifecycleStatus = params.initialStatus ?? 'in_progress';
+
+  const workspaceIntent = JSON.stringify({ git: gitSetup, workspace: workspaceLocation });
 
   const [taskRow] = await db
     .insert(tasks)
@@ -177,7 +64,7 @@ export async function createTask(
       status: initialStatus,
       sourceBranch: toStoredBranch(dbSourceBranch),
       linkedIssue: params.linkedIssue ? JSON.stringify(params.linkedIssue) : null,
-      workspaceProvider: params.workspaceProvider ?? null,
+      workspaceIntent,
       updatedAt: sql`CURRENT_TIMESTAMP`,
       statusChangedAt: sql`CURRENT_TIMESTAMP`,
       lastInteractedAt: sql`CURRENT_TIMESTAMP`,
@@ -185,12 +72,12 @@ export async function createTask(
     .returning();
 
   let prs: Awaited<ReturnType<typeof prQueryService.getTaskPullRequests>> = [];
-  if (strategy.kind === 'from-pull-request') {
+  if (gitSetup.kind === 'pr-branch') {
     const capability = await providerRepositoryService.resolveProject(params.projectId);
     if (capability.success) {
       prs = await prQueryService.getTaskPullRequests(
         params.projectId,
-        strategy.headBranch,
+        gitSetup.headBranch,
         capability.data.repositoryUrl
       );
     }
@@ -199,13 +86,13 @@ export async function createTask(
   const task = { ...mapTaskRowToTask(taskRow, prs), automationId: params.automationId };
 
   const workspaceType = ((): 'local' | 'project-ssh' | 'byoi' => {
-    if (params.workspaceProvider === 'byoi') return 'byoi';
-    if (project.defaultWorkspaceType.kind === 'ssh') return 'project-ssh';
+    if (workspaceLocation.host === 'byoi') return 'byoi';
+    if (workspaceLocation.host === 'project-ssh') return 'project-ssh';
     return 'local';
   })();
   const workspaceId = crypto.randomUUID();
   await db.insert(workspaces).values({ id: workspaceId, type: workspaceType });
   await db.update(tasks).set({ workspaceId }).where(eq(tasks.id, params.id));
 
-  return ok({ task: { ...task, workspaceId }, warning });
+  return ok({ task: { ...task, workspaceId } });
 }
