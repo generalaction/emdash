@@ -305,12 +305,17 @@ export function SelectedIssueValue({ issue }: { issue: Issue }) {
       {issue.title ? (
         <div className="text-muted-foreground min-w-0 truncate">{issue.title}</div>
       ) : null}
-      <div className="relative flex items-center justify-between gap-2">
-        <Badge variant="outline" className="flex items-center gap-2 rounded-md text-xs font-normal">
-          <StatusDot status={issue.status} />
-          {issue.status}
-        </Badge>
-      </div>
+      {issue.status ? (
+        <div className="relative flex items-center justify-between gap-2">
+          <Badge
+            variant="outline"
+            className="flex items-center gap-2 rounded-md text-xs font-normal"
+          >
+            <StatusDot status={issue.status} />
+            {issue.status}
+          </Badge>
+        </div>
+      ) : null}
     </div>
   );
 }
