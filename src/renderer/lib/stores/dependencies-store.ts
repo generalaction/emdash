@@ -1,4 +1,5 @@
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
+import { log } from '@renderer/utils/logger';
 import type {
   DependencyId,
   DependencyInstallResult,
@@ -7,7 +8,6 @@ import type {
   DependencyStatusUpdatedEvent,
 } from '@shared/dependencies';
 import { dependencyStatusUpdatedChannel } from '@shared/events/appEvents';
-import { log } from '@renderer/utils/logger';
 import { events, rpc } from '../../lib/ipc';
 import { Resource } from './resource';
 
@@ -22,6 +22,7 @@ export class DependenciesStore {
   private _focusRefresh: Promise<void> | null = null;
   private _lastFocusRefreshAt = 0;
   private _stopFocusRefresh: (() => void) | null = null;
+  private _disposed = false;
 
   constructor() {
     makeObservable<this, '_installingDependencyKeys'>(this, {
@@ -155,7 +156,11 @@ export class DependenciesStore {
     connectionId?: string,
     options: { refreshShellEnv?: boolean } = {}
   ): Promise<void> {
+    if (this._disposed) return;
+
     const statuses = await this.loadAgentStatuses(connectionId, options);
+    if (this._disposed) return;
+
     if (connectionId) {
       this.getRemote(connectionId).setValue(statuses);
       return;
@@ -175,10 +180,7 @@ export class DependenciesStore {
 
     const refreshLocalAgents = () => {
       const now = Date.now();
-      if (
-        this._focusRefresh ||
-        now - this._lastFocusRefreshAt < FOCUS_AGENT_REFRESH_COOLDOWN_MS
-      ) {
+      if (this._focusRefresh || now - this._lastFocusRefreshAt < FOCUS_AGENT_REFRESH_COOLDOWN_MS) {
         return;
       }
 
@@ -199,6 +201,7 @@ export class DependenciesStore {
 
   /** Dispose all resources (timers, event listeners). */
   dispose(): void {
+    this._disposed = true;
     this._stopFocusRefresh?.();
     this._stopFocusRefresh = null;
     this.local.dispose();
