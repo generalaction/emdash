@@ -38,9 +38,9 @@ export function repoInstanceName(instance: RepoInstance, mainEntry?: WorktreeEnt
 
 export function buildPickerItems(
   data: WorkspacePickerData,
-  options: { search?: string; includeWorktrees?: boolean }
+  options: { search?: string; includeWorktrees?: boolean; filterHostKey?: string }
 ): PickerItem[] {
-  const { search = '', includeWorktrees = false } = options;
+  const { search = '', includeWorktrees = false, filterHostKey } = options;
   const q = search.trim().toLowerCase();
 
   const {
@@ -81,7 +81,7 @@ export function buildPickerItems(
     );
   });
 
-  if (localPrimaryMatches || localSecondaryMatching.length > 0) {
+  if ((localPrimaryMatches || localSecondaryMatching.length > 0) && (!filterHostKey || filterHostKey === 'local')) {
     items.push({
       type: 'host',
       hostKey: 'local',
@@ -169,6 +169,8 @@ export function buildPickerItems(
   }
 
   for (const [connectionId, sshInstances] of sshGroups) {
+    if (filterHostKey && filterHostKey !== `ssh:${connectionId}`) continue;
+
     const matchingSshInstances = sshInstances.filter((inst) => {
       if (!q) return true;
       const worktrees = instanceWorktreeMap[inst.id] ?? [];

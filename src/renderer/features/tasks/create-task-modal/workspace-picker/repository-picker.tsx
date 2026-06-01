@@ -13,15 +13,16 @@ interface RepositoryPickerProps {
   value: string | null;
   onChange: (instanceId: string | null) => void;
   triggerClassName?: string;
+  filterHostKey?: string;
 }
 
-export function RepositoryPicker({ projectId, value, onChange, triggerClassName }: RepositoryPickerProps) {
+export function RepositoryPicker({ projectId, value, onChange, triggerClassName, filterHostKey }: RepositoryPickerProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const data = useWorkspacePickerData(projectId);
   const showAddRepoModal = useShowModal('addRepoInstanceModal');
 
-  const items = buildPickerItems(data, { search, includeWorktrees: false });
+  const items = buildPickerItems(data, { search, includeWorktrees: false, filterHostKey });
 
   // Find the selected repo item to render in the trigger
   const allRepoItems = items.filter((i) => i.type === 'repo' && i.instance.id === value);

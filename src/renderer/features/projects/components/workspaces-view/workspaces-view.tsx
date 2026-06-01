@@ -11,7 +11,7 @@ import { Button } from '@renderer/lib/ui/button';
 import { SearchInput } from '@renderer/lib/ui/search-input';
 import { Spinner } from '@renderer/lib/ui/spinner';
 import { cn } from '@renderer/utils/utils';
-import { WorkspaceRow, type FlatItem, INSTANCE_ROW_HEIGHT } from './workspace-row';
+import { WorkspaceRow, type FlatItem, HOST_ROW_HEIGHT, INSTANCE_ROW_HEIGHT } from './workspace-row';
 
 export function WorkspacesView() {
   const {
@@ -19,10 +19,6 @@ export function WorkspacesView() {
   } = useParams('project');
 
   const queryClient = useQueryClient();
-  const [expandedHosts, setExpandedHosts] = useState<Record<string, boolean>>({});
-  const [expandedInstances, setExpandedInstances] = useState<Record<string, boolean>>({
-    primary: true,
-  });
   const [search, setSearch] = useState('');
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -124,14 +120,6 @@ export function WorkspacesView() {
     [linkedEntries, taskCounts, worktreeStatuses]
   );
 
-  const toggleHost = (key: string) => {
-    setExpandedHosts((prev) => ({ ...prev, [key]: !(prev[key] ?? true) }));
-  };
-
-  const toggleInstance = (key: string) => {
-    setExpandedInstances((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
-
   const primaryInstance = useMemo(
     () => ({
       id: 'primary',
@@ -153,7 +141,6 @@ export function WorkspacesView() {
     const items: FlatItem[] = [];
     const q = search.trim().toLowerCase();
 
-    // --- Build host groups ---
     // Local host: primary + all local secondary instances
     const localInstances = [
       { inst: primaryInstance, isPrimary: true },
@@ -171,152 +158,124 @@ export function WorkspacesView() {
       }
     }
 
-    // --- Emit local host ---
-    const localHostKey = 'local';
-    const localHostExpanded = expandedHosts[localHostKey] ?? true;
-
+    // --- Local host ---
     items.push({
       type: 'host',
-      hostKey: localHostKey,
+      hostKey: 'local',
       label: 'This machine',
       username: systemInfo?.hostname ?? '',
       kind: 'local',
-      isExpanded: localHostExpanded,
     });
 
-    if (localHostExpanded) {
-      for (const { inst, isPrimary } of localInstances) {
-        const instanceKey = isPrimary ? 'primary' : inst.id;
-        const isExpanded = expandedInstances[instanceKey] ?? true;
-        const effectivelyExpanded = isExpanded || q.length > 0;
+    for (const { inst, isPrimary } of localInstances) {
+      if (isPrimary) {
+        const primaryPath = mainEntry?.path ?? '';
+        const primaryRepoName = primaryPath.split('/').filter(Boolean).at(-1) ?? '';
 
-        if (isPrimary) {
-          const primaryPath = mainEntry?.path ?? '';
-          const primaryRepoName = primaryPath.split('/').filter(Boolean).at(-1) ?? '';
+        items.push({
+          type: 'instance-header',
+          instance: inst,
+          isPrimary: true,
+          worktreeCount: linkedEntries.length,
+          taskCount: taskCounts?.[primaryPath] ?? 0,
+          mainEntry,
+          projectId,
+          depth: 1,
+        });
 
+        for (const entry of filteredLinkedEntries) {
           items.push({
-            type: 'instance-header',
-            instance: inst,
-            isPrimary: true,
-            isExpanded: effectivelyExpanded,
-            worktreeCount: linkedEntries.length,
-            taskCount: taskCounts?.[primaryPath] ?? 0,
-            mainEntry,
+            type: 'worktree',
+            entry,
+            instanceId: 'primary',
+            taskCount: taskCounts?.[entry.path] ?? 0,
+            repoName: primaryRepoName,
+            hasUncommittedChanges: worktreeStatuses?.[entry.path] ?? false,
             projectId,
-            depth: 1,
           });
+        }
+      } else {
+        const allWorktrees = instanceWorktreeMap[inst.id] ?? [];
+        const instanceMainEntry = allWorktrees.find((e) => e.isMain);
+        const instanceLinkedWorktrees = allWorktrees.filter((e) => !e.isMain);
+        const filteredWorktrees = q
+          ? instanceLinkedWorktrees.filter(
+              (e) =>
+                e.path.toLowerCase().includes(q) || (e.branch?.toLowerCase().includes(q) ?? false)
+            )
+          : instanceLinkedWorktrees;
+        const instanceRepoName = inst.path?.split('/').filter(Boolean).at(-1) ?? '';
 
-          if (effectivelyExpanded) {
-            for (const entry of filteredLinkedEntries) {
-              items.push({
-                type: 'worktree',
-                entry,
-                instanceId: 'primary',
-                taskCount: taskCounts?.[entry.path] ?? 0,
-                repoName: primaryRepoName,
-                hasUncommittedChanges: worktreeStatuses?.[entry.path] ?? false,
-                projectId,
-              });
-            }
-          }
-        } else {
-          const allWorktrees = instanceWorktreeMap[inst.id] ?? [];
-          const instanceMainEntry = allWorktrees.find((e) => e.isMain);
-          const instanceLinkedWorktrees = allWorktrees.filter((e) => !e.isMain);
-          const filteredWorktrees = q
-            ? instanceLinkedWorktrees.filter(
-                (e) =>
-                  e.path.toLowerCase().includes(q) || (e.branch?.toLowerCase().includes(q) ?? false)
-              )
-            : instanceLinkedWorktrees;
-          const instanceRepoName = inst.path?.split('/').filter(Boolean).at(-1) ?? '';
+        items.push({
+          type: 'instance-header',
+          instance: inst,
+          isPrimary: false,
+          worktreeCount: instanceLinkedWorktrees.length,
+          taskCount: taskCounts?.[inst.path ?? ''] ?? 0,
+          mainEntry: instanceMainEntry,
+          projectId,
+          depth: 1,
+        });
 
+        for (const entry of filteredWorktrees) {
           items.push({
-            type: 'instance-header',
-            instance: inst,
-            isPrimary: false,
-            isExpanded: effectivelyExpanded,
-            worktreeCount: instanceLinkedWorktrees.length,
-            taskCount: taskCounts?.[inst.path ?? ''] ?? 0,
-            mainEntry: instanceMainEntry,
+            type: 'worktree',
+            entry,
+            instanceId: inst.id,
+            taskCount: taskCounts?.[entry.path] ?? 0,
+            repoName: instanceRepoName,
+            hasUncommittedChanges: false,
             projectId,
-            depth: 1,
           });
-
-          if (effectivelyExpanded) {
-            for (const entry of filteredWorktrees) {
-              items.push({
-                type: 'worktree',
-                entry,
-                instanceId: inst.id,
-                taskCount: taskCounts?.[entry.path] ?? 0,
-                repoName: instanceRepoName,
-                hasUncommittedChanges: false,
-                projectId,
-              });
-            }
-          }
         }
       }
     }
 
-    // --- Emit SSH host groups ---
+    // --- SSH host groups ---
     for (const [connectionId, sshInstances] of sshGroups) {
-      const hostKey = connectionId;
-      const hostExpanded = expandedHosts[hostKey] ?? true;
       const connectionName = connectionNameMap[connectionId] ?? connectionId;
 
       items.push({
         type: 'host',
-        hostKey,
+        hostKey: connectionId,
         label: connectionName,
         connectionId,
         kind: 'ssh',
-        isExpanded: hostExpanded,
       });
 
-      if (hostExpanded) {
-        for (const inst of sshInstances ?? []) {
-          const instanceKey = inst.id;
-          const isExpanded = expandedInstances[instanceKey] ?? true;
-          const effectivelyExpanded = isExpanded || q.length > 0;
+      for (const inst of sshInstances ?? []) {
+        const allWorktrees = instanceWorktreeMap[inst.id] ?? [];
+        const instanceMainEntry = allWorktrees.find((e) => e.isMain);
+        const instanceLinkedWorktrees = allWorktrees.filter((e) => !e.isMain);
+        const filteredWorktrees = q
+          ? instanceLinkedWorktrees.filter(
+              (e) =>
+                e.path.toLowerCase().includes(q) || (e.branch?.toLowerCase().includes(q) ?? false)
+            )
+          : instanceLinkedWorktrees;
+        const instanceRepoName = inst.path?.split('/').filter(Boolean).at(-1) ?? '';
 
-          const allWorktrees = instanceWorktreeMap[inst.id] ?? [];
-          const instanceMainEntry = allWorktrees.find((e) => e.isMain);
-          const instanceLinkedWorktrees = allWorktrees.filter((e) => !e.isMain);
-          const filteredWorktrees = q
-            ? instanceLinkedWorktrees.filter(
-                (e) =>
-                  e.path.toLowerCase().includes(q) || (e.branch?.toLowerCase().includes(q) ?? false)
-              )
-            : instanceLinkedWorktrees;
-          const instanceRepoName = inst.path?.split('/').filter(Boolean).at(-1) ?? '';
+        items.push({
+          type: 'instance-header',
+          instance: inst,
+          isPrimary: false,
+          worktreeCount: instanceLinkedWorktrees.length,
+          taskCount: taskCounts?.[inst.path ?? ''] ?? 0,
+          mainEntry: instanceMainEntry,
+          projectId,
+          depth: 1,
+        });
 
+        for (const entry of filteredWorktrees) {
           items.push({
-            type: 'instance-header',
-            instance: inst,
-            isPrimary: false,
-            isExpanded: effectivelyExpanded,
-            worktreeCount: instanceLinkedWorktrees.length,
-            taskCount: taskCounts?.[inst.path ?? ''] ?? 0,
-            mainEntry: instanceMainEntry,
+            type: 'worktree',
+            entry,
+            instanceId: inst.id,
+            taskCount: taskCounts?.[entry.path] ?? 0,
+            repoName: instanceRepoName,
+            hasUncommittedChanges: false,
             projectId,
-            depth: 1,
           });
-
-          if (effectivelyExpanded) {
-            for (const entry of filteredWorktrees) {
-              items.push({
-                type: 'worktree',
-                entry,
-                instanceId: inst.id,
-                taskCount: taskCounts?.[entry.path] ?? 0,
-                repoName: instanceRepoName,
-                hasUncommittedChanges: false,
-                projectId,
-              });
-            }
-          }
         }
       }
     }
@@ -326,8 +285,6 @@ export function WorkspacesView() {
     search,
     primaryInstance,
     instances,
-    expandedHosts,
-    expandedInstances,
     mainEntry,
     linkedEntries,
     filteredLinkedEntries,
@@ -342,7 +299,7 @@ export function WorkspacesView() {
   const virtualizer = useVirtualizer({
     count: flatItems.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => INSTANCE_ROW_HEIGHT,
+    estimateSize: (i) => (flatItems[i]?.type === 'host' ? HOST_ROW_HEIGHT : INSTANCE_ROW_HEIGHT),
     overscan: 8,
   });
 
@@ -461,13 +418,6 @@ export function WorkspacesView() {
                 >
                   <WorkspaceRow
                     item={item}
-                    onToggle={() => {
-                      if (item.type === 'host') {
-                        toggleHost(item.hostKey);
-                      } else if (item.type === 'instance-header') {
-                        toggleInstance(item.isPrimary ? 'primary' : item.instance.id);
-                      }
-                    }}
                     onRemove={
                       item.type === 'worktree'
                         ? () => removeWorktree(item.entry.path)
@@ -483,16 +433,11 @@ export function WorkspacesView() {
         </div>
       )}
 
-      {!isPending &&
-        !isError &&
-        (expandedHosts['local'] ?? true) &&
-        (expandedInstances['primary'] ?? true) &&
-        filteredLinkedEntries.length === 0 &&
-        mainEntry && (
-          <p className="px-8 py-3 text-sm text-foreground-muted">
-            No worktrees yet. Create a task with a branch to add one.
-          </p>
-        )}
+      {!isPending && !isError && filteredLinkedEntries.length === 0 && mainEntry && (
+        <p className="px-8 py-3 text-sm text-foreground-muted">
+          No worktrees yet. Create a task with a branch to add one.
+        </p>
+      )}
     </div>
   );
 }

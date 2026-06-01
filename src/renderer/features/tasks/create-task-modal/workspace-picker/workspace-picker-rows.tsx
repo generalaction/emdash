@@ -58,7 +58,7 @@ function PathLine({ path, branch }: { path: string; branch: string | null | unde
   );
 }
 
-function connectionStateDot(state: ConnectionState) {
+export function connectionStateDot(state: ConnectionState) {
   const styles: Record<ConnectionState, string> = {
     connected: 'bg-foreground-success',
     connecting: 'bg-foreground-info',

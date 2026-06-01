@@ -1,4 +1,5 @@
-import { Box, GitBranch, TreePine } from 'lucide-react';
+import { Box, ChevronRight, GitBranch, TreePine } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { cn } from '@renderer/utils/utils';
 import { OptionButtonCard } from '@renderer/lib/components/option-button-card';
 import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
@@ -11,8 +12,12 @@ import { CheckoutModeGroup } from './checkout-mode-group';
 import type { CreateTaskState } from './use-create-task-state';
 import type { WorkspaceModeState } from './use-workspace-mode';
 import { WorkspaceSettingsAccordion } from './workspace-settings-accordion';
+import { MachinePicker } from './workspace-picker/machine-picker';
 import { RepositoryPicker } from './workspace-picker/repository-picker';
 import { WorkspacePicker } from './workspace-picker/workspace-picker';
+import { buildPickerItems, type PickerHostItem } from './workspace-picker/workspace-picker-items';
+import { useWorkspacePickerData } from './workspace-picker/use-workspace-picker-data';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@renderer/lib/ui/collapsible';
 
 interface WorkspaceSettingsSectionProps {
   state: CreateTaskState;
@@ -47,6 +52,27 @@ export function WorkspaceSettingsSection({
   isWorkspaceProviderEnabled,
 }: WorkspaceSettingsSectionProps) {
   const showPrWorkspace = state.linkedType === 'pr' && state.linkedPR !== null;
+
+  // Location (host) filter for the repository picker
+  const [selectedHostKey, setSelectedHostKey] = useState<string | null>(null);
+  const pickerData = useWorkspacePickerData(projectId);
+  const hostItems = buildPickerItems(pickerData, { includeWorktrees: false })
+    .filter((i): i is PickerHostItem => i.type === 'host');
+
+  // Reset host + instance selection when project changes
+  useEffect(() => {
+    setSelectedHostKey(null);
+  }, [projectId]);
+
+  const handleHostChange = (next: string | null) => {
+    setSelectedHostKey(next);
+    // Clear the repo selection if it no longer belongs to the new host
+    if (state.selectedInstanceId) {
+      const allItems = buildPickerItems(pickerData, { includeWorktrees: false, filterHostKey: next ?? undefined });
+      const stillVisible = allItems.some((i) => i.type === 'repo' && i.instance.id === state.selectedInstanceId);
+      if (!stillVisible) state.setSelectedInstanceId(null);
+    }
+  };
 
   return (
     <div className="flex flex-col gap-4">
@@ -86,26 +112,42 @@ export function WorkspaceSettingsSection({
               {/* Worktree fields */}
               {workspaceType === 'worktree' && (
                 <div className="flex flex-col gap-2">
+                  <Collapsible>
                   {/* Header row: label + branch mode tabs */}
                   <div className="flex items-center justify-between">
+                  <CollapsibleTrigger className="flex items-center group justify-between gap-2 text-xs text-foreground-muted hover:bg-background-1 data-open:bg-background-1">
                     <span className="text-sm text-foreground-muted tracking-tight">
                       Worktree Settings
                     </span>
+                    <ChevronRight className="size-3.5 shrink-0 text-foreground-muted group-data-panel-open:rotate-90" />
+                    </CollapsibleTrigger>
                     <MiniTabs
                       value={state.branchTab}
                       onValueChange={(v) => state.setBranchTab(v as 'create' | 'checkout')}
                       tabs={BRANCH_TABS}
                     />
                   </div>
+                  <CollapsibleContent>
 
                   {/* Card */}
-                  <div className="flex flex-col overflow-hidden rounded-lg border border-border">
-                    {/* Repository picker — flush at top */}
+                  <div className="flex mt-1 flex-col overflow-hidden rounded-lg border border-border">
+                    {/* Machine picker — only when multiple hosts exist */}
+                    {projectId && hostItems.length > 1 && (
+                      <MachinePicker
+                        projectId={projectId}
+                        value={selectedHostKey}
+                        onChange={handleHostChange}
+                        triggerClassName="border-b border-border"
+                      />
+                    )}
+
+                    {/* Repository picker — flush */}
                     {projectId && (
                       <RepositoryPicker
                         projectId={projectId}
                         value={state.selectedInstanceId}
                         onChange={state.setSelectedInstanceId}
+                        filterHostKey={selectedHostKey ?? undefined}
                         triggerClassName="border-b border-border"
                       />
                     )}
@@ -120,7 +162,7 @@ export function WorkspaceSettingsSection({
                         trigger={
                           <ComboboxTrigger
                             className={cn(
-                              'flex w-full flex-col gap-0.5 border-t rounded-none px-2.5 py-2 text-sm outline-none hover:bg-background-1 data-popup-open:bg-background-1',
+                              'flex w-full flex-col bg-background-2 gap-0.5 border-t rounded-none px-2.5 py-2 text-sm outline-none hover:bg-background-1 data-popup-open:bg-background-1',
                               state.branchTab === 'create' && 'border-b border-border'
                             )}
                           >
@@ -187,6 +229,9 @@ export function WorkspaceSettingsSection({
                       </div>
                     )}
                   </div>
+
+                  </CollapsibleContent>
+                  </Collapsible>
                 </div>
               )}
 
