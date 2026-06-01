@@ -9,16 +9,18 @@ vi.mock('../automations/repo', () => ({ taskWasCreatedByAutomationRun: vi.fn() }
 vi.mock('../tasks/task-manager', () => ({ taskManager: { getTask: vi.fn() } }));
 vi.mock('@main/lib/logger', () => ({ log: { warn: vi.fn() } }));
 
-const stopEvent: AgentEvent = {
-  type: 'stop',
-  source: 'hook',
-  providerId: 'claude',
-  projectId: 'project-1',
-  taskId: 'task-1',
-  conversationId: 'conversation-1',
-  timestamp: 1,
-  payload: {},
-};
+function makeStopEvent(conversationId: string): AgentEvent {
+  return {
+    type: 'stop',
+    source: 'hook',
+    providerId: 'claude',
+    projectId: 'project-1',
+    taskId: 'task-1',
+    conversationId,
+    timestamp: 1,
+    payload: {},
+  };
+}
 
 describe('stopAutomationSessionAfterDone', () => {
   beforeEach(() => {
@@ -26,16 +28,38 @@ describe('stopAutomationSessionAfterDone', () => {
   });
 
   it('stops the conversation PTY when an automation agent marks done', async () => {
+    const stopEvent = makeStopEvent('conversation-stop');
     const stopSession = vi.fn().mockResolvedValue(undefined);
     vi.mocked(taskWasCreatedByAutomationRun).mockResolvedValue(true);
     vi.mocked(taskManager.getTask).mockReturnValue({ conversations: { stopSession } } as never);
 
     await stopAutomationSessionAfterDone(stopEvent);
 
-    expect(stopSession).toHaveBeenCalledWith('conversation-1');
+    expect(stopSession).toHaveBeenCalledWith('conversation-stop');
+  });
+
+  it('deduplicates concurrent stop events for the same conversation', async () => {
+    const stopEvent = makeStopEvent('conversation-dedupe');
+    let finishStopSession!: () => void;
+    const stopSession = vi.fn(
+      () => new Promise<void>((resolve) => {
+        finishStopSession = resolve;
+      })
+    );
+    vi.mocked(taskWasCreatedByAutomationRun).mockResolvedValue(true);
+    vi.mocked(taskManager.getTask).mockReturnValue({ conversations: { stopSession } } as never);
+
+    const hookStop = stopAutomationSessionAfterDone(stopEvent);
+    const classifierStop = stopAutomationSessionAfterDone({ ...stopEvent, source: 'classifier' });
+    await Promise.resolve();
+    finishStopSession();
+    await Promise.all([hookStop, classifierStop]);
+
+    expect(stopSession).toHaveBeenCalledTimes(1);
   });
 
   it('leaves non-automation tasks running after done', async () => {
+    const stopEvent = makeStopEvent('conversation-non-automation');
     vi.mocked(taskWasCreatedByAutomationRun).mockResolvedValue(false);
 
     await stopAutomationSessionAfterDone(stopEvent);
@@ -44,12 +68,14 @@ describe('stopAutomationSessionAfterDone', () => {
   });
 
   it('ignores non-stop agent events', async () => {
+    const stopEvent = makeStopEvent('conversation-non-stop');
     await stopAutomationSessionAfterDone({ ...stopEvent, type: 'start' });
 
     expect(taskWasCreatedByAutomationRun).not.toHaveBeenCalled();
   });
 
   it('logs lookup failures instead of rejecting', async () => {
+    const stopEvent = makeStopEvent('conversation-lookup-failure');
     vi.mocked(taskWasCreatedByAutomationRun).mockRejectedValue(new Error('db closed'));
 
     await expect(stopAutomationSessionAfterDone(stopEvent)).resolves.toBeUndefined();
