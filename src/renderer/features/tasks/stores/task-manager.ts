@@ -282,7 +282,7 @@ export class TaskManagerStore {
       );
     });
 
-    const result = await rpc.tasks.createTask(structuredClone(toJS(params))).catch((e: unknown) => {
+    const result = await rpc.tasks.createTask(JSON.parse(JSON.stringify(toJS(params))) as typeof params).catch((e: unknown) => {
       const message = e instanceof Error ? e.message : String(e);
       runInAction(() => {
         const current = this.tasks.get(params.id);
