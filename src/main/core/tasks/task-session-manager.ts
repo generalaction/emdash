@@ -141,7 +141,7 @@ async function cleanupDetachedSessions(
   );
 }
 
-class TaskManager {
+class TaskSessionManager {
   private readonly _hooks = new HookCore<TaskManagerHooks>((name, e) =>
     log.error(`TaskManager: ${String(name)} hook error`, e)
   );
@@ -283,4 +283,4 @@ class TaskManager {
   }
 }
 
-export const taskManager = new TaskManager();
+export const taskManager = new TaskSessionManager();

@@ -32,7 +32,7 @@ import { setTaskPinned } from './operations/setTaskPinned';
 import { updateLinkedIssue } from './operations/updateLinkedIssue';
 import { updateTaskStatus } from './operations/updateTaskStatus';
 import { type ProvisionTaskError, type TeardownTaskError } from './provision-task-error';
-import { taskManager, type WorkspaceHint } from './task-manager';
+import { taskManager, type WorkspaceHint } from './task-session-manager';
 import { mapTaskRowToTask } from './utils/utils';
 
 export type TaskCrudHooks = {

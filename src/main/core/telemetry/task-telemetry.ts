@@ -1,5 +1,5 @@
 import { telemetryService } from '@main/lib/telemetry';
-import { taskManager } from '../tasks/task-manager';
+import { taskManager } from '../tasks/task-session-manager';
 import { taskService } from '../tasks/task-service';
 
 taskService.on('task:created', (task, params) => {

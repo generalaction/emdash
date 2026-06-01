@@ -5,7 +5,7 @@ import { log } from '@main/lib/logger';
 import { createRPCController } from '@shared/ipc/rpc';
 import { parsePtySessionId } from '@shared/ptySessionId';
 import { err, ok } from '@shared/result';
-import { taskManager } from '../tasks/task-manager';
+import { taskManager } from '../tasks/task-session-manager';
 import { workspaceRegistry } from '../workspaces/workspace-registry';
 import {
   cleanupExpiredDroppedBlobs,

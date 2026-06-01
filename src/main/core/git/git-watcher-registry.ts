@@ -11,7 +11,7 @@ import {
 } from '@shared/events/gitEvents';
 import { branchRef, remoteRef, toRefString, type GitObjectRef } from '@shared/git';
 import { projectManager } from '../projects/project-manager';
-import { taskManager } from '../tasks/task-manager';
+import { taskManager } from '../tasks/task-session-manager';
 
 export type GitWatcherHooks = {
   'ref:changed': (change: GitRefChange) => void | Promise<void>;
