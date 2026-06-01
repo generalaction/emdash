@@ -35,7 +35,7 @@ export function MergeFooter({
   onMarkReady: () => void;
 }) {
   const isDraft = uiState.kind === 'draft';
-  const mergeDisabled = !uiState.canMerge && !uiState.canBypassRequirements;
+  const mergeDisabled = !isMerging && !uiState.canMerge && !uiState.canBypassRequirements;
   const { icon: MergeStatusIcon, iconClass } = severityConfig[uiState.severity];
 
   return (
