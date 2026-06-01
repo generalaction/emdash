@@ -24,6 +24,7 @@ export async function stopAutomationSessionAfterDone(event: AgentEvent): Promise
     }
 
     await task.conversations.stopSession(event.conversationId);
+    stoppingAutomationSessions.delete(event.conversationId);
   } catch (error) {
     stoppingAutomationSessions.delete(event.conversationId);
     log.warn('agent-hooks: failed to stop completed automation PTY', {

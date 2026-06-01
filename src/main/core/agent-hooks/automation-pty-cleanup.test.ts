@@ -42,9 +42,10 @@ describe('stopAutomationSessionAfterDone', () => {
     const stopEvent = makeStopEvent('conversation-dedupe');
     let finishStopSession!: () => void;
     const stopSession = vi.fn(
-      () => new Promise<void>((resolve) => {
-        finishStopSession = resolve;
-      })
+      () =>
+        new Promise<void>((resolve) => {
+          finishStopSession = resolve;
+        })
     );
     vi.mocked(taskWasCreatedByAutomationRun).mockResolvedValue(true);
     vi.mocked(taskManager.getTask).mockReturnValue({ conversations: { stopSession } } as never);
@@ -56,6 +57,18 @@ describe('stopAutomationSessionAfterDone', () => {
     await Promise.all([hookStop, classifierStop]);
 
     expect(stopSession).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows a later stop event after the previous stop finishes', async () => {
+    const stopEvent = makeStopEvent('conversation-repeat');
+    const stopSession = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(taskWasCreatedByAutomationRun).mockResolvedValue(true);
+    vi.mocked(taskManager.getTask).mockReturnValue({ conversations: { stopSession } } as never);
+
+    await stopAutomationSessionAfterDone(stopEvent);
+    await stopAutomationSessionAfterDone(stopEvent);
+
+    expect(stopSession).toHaveBeenCalledTimes(2);
   });
 
   it('leaves non-automation tasks running after done', async () => {
