@@ -303,6 +303,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     iconDark: 'opencode-dark.svg',
     alt: 'OpenCode CLI',
     terminalOnly: true,
+    supportsHooks: true,
   },
   {
     id: 'hermes',

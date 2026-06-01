@@ -10,6 +10,7 @@ import { SshConversationProvider } from './ssh-conversation';
 
 const spawnLocalPty = vi.hoisted(() => vi.fn());
 const openSsh2Pty = vi.hoisted(() => vi.fn());
+const hookConfigWriteForProvider = vi.hoisted(() => vi.fn(async () => false));
 
 vi.mock('@main/core/agent-hooks/agent-hook-service', () => ({
   agentHookService: {
@@ -31,7 +32,7 @@ vi.mock('@main/core/agent-hooks/claude-trust-service', () => ({
 
 vi.mock('@main/core/agent-hooks/hook-config', () => ({
   HookConfigWriter: class {
-    writeForProvider = vi.fn(async () => false);
+    writeForProvider = hookConfigWriteForProvider;
   },
 }));
 
@@ -93,6 +94,8 @@ vi.mock('@main/core/settings/settings-service', () => ({
 }));
 
 const { events } = await import('@main/lib/events');
+const { agentHookService } = await import('@main/core/agent-hooks/agent-hook-service');
+const { wireAgentClassifier } = await import('@main/core/agent-hooks/classifier-wiring');
 const { appSettingsService } = await import('@main/core/settings/settings-service');
 const { buildAgentSessionCommand } = await import('./agent-command');
 
@@ -190,8 +193,13 @@ describe('conversation provider respawn state', () => {
     vi.useRealTimers();
     spawnLocalPty.mockReset();
     openSsh2Pty.mockReset();
+    hookConfigWriteForProvider.mockReset();
+    hookConfigWriteForProvider.mockResolvedValue(false);
     mockSettings();
     vi.mocked(events.emit).mockClear();
+    vi.mocked(agentHookService.getPort).mockReturnValue(0);
+    vi.mocked(agentHookService.getToken).mockReturnValue('token');
+    vi.mocked(wireAgentClassifier).mockClear();
     vi.mocked(buildAgentSessionCommand).mockClear();
     ptySessionRegistry.unregister('project-1:task-1:conversation-1');
   });
@@ -271,6 +279,21 @@ describe('conversation provider respawn state', () => {
         env: expect.objectContaining({ SHELL: '/bin/bash' }),
       })
     );
+  });
+
+  it('uses OpenCode hooks without the output classifier when hook config is available', async () => {
+    hookConfigWriteForProvider.mockResolvedValue(true);
+    vi.mocked(agentHookService.getPort).mockReturnValue(1234);
+    const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
+    spawnLocalPty.mockReturnValue(fakePty(exitHandlers));
+    const item = { ...conversation(), providerId: 'opencode' as const };
+
+    await localProvider().startSession(item);
+
+    expect(hookConfigWriteForProvider).toHaveBeenCalledWith('opencode', {
+      writeGitIgnoreEntries: true,
+    });
+    expect(wireAgentClassifier).not.toHaveBeenCalled();
   });
 
   it('replaces a local conversation after clean exit by resuming the same provider session', async () => {
