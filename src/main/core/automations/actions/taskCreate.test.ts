@@ -372,10 +372,10 @@ describe('executeTaskCreate', () => {
     vi.mocked(taskService.launch).mockResolvedValueOnce({
       success: false,
       error: {
-        type: 'timeout',
-        message: 'provisioning timed out',
-        timeout: 30_000,
-        step: 'connecting',
+        type: 'setup-failed',
+        stepKind: 'workspace-acquire',
+        stepErrorType: 'error',
+        message: 'provisioning failed',
       },
     });
 
@@ -384,7 +384,7 @@ describe('executeTaskCreate', () => {
     expect(result).toEqual({
       success: false,
       error: {
-        message: 'provisioning timed out (step: connecting)',
+        message: 'setup-failed',
         taskId: expect.any(String),
       },
     });

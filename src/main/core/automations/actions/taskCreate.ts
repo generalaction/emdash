@@ -5,7 +5,6 @@ import { projectManager } from '@main/core/projects/project-manager';
 import { DEFAULT_AGENT_ID } from '@main/core/settings/settings-registry';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { generateTaskName } from '@main/core/tasks/name-generation/generateTaskName';
-import type { ProvisionTaskError } from '@main/core/tasks/provision-task-error';
 import { taskService } from '@main/core/tasks/task-service';
 import {
   formatProvisionWorkspaceError,
@@ -47,22 +46,8 @@ function formatCreateTaskActionError(error: CreateTaskError): string {
   }
 }
 
-function formatProvisionActionError(error: ProvisionWorkspaceError | ProvisionTaskError): string {
-  if (error.type === 'no-intent' || error.type === 'setup-failed') {
-    return formatProvisionWorkspaceError(error);
-  }
-  switch (error.type) {
-    case 'timeout':
-      return error.step ? `${error.message} (step: ${error.step})` : error.message;
-    case 'error':
-      return error.message;
-    case 'branch-not-found':
-      return `Branch "${error.branch}" was not found locally or on remote`;
-    case 'worktree-setup-failed':
-      return error.message
-        ? `Failed to set up worktree for branch "${error.branch}": ${error.message}`
-        : `Failed to set up worktree for branch "${error.branch}"`;
-  }
+function formatProvisionActionError(error: ProvisionWorkspaceError): string {
+  return formatProvisionWorkspaceError(error);
 }
 
 async function ensureProjectOpen(projectId: string) {

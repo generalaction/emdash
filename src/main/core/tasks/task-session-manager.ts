@@ -1,32 +1,29 @@
-import path from 'node:path';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
-import { provisionBYOITask } from '@main/core/workspaces/byoi/provision-byoi-task';
+import type { WorkspaceBootstrapResult } from '@main/core/workspaces/workspace-bootstrap-service';
 import { workspaceRegistry, type TeardownMode } from '@main/core/workspaces/workspace-registry';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { LifecycleMap } from '@main/lib/lifecycle-map';
 import { log } from '@main/lib/logger';
-import type { Conversation } from '@shared/conversations';
-import type { ProvisionStep } from '@shared/events/taskEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
-import { err, ok, type Result } from '@shared/result';
-import type { Task, TaskBootstrapStatus } from '@shared/tasks';
+import { ok, type Result } from '@shared/result';
+import type { TaskBootstrapStatus } from '@shared/tasks';
 import type { WorkspaceType as SharedWorkspaceType } from '@shared/workspaces';
-import type { ProjectProvider, ProvisionResult, TaskProvider } from '../projects/project-provider';
+import type {
+  ProvisionResult,
+  TaskProvider,
+  WorkspaceProviderData,
+} from '../projects/project-provider';
 import { withTimeout } from '../projects/utils';
-import { loadConversationsForInitialHydration } from './load-initial-conversations';
 import {
   formatProvisionTaskError,
   formatTeardownTaskError,
   TASK_TIMEOUT_MS,
-  toProvisionError,
   toTeardownError,
   type ProvisionTaskError,
   type TeardownTaskError,
 } from './provision-task-error';
-import { provisionLocalTask } from './task-builder';
-import { taskProvisionEvents } from './task-provision-events';
 
 export type WorkspaceHint = {
   id: string;
@@ -50,68 +47,6 @@ export type TaskManagerHooks = {
     workspaceId: string;
   }) => void | Promise<void>;
 };
-
-async function executeProvision(
-  provider: ProjectProvider,
-  task: Task,
-  hint: WorkspaceHint,
-  conversationsToHydrate: Conversation[]
-): Promise<ProvisionResult> {
-  const workspaceId = hint.id;
-
-  const isByoi = hint.type === 'byoi';
-  if (isByoi) {
-    const projectSettings = await provider.settings.get();
-    if (projectSettings.workspaceProvider?.type !== 'script') {
-      throw new Error(
-        'Task has workspaceProvider=byoi but project has no script provider configured'
-      );
-    }
-    return provisionBYOITask({
-      task,
-      wpConfig: projectSettings.workspaceProvider,
-      ctx: provider.ctx,
-      projectId: provider.projectId,
-      projectPath: provider.repoPath,
-      settings: provider.settings,
-      logPrefix: `${provider.type}ProjectProvider[byoi]`,
-      workspaceId,
-      conversationsToHydrate,
-    });
-  }
-
-  const { provisionResult, workspace } = await provisionLocalTask({
-    task,
-    workspaceId,
-    type: provider.defaultWorkspaceType,
-    projectId: provider.projectId,
-    projectPath: provider.repoPath,
-    settings: provider.settings,
-    worktreeService: provider.worktreeService,
-    fetchService: provider.gitFetchService,
-    repository: provider.repository,
-    logPrefix: `${provider.type}ProjectProvider`,
-    workDir: hint.path,
-    conversationsToHydrate,
-  });
-
-  if (provider.defaultWorkspaceType.kind === 'local') {
-    const mainDotGitAbs = path.resolve(provider.repoPath, '.git');
-    const worktreeGitDir = await workspace.git.getWorktreeGitDir(mainDotGitAbs);
-    return {
-      ...provisionResult,
-      persistData: { ...provisionResult.persistData, worktreeGitDir },
-    };
-  }
-
-  return {
-    ...provisionResult,
-    persistData: {
-      ...provisionResult.persistData,
-      sshConnectionId: provider.defaultWorkspaceType.connectionId,
-    },
-  };
-}
 
 async function executeTeardown(
   task: TaskProvider,
@@ -162,55 +97,42 @@ class TaskSessionManager {
 
   readonly hooks: Hookable<TaskManagerHooks> = this._hooks;
 
-  async provisionTask(
-    provider: ProjectProvider,
-    task: Task,
-    hint: WorkspaceHint
-  ): Promise<Result<ProvisionResult, ProvisionTaskError>> {
-    return this._lifecycle.provision(task.id, async () => {
-      let lastStep: ProvisionStep | null = null;
-      const unsubscribe = taskProvisionEvents.on('progress', (progress) => {
-        if (progress.taskId === task.id) lastStep = progress.step;
-      });
-      try {
-        const conversationsToHydrate = await loadConversationsForInitialHydration(
-          provider.projectId,
-          task.id
-        );
-        const result = await withTimeout(
-          executeProvision(provider, task, hint, conversationsToHydrate),
-          TASK_TIMEOUT_MS
-        );
-        const stored: StoredTask = {
-          ...result,
-          projectId: provider.projectId,
-          ctx: provider.ctx,
-        };
+  /**
+   * Registers a fully-provisioned task into the lifecycle map.
+   * Idempotent — if the task is already registered, returns immediately.
+   * Fires `task:provisioned` hook for telemetry, git watchers, PR sync.
+   */
+  async registerTask(
+    taskId: string,
+    result: WorkspaceBootstrapResult,
+    projectId: string,
+    ctx: IExecutionContext
+  ): Promise<void> {
+    const stored: StoredTask = {
+      taskProvider: result.taskProvider,
+      persistData: {
+        workspaceId: result.workspaceId,
+        sshConnectionId: result.sshConnectionId,
+        worktreeGitDir: result.worktreeGitDir,
+        workspaceProviderData: result.workspaceProviderData as WorkspaceProviderData | undefined,
+      },
+      projectId,
+      ctx,
+    };
 
-        const byProject = this._tasksByProject.get(provider.projectId) ?? new Set<string>();
-        byProject.add(task.id);
-        this._tasksByProject.set(provider.projectId, byProject);
+    // Use provision() for deduplication: if already active, returns existing immediately.
+    await this._lifecycle.provision(taskId, async () => ok(stored));
 
-        this._hooks.callHookBackground('task:provisioned', {
-          projectId: provider.projectId,
-          taskId: task.id,
-          taskBranch: task.taskBranch,
-          workspaceId: result.persistData.workspaceId,
-          worktreeGitDir: result.persistData.worktreeGitDir,
-        });
+    const byProject = this._tasksByProject.get(projectId) ?? new Set<string>();
+    byProject.add(taskId);
+    this._tasksByProject.set(projectId, byProject);
 
-        return ok(stored);
-      } catch (e) {
-        const provisionError = toProvisionError(e, lastStep);
-        log.error('TaskManager: failed to provision task', {
-          taskId: task.id,
-          projectId: provider.projectId,
-          error: String(e),
-        });
-        return err(provisionError);
-      } finally {
-        unsubscribe();
-      }
+    this._hooks.callHookBackground('task:provisioned', {
+      projectId,
+      taskId,
+      taskBranch: result.taskProvider.taskBranch,
+      workspaceId: result.workspaceId,
+      worktreeGitDir: result.worktreeGitDir,
     });
   }
 
@@ -235,7 +157,7 @@ class TaskSessionManager {
               error: String(cleanupError),
             });
           });
-          return err<TeardownTaskError>(toTeardownError(e));
+          return { success: false as const, error: toTeardownError(e) };
         }
       }
     );

@@ -7,7 +7,6 @@ import type {
   TaskLifecycleStatus,
 } from '@shared/tasks';
 import { generateTaskName } from './name-generation/generateTaskName';
-import { formatProvisionTaskError } from './provision-task-error';
 import { taskService } from './task-service';
 
 export const taskController = createRPCController({
@@ -51,13 +50,6 @@ export const taskController = createRPCController({
   },
   async convertAutomationTask(taskId: string) {
     return taskService.convertAutomationTask(taskId);
-  },
-  async provisionTask(taskId: string) {
-    const result = await taskService.provisionSession(taskId);
-    if (!result.success) {
-      throw new Error(`Failed to provision task: ${formatProvisionTaskError(result.error)}`);
-    }
-    return result.data;
   },
   async teardownTask(_projectId: string, taskId: string) {
     return taskService.teardown(taskId, 'terminate');

@@ -11,6 +11,7 @@ import {
   lifecycleScriptStatusChannel,
   taskCreatedChannel,
   taskProvisionProgressChannel,
+  taskProvisionedChannel,
   taskStatusUpdatedChannel,
 } from '@shared/events/taskEvents';
 import type { FetchError } from '@shared/git';
@@ -113,6 +114,7 @@ export class TaskManagerStore {
   private _unsubProvisionProgress: (() => void) | null = null;
   private _unsubStatusUpdated: (() => void) | null = null;
   private _unsubLifecycleScriptStatus: (() => void) | null = null;
+  private _unsubProvisioned: (() => void) | null = null;
   private _disposeRepositoryReaction: (() => void) | null = null;
 
   tasks = observable.map<string, TaskStore>();
@@ -182,6 +184,17 @@ export class TaskManagerStore {
         description: message,
       });
     });
+
+    // Handles tasks provisioned by the automation path (or any main-process caller)
+    // without renderer-initiated RPCs. The `isUnprovisioned` guard prevents a
+    // double-transition if the renderer-driven RPC already completed first.
+    this._unsubProvisioned = events.on(
+      taskProvisionedChannel,
+      ({ taskId, projectId: evtProjectId, path, workspaceId, sshConnectionId }) => {
+        if (evtProjectId !== this.projectId) return;
+        void this._doHandleProvisioned(taskId, path, workspaceId, sshConnectionId);
+      }
+    );
 
     this._unsubPrUpdated = events.on(prUpdatedChannel, ({ prs }) => {
       const repoUrl = this._repository.pullRequestRepositoryUrl;
@@ -370,10 +383,11 @@ export class TaskManagerStore {
 
     const wsId = (task.data as Task).workspaceId;
 
-    // Phase 1: workspace bootstrap — idempotent, independently retryable.
+    // Single-phase provision: workspace bootstrap + task provider construction + registration.
     if (wsId) workspaceRegistry.setBootstrapState(this.projectId, wsId, { kind: 'resolving' });
+    let result: Awaited<ReturnType<typeof rpc.workspaces.provisionWorkspace>>;
     try {
-      await rpc.workspaces.provisionWorkspace(taskId);
+      result = await rpc.workspaces.provisionWorkspace(taskId);
       if (wsId) workspaceRegistry.setBootstrapState(this.projectId, wsId, { kind: 'ready' });
     } catch (wsErr) {
       const message = wsErr instanceof Error ? wsErr.message : String(wsErr);
@@ -388,22 +402,6 @@ export class TaskManagerStore {
       });
       return;
     }
-
-    // Phase 2: task session provisioning — independently retryable.
-    await this._finishProvision(taskId);
-  }
-
-  private async _finishProvision(taskId: string): Promise<void> {
-    const result = await rpc.tasks.provisionTask(taskId).catch((err: unknown) => {
-      runInAction(() => {
-        const current = this.tasks.get(taskId);
-        if (current && isUnprovisioned(current)) {
-          current.phase = 'provision-error';
-          current.errorMessage = err instanceof Error ? err.message : String(err);
-        }
-      });
-      throw err;
-    });
 
     const savedSnapshot = (await viewStateCache.get(`task:${taskId}`)) as
       | TaskViewSnapshot
@@ -422,6 +420,34 @@ export class TaskManagerStore {
           this._settingsStore,
           this._baseRef,
           result.sshConnectionId ?? undefined
+        );
+        current.activate();
+      }
+    });
+  }
+
+  private async _doHandleProvisioned(
+    taskId: string,
+    path: string,
+    workspaceId: string,
+    sshConnectionId?: string
+  ): Promise<void> {
+    const savedSnapshot = (await viewStateCache.get(`task:${taskId}`)) as
+      | TaskViewSnapshot
+      | undefined;
+    runInAction(() => {
+      const current = this.tasks.get(taskId);
+      if (current && isUnprovisioned(current)) {
+        if (savedSnapshot && current.viewModel) {
+          current.viewModel.restoreSnapshot(savedSnapshot);
+        }
+        current.transitionToProvisioned(
+          { ...current.data, lastInteractedAt: new Date().toISOString() },
+          path,
+          workspaceId,
+          this._settingsStore,
+          this._baseRef,
+          sshConnectionId
         );
         current.activate();
       }
@@ -573,6 +599,8 @@ export class TaskManagerStore {
     this._unsubStatusUpdated = null;
     this._unsubLifecycleScriptStatus?.();
     this._unsubLifecycleScriptStatus = null;
+    this._unsubProvisioned?.();
+    this._unsubProvisioned = null;
     this._disposeRepositoryReaction?.();
     this._disposeRepositoryReaction = null;
   }

@@ -3,6 +3,7 @@ import { projectManager } from '@main/core/projects/project-manager';
 import {
   workspaceBootstrapService,
   type ProvisionWorkspaceError,
+  type WorkspaceBootstrapResult,
 } from '@main/core/workspaces/workspace-bootstrap-service';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { db } from '@main/db/client';
@@ -10,7 +11,7 @@ import { tasks, workspaces } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
-import { taskCreatedChannel } from '@shared/events/taskEvents';
+import { taskCreatedChannel, taskProvisionedChannel } from '@shared/events/taskEvents';
 import { err, ok, type Result } from '@shared/result';
 import type {
   CreateTaskError,
@@ -35,8 +36,8 @@ import { restoreTask } from './operations/restoreTask';
 import { setTaskPinned } from './operations/setTaskPinned';
 import { updateLinkedIssue } from './operations/updateLinkedIssue';
 import { updateTaskStatus } from './operations/updateTaskStatus';
-import { type ProvisionTaskError, type TeardownTaskError } from './provision-task-error';
-import { taskManager, type WorkspaceHint } from './task-session-manager';
+import type { TeardownTaskError } from './provision-task-error';
+import { taskManager } from './task-session-manager';
 import { mapTaskRowToTask } from './utils/utils';
 
 type ProvisionResult = ProvisionTaskResult & { sshConnectionId?: string };
@@ -46,8 +47,7 @@ export type TaskLifecycleHooks = {
   'task:updated': (task: Task) => void | Promise<void>;
   'task:archived': (taskId: string, projectId: string) => void | Promise<void>;
   'task:deleted': (taskId: string, projectId: string) => void | Promise<void>;
-  'task:workspace-ready': (taskId: string, path: string) => void | Promise<void>;
-  'task:session-ready': (taskId: string, result: ProvisionResult) => void | Promise<void>;
+  'task:workspace-ready': (taskId: string, result: ProvisionResult) => void | Promise<void>;
 };
 
 /** @deprecated Use TaskLifecycleHooks */
@@ -72,24 +72,60 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
   }
 
   /**
-   * Phase 2: Ensures the workspace for a task is set up on disk.
-   * Idempotent — fast-paths when the path is already persisted.
-   * Fires the `task:workspace-ready` hook on success.
+   * Provisions the workspace for a task: ensures the path is on disk, acquires
+   * the workspace (running lifecycle scripts), builds task providers, and
+   * registers the task session. Idempotent — fast-paths when already provisioned.
+   * Fires the `task:workspace-ready` hook and emits the `task:provisioned` IPC
+   * event on success so the renderer can react regardless of which path (renderer
+   * or automation) triggered the provision.
    */
-  async provisionWorkspace(taskId: string): Promise<Result<string, ProvisionWorkspaceError>> {
-    const result = await workspaceBootstrapService.ensureWorkspaceSetupForTask(taskId);
-    if (result.success) {
-      this._hooks.callHookBackground('task:workspace-ready', taskId, result.data);
+  async provisionWorkspace(
+    taskId: string
+  ): Promise<Result<ProvisionResult, ProvisionWorkspaceError>> {
+    const [row] = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
+    if (!row) throw new Error(`Task not found: ${taskId}`);
+    const { projectId } = row;
+
+    // Idempotency: task is already live — return current state.
+    const existingTask = taskManager.getTask(taskId);
+    if (existingTask) {
+      const pd = taskManager.getPersistData(taskId);
+      const wsId = pd?.workspaceId ?? '';
+      const provisionResult: ProvisionResult = {
+        path: workspaceRegistry.get(wsId)?.path ?? '',
+        workspaceId: wsId,
+        sshConnectionId: pd?.sshConnectionId,
+      };
+      this._hooks.callHookBackground('task:workspace-ready', taskId, provisionResult);
+      events.emit(taskProvisionedChannel, { taskId, projectId, ...provisionResult });
+      return ok(provisionResult);
     }
-    return result;
+
+    const result = await workspaceBootstrapService.ensureWorkspaceSetupForTask(taskId);
+    if (!result.success) return err(result.error);
+
+    await this._registerAndPersist(taskId, result.data);
+
+    const provisionResult: ProvisionResult = {
+      path: result.data.path,
+      workspaceId: result.data.workspaceId,
+      sshConnectionId: result.data.sshConnectionId,
+    };
+
+    this._hooks.callHookBackground('task:workspace-ready', taskId, provisionResult);
+    events.emit(taskProvisionedChannel, { taskId, projectId, ...provisionResult });
+    return ok(provisionResult);
   }
 
   /**
-   * Phase 3: Provisions the task session (lifecycle scripts, SSH, BYOI).
-   * Expects the workspace path to already be persisted by `provisionWorkspace`.
-   * Fires the `task:session-ready` hook on success.
+   * Phases 1+2 combined: provisions workspace then session.
+   * Used by the automation path which runs entirely in the main process.
    */
-  async provisionSession(taskId: string): Promise<Result<ProvisionResult, ProvisionTaskError>> {
+  async launch(taskId: string): Promise<Result<ProvisionResult, ProvisionWorkspaceError>> {
+    return this.provisionWorkspace(taskId);
+  }
+
+  private async _registerAndPersist(taskId: string, data: WorkspaceBootstrapResult): Promise<void> {
     const [row] = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
     if (!row) throw new Error(`Task not found: ${taskId}`);
 
@@ -97,81 +133,24 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     const project = projectManager.getProject(task.projectId);
     if (!project) throw new Error(`Project not found: ${task.projectId}`);
 
-    // Idempotency: task is already live — return current state.
-    const existingTask = taskManager.getTask(taskId);
-    if (existingTask) {
-      const pd = taskManager.getPersistData(taskId);
-      const wsId = pd?.workspaceId ?? '';
-      return ok({
-        path: workspaceRegistry.get(wsId)?.path ?? '',
-        workspaceId: wsId,
-        sshConnectionId: pd?.sshConnectionId,
-      });
-    }
-
-    if (!row.workspaceId) throw new Error(`Task ${taskId} has no workspace — cannot provision`);
-
-    const workspaceRow = await db
-      .select()
-      .from(workspaces)
-      .where(eq(workspaces.id, row.workspaceId))
-      .then((r) => r[0]);
-
-    if (!workspaceRow) {
-      throw new Error(`Workspace ${row.workspaceId} not found for task ${taskId}`);
-    }
-
-    // Workspace path is set by `provisionWorkspace` (phase 2) before this is called.
-    const hint: WorkspaceHint = {
-      id: workspaceRow.id,
-      type: workspaceRow.type,
-      path: workspaceRow.path ?? undefined,
-    };
-
-    const result = await taskManager.provisionTask(project, task, hint);
-    if (!result.success) return err(result.error);
-
-    const { persistData } = result.data;
-    const workspacePath = workspaceRegistry.get(persistData.workspaceId)?.path ?? '';
+    await taskManager.registerTask(taskId, data, task.projectId, project.ctx);
 
     await db
       .update(tasks)
-      .set({ lastInteractedAt: sql`CURRENT_TIMESTAMP`, workspaceId: persistData.workspaceId })
+      .set({ lastInteractedAt: sql`CURRENT_TIMESTAMP`, workspaceId: data.workspaceId })
       .where(eq(tasks.id, taskId));
 
     // BYOI: persist the provider data (remote workspace ID, connection details) returned by
     // the provision script so it can be reused on the next session.
-    if (workspaceRow.type === 'byoi' && persistData.workspaceProviderData) {
+    if (data.workspaceProviderData) {
       await db
         .update(workspaces)
         .set({
-          data: JSON.stringify(persistData.workspaceProviderData),
+          data: JSON.stringify(data.workspaceProviderData),
           updatedAt: sql`CURRENT_TIMESTAMP`,
         })
-        .where(eq(workspaces.id, workspaceRow.id));
+        .where(eq(workspaces.id, data.workspaceId));
     }
-
-    const provisionResult: ProvisionResult = {
-      path: workspacePath,
-      workspaceId: persistData.workspaceId,
-      sshConnectionId: persistData.sshConnectionId,
-    };
-
-    this._hooks.callHookBackground('task:session-ready', taskId, provisionResult);
-
-    return ok(provisionResult);
-  }
-
-  /**
-   * Phases 2 + 3 combined: provisions workspace then session.
-   * Used by the automation path which runs entirely in the main process.
-   */
-  async launch(
-    taskId: string
-  ): Promise<Result<ProvisionResult, ProvisionWorkspaceError | ProvisionTaskError>> {
-    const ws = await this.provisionWorkspace(taskId);
-    if (!ws.success) return err(ws.error);
-    return this.provisionSession(taskId);
   }
 
   async teardown(

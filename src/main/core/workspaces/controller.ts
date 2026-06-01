@@ -6,6 +6,6 @@ export const workspaceController = createRPCController({
   async provisionWorkspace(taskId: string) {
     const result = await taskService.provisionWorkspace(taskId);
     if (!result.success) throw new Error(formatProvisionWorkspaceError(result.error));
-    return { path: result.data };
+    return result.data;
   },
 });
