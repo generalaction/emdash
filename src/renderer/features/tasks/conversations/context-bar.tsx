@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import {
@@ -62,6 +62,7 @@ export const ContextBar = observer(function ContextBar({
   const activeSessionId = activeSession?.sessionId;
   const canApplyContext = Boolean(activeSessionId);
   const hasConversation = conversations.conversations.size > 0;
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const actions = useMemo(
     () => buildTaskContextActions(task?.linkedIssue, draftComments?.comments ?? [], promptLibrary),
@@ -99,14 +100,16 @@ export const ContextBar = observer(function ContextBar({
 
   const updateContextBarPosition = (nextPosition: ContextBarPosition) => {
     updateInterfaceSettings({ contextBarPosition: nextPosition });
+    setMenuOpen(false);
   };
 
   const updateContextBarAlignment = (nextAlignment: ContextBarAlignment) => {
     updateInterfaceSettings({ contextBarAlignment: nextAlignment });
+    setMenuOpen(false);
   };
 
   return (
-    <ContextMenu>
+    <ContextMenu open={menuOpen} onOpenChange={setMenuOpen}>
       <ContextMenuTrigger>
         <div
           className={cn(
