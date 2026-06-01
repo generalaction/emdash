@@ -26,11 +26,12 @@ export function OverviewTab({ snapshot }: { snapshot: UsageSnapshot }) {
         <ActivityHeatmap daily={daily} />
       </div>
 
+      <div className={PANEL}>
+        <div className={HEADING}>When you work</div>
+        <HourHistogram byHour={byHour} />
+      </div>
+
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div className={PANEL}>
-          <div className={HEADING}>When you work</div>
-          <HourHistogram byHour={byHour} />
-        </div>
         <div className={PANEL}>
           <div className={HEADING}>Cost by model</div>
           {byModel
@@ -44,9 +45,6 @@ export function OverviewTab({ snapshot }: { snapshot: UsageSnapshot }) {
               />
             ))}
         </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className={PANEL}>
           <div className={HEADING}>Top projects</div>
           {byProject.map((p) => (
@@ -58,20 +56,21 @@ export function OverviewTab({ snapshot }: { snapshot: UsageSnapshot }) {
             />
           ))}
         </div>
-        <div className={PANEL}>
-          <div className={HEADING}>Recent sessions</div>
-          {recentSessions.map((s) => (
-            <div
-              key={s.id}
-              className="flex items-center justify-between border-t border-border/50 py-1.5 text-sm first:border-t-0"
-            >
-              <span className="truncate text-foreground-muted">{s.name}</span>
-              <span className="shrink-0 pl-2 text-xs text-foreground/40">
-                {s.model ?? s.provider}
-              </span>
-            </div>
-          ))}
-        </div>
+      </div>
+
+      <div className={PANEL}>
+        <div className={HEADING}>Recent sessions</div>
+        {recentSessions.map((s) => (
+          <div
+            key={s.id}
+            className="flex items-center justify-between border-t border-border/50 py-1.5 text-sm first:border-t-0"
+          >
+            <span className="truncate text-foreground-muted">{s.name}</span>
+            <span className="shrink-0 pl-2 text-xs text-foreground/40">
+              {s.model ?? s.provider}
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   );

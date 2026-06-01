@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { cn } from '@renderer/utils/utils';
 import type { DailyPoint } from '@shared/usage';
 import { fmtTokens } from '../format';
@@ -8,13 +8,13 @@ type Mode = 'daily' | 'weekly';
 const WEEKS = 53;
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-// Monochrome intensity scale built from emdash's foreground token.
+// Monochrome intensity scale built from emdash's foreground token. Index 0 = empty.
 const LEVEL_BG = [
-  'bg-foreground/[0.06]',
-  'bg-foreground/20',
-  'bg-foreground/35',
-  'bg-foreground/55',
-  'bg-foreground/80',
+  'bg-foreground/[0.08]',
+  'bg-foreground/25',
+  'bg-foreground/40',
+  'bg-foreground/60',
+  'bg-foreground/85',
 ];
 
 function ymd(d: Date): string {
@@ -31,9 +31,12 @@ function levelOf(tokens: number, max: number): number {
 }
 
 type Cell = { date: Date; tokens: number; future: boolean };
+type Hover = { x: number; y: number; text: string };
 
 export function ActivityHeatmap({ daily }: { daily: DailyPoint[] }) {
   const [mode, setMode] = useState<Mode>('daily');
+  const [hover, setHover] = useState<Hover | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
 
   const byDate = useMemo(() => {
     const m = new Map<string, number>();
@@ -99,41 +102,58 @@ export function ActivityHeatmap({ daily }: { daily: DailyPoint[] }) {
         </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <div className="inline-flex flex-col gap-1">
-          <div className="flex gap-[3px]">
-            {columns.map((col, ci) => (
-              <div key={ci} className="flex flex-col gap-[3px]">
-                {col.map((cell, ri) => {
-                  const value = mode === 'weekly' ? weekTotals[ci] : cell.tokens;
-                  const max = mode === 'weekly' ? maxWeekly : maxDaily;
-                  const level = cell.future ? -1 : levelOf(value, max);
-                  return (
-                    <div
-                      key={ri}
-                      className={cn(
-                        'h-2.5 w-2.5 rounded-[2px]',
-                        cell.future ? 'bg-transparent' : LEVEL_BG[level]
-                      )}
-                      title={
-                        cell.future
-                          ? undefined
-                          : `${fmtTokens(cell.tokens)} tokens on ${MONTHS[cell.date.getMonth()]} ${cell.date.getDate()}`
-                      }
-                    />
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-          <div className="flex gap-[3px] text-[10px] text-foreground/40">
-            {monthLabels.map((label, i) => (
-              <div key={i} className="w-2.5 shrink-0 overflow-visible whitespace-nowrap">
-                {label}
-              </div>
-            ))}
-          </div>
+      {/* Columns flex to fill the panel width, like the GitHub contribution graph. */}
+      <div ref={wrapRef} className="relative" onMouseLeave={() => setHover(null)}>
+        <div className="flex w-full gap-[3px]">
+          {columns.map((col, ci) => (
+            <div key={ci} className="flex min-w-0 flex-1 flex-col gap-[3px]">
+              {col.map((cell, ri) => {
+                const value = mode === 'weekly' ? weekTotals[ci] : cell.tokens;
+                const max = mode === 'weekly' ? maxWeekly : maxDaily;
+                const level = levelOf(value, max);
+                return (
+                  <div
+                    key={ri}
+                    className={cn(
+                      'aspect-square w-full rounded-[3px]',
+                      cell.future ? 'bg-transparent' : LEVEL_BG[level]
+                    )}
+                    onMouseEnter={(e) => {
+                      if (cell.future) return;
+                      const rect = wrapRef.current?.getBoundingClientRect();
+                      if (!rect) return;
+                      setHover({
+                        x: e.clientX - rect.left,
+                        y: e.clientY - rect.top,
+                        text: `${fmtTokens(cell.tokens)} tokens on ${MONTHS[cell.date.getMonth()]} ${cell.date.getDate()}`,
+                      });
+                    }}
+                  />
+                );
+              })}
+            </div>
+          ))}
         </div>
+
+        <div className="mt-1.5 flex w-full gap-[3px]">
+          {monthLabels.map((label, i) => (
+            <div
+              key={i}
+              className="min-w-0 flex-1 overflow-visible text-left text-[10px] whitespace-nowrap text-foreground/40"
+            >
+              {label}
+            </div>
+          ))}
+        </div>
+
+        {hover && (
+          <div
+            className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-full rounded-md border border-border bg-background-2 px-2 py-1 text-xs whitespace-nowrap text-foreground shadow-md"
+            style={{ left: hover.x, top: hover.y - 8 }}
+          >
+            {hover.text}
+          </div>
+        )}
       </div>
     </div>
   );

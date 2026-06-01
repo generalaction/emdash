@@ -103,16 +103,16 @@ export function UsageMainPanel() {
         ) : (
           <>
             <div className="mb-4 flex items-center justify-between">
-              <div className="inline-flex items-center gap-0.5 rounded-md border border-border bg-background p-0.5">
+              <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-background-1 p-1">
                 {tabs.map((item) => (
                   <button
                     key={item.id}
                     type="button"
                     onClick={() => onTabChange(item.id)}
                     className={cn(
-                      'rounded px-3 py-1 text-sm transition-colors',
+                      'rounded-md px-3 py-1 text-sm transition-colors',
                       item.id === tab
-                        ? 'bg-muted text-foreground'
+                        ? 'bg-background-3 font-medium text-foreground shadow-sm'
                         : 'text-foreground-muted hover:text-foreground'
                     )}
                   >
