@@ -13,7 +13,6 @@ import { PaneSizingProvider } from '@renderer/lib/pty/pane-sizing-context';
 import { PtyPane } from '@renderer/lib/pty/pty-pane';
 import { TerminalSearchOverlay } from '@renderer/lib/pty/terminal-search-overlay';
 import { useTerminalSearch } from '@renderer/lib/pty/use-terminal-search';
-import { resolveContextBarLayout } from '@shared/context-bar-settings';
 import { ContextBar } from './context-bar';
 import type { ConversationStore } from './conversation-manager';
 
@@ -83,22 +82,10 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
   }, [sessionStatus]);
 
   const onInterruptPress = activeConversation ? () => activeConversation.clearWorking() : undefined;
-  const { position: contextBarPosition, alignment: contextBarAlignment } = resolveContextBarLayout(
-    interfaceSettings?.contextBarPosition,
-    interfaceSettings?.contextBarAlignment
-  );
-  const showTopContextBar = contextBarPosition === 'top';
-  const showBottomContextBar = contextBarPosition === 'bottom';
+  const showContextBar = !(interfaceSettings?.hideContextBar ?? false);
 
   return (
     <div className="flex h-full flex-col">
-      {showTopContextBar && (
-        <ContextBar
-          conversationId={tm.activeConversationId}
-          position="top"
-          alignment={contextBarAlignment}
-        />
-      )}
       <div className="flex min-h-0 flex-1">
         <div
           ref={containerRef}
@@ -142,13 +129,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
           </PaneSizingProvider>
         </div>
       </div>
-      {showBottomContextBar && (
-        <ContextBar
-          conversationId={tm.activeConversationId}
-          position="bottom"
-          alignment={contextBarAlignment}
-        />
-      )}
+      {showContextBar && <ContextBar conversationId={tm.activeConversationId} />}
     </div>
   );
 });

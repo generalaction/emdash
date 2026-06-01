@@ -1,7 +1,6 @@
 import z from 'zod';
 import { AGENT_PROVIDER_IDS, AGENT_PROVIDERS } from '@shared/agent-provider-registry';
 import { normalizeBranchPrefix } from '@shared/branch-prefix';
-import { resolveContextBarLayout } from '@shared/context-bar-settings';
 import { openInAppIdSchema } from '@shared/openInApps';
 import { APP_SHORTCUTS } from '@shared/shortcuts';
 import {
@@ -103,24 +102,12 @@ export const providerConfigDefaults = Object.fromEntries(
   ])
 );
 
-export const interfaceSettingsSchema = z
-  .object({
-    taskHoverAction: z.enum(['delete', 'archive']),
-    autoRightSidebarBehavior: z.boolean(),
-    confirmTabClose: z.boolean(),
-    // Vertical placement of the context bar. 'left'/'right' are legacy single-axis
-    // values (bottom + that alignment) accepted only so the transform below can
-    // normalize them away into the two-axis model on the next write.
-    contextBarPosition: z.enum(['top', 'bottom', 'left', 'right', 'hidden']),
-    contextBarAlignment: z.enum(['left', 'center', 'right']),
-  })
-  .transform((s) => {
-    const { position, alignment } = resolveContextBarLayout(
-      s.contextBarPosition,
-      s.contextBarAlignment
-    );
-    return { ...s, contextBarPosition: position, contextBarAlignment: alignment };
-  });
+export const interfaceSettingsSchema = z.object({
+  taskHoverAction: z.enum(['delete', 'archive']),
+  autoRightSidebarBehavior: z.boolean(),
+  confirmTabClose: z.boolean(),
+  hideContextBar: z.boolean(),
+});
 
 export const changesViewModeSchema = z.object({
   unstaged: z.enum(['flat', 'tree']),

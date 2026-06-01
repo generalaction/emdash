@@ -54,8 +54,7 @@ export const SETTINGS_DEFAULTS = {
     taskHoverAction: 'delete' as const,
     autoRightSidebarBehavior: false,
     confirmTabClose: false,
-    contextBarPosition: 'bottom' as const,
-    contextBarAlignment: 'center' as const,
+    hideContextBar: false,
   },
   browserPreview: {
     enabled: true,
