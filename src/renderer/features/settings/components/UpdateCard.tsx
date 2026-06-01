@@ -145,8 +145,7 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
         return (
           <p className="text-muted-foreground flex items-center gap-1 text-sm">
             <Loader2 className="h-3 w-3 animate-spin" />
-            Installing update. {PRODUCT_NAME} will close and restart automatically — this may take a
-            few seconds.
+            Installing update… {PRODUCT_NAME} will restart automatically.
           </p>
         );
 

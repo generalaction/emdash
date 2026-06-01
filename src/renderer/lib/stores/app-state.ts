@@ -22,7 +22,10 @@ class AppState {
   constructor() {
     this.snapshots = snapshotRegistry;
     this.navigation = new NavigationStore();
-    this.update = new UpdateStore();
+    this.update = new UpdateStore(
+      () => this.navigation.navigate('settings'),
+      () => this.navigation.currentViewId === 'settings'
+    );
     this.projects = new ProjectManagerStore();
     this.sidebar = new SidebarStore(this.projects);
     this.history = new NavigationHistoryStore();

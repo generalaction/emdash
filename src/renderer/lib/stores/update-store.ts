@@ -1,6 +1,5 @@
-import { ArrowUpRight } from 'lucide-react';
 import { action, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
-import { createElement, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { toast } from 'sonner';
 import { events, rpc } from '@renderer/lib/ipc';
 import { PRODUCT_NAME } from '@shared/app-identity';
@@ -55,7 +54,10 @@ export class UpdateStore {
   // calling the real updater RPC, so the full end-to-end UX can be exercised.
   private _simulating = false;
 
-  constructor() {
+  constructor(
+    private readonly _openSettings: () => void,
+    private readonly _isSettingsOpen: () => boolean
+  ) {
     makeObservable(this, {
       state: observable,
       currentVersion: observable,
@@ -134,6 +136,7 @@ export class UpdateStore {
         this.state = { status: 'downloaded' };
       });
       this._completePercentAnimation();
+      if (!this._isSettingsOpen()) this._showToast();
     });
 
     events.on(updateInstallingEvent, () => {
@@ -152,8 +155,8 @@ export class UpdateStore {
       rpc.update.check().catch(() => {});
     });
 
-    // Keep the live toast in sync with the flow: re-render whenever the status
-    // or download percentage changes, but only while a toast is meant to show.
+    // Keep the live toast in sync with update availability/errors, but don't
+    // resurrect it after the user dismisses or opens Settings.
     reaction(
       () => this._toastKey,
       () => {
@@ -265,13 +268,9 @@ export class UpdateStore {
     }
   }
 
-  /**
-   * Surface the update flow to the user. The whole flow — download progress and
-   * the restart prompt — lives inside the toast, so this just (re)opens it; the
-   * sidebar "Update" button routes here when the toast was dismissed.
-   */
   openUpdateFlow(): void {
-    this._showToast();
+    this._dismissToast();
+    this._openSettings();
   }
 
   simulateDownloadProgress(): void {
@@ -318,6 +317,7 @@ export class UpdateStore {
           this.state = { status: 'downloaded' };
         });
         this._completePercentAnimation();
+        if (!this._isSettingsOpen()) this._showToast();
       }
     }, 250);
   }
@@ -347,8 +347,7 @@ export class UpdateStore {
       this.availableVersion = undefined;
       this.state = { status: 'idle' };
     });
-    this._toastActive = false;
-    toast.dismiss(UPDATE_TOAST_ID);
+    this._dismissToast();
   }
 
   private _stopDownloadSimulation(): void {
@@ -461,20 +460,19 @@ export class UpdateStore {
     this._rememberNotified(version);
   }
 
-  /**
-   * Open the persistent update toast. From here the `reaction` set up in
-   * `start()` keeps the same toast (one stable id) advancing through download
-   * progress, the restart prompt, and errors as the store state changes.
-   */
   private _showToast(): void {
     this._toastActive = true;
     this._renderToast();
   }
 
+  private _dismissToast(): void {
+    this._toastActive = false;
+    toast.dismiss(UPDATE_TOAST_ID);
+  }
+
   /** A primitive key that changes whenever the toast's content should change. */
   private get _toastKey(): string {
     const s = this.state;
-    if (s.status === 'downloading') return `downloading:${this.displayedPercent}`;
     if (s.status === 'error') return `error:${s.message}`;
     return s.status;
   }
@@ -486,7 +484,10 @@ export class UpdateStore {
    */
   private _renderToast(): void {
     const content = this._toastContent();
-    if (!content) return;
+    if (!content) {
+      this._dismissToast();
+      return;
+    }
     toast(content.title, {
       id: UPDATE_TOAST_ID,
       description: content.description,
@@ -515,22 +516,11 @@ export class UpdateStore {
             ? `Version ${version} is ready to download.`
             : 'A new version is ready to download.',
           action: {
-            label: this._actionLabel('Update'),
+            label: 'Open Settings',
             onClick: (event) => {
               event.preventDefault();
-              void this.download();
+              this.openUpdateFlow();
             },
-          },
-        };
-      case 'downloading':
-        return {
-          title: 'Downloading update',
-          description: version ? `Version ${version}` : 'Fetching the latest version…',
-          // Mirror the "Update available" layout: the action button now reports
-          // progress. preventDefault keeps clicking it from dismissing the toast.
-          action: {
-            label: this._percentLabel(this.displayedPercent),
-            onClick: (event) => event.preventDefault(),
           },
         };
       case 'downloaded':
@@ -538,54 +528,28 @@ export class UpdateStore {
           title: 'Update ready',
           description: `Restart ${PRODUCT_NAME} to finish updating.`,
           action: {
-            label: this._actionLabel('Restart'),
+            label: 'Open Settings',
             onClick: (event) => {
               event.preventDefault();
-              void this.install();
+              this.openUpdateFlow();
             },
           },
-        };
-      case 'installing':
-        return {
-          title: 'Installing update',
-          description: `${PRODUCT_NAME} will restart automatically…`,
         };
       case 'error':
         return {
           title: 'Update failed',
           description: this.state.message,
           action: {
-            label: this._actionLabel('Retry'),
+            label: 'Open Settings',
             onClick: (event) => {
               event.preventDefault();
-              void this.download();
+              this.openUpdateFlow();
             },
           },
         };
       default:
         return null;
     }
-  }
-
-  private _actionLabel(label: string): ReactNode {
-    return createElement(
-      'span',
-      { className: 'inline-flex items-center gap-1' },
-      label,
-      createElement(ArrowUpRight, {
-        className:
-          'h-3 w-3 transition-transform duration-150 ease-out group-hover/update-action:translate-x-0.5 group-hover/update-action:-translate-y-0.5',
-      })
-    );
-  }
-
-  /**
-   * Percent label with tabular figures so each digit has the same width. The
-   * toast button only resizes when the digit count itself changes (9→10 and
-   * 99→100) instead of on every tick.
-   */
-  private _percentLabel(percent: number): ReactNode {
-    return createElement('span', { className: 'tabular-nums' }, `${percent}%`);
   }
 
   private _shouldNotify(version: string): boolean {
