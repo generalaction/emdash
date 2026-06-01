@@ -36,10 +36,15 @@ function availableAgent(id: AgentProviderId): DependencyState {
   };
 }
 
+function flushPromises(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
 describe('DependenciesStore install', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     dependencyEventHandler = null;
+    vi.unstubAllGlobals();
   });
 
   it('updates local dependency state after a local install', async () => {
@@ -175,6 +180,41 @@ describe('DependenciesStore install', () => {
 
     expect(store.getRemote('ssh-1').data?.claude?.status).toBe('available');
     expect(store.local.data?.claude).toBeUndefined();
+  });
+
+  it('refreshes local agent availability when the app regains focus', async () => {
+    const listeners = new Map<string, () => void>();
+    let resolveProbe: (() => void) | undefined;
+    vi.stubGlobal('window', {
+      addEventListener: vi.fn((event: string, handler: () => void) => {
+        listeners.set(event, handler);
+      }),
+      removeEventListener: vi.fn(),
+    });
+    vi.mocked(rpc.dependencies.probeCategory).mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveProbe = resolve;
+      })
+    );
+    vi.mocked(rpc.dependencies.getAll)
+      .mockResolvedValueOnce({})
+      .mockResolvedValueOnce({ codex: availableAgent('codex') });
+    const store = new DependenciesStore();
+    store.start();
+    await flushPromises();
+
+    listeners.get('focus')?.();
+    listeners.get('focus')?.();
+    await flushPromises();
+    expect(rpc.dependencies.probeCategory).toHaveBeenCalledTimes(1);
+
+    resolveProbe?.();
+    await flushPromises();
+
+    expect(rpc.dependencies.probeCategory).toHaveBeenCalledWith('agent', undefined, {
+      refreshShellEnv: true,
+    });
+    expect(store.local.data?.codex?.status).toBe('available');
   });
 
   it('tracks in-flight installs by dependency and connection', async () => {
