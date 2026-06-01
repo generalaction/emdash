@@ -1,12 +1,10 @@
 export function HourHistogram({ byHour, height = 44 }: { byHour: number[]; height?: number }) {
   const max = Math.max(1, ...byHour);
-  const colorFor = (h: number) =>
-    h < 6 ? 'var(--foreground-muted)' : h < 12 ? '#4caf6e' : h < 18 ? 'var(--accent)' : '#d9a443';
   return (
     <svg
       viewBox={`0 0 24 ${height}`}
       preserveAspectRatio="none"
-      className="w-full"
+      className="w-full text-foreground/30"
       style={{ height }}
       role="img"
       aria-label="usage by hour of day"
@@ -21,7 +19,7 @@ export function HourHistogram({ byHour, height = 44 }: { byHour: number[]; heigh
             width={0.7}
             height={bh}
             rx={0.2}
-            fill={colorFor(h)}
+            fill="currentColor"
           />
         );
       })}

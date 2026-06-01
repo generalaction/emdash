@@ -1,12 +1,10 @@
 export function Sparkline({
   values,
   height = 48,
-  color = 'var(--accent)',
   label,
 }: {
   values: number[];
   height?: number;
-  color?: string;
   label?: string;
 }) {
   const max = Math.max(1, ...values);
@@ -17,7 +15,7 @@ export function Sparkline({
     <svg
       viewBox={`0 0 ${w} ${height}`}
       preserveAspectRatio="none"
-      className="w-full"
+      className="w-full text-foreground/30"
       style={{ height }}
       role="img"
       aria-label={label ?? 'activity over time'}
@@ -32,8 +30,7 @@ export function Sparkline({
             width={bw * 0.7}
             height={h}
             rx={0.5}
-            fill={color}
-            opacity={0.85}
+            fill="currentColor"
           />
         );
       })}
