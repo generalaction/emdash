@@ -425,7 +425,7 @@ describe('GitService.createBranch', () => {
     });
   });
 
-  it('fails remote source branch creation when fetch fails', async () => {
+  it('creates remote source branches from cached refs when fetch fails', async () => {
     const svc = makeService(async (_cmd, args = []) => {
       const key = args.join(' ');
       if (key === 'fetch origin') {
@@ -433,6 +433,46 @@ describe('GitService.createBranch', () => {
           stdout: '',
           stderr:
             "fatal: could not read Username for 'https://github.com': terminal prompts disabled",
+          code: 128,
+        });
+      }
+      if (key === 'rev-parse --verify refs/remotes/origin/main') {
+        return { stdout: 'abc123', stderr: '' };
+      }
+      if (key === 'branch --no-track task/remote origin/main') {
+        return { stdout: '', stderr: '' };
+      }
+      if (key === 'config branch.task/remote.base origin/main') {
+        return { stdout: '', stderr: '' };
+      }
+      throw Object.assign(new Error(`Unexpected git command: git ${key}`), {
+        stdout: '',
+        stderr: 'fatal: not expected',
+        code: 128,
+      });
+    });
+
+    await expect(svc.createBranch('task/remote', 'main', true, 'origin')).resolves.toEqual({
+      success: true,
+      data: undefined,
+    });
+  });
+
+  it('fails remote source branch creation when fetch fails and no cached ref exists', async () => {
+    const svc = makeService(async (_cmd, args = []) => {
+      const key = args.join(' ');
+      if (key === 'fetch origin') {
+        throw Object.assign(new Error('fetch failed'), {
+          stdout: '',
+          stderr:
+            "fatal: could not read Username for 'https://github.com': terminal prompts disabled",
+          code: 128,
+        });
+      }
+      if (key === 'rev-parse --verify refs/remotes/origin/main') {
+        throw Object.assign(new Error('missing ref'), {
+          stdout: '',
+          stderr: 'fatal: Needed a single revision',
           code: 128,
         });
       }

@@ -224,6 +224,63 @@ describe('createTask', () => {
     expect(mocks.createBranch).toHaveBeenCalledWith('task/local', 'main', false, undefined);
   });
 
+  it('creates no-worktree tasks without reading repository remotes', async () => {
+    mocks.getConfiguredRemotes.mockRejectedValueOnce(new Error('SSH connection failed'));
+
+    const insertTaskValues = vi.fn((values: Partial<TaskRow>) => ({
+      returning: vi.fn().mockResolvedValue([makeTaskRow(values)]),
+    }));
+    const insertWorkspaceValues = vi.fn().mockResolvedValue(undefined);
+    mocks.insert
+      .mockReturnValueOnce({ values: insertTaskValues })
+      .mockReturnValueOnce({ values: insertWorkspaceValues });
+
+    const result = await createTask({
+      id: 'task-1',
+      projectId: 'project-1',
+      name: 'No worktree task',
+      sourceBranch: { type: 'local', branch: 'main' },
+      strategy: { kind: 'no-worktree' },
+    });
+
+    expect(result.success).toBe(true);
+    expect(mocks.getConfiguredRemotes).not.toHaveBeenCalled();
+    expect(mocks.getRepositoryInfo).not.toHaveBeenCalled();
+    expect(insertTaskValues).toHaveBeenCalledWith(
+      expect.objectContaining({
+        taskBranch: undefined,
+        sourceBranch: toStoredBranch({ type: 'local', branch: 'main' }),
+      })
+    );
+  });
+
+  it('returns a typed branch creation failure when repository info cannot be read', async () => {
+    mocks.getRepositoryInfo.mockRejectedValueOnce(new Error('SSH connection failed'));
+
+    const result = await createTask({
+      id: 'task-1',
+      projectId: 'project-1',
+      name: 'Remote task',
+      sourceBranch: { type: 'local', branch: 'main' },
+      strategy: {
+        kind: 'new-branch',
+        taskBranch: 'task/remote',
+        pushBranch: false,
+      },
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        type: 'branch-create-failed',
+        branch: 'task/remote',
+        error: { type: 'error', message: 'SSH connection failed' },
+      },
+    });
+    expect(mocks.createBranch).not.toHaveBeenCalled();
+    expect(mocks.insert).not.toHaveBeenCalled();
+  });
+
   it('blocks branch-based tasks when the selected remote source branch cannot be fetched', async () => {
     mocks.createBranch.mockResolvedValueOnce(
       err({

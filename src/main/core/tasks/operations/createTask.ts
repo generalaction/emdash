@@ -18,6 +18,10 @@ import { appSettingsService } from '../../settings/settings-service';
 import { toStoredBranch } from '../stored-branch';
 import { mapTaskRowToTask } from '../utils/utils';
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export async function createTask(
   params: CreateTaskParams
 ): Promise<Result<CreateTaskSuccess, CreateTaskError>> {
@@ -28,15 +32,6 @@ export async function createTask(
   if (!project) {
     return err({ type: 'project-not-found' });
   }
-  const { baseRemote, pushRemote } = await project.repository.getConfiguredRemotes();
-
-  // Settings used by from-pull-request branch resolution (new-branch and from-issue resolve
-  // the branch name on the FE via resolveTaskBranchName before submission).
-  const projectDefaults = await appSettingsService.get('project');
-  const branchPrefix = projectDefaults.branchPrefix ?? '';
-  const appendRandomSuffix = projectDefaults.appendRandomBranchSuffix ?? true;
-  const suffix = Math.random().toString(36).slice(2, 7);
-
   // Determines what gets stored as taskBranch in the DB and how the worktree is prepared.
   let taskBranch: string | undefined;
   // sourceBranch stored in the DB — defaults to params.sourceBranch but overridden for PRs.
@@ -46,7 +41,16 @@ export async function createTask(
     case 'new-branch': {
       // The FE resolves the final branch name before submission via resolveTaskBranchName.
       taskBranch = strategy.taskBranch;
-      const repoInfo = await project.repository.getRepositoryInfo();
+      const repoInfo = await project.repository.getRepositoryInfo().catch((error: unknown) => ({
+        error: errorMessage(error),
+      }));
+      if ('error' in repoInfo) {
+        return err({
+          type: 'branch-create-failed',
+          branch: taskBranch,
+          error: { type: 'error', message: repoInfo.error },
+        });
+      }
       if (repoInfo.isUnborn) {
         return err({
           type: 'initial-commit-required',
@@ -71,6 +75,19 @@ export async function createTask(
           });
         }
       } else if (strategy.pushBranch) {
+        const remotes = await project.repository.getConfiguredRemotes().catch((error: unknown) => ({
+          error: errorMessage(error),
+        }));
+        if ('error' in remotes) {
+          warning = {
+            type: 'branch-publish-failed',
+            branch: taskBranch,
+            remote: 'remote',
+            error: { type: 'error', message: remotes.error },
+          };
+          break;
+        }
+        const { pushRemote } = remotes;
         const publishResult = await project.repository.publishBranch(taskBranch, pushRemote);
         if (!publishResult.success) {
           warning = {
@@ -91,6 +108,24 @@ export async function createTask(
     }
 
     case 'from-pull-request': {
+      const remotes = await project.repository.getConfiguredRemotes().catch((error: unknown) => ({
+        error: errorMessage(error),
+      }));
+      if ('error' in remotes) {
+        return err({
+          type: 'pr-fetch-failed',
+          error: { type: 'error', message: remotes.error },
+          remote: 'remote',
+        });
+      }
+      const { baseRemote, pushRemote } = remotes;
+      // Settings used by from-pull-request branch resolution (new-branch and from-issue resolve
+      // the branch name on the FE via resolveTaskBranchName before submission).
+      const projectDefaults = await appSettingsService.get('project');
+      const branchPrefix = projectDefaults.branchPrefix ?? '';
+      const appendRandomSuffix = projectDefaults.appendRandomBranchSuffix ?? true;
+      const suffix = Math.random().toString(36).slice(2, 7);
+
       // If the head branch is already checked out in a valid worktree, skip the fetch.
       // Git refuses to update a branch that is currently checked out, even with --force.
       const existingWorktree = await project.worktreeService.findBranchAnywhere(

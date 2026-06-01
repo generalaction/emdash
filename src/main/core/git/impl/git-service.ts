@@ -1498,12 +1498,21 @@ export class GitService implements GitProvider, IDisposable {
         });
       } catch (error: unknown) {
         const stderr = (error as { stderr?: string })?.stderr || String(error);
-        return err({
-          type: 'fetch_failed',
-          remote,
-          branch: from,
-          error: classifyFetchError(stderr),
-        });
+        try {
+          await this.ctx.exec('git', ['rev-parse', '--verify', `refs/remotes/${remote}/${from}`]);
+          log.warn('GitService: failed to fetch remote before creating branch, using cached ref', {
+            remote,
+            branch: from,
+            error: stderr,
+          });
+        } catch {
+          return err({
+            type: 'fetch_failed',
+            remote,
+            branch: from,
+            error: classifyFetchError(stderr),
+          });
+        }
       }
     }
     const base = syncWithRemote ? `${remote}/${from}` : `refs/heads/${from}`;
