@@ -105,13 +105,16 @@ export function BranchSelector({
     <Combobox
       open={open}
       inputValue={inputValue}
-      onInputValueChange={setInputValue}
+      onInputValueChange={(nextInputValue: string, { reason }: { reason: string }) => {
+        if (reason !== 'item-press') setInputValue(nextInputValue);
+      }}
       onOpenChange={(nextOpen) => {
         if (!nextOpen && keepOpenForRemoteSelectRef.current) {
           setOpen(true);
           return;
         }
         setOpen(nextOpen);
+        if (!nextOpen) setInputValue('');
         setDraftRemoteName(nextOpen ? selectedRemoteName : undefined);
       }}
       items={options}
