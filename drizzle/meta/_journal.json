@@ -103,43 +103,8 @@
     {
       "idx": 14,
       "version": "6",
-      "when": 1780315353555,
-      "tag": "0014_powerful_dark_phoenix",
-      "breakpoints": true
-    },
-    {
-      "idx": 15,
-      "version": "6",
-      "when": 1780315405032,
-      "tag": "0015_colossal_firebird",
-      "breakpoints": true
-    },
-    {
-      "idx": 16,
-      "version": "6",
-      "when": 1780402671428,
-      "tag": "0016_lyrical_pretty_boy",
-      "breakpoints": true
-    },
-    {
-      "idx": 17,
-      "version": "6",
-      "when": 1780408431371,
-      "tag": "0017_aromatic_chronomancer",
-      "breakpoints": true
-    },
-    {
-      "idx": 18,
-      "version": "6",
-      "when": 1780410220231,
-      "tag": "0018_absurd_black_knight",
-      "breakpoints": true
-    },
-    {
-      "idx": 19,
-      "version": "6",
-      "when": 1780413303850,
-      "tag": "0019_yellow_gideon",
+      "when": 1780416535358,
+      "tag": "0014_third_shooting_star",
       "breakpoints": true
     }
   ]

@@ -1,1 +1,0 @@
-ALTER TABLE `tasks` ADD `workspace_intent` text;
