@@ -1,6 +1,6 @@
 import { detectPlatform, matchesKeyboardEvent } from '@tanstack/react-hotkeys';
 import { motion, type Variants } from 'framer-motion';
-import { useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import IconLight from '@/assets/images/emdash/icon-light.png';
 import YTBanner from '@/assets/images/ytbanner.webp';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
@@ -10,6 +10,7 @@ import { Button } from '@renderer/lib/ui/button';
 import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 
 const PLATFORM = detectPlatform();
+const SHORTCUT_PRESS_DURATION_MS = 120;
 
 interface WelcomeScreenProps {
   onGetStarted: () => void;
@@ -19,6 +20,18 @@ export function WelcomeScreen({ onGetStarted }: WelcomeScreenProps) {
   const { effectiveTheme } = useTheme();
   const { value: keyboard } = useAppSettingsKey('keyboard');
   const confirmHotkey = getEffectiveHotkey('confirm', keyboard);
+  const [isShortcutPressed, setIsShortcutPressed] = useState(false);
+  const shortcutPressTimeoutRef = useRef<number | null>(null);
+
+  const handleGetStarted = useCallback(() => {
+    if (shortcutPressTimeoutRef.current !== null) {
+      window.clearTimeout(shortcutPressTimeoutRef.current);
+      shortcutPressTimeoutRef.current = null;
+    }
+
+    setIsShortcutPressed(false);
+    onGetStarted();
+  }, [onGetStarted]);
 
   useEffect(() => {
     if (confirmHotkey === null) return;
@@ -29,12 +42,25 @@ export function WelcomeScreen({ onGetStarted }: WelcomeScreenProps) {
       event.preventDefault();
       event.stopPropagation();
       event.stopImmediatePropagation();
-      onGetStarted();
+
+      if (shortcutPressTimeoutRef.current !== null) return;
+
+      setIsShortcutPressed(true);
+      shortcutPressTimeoutRef.current = window.setTimeout(() => {
+        handleGetStarted();
+      }, SHORTCUT_PRESS_DURATION_MS);
     };
 
     document.addEventListener('keydown', handleKeyDown, { capture: true });
     return () => document.removeEventListener('keydown', handleKeyDown, { capture: true });
-  }, [confirmHotkey, onGetStarted]);
+  }, [confirmHotkey, handleGetStarted]);
+
+  useEffect(() => {
+    return () => {
+      if (shortcutPressTimeoutRef.current !== null)
+        window.clearTimeout(shortcutPressTimeoutRef.current);
+    };
+  }, []);
 
   const containerVariants: Variants = {
     hidden: { opacity: 0 },
@@ -102,18 +128,24 @@ export function WelcomeScreen({ onGetStarted }: WelcomeScreenProps) {
           whileTap={{ scale: 0.97 }}
           transition={{ duration: 0.1, ease: 'easeInOut' }}
         >
-          <Button
-            onClick={onGetStarted}
-            size="sm"
-            className={
-              effectiveTheme === 'emdark' ? 'bg-gray-200 text-gray-900 hover:bg-gray-300' : ''
-            }
+          <div
+            className={`transition-transform duration-100 ease-in-out ${
+              isShortcutPressed ? 'scale-[0.97]' : ''
+            }`}
           >
-            <span className="flex items-center gap-2">
-              Start shipping
-              <BoundShortcut settingsKey="confirm" />
-            </span>
-          </Button>
+            <Button
+              onClick={handleGetStarted}
+              size="sm"
+              className={
+                effectiveTheme === 'emdark' ? 'bg-gray-200 text-gray-900 hover:bg-gray-300' : ''
+              }
+            >
+              <span className="flex items-center gap-2">
+                Start shipping
+                <BoundShortcut settingsKey="confirm" />
+              </span>
+            </Button>
+          </div>
         </motion.div>
       </motion.div>
     </div>
