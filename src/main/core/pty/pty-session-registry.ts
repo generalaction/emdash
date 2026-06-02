@@ -21,7 +21,6 @@ export class PtySessionRegistry {
   private metadata: Map<string, PtySessionMetadata> = new Map();
   private lastSizes: Map<string, { cols: number; rows: number }> = new Map();
   private pendingFlushes: Map<string, () => void> = new Map();
-  private epoch = 0;
 
   register(
     sessionId: string,
@@ -40,8 +39,6 @@ export class PtySessionRegistry {
     if (options?.metadata) this.metadata.set(sessionId, options.metadata);
 
     this.ptyMap.set(sessionId, pty);
-    this.epoch += 1;
-    const epoch = this.epoch;
 
     let buffer = '';
     let flushTimer: ReturnType<typeof setTimeout> | null = null;
@@ -103,7 +100,7 @@ export class PtySessionRegistry {
     );
 
     this.ptyInputSubscriptions.set(sessionId, off);
-    events.emit(ptyStartedChannel, { id: sessionId, epoch });
+    events.emit(ptyStartedChannel, { id: sessionId });
   }
 
   unregister(sessionId: string, options: { pty?: Pty; exitInfo?: PtyExitInfo } = {}): void {
