@@ -466,6 +466,34 @@ describe('conversation provider respawn state', () => {
     }
   });
 
+  it('starts an SSH conversation fresh after three resume replacements exit', async () => {
+    vi.useFakeTimers();
+    try {
+      const exitHandlers: Array<Array<(info: PtyExitInfo) => void>> = [];
+      openSsh2Pty.mockImplementation(() => {
+        const handlers: Array<(info: PtyExitInfo) => void> = [];
+        exitHandlers.push(handlers);
+        return Promise.resolve({ success: true, data: fakePty(handlers) });
+      });
+      const provider = sshProvider();
+      const item = conversation();
+
+      await provider.startSession(item);
+
+      for (let index = 0; index < 4; index += 1) {
+        for (const handler of exitHandlers[index] ?? []) handler({ exitCode: 1 });
+        await vi.advanceTimersByTimeAsync(500);
+      }
+
+      expect(openSsh2Pty).toHaveBeenCalledTimes(5);
+      expect(
+        vi.mocked(buildAgentSessionCommand).mock.calls.map(([args]) => args.isResuming)
+      ).toEqual([false, true, true, true, false]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('does not loop when local replacement spawn fails', async () => {
     vi.useFakeTimers();
     try {
