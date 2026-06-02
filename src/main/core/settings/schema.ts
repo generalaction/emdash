@@ -105,6 +105,9 @@ export const providerConfigDefaults = Object.fromEntries(
 export const interfaceSettingsSchema = z.object({
   taskHoverAction: z.enum(['delete', 'archive']),
   autoRightSidebarBehavior: z.boolean(),
+  showLeftSidebarLineChanges: z.boolean(),
+  showLeftSidebarPrStatus: z.boolean(),
+  showLeftSidebarTimestamps: z.boolean(),
   confirmTabClose: z.boolean(),
 });
 

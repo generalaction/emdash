@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import { TaskSidebarAgentStatus } from '@renderer/features/sidebar/task-sidebar-agent-status';
+import { TaskSidebarTrailingSlot } from '@renderer/features/sidebar/task-sidebar-agent-status';
 import { TaskContextMenu } from '@renderer/features/tasks/components/task-context-menu';
 import { TaskGitDiffStats } from '@renderer/features/tasks/components/task-git-diff-stats';
 import {
@@ -18,6 +18,7 @@ import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { cn } from '@renderer/utils/utils';
 import { selectCurrentPr } from '@shared/pull-requests';
 import { PrBadge } from '../../lib/components/pr-badge';
+import { useAppSettingsKey } from '../settings/use-app-settings-key';
 import { SidebarMenuAction, SidebarMenuRow } from './sidebar-primitives';
 
 interface SidebarTaskItemProps {
@@ -38,6 +39,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
 
   const { currentView } = useWorkspaceSlots();
   const { params } = useParams('task');
+  const { value: interfaceSettings } = useAppSettingsKey('interface');
   const isActive =
     currentView === 'task' && params.taskId === taskId && params.projectId === projectId;
 
@@ -84,6 +86,9 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
 
   const workspaceStore = getWorkspaceForTask(projectId, taskId);
   const git = getTaskGitStore(projectId, taskId);
+  const showLineChanges = interfaceSettings?.showLeftSidebarLineChanges ?? true;
+  const showPrStatus = interfaceSettings?.showLeftSidebarPrStatus ?? true;
+  const showTimestamps = interfaceSettings?.showLeftSidebarTimestamps ?? true;
   const branchName =
     git?.branchName ?? ('taskBranch' in task.data ? task.data.taskBranch : undefined);
   const handleReconnect =
@@ -124,10 +129,12 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
           >
             {taskName}
           </span>
-          <TaskGitDiffStats task={task} className="flex h-full shrink-0 items-center pr-1 pl-1" />
         </SidebarMenuAction>
-        <RenderPrBadge task={task} />
-        <TaskSidebarAgentStatus task={task} />
+        <div className="ml-2 flex shrink-0 items-center justify-end gap-1.5">
+          {showLineChanges && <TaskGitDiffStats task={task} />}
+          {showPrStatus && <RenderPrBadge task={task} />}
+          <TaskSidebarTrailingSlot task={task} showTimestamp={showTimestamps} />
+        </div>
       </SidebarMenuRow>
     </TaskContextMenu>
   );

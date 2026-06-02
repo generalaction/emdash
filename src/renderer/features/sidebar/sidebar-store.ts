@@ -17,7 +17,13 @@ function parseSidebarTaskSortBy(value: unknown): SidebarTaskSortBy | undefined {
   return value === 'created-at' || value === 'updated-at' ? value : undefined;
 }
 
-export function getSortInstant(task: TaskStore, kind: 'created' | 'updated'): string {
+export type TaskSortKind = 'created' | 'updated';
+
+export function sortKindFor(sortBy: SidebarTaskSortBy): TaskSortKind {
+  return sortBy === 'created-at' ? 'created' : 'updated';
+}
+
+export function getSortInstant(task: TaskStore, kind: TaskSortKind): string | undefined {
   const reg = registeredTaskData(task);
   if (reg) {
     if (kind === 'created') return reg.createdAt;
@@ -28,7 +34,7 @@ export function getSortInstant(task: TaskStore, kind: 'created' | 'updated'): st
     if (kind === 'created') return u.createdAt;
     return u.lastInteractedAt;
   }
-  return '';
+  return undefined;
 }
 
 export type SidebarRow =
@@ -245,9 +251,9 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
   }
 
   private compareSidebarTasks(a: TaskStore, b: TaskStore): number {
-    const kind: 'created' | 'updated' = this.taskSortBy === 'created-at' ? 'created' : 'updated';
-    const ia = getSortInstant(a, kind);
-    const ib = getSortInstant(b, kind);
+    const kind = sortKindFor(this.taskSortBy);
+    const ia = getSortInstant(a, kind) ?? '';
+    const ib = getSortInstant(b, kind) ?? '';
     const d = ib.localeCompare(ia);
     if (d !== 0) return d;
     return a.data.id.localeCompare(b.data.id);
