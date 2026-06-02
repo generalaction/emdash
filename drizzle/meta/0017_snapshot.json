@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "fc4579d7-4eca-488d-8abd-dea7f9532a29",
-  "prevId": "bb91303b-3d65-4602-a254-a08a3700d93e",
+  "id": "7de61597-9a08-4f76-8951-02d885001455",
+  "prevId": "fc4579d7-4eca-488d-8abd-dea7f9532a29",
   "tables": {
     "app_secrets": {
       "name": "app_secrets",
@@ -1711,6 +1711,13 @@
         },
         "path": {
           "name": "path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "config": {
+          "name": "config",
           "type": "text",
           "primaryKey": false,
           "notNull": false,

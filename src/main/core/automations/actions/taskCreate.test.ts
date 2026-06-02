@@ -42,13 +42,16 @@ const automation: Automation = {
     id: 'stored-task-id',
     projectId: 'project-1',
     name: 'Stored task',
-    gitSetup: {
-      kind: 'create-branch',
-      branchName: 'stored-task-branch',
-      fromBranch: { type: 'local', branch: 'main' },
-      pushBranch: false,
+    workspaceConfig: {
+      version: '1' as const,
+      git: {
+        kind: 'create-branch' as const,
+        branchName: 'stored-task-branch',
+        fromBranch: { type: 'local' as const, branch: 'main' },
+        pushBranch: false,
+      },
+      workspace: { host: 'local' as const },
     },
-    workspaceLocation: { host: 'local' },
     initialConversation: {
       id: 'stored-conversation-id',
       projectId: 'project-1',
@@ -224,7 +227,7 @@ describe('executeTaskCreate', () => {
     expect(result.success).toBe(true);
     const taskConfig = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
     expect(taskConfig?.name).toBe('stored-task-run');
-    expect(taskConfig?.gitSetup).toEqual({
+    expect(taskConfig?.workspaceConfig.git).toEqual({
       kind: 'create-branch',
       branchName: 'stored-task-branch-run',
       fromBranch: { type: 'local', branch: 'main' },
@@ -237,7 +240,7 @@ describe('executeTaskCreate', () => {
     });
   });
 
-  it('preserves none gitSetup for BYOI automation tasks', async () => {
+  it('preserves none git and byoi workspace for BYOI automation tasks', async () => {
     vi.mocked(projectManager.getProject).mockReturnValue({} as never);
     vi.mocked(taskService.createTask).mockResolvedValueOnce({
       success: true,
@@ -249,8 +252,11 @@ describe('executeTaskCreate', () => {
         ...automation,
         taskConfig: {
           ...automation.taskConfig!,
-          gitSetup: { kind: 'none' },
-          workspaceLocation: { host: 'byoi' },
+          workspaceConfig: {
+            version: '1' as const,
+            git: { kind: 'none' as const },
+            workspace: { host: 'byoi' as const },
+          },
         },
       },
       run,
@@ -258,8 +264,8 @@ describe('executeTaskCreate', () => {
 
     expect(result.success).toBe(true);
     const taskConfig = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
-    expect(taskConfig?.gitSetup).toEqual({ kind: 'none' });
-    expect(taskConfig?.workspaceLocation).toEqual({ host: 'byoi' });
+    expect(taskConfig?.workspaceConfig.git).toEqual({ kind: 'none' });
+    expect(taskConfig?.workspaceConfig.workspace).toEqual({ host: 'byoi' });
   });
 
   it('uses the run id when generating default task names', async () => {

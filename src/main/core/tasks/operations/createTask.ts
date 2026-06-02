@@ -18,6 +18,7 @@ import type {
   GitSetup,
   TaskLifecycleStatus,
 } from '@shared/tasks';
+import { serializeWorkspaceConfig } from '@shared/workspace-config';
 import { prQueryService } from '../../pull-requests/pr-query-service';
 import { toStoredBranch } from '../stored-branch';
 import { mapTaskRowToTask } from '../utils/utils';
@@ -52,12 +53,10 @@ export async function createTask(
     return err({ type: 'project-not-found' });
   }
 
-  const { gitSetup, workspaceLocation } = params;
-  const { taskBranch, dbSourceBranch } = deriveDbColumns(gitSetup);
+  const { workspaceConfig } = params;
+  const { taskBranch, dbSourceBranch } = deriveDbColumns(workspaceConfig.git);
 
   const initialStatus: TaskLifecycleStatus = params.initialStatus ?? 'in_progress';
-
-  const workspaceIntent = JSON.stringify({ git: gitSetup, workspace: workspaceLocation });
 
   const [taskRow] = await db
     .insert(tasks)
@@ -69,7 +68,6 @@ export async function createTask(
       status: initialStatus,
       sourceBranch: toStoredBranch(dbSourceBranch),
       linkedIssue: params.linkedIssue ? JSON.stringify(params.linkedIssue) : null,
-      workspaceIntent,
       updatedAt: sql`CURRENT_TIMESTAMP`,
       statusChangedAt: sql`CURRENT_TIMESTAMP`,
       lastInteractedAt: sql`CURRENT_TIMESTAMP`,
@@ -77,12 +75,12 @@ export async function createTask(
     .returning();
 
   let prs: Awaited<ReturnType<typeof prQueryService.getTaskPullRequests>> = [];
-  if (gitSetup.kind === 'pr-branch') {
+  if (workspaceConfig.git.kind === 'pr-branch') {
     const capability = await providerRepositoryService.resolveProject(params.projectId);
     if (capability.success) {
       prs = await prQueryService.getTaskPullRequests(
         params.projectId,
-        gitSetup.headBranch,
+        workspaceConfig.git.headBranch,
         capability.data.repositoryUrl
       );
     }
@@ -91,12 +89,18 @@ export async function createTask(
   const task = { ...mapTaskRowToTask(taskRow, prs), automationId: params.automationId };
 
   const workspaceType = ((): 'local' | 'project-ssh' | 'byoi' => {
-    if (workspaceLocation.host === 'byoi') return 'byoi';
-    if (workspaceLocation.host === 'project-ssh') return 'project-ssh';
+    if (workspaceConfig.workspace.host === 'byoi') return 'byoi';
+    if (workspaceConfig.workspace.host === 'project-ssh') return 'project-ssh';
     return 'local';
   })();
   const workspaceId = crypto.randomUUID();
-  await db.insert(workspaces).values({ id: workspaceId, type: workspaceType });
+  await db
+    .insert(workspaces)
+    .values({
+      id: workspaceId,
+      type: workspaceType,
+      config: serializeWorkspaceConfig(workspaceConfig),
+    });
   await db.update(tasks).set({ workspaceId }).where(eq(tasks.id, params.id));
 
   let initialConversation: Conversation | undefined;

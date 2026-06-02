@@ -144,6 +144,7 @@ export const workspaces = sqliteTable(
     type: text('type').notNull().$type<'local' | 'project-ssh' | 'byoi'>(),
     data: text('data'),
     path: text('path'),
+    config: text('config'),
     linesAdded: integer('lines_added'),
     linesDeleted: integer('lines_deleted'),
     createdAt: text('created_at')

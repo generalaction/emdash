@@ -1,6 +1,7 @@
 import type { Conversation, CreateConversationParams } from '@shared/conversations';
 import type { Branch, CreateBranchError, FetchPrForReviewError, PushError } from '@shared/git';
 import type { PullRequest } from '@shared/pull-requests';
+import type { WorkspaceConfig } from '@shared/workspace-config';
 
 // ---------------------------------------------------------------------------
 // Workspace intent types — stored on the task row as JSON in `workspace_intent`
@@ -102,10 +103,8 @@ export type CreateTaskParams = {
   id: string;
   projectId: string;
   name: string;
-  /** Describes the git operations to perform when setting up the workspace. */
-  gitSetup: GitSetup;
-  /** Describes the physical location of the workspace. */
-  workspaceLocation: WorkspaceLocation;
+  /** Typed, versioned workspace configuration (git setup + workspace location). */
+  workspaceConfig: WorkspaceConfig;
   /** The issue to link to the task */
   linkedIssue?: Issue;
   initialConversation?: CreateConversationParams;

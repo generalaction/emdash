@@ -5,9 +5,8 @@ import type { NavigateFnTyped } from '@renderer/lib/layout/navigation-provider';
 import { log } from '@renderer/utils/logger';
 import type { LocalProject, SshProject } from '@shared/projects';
 import {
-  buildGitSetup,
   buildInitialConversation,
-  buildWorkspaceLocation,
+  buildWorkspaceConfig,
   deriveInitialStatus,
 } from './build-create-task-params';
 import type { InitialConversationState } from './initial-conversation-section';
@@ -48,8 +47,7 @@ export function useCreateTaskCallback({
         id,
         projectId: selectedProjectId,
         name: state.taskName.effectiveTaskName,
-        gitSetup: buildGitSetup(state, isUnborn),
-        workspaceLocation: buildWorkspaceLocation(projectData, useBYOI),
+        workspaceConfig: buildWorkspaceConfig(state, isUnborn, projectData, useBYOI),
         linkedIssue: state.linkedType === 'issue' ? (state.linkedIssue ?? undefined) : undefined,
         initialStatus: deriveInitialStatus(state.linkedType, state.linkedPR),
         initialConversation: buildInitialConversation(

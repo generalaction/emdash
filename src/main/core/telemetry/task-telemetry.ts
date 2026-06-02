@@ -3,11 +3,11 @@ import { taskService } from '../tasks/task-service';
 import { taskSessionManager } from '../tasks/task-session-manager';
 
 taskService.on('task:created', (task, params) => {
-  const { gitSetup } = params;
+  const { git } = params.workspaceConfig;
   const taskCreatedStrategy = (() => {
-    if (gitSetup.kind === 'pr-branch') return 'pr';
+    if (git.kind === 'pr-branch') return 'pr';
     if (params.linkedIssue) return 'issue';
-    if (gitSetup.kind === 'none') return 'blank';
+    if (git.kind === 'none') return 'blank';
     return 'branch';
   })();
   telemetryService.capture('task_created', {

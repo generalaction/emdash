@@ -120,6 +120,13 @@
       "when": 1780402671428,
       "tag": "0016_lyrical_pretty_boy",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1780408431371,
+      "tag": "0017_aromatic_chronomancer",
+      "breakpoints": true
     }
   ]
 }

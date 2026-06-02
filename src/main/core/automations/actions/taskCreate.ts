@@ -18,6 +18,7 @@ import type {
   ProvisionWorkspaceError,
   WorkspaceLocation,
 } from '@shared/tasks';
+import type { WorkspaceConfig } from '@shared/workspace-config';
 import { linkRunTask } from '../run-transitions';
 import type { ActionContext, ActionError, ActionOutcome } from './types';
 
@@ -72,7 +73,7 @@ async function ensureProjectOpen(projectId: string) {
 async function resolveProjectDefaults(
   project: NonNullable<ReturnType<typeof projectManager.getProject>>,
   taskName: string
-): Promise<{ gitSetup: GitSetup; workspaceLocation: WorkspaceLocation }> {
+): Promise<WorkspaceConfig> {
   const [branchesPayload, repoInfo, configuredRemotes] = await Promise.all([
     project.repository.getBranchesPayload(),
     project.repository.getRepositoryInfo(),
@@ -95,14 +96,14 @@ async function resolveProjectDefaults(
     remoteDefault ??
     currentBranch ?? { type: 'local' as const, branch: defaultBranchName };
 
-  const gitSetup: GitSetup = repoInfo.isUnborn
+  const git: GitSetup = repoInfo.isUnborn
     ? { kind: 'none' }
     : { kind: 'create-branch', branchName: taskName, fromBranch, pushBranch: true };
 
-  const workspaceLocation: WorkspaceLocation =
+  const workspace: WorkspaceLocation =
     project.defaultWorkspaceType.kind === 'ssh' ? { host: 'project-ssh' } : { host: 'local' };
 
-  return { gitSetup, workspaceLocation };
+  return { version: '1', git, workspace };
 }
 
 function makeRunTaskName(storedConfig: CreateTaskParams | null | undefined, ctx: ActionContext) {
@@ -116,12 +117,38 @@ function makeRunBranchName(baseBranch: string, runId: string) {
   return generateTaskName({ title: baseBranch, description: runId });
 }
 
-function scopeGitSetupToRun(gitSetup: GitSetup, runId: string): GitSetup {
-  if (gitSetup.kind === 'create-branch')
-    return { ...gitSetup, branchName: makeRunBranchName(gitSetup.branchName, runId) };
-  if (gitSetup.kind === 'pr-branch' && gitSetup.taskBranch)
-    return { ...gitSetup, taskBranch: makeRunBranchName(gitSetup.taskBranch, runId) };
-  return gitSetup;
+function scopeWorkspaceConfigToRun(config: WorkspaceConfig, runId: string): WorkspaceConfig {
+  const git = config.git;
+  if (git.kind === 'create-branch')
+    return { ...config, git: { ...git, branchName: makeRunBranchName(git.branchName, runId) } };
+  if (git.kind === 'pr-branch' && git.taskBranch)
+    return {
+      ...config,
+      git: { ...git, taskBranch: makeRunBranchName(git.taskBranch, runId) },
+    };
+  return config;
+}
+
+/**
+ * Resolves a WorkspaceConfig from a stored automation task config.
+ * Handles backwards compat for old configs that stored gitSetup + workspaceLocation separately.
+ */
+function resolveStoredWorkspaceConfig(
+  storedConfig:
+    | (CreateTaskParams & { gitSetup?: GitSetup; workspaceLocation?: WorkspaceLocation })
+    | null
+    | undefined
+): WorkspaceConfig | null {
+  if (!storedConfig) return null;
+  if (storedConfig.workspaceConfig) return storedConfig.workspaceConfig;
+  // Backwards compat: old stored configs had gitSetup + workspaceLocation as top-level fields.
+  const legacyGit = (storedConfig as { gitSetup?: GitSetup }).gitSetup;
+  const legacyWorkspace = (storedConfig as { workspaceLocation?: WorkspaceLocation })
+    .workspaceLocation;
+  if (legacyGit && legacyWorkspace) {
+    return { version: '1', git: legacyGit, workspace: legacyWorkspace };
+  }
+  return null;
 }
 
 export async function executeTaskCreate(
@@ -144,14 +171,13 @@ export async function executeTaskCreate(
     if (!projectResult.success) return err({ message: projectResult.error });
     const project = projectResult.data;
 
-    // Resolve git setup and workspace location from stored config or project defaults.
-    let gitSetup: GitSetup;
-    let workspaceLocation: WorkspaceLocation;
-    if (storedConfig) {
-      gitSetup = scopeGitSetupToRun(storedConfig.gitSetup, ctx.run.id);
-      workspaceLocation = storedConfig.workspaceLocation;
+    // Resolve workspace config from stored config or project defaults.
+    let workspaceConfig: WorkspaceConfig;
+    const storedWorkspaceConfig = resolveStoredWorkspaceConfig(storedConfig);
+    if (storedWorkspaceConfig) {
+      workspaceConfig = scopeWorkspaceConfigToRun(storedWorkspaceConfig, ctx.run.id);
     } else {
-      ({ gitSetup, workspaceLocation } = await resolveProjectDefaults(project, taskName));
+      workspaceConfig = await resolveProjectDefaults(project, taskName);
     }
 
     const provider =
@@ -178,8 +204,7 @@ export async function executeTaskCreate(
       id: taskId,
       projectId,
       name: taskName,
-      gitSetup,
-      workspaceLocation,
+      workspaceConfig,
       initialConversation,
     };
 

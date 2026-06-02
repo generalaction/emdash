@@ -38,7 +38,8 @@ import {
 } from '@shared/automations/types';
 import { assertValidCronTrigger } from '@shared/automations/validation';
 import type { Branch } from '@shared/git';
-import type { CreateTaskParams, GitSetup, WorkspaceLocation } from '@shared/tasks';
+import type { CreateTaskParams } from '@shared/tasks';
+import type { WorkspaceConfig } from '@shared/workspace-config';
 import { useAutomations } from '../useAutomations';
 import { AutomationPanelHeader } from './AutomationPanelHeader';
 import { SchedulePicker } from './pickers/SchedulePicker';
@@ -81,15 +82,15 @@ function branchInitialFromConfig(config: CreateTaskParams | null | undefined): {
 } {
   if (!config) return { createBranchAndWorktree: true };
 
-  const { gitSetup } = config;
-  if (gitSetup.kind === 'create-branch') {
+  const git = config.workspaceConfig?.git;
+  if (git?.kind === 'create-branch') {
     return {
       createBranchAndWorktree: true,
-      pushBranch: gitSetup.pushBranch,
-      branchOverride: gitSetup.fromBranch,
+      pushBranch: git.pushBranch,
+      branchOverride: git.fromBranch,
     };
   }
-  if (gitSetup.kind === 'none') {
+  if (git?.kind === 'none') {
     return { createBranchAndWorktree: false };
   }
   return { createBranchAndWorktree: true };
@@ -148,7 +149,7 @@ export const AutomationPanel = observer(function AutomationPanel({
   const [cronExpr, setCronExpr] = useState<string>(cronExprFromTrigger(seedTrigger));
   const [cronTz, setCronTz] = useState<string>(cronTzFromTrigger(seedTrigger));
   const [useBYOI, setUseBYOI] = useState(() => {
-    return seedConfig?.workspaceLocation?.host === 'byoi';
+    return seedConfig?.workspaceConfig?.workspace?.host === 'byoi';
   });
   const [error, setError] = useState<string | null>(null);
   const [cronError, setCronError] = useState<string | null>(null);
@@ -216,25 +217,25 @@ export const AutomationPanel = observer(function AutomationPanel({
 
   function buildTaskConfig(targetProjectId: string): CreateTaskParams | null {
     if (!fromBranch.selectedBranch) return null;
-    const gitSetup: GitSetup =
-      isUnborn || !fromBranch.createBranchAndWorktree || effectiveUseBYOI
-        ? { kind: 'none' }
-        : {
-            kind: 'create-branch',
-            branchName: fromBranch.branchName,
-            fromBranch: plainBranch(fromBranch.selectedBranch),
-            pushBranch: fromBranch.pushBranch,
-          };
-    const workspaceLocation: WorkspaceLocation = effectiveUseBYOI
-      ? { host: 'byoi' }
-      : { host: 'local' };
+    const workspaceConfig: WorkspaceConfig = {
+      version: '1',
+      git:
+        isUnborn || !fromBranch.createBranchAndWorktree || effectiveUseBYOI
+          ? { kind: 'none' }
+          : {
+              kind: 'create-branch',
+              branchName: fromBranch.branchName,
+              fromBranch: plainBranch(fromBranch.selectedBranch),
+              pushBranch: fromBranch.pushBranch,
+            },
+      workspace: effectiveUseBYOI ? { host: 'byoi' } : { host: 'local' },
+    };
     const taskId = crypto.randomUUID();
     return {
       id: taskId,
       projectId: targetProjectId,
       name: fromBranch.taskName?.trim() || name.trim(),
-      gitSetup,
-      workspaceLocation,
+      workspaceConfig,
       initialConversation: {
         id: crypto.randomUUID(),
         projectId: targetProjectId,

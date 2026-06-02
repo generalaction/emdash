@@ -4,6 +4,7 @@ import type { LocalProject, SshProject } from '@shared/projects';
 import type { PullRequest } from '@shared/pull-requests';
 import { getPrNumber, isForkPr } from '@shared/pull-requests';
 import type { GitSetup, TaskLifecycleStatus, WorkspaceLocation } from '@shared/tasks';
+import type { WorkspaceConfig } from '@shared/workspace-config';
 import { nextDefaultConversationTitle } from '../conversations/conversation-title-utils';
 import type { InitialConversationState } from './initial-conversation-section';
 import { buildFinalPrompt } from './initial-conversation-text';
@@ -116,4 +117,17 @@ export function buildWorkspaceLocation(
   }
 
   return { host: 'local' };
+}
+
+export function buildWorkspaceConfig(
+  state: CreateTaskState,
+  isUnborn: boolean,
+  projectData: LocalProject | SshProject | null,
+  useBYOI: boolean
+): WorkspaceConfig {
+  return {
+    version: '1',
+    git: buildGitSetup(state, isUnborn),
+    workspace: buildWorkspaceLocation(projectData, useBYOI),
+  };
 }

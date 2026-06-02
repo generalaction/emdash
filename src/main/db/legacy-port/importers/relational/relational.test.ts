@@ -74,7 +74,8 @@ function createAppDb(): {
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       last_interacted_at TEXT,
-      is_initial_conversation INTEGER
+      is_initial_conversation INTEGER,
+      session_id TEXT
     );
   `);
 

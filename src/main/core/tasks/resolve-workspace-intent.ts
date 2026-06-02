@@ -1,5 +1,6 @@
 import { fromStoredBranch } from '@main/core/tasks/stored-branch';
 import type { GitSetup, WorkspaceLocation } from '@shared/tasks';
+import { parseWorkspaceConfig } from '@shared/workspace-config';
 import type { WorkspaceType } from '@shared/workspaces';
 
 type TaskRow = {
@@ -12,6 +13,7 @@ type TaskRow = {
 type WorkspaceRow = {
   type: WorkspaceType;
   path: string | null | undefined;
+  config?: string | null | undefined;
 };
 
 export type WorkspaceIntent = {
@@ -22,12 +24,14 @@ export type WorkspaceIntent = {
 /**
  * Derives the workspace intent (`GitSetup` + `WorkspaceLocation`) for a task.
  *
- * For tasks created after the `workspace_intent` migration, this simply
- * deserialises the stored JSON.  For legacy tasks it infers intent from the
- * old `taskBranch`, `sourceBranch`, and `workspaceProvider` columns.
+ * Priority:
+ * 1. `workspaceRow.config` — written by `createTask` for all new tasks.
+ * 2. `taskRow.workspaceIntent` — written by the previous migration; kept for
+ *    tasks created before the `workspaces.config` column existed.
+ * 3. Legacy inference from `taskBranch`, `sourceBranch`, and `workspaceProvider`.
  *
- * Returns `null` when neither source of truth is available (should not happen
- * for valid task rows, but callers must handle it gracefully).
+ * Returns `null` when none of the sources are available (should not happen for
+ * valid task rows, but callers must handle it gracefully).
  *
  * This is a retrieval-path compatibility helper — never use it for backfills.
  */
@@ -35,7 +39,13 @@ export function resolveWorkspaceIntent(
   taskRow: TaskRow,
   workspaceRow: WorkspaceRow
 ): WorkspaceIntent | null {
-  // Prefer the stored intent if present.
+  // 1. Prefer the workspace-level config if present (new path).
+  if (workspaceRow.config) {
+    const cfg = parseWorkspaceConfig(workspaceRow.config);
+    if (cfg) return { git: cfg.git, workspace: cfg.workspace };
+  }
+
+  // 2. Fall back to the task-level intent (previous migration path).
   if (taskRow.workspaceIntent) {
     try {
       return JSON.parse(taskRow.workspaceIntent) as WorkspaceIntent;
