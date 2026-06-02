@@ -1,12 +1,21 @@
 import { makeNode, sortFileNodes } from '@renderer/features/tasks/editor/stores/files-store-utils';
 import { type FileNode } from '@shared/fs';
-import { type GitChange } from '@shared/git';
+import { type GitChange, type GitChangeStatus } from '@shared/git';
 
 export interface ChangesTree {
   rootNodes: FileNode[];
   changeByPath: Map<string, GitChange>;
   directoryPaths: Set<string>;
+  directoryStatusByPath: Map<string, GitChangeStatus>;
 }
+
+const STATUS_PRIORITY: Record<GitChangeStatus, number> = {
+  conflicted: 5,
+  deleted: 4,
+  modified: 3,
+  renamed: 2,
+  added: 1,
+};
 
 export function buildChangesTree(changes: GitChange[]): ChangesTree {
   const nodesByPath = new Map<string, FileNode>();
@@ -48,7 +57,28 @@ export function buildChangesTree(changes: GitChange[]): ChangesTree {
     rootNodes: sortRecursively(rootNodes),
     changeByPath,
     directoryPaths,
+    directoryStatusByPath: buildDirectoryStatusByPath(changes),
   };
+}
+
+export function buildDirectoryStatusByPath(changes: GitChange[]): Map<string, GitChangeStatus> {
+  const directoryStatusByPath = new Map<string, GitChangeStatus>();
+
+  for (const change of changes) {
+    const parts = change.path.split('/').filter(Boolean);
+    if (parts.length < 2) continue;
+
+    let prefix = '';
+    for (let i = 0; i < parts.length - 1; i++) {
+      prefix = prefix ? `${prefix}/${parts[i]!}` : parts[i]!;
+      const existing = directoryStatusByPath.get(prefix);
+      if (!existing || STATUS_PRIORITY[change.status] > STATUS_PRIORITY[existing]) {
+        directoryStatusByPath.set(prefix, change.status);
+      }
+    }
+  }
+
+  return directoryStatusByPath;
 }
 
 function sortRecursively(nodes: FileNode[]): FileNode[] {
