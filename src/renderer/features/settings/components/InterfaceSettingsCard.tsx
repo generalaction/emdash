@@ -15,27 +15,49 @@ const InterfaceSettingsCard: React.FC = () => {
   } = useAppSettingsKey('interface');
 
   const confirmTabClose = interfaceSettings?.confirmTabClose ?? false;
+  const hideContextBar = interfaceSettings?.hideContextBar ?? false;
 
   return (
-    <SettingRow
-      title="Confirm tab close"
-      description="Ask for confirmation before closing a tab."
-      control={
-        <>
-          <ResetToDefaultButton
-            visible={isFieldOverridden('confirmTabClose')}
-            defaultLabel="off"
-            onReset={() => resetField('confirmTabClose')}
-            disabled={loading || saving}
-          />
-          <Switch
-            checked={confirmTabClose}
-            disabled={loading || saving}
-            onCheckedChange={(checked) => update({ confirmTabClose: checked })}
-          />
-        </>
-      }
-    />
+    <div className="flex flex-col gap-4">
+      <SettingRow
+        title="Context bar"
+        description="Hide the conversation context actions if they obstruct your viewport."
+        control={
+          <>
+            <ResetToDefaultButton
+              visible={isFieldOverridden('hideContextBar')}
+              defaultLabel="shown"
+              onReset={() => resetField('hideContextBar')}
+              disabled={loading || saving}
+            />
+            <Switch
+              checked={hideContextBar}
+              disabled={loading || saving}
+              onCheckedChange={(checked) => update({ hideContextBar: checked })}
+            />
+          </>
+        }
+      />
+      <SettingRow
+        title="Confirm tab close"
+        description="Ask for confirmation before closing a tab."
+        control={
+          <>
+            <ResetToDefaultButton
+              visible={isFieldOverridden('confirmTabClose')}
+              defaultLabel="off"
+              onReset={() => resetField('confirmTabClose')}
+              disabled={loading || saving}
+            />
+            <Switch
+              checked={confirmTabClose}
+              disabled={loading || saving}
+              onCheckedChange={(checked) => update({ confirmTabClose: checked })}
+            />
+          </>
+        }
+      />
+    </div>
   );
 };
 
