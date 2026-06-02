@@ -178,6 +178,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'devin.png',
     alt: 'Devin',
     terminalOnly: true,
+    supportsHooks: true,
   },
   {
     id: 'cursor',
@@ -303,6 +304,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     iconDark: 'opencode-dark.svg',
     alt: 'OpenCode CLI',
     terminalOnly: true,
+    supportsHooks: true,
   },
   {
     id: 'hermes',

@@ -1,4 +1,5 @@
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
+import { log } from '@renderer/utils/logger';
 import type {
   DependencyId,
   DependencyInstallResult,
@@ -10,12 +11,18 @@ import { dependencyStatusUpdatedChannel } from '@shared/events/appEvents';
 import { events, rpc } from '../../lib/ipc';
 import { Resource } from './resource';
 
+const FOCUS_AGENT_REFRESH_COOLDOWN_MS = 10_000;
+
 export class DependenciesStore {
   readonly local: Resource<DependencyStatusMap, DependencyStatusUpdatedEvent>;
 
   private readonly _remoteStores = new Map<string, Resource<DependencyStatusMap>>();
   private readonly _installingDependencyKeys = observable.set<string>();
   private readonly _inFlightInstalls = new Map<string, Promise<DependencyInstallResult>>();
+  private _focusRefresh: Promise<void> | null = null;
+  private _lastFocusRefreshAt = 0;
+  private _stopFocusRefresh: (() => void) | null = null;
+  private _disposed = false;
 
   constructor() {
     makeObservable<this, '_installingDependencyKeys'>(this, {
@@ -149,7 +156,11 @@ export class DependenciesStore {
     connectionId?: string,
     options: { refreshShellEnv?: boolean } = {}
   ): Promise<void> {
+    if (this._disposed) return;
+
     const statuses = await this.loadAgentStatuses(connectionId, options);
+    if (this._disposed) return;
+
     if (connectionId) {
       this.getRemote(connectionId).setValue(statuses);
       return;
@@ -164,10 +175,35 @@ export class DependenciesStore {
   /** Activate the event subscription and trigger the initial local fetch. */
   start(): void {
     this.local.start();
+
+    if (this._stopFocusRefresh || typeof window === 'undefined') return;
+
+    const refreshLocalAgents = () => {
+      const now = Date.now();
+      if (this._focusRefresh || now - this._lastFocusRefreshAt < FOCUS_AGENT_REFRESH_COOLDOWN_MS) {
+        return;
+      }
+
+      this._lastFocusRefreshAt = now;
+      this._focusRefresh = this.refreshAgents(undefined, { refreshShellEnv: true })
+        .catch((error) => {
+          log.warn('DependenciesStore: failed to refresh local agents on focus', { error });
+        })
+        .finally(() => {
+          this._focusRefresh = null;
+        });
+    };
+    window.addEventListener('focus', refreshLocalAgents);
+    this._stopFocusRefresh = () => {
+      window.removeEventListener('focus', refreshLocalAgents);
+    };
   }
 
   /** Dispose all resources (timers, event listeners). */
   dispose(): void {
+    this._disposed = true;
+    this._stopFocusRefresh?.();
+    this._stopFocusRefresh = null;
     this.local.dispose();
     for (const store of this._remoteStores.values()) {
       store.dispose();

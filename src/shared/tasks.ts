@@ -46,7 +46,16 @@ export type TaskLifecycleStatus =
   | 'triage';
 
 export type Issue = {
-  provider: 'github' | 'linear' | 'jira' | 'gitlab' | 'plain' | 'forgejo' | 'featurebase' | 'asana';
+  provider:
+    | 'github'
+    | 'linear'
+    | 'jira'
+    | 'gitlab'
+    | 'plain'
+    | 'forgejo'
+    | 'featurebase'
+    | 'asana'
+    | 'monday';
   url: string;
   title: string;
   identifier: string;

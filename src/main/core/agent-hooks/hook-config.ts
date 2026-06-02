@@ -19,6 +19,7 @@ import piEmdashExtension from './pi-emdash-extension.ts?raw';
 const EMDASH_MARKER = 'EMDASH_HOOK_PORT';
 
 const CLAUDE_SETTINGS_PATH = '.claude/settings.local.json';
+const DEVIN_HOOKS_PATH = '.devin/hooks.v1.json';
 const CODEX_CONFIG_PATH = '.codex/config.toml';
 const CODEX_HOOKS_PATH = '.codex/hooks.json';
 const GROK_HOOKS_PATH = '.grok/hooks/emdash.json';
@@ -40,6 +41,7 @@ type GrokHookEvent =
   | 'StopFailure'
   | 'UserPromptSubmit';
 type DroidHookEvent = 'Notification' | 'Stop' | 'SessionStart';
+type DevinHookEvent = 'PermissionRequest' | 'SessionEnd' | 'Stop';
 
 const HOOK_EVENT_MAP = [
   { eventType: 'notification', hookKey: 'Notification' },
@@ -60,6 +62,11 @@ const DROID_HOOK_EVENT_MAP = [
   { hookKey: 'Stop', eventType: 'stop' },
   { hookKey: 'SessionStart', eventType: 'session' },
 ] satisfies { hookKey: DroidHookEvent; eventType: 'notification' | 'stop' | 'session' }[];
+
+const DEVIN_HOOK_EVENT_MAP = [
+  { hookKey: 'Stop', eventType: 'stop' },
+  { hookKey: 'SessionEnd', eventType: 'stop' },
+] satisfies { hookKey: DevinHookEvent; eventType: 'stop' }[];
 
 const LEGACY_CODEX_NOTIFY_COMMAND = [
   'bash',
@@ -226,6 +233,36 @@ export class HookConfigWriter {
     return true;
   }
 
+  async writeDevinHooks(): Promise<boolean> {
+    if (!(await resolveCommandPath('devin', this.exec))) return false;
+
+    const hooks: Record<string, unknown[]> = (await this.fs.exists(DEVIN_HOOKS_PATH))
+      ? await this.fs
+          .read(DEVIN_HOOKS_PATH)
+          .then((r) => JSON.parse(r.content) ?? {})
+          .catch(() => ({}))
+      : {};
+
+    for (const { hookKey, eventType } of DEVIN_HOOK_EVENT_MAP) {
+      const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
+      hooks[hookKey] = this.buildHookEntries(
+        existing,
+        makeClaudeHookCommand(eventType, { platform: this.platform })
+      );
+    }
+
+    const existingPermissionRequest = Array.isArray(hooks.PermissionRequest)
+      ? hooks.PermissionRequest
+      : [];
+    hooks.PermissionRequest = this.buildHookEntries(
+      existingPermissionRequest,
+      makeCodexHookCommand('permission_prompt', { platform: this.platform })
+    );
+
+    await this.fs.write(DEVIN_HOOKS_PATH, JSON.stringify(hooks, null, 2) + '\n');
+    return true;
+  }
+
   async writePiExtension(): Promise<boolean> {
     if (!(await resolveCommandPath('pi', this.exec))) return false;
 
@@ -297,6 +334,14 @@ export class HookConfigWriter {
       return wroteConfig;
     }
 
+    if (providerId === 'devin') {
+      const wroteConfig = await this.writeDevinHooks();
+      if (wroteConfig && writeGitIgnoreEntries) {
+        await this.ensureGitIgnoreEntries([DEVIN_HOOKS_PATH]);
+      }
+      return wroteConfig;
+    }
+
     if (providerId === 'pi') {
       const wroteConfig = await this.writePiExtension();
       if (wroteConfig && writeGitIgnoreEntries) {
@@ -326,10 +371,11 @@ export class HookConfigWriter {
 
   async writeAll(options: HookConfigWriteOptions = {}): Promise<void> {
     await Promise.all(
-      (['claude', 'codex', 'grok', 'droid', 'pi', 'opencode', 'amp'] as const).map((providerId) =>
-        this.writeForProvider(providerId, options).catch((err: Error) => {
-          log.warn(`Failed to write ${providerId} hook config`, { error: String(err) });
-        })
+      (['claude', 'codex', 'grok', 'devin', 'droid', 'pi', 'opencode', 'amp'] as const).map(
+        (providerId) =>
+          this.writeForProvider(providerId, options).catch((err: Error) => {
+            log.warn(`Failed to write ${providerId} hook config`, { error: String(err) });
+          })
       )
     );
   }
