@@ -2,7 +2,6 @@ import { eq, sql } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
 import {
   workspaceBootstrapService,
-  type ProvisionWorkspaceError,
   type WorkspaceBootstrapResult,
 } from '@main/core/workspaces/workspace-bootstrap-service';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
@@ -20,6 +19,7 @@ import type {
   DeleteTaskOptions,
   Issue,
   ProvisionTaskResult,
+  ProvisionWorkspaceError,
   RenameTaskError,
   RenameTaskOptions,
   RenameTaskSuccess,

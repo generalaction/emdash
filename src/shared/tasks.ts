@@ -157,6 +157,10 @@ export type ProvisionTaskResult = {
   workspaceId: string;
 };
 
+export type ProvisionWorkspaceError =
+  | { type: 'no-intent' }
+  | { type: 'setup-failed'; stepKind: string; stepErrorType: string; message?: string };
+
 export type DeleteTaskOptions = {
   deleteWorktree?: boolean;
   deleteBranch?: boolean;

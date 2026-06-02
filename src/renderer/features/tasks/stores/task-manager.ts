@@ -20,6 +20,7 @@ import type {
   CreateTaskParams,
   CreateTaskWarning,
   DeleteTaskOptions,
+  ProvisionWorkspaceError,
   Task,
   TaskLifecycleStatus,
 } from '@shared/tasks';
@@ -87,6 +88,15 @@ function formatCreateTaskError(error: CreateTaskError): string {
       return error.message;
     case 'provision-timeout':
       return `Provisioning timed out after ${error.timeoutMs}ms.`;
+  }
+}
+
+function formatProvisionWorkspaceError(error: ProvisionWorkspaceError): string {
+  switch (error.type) {
+    case 'no-intent':
+      return 'Workspace has no intent and no resolved path — cannot provision.';
+    case 'setup-failed':
+      return `Setup step '${error.stepKind}' failed (${error.stepErrorType})${error.message ? `: ${error.message}` : ''}.`;
   }
 }
 
@@ -384,12 +394,9 @@ export class TaskManagerStore {
 
     // Single-phase provision: workspace bootstrap + task provider construction + registration.
     if (wsId) workspaceRegistry.setBootstrapState(this.projectId, wsId, { kind: 'resolving' });
-    let result: Awaited<ReturnType<typeof rpc.tasks.provisionWorkspace>>;
-    try {
-      result = await rpc.tasks.provisionWorkspace(taskId);
-      if (wsId) workspaceRegistry.setBootstrapState(this.projectId, wsId, { kind: 'ready' });
-    } catch (wsErr) {
-      const message = wsErr instanceof Error ? wsErr.message : String(wsErr);
+    const result = await rpc.tasks.provisionWorkspace(taskId);
+    if (!result.success) {
+      const message = formatProvisionWorkspaceError(result.error);
       if (wsId)
         workspaceRegistry.setBootstrapState(this.projectId, wsId, { kind: 'error', message });
       runInAction(() => {
@@ -401,6 +408,8 @@ export class TaskManagerStore {
       });
       return;
     }
+
+    if (wsId) workspaceRegistry.setBootstrapState(this.projectId, wsId, { kind: 'ready' });
 
     const savedSnapshot = (await viewStateCache.get(`task:${taskId}`)) as
       | TaskViewSnapshot
@@ -414,11 +423,11 @@ export class TaskManagerStore {
         }
         current.transitionToProvisioned(
           { ...current.data, lastInteractedAt: new Date().toISOString() },
-          result.path,
-          result.workspaceId,
+          result.data.path,
+          result.data.workspaceId,
           this._settingsStore,
           this._baseRef,
-          result.sshConnectionId ?? undefined
+          result.data.sshConnectionId ?? undefined
         );
         current.activate();
       }

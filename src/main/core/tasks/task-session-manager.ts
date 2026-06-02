@@ -204,11 +204,15 @@ class TaskSessionManager {
   }
 
   getBootstrapStatus(taskId: string): TaskBootstrapStatus {
-    return this._lifecycle.bootstrapStatus(taskId, formatProvisionTaskError);
+    const s = this._lifecycle.bootstrapStatus(taskId);
+    if (s.status === 'error') return { status: 'error', message: formatProvisionTaskError(s.error) };
+    return s;
   }
 
   getTeardownStatus(taskId: string): TaskBootstrapStatus {
-    return this._lifecycle.teardownStatus(taskId, formatTeardownTaskError);
+    const s = this._lifecycle.teardownStatus(taskId);
+    if (s.status === 'error') return { status: 'error', message: formatTeardownTaskError(s.error) };
+    return s;
   }
 }
 

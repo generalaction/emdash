@@ -24,7 +24,6 @@ vi.mock('@main/core/tasks/task-service', () => ({
   taskService: { createTask: vi.fn(), launch: vi.fn() },
 }));
 vi.mock('@main/core/workspaces/workspace-bootstrap-service', () => ({
-  formatProvisionWorkspaceError: vi.fn((e: { type: string }) => e.type),
   workspaceBootstrapService: { ensureWorkspaceSetupForTask: vi.fn() },
 }));
 vi.mock('@main/lib/events', () => ({ events: { emit: vi.fn() } }));
@@ -384,7 +383,7 @@ describe('executeTaskCreate', () => {
     expect(result).toEqual({
       success: false,
       error: {
-        message: 'setup-failed',
+        message: "Setup step 'workspace-acquire' failed (error): provisioning failed.",
         taskId: expect.any(String),
       },
     });

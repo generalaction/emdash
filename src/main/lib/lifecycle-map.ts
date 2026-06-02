@@ -1,10 +1,8 @@
 import { err, ok, type Result } from '@shared/result';
 
-export type LifecycleStatus =
-  | { status: 'ready' }
-  | { status: 'bootstrapping' }
-  | { status: 'error'; message: string }
-  | { status: 'not-started' };
+export type LifecycleStatus<E> =
+  | { status: 'ready' | 'bootstrapping' | 'not-started' }
+  | { status: 'error'; error: E };
 
 export type LifecycleHooks<T> = {
   preProvision?: (id: string) => Promise<void> | void;
@@ -56,39 +54,21 @@ export class LifecycleMap<T, PE, TE> {
     return this._active.values();
   }
 
-  /** Clears the active map without running any teardown callbacks. Use for bulk detach operations. */
-  clearActive(): void {
-    this._active.clear();
-  }
-
-  bootstrapStatus(id: string, formatError: (e: PE) => string): LifecycleStatus {
+  bootstrapStatus(id: string): LifecycleStatus<PE> {
     if (this._active.has(id)) return { status: 'ready' };
     if (this._provisioning.has(id)) return { status: 'bootstrapping' };
     const error = this._errors.get(id);
-    if (error) return { status: 'error', message: formatError(error) };
+    if (error) return { status: 'error', error };
     return { status: 'not-started' };
   }
 
-  /**
-   * Returns the teardown status for a resource.
-   * - bootstrapping: teardown is in-flight
-   * - error: teardown completed with a failure (cleared when provision succeeds)
-   * - not-started: no teardown error recorded
-   */
-  teardownStatus(id: string, formatError: (e: TE) => string): LifecycleStatus {
+  teardownStatus(id: string): LifecycleStatus<TE> {
     if (this._tearingDown.has(id)) return { status: 'bootstrapping' };
     const error = this._teardownErrors.get(id);
-    if (error) return { status: 'error', message: formatError(error) };
+    if (error) return { status: 'error', error };
     return { status: 'not-started' };
   }
 
-  /**
-   * Provisions a resource with deduplication.
-   * - If already active, returns the existing value immediately.
-   * - If already in-flight, returns the existing promise.
-   * - Otherwise runs: preProvision → run() → _active.set() → postProvision.
-   * - Clears any previously recorded teardown error for this id on success.
-   */
   provision(id: string, run: () => Promise<Result<T, PE>>): Promise<Result<T, PE>> {
     const existing = this._active.get(id);
     if (existing !== undefined) return Promise.resolve(ok(existing));
@@ -117,14 +97,6 @@ export class LifecycleMap<T, PE, TE> {
     return promise;
   }
 
-  /**
-   * Tears down a resource with deduplication.
-   * - If already tearing down, returns the existing promise.
-   * - If not found in the active map, returns `null` — caller decides what to do.
-   * - Otherwise runs: preTeardown → run() → _active.delete() → postTeardown.
-   * - postTeardown always fires (via finally), even if run() fails.
-   * - Stores teardown errors in _teardownErrors so they can be queried after the promise settles.
-   */
   teardown(
     id: string,
     run: (value: T) => Promise<Result<void, TE>>

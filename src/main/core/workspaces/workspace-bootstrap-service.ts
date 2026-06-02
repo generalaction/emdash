@@ -9,7 +9,7 @@ import { db as appDb, type AppDb } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { err, ok, type Result } from '@shared/result';
-import type { Task } from '@shared/tasks';
+import type { Task, ProvisionWorkspaceError } from '@shared/tasks';
 import { compileSetupSpec } from '@shared/workspace-setup-spec';
 import type { WorkspaceType } from '@shared/workspaces';
 import { resolveWorkspaceIntent } from '../tasks/resolve-workspace-intent';
@@ -19,19 +19,6 @@ import { applyRecovery } from './recovery-strategy';
 import { createWorkspaceFactory } from './workspace-factory';
 import { computeWorkspaceKey } from './workspace-key';
 import { workspaceRegistry } from './workspace-registry';
-
-export type ProvisionWorkspaceError =
-  | { type: 'no-intent' }
-  | { type: 'setup-failed'; stepKind: string; stepErrorType: string; message?: string };
-
-export function formatProvisionWorkspaceError(error: ProvisionWorkspaceError): string {
-  switch (error.type) {
-    case 'no-intent':
-      return 'Workspace has no intent and no resolved path — cannot provision.';
-    case 'setup-failed':
-      return `Setup step '${error.stepKind}' failed (${error.stepErrorType})${error.message ? `: ${error.message}` : ''}.`;
-  }
-}
 
 export type WorkspaceBootstrapResult = {
   path: string;

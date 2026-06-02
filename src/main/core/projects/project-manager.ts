@@ -31,10 +31,6 @@ function toTeardownError(e: unknown): ProviderLifecycleError {
   return { type: 'error', message: e instanceof Error ? e.message : String(e) };
 }
 
-function formatProviderLifecycleError(error: ProviderLifecycleError): string {
-  return error.message;
-}
-
 class ProjectSessionManager implements Hookable<ProjectSessionManagerHooks>, IDisposable {
   private readonly _hooks = new HookCore<ProjectSessionManagerHooks>((name, e) =>
     log.error(`ProjectManager: ${String(name)} hook error`, e)
@@ -96,11 +92,11 @@ class ProjectSessionManager implements Hookable<ProjectSessionManagerHooks>, IDi
     const ids = Array.from(this._lifecycle.keys());
     await Promise.allSettled(ids.map((id) => this.closeProject(id)));
     for (const id of ids) {
-      const status = this._lifecycle.teardownStatus(id, formatProviderLifecycleError);
+      const status = this._lifecycle.teardownStatus(id);
       if (status.status === 'error') {
         log.error('ProjectManager: project teardown error recorded after dispose', {
           projectId: id,
-          message: status.message,
+          message: status.error.message,
         });
       }
     }

@@ -6,16 +6,18 @@ import { DEFAULT_AGENT_ID } from '@main/core/settings/settings-registry';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { generateTaskName } from '@main/core/tasks/name-generation/generateTaskName';
 import { taskService } from '@main/core/tasks/task-service';
-import {
-  formatProvisionWorkspaceError,
-  type ProvisionWorkspaceError,
-} from '@main/core/workspaces/workspace-bootstrap-service';
 import { resolveAutomationAgentAutoApprove } from '@shared/agent-auto-approve-defaults';
 import type { TaskCreateAction } from '@shared/automations/actions';
 import type { Branch } from '@shared/git';
 import { bareRefName } from '@shared/git-utils';
 import { err, ok, type Result } from '@shared/result';
-import type { CreateTaskError, CreateTaskParams, GitSetup, WorkspaceLocation } from '@shared/tasks';
+import type {
+  CreateTaskError,
+  CreateTaskParams,
+  GitSetup,
+  ProvisionWorkspaceError,
+  WorkspaceLocation,
+} from '@shared/tasks';
 import { linkRunTask } from '../run-transitions';
 import type { ActionContext, ActionError, ActionOutcome } from './types';
 
@@ -47,7 +49,12 @@ function formatCreateTaskActionError(error: CreateTaskError): string {
 }
 
 function formatProvisionActionError(error: ProvisionWorkspaceError): string {
-  return formatProvisionWorkspaceError(error);
+  switch (error.type) {
+    case 'no-intent':
+      return 'Workspace has no intent and no resolved path — cannot provision.';
+    case 'setup-failed':
+      return `Setup step '${error.stepKind}' failed (${error.stepErrorType})${error.message ? `: ${error.message}` : ''}.`;
+  }
 }
 
 async function ensureProjectOpen(projectId: string) {
@@ -173,7 +180,7 @@ export async function executeTaskCreate(
       name: taskName,
       gitSetup,
       workspaceLocation,
-      automationId: ctx.automation.id,
+      isAutomationTask: true,
       initialConversation,
     };
 
