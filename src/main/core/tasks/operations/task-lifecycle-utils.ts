@@ -27,12 +27,15 @@ export async function removeWorktreeIfUnused(
   const siblings = await db.select({ id: tasks.id }).from(tasks).where(where).limit(1);
   if (siblings.length > 0) return false;
 
-  await project.removeTaskWorktree(workspace.branchName).catch((e) => {
+  try {
+    await project.removeTaskWorktree(workspace.branchName);
+  } catch (e) {
     log.warn('removeWorktreeIfUnused: worktree removal failed', {
       branchName: workspace.branchName,
       error: String(e),
     });
-  });
+    return false;
+  }
   return true;
 }
 

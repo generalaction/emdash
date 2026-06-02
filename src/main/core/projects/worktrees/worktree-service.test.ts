@@ -161,6 +161,74 @@ describe('WorktreeService', () => {
       expect(stdout.trim()).toBe('main');
     });
 
+    it('repairs an invalid target directory before creating the worktree', async () => {
+      const branchName = 'task/stale-target';
+      const stalePath = path.join(poolDir, branchName);
+      fs.mkdirSync(path.join(stalePath, 'node_modules', 'electron', 'dist'), { recursive: true });
+      fs.writeFileSync(
+        path.join(stalePath, 'node_modules', 'electron', 'dist', 'default_app.asar'),
+        'stale'
+      );
+
+      const svc = makeService();
+      const result = await svc.checkoutBranchWorktree(
+        { type: 'local', branch: 'main' },
+        branchName
+      );
+
+      expect(result.success).toBe(true);
+      if (!result.success) throw new Error('expected success');
+      expect(result.data).toBe(stalePath);
+      expect(fs.existsSync(path.join(stalePath, '.git'))).toBe(true);
+      expect(fs.existsSync(path.join(stalePath, 'node_modules'))).toBe(false);
+    });
+
+    it('returns setup failure when an invalid target directory cannot be removed', async () => {
+      const branchName = 'task/stuck-target';
+      const targetPath = path.join(poolDir, branchName);
+      const exec = vi.fn(async (_command: string, args: string[] = []) => {
+        if (args.join(' ') === 'worktree list --porcelain') return { stdout: '', stderr: '' };
+        throw new Error(`Unexpected git command: git ${args.join(' ')}`);
+      });
+      const ctx: IExecutionContext = {
+        root: repoDir,
+        supportsLocalSpawn: false,
+        exec,
+        execStreaming: async () => {},
+        dispose: () => {},
+      };
+      const fakeHost: WorktreeHost = {
+        pathApi: path,
+        existsAbsolute: vi.fn(async (absPath: string) => absPath === targetPath),
+        mkdirAbsolute: vi.fn(async () => {}),
+        removeAbsolute: vi.fn(async () => ({ success: false, error: 'permission denied' })),
+        realPathAbsolute: vi.fn(async (absPath: string) => absPath),
+        globAbsolute: vi.fn(async () => []),
+        readFileAbsolute: vi.fn(async () => ''),
+        copyFileAbsolute: vi.fn(async () => {}),
+        statAbsolute: vi.fn(async () => null),
+      };
+      const svc = new WorktreeService({
+        repoPath: repoDir,
+        ctx,
+        host: fakeHost,
+        projectSettings: makeSettings(),
+        resolveWorktreePoolPath: async () => poolDir,
+      });
+
+      const result = await svc.checkoutBranchWorktree(
+        { type: 'local', branch: 'main' },
+        branchName
+      );
+
+      expect(result.success).toBe(false);
+      if (result.success) throw new Error('expected failure');
+      expect(result.error.type).toBe('worktree-setup-failed');
+      if (result.error.type !== 'worktree-setup-failed') throw new Error('expected setup failure');
+      expect(String(result.error.cause)).toContain('Failed to remove stale worktree directory');
+      expect(String(result.error.cause)).toContain('permission denied');
+    });
+
     it('uses the current resolved pool path when creating a worktree', async () => {
       await git(['branch', 'task/dynamic-pool'], { cwd: repoDir });
       const updatedPool = path.join(poolDir, 'updated');
