@@ -64,6 +64,14 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, className, borderl
     [labels, path, toast]
   );
 
+  const selectAndOpenApp = useCallback(
+    (appId: OpenInAppId) => {
+      persistPreferredApp(appId);
+      void triggerOpenIn(appId);
+    },
+    [persistPreferredApp, triggerOpenIn]
+  );
+
   const sortedApps = useMemo(() => {
     if (!defaultApp) return installedApps;
     return [...installedApps].sort((a, b) => {
@@ -143,7 +151,7 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, className, borderl
         value={defaultApp ?? undefined}
         onValueChange={(value) => {
           if (isValidOpenInAppId(value)) {
-            persistPreferredApp(value as OpenInAppId);
+            selectAndOpenApp(value as OpenInAppId);
           }
         }}
       >
