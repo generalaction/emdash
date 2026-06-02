@@ -342,6 +342,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     alt: 'GitHub Copilot CLI',
     invertInDark: true,
     terminalOnly: true,
+    supportsHooks: true,
   },
   {
     id: 'charm',

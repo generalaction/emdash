@@ -23,6 +23,7 @@ const DEVIN_HOOKS_PATH = '.devin/hooks.v1.json';
 const CODEX_CONFIG_PATH = '.codex/config.toml';
 const CODEX_HOOKS_PATH = '.codex/hooks.json';
 const GROK_HOOKS_PATH = '.grok/hooks/emdash.json';
+const COPILOT_HOOKS_PATH = '.github/hooks/emdash.json';
 const DROID_SETTINGS_PATH = '.factory/settings.json';
 const AMP_PLUGIN_PATH = '.amp/plugins/emdash-hook.ts';
 const PI_EMDASH_EXTENSION_PATH = '.pi/extensions/emdash-hook.ts';
@@ -30,6 +31,7 @@ const OPENCODE_PLUGIN_PATH = '.opencode/plugins/emdash-notifications.js';
 const GITIGNORE_PATH = '.gitignore';
 type HookConfigWriteOptions = { writeGitIgnoreEntries?: boolean };
 type CodexHookEvent = 'Stop' | 'PermissionRequest' | 'SessionStart';
+type CopilotHookEvent = 'agentStop' | 'notification' | 'permissionRequest';
 type GrokHookEvent =
   | 'Notification'
   | 'PostToolUse'
@@ -56,6 +58,11 @@ const CODEX_HOOK_EVENT_MAP = [
 const CODEX_SESSION_HOOK_EVENT_MAP = [{ hookKey: 'SessionStart' as const }] satisfies {
   hookKey: CodexHookEvent;
 }[];
+
+const COPILOT_HOOK_EVENT_MAP = [
+  { hookKey: 'notification', eventType: 'notification' },
+  { hookKey: 'agentStop', eventType: 'stop' },
+] satisfies { hookKey: CopilotHookEvent; eventType: 'notification' | 'stop' }[];
 
 const DROID_HOOK_EVENT_MAP = [
   { hookKey: 'Notification', eventType: 'notification' },
@@ -150,6 +157,41 @@ export class HookConfigWriter {
     await this.removeLegacyCodexNotify().catch((err: Error) => {
       log.warn('CodexHooks: failed to remove legacy notify entry', { error: String(err) });
     });
+    return true;
+  }
+
+  async writeCopilotHooks(): Promise<boolean> {
+    if (!(await resolveCommandPath('copilot', this.exec))) return false;
+
+    const config: Record<string, unknown> = (await this.fs.exists(COPILOT_HOOKS_PATH))
+      ? await this.fs
+          .read(COPILOT_HOOKS_PATH)
+          .then((r) => JSON.parse(r.content) ?? {})
+          .catch(() => ({}))
+      : {};
+
+    const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
+
+    for (const { hookKey, eventType } of COPILOT_HOOK_EVENT_MAP) {
+      const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
+      hooks[hookKey] = this.buildCopilotHookEntries(
+        existing,
+        makeClaudeHookCommand(eventType, { platform: this.platform })
+      );
+    }
+
+    const existingPermissionRequest = Array.isArray(hooks.permissionRequest)
+      ? hooks.permissionRequest
+      : [];
+    hooks.permissionRequest = this.buildCopilotHookEntries(
+      existingPermissionRequest,
+      makeCodexHookCommand('permission_prompt', { platform: this.platform })
+    );
+
+    await this.fs.write(
+      COPILOT_HOOKS_PATH,
+      JSON.stringify({ ...config, version: 1, hooks }, null, 2) + '\n'
+    );
     return true;
   }
 
@@ -326,6 +368,14 @@ export class HookConfigWriter {
       return this.writeGrokHooks();
     }
 
+    if (providerId === 'copilot') {
+      const wroteConfig = await this.writeCopilotHooks();
+      if (wroteConfig && writeGitIgnoreEntries) {
+        await this.ensureGitIgnoreEntries([COPILOT_HOOKS_PATH]);
+      }
+      return wroteConfig;
+    }
+
     if (providerId === 'droid') {
       const wroteConfig = await this.writeDroidHooks();
       if (wroteConfig && writeGitIgnoreEntries) {
@@ -371,11 +421,12 @@ export class HookConfigWriter {
 
   async writeAll(options: HookConfigWriteOptions = {}): Promise<void> {
     await Promise.all(
-      (['claude', 'codex', 'grok', 'devin', 'droid', 'pi', 'opencode', 'amp'] as const).map(
-        (providerId) =>
-          this.writeForProvider(providerId, options).catch((err: Error) => {
-            log.warn(`Failed to write ${providerId} hook config`, { error: String(err) });
-          })
+      (
+        ['claude', 'codex', 'grok', 'copilot', 'devin', 'droid', 'pi', 'opencode', 'amp'] as const
+      ).map((providerId) =>
+        this.writeForProvider(providerId, options).catch((err: Error) => {
+          log.warn(`Failed to write ${providerId} hook config`, { error: String(err) });
+        })
       )
     );
   }
@@ -383,6 +434,11 @@ export class HookConfigWriter {
   private buildHookEntries(existing: unknown[], command: string): unknown[] {
     const userEntries = existing.filter((entry) => !JSON.stringify(entry).includes(EMDASH_MARKER));
     return [...userEntries, { hooks: [{ type: 'command', command }] }];
+  }
+
+  private buildCopilotHookEntries(existing: unknown[], command: string): unknown[] {
+    const userEntries = existing.filter((entry) => !JSON.stringify(entry).includes(EMDASH_MARKER));
+    return [...userEntries, { type: 'command', command }];
   }
 
   private async removeLegacyCodexNotify(): Promise<void> {
