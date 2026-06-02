@@ -225,7 +225,7 @@ export class HookConfigWriter {
     const hookEntries = [
       {
         hookKey: 'PermissionRequest',
-        command: makeCodexHookCommand('permission_prompt', { platform: this.platform }),
+        command: makeClaudeHookCommand('notification', { platform: this.platform }),
       },
       { hookKey: 'Stop', command: makeClaudeHookCommand('stop', { platform: this.platform }) },
       {

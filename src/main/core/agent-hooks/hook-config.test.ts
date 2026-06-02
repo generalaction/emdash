@@ -197,8 +197,9 @@ describe('HookConfigWriter', () => {
     expect(config.hooks.PostToolUseFailure).toBeUndefined();
     expect(config.hooks.Notification).toBeUndefined();
     expect(config.hooks.PermissionRequest[0].hooks[0].command).toContain(
-      '{"notification_type":"permission_prompt"}'
+      'X-Emdash-Event-Type: notification'
     );
+    expect(config.hooks.PermissionRequest[0].hooks[0].command).toContain('-d @-');
     expect(config.hooks.Stop[0].hooks[0].command).toContain('X-Emdash-Event-Type: stop');
     expect(config.hooks.SessionEnd[0].hooks[0].command).toContain('X-Emdash-Event-Type: stop');
     expect(fs.files.get('.gitignore')).toBe('.qwen/settings.json\n');
