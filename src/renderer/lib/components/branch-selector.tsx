@@ -17,19 +17,16 @@ import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { cn } from '@renderer/utils/utils';
 import { type Branch, type Remote } from '@shared/git';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
-import { filterBranchesForPicker } from './branch-selector-utils';
+import {
+  filterBranchesForPicker,
+  getBranchLabel,
+  prioritizeExactBranchMatches,
+  type BranchLabelRemoteMode,
+} from './branch-selector-utils';
 import { RemoteSelectContent } from './remote-select-content';
 
 type BranchSelectorTab = 'local' | 'remote';
-export type BranchLabelRemoteMode = 'full' | 'short';
-
-export function getBranchLabel(
-  branch: Branch,
-  options: { remote?: BranchLabelRemoteMode } = {}
-): string {
-  if (branch.type !== 'remote') return branch.branch;
-  return options.remote === 'short' ? branch.branch : `${branch.remote.name}/${branch.branch}`;
-}
+export { getBranchLabel, type BranchLabelRemoteMode } from './branch-selector-utils';
 
 interface BranchSelectorProps {
   branches: Branch[];
@@ -68,6 +65,7 @@ export function BranchSelector({
   const inputRef = React.useRef<HTMLInputElement>(null);
   const keepOpenForRemoteSelectRef = React.useRef(false);
   const [open, setOpen] = useState(false);
+  const [inputValue, setInputValue] = useState('');
   const [remoteSelectOpen, setRemoteSelectOpen] = useState(false);
   const [draftRemoteName, setDraftRemoteName] = useState<string | undefined>(undefined);
   const showRemoteFooter = selectedRemoteName !== undefined;
@@ -84,8 +82,13 @@ export function BranchSelector({
   );
 
   const filteredBranches = useMemo(
-    () => filterBranchesForPicker(branches, tab, showRemoteFooter ? activeRemoteName : undefined),
-    [activeRemoteName, branches, showRemoteFooter, tab]
+    () =>
+      prioritizeExactBranchMatches(
+        filterBranchesForPicker(branches, tab, showRemoteFooter ? activeRemoteName : undefined),
+        inputValue,
+        branchLabelRemote
+      ),
+    [activeRemoteName, branchLabelRemote, branches, inputValue, showRemoteFooter, tab]
   );
 
   const options = useMemo(
@@ -101,6 +104,8 @@ export function BranchSelector({
   return (
     <Combobox
       open={open}
+      inputValue={inputValue}
+      onInputValueChange={setInputValue}
       onOpenChange={(nextOpen) => {
         if (!nextOpen && keepOpenForRemoteSelectRef.current) {
           setOpen(true);
