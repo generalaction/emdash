@@ -287,7 +287,7 @@ class AppService implements IInitializable, IDisposable {
     const { host, username, port } = connection;
 
     if (appId === 'vscode' || appId === 'vscodium' || appId === 'cursor' || appId === 'zed') {
-      await shell.openExternal(buildRemoteEditorUrl(appId, host, username, target));
+      await shell.openExternal(buildRemoteEditorUrl(appId, host, username, target, port));
       return;
     }
 

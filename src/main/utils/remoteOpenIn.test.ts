@@ -12,6 +12,18 @@ describe('remoteOpenIn', () => {
         'vscodium://vscode-remote/ssh-remote+alice%40example.com/repo'
       );
     });
+
+    it('builds Zed remote SSH URLs without encoding the SSH authority', () => {
+      expect(buildRemoteEditorUrl('zed', 'localhost', 'dev', '/repo')).toBe(
+        'zed://ssh/dev@localhost/repo'
+      );
+    });
+
+    it('includes a non-default port in Zed remote SSH URLs', () => {
+      expect(buildRemoteEditorUrl('zed', 'localhost', 'dev', '/repo', 2222)).toBe(
+        'zed://ssh/dev@localhost:2222/repo'
+      );
+    });
   });
 
   describe('buildRemoteTerminalExecArgs', () => {

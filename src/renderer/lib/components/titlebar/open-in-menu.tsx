@@ -19,9 +19,17 @@ interface OpenInMenuProps {
   path: string;
   className?: string;
   borderless?: boolean;
+  isRemote?: boolean;
+  sshConnectionId?: string;
 }
 
-export const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, className, borderless = false }) => {
+export const OpenInMenu: React.FC<OpenInMenuProps> = ({
+  path,
+  className,
+  borderless = false,
+  isRemote = false,
+  sshConnectionId,
+}) => {
   const { toast } = useToast();
   const { icons, labels, installedApps, availability, loading } = useOpenInApps();
   const { value: openIn, update } = useAppSettingsKey('openIn');
@@ -45,6 +53,8 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, className, borderl
         const res = await rpc.app.openIn({
           app: appId,
           path,
+          isRemote,
+          sshConnectionId,
         });
         if (!res?.success) {
           toast({
@@ -61,17 +71,20 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, className, borderl
         });
       }
     },
-    [labels, path, toast]
+    [isRemote, labels, path, sshConnectionId, toast]
   );
 
   const sortedApps = useMemo(() => {
-    if (!defaultApp) return installedApps;
-    return [...installedApps].sort((a, b) => {
+    const availableApps = isRemote
+      ? installedApps.filter((app) => app.supportsRemote)
+      : installedApps;
+    if (!defaultApp) return availableApps;
+    return [...availableApps].sort((a, b) => {
       if (a.id === defaultApp) return -1;
       if (b.id === defaultApp) return 1;
       return 0;
     });
-  }, [defaultApp, installedApps]);
+  }, [defaultApp, installedApps, isRemote]);
 
   const menuApps = useMemo(
     () => sortedApps.filter((app) => !app.hideIfUnavailable || availability[app.id]),

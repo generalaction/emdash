@@ -269,9 +269,13 @@ const AutomationTitlebarRightSlot = observer(function AutomationTitlebarRightSlo
   return (
     <div className="flex items-center gap-2">
       <DevServerPills projectId={projectId} taskId={taskId} />
-      {!isRemoteProject && (
-        <OpenInMenu path={workspace.path} className="h-7 bg-background" borderless />
-      )}
+      <OpenInMenu
+        path={workspace.path}
+        className="h-7 bg-background"
+        borderless
+        isRemote={isRemoteProject}
+        sshConnectionId={workspace.sshConnectionId}
+      />
       <Separator orientation="vertical" className="h-5 self-center!" />
       <Tooltip>
         <TooltipTrigger>

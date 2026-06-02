@@ -19,15 +19,17 @@ export function buildRemoteEditorUrl(
   scheme: RemoteEditorScheme,
   host: string,
   username: string,
-  targetPath: string
+  targetPath: string,
+  port?: number | string
 ): string {
   const authority = buildRemoteSshAuthority(host, username);
   const encodedAuthority = encodeURIComponent(authority);
+  const zedAuthority = port && String(port) !== '22' ? `${authority}:${port}` : authority;
   const normalizedTargetPath = targetPath.startsWith('/') ? targetPath : `/${targetPath}`;
 
   switch (scheme) {
     case 'zed':
-      return `zed://ssh/${encodedAuthority}${normalizedTargetPath}`;
+      return `zed://ssh/${zedAuthority}${normalizedTargetPath}`;
     default:
       return `${scheme}://vscode-remote/ssh-remote+${encodedAuthority}${normalizedTargetPath}`;
   }
