@@ -6,6 +6,7 @@ import { PtySession } from './pty-session';
 const frontendConnect = vi.hoisted(() => vi.fn());
 const frontendDispose = vi.hoisted(() => vi.fn());
 const frontendInstances = vi.hoisted(() => [] as Array<{ sessionId: string }>);
+const frontendConnectedSessionIds = vi.hoisted(() => [] as string[]);
 
 vi.mock('@renderer/lib/ipc', () => ({
   events: {
@@ -19,7 +20,10 @@ vi.mock('@renderer/lib/pty/pty', () => ({
       frontendInstances.push(this);
     }
 
-    connect = frontendConnect;
+    connect = () => {
+      frontendConnectedSessionIds.push(this.sessionId);
+      return frontendConnect();
+    };
     dispose = frontendDispose;
   },
 }));
@@ -46,6 +50,7 @@ describe('PtySession', () => {
     frontendConnect.mockReset();
     frontendDispose.mockReset();
     frontendInstances.length = 0;
+    frontendConnectedSessionIds.length = 0;
     vi.mocked(events.on).mockReset();
     vi.mocked(events.on).mockReturnValue(() => {});
   });
@@ -102,6 +107,29 @@ describe('PtySession', () => {
     expect(frontendDispose).toHaveBeenCalledTimes(1);
     expect(frontendInstances).toHaveLength(2);
     expect(session.pty).not.toBe(initialPty);
+    expect(session.status).toBe('ready');
+  });
+
+  it('keeps the frontend PTY when backend replacement is configured to preserve scrollback', async () => {
+    frontendConnect.mockResolvedValue(undefined);
+    const session = new PtySession('session-1', undefined, undefined, undefined, {
+      replaceFrontendOnBackendStart: false,
+    });
+
+    await session.connect();
+    const initialPty = session.pty;
+    expect(initialPty).not.toBeNull();
+
+    for (const listener of ptyStartedListeners()) {
+      listener({ id: 'session-1', epoch: 2 });
+    }
+    await Promise.resolve();
+
+    expect(frontendDispose).not.toHaveBeenCalled();
+    expect(frontendInstances).toHaveLength(1);
+    expect(frontendConnect).toHaveBeenCalledTimes(1);
+    expect(frontendConnectedSessionIds).toEqual(['session-1']);
+    expect(session.pty).toBe(initialPty);
     expect(session.status).toBe('ready');
   });
 
