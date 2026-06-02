@@ -32,7 +32,7 @@ function levelOf(value: number, max: number): number {
 }
 
 type Cell = { date: Date; tokens: number; cumulative: number; future: boolean };
-type Hover = { x: number; y: number; text: string };
+type Hover = { x: number; y: number; text: string; w: number };
 
 export function ActivityHeatmap({ daily }: { daily: DailyPoint[] }) {
   const [mode, setMode] = useState<Mode>('daily');
@@ -131,8 +131,9 @@ export function ActivityHeatmap({ daily }: { daily: DailyPoint[] }) {
                   <div
                     key={ri}
                     className={cn(
-                      'aspect-square w-full rounded-[3px]',
-                      cell.future ? 'bg-transparent' : LEVEL_BG[level]
+                      'aspect-square w-full rounded-[3px] transition-[box-shadow]',
+                      cell.future ? 'bg-transparent' : LEVEL_BG[level],
+                      !cell.future && 'hover:ring-1 hover:ring-foreground/70'
                     )}
                     onMouseEnter={(e) => {
                       if (cell.future) return;
@@ -141,6 +142,7 @@ export function ActivityHeatmap({ daily }: { daily: DailyPoint[] }) {
                       setHover({
                         x: e.clientX - rect.left,
                         y: e.clientY - rect.top,
+                        w: rect.width,
                         text: `${fmtTokens(cell.tokens)} tokens on ${MONTHS[cell.date.getMonth()]} ${cell.date.getDate()}`,
                       });
                     }}
@@ -171,14 +173,20 @@ export function ActivityHeatmap({ daily }: { daily: DailyPoint[] }) {
           </div>
         </div>
 
-        {hover && (
-          <div
-            className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-full rounded-md border border-border bg-background-2 px-2 py-1 text-xs whitespace-nowrap text-foreground shadow-md"
-            style={{ left: hover.x, top: hover.y - 8 }}
-          >
-            {hover.text}
-          </div>
-        )}
+        {hover &&
+          (() => {
+            // Clamp horizontally so the bubble never overflows (and gets clipped by) the panel.
+            const tipW = Math.min(hover.text.length * 6.8 + 18, 260);
+            const left = Math.max(tipW / 2 + 2, Math.min(hover.x, hover.w - tipW / 2 - 2));
+            return (
+              <div
+                className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-full rounded-md border border-border bg-background-2 px-2 py-1 text-xs whitespace-nowrap text-foreground shadow-md"
+                style={{ left, top: hover.y - 8 }}
+              >
+                {hover.text}
+              </div>
+            );
+          })()}
       </div>
     </div>
   );
