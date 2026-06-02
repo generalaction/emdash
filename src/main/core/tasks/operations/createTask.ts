@@ -94,13 +94,11 @@ export async function createTask(
     return 'local';
   })();
   const workspaceId = crypto.randomUUID();
-  await db
-    .insert(workspaces)
-    .values({
-      id: workspaceId,
-      type: workspaceType,
-      config: serializeWorkspaceConfig(workspaceConfig),
-    });
+  await db.insert(workspaces).values({
+    id: workspaceId,
+    type: workspaceType,
+    config: serializeWorkspaceConfig(workspaceConfig),
+  });
   await db.update(tasks).set({ workspaceId }).where(eq(tasks.id, params.id));
 
   let initialConversation: Conversation | undefined;
