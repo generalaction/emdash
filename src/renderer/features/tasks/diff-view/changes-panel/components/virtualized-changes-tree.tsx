@@ -8,8 +8,8 @@ import {
 } from '@renderer/features/tasks/editor/stores/files-store-utils';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { cn } from '@renderer/utils/utils';
-import { type GitChange } from '@shared/git';
-import { ChangeStatusAffordance } from './changes-list-item';
+import { type GitChange, type GitChangeStatus } from '@shared/git';
+import { ChangeStatusAffordance, GitChangeStatusIcon } from './changes-list-item';
 import { buildChangesTree } from './changes-tree-utils';
 
 export interface VirtualizedChangesTreeProps {
@@ -94,6 +94,7 @@ export function VirtualizedChangesTree({
               <DirectoryRow
                 key={`${node.type}:${node.path}`}
                 row={row}
+                status={tree.directoryStatusByPath.get(node.path)}
                 isExpanded={expanded}
                 onToggle={() => toggleChain(row.chain, expanded)}
                 style={style}
@@ -124,11 +125,13 @@ export function VirtualizedChangesTree({
 
 function DirectoryRow({
   row,
+  status,
   isExpanded,
   onToggle,
   style,
 }: {
   row: TreeRow;
+  status?: GitChangeStatus;
   isExpanded: boolean;
   onToggle: () => void;
   style: React.CSSProperties;
@@ -154,6 +157,11 @@ function DirectoryRow({
         {isExpanded ? <FolderOpen className="h-3.5 w-3.5" /> : <Folder className="h-3.5 w-3.5" />}
       </span>
       <span className="min-w-0 flex-1 truncate text-left text-sm">{displayName}</span>
+      {status !== undefined && (
+        <span className="flex shrink-0 items-center pr-0.5">
+          <GitChangeStatusIcon status={status} className="size-4" />
+        </span>
+      )}
     </button>
   );
 }
