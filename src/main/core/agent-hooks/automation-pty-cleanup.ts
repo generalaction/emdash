@@ -1,5 +1,5 @@
 import { taskWasCreatedByAutomationRun } from '@main/core/automations/repo';
-import { taskManager } from '@main/core/tasks/task-manager';
+import { taskSessionManager } from '@main/core/tasks/task-session-manager';
 import { log } from '@main/lib/logger';
 import type { AgentEvent } from '@shared/events/agentEvents';
 
@@ -17,7 +17,7 @@ export async function stopAutomationSessionAfterDone(event: AgentEvent): Promise
       return;
     }
 
-    const task = taskManager.getTask(event.taskId);
+    const task = taskSessionManager.getTask(event.taskId);
     if (!task) {
       stoppingAutomationSessions.delete(event.conversationId);
       return;

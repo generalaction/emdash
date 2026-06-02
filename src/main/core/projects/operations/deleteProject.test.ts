@@ -46,8 +46,8 @@ vi.mock('@main/core/projects/project-manager', () => ({
   },
 }));
 
-vi.mock('@main/core/tasks/task-manager', () => ({
-  taskManager: {
+vi.mock('@main/core/tasks/task-session-manager', () => ({
+  taskSessionManager: {
     teardownTask: mocks.teardownTask,
   },
 }));
