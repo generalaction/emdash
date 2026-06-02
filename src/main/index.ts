@@ -27,7 +27,6 @@ import { searchService } from './core/search/search-service';
 import { workspaceFileIndexService } from './core/search/workspace-file-index-service';
 import { appSettingsService } from './core/settings/settings-service';
 import { updateService } from './core/updates/update-service';
-import { usageStatsService } from './core/usage-stats/usage-stats-service';
 import { viewStateService } from './core/view-state/view-state-service';
 import { initializeDatabase } from './db/initialize';
 import {
@@ -94,7 +93,6 @@ void app.whenReady().then(async () => {
     await initializeDatabase();
     searchService.initialize();
     workspaceFileIndexService.initialize();
-    usageStatsService.initialize();
     void editorBufferService.pruneStale();
     try {
       viewStateService.pruneOrphans();

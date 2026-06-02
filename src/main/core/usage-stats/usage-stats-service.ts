@@ -31,13 +31,12 @@ class UsageStatsService {
   private indexPath = '';
   private computing: Promise<UsageSnapshot> | null = null;
 
-  /** Fire-and-forget background warm on app start. */
-  initialize(): void {
-    void this.refresh().catch(() => {
-      // first scan failed (e.g. no transcript dirs) — keep empty snapshot
-    });
-  }
-
+  /**
+   * Lazily computes on first access, then serves the cached snapshot. We do NOT warm
+   * on app start: a cold cache scans/parses every local transcript (potentially GBs of
+   * JSONL) and that work is synchronous, so warming eagerly would block the main process
+   * during startup. The first Usage-tab open pays the cost instead, behind a spinner.
+   */
   async getSnapshot(): Promise<UsageSnapshot> {
     if (this.snapshot.generatedAt === '') return this.refresh();
     return this.snapshot;
