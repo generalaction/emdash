@@ -102,6 +102,9 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     commands: ['codex'],
     versionArgs: ['--version'],
     cli: 'codex',
+    // Keep the default compatible with older Codex CLIs. `--dangerously-bypass-hook-trust`
+    // is a separate, newer hook-specific bypass and is migrated out of stored defaults so
+    // unsupported Codex versions do not fail before the session can start.
     autoApproveFlag: '--dangerously-bypass-approvals-and-sandbox',
     initialPromptFlag: '',
     resumeFlag: 'resume',
