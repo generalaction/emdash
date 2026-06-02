@@ -47,10 +47,7 @@ describe('buildAgentCommand', () => {
       sessionId: 'session-1',
     });
 
-    expect(command.args).toEqual([
-      '--dangerously-bypass-approvals-and-sandbox',
-      'Fix the issue',
-    ]);
+    expect(command.args).toEqual(['--dangerously-bypass-approvals-and-sandbox', 'Fix the issue']);
   });
 
   it('dedupes Codex singleton approval bypass flag across all configured args', () => {

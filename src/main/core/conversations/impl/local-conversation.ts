@@ -400,17 +400,22 @@ export class LocalConversationProvider implements ConversationProvider {
         return conversation;
       });
 
-      this.startSessionInternal(latestConversation, initialSize, true, undefined, true).catch((e) => {
-        log.error('LocalConversationProvider: replacement failed', {
-          conversationId: conversation.id,
-          error: String(e),
-        });
-      });
+      this.startSessionInternal(latestConversation, initialSize, true, undefined, true).catch(
+        (e) => {
+          log.error('LocalConversationProvider: replacement failed', {
+            conversationId: conversation.id,
+            error: String(e),
+          });
+        }
+      );
     }, RESPAWN_DELAY_MS);
   }
 
   private async getLatestConversation(conversation: Conversation): Promise<Conversation> {
-    const conversations = await getConversationsForTask(conversation.projectId, conversation.taskId);
+    const conversations = await getConversationsForTask(
+      conversation.projectId,
+      conversation.taskId
+    );
     return conversations.find((item) => item.id === conversation.id) ?? conversation;
   }
 }
