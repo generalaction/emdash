@@ -5,6 +5,10 @@ import { ptyStartedChannel } from '@shared/events/appEvents';
 
 export type PtySessionStatus = 'disconnected' | 'connecting' | 'ready';
 
+export type PtySessionOptions = {
+  replaceFrontendOnBackendStart?: boolean;
+};
+
 export class PtySession {
   pty: FrontendPty | null = null;
   status: PtySessionStatus = 'disconnected';
@@ -12,13 +16,16 @@ export class PtySession {
   private version = 0;
   private lastSeenEpoch = 0;
   private offPtyStarted: (() => void) | null = null;
+  private readonly replaceFrontendOnBackendStart: boolean;
 
   constructor(
     readonly sessionId: string,
     private readonly prepare?: () => Promise<void>,
     private readonly onOpenFile?: (filePath: string) => void,
-    private readonly onOpenExternal?: (filePath: string) => void
+    private readonly onOpenExternal?: (filePath: string) => void,
+    options: PtySessionOptions = {}
   ) {
+    this.replaceFrontendOnBackendStart = options.replaceFrontendOnBackendStart ?? true;
     makeAutoObservable(this, {
       pty: false,
     });
@@ -88,6 +95,8 @@ export class PtySession {
     }
 
     this.lastSeenEpoch = epoch;
+    if (!this.replaceFrontendOnBackendStart) return;
+
     this.version++;
     this.connectPromise = null;
     this.pty?.dispose();

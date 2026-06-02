@@ -38,12 +38,17 @@ export class LifecycleScriptStore {
 
   constructor(data: LifecycleScriptData, projectId: string, workspaceId: string) {
     this.data = data;
-    this.session = new PtySession(makePtySessionId(projectId, workspaceId, data.id), () =>
-      rpc.terminals.prepareLifecycleScript({
-        projectId,
-        workspaceId,
-        type: data.type,
-      })
+    this.session = new PtySession(
+      makePtySessionId(projectId, workspaceId, data.id),
+      () =>
+        rpc.terminals.prepareLifecycleScript({
+          projectId,
+          workspaceId,
+          type: data.type,
+        }),
+      undefined,
+      undefined,
+      { replaceFrontendOnBackendStart: false }
     );
     this.offStatus = events.on(lifecycleScriptStatusChannel, (event) => {
       if (

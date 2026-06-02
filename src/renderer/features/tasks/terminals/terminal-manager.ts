@@ -191,7 +191,8 @@ export class TerminalManagerStore implements IDisposable {
       makePtySessionId(terminal.projectId, terminal.taskId, terminal.id),
       () => this.hydrateTerminal(terminal.id),
       handlers.onOpenFile,
-      handlers.onOpenExternal
+      handlers.onOpenExternal,
+      { replaceFrontendOnBackendStart: false }
     );
   }
 }
