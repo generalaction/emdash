@@ -438,7 +438,7 @@ describe('conversation provider respawn state', () => {
     }
   });
 
-  it('does not loop if the replacement exits inside the failure window', async () => {
+  it('starts a local conversation fresh after three resume replacements exit', async () => {
     vi.useFakeTimers();
     try {
       const exitHandlers: Array<Array<(info: PtyExitInfo) => void>> = [];
@@ -452,14 +452,15 @@ describe('conversation provider respawn state', () => {
 
       await provider.startSession(item);
 
-      for (const handler of exitHandlers[0] ?? []) handler({ exitCode: 1 });
-      await vi.advanceTimersByTimeAsync(500);
-      expect(spawnLocalPty).toHaveBeenCalledTimes(2);
+      for (let index = 0; index < 4; index += 1) {
+        for (const handler of exitHandlers[index] ?? []) handler({ exitCode: 1 });
+        await vi.advanceTimersByTimeAsync(500);
+      }
 
-      for (const handler of exitHandlers[1] ?? []) handler({ exitCode: 1 });
-      await vi.advanceTimersByTimeAsync(500);
-
-      expect(spawnLocalPty).toHaveBeenCalledTimes(2);
+      expect(spawnLocalPty).toHaveBeenCalledTimes(5);
+      expect(
+        vi.mocked(buildAgentSessionCommand).mock.calls.map(([args]) => args.isResuming)
+      ).toEqual([false, true, true, true, false]);
     } finally {
       vi.useRealTimers();
     }

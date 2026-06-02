@@ -1,6 +1,9 @@
 import { wireAgentClassifier } from '@main/core/agent-hooks/classifier-wiring';
 import { workspaceTrustService } from '@main/core/agent-hooks/workspace-trust-service';
-import { ConversationSessionSupervisor } from '@main/core/conversations/conversation-session-supervisor';
+import {
+  type ConversationSpawnMode,
+  ConversationSessionSupervisor,
+} from '@main/core/conversations/conversation-session-supervisor';
 import { resolveAgentSessionCommandArgs } from '@main/core/conversations/resolve-agent-session-command';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import type { IExecutionContext } from '@main/core/execution-context/types';
@@ -100,7 +103,11 @@ export class SshConversationProvider implements ConversationProvider {
     this.knownSessionIds.add(sessionId);
 
     const spawnSize = ptySessionRegistry.getLastSize(sessionId) ?? initialSize;
-    const spawnToken = this.supervisor.beginStart(sessionId, { requireDesired });
+    const spawnMode: ConversationSpawnMode = isResuming ? 'resume' : 'fresh';
+    const spawnToken = this.supervisor.beginStart(sessionId, {
+      requireDesired,
+      mode: spawnMode,
+    });
     if (!spawnToken) return;
 
     try {
@@ -197,14 +204,6 @@ export class SshConversationProvider implements ConversationProvider {
         this.sessions.delete(sessionId);
         if (decision.kind === 'stopped') return;
 
-        if (decision.kind === 'failed') {
-          events.emit(agentSessionExitedChannel, {
-            conversationId: conversation.id,
-            taskId: conversation.taskId,
-          });
-          return;
-        }
-
         if (this.tmux) {
           events.emit(agentSessionExitedChannel, {
             conversationId: conversation.id,
@@ -224,6 +223,14 @@ export class SshConversationProvider implements ConversationProvider {
           return;
         }
 
+        if (options.shellRefreshRetried && exitCode === 127) {
+          events.emit(agentSessionExitedChannel, {
+            conversationId: conversation.id,
+            taskId: conversation.taskId,
+          });
+          return;
+        }
+
         events.emit(agentSessionExitedChannel, {
           conversationId: conversation.id,
           taskId: conversation.taskId,
@@ -233,6 +240,7 @@ export class SshConversationProvider implements ConversationProvider {
           this.scheduleReplacement({
             conversation,
             initialSize: replacementSize,
+            mode: decision.mode,
           });
         }
       });
@@ -383,12 +391,14 @@ export class SshConversationProvider implements ConversationProvider {
   private scheduleReplacement({
     conversation,
     initialSize,
+    mode,
   }: {
     conversation: Conversation;
     initialSize: { cols: number; rows: number };
+    mode: ConversationSpawnMode;
   }): void {
     setTimeout(() => {
-      this.startSessionInternal(conversation, initialSize, true, undefined, true, {
+      this.startSessionInternal(conversation, initialSize, mode === 'resume', undefined, true, {
         shellRefreshRetried: false,
       }).catch((e) => {
         log.error('SshConversationProvider: replacement failed', {
