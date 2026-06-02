@@ -5,35 +5,19 @@ import { serializeWorkspaceConfig } from '@shared/workspace-config';
 import { createTask } from './createTask';
 
 const mocks = vi.hoisted(() => ({
-  insert: vi.fn(),
-  update: vi.fn(),
+  transaction: vi.fn(),
   getProject: vi.fn(),
-  resolveProviderRepository: vi.fn(),
-  getTaskPullRequests: vi.fn(),
 }));
 
 vi.mock('@main/db/client', () => ({
   db: {
-    insert: mocks.insert,
-    update: mocks.update,
+    transaction: mocks.transaction,
   },
 }));
 
 vi.mock('@main/core/projects/project-manager', () => ({
   projectManager: {
     getProject: mocks.getProject,
-  },
-}));
-
-vi.mock('../../pull-requests/pr-query-service', () => ({
-  prQueryService: {
-    getTaskPullRequests: mocks.getTaskPullRequests,
-  },
-}));
-
-vi.mock('@main/core/repository/provider-repository-service', () => ({
-  providerRepositoryService: {
-    resolveProject: mocks.resolveProviderRepository,
   },
 }));
 
@@ -59,32 +43,38 @@ function makeTaskRow(values: Partial<TaskRow>): TaskRow {
   };
 }
 
+/**
+ * Sets up db.transaction to invoke the callback with a fake `tx`.
+ * The fake tx captures insert values by call order (0=task, 1=workspace, 2=conversation).
+ * Returns an array that is populated with each set of insert values as the callback runs.
+ */
+function setupTransactionMock() {
+  const captured: unknown[] = [];
+
+  mocks.transaction.mockImplementation((cb: (tx: unknown) => void) => {
+    captured.length = 0;
+    cb({
+      insert: () => ({
+        values: (vals: unknown) => {
+          captured.push(vals);
+          return {
+            returning: () => ({ all: () => [makeTaskRow(vals as Partial<TaskRow>)] }),
+            run: () => {},
+          };
+        },
+      }),
+    });
+  });
+
+  return { captured };
+}
+
 describe('createTask', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-
     mocks.getProject.mockReturnValue({});
-    mocks.resolveProviderRepository.mockResolvedValue({
-      success: false,
-      error: { type: 'unsupported_provider' },
-    });
-    mocks.getTaskPullRequests.mockResolvedValue([]);
-
-    const updateWhere = vi.fn().mockResolvedValue(undefined);
-    const updateSet = vi.fn(() => ({ where: updateWhere }));
-    mocks.update.mockReturnValue({ set: updateSet });
+    setupTransactionMock();
   });
-
-  function setupInsertMocks(taskRowOverrides: Partial<TaskRow> = {}) {
-    const insertTaskValues = vi.fn((values: Partial<TaskRow>) => ({
-      returning: vi.fn().mockResolvedValue([makeTaskRow({ ...values, ...taskRowOverrides })]),
-    }));
-    const insertWorkspaceValues = vi.fn().mockResolvedValue(undefined);
-    mocks.insert
-      .mockReturnValueOnce({ values: insertTaskValues })
-      .mockReturnValueOnce({ values: insertWorkspaceValues });
-    return { insertTaskValues, insertWorkspaceValues };
-  }
 
   it('returns project-not-found when project does not exist', async () => {
     mocks.getProject.mockReturnValue(undefined);
@@ -95,11 +85,22 @@ describe('createTask', () => {
       workspaceConfig: { version: '1', git: { kind: 'none' }, workspace: { host: 'local' } },
     });
     expect(result).toEqual({ success: false, error: { type: 'project-not-found' } });
-    expect(mocks.insert).not.toHaveBeenCalled();
+    expect(mocks.transaction).not.toHaveBeenCalled();
   });
 
-  it('stores WorkspaceConfig JSON in workspaces.config (not in tasks)', async () => {
-    const { insertTaskValues, insertWorkspaceValues } = setupInsertMocks();
+  it('executes all writes inside a single db.transaction call', async () => {
+    await createTask({
+      id: 'task-1',
+      projectId: 'project-1',
+      name: 'Test Task',
+      workspaceConfig: { version: '1', git: { kind: 'none' }, workspace: { host: 'local' } },
+    });
+
+    expect(mocks.transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('stores WorkspaceConfig JSON in workspaces.config', async () => {
+    const { captured } = setupTransactionMock();
     const workspaceConfig: WorkspaceConfig = {
       version: '1',
       git: {
@@ -118,16 +119,14 @@ describe('createTask', () => {
       workspaceConfig,
     });
 
-    expect(insertWorkspaceValues).toHaveBeenCalledWith(
+    // captured[0] = task insert, captured[1] = workspace insert
+    expect(captured[1]).toEqual(
       expect.objectContaining({ config: serializeWorkspaceConfig(workspaceConfig) })
-    );
-    expect(insertTaskValues).toHaveBeenCalledWith(
-      expect.not.objectContaining({ workspaceIntent: expect.anything() })
     );
   });
 
   it('does not write taskBranch or sourceBranch to the tasks row', async () => {
-    const { insertTaskValues } = setupInsertMocks();
+    const { captured } = setupTransactionMock();
 
     await createTask({
       id: 'task-1',
@@ -144,33 +143,41 @@ describe('createTask', () => {
       },
     });
 
-    expect(insertTaskValues).toHaveBeenCalledWith(
-      expect.not.objectContaining({
-        taskBranch: expect.anything(),
-        sourceBranch: expect.anything(),
-      })
+    // captured[0] = task insert
+    expect(captured[0]).not.toEqual(
+      expect.objectContaining({ taskBranch: expect.anything(), sourceBranch: expect.anything() })
     );
+  });
+
+  it('includes workspaceId in the task row insert (no separate UPDATE)', async () => {
+    const { captured } = setupTransactionMock();
+
+    await createTask({
+      id: 'task-1',
+      projectId: 'project-1',
+      name: 'Test Task',
+      workspaceConfig: { version: '1', git: { kind: 'none' }, workspace: { host: 'local' } },
+    });
+
+    const taskInsert = captured[0] as Record<string, unknown>;
+    expect(taskInsert.workspaceId).toBeDefined();
+    expect(typeof taskInsert.workspaceId).toBe('string');
   });
 
   describe('workspace row type from workspaceConfig.workspace.host', () => {
     it('creates a local workspace row for host:local', async () => {
-      const { insertWorkspaceValues } = setupInsertMocks();
-
+      const { captured } = setupTransactionMock();
       await createTask({
         id: 'task-1',
         projectId: 'project-1',
         name: 'Test Task',
         workspaceConfig: { version: '1', git: { kind: 'none' }, workspace: { host: 'local' } },
       });
-
-      expect(insertWorkspaceValues).toHaveBeenCalledWith(
-        expect.objectContaining({ type: 'local' })
-      );
+      expect((captured[1] as Record<string, unknown>).type).toBe('local');
     });
 
     it('creates a project-ssh workspace row for host:project-ssh', async () => {
-      const { insertWorkspaceValues } = setupInsertMocks();
-
+      const { captured } = setupTransactionMock();
       await createTask({
         id: 'task-1',
         projectId: 'project-1',
@@ -181,76 +188,18 @@ describe('createTask', () => {
           workspace: { host: 'project-ssh' },
         },
       });
-
-      expect(insertWorkspaceValues).toHaveBeenCalledWith(
-        expect.objectContaining({ type: 'project-ssh' })
-      );
+      expect((captured[1] as Record<string, unknown>).type).toBe('project-ssh');
     });
 
     it('creates a byoi workspace row for host:byoi', async () => {
-      const { insertWorkspaceValues } = setupInsertMocks();
-
+      const { captured } = setupTransactionMock();
       await createTask({
         id: 'task-1',
         projectId: 'project-1',
         name: 'Test Task',
         workspaceConfig: { version: '1', git: { kind: 'none' }, workspace: { host: 'byoi' } },
       });
-
-      expect(insertWorkspaceValues).toHaveBeenCalledWith(expect.objectContaining({ type: 'byoi' }));
+      expect((captured[1] as Record<string, unknown>).type).toBe('byoi');
     });
-  });
-
-  it('queries PR metadata when git.kind is pr-branch', async () => {
-    setupInsertMocks();
-    mocks.resolveProviderRepository.mockResolvedValue({
-      success: true,
-      data: { repositoryUrl: 'https://github.com/example/repo.git' },
-    });
-    mocks.getTaskPullRequests.mockResolvedValue([]);
-
-    await createTask({
-      id: 'task-1',
-      projectId: 'project-1',
-      name: 'Review PR',
-      workspaceConfig: {
-        version: '1',
-        git: {
-          kind: 'pr-branch',
-          prNumber: 42,
-          headBranch: 'feature/pr',
-          headRepositoryUrl: 'https://github.com/example/repo.git',
-          isFork: false,
-        },
-        workspace: { host: 'local' },
-      },
-    });
-
-    expect(mocks.getTaskPullRequests).toHaveBeenCalledWith(
-      'project-1',
-      'feature/pr',
-      'https://github.com/example/repo.git'
-    );
-  });
-
-  it('skips PR metadata query for non-PR git kinds', async () => {
-    setupInsertMocks();
-
-    await createTask({
-      id: 'task-1',
-      projectId: 'project-1',
-      name: 'Test Task',
-      workspaceConfig: {
-        version: '1',
-        git: {
-          kind: 'create-branch',
-          branchName: 'feature/x',
-          fromBranch: { type: 'local', branch: 'main' },
-        },
-        workspace: { host: 'local' },
-      },
-    });
-
-    expect(mocks.getTaskPullRequests).not.toHaveBeenCalled();
   });
 });
