@@ -31,14 +31,7 @@ describe('buildAgentCommand', () => {
 
     expect(command).toEqual({
       command: 'codex',
-      args: [
-        '-c',
-        'approval_policy=never',
-        '-c',
-        'sandbox_mode=danger-full-access',
-        '--dangerously-bypass-hook-trust',
-        'Fix the issue',
-      ],
+      args: ['--dangerously-bypass-approvals-and-sandbox', 'Fix the issue'],
     });
   });
 
@@ -56,11 +49,6 @@ describe('buildAgentCommand', () => {
 
     expect(command.args).toEqual([
       '--dangerously-bypass-approvals-and-sandbox',
-      '-c',
-      'approval_policy=never',
-      '-c',
-      'sandbox_mode=danger-full-access',
-      '--dangerously-bypass-hook-trust',
       'Fix the issue',
     ]);
   });
@@ -82,7 +70,6 @@ describe('buildAgentCommand', () => {
     expect(
       command.args.filter((arg) => arg === '--dangerously-bypass-approvals-and-sandbox')
     ).toHaveLength(1);
-    expect(command.args).toContain('--dangerously-bypass-hook-trust');
     expect(command.args).toContain('Fix the issue');
   });
 
