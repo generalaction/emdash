@@ -2,7 +2,7 @@
   "version": "6",
   "dialect": "sqlite",
   "id": "eb5ea80c-9f3e-4b7b-b526-2b21ade9c003",
-  "prevId": "62258eb7-6e18-4449-9ddb-27e5b9587bb7",
+  "prevId": "0f6bb206-1bd4-4c71-a127-3ab5e580d04b",
   "tables": {
     "app_secrets": {
       "name": "app_secrets",
