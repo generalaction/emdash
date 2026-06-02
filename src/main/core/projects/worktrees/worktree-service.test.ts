@@ -142,6 +142,41 @@ describe('WorktreeService', () => {
       await expect(svc.getWorktree(branchName)).resolves.toBeUndefined();
     });
 
+    it('returns undefined when stale lookup cleanup fails', async () => {
+      const branchName = 'task/stuck-lookup';
+      const targetPath = path.join(poolDir, branchName);
+      const exec = vi.fn(async () => ({ stdout: '', stderr: '' }));
+      const ctx: IExecutionContext = {
+        root: repoDir,
+        supportsLocalSpawn: false,
+        exec,
+        execStreaming: async () => {},
+        dispose: () => {},
+      };
+      const fakeHost: WorktreeHost = {
+        pathApi: path,
+        existsAbsolute: vi.fn(async (absPath: string) => absPath === targetPath),
+        mkdirAbsolute: vi.fn(async () => {}),
+        removeAbsolute: vi.fn(async () => ({ success: false, error: 'permission denied' })),
+        realPathAbsolute: vi.fn(async (absPath: string) => absPath),
+        globAbsolute: vi.fn(async () => []),
+        readFileAbsolute: vi.fn(async () => ''),
+        copyFileAbsolute: vi.fn(async () => {}),
+        statAbsolute: vi.fn(async () => null),
+      };
+      const svc = new WorktreeService({
+        repoPath: repoDir,
+        ctx,
+        host: fakeHost,
+        projectSettings: makeSettings(),
+        resolveWorktreePoolPath: async () => poolDir,
+      });
+
+      await expect(svc.getWorktree(branchName)).resolves.toBeUndefined();
+
+      expect(fakeHost.removeAbsolute).toHaveBeenCalledWith(targetPath, { recursive: true });
+    });
+
     it('creates a worktree from an existing local source branch', async () => {
       await git(['branch', 'task/local-checkout'], { cwd: repoDir });
       const svc = makeService();
@@ -383,6 +418,45 @@ describe('WorktreeService', () => {
       expect(result.success).toBe(true);
       if (!result.success) throw new Error('expected success');
       expect(fs.readFileSync(path.join(result.data, '.env'), 'utf8')).toBe('SECRET=abc');
+    });
+  });
+
+  describe('removeWorktree', () => {
+    it('prunes git worktree metadata when directory removal fails', async () => {
+      const worktreePath = path.join(poolDir, 'task', 'stuck-remove');
+      const exec = vi.fn(async () => ({ stdout: '', stderr: '' }));
+      const ctx: IExecutionContext = {
+        root: repoDir,
+        supportsLocalSpawn: false,
+        exec,
+        execStreaming: async () => {},
+        dispose: () => {},
+      };
+      const fakeHost: WorktreeHost = {
+        pathApi: path,
+        existsAbsolute: vi.fn(async () => false),
+        mkdirAbsolute: vi.fn(async () => {}),
+        removeAbsolute: vi.fn(async () => ({ success: false, error: 'permission denied' })),
+        realPathAbsolute: vi.fn(async (absPath: string) => absPath),
+        globAbsolute: vi.fn(async () => []),
+        readFileAbsolute: vi.fn(async () => ''),
+        copyFileAbsolute: vi.fn(async () => {}),
+        statAbsolute: vi.fn(async () => null),
+      };
+      const svc = new WorktreeService({
+        repoPath: repoDir,
+        ctx,
+        host: fakeHost,
+        projectSettings: makeSettings(),
+        resolveWorktreePoolPath: async () => poolDir,
+      });
+      exec.mockClear();
+
+      await expect(svc.removeWorktree(worktreePath)).rejects.toThrow(
+        'Failed to remove stale worktree directory'
+      );
+
+      expect(exec).toHaveBeenCalledWith('git', ['worktree', 'prune']);
     });
   });
 

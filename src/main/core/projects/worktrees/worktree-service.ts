@@ -184,7 +184,11 @@ export class WorktreeService {
     const worktreePath = this.host.pathApi.join(worktreePoolPath, branchName);
     if (await this.host.existsAbsolute(worktreePath)) {
       if (await this.isValidWorktree(worktreePath)) return worktreePath;
-      await this.removePathForReuse(worktreePath);
+      try {
+        await this.removePathForReuse(worktreePath);
+      } catch {
+        return undefined;
+      }
     }
 
     try {
@@ -352,8 +356,9 @@ export class WorktreeService {
   }
 
   async removeWorktree(worktreePath: string): Promise<void> {
-    await this.removePathForReuse(worktreePath);
-    await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
+    await this.removePathForReuse(worktreePath).finally(() => {
+      this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
+    });
   }
 
   private taskConfigFs(targetPath: string): Pick<FileSystemProvider, 'exists' | 'read'> {
