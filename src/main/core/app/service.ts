@@ -263,7 +263,7 @@ class AppService implements IInitializable, IDisposable {
       return;
     }
 
-    await this.openInLocal({ label, target, platformConfig });
+    await this.openInLocal({ appId, label, target, platformConfig });
   }
 
   private async openInRemote(args: {
@@ -425,11 +425,18 @@ class AppService implements IInitializable, IDisposable {
   }
 
   private async openInLocal(args: {
+    appId: OpenInAppId;
     label: string;
     target: string;
     platformConfig: PlatformConfig | undefined;
   }): Promise<void> {
-    const { label, target, platformConfig } = args;
+    const { appId, label, target, platformConfig } = args;
+
+    if (appId === 'finder') {
+      const errorMessage = await shell.openPath(target);
+      if (errorMessage) throw new Error(errorMessage);
+      return;
+    }
 
     if (platformConfig?.openUrls) {
       for (const urlTemplate of platformConfig.openUrls) {
