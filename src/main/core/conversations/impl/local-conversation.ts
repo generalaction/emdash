@@ -3,10 +3,7 @@ import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
 import { wireAgentClassifier } from '@main/core/agent-hooks/classifier-wiring';
 import { HookConfigWriter } from '@main/core/agent-hooks/hook-config';
 import { workspaceTrustService } from '@main/core/agent-hooks/workspace-trust-service';
-import {
-  type ConversationSpawnMode,
-  ConversationSessionSupervisor,
-} from '@main/core/conversations/conversation-session-supervisor';
+import { ConversationSessionSupervisor } from '@main/core/conversations/conversation-session-supervisor';
 import { resolveAgentSessionCommandArgs } from '@main/core/conversations/resolve-agent-session-command';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import type { IExecutionContext } from '@main/core/execution-context/types';
@@ -113,10 +110,9 @@ export class LocalConversationProvider implements ConversationProvider {
     this.knownSessionIds.add(sessionId);
 
     const spawnSize = ptySessionRegistry.getLastSize(sessionId) ?? initialSize;
-    const spawnMode: ConversationSpawnMode = isResuming ? 'resume' : 'fresh';
     const spawnToken = this.supervisor.beginStart(sessionId, {
       requireDesired,
-      mode: spawnMode,
+      mode: isResuming ? 'resume' : 'fresh',
     });
     if (!spawnToken) return;
 
@@ -250,7 +246,7 @@ export class LocalConversationProvider implements ConversationProvider {
           this.scheduleReplacement({
             conversation,
             initialSize: replacementSize,
-            mode: decision.mode,
+            isResuming: decision.kind === 'respawnResume',
           });
         }
       });
@@ -390,25 +386,21 @@ export class LocalConversationProvider implements ConversationProvider {
   private scheduleReplacement({
     conversation,
     initialSize,
-    mode,
+    isResuming,
   }: {
     conversation: Conversation;
     initialSize: { cols: number; rows: number };
-    mode: ConversationSpawnMode;
+    isResuming: boolean;
   }): void {
     setTimeout(() => {
-      this.startSessionInternal(
-        conversation,
-        initialSize,
-        mode === 'resume',
-        undefined,
-        true
-      ).catch((e) => {
-        log.error('LocalConversationProvider: replacement failed', {
-          conversationId: conversation.id,
-          error: String(e),
-        });
-      });
+      this.startSessionInternal(conversation, initialSize, isResuming, undefined, true).catch(
+        (e) => {
+          log.error('LocalConversationProvider: replacement failed', {
+            conversationId: conversation.id,
+            error: String(e),
+          });
+        }
+      );
     }, RESPAWN_DELAY_MS);
   }
 }

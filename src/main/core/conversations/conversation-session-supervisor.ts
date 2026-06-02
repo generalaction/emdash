@@ -1,10 +1,10 @@
 import type { Pty } from '@main/core/pty/pty';
 
-export type ConversationSpawnToken = {
+type ConversationSpawnToken = {
   mode: ConversationSpawnMode;
 };
 
-export type ConversationSpawnMode = 'fresh' | 'resume';
+type ConversationSpawnMode = 'fresh' | 'resume';
 
 type ActiveConversationPty = {
   pty: Pty;
@@ -23,7 +23,8 @@ export const MAX_CONVERSATION_RESUME_REPLACEMENTS = 3;
 export type ExitDecision =
   | { kind: 'stale' }
   | { kind: 'stopped' }
-  | { kind: 'replace'; mode: ConversationSpawnMode };
+  | { kind: 'respawnFresh' }
+  | { kind: 'respawnResume' };
 
 export class ConversationSessionSupervisor {
   private runtimes = new Map<string, ConversationRuntime>();
@@ -90,13 +91,13 @@ export class ConversationSessionSupervisor {
       runtime.consecutiveResumeExits += 1;
       if (runtime.consecutiveResumeExits >= MAX_CONVERSATION_RESUME_REPLACEMENTS) {
         runtime.consecutiveResumeExits = 0;
-        return { kind: 'replace', mode: 'fresh' };
+        return { kind: 'respawnFresh' };
       }
-      return { kind: 'replace', mode: 'resume' };
+      return { kind: 'respawnResume' };
     }
 
     runtime.consecutiveResumeExits = 0;
-    return { kind: 'replace', mode: 'resume' };
+    return { kind: 'respawnResume' };
   }
 
   forget(sessionId: string): void {
