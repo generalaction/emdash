@@ -61,6 +61,7 @@ export async function createConversation(
       title: params.title,
       provider: params.provider,
       config,
+      sessionId: id,
       isInitialConversation: params.isInitialConversation ?? false,
       createdAt: sql`CURRENT_TIMESTAMP`,
       updatedAt: sql`CURRENT_TIMESTAMP`,

@@ -59,6 +59,11 @@ export class WorktreeService {
     return this.host.existsAbsolute(this.host.pathApi.join(worktreePath, '.git'));
   }
 
+  /** Returns the resolved path to the worktree pool directory. */
+  getWorktreePoolPath(): Promise<string> {
+    return this.resolveWorktreePoolPath();
+  }
+
   private async ensureWorktreePoolDirExists(): Promise<void> {
     await this.host.mkdirAbsolute(await this.resolveWorktreePoolPath(), { recursive: true });
   }

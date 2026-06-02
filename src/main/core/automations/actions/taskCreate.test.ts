@@ -10,7 +10,11 @@ import { updateRun } from '../repo';
 import { executeTaskCreate } from './taskCreate';
 
 vi.mock('@main/core/conversations/createConversation', () => ({ createConversation: vi.fn() }));
+vi.mock('@main/core/projects/operations/ensure-repository-workspace', () => ({
+  ensureRepositoryWorkspace: vi.fn().mockResolvedValue('ws-repo-1'),
+}));
 vi.mock('@main/core/projects/operations/openProject', () => ({ openProject: vi.fn() }));
+vi.mock('@main/db/client', () => ({ db: { select: vi.fn(), insert: vi.fn(), update: vi.fn() } }));
 vi.mock('@main/core/projects/project-manager', () => ({
   projectManager: { getProject: vi.fn() },
 }));
@@ -21,7 +25,10 @@ vi.mock('@main/core/tasks/name-generation/generateTaskName', () => ({
   generateTaskName: vi.fn(() => 'generated-task'),
 }));
 vi.mock('@main/core/tasks/task-service', () => ({
-  taskService: { createTask: vi.fn(), provision: vi.fn() },
+  taskService: { createTask: vi.fn(), launch: vi.fn() },
+}));
+vi.mock('@main/core/workspaces/workspace-bootstrap-service', () => ({
+  workspaceBootstrapService: { ensureWorkspaceSetupForTask: vi.fn() },
 }));
 vi.mock('@main/lib/events', () => ({ events: { emit: vi.fn() } }));
 vi.mock('@main/lib/logger', () => ({ log: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
@@ -39,8 +46,16 @@ const automation: Automation = {
     id: 'stored-task-id',
     projectId: 'project-1',
     name: 'Stored task',
-    sourceBranch: { type: 'local', branch: 'main' },
-    strategy: { kind: 'new-branch', taskBranch: 'stored-task-branch', pushBranch: false },
+    workspaceConfig: {
+      version: '2' as const,
+      git: {
+        kind: 'create-branch' as const,
+        branchName: 'stored-task-branch',
+        fromBranch: { type: 'local' as const, branch: 'main' },
+        pushBranch: false,
+      },
+      workspace: { kind: 'new-worktree' as const },
+    },
     initialConversation: {
       id: 'stored-conversation-id',
       projectId: 'project-1',
@@ -80,7 +95,7 @@ describe('executeTaskCreate', () => {
     vi.clearAllMocks();
     vi.mocked(generateTaskName).mockReturnValue('generated-task');
     vi.mocked(appSettingsService.get).mockResolvedValue(null as never);
-    vi.mocked(taskService.provision).mockResolvedValue({
+    vi.mocked(taskService.launch).mockResolvedValue({
       success: true,
       data: { path: '/tmp/task', workspaceId: 'workspace-1' },
     });
@@ -216,9 +231,10 @@ describe('executeTaskCreate', () => {
     expect(result.success).toBe(true);
     const taskConfig = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
     expect(taskConfig?.name).toBe('stored-task-run');
-    expect(taskConfig?.strategy).toEqual({
-      kind: 'new-branch',
-      taskBranch: 'stored-task-branch-run',
+    expect(taskConfig?.workspaceConfig.git).toEqual({
+      kind: 'create-branch',
+      branchName: 'stored-task-branch-run',
+      fromBranch: { type: 'local', branch: 'main' },
       pushBranch: false,
     });
     expect(generateTaskName).toHaveBeenCalledWith({ title: 'Stored task', description: run.id });
@@ -228,34 +244,7 @@ describe('executeTaskCreate', () => {
     });
   });
 
-  it('converts stored no-worktree configs into isolated run worktrees for normal projects', async () => {
-    vi.mocked(projectManager.getProject).mockReturnValue({
-      repository: { getRepositoryInfo: vi.fn().mockResolvedValue({ isUnborn: false }) },
-    } as never);
-    vi.mocked(generateTaskName).mockReturnValue('stored-task-run');
-    vi.mocked(taskService.createTask).mockResolvedValueOnce({
-      success: true,
-      data: { task: {} as never },
-    });
-
-    const result = await executeTaskCreate(automation.actions[0]!, {
-      automation: {
-        ...automation,
-        taskConfig: { ...automation.taskConfig!, strategy: { kind: 'no-worktree' } },
-      },
-      run,
-    });
-
-    expect(result.success).toBe(true);
-    const taskConfig = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
-    expect(taskConfig?.strategy).toEqual({
-      kind: 'new-branch',
-      taskBranch: 'stored-task-run',
-      pushBranch: false,
-    });
-  });
-
-  it('preserves no-worktree configs for BYOI automation tasks', async () => {
+  it('preserves none git and byoi workspace for BYOI automation tasks', async () => {
     vi.mocked(projectManager.getProject).mockReturnValue({} as never);
     vi.mocked(taskService.createTask).mockResolvedValueOnce({
       success: true,
@@ -267,8 +256,11 @@ describe('executeTaskCreate', () => {
         ...automation,
         taskConfig: {
           ...automation.taskConfig!,
-          strategy: { kind: 'no-worktree' },
-          workspaceProvider: 'byoi',
+          workspaceConfig: {
+            version: '2' as const,
+            git: { kind: 'none' as const },
+            workspace: { kind: 'byoi' as const },
+          },
         },
       },
       run,
@@ -276,12 +268,13 @@ describe('executeTaskCreate', () => {
 
     expect(result.success).toBe(true);
     const taskConfig = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
-    expect(taskConfig?.strategy).toEqual({ kind: 'no-worktree' });
-    expect(taskConfig?.workspaceProvider).toBe('byoi');
+    expect(taskConfig?.workspaceConfig.git).toEqual({ kind: 'none' });
+    expect(taskConfig?.workspaceConfig.workspace).toEqual({ kind: 'byoi' });
   });
 
   it('uses the run id when generating default task names', async () => {
     vi.mocked(projectManager.getProject).mockReturnValue({
+      defaultWorkspaceType: { kind: 'local' },
       repository: {
         getBranchesPayload: vi.fn().mockResolvedValue({
           gitDefaultBranch: 'main',
@@ -312,6 +305,7 @@ describe('executeTaskCreate', () => {
       key === 'defaultAgent' ? 'cursor' : (null as never)
     );
     vi.mocked(projectManager.getProject).mockReturnValue({
+      defaultWorkspaceType: { kind: 'local' },
       repository: {
         getBranchesPayload: vi.fn().mockResolvedValue({
           gitDefaultBranch: 'main',
@@ -364,7 +358,7 @@ describe('executeTaskCreate', () => {
 
     expect(result.success).toBe(true);
     if (!result.success) return;
-    expect(taskService.provision).toHaveBeenCalledWith(result.data.taskId);
+    expect(taskService.launch).toHaveBeenCalledWith(result.data.taskId);
     expect(createConversation).toHaveBeenCalledWith(
       expect.objectContaining({
         projectId: 'project-1',
@@ -373,7 +367,7 @@ describe('executeTaskCreate', () => {
         isInitialConversation: true,
       })
     );
-    expect(vi.mocked(taskService.provision).mock.invocationCallOrder[0]).toBeLessThan(
+    expect(vi.mocked(taskService.launch).mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(createConversation).mock.invocationCallOrder[0]
     );
   });
@@ -384,13 +378,13 @@ describe('executeTaskCreate', () => {
       success: true,
       data: { task: {} as never },
     });
-    vi.mocked(taskService.provision).mockResolvedValueOnce({
+    vi.mocked(taskService.launch).mockResolvedValueOnce({
       success: false,
       error: {
-        type: 'timeout',
-        message: 'provisioning timed out',
-        timeout: 30_000,
-        step: 'connecting',
+        type: 'setup-failed',
+        stepKind: 'workspace-acquire',
+        stepErrorType: 'error',
+        message: 'provisioning failed',
       },
     });
 
@@ -399,7 +393,7 @@ describe('executeTaskCreate', () => {
     expect(result).toEqual({
       success: false,
       error: {
-        message: 'provisioning timed out (step: connecting)',
+        message: "Setup step 'workspace-acquire' failed (error): provisioning failed.",
         taskId: expect.any(String),
       },
     });
@@ -420,7 +414,7 @@ describe('executeTaskCreate', () => {
       success: false,
       error: { message: 'run_update_failed', taskId: expect.any(String) },
     });
-    expect(taskService.provision).not.toHaveBeenCalled();
+    expect(taskService.launch).not.toHaveBeenCalled();
     expect(createConversation).not.toHaveBeenCalled();
   });
 
@@ -436,7 +430,7 @@ describe('executeTaskCreate', () => {
 
     expect(result).toEqual({ success: false, error: { message: 'after_uuid' } });
     expect(taskService.createTask).not.toHaveBeenCalled();
-    expect(taskService.provision).not.toHaveBeenCalled();
+    expect(taskService.launch).not.toHaveBeenCalled();
     expect(createConversation).not.toHaveBeenCalled();
   });
 });

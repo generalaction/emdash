@@ -59,6 +59,7 @@ function localProject(overrides: Partial<LocalProject> = {}): LocalProject {
     name: 'Project',
     path: '/project',
     baseRef: 'main',
+    repositoryWorkspaceId: null,
     createdAt: '2026-05-28T00:00:00.000Z',
     updatedAt: '2026-05-28T00:00:00.000Z',
     ...overrides,

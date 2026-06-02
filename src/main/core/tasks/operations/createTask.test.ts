@@ -1,28 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TaskRow } from '@main/db/schema';
-import { err } from '@shared/result';
-import { toStoredBranch } from '../stored-branch';
+import { serializeWorkspaceConfig } from '@shared/workspace-config';
 import { createTask } from './createTask';
 
 const mocks = vi.hoisted(() => ({
-  insert: vi.fn(),
-  update: vi.fn(),
+  transaction: vi.fn(),
   getProject: vi.fn(),
-  getAppSetting: vi.fn(),
-  resolveProviderRepository: vi.fn(),
-  getTaskPullRequests: vi.fn(),
-  findBranchAnywhere: vi.fn(),
-  fetchPrForReview: vi.fn(),
-  getConfiguredRemotes: vi.fn(),
-  getRepositoryInfo: vi.fn(),
-  createBranch: vi.fn(),
-  publishBranch: vi.fn(),
+  select: vi.fn(),
 }));
 
 vi.mock('@main/db/client', () => ({
   db: {
-    insert: mocks.insert,
-    update: mocks.update,
+    transaction: mocks.transaction,
+    select: mocks.select,
   },
 }));
 
@@ -32,29 +22,11 @@ vi.mock('@main/core/projects/project-manager', () => ({
   },
 }));
 
-vi.mock('../../settings/settings-service', () => ({
-  appSettingsService: {
-    get: mocks.getAppSetting,
-  },
-}));
-
-vi.mock('../../pull-requests/pr-query-service', () => ({
-  prQueryService: {
-    getTaskPullRequests: mocks.getTaskPullRequests,
-  },
-}));
-
-vi.mock('@main/core/repository/provider-repository-service', () => ({
-  providerRepositoryService: {
-    resolveProject: mocks.resolveProviderRepository,
-  },
-}));
-
 function makeTaskRow(values: Partial<TaskRow>): TaskRow {
   return {
     id: values.id ?? 'task-1',
     projectId: values.projectId ?? 'project-1',
-    name: values.name ?? 'Review PR',
+    name: values.name ?? 'Test Task',
     status: values.status ?? 'in_progress',
     sourceBranch: values.sourceBranch ?? null,
     taskBranch: values.taskBranch ?? null,
@@ -68,309 +40,239 @@ function makeTaskRow(values: Partial<TaskRow>): TaskRow {
     workspaceProvider: values.workspaceProvider ?? null,
     workspaceId: values.workspaceId ?? null,
     workspaceProviderData: values.workspaceProviderData ?? null,
+    workspaceIntent: values.workspaceIntent ?? null,
   };
+}
+
+/**
+ * Sets up db.transaction to invoke the callback with a fake `tx`.
+ * The fake tx captures insert values by call order (0=task, 1=workspace if any, 2=conversation).
+ * Returns an array that is populated with each set of insert values as the callback runs.
+ */
+function setupTransactionMock() {
+  const captured: unknown[] = [];
+
+  mocks.transaction.mockImplementation((cb: (tx: unknown) => void) => {
+    captured.length = 0;
+    cb({
+      insert: () => ({
+        values: (vals: unknown) => {
+          captured.push(vals);
+          return {
+            returning: () => ({ all: () => [makeTaskRow(vals as Partial<TaskRow>)] }),
+            run: () => {},
+          };
+        },
+      }),
+    });
+  });
+
+  return { captured };
+}
+
+/** Sets up db.select to return a local project row. */
+function setupSelectMock(workspaceProvider = 'local', sshConnectionId: string | null = null) {
+  mocks.select.mockReturnValue({
+    from: () => ({
+      where: () => ({
+        limit: () => Promise.resolve([{ workspaceProvider, sshConnectionId }]),
+      }),
+    }),
+  });
 }
 
 describe('createTask', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-
-    mocks.getAppSetting.mockImplementation((key: string) => {
-      if (key === 'project') {
-        return Promise.resolve({ branchPrefix: 'emdash', appendRandomBranchSuffix: true });
-      }
-      return Promise.resolve(undefined);
-    });
-
-    mocks.findBranchAnywhere.mockResolvedValue('/external/worktrees/pr-branch');
-    mocks.fetchPrForReview.mockResolvedValue({ success: true });
-    mocks.getConfiguredRemotes.mockResolvedValue({ baseRemote: 'origin', pushRemote: 'origin' });
-    mocks.getRepositoryInfo.mockResolvedValue({ isUnborn: false, currentBranch: 'main' });
-    mocks.createBranch.mockResolvedValue({ success: true, data: undefined });
-    mocks.publishBranch.mockResolvedValue({ success: true, data: { output: '' } });
-    mocks.getProject.mockReturnValue({
-      defaultWorkspaceType: { kind: 'local' },
-      worktreeService: {
-        findBranchAnywhere: mocks.findBranchAnywhere,
-      },
-      repository: {
-        getConfiguredRemotes: mocks.getConfiguredRemotes,
-        getRepositoryInfo: mocks.getRepositoryInfo,
-        createBranch: mocks.createBranch,
-        publishBranch: mocks.publishBranch,
-        fetchPrForReview: mocks.fetchPrForReview,
-      },
-    });
-    mocks.resolveProviderRepository.mockResolvedValue(err({ type: 'unsupported_provider' }));
-
-    const updateWhere = vi.fn().mockResolvedValue(undefined);
-    const updateSet = vi.fn(() => ({ where: updateWhere }));
-    mocks.update.mockReturnValue({ set: updateSet });
+    mocks.getProject.mockReturnValue({});
+    setupTransactionMock();
+    setupSelectMock();
   });
 
-  it('skips fetching a pull request branch that is already checked out in any worktree', async () => {
-    const insertTaskValues = vi.fn((values: Partial<TaskRow>) => ({
-      returning: vi.fn().mockResolvedValue([makeTaskRow(values)]),
-    }));
-    const insertWorkspaceValues = vi.fn().mockResolvedValue(undefined);
-    mocks.insert
-      .mockReturnValueOnce({ values: insertTaskValues })
-      .mockReturnValueOnce({ values: insertWorkspaceValues });
-
+  it('returns project-not-found when project does not exist', async () => {
+    mocks.getProject.mockReturnValue(undefined);
     const result = await createTask({
       id: 'task-1',
       projectId: 'project-1',
-      name: 'Review PR',
-      sourceBranch: {
-        type: 'remote',
-        branch: 'main',
-        remote: { name: 'origin', url: 'https://github.com/example/repo.git' },
-      },
-      strategy: {
-        kind: 'from-pull-request',
-        prNumber: 123,
-        headBranch: 'claude/add-french-translations-ud2fs',
-        headRepositoryUrl: 'https://github.com/example/repo.git',
-        isFork: false,
+      name: 'Test Task',
+      workspaceConfig: {
+        version: '2',
+        git: { kind: 'none' },
+        workspace: { kind: 'repository-instance', workspaceId: 'ws-repo-1' },
       },
     });
-
-    expect(result.success).toBe(true);
-    expect(mocks.findBranchAnywhere).toHaveBeenCalledWith('claude/add-french-translations-ud2fs');
-    expect(mocks.fetchPrForReview).not.toHaveBeenCalled();
-    expect(insertTaskValues).toHaveBeenCalledWith(
-      expect.objectContaining({
-        taskBranch: 'claude/add-french-translations-ud2fs',
-        sourceBranch: toStoredBranch({
-          type: 'local',
-          branch: 'claude/add-french-translations-ud2fs',
-        }),
-      })
-    );
+    expect(result).toEqual({ success: false, error: { type: 'project-not-found' } });
+    expect(mocks.transaction).not.toHaveBeenCalled();
   });
 
-  it('fetches the pull request branch when it is not already checked out', async () => {
-    mocks.findBranchAnywhere.mockResolvedValue(undefined);
-
-    const insertTaskValues = vi.fn((values: Partial<TaskRow>) => ({
-      returning: vi.fn().mockResolvedValue([makeTaskRow(values)]),
-    }));
-    const insertWorkspaceValues = vi.fn().mockResolvedValue(undefined);
-    mocks.insert
-      .mockReturnValueOnce({ values: insertTaskValues })
-      .mockReturnValueOnce({ values: insertWorkspaceValues });
-
-    const result = await createTask({
+  it('executes all writes inside a single db.transaction call', async () => {
+    await createTask({
       id: 'task-1',
       projectId: 'project-1',
-      name: 'Review PR',
-      sourceBranch: {
-        type: 'remote',
-        branch: 'main',
-        remote: { name: 'origin', url: 'https://github.com/example/repo.git' },
-      },
-      strategy: {
-        kind: 'from-pull-request',
-        prNumber: 123,
-        headBranch: 'claude/add-french-translations-ud2fs',
-        headRepositoryUrl: 'https://github.com/example/repo.git',
-        isFork: false,
+      name: 'Test Task',
+      workspaceConfig: {
+        version: '2',
+        git: { kind: 'none' },
+        workspace: { kind: 'repository-instance', workspaceId: 'ws-repo-1' },
       },
     });
-
-    expect(result.success).toBe(true);
-    expect(mocks.findBranchAnywhere).toHaveBeenCalledWith('claude/add-french-translations-ud2fs');
-    expect(mocks.fetchPrForReview).toHaveBeenCalledWith(
-      123,
-      'claude/add-french-translations-ud2fs',
-      'https://github.com/example/repo.git',
-      'claude/add-french-translations-ud2fs',
-      false,
-      'origin'
-    );
-    expect(insertTaskValues).toHaveBeenCalledWith(
-      expect.objectContaining({
-        taskBranch: 'claude/add-french-translations-ud2fs',
-        sourceBranch: toStoredBranch({
-          type: 'local',
-          branch: 'claude/add-french-translations-ud2fs',
-        }),
-      })
-    );
+    expect(mocks.transaction).toHaveBeenCalledTimes(1);
   });
 
-  it('reuses an existing local branch when creating a new branch task', async () => {
-    const insertTaskValues = vi.fn((values: Partial<TaskRow>) => ({
-      returning: vi.fn().mockResolvedValue([makeTaskRow(values)]),
-    }));
-    const insertWorkspaceValues = vi.fn().mockResolvedValue(undefined);
-    mocks.insert
-      .mockReturnValueOnce({ values: insertTaskValues })
-      .mockReturnValueOnce({ values: insertWorkspaceValues });
-    mocks.createBranch.mockResolvedValueOnce({
-      success: false,
-      error: { type: 'already_exists', name: 'existing-branch' },
-    });
+  it('does not write taskBranch or sourceBranch to the tasks row', async () => {
+    const { captured } = setupTransactionMock();
 
-    const result = await createTask({
+    await createTask({
       id: 'task-1',
       projectId: 'project-1',
-      name: 'Review PR',
-      sourceBranch: { type: 'local', branch: 'main' },
-      strategy: {
-        kind: 'new-branch',
-        taskBranch: 'Review PR',
-        pushBranch: true,
-      },
-    });
-
-    expect(result.success).toBe(true);
-    expect(mocks.createBranch).toHaveBeenCalledOnce();
-    expect(mocks.publishBranch).not.toHaveBeenCalled();
-    expect(insertTaskValues).toHaveBeenCalledWith(
-      expect.objectContaining({ taskBranch: expect.any(String) })
-    );
-  });
-
-  it('creates branch-based tasks from local source branches without remote sync', async () => {
-    const insertTaskValues = vi.fn((values: Partial<TaskRow>) => ({
-      returning: vi.fn().mockResolvedValue([makeTaskRow(values)]),
-    }));
-    const insertWorkspaceValues = vi.fn().mockResolvedValue(undefined);
-    mocks.insert
-      .mockReturnValueOnce({ values: insertTaskValues })
-      .mockReturnValueOnce({ values: insertWorkspaceValues });
-
-    const result = await createTask({
-      id: 'task-1',
-      projectId: 'project-1',
-      name: 'Local task',
-      sourceBranch: { type: 'local', branch: 'main' },
-      strategy: {
-        kind: 'new-branch',
-        taskBranch: 'task/local',
-        pushBranch: false,
-      },
-    });
-
-    expect(result.success).toBe(true);
-    expect(mocks.createBranch).toHaveBeenCalledWith('task/local', 'main', false, undefined);
-  });
-
-  it('uses unknown remote in publish warning when configured remotes fail', async () => {
-    const insertTaskValues = vi.fn((values: Partial<TaskRow>) => ({
-      returning: vi.fn().mockResolvedValue([makeTaskRow(values)]),
-    }));
-    const insertWorkspaceValues = vi.fn().mockResolvedValue(undefined);
-    mocks.insert
-      .mockReturnValueOnce({ values: insertTaskValues })
-      .mockReturnValueOnce({ values: insertWorkspaceValues });
-    mocks.getConfiguredRemotes.mockRejectedValueOnce(new Error('failed to read remotes'));
-
-    const result = await createTask({
-      id: 'task-1',
-      projectId: 'project-1',
-      name: 'Publish task',
-      sourceBranch: { type: 'local', branch: 'main' },
-      strategy: {
-        kind: 'new-branch',
-        taskBranch: 'task/publish',
-        pushBranch: true,
-      },
-    });
-
-    expect(result.success).toBe(true);
-    expect(result.success && result.data.warning).toEqual({
-      type: 'branch-publish-failed',
-      branch: 'task/publish',
-      remote: 'unknown',
-      error: { type: 'error', message: 'failed to read remotes' },
-    });
-    expect(mocks.publishBranch).not.toHaveBeenCalled();
-  });
-
-  it('uses unknown remote in PR fetch error when configured remotes fail', async () => {
-    mocks.findBranchAnywhere.mockResolvedValue(undefined);
-    mocks.getConfiguredRemotes.mockRejectedValueOnce(new Error('failed to read remotes'));
-
-    const result = await createTask({
-      id: 'task-1',
-      projectId: 'project-1',
-      name: 'Review PR',
-      sourceBranch: {
-        type: 'remote',
-        branch: 'main',
-        remote: { name: 'origin', url: 'https://github.com/example/repo.git' },
-      },
-      strategy: {
-        kind: 'from-pull-request',
-        prNumber: 123,
-        headBranch: 'feature-branch',
-        headRepositoryUrl: 'https://github.com/example/repo.git',
-        isFork: false,
-      },
-    });
-
-    expect(result).toEqual({
-      success: false,
-      error: {
-        type: 'pr-fetch-failed',
-        error: { type: 'error', message: 'failed to read remotes' },
-        remote: 'unknown',
-      },
-    });
-    expect(mocks.fetchPrForReview).not.toHaveBeenCalled();
-    expect(mocks.insert).not.toHaveBeenCalled();
-  });
-
-  it('blocks branch-based tasks when the selected remote source branch cannot be fetched', async () => {
-    mocks.createBranch.mockResolvedValueOnce(
-      err({
-        type: 'fetch_failed',
-        remote: 'origin',
-        branch: 'main',
-        error: {
-          type: 'auth_failed',
-          message:
-            "fatal: could not read Username for 'https://github.com': terminal prompts disabled",
+      name: 'Test Task',
+      workspaceConfig: {
+        version: '2',
+        git: {
+          kind: 'create-branch',
+          branchName: 'feature/x',
+          fromBranch: { type: 'local', branch: 'main' },
         },
-      })
-    );
-
-    const result = await createTask({
-      id: 'task-1',
-      projectId: 'project-1',
-      name: 'Remote task',
-      sourceBranch: {
-        type: 'remote',
-        branch: 'main',
-        remote: { name: 'origin', url: 'https://github.com/example/repo.git' },
-      },
-      strategy: {
-        kind: 'new-branch',
-        taskBranch: 'task/remote',
-        pushBranch: false,
+        workspace: { kind: 'new-worktree' },
       },
     });
 
-    expect(result).toEqual({
-      success: false,
-      error: {
-        type: 'branch-create-failed',
-        branch: 'task/remote',
-        error: {
-          type: 'fetch_failed',
-          remote: 'origin',
-          branch: 'main',
-          error: {
-            type: 'auth_failed',
-            message:
-              "fatal: could not read Username for 'https://github.com': terminal prompts disabled",
+    const taskInsert = captured[0] as Record<string, unknown>;
+    expect(taskInsert).not.toEqual(
+      expect.objectContaining({ taskBranch: expect.anything(), sourceBranch: expect.anything() })
+    );
+  });
+
+  it('includes workspaceId in the task row insert', async () => {
+    const { captured } = setupTransactionMock();
+
+    await createTask({
+      id: 'task-1',
+      projectId: 'project-1',
+      name: 'Test Task',
+      workspaceConfig: {
+        version: '2',
+        git: { kind: 'none' },
+        workspace: { kind: 'repository-instance', workspaceId: 'ws-repo-1' },
+      },
+    });
+
+    const taskInsert = captured[0] as Record<string, unknown>;
+    expect(taskInsert.workspaceId).toBeDefined();
+    expect(typeof taskInsert.workspaceId).toBe('string');
+  });
+
+  describe('repository-instance workspace target', () => {
+    it('reuses the existing workspace ID from config', async () => {
+      const { captured } = setupTransactionMock();
+      await createTask({
+        id: 'task-1',
+        projectId: 'project-1',
+        name: 'Test Task',
+        workspaceConfig: {
+          version: '2',
+          git: { kind: 'none' },
+          workspace: { kind: 'repository-instance', workspaceId: 'ws-repo-1' },
+        },
+      });
+
+      // Only the task row is inserted — no workspace insert.
+      expect(captured).toHaveLength(1);
+      expect((captured[0] as Record<string, unknown>).workspaceId).toBe('ws-repo-1');
+    });
+
+    it('does not insert a new workspace row', async () => {
+      const { captured } = setupTransactionMock();
+      await createTask({
+        id: 'task-1',
+        projectId: 'project-1',
+        name: 'Test Task',
+        workspaceConfig: {
+          version: '2',
+          git: { kind: 'none' },
+          workspace: { kind: 'repository-instance', workspaceId: 'ws-repo-1' },
+        },
+      });
+
+      // captured[0] = task. No workspace insert at index 1.
+      expect(captured).toHaveLength(1);
+    });
+  });
+
+  describe('new-worktree workspace target', () => {
+    it('inserts a workspace row with kind=worktree and the config serialized', async () => {
+      const { captured } = setupTransactionMock();
+      const workspaceConfig = {
+        version: '2' as const,
+        git: {
+          kind: 'create-branch' as const,
+          branchName: 'feature/test',
+          fromBranch: { type: 'local' as const, branch: 'main' },
+          pushBranch: true,
+        },
+        workspace: { kind: 'new-worktree' as const },
+      };
+
+      await createTask({
+        id: 'task-1',
+        projectId: 'project-1',
+        name: 'Test Task',
+        workspaceConfig,
+      });
+
+      // captured[0]=task, captured[1]=workspace
+      expect(captured).toHaveLength(2);
+      const wsInsert = captured[1] as Record<string, unknown>;
+      expect(wsInsert.kind).toBe('worktree');
+      expect(wsInsert.location).toBe('local');
+      expect(wsInsert.config).toBe(serializeWorkspaceConfig(workspaceConfig));
+    });
+
+    it('sets location=remote and type=project-ssh for SSH projects', async () => {
+      setupSelectMock('ssh', 'conn-1');
+      const { captured } = setupTransactionMock();
+
+      await createTask({
+        id: 'task-1',
+        projectId: 'project-1',
+        name: 'Test Task',
+        workspaceConfig: {
+          version: '2',
+          git: {
+            kind: 'create-branch',
+            branchName: 'feature/ssh',
+            fromBranch: { type: 'local', branch: 'main' },
           },
+          workspace: { kind: 'new-worktree' },
         },
-      },
+      });
+
+      const wsInsert = captured[1] as Record<string, unknown>;
+      expect(wsInsert.kind).toBe('worktree');
+      expect(wsInsert.location).toBe('remote');
+      expect(wsInsert.type).toBe('project-ssh');
+      expect(wsInsert.sshConnectionId).toBe('conn-1');
     });
-    expect(mocks.createBranch).toHaveBeenCalledWith('task/remote', 'main', true, 'origin');
-    expect(mocks.insert).not.toHaveBeenCalled();
+  });
+
+  describe('byoi workspace target', () => {
+    it('inserts a workspace row with kind=byoi and location=remote', async () => {
+      const { captured } = setupTransactionMock();
+      await createTask({
+        id: 'task-1',
+        projectId: 'project-1',
+        name: 'Test Task',
+        workspaceConfig: {
+          version: '2',
+          git: { kind: 'none' },
+          workspace: { kind: 'byoi' },
+        },
+      });
+
+      const wsInsert = captured[1] as Record<string, unknown>;
+      expect(wsInsert.kind).toBe('byoi');
+      expect(wsInsert.type).toBe('byoi');
+      expect(wsInsert.location).toBe('remote');
+    });
   });
 });

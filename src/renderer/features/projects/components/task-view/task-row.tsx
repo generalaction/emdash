@@ -59,8 +59,7 @@ export const TaskRow = observer(function TaskRow({
   const canPin = task.state !== 'unregistered';
   const agentAttention = taskAgentStatus(task);
   const currentPr = task.data.prs ? selectCurrentPr(task.data.prs) : undefined;
-  const branchName =
-    getTaskGitStore(task.data.projectId, task.data.id)?.branchName ?? task.data.taskBranch;
+  const branchName = getTaskGitStore(task.data.projectId, task.data.id)?.branchName ?? undefined;
 
   return (
     <TaskContextMenu

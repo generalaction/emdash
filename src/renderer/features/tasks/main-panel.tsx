@@ -15,7 +15,6 @@ import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
 import { ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
 import { DraggableResizeHandle, TaskMainColumn } from './view/task-main-column';
 import { TaskSidebar } from './view/task-sidebar';
-import { WorkspaceResolutionView } from './workspace-resolution-view';
 
 export const TaskMainPanel = observer(function TaskMainPanel() {
   const { projectId, taskId } = useTaskViewContext();
@@ -92,10 +91,6 @@ export const TaskMainPanel = observer(function TaskMainPanel() {
 
   if (kind === 'missing') {
     return null;
-  }
-
-  if (kind === 'needs-resolution') {
-    return <WorkspaceResolutionView />;
   }
 
   return <ReadyTaskMainPanel />;

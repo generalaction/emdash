@@ -1,13 +1,13 @@
 import { telemetryService } from '@main/lib/telemetry';
-import { taskManager } from '../tasks/task-manager';
 import { taskService } from '../tasks/task-service';
+import { taskSessionManager } from '../tasks/task-session-manager';
 
 taskService.on('task:created', (task, params) => {
-  const { strategy } = params;
+  const { git } = params.workspaceConfig;
   const taskCreatedStrategy = (() => {
-    if (strategy.kind === 'from-pull-request') return 'pr';
+    if (git.kind === 'pr-branch') return 'pr';
     if (params.linkedIssue) return 'issue';
-    if (strategy.kind === 'no-worktree') return 'blank';
+    if (git.kind === 'none') return 'blank';
     return 'branch';
   })();
   telemetryService.capture('task_created', {
@@ -27,6 +27,6 @@ taskService.on('task:created', (task, params) => {
   }
 });
 
-taskManager.hooks.on('task:provisioned', ({ projectId, taskId }) => {
+taskSessionManager.hooks.on('task:provisioned', ({ projectId, taskId }) => {
   telemetryService.capture('task_provisioned', { project_id: projectId, task_id: taskId });
 });
