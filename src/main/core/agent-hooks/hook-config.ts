@@ -31,7 +31,7 @@ const OPENCODE_PLUGIN_PATH = '.opencode/plugins/emdash-notifications.js';
 const GITIGNORE_PATH = '.gitignore';
 type HookConfigWriteOptions = { writeGitIgnoreEntries?: boolean };
 type CodexHookEvent = 'Stop' | 'PermissionRequest' | 'SessionStart';
-type CopilotHookEvent = 'agentStop' | 'notification' | 'permissionRequest';
+type CopilotHookEvent = 'agentStop' | 'notification' | 'permissionRequest' | 'sessionStart';
 type GrokHookEvent =
   | 'Notification'
   | 'PostToolUse'
@@ -59,9 +59,14 @@ const CODEX_SESSION_HOOK_EVENT_MAP = [{ hookKey: 'SessionStart' as const }] sati
   hookKey: CodexHookEvent;
 }[];
 
-const COPILOT_HOOK_EVENT_MAP = [
-  { hookKey: 'agentStop', eventType: 'stop' },
-] satisfies { hookKey: CopilotHookEvent; eventType: 'stop' }[];
+const COPILOT_HOOK_EVENT_MAP = [{ hookKey: 'agentStop', eventType: 'stop' }] satisfies {
+  hookKey: CopilotHookEvent;
+  eventType: 'stop';
+}[];
+
+const COPILOT_SESSION_HOOK_EVENT_MAP = [{ hookKey: 'sessionStart' as const }] satisfies {
+  hookKey: CopilotHookEvent;
+}[];
 
 const DROID_HOOK_EVENT_MAP = [
   { hookKey: 'Notification', eventType: 'notification' },
@@ -181,6 +186,14 @@ export class HookConfigWriter {
       hooks[hookKey] = this.buildCopilotHookEntries(
         existing,
         makeClaudeHookCommand(eventType, { platform: this.platform })
+      );
+    }
+
+    for (const { hookKey } of COPILOT_SESSION_HOOK_EVENT_MAP) {
+      const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
+      hooks[hookKey] = this.buildCopilotHookEntries(
+        existing,
+        makeClaudeHookCommand('session', { platform: this.platform })
       );
     }
 

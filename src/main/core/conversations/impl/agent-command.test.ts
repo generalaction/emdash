@@ -397,6 +397,18 @@ describe('buildAgentCommand', () => {
     expect(result).toEqual({ command: 'copilot', args: ['Fix the bug'] });
   });
 
+  it('resumes Copilot by stored provider session id when available', () => {
+    const result = buildAgentCommand({
+      providerId: 'copilot',
+      providerConfig: providerConfigDefaults.copilot,
+      sessionId: 'conv-1',
+      providerSessionId: 'copilot-session-1',
+      isResuming: true,
+    });
+
+    expect(result.args).toEqual(['--resume', 'copilot-session-1']);
+  });
+
   it('rejects shell control syntax that makes managed args ambiguous', () => {
     expect(() =>
       buildAgentCommand({

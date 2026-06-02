@@ -54,6 +54,33 @@ describe('extractProviderSessionId', () => {
 });
 
 describe('handleProviderSessionHook', () => {
+  it('persists Copilot session ids and emits conversation changes', async () => {
+    mockSetProviderSessionId.mockResolvedValue(true);
+    mockEnrichEvent.mockResolvedValue({
+      type: 'start',
+      providerId: 'copilot',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      conversationId: 'conversation-1',
+      timestamp: 0,
+      payload: {},
+    });
+
+    await handleProviderSessionHook({
+      ptyId: 'copilot-conv-conversation-1',
+      type: 'session',
+      body: JSON.stringify({ sessionId: 'copilot-session-1' }),
+    });
+
+    expect(mockSetProviderSessionId).toHaveBeenCalledWith('conversation-1', 'copilot-session-1');
+    expect(mockEvents.emit).toHaveBeenCalledWith(conversationChangedChannel, {
+      conversationId: 'conversation-1',
+      taskId: 'task-1',
+      projectId: 'project-1',
+      changes: { providerSessionId: 'copilot-session-1' },
+    });
+  });
+
   it('persists Grok session ids and emits conversation changes', async () => {
     mockSetProviderSessionId.mockResolvedValue(true);
     mockEnrichEvent.mockResolvedValue({

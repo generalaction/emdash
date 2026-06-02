@@ -279,6 +279,7 @@ describe('HookConfigWriter', () => {
     expect(config.version).toBe(1);
     expect(config.hooks.notification).toHaveLength(0);
     expect(config.hooks.agentStop[0].command).toContain('X-Emdash-Event-Type: stop');
+    expect(config.hooks.sessionStart[0].command).toContain('X-Emdash-Event-Type: session');
     expect(config.hooks.permissionRequest[0].command).toContain(
       '{"notification_type":"permission_prompt"}'
     );

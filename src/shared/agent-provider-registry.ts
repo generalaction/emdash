@@ -338,6 +338,9 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     autoApproveFlag: '--allow-all-tools',
     initialPromptFlag: '-i',
     resumeFlag: '--resume',
+    /** Copilot only accepts an explicit session id on resume (`--resume <id>`). */
+    sessionIdFlag: '--resume',
+    sessionIdOnResumeOnly: true,
     icon: 'gh-copilot.svg',
     alt: 'GitHub Copilot CLI',
     invertInDark: true,
