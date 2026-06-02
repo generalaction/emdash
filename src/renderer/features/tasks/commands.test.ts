@@ -93,11 +93,12 @@ describe('createTaskCommandProvider', () => {
 
   it('opens a new conversation in a right split from the split command', () => {
     const provider = createTaskCommandProvider('project-1', 'task-1');
-    const taskView = mocks.getTaskView.mock.results.at(-1)?.value ?? mocks.getTaskView();
 
     const command = provider
       .getCommands()
       .find((candidate) => candidate.id === 'task.newConversationSplitRight');
+
+    const taskView = mocks.getTaskView.mock.results.at(-1)?.value ?? mocks.getTaskView();
 
     command?.execute();
 
