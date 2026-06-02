@@ -66,6 +66,18 @@ describe('prioritizeExactBranchMatches', () => {
     ]);
   });
 
+  it('moves exact remote-label matches before partial matches', () => {
+    const matchingBranches: Branch[] = [
+      { type: 'remote', branch: 'feature/origin-main', remote: origin },
+      { type: 'remote', branch: 'main', remote: origin },
+    ];
+
+    expect(prioritizeExactBranchMatches(matchingBranches, 'origin/main')).toEqual([
+      { type: 'remote', branch: 'main', remote: origin },
+      { type: 'remote', branch: 'feature/origin-main', remote: origin },
+    ]);
+  });
+
   it('preserves branch order when there is no search query', () => {
     expect(prioritizeExactBranchMatches(branches, '  ')).toEqual(branches);
   });
