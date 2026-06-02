@@ -46,6 +46,8 @@ export const projects = sqliteTable(
     sshConnectionId: text('ssh_connection_id').references(() => sshConnections.id, {
       onDelete: 'set null',
     }),
+    /** The shared workspace representing this project's repository root. Set on first mount. */
+    repositoryWorkspaceId: text('repository_workspace_id'),
     createdAt: text('created_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
@@ -141,7 +143,15 @@ export const workspaces = sqliteTable(
   {
     id: text('id').primaryKey(),
     key: text('key'),
-    type: text('type').notNull().$type<'local' | 'project-ssh' | 'byoi'>(),
+    type: text('type').notNull().$type<'local' | 'project-ssh' | 'byoi'>(), // @deprecated — use kind + location
+    /** Describes the nature of the workspace: a git worktree, the project root, or BYOI. */
+    kind: text('kind').$type<'worktree' | 'project-root' | 'byoi'>(),
+    /** Where the workspace runs: on the local machine or over SSH. */
+    location: text('location').$type<'local' | 'remote'>(),
+    /** FK to ssh_connections; only set when location = 'remote'. */
+    sshConnectionId: text('ssh_connection_id').references(() => sshConnections.id, {
+      onDelete: 'set null',
+    }),
     data: text('data'),
     path: text('path'),
     config: text('config'),

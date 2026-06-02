@@ -1,9 +1,9 @@
 import crypto from 'node:crypto';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { mapConversationRowToConversation } from '@main/core/conversations/utils';
 import { projectManager } from '@main/core/projects/project-manager';
 import { db } from '@main/db/client';
-import { conversations, tasks, workspaces } from '@main/db/schema';
+import { conversations, projects, tasks, workspaces } from '@main/db/schema';
 import type { ConversationRow, TaskRow } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { type ConversationConfig, serializeConversationConfig } from '@shared/conversation-config';
@@ -30,13 +30,55 @@ export async function createTask(
 
   const { workspaceConfig } = params;
   const initialStatus: TaskLifecycleStatus = params.initialStatus ?? 'in_progress';
+  const configJson = serializeWorkspaceConfig(workspaceConfig);
 
-  const workspaceId = crypto.randomUUID();
-  const workspaceType = ((): 'local' | 'project-ssh' | 'byoi' => {
-    if (workspaceConfig.workspace.host === 'byoi') return 'byoi';
-    if (workspaceConfig.workspace.host === 'project-ssh') return 'project-ssh';
-    return 'local';
-  })();
+  // Resolve the workspace ID and determine whether to insert a new workspace row.
+  let workspaceId: string;
+  let newWorkspaceValues: (typeof workspaces.$inferInsert) | null = null;
+
+  const wsTarget = workspaceConfig.workspace;
+
+  if (wsTarget.kind === 'repository-instance') {
+    // Reuse the existing shared workspace for this project's repository root.
+    workspaceId = wsTarget.workspaceId;
+  } else {
+    // Create a new workspace row for 'new-worktree' or 'byoi' targets.
+    workspaceId = crypto.randomUUID();
+
+    if (wsTarget.kind === 'byoi') {
+      newWorkspaceValues = {
+        id: workspaceId,
+        kind: 'byoi',
+        location: 'remote',
+        type: 'byoi',
+        config: configJson,
+      };
+    } else {
+      // 'new-worktree' — derive location from the project.
+      const [projectRow] = await db
+        .select({
+          workspaceProvider: projects.workspaceProvider,
+          sshConnectionId: projects.sshConnectionId,
+        })
+        .from(projects)
+        .where(eq(projects.id, params.projectId))
+        .limit(1);
+
+      const isRemote = projectRow?.workspaceProvider === 'ssh';
+      const location = isRemote ? 'remote' : 'local';
+      const sshConnectionId = isRemote ? (projectRow?.sshConnectionId ?? null) : null;
+      const legacyType = isRemote ? 'project-ssh' : 'local';
+
+      newWorkspaceValues = {
+        id: workspaceId,
+        kind: 'worktree',
+        location,
+        sshConnectionId,
+        type: legacyType,
+        config: configJson,
+      };
+    }
+  }
 
   // Prepare conversation insert values before the transaction (no async work needed).
   let convInsert: ConvInsert | undefined;
@@ -59,7 +101,7 @@ export async function createTask(
     };
   }
 
-  // All three inserts in a single atomic transaction.
+  // All inserts in a single atomic transaction.
   let taskRow!: TaskRow;
   let convRow: ConversationRow | undefined;
   db.transaction((tx) => {
@@ -79,13 +121,9 @@ export async function createTask(
       .returning()
       .all();
 
-    tx.insert(workspaces)
-      .values({
-        id: workspaceId,
-        type: workspaceType,
-        config: serializeWorkspaceConfig(workspaceConfig),
-      })
-      .run();
+    if (newWorkspaceValues) {
+      tx.insert(workspaces).values(newWorkspaceValues).run();
+    }
 
     if (convInsert) {
       [convRow] = tx.insert(conversations).values(convInsert).returning().all();

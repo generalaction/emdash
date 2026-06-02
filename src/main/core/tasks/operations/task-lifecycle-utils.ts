@@ -50,6 +50,15 @@ export async function deleteWorkspaceIfUnused(
   workspaceId: string,
   excludeTaskId: string
 ): Promise<void> {
+  const [wsRow] = await db
+    .select({ id: workspaces.id, kind: workspaces.kind })
+    .from(workspaces)
+    .where(eq(workspaces.id, workspaceId))
+    .limit(1);
+
+  // project-root workspaces outlive any individual task — never delete them.
+  if (wsRow?.kind === 'project-root') return;
+
   const [sibling] = await db
     .select({ id: tasks.id })
     .from(tasks)

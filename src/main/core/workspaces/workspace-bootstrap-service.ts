@@ -52,6 +52,7 @@ export class WorkspaceBootstrapService {
     workspaceRow: {
       id: string;
       type: WorkspaceType;
+      kind?: string | null;
       path: string | null;
       config?: string | null;
       branchName?: string | null;
@@ -65,6 +66,9 @@ export class WorkspaceBootstrapService {
     task: Task,
     project: ProjectProvider
   ): Promise<Result<WorkspaceBootstrapResult, ProvisionWorkspaceError>> {
+    const wsKind = workspaceRow.kind;
+    const isByoi = wsKind === 'byoi' || workspaceRow.type === 'byoi';
+
     // Derive branch info from workspace config for passing to task providers.
     const wsConfig = parseWorkspaceConfig(workspaceRow.config);
     const workspaceBranchName: string | undefined =
@@ -73,8 +77,22 @@ export class WorkspaceBootstrapService {
     const workspaceSourceBranch: Branch | undefined =
       wsConfig?.git.kind === 'create-branch' ? wsConfig.git.fromBranch : undefined;
 
+    // project-root fast-path: use the project repo path directly.
+    // Path is set by ensureRepositoryWorkspace at mount time.
+    if (wsKind === 'project-root') {
+      const resolvedPath = workspaceRow.path ?? project.repoPath;
+      return this._acquireAndBuild(
+        workspaceRow.id,
+        task,
+        project,
+        resolvedPath,
+        workspaceBranchName,
+        workspaceSourceBranch
+      );
+    }
+
     // Fast path: path already persisted and still exists on disk.
-    if (workspaceRow.path && workspaceRow.type !== 'byoi') {
+    if (workspaceRow.path && !isByoi) {
       const exists = await project.worktreeHost.existsAbsolute(workspaceRow.path);
       if (exists) {
         return this._acquireAndBuild(
@@ -89,7 +107,7 @@ export class WorkspaceBootstrapService {
     }
 
     // BYOI workspaces are managed by provisionBYOITask.
-    if (workspaceRow.type === 'byoi') {
+    if (isByoi) {
       return this._provisionBYOI(workspaceRow, task, project);
     }
 

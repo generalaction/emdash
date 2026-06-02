@@ -39,7 +39,7 @@ import {
 import { assertValidCronTrigger } from '@shared/automations/validation';
 import type { Branch } from '@shared/git';
 import type { CreateTaskParams } from '@shared/tasks';
-import type { WorkspaceConfig } from '@shared/workspace-config';
+import type { WorkspaceConfig, WorkspaceTarget } from '@shared/workspace-config';
 import { useAutomations } from '../useAutomations';
 import { AutomationPanelHeader } from './AutomationPanelHeader';
 import { SchedulePicker } from './pickers/SchedulePicker';
@@ -149,7 +149,9 @@ export const AutomationPanel = observer(function AutomationPanel({
   const [cronExpr, setCronExpr] = useState<string>(cronExprFromTrigger(seedTrigger));
   const [cronTz, setCronTz] = useState<string>(cronTzFromTrigger(seedTrigger));
   const [useBYOI, setUseBYOI] = useState(() => {
-    return seedConfig?.workspaceConfig?.workspace?.host === 'byoi';
+    const ws = seedConfig?.workspaceConfig?.workspace;
+    // Support both v2 (kind='byoi') and legacy v1 (host='byoi') stored configs.
+    return ws?.kind === 'byoi' || (ws as { host?: string } | undefined)?.host === 'byoi';
   });
   const [error, setError] = useState<string | null>(null);
   const [cronError, setCronError] = useState<string | null>(null);
@@ -217,19 +219,31 @@ export const AutomationPanel = observer(function AutomationPanel({
 
   function buildTaskConfig(targetProjectId: string): CreateTaskParams | null {
     if (!fromBranch.selectedBranch) return null;
-    const workspaceConfig: WorkspaceConfig = {
-      version: '1',
-      git:
-        isUnborn || !fromBranch.createBranchAndWorktree || effectiveUseBYOI
-          ? { kind: 'none' }
-          : {
-              kind: 'create-branch',
-              branchName: fromBranch.branchName,
-              fromBranch: plainBranch(fromBranch.selectedBranch),
-              pushBranch: fromBranch.pushBranch,
-            },
-      workspace: effectiveUseBYOI ? { host: 'byoi' } : { host: 'local' },
-    };
+
+    const noWorktree = isUnborn || !fromBranch.createBranchAndWorktree || effectiveUseBYOI;
+    const git = noWorktree
+      ? { kind: 'none' as const }
+      : {
+          kind: 'create-branch' as const,
+          branchName: fromBranch.branchName,
+          fromBranch: plainBranch(fromBranch.selectedBranch),
+          pushBranch: fromBranch.pushBranch,
+        };
+
+    let workspace: WorkspaceTarget;
+    if (effectiveUseBYOI) {
+      workspace = { kind: 'byoi' };
+    } else if (git.kind === 'none') {
+      const repositoryWorkspaceId = asMounted(getProjectStore(targetProjectId))?.data
+        ?.repositoryWorkspaceId;
+      workspace = repositoryWorkspaceId
+        ? { kind: 'repository-instance', workspaceId: repositoryWorkspaceId }
+        : { kind: 'new-worktree' };
+    } else {
+      workspace = { kind: 'new-worktree' };
+    }
+
+    const workspaceConfig: WorkspaceConfig = { version: '2', git, workspace };
     const taskId = crypto.randomUUID();
     return {
       id: taskId,

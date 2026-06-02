@@ -3,8 +3,8 @@ import type { CreateConversationParams } from '@shared/conversations';
 import type { LocalProject, SshProject } from '@shared/projects';
 import type { PullRequest } from '@shared/pull-requests';
 import { getPrNumber, isForkPr } from '@shared/pull-requests';
-import type { GitSetup, TaskLifecycleStatus, WorkspaceLocation } from '@shared/tasks';
-import type { WorkspaceConfig } from '@shared/workspace-config';
+import type { GitSetup, TaskLifecycleStatus } from '@shared/tasks';
+import type { WorkspaceConfig, WorkspaceTarget } from '@shared/workspace-config';
 import { nextDefaultConversationTitle } from '../conversations/conversation-title-utils';
 import type { InitialConversationState } from './initial-conversation-section';
 import { buildFinalPrompt } from './initial-conversation-text';
@@ -104,30 +104,26 @@ export function deriveInitialStatus(
   return linkedPR.status === 'open' && !linkedPR.isDraft ? 'review' : undefined;
 }
 
-export function buildWorkspaceLocation(
-  projectData: LocalProject | SshProject | null,
-  useBYOI: boolean
-): WorkspaceLocation {
-  if (useBYOI) {
-    return { host: 'byoi' };
-  }
-
-  if (projectData?.type === 'ssh') {
-    return { host: 'project-ssh' };
-  }
-
-  return { host: 'local' };
-}
-
 export function buildWorkspaceConfig(
   state: CreateTaskState,
   isUnborn: boolean,
   projectData: LocalProject | SshProject | null,
   useBYOI: boolean
 ): WorkspaceConfig {
-  return {
-    version: '1',
-    git: buildGitSetup(state, isUnborn),
-    workspace: buildWorkspaceLocation(projectData, useBYOI),
-  };
+  const git = buildGitSetup(state, isUnborn);
+
+  let workspace: WorkspaceTarget;
+  if (useBYOI) {
+    workspace = { kind: 'byoi' };
+  } else if (git.kind === 'none') {
+    // Unborn repo or no-worktree mode — use the project's repository-instance workspace.
+    const workspaceId = projectData?.repositoryWorkspaceId ?? null;
+    workspace = workspaceId
+      ? { kind: 'repository-instance', workspaceId }
+      : { kind: 'new-worktree' }; // fallback if repositoryWorkspaceId not yet set (pre-mount)
+  } else {
+    workspace = { kind: 'new-worktree' };
+  }
+
+  return { version: '2', git, workspace };
 }

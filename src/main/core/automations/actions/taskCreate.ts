@@ -1,11 +1,15 @@
 import { randomUUID } from 'node:crypto';
+import { eq } from 'drizzle-orm';
 import { createConversation } from '@main/core/conversations/createConversation';
+import { ensureRepositoryWorkspace } from '@main/core/projects/operations/ensure-repository-workspace';
 import { openProject } from '@main/core/projects/operations/openProject';
 import { projectManager } from '@main/core/projects/project-manager';
 import { DEFAULT_AGENT_ID } from '@main/core/settings/settings-registry';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { generateTaskName } from '@main/core/tasks/name-generation/generateTaskName';
 import { taskService } from '@main/core/tasks/task-service';
+import { db } from '@main/db/client';
+import { projects } from '@main/db/schema';
 import { resolveAutomationAgentAutoApprove } from '@shared/agent-auto-approve-defaults';
 import type { TaskCreateAction } from '@shared/automations/actions';
 import type { Branch } from '@shared/git';
@@ -18,7 +22,11 @@ import type {
   ProvisionWorkspaceError,
   WorkspaceLocation,
 } from '@shared/tasks';
-import type { WorkspaceConfig } from '@shared/workspace-config';
+import {
+  parseWorkspaceConfig,
+  type WorkspaceConfig,
+  type WorkspaceTarget,
+} from '@shared/workspace-config';
 import { linkRunTask } from '../run-transitions';
 import type { ActionContext, ActionError, ActionOutcome } from './types';
 
@@ -100,10 +108,52 @@ async function resolveProjectDefaults(
     ? { kind: 'none' }
     : { kind: 'create-branch', branchName: taskName, fromBranch, pushBranch: true };
 
-  const workspace: WorkspaceLocation =
-    project.defaultWorkspaceType.kind === 'ssh' ? { host: 'project-ssh' } : { host: 'local' };
+  let workspace: WorkspaceTarget;
+  if (git.kind === 'none') {
+    // Unborn repo — link to the project's repository-instance workspace.
+    const workspaceId = await ensureRepositoryWorkspace(
+      await getProjectData(project.projectId)
+    );
+    workspace = { kind: 'repository-instance', workspaceId };
+  } else {
+    workspace = { kind: 'new-worktree' };
+  }
 
-  return { version: '1', git, workspace };
+  return { version: '2', git, workspace };
+}
+
+async function getProjectData(
+  projectId: string
+): Promise<import('@shared/projects').LocalProject | import('@shared/projects').SshProject> {
+  const [row] = await db
+    .select()
+    .from(projects)
+    .where(eq(projects.id, projectId))
+    .limit(1);
+  if (!row) throw new Error(`Project ${projectId} not found`);
+  if (row.workspaceProvider === 'ssh') {
+    return {
+      type: 'ssh',
+      id: row.id,
+      name: row.name,
+      path: row.path,
+      baseRef: row.baseRef ?? 'main',
+      connectionId: row.sshConnectionId!,
+      repositoryWorkspaceId: row.repositoryWorkspaceId ?? null,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    };
+  }
+  return {
+    type: 'local',
+    id: row.id,
+    name: row.name,
+    path: row.path,
+    baseRef: row.baseRef ?? 'main',
+    repositoryWorkspaceId: row.repositoryWorkspaceId ?? null,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
 }
 
 function makeRunTaskName(storedConfig: CreateTaskParams | null | undefined, ctx: ActionContext) {
@@ -131,7 +181,13 @@ function scopeWorkspaceConfigToRun(config: WorkspaceConfig, runId: string): Work
 
 /**
  * Resolves a WorkspaceConfig from a stored automation task config.
- * Handles backwards compat for old configs that stored gitSetup + workspaceLocation separately.
+ *
+ * Handles backwards compat:
+ * - v2 configs are returned as-is.
+ * - v1 configs are upgraded via `parseWorkspaceConfig` (git.kind='none' cases return null
+ *   and fall back to `resolveProjectDefaults` in the caller).
+ * - Very old configs had `gitSetup` + `workspaceLocation` as top-level fields; these are
+ *   wrapped into a v1 structure and upgraded.
  */
 function resolveStoredWorkspaceConfig(
   storedConfig:
@@ -140,13 +196,21 @@ function resolveStoredWorkspaceConfig(
     | undefined
 ): WorkspaceConfig | null {
   if (!storedConfig) return null;
-  if (storedConfig.workspaceConfig) return storedConfig.workspaceConfig;
-  // Backwards compat: old stored configs had gitSetup + workspaceLocation as top-level fields.
+
+  if (storedConfig.workspaceConfig) {
+    const config = storedConfig.workspaceConfig;
+    // Already v2 — return directly.
+    if (config.version === '2') return config;
+    // v1 — try to upgrade.
+    return parseWorkspaceConfig(JSON.stringify(config));
+  }
+
+  // Very old stored configs had gitSetup + workspaceLocation as top-level fields.
   const legacyGit = (storedConfig as { gitSetup?: GitSetup }).gitSetup;
   const legacyWorkspace = (storedConfig as { workspaceLocation?: WorkspaceLocation })
     .workspaceLocation;
   if (legacyGit && legacyWorkspace) {
-    return { version: '1', git: legacyGit, workspace: legacyWorkspace };
+    return parseWorkspaceConfig(JSON.stringify({ version: '1', git: legacyGit, workspace: legacyWorkspace }));
   }
   return null;
 }
