@@ -4,6 +4,7 @@ import { wireAgentClassifier } from '@main/core/agent-hooks/classifier-wiring';
 import { HookConfigWriter } from '@main/core/agent-hooks/hook-config';
 import { workspaceTrustService } from '@main/core/agent-hooks/workspace-trust-service';
 import { ConversationSessionSupervisor } from '@main/core/conversations/conversation-session-supervisor';
+import { getConversationsForTask } from '@main/core/conversations/getConversationsForTask';
 import { resolveAgentSessionCommandArgs } from '@main/core/conversations/resolve-agent-session-command';
 import type { ConversationProvider } from '@main/core/conversations/types';
 import type { IExecutionContext } from '@main/core/execution-context/types';
@@ -390,13 +391,26 @@ export class LocalConversationProvider implements ConversationProvider {
     conversation: Conversation;
     initialSize: { cols: number; rows: number };
   }): void {
-    setTimeout(() => {
-      this.startSessionInternal(conversation, initialSize, true, undefined, true).catch((e) => {
+    setTimeout(async () => {
+      const latestConversation = await this.getLatestConversation(conversation).catch((error) => {
+        log.warn('LocalConversationProvider: failed to refresh conversation before replacement', {
+          conversationId: conversation.id,
+          error: String(error),
+        });
+        return conversation;
+      });
+
+      this.startSessionInternal(latestConversation, initialSize, true, undefined, true).catch((e) => {
         log.error('LocalConversationProvider: replacement failed', {
           conversationId: conversation.id,
           error: String(e),
         });
       });
     }, RESPAWN_DELAY_MS);
+  }
+
+  private async getLatestConversation(conversation: Conversation): Promise<Conversation> {
+    const conversations = await getConversationsForTask(conversation.projectId, conversation.taskId);
+    return conversations.find((item) => item.id === conversation.id) ?? conversation;
   }
 }

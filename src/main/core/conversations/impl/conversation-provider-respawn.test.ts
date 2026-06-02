@@ -11,6 +11,7 @@ import { SshConversationProvider } from './ssh-conversation';
 const spawnLocalPty = vi.hoisted(() => vi.fn());
 const openSsh2Pty = vi.hoisted(() => vi.fn());
 const hookConfigWriteForProvider = vi.hoisted(() => vi.fn(async () => false));
+const getConversationsForTask = vi.hoisted(() => vi.fn());
 
 vi.mock('@main/core/agent-hooks/agent-hook-service', () => ({
   agentHookService: {
@@ -38,6 +39,10 @@ vi.mock('@main/core/agent-hooks/hook-config', () => ({
 
 vi.mock('@main/core/pty/local-pty', () => ({
   spawnLocalPty,
+}));
+
+vi.mock('@main/core/conversations/getConversationsForTask', () => ({
+  getConversationsForTask,
 }));
 
 vi.mock('@main/core/pty/spawn-utils', () => ({
@@ -195,6 +200,8 @@ describe('conversation provider respawn state', () => {
     openSsh2Pty.mockReset();
     hookConfigWriteForProvider.mockReset();
     hookConfigWriteForProvider.mockResolvedValue(false);
+    getConversationsForTask.mockReset();
+    getConversationsForTask.mockResolvedValue([]);
     mockSettings();
     vi.mocked(events.emit).mockClear();
     vi.mocked(agentHookService.getPort).mockReturnValue(0);
@@ -317,6 +324,36 @@ describe('conversation provider respawn state', () => {
       expect(spawnLocalPty).toHaveBeenCalledTimes(2);
       expect(buildAgentSessionCommand).toHaveBeenLastCalledWith(
         expect.objectContaining({ isResuming: true })
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('refreshes local conversations before replacement so newly captured Codex session ids resume', async () => {
+    vi.useFakeTimers();
+    try {
+      const exitHandlers: Array<Array<(info: PtyExitInfo) => void>> = [];
+      spawnLocalPty.mockImplementation(() => {
+        const handlers: Array<(info: PtyExitInfo) => void> = [];
+        exitHandlers.push(handlers);
+        return fakePty(handlers);
+      });
+      const provider = localProvider();
+      const item = { ...conversation(), providerSessionId: undefined };
+      const latest = { ...item, providerSessionId: 'captured-codex-session' };
+      getConversationsForTask.mockResolvedValue([latest]);
+
+      await provider.startSession(item);
+      for (const handler of exitHandlers[0] ?? []) handler({ exitCode: 0 });
+      await vi.advanceTimersByTimeAsync(500);
+
+      expect(getConversationsForTask).toHaveBeenCalledWith(item.projectId, item.taskId);
+      expect(buildAgentSessionCommand).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          providerSessionId: 'captured-codex-session',
+          isResuming: true,
+        })
       );
     } finally {
       vi.useRealTimers();
