@@ -171,7 +171,9 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, className, borderl
         </Tooltip>
         <SelectContent align="end" alignItemWithTrigger={false} sideOffset={6}>
           {menuApps.map((app) => {
-            const isAvailable = loading ? availability[app.id] === true : true;
+            const isAvailable = loading
+              ? availability[app.id] === true
+              : availability[app.id] !== false;
             return (
               <SelectItem key={app.id} value={app.id} disabled={!isAvailable}>
                 {icons[app.id] && (

@@ -11,6 +11,13 @@ import { OpenInMenu } from './open-in-menu';
 
 const mocks = vi.hoisted(() => ({
   openIn: vi.fn(),
+  openInApps: {
+    availability: {
+      finder: true,
+      cursor: true,
+    },
+    loading: false,
+  },
   toast: vi.fn(),
   updateOpenIn: vi.fn(),
 }));
@@ -48,12 +55,9 @@ vi.mock('@renderer/lib/hooks/useOpenInApps', () => ({
       finder: 'Explorer',
       cursor: 'Cursor',
     },
-    availability: {
-      finder: true,
-      cursor: true,
-    },
+    availability: mocks.openInApps.availability,
     installedApps: [OPEN_IN_APPS.finder, OPEN_IN_APPS.cursor],
-    loading: false,
+    loading: mocks.openInApps.loading,
   }),
 }));
 
@@ -149,6 +153,11 @@ describe('OpenInMenu', () => {
 
   beforeEach(() => {
     mocks.openIn.mockResolvedValue({ success: true });
+    mocks.openInApps.availability = {
+      finder: true,
+      cursor: true,
+    };
+    mocks.openInApps.loading = false;
     dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>');
     vi.stubGlobal('window', dom.window);
     vi.stubGlobal('document', dom.window.document);
@@ -183,5 +192,44 @@ describe('OpenInMenu', () => {
       app: 'cursor',
       path: 'C:/repo',
     });
+  });
+
+  it('keeps the preferred app persisted when a dropdown launch fails', async () => {
+    mocks.openIn.mockResolvedValueOnce({ success: false, error: 'Cursor is unavailable' });
+
+    await act(async () => {
+      root.render(React.createElement(OpenInMenu, { path: 'C:/repo' }));
+    });
+
+    const cursorOption = container.querySelector('[data-testid="open-in-option-cursor"]');
+    expect(cursorOption).not.toBeNull();
+
+    await act(async () => {
+      cursorOption!.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(mocks.updateOpenIn).toHaveBeenCalledWith({ default: 'cursor' });
+    expect(mocks.toast).toHaveBeenCalledWith({
+      title: 'Open in Cursor failed',
+      description: 'Cursor is unavailable',
+      variant: 'destructive',
+    });
+  });
+
+  it('disables unavailable dropdown apps after availability loads', async () => {
+    mocks.openInApps.availability = {
+      finder: true,
+      cursor: false,
+    };
+
+    await act(async () => {
+      root.render(React.createElement(OpenInMenu, { path: 'C:/repo' }));
+    });
+
+    const cursorOption = container.querySelector('[data-testid="open-in-option-cursor"]');
+    expect(cursorOption).not.toBeNull();
+    expect(cursorOption).toHaveProperty('disabled', true);
   });
 });
