@@ -7,6 +7,7 @@ import { parsePtySessionId } from '@shared/ptySessionId';
 import { err, ok } from '@shared/result';
 import { taskManager } from '../tasks/task-manager';
 import { workspaceRegistry } from '../workspaces/workspace-registry';
+import { PtyInputSubmissionTracker } from './input-submission-tracker';
 import {
   cleanupExpiredDroppedBlobs,
   persistClipboardImagePath,
@@ -14,17 +15,19 @@ import {
 } from './persist-dropped-blob';
 import { ptySessionRegistry } from './pty-session-registry';
 
+const inputSubmissionTracker = new PtyInputSubmissionTracker();
+
 void cleanupExpiredDroppedBlobs().catch((error) => {
   log.warn('pty:cleanupExpiredDroppedBlobs failed', { error });
 });
 
 export const ptyController = createRPCController({
   /** Send raw input data to a PTY session. */
-  sendInput: (sessionId: string, data: string) => {
+  sendInput: (sessionId: string, data: string, options?: { track?: boolean }) => {
     const pty = ptySessionRegistry.get(sessionId);
     if (!pty) return err({ type: 'not_found' as const });
     pty.write(data);
-    if (data.includes('\r')) {
+    if ((options?.track ?? true) && inputSubmissionTracker.feed(sessionId, data)) {
       const meta = ptySessionRegistry.getMetadata(sessionId);
       if (meta?.providerId && !meta.isRemote) {
         const parsed = parsePtySessionId(sessionId);
@@ -76,6 +79,7 @@ export const ptyController = createRPCController({
         log.warn('ptyController.kill: error killing PTY', { sessionId, error: String(e) });
       }
     }
+    inputSubmissionTracker.clear(sessionId);
     ptySessionRegistry.unregister(sessionId);
     return ok();
   },
@@ -95,6 +99,7 @@ export const ptyController = createRPCController({
     const parsed = parsePtySessionId(sessionId);
     if (!parsed) return err({ type: 'invalid_session' as const });
     const { scopeId, leafId } = parsed;
+    inputSubmissionTracker.clear(sessionId);
 
     // Agents and terminals are scoped by task id, so the task lookup resolves
     // the owning provider. Conversation PTYs carry a providerId in their
@@ -128,6 +133,7 @@ export const ptyController = createRPCController({
         log.warn('ptyController.stopSession: error killing PTY', { sessionId, error: String(e) });
       }
     }
+    inputSubmissionTracker.clear(sessionId);
     ptySessionRegistry.unregister(sessionId);
     return ok();
   },

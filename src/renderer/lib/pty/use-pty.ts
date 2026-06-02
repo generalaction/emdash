@@ -306,7 +306,7 @@ export function usePty(
           }
         }
       }
-      void rpc.pty.sendInput(sessionId, data);
+      void rpc.pty.sendInput(sessionId, data, options);
     },
     [sessionId]
   );
