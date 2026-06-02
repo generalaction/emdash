@@ -1,9 +1,38 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "c27ff25e-ba13-4a7d-93ba-45b2fe92bff2",
-  "prevId": "00000000-0000-0000-0000-000000000000",
+  "id": "b2ea8fea-221f-44e4-ac8f-931f6d0edbbe",
+  "prevId": "c27ff25e-ba13-4a7d-93ba-45b2fe92bff2",
   "tables": {
+    "app_secrets": {
+      "name": "app_secrets",
+      "columns": {
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "secret": {
+          "name": "secret",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "idx_app_secrets_key": {
+          "name": "idx_app_secrets_key",
+          "columns": ["key"],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {}
+    },
     "app_settings": {
       "name": "app_settings",
       "columns": {

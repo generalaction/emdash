@@ -56,7 +56,12 @@ export class WorkspaceBootstrapService {
       path: string | null;
       config?: string | null;
       branchName?: string | null;
+      workspaceProvider?: string | null;
       data?: string | null;
+    },
+    taskRow: {
+      workspaceIntent: string | null;
+      workspaceProvider: string | null;
     },
     task: Task,
     project: ProjectProvider
@@ -106,7 +111,7 @@ export class WorkspaceBootstrapService {
       return this._provisionBYOI(workspaceRow, task, project);
     }
 
-    const intent = resolveWorkspaceIntent(workspaceRow);
+    const intent = resolveWorkspaceIntent(taskRow, workspaceRow);
     if (!intent) {
       return err({ type: 'no-intent' });
     }
@@ -222,7 +227,7 @@ export class WorkspaceBootstrapService {
     if (!project) throw new Error(`Project ${row.projectId} not found`);
 
     const task = mapTaskRowToTask(row);
-    return this.ensureWorkspaceSetup(wsRow, task, project);
+    return this.ensureWorkspaceSetup(wsRow, row, task, project);
   }
 
   /**

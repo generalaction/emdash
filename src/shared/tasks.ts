@@ -4,12 +4,12 @@ import type { PullRequest } from '@shared/pull-requests';
 import type { WorkspaceConfig } from '@shared/workspace-config';
 
 // ---------------------------------------------------------------------------
-// Workspace intent types — stored in `workspaces.config` as WorkspaceConfig JSON
+// Workspace intent types — stored on the task row as JSON in `workspace_intent`
 // ---------------------------------------------------------------------------
 
 /**
  * Describes the git operations to perform when setting up a workspace.
- * Stored in `workspaces.config` as part of a `WorkspaceConfig` JSON blob.
+ * Stored in `tasks.workspace_intent` as part of a `WorkspaceIntent` JSON blob.
  */
 export type GitSetup =
   | { kind: 'none' }
@@ -87,6 +87,7 @@ export type Task = {
   conversations: Record<string, number>;
   workspaceGit?: { linesAdded: number; linesDeleted: number };
   workspaceId?: string;
+  workspaceProviderData?: string; // JSON, BYOI only
   automationId?: string;
 };
 

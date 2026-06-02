@@ -55,7 +55,10 @@ function createAppDb(): Database.Database {
       last_interacted_at TEXT,
       status_changed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       is_pinned INTEGER NOT NULL DEFAULT 0,
-      workspace_id TEXT
+      workspace_provider TEXT,
+      workspace_id TEXT,
+      workspace_provider_data TEXT,
+      workspace_intent TEXT
     );
 
     CREATE TABLE conversations (
