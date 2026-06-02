@@ -1,22 +1,7 @@
-const SKIP_PATTERNS = [
-  /^\//,
-  /^y(es)?$/i,
-  /^n(o)?$/i,
-  /^ok$/i,
-  /^q(uit)?$/i,
-  /^exit$/i,
-  /^help$/i,
-  /^\d+$/,
-];
-
-const HAS_ALPHA = /[A-Za-z]/;
-const MIN_MESSAGE_LENGTH = 2;
+import { isRealTaskLikeInput } from '@shared/pty-input-filters';
 
 export function isRealAgentPrompt(message: string): boolean {
-  const trimmed = message.trim();
-  if (!trimmed || trimmed.length < MIN_MESSAGE_LENGTH) return false;
-  if (!HAS_ALPHA.test(trimmed)) return false;
-  return !SKIP_PATTERNS.some((pattern) => pattern.test(trimmed));
+  return isRealTaskLikeInput(message);
 }
 
 export class PtyInputSubmissionTracker {
@@ -26,6 +11,8 @@ export class PtyInputSubmissionTracker {
     let buffer = this.buffers.get(sessionId) ?? '';
     let submittedRealPrompt = false;
 
+    // This lightweight tracker does not decode ANSI escape sequences; it only needs
+    // enough text state to distinguish slash commands from real submitted prompts.
     for (const ch of data) {
       if (ch === '\r') {
         submittedRealPrompt ||= isRealAgentPrompt(buffer);
@@ -53,7 +40,7 @@ export class PtyInputSubmissionTracker {
       }
     }
 
-    if (buffer) {
+    if (buffer.trim()) {
       this.buffers.set(sessionId, buffer);
     } else {
       this.buffers.delete(sessionId);

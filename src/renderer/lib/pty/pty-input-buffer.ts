@@ -1,3 +1,5 @@
+import { isRealTaskLikeInput } from '@shared/pty-input-filters';
+
 /**
  * One-shot capture of the user's first "real" terminal message.
  *
@@ -5,21 +7,6 @@
  * and fires the `onCapture` callback once when a confirmed submit
  * passes validation. After firing, the buffer disables itself.
  */
-
-/** Strings that look like non-task-related input (confirmations, slash commands, etc.) */
-const SKIP_PATTERNS = [
-  /^\//,
-  /^y(es)?$/i,
-  /^n(o)?$/i,
-  /^ok$/i,
-  /^q(uit)?$/i,
-  /^exit$/i,
-  /^help$/i,
-  /^\d+$/,
-];
-
-const MIN_MESSAGE_LENGTH = 2;
-const HAS_ALPHA = /[A-Za-z]/;
 
 type SanitizerMode = 'normal' | 'escape' | 'csi' | 'osc' | 'osc-escape' | 'ss3';
 type InputAction =
@@ -246,13 +233,7 @@ export class SubmittedInputBuffer {
 
 /** Returns true if the message looks like a real task description. */
 export function isRealTaskInput(message: string): boolean {
-  const trimmed = message.trim();
-  if (!trimmed || trimmed.length < MIN_MESSAGE_LENGTH) return false;
-  if (!HAS_ALPHA.test(trimmed)) return false;
-  for (const pattern of SKIP_PATTERNS) {
-    if (pattern.test(trimmed)) return false;
-  }
-  return true;
+  return isRealTaskLikeInput(message);
 }
 
 export class TerminalInputBuffer {
