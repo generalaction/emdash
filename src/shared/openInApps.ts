@@ -32,7 +32,7 @@ const ICON_PATHS = {
   finder: 'finder.png',
   explorer: 'explorer.svg',
   files: 'files.svg',
-  cursor: 'cursor.svg',
+  cursor: 'cursor.png',
   vscode: 'vscode.png',
   vscodium: 'vscodium.png',
   windsurf: 'windsurf.png',
@@ -82,7 +82,6 @@ const _OPEN_IN_APPS = {
     id: 'cursor',
     label: 'Cursor',
     iconPath: ICON_PATHS.cursor,
-    invertInDark: true,
     autoInstall: true,
     supportsRemote: true,
     platforms: {
