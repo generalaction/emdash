@@ -5,7 +5,7 @@ import type {
   RecentSession,
   UsageSnapshot,
 } from '@shared/usage';
-import { costOf, isPriced, normalizeModelFamily, PRICING_UPDATED } from './pricing';
+import { costOf, isPriced, normalizeModelFamily, pricingUpdatedLabel } from './pricing';
 import type { UsageRecord } from './types';
 
 const TOP_PROJECTS = 8;
@@ -162,7 +162,7 @@ export function aggregate(allRecords: UsageRecord[], now: Date): UsageSnapshot {
 
   return {
     generatedAt: now.toISOString(),
-    pricingUpdated: PRICING_UPDATED,
+    pricingUpdated: pricingUpdatedLabel(),
     totals,
     windows,
     byModel: [...models.values()].sort((a, b) => b.cost - a.cost),

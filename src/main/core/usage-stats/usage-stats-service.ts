@@ -4,6 +4,7 @@ import { app } from 'electron';
 import { EMPTY_USAGE_SNAPSHOT, type UsageSnapshot } from '@shared/usage';
 import { aggregate } from './aggregate';
 import { loadIndex, reconcileCache, saveIndex, type UsageIndex } from './cache';
+import { ensureModelsDevPricing } from './models-dev';
 import { parseClaudeTranscript } from './parse-claude';
 import { parseCodexRollout } from './parse-codex';
 import { scanAll } from './scanner';
@@ -45,6 +46,7 @@ class UsageStatsService {
   }
 
   private async compute(): Promise<UsageSnapshot> {
+    await ensureModelsDevPricing(); // refresh model rates (cached 24h) before pricing
     const indexPath = this.getIndexPath();
     const prev: UsageIndex = loadIndex(indexPath);
     const scan = scanAll();
