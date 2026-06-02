@@ -103,6 +103,15 @@ export const TASK_COMMAND_DEFS = defineCommandDefs([
     iconKey: 'message-square-plus',
   },
   {
+    id: 'task.newConversationSplitRight',
+    label: 'New Conversation in Right Split',
+    description: 'Create a new conversation in a split pane to the right',
+    scope: 'task',
+    shortcutKey: 'newConversationSplitRight',
+    group: 'Conversations',
+    iconKey: 'columns-2',
+  },
+  {
     id: 'task.sidebarChanges',
     label: 'View Changes',
     description: 'Open the Changes panel in the right sidebar',

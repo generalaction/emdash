@@ -132,6 +132,12 @@ export const APP_SHORTCUTS = defineShortcuts({
     description: 'Create a new conversation in the current task',
     category: 'Task View',
   },
+  newConversationSplitRight: {
+    defaultHotkey: 'Mod+D',
+    label: 'New Conversation in Right Split',
+    description: 'Create a new conversation in a split pane to the right',
+    category: 'Task View',
+  },
   newTerminal: {
     defaultHotkey: 'Mod+Shift+T',
     label: 'New Terminal',

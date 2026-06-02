@@ -42,6 +42,7 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
       const isAutomationTask = Boolean(taskData?.automationId);
 
       const newConversationDef = taskDef('task.newConversation');
+      const newConversationSplitRightDef = taskDef('task.newConversationSplitRight');
       const sidebarChangesDef = taskDef('task.sidebarChanges');
       const sidebarConversationsDef = taskDef('task.sidebarConversations');
       const sidebarFilesDef = taskDef('task.sidebarFiles');
@@ -71,6 +72,23 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
               taskId,
               onSuccess: ({ conversationId }) => {
                 taskView?.tabGroupManager.openConversation(conversationId);
+                taskView?.setFocusedRegion('main');
+              },
+            });
+          },
+        },
+        {
+          id: newConversationSplitRightDef.id,
+          label: newConversationSplitRightDef.label,
+          description: newConversationSplitRightDef.description,
+          shortcutKey: newConversationSplitRightDef.shortcutKey,
+          group: newConversationSplitRightDef.group,
+          execute() {
+            showModal('createConversationModal', {
+              projectId,
+              taskId,
+              onSuccess: ({ conversationId }) => {
+                taskView?.tabGroupManager.openConversationInRightSplit(conversationId);
                 taskView?.setFocusedRegion('main');
               },
             });
