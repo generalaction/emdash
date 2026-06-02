@@ -180,7 +180,6 @@ export async function executeTaskCreate(
       name: taskName,
       gitSetup,
       workspaceLocation,
-      isAutomationTask: true,
       initialConversation,
     };
 

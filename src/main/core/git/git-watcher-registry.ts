@@ -45,10 +45,13 @@ class GitWatcherRegistry implements Hookable<GitWatcherHooks>, IInitializable, I
       void this._stopWatching(projectId);
     });
 
-    taskSessionManager.hooks.on('task:provisioned', ({ projectId, workspaceId, worktreeGitDir }) => {
-      if (!worktreeGitDir) return;
-      this._worktrees.get(projectId)?.set(workspaceId, worktreeGitDir);
-    });
+    taskSessionManager.hooks.on(
+      'task:provisioned',
+      ({ projectId, workspaceId, worktreeGitDir }) => {
+        if (!worktreeGitDir) return;
+        this._worktrees.get(projectId)?.set(workspaceId, worktreeGitDir);
+      }
+    );
 
     taskSessionManager.hooks.on('task:torn-down', ({ projectId, workspaceId }) => {
       this._worktrees.get(projectId)?.delete(workspaceId);

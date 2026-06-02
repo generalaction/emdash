@@ -1,9 +1,14 @@
 import crypto from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
+import { mapConversationRowToConversation } from '@main/core/conversations/utils';
 import { projectManager } from '@main/core/projects/project-manager';
 import { providerRepositoryService } from '@main/core/repository/provider-repository-service';
 import { db } from '@main/db/client';
-import { tasks, workspaces } from '@main/db/schema';
+import { conversations, tasks, workspaces } from '@main/db/schema';
+import { events } from '@main/lib/events';
+import { type ConversationConfig, serializeConversationConfig } from '@shared/conversation-config';
+import type { Conversation } from '@shared/conversations';
+import { conversationCreatedChannel } from '@shared/events/conversationEvents';
 import type { Branch } from '@shared/git';
 import { err, ok, type Result } from '@shared/result';
 import type {
@@ -94,5 +99,34 @@ export async function createTask(
   await db.insert(workspaces).values({ id: workspaceId, type: workspaceType });
   await db.update(tasks).set({ workspaceId }).where(eq(tasks.id, params.id));
 
-  return ok({ task: { ...task, workspaceId } });
+  let initialConversation: Conversation | undefined;
+  if (params.initialConversation) {
+    const ic = params.initialConversation;
+    const configObj: ConversationConfig = {};
+    if (ic.autoApprove !== undefined) configObj.autoApprove = ic.autoApprove;
+    if (ic.initialPrompt?.trim()) configObj.initialPrompt = ic.initialPrompt.trim();
+    const config =
+      Object.keys(configObj).length > 0 ? serializeConversationConfig(configObj) : undefined;
+
+    const [convRow] = await db
+      .insert(conversations)
+      .values({
+        id: ic.id,
+        projectId: ic.projectId,
+        taskId: ic.taskId,
+        title: ic.title,
+        provider: ic.provider,
+        config,
+        isInitialConversation: true,
+        createdAt: sql`CURRENT_TIMESTAMP`,
+        updatedAt: sql`CURRENT_TIMESTAMP`,
+        lastInteractedAt: new Date().toISOString(),
+      })
+      .returning();
+
+    initialConversation = mapConversationRowToConversation(convRow);
+    events.emit(conversationCreatedChannel, { conversation: initialConversation });
+  }
+
+  return ok({ task: { ...task, workspaceId }, initialConversation });
 }

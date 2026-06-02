@@ -308,6 +308,13 @@ export class WorkspaceViewModel implements ILifecycle {
     // Register snapshot with the persistence layer.
     this._snapshotDisposer = snapshotRegistry.register(`task:${this.taskId}`, () => this.snapshot);
 
+    // Open the initial conversation tab if no tabs were restored from a saved snapshot.
+    // This handles the optimistic-conversation case where conversations are already in
+    // the manager before provision completes.
+    if (this.tabGroupManager.focusedGroup.tabOrder.length === 0) {
+      runInAction(() => this.tabGroupManager.focusedGroup.initializeDefault());
+    }
+
     const conversationHydrationDisposer = reaction(
       () => this.openConversationIds,
       (ids) => this.syncConversationHydration(ids),

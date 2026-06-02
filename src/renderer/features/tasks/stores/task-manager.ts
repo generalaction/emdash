@@ -5,7 +5,7 @@ import type { ProjectSettingsStore } from '@renderer/features/projects/stores/pr
 import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
 import { events, rpc } from '@renderer/lib/ipc';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
-import { log } from '@renderer/utils/logger';
+import type { Conversation } from '@shared/conversations';
 import { prSyncProgressChannel, prUpdatedChannel } from '@shared/events/prEvents';
 import {
   lifecycleScriptStatusChannel,
@@ -302,6 +302,24 @@ export class TaskManagerStore {
           isPinned: false,
         })
       );
+
+      if (params.initialConversation) {
+        const ic = params.initialConversation;
+        const optimistic: Conversation = {
+          id: ic.id,
+          projectId: ic.projectId,
+          taskId: ic.taskId,
+          providerId: ic.provider,
+          title: ic.title,
+          lastInteractedAt: null,
+          autoApprove: ic.autoApprove ?? false,
+          isInitialConversation: true,
+        };
+        conversationRegistry.acquire(params.id, this.projectId, [optimistic]);
+      } else {
+        conversationRegistry.acquire(params.id, this.projectId);
+      }
+      terminalRegistry.acquire(params.id, this.projectId);
     });
 
     const result = await rpc.tasks
@@ -334,9 +352,7 @@ export class TaskManagerStore {
       const current = this.tasks.get(params.id);
       if (current && isUnregistered(current)) {
         current.transitionToUnprovisioned(result.data.task, 'provision');
-        // Acquire conversation and terminal managers on first registration.
-        conversationRegistry.acquire(params.id, this.projectId);
-        terminalRegistry.acquire(params.id, this.projectId);
+        // Conversation and terminal registries already acquired in the optimistic phase.
       }
     });
 
@@ -347,21 +363,6 @@ export class TaskManagerStore {
     }
 
     await this.provisionTask(params.id);
-
-    if (params.initialConversation) {
-      try {
-        await conversationRegistry.get(params.id)?.createConversation({
-          ...params.initialConversation,
-          isInitialConversation: true,
-        });
-      } catch (error) {
-        log.warn('TaskManagerStore: failed to create initial conversation after provision', {
-          conversationId: params.initialConversation.id,
-          taskId: params.id,
-          error,
-        });
-      }
-    }
   }
 
   async provisionTask(taskId: string): Promise<void> {

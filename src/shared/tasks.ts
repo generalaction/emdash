@@ -1,4 +1,4 @@
-import type { CreateConversationParams } from '@shared/conversations';
+import type { Conversation, CreateConversationParams } from '@shared/conversations';
 import type { Branch, CreateBranchError, FetchPrForReviewError, PushError } from '@shared/git';
 import type { PullRequest } from '@shared/pull-requests';
 
@@ -132,6 +132,7 @@ export type CreateTaskWarning = {
 
 export type CreateTaskSuccess = {
   task: Task;
+  initialConversation?: Conversation;
   warning?: CreateTaskWarning;
 };
 

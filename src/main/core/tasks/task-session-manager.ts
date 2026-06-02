@@ -205,7 +205,8 @@ class TaskSessionManager {
 
   getBootstrapStatus(taskId: string): TaskBootstrapStatus {
     const s = this._lifecycle.bootstrapStatus(taskId);
-    if (s.status === 'error') return { status: 'error', message: formatProvisionTaskError(s.error) };
+    if (s.status === 'error')
+      return { status: 'error', message: formatProvisionTaskError(s.error) };
     return s;
   }
 

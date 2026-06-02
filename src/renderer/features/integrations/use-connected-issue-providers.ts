@@ -18,16 +18,12 @@ export function useConnectedIssueProviders(
 
   const connectedProviders = useMemo(
     () => ISSUE_PROVIDER_ORDER.filter((p) => isProviderUsable(connectionStatus[p], context)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [connectionStatus, context.projectPath, context.repositoryUrl]
+    [connectionStatus, context]
   );
 
   const checkUsable = useMemo(
-    () =>
-      (provider: IssueProviderType) =>
-        isProviderUsable(connectionStatus[provider], context),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [connectionStatus, context.projectPath, context.repositoryUrl]
+    () => (provider: IssueProviderType) => isProviderUsable(connectionStatus[provider], context),
+    [connectionStatus, context]
   );
 
   return {

@@ -1,5 +1,5 @@
 import { observer } from 'mobx-react-lite';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useConnectedIssueProviders } from '@renderer/features/integrations/use-connected-issue-providers';
 import {
   getProjectManagerStore,
