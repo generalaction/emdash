@@ -193,8 +193,9 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     autoApproveFlag: '-f --approve-mcps',
     initialPromptFlag: '',
     resumeFlag: '--resume',
-    icon: 'cursor.png',
+    icon: 'cursor.svg',
     alt: 'Cursor CLI',
+    invertInDark: true,
     terminalOnly: true,
   },
   {
