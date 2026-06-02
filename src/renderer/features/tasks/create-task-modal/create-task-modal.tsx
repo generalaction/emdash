@@ -1,12 +1,11 @@
 import { observer } from 'mobx-react-lite';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useConnectedIssueProviders } from '@renderer/features/integrations/use-connected-issue-providers';
 import {
   getProjectManagerStore,
   getRepositoryStore,
   mountedProjectData,
 } from '@renderer/features/projects/stores/project-selectors';
-import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
 import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
@@ -20,16 +19,13 @@ import {
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
 import type { PullRequest } from '@shared/pull-requests';
-import {
-  buildGitSetup,
-  buildInitialConversation,
-  buildWorkspaceLocation,
-} from './build-create-task-params';
 import { useInitialConversationState } from './initial-conversation-section';
 import { LinkedEntitySection } from './linked-entity-section';
 import { SectionTabsPanel } from './section-tabs-panel';
 import { TaskNameField } from './task-name-field';
+import { useCreateTaskCallback } from './use-create-task-callback';
 import { type LinkedType, useCreateTaskState } from './use-create-task-state';
+import { useWorkspaceProviderState } from './use-workspace-provider-state';
 
 function useDefaultProjectId(propProjectId?: string): string | undefined {
   return useMemo(() => {
@@ -62,8 +58,6 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   initialPR?: PullRequest;
 }) {
   const selectedProjectId = useDefaultProjectId(projectId);
-
-  const [useBYOI, setUseBYOI] = useState(false);
 
   const projectData = selectedProjectId
     ? mountedProjectData(getProjectManagerStore().projects.get(selectedProjectId))
@@ -103,74 +97,25 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   );
 
   const initialConversation = useInitialConversationState(selectedProjectId);
-  const autoApproveDefaults = useAgentAutoApproveDefaults();
   const { includeIssueContextByDefault } = useTaskSettings();
   const isWorkspaceProviderEnabled = useFeatureFlag('workspace-provider');
   const { navigate } = useNavigate();
 
-  useEffect(() => {
-    setUseBYOI(false);
-    initialConversation.setProvider(null);
-    initialConversation.setPrompt('');
-    initialConversation.setIssueContext(null);
-    // oxlint-disable-next-line react/exhaustive-deps
-  }, [selectedProjectId]);
-
-  useEffect(() => {
-    if (!isWorkspaceProviderEnabled) setUseBYOI(false);
-  }, [isWorkspaceProviderEnabled]);
-
-  const canCreate = !!selectedProjectId && state.isValid;
-
-  const handleCreateTask = useCallback(() => {
-    if (!selectedProjectId) return;
-    const projectStore = getProjectManagerStore().projects.get(selectedProjectId);
-    if (projectStore?.state !== 'mounted') return;
-
-    const id = crypto.randomUUID();
-    const { linkedType, linkedPR } = state;
-    const taskManager = projectStore.mountedProject!.taskManager;
-
-    const gitSetup = buildGitSetup(state, isUnborn);
-    const workspaceLocation = buildWorkspaceLocation(projectData, useBYOI);
-    const initialStatus =
-      linkedType === 'pr' && linkedPR
-        ? linkedPR.status === 'open' && !linkedPR.isDraft
-          ? 'review'
-          : undefined
-        : undefined;
-
-    void taskManager
-      .createTask({
-        id,
-        projectId: selectedProjectId,
-        name: state.taskName.effectiveTaskName,
-        gitSetup,
-        workspaceLocation,
-        linkedIssue: linkedType === 'issue' ? (state.linkedIssue ?? undefined) : undefined,
-        initialStatus,
-        initialConversation: buildInitialConversation(
-          id,
-          selectedProjectId,
-          initialConversation,
-          autoApproveDefaults.getDefault
-        ),
-      })
-      .catch(() => {});
-
-    navigate('task', { projectId: selectedProjectId, taskId: id });
-    onClose();
-  }, [
+  const { useBYOI, setUseBYOI } = useWorkspaceProviderState(
     selectedProjectId,
-    projectData,
+    isWorkspaceProviderEnabled
+  );
+
+  const { handleCreateTask, canCreate } = useCreateTaskCallback({
+    selectedProjectId,
     state,
-    isUnborn,
-    useBYOI,
     initialConversation,
-    autoApproveDefaults.getDefault,
+    isUnborn,
+    projectData,
+    useBYOI,
     navigate,
     onClose,
-  ]);
+  });
 
   return (
     <>

@@ -3,11 +3,11 @@ import type { CreateConversationParams } from '@shared/conversations';
 import type { LocalProject, SshProject } from '@shared/projects';
 import type { PullRequest } from '@shared/pull-requests';
 import { getPrNumber, isForkPr } from '@shared/pull-requests';
-import type { GitSetup, WorkspaceLocation } from '@shared/tasks';
+import type { GitSetup, TaskLifecycleStatus, WorkspaceLocation } from '@shared/tasks';
 import { nextDefaultConversationTitle } from '../conversations/conversation-title-utils';
-import { buildFinalPrompt } from './initial-conversation-text';
 import type { InitialConversationState } from './initial-conversation-section';
-import type { CreateTaskState } from './use-create-task-state';
+import { buildFinalPrompt } from './initial-conversation-text';
+import type { CreateTaskState, LinkedType } from './use-create-task-state';
 
 export function buildGitSetup(state: CreateTaskState, isUnborn: boolean): GitSetup {
   const { linkedType, linkedPR, checkoutMode, branchSelection, branchNameState } = state;
@@ -93,6 +93,14 @@ export function buildInitialConversation(
     initialPrompt: buildFinalPrompt(state.issueContext, state.prompt),
     autoApprove: getAutoApproveDefault(provider),
   };
+}
+
+export function deriveInitialStatus(
+  linkedType: LinkedType,
+  linkedPR: PullRequest | null
+): TaskLifecycleStatus | undefined {
+  if (linkedType !== 'pr' || !linkedPR) return undefined;
+  return linkedPR.status === 'open' && !linkedPR.isDraft ? 'review' : undefined;
 }
 
 export function buildWorkspaceLocation(

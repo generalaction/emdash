@@ -36,6 +36,15 @@ export function useInitialConversationState(projectId?: string): InitialConversa
   const { providerId, setProviderOverride } = useEffectiveProvider(connectionId);
   const [prompt, setPrompt] = useState('');
   const [issueContext, setIssueContext] = useState<string | null>(null);
+
+  const [prevProjectId, setPrevProjectId] = useState(projectId);
+  if (projectId !== prevProjectId) {
+    setPrevProjectId(projectId);
+    setProviderOverride(null);
+    setPrompt('');
+    setIssueContext(null);
+  }
+
   return {
     provider: providerId,
     setProvider: setProviderOverride,

@@ -290,7 +290,6 @@ export class TaskManagerStore {
           status: params.initialStatus ?? 'in_progress',
           statusChangedAt: new Date().toISOString(),
           isPinned: false,
-          automationId: params.automationId,
         })
       );
     });
