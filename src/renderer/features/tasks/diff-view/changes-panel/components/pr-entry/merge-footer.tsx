@@ -61,6 +61,7 @@ export function MergeFooter({
               <SplitButton
                 size="xs"
                 variant="outline"
+                className="[&_[data-slot=button]]:border-[var(--purple-10)] [&_[data-slot=button]]:bg-[var(--purple-9)] [&_[data-slot=button]]:text-white [&_[data-slot=button]]:hover:bg-[var(--purple-10)]"
                 loading={isMerging}
                 loadingLabel="Merging..."
                 icon={<GitMerge className="size-3" />}
