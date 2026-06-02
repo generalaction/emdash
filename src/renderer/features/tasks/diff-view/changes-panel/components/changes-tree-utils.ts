@@ -17,10 +17,22 @@ const STATUS_PRIORITY: Record<GitChangeStatus, number> = {
   added: 1,
 };
 
+function upsertDirectoryStatus(
+  directoryStatusByPath: Map<string, GitChangeStatus>,
+  dirPath: string,
+  status: GitChangeStatus
+): void {
+  const existing = directoryStatusByPath.get(dirPath);
+  if (!existing || STATUS_PRIORITY[status] > STATUS_PRIORITY[existing]) {
+    directoryStatusByPath.set(dirPath, status);
+  }
+}
+
 export function buildChangesTree(changes: GitChange[]): ChangesTree {
   const nodesByPath = new Map<string, FileNode>();
   const changeByPath = new Map<string, GitChange>();
   const directoryPaths = new Set<string>();
+  const directoryStatusByPath = new Map<string, GitChangeStatus>();
   const rootNodes: FileNode[] = [];
 
   for (const change of changes) {
@@ -37,6 +49,10 @@ export function buildChangesTree(changes: GitChange[]): ChangesTree {
       const isLeaf = i === parts.length - 1;
       const type = isLeaf ? 'file' : 'directory';
       const key = `${type}:${prefix}`;
+
+      if (!isLeaf) {
+        upsertDirectoryStatus(directoryStatusByPath, prefix, change.status);
+      }
 
       let node = nodesByPath.get(key);
       if (!node) {
@@ -57,28 +73,12 @@ export function buildChangesTree(changes: GitChange[]): ChangesTree {
     rootNodes: sortRecursively(rootNodes),
     changeByPath,
     directoryPaths,
-    directoryStatusByPath: buildDirectoryStatusByPath(changes),
+    directoryStatusByPath,
   };
 }
 
 export function buildDirectoryStatusByPath(changes: GitChange[]): Map<string, GitChangeStatus> {
-  const directoryStatusByPath = new Map<string, GitChangeStatus>();
-
-  for (const change of changes) {
-    const parts = change.path.split('/').filter(Boolean);
-    if (parts.length < 2) continue;
-
-    let prefix = '';
-    for (let i = 0; i < parts.length - 1; i++) {
-      prefix = prefix ? `${prefix}/${parts[i]!}` : parts[i]!;
-      const existing = directoryStatusByPath.get(prefix);
-      if (!existing || STATUS_PRIORITY[change.status] > STATUS_PRIORITY[existing]) {
-        directoryStatusByPath.set(prefix, change.status);
-      }
-    }
-  }
-
-  return directoryStatusByPath;
+  return buildChangesTree(changes).directoryStatusByPath;
 }
 
 function sortRecursively(nodes: FileNode[]): FileNode[] {
