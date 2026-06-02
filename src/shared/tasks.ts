@@ -75,8 +75,6 @@ export type Task = {
   projectId: string;
   name: string;
   status: TaskLifecycleStatus;
-  sourceBranch: Branch | undefined;
-  taskBranch?: string;
   createdAt: string;
   updatedAt: string;
   /** ISO timestamp: when lifecycle status last changed (current status entered). */
@@ -135,21 +133,10 @@ export type CreateTaskSuccess = {
   warning?: CreateTaskWarning;
 };
 
-export type RenameTaskError =
-  | { type: 'task-not-found'; taskId: string }
-  | { type: 'project-not-found'; projectId: string }
-  | { type: 'branch-managed-by-linked-issue'; provider: Issue['provider'] }
-  | { type: 'branch-has-open-pr'; branch: string }
-  | { type: 'branch-has-siblings'; branch: string }
-  | { type: 'branch-already-exists'; branch: string }
-  | { type: 'branch-rename-failed'; branch: string; message: string };
+export type RenameTaskError = { type: 'task-not-found'; taskId: string };
 
 export type RenameTaskSuccess = {
   task: Task;
-};
-
-export type RenameTaskOptions = {
-  renameBranch?: boolean;
 };
 
 export type ProvisionTaskResult = {

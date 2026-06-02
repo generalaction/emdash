@@ -8,11 +8,13 @@ import { mapTaskRowToTask } from '@main/core/tasks/utils/utils';
 import { db as appDb, type AppDb } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
 import { log } from '@main/lib/logger';
+import type { Branch } from '@shared/git';
 import { err, ok, type Result } from '@shared/result';
 import type { Task, ProvisionWorkspaceError } from '@shared/tasks';
+import { parseWorkspaceConfig } from '@shared/workspace-config';
 import { compileSetupSpec } from '@shared/workspace-setup-spec';
 import type { WorkspaceType } from '@shared/workspaces';
-import { resolveWorkspaceIntent } from '../tasks/resolve-workspace-intent';
+import { deriveBranchName, resolveWorkspaceIntent } from '../tasks/resolve-workspace-intent';
 import { provisionBYOITask } from './byoi/provision-byoi-task';
 import { LocalWorkspaceSetupExecutor } from './local-workspace-setup-executor';
 import { applyRecovery } from './recovery-strategy';
@@ -51,23 +53,38 @@ export class WorkspaceBootstrapService {
       id: string;
       type: WorkspaceType;
       path: string | null;
+      config?: string | null;
+      branchName?: string | null;
       workspaceProvider?: string | null;
       data?: string | null;
     },
     taskRow: {
       workspaceIntent: string | null;
-      taskBranch: string | null;
-      sourceBranch: unknown;
       workspaceProvider: string | null;
     },
     task: Task,
     project: ProjectProvider
   ): Promise<Result<WorkspaceBootstrapResult, ProvisionWorkspaceError>> {
+    // Derive branch info from workspace config for passing to task providers.
+    const wsConfig = parseWorkspaceConfig(workspaceRow.config);
+    const workspaceBranchName: string | undefined =
+      workspaceRow.branchName ??
+      (wsConfig ? (deriveBranchName(wsConfig.git) ?? undefined) : undefined);
+    const workspaceSourceBranch: Branch | undefined =
+      wsConfig?.git.kind === 'create-branch' ? wsConfig.git.fromBranch : undefined;
+
     // Fast path: path already persisted and still exists on disk.
     if (workspaceRow.path && workspaceRow.type !== 'byoi') {
       const exists = await project.worktreeHost.existsAbsolute(workspaceRow.path);
       if (exists) {
-        return this._acquireAndBuild(workspaceRow.id, task, project, workspaceRow.path);
+        return this._acquireAndBuild(
+          workspaceRow.id,
+          task,
+          project,
+          workspaceRow.path,
+          workspaceBranchName,
+          workspaceSourceBranch
+        );
       }
     }
 
@@ -89,14 +106,31 @@ export class WorkspaceBootstrapService {
     const { baseRemote, pushRemote } = await project.repository.getConfiguredRemotes();
     const spec = compileSetupSpec(intent.git, intent.workspace, { baseRemote, pushRemote });
 
+    const intentBranchName = deriveBranchName(intent.git) ?? undefined;
+    const intentSourceBranch: Branch | undefined =
+      intent.git.kind === 'create-branch' ? intent.git.fromBranch : undefined;
+
     if (spec.length === 0) {
       // No git operations needed — use existing project root or provided path.
       const resolvedPath =
         'path' in intent.workspace && intent.workspace.path
           ? intent.workspace.path
           : project.repoPath;
-      await this.persistPath(workspaceRow.id, resolvedPath, workspaceRow.type, connectionId);
-      return this._acquireAndBuild(workspaceRow.id, task, project, resolvedPath);
+      await this.persistPath(
+        workspaceRow.id,
+        resolvedPath,
+        workspaceRow.type,
+        connectionId,
+        intentBranchName
+      );
+      return this._acquireAndBuild(
+        workspaceRow.id,
+        task,
+        project,
+        resolvedPath,
+        intentBranchName,
+        intentSourceBranch
+      );
     }
 
     const worktreePoolPath = await project.worktreeService.getWorktreePoolPath();
@@ -130,14 +164,27 @@ export class WorkspaceBootstrapService {
 
     const resolvedPath = setupResult.data.path;
     if (resolvedPath) {
-      await this.persistPath(workspaceRow.id, resolvedPath, workspaceRow.type, connectionId);
+      await this.persistPath(
+        workspaceRow.id,
+        resolvedPath,
+        workspaceRow.type,
+        connectionId,
+        intentBranchName
+      );
     }
 
     if (connectionId) {
       sshConnectionManager.reportChannelRecovered(connectionId);
     }
 
-    return this._acquireAndBuild(workspaceRow.id, task, project, resolvedPath ?? '');
+    return this._acquireAndBuild(
+      workspaceRow.id,
+      task,
+      project,
+      resolvedPath ?? '',
+      intentBranchName,
+      intentSourceBranch
+    );
   }
 
   /**
@@ -178,7 +225,8 @@ export class WorkspaceBootstrapService {
     workspaceId: string,
     path: string,
     type: WorkspaceType,
-    connectionId?: string
+    connectionId?: string,
+    branchName?: string
   ): Promise<string> {
     const key = type !== 'byoi' ? computeWorkspaceKey(type, path, connectionId) : null;
 
@@ -191,7 +239,7 @@ export class WorkspaceBootstrapService {
 
     await this.db
       .update(workspaces)
-      .set({ path, key, updatedAt: sql`CURRENT_TIMESTAMP` })
+      .set({ path, key, branchName: branchName ?? null, updatedAt: sql`CURRENT_TIMESTAMP` })
       .where(eq(workspaces.id, workspaceId));
     return workspaceId;
   }
@@ -204,7 +252,9 @@ export class WorkspaceBootstrapService {
     workspaceId: string,
     task: Task,
     project: ProjectProvider,
-    workDir: string
+    workDir: string,
+    workspaceBranchName?: string,
+    workspaceSourceBranch?: Branch
   ): Promise<Result<WorkspaceBootstrapResult, ProvisionWorkspaceError>> {
     const type = project.defaultWorkspaceType;
 
@@ -269,7 +319,9 @@ export class WorkspaceBootstrapService {
         type,
         project.projectId,
         project.repoPath,
-        project.settings
+        project.settings,
+        workspaceBranchName,
+        workspaceSourceBranch
       );
       buildSucceeded = true;
       return ok({

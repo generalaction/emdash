@@ -37,7 +37,7 @@ export type TaskManagerHooks = {
   'task:provisioned': (info: {
     projectId: string;
     taskId: string;
-    taskBranch: string | undefined;
+    branchName: string | undefined;
     workspaceId: string;
     worktreeGitDir?: string;
   }) => void | Promise<void>;
@@ -130,7 +130,7 @@ class TaskSessionManager {
     this._hooks.callHookBackground('task:provisioned', {
       projectId,
       taskId,
-      taskBranch: result.taskProvider.taskBranch,
+      branchName: result.taskProvider.taskBranch,
       workspaceId: result.workspaceId,
       worktreeGitDir: result.worktreeGitDir,
     });

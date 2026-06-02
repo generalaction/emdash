@@ -9,42 +9,16 @@ import { events } from '@main/lib/events';
 import { type ConversationConfig, serializeConversationConfig } from '@shared/conversation-config';
 import type { Conversation } from '@shared/conversations';
 import { conversationCreatedChannel } from '@shared/events/conversationEvents';
-import type { Branch } from '@shared/git';
 import { err, ok, type Result } from '@shared/result';
 import type {
   CreateTaskError,
   CreateTaskParams,
   CreateTaskSuccess,
-  GitSetup,
   TaskLifecycleStatus,
 } from '@shared/tasks';
 import { serializeWorkspaceConfig } from '@shared/workspace-config';
 import { prQueryService } from '../../pull-requests/pr-query-service';
-import { toStoredBranch } from '../stored-branch';
 import { mapTaskRowToTask } from '../utils/utils';
-
-/** Derives the display/legacy DB columns from the `gitSetup` intent — no git I/O. */
-function deriveDbColumns(gitSetup: GitSetup): {
-  taskBranch: string | undefined;
-  dbSourceBranch: Branch | undefined;
-} {
-  switch (gitSetup.kind) {
-    case 'none':
-      return { taskBranch: undefined, dbSourceBranch: undefined };
-    case 'use-branch':
-      return {
-        taskBranch: gitSetup.branchName,
-        dbSourceBranch: { type: 'local', branch: gitSetup.branchName },
-      };
-    case 'create-branch':
-      return { taskBranch: gitSetup.branchName, dbSourceBranch: gitSetup.fromBranch };
-    case 'pr-branch':
-      return {
-        taskBranch: gitSetup.taskBranch ?? gitSetup.headBranch,
-        dbSourceBranch: { type: 'local', branch: gitSetup.headBranch },
-      };
-  }
-}
 
 export async function createTask(
   params: CreateTaskParams
@@ -54,8 +28,6 @@ export async function createTask(
   }
 
   const { workspaceConfig } = params;
-  const { taskBranch, dbSourceBranch } = deriveDbColumns(workspaceConfig.git);
-
   const initialStatus: TaskLifecycleStatus = params.initialStatus ?? 'in_progress';
 
   const [taskRow] = await db
@@ -64,9 +36,7 @@ export async function createTask(
       id: params.id,
       projectId: params.projectId,
       name: params.name,
-      taskBranch,
       status: initialStatus,
-      sourceBranch: toStoredBranch(dbSourceBranch),
       linkedIssue: params.linkedIssue ? JSON.stringify(params.linkedIssue) : null,
       updatedAt: sql`CURRENT_TIMESTAMP`,
       statusChangedAt: sql`CURRENT_TIMESTAMP`,

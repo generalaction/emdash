@@ -352,14 +352,16 @@ describe('shareProjectSettingsToConfig', () => {
       })
       .mockReturnValueOnce({
         from: () => ({
-          where: vi.fn().mockResolvedValue([
-            {
-              id: 'task-1',
-              name: 'Task One',
-              taskBranch: 'emdash/task-one',
-              workspaceId: null,
-            },
-          ]),
+          leftJoin: () => ({
+            where: vi.fn().mockResolvedValue([
+              {
+                id: 'task-1',
+                name: 'Task One',
+                workspaceBranchName: 'emdash/task-one',
+                workspaceId: null,
+              },
+            ]),
+          }),
         }),
       });
     const targets = getProjectSettingsWriteTargets(
@@ -418,20 +420,22 @@ describe('shareProjectSettingsToConfig', () => {
       })
       .mockReturnValueOnce({
         from: () => ({
-          where: vi.fn().mockResolvedValue([
-            {
-              id: 'task-1',
-              name: 'Root Task',
-              taskBranch: null,
-              workspaceId: 'root-workspace',
-            },
-            {
-              id: 'task-2',
-              name: 'Task Two',
-              taskBranch: 'emdash/task-two',
-              workspaceId: 'worktree-workspace',
-            },
-          ]),
+          leftJoin: () => ({
+            where: vi.fn().mockResolvedValue([
+              {
+                id: 'task-1',
+                name: 'Root Task',
+                workspaceBranchName: null,
+                workspaceId: 'root-workspace',
+              },
+              {
+                id: 'task-2',
+                name: 'Task Two',
+                workspaceBranchName: 'emdash/task-two',
+                workspaceId: 'worktree-workspace',
+              },
+            ]),
+          }),
         }),
       });
 
@@ -520,7 +524,9 @@ describe('shareProjectSettingsToConfig', () => {
       })
       .mockReturnValueOnce({
         from: () => ({
-          where: vi.fn().mockResolvedValue([]),
+          leftJoin: () => ({
+            where: vi.fn().mockResolvedValue([]),
+          }),
         }),
       });
 

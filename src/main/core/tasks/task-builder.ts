@@ -3,6 +3,7 @@ import type { TerminalProvider } from '@main/core/terminals/terminal-provider';
 import type { Workspace } from '@main/core/workspaces/workspace';
 import { events } from '@main/lib/events';
 import { taskProvisionProgressChannel, type ProvisionStep } from '@shared/events/taskEvents';
+import type { Branch } from '@shared/git';
 import type { Task } from '@shared/tasks';
 import type { TaskProvider } from '../projects/project-provider';
 import type { ProjectSettingsProvider } from '../projects/settings/provider';
@@ -35,6 +36,10 @@ export type BuildTaskResult = {
  *
  * Returns all three provider objects so callers (e.g. SshProjectProvider)
  * can keep references for reconnect rehydration.
+ *
+ * `workspaceBranchName` and `workspaceSourceBranch` are sourced from the
+ * workspace row (not the task row), and flow through to `TaskProvider` for
+ * PTY env var population.
  */
 export async function buildTaskFromWorkspace(
   task: Task,
@@ -42,7 +47,9 @@ export async function buildTaskFromWorkspace(
   type: WorkspaceType,
   projectId: string,
   projectPath: string,
-  settings: ProjectSettingsProvider
+  settings: ProjectSettingsProvider,
+  workspaceBranchName?: string,
+  workspaceSourceBranch?: Branch
 ): Promise<BuildTaskResult> {
   const { taskEnvVars, tmuxEnabled, shellSetup } = await resolveTaskEnv(
     task,
@@ -63,8 +70,8 @@ export async function buildTaskFromWorkspace(
 
   const taskProvider: TaskProvider = {
     taskId: task.id,
-    taskBranch: task.taskBranch,
-    sourceBranch: task.sourceBranch,
+    taskBranch: workspaceBranchName,
+    sourceBranch: workspaceSourceBranch,
     taskEnvVars,
     conversations: conversationProvider,
     terminals: terminalProvider,

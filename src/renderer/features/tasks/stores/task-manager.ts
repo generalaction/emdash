@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { getProjectManagerStore } from '@renderer/features/projects/stores/project-selectors';
 import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
 import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
+import { getTaskGitStore } from '@renderer/features/tasks/stores/task-selectors';
 import { events, rpc } from '@renderer/lib/ipc';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import type { Conversation } from '@shared/conversations';
@@ -214,7 +215,8 @@ export class TaskManagerStore {
         for (const [, store] of this.tasks) {
           if (!isRegistered(store)) continue;
           const task = store.data as Task;
-          if (task.taskBranch !== pr.headRefName) continue;
+          const branchName = getTaskGitStore(task.projectId, task.id)?.branchName;
+          if (branchName !== pr.headRefName) continue;
           runInAction(() => {
             const idx = task.prs.findIndex((p) => p.url === pr.url);
             if (idx >= 0) {

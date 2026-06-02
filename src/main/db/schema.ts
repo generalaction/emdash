@@ -111,8 +111,8 @@ export const tasks = sqliteTable(
       .references(() => projects.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     status: text('status').notNull(),
-    sourceBranch: text('source_branch').$type<StoredBranch>(),
-    taskBranch: text('task_branch'),
+    sourceBranch: text('source_branch').$type<StoredBranch>(), // @deprecated — moved to workspaces.config (git.fromBranch)
+    taskBranch: text('task_branch'), // @deprecated — moved to workspaces.branch_name
     linkedIssue: text('linked_issue'),
     archivedAt: text('archived_at'), // null = active, timestamp = archived
     createdAt: text('created_at')
@@ -145,6 +145,7 @@ export const workspaces = sqliteTable(
     data: text('data'),
     path: text('path'),
     config: text('config'),
+    branchName: text('branch_name'),
     linesAdded: integer('lines_added'),
     linesDeleted: integer('lines_deleted'),
     createdAt: text('created_at')

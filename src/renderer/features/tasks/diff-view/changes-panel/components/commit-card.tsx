@@ -1,7 +1,7 @@
 import { CheckCircle, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
-import { getRegisteredTaskData } from '@renderer/features/tasks/stores/task-selectors';
+import { getTaskGitStore } from '@renderer/features/tasks/stores/task-selectors';
 import {
   useTaskViewContext,
   useWorkspace,
@@ -46,9 +46,9 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
 
   if (!diffView || !changesView) return null;
 
-  const taskData = getRegisteredTaskData(projectId, taskId);
+  const branchName = getTaskGitStore(projectId, taskId)?.branchName;
   const hasOpenPr = taskView.prStore?.pullRequests.some((p) => p.status === 'open') ?? false;
-  const canCreatePr = Boolean(repositoryUrl) && Boolean(taskData?.taskBranch) && !hasOpenPr;
+  const canCreatePr = Boolean(repositoryUrl) && Boolean(branchName) && !hasOpenPr;
 
   const doCommit = async () => {
     setPhase('committing');
@@ -121,7 +121,7 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
       projectId,
       taskId,
       repositoryUrl: repositoryUrl ?? '',
-      branchName: taskData?.taskBranch ?? '',
+      branchName: branchName ?? '',
       draft: false,
       workspaceId,
       onSuccess: () => {},

@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TaskRow } from '@main/db/schema';
 import type { WorkspaceConfig } from '@shared/workspace-config';
 import { serializeWorkspaceConfig } from '@shared/workspace-config';
-import { toStoredBranch } from '../stored-branch';
 import { createTask } from './createTask';
 
 const mocks = vi.hoisted(() => ({
@@ -127,127 +126,30 @@ describe('createTask', () => {
     );
   });
 
-  describe('deriveDbColumns — taskBranch and sourceBranch', () => {
-    it('stores no taskBranch or sourceBranch for git.kind none', async () => {
-      const { insertTaskValues } = setupInsertMocks();
+  it('does not write taskBranch or sourceBranch to the tasks row', async () => {
+    const { insertTaskValues } = setupInsertMocks();
 
-      await createTask({
-        id: 'task-1',
-        projectId: 'project-1',
-        name: 'Test Task',
-        workspaceConfig: { version: '1', git: { kind: 'none' }, workspace: { host: 'local' } },
-      });
-
-      expect(insertTaskValues).toHaveBeenCalledWith(
-        expect.objectContaining({ taskBranch: undefined, sourceBranch: toStoredBranch(undefined) })
-      );
-    });
-
-    it('stores branchName as taskBranch and fromBranch as sourceBranch for create-branch', async () => {
-      const { insertTaskValues } = setupInsertMocks();
-
-      await createTask({
-        id: 'task-1',
-        projectId: 'project-1',
-        name: 'Test Task',
-        workspaceConfig: {
-          version: '1',
-          git: {
-            kind: 'create-branch',
-            branchName: 'feature/my-task',
-            fromBranch: { type: 'local', branch: 'main' },
-            pushBranch: false,
-          },
-          workspace: { host: 'local' },
+    await createTask({
+      id: 'task-1',
+      projectId: 'project-1',
+      name: 'Test Task',
+      workspaceConfig: {
+        version: '1',
+        git: {
+          kind: 'create-branch',
+          branchName: 'feature/x',
+          fromBranch: { type: 'local', branch: 'main' },
         },
-      });
-
-      expect(insertTaskValues).toHaveBeenCalledWith(
-        expect.objectContaining({
-          taskBranch: 'feature/my-task',
-          sourceBranch: toStoredBranch({ type: 'local', branch: 'main' }),
-        })
-      );
+        workspace: { host: 'local' },
+      },
     });
 
-    it('stores branchName as taskBranch and itself as sourceBranch for use-branch', async () => {
-      const { insertTaskValues } = setupInsertMocks();
-
-      await createTask({
-        id: 'task-1',
-        projectId: 'project-1',
-        name: 'Test Task',
-        workspaceConfig: {
-          version: '1',
-          git: { kind: 'use-branch', branchName: 'existing-branch' },
-          workspace: { host: 'local' },
-        },
-      });
-
-      expect(insertTaskValues).toHaveBeenCalledWith(
-        expect.objectContaining({
-          taskBranch: 'existing-branch',
-          sourceBranch: toStoredBranch({ type: 'local', branch: 'existing-branch' }),
-        })
-      );
-    });
-
-    it('stores headBranch as taskBranch and as sourceBranch for pr-branch without taskBranch', async () => {
-      const { insertTaskValues } = setupInsertMocks();
-
-      await createTask({
-        id: 'task-1',
-        projectId: 'project-1',
-        name: 'Review PR',
-        workspaceConfig: {
-          version: '1',
-          git: {
-            kind: 'pr-branch',
-            prNumber: 123,
-            headBranch: 'feature/pr-head',
-            headRepositoryUrl: 'https://github.com/example/repo.git',
-            isFork: false,
-          },
-          workspace: { host: 'local' },
-        },
-      });
-
-      expect(insertTaskValues).toHaveBeenCalledWith(
-        expect.objectContaining({
-          taskBranch: 'feature/pr-head',
-          sourceBranch: toStoredBranch({ type: 'local', branch: 'feature/pr-head' }),
-        })
-      );
-    });
-
-    it('stores taskBranch override when provided in pr-branch', async () => {
-      const { insertTaskValues } = setupInsertMocks();
-
-      await createTask({
-        id: 'task-1',
-        projectId: 'project-1',
-        name: 'Review PR',
-        workspaceConfig: {
-          version: '1',
-          git: {
-            kind: 'pr-branch',
-            prNumber: 123,
-            headBranch: 'feature/pr-head',
-            headRepositoryUrl: 'https://github.com/example/repo.git',
-            isFork: false,
-            taskBranch: 'my-review-branch',
-          },
-          workspace: { host: 'local' },
-        },
-      });
-
-      expect(insertTaskValues).toHaveBeenCalledWith(
-        expect.objectContaining({
-          taskBranch: 'my-review-branch',
-          sourceBranch: toStoredBranch({ type: 'local', branch: 'feature/pr-head' }),
-        })
-      );
-    });
+    expect(insertTaskValues).toHaveBeenCalledWith(
+      expect.not.objectContaining({
+        taskBranch: expect.anything(),
+        sourceBranch: expect.anything(),
+      })
+    );
   });
 
   describe('workspace row type from workspaceConfig.workspace.host', () => {

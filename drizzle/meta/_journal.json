@@ -127,6 +127,13 @@
       "when": 1780408431371,
       "tag": "0017_aromatic_chronomancer",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1780410220231,
+      "tag": "0018_absurd_black_knight",
+      "breakpoints": true
     }
   ]
 }

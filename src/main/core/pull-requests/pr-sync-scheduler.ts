@@ -28,8 +28,8 @@ export class PrSyncScheduler implements IInitializable, IDisposable {
     this._unsubscribes = [
       projectManager.on('projectOpened', (id) => this.onProjectMounted(id)),
       projectManager.on('projectClosed', (id) => this.onProjectUnmounted(id)),
-      taskSessionManager.hooks.on('task:provisioned', ({ projectId, taskBranch }) => {
-        void this.onTaskProvisioned(projectId, taskBranch);
+      taskSessionManager.hooks.on('task:provisioned', ({ projectId, branchName }) => {
+        void this.onTaskProvisioned(projectId, branchName);
       }),
       gitWatcherRegistry.on('ref:changed', (p) => {
         if (p.kind === 'config') void this.onRemoteChanged(p.projectId);
