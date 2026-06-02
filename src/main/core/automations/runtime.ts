@@ -12,6 +12,7 @@ export async function runQueuedAutomation(
 ): Promise<Result<AutomationRun, string>> {
   let run = initialRun;
   let firstTaskId: string | null = null;
+  let latestTaskId: string | null = null;
   const ctx = { automation, run };
 
   if (automation.projectId == null) {
@@ -41,7 +42,8 @@ export async function runQueuedAutomation(
       })
     );
     if (!result.success) {
-      const failedTaskId = firstTaskId ?? result.error.taskId ?? null;
+      const failedTaskId = result.error.taskId ?? latestTaskId ?? firstTaskId ?? null;
+      const createdTaskId = firstTaskId ?? result.error.taskId ?? null;
       const message = result.error.message;
       log.error('Automation action failed', {
         automationId: automation.id,
@@ -54,7 +56,7 @@ export async function runQueuedAutomation(
         error: message,
         finishedAt,
         taskId: failedTaskId,
-        createdTaskId: failedTaskId,
+        createdTaskId,
       });
       return err(message);
     }
@@ -62,12 +64,13 @@ export async function runQueuedAutomation(
       firstTaskId = result.data.taskId;
       run = { ...run, taskId: firstTaskId, createdTaskId: firstTaskId };
     }
+    latestTaskId = result.data.taskId ?? latestTaskId;
   }
 
   const finishedAt = Date.now();
   run = await markRunSucceeded(run.id, {
     finishedAt,
-    taskId: firstTaskId,
+    taskId: latestTaskId,
     createdTaskId: firstTaskId,
   });
   await updateAutomationSchedule(automation.id, { lastRunAt: run.startedAt ?? Date.now() });
