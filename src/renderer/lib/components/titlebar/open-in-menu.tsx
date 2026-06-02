@@ -31,7 +31,7 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
   sshConnectionId,
 }) => {
   const { toast } = useToast();
-  const { icons, labels, installedApps, availability, loading } = useOpenInApps();
+  const { icons, labels, installedApps, availability, platform, loading } = useOpenInApps();
   const { value: openIn, update } = useAppSettingsKey('openIn');
   const { value: keyboard } = useAppSettingsKey('keyboard');
   const openInHotkey = getEffectiveHotkey('openInEditor', keyboard);
@@ -76,7 +76,9 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
 
   const sortedApps = useMemo(() => {
     const availableApps = isRemote
-      ? installedApps.filter((app) => app.supportsRemote)
+      ? installedApps.filter(
+          (app) => app.supportsRemote && (app.id !== 'terminal' || platform === 'darwin')
+        )
       : installedApps;
     if (!defaultApp) return availableApps;
     return [...availableApps].sort((a, b) => {
@@ -84,7 +86,7 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
       if (b.id === defaultApp) return 1;
       return 0;
     });
-  }, [defaultApp, installedApps, isRemote]);
+  }, [defaultApp, installedApps, isRemote, platform]);
 
   const menuApps = useMemo(
     () => sortedApps.filter((app) => !app.hideIfUnavailable || availability[app.id]),
