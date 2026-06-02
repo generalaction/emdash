@@ -111,10 +111,14 @@ export function addKimiHooksToConfigText(
     return JSON.stringify(config);
   } catch {}
 
-  const config = toml.parse(content) as Record<string, unknown>;
-  const hooks = Array.isArray(config.hooks) ? config.hooks : [];
-  config.hooks = buildKimiHookEntries(hooks, platform);
-  return toml.stringify(config);
+  try {
+    const config = toml.parse(content) as Record<string, unknown>;
+    const hooks = Array.isArray(config.hooks) ? config.hooks : [];
+    config.hooks = buildKimiHookEntries(hooks, platform);
+    return toml.stringify(config);
+  } catch {
+    return content;
+  }
 }
 
 const LEGACY_CODEX_NOTIFY_COMMAND = [

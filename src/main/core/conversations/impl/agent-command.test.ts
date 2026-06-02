@@ -267,6 +267,19 @@ describe('buildAgentCommand', () => {
     );
   });
 
+  it('leaves invalid Kimi inline --config args unchanged', () => {
+    const command = buildAgentCommand({
+      providerId: 'kimi',
+      providerConfig: {
+        ...providerConfigDefaults.kimi,
+        defaultArgs: ['--config', 'not valid toml = {'],
+      },
+      sessionId: 'session-1',
+    });
+
+    expect(command.args).toEqual(['--config', 'not valid toml = {']);
+  });
+
   it('supports custom CLI command prefixes and appends managed provider args', () => {
     const result = buildAgentCommand({
       providerId: 'claude',
