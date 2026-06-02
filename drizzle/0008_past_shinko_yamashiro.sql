@@ -1,1 +1,0 @@
-ALTER TABLE `conversations` ADD `last_interacted_at` text;

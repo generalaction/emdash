@@ -1,5 +1,5 @@
 import type { GitSetup, WorkspaceLocation } from '@shared/tasks';
-import { parseWorkspaceConfig, type WorkspaceTarget } from '@shared/workspace-config';
+import { parseWorkspaceConfig } from '@shared/workspace-config';
 import type { WorkspaceType } from '@shared/workspaces';
 
 /**
@@ -19,11 +19,6 @@ export function deriveBranchName(git: GitSetup): string | null {
   }
 }
 
-type TaskRow = {
-  workspaceIntent: string | null | undefined;
-  workspaceProvider: string | null | undefined;
-};
-
 type WorkspaceRow = {
   type: WorkspaceType;
   path: string | null | undefined;
@@ -41,20 +36,13 @@ export type WorkspaceIntent = {
  *
  * Priority:
  * 1. `workspaceRow.config` — written by `createTask` for all new tasks.
- * 2. `taskRow.workspaceIntent` — written by the previous migration; kept for
- *    tasks created before the `workspaces.config` column existed.
- * 3. Legacy inference from `workspaceRow.branchName` and `workspaceProvider`.
+ * 2. Legacy inference from `workspaceRow.branchName` and `workspaceRow.type`.
  *
  * Returns `null` when none of the sources are available (should not happen for
  * valid task rows, but callers must handle it gracefully).
- *
- * This is a retrieval-path compatibility helper — never use it for backfills.
  */
-export function resolveWorkspaceIntent(
-  taskRow: TaskRow,
-  workspaceRow: WorkspaceRow
-): WorkspaceIntent | null {
-  // 1. Prefer the workspace-level config if present (new path).
+export function resolveWorkspaceIntent(workspaceRow: WorkspaceRow): WorkspaceIntent | null {
+  // 1. Prefer the workspace-level config if present.
   if (workspaceRow.config) {
     const cfg = parseWorkspaceConfig(workspaceRow.config);
     if (cfg) {
@@ -63,27 +51,18 @@ export function resolveWorkspaceIntent(
     }
   }
 
-  // 2. Fall back to the task-level intent (previous migration path).
-  if (taskRow.workspaceIntent) {
-    try {
-      return JSON.parse(taskRow.workspaceIntent) as WorkspaceIntent;
-    } catch {
-      // Fall through to legacy inference.
-    }
-  }
-
-  return inferLegacyIntent(taskRow, workspaceRow);
+  return inferLegacyIntent(workspaceRow);
 }
 
 /**
- * Converts a v2 `WorkspaceTarget` to the legacy `WorkspaceLocation` type needed by
- * `compileSetupSpec`. Used only in the backwards-compat read path.
+ * Converts a `WorkspaceTarget` to the `WorkspaceLocation` type needed by
+ * `compileSetupSpec`.
  *
  * Returns `null` for `repository-instance` targets — those are handled by the
  * `project-root` fast-path in `WorkspaceBootstrapService` before this code is reached.
  */
 function workspaceTargetToLocation(
-  target: WorkspaceTarget,
+  target: { kind: string; remoteWorkspaceId?: string },
   workspaceType: WorkspaceType
 ): WorkspaceLocation | null {
   if (target.kind === 'repository-instance') return null;
@@ -93,10 +72,10 @@ function workspaceTargetToLocation(
   return { host };
 }
 
-function inferLegacyIntent(taskRow: TaskRow, workspaceRow: WorkspaceRow): WorkspaceIntent | null {
+function inferLegacyIntent(workspaceRow: WorkspaceRow): WorkspaceIntent | null {
   // BYOI workspaces use a dedicated provision path — return an intent that
   // signals no git setup is needed; the BYOI flow handles the rest.
-  if (workspaceRow.type === 'byoi' || taskRow.workspaceProvider === 'byoi') {
+  if (workspaceRow.type === 'byoi') {
     return {
       git: { kind: 'none' },
       workspace: { host: 'byoi' },
