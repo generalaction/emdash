@@ -95,7 +95,7 @@ export const PullRequestsSection = observer(function PullRequestsSection({
             <Tooltip>
               <TooltipTrigger>
                 <SplitButton
-                  variant="outline"
+                  variant="secondary"
                   size="xs"
                   actions={prActions}
                   disabled={hasOpenPr || !onCreatePr || !onCreateDraftPr}
