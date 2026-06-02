@@ -38,6 +38,7 @@ export function defaultUsageSources(
     { dir: join(home, '.claude', 'projects'), provider: 'claude' },
     { dir: join(home, '.codex', 'sessions'), provider: 'codex' },
     { dir: join(home, '.codex', 'archived_sessions'), provider: 'codex' },
+    { dir: join(home, '.pi', 'agent', 'sessions'), provider: 'pi' },
   ];
 }
 

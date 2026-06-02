@@ -1,4 +1,4 @@
-export type UsageProvider = 'claude' | 'codex';
+export type UsageProvider = 'claude' | 'codex' | 'pi';
 
 export type TokenBuckets = {
   input: number;

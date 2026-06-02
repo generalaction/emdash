@@ -161,7 +161,7 @@ export function SettingsPage({
     },
     usage: {
       title: 'Usage',
-      description: 'Token usage and estimated cost across Claude Code and Codex.',
+      description: 'Token usage and estimated cost across your local AI coding agents.',
       sections: [{ component: <UsagePanel /> }],
     },
   };

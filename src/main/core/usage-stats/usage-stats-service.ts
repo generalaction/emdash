@@ -7,6 +7,7 @@ import { loadIndex, reconcileCache, saveIndex, type UsageIndex } from './cache';
 import { ensureModelsDevPricing } from './models-dev';
 import { parseClaudeTranscript } from './parse-claude';
 import { parseCodexRollout } from './parse-codex';
+import { parsePiTranscript } from './parse-pi';
 import { scanAll } from './scanner';
 import type { ScannedFile } from './types';
 
@@ -15,9 +16,14 @@ function readScannedText(file: ScannedFile): string {
 }
 
 function parseScannedFile(text: string, file: ScannedFile) {
-  return file.provider === 'claude'
-    ? parseClaudeTranscript(text)
-    : parseCodexRollout(text, file.path);
+  switch (file.provider) {
+    case 'claude':
+      return parseClaudeTranscript(text);
+    case 'pi':
+      return parsePiTranscript(text, file.path);
+    default:
+      return parseCodexRollout(text, file.path);
+  }
 }
 
 class UsageStatsService {

@@ -48,7 +48,7 @@ export function UsagePanel() {
     return (
       <EmptyState
         label="No usage yet"
-        description="No Claude Code or Codex usage was found on this machine."
+        description="No local AI coding agent usage was found on this machine."
       />
     );
   }
