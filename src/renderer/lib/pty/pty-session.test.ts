@@ -137,6 +137,31 @@ describe('PtySession', () => {
     expect(session.status).toBe('ready');
   });
 
+  it('treats the first backend start after dispose and reconnect as initial', async () => {
+    const reconnect = deferred<void>();
+    frontendConnect.mockResolvedValueOnce(undefined).mockReturnValueOnce(reconnect.promise);
+    const session = new PtySession('session-1', undefined, undefined, undefined, {
+      clearOnBackendStart: true,
+    });
+
+    await session.connect();
+    session.dispose();
+    const reconnectPromise = session.connect();
+    await Promise.resolve();
+
+    for (const listener of ptyStartedListeners()) {
+      listener({ id: 'session-1' });
+    }
+
+    expect(frontendClear).not.toHaveBeenCalled();
+    expect(frontendDispose).toHaveBeenCalledTimes(1);
+    expect(frontendInstances).toHaveLength(2);
+
+    reconnect.resolve();
+    await reconnectPromise;
+    expect(session.status).toBe('ready');
+  });
+
   it('does not recreate for the first backend start that arrives during initial connect', async () => {
     const connect = deferred<void>();
     frontendConnect.mockReturnValue(connect.promise);

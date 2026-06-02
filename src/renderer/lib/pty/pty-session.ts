@@ -71,6 +71,7 @@ export class PtySession {
   dispose() {
     this.version++;
     this.pty?.dispose();
+    this.hasSeenBackendStart = false;
     runInAction(() => {
       this.pty = null;
       this.status = 'disconnected';
