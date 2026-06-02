@@ -125,7 +125,7 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, className, borderl
                   src={icons[buttonAppId]}
                   alt={labels[buttonAppId] || buttonAppId}
                   className={`size-3.5 rounded ${
-                    getAppById(buttonAppId)?.invertInDark ? 'dark:invert' : ''
+                    getAppById(buttonAppId)?.invertInDark ? 'emdark:invert' : ''
                   }`}
                 />
               )}
@@ -170,7 +170,7 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, className, borderl
                   <img
                     src={icons[app.id]}
                     alt={labels[app.id] || app.label}
-                    className={`h-4 w-4 rounded ${app.invertInDark ? 'dark:invert' : ''}`}
+                    className={`h-4 w-4 rounded ${app.invertInDark ? 'emdark:invert' : ''}`}
                   />
                 )}
                 {labels[app.id] || app.label}
