@@ -1,5 +1,6 @@
 import { ExternalLink } from 'lucide-react';
 import React, { useCallback } from 'react';
+import { UsagePanel } from '@renderer/features/usage/usage-panel';
 import { PageHeader } from '@renderer/lib/components/page-header';
 import { rpc } from '@renderer/lib/ipc';
 import { cn } from '@renderer/utils/utils';
@@ -35,6 +36,7 @@ export type SettingsPageTab =
   | 'connections'
   | 'repository'
   | 'interface'
+  | 'usage'
   | 'docs';
 
 interface SectionConfig {
@@ -66,6 +68,7 @@ export function SettingsPage({
     { id: 'connections', label: 'Connections' },
     { id: 'repository', label: 'Repository' },
     { id: 'interface', label: 'Interface' },
+    { id: 'usage', label: 'Usage' },
     { id: 'docs', label: 'Docs', isExternal: true },
   ];
 
@@ -155,6 +158,11 @@ export function SettingsPage({
           component: <HiddenToolsSettingsCard />,
         },
       ],
+    },
+    usage: {
+      title: 'Usage',
+      description: 'Token usage and estimated cost across Claude Code and Codex.',
+      sections: [{ component: <UsagePanel /> }],
     },
   };
 

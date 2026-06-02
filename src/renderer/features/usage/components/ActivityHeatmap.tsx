@@ -3,8 +3,9 @@ import { cn } from '@renderer/utils/utils';
 import type { DailyPoint } from '@shared/usage';
 import { fmtTokens } from '../format';
 
-type Mode = 'daily' | 'weekly';
+type Mode = 'daily' | 'weekly' | 'cumulative';
 
+const MODES: Mode[] = ['daily', 'weekly', 'cumulative'];
 const WEEKS = 53;
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -24,13 +25,13 @@ function ymd(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-function levelOf(tokens: number, max: number): number {
-  if (tokens <= 0) return 0;
-  const r = Math.sqrt(tokens / max); // sqrt spreads the long tail of low-volume days
+function levelOf(value: number, max: number): number {
+  if (value <= 0) return 0;
+  const r = Math.sqrt(value / max); // sqrt spreads the long tail of low-volume days
   return Math.min(4, Math.max(1, Math.ceil(r * 4)));
 }
 
-type Cell = { date: Date; tokens: number; future: boolean };
+type Cell = { date: Date; tokens: number; cumulative: number; future: boolean };
 type Hover = { x: number; y: number; text: string };
 
 export function ActivityHeatmap({ daily }: { daily: DailyPoint[] }) {
@@ -44,7 +45,7 @@ export function ActivityHeatmap({ daily }: { daily: DailyPoint[] }) {
     return m;
   }, [daily]);
 
-  const { columns, weekTotals, monthLabels, maxDaily, maxWeekly } = useMemo(() => {
+  const { columns, weekTotals, monthLabels, maxDaily, maxWeekly, maxCumulative } = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const start = new Date(today);
@@ -52,6 +53,7 @@ export function ActivityHeatmap({ daily }: { daily: DailyPoint[] }) {
 
     const columns: Cell[][] = [];
     let maxDaily = 0;
+    let running = 0;
     for (let w = 0; w < WEEKS; w++) {
       const col: Cell[] = [];
       for (let dow = 0; dow < 7; dow++) {
@@ -60,7 +62,8 @@ export function ActivityHeatmap({ daily }: { daily: DailyPoint[] }) {
         const future = date.getTime() > today.getTime();
         const tokens = future ? 0 : (byDate.get(ymd(date)) ?? 0);
         if (tokens > maxDaily) maxDaily = tokens;
-        col.push({ date, tokens, future });
+        if (!future) running += tokens; // columns build chronologically
+        col.push({ date, tokens, cumulative: running, future });
       }
       columns.push(col);
     }
@@ -74,7 +77,14 @@ export function ActivityHeatmap({ daily }: { daily: DailyPoint[] }) {
       return month !== prevMonth ? MONTHS[month] : '';
     });
 
-    return { columns, weekTotals, monthLabels, maxDaily: Math.max(1, maxDaily), maxWeekly };
+    return {
+      columns,
+      weekTotals,
+      monthLabels,
+      maxDaily: Math.max(1, maxDaily),
+      maxWeekly,
+      maxCumulative: Math.max(1, running),
+    };
   }, [byDate]);
 
   return (
@@ -84,7 +94,7 @@ export function ActivityHeatmap({ daily }: { daily: DailyPoint[] }) {
           Token activity
         </div>
         <div className="flex items-center gap-3 text-xs">
-          {(['daily', 'weekly'] as Mode[]).map((m) => (
+          {MODES.map((m) => (
             <button
               key={m}
               type="button"
@@ -108,8 +118,14 @@ export function ActivityHeatmap({ daily }: { daily: DailyPoint[] }) {
           {columns.map((col, ci) => (
             <div key={ci} className="flex min-w-0 flex-1 flex-col gap-[3px]">
               {col.map((cell, ri) => {
-                const value = mode === 'weekly' ? weekTotals[ci] : cell.tokens;
-                const max = mode === 'weekly' ? maxWeekly : maxDaily;
+                const value =
+                  mode === 'weekly'
+                    ? weekTotals[ci]
+                    : mode === 'cumulative'
+                      ? cell.cumulative
+                      : cell.tokens;
+                const max =
+                  mode === 'weekly' ? maxWeekly : mode === 'cumulative' ? maxCumulative : maxDaily;
                 const level = levelOf(value, max);
                 return (
                   <div
@@ -135,15 +151,24 @@ export function ActivityHeatmap({ daily }: { daily: DailyPoint[] }) {
           ))}
         </div>
 
-        <div className="mt-1.5 flex w-full gap-[3px]">
-          {monthLabels.map((label, i) => (
-            <div
-              key={i}
-              className="min-w-0 flex-1 overflow-visible text-left text-[10px] whitespace-nowrap text-foreground/40"
-            >
-              {label}
-            </div>
-          ))}
+        <div className="mt-1.5 flex w-full items-center gap-[3px]">
+          <div className="flex min-w-0 flex-1 gap-[3px]">
+            {monthLabels.map((label, i) => (
+              <div
+                key={i}
+                className="min-w-0 flex-1 overflow-visible text-left text-[10px] whitespace-nowrap text-foreground/40"
+              >
+                {label}
+              </div>
+            ))}
+          </div>
+          <div className="flex shrink-0 items-center gap-1 pl-3 text-[10px] text-foreground/40">
+            <span>Less</span>
+            {LEVEL_BG.map((bg, i) => (
+              <span key={i} className={cn('h-2.5 w-2.5 rounded-[2px]', bg)} />
+            ))}
+            <span>More</span>
+          </div>
         </div>
 
         {hover && (

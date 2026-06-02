@@ -6,7 +6,6 @@ import { projectView } from '@renderer/features/projects/view';
 import { settingsView } from '@renderer/features/settings/settings-view';
 import { skillsView } from '@renderer/features/skills/skills-view';
 import { taskView } from '@renderer/features/tasks/view';
-import { usageView } from '@renderer/features/usage/usage-view';
 import type { CommandProvider } from '@renderer/lib/commands/types';
 import { appState } from '@renderer/lib/stores/app-state';
 
@@ -18,7 +17,6 @@ export const views = {
   mcp: mcpView,
   project: projectView,
   task: taskView,
-  usage: usageView,
   settings: settingsView,
   // oxlint-disable-next-line typescript/no-explicit-any
 } satisfies Record<string, ViewDefinition<any>>;

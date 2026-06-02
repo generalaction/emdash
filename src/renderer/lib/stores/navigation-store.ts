@@ -19,7 +19,6 @@ export const viewEvents: Record<
   | 'library_viewed'
   | 'skills_viewed'
   | 'mcp_viewed'
-  | 'usage_viewed'
 > = {
   home: 'home_viewed',
   library: 'library_viewed',
@@ -28,7 +27,6 @@ export const viewEvents: Record<
   settings: 'settings_viewed',
   skills: 'skills_viewed',
   mcp: 'mcp_viewed',
-  usage: 'usage_viewed',
 };
 
 export class NavigationStore implements Snapshottable<NavigationSnapshot> {
