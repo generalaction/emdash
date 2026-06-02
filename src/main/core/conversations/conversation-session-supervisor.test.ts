@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Pty } from '@main/core/pty/pty';
 import {
-  MAX_CONVERSATION_RESUME_REPLACEMENTS,
+  MAX_CONVERSATION_RESUME_ATTEMPTS,
   ConversationSessionSupervisor,
 } from './conversation-session-supervisor';
 
@@ -27,7 +27,7 @@ describe('ConversationSessionSupervisor', () => {
     expect(supervisor.acceptSpawn('session-1', token!, pty)).toBe(false);
   });
 
-  it('falls back to a fresh replacement after three resume exits', () => {
+  it('falls back to a fresh replacement after one resume exit', () => {
     const supervisor = new ConversationSessionSupervisor();
     const initial = fakePty();
     const initialToken = supervisor.beginStart('session-1', { mode: 'fresh' });
@@ -35,7 +35,7 @@ describe('ConversationSessionSupervisor', () => {
 
     expect(supervisor.handleExit('session-1', initial)).toEqual({ kind: 'respawnResume' });
 
-    for (let attempt = 1; attempt <= MAX_CONVERSATION_RESUME_REPLACEMENTS; attempt += 1) {
+    for (let attempt = 1; attempt <= MAX_CONVERSATION_RESUME_ATTEMPTS; attempt += 1) {
       const pty = fakePty();
       const token = supervisor.beginStart('session-1', {
         requireDesired: true,
@@ -44,7 +44,7 @@ describe('ConversationSessionSupervisor', () => {
       expect(supervisor.acceptSpawn('session-1', token!, pty)).toBe(true);
 
       const decision = supervisor.handleExit('session-1', pty);
-      if (attempt < MAX_CONVERSATION_RESUME_REPLACEMENTS) {
+      if (attempt < MAX_CONVERSATION_RESUME_ATTEMPTS) {
         expect(decision).toEqual({ kind: 'respawnResume' });
       } else {
         expect(decision).toEqual({ kind: 'respawnFresh' });
@@ -58,7 +58,7 @@ describe('ConversationSessionSupervisor', () => {
     const firstToken = supervisor.beginStart('session-1', { mode: 'resume' });
     expect(supervisor.acceptSpawn('session-1', firstToken!, first)).toBe(true);
 
-    expect(supervisor.handleExit('session-1', first)).toEqual({ kind: 'respawnResume' });
+    expect(supervisor.handleExit('session-1', first)).toEqual({ kind: 'respawnFresh' });
 
     const fresh = fakePty();
     const freshToken = supervisor.beginStart('session-1', {
@@ -74,6 +74,6 @@ describe('ConversationSessionSupervisor', () => {
       mode: 'resume',
     });
     expect(supervisor.acceptSpawn('session-1', retryToken!, retry)).toBe(true);
-    expect(supervisor.handleExit('session-1', retry)).toEqual({ kind: 'respawnResume' });
+    expect(supervisor.handleExit('session-1', retry)).toEqual({ kind: 'respawnFresh' });
   });
 });

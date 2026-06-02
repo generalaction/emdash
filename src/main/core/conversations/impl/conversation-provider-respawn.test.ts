@@ -296,7 +296,7 @@ describe('conversation provider respawn state', () => {
     expect(wireAgentClassifier).not.toHaveBeenCalled();
   });
 
-  it('replaces a local conversation after clean exit by resuming the same provider session', async () => {
+  it('starts a local conversation fresh after a resumed session exits', async () => {
     vi.useFakeTimers();
     try {
       const exitHandlers: Array<Array<(info: PtyExitInfo) => void>> = [];
@@ -316,14 +316,14 @@ describe('conversation provider respawn state', () => {
 
       expect(spawnLocalPty).toHaveBeenCalledTimes(2);
       expect(buildAgentSessionCommand).toHaveBeenLastCalledWith(
-        expect.objectContaining({ isResuming: true })
+        expect.objectContaining({ isResuming: false })
       );
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it('replaces an SSH conversation after clean exit by resuming the same provider session', async () => {
+  it('starts an SSH conversation fresh after a resumed session exits', async () => {
     vi.useFakeTimers();
     try {
       const exitHandlers: Array<Array<(info: PtyExitInfo) => void>> = [];
@@ -343,7 +343,7 @@ describe('conversation provider respawn state', () => {
 
       expect(openSsh2Pty).toHaveBeenCalledTimes(2);
       expect(buildAgentSessionCommand).toHaveBeenLastCalledWith(
-        expect.objectContaining({ isResuming: true })
+        expect.objectContaining({ isResuming: false })
       );
     } finally {
       vi.useRealTimers();
@@ -438,7 +438,7 @@ describe('conversation provider respawn state', () => {
     }
   });
 
-  it('starts a local conversation fresh after three resume replacements exit', async () => {
+  it('starts a local conversation fresh after one resume replacement exits', async () => {
     vi.useFakeTimers();
     try {
       const exitHandlers: Array<Array<(info: PtyExitInfo) => void>> = [];
@@ -452,21 +452,21 @@ describe('conversation provider respawn state', () => {
 
       await provider.startSession(item);
 
-      for (let index = 0; index < 4; index += 1) {
+      for (let index = 0; index < 2; index += 1) {
         for (const handler of exitHandlers[index] ?? []) handler({ exitCode: 1 });
         await vi.advanceTimersByTimeAsync(500);
       }
 
-      expect(spawnLocalPty).toHaveBeenCalledTimes(5);
+      expect(spawnLocalPty).toHaveBeenCalledTimes(3);
       expect(
         vi.mocked(buildAgentSessionCommand).mock.calls.map(([args]) => args.isResuming)
-      ).toEqual([false, true, true, true, false]);
+      ).toEqual([false, true, false]);
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it('starts an SSH conversation fresh after three resume replacements exit', async () => {
+  it('starts an SSH conversation fresh after one resume replacement exits', async () => {
     vi.useFakeTimers();
     try {
       const exitHandlers: Array<Array<(info: PtyExitInfo) => void>> = [];
@@ -480,15 +480,15 @@ describe('conversation provider respawn state', () => {
 
       await provider.startSession(item);
 
-      for (let index = 0; index < 4; index += 1) {
+      for (let index = 0; index < 2; index += 1) {
         for (const handler of exitHandlers[index] ?? []) handler({ exitCode: 1 });
         await vi.advanceTimersByTimeAsync(500);
       }
 
-      expect(openSsh2Pty).toHaveBeenCalledTimes(5);
+      expect(openSsh2Pty).toHaveBeenCalledTimes(3);
       expect(
         vi.mocked(buildAgentSessionCommand).mock.calls.map(([args]) => args.isResuming)
-      ).toEqual([false, true, true, true, false]);
+      ).toEqual([false, true, false]);
     } finally {
       vi.useRealTimers();
     }

@@ -18,7 +18,7 @@ type ConversationRuntime = {
   consecutiveResumeExits: number;
 };
 
-export const MAX_CONVERSATION_RESUME_REPLACEMENTS = 3;
+export const MAX_CONVERSATION_RESUME_ATTEMPTS = 1;
 
 export type ExitDecision =
   | { kind: 'stale' }
@@ -89,7 +89,7 @@ export class ConversationSessionSupervisor {
 
     if (exitedMode === 'resume') {
       runtime.consecutiveResumeExits += 1;
-      if (runtime.consecutiveResumeExits >= MAX_CONVERSATION_RESUME_REPLACEMENTS) {
+      if (runtime.consecutiveResumeExits >= MAX_CONVERSATION_RESUME_ATTEMPTS) {
         runtime.consecutiveResumeExits = 0;
         return { kind: 'respawnFresh' };
       }
