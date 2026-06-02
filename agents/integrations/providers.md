@@ -30,7 +30,7 @@ Each provider has a terminal output classifier in `src/main/core/conversations/i
 - Claude uses deterministic `--session-id` values for conversation isolation.
 - Agents with no CLI prompt flag (e.g., Amp, OpenCode) use keystroke injection — Emdash types the prompt into the TUI after startup.
 - `src/main/core/agent-hooks/service.ts` forwards hook events to renderer windows and can show OS notifications. It also writes hook config files for hook-capable providers, including `.claude/settings.local.json`, `.qwen/settings.json`, and provider-specific global hook files.
-- Qwen Code hooks use the documented Qwen settings schema in `.qwen/settings.json`. Emdash installs command hooks for session, prompt/tool activity, notification, stop, and session-end events while preserving unrelated user hooks.
+- Qwen Code hooks use the documented Qwen settings schema in `.qwen/settings.json`. Emdash installs command hooks for permission requests and session end/stop events while preserving unrelated user hooks.
 
 ## Adding Or Changing A Provider
 

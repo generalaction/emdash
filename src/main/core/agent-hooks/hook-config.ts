@@ -41,15 +41,7 @@ type GrokHookEvent =
   | 'Stop'
   | 'StopFailure'
   | 'UserPromptSubmit';
-type QwenHookEvent =
-  | 'Notification'
-  | 'PostToolUse'
-  | 'PostToolUseFailure'
-  | 'PreToolUse'
-  | 'SessionEnd'
-  | 'SessionStart'
-  | 'Stop'
-  | 'UserPromptSubmit';
+type QwenHookEvent = 'PermissionRequest' | 'SessionEnd' | 'Stop';
 type DroidHookEvent = 'Notification' | 'Stop' | 'SessionStart';
 type DevinHookEvent = 'PermissionRequest' | 'SessionEnd' | 'Stop';
 
@@ -232,28 +224,8 @@ export class HookConfigWriter {
     const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
     const hookEntries = [
       {
-        hookKey: 'SessionStart',
-        command: makeClaudeHookCommand('session', { platform: this.platform }),
-      },
-      {
-        hookKey: 'UserPromptSubmit',
-        command: makeClaudeHookCommand('start', { platform: this.platform }),
-      },
-      {
-        hookKey: 'PreToolUse',
-        command: makeClaudeHookCommand('start', { platform: this.platform }),
-      },
-      {
-        hookKey: 'PostToolUse',
-        command: makeClaudeHookCommand('start', { platform: this.platform }),
-      },
-      {
-        hookKey: 'PostToolUseFailure',
-        command: makeClaudeHookCommand('start', { platform: this.platform }),
-      },
-      {
-        hookKey: 'Notification',
-        command: makeClaudeHookCommand('notification', { platform: this.platform }),
+        hookKey: 'PermissionRequest',
+        command: makeCodexHookCommand('permission_prompt', { platform: this.platform }),
       },
       { hookKey: 'Stop', command: makeClaudeHookCommand('stop', { platform: this.platform }) },
       {

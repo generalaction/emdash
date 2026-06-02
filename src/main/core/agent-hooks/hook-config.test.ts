@@ -191,17 +191,13 @@ describe('HookConfigWriter', () => {
 
     expect(wroteConfig).toBe(true);
     const config = JSON.parse(fs.files.get('.qwen/settings.json')!);
-    expect(config.hooks.SessionStart[0].hooks[0].command).toContain('X-Emdash-Event-Type: session');
-    expect(config.hooks.UserPromptSubmit[0].hooks[0].command).toContain(
-      'X-Emdash-Event-Type: start'
-    );
-    expect(config.hooks.PreToolUse[0].hooks[0].command).toContain('X-Emdash-Event-Type: start');
-    expect(config.hooks.PostToolUse[0].hooks[0].command).toContain('X-Emdash-Event-Type: start');
-    expect(config.hooks.PostToolUseFailure[0].hooks[0].command).toContain(
-      'X-Emdash-Event-Type: start'
-    );
-    expect(config.hooks.Notification[0].hooks[0].command).toContain(
-      'X-Emdash-Event-Type: notification'
+    expect(config.hooks.UserPromptSubmit).toBeUndefined();
+    expect(config.hooks.PreToolUse).toBeUndefined();
+    expect(config.hooks.PostToolUse).toBeUndefined();
+    expect(config.hooks.PostToolUseFailure).toBeUndefined();
+    expect(config.hooks.Notification).toBeUndefined();
+    expect(config.hooks.PermissionRequest[0].hooks[0].command).toContain(
+      '{"notification_type":"permission_prompt"}'
     );
     expect(config.hooks.Stop[0].hooks[0].command).toContain('X-Emdash-Event-Type: stop');
     expect(config.hooks.SessionEnd[0].hooks[0].command).toContain('X-Emdash-Event-Type: stop');
