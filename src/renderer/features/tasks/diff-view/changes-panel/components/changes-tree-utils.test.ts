@@ -36,7 +36,7 @@ describe('buildDirectoryStatusByPath', () => {
     }
   );
 
-  it('does not promote status to sibling-only directories', () => {
+  it('marks changed branches only and leaves sibling directories unmarked', () => {
     const statuses = buildDirectoryStatusByPath([
       change('src/lib/removed.ts', 'deleted'),
       change('src/components/button.tsx', 'added'),
