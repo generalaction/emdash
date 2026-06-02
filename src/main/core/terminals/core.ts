@@ -7,6 +7,7 @@ export function mapTerminalRowToTerminal(row: TerminalRow): Terminal {
     taskId: row.taskId,
     ssh: row.ssh === 1,
     projectId: row.projectId,
+    shellId: row.shellId,
     name: row.name,
   };
 }

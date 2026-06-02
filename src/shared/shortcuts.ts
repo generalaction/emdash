@@ -38,6 +38,12 @@ export const APP_SHORTCUTS = defineShortcuts({
     description: 'Open application settings',
     category: 'Navigation',
   },
+  library: {
+    defaultHotkey: 'Mod+L',
+    label: 'Library',
+    description: 'Open the Library',
+    category: 'Navigation',
+  },
   toggleLeftSidebar: {
     defaultHotkey: 'Mod+B',
     label: 'Toggle Left Sidebar',

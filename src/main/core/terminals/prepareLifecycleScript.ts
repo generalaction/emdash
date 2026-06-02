@@ -1,5 +1,4 @@
-import { getEffectiveTaskSettings } from '../projects/settings/effective-task-settings';
-import { resolveWorkspace } from '../projects/utils';
+import { resolveLifecycleScript } from './lifecycle-script-settings';
 
 export async function prepareLifecycleScript({
   projectId,
@@ -10,19 +9,16 @@ export async function prepareLifecycleScript({
   workspaceId: string;
   type: 'setup' | 'run' | 'teardown';
 }): Promise<void> {
-  const workspace = resolveWorkspace(projectId, workspaceId);
-  if (!workspace) throw new Error('Workspace not found');
-
-  const settings = await getEffectiveTaskSettings({
-    projectSettings: workspace.settings,
-    taskFs: workspace.fs,
+  const { workspace, script, shellSetup } = await resolveLifecycleScript({
+    projectId,
+    workspaceId,
+    type,
   });
-  const script = settings.scripts?.[type];
   if (!script) return;
 
   await workspace.lifecycleService.prepareLifecycleScript({
     type,
     script,
-    shellSetup: settings.shellSetup,
+    shellSetup,
   });
 }

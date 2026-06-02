@@ -11,6 +11,7 @@ import {
   Terminal,
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { AutomationTaskTitlebar } from '@renderer/features/automations/components/AutomationTaskTitlebar';
 import {
   asMounted,
   getProjectStore,
@@ -53,6 +54,10 @@ export const TaskTitlebar = observer(function TaskTitlebar() {
   const { projectId, taskId } = useTaskViewContext();
   const taskStore = getTaskStore(projectId, taskId);
   const kind = taskViewKind(taskStore, projectId);
+
+  if (taskStore?.data.automationId) {
+    return <AutomationTaskTitlebar />;
+  }
 
   if (kind !== 'ready') {
     return <PendingTaskTitlebar taskId={taskId} projectId={projectId} />;

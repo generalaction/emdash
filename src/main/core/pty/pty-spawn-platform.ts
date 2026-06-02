@@ -119,14 +119,34 @@ function getWindowsPathDirs(env: NodeJS.ProcessEnv): string[] {
   return rawPath.split(path.win32.delimiter).filter(Boolean);
 }
 
-function getWindowsPathExts(env: NodeJS.ProcessEnv): string[] {
+function getWindowsPathExts(
+  env: NodeJS.ProcessEnv,
+  options: { powershell?: boolean } = {}
+): string[] {
   const rawPathExt =
     getWindowsEnvValue(env, 'PATHEXT') ?? '.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC';
-  return rawPathExt
+  const exts = rawPathExt
     .split(';')
     .map((ext) => ext.trim())
     .filter(Boolean)
     .map((ext) => (ext.startsWith('.') ? ext : `.${ext}`));
+  if (!options.powershell) return exts;
+
+  const normalized = new Set(exts.map((ext) => ext.toUpperCase()));
+  if (!normalized.has('.PS1')) exts.push('.PS1');
+
+  const priority = new Map([
+    ['.COM', 0],
+    ['.EXE', 1],
+    ['.PS1', 2],
+    ['.CMD', 3],
+    ['.BAT', 4],
+  ]);
+  return [...exts].sort((a, b) => {
+    const aRank = priority.get(a.toUpperCase()) ?? 5;
+    const bRank = priority.get(b.toUpperCase()) ?? 5;
+    return aRank - bRank;
+  });
 }
 
 function hasWindowsPathSeparator(command: string): boolean {
@@ -138,11 +158,13 @@ function resolveWindowsCommandPath({
   cwd,
   env,
   fileExists,
+  powershell = false,
 }: {
   command: string;
   cwd: string;
   env: NodeJS.ProcessEnv;
   fileExists: FileExists;
+  powershell?: boolean;
 }): string | null {
   if (path.win32.extname(command)) {
     return null;
@@ -157,7 +179,7 @@ function resolveWindowsCommandPath({
         ];
 
   for (const base of baseCandidates) {
-    for (const ext of getWindowsPathExts(env)) {
+    for (const ext of getWindowsPathExts(env, { powershell })) {
       const candidate = `${base}${ext}`;
       if (fileExists(candidate)) return candidate;
     }
@@ -218,6 +240,10 @@ function cmdShellLineSpawn({
   };
 }
 
+function powerShellFileArgs(suppressProfile: boolean): string[] {
+  return [suppressProfile ? '-NoProfile' : '-NoLogo', '-ExecutionPolicy', 'Bypass', '-File'];
+}
+
 function resolveWindowsSpawn(
   intent: PtySpawnIntent,
   env: NodeJS.ProcessEnv,
@@ -252,10 +278,20 @@ function resolveWindowsSpawn(
       cwd: intent.cwd,
       env,
       fileExists,
+      powershell: intent.shellProfile?.family === 'powershell',
     }) ?? command;
   const ext = path.win32.extname(resolvedCommand).toLowerCase();
 
   if (ext === '.cmd' || ext === '.bat') {
+    if (intent.shellProfile?.family === 'powershell') {
+      return windowsShellLineSpawn({
+        commandLine: `& ${[resolvedCommand, ...args].map(quoteForPowerShell).join(' ')}`,
+        cwd: intent.cwd,
+        env,
+        shellProfile: intent.shellProfile,
+        warnings,
+      });
+    }
     return cmdShellLineSpawn({
       commandLine: [resolvedCommand, ...args].map(quoteForCmdExe).join(' '),
       cwd: intent.cwd,
@@ -265,12 +301,11 @@ function resolveWindowsSpawn(
   }
 
   if (ext === '.ps1') {
+    const selectedPowerShell =
+      intent.shellProfile?.family === 'powershell' ? intent.shellProfile : undefined;
     return {
-      command:
-        intent.shellProfile?.family === 'powershell'
-          ? intent.shellProfile.executable
-          : 'powershell.exe',
-      args: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', resolvedCommand, ...args],
+      command: selectedPowerShell?.executable ?? 'powershell.exe',
+      args: [...powerShellFileArgs(selectedPowerShell === undefined), resolvedCommand, ...args],
       cwd: intent.cwd,
       warnings,
     };
@@ -339,7 +374,7 @@ function resolvePosixSpawn(intent: PtySpawnIntent, env: NodeJS.ProcessEnv): Reso
     intent.shellProfile?.family === 'windows-cmd'
   ) {
     throw new Error(
-      `Cannot run POSIX shell-wrapped commands through ${intent.shellProfile.displayName}`
+      `Cannot run POSIX shell-wrapped commands through ${intent.shellProfile.resolvedShellId}`
     );
   }
 

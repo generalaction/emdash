@@ -25,6 +25,9 @@ function buildStore() {
   store.registerView('home');
   store.registerView('project');
   store.registerView('settings');
+  store.registerView('library');
+  store.registerView('skills');
+  store.registerView('mcp');
   return store;
 }
 
@@ -42,6 +45,7 @@ describe('NavigationStore.restoreSnapshot', () => {
     expect(store.currentViewId).toBe('project');
     expect(store.viewParamsStore.project).toEqual({ projectId: 'p1' });
     expect(store.lastNonSettingsView).toBe('project');
+    expect(store.lastNonLibraryView).toBe('project');
   });
 
   it('falls back to home when the persisted view is not in the registry', () => {
@@ -82,5 +86,15 @@ describe('NavigationStore.restoreSnapshot', () => {
       viewParams: { project: { projectId: 'gone' } },
     });
     expect(store.currentViewId).toBe('home');
+  });
+
+  it('tracks the last non-library view across library subviews', () => {
+    const store = buildStore();
+    store.navigate('project', { projectId: 'p1' });
+    store.navigate('library');
+    store.navigate('skills');
+    store.navigate('mcp');
+    expect(store.currentViewId).toBe('mcp');
+    expect(store.lastNonLibraryView).toBe('project');
   });
 });

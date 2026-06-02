@@ -106,7 +106,7 @@ export const CreatePrModal = observer(function CreatePrModal({
     setIsCreating(true);
     try {
       if (push) {
-        const pushResult = await rpc.git.push(
+        const pushResult = await rpc.workspace.git.push(
           projectId,
           workspaceId,
           repo?.pushRemote.name ?? 'origin'

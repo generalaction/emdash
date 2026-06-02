@@ -1,3 +1,4 @@
+import { execFile } from 'node:child_process';
 import os from 'node:os';
 import { app } from 'electron';
 import pidusage from 'pidusage';
@@ -19,36 +20,25 @@ const CPU_COUNT = os.cpus().length;
 const TOTAL_MEMORY_BYTES = os.totalmem();
 const STALE_LOCAL_PTY_MEMORY_BYTES = 2 * 1024 * 1024;
 
+type ProcessUsage = { cpu: number; memory: number; ppid?: number };
+type ProcessUsageMap = Record<string, ProcessUsage>;
+type ProcessTreeSnapshot = { trees: Map<number, number[]>; sampledPids: number[] };
+
 export async function sampleOnce(): Promise<ResourceSnapshot> {
   const active = ptySessionRegistry.listActiveSessions();
   const localPids = active
     .map((a) => a.pid)
     .filter((p): p is number => typeof p === 'number' && p > 0);
 
-  let usage: Record<string, { cpu: number; memory: number; ppid?: number }> = {};
-  if (localPids.length > 0) {
-    try {
-      usage = await pidusage(localPids);
-    } catch {
-      // A dead PID rejects the whole batch — fall back to per-pid sampling in parallel.
-      const results = await Promise.allSettled(localPids.map((pid) => pidusage(pid)));
-      results.forEach((r, i) => {
-        if (r.status === 'fulfilled') {
-          usage[String(localPids[i])] = {
-            cpu: r.value.cpu,
-            memory: r.value.memory,
-            ppid: r.value.ppid,
-          };
-        }
-      });
-    }
-  }
+  const { trees: processTrees, sampledPids } = await listProcessTrees(localPids);
+  const usage = await samplePidUsage(sampledPids);
 
   const entries: ResourcePtyEntry[] = [];
   for (const a of active) {
     const parsed = parsePtySessionId(a.sessionId);
     if (!parsed) continue;
-    const u = typeof a.pid === 'number' ? usage[String(a.pid)] : undefined;
+    const tree = typeof a.pid === 'number' ? processTrees.get(a.pid) : undefined;
+    const u = tree ? aggregateProcessUsage(tree, usage) : undefined;
     if (isStaleLocalPty(a.pid, u)) continue;
     entries.push({
       sessionId: a.sessionId,
@@ -56,7 +46,7 @@ export async function sampleOnce(): Promise<ResourceSnapshot> {
       scopeId: parsed.scopeId,
       leafId: parsed.leafId,
       pid: a.pid,
-      ppid: u?.ppid,
+      ppid: typeof a.pid === 'number' ? usage[String(a.pid)]?.ppid : undefined,
       cpu: u?.cpu ?? 0,
       memory: u?.memory ?? 0,
       providerId: a.metadata?.providerId,
@@ -75,10 +65,103 @@ export async function sampleOnce(): Promise<ResourceSnapshot> {
   };
 }
 
-function isStaleLocalPty(
-  pid: number | undefined,
-  usage: { cpu: number; memory: number; ppid?: number } | undefined
-): boolean {
+async function samplePidUsage(localPids: number[]): Promise<ProcessUsageMap> {
+  if (localPids.length === 0) return {};
+  try {
+    return await pidusage(localPids);
+  } catch {
+    // A dead PID rejects the whole batch — fall back to per-pid sampling in parallel.
+    const usage: ProcessUsageMap = {};
+    const results = await Promise.allSettled(localPids.map((pid) => pidusage(pid)));
+    results.forEach((r, i) => {
+      if (r.status === 'fulfilled') {
+        usage[String(localPids[i])] = {
+          cpu: r.value.cpu,
+          memory: r.value.memory,
+          ppid: r.value.ppid,
+        };
+      }
+    });
+    return usage;
+  }
+}
+
+/**
+ * node-pty gives us the PTY's process group leader, which is usually a tiny
+ * shell wrapper (`sh -c ...`). Agent CLIs and lifecycle scripts run as children
+ * of that wrapper, so sampling only the root PID makes active agents look like
+ * 3-6 MB shells. On POSIX, include descendants so the monitor reflects the
+ * resource cost of the whole PTY session. Windows falls back to root PID
+ * sampling, matching the previous behavior.
+ */
+async function listProcessTrees(localPids: number[]): Promise<ProcessTreeSnapshot> {
+  const fallback = new Map(localPids.map((pid) => [pid, [pid]]));
+  const fallbackSnapshot = { trees: fallback, sampledPids: localPids };
+  if (localPids.length === 0 || process.platform === 'win32') return fallbackSnapshot;
+
+  try {
+    const stdout = await execFileText('ps', ['-axo', 'pid=,ppid=']);
+    const livePids = new Set<number>();
+    const childrenByParent = new Map<number, number[]>();
+    for (const line of stdout.split('\n')) {
+      const [pidText, ppidText] = line.trim().split(/\s+/);
+      const pid = Number(pidText);
+      const ppid = Number(ppidText);
+      if (!Number.isInteger(pid) || !Number.isInteger(ppid) || pid <= 0 || ppid < 0) continue;
+      livePids.add(pid);
+      const siblings = childrenByParent.get(ppid) ?? [];
+      siblings.push(pid);
+      childrenByParent.set(ppid, siblings);
+    }
+
+    const trees = new Map<number, number[]>();
+    for (const rootPid of localPids) {
+      const visited = new Set<number>();
+      const stack = [rootPid];
+      while (stack.length > 0) {
+        const pid = stack.pop();
+        if (pid === undefined || visited.has(pid)) continue;
+        visited.add(pid);
+        const children = childrenByParent.get(pid);
+        if (children) stack.push(...children);
+      }
+      trees.set(rootPid, [...visited]);
+    }
+    const sampledPids = [...new Set([...trees.values()].flat())].filter((pid) => livePids.has(pid));
+    return { trees, sampledPids };
+  } catch (err) {
+    log.warn('resource-sampler: process tree lookup failed', err);
+    return fallbackSnapshot;
+  }
+}
+
+function execFileText(file: string, args: string[]): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFile(file, args, { maxBuffer: 10 * 1024 * 1024 }, (err, stdout) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      resolve(String(stdout));
+    });
+  });
+}
+
+function aggregateProcessUsage(pids: number[], usage: ProcessUsageMap): ProcessUsage | undefined {
+  let cpu = 0;
+  let memory = 0;
+  let found = false;
+  for (const pid of pids) {
+    const item = usage[String(pid)];
+    if (!item) continue;
+    found = true;
+    cpu += item.cpu;
+    memory += item.memory;
+  }
+  return found ? { cpu, memory } : undefined;
+}
+
+function isStaleLocalPty(pid: number | undefined, usage: ProcessUsage | undefined): boolean {
   if (pid === undefined || !usage) return false;
   return usage.cpu === 0 && usage.memory < STALE_LOCAL_PTY_MEMORY_BYTES;
 }

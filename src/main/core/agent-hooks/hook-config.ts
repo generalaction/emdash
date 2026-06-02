@@ -11,6 +11,7 @@ import {
   makeClaudeHookCommand,
   makeCodexHookCommand,
   makeCodexSessionStartHookCommand,
+  makeGrokSessionStartHookCommand,
   makeOpenCodePluginContent,
 } from './agent-notify-command';
 import piEmdashExtension from './pi-emdash-extension.ts?raw';
@@ -18,8 +19,10 @@ import piEmdashExtension from './pi-emdash-extension.ts?raw';
 const EMDASH_MARKER = 'EMDASH_HOOK_PORT';
 
 const CLAUDE_SETTINGS_PATH = '.claude/settings.local.json';
+const DEVIN_HOOKS_PATH = '.devin/hooks.v1.json';
 const CODEX_CONFIG_PATH = '.codex/config.toml';
 const CODEX_HOOKS_PATH = '.codex/hooks.json';
+const GROK_HOOKS_PATH = '.grok/hooks/emdash.json';
 const DROID_SETTINGS_PATH = '.factory/settings.json';
 const AMP_PLUGIN_PATH = '.amp/plugins/emdash-hook.ts';
 const PI_EMDASH_EXTENSION_PATH = '.pi/extensions/emdash-hook.ts';
@@ -27,7 +30,18 @@ const OPENCODE_PLUGIN_PATH = '.opencode/plugins/emdash-notifications.js';
 const GITIGNORE_PATH = '.gitignore';
 type HookConfigWriteOptions = { writeGitIgnoreEntries?: boolean };
 type CodexHookEvent = 'Stop' | 'PermissionRequest' | 'SessionStart';
+type GrokHookEvent =
+  | 'Notification'
+  | 'PostToolUse'
+  | 'PostToolUseFailure'
+  | 'PreToolUse'
+  | 'SessionEnd'
+  | 'SessionStart'
+  | 'Stop'
+  | 'StopFailure'
+  | 'UserPromptSubmit';
 type DroidHookEvent = 'Notification' | 'Stop' | 'SessionStart';
+type DevinHookEvent = 'PermissionRequest' | 'SessionEnd' | 'Stop';
 
 const HOOK_EVENT_MAP = [
   { eventType: 'notification', hookKey: 'Notification' },
@@ -48,6 +62,11 @@ const DROID_HOOK_EVENT_MAP = [
   { hookKey: 'Stop', eventType: 'stop' },
   { hookKey: 'SessionStart', eventType: 'session' },
 ] satisfies { hookKey: DroidHookEvent; eventType: 'notification' | 'stop' | 'session' }[];
+
+const DEVIN_HOOK_EVENT_MAP = [
+  { hookKey: 'Stop', eventType: 'stop' },
+  { hookKey: 'SessionEnd', eventType: 'stop' },
+] satisfies { hookKey: DevinHookEvent; eventType: 'stop' }[];
 
 const LEGACY_CODEX_NOTIFY_COMMAND = [
   'bash',
@@ -134,6 +153,62 @@ export class HookConfigWriter {
     return true;
   }
 
+  async writeGrokHooks(): Promise<boolean> {
+    if (!(await resolveCommandPath('grok', this.exec))) return false;
+
+    const config: Record<string, unknown> = (await this.userFs.exists(GROK_HOOKS_PATH))
+      ? await this.userFs
+          .read(GROK_HOOKS_PATH)
+          .then((r) => JSON.parse(r.content) ?? {})
+          .catch(() => ({}))
+      : {};
+
+    const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
+    const hookEntries = [
+      {
+        hookKey: 'SessionStart',
+        command: makeGrokSessionStartHookCommand({ platform: this.platform }),
+      },
+      {
+        hookKey: 'UserPromptSubmit',
+        command: makeClaudeHookCommand('start', { platform: this.platform }),
+      },
+      {
+        hookKey: 'PreToolUse',
+        command: makeClaudeHookCommand('start', { platform: this.platform }),
+      },
+      {
+        hookKey: 'PostToolUse',
+        command: makeClaudeHookCommand('start', { platform: this.platform }),
+      },
+      {
+        hookKey: 'PostToolUseFailure',
+        command: makeClaudeHookCommand('start', { platform: this.platform }),
+      },
+      {
+        hookKey: 'Notification',
+        command: makeClaudeHookCommand('notification', { platform: this.platform }),
+      },
+      { hookKey: 'Stop', command: makeClaudeHookCommand('stop', { platform: this.platform }) },
+      {
+        hookKey: 'StopFailure',
+        command: makeClaudeHookCommand('stop', { platform: this.platform }),
+      },
+      {
+        hookKey: 'SessionEnd',
+        command: makeClaudeHookCommand('stop', { platform: this.platform }),
+      },
+    ] satisfies { hookKey: GrokHookEvent; command: string }[];
+
+    for (const { hookKey, command } of hookEntries) {
+      const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
+      hooks[hookKey] = this.buildHookEntries(existing, command);
+    }
+
+    await this.userFs.write(GROK_HOOKS_PATH, JSON.stringify({ ...config, hooks }, null, 2) + '\n');
+    return true;
+  }
+
   async writeDroidHooks(): Promise<boolean> {
     if (!(await resolveCommandPath('droid', this.exec))) return false;
 
@@ -155,6 +230,36 @@ export class HookConfigWriter {
     }
 
     await this.fs.write(DROID_SETTINGS_PATH, JSON.stringify({ ...config, hooks }, null, 2) + '\n');
+    return true;
+  }
+
+  async writeDevinHooks(): Promise<boolean> {
+    if (!(await resolveCommandPath('devin', this.exec))) return false;
+
+    const hooks: Record<string, unknown[]> = (await this.fs.exists(DEVIN_HOOKS_PATH))
+      ? await this.fs
+          .read(DEVIN_HOOKS_PATH)
+          .then((r) => JSON.parse(r.content) ?? {})
+          .catch(() => ({}))
+      : {};
+
+    for (const { hookKey, eventType } of DEVIN_HOOK_EVENT_MAP) {
+      const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
+      hooks[hookKey] = this.buildHookEntries(
+        existing,
+        makeClaudeHookCommand(eventType, { platform: this.platform })
+      );
+    }
+
+    const existingPermissionRequest = Array.isArray(hooks.PermissionRequest)
+      ? hooks.PermissionRequest
+      : [];
+    hooks.PermissionRequest = this.buildHookEntries(
+      existingPermissionRequest,
+      makeCodexHookCommand('permission_prompt', { platform: this.platform })
+    );
+
+    await this.fs.write(DEVIN_HOOKS_PATH, JSON.stringify(hooks, null, 2) + '\n');
     return true;
   }
 
@@ -217,10 +322,22 @@ export class HookConfigWriter {
       return this.writeCodexHooks();
     }
 
+    if (providerId === 'grok') {
+      return this.writeGrokHooks();
+    }
+
     if (providerId === 'droid') {
       const wroteConfig = await this.writeDroidHooks();
       if (wroteConfig && writeGitIgnoreEntries) {
         await this.ensureGitIgnoreEntries([DROID_SETTINGS_PATH]);
+      }
+      return wroteConfig;
+    }
+
+    if (providerId === 'devin') {
+      const wroteConfig = await this.writeDevinHooks();
+      if (wroteConfig && writeGitIgnoreEntries) {
+        await this.ensureGitIgnoreEntries([DEVIN_HOOKS_PATH]);
       }
       return wroteConfig;
     }
@@ -254,10 +371,11 @@ export class HookConfigWriter {
 
   async writeAll(options: HookConfigWriteOptions = {}): Promise<void> {
     await Promise.all(
-      (['claude', 'codex', 'droid', 'pi', 'opencode', 'amp'] as const).map((providerId) =>
-        this.writeForProvider(providerId, options).catch((err: Error) => {
-          log.warn(`Failed to write ${providerId} hook config`, { error: String(err) });
-        })
+      (['claude', 'codex', 'grok', 'devin', 'droid', 'pi', 'opencode', 'amp'] as const).map(
+        (providerId) =>
+          this.writeForProvider(providerId, options).catch((err: Error) => {
+            log.warn(`Failed to write ${providerId} hook config`, { error: String(err) });
+          })
       )
     );
   }

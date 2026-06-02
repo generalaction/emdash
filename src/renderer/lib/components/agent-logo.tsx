@@ -23,24 +23,18 @@ const AgentLogo: React.FC<AgentLogoProps> = ({
 }) => {
   const { effectiveTheme } = useTheme();
   const isDark = effectiveTheme === 'emdark';
+  const shouldInvert = isDark && !!invertInDark && !logoDark;
 
   const themedLogo = isDark && logoDark ? logoDark : logo;
   const resolvedIsSvg = isSvg ?? themedLogo.trimStart().startsWith('<svg');
 
   if (resolvedIsSvg) {
-    const processed =
-      isDark && invertInDark && !logoDark
-        ? themedLogo
-            .replace(/\bfill="[^"]*"/g, 'fill="currentColor"')
-            .replace(/\bstroke="[^"]*"/g, 'stroke="currentColor"')
-        : themedLogo;
-
     return (
       <span
         role="img"
         aria-label={alt}
-        className={`inline-flex shrink-0 items-center justify-center [&_svg]:h-full [&_svg]:w-full [&_svg]:shrink-0 ${isDark ? 'text-primary' : ''} ${grayscale ? 'grayscale' : ''} ${className}`}
-        dangerouslySetInnerHTML={{ __html: processed }}
+        className={`inline-flex shrink-0 items-center justify-center [&_svg]:h-full [&_svg]:w-full [&_svg]:shrink-0 ${shouldInvert ? 'invert' : ''} ${grayscale ? 'grayscale' : ''} ${className}`}
+        dangerouslySetInnerHTML={{ __html: themedLogo }}
       />
     );
   }
@@ -49,7 +43,7 @@ const AgentLogo: React.FC<AgentLogoProps> = ({
     <img
       src={themedLogo}
       alt={alt}
-      className={`shrink-0 object-contain ${invertInDark ? 'dark:invert' : ''} ${grayscale ? 'grayscale' : ''} ${className}`}
+      className={`shrink-0 object-contain ${shouldInvert ? 'invert' : ''} ${grayscale ? 'grayscale' : ''} ${className}`}
     />
   );
 };

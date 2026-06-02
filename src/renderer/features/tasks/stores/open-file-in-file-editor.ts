@@ -18,7 +18,7 @@ export async function openFileInTaskEditor(
   // Agent output often points at paths that don't exist in the worktree
   // (subdirectory-relative, deleted, etc.) — precheck so we can toast a
   // useful error instead of opening an empty tab.
-  const exists = await rpc.fs.fileExists(projectId, provisioned.workspaceId, filePath);
+  const exists = await rpc.workspace.fs.fileExists(projectId, provisioned.workspaceId, filePath);
   if (!exists.success || !exists.data.exists) {
     toast.error(`File not found in workspace: ${filePath}`);
     return;

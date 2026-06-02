@@ -7,7 +7,7 @@ import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import type { Conversation } from '@shared/conversations';
-import { taskProvisionProgressChannel } from '@shared/events/taskEvents';
+import { taskProvisionProgressChannel, type ProvisionStep } from '@shared/events/taskEvents';
 import type { Task } from '@shared/tasks';
 import type { ProvisionResult, TaskProvider } from '../projects/project-provider';
 import type { ProjectSettingsProvider } from '../projects/settings/provider';
@@ -19,6 +19,17 @@ import {
   resolveTaskEnv,
   type WorkspaceType,
 } from '../workspaces/workspace-factory';
+import { taskProvisionEvents } from './task-provision-events';
+
+export function emitTaskProvisionProgress(data: {
+  taskId: string;
+  projectId: string;
+  step: ProvisionStep;
+  message: string;
+}): void {
+  events.emit(taskProvisionProgressChannel, data);
+  taskProvisionEvents.emitProgress(data);
+}
 
 export type BuildTaskResult = {
   taskProvider: TaskProvider;
@@ -73,7 +84,7 @@ export async function provisionLocalTask(
     logPrefix,
   } = params;
 
-  events.emit(taskProvisionProgressChannel, {
+  emitTaskProvisionProgress({
     taskId: task.id,
     projectId,
     step: 'resolving-worktree',
@@ -81,7 +92,7 @@ export async function provisionLocalTask(
   });
   const workDir = params.workDir ?? (await resolveTaskWorkDir(task, projectPath, worktreeService));
 
-  events.emit(taskProvisionProgressChannel, {
+  emitTaskProvisionProgress({
     taskId: task.id,
     projectId,
     step: 'initialising-workspace',
@@ -104,7 +115,7 @@ export async function provisionLocalTask(
 
   let provisionSucceeded = false;
   try {
-    events.emit(taskProvisionProgressChannel, {
+    emitTaskProvisionProgress({
       taskId: task.id,
       projectId,
       step: 'starting-sessions',
@@ -156,17 +167,15 @@ export async function buildTaskFromWorkspace(
     settings
   );
 
-  const { conversations: conversationProvider, terminals: terminalProvider } = buildTaskProviders(
-    type,
-    {
+  const { conversations: conversationProvider, terminals: terminalProvider } =
+    await buildTaskProviders(type, {
       projectId,
       taskId: task.id,
       taskPath: workspace.path,
       tmuxEnabled,
       shellSetup,
       taskEnvVars,
-    }
-  );
+    });
 
   const taskProvider: TaskProvider = {
     taskId: task.id,

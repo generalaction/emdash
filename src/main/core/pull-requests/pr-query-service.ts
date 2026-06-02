@@ -121,7 +121,11 @@ export class PrQueryService {
     if (options.searchQuery?.trim()) {
       const pattern = `%${options.searchQuery.trim()}%`;
       conditions.push(
-        or(like(pullRequests.title, pattern), like(pullRequests.identifier, pattern))!
+        or(
+          like(pullRequests.title, pattern),
+          like(pullRequests.identifier, pattern),
+          like(pullRequests.headRefName, pattern)
+        )!
       );
     }
 

@@ -17,14 +17,13 @@ export interface GitHubIssue {
   createdAt: string | null;
   updatedAt: string | null;
   comments: number;
+  body: string | null;
   user: { login: string; avatarUrl: string } | null;
   assignees: Array<{ login: string; avatarUrl: string }>;
   labels: Array<{ name: string; color: string }>;
 }
 
-export interface GitHubIssueDetail extends GitHubIssue {
-  body: string | null;
-}
+export type GitHubIssueDetail = GitHubIssue;
 
 export interface GitHubIssueService {
   listIssues(
@@ -135,7 +134,7 @@ export class GitHubIssueServiceImpl implements GitHubIssueService {
         repo,
         issue_number: issueNumber,
       });
-      return ok(this.mapIssueDetail(data as unknown as RestIssue));
+      return ok(this.mapIssue(data as unknown as RestIssue));
     } catch (error) {
       return err(this.mapApiError(error, 'Unable to get GitHub issue', host));
     }
@@ -150,6 +149,7 @@ export class GitHubIssueServiceImpl implements GitHubIssueService {
       createdAt: item.created_at,
       updatedAt: item.updated_at,
       comments: item.comments,
+      body: item.body ?? null,
       user: item.user ? { login: item.user.login, avatarUrl: item.user.avatar_url } : null,
       assignees: (item.assignees ?? []).map((a) => ({ login: a.login, avatarUrl: a.avatar_url })),
       labels: (item.labels ?? []).map((l) =>
@@ -157,13 +157,6 @@ export class GitHubIssueServiceImpl implements GitHubIssueService {
           ? { name: l, color: '' }
           : { name: l.name ?? '', color: l.color ?? '' }
       ),
-    };
-  }
-
-  private mapIssueDetail(item: RestIssue): GitHubIssueDetail {
-    return {
-      ...this.mapIssue(item),
-      body: item.body ?? null,
     };
   }
 

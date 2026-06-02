@@ -4,12 +4,11 @@ import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-sessio
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
 import { provisionBYOITask } from '@main/core/workspaces/byoi/provision-byoi-task';
 import { workspaceRegistry, type TeardownMode } from '@main/core/workspaces/workspace-registry';
-import { events } from '@main/lib/events';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { LifecycleMap } from '@main/lib/lifecycle-map';
 import { log } from '@main/lib/logger';
 import type { Conversation } from '@shared/conversations';
-import { taskProvisionProgressChannel, type ProvisionStep } from '@shared/events/taskEvents';
+import type { ProvisionStep } from '@shared/events/taskEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { err, ok, type Result } from '@shared/result';
 import type { Task, TaskBootstrapStatus } from '@shared/tasks';
@@ -26,6 +25,7 @@ import {
   type TeardownTaskError,
 } from './provision-task-error';
 import { provisionLocalTask } from './task-builder';
+import { taskProvisionEvents } from './task-provision-events';
 
 export type WorkspaceHint = {
   id: string;
@@ -166,7 +166,7 @@ class TaskManager {
   ): Promise<Result<ProvisionResult, ProvisionTaskError>> {
     return this._lifecycle.provision(task.id, async () => {
       let lastStep: ProvisionStep | null = null;
-      const unsubscribe = events.on(taskProvisionProgressChannel, (progress) => {
+      const unsubscribe = taskProvisionEvents.on('progress', (progress) => {
         if (progress.taskId === task.id) lastStep = progress.step;
       });
       try {

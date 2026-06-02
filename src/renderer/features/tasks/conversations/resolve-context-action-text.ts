@@ -6,7 +6,7 @@ import {
   type ContextAction,
 } from './context-actions';
 
-const PROVIDERS_WITH_CONTEXT = new Set<Issue['provider']>(['linear', 'plain']);
+const PROVIDERS_WITH_CONTEXT = new Set<Issue['provider']>(['linear', 'plain', 'monday']);
 
 export async function resolveContextActionText(args: {
   action: ContextAction;

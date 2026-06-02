@@ -98,6 +98,25 @@ export const SidebarMenuButton = React.forwardRef<HTMLButtonElement, SidebarMenu
   )
 );
 
+// Sidebar row labels use this as the named voice-control target. Primary
+// activation is handled by the parent row's click handler via bubbling.
+export const SidebarMenuAction = React.forwardRef<
+  HTMLButtonElement,
+  React.ButtonHTMLAttributes<HTMLButtonElement>
+>(({ className, ...props }, ref) => (
+  <button
+    ref={ref}
+    type="button"
+    className={cn(
+      'flex min-w-0 flex-1 items-center self-stretch rounded-md text-left text-inherit outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+      className
+    )}
+    onMouseDown={(e) => e.preventDefault()}
+    {...props}
+  />
+));
+SidebarMenuAction.displayName = 'SidebarMenuAction';
+
 interface SidebarMenuRowProps extends React.HTMLAttributes<HTMLDivElement> {
   isActive?: boolean;
 }

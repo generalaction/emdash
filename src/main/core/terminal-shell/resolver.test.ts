@@ -3,14 +3,15 @@ import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import {
   getLocalTerminalShellAvailability,
   getRemoteTerminalShellAvailability,
+  resolveLocalAutomationShellWithSystemFallback,
   resolveTerminalShell,
   ShellUnavailableError,
 } from './resolver';
 
 describe('terminal shell resolver', () => {
-  it('keeps auto intent while recording the concrete local shell', async () => {
+  it('keeps system intent while recording the concrete local shell', async () => {
     const profile = await resolveTerminalShell({
-      intent: 'auto',
+      intent: 'system',
       target: {
         kind: 'local',
         platform: 'darwin',
@@ -21,14 +22,14 @@ describe('terminal shell resolver', () => {
     expect(profile).toMatchObject({
       id: 'target-default',
       resolvedShellId: 'zsh',
-      resolvedFromAuto: true,
+      resolvedFromSystem: true,
       executable: '/bin/zsh',
     });
   });
 
-  it('keeps login-shell args for unknown local auto shells', async () => {
+  it('keeps login-shell args for fish local system shells', async () => {
     const profile = await resolveTerminalShell({
-      intent: 'auto',
+      intent: 'system',
       target: {
         kind: 'local',
         platform: 'darwin',
@@ -38,19 +39,18 @@ describe('terminal shell resolver', () => {
 
     expect(profile).toMatchObject({
       id: 'target-default',
-      resolvedShellId: 'sh',
-      resolvedFromAuto: true,
+      resolvedShellId: 'fish',
+      resolvedFromSystem: true,
       executable: '/opt/homebrew/bin/fish',
-      displayName: 'Auto - fish',
       family: 'posix',
       interactiveArgs: ['-il'],
       commandArgs: ['-lc'],
     });
   });
 
-  it('uses ComSpec as the Windows auto shell', async () => {
+  it('uses ComSpec as the Windows system shell', async () => {
     const profile = await resolveTerminalShell({
-      intent: 'auto',
+      intent: 'system',
       target: {
         kind: 'local',
         platform: 'win32',
@@ -66,6 +66,118 @@ describe('terminal shell resolver', () => {
     });
   });
 
+  it('uses the latest installed pwsh for Windows automation shell fallback', async () => {
+    const profile = await resolveLocalAutomationShellWithSystemFallback({
+      intent: 'system',
+      platform: 'win32',
+      env: {
+        ComSpec: 'C:\\Windows\\System32\\cmd.exe',
+        ProgramFiles: 'C:\\Program Files',
+        Path: 'C:\\Windows\\System32',
+        PATHEXT: '.EXE;.CMD',
+      },
+      readDirNames: (candidate) =>
+        candidate === 'C:\\Program Files\\PowerShell' ? ['7', '7.5.1', '6'] : [],
+      fileExists: (candidate) =>
+        candidate === 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' ||
+        candidate === 'C:\\Program Files\\PowerShell\\7.5.1\\pwsh.exe',
+    });
+
+    expect(profile).toMatchObject({
+      id: 'pwsh',
+      resolvedShellId: 'pwsh',
+      executable: 'C:\\Program Files\\PowerShell\\7.5.1\\pwsh.exe',
+      family: 'powershell',
+    });
+    expect(profile.commandArgs).toEqual(['-NoLogo', '-Command']);
+  });
+
+  it('keeps regular PowerShell command profiles non-profile-loading by default', async () => {
+    const profile = await resolveTerminalShell({
+      intent: 'pwsh',
+      target: {
+        kind: 'local',
+        platform: 'win32',
+        env: {
+          Path: 'C:\\Program Files\\PowerShell\\7',
+          PATHEXT: '.EXE;.CMD',
+        },
+      },
+      fileExists: (candidate) => candidate === 'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
+    });
+
+    expect(profile.commandArgs).toEqual(['-NoProfile', '-Command']);
+  });
+
+  it('falls Windows automation shell back to Windows PowerShell before cmd', async () => {
+    const profile = await resolveLocalAutomationShellWithSystemFallback({
+      intent: 'system',
+      platform: 'win32',
+      env: {
+        ComSpec: 'C:\\Windows\\System32\\cmd.exe',
+        Path: 'C:\\Windows\\System32',
+        PATHEXT: '.EXE;.CMD',
+      },
+      fileExists: (candidate) => candidate === 'C:\\Windows\\System32\\powershell.exe',
+    });
+
+    expect(profile).toMatchObject({
+      id: 'powershell',
+      resolvedShellId: 'powershell',
+      executable: 'C:\\Windows\\System32\\powershell.exe',
+      family: 'powershell',
+    });
+  });
+
+  it('does not retry a failed explicit pwsh lookup before falling back', async () => {
+    const readDirNames = vi.fn((candidate: string) =>
+      candidate === 'C:\\Program Files\\PowerShell' ? ['7'] : []
+    );
+
+    const profile = await resolveLocalAutomationShellWithSystemFallback({
+      intent: 'pwsh',
+      platform: 'win32',
+      env: {
+        ComSpec: 'C:\\Windows\\System32\\cmd.exe',
+        ProgramFiles: 'C:\\Program Files',
+        Path: 'C:\\Windows\\System32',
+        PATHEXT: '.EXE;.CMD',
+      },
+      readDirNames,
+      fileExists: (candidate) => candidate === 'C:\\Windows\\System32\\powershell.exe',
+    });
+
+    expect(profile).toMatchObject({
+      id: 'powershell',
+      executable: 'C:\\Windows\\System32\\powershell.exe',
+    });
+    expect(readDirNames).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports each unavailable Windows automation fallback candidate', async () => {
+    const onFallback = vi.fn();
+
+    const profile = await resolveLocalAutomationShellWithSystemFallback({
+      intent: 'pwsh',
+      platform: 'win32',
+      env: {
+        ComSpec: 'C:\\Windows\\System32\\cmd.exe',
+        ProgramFiles: 'C:\\Program Files',
+        Path: 'C:\\Windows\\System32',
+        PATHEXT: '.EXE;.CMD',
+      },
+      onFallback,
+      fileExists: () => false,
+    });
+
+    expect(profile).toMatchObject({
+      id: 'target-default',
+      resolvedShellId: 'cmd',
+    });
+    expect(onFallback).toHaveBeenCalledTimes(2);
+    expect(onFallback.mock.calls.map(([error]) => error.shell)).toEqual(['pwsh', 'powershell']);
+  });
+
   it('reports Windows shells separately from POSIX shells', async () => {
     const availability = await getLocalTerminalShellAvailability({
       platform: 'win32',
@@ -77,21 +189,33 @@ describe('terminal shell resolver', () => {
       fileExists: (candidate) => candidate === 'C:\\Windows\\System32\\powershell.exe',
     });
 
-    expect(availability.find((entry) => entry.shell === 'auto')).toMatchObject({
+    expect(availability.find((entry) => entry.id === 'system')).toMatchObject({
       available: true,
-      displayName: 'Auto - cmd',
+      label: 'cmd',
+      isSystemDefault: true,
     });
-    expect(availability.find((entry) => entry.shell === 'cmd')?.available).toBe(true);
-    expect(availability.find((entry) => entry.shell === 'powershell')?.available).toBe(true);
-    expect(availability.find((entry) => entry.shell === 'pwsh')?.available).toBe(false);
-    expect(availability.find((entry) => entry.shell === 'zsh')).toBeUndefined();
-    expect(availability.map((entry) => entry.shell)).toEqual([
-      'auto',
-      'cmd',
-      'powershell',
-      'pwsh',
-      'bash',
-    ]);
+    expect(availability.find((entry) => entry.id === 'cmd')).toBeUndefined();
+    expect(availability.find((entry) => entry.id === 'powershell')?.available).toBe(true);
+    expect(availability.find((entry) => entry.id === 'pwsh')?.available).toBe(false);
+    expect(availability.find((entry) => entry.id === 'zsh')).toBeUndefined();
+    expect(availability.map((entry) => entry.id)).toEqual(['system', 'powershell', 'pwsh', 'bash']);
+  });
+
+  it('marks Windows PowerShell unavailable when it is not found on PATH', async () => {
+    const availability = await getLocalTerminalShellAvailability({
+      platform: 'win32',
+      env: {
+        ComSpec: 'C:\\Windows\\System32\\cmd.exe',
+        Path: 'C:\\Windows\\System32',
+        PATHEXT: '.EXE;.CMD',
+      },
+      fileExists: () => false,
+    });
+
+    expect(availability.find((entry) => entry.id === 'powershell')).toMatchObject({
+      available: false,
+      reason: 'Not found on this machine',
+    });
   });
 
   it('filters Windows-only shells out of POSIX local availability', async () => {
@@ -101,23 +225,31 @@ describe('terminal shell resolver', () => {
       fileExists: (candidate) => candidate === '/bin/zsh' || candidate === '/bin/bash',
     });
 
-    expect(availability.find((entry) => entry.shell === 'cmd')).toBeUndefined();
-    expect(availability.find((entry) => entry.shell === 'powershell')).toBeUndefined();
-    expect(availability.find((entry) => entry.shell === 'pwsh')).toBeUndefined();
-    expect(availability.find((entry) => entry.shell === 'auto')?.displayName).toBe('Auto - zsh');
-    expect(availability.find((entry) => entry.shell === 'bash')?.available).toBe(true);
-    expect(availability.find((entry) => entry.shell === 'zsh')?.available).toBe(true);
+    expect(availability.find((entry) => entry.id === 'cmd')).toBeUndefined();
+    expect(availability.find((entry) => entry.id === 'powershell')).toBeUndefined();
+    expect(availability.find((entry) => entry.id === 'pwsh')).toBeUndefined();
+    expect(availability.find((entry) => entry.id === 'system')).toMatchObject({
+      label: 'zsh',
+      isSystemDefault: true,
+    });
+    expect(availability.find((entry) => entry.id === 'bash')?.available).toBe(true);
+    expect(availability.find((entry) => entry.id === 'zsh')).toBeUndefined();
+    expect(availability.find((entry) => entry.id === 'fish')?.available).toBe(false);
     expect(availability.at(-1)?.available).toBe(false);
   });
 
-  it('labels unknown local auto shells by executable basename', async () => {
+  it('labels unknown local system shells by executable basename', async () => {
     const availability = await getLocalTerminalShellAvailability({
       platform: 'darwin',
       env: { SHELL: '/opt/homebrew/bin/fish', PATH: '/bin:/usr/bin' },
       fileExists: () => false,
     });
 
-    expect(availability.find((entry) => entry.shell === 'auto')?.displayName).toBe('Auto - fish');
+    expect(availability.find((entry) => entry.id === 'system')).toMatchObject({
+      label: 'fish',
+      isSystemDefault: true,
+    });
+    expect(availability.find((entry) => entry.id === 'fish')).toBeUndefined();
   });
 
   it('throws for unavailable explicit local shells', async () => {
@@ -178,8 +310,14 @@ describe('terminal shell resolver', () => {
       env: { PATH: '/usr/local/bin:/usr/bin' },
     });
 
-    expect(availability.find((entry) => entry.shell === 'pwsh')).toBeUndefined();
-    expect(availability.find((entry) => entry.shell === 'powershell')).toBeUndefined();
+    expect(availability.find((entry) => entry.id === 'pwsh')).toBeUndefined();
+    expect(availability.find((entry) => entry.id === 'powershell')).toBeUndefined();
+    expect(availability.find((entry) => entry.id === 'system')).toMatchObject({
+      label: 'zsh',
+      isSystemDefault: true,
+    });
+    expect(availability.find((entry) => entry.id === 'zsh')).toBeUndefined();
+    expect(availability.find((entry) => entry.id === 'fish')?.available).toBe(true);
   });
 
   it('rejects explicit remote pwsh even when a proxy is provided', async () => {
@@ -197,9 +335,9 @@ describe('terminal shell resolver', () => {
     ).rejects.toBeInstanceOf(ShellUnavailableError);
   });
 
-  it('keeps login-shell args for unknown remote auto shells after normalization', async () => {
+  it('keeps login-shell args for unknown remote system shells after normalization', async () => {
     const profile = await resolveTerminalShell({
-      intent: 'auto',
+      intent: 'system',
       target: {
         kind: 'ssh',
         profile: { shell: '/usr/local/bin/fish', env: { PATH: '/usr/local/bin:/usr/bin' } },
@@ -209,9 +347,8 @@ describe('terminal shell resolver', () => {
     expect(profile).toMatchObject({
       id: 'target-default',
       resolvedShellId: 'sh',
-      resolvedFromAuto: true,
+      resolvedFromSystem: true,
       executable: '/bin/sh',
-      displayName: 'Auto - sh',
       interactiveArgs: ['-i'],
       commandArgs: ['-c'],
     });

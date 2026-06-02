@@ -175,6 +175,7 @@ function AgentRow({ entry }: { entry: Entry }) {
         <span className="flex size-4 shrink-0 items-center justify-center">
           <AgentLogo
             logo={meta.icon}
+            logoDark={meta.iconDark}
             alt={meta.label ?? meta.alt ?? ''}
             isSvg={meta.isSvg}
             invertInDark={meta.invertInDark}

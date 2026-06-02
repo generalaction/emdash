@@ -1,6 +1,6 @@
 {
   "name": "emdash",
-  "version": "1.1.26",
+  "version": "1.1.27",
   "description": "A cross-platform Electron app that orchestrates multiple coding agents in parallel",
   "keywords": [
     "claude",
@@ -104,6 +104,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "croner": "^10.0.1",
     "date-fns": "^4.1.0",
     "devicon": "^2.17.0",
     "drizzle-orm": "^0.32.1",

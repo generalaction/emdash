@@ -18,9 +18,18 @@ import GitLabSetupForm from './GitLabSetupForm';
 import { useIntegrationsContext } from './integrations-provider';
 import JiraSetupForm from './JiraSetupForm';
 import LinearSetupForm from './LinearSetupForm';
+import MondaySetupForm from './MondaySetupForm';
 import PlainSetupForm from './PlainSetupForm';
 
-type IntegrationType = 'linear' | 'jira' | 'gitlab' | 'plain' | 'forgejo' | 'featurebase' | 'asana';
+type IntegrationType =
+  | 'linear'
+  | 'jira'
+  | 'gitlab'
+  | 'plain'
+  | 'forgejo'
+  | 'featurebase'
+  | 'asana'
+  | 'monday';
 
 type IntegrationSetupModalArgs = {
   integration: IntegrationType;
@@ -57,6 +66,10 @@ const descriptions: Record<IntegrationType, { title: string; subtitle: string }>
     title: 'Connect Asana',
     subtitle: 'Enter your Asana personal access token to connect your workspace.',
   },
+  monday: {
+    title: 'Connect Monday.com',
+    subtitle: 'Enter your Monday.com API token and optionally specify board URLs.',
+  },
 };
 
 export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props) {
@@ -68,6 +81,7 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
     connectForgejo,
     connectFeaturebase,
     connectAsana,
+    connectMonday,
     isLinearLoading,
     isJiraLoading,
     isGitlabLoading,
@@ -75,6 +89,7 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
     isForgejoLoading,
     isFeaturebaseLoading,
     isAsanaLoading,
+    isMondayLoading,
   } = useIntegrationsContext();
   const { toast } = useToast();
 
@@ -103,6 +118,10 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
   // Asana state
   const [asanaKey, setAsanaKey] = useState('');
 
+  // Monday state
+  const [mondayToken, setMondayToken] = useState('');
+  const [mondayBoardUrls, setMondayBoardUrls] = useState('');
+
   const [error, setError] = useState<string | null>(null);
 
   const isLoading =
@@ -112,7 +131,8 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
     (integration === 'plain' && isPlainLoading) ||
     (integration === 'forgejo' && isForgejoLoading) ||
     (integration === 'featurebase' && isFeaturebaseLoading) ||
-    (integration === 'asana' && isAsanaLoading);
+    (integration === 'asana' && isAsanaLoading) ||
+    (integration === 'monday' && isMondayLoading);
 
   const canSubmit =
     (integration === 'linear' && !!linearKey.trim()) ||
@@ -121,7 +141,8 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
     (integration === 'plain' && !!plainKey.trim()) ||
     (integration === 'forgejo' && !!(forgejoInstanceUrl.trim() && forgejoToken.trim())) ||
     (integration === 'featurebase' && !!featurebaseKey.trim()) ||
-    (integration === 'asana' && !!asanaKey.trim());
+    (integration === 'asana' && !!asanaKey.trim()) ||
+    (integration === 'monday' && !!mondayToken.trim());
 
   const handleSubmit = useCallback(async () => {
     setError(null);
@@ -158,6 +179,9 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
         case 'asana':
           await connectAsana(asanaKey.trim());
           break;
+        case 'monday':
+          await connectMonday({ token: mondayToken.trim(), boardUrls: mondayBoardUrls.trim() });
+          break;
       }
       toast({
         title: 'Integration connected',
@@ -180,6 +204,8 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
     forgejoToken,
     featurebaseKey,
     asanaKey,
+    mondayToken,
+    mondayBoardUrls,
     connectLinear,
     connectJira,
     connectGitlab,
@@ -187,6 +213,7 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
     connectForgejo,
     connectFeaturebase,
     connectAsana,
+    connectMonday,
     toast,
     onSuccess,
   ]);
@@ -250,6 +277,17 @@ export function IntegrationSetupModal({ integration, onSuccess, onClose }: Props
         )}
         {integration === 'asana' && (
           <AsanaSetupForm apiKey={asanaKey} onChange={setAsanaKey} error={error} />
+        )}
+        {integration === 'monday' && (
+          <MondaySetupForm
+            token={mondayToken}
+            boardUrls={mondayBoardUrls}
+            onChange={(u) => {
+              if (typeof u.token === 'string') setMondayToken(u.token);
+              if (typeof u.boardUrls === 'string') setMondayBoardUrls(u.boardUrls);
+            }}
+            error={error}
+          />
         )}
       </DialogContentArea>
       <DialogFooter>

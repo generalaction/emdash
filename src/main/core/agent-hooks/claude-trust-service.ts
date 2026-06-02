@@ -31,13 +31,15 @@ export class ClaudeTrustService {
     providerId,
     cwd,
     homedir,
+    force = false,
   }: {
     providerId: AgentProviderId;
     cwd?: string;
     homedir: string;
+    force?: boolean;
   }): Promise<void> {
     if (!cwd) return;
-    const trustConfig = await this.getTrustConfig(providerId);
+    const trustConfig = await this.getTrustConfig(providerId, force);
     if (!trustConfig) return;
     const normalizedPath = path.resolve(cwd);
     const configPath = path.join(homedir, trustConfig.configName);
@@ -55,14 +57,16 @@ export class ClaudeTrustService {
     cwd,
     ctx,
     remoteFs,
+    force = false,
   }: {
     providerId: AgentProviderId;
     cwd?: string;
     ctx: IExecutionContext;
     remoteFs: Pick<FileSystemProvider, 'realPath' | 'read' | 'write'>;
+    force?: boolean;
   }): Promise<void> {
     if (!cwd) return;
-    const trustConfig = await this.getTrustConfig(providerId);
+    const trustConfig = await this.getTrustConfig(providerId, force);
     if (!trustConfig) return;
 
     const normalizedPath = await remoteFs.realPath(cwd).catch(() => path.posix.resolve('/', cwd));
@@ -78,10 +82,15 @@ export class ClaudeTrustService {
     );
   }
 
-  private async getTrustConfig(providerId: AgentProviderId): Promise<TrustConfig | null> {
+  private async getTrustConfig(
+    providerId: AgentProviderId,
+    force: boolean
+  ): Promise<TrustConfig | null> {
     if (providerId !== CLAUDE_PROVIDER_ID && providerId !== COPILOT_PROVIDER_ID) return null;
-    const { autoTrustWorktrees } = await this.deps.getTaskSettings();
-    if (!autoTrustWorktrees) return null;
+    if (!force) {
+      const { autoTrustWorktrees } = await this.deps.getTaskSettings();
+      if (!autoTrustWorktrees) return null;
+    }
 
     if (providerId === COPILOT_PROVIDER_ID) {
       return {

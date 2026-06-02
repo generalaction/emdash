@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { toast as sonnerToast } from 'sonner';
 
 type ToastAction = {
@@ -10,11 +11,13 @@ type Toast = {
   description?: string;
   variant?: 'default' | 'destructive';
   action?: ToastAction;
+  icon?: ReactNode;
 };
 
-function toast({ title, description, variant, action }: Toast) {
+function toast({ title, description, variant, action, icon }: Toast) {
   const options = {
     description,
+    icon,
     ...(action && { action: { label: action.label, onClick: action.onClick } }),
   };
 

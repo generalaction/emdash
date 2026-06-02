@@ -19,7 +19,7 @@ import { cn } from '@renderer/utils/utils';
 import { selectCurrentPr } from '@shared/pull-requests';
 import { PrBadge } from '../../lib/components/pr-badge';
 import { useAppSettingsKey } from '../settings/use-app-settings-key';
-import { SidebarMenuRow } from './sidebar-primitives';
+import { SidebarMenuAction, SidebarMenuRow } from './sidebar-primitives';
 
 interface SidebarTaskItemProps {
   taskId: string;
@@ -58,12 +58,19 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
     void taskManager?.provisionTask(taskId);
   };
 
+  const openTask = () => {
+    handleProvision();
+    navigate('task', { projectId, taskId });
+  };
+
   const handleArchive = () => {
     if (isActive) navigate('project', { projectId });
     void taskManager?.archiveTask(taskId);
   };
 
   const handleRename = () => showRename({ projectId, taskId, currentName: taskName });
+
+  const handleConvertAutomation = () => void task.convertAutomationTask();
 
   const handleDelete = () =>
     showDeleteTask({
@@ -98,6 +105,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
       onRename={handleRename}
       onArchive={handleArchive}
       onReconnect={handleReconnect}
+      onConvertAutomation={task.data.automationId ? handleConvertAutomation : undefined}
       onDelete={handleDelete}
     >
       <SidebarMenuRow
@@ -107,19 +115,21 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
         )}
         isActive={isActive}
         onMouseDown={(e) => e.preventDefault()}
-        onClick={() => {
-          handleProvision();
-          navigate('task', { projectId, taskId });
-        }}
+        onClick={openTask}
       >
-        <span
-          className={cn(
-            'min-w-0 flex-1 truncate text-left transition-colors',
-            isBootstrapping && 'text-foreground/40'
-          )}
+        <SidebarMenuAction
+          aria-label={`Open task ${taskName || 'task'}`}
+          className="gap-1 overflow-hidden"
         >
-          {taskName}
-        </span>
+          <span
+            className={cn(
+              'min-w-0 truncate text-left transition-colors',
+              isBootstrapping && 'text-foreground/40'
+            )}
+          >
+            {taskName}
+          </span>
+        </SidebarMenuAction>
         <div className="ml-2 flex shrink-0 items-center justify-end gap-1.5">
           {showLineChanges && <TaskGitDiffStats task={task} />}
           {showPrStatus && <RenderPrBadge task={task} />}
@@ -133,5 +143,9 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
 const RenderPrBadge = observer(function RenderPrBadge({ task }: { task: TaskStore }) {
   if (!('prs' in task.data)) return null;
   const pr = selectCurrentPr(task.data.prs);
-  return pr ? <PrBadge variant="compact" pr={pr} hoverDelay={100} /> : null;
+  return pr ? (
+    <span onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+      <PrBadge variant="compact" pr={pr} hoverDelay={100} />
+    </span>
+  ) : null;
 });

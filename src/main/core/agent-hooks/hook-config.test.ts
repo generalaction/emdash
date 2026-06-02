@@ -112,6 +112,130 @@ describe('HookConfigWriter', () => {
     expect(config.hooks.Stop[1].hooks[0].command).toContain('{"notification_type":"idle_prompt"}');
   });
 
+  it('writes Grok hooks to the global user hooks directory', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/grok');
+    const fs = new MemoryFs();
+    const userFs = new MemoryFs();
+    const writer = makeWriter(fs, userFs);
+
+    const wroteConfig = await writer.writeForProvider('grok');
+
+    expect(wroteConfig).toBe(true);
+    expect(fs.files.has('.grok/hooks/emdash.json')).toBe(false);
+    expect(fs.files.has('.gitignore')).toBe(false);
+
+    const config = JSON.parse(userFs.files.get('.grok/hooks/emdash.json')!);
+    expect(config.hooks.SessionStart[0].hooks[0].command).toContain('X-Emdash-Event-Type: session');
+    expect(config.hooks.SessionStart[0].hooks[0].command).toContain('"session_id":"');
+    expect(config.hooks.SessionStart[0].hooks[0].command).toContain('$GROK_SESSION_ID');
+    expect(config.hooks.UserPromptSubmit[0].hooks[0].command).toContain(
+      'X-Emdash-Event-Type: start'
+    );
+    expect(config.hooks.PreToolUse[0].hooks[0].command).toContain('X-Emdash-Event-Type: start');
+    expect(config.hooks.PostToolUse[0].hooks[0].command).toContain('X-Emdash-Event-Type: start');
+    expect(config.hooks.PostToolUseFailure[0].hooks[0].command).toContain(
+      'X-Emdash-Event-Type: start'
+    );
+    expect(config.hooks.Notification[0].hooks[0].command).toContain(
+      'X-Emdash-Event-Type: notification'
+    );
+    expect(config.hooks.Notification[0].hooks[0].command).toContain('-d @-');
+    expect(config.hooks.Stop[0].hooks[0].command).toContain('X-Emdash-Event-Type: stop');
+    expect(config.hooks.StopFailure[0].hooks[0].command).toContain('X-Emdash-Event-Type: stop');
+    expect(config.hooks.SessionEnd[0].hooks[0].command).toContain('X-Emdash-Event-Type: stop');
+  });
+
+  it('preserves unrelated Grok hooks while replacing Emdash-managed entries', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/grok');
+    const fs = new MemoryFs();
+    const userFs = new MemoryFs();
+    userFs.files.set(
+      '.grok/hooks/emdash.json',
+      JSON.stringify({
+        hooks: {
+          Stop: [
+            { hooks: [{ type: 'command', command: 'echo user hook' }] },
+            { hooks: [{ type: 'command', command: 'echo $EMDASH_HOOK_PORT' }] },
+          ],
+        },
+      })
+    );
+    const writer = makeWriter(fs, userFs);
+
+    await writer.writeForProvider('grok');
+
+    const config = JSON.parse(userFs.files.get('.grok/hooks/emdash.json')!);
+    expect(config.hooks.Stop).toHaveLength(2);
+    expect(config.hooks.Stop[0].hooks[0].command).toBe('echo user hook');
+    expect(config.hooks.Stop[1].hooks[0].command).toContain('X-Emdash-Event-Type: stop');
+  });
+
+  it('skips Grok hooks when grok is unavailable', async () => {
+    mockResolveCommandPath.mockResolvedValue(undefined);
+    const fs = new MemoryFs();
+    const userFs = new MemoryFs();
+    const writer = makeWriter(fs, userFs);
+
+    await writer.writeForProvider('grok');
+
+    expect(userFs.files.has('.grok/hooks/emdash.json')).toBe(false);
+    expect(fs.files.has('.gitignore')).toBe(false);
+  });
+
+  it('writes Devin stop and permission hooks and ignores the project hooks file in git', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/devin');
+    const fs = new MemoryFs();
+    const writer = makeWriter(fs);
+
+    const wroteConfig = await writer.writeForProvider('devin');
+
+    expect(wroteConfig).toBe(true);
+    const hooks = JSON.parse(fs.files.get('.devin/hooks.v1.json')!);
+    expect(hooks.UserPromptSubmit).toBeUndefined();
+    expect(hooks.PreToolUse).toBeUndefined();
+    expect(hooks.PostToolUse).toBeUndefined();
+    expect(hooks.PostCompaction).toBeUndefined();
+    expect(hooks.PermissionRequest[0].hooks[0].command).toContain(
+      '{"notification_type":"permission_prompt"}'
+    );
+    expect(hooks.Stop[0].hooks[0].command).toContain('X-Emdash-Event-Type: stop');
+    expect(hooks.SessionEnd[0].hooks[0].command).toContain('X-Emdash-Event-Type: stop');
+    expect(fs.files.get('.gitignore')).toBe('.devin/hooks.v1.json\n');
+  });
+
+  it('preserves unrelated Devin hooks while replacing Emdash-managed entries', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/devin');
+    const fs = new MemoryFs();
+    fs.files.set(
+      '.devin/hooks.v1.json',
+      JSON.stringify({
+        Stop: [
+          { hooks: [{ type: 'command', command: 'echo user hook' }] },
+          { hooks: [{ type: 'command', command: 'echo $EMDASH_HOOK_PORT' }] },
+        ],
+      })
+    );
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('devin');
+
+    const hooks = JSON.parse(fs.files.get('.devin/hooks.v1.json')!);
+    expect(hooks.Stop).toHaveLength(2);
+    expect(hooks.Stop[0].hooks[0].command).toBe('echo user hook');
+    expect(hooks.Stop[1].hooks[0].command).toContain('X-Emdash-Event-Type: stop');
+  });
+
+  it('skips Devin hooks when devin is unavailable', async () => {
+    mockResolveCommandPath.mockResolvedValue(undefined);
+    const fs = new MemoryFs();
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('devin');
+
+    expect(fs.files.has('.devin/hooks.v1.json')).toBe(false);
+    expect(fs.files.has('.gitignore')).toBe(false);
+  });
+
   it('removes only the legacy Emdash Codex notify key from project-local config', async () => {
     mockResolveCommandPath.mockResolvedValue('/usr/local/bin/codex');
     const fs = new MemoryFs();

@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LocalSpawnOptions } from '@main/core/pty/local-pty';
 import type { Pty } from '@main/core/pty/pty';
+import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
 import {
   classifyInstallCommandFailure,
+  createLocalInstallCommandRunner,
   createSshInstallCommandRunner,
   runLocalInstallCommand,
 } from './install-runner';
@@ -44,6 +46,28 @@ function createSuccessfulPty(): Pty {
     onExit: vi.fn((handler) => handler({ exitCode: 0 })),
   };
 }
+
+const cmdProfile: ResolvedShellProfile = {
+  id: 'target-default',
+  resolvedShellId: 'cmd',
+  resolvedFromSystem: true,
+  executable: 'C:\\Windows\\System32\\cmd.exe',
+  available: true,
+  family: 'windows-cmd',
+  interactiveArgs: [],
+  commandArgs: ['/d', '/s', '/c'],
+};
+
+const pwshProfile: ResolvedShellProfile = {
+  id: 'pwsh',
+  resolvedShellId: 'pwsh',
+  resolvedFromSystem: false,
+  executable: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
+  available: true,
+  family: 'powershell',
+  interactiveArgs: [],
+  commandArgs: ['-NoLogo', '-Command'],
+};
 
 beforeEach(() => {
   mocks.spawnLocalPty.mockReturnValue(createSuccessfulPty());
@@ -96,7 +120,7 @@ describe('runLocalInstallCommand', () => {
     delete process.env.SHELL;
     process.env.ComSpec = 'C:\\Windows\\System32\\cmd.exe';
 
-    const result = await runLocalInstallCommand('npm install -g @openai/codex');
+    const result = await runLocalInstallCommand('npm install -g @openai/codex', cmdProfile);
 
     expect(result.success).toBe(true);
     expect(mocks.spawnLocalPty).toHaveBeenCalledWith(
@@ -105,6 +129,37 @@ describe('runLocalInstallCommand', () => {
         args: ['/d', '/s', '/c', 'npm install -g @openai/codex'],
         cwd: expect.any(String),
       } satisfies Partial<LocalSpawnOptions>)
+    );
+  });
+
+  it('runs Windows installs through the preferred automation PowerShell', async () => {
+    setPlatform('win32');
+
+    const result = await runLocalInstallCommand('npm install -g @openai/codex', pwshProfile);
+
+    expect(result.success).toBe(true);
+    expect(mocks.spawnLocalPty).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
+        args: ['-NoLogo', '-Command', 'npm install -g @openai/codex'],
+        cwd: expect.any(String),
+      } satisfies Partial<LocalSpawnOptions>)
+    );
+  });
+
+  it('resolves the local install shell outside the low-level runner', async () => {
+    setPlatform('win32');
+    const resolveShellProfile = vi.fn(async () => pwshProfile);
+    const runner = createLocalInstallCommandRunner(resolveShellProfile);
+
+    const result = await runner('npm install -g @openai/codex');
+
+    expect(result.success).toBe(true);
+    expect(resolveShellProfile).toHaveBeenCalledWith();
+    expect(mocks.spawnLocalPty).toHaveBeenCalledWith(
+      expect.objectContaining({
+        command: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
+      })
     );
   });
 });

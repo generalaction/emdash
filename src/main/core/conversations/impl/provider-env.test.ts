@@ -35,6 +35,18 @@ describe('resolveProviderEnv', () => {
     ).toBeUndefined();
   });
 
+  it('sets Gemini workspace trust when auto-approve is enabled', () => {
+    expect(resolveProviderEnv(undefined, { providerId: 'gemini', autoApprove: true })).toEqual({
+      GEMINI_CLI_TRUST_WORKSPACE: 'true',
+    });
+  });
+
+  it('does not set Gemini workspace trust when auto-approve is disabled', () => {
+    expect(
+      resolveProviderEnv(undefined, { providerId: 'gemini', autoApprove: false })
+    ).toBeUndefined();
+  });
+
   it('preserves custom opencode permissions when auto-approve is enabled', () => {
     expect(
       resolveProviderEnv(

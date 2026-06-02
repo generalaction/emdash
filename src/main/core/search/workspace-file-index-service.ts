@@ -1,10 +1,9 @@
 import { basename } from 'node:path';
+import { fsEvents } from '@main/core/fs/fs-events';
 import type { Workspace } from '@main/core/workspaces/workspace';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { sqlite } from '@main/db/client';
-import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
-import { fsWatchEventChannel } from '@shared/events/fsEvents';
 
 const STALE_DAYS = 14;
 const MAX_FILES = 50_000;
@@ -52,7 +51,7 @@ class WorkspaceFileIndexService {
   initialize(): void {
     this.evictStale();
 
-    events.on(fsWatchEventChannel, ({ workspaceId }) => {
+    fsEvents.on('watch:event', ({ workspaceId }) => {
       this.scheduleReindex(workspaceId);
     });
   }

@@ -93,9 +93,11 @@ const DISPLAY_ENV_VARS = [
   'DBUS_SESSION_BUS_ADDRESS', // Needed by gio open and desktop portals
 ] as const;
 
-function getDisplayEnv(): Record<string, string> {
+const GLOBAL_AGENT_ENV_VARS = ['EDITOR', 'VISUAL', 'GIT_EDITOR', 'HOSTNAME', 'LANG', 'TZ'] as const;
+
+function getAllowlistedEnv(keys: readonly string[]): Record<string, string> {
   const env: Record<string, string> = {};
-  for (const key of DISPLAY_ENV_VARS) {
+  for (const key of keys) {
     const val = process.env[key];
     if (val) env[key] = val;
   }
@@ -146,6 +148,13 @@ export interface AgentEnvOptions {
    * can reconstruct login env via -il flags).
    */
   includeShellVar?: boolean;
+
+  /**
+   * Resolved shell used to launch the agent command. POSIX login shells can
+   * synthesize SHELL from the user's account default, so pass the configured
+   * shell explicitly when the command is shell-wrapped.
+   */
+  shellProfile?: ResolvedShellProfile;
 
   /**
    * Emdash hook server connection details.  When set, injects
@@ -222,7 +231,13 @@ export function buildTerminalEnv(
  * find its own dependencies.
  */
 export function buildAgentEnv(options: AgentEnvOptions = {}): Record<string, string> {
-  const { agentApiVars = true, includeShellVar = false, hook, providerVars } = options;
+  const {
+    agentApiVars = true,
+    includeShellVar = false,
+    hook,
+    providerVars,
+    shellProfile,
+  } = options;
 
   // process.env.PATH is enriched at startup by resolveUserEnv() so it already
   // contains the full login-shell PATH (Homebrew, nvm, npm globals, etc.).
@@ -237,16 +252,21 @@ export function buildAgentEnv(options: AgentEnvOptions = {}): Record<string, str
     HOME: process.env.HOME || os.homedir(),
     USER: process.env.USER || os.userInfo().username,
     PATH: resolvedPath,
-    ...(process.env.LANG && { LANG: process.env.LANG }),
     ...(process.env.TMPDIR && { TMPDIR: process.env.TMPDIR }),
-    ...getDisplayEnv(),
+    ...getAllowlistedEnv(GLOBAL_AGENT_ENV_VARS),
+    ...getAllowlistedEnv(DISPLAY_ENV_VARS),
     ...(process.platform === 'win32' ? getWindowsEssentialEnv(resolvedPath) : {}),
   };
 
   const sshAuthSock = process.env.SSH_AUTH_SOCK ?? detectSshAuthSock();
   if (sshAuthSock) env.SSH_AUTH_SOCK = sshAuthSock;
 
-  if (includeShellVar && process.platform !== 'win32') {
+  if (
+    process.platform !== 'win32' &&
+    (shellProfile?.family === 'posix' || shellProfile?.family === 'csh')
+  ) {
+    env.SHELL = shellProfile.executable;
+  } else if (includeShellVar && process.platform !== 'win32') {
     env.SHELL = process.env.SHELL || '/bin/bash';
   } else if (includeShellVar && process.env.SHELL) {
     env.SHELL = process.env.SHELL;
