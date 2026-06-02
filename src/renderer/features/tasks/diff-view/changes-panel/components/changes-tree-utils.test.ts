@@ -6,6 +6,13 @@ function change(path: string, status: GitChange['status'] = 'modified'): GitChan
   return { path, status, additions: 1, deletions: 0 };
 }
 
+const ADJACENT_STATUS_PAIRS: [GitChange['status'], GitChange['status']][] = [
+  ['conflicted', 'deleted'],
+  ['deleted', 'modified'],
+  ['modified', 'renamed'],
+  ['renamed', 'added'],
+];
+
 describe('buildDirectoryStatusByPath', () => {
   it('marks every ancestor directory of a changed file', () => {
     const statuses = buildDirectoryStatusByPath([
@@ -18,12 +25,19 @@ describe('buildDirectoryStatusByPath', () => {
     expect(statuses.has('src/components/ui/button.tsx')).toBe(false);
   });
 
-  it('keeps the highest-priority status when descendants differ', () => {
-    const statuses = buildDirectoryStatusByPath([
-      change('src/added.ts', 'added'),
-      change('src/lib/removed.ts', 'deleted'),
-    ]);
+  it.each(ADJACENT_STATUS_PAIRS)(
+    'prefers %s over %s on a shared parent directory',
+    (higher, lower) => {
+      const statuses = buildDirectoryStatusByPath([
+        change(`src/${lower}.ts`, lower),
+        change(`src/${higher}.ts`, higher),
+      ]);
+      expect(statuses.get('src')).toBe(higher);
+    }
+  );
 
+  it('does not promote status to sibling-only directories', () => {
+    const statuses = buildDirectoryStatusByPath([change('src/lib/removed.ts', 'deleted')]);
     expect(statuses.get('src')).toBe('deleted');
     expect(statuses.get('src/lib')).toBe('deleted');
   });
