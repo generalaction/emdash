@@ -1,14 +1,14 @@
+import type { AgentProviderId } from '@shared/agent-provider-registry';
+import type { CreateConversationParams } from '@shared/conversations';
 import type { LocalProject, SshProject } from '@shared/projects';
 import type { PullRequest } from '@shared/pull-requests';
 import { getPrNumber, isForkPr } from '@shared/pull-requests';
 import type { GitSetup, WorkspaceLocation } from '@shared/tasks';
+import { nextDefaultConversationTitle } from '../conversations/conversation-title-utils';
+import { buildFinalPrompt } from './initial-conversation-text';
+import type { InitialConversationState } from './initial-conversation-section';
 import type { CreateTaskState } from './use-create-task-state';
 
-/**
- * Builds a `GitSetup` from the current create-task modal state.
- * Maps UI concepts (checkout mode, branch selection) to the explicit
- * git operations the provisioner will execute.
- */
 export function buildGitSetup(state: CreateTaskState, isUnborn: boolean): GitSetup {
   const { linkedType, linkedPR, checkoutMode, branchSelection, branchNameState } = state;
 
@@ -75,9 +75,26 @@ function buildGitSetupFromBranch(state: CreateTaskState, isUnborn: boolean): Git
   };
 }
 
-/**
- * Builds a `WorkspaceLocation` from project data and the BYOI flag.
- */
+export function buildInitialConversation(
+  taskId: string,
+  projectId: string,
+  state: InitialConversationState,
+  getAutoApproveDefault: (provider: AgentProviderId) => boolean
+): CreateConversationParams | undefined {
+  const { provider } = state;
+  if (!provider) return undefined;
+
+  return {
+    id: crypto.randomUUID(),
+    projectId,
+    taskId,
+    provider,
+    title: nextDefaultConversationTitle(provider, []),
+    initialPrompt: buildFinalPrompt(state.issueContext, state.prompt),
+    autoApprove: getAutoApproveDefault(provider),
+  };
+}
+
 export function buildWorkspaceLocation(
   projectData: LocalProject | SshProject | null,
   useBYOI: boolean
