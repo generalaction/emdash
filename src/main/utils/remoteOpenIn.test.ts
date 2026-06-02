@@ -9,7 +9,13 @@ describe('remoteOpenIn', () => {
   describe('buildRemoteEditorUrl', () => {
     it('builds VSCodium remote SSH URLs', () => {
       expect(buildRemoteEditorUrl('vscodium', 'example.com', 'alice', '/repo')).toBe(
-        'vscodium://vscode-remote/ssh-remote+alice%40example.com/repo'
+        'vscodium://vscode-remote/ssh-remote+7b22686f73744e616d65223a226578616d706c652e636f6d222c2275736572223a22616c696365227d/repo'
+      );
+    });
+
+    it('omits ports from VS Code-style remote SSH URLs', () => {
+      expect(buildRemoteEditorUrl('vscode', 'localhost', 'dev', '/repo', 2222)).toBe(
+        'vscode://vscode-remote/ssh-remote+7b22686f73744e616d65223a226c6f63616c686f7374222c2275736572223a22646576227d/repo'
       );
     });
 
@@ -22,6 +28,18 @@ describe('remoteOpenIn', () => {
     it('includes a non-default port in Zed remote SSH URLs', () => {
       expect(buildRemoteEditorUrl('zed', 'localhost', 'dev', '/repo', 2222)).toBe(
         'zed://ssh/dev@localhost:2222/repo'
+      );
+    });
+
+    it('omits port 22 (the SSH default) from Zed remote SSH URLs', () => {
+      expect(buildRemoteEditorUrl('zed', 'localhost', 'dev', '/repo', 22)).toBe(
+        'zed://ssh/dev@localhost/repo'
+      );
+    });
+
+    it('encodes remote path segments in editor URLs', () => {
+      expect(buildRemoteEditorUrl('zed', 'localhost', 'dev', '/repo with space/#1')).toBe(
+        'zed://ssh/dev@localhost/repo%20with%20space/%231'
       );
     });
   });
