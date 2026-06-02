@@ -277,8 +277,7 @@ describe('HookConfigWriter', () => {
     expect(wroteConfig).toBe(true);
     const config = JSON.parse(fs.files.get('.github/hooks/emdash.json')!);
     expect(config.version).toBe(1);
-    expect(config.hooks.notification[0].type).toBe('command');
-    expect(config.hooks.notification[0].command).toContain('X-Emdash-Event-Type: notification');
+    expect(config.hooks.notification).toHaveLength(0);
     expect(config.hooks.agentStop[0].command).toContain('X-Emdash-Event-Type: stop');
     expect(config.hooks.permissionRequest[0].command).toContain(
       '{"notification_type":"permission_prompt"}'
@@ -306,9 +305,12 @@ describe('HookConfigWriter', () => {
     await writer.writeForProvider('copilot');
 
     const config = JSON.parse(fs.files.get('.github/hooks/emdash.json')!);
-    expect(config.hooks.notification).toHaveLength(2);
+    expect(config.hooks.notification).toHaveLength(1);
     expect(config.hooks.notification[0].command).toBe('echo user hook');
-    expect(config.hooks.notification[1].command).toContain('X-Emdash-Event-Type: notification');
+    expect(config.hooks.agentStop[0].command).toContain('X-Emdash-Event-Type: stop');
+    expect(config.hooks.permissionRequest[0].command).toContain(
+      '{"notification_type":"permission_prompt"}'
+    );
   });
 
   it('skips Copilot hooks when copilot is unavailable', async () => {

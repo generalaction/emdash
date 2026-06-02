@@ -60,9 +60,8 @@ const CODEX_SESSION_HOOK_EVENT_MAP = [{ hookKey: 'SessionStart' as const }] sati
 }[];
 
 const COPILOT_HOOK_EVENT_MAP = [
-  { hookKey: 'notification', eventType: 'notification' },
   { hookKey: 'agentStop', eventType: 'stop' },
-] satisfies { hookKey: CopilotHookEvent; eventType: 'notification' | 'stop' }[];
+] satisfies { hookKey: CopilotHookEvent; eventType: 'stop' }[];
 
 const DROID_HOOK_EVENT_MAP = [
   { hookKey: 'Notification', eventType: 'notification' },
@@ -171,6 +170,11 @@ export class HookConfigWriter {
       : {};
 
     const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
+
+    const existingNotification = Array.isArray(hooks.notification) ? hooks.notification : [];
+    hooks.notification = existingNotification.filter(
+      (entry) => !JSON.stringify(entry).includes(EMDASH_MARKER)
+    );
 
     for (const { hookKey, eventType } of COPILOT_HOOK_EVENT_MAP) {
       const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
