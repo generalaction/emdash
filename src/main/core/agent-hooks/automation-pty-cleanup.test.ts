@@ -2,11 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { log } from '@main/lib/logger';
 import type { AgentEvent } from '@shared/events/agentEvents';
 import { taskWasCreatedByAutomationRun } from '../automations/repo';
-import { taskManager } from '../tasks/task-manager';
+import { taskSessionManager } from '../tasks/task-session-manager';
 import { stopAutomationSessionAfterDone } from './automation-pty-cleanup';
 
 vi.mock('../automations/repo', () => ({ taskWasCreatedByAutomationRun: vi.fn() }));
-vi.mock('../tasks/task-manager', () => ({ taskManager: { getTask: vi.fn() } }));
+vi.mock('../tasks/task-session-manager', () => ({ taskSessionManager: { getTask: vi.fn() } }));
 vi.mock('@main/lib/logger', () => ({ log: { warn: vi.fn() } }));
 
 function makeStopEvent(conversationId: string): AgentEvent {
@@ -31,7 +31,9 @@ describe('stopAutomationSessionAfterDone', () => {
     const stopEvent = makeStopEvent('conversation-stop');
     const stopSession = vi.fn().mockResolvedValue(undefined);
     vi.mocked(taskWasCreatedByAutomationRun).mockResolvedValue(true);
-    vi.mocked(taskManager.getTask).mockReturnValue({ conversations: { stopSession } } as never);
+    vi.mocked(taskSessionManager.getTask).mockReturnValue({
+      conversations: { stopSession },
+    } as never);
 
     await stopAutomationSessionAfterDone(stopEvent);
 
@@ -48,7 +50,9 @@ describe('stopAutomationSessionAfterDone', () => {
         })
     );
     vi.mocked(taskWasCreatedByAutomationRun).mockResolvedValue(true);
-    vi.mocked(taskManager.getTask).mockReturnValue({ conversations: { stopSession } } as never);
+    vi.mocked(taskSessionManager.getTask).mockReturnValue({
+      conversations: { stopSession },
+    } as never);
 
     const hookStop = stopAutomationSessionAfterDone(stopEvent);
     const classifierStop = stopAutomationSessionAfterDone({ ...stopEvent, source: 'classifier' });
@@ -63,7 +67,9 @@ describe('stopAutomationSessionAfterDone', () => {
     const stopEvent = makeStopEvent('conversation-repeat');
     const stopSession = vi.fn().mockResolvedValue(undefined);
     vi.mocked(taskWasCreatedByAutomationRun).mockResolvedValue(true);
-    vi.mocked(taskManager.getTask).mockReturnValue({ conversations: { stopSession } } as never);
+    vi.mocked(taskSessionManager.getTask).mockReturnValue({
+      conversations: { stopSession },
+    } as never);
 
     await stopAutomationSessionAfterDone(stopEvent);
     await stopAutomationSessionAfterDone(stopEvent);
@@ -77,7 +83,7 @@ describe('stopAutomationSessionAfterDone', () => {
 
     await stopAutomationSessionAfterDone(stopEvent);
 
-    expect(taskManager.getTask).not.toHaveBeenCalled();
+    expect(taskSessionManager.getTask).not.toHaveBeenCalled();
   });
 
   it('ignores non-stop agent events', async () => {
