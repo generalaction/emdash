@@ -318,10 +318,16 @@ describe('automations repo', () => {
     expect(dbMock.all).toHaveBeenCalledTimes(1);
   });
 
-  it('identifies automation tasks after createdTaskId is cleared', async () => {
+  it('identifies in-flight automation tasks after createdTaskId is cleared', async () => {
     dbMock.selectLimit.mockReturnValueOnce(dbMock.rowsResult([{ id: 'run-1' }]));
 
     await expect(taskWasCreatedByAutomationRun('task-2')).resolves.toBe(true);
+  });
+
+  it('does not identify completed automation tasks as in-flight automation runs', async () => {
+    dbMock.selectLimit.mockReturnValueOnce(dbMock.rowsResult([]));
+
+    await expect(taskWasCreatedByAutomationRun('task-1')).resolves.toBe(false);
   });
 
   it('hydrates run agent provider from the created task conversation', async () => {
