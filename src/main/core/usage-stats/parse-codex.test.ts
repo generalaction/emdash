@@ -23,6 +23,22 @@ const tokenCount = (input: number, cached: number, output: number) =>
       },
     },
   });
+const tokenCountWithLast = (totalIn: number, totalOut: number, lastIn: number, lastOut: number) =>
+  JSON.stringify({
+    type: 'event_msg',
+    timestamp: 't',
+    payload: {
+      type: 'token_count',
+      info: {
+        total_token_usage: {
+          input_tokens: totalIn,
+          cached_input_tokens: 0,
+          output_tokens: totalOut,
+        },
+        last_token_usage: { input_tokens: lastIn, cached_input_tokens: 0, output_tokens: lastOut },
+      },
+    },
+  });
 
 describe('parseCodexRollout', () => {
   it('attributes cumulative-delta usage to the active model, subtracting cached from input', () => {
@@ -61,5 +77,44 @@ describe('parseCodexRollout', () => {
     const ids = new Set(records.map((r) => r.id));
     expect(ids.size).toBe(records.length);
     expect(records.filter((r) => r.isMessage)).toHaveLength(2);
+  });
+
+  it('subtracts the inherited baseline for forked sessions (no double-count of parent history)', () => {
+    const metaForked = JSON.stringify({
+      type: 'session_meta',
+      timestamp: 't',
+      payload: { id: 'fork-1', cwd: '/x', forked_from_id: 'parent-1' },
+    });
+    // First token_count's total already includes 4900 inherited input / 180 inherited output;
+    // only this turn (last) is 100 in / 20 out. Then a second turn adds 300 in / 60 out.
+    const text = [
+      metaForked,
+      turn('gpt-5.5'),
+      tokenCountWithLast(5000, 200, 100, 20),
+      tokenCountWithLast(5300, 260, 300, 60),
+    ].join('\n');
+    const recs = parseCodexRollout(text, '/sessions/fork.jsonl').filter((r) => !r.isMessage);
+    expect(recs).toHaveLength(2);
+    expect(recs[0]).toMatchObject({ input: 100, output: 20 }); // inherited 4900/180 excluded
+    expect(recs[1]).toMatchObject({ input: 300, output: 60 });
+  });
+
+  it('does NOT subtract a baseline for non-forked sessions (first total counts in full)', () => {
+    const metaPlain = JSON.stringify({
+      type: 'session_meta',
+      timestamp: 't',
+      payload: { id: 'plain-1', cwd: '/x' },
+    });
+    const text = [metaPlain, turn('gpt-5.5'), tokenCountWithLast(5000, 200, 100, 20)].join('\n');
+    const recs = parseCodexRollout(text, '/sessions/p.jsonl').filter((r) => !r.isMessage);
+    expect(recs[0]).toMatchObject({ input: 5000, output: 200 });
+  });
+
+  it('keys record ids by session id so a duplicated session file dedupes', () => {
+    const text = [meta, turn('gpt-5.4'), tokenCount(100, 40, 10)].join('\n');
+    const a = parseCodexRollout(text, '/sessions/2026/05/r.jsonl');
+    const b = parseCodexRollout(text, '/archived_sessions/r.jsonl'); // same session, different path
+    expect(a.map((r) => r.id)).toEqual(b.map((r) => r.id)); // ids depend on session id, not path
+    expect(a[0].id.startsWith('codex:cdx-1:')).toBe(true);
   });
 });
