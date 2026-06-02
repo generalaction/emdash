@@ -63,4 +63,5 @@ describe('resolveProviderEnv', () => {
       resolveProviderEnv(undefined, { providerId: 'claude', autoApprove: true })
     ).toBeUndefined();
   });
+
 });

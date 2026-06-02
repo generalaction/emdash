@@ -22,7 +22,12 @@ export function extractProviderSessionId(body: Record<string, unknown>): string 
 
 export async function handleProviderSessionHook(raw: RawHookRequest): Promise<void> {
   const parsed = parsePtyId(raw.ptyId);
-  if (!parsed || (parsed.providerId !== 'droid' && parsed.providerId !== 'grok')) return;
+  if (
+    !parsed ||
+    (parsed.providerId !== 'droid' && parsed.providerId !== 'grok' && parsed.providerId !== 'kimi')
+  ) {
+    return;
+  }
 
   let body: Record<string, unknown> = {};
   if (raw.body) {
