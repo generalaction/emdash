@@ -6,6 +6,7 @@ import {
   enqueueAutomationRun,
   listRecentRuns,
   listRuns,
+  taskWasCreatedByAutomationRun,
   updateAutomation,
 } from './repo';
 import { detachProject, setAutomationEnabled } from './service';
@@ -315,6 +316,12 @@ describe('automations repo', () => {
     );
 
     expect(dbMock.all).toHaveBeenCalledTimes(1);
+  });
+
+  it('identifies automation tasks after createdTaskId is cleared', async () => {
+    dbMock.selectLimit.mockReturnValueOnce(dbMock.rowsResult([{ id: 'run-1' }]));
+
+    await expect(taskWasCreatedByAutomationRun('task-2')).resolves.toBe(true);
   });
 
   it('hydrates run agent provider from the created task conversation', async () => {

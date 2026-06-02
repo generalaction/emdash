@@ -674,10 +674,7 @@ export async function taskWasCreatedByAutomationRun(taskIdValue: string): Promis
     .select({ id: automationRuns.id })
     .from(automationRuns)
     .where(
-      or(
-        eq(automationRuns.createdTaskId, taskIdValue),
-        and(eq(automationRuns.taskId, taskIdValue), isNotNull(automationRuns.createdTaskId))
-      )
+      or(eq(automationRuns.createdTaskId, taskIdValue), eq(automationRuns.taskId, taskIdValue))
     )
     .limit(1);
   return rows.length > 0;
