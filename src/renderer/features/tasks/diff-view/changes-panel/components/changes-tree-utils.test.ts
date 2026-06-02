@@ -37,9 +37,15 @@ describe('buildDirectoryStatusByPath', () => {
   );
 
   it('does not promote status to sibling-only directories', () => {
-    const statuses = buildDirectoryStatusByPath([change('src/lib/removed.ts', 'deleted')]);
-    expect(statuses.get('src')).toBe('deleted');
+    const statuses = buildDirectoryStatusByPath([
+      change('src/lib/removed.ts', 'deleted'),
+      change('src/components/button.tsx', 'added'),
+    ]);
     expect(statuses.get('src/lib')).toBe('deleted');
+    expect(statuses.get('src/components')).toBe('added');
+    expect(statuses.get('src')).toBe('deleted');
+    expect(statuses.has('src/other')).toBe(false);
+    expect(statuses.size).toBe(3);
   });
 
   it('ignores root-level files with no parent directories', () => {
