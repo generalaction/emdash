@@ -182,6 +182,69 @@ describe('HookConfigWriter', () => {
     expect(fs.files.has('.gitignore')).toBe(false);
   });
 
+  it('writes Qwen hooks to project settings and ignores the settings file in git', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/qwen');
+    const fs = new MemoryFs();
+    const writer = makeWriter(fs);
+
+    const wroteConfig = await writer.writeForProvider('qwen');
+
+    expect(wroteConfig).toBe(true);
+    const config = JSON.parse(fs.files.get('.qwen/settings.json')!);
+    expect(config.hooks.SessionStart[0].hooks[0].command).toContain('X-Emdash-Event-Type: session');
+    expect(config.hooks.UserPromptSubmit[0].hooks[0].command).toContain(
+      'X-Emdash-Event-Type: start'
+    );
+    expect(config.hooks.PreToolUse[0].hooks[0].command).toContain('X-Emdash-Event-Type: start');
+    expect(config.hooks.PostToolUse[0].hooks[0].command).toContain('X-Emdash-Event-Type: start');
+    expect(config.hooks.PostToolUseFailure[0].hooks[0].command).toContain(
+      'X-Emdash-Event-Type: start'
+    );
+    expect(config.hooks.Notification[0].hooks[0].command).toContain(
+      'X-Emdash-Event-Type: notification'
+    );
+    expect(config.hooks.Stop[0].hooks[0].command).toContain('X-Emdash-Event-Type: stop');
+    expect(config.hooks.SessionEnd[0].hooks[0].command).toContain('X-Emdash-Event-Type: stop');
+    expect(fs.files.get('.gitignore')).toBe('.qwen/settings.json\n');
+  });
+
+  it('preserves unrelated Qwen hooks while replacing Emdash-managed entries', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/qwen');
+    const fs = new MemoryFs();
+    fs.files.set(
+      '.qwen/settings.json',
+      JSON.stringify({
+        disableAllHooks: false,
+        hooks: {
+          Stop: [
+            { hooks: [{ type: 'command', command: 'echo user hook' }] },
+            { hooks: [{ type: 'command', command: 'echo $EMDASH_HOOK_PORT' }] },
+          ],
+        },
+      })
+    );
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('qwen');
+
+    const config = JSON.parse(fs.files.get('.qwen/settings.json')!);
+    expect(config.disableAllHooks).toBe(false);
+    expect(config.hooks.Stop).toHaveLength(2);
+    expect(config.hooks.Stop[0].hooks[0].command).toBe('echo user hook');
+    expect(config.hooks.Stop[1].hooks[0].command).toContain('X-Emdash-Event-Type: stop');
+  });
+
+  it('skips Qwen hooks when qwen is unavailable', async () => {
+    mockResolveCommandPath.mockResolvedValue(undefined);
+    const fs = new MemoryFs();
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('qwen');
+
+    expect(fs.files.has('.qwen/settings.json')).toBe(false);
+    expect(fs.files.has('.gitignore')).toBe(false);
+  });
+
   it('writes Devin stop and permission hooks and ignores the project hooks file in git', async () => {
     mockResolveCommandPath.mockResolvedValue('/usr/local/bin/devin');
     const fs = new MemoryFs();
