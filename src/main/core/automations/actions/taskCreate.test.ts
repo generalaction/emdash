@@ -10,7 +10,11 @@ import { updateRun } from '../repo';
 import { executeTaskCreate } from './taskCreate';
 
 vi.mock('@main/core/conversations/createConversation', () => ({ createConversation: vi.fn() }));
+vi.mock('@main/core/projects/operations/ensure-repository-workspace', () => ({
+  ensureRepositoryWorkspace: vi.fn().mockResolvedValue('ws-repo-1'),
+}));
 vi.mock('@main/core/projects/operations/openProject', () => ({ openProject: vi.fn() }));
+vi.mock('@main/db/client', () => ({ db: { select: vi.fn(), insert: vi.fn(), update: vi.fn() } }));
 vi.mock('@main/core/projects/project-manager', () => ({
   projectManager: { getProject: vi.fn() },
 }));
@@ -43,14 +47,14 @@ const automation: Automation = {
     projectId: 'project-1',
     name: 'Stored task',
     workspaceConfig: {
-      version: '1' as const,
+      version: '2' as const,
       git: {
         kind: 'create-branch' as const,
         branchName: 'stored-task-branch',
         fromBranch: { type: 'local' as const, branch: 'main' },
         pushBranch: false,
       },
-      workspace: { host: 'local' as const },
+      workspace: { kind: 'new-worktree' as const },
     },
     initialConversation: {
       id: 'stored-conversation-id',
@@ -253,9 +257,9 @@ describe('executeTaskCreate', () => {
         taskConfig: {
           ...automation.taskConfig!,
           workspaceConfig: {
-            version: '1' as const,
+            version: '2' as const,
             git: { kind: 'none' as const },
-            workspace: { host: 'byoi' as const },
+            workspace: { kind: 'byoi' as const },
           },
         },
       },
@@ -265,7 +269,7 @@ describe('executeTaskCreate', () => {
     expect(result.success).toBe(true);
     const taskConfig = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
     expect(taskConfig?.workspaceConfig.git).toEqual({ kind: 'none' });
-    expect(taskConfig?.workspaceConfig.workspace).toEqual({ host: 'byoi' });
+    expect(taskConfig?.workspaceConfig.workspace).toEqual({ kind: 'byoi' });
   });
 
   it('uses the run id when generating default task names', async () => {

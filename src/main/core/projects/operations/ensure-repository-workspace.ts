@@ -3,8 +3,8 @@ import { eq } from 'drizzle-orm';
 import { computeWorkspaceKey } from '@main/core/workspaces/workspace-key';
 import { db } from '@main/db/client';
 import { projects, workspaces } from '@main/db/schema';
-import type { LocalProject, SshProject } from '@shared/projects';
 import { log } from '@main/lib/logger';
+import type { LocalProject, SshProject } from '@shared/projects';
 
 /**
  * Ensures the project has a `project-root` workspace row and sets

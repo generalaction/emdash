@@ -35,7 +35,11 @@ type WorkspaceConfigV1 = {
 function upgradeV1(v1: WorkspaceConfigV1): WorkspaceConfig | null {
   const { git, workspace } = v1;
   if (workspace.host === 'byoi') {
-    return { version: '2', git, workspace: { kind: 'byoi', remoteWorkspaceId: workspace.remoteWorkspaceId } };
+    return {
+      version: '2',
+      git,
+      workspace: { kind: 'byoi', remoteWorkspaceId: workspace.remoteWorkspaceId },
+    };
   }
   if (git.kind === 'none') {
     // Cannot determine the repositoryWorkspaceId here — caller must resolve.

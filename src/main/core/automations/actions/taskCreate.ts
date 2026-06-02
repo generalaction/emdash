@@ -14,6 +14,7 @@ import { resolveAutomationAgentAutoApprove } from '@shared/agent-auto-approve-de
 import type { TaskCreateAction } from '@shared/automations/actions';
 import type { Branch } from '@shared/git';
 import { bareRefName } from '@shared/git-utils';
+import type { LocalProject, SshProject } from '@shared/projects';
 import { err, ok, type Result } from '@shared/result';
 import type {
   CreateTaskError,
@@ -111,9 +112,7 @@ async function resolveProjectDefaults(
   let workspace: WorkspaceTarget;
   if (git.kind === 'none') {
     // Unborn repo — link to the project's repository-instance workspace.
-    const workspaceId = await ensureRepositoryWorkspace(
-      await getProjectData(project.projectId)
-    );
+    const workspaceId = await ensureRepositoryWorkspace(await getProjectData(project.projectId));
     workspace = { kind: 'repository-instance', workspaceId };
   } else {
     workspace = { kind: 'new-worktree' };
@@ -122,14 +121,8 @@ async function resolveProjectDefaults(
   return { version: '2', git, workspace };
 }
 
-async function getProjectData(
-  projectId: string
-): Promise<import('@shared/projects').LocalProject | import('@shared/projects').SshProject> {
-  const [row] = await db
-    .select()
-    .from(projects)
-    .where(eq(projects.id, projectId))
-    .limit(1);
+async function getProjectData(projectId: string): Promise<LocalProject | SshProject> {
+  const [row] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
   if (!row) throw new Error(`Project ${projectId} not found`);
   if (row.workspaceProvider === 'ssh') {
     return {
@@ -210,7 +203,9 @@ function resolveStoredWorkspaceConfig(
   const legacyWorkspace = (storedConfig as { workspaceLocation?: WorkspaceLocation })
     .workspaceLocation;
   if (legacyGit && legacyWorkspace) {
-    return parseWorkspaceConfig(JSON.stringify({ version: '1', git: legacyGit, workspace: legacyWorkspace }));
+    return parseWorkspaceConfig(
+      JSON.stringify({ version: '1', git: legacyGit, workspace: legacyWorkspace })
+    );
   }
   return null;
 }

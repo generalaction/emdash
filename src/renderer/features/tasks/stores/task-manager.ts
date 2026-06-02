@@ -354,6 +354,14 @@ export class TaskManagerStore {
       const current = this.tasks.get(params.id);
       if (current && isUnregistered(current)) {
         current.transitionToUnprovisioned(result.data.task, 'provision');
+        // For repository-instance tasks the workspace ID is known at creation time —
+        // set it immediately so consumers can reference it before provisioning completes.
+        if (
+          params.workspaceConfig.workspace.kind === 'repository-instance' &&
+          result.data.task.workspaceId
+        ) {
+          current.workspaceId = result.data.task.workspaceId;
+        }
         // Conversation and terminal registries already acquired in the optimistic phase.
       }
     });

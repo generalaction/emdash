@@ -40,6 +40,7 @@ function createAppDb(): {
       workspace_provider TEXT NOT NULL DEFAULT 'local',
       base_ref TEXT,
       ssh_connection_id TEXT,
+      repository_workspace_id TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );

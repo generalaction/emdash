@@ -1,17 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TaskRow } from '@main/db/schema';
-import type { WorkspaceConfig } from '@shared/workspace-config';
 import { serializeWorkspaceConfig } from '@shared/workspace-config';
 import { createTask } from './createTask';
 
 const mocks = vi.hoisted(() => ({
   transaction: vi.fn(),
   getProject: vi.fn(),
+  select: vi.fn(),
 }));
 
 vi.mock('@main/db/client', () => ({
   db: {
     transaction: mocks.transaction,
+    select: mocks.select,
   },
 }));
 
@@ -45,7 +46,7 @@ function makeTaskRow(values: Partial<TaskRow>): TaskRow {
 
 /**
  * Sets up db.transaction to invoke the callback with a fake `tx`.
- * The fake tx captures insert values by call order (0=task, 1=workspace, 2=conversation).
+ * The fake tx captures insert values by call order (0=task, 1=workspace if any, 2=conversation).
  * Returns an array that is populated with each set of insert values as the callback runs.
  */
 function setupTransactionMock() {
@@ -69,11 +70,23 @@ function setupTransactionMock() {
   return { captured };
 }
 
+/** Sets up db.select to return a local project row. */
+function setupSelectMock(workspaceProvider = 'local', sshConnectionId: string | null = null) {
+  mocks.select.mockReturnValue({
+    from: () => ({
+      where: () => ({
+        limit: () => Promise.resolve([{ workspaceProvider, sshConnectionId }]),
+      }),
+    }),
+  });
+}
+
 describe('createTask', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getProject.mockReturnValue({});
     setupTransactionMock();
+    setupSelectMock();
   });
 
   it('returns project-not-found when project does not exist', async () => {
@@ -82,7 +95,11 @@ describe('createTask', () => {
       id: 'task-1',
       projectId: 'project-1',
       name: 'Test Task',
-      workspaceConfig: { version: '1', git: { kind: 'none' }, workspace: { host: 'local' } },
+      workspaceConfig: {
+        version: '2',
+        git: { kind: 'none' },
+        workspace: { kind: 'repository-instance', workspaceId: 'ws-repo-1' },
+      },
     });
     expect(result).toEqual({ success: false, error: { type: 'project-not-found' } });
     expect(mocks.transaction).not.toHaveBeenCalled();
@@ -93,36 +110,13 @@ describe('createTask', () => {
       id: 'task-1',
       projectId: 'project-1',
       name: 'Test Task',
-      workspaceConfig: { version: '1', git: { kind: 'none' }, workspace: { host: 'local' } },
-    });
-
-    expect(mocks.transaction).toHaveBeenCalledTimes(1);
-  });
-
-  it('stores WorkspaceConfig JSON in workspaces.config', async () => {
-    const { captured } = setupTransactionMock();
-    const workspaceConfig: WorkspaceConfig = {
-      version: '1',
-      git: {
-        kind: 'create-branch',
-        branchName: 'feature/test',
-        fromBranch: { type: 'local' as const, branch: 'main' },
-        pushBranch: true,
+      workspaceConfig: {
+        version: '2',
+        git: { kind: 'none' },
+        workspace: { kind: 'repository-instance', workspaceId: 'ws-repo-1' },
       },
-      workspace: { host: 'local' },
-    };
-
-    await createTask({
-      id: 'task-1',
-      projectId: 'project-1',
-      name: 'Test Task',
-      workspaceConfig,
     });
-
-    // captured[0] = task insert, captured[1] = workspace insert
-    expect(captured[1]).toEqual(
-      expect.objectContaining({ config: serializeWorkspaceConfig(workspaceConfig) })
-    );
+    expect(mocks.transaction).toHaveBeenCalledTimes(1);
   });
 
   it('does not write taskBranch or sourceBranch to the tasks row', async () => {
@@ -133,30 +127,34 @@ describe('createTask', () => {
       projectId: 'project-1',
       name: 'Test Task',
       workspaceConfig: {
-        version: '1',
+        version: '2',
         git: {
           kind: 'create-branch',
           branchName: 'feature/x',
           fromBranch: { type: 'local', branch: 'main' },
         },
-        workspace: { host: 'local' },
+        workspace: { kind: 'new-worktree' },
       },
     });
 
-    // captured[0] = task insert
-    expect(captured[0]).not.toEqual(
+    const taskInsert = captured[0] as Record<string, unknown>;
+    expect(taskInsert).not.toEqual(
       expect.objectContaining({ taskBranch: expect.anything(), sourceBranch: expect.anything() })
     );
   });
 
-  it('includes workspaceId in the task row insert (no separate UPDATE)', async () => {
+  it('includes workspaceId in the task row insert', async () => {
     const { captured } = setupTransactionMock();
 
     await createTask({
       id: 'task-1',
       projectId: 'project-1',
       name: 'Test Task',
-      workspaceConfig: { version: '1', git: { kind: 'none' }, workspace: { host: 'local' } },
+      workspaceConfig: {
+        version: '2',
+        git: { kind: 'none' },
+        workspace: { kind: 'repository-instance', workspaceId: 'ws-repo-1' },
+      },
     });
 
     const taskInsert = captured[0] as Record<string, unknown>;
@@ -164,42 +162,117 @@ describe('createTask', () => {
     expect(typeof taskInsert.workspaceId).toBe('string');
   });
 
-  describe('workspace row type from workspaceConfig.workspace.host', () => {
-    it('creates a local workspace row for host:local', async () => {
-      const { captured } = setupTransactionMock();
-      await createTask({
-        id: 'task-1',
-        projectId: 'project-1',
-        name: 'Test Task',
-        workspaceConfig: { version: '1', git: { kind: 'none' }, workspace: { host: 'local' } },
-      });
-      expect((captured[1] as Record<string, unknown>).type).toBe('local');
-    });
-
-    it('creates a project-ssh workspace row for host:project-ssh', async () => {
+  describe('repository-instance workspace target', () => {
+    it('reuses the existing workspace ID from config', async () => {
       const { captured } = setupTransactionMock();
       await createTask({
         id: 'task-1',
         projectId: 'project-1',
         name: 'Test Task',
         workspaceConfig: {
-          version: '1',
+          version: '2',
           git: { kind: 'none' },
-          workspace: { host: 'project-ssh' },
+          workspace: { kind: 'repository-instance', workspaceId: 'ws-repo-1' },
         },
       });
-      expect((captured[1] as Record<string, unknown>).type).toBe('project-ssh');
+
+      // Only the task row is inserted — no workspace insert.
+      expect(captured).toHaveLength(1);
+      expect((captured[0] as Record<string, unknown>).workspaceId).toBe('ws-repo-1');
     });
 
-    it('creates a byoi workspace row for host:byoi', async () => {
+    it('does not insert a new workspace row', async () => {
       const { captured } = setupTransactionMock();
       await createTask({
         id: 'task-1',
         projectId: 'project-1',
         name: 'Test Task',
-        workspaceConfig: { version: '1', git: { kind: 'none' }, workspace: { host: 'byoi' } },
+        workspaceConfig: {
+          version: '2',
+          git: { kind: 'none' },
+          workspace: { kind: 'repository-instance', workspaceId: 'ws-repo-1' },
+        },
       });
-      expect((captured[1] as Record<string, unknown>).type).toBe('byoi');
+
+      // captured[0] = task. No workspace insert at index 1.
+      expect(captured).toHaveLength(1);
+    });
+  });
+
+  describe('new-worktree workspace target', () => {
+    it('inserts a workspace row with kind=worktree and the config serialized', async () => {
+      const { captured } = setupTransactionMock();
+      const workspaceConfig = {
+        version: '2' as const,
+        git: {
+          kind: 'create-branch' as const,
+          branchName: 'feature/test',
+          fromBranch: { type: 'local' as const, branch: 'main' },
+          pushBranch: true,
+        },
+        workspace: { kind: 'new-worktree' as const },
+      };
+
+      await createTask({
+        id: 'task-1',
+        projectId: 'project-1',
+        name: 'Test Task',
+        workspaceConfig,
+      });
+
+      // captured[0]=task, captured[1]=workspace
+      expect(captured).toHaveLength(2);
+      const wsInsert = captured[1] as Record<string, unknown>;
+      expect(wsInsert.kind).toBe('worktree');
+      expect(wsInsert.location).toBe('local');
+      expect(wsInsert.config).toBe(serializeWorkspaceConfig(workspaceConfig));
+    });
+
+    it('sets location=remote and type=project-ssh for SSH projects', async () => {
+      setupSelectMock('ssh', 'conn-1');
+      const { captured } = setupTransactionMock();
+
+      await createTask({
+        id: 'task-1',
+        projectId: 'project-1',
+        name: 'Test Task',
+        workspaceConfig: {
+          version: '2',
+          git: {
+            kind: 'create-branch',
+            branchName: 'feature/ssh',
+            fromBranch: { type: 'local', branch: 'main' },
+          },
+          workspace: { kind: 'new-worktree' },
+        },
+      });
+
+      const wsInsert = captured[1] as Record<string, unknown>;
+      expect(wsInsert.kind).toBe('worktree');
+      expect(wsInsert.location).toBe('remote');
+      expect(wsInsert.type).toBe('project-ssh');
+      expect(wsInsert.sshConnectionId).toBe('conn-1');
+    });
+  });
+
+  describe('byoi workspace target', () => {
+    it('inserts a workspace row with kind=byoi and location=remote', async () => {
+      const { captured } = setupTransactionMock();
+      await createTask({
+        id: 'task-1',
+        projectId: 'project-1',
+        name: 'Test Task',
+        workspaceConfig: {
+          version: '2',
+          git: { kind: 'none' },
+          workspace: { kind: 'byoi' },
+        },
+      });
+
+      const wsInsert = captured[1] as Record<string, unknown>;
+      expect(wsInsert.kind).toBe('byoi');
+      expect(wsInsert.type).toBe('byoi');
+      expect(wsInsert.location).toBe('remote');
     });
   });
 });

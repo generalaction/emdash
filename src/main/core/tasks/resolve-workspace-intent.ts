@@ -1,5 +1,5 @@
 import type { GitSetup, WorkspaceLocation } from '@shared/tasks';
-import { parseWorkspaceConfig } from '@shared/workspace-config';
+import { parseWorkspaceConfig, type WorkspaceTarget } from '@shared/workspace-config';
 import type { WorkspaceType } from '@shared/workspaces';
 
 /**
@@ -57,7 +57,10 @@ export function resolveWorkspaceIntent(
   // 1. Prefer the workspace-level config if present (new path).
   if (workspaceRow.config) {
     const cfg = parseWorkspaceConfig(workspaceRow.config);
-    if (cfg) return { git: cfg.git, workspace: cfg.workspace };
+    if (cfg) {
+      const workspace = workspaceTargetToLocation(cfg.workspace, workspaceRow.type);
+      if (workspace) return { git: cfg.git, workspace };
+    }
   }
 
   // 2. Fall back to the task-level intent (previous migration path).
@@ -70,6 +73,24 @@ export function resolveWorkspaceIntent(
   }
 
   return inferLegacyIntent(taskRow, workspaceRow);
+}
+
+/**
+ * Converts a v2 `WorkspaceTarget` to the legacy `WorkspaceLocation` type needed by
+ * `compileSetupSpec`. Used only in the backwards-compat read path.
+ *
+ * Returns `null` for `repository-instance` targets — those are handled by the
+ * `project-root` fast-path in `WorkspaceBootstrapService` before this code is reached.
+ */
+function workspaceTargetToLocation(
+  target: WorkspaceTarget,
+  workspaceType: WorkspaceType
+): WorkspaceLocation | null {
+  if (target.kind === 'repository-instance') return null;
+  if (target.kind === 'byoi') return { host: 'byoi' };
+  // 'new-worktree' — derive host from the legacy workspace type column.
+  const host = workspaceType === 'project-ssh' ? 'project-ssh' : 'local';
+  return { host };
 }
 
 function inferLegacyIntent(taskRow: TaskRow, workspaceRow: WorkspaceRow): WorkspaceIntent | null {

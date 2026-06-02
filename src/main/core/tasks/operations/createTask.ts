@@ -34,7 +34,7 @@ export async function createTask(
 
   // Resolve the workspace ID and determine whether to insert a new workspace row.
   let workspaceId: string;
-  let newWorkspaceValues: (typeof workspaces.$inferInsert) | null = null;
+  let newWorkspaceValues: typeof workspaces.$inferInsert | null = null;
 
   const wsTarget = workspaceConfig.workspace;
 
