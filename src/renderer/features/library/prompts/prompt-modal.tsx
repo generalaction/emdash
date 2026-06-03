@@ -10,8 +10,17 @@ import {
 } from '@renderer/lib/ui/dialog';
 import { Field, FieldGroup, FieldLabel } from '@renderer/lib/ui/field';
 import { Input } from '@renderer/lib/ui/input';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@renderer/lib/ui/select';
 import { Textarea } from '@renderer/lib/ui/textarea';
 import type { PromptLibraryFolder, PromptLibraryPrompt } from '@shared/prompt-library';
+
+const NO_FOLDER_VALUE = '__no_folder__';
 
 export type PromptFormResult = Pick<PromptLibraryPrompt, 'title' | 'prompt' | 'folderId'>;
 
@@ -74,23 +83,28 @@ export function PromptModal({ initialPrompt, folders = [], onSuccess, onClose }:
           {folders.length > 0 && (
             <Field>
               <FieldLabel>Folder</FieldLabel>
-              <select
-                value={form.folderId ?? ''}
-                onChange={(e) =>
+              <Select
+                value={form.folderId ?? NO_FOLDER_VALUE}
+                onValueChange={(value) =>
                   setForm((prev) => ({
                     ...prev,
-                    folderId: e.target.value || undefined,
+                    folderId:
+                      typeof value === 'string' && value !== NO_FOLDER_VALUE ? value : undefined,
                   }))
                 }
-                className="border-input focus-visible:border-ring focus-visible:ring-ring/50 flex h-9 w-full rounded-md border bg-background px-3 py-1 text-sm outline-none focus-visible:ring-3"
               >
-                <option value="">No folder</option>
-                {folders.map((folder) => (
-                  <option key={folder.id} value={folder.id}>
-                    {folder.title}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="h-9 w-full bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_FOLDER_VALUE}>No folder</SelectItem>
+                  {folders.map((folder) => (
+                    <SelectItem key={folder.id} value={folder.id}>
+                      {folder.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </Field>
           )}
         </FieldGroup>

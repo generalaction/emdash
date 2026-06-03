@@ -202,9 +202,7 @@ export function PromptLibraryView() {
   const [search, setSearch] = useState('');
   const [activeDragPromptId, setActiveDragPromptId] = useState<string | null>(null);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
-  );
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   const promptLibrary = promptLibraryValue;
   const isDisabled = isPromptLibraryLoading || isPromptLibrarySaving;
@@ -401,7 +399,7 @@ export function PromptLibraryView() {
   const createFolder = () => {
     showFolderModal({
       onSuccess: (result: FolderFormResult) => {
-        upsertFolder({ id: createFolderId(), ...result }, 'Folder added', { startCollapsed: true });
+        upsertFolder({ id: createFolderId(), ...result }, 'Folder added');
       },
     });
   };
@@ -426,7 +424,10 @@ export function PromptLibraryView() {
             prompts: promptLibrary.prompts.map((item) =>
               item.folderId === folder.id ? { ...item, folderId: undefined } : item
             ),
-            collapsedFolderIds: promptLibrary.collapsedFolderIds?.filter((id) => id !== folder.id),
+            collapsedFolderIds: (() => {
+              const next = promptLibrary.collapsedFolderIds?.filter((id) => id !== folder.id);
+              return next?.length ? next : undefined;
+            })(),
           },
           {
             onSuccess: () => toast({ title: 'Folder deleted' }),

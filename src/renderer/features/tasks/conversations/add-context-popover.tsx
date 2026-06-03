@@ -304,7 +304,6 @@ export function AddContextPopover({
               ? `Search in ${browseFolder?.title ?? 'folder'}...`
               : 'Search...'
           }
-          onKeyDown={handleBrowseBackKey}
         />
         <ComboboxList className="flex-1">
           {(group: { value: string; items: AddContextListEntry[] }) => (
