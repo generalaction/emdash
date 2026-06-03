@@ -209,4 +209,29 @@ describe('PtySession', () => {
     expect(session.pty).toBe(initialPty);
     expect(session.status).toBe('ready');
   });
+
+  it('does not clear when multiple backend starts arrive during initial connect', async () => {
+    const firstConnect = deferred<void>();
+    frontendConnect.mockReturnValueOnce(firstConnect.promise);
+
+    const session = new PtySession('session-1', undefined, undefined, undefined, {
+      clearOnBackendStart: true,
+    });
+    const firstConnectPromise = session.connect();
+    await Promise.resolve();
+    expect(session.status).toBe('connecting');
+
+    for (const listener of ptyStartedListeners()) listener({ id: 'session-1' });
+    for (const listener of ptyStartedListeners()) listener({ id: 'session-1' });
+    await Promise.resolve();
+
+    expect(frontendClear).not.toHaveBeenCalled();
+
+    firstConnect.resolve();
+    await firstConnectPromise;
+    expect(session.status).toBe('ready');
+
+    for (const listener of ptyStartedListeners()) listener({ id: 'session-1' });
+    expect(frontendClear).toHaveBeenCalledTimes(1);
+  });
 });

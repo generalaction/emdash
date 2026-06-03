@@ -85,6 +85,8 @@ export class PtySession {
   }
 
   private handleBackendStarted(): void {
+    if (this.status !== 'ready') return;
+
     if (!this.hasSeenBackendStart) {
       this.hasSeenBackendStart = true;
       return;

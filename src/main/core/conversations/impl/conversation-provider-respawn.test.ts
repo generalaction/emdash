@@ -723,7 +723,7 @@ describe('conversation provider respawn state', () => {
       expect(openSsh2Pty).toHaveBeenCalledTimes(4);
       expect(
         vi.mocked(buildAgentSessionCommand).mock.calls.map(([args]) => args.isResuming)
-      ).toEqual([true, true, false, true]);
+      ).toEqual([true, false, false, true]);
     } finally {
       vi.useRealTimers();
     }

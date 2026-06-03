@@ -221,7 +221,7 @@ export class SshConversationProvider implements ConversationProvider {
             conversation,
             sessionId,
             initialSize: replacementSize,
-            isResuming,
+            isResuming: decision.kind === 'respawnResume',
             initialPrompt,
           });
           return;
