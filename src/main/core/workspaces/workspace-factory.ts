@@ -182,25 +182,48 @@ export function createWorkspaceFactory(
         }
         statusPoller?.start();
         void workspaceFileIndexService.onWorkspaceCreated(workspaceId, ws);
-        if (scripts?.setup) {
-          void runLifecycleScriptWithPolicy({
-            workspace: ws,
-            projectId: context.projectId,
-            taskId: context.task.id,
-            workspaceId,
-            type: 'setup',
-            script: scripts.setup,
-            shellSetup,
-            origin: 'auto-setup',
-            policy: {
-              respawnAfterExit: true,
-              logFailure: true,
-              surfaceFailure: true,
-              continueOnFailure: true,
-            },
-            logPrefix,
-          });
-        }
+        void (async () => {
+          if (scripts?.setup && (projectSettings.autoRunSetupScriptOnTaskCreation ?? true)) {
+            const setupResult = await runLifecycleScriptWithPolicy({
+              workspace: ws,
+              projectId: context.projectId,
+              taskId: context.task.id,
+              workspaceId,
+              type: 'setup',
+              script: scripts.setup,
+              shellSetup,
+              origin: 'auto-setup',
+              policy: {
+                respawnAfterExit: true,
+                logFailure: true,
+                surfaceFailure: true,
+                continueOnFailure: true,
+              },
+              logPrefix,
+            });
+            if (setupResult.kind !== 'succeeded') return;
+          }
+
+          if (scripts?.run && (projectSettings.autoRunRunScriptOnTaskCreation ?? false)) {
+            await runLifecycleScriptWithPolicy({
+              workspace: ws,
+              projectId: context.projectId,
+              taskId: context.task.id,
+              workspaceId,
+              type: 'run',
+              script: scripts.run,
+              shellSetup,
+              origin: 'auto-run',
+              policy: {
+                respawnAfterExit: true,
+                logFailure: true,
+                surfaceFailure: true,
+                continueOnFailure: true,
+              },
+              logPrefix,
+            });
+          }
+        })();
       },
 
       onCreate: context.extraHooks?.onCreate,
