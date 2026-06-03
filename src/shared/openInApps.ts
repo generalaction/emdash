@@ -64,15 +64,13 @@ const _OPEN_IN_APPS = {
     label: 'Finder',
     iconPath: ICON_PATHS.finder,
     alwaysAvailable: true,
+    // AppService opens the platform file manager via Electron shell.openPath.
     platforms: {
-      darwin: { openCommands: ['open {{path}}'] },
       win32: {
-        openCommands: ['explorer "{{path_raw}}"'],
         label: 'Explorer',
         iconPath: ICON_PATHS.explorer,
       },
       linux: {
-        openCommands: ['xdg-open {{path}}'],
         label: 'Files',
         iconPath: ICON_PATHS.files,
       },

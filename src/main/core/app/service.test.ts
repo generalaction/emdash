@@ -92,4 +92,15 @@ describe('AppService.openIn', () => {
     expect(mocks.openPath).toHaveBeenCalledWith(target);
     expect(mocks.exec).not.toHaveBeenCalled();
   });
+
+  it('throws when Electron shell.openPath returns an error message', async () => {
+    const target = 'C:/Users/Qwenzy/Desktop/missing';
+    mocks.openPath.mockResolvedValueOnce('Path does not exist');
+
+    await expect(appService.openIn({ app: 'finder', path: target })).rejects.toThrow(
+      'Path does not exist'
+    );
+    expect(mocks.openPath).toHaveBeenCalledWith(target);
+    expect(mocks.exec).not.toHaveBeenCalled();
+  });
 });
