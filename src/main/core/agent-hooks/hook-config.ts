@@ -420,20 +420,20 @@ export class HookConfigWriter {
     }
 
     if (providerId === 'copilot') {
-        const wroteConfig = await this.writeCopilotHooks();
-        if (wroteConfig && writeGitIgnoreEntries) {
-          await this.ensureGitIgnoreEntries([COPILOT_HOOKS_PATH]);
-        }
-        return wroteConfig;
+      const wroteConfig = await this.writeCopilotHooks();
+      if (wroteConfig && writeGitIgnoreEntries) {
+        await this.ensureGitIgnoreEntries([COPILOT_HOOKS_PATH]);
       }
+      return wroteConfig;
+    }
 
-      if (providerId === 'qwen') {
-        const wroteConfig = await this.writeQwenHooks();
-        if (wroteConfig && writeGitIgnoreEntries) {
-          await this.ensureGitIgnoreEntries([QWEN_SETTINGS_PATH]);
-        }
-        return wroteConfig;
+    if (providerId === 'qwen') {
+      const wroteConfig = await this.writeQwenHooks();
+      if (wroteConfig && writeGitIgnoreEntries) {
+        await this.ensureGitIgnoreEntries([QWEN_SETTINGS_PATH]);
       }
+      return wroteConfig;
+    }
 
     if (providerId === 'droid') {
       const wroteConfig = await this.writeDroidHooks();
@@ -480,11 +480,23 @@ export class HookConfigWriter {
 
   async writeAll(options: HookConfigWriteOptions = {}): Promise<void> {
     await Promise.all(
-     (['claude', 'codex', 'grok', 'copilot', 'qwen', 'devin', 'droid', 'pi', 'opencode', 'amp'] as const).map(
-        (providerId) =>
-          this.writeForProvider(providerId, options).catch((err: Error) => {
-            log.warn(`Failed to write ${providerId} hook config`, { error: String(err) });
-          })
+      (
+        [
+          'claude',
+          'codex',
+          'grok',
+          'copilot',
+          'qwen',
+          'devin',
+          'droid',
+          'pi',
+          'opencode',
+          'amp',
+        ] as const
+      ).map((providerId) =>
+        this.writeForProvider(providerId, options).catch((err: Error) => {
+          log.warn(`Failed to write ${providerId} hook config`, { error: String(err) });
+        })
       )
     );
   }
