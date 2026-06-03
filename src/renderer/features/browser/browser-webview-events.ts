@@ -83,6 +83,7 @@ export function bindBrowserWebviewEvents(
     line: number;
     sourceId: string;
   }) => {
+    if (!shouldRecordConsoleDiagnostic(event)) return;
     browserDiagnosticsStore.append({
       browserId,
       level: consoleLevelToDiagnosticsLevel(event.level),
@@ -128,4 +129,9 @@ function consoleLevelToDiagnosticsLevel(level: number) {
   if (level >= 3) return 'error';
   if (level === 2) return 'warning';
   return 'info';
+}
+
+function shouldRecordConsoleDiagnostic(event: { message: string; sourceId: string }): boolean {
+  if (!event.sourceId.startsWith('node:electron/')) return true;
+  return !event.message.includes('Electron Security Warning');
 }

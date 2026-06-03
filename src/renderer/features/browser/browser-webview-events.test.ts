@@ -179,4 +179,24 @@ describe('bindBrowserWebviewEvents', () => {
       title: '',
     });
   });
+
+  it('ignores Electron internal security warnings', () => {
+    const session = browserSessionStore.createSession({
+      browserId: 'browser-1',
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      taskId: 'task-1',
+    });
+    const webview = new FakeBrowserWebview();
+
+    bindBrowserWebviewEvents(session.browserId, asWebview(webview));
+    webview.emit('console-message', {
+      level: 2,
+      message: '%cElectron Security Warning (Insecure Content-Security-Policy) font-weight: bold;',
+      line: 1,
+      sourceId: 'node:electron/js2c/sandbox_bundle',
+    });
+
+    expect(browserDiagnosticsStore.entriesForBrowser(session.browserId)).toEqual([]);
+  });
 });
