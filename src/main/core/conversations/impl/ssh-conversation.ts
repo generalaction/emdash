@@ -200,6 +200,14 @@ export class SshConversationProvider implements ConversationProvider {
         this.sessions.delete(sessionId);
         if (decision.kind === 'stopped') return;
 
+        if (decision.kind === 'failed') {
+          events.emit(agentSessionExitedChannel, {
+            conversationId: conversation.id,
+            taskId: conversation.taskId,
+          });
+          return;
+        }
+
         if (this.tmux) {
           events.emit(agentSessionExitedChannel, {
             conversationId: conversation.id,
