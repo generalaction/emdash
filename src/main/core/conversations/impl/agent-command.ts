@@ -114,6 +114,11 @@ function dedupeSingletonArgs(args: string[], singletonArgs: readonly string[]): 
   });
 }
 
+function isValidProviderSessionId(providerId: AgentProviderId, providerSessionId: string): boolean {
+  if (providerId === 'opencode') return providerSessionId.startsWith('ses');
+  return true;
+}
+
 export function buildAgentCommand({
   providerId,
   providerConfig,
@@ -143,9 +148,14 @@ export function buildAgentCommand({
   const shouldPassSessionId =
     sessionIdFlag !== undefined && (!providerConfig?.sessionIdOnResumeOnly || isResuming);
 
+  const validProviderSessionId =
+    providerSessionId && isValidProviderSessionId(providerId, providerSessionId)
+      ? providerSessionId
+      : undefined;
+
   if (isResuming && providerConfig?.resumeFlag) {
-    if (providerConfig.sessionIdFlag && providerSessionId) {
-      appendSessionId(args, providerConfig.resumeFlag, providerSessionId);
+    if (providerConfig.sessionIdFlag && validProviderSessionId) {
+      appendSessionId(args, providerConfig.resumeFlag, validProviderSessionId);
     } else if (providerConfig.sessionIdFlag && !providerConfig.sessionIdOnResumeOnly) {
       appendSessionId(args, providerConfig.resumeFlag, sessionId);
     } else if (providerConfig.resumeWithoutSessionFlag) {

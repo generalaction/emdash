@@ -20,13 +20,19 @@ export function extractProviderSessionId(body: Record<string, unknown>): string 
   return undefined;
 }
 
+function isValidProviderSessionId(providerId: string, providerSessionId: string): boolean {
+  if (providerId === 'opencode') return providerSessionId.startsWith('ses');
+  return true;
+}
+
 export async function handleProviderSessionHook(raw: RawHookRequest): Promise<void> {
   const parsed = parsePtyId(raw.ptyId);
   if (
     !parsed ||
     (parsed.providerId !== 'copilot' &&
       parsed.providerId !== 'droid' &&
-      parsed.providerId !== 'grok')
+      parsed.providerId !== 'grok' &&
+      parsed.providerId !== 'opencode')
   ) {
     return;
   }
@@ -46,6 +52,7 @@ export async function handleProviderSessionHook(raw: RawHookRequest): Promise<vo
 
   const providerSessionId = extractProviderSessionId(body);
   if (!providerSessionId) return;
+  if (!isValidProviderSessionId(parsed.providerId, providerSessionId)) return;
 
   if (parsed.providerId === 'droid') {
     await saveProviderSessionId(parsed.conversationId, providerSessionId);
