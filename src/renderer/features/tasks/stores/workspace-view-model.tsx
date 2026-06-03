@@ -330,7 +330,7 @@ export class WorkspaceViewModel implements ILifecycle {
           this.isTerminalDrawerOpen &&
           !this._isCreatingTerminal &&
           (terminals?.isLoaded ?? false) &&
-          this.terminalTabs.tabs.length === 0
+          (terminals?.terminals.size ?? 0) === 0
         );
       },
       (shouldCreate) => {

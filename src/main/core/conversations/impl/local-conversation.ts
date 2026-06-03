@@ -111,7 +111,10 @@ export class LocalConversationProvider implements ConversationProvider {
     this.knownSessionIds.add(sessionId);
 
     const spawnSize = ptySessionRegistry.getLastSize(sessionId) ?? initialSize;
-    const spawnToken = this.supervisor.beginStart(sessionId, { requireDesired });
+    const spawnToken = this.supervisor.beginStart(sessionId, {
+      requireDesired,
+      mode: isResuming ? 'resume' : 'fresh',
+    });
     if (!spawnToken) return;
 
     try {
@@ -236,10 +239,6 @@ export class LocalConversationProvider implements ConversationProvider {
           taskId: conversation.taskId,
         });
 
-        if (decision.kind === 'failed') {
-          return;
-        }
-
         if (this.tmux) {
           return;
         }
@@ -248,6 +247,7 @@ export class LocalConversationProvider implements ConversationProvider {
           this.scheduleReplacement({
             conversation,
             initialSize: replacementSize,
+            isResuming: decision.kind === 'respawnResume',
           });
         }
       });
@@ -387,9 +387,11 @@ export class LocalConversationProvider implements ConversationProvider {
   private scheduleReplacement({
     conversation,
     initialSize,
+    isResuming,
   }: {
     conversation: Conversation;
     initialSize: { cols: number; rows: number };
+    isResuming: boolean;
   }): void {
     setTimeout(async () => {
       const latestConversation = await this.getLatestConversation(conversation).catch((error) => {
@@ -400,7 +402,7 @@ export class LocalConversationProvider implements ConversationProvider {
         return conversation;
       });
 
-      this.startSessionInternal(latestConversation, initialSize, true, undefined, true).catch(
+      this.startSessionInternal(latestConversation, initialSize, isResuming, undefined, true).catch(
         (e) => {
           log.error('LocalConversationProvider: replacement failed', {
             conversationId: conversation.id,

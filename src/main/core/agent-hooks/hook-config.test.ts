@@ -327,6 +327,64 @@ describe('HookConfigWriter', () => {
     expect(config.notify).toBeUndefined();
   });
 
+  it('writes Copilot CLI hooks and ignores the project hook file in git', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/copilot');
+    const fs = new MemoryFs();
+    const writer = makeWriter(fs);
+
+    const wroteConfig = await writer.writeForProvider('copilot');
+
+    expect(wroteConfig).toBe(true);
+    const config = JSON.parse(fs.files.get('.github/hooks/emdash.json')!);
+    expect(config.version).toBe(1);
+    expect(config.hooks.notification).toHaveLength(0);
+    expect(config.hooks.agentStop[0].command).toContain('X-Emdash-Event-Type: stop');
+    expect(config.hooks.sessionStart[0].command).toContain('X-Emdash-Event-Type: session');
+    expect(config.hooks.permissionRequest[0].command).toContain(
+      '{"notification_type":"permission_prompt"}'
+    );
+    expect(fs.files.get('.gitignore')).toBe('.github/hooks/emdash.json\n');
+  });
+
+  it('preserves unrelated Copilot hooks while replacing Emdash-managed entries', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/copilot');
+    const fs = new MemoryFs();
+    fs.files.set(
+      '.github/hooks/emdash.json',
+      JSON.stringify({
+        version: 1,
+        hooks: {
+          notification: [
+            { type: 'command', command: 'echo user hook' },
+            { type: 'command', command: 'echo $EMDASH_HOOK_PORT' },
+          ],
+        },
+      })
+    );
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('copilot');
+
+    const config = JSON.parse(fs.files.get('.github/hooks/emdash.json')!);
+    expect(config.hooks.notification).toHaveLength(1);
+    expect(config.hooks.notification[0].command).toBe('echo user hook');
+    expect(config.hooks.agentStop[0].command).toContain('X-Emdash-Event-Type: stop');
+    expect(config.hooks.permissionRequest[0].command).toContain(
+      '{"notification_type":"permission_prompt"}'
+    );
+  });
+
+  it('skips Copilot hooks when copilot is unavailable', async () => {
+    mockResolveCommandPath.mockResolvedValue(undefined);
+    const fs = new MemoryFs();
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('copilot');
+
+    expect(fs.files.has('.github/hooks/emdash.json')).toBe(false);
+    expect(fs.files.has('.gitignore')).toBe(false);
+  });
+
   it('writes Droid notification and stop hooks and ignores the settings file in git', async () => {
     mockResolveCommandPath.mockResolvedValue('/usr/local/bin/droid');
     const fs = new MemoryFs();

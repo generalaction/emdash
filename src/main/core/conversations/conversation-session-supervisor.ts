@@ -1,61 +1,80 @@
 import type { Pty } from '@main/core/pty/pty';
 
-export type ConversationSpawnToken = {
-  generation: number;
+type ConversationSpawnToken = {
+  mode: ConversationSpawnMode;
+  freshRecovery: boolean;
+};
+
+type ConversationSpawnMode = 'fresh' | 'resume';
+
+type ActiveConversationPty = {
+  pty: Pty;
+  mode: ConversationSpawnMode;
+  freshRecovery: boolean;
 };
 
 type ConversationRuntime = {
   desired: boolean;
-  pty?: Pty;
-  spawnInFlightGeneration?: number;
-  replacementGeneration: number;
-  replacementAttemptedInWindow: boolean;
-  stableTimer?: ReturnType<typeof setTimeout>;
+  active?: ActiveConversationPty;
+  spawnInFlight?: ConversationSpawnToken;
+  consecutiveResumeExits: number;
+  recoveryGraceTimer?: ReturnType<typeof setTimeout>;
 };
 
-export const CONVERSATION_REPLACEMENT_SUSTAINED_MS = 5_000;
+export const MAX_CONVERSATION_RESUME_ATTEMPTS = 1;
+export const CONVERSATION_FRESH_RECOVERY_GRACE_MS = 5_000;
 
 export type ExitDecision =
   | { kind: 'stale' }
   | { kind: 'stopped' }
-  | { kind: 'replace' }
-  | { kind: 'failed' };
+  | { kind: 'failed' }
+  | { kind: 'respawnFresh' }
+  | { kind: 'respawnResume' };
 
 export class ConversationSessionSupervisor {
   private runtimes = new Map<string, ConversationRuntime>();
 
   beginStart(
     sessionId: string,
-    options: { requireDesired?: boolean } = {}
+    options: { requireDesired?: boolean; mode?: ConversationSpawnMode } = {}
   ): ConversationSpawnToken | undefined {
     const runtime = this.getOrCreateRuntime(sessionId);
-    if (runtime.pty || runtime.spawnInFlightGeneration !== undefined) return undefined;
+    if (runtime.active || runtime.spawnInFlight) return undefined;
     if (options.requireDesired === true && !runtime.desired) return undefined;
 
     runtime.desired = true;
-    runtime.replacementGeneration += 1;
-    runtime.spawnInFlightGeneration = runtime.replacementGeneration;
-
-    return { generation: runtime.replacementGeneration };
+    const mode = options.mode ?? 'fresh';
+    const token = {
+      mode,
+      freshRecovery:
+        mode === 'fresh' && runtime.consecutiveResumeExits >= MAX_CONVERSATION_RESUME_ATTEMPTS,
+    };
+    runtime.spawnInFlight = token;
+    return token;
   }
 
   acceptSpawn(sessionId: string, token: ConversationSpawnToken, pty: Pty): boolean {
     const runtime = this.runtimes.get(sessionId);
-    if (!runtime || runtime.spawnInFlightGeneration !== token.generation) return false;
+    if (!runtime || runtime.spawnInFlight !== token) return false;
 
-    runtime.spawnInFlightGeneration = undefined;
-    if (!runtime.desired || runtime.replacementGeneration !== token.generation) return false;
+    runtime.spawnInFlight = undefined;
+    if (!runtime.desired) return false;
 
-    runtime.pty = pty;
-    this.armStableTimer(runtime);
+    runtime.active = {
+      pty,
+      mode: token.mode,
+      freshRecovery: token.freshRecovery,
+    };
+    if (token.freshRecovery) {
+      this.scheduleRecoveryReset(sessionId, runtime, pty);
+    }
     return true;
   }
 
   failSpawn(sessionId: string, token: ConversationSpawnToken): void {
     const runtime = this.runtimes.get(sessionId);
-    if (!runtime || runtime.spawnInFlightGeneration !== token.generation) return;
-    runtime.spawnInFlightGeneration = undefined;
-    runtime.replacementAttemptedInWindow = false;
+    if (!runtime || runtime.spawnInFlight !== token) return;
+    runtime.spawnInFlight = undefined;
   }
 
   stop(sessionId: string): Pty | undefined {
@@ -63,13 +82,12 @@ export class ConversationSessionSupervisor {
     if (!runtime) return undefined;
 
     runtime.desired = false;
-    runtime.replacementGeneration += 1;
-    runtime.spawnInFlightGeneration = undefined;
-    this.clearStableTimer(runtime);
+    runtime.spawnInFlight = undefined;
+    this.clearRecoveryGraceTimer(runtime);
 
-    const pty = runtime.pty;
-    runtime.pty = undefined;
-    runtime.replacementAttemptedInWindow = false;
+    const pty = runtime.active?.pty;
+    runtime.active = undefined;
+    runtime.consecutiveResumeExits = 0;
     return pty;
   }
 
@@ -79,28 +97,60 @@ export class ConversationSessionSupervisor {
 
   handleExit(sessionId: string, pty: Pty): ExitDecision {
     const runtime = this.runtimes.get(sessionId);
-    if (!runtime || runtime.pty !== pty) return { kind: 'stale' };
+    if (!runtime || runtime.active?.pty !== pty) return { kind: 'stale' };
 
-    runtime.pty = undefined;
-    runtime.spawnInFlightGeneration = undefined;
-    this.clearStableTimer(runtime);
+    const exitedMode = runtime.active.mode;
+    const freshRecovery = runtime.active.freshRecovery;
+    runtime.active = undefined;
+    runtime.spawnInFlight = undefined;
+    this.clearRecoveryGraceTimer(runtime);
 
     if (!runtime.desired) return { kind: 'stopped' };
 
-    if (runtime.replacementAttemptedInWindow) {
+    if (exitedMode === 'resume') {
+      runtime.consecutiveResumeExits += 1;
+      if (runtime.consecutiveResumeExits >= MAX_CONVERSATION_RESUME_ATTEMPTS) {
+        runtime.consecutiveResumeExits = MAX_CONVERSATION_RESUME_ATTEMPTS;
+        return { kind: 'respawnFresh' };
+      }
+      return { kind: 'respawnResume' };
+    }
+
+    if (freshRecovery && runtime.consecutiveResumeExits >= MAX_CONVERSATION_RESUME_ATTEMPTS) {
       runtime.desired = false;
-      runtime.replacementAttemptedInWindow = false;
+      runtime.consecutiveResumeExits = 0;
       return { kind: 'failed' };
     }
 
-    runtime.replacementAttemptedInWindow = true;
-    return { kind: 'replace' };
+    runtime.consecutiveResumeExits = 0;
+    return { kind: 'respawnResume' };
   }
 
   forget(sessionId: string): void {
     const runtime = this.runtimes.get(sessionId);
-    if (runtime) this.clearStableTimer(runtime);
+    if (runtime) this.clearRecoveryGraceTimer(runtime);
     this.runtimes.delete(sessionId);
+  }
+
+  private scheduleRecoveryReset(sessionId: string, runtime: ConversationRuntime, pty: Pty): void {
+    this.clearRecoveryGraceTimer(runtime);
+    runtime.recoveryGraceTimer = setTimeout(() => {
+      if (this.runtimes.get(sessionId) !== runtime) return;
+      if (runtime.active?.pty !== pty || !runtime.active.freshRecovery) return;
+
+      runtime.active = {
+        ...runtime.active,
+        freshRecovery: false,
+      };
+      runtime.consecutiveResumeExits = 0;
+      runtime.recoveryGraceTimer = undefined;
+    }, CONVERSATION_FRESH_RECOVERY_GRACE_MS);
+  }
+
+  private clearRecoveryGraceTimer(runtime: ConversationRuntime): void {
+    if (!runtime.recoveryGraceTimer) return;
+    clearTimeout(runtime.recoveryGraceTimer);
+    runtime.recoveryGraceTimer = undefined;
   }
 
   private getOrCreateRuntime(sessionId: string): ConversationRuntime {
@@ -108,26 +158,10 @@ export class ConversationSessionSupervisor {
     if (!runtime) {
       runtime = {
         desired: false,
-        replacementGeneration: 0,
-        replacementAttemptedInWindow: false,
+        consecutiveResumeExits: 0,
       };
       this.runtimes.set(sessionId, runtime);
     }
     return runtime;
-  }
-
-  private armStableTimer(runtime: ConversationRuntime): void {
-    this.clearStableTimer(runtime);
-    runtime.stableTimer = setTimeout(() => {
-      runtime.replacementAttemptedInWindow = false;
-      runtime.stableTimer = undefined;
-    }, CONVERSATION_REPLACEMENT_SUSTAINED_MS);
-  }
-
-  private clearStableTimer(runtime: ConversationRuntime): void {
-    if (runtime.stableTimer !== undefined) {
-      clearTimeout(runtime.stableTimer);
-      runtime.stableTimer = undefined;
-    }
   }
 }

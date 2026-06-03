@@ -3,7 +3,7 @@ import { isUnexpectedPtyExit } from '@main/core/pty/exit-classification';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import type { Pty } from '@main/core/pty/pty';
 import { buildTerminalEnv } from '@main/core/pty/pty-env';
-import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
+import { ptySessionRegistry, type PtySessionMetadata } from '@main/core/pty/pty-session-registry';
 import {
   logLocalPtySpawnWarnings,
   resolveLocalPtySpawn,
@@ -88,6 +88,7 @@ export class LocalTerminalProvider implements TerminalProvider {
         : undefined,
       undefined,
       options.shell ?? terminal.shellId,
+      { title: terminal.name },
       {
         respawnOnExit: true,
         preserveBufferOnExit: false,
@@ -111,6 +112,7 @@ export class LocalTerminalProvider implements TerminalProvider {
       command === undefined ? undefined : { kind: 'shell-line', commandLine: command },
       shellSetup,
       'system',
+      undefined,
       {
         respawnOnExit,
         preserveBufferOnExit,
@@ -125,6 +127,7 @@ export class LocalTerminalProvider implements TerminalProvider {
     command: PtyCommandSpec | undefined,
     shellSetup: string | undefined,
     shellIntent: TerminalShellId,
+    metadata: PtySessionMetadata | undefined,
     policy: SpawnPolicy
   ): Promise<void> {
     const sessionId = makePtySessionId(terminal.projectId, terminal.taskId, terminal.id);
@@ -204,6 +207,7 @@ export class LocalTerminalProvider implements TerminalProvider {
             command,
             shellSetup,
             shellIntent,
+            metadata,
             policy
           ).catch((e) => {
             log.error('LocalTerminalProvider: respawn failed', {
@@ -219,6 +223,7 @@ export class LocalTerminalProvider implements TerminalProvider {
 
     ptySessionRegistry.register(sessionId, pty, {
       preserveBufferOnExit: policy.preserveBufferOnExit,
+      metadata,
     });
     this.sessions.set(sessionId, pty);
   }

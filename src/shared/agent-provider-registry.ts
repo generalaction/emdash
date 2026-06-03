@@ -297,7 +297,10 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     cli: 'opencode',
     autoApproveViaEnv: true,
     initialPromptFlag: '--prompt',
-    resumeFlag: '--continue',
+    resumeFlag: '--session',
+    sessionIdFlag: '--session',
+    sessionIdOnResumeOnly: true,
+    resumeWithoutSessionFlag: '--continue',
     icon: 'opencode.svg',
     iconDark: 'opencode-dark.svg',
     alt: 'OpenCode CLI',
@@ -336,10 +339,14 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     autoApproveFlag: '--allow-all-tools',
     initialPromptFlag: '-i',
     resumeFlag: '--resume',
+    /** Copilot only accepts an explicit session id on resume (`--resume <id>`). */
+    sessionIdFlag: '--resume',
+    sessionIdOnResumeOnly: true,
     icon: 'gh-copilot.svg',
     alt: 'GitHub Copilot CLI',
     invertInDark: true,
     terminalOnly: true,
+    supportsHooks: true,
   },
   {
     id: 'charm',
@@ -642,6 +649,11 @@ export function getInstallCommandForProvider(id: AgentProviderId): string | null
  */
 export function isValidProviderId(value: unknown): value is AgentProviderId {
   return typeof value === 'string' && AGENT_PROVIDER_IDS.includes(value as AgentProviderId);
+}
+
+export function isValidProviderSessionId(providerId: string, providerSessionId: string): boolean {
+  if (providerId === 'opencode') return providerSessionId.startsWith('ses');
+  return true;
 }
 
 export function getDescriptionForProvider(id: AgentProviderId): string | null {

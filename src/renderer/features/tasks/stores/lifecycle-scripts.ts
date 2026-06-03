@@ -47,8 +47,7 @@ export class LifecycleScriptStore {
           type: data.type,
         }),
       undefined,
-      undefined,
-      { replaceFrontendOnBackendStart: false }
+      undefined
     );
     this.offStatus = events.on(lifecycleScriptStatusChannel, (event) => {
       if (
