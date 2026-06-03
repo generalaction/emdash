@@ -1,7 +1,8 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { cn } from '@renderer/utils/utils';
 import type { DailyPoint } from '@shared/usage';
 import { fmtTokens } from '../format';
+import { ChartTooltip, useChartHover } from './ChartTooltip';
 
 type Mode = 'daily' | 'weekly' | 'cumulative';
 
@@ -32,12 +33,10 @@ function levelOf(value: number, max: number): number {
 }
 
 type Cell = { date: Date; tokens: number; cumulative: number; future: boolean };
-type Hover = { x: number; y: number; text: string; w: number };
 
 export function ActivityHeatmap({ daily }: { daily: DailyPoint[] }) {
   const [mode, setMode] = useState<Mode>('daily');
-  const [hover, setHover] = useState<Hover | null>(null);
-  const wrapRef = useRef<HTMLDivElement>(null);
+  const { ref, hover, show, hide } = useChartHover();
 
   const byDate = useMemo(() => {
     const m = new Map<string, number>();
@@ -113,7 +112,7 @@ export function ActivityHeatmap({ daily }: { daily: DailyPoint[] }) {
       </div>
 
       {/* Columns flex to fill the panel width, like the GitHub contribution graph. */}
-      <div ref={wrapRef} className="relative" onMouseLeave={() => setHover(null)}>
+      <div ref={ref} className="relative" onMouseLeave={hide}>
         <div className="flex w-full gap-[3px]">
           {columns.map((col, ci) => (
             <div key={ci} className="flex min-w-0 flex-1 flex-col gap-[3px]">
@@ -137,14 +136,10 @@ export function ActivityHeatmap({ daily }: { daily: DailyPoint[] }) {
                     )}
                     onMouseEnter={(e) => {
                       if (cell.future) return;
-                      const rect = wrapRef.current?.getBoundingClientRect();
-                      if (!rect) return;
-                      setHover({
-                        x: e.clientX - rect.left,
-                        y: e.clientY - rect.top,
-                        w: rect.width,
-                        text: `${fmtTokens(cell.tokens)} tokens on ${MONTHS[cell.date.getMonth()]} ${cell.date.getDate()}`,
-                      });
+                      show(
+                        e,
+                        `${fmtTokens(cell.tokens)} tokens on ${MONTHS[cell.date.getMonth()]} ${cell.date.getDate()}`
+                      );
                     }}
                   />
                 );
@@ -173,20 +168,7 @@ export function ActivityHeatmap({ daily }: { daily: DailyPoint[] }) {
           </div>
         </div>
 
-        {hover &&
-          (() => {
-            // Clamp horizontally so the bubble never overflows (and gets clipped by) the panel.
-            const tipW = Math.min(hover.text.length * 6.8 + 18, 260);
-            const left = Math.max(tipW / 2 + 2, Math.min(hover.x, hover.w - tipW / 2 - 2));
-            return (
-              <div
-                className="pointer-events-none absolute z-20 -translate-x-1/2 -translate-y-full rounded-md border border-border bg-background-2 px-2 py-1 text-xs whitespace-nowrap text-foreground shadow-md"
-                style={{ left, top: hover.y - 8 }}
-              >
-                {hover.text}
-              </div>
-            );
-          })()}
+        <ChartTooltip hover={hover} />
       </div>
     </div>
   );

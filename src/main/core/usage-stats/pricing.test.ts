@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { costOf, isPriced, normalizeModelFamily, setRemoteRates } from './pricing';
 
-afterEach(() => setRemoteRates(new Map(), null)); // clear remote rates between tests
+afterEach(() => setRemoteRates(new Map())); // clear remote rates between tests
 
 describe('normalizeModelFamily', () => {
   it('maps known families by substring, including future versions', () => {
@@ -39,10 +39,7 @@ describe('costOf', () => {
 describe('costOf with remote (models.dev) rates', () => {
   it('prefers an exact remote rate over the bundled family rate', () => {
     // models.dev gpt-5.5 is 5/30/0.5 — far higher than the bundled gpt5 family (1.25/10/0.125)
-    setRemoteRates(
-      new Map([['gpt-5.5', { input: 5, output: 30, cacheRead: 0.5, cacheWrite: 0 }]]),
-      '2026-06-01'
-    );
+    setRemoteRates(new Map([['gpt-5.5', { input: 5, output: 30, cacheRead: 0.5, cacheWrite: 0 }]]));
     const cost = costOf(
       { input: 1_000_000, output: 1_000_000, cacheRead: 0, cacheWrite: 0 },
       'gpt-5.5'
@@ -51,10 +48,7 @@ describe('costOf with remote (models.dev) rates', () => {
   });
 
   it('falls back to the bundled family when the model is not in the remote table', () => {
-    setRemoteRates(
-      new Map([['gpt-5.5', { input: 5, output: 30, cacheRead: 0.5, cacheWrite: 0 }]]),
-      '2026-06-01'
-    );
+    setRemoteRates(new Map([['gpt-5.5', { input: 5, output: 30, cacheRead: 0.5, cacheWrite: 0 }]]));
     // claude-opus-4-8 absent from remote -> bundled opus rate (5/25)
     const cost = costOf(
       { input: 1_000_000, output: 1_000_000, cacheRead: 0, cacheWrite: 0 },
@@ -77,8 +71,7 @@ describe('costOf with remote (models.dev) rates', () => {
             tier: { input: 10, output: 45, cacheRead: 1, cacheWrite: 0 },
           },
         ],
-      ]),
-      '2026-06-01'
+      ])
     );
     // prompt = input + cacheRead = 300k > 272k -> tier rates apply to the whole request
     const over = costOf({ input: 300_000, output: 0, cacheRead: 0, cacheWrite: 0 }, 'gpt-5.5');

@@ -27,7 +27,7 @@ describe('aggregate', () => {
     expect(opus?.input).toBe(100);
   });
 
-  it('buckets cost by model and flags unpriced models', () => {
+  it('buckets cost by model, pricing only known models', () => {
     const snap = aggregate(
       [
         rec({ id: 'a', input: 1_000_000, model: 'claude-opus-4-8' }),
@@ -35,8 +35,7 @@ describe('aggregate', () => {
       ],
       new Date('2026-05-30T18:00:00Z')
     );
-    expect(snap.totals.cost).toBeCloseTo(5, 6); // only opus priced (input $5/1M)
-    expect(snap.unpricedModels).toContain('mystery-model');
+    expect(snap.totals.cost).toBeCloseTo(5, 6); // only opus priced (input $5/1M); mystery costs $0
   });
 
   it('groups projects by cwd basename, sorted by cost', () => {

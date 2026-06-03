@@ -1,8 +1,5 @@
 import type { TokenBuckets } from '@shared/usage';
 
-/** Date the bundled rate table was last reviewed (shown when no remote rates are loaded). */
-export const BUNDLED_PRICING_UPDATED = '2026-05-31';
-
 /** Per-MILLION-token rates, with an optional long-context tier (e.g. gpt-5.5 over 272k). */
 export type ModelRate = {
   input: number;
@@ -25,17 +22,10 @@ const FAMILY_RATES: Record<string, ModelRate> = {
 
 // Remote rates (models.dev), keyed by exact model id. Empty = bundled-only.
 let remoteRates: Map<string, ModelRate> = new Map();
-let remoteUpdated: string | null = null;
 
 /** Installed by the models.dev loader. Pass an empty map to clear. */
-export function setRemoteRates(rates: Map<string, ModelRate>, updated: string | null): void {
+export function setRemoteRates(rates: Map<string, ModelRate>): void {
   remoteRates = rates;
-  remoteUpdated = updated;
-}
-
-/** Date label for the UI: remote fetch date if loaded, else the bundled-table date. */
-export function pricingUpdatedLabel(): string {
-  return remoteUpdated ?? BUNDLED_PRICING_UPDATED;
 }
 
 /** Substring match -> family, so new model versions still price instead of costing $0. */

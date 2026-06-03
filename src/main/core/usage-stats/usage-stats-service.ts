@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { app } from 'electron';
-import { EMPTY_USAGE_SNAPSHOT, type UsageSnapshot } from '@shared/usage';
+import { EMPTY_USAGE_SNAPSHOT, type UsageProvider, type UsageSnapshot } from '@shared/usage';
 import { aggregate } from './aggregate';
 import { loadIndex, reconcileCache, saveIndex, type UsageIndex } from './cache';
 import { ensureModelsDevPricing } from './models-dev';
@@ -9,21 +9,24 @@ import { parseClaudeTranscript } from './parse-claude';
 import { parseCodexRollout } from './parse-codex';
 import { parsePiTranscript } from './parse-pi';
 import { scanAll } from './scanner';
-import type { ScannedFile } from './types';
+import type { ScannedFile, UsageRecord } from './types';
 
 function readScannedText(file: ScannedFile): string {
   return readFileSync(file.path, 'utf8');
 }
 
-function parseScannedFile(text: string, file: ScannedFile) {
-  switch (file.provider) {
-    case 'claude':
-      return parseClaudeTranscript(text);
-    case 'pi':
-      return parsePiTranscript(text, file.path);
-    default:
-      return parseCodexRollout(text, file.path);
-  }
+type ParseFn = (text: string, file: ScannedFile) => UsageRecord[];
+
+// One parser per provider. Keying by the UsageProvider union makes a missing parser a
+// compile error rather than silently falling through to the wrong format.
+const PARSERS: Record<UsageProvider, ParseFn> = {
+  claude: (text) => parseClaudeTranscript(text),
+  codex: (text, file) => parseCodexRollout(text, file.path),
+  pi: (text, file) => parsePiTranscript(text, file.path),
+};
+
+function parseScannedFile(text: string, file: ScannedFile): UsageRecord[] {
+  return PARSERS[file.provider](text, file);
 }
 
 class UsageStatsService {
@@ -51,12 +54,15 @@ class UsageStatsService {
   }
 
   private async compute(): Promise<UsageSnapshot> {
-    await ensureModelsDevPricing(); // refresh model rates (cached 24h) before pricing
+    // Refresh rates (cached 24h) in parallel with the disk scan — they're independent, and
+    // only aggregate() consumes pricing, so we just await it before pricing the records.
+    const pricing = ensureModelsDevPricing();
     const indexPath = this.getIndexPath();
     const prev: UsageIndex = loadIndex(indexPath);
     const scan = scanAll();
     const { index, records } = reconcileCache(prev, scan, readScannedText, parseScannedFile);
     saveIndex(indexPath, index);
+    await pricing;
     this.snapshot = aggregate(records, new Date());
     return this.snapshot;
   }

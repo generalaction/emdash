@@ -1,3 +1,4 @@
+import { basenameFromAnyPath } from '@shared/path-name';
 import type {
   DailyPoint,
   ModelUsage,
@@ -5,7 +6,7 @@ import type {
   RecentSession,
   UsageSnapshot,
 } from '@shared/usage';
-import { costOf, isPriced, normalizeModelFamily, pricingUpdatedLabel } from './pricing';
+import { costOf } from './pricing';
 import type { UsageRecord } from './types';
 
 const TOP_PROJECTS = 8;
@@ -20,10 +21,9 @@ function localParts(ts: string): { date: string; hour: number; time: number } | 
   return { date: `${y}-${m}-${day}`, hour: d.getHours(), time: d.getTime() };
 }
 
-function basename(p: string | null): string {
-  if (!p) return 'unknown';
-  const parts = p.replace(/\/+$/, '').split('/');
-  return parts[parts.length - 1] || 'unknown';
+/** Display name for a working dir, delegating path parsing to the shared helper. */
+function dirName(p: string | null): string {
+  return (p ? basenameFromAnyPath(p) : '') || 'unknown';
 }
 
 export function aggregate(allRecords: UsageRecord[], now: Date): UsageSnapshot {
@@ -42,9 +42,8 @@ export function aggregate(allRecords: UsageRecord[], now: Date): UsageSnapshot {
   const daily = new Map<string, DailyPoint>();
   const sessions = new Map<string, RecentSession>();
   const byHour = Array.from({ length: 24 }, () => 0);
-  const unpriced = new Set<string>();
 
-  const totals = { sessions: 0, messages: 0, tokens: 0, tokensWithCache: 0, cost: 0 };
+  const totals = { sessions: 0, messages: 0, tokens: 0, cost: 0 };
   const windows = { today: 0, week: 0, month: 0, allTime: 0 };
   const sessionIds = new Set<string>();
 
@@ -57,17 +56,14 @@ export function aggregate(allRecords: UsageRecord[], now: Date): UsageSnapshot {
     };
     const cost = r.model ? costOf(buckets, r.model) : 0;
     const tokens = r.input + r.output;
-    const withCache = tokens + r.cacheRead + r.cacheWrite;
 
     totals.tokens += tokens;
-    totals.tokensWithCache += withCache;
     totals.cost += cost;
     if (r.isMessage) totals.messages += 1;
     if (r.sessionId) sessionIds.add(r.sessionId);
 
     // by model
     if (r.model) {
-      if (!isPriced(r.model)) unpriced.add(r.model);
       const mu = models.get(r.model) ?? {
         input: 0,
         output: 0,
@@ -75,8 +71,6 @@ export function aggregate(allRecords: UsageRecord[], now: Date): UsageSnapshot {
         cacheWrite: 0,
         model: r.model,
         provider: r.provider,
-        family: normalizeModelFamily(r.model),
-        priced: isPriced(r.model),
         tokens: 0,
         cost: 0,
       };
@@ -93,7 +87,7 @@ export function aggregate(allRecords: UsageRecord[], now: Date): UsageSnapshot {
     if (r.cwd) {
       const pu = projects.get(r.cwd) ?? {
         path: r.cwd,
-        name: basename(r.cwd),
+        name: dirName(r.cwd),
         tokens: 0,
         cost: 0,
         sessions: 0,
@@ -122,15 +116,10 @@ export function aggregate(allRecords: UsageRecord[], now: Date): UsageSnapshot {
       const su = sessions.get(r.sessionId) ?? {
         id: r.sessionId,
         provider: r.provider,
-        cwd: r.cwd,
-        name: basename(r.cwd),
+        name: dirName(r.cwd),
         model: r.model,
         lastTs: r.ts,
-        messages: 0,
-        cost: 0,
       };
-      if (r.isMessage) su.messages += 1;
-      su.cost += cost;
       if (r.model) su.model = r.model;
       if (r.ts > su.lastTs) su.lastTs = r.ts;
       sessions.set(r.sessionId, su);
@@ -162,7 +151,6 @@ export function aggregate(allRecords: UsageRecord[], now: Date): UsageSnapshot {
 
   return {
     generatedAt: now.toISOString(),
-    pricingUpdated: pricingUpdatedLabel(),
     totals,
     windows,
     byModel: [...models.values()].sort((a, b) => b.cost - a.cost),
@@ -172,6 +160,5 @@ export function aggregate(allRecords: UsageRecord[], now: Date): UsageSnapshot {
     recentSessions: [...sessions.values()]
       .sort((a, b) => b.lastTs.localeCompare(a.lastTs))
       .slice(0, RECENT_SESSIONS),
-    unpricedModels: [...unpriced],
   };
 }
