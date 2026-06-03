@@ -33,14 +33,6 @@ export function AutomationPanelHeader({
   return (
     <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-5 py-3">
       <div className="flex min-w-0 items-center gap-2">
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close panel"
-          className="text-muted-foreground hover:bg-muted rounded-md p-1 transition-colors hover:text-foreground"
-        >
-          <X className="size-4" />
-        </button>
         <div className="flex min-w-0 flex-col">
           <div className="flex min-w-0 items-center gap-2">
             <h2 className="min-w-0 truncate text-sm font-semibold">
@@ -118,6 +110,14 @@ export function AutomationPanelHeader({
           ) : null}
         </div>
       ) : null}
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Close panel"
+        className="text-muted-foreground hover:bg-muted rounded-md p-1 transition-colors hover:text-foreground"
+      >
+        <X className="size-4" />
+      </button>
     </div>
   );
 }
