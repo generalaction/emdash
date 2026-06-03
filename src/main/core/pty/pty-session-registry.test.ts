@@ -150,15 +150,26 @@ describe('PtySessionRegistry', () => {
     expect(registry.getLastSize('session-1')).toBeUndefined();
   });
 
-  it('emits a monotonically increasing epoch for every registered PTY', () => {
+  it('emits a start event for every registered PTY', () => {
     const registry = new PtySessionRegistry();
 
     registry.register('session-1', fakePty());
     registry.register('session-1', fakePty());
     registry.register('session-2', fakePty());
 
-    expect(events.emit).toHaveBeenCalledWith(ptyStartedChannel, { id: 'session-1', epoch: 1 });
-    expect(events.emit).toHaveBeenCalledWith(ptyStartedChannel, { id: 'session-1', epoch: 2 });
-    expect(events.emit).toHaveBeenCalledWith(ptyStartedChannel, { id: 'session-2', epoch: 3 });
+    expect(events.emit).toHaveBeenCalledWith(ptyStartedChannel, { id: 'session-1' });
+    expect(events.emit).toHaveBeenCalledWith(ptyStartedChannel, { id: 'session-2' });
+    expect(
+      vi
+        .mocked(events.emit)
+        .mock.calls.filter(
+          ([channel, event]) =>
+            channel === ptyStartedChannel &&
+            typeof event === 'object' &&
+            event !== null &&
+            'id' in event &&
+            event.id === 'session-1'
+        )
+    ).toHaveLength(2);
   });
 });
