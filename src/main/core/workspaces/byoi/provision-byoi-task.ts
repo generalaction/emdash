@@ -2,6 +2,7 @@ import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import { buildTaskFromWorkspace, emitTaskProvisionProgress } from '@main/core/tasks/task-builder';
+import { resolveBYOISshConnectConfig } from '@main/core/workspaces/byoi/byoi-ssh-connect-config';
 import { parseProvisionOutput } from '@main/core/workspaces/byoi/provision-output';
 import type { WorkspaceBootstrapResult } from '@main/core/workspaces/workspace-bootstrap-service';
 import { createWorkspaceFactory } from '@main/core/workspaces/workspace-factory';
@@ -59,12 +60,10 @@ export async function provisionBYOITask(
   });
 
   const connectionId = `task:${task.id}`;
-  const proxy = await sshConnectionManager.connectFromConfig(connectionId, {
-    host: output.host,
-    port: output.port ?? 22,
-    username: output.username ?? process.env['USER'],
-    ...(output.password ? { password: output.password } : { agent: process.env['SSH_AUTH_SOCK'] }),
-  });
+  const proxy = await sshConnectionManager.connectFromConfig(
+    connectionId,
+    resolveBYOISshConnectConfig(output)
+  );
 
   emitTaskProvisionProgress({
     taskId: task.id,
