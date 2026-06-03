@@ -63,9 +63,22 @@ function cleanModel(model: string | null): string | null {
   return parts[parts.length - 1] || null;
 }
 
+/** The leading "provider/" segment, when a model id is namespaced (e.g. "google/gemini-x"). */
+function vendorPrefix(model: string | null): string | null {
+  if (!model) return null;
+  const slash = model.indexOf('/');
+  return slash > 0 ? model.slice(0, slash).trim().toLowerCase() : null;
+}
+
+function normVendor(v: string | null): string | null {
+  const s = v?.trim().toLowerCase();
+  return s ? s : null;
+}
+
 export function parsePiTranscript(text: string, filePath: string): UsageRecord[] {
   const out: UsageRecord[] = [];
   let currentModel: string | null = null;
+  let currentVendor: string | null = null;
   let idx = 0;
 
   for (const raw of text.split('\n')) {
@@ -80,7 +93,9 @@ export function parsePiTranscript(text: string, filePath: string): UsageRecord[]
 
     const type = asStr(o.type);
     if (type === 'model_change') {
-      currentModel = cleanModel(asStr(o.modelId) ?? asStr(o.model)) ?? currentModel;
+      const rawModel = asStr(o.modelId) ?? asStr(o.model);
+      currentVendor = normVendor(asStr(o.provider)) ?? vendorPrefix(rawModel) ?? currentVendor;
+      currentModel = cleanModel(rawModel) ?? currentModel;
       continue;
     }
     if (type !== 'message') continue;
@@ -93,16 +108,21 @@ export function parsePiTranscript(text: string, filePath: string): UsageRecord[]
     const ts = asStr(o.timestamp) ?? asStr(message.timestamp) ?? '';
     const cwd = asStr(o.cwd) ?? asStr(o.workspacePath) ?? null;
     const sessionId = asStr(o.sessionId) ?? filePath;
-    const model =
-      cleanModel(
-        asStr(message.model) ?? asStr(message.modelId) ?? asStr(o.model) ?? asStr(o.modelId)
-      ) ?? currentModel;
+    const rawModel =
+      asStr(message.model) ?? asStr(message.modelId) ?? asStr(o.model) ?? asStr(o.modelId);
+    const vendor =
+      normVendor(asStr(message.provider) ?? asStr(o.provider)) ??
+      vendorPrefix(rawModel) ??
+      currentVendor ??
+      '';
+    const model = cleanModel(rawModel) ?? currentModel;
 
     if (role === 'user') {
       out.push({
         id: `pi:${filePath}:m${idx++}`,
         isMessage: true,
         provider: 'pi',
+        vendor: '',
         ts,
         model: null,
         cwd,
@@ -120,6 +140,7 @@ export function parsePiTranscript(text: string, filePath: string): UsageRecord[]
       id: `pi:${filePath}:${idx++}`,
       isMessage: true,
       provider: 'pi',
+      vendor,
       ts,
       model,
       cwd,

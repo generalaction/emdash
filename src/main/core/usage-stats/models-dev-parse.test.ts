@@ -21,29 +21,29 @@ describe('parseModelsDevApi', () => {
         'no-cost-model': { name: 'x' },
       },
     },
-    google: { models: { 'gemini-x': { cost: { input: 1 } } } }, // ignored provider
+    google: { models: { 'gemini-x': { cost: { input: 1 } } } }, // non-anthropic/openai — now priced
   } as unknown as ModelsDevApi;
 
-  it('maps anthropic + openai model costs to per-1M rates', () => {
+  it('maps every provider model cost to a vendor-scoped per-1M rate', () => {
     const map = parseModelsDevApi(api);
-    expect(map.get('claude-opus-4-8')).toMatchObject({
+    expect(map.get('anthropic:claude-opus-4-8')).toMatchObject({
       input: 5,
       output: 25,
       cacheRead: 0.5,
       cacheWrite: 6.25,
     });
-    expect(map.get('gpt-5.5')).toMatchObject({ input: 5, output: 30, cacheRead: 0.5 });
+    expect(map.get('openai:gpt-5.5')).toMatchObject({ input: 5, output: 30, cacheRead: 0.5 });
+    expect(map.get('google:gemini-x')).toMatchObject({ input: 1 }); // every provider, not just two
   });
 
   it('extracts the long-context tier (size + above-threshold rates)', () => {
-    const rate = parseModelsDevApi(api).get('gpt-5.5');
+    const rate = parseModelsDevApi(api).get('openai:gpt-5.5');
     expect(rate?.tierSize).toBe(272_000);
     expect(rate?.tier).toMatchObject({ input: 10, output: 45, cacheRead: 1 });
   });
 
-  it('skips models without a cost and providers we do not price', () => {
+  it('skips models without a cost field', () => {
     const map = parseModelsDevApi(api);
-    expect(map.has('no-cost-model')).toBe(false);
-    expect(map.has('gemini-x')).toBe(false); // google not in priced providers
+    expect(map.has('openai:no-cost-model')).toBe(false);
   });
 });

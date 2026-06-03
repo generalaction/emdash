@@ -4,7 +4,8 @@ import type { UsageProvider } from '@shared/usage';
 export type UsageRecord = {
   id: string; // dedup key: Claude message.id / user uuid; Codex synthetic per-line
   isMessage: boolean;
-  provider: UsageProvider;
+  provider: UsageProvider; // the agent that produced the event (claude/codex/pi)
+  vendor: string; // the model's pricing vendor — models.dev provider id (anthropic/openai/google/…)
   ts: string; // ISO; bucketed to LOCAL day/hour at aggregate time
   model: string | null;
   cwd: string | null;

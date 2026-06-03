@@ -13,6 +13,7 @@ const recordsFor = (path: string): UsageRecord[] => [
     id: path,
     isMessage: true,
     provider: 'claude',
+    vendor: 'anthropic',
     ts: 't',
     model: 'claude-opus-4-8',
     cwd: '/x',

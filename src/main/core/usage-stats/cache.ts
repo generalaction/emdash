@@ -1,7 +1,9 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import type { ScannedFile, UsageRecord } from './types';
 
-export const CACHE_VERSION = 1;
+// Bump when the parsed UsageRecord shape changes so stale caches re-parse.
+// v2: records carry `vendor` for provider-scoped pricing.
+export const CACHE_VERSION = 2;
 
 export type CachedFile = { mtimeMs: number; size: number; records: UsageRecord[] };
 export type UsageIndex = { version: number; files: Record<string, CachedFile> };

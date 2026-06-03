@@ -27,6 +27,7 @@ describe('parsePiTranscript', () => {
     expect(recs).toHaveLength(1);
     expect(recs[0]).toMatchObject({
       provider: 'pi',
+      vendor: 'anthropic',
       isMessage: true,
       model: 'claude-sonnet-4-5',
       cwd: '/Users/x/dev/app',
@@ -44,12 +45,28 @@ describe('parsePiTranscript', () => {
     ].join('\n');
     const [r] = parsePiTranscript(text, '/pi/s.jsonl');
     expect(r).toMatchObject({
+      vendor: 'openai',
       model: 'gpt-5.5',
       input: 50,
       output: 10,
       cacheRead: 3,
       cacheWrite: 2,
     });
+  });
+
+  it('captures the vendor from model_change so non-Anthropic/OpenAI models can price', () => {
+    const text = [
+      modelChange('google', 'gemini-2.5-pro'),
+      assistant({ input_tokens: 10, output_tokens: 2 }),
+    ].join('\n');
+    const [r] = parsePiTranscript(text, '/pi/s.jsonl');
+    expect(r).toMatchObject({ vendor: 'google', model: 'gemini-2.5-pro' });
+  });
+
+  it('falls back to the model-id prefix for the vendor when provider is absent', () => {
+    const text = assistant({ input_tokens: 1 }, { model: 'mistral/large' });
+    const [r] = parsePiTranscript(text, '/pi/s.jsonl');
+    expect(r).toMatchObject({ vendor: 'mistral', model: 'large' });
   });
 
   it('strips a provider/ prefix from the model id', () => {

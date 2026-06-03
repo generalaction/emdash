@@ -54,7 +54,7 @@ export function aggregate(allRecords: UsageRecord[], now: Date): UsageSnapshot {
       cacheRead: r.cacheRead,
       cacheWrite: r.cacheWrite,
     };
-    const cost = r.model ? costOf(buckets, r.model) : 0;
+    const cost = r.model ? costOf(buckets, r.vendor, r.model) : 0;
     const tokens = r.input + r.output;
 
     totals.tokens += tokens;

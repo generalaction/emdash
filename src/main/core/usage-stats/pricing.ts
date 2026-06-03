@@ -39,22 +39,28 @@ export function normalizeModelFamily(model: string): string | null {
   return null;
 }
 
-/** Resolve a rate: exact remote id -> remote lowercase -> bundled family -> null. */
-function rateForModel(model: string): ModelRate | null {
-  const exact = remoteRates.get(model);
+/**
+ * Resolve a rate by vendor + model: exact `vendor:model` remote -> lowercased remote ->
+ * bundled family -> null. Vendor scoping prevents two providers that share a model id from
+ * cross-pricing; the family fallback is vendor-agnostic (matched on the model name) so a
+ * known-family model still prices when the remote table is missing (e.g. first run, offline).
+ */
+function rateForModel(vendor: string, model: string): ModelRate | null {
+  const v = vendor.toLowerCase();
+  const exact = remoteRates.get(`${v}:${model}`);
   if (exact) return exact;
-  const lower = remoteRates.get(model.toLowerCase());
+  const lower = remoteRates.get(`${v}:${model.toLowerCase()}`);
   if (lower) return lower;
   const family = normalizeModelFamily(model);
   return family ? FAMILY_RATES[family] : null;
 }
 
-export function isPriced(model: string): boolean {
-  return rateForModel(model) !== null;
+export function isPriced(vendor: string, model: string): boolean {
+  return rateForModel(vendor, model) !== null;
 }
 
-export function costOf(b: TokenBuckets, model: string): number {
-  const r = rateForModel(model);
+export function costOf(b: TokenBuckets, vendor: string, model: string): number {
+  const r = rateForModel(vendor, model);
   if (!r) return 0;
   // Long-context tier: when the request's prompt (non-cached input + cached) exceeds the
   // threshold, the whole request is priced at the tier rates (models.dev "context_over_200k").

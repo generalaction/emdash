@@ -6,6 +6,7 @@ const rec = (over: Partial<UsageRecord>): UsageRecord => ({
   id: 'x',
   isMessage: false,
   provider: 'claude',
+  vendor: 'anthropic',
   ts: '2026-05-30T12:00:00Z',
   model: 'claude-opus-4-8',
   cwd: '/Users/x/dev/garlic',

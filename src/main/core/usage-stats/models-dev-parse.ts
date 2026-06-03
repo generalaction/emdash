@@ -1,8 +1,5 @@
 import type { ModelRate } from './pricing';
 
-// Providers whose models we price locally (Claude Code + Codex).
-export const MODELS_DEV_PROVIDERS = ['anthropic', 'openai'];
-
 type ModelsDevCost = {
   input?: number;
   output?: number;
@@ -20,11 +17,15 @@ type ModelsDevModel = { cost?: ModelsDevCost };
 type ModelsDevProvider = { models?: Record<string, ModelsDevModel> };
 export type ModelsDevApi = Record<string, ModelsDevProvider>;
 
-/** Pure: turn the models.dev api.json shape into a model-id -> ModelRate map (per-1M rates). */
+/**
+ * Pure: turn the models.dev api.json shape into a `${vendor}:${modelId}` -> ModelRate map
+ * (per-1M rates). Keying by provider keeps two vendors that share a model id from colliding,
+ * and ingesting every provider means non-Anthropic/OpenAI models (e.g. Pi on Google) still price.
+ */
 export function parseModelsDevApi(api: ModelsDevApi): Map<string, ModelRate> {
   const map = new Map<string, ModelRate>();
-  for (const provider of MODELS_DEV_PROVIDERS) {
-    const models = api?.[provider]?.models ?? {};
+  for (const [providerId, provider] of Object.entries(api ?? {})) {
+    const models = provider?.models ?? {};
     for (const [id, model] of Object.entries(models)) {
       const c = model?.cost;
       if (!c || typeof c.input !== 'number') continue;
@@ -44,7 +45,7 @@ export function parseModelsDevApi(api: ModelsDevApi): Map<string, ModelRate> {
           cacheWrite: tier.cache_write ?? rate.cacheWrite,
         };
       }
-      map.set(id, rate);
+      map.set(`${providerId.toLowerCase()}:${id}`, rate);
     }
   }
   return map;
