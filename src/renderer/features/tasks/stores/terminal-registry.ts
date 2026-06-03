@@ -1,7 +1,8 @@
+import { observable } from 'mobx';
 import { TerminalManagerStore } from '@renderer/features/tasks/terminals/terminal-manager';
 
 export class TerminalRegistry {
-  private readonly entries = new Map<string, TerminalManagerStore>();
+  private readonly entries = observable.map<string, TerminalManagerStore>();
 
   acquire(taskId: string, projectId: string): TerminalManagerStore {
     const existing = this.entries.get(taskId);
