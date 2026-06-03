@@ -16,6 +16,7 @@ import { Button } from '@renderer/lib/ui/button';
 import { Input } from '@renderer/lib/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { normalizeBrowserUrl, type BrowserSessionSnapshot } from '@shared/browser';
+import { browserSessionStore } from './browser-session-store';
 import { confirmClearBrowserStorage, openBrowserUrlExternally } from './browser-toolbar-actions';
 import type { BrowserWebviewAdapter } from './browser-webview-types';
 
@@ -57,6 +58,11 @@ export function BrowserToolbar({
     }
     setUrlError(null);
     setUrlText(normalized.url);
+    browserSessionStore.updateSession(session.browserId, {
+      currentUrl: normalized.url,
+      isLoading: true,
+      loadError: null,
+    });
     void adapter?.loadUrl(normalized.url);
   };
 
