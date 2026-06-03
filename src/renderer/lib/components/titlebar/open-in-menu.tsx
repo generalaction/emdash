@@ -158,7 +158,8 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
         value={defaultApp ?? undefined}
         onValueChange={(value) => {
           if (isValidOpenInAppId(value)) {
-            persistPreferredApp(value as OpenInAppId);
+            persistPreferredApp(value);
+            void triggerOpenIn(value);
           }
         }}
       >
