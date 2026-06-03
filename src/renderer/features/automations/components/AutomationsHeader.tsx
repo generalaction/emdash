@@ -2,7 +2,6 @@ import { Plus } from 'lucide-react';
 import { PageHeader } from '@renderer/lib/components/page-header';
 import { Button } from '@renderer/lib/ui/button';
 import { SearchInput } from '@renderer/lib/ui/search-input';
-import { cn } from '@renderer/utils/utils';
 
 interface AutomationsHeaderProps {
   title: string;
@@ -22,7 +21,6 @@ export function AutomationsHeader({
   subtitle,
   showActions,
   showNewButton,
-  panelOpen,
   search,
   onSearchChange,
   searchPlaceholder,
