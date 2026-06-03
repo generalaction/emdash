@@ -1,5 +1,13 @@
 import { useHotkey, type Hotkey } from '@tanstack/react-hotkeys';
-import { ChevronDown, ChevronUp, MessageSquare, TextInitial } from 'lucide-react';
+import {
+  ArrowLeft,
+  ChevronDown,
+  ChevronRight,
+  ChevronUp,
+  Folder,
+  MessageSquare,
+  TextInitial,
+} from 'lucide-react';
 import { useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Combobox,
@@ -14,7 +22,13 @@ import {
 } from '@renderer/lib/ui/combobox';
 import { Kbd } from '@renderer/lib/ui/kbd';
 import { Shortcut } from '@renderer/lib/ui/shortcut';
+import type { PromptLibraryFolder } from '@shared/prompt-library';
 import { ProviderLogo } from '../components/issue-selector/issue-selector';
+import {
+  buildAddContextListEntries,
+  getAddContextConfirmableEntry,
+  type AddContextListEntry,
+} from './add-context-list';
 import { buildContextActionText, type ContextAction } from './context-actions';
 
 const ADD_CONTEXT_HOTKEY: Hotkey = 'Mod+Shift+A';
@@ -38,6 +52,28 @@ export function ActionItemBaseRow({
       <div className="truncate text-xs text-foreground-passive">{text}</div>
     </div>
   );
+}
+
+function formatFolderPromptCount(count: number) {
+  if (count === 0) return 'Empty';
+  return `${count} ${count === 1 ? 'prompt' : 'prompts'}`;
+}
+
+export function AddContextListEntryRow({ entry }: { entry: AddContextListEntry }) {
+  switch (entry.kind) {
+    case 'folder':
+      return (
+        <ActionItemBaseRow
+          icon={<Folder className="size-3.5 shrink-0 text-foreground-muted" />}
+          label={entry.folder.title}
+          text={formatFolderPromptCount(entry.promptCount)}
+        />
+      );
+    case 'action':
+      return <ActionItemRow action={entry.action} />;
+    default:
+      return null;
+  }
 }
 
 export function ActionItemRow({ action }: { action: ContextAction }) {
@@ -75,6 +111,7 @@ export function ActionItemRow({ action }: { action: ContextAction }) {
 
 export interface AddContextPopoverProps {
   actions: ContextAction[];
+  promptFolders?: PromptLibraryFolder[];
   disabled: boolean;
   isActivePane?: boolean;
   onApplyAction: (
@@ -89,6 +126,7 @@ export interface AddContextPopoverProps {
 
 export function AddContextPopover({
   actions,
+  promptFolders = [],
   disabled,
   isActivePane = true,
   onApplyAction,
@@ -96,30 +134,22 @@ export function AddContextPopover({
   side = 'top',
 }: AddContextPopoverProps) {
   const [open, setOpen] = useState(false);
-  const [selected, setSelected] = useState<ContextAction | null>(null);
+  const [selected, setSelected] = useState<AddContextListEntry | null>(null);
+  const [browseFolderId, setBrowseFolderId] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const ignoreOpenUntilRef = useRef(0);
+  const suppressCloseRef = useRef(false);
 
-  const filteredActions = useMemo(() => {
-    if (!query) return actions;
-    const q = query.toLowerCase();
-    return actions.filter((action) => {
-      switch (action.kind) {
-        case 'linked-issue':
-          return (
-            action.issue.title.toLowerCase().includes(q) ||
-            action.issue.identifier.toLowerCase().includes(q)
-          );
-        case 'draft-comments':
-          return 'line comments'.includes(q);
-        case 'prompt':
-          return (
-            action.prompt.title.toLowerCase().includes(q) ||
-            action.prompt.prompt.toLowerCase().includes(q)
-          );
-      }
-    });
-  }, [query, actions]);
+  const listEntries = useMemo(
+    () =>
+      buildAddContextListEntries({
+        actions,
+        folders: promptFolders,
+        browseFolderId,
+        query,
+      }),
+    [actions, browseFolderId, promptFolders, query]
+  );
 
   useHotkey(ADD_CONTEXT_HOTKEY, () => setOpen((v) => !v), { enabled: !disabled && isActivePane });
 
@@ -130,12 +160,30 @@ export function AddContextPopover({
     setOpen(false);
   };
 
+  const handleListEntrySelect = (entry: AddContextListEntry | null) => {
+    if (!entry) return;
+    if (entry.kind === 'folder') {
+      suppressCloseRef.current = true;
+      setBrowseFolderId(entry.folder.id);
+      setQuery('');
+      return;
+    }
+    handleConfirm(entry.action);
+  };
+
   const handleOpenChange = (nextOpen: boolean) => {
     if (nextOpen && Date.now() < ignoreOpenUntilRef.current) {
       return;
     }
+    if (!nextOpen && suppressCloseRef.current) {
+      suppressCloseRef.current = false;
+      return;
+    }
     setOpen(nextOpen);
-    if (!nextOpen) setQuery('');
+    if (!nextOpen) {
+      setQuery('');
+      setBrowseFolderId(null);
+    }
   };
 
   const blockComboboxOpenForContextMenu = () => {
@@ -148,18 +196,33 @@ export function AddContextPopover({
     event.stopPropagation();
   };
 
+  const browseFolder = browseFolderId
+    ? promptFolders.find((folder) => folder.id === browseFolderId)
+    : null;
+
+  const navigateBackFromFolder = () => {
+    setBrowseFolderId(null);
+  };
+
+  const handleBrowseBackKey = (event: React.KeyboardEvent) => {
+    if (!browseFolderId || query.trim()) return;
+    if (event.key === 'Escape' || event.key === 'Backspace') {
+      event.preventDefault();
+      event.stopPropagation();
+      navigateBackFromFolder();
+    }
+  };
+
   return (
     <Combobox
-      items={[{ value: 'items', items: filteredActions }]}
+      items={[{ value: 'items', items: listEntries }]}
       value={null}
       onInputValueChange={(value) => setQuery(value ?? '')}
       inputValue={query}
-      onValueChange={(action) => handleConfirm(action)}
+      onValueChange={(entry) => handleListEntrySelect(entry)}
       onItemHighlighted={(value) => setSelected(value ?? null)}
       open={open}
       onOpenChange={handleOpenChange}
-      // 'always' highlights the first item on open; Base UI types narrow to boolean
-      // but the runtime accepts the string literal
       autoHighlight={'always' as unknown as boolean}
     >
       <ComboboxTrigger
@@ -203,24 +266,62 @@ export function AddContextPopover({
         align="center"
         className="flex min-h-[200px] max-w-[92vw] min-w-[440px] flex-col"
         onKeyDown={(e) => {
+          handleBrowseBackKey(e);
+          if (e.defaultPrevented) return;
+          if (e.key === 'Enter' && !e.metaKey && !e.ctrlKey) {
+            const entry = selected ?? listEntries[0] ?? null;
+            if (entry?.kind === 'folder') {
+              e.preventDefault();
+              e.stopPropagation();
+              handleListEntrySelect(entry);
+              return;
+            }
+          }
           if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
             e.preventDefault();
-            handleConfirm(selected ?? filteredActions[0] ?? null, { andSend: true });
+            handleConfirm(getAddContextConfirmableEntry(listEntries, selected), { andSend: true });
           }
         }}
       >
-        <ComboboxInput showTrigger={false} placeholder="Search..." />
+        {browseFolder && !query.trim() ? (
+          <div className="flex items-center gap-1 border-b px-2 py-1.5 text-xs text-foreground-muted">
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 hover:bg-background-2 hover:text-foreground"
+              onClick={() => setBrowseFolderId(null)}
+            >
+              <ArrowLeft className="size-3.5" />
+              Back
+            </button>
+            <span className="text-foreground-passive">/</span>
+            <span className="truncate font-medium text-foreground">{browseFolder.title}</span>
+          </div>
+        ) : null}
+        <ComboboxInput
+          showTrigger={false}
+          placeholder={
+            browseFolderId && !query.trim()
+              ? `Search in ${browseFolder?.title ?? 'folder'}...`
+              : 'Search...'
+          }
+          onKeyDown={handleBrowseBackKey}
+        />
         <ComboboxList className="flex-1">
-          {(group: { value: string; items: ContextAction[] }) => (
+          {(group: { value: string; items: AddContextListEntry[] }) => (
             <ComboboxGroup items={group.items}>
               <ComboboxCollection>
-                {(action: ContextAction) => (
+                {(entry: AddContextListEntry) => (
                   <ComboboxItem
-                    key={action.id}
-                    value={action}
+                    key={entry.id}
+                    value={entry}
                     className="items-start data-highlighted:bg-background-2!"
                   >
-                    <ActionItemRow action={action} />
+                    <div className="flex w-full min-w-0 items-center gap-2">
+                      <AddContextListEntryRow entry={entry} />
+                      {entry.kind === 'folder' ? (
+                        <ChevronRight className="size-3.5 shrink-0 text-foreground-passive" />
+                      ) : null}
+                    </div>
                   </ComboboxItem>
                 )}
               </ComboboxCollection>
@@ -228,11 +329,13 @@ export function AddContextPopover({
           )}
         </ComboboxList>
         <ComboboxEmpty className="flex flex-1 items-center justify-center">
-          No context found
+          {browseFolderId && !query.trim() ? 'No prompts in this folder' : 'No context found'}
         </ComboboxEmpty>
         <div className="flex items-center justify-end border-t px-2 py-1.5">
           <span className="flex items-center gap-1">
-            <p className="text-xs text-foreground-passive">Add to input</p>
+            <p className="text-xs text-foreground-passive">
+              {selected?.kind === 'folder' && !query.trim() ? 'Open folder' : 'Add to input'}
+            </p>
             <Kbd className="text-foreground-passive">↵</Kbd>
           </span>
         </div>

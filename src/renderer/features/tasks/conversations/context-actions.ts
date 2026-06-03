@@ -1,5 +1,5 @@
 import { formatCommentsForAgent } from '@shared/lineComments';
-import type { PromptLibraryPrompt } from '@shared/prompt-library';
+import type { PromptLibraryFolder, PromptLibraryPrompt } from '@shared/prompt-library';
 import type { Issue } from '@shared/tasks';
 import type { DraftComment } from '../diff-view/stores/draft-comments-store';
 
@@ -26,6 +26,7 @@ export interface PromptContextAction {
   id: string;
   kind: 'prompt';
   prompt: PromptLibraryPrompt;
+  folder?: PromptLibraryFolder;
 }
 
 export type ContextAction = IssueContextAction | DraftCommentsContextAction | PromptContextAction;
@@ -106,25 +107,34 @@ export function buildDraftCommentsContextAction(
 }
 
 export function buildPromptLibraryContextActions(
-  prompts: PromptLibraryPrompt[]
+  prompts: PromptLibraryPrompt[],
+  folders: PromptLibraryFolder[] = []
 ): PromptContextAction[] {
-  return prompts
+  const foldersById = new Map(folders.map((folder) => [folder.id, folder]));
+  const actions = prompts
     .filter((p) => p.prompt.trim().length > 0)
     .map((p) => ({
       id: `prompt:${p.id}`,
       kind: 'prompt' as const,
       prompt: p,
+      folder: p.folderId ? foldersById.get(p.folderId) : undefined,
     }));
+
+  return [
+    ...folders.flatMap((folder) => actions.filter((action) => action.folder?.id === folder.id)),
+    ...actions.filter((action) => !action.folder),
+  ];
 }
 
 export function buildTaskContextActions(
   issue: Issue | undefined,
   comments: DraftComment[],
-  prompts: PromptLibraryPrompt[]
+  prompts: PromptLibraryPrompt[],
+  folders: PromptLibraryFolder[] = []
 ): ContextAction[] {
   return [
     buildLinkedIssueContextAction(issue),
     buildDraftCommentsContextAction(comments),
-    ...buildPromptLibraryContextActions(prompts),
+    ...buildPromptLibraryContextActions(prompts, folders),
   ].filter((a): a is ContextAction => a !== null);
 }

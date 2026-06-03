@@ -70,8 +70,8 @@ export function InitialConversationField({
   const { value: promptLibrary } = usePromptLibrary();
   const autoApproveDefaults = useAgentAutoApproveDefaults();
   const contextActions = useMemo(
-    () => buildTaskContextActions(linkedIssue, [], promptLibrary),
-    [linkedIssue, promptLibrary]
+    () => buildTaskContextActions(linkedIssue, [], promptLibrary.prompts, promptLibrary.folders),
+    [linkedIssue, promptLibrary.folders, promptLibrary.prompts]
   );
 
   // Auto-inject issue context whenever the linked issue changes.
@@ -107,6 +107,7 @@ export function InitialConversationField({
           <div className="flex items-center gap-2">
             <AddContextPopover
               actions={contextActions}
+              promptFolders={promptLibrary.folders}
               disabled={contextActions.length === 0}
               onApplyAction={handleActionClick}
               renderTrigger={({ disabled: isDisabled }) => (

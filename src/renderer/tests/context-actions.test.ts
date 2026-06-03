@@ -131,6 +131,25 @@ describe('buildPromptLibraryContextActions', () => {
     const actions = buildPromptLibraryContextActions([{ id: 'x', title: 'X', prompt: '  ' }]);
     expect(actions).toHaveLength(0);
   });
+
+  it('attaches folder metadata and leaves unfiled prompts top-level', () => {
+    const actions = buildPromptLibraryContextActions(
+      [
+        { id: 'free', title: 'Free prompt', prompt: 'Use freely.' },
+        {
+          id: 'foldered',
+          title: 'Foldered prompt',
+          prompt: 'Use from folder.',
+          folderId: 'reviews',
+        },
+      ],
+      [{ id: 'reviews', title: 'Reviews' }]
+    );
+
+    expect(actions.map((action) => action.id)).toEqual(['prompt:foldered', 'prompt:free']);
+    expect(actions[0]?.folder).toEqual({ id: 'reviews', title: 'Reviews' });
+    expect(actions[1]?.folder).toBeUndefined();
+  });
 });
 
 describe('buildDraftCommentsContextAction', () => {

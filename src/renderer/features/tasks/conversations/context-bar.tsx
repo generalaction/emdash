@@ -47,8 +47,14 @@ export const ContextBar = observer(function ContextBar({ conversationId }: Conte
   const [menuOpen, setMenuOpen] = useState(false);
 
   const actions = useMemo(
-    () => buildTaskContextActions(task?.linkedIssue, draftComments?.comments ?? [], promptLibrary),
-    [task?.linkedIssue, draftComments?.comments, promptLibrary]
+    () =>
+      buildTaskContextActions(
+        task?.linkedIssue,
+        draftComments?.comments ?? [],
+        promptLibrary.prompts,
+        promptLibrary.folders
+      ),
+    [task?.linkedIssue, draftComments?.comments, promptLibrary.folders, promptLibrary.prompts]
   );
 
   if (!draftComments || !hasConversation || actions.length === 0) return null;
@@ -91,6 +97,7 @@ export const ContextBar = observer(function ContextBar({ conversationId }: Conte
         <div className="flex w-full items-center justify-center bg-background-secondary-1 px-4 py-2">
           <AddContextPopover
             actions={actions}
+            promptFolders={promptLibrary.folders}
             disabled={!canApplyContext || isSavingPromptLibrary}
             isActivePane={isActivePane}
             onApplyAction={handleApplyAction}
