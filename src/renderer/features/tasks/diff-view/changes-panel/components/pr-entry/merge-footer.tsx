@@ -43,9 +43,8 @@ export function MergeFooter({
   const mergeDisabled =
     !isMerging && !uiState.canMerge && (!uiState.canBypassRequirements || !bypassRequirements);
   const bypassEnabled = uiState.canBypassRequirements && bypassRequirements;
-  const { icon: MergeStatusIcon, iconClass } = severityConfig[
-    bypassEnabled ? 'warning' : uiState.severity
-  ];
+  const { icon: MergeStatusIcon, iconClass } =
+    severityConfig[bypassEnabled ? 'warning' : uiState.severity];
   const mergeStatusTitle = bypassEnabled ? 'Bypass requirements enabled' : uiState.title;
 
   return (
