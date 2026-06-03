@@ -69,7 +69,7 @@ export const ConversationTabItem = observer(function ConversationTabItem({
         <TabItemShell
           tabId={tab.tabId}
           isActive={tab.isActive}
-          title={tab.isPreview ? `${title} (preview — double-click to keep)` : title}
+          title={tab.isPreview ? `${title} (preview — double-click to keep and rename)` : title}
           onSelect={onSelect}
           onPin={onPin}
           onDoubleClick={handleDoubleClick}

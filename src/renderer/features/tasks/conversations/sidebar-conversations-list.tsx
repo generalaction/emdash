@@ -33,6 +33,7 @@ const ConversationRow = observer(function ConversationRow({
   conversationId: string;
 }) {
   const [isEditing, setIsEditing] = useState(false);
+  const committedRef = useRef(false);
   const taskView = useWorkspaceViewModel();
   const conversations = useConversations();
   const { tabManager, tabGroupManager } = taskView;
@@ -44,6 +45,7 @@ const ConversationRow = observer(function ConversationRow({
   }, []);
 
   const handleRename = useCallback(() => {
+    committedRef.current = false;
     window.setTimeout(() => setIsEditing(true), 0);
   }, []);
 
@@ -58,6 +60,8 @@ const ConversationRow = observer(function ConversationRow({
   );
   const rawTitle = conversation.data.title ?? '';
   const commitRename = (value: string) => {
+    if (committedRef.current) return;
+    committedRef.current = true;
     const trimmed = value.trim().slice(0, MAX_CONVERSATION_TITLE_LENGTH);
     if (trimmed && trimmed !== rawTitle) {
       handleRenameSubmit(trimmed);
@@ -131,7 +135,10 @@ const ConversationRow = observer(function ConversationRow({
               onKeyDown={(e) => {
                 e.stopPropagation();
                 if (e.key === 'Enter') commitRename(e.currentTarget.value);
-                else if (e.key === 'Escape') setIsEditing(false);
+                else if (e.key === 'Escape') {
+                  committedRef.current = true;
+                  setIsEditing(false);
+                }
               }}
             />
           ) : (
