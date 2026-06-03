@@ -49,7 +49,7 @@ describe('enrichEvent', () => {
     expect(event.payload.message).toBe('Done');
   });
 
-  it('treats Claude notifications without an explicit notification type as attention', async () => {
+  it('treats Claude notifications without an explicit notification type as permission_prompt', async () => {
     const event = await enrichEvent({
       ptyId: makePtyId('claude', 'conversation-1'),
       type: 'notification',
