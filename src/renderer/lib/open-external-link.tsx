@@ -1,5 +1,7 @@
+import { getTaskView } from '@renderer/features/tasks/stores/task-selectors';
 import { rpc } from '@renderer/lib/ipc';
 import { showModal } from '@renderer/lib/modal/modal-provider';
+import { appState } from '@renderer/lib/stores/app-state';
 import { normalizeExternalHttpUrl } from './external-url';
 
 const HTTP_URL_PATTERN = /^https?:\/\//i;
@@ -11,22 +13,29 @@ export function confirmOpenExternalLink(url: string, onError?: (error: unknown) 
     return;
   }
 
+  const taskView = getActiveTaskView();
+
   showModal('confirmExternalLinkModal', {
-    title: 'Open link in browser?',
-    description: (
-      <div className="space-y-4 text-sm leading-relaxed">
-        <p>This link opens outside Emdash in your default browser.</p>
-        <div className="bg-muted/50 max-h-32 overflow-y-auto rounded-md border border-border px-3 py-2.5 font-mono text-[13px] leading-relaxed break-all text-foreground">
-          {normalizedUrl}
-        </div>
-      </div>
-    ),
-    confirmLabel: 'Open',
-    variant: 'default',
-    onSuccess: () => {
-      rpc.app.openExternal(normalizedUrl).catch((error) => {
+    url: normalizedUrl,
+    canOpenInEmdashBrowser: taskView !== undefined,
+    onSuccess: (choice) => {
+      if (choice === 'emdash-browser') {
+        taskView?.tabGroupManager.openBrowser(normalizedUrl);
+        taskView?.setFocusedRegion('main');
+        return;
+      }
+      void rpc.app.openExternal(normalizedUrl).catch((error) => {
         onError?.(error);
       });
     },
   });
+}
+
+function getActiveTaskView() {
+  if (appState.navigation.currentViewId !== 'task') return undefined;
+  const params = appState.navigation.viewParamsStore.task;
+  const projectId = typeof params?.projectId === 'string' ? params.projectId : undefined;
+  const taskId = typeof params?.taskId === 'string' ? params.taskId : undefined;
+  if (!projectId || !taskId) return undefined;
+  return getTaskView(projectId, taskId);
 }
