@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { browserDiagnosticsStore } from './browser-diagnostics-store';
 import { browserSessionStore } from './browser-session-store';
 import { bindBrowserWebviewEvents } from './browser-webview-events';
@@ -56,6 +56,7 @@ function asWebview(fake: FakeBrowserWebview): BrowserWebviewElement {
 
 describe('bindBrowserWebviewEvents', () => {
   beforeEach(() => {
+    vi.useRealTimers();
     browserDiagnosticsStore.clear();
     browserSessionStore.clear();
   });
@@ -198,5 +199,31 @@ describe('bindBrowserWebviewEvents', () => {
     });
 
     expect(browserDiagnosticsStore.entriesForBrowser(session.browserId)).toEqual([]);
+  });
+
+  it('refreshes history state after navigation commits', async () => {
+    vi.useFakeTimers();
+    const session = browserSessionStore.createSession({
+      browserId: 'browser-1',
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      taskId: 'task-1',
+    });
+    const webview = new FakeBrowserWebview();
+    webview.url = 'https://example.com/';
+
+    bindBrowserWebviewEvents(session.browserId, asWebview(webview));
+    webview.emit('dom-ready');
+    webview.emit('did-navigate', { url: 'https://example.com/docs' });
+    expect(browserSessionStore.getSession(session.browserId)?.canGoBack).toBe(false);
+
+    webview.url = 'https://example.com/docs';
+    webview.back = true;
+    await vi.runOnlyPendingTimersAsync();
+
+    expect(browserSessionStore.getSession(session.browserId)).toMatchObject({
+      currentUrl: 'https://example.com/docs',
+      canGoBack: true,
+    });
   });
 });

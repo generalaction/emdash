@@ -9,6 +9,7 @@ export function bindBrowserWebviewEvents(
   options: { onDomReady?: () => void } = {}
 ): () => void {
   let isDomReady = false;
+  let historySyncTimer: ReturnType<typeof setTimeout> | undefined;
 
   const syncHistoryState = () => {
     if (!isDomReady) return;
@@ -18,6 +19,14 @@ export function bindBrowserWebviewEvents(
       canGoBack: webview.canGoBack(),
       canGoForward: webview.canGoForward(),
     });
+  };
+
+  const scheduleHistoryStateSync = () => {
+    if (historySyncTimer) clearTimeout(historySyncTimer);
+    historySyncTimer = setTimeout(() => {
+      historySyncTimer = undefined;
+      syncHistoryState();
+    }, 0);
   };
 
   const onDomReady = () => {
@@ -42,6 +51,7 @@ export function bindBrowserWebviewEvents(
       canGoBack: webview.canGoBack(),
       canGoForward: webview.canGoForward(),
     });
+    scheduleHistoryStateSync();
   };
 
   const onNavigate = (event: { url: string }) => {
@@ -52,6 +62,7 @@ export function bindBrowserWebviewEvents(
       canGoForward: webview.canGoForward(),
       loadError: null,
     });
+    scheduleHistoryStateSync();
   };
 
   const onFailLoad = (event: {
@@ -113,6 +124,7 @@ export function bindBrowserWebviewEvents(
   webview.addEventListener('page-favicon-updated', onFavicon);
 
   return () => {
+    if (historySyncTimer) clearTimeout(historySyncTimer);
     webview.removeEventListener('dom-ready', onDomReady);
     webview.removeEventListener('did-start-loading', onStartLoading);
     webview.removeEventListener('did-stop-loading', onStopLoading);
