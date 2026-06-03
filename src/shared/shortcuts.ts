@@ -144,6 +144,12 @@ export const APP_SHORTCUTS = defineShortcuts({
     description: 'Create a new terminal in the current task',
     category: 'Task View',
   },
+  openBrowser: {
+    defaultHotkey: 'Mod+Shift+B',
+    label: 'Open Browser',
+    description: 'Open an in-app browser in the current task',
+    category: 'Task View',
+  },
   toggleTerminalDrawer: {
     defaultHotkey: 'Mod+J',
     label: 'Toggle Terminal Drawer',

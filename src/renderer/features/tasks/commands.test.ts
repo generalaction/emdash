@@ -4,13 +4,27 @@ import { createTaskCommandProvider } from './commands';
 
 const mocks = vi.hoisted(() => ({
   closeActiveTabWithConfirm: vi.fn(),
+  focusUrl: vi.fn(),
   getRegisteredTaskData: vi.fn(),
   getTaskGitStore: vi.fn(),
   getTaskStore: vi.fn(),
   getTaskView: vi.fn(),
   navigate: vi.fn(),
+  openExternal: vi.fn(),
+  reload: vi.fn(),
   showModal: vi.fn(),
   visibleTaskIdsForProject: vi.fn(),
+}));
+
+vi.mock('@renderer/features/browser/browser-controls-registry', () => ({
+  browserControlsRegistry: {
+    get: vi.fn(() => ({
+      adapter: {
+        reload: mocks.reload,
+      },
+      focusUrl: mocks.focusUrl,
+    })),
+  },
 }));
 
 vi.mock('@renderer/features/tasks/stores/task-selectors', () => ({
@@ -28,6 +42,14 @@ vi.mock('@renderer/lib/modal/modal-provider', () => ({
   showModal: mocks.showModal,
 }));
 
+vi.mock('@renderer/lib/ipc', () => ({
+  rpc: {
+    app: {
+      openExternal: mocks.openExternal,
+    },
+  },
+}));
+
 vi.mock('@renderer/lib/stores/app-state', () => ({
   appState: {
     navigation: {
@@ -38,6 +60,30 @@ vi.mock('@renderer/lib/stores/app-state', () => ({
     visibleTaskIdsForProject: mocks.visibleTaskIdsForProject,
   },
 }));
+
+function activeBrowserTab() {
+  return {
+    kind: 'browser',
+    tabId: 'browser-tab-1',
+    browserId: 'browser-1',
+    isActive: true,
+    isPreview: false,
+    session: {
+      browserId: 'browser-1',
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      taskId: 'task-1',
+      partition: 'persist:emdash-browser-project-1-workspace-1-task-1-browser-1',
+      currentUrl: 'example.com',
+      title: 'Example',
+      isLoading: false,
+      canGoBack: false,
+      canGoForward: false,
+      createdAt: 1,
+      updatedAt: 1,
+    },
+  };
+}
 
 describe('createTaskCommandProvider', () => {
   beforeEach(() => {
@@ -55,6 +101,7 @@ describe('createTaskCommandProvider', () => {
       setSidebarTab: vi.fn(),
       setTerminalDrawerOpen: vi.fn(),
       tabGroupManager: {
+        openBrowser: vi.fn(),
         openConversation: vi.fn(),
         openConversationInRightSplit: vi.fn(),
       },
@@ -116,5 +163,42 @@ describe('createTaskCommandProvider', () => {
       'conversation-1'
     );
     expect(taskView.setFocusedRegion).toHaveBeenCalledWith('main');
+  });
+
+  it('opens a browser tab from the browser command', () => {
+    const provider = createTaskCommandProvider('project-1', 'task-1');
+
+    const command = provider.getCommands().find((candidate) => candidate.id === 'task.openBrowser');
+    const taskView = mocks.getTaskView.mock.results.at(-1)?.value ?? mocks.getTaskView();
+
+    command?.execute();
+
+    expect(command?.shortcutKey).toBe('openBrowser');
+    expect(taskView.tabGroupManager.openBrowser).toHaveBeenCalledWith();
+    expect(taskView.setFocusedRegion).toHaveBeenCalledWith('main');
+  });
+
+  it('executes active browser commands through the browser controls registry', () => {
+    const taskView = mocks.getTaskView();
+    taskView.tabManager.resolvedTabs = [activeBrowserTab()];
+    mocks.getTaskView.mockReturnValue(taskView);
+    const provider = createTaskCommandProvider('project-1', 'task-1');
+
+    provider
+      .getCommands()
+      .find((candidate) => candidate.id === 'task.browserReload')
+      ?.execute();
+    provider
+      .getCommands()
+      .find((candidate) => candidate.id === 'task.browserFocusUrl')
+      ?.execute();
+    provider
+      .getCommands()
+      .find((candidate) => candidate.id === 'task.browserOpenExternal')
+      ?.execute();
+
+    expect(mocks.reload).toHaveBeenCalledWith();
+    expect(mocks.focusUrl).toHaveBeenCalledWith();
+    expect(mocks.openExternal).toHaveBeenCalledWith('https://example.com/');
   });
 });

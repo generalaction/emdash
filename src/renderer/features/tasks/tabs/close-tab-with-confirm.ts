@@ -7,6 +7,9 @@ function getTabDisplayTitle(tab: ResolvedTab): string {
   if (tab.kind === 'conversation') {
     return formatConversationTitleForDisplay(tab.store.data.providerId, tab.store.data.title);
   }
+  if (tab.kind === 'browser') {
+    return tab.session.title || tab.session.currentUrl || 'Browser';
+  }
   return tab.path.split('/').pop() ?? 'Untitled';
 }
 

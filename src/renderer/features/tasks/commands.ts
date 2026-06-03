@@ -1,3 +1,4 @@
+import { browserControlsRegistry } from '@renderer/features/browser/browser-controls-registry';
 import {
   getRegisteredTaskData,
   getTaskGitStore,
@@ -6,8 +7,10 @@ import {
 } from '@renderer/features/tasks/stores/task-selectors';
 import { closeActiveTabWithConfirm } from '@renderer/features/tasks/tabs/close-tab-with-confirm';
 import type { CommandProvider } from '@renderer/lib/commands/types';
+import { rpc } from '@renderer/lib/ipc';
 import { showModal } from '@renderer/lib/modal/modal-provider';
 import { appState, sidebarStore } from '@renderer/lib/stores/app-state';
+import { normalizeBrowserUrl } from '@shared/browser';
 import { TASK_COMMAND_DEFS, type CommandDef, type TaskCommandId } from '@shared/commands';
 
 function taskDef(id: TaskCommandId): CommandDef {
@@ -40,6 +43,9 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
       const git = getTaskGitStore(projectId, taskId);
       const taskData = getRegisteredTaskData(projectId, taskId);
       const isAutomationTask = Boolean(taskData?.automationId);
+      const activeBrowserTab = tabManager?.resolvedTabs.find(
+        (tab) => tab.isActive && tab.kind === 'browser'
+      );
 
       const newConversationDef = taskDef('task.newConversation');
       const newConversationSplitRightDef = taskDef('task.newConversationSplitRight');
@@ -50,6 +56,10 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
       const toggleTerminalDrawerDef = taskDef('task.toggleTerminalDrawer');
       const toggleRightSidebarDef = taskDef('task.toggleRightSidebar');
       const newTerminalDef = taskDef('task.newTerminal');
+      const openBrowserDef = taskDef('task.openBrowser');
+      const browserReloadDef = taskDef('task.browserReload');
+      const browserFocusUrlDef = taskDef('task.browserFocusUrl');
+      const browserOpenExternalDef = taskDef('task.browserOpenExternal');
       const gitFetchDef = taskDef('task.gitFetch');
       const gitPullDef = taskDef('task.gitPull');
       const gitPushDef = taskDef('task.gitPush');
@@ -171,6 +181,56 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
           group: newTerminalDef.group,
           execute() {
             void taskView?.openNewTerminal();
+          },
+        },
+        {
+          id: openBrowserDef.id,
+          label: openBrowserDef.label,
+          description: openBrowserDef.description,
+          shortcutKey: openBrowserDef.shortcutKey,
+          group: openBrowserDef.group,
+          execute() {
+            taskView?.tabGroupManager.openBrowser();
+            taskView?.setFocusedRegion('main');
+          },
+        },
+        {
+          id: browserReloadDef.id,
+          label: browserReloadDef.label,
+          description: browserReloadDef.description,
+          group: browserReloadDef.group,
+          enabled: activeBrowserTab != null,
+          execute() {
+            if (activeBrowserTab?.kind !== 'browser') return;
+            browserControlsRegistry.get(activeBrowserTab.browserId)?.adapter?.reload();
+          },
+        },
+        {
+          id: browserFocusUrlDef.id,
+          label: browserFocusUrlDef.label,
+          description: browserFocusUrlDef.description,
+          group: browserFocusUrlDef.group,
+          enabled: activeBrowserTab != null,
+          execute() {
+            if (activeBrowserTab?.kind !== 'browser') return;
+            browserControlsRegistry.get(activeBrowserTab.browserId)?.focusUrl();
+          },
+        },
+        {
+          id: browserOpenExternalDef.id,
+          label: browserOpenExternalDef.label,
+          description: browserOpenExternalDef.description,
+          group: browserOpenExternalDef.group,
+          enabled: activeBrowserTab != null,
+          execute() {
+            if (activeBrowserTab?.kind !== 'browser') return;
+            const normalized = normalizeBrowserUrl(activeBrowserTab.session.currentUrl);
+            if (
+              normalized.ok &&
+              (normalized.protocol === 'http:' || normalized.protocol === 'https:')
+            ) {
+              void rpc.app.openExternal(normalized.url);
+            }
           },
         },
 

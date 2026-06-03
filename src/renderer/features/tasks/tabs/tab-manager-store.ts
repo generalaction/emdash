@@ -1,4 +1,6 @@
 import { action, autorun, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
+import { browserDiagnosticsStore } from '@renderer/features/browser/browser-diagnostics-store';
+import { browserSessionStore } from '@renderer/features/browser/browser-session-store';
 import type {
   ConversationManagerStore,
   ConversationStore,
@@ -19,6 +21,7 @@ import {
   setTabActiveIndex as tabUtilsSetTabActiveIndex,
 } from '@renderer/lib/stores/tab-utils';
 import { setTelemetryConversationScope } from '@renderer/utils/telemetry-scope';
+import type { BrowserSessionSnapshot } from '@shared/browser';
 import { refsEqual, type GitChangeStatus, type GitObjectRef } from '@shared/git';
 import type { ActiveFile, TabDescriptor, TabManagerSnapshot } from '@shared/view-state';
 
@@ -48,7 +51,28 @@ export class ConversationTabEntry {
   }
 }
 
-export type TabEntry = FileTabStore | DiffTabStore | ConversationTabEntry;
+export class BrowserTabEntry {
+  readonly kind = 'browser' as const;
+  readonly tabId: string;
+  readonly browserId: string;
+  isPreview: boolean;
+
+  constructor(browserId: string, isPreview: boolean, tabId?: string) {
+    this.tabId = tabId ?? crypto.randomUUID();
+    this.browserId = browserId;
+    this.isPreview = isPreview;
+    makeObservable(this, {
+      isPreview: observable,
+      pin: action,
+    });
+  }
+
+  pin(): void {
+    this.isPreview = false;
+  }
+}
+
+export type TabEntry = FileTabStore | DiffTabStore | ConversationTabEntry | BrowserTabEntry;
 
 function optionalRefsEqual(left: GitObjectRef | undefined, right: GitObjectRef | undefined) {
   if (left === undefined || right === undefined) return left === right;
@@ -79,6 +103,15 @@ export type ResolvedFileTab = {
   isExternal: boolean;
 };
 
+export type ResolvedBrowserTab = {
+  kind: 'browser';
+  tabId: string;
+  browserId: string;
+  session: BrowserSessionSnapshot;
+  isPreview: boolean;
+  isActive: boolean;
+};
+
 export type ResolvedDiffTab = {
   kind: 'diff';
   tabId: string;
@@ -96,7 +129,11 @@ export type ResolvedDiffTab = {
   isActive: boolean;
 };
 
-export type ResolvedTab = ResolvedConversationTab | ResolvedFileTab | ResolvedDiffTab;
+export type ResolvedTab =
+  | ResolvedConversationTab
+  | ResolvedFileTab
+  | ResolvedBrowserTab
+  | ResolvedDiffTab;
 
 // ---------------------------------------------------------------------------
 // TabManagerStore
@@ -122,11 +159,22 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
   readonly modelRootPath: string;
 
   private readonly _getConversations: () => ConversationManagerStore | null;
+  private readonly _projectId: string;
+  private readonly _workspaceId: string;
+  private readonly _taskId: string;
   private readonly disposers: (() => void)[] = [];
   private _closeHandler?: (tabId: string) => Promise<void>;
 
-  constructor(getConversations: () => ConversationManagerStore | null, workspaceId: string) {
+  constructor(
+    getConversations: () => ConversationManagerStore | null,
+    workspaceId: string,
+    projectId: string,
+    taskId: string
+  ) {
     this._getConversations = getConversations;
+    this._projectId = projectId;
+    this._workspaceId = workspaceId;
+    this._taskId = taskId;
     this.modelRootPath = `workspace:${workspaceId}`;
 
     makeObservable(this, {
@@ -151,6 +199,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       openFile: action,
       openExternalFile: action,
       openFilePreview: action,
+      openBrowser: action,
       openDiff: action,
       openDiffPreview: action,
       closeTab: action,
@@ -169,6 +218,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       pinTab: action,
       restoreSnapshot: action,
       initializeDefault: action,
+      detachTab: action,
     });
 
     // Auto-close conversation tabs when the conversation is deleted from the manager.
@@ -308,6 +358,17 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
           isPreview: entry.isPreview,
           isActive: effectiveActiveId === entry.tabId,
         });
+      } else if (entry.kind === 'browser') {
+        const session = browserSessionStore.getSession(entry.browserId);
+        if (!session) continue;
+        result.push({
+          kind: 'browser',
+          tabId: entry.tabId,
+          browserId: entry.browserId,
+          session,
+          isPreview: entry.isPreview,
+          isActive: effectiveActiveId === entry.tabId,
+        });
       } else if (entry.kind === 'diff') {
         result.push({
           kind: 'diff',
@@ -354,6 +415,16 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
           kind: 'conversation',
           tabId: entry.tabId,
           conversationId: entry.conversationId,
+          isPreview: entry.isPreview,
+        });
+      } else if (entry.kind === 'browser') {
+        const session = browserSessionStore.getSnapshot(entry.browserId);
+        if (!session) continue;
+        tabs.push({
+          kind: 'browser',
+          tabId: entry.tabId,
+          browserId: entry.browserId,
+          session,
           isPreview: entry.isPreview,
         });
       } else if (entry.kind === 'diff') {
@@ -485,6 +556,23 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
     this.entries.set(tab.tabId, tab);
     addTabId(this, tab.tabId);
     this.activeTabId = tab.tabId;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Actions — opening browser tabs
+  // ---------------------------------------------------------------------------
+
+  openBrowser(initialUrl?: string): void {
+    const session = browserSessionStore.createSession({
+      projectId: this._projectId,
+      workspaceId: this._workspaceId,
+      taskId: this._taskId,
+      initialUrl,
+    });
+    const entry = new BrowserTabEntry(session.browserId, false);
+    this.entries.set(entry.tabId, entry);
+    addTabId(this, entry.tabId);
+    this.activeTabId = entry.tabId;
   }
 
   // ---------------------------------------------------------------------------
@@ -673,11 +761,17 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
 
   restoreSnapshot(snapshot: Partial<TabManagerSnapshot>): void {
     if (snapshot.tabs) {
+      this._removeBrowserSessions();
       this.entries.clear();
       this.tabOrder = [];
       for (const t of snapshot.tabs) {
         if (t.kind === 'conversation') {
           const entry = new ConversationTabEntry(t.conversationId, t.isPreview, t.tabId);
+          this.entries.set(entry.tabId, entry);
+          this.tabOrder.push(entry.tabId);
+        } else if (t.kind === 'browser') {
+          browserSessionStore.restoreSession(t.session);
+          const entry = new BrowserTabEntry(t.browserId, t.isPreview, t.tabId);
           this.entries.set(entry.tabId, entry);
           this.tabOrder.push(entry.tabId);
         } else if (t.kind === 'diff') {
@@ -726,6 +820,7 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
   }
 
   dispose(): void {
+    this._removeBrowserSessions();
     for (const d of this.disposers) d();
   }
 
@@ -801,6 +896,32 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
 
     this.entries.delete(id);
     removeTabId(this, id);
+    if (entry.kind === 'browser') {
+      this._removeBrowserSession(entry.browserId);
+    }
+  }
+
+  private _removeBrowserSessions(): void {
+    for (const entry of this.entries.values()) {
+      if (entry.kind === 'browser') {
+        this._removeBrowserSession(entry.browserId);
+      }
+    }
+  }
+
+  private _removeBrowserSession(browserId: string): void {
+    browserDiagnosticsStore.clearBrowser(browserId);
+    browserSessionStore.removeSession(browserId);
+    void rpc.browser.unregisterSession(browserId);
+  }
+
+  detachTab(id: string): TabEntry | undefined {
+    const entry = this.entries.get(id);
+    if (!entry) return undefined;
+
+    this.entries.delete(id);
+    removeTabId(this, id);
+    return entry;
   }
 
   private _getConversationIdForTab(id: string): string | undefined {

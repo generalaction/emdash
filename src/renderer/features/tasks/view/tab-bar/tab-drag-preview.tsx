@@ -1,17 +1,20 @@
 import { observer } from 'mobx-react-lite';
 import type { ReactNode } from 'react';
 import type {
+  ResolvedBrowserTab,
   ResolvedConversationTab,
   ResolvedDiffTab,
   ResolvedFileTab,
   ResolvedTab,
 } from '../../tabs/tab-manager-store';
 import { useWorkspaceViewModel } from '../../task-view-context';
+import { BrowserTabDragPreview } from './browser-tab-item';
 import { ConversationTabDragPreview } from './conversation-tab-item';
 import { DiffTabDragPreview } from './diff-tab-item';
 import { FileTabDragPreview } from './file-tab-item';
 
 const dragPreviewRenderers = {
+  browser: (tab: ResolvedBrowserTab): ReactNode => <BrowserTabDragPreview tab={tab} />,
   conversation: (tab: ResolvedConversationTab): ReactNode => (
     <ConversationTabDragPreview tab={tab} />
   ),

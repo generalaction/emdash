@@ -3,6 +3,7 @@ import { accountController } from './core/account/controller';
 import { appController } from './core/app/controller';
 import { asanaController } from './core/asana/controller';
 import { automationsController } from './core/automations/controller';
+import { browserController } from './core/browser/controller';
 import { conversationController } from './core/conversations/controller';
 import { dependenciesController } from './core/dependencies/controller';
 import { editorBufferController } from './core/editor/controller';
@@ -44,6 +45,7 @@ export const rpcRouter = createRPCRouter({
   automations: automationsController,
   appSettings: appSettingsController,
   providerSettings: providerSettingsController,
+  browser: browserController,
   repository: repositoryController,
   update: updateController,
   pty: ptyController,
