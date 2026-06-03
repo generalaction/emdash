@@ -153,12 +153,14 @@ export function BrowserToolbar({
       </ToolbarIconButton>
       {session.loadError && (
         <Tooltip>
-          <TooltipTrigger>
-            <div className="border-destructive/40 text-destructive flex h-7 max-w-[220px] items-center gap-1 truncate rounded border px-2 text-xs">
-              <RotateCcw className="size-3 shrink-0" />
-              <span className="truncate">{session.loadError.description}</span>
-            </div>
-          </TooltipTrigger>
+          <TooltipTrigger
+            render={
+              <div className="border-destructive/40 text-destructive flex h-7 max-w-[220px] items-center gap-1 truncate rounded border px-2 text-xs">
+                <RotateCcw className="size-3 shrink-0" />
+                <span className="truncate">{session.loadError.description}</span>
+              </div>
+            }
+          />
           <TooltipContent>{session.loadError.description}</TooltipContent>
         </Tooltip>
       )}
@@ -179,19 +181,21 @@ function ToolbarIconButton({
 }) {
   return (
     <Tooltip>
-      <TooltipTrigger>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          className="size-7 shrink-0"
-          disabled={disabled}
-          aria-label={label}
-          onClick={onClick}
-        >
-          {children}
-        </Button>
-      </TooltipTrigger>
+      <TooltipTrigger
+        render={
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="size-7 shrink-0"
+            disabled={disabled}
+            aria-label={label}
+            onClick={onClick}
+          >
+            {children}
+          </Button>
+        }
+      />
       <TooltipContent>{label}</TooltipContent>
     </Tooltip>
   );

@@ -53,7 +53,6 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
     return {
       src: session.currentUrl,
       partition: session.partition,
-      allowpopups: false,
       'data-browser-id': session.browserId,
     };
   }, [session]);
