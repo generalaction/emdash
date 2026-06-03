@@ -32,7 +32,7 @@ const mergeDescriptions: Record<MergeMode, string> = {
 };
 
 const bypassMergeLabels: Record<MergeMode, string> = {
-  merge: 'Merge without waiting',
+  merge: 'Bypass rules and merge',
   squash: 'Squash without waiting',
   rebase: 'Rebase without waiting',
 };

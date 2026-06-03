@@ -43,39 +43,40 @@ export function MergeFooter({
   const mergeDisabled =
     !isMerging && !uiState.canMerge && (!uiState.canBypassRequirements || !bypassRequirements);
   const { icon: MergeStatusIcon, iconClass } = severityConfig[uiState.severity];
+  const showMergeStatus = !(uiState.canBypassRequirements && bypassRequirements);
 
   return (
     <div className="flex shrink-0 flex-col gap-2 border-t border-border px-3 py-2.5">
-      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <div className="flex items-center justify-between gap-1.5">
+      <div className="flex items-center justify-between gap-1.5">
+        {showMergeStatus && (
           <div className="flex min-w-0 items-center gap-1.5">
             <MergeStatusIcon className={cn('size-4 shrink-0', iconClass)} />
             <p className="truncate text-sm leading-tight text-foreground">{uiState.title}</p>
           </div>
-          <div className="flex items-center gap-1.5">
-            {isDraft ? (
-              <Button
-                variant="outline"
-                size="xs"
-                onClick={onMarkReady}
-                disabled={isMarkingReady}
-                aria-label={isMarkingReady ? 'Marking ready...' : 'Mark ready'}
-              >
-                {isMarkingReady && <Loader2 className="size-3 animate-spin" aria-hidden />}
-                Mark ready
-              </Button>
-            ) : (
-              <SplitButton
-                size="xs"
-                variant="outline"
-                loading={isMerging}
-                loadingLabel="Merging..."
-                icon={<GitMerge className="size-3" />}
-                actions={mergeActions}
-                disabled={mergeDisabled}
-              />
-            )}
-          </div>
+        )}
+        <div className="flex items-center gap-1.5">
+          {isDraft ? (
+            <Button
+              variant="outline"
+              size="xs"
+              onClick={onMarkReady}
+              disabled={isMarkingReady}
+              aria-label={isMarkingReady ? 'Marking ready...' : 'Mark ready'}
+            >
+              {isMarkingReady && <Loader2 className="size-3 animate-spin" aria-hidden />}
+              Mark ready
+            </Button>
+          ) : (
+            <SplitButton
+              size="xs"
+              variant="outline"
+              loading={isMerging}
+              loadingLabel="Merging..."
+              icon={<GitMerge className="size-3" />}
+              actions={mergeActions}
+              disabled={mergeDisabled}
+            />
+          )}
         </div>
       </div>
       {uiState.canBypassRequirements && (

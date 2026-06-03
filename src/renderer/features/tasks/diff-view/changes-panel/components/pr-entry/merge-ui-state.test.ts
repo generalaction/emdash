@@ -107,7 +107,9 @@ describe('MergeFooter', () => {
           mergeActions: [
             {
               value: 'merge',
-              label: uiState.canBypassRequirements ? 'Merge without waiting' : 'Merge pull request',
+              label: uiState.canBypassRequirements
+                ? 'Bypass rules and merge'
+                : 'Merge pull request',
               action: vi.fn(),
             },
           ],
@@ -123,7 +125,7 @@ describe('MergeFooter', () => {
 
   function getMergeButton() {
     return Array.from(container.querySelectorAll('button')).find((button) =>
-      button.textContent?.includes('Merge')
+      button.textContent?.toLowerCase().includes('merge')
     ) as HTMLButtonElement | undefined;
   }
 
@@ -140,6 +142,8 @@ describe('MergeFooter', () => {
     renderFooter(computeMergeUiState(makePr({ mergeStateStatus: 'BLOCKED' })), true);
 
     expect(getMergeButton()?.disabled).toBe(false);
+    expect(getMergeButton()?.textContent).toContain('Bypass rules and merge');
+    expect(container.textContent).not.toContain('Merging is blocked');
   });
 
   it('keeps the merge action disabled for conflicts', () => {
