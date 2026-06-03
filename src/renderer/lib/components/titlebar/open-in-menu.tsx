@@ -1,7 +1,6 @@
 import { useHotkey } from '@tanstack/react-hotkeys';
 import { ChevronDown } from 'lucide-react';
 import React, { useCallback, useMemo } from 'react';
-import { getAppById, isValidOpenInAppId, type OpenInAppId } from '@shared/openInApps';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import {
@@ -14,16 +13,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/
 import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
+import { getAppById, isValidOpenInAppId, type OpenInAppId } from '@shared/openInApps';
 
 interface OpenInMenuProps {
   path: string;
   className?: string;
   borderless?: boolean;
+  isRemote?: boolean;
+  sshConnectionId?: string;
 }
 
-export const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, className, borderless = false }) => {
+export const OpenInMenu: React.FC<OpenInMenuProps> = ({
+  path,
+  className,
+  borderless = false,
+  isRemote = false,
+  sshConnectionId,
+}) => {
   const { toast } = useToast();
-  const { icons, labels, installedApps, availability, loading } = useOpenInApps();
+  const { icons, labels, installedApps, availability, platform, loading } = useOpenInApps();
   const { value: openIn, update } = useAppSettingsKey('openIn');
   const { value: keyboard } = useAppSettingsKey('keyboard');
   const openInHotkey = getEffectiveHotkey('openInEditor', keyboard);
@@ -45,6 +53,8 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, className, borderl
         const res = await rpc.app.openIn({
           app: appId,
           path,
+          isRemote,
+          sshConnectionId,
         });
         if (!res?.success) {
           toast({
@@ -61,17 +71,22 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, className, borderl
         });
       }
     },
-    [labels, path, toast]
+    [isRemote, labels, path, sshConnectionId, toast]
   );
 
   const sortedApps = useMemo(() => {
-    if (!defaultApp) return installedApps;
-    return [...installedApps].sort((a, b) => {
+    const availableApps = isRemote
+      ? installedApps.filter(
+          (app) => app.supportsRemote && (app.id !== 'terminal' || platform === 'darwin')
+        )
+      : installedApps;
+    if (!defaultApp) return availableApps;
+    return [...availableApps].sort((a, b) => {
       if (a.id === defaultApp) return -1;
       if (b.id === defaultApp) return 1;
       return 0;
     });
-  }, [defaultApp, installedApps]);
+  }, [defaultApp, installedApps, isRemote, platform]);
 
   const menuApps = useMemo(
     () => sortedApps.filter((app) => !app.hideIfUnavailable || availability[app.id]),
@@ -106,7 +121,7 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, className, borderl
     >
       <TooltipProvider delay={0}>
         <Tooltip>
-          <TooltipTrigger className="flex-1 flex min-w-0">
+          <TooltipTrigger className="flex min-w-0 flex-1">
             <button
               type="button"
               className={cn(
@@ -125,7 +140,7 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, className, borderl
                   src={icons[buttonAppId]}
                   alt={labels[buttonAppId] || buttonAppId}
                   className={`size-3.5 rounded ${
-                    getAppById(buttonAppId)?.invertInDark ? 'dark:invert' : ''
+                    getAppById(buttonAppId)?.invertInDark ? 'emdark:invert' : ''
                   }`}
                 />
               )}
@@ -152,7 +167,7 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, className, borderl
             render={
               <SelectTrigger
                 showChevron={false}
-                className="group shrink-0 size-6 border-none bg-transparent flex items-center justify-center transition-colors hover:bg-background-1 hover:text-foreground"
+                className="group flex size-6 shrink-0 items-center justify-center border-none bg-transparent transition-colors hover:bg-background-1 hover:text-foreground"
                 aria-label="Open in options"
               >
                 <ChevronDown className="size-3.5" />
@@ -170,7 +185,7 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, className, borderl
                   <img
                     src={icons[app.id]}
                     alt={labels[app.id] || app.label}
-                    className={`h-4 w-4 rounded ${app.invertInDark ? 'dark:invert' : ''}`}
+                    className={`h-4 w-4 rounded ${app.invertInDark ? 'emdark:invert' : ''}`}
                   />
                 )}
                 {labels[app.id] || app.label}

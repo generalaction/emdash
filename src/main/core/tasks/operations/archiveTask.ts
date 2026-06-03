@@ -1,12 +1,11 @@
-import { and, eq, isNull, sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
-import { workspaceFileIndexService } from '@main/core/search/workspace-file-index-service';
-import { taskEvents } from '@main/core/tasks/task-events';
-import { taskManager } from '@main/core/tasks/task-manager';
+import { taskSessionManager } from '@main/core/tasks/task-session-manager';
 import { db } from '@main/db/client';
-import { tasks } from '@main/db/schema';
+import { tasks, workspaces } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
+import { deleteIndexIfUnused, removeWorktreeIfUnused } from './task-lifecycle-utils';
 
 export async function archiveTask(projectId: string, taskId: string): Promise<void> {
   const [task] = await db.select().from(tasks).where(eq(tasks.id, taskId)).limit(1);
@@ -23,12 +22,11 @@ export async function archiveTask(projectId: string, taskId: string): Promise<vo
       statusChangedAt: sql`CURRENT_TIMESTAMP`,
     })
     .where(eq(tasks.id, taskId));
-  taskEvents._emit('task:archived', taskId, projectId);
   telemetryService.capture('task_archived', { project_id: projectId, task_id: taskId });
 
   if (!project) return;
 
-  void taskManager
+  void taskSessionManager
     .teardownTask(taskId, 'terminate')
     .then((teardownResult) => {
       if (!teardownResult.success) {
@@ -39,35 +37,21 @@ export async function archiveTask(projectId: string, taskId: string): Promise<vo
       log.warn('archiveTask: teardown failed', { taskId, error: String(e) });
     });
 
-  if (task.taskBranch) {
-    const siblings = await db
-      .select({ id: tasks.id })
-      .from(tasks)
-      .where(
-        and(
-          eq(tasks.projectId, task.projectId),
-          eq(tasks.taskBranch, task.taskBranch),
-          isNull(tasks.archivedAt)
-        )
-      )
+  let wsRow: { id: string; branchName: string | null } | undefined;
+  if (task.workspaceId) {
+    const [ws] = await db
+      .select({ id: workspaces.id, branchName: workspaces.branchName })
+      .from(workspaces)
+      .where(eq(workspaces.id, task.workspaceId))
       .limit(1);
+    if (ws) wsRow = ws;
+  }
 
-    if (siblings.length === 0) {
-      await project.removeTaskWorktree(task.taskBranch).catch((e) => {
-        log.warn('archiveTask: worktree removal failed', { taskId, error: String(e) });
-      });
-    }
+  if (wsRow) {
+    await removeWorktreeIfUnused(wsRow, project, true);
   }
 
   if (task.workspaceId) {
-    const workspaceSiblings = await db
-      .select({ id: tasks.id })
-      .from(tasks)
-      .where(and(eq(tasks.workspaceId, task.workspaceId), isNull(tasks.archivedAt)))
-      .limit(1);
-
-    if (workspaceSiblings.length === 0) {
-      workspaceFileIndexService.deleteIndex(task.workspaceId);
-    }
+    await deleteIndexIfUnused(task.workspaceId);
   }
 }

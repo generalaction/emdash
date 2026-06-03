@@ -1,3 +1,12 @@
+import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
+import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
+import type { IExecutionContext } from '@main/core/execution-context/types';
+import { appSettingsService } from '@main/core/settings/settings-service';
+import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
+import { resolveLocalAutomationShellWithSystemFallback } from '@main/core/terminal-shell/resolver';
+import { events } from '@main/lib/events';
+import type { IInitializable } from '@main/lib/lifecycle';
+import { log } from '@main/lib/logger';
 import type {
   DependencyCategory,
   DependencyId,
@@ -7,21 +16,14 @@ import type {
 } from '@shared/dependencies';
 import { dependencyStatusUpdatedChannel } from '@shared/events/appEvents';
 import { err, ok } from '@shared/result';
-import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
-import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
-import type { IExecutionContext } from '@main/core/execution-context/types';
-import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
-import { events } from '@main/lib/events';
-import type { IInitializable } from '@main/lib/lifecycle';
-import { log } from '@main/lib/logger';
 import {
+  createLocalInstallCommandRunner,
   createSshInstallCommandRunner,
-  runLocalInstallCommand,
   type InstallCommandRunner,
 } from './install-runner';
 import { resolveCommandPath, runVersionProbe } from './probe';
 import { DEPENDENCIES, getDependencyDescriptor } from './registry';
-import type { DependencyDescriptor, ProbeResult } from './types';
+import type { DependencyDescriptor, DependencyProbeOptions, ProbeResult } from './types';
 
 const VERSION_RE = /(\d+\.\d+[\d.]*)/;
 
@@ -87,7 +89,7 @@ export class DependencyManager implements IInitializable {
     ctx: IExecutionContext,
     {
       emitEvents = true,
-      runInstallCommand = runLocalInstallCommand,
+      runInstallCommand = createLocalInstallCommandRunner(resolveLocalInstallShellProfile),
       connectionId,
     }: {
       emitEvents?: boolean;
@@ -158,7 +160,8 @@ export class DependencyManager implements IInitializable {
     return fullState;
   }
 
-  async probeAll(): Promise<void> {
+  async probeAll(options: DependencyProbeOptions = {}): Promise<void> {
+    await this.refreshShellEnvIfRequested(options);
     await Promise.all(
       DEPENDENCIES.map((d) =>
         this.probe(d.id).catch((err) => {
@@ -168,7 +171,11 @@ export class DependencyManager implements IInitializable {
     );
   }
 
-  async probeCategory(cat: DependencyCategory): Promise<void> {
+  async probeCategory(
+    cat: DependencyCategory,
+    options: DependencyProbeOptions = {}
+  ): Promise<void> {
+    await this.refreshShellEnvIfRequested(options);
     const targets = DEPENDENCIES.filter((d) => d.category === cat);
     await Promise.all(
       targets.map((d) =>
@@ -194,6 +201,8 @@ export class DependencyManager implements IInitializable {
 
     log.info(`[DependencyManager] Installing ${id}: ${descriptor.installCommand}`);
 
+    await this.ctx.refreshShellEnv?.();
+
     const installResult = await this.runInstallCommand(descriptor.installCommand);
     if (!installResult.success) {
       return err(installResult.error);
@@ -217,6 +226,12 @@ export class DependencyManager implements IInitializable {
     return null;
   }
 
+  private async refreshShellEnvIfRequested(options: DependencyProbeOptions = {}): Promise<void> {
+    if (options.refreshShellEnv) {
+      await this.ctx.refreshShellEnv?.();
+    }
+  }
+
   private updateState(state: DependencyState): void {
     this.state.set(state.id, state);
     if (this.emitEvents) {
@@ -227,6 +242,19 @@ export class DependencyManager implements IInitializable {
       });
     }
   }
+}
+
+async function resolveLocalInstallShellProfile() {
+  const { defaultShell } = await appSettingsService.get('terminal');
+  return await resolveLocalAutomationShellWithSystemFallback({
+    intent: defaultShell,
+    onFallback: (error) => {
+      log.warn('[DependencyManager] Preferred install shell unavailable, using fallback', {
+        shell: error.shell,
+        target: error.target,
+      });
+    },
+  });
 }
 
 export const localDependencyManager = new DependencyManager(new LocalExecutionContext());

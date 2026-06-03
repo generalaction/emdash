@@ -9,7 +9,7 @@ export function ListPopoverCard({
   className?: string;
 }) {
   return (
-    <div className="absolute bottom-4 left-6 right-6">
+    <div className="absolute right-6 bottom-4 left-6">
       <div
         className={cn(
           'flex items-center gap-2 rounded-md border border-border bg-background-1 px-3 py-2 text-sm',

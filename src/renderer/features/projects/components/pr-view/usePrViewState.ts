@@ -1,18 +1,20 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
-import type { PrFilters, PrSortField } from '@shared/pull-requests';
 import { getPrSyncStore } from '@renderer/features/projects/stores/project-selectors';
 import { useDebounce } from '@renderer/lib/hooks/useDebounce';
 import { rpc } from '@renderer/lib/ipc';
+import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
+import type { PrFilters, PrSortField } from '@shared/pull-requests';
+import { toUserItem, usersWithLoginFirst, type UserItem } from './pr-filter-items';
 import { useFilterOptions, usePullRequests } from './usePullRequests';
 
 export type StatusFilter = 'open' | 'not-open';
 
-export type UserItem = { value: string; label: string; avatarUrl?: string };
 export type LabelItem = { value: string; label: string; color?: string };
 
 export function usePrViewState(projectId: string, repositoryUrl: string | null) {
   const queryClient = useQueryClient();
+  const { user } = useGithubContext();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('open');
   const [sortFilter, setSortFilter] = useState<PrSortField>('newest');
   const [selectedAuthorUserId, setSelectedAuthorUserId] = useState<string | null>(null);
@@ -46,21 +48,14 @@ export function usePrViewState(projectId: string, repositoryUrl: string | null) 
 
   const authorItems: UserItem[] = useMemo(
     () =>
-      (filterOptions?.authors ?? []).map((a) => ({
-        value: a.userId,
-        label: a.displayName ?? a.userName,
-        avatarUrl: a.avatarUrl ?? undefined,
-      })),
-    [filterOptions?.authors]
+      usersWithLoginFirst(filterOptions?.authors ?? [], user?.login).map((author) =>
+        toUserItem(author)
+      ),
+    [filterOptions?.authors, user?.login]
   );
 
   const assigneeItems: UserItem[] = useMemo(
-    () =>
-      (filterOptions?.assignees ?? []).map((a) => ({
-        value: a.userId,
-        label: a.displayName ?? a.userName,
-        avatarUrl: a.avatarUrl ?? undefined,
-      })),
+    () => (filterOptions?.assignees ?? []).map((assignee) => toUserItem(assignee)),
     [filterOptions?.assignees]
   );
 

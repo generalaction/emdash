@@ -35,8 +35,29 @@ describe('LocalExecutionContext', () => {
     expect(execFileMock).toHaveBeenCalledWith(
       GIT_EXECUTABLE,
       ['status'],
-      expect.objectContaining({ cwd: '/repo' }),
+      expect.objectContaining({
+        cwd: '/repo',
+        env: expect.objectContaining({
+          GIT_ASKPASS: '',
+          GIT_TERMINAL_PROMPT: '0',
+          GCM_INTERACTIVE: 'never',
+          SSH_ASKPASS: '',
+        }),
+      }),
       expect.any(Function)
+    );
+  });
+
+  it('explains when git is missing during buffered local execution', async () => {
+    execFileMock.mockImplementation((_command, _args, _options, callback) => {
+      callback(
+        Object.assign(new Error('spawn git ENOENT'), { code: 'ENOENT', path: GIT_EXECUTABLE })
+      );
+    });
+    const ctx = new LocalExecutionContext({ root: '/repo' });
+
+    await expect(ctx.exec('git', ['status'])).rejects.toThrow(
+      'Git is not installed or Emdash cannot find it'
     );
   });
 
@@ -49,6 +70,32 @@ describe('LocalExecutionContext', () => {
     child.emit('close', 0);
     await promise;
 
-    expect(spawnMock).toHaveBeenCalledWith(GIT_EXECUTABLE, ['status'], { cwd: '/repo' });
+    expect(spawnMock).toHaveBeenCalledWith(
+      GIT_EXECUTABLE,
+      ['status'],
+      expect.objectContaining({
+        cwd: '/repo',
+        env: expect.objectContaining({
+          GIT_ASKPASS: '',
+          GIT_TERMINAL_PROMPT: '0',
+          GCM_INTERACTIVE: 'never',
+          SSH_ASKPASS: '',
+        }),
+      })
+    );
+  });
+
+  it('explains when git is missing during streaming local execution', async () => {
+    const child = new FakeChildProcess();
+    spawnMock.mockReturnValue(child);
+    const ctx = new LocalExecutionContext({ root: '/repo' });
+
+    const promise = ctx.execStreaming('git', ['status'], () => true);
+    child.emit(
+      'error',
+      Object.assign(new Error('spawn git ENOENT'), { code: 'ENOENT', path: GIT_EXECUTABLE })
+    );
+
+    await expect(promise).rejects.toThrow('Git is not installed or Emdash cannot find it');
   });
 });

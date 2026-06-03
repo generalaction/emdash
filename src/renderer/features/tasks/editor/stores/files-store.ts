@@ -1,12 +1,13 @@
-import { fsWatchEventChannel } from '@shared/events/fsEvents';
-import { type FileNode, type FileWatchEvent } from '@shared/fs';
 import {
   isExcluded,
   makeNode,
-  sortedChildPaths,
+  normalizeFileTreePath,
+  sortFileNodes,
 } from '@renderer/features/tasks/editor/stores/files-store-utils';
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
+import { fsWatchEventChannel } from '@shared/events/fsEvents';
+import { type FileNode, type FileWatchEvent } from '@shared/fs';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -14,7 +15,7 @@ import { Resource } from '@renderer/lib/stores/resource';
 
 export interface FilesData {
   nodes: Map<string, FileNode>;
-  childIndex: Map<string | null, string[]>;
+  rootNodes: FileNode[];
 }
 
 // ---------------------------------------------------------------------------
@@ -24,14 +25,14 @@ export interface FilesData {
 export class FilesStore {
   // Non-observable imperative maps — tree.data drives reactive re-renders.
   private readonly _nodes = new Map<string, FileNode>();
-  private readonly _childIndex = new Map<string | null, string[]>();
+  private _rootNodes: FileNode[] = [];
   private readonly _loadedPaths = new Set<string>();
   private readonly _pendingPaths = new Set<string>();
   private _bumpTimer: ReturnType<typeof setTimeout> | null = null;
 
   /**
    * The reactive container for the file tree. Components observe `tree.data`
-   * (or access `nodes`/`childIndex` getters which read through `tree.data`).
+   * (or access `nodes`/`rootNodes` getters which read through `tree.data`).
    * The data object reference is replaced whenever the tree structure changes,
    * triggering MobX re-renders — replacing the old `generation` counter.
    */
@@ -47,14 +48,16 @@ export class FilesStore {
         {
           kind: 'event',
           subscribe: (handler) => {
-            rpc.fs.watchSetPaths(projectId, workspaceId, [''], 'filetree').catch(() => {});
+            rpc.workspace.fs
+              .watchSetPaths(projectId, workspaceId, [''], 'filetree')
+              .catch(() => {});
             const unsub = events.on(fsWatchEventChannel, (data) => {
               if (data.workspaceId !== workspaceId) return;
               handler(data.events);
             });
             return () => {
               unsub();
-              rpc.fs.watchStop(projectId, workspaceId, 'filetree').catch(() => {});
+              rpc.workspace.fs.watchStop(projectId, workspaceId, 'filetree').catch(() => {});
             };
           },
           onEvent: (watchEvents, ctx) => {
@@ -63,10 +66,11 @@ export class FilesStore {
               return;
             }
             const changed = this._applyWatchEventsInternal(watchEvents);
-            if (changed) ctx.set({ nodes: this._nodes, childIndex: this._childIndex });
+            if (changed) ctx.set({ nodes: this._nodes, rootNodes: this._rootNodes });
           },
         },
-      ]
+      ],
+      { refData: true }
     );
   }
 
@@ -84,8 +88,8 @@ export class FilesStore {
     return this.tree.data?.nodes ?? this._nodes;
   }
 
-  get childIndex(): Map<string | null, string[]> {
-    return this.tree.data?.childIndex ?? this._childIndex;
+  get rootNodes(): FileNode[] {
+    return this.tree.data?.rootNodes ?? this._rootNodes;
   }
 
   get loadedPaths(): Set<string> {
@@ -126,36 +130,46 @@ export class FilesStore {
   // ---------------------------------------------------------------------------
 
   async loadDir(dirPath: string, force = false): Promise<void> {
-    await this._loadDirInternal(dirPath, force);
+    await this._loadDirInternal(normalizeFileTreePath(dirPath), force);
     this._bumpTreeDebounced();
   }
 
   /** Optimistically insert dropped nodes and bump the tree once. */
   addOptimisticNodes(nodes: Array<{ relPath: string; type: 'file' | 'directory' }>): string[] {
     const inserted: string[] = [];
+    const affectedParents = new Set<string | null>();
 
     for (const { relPath, type } of nodes) {
-      if (!relPath || isExcluded(relPath) || this._nodes.has(relPath)) continue;
+      const path = normalizeFileTreePath(relPath);
+      if (!path || isExcluded(path) || this._nodes.has(path)) continue;
 
-      const parent = relPath.includes('/') ? relPath.slice(0, relPath.lastIndexOf('/')) : '';
+      const parent = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '';
       if (!this._loadedPaths.has(parent)) continue;
 
-      this._addNode(makeNode(relPath, type));
-      inserted.push(relPath);
+      const node = makeNode(path, type);
+      this._addNode(node);
+      affectedParents.add(node.parentPath);
+      inserted.push(path);
     }
 
-    if (inserted.length > 0) this._bumpTree();
+    if (inserted.length > 0) {
+      for (const parentPath of affectedParents) {
+        this._sortChildren(parentPath ? this._nodes.get(parentPath) : null);
+      }
+      this._bumpTree();
+    }
     return inserted;
   }
 
   removeNode(relPath: string): void {
-    if (!this._nodes.has(relPath)) return;
-    this._removeNode(relPath);
+    const path = normalizeFileTreePath(relPath);
+    if (!this._nodes.has(path)) return;
+    this._removeNode(path);
     this._bumpTree();
   }
 
   async revealFile(filePath: string, expandedPaths: Set<string>): Promise<void> {
-    const parts = filePath.split('/').filter(Boolean);
+    const parts = normalizeFileTreePath(filePath).split('/').filter(Boolean);
     const dirs: string[] = [];
     for (let i = 1; i < parts.length; i++) {
       dirs.push(parts.slice(0, i).join('/'));
@@ -173,34 +187,41 @@ export class FilesStore {
   // Private helpers
   // ---------------------------------------------------------------------------
 
-  /** Full recursive load used as the Resource's fetch function. */
+  /** Initial load used as the Resource's fetch function. */
   private async _fetchAll(): Promise<FilesData> {
     this._nodes.clear();
-    this._childIndex.clear();
+    this._rootNodes = [];
     this._loadedPaths.clear();
     this._pendingPaths.clear();
     await this._loadDirInternal('');
-    return { nodes: this._nodes, childIndex: this._childIndex };
+    return { nodes: this._nodes, rootNodes: this._rootNodes };
   }
 
   /** Load a single directory level into the backing Maps. No reactivity bump. */
   private async _loadDirInternal(dirPath: string, force = false): Promise<void> {
+    dirPath = normalizeFileTreePath(dirPath);
     if (!force && (this._loadedPaths.has(dirPath) || this._pendingPaths.has(dirPath))) return;
     this._pendingPaths.add(dirPath);
 
     try {
-      const result = await rpc.fs.listFiles(this.projectId, this.workspaceId, dirPath || '.', {
-        recursive: false,
-        includeHidden: true,
-      });
+      const result = await rpc.workspace.fs.listFiles(
+        this.projectId,
+        this.workspaceId,
+        dirPath || '.',
+        {
+          recursive: false,
+          includeHidden: true,
+        }
+      );
 
       if (!result.success) return;
 
       this._applyEntries(dirPath, result.data.entries);
 
       for (const entry of result.data.entries) {
-        if (entry.type === 'dir' && !isExcluded(entry.path)) {
-          void this._loadDirInternal(entry.path);
+        const path = normalizeFileTreePath(entry.path);
+        if (entry.type === 'dir' && path && !isExcluded(path)) {
+          void this._loadDirInternal(path);
         }
       }
 
@@ -216,39 +237,91 @@ export class FilesStore {
     dirPath: string,
     entries: Array<{ path: string; type: 'file' | 'dir'; mtime?: Date }>
   ): void {
-    const affectedParents = new Set<string | null>();
+    const normalizedDirPath = normalizeFileTreePath(dirPath);
+    const parent = this._ensureDirectory(normalizedDirPath);
+    const nextChildren = new Set<string>();
 
     for (const entry of entries) {
-      if (isExcluded(entry.path)) continue;
-      const node = makeNode(entry.path, entry.type === 'dir' ? 'directory' : 'file', entry.mtime);
+      const path = normalizeFileTreePath(entry.path);
+      if (!path || isExcluded(path)) continue;
 
-      this._nodes.set(node.path, node);
+      const node = makeNode(path, entry.type === 'dir' ? 'directory' : 'file', entry.mtime);
+      if ((node.parentPath ?? '') !== normalizedDirPath) continue;
 
-      const parent = node.parentPath;
-      const siblings = this._childIndex.get(parent) ?? [];
-      if (!siblings.includes(node.path)) {
-        siblings.push(node.path);
-        this._childIndex.set(parent, siblings);
-      }
-      affectedParents.add(parent);
+      nextChildren.add(node.path);
+      this._addNode(node);
     }
 
-    for (const parent of affectedParents) {
-      const children = this._childIndex.get(parent);
-      if (children) {
-        this._childIndex.set(parent, sortedChildPaths(children, this._nodes));
+    const currentChildren = parent?.children ?? this._rootNodes;
+    for (const child of [...currentChildren]) {
+      if (!nextChildren.has(child.path)) {
+        this._removeNode(child.path);
       }
     }
 
-    this._loadedPaths.add(dirPath);
+    this._sortChildren(parent);
+    this._loadedPaths.add(normalizedDirPath);
+  }
+
+  private _ensureDirectory(path: string): FileNode | null {
+    if (!path) return null;
+
+    const parts = path.split('/').filter(Boolean);
+    let currentPath = '';
+    let current: FileNode | null = null;
+
+    for (const part of parts) {
+      currentPath = currentPath ? `${currentPath}/${part}` : part;
+      const existing = this._nodes.get(currentPath);
+      if (existing) {
+        current = existing;
+        continue;
+      }
+
+      current = makeNode(currentPath, 'directory');
+      this._addNode(current);
+    }
+
+    return current;
   }
 
   private _addNode(node: FileNode): void {
+    const existing = this._nodes.get(node.path);
+    if (existing) {
+      this._replaceExistingNode(existing, node);
+      return;
+    }
+
     this._nodes.set(node.path, node);
-    const parent = node.parentPath;
-    const existing = this._childIndex.get(parent) ?? [];
-    if (!existing.includes(node.path)) {
-      this._childIndex.set(parent, sortedChildPaths([...existing, node.path], this._nodes));
+    const parent = node.parentPath ? this._nodes.get(node.parentPath) : null;
+    const siblings = parent?.children ?? this._rootNodes;
+    if (!siblings.some((child) => child.path === node.path)) siblings.push(node);
+  }
+
+  private _replaceExistingNode(existing: FileNode, next: FileNode): void {
+    if (existing.type === 'directory' && next.type === 'file') {
+      this._replaceDirectoryWithFile(existing, next);
+      return;
+    }
+
+    existing.type = next.type;
+    existing.mtime = next.mtime;
+    existing.extension = next.extension;
+    existing.isHidden = next.isHidden;
+  }
+
+  private _replaceDirectoryWithFile(existing: FileNode, next: FileNode): void {
+    const parent = existing.parentPath ? this._nodes.get(existing.parentPath) : null;
+    const siblings = parent?.children ?? this._rootNodes;
+    const index = siblings.findIndex((child) => child.path === existing.path);
+
+    this._removeNodeFromMaps(existing);
+    this._nodes.set(next.path, next);
+
+    if (index === -1) {
+      siblings.push(next);
+    } else {
+      siblings[index] = next;
     }
   }
 
@@ -256,72 +329,91 @@ export class FilesStore {
     const node = this._nodes.get(path);
     if (!node) return;
 
-    const siblings = this._childIndex.get(node.parentPath) ?? [];
-    this._childIndex.set(
-      node.parentPath,
-      siblings.filter((p) => p !== path)
-    );
+    const parent = node.parentPath ? this._nodes.get(node.parentPath) : null;
+    const siblings = parent?.children ?? this._rootNodes;
+    const index = siblings.findIndex((child) => child.path === path);
+    if (index !== -1) siblings.splice(index, 1);
 
-    const toRemove: string[] = [path];
-    while (toRemove.length) {
-      const p = toRemove.pop()!;
-      this._nodes.delete(p);
-      this._loadedPaths.delete(p);
-      const children = this._childIndex.get(p) ?? [];
-      toRemove.push(...children);
-      this._childIndex.delete(p);
+    this._removeNodeFromMaps(node);
+  }
+
+  private _removeNodeFromMaps(node: FileNode): void {
+    for (const child of [...node.children]) {
+      this._removeNodeFromMaps(child);
+    }
+    this._nodes.delete(node.path);
+    this._loadedPaths.delete(node.path);
+  }
+
+  private _sortChildren(parent: FileNode | null | undefined): void {
+    if (parent) {
+      parent.children = sortFileNodes(parent.children);
+    } else {
+      this._rootNodes = sortFileNodes(this._rootNodes);
     }
   }
 
   /** Mutate the backing maps for watch events. Returns true if anything changed. */
   private _applyWatchEventsInternal(watchEvents: FileWatchEvent[]): boolean {
     let changed = false;
+    const affectedParents = new Set<string | null>();
 
     for (const evt of watchEvents) {
-      if (isExcluded(evt.path)) continue;
+      const path = normalizeFileTreePath(evt.path);
+      if (isExcluded(path)) continue;
 
       if (evt.type === 'create') {
-        const node = makeNode(evt.path, evt.entryType);
+        const node = makeNode(path, evt.entryType);
         const parentLoaded = this._loadedPaths.has(node.parentPath ?? '');
-        if (parentLoaded && !this._nodes.has(evt.path)) {
+        if (parentLoaded && !this._nodes.has(node.path)) {
           this._addNode(node);
+          affectedParents.add(node.parentPath);
           changed = true;
         }
       } else if (evt.type === 'delete') {
-        if (this._nodes.has(evt.path)) {
-          this._removeNode(evt.path);
+        const existing = this._nodes.get(path);
+        if (existing) {
+          affectedParents.add(existing.parentPath);
+          this._removeNode(path);
           changed = true;
         }
       } else if (evt.type === 'modify') {
-        const existing = this._nodes.get(evt.path);
+        const existing = this._nodes.get(path);
         if (existing) {
-          this._nodes.set(evt.path, { ...existing, mtime: new Date() });
+          existing.mtime = new Date();
           changed = true;
         }
       } else if (evt.type === 'rename' && evt.oldPath) {
-        if (this._nodes.has(evt.oldPath)) {
-          this._removeNode(evt.oldPath);
+        const oldPath = normalizeFileTreePath(evt.oldPath);
+        if (this._nodes.has(oldPath)) {
+          this._removeNode(oldPath);
           changed = true;
         }
-        const node = makeNode(evt.path, evt.entryType);
+        const node = makeNode(path, evt.entryType);
         const parentLoaded = this._loadedPaths.has(node.parentPath ?? '');
         if (parentLoaded) {
           this._addNode(node);
+          affectedParents.add(node.parentPath);
           changed = true;
         }
       }
+    }
+
+    for (const parentPath of affectedParents) {
+      this._sortChildren(parentPath ? this._nodes.get(parentPath) : null);
     }
 
     return changed;
   }
 
   private _bumpTree(): void {
-    this.tree.setValue({ nodes: this._nodes, childIndex: this._childIndex });
+    this.tree.setValue({ nodes: this._nodes, rootNodes: this._rootNodes });
   }
 
   private _bumpTreeDebounced(): void {
-    if (this._bumpTimer) clearTimeout(this._bumpTimer);
+    if (this._bumpTimer) return;
     this._bumpTimer = setTimeout(() => {
+      this._bumpTimer = null;
       this._bumpTree();
     }, 50);
   }

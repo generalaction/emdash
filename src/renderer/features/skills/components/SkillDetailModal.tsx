@@ -1,7 +1,5 @@
 import { FolderOpen, Trash2 } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
-import type { CatalogSkill } from '@shared/skills/types';
-import { parseFrontmatter } from '@shared/skills/validation';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
@@ -13,19 +11,29 @@ import {
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
 import { MarkdownRenderer } from '@renderer/lib/ui/markdown-renderer';
+import type { CatalogSkill } from '@shared/skills/types';
+import { parseFrontmatter } from '@shared/skills/validation';
 import { SkillIconRenderer } from './SkillIconRenderer';
+
+const sourceMeta = {
+  openai: { name: 'OpenAI', icon: 'https://github.com/openai.png' },
+  anthropic: { name: 'Anthropic', icon: 'https://github.com/anthropics.png' },
+  skillssh: { name: 'Skills.SH', icon: 'https://skills.sh/favicon.ico' },
+} as const;
 
 interface SkillDetailModalProps {
   skill: CatalogSkill | null;
+  isLoading: boolean;
   isOpen: boolean;
   onClose: () => void;
   onInstall: (skillId: string) => Promise<boolean>;
-  onUninstall: (skillId: string) => Promise<boolean>;
+  onUninstall: (skillId: string) => void;
   onOpenTerminal?: (skillPath: string) => void;
 }
 
 export const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
   skill,
+  isLoading,
   isOpen,
   onClose,
   onInstall,
@@ -45,16 +53,10 @@ export const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
     }
   }, [skill, onInstall, onClose]);
 
-  const handleUninstall = useCallback(async () => {
+  const handleUninstall = useCallback(() => {
     if (!skill) return;
-    setIsProcessing(true);
-    try {
-      const success = await onUninstall(skill.id);
-      if (success) onClose();
-    } finally {
-      setIsProcessing(false);
-    }
-  }, [skill, onUninstall, onClose]);
+    onUninstall(skill.id);
+  }, [skill, onUninstall]);
 
   const handleOpen = useCallback(() => {
     if (skill?.localPath && onOpenTerminal) {
@@ -65,6 +67,9 @@ export const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
   if (!skill) return null;
 
   const body = skill.skillMdContent ? parseFrontmatter(skill.skillMdContent).body.trim() : '';
+  const visibleBody = isSkillShPathBody(body) ? '' : body;
+  const meta = skill.source === 'local' ? null : sourceMeta[skill.source];
+  const showLoadingContent = isLoading && !skill.skillMdContent;
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && !isProcessing && onClose()}>
@@ -73,43 +78,35 @@ export const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
           <div className="flex items-center gap-3">
             <SkillIconRenderer skill={skill} />
             <div className="min-w-0 flex-1">
-              <DialogTitle className="text-base font-sans normal-case tracking-normal text-foreground">
+              <DialogTitle className="font-sans text-base tracking-normal text-foreground normal-case">
                 {skill.displayName}
               </DialogTitle>
-              {skill.source !== 'local' && (
-                <div className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <img
-                    src={
-                      skill.source === 'openai'
-                        ? 'https://github.com/openai.png'
-                        : 'https://github.com/anthropics.png'
-                    }
-                    alt=""
-                    className="h-4 w-4 rounded-sm"
-                  />
-                  <span>
-                    From {skill.source === 'openai' ? 'OpenAI' : 'Anthropic'} skill library
-                  </span>
+              {meta && (
+                <div className="text-muted-foreground mt-0.5 flex items-center gap-1.5 text-xs">
+                  <img src={meta.icon} alt="" className="h-4 w-4 rounded-sm" />
+                  <span>From {meta.name} skill library</span>
                 </div>
               )}
             </div>
           </div>
         </DialogHeader>
         <DialogContentArea>
-          {skill.defaultPrompt && (
-            <div className="space-y-1 rounded-md bg-muted/40 pb-2">
-              <p className="text-xs font-medium text-muted-foreground">Example prompt</p>
-              <pre className="whitespace-pre-wrap wrap-break-word text-xs text-foreground">
+          {showLoadingContent && <SkillDetailShimmer />}
+
+          {!showLoadingContent && skill.defaultPrompt && (
+            <div className="bg-muted/40 space-y-1 rounded-md pb-2">
+              <p className="text-muted-foreground text-xs font-medium">Example prompt</p>
+              <pre className="text-xs wrap-break-word whitespace-pre-wrap text-foreground">
                 {skill.defaultPrompt}
               </pre>
             </div>
           )}
 
-          {body && (
+          {!showLoadingContent && visibleBody && (
             <MarkdownRenderer
-              content={body}
+              content={visibleBody}
               variant="compact"
-              className="rounded-md bg-muted/20 px-3 py-2 text-xs text-muted-foreground"
+              className="bg-muted/20 text-muted-foreground rounded-md px-3 py-2 text-xs"
             />
           )}
         </DialogContentArea>
@@ -145,3 +142,29 @@ export const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
     </Dialog>
   );
 };
+
+function isSkillShPathBody(body: string): boolean {
+  return /^\.\.\/.*\/SKILL\.md$/.test(body);
+}
+
+function SkillDetailShimmer() {
+  const lineClass = 'h-3 animate-pulse rounded-full bg-foreground/10 dark:bg-white/15';
+
+  return (
+    <div
+      className="min-h-32 space-y-4 rounded-md border border-border bg-background-quaternary-1 px-3 py-3"
+      aria-label="Loading skill details"
+    >
+      <div className="space-y-2">
+        <div className={`${lineClass} w-24`} />
+        <div className={`${lineClass} w-full`} />
+        <div className={`${lineClass} w-5/6`} />
+      </div>
+      <div className="space-y-2">
+        <div className={`${lineClass} w-32`} />
+        <div className={`${lineClass} w-11/12`} />
+        <div className={`${lineClass} w-2/3`} />
+      </div>
+    </div>
+  );
+}

@@ -1,15 +1,19 @@
-import { APP_COMMAND_DEFS, type AppCommandId, type CommandDef } from '@shared/commands';
 import { applyHistoryEntry } from '@renderer/lib/components/nav-buttons';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { toggleSettingsView } from '@renderer/lib/layout/settings-toggle';
 import { showModal } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 import { toggleAppTheme } from '@renderer/lib/theme/theme-toggle';
+import { APP_COMMAND_DEFS, type AppCommandId, type CommandDef } from '@shared/commands';
 import { commandRegistry } from './registry';
 import type { AppCommand, CommandProvider } from './types';
 
 function appDef(id: AppCommandId): CommandDef {
   return APP_COMMAND_DEFS.find((d) => d.id === id)!;
+}
+
+function isLibraryView(viewId: string): boolean {
+  return viewId === 'library' || viewId === 'skills' || viewId === 'mcp';
 }
 
 function createAppCommandProvider(): CommandProvider {
@@ -26,6 +30,7 @@ function createAppCommandProvider(): CommandProvider {
       const projectId = params?.projectId;
 
       const settingsDef = appDef('app.settings');
+      const libraryDef = appDef('app.library');
       const newProjectDef = appDef('app.newProject');
       const giveFeedbackDef = appDef('app.giveFeedback');
       const toggleThemeDef = appDef('app.toggleTheme');
@@ -45,6 +50,21 @@ function createAppCommandProvider(): CommandProvider {
               appState.navigation.currentViewId,
               appState.navigation.lastNonSettingsView
             );
+          },
+        },
+        {
+          id: libraryDef.id,
+          label: libraryDef.label,
+          description: libraryDef.description,
+          shortcutKey: libraryDef.shortcutKey,
+          group: libraryDef.group,
+          execute() {
+            if (isLibraryView(appState.navigation.currentViewId)) {
+              appState.navigation.navigate(appState.navigation.lastNonLibraryView);
+              return;
+            }
+
+            appState.navigation.navigate('library');
           },
         },
         {

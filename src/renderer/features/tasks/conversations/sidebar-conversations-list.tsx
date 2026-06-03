@@ -22,6 +22,7 @@ import { MicroLabel } from '@renderer/lib/ui/label';
 import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { agentConfig } from '@renderer/utils/agentConfig';
 import { cn } from '@renderer/utils/utils';
+import { MAX_CONVERSATION_TITLE_LENGTH } from '@shared/conversations';
 import { AgentStatusIndicator } from '../components/agent-status-indicator';
 
 const ROW_HEIGHT = 32;
@@ -32,7 +33,6 @@ const ConversationRow = observer(function ConversationRow({
   conversationId: string;
 }) {
   const [isEditing, setIsEditing] = useState(false);
-  const pendingRenameRef = useRef(false);
   const taskView = useWorkspaceViewModel();
   const conversations = useConversations();
   const { tabManager, tabGroupManager } = taskView;
@@ -44,14 +44,7 @@ const ConversationRow = observer(function ConversationRow({
   }, []);
 
   const handleRename = useCallback(() => {
-    pendingRenameRef.current = true;
-  }, []);
-
-  const handleContextMenuOpenChangeComplete = useCallback((open: boolean) => {
-    if (!open && pendingRenameRef.current) {
-      pendingRenameRef.current = false;
-      setIsEditing(true);
-    }
+    window.setTimeout(() => setIsEditing(true), 0);
   }, []);
 
   const conversation = conversations.conversations.get(conversationId);
@@ -87,10 +80,11 @@ const ConversationRow = observer(function ConversationRow({
       <div className="flex h-full w-full items-center px-2">
         <input
           ref={handleRenameInputRef}
-          className="w-full rounded bg-background-1 px-1.5 py-0.5 text-sm text-foreground outline-none ring-1 ring-foreground/20 focus:ring-foreground/40"
+          className="w-full rounded bg-background-1 px-1.5 py-0.5 text-sm text-foreground ring-1 ring-foreground/20 outline-none focus:ring-foreground/40"
           defaultValue={rawTitle}
+          maxLength={MAX_CONVERSATION_TITLE_LENGTH}
           onBlur={(e) => {
-            const value = e.target.value.trim();
+            const value = e.target.value.trim().slice(0, MAX_CONVERSATION_TITLE_LENGTH);
             if (value && value !== rawTitle) {
               handleRenameSubmit(value);
             } else {
@@ -99,7 +93,7 @@ const ConversationRow = observer(function ConversationRow({
           }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
-              const value = e.currentTarget.value.trim();
+              const value = e.currentTarget.value.trim().slice(0, MAX_CONVERSATION_TITLE_LENGTH);
               if (value && value !== rawTitle) {
                 handleRenameSubmit(value);
               } else {
@@ -115,7 +109,7 @@ const ConversationRow = observer(function ConversationRow({
   }
 
   return (
-    <ContextMenu onOpenChangeComplete={handleContextMenuOpenChangeComplete}>
+    <ContextMenu>
       <ContextMenuTrigger>
         <button
           onClick={() => tabGroupManager.openConversationPreview(conversationId)}
@@ -129,6 +123,7 @@ const ConversationRow = observer(function ConversationRow({
             <span className="shrink-0">
               <AgentLogo
                 logo={config.logo}
+                logoDark={config.logoDark}
                 alt={config.alt}
                 isSvg={config.isSvg}
                 invertInDark={config.invertInDark}
@@ -143,14 +138,14 @@ const ConversationRow = observer(function ConversationRow({
             ) : (
               <RelativeTime
                 value={conversation.data.lastInteractedAt ?? ''}
-                className="text-xs text-foreground-passive font-mono pr-1 h-full flex items-center"
+                className="flex h-full items-center pr-1 font-mono text-xs text-foreground-passive"
                 compact
               />
             )}
           </span>
         </button>
       </ContextMenuTrigger>
-      <ContextMenuContent>
+      <ContextMenuContent finalFocus={false}>
         <ContextMenuItem onClick={handleRename}>
           <Pencil className="size-4" />
           Rename
@@ -199,8 +194,8 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
   };
 
   return (
-    <div className="flex h-full flex-col w-full">
-      <div className="shrink-0 pl-4 pr-2 pt-2 pb-1 flex items-center justify-between">
+    <div className="flex h-full w-full flex-col">
+      <div className="flex shrink-0 items-center justify-between pt-2 pr-2 pb-1 pl-4">
         <MicroLabel>Conversations</MicroLabel>
         <Button size="icon-sm" variant="ghost" onClick={handleCreate}>
           <Plus className="size-3.5" />

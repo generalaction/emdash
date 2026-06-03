@@ -1,6 +1,5 @@
 import { ExternalLink, ScanSearch } from 'lucide-react';
 import { memo } from 'react';
-import { getPrNumber, type PullRequest } from '@shared/pull-requests';
 import { PrMergeLine } from '@renderer/lib/components/pr-merge-line';
 import { PrNumberBadge } from '@renderer/lib/components/pr-number-badge';
 import { StatusIcon } from '@renderer/lib/components/pr-status-icon';
@@ -10,6 +9,7 @@ import { Button } from '@renderer/lib/ui/button';
 import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
+import { getPrNumber, type PullRequest } from '@shared/pull-requests';
 
 export const PrRow = memo(function PrRow({
   pr,
@@ -21,14 +21,14 @@ export const PrRow = memo(function PrRow({
   const showCreateTaskModal = useShowModal('taskModal');
 
   return (
-    <div className="flex relative items-start gap-3 w-full">
-      <div className="pt-0.5 shrink-0">
+    <div className="relative flex w-full items-start gap-3">
+      <div className="shrink-0 pt-0.5">
         <StatusIcon pr={pr} />
       </div>
-      <div className="flex-1 min-w-0 flex flex-col gap-2">
-        <div className="flex items-center gap-2 justify-between">
-          <div className="flex items-center gap-2 flex-wrap min-w-0">
-            <span className="text-sm text-foreground leading-snug truncate min-w-0">
+      <div className="flex min-w-0 flex-1 flex-col gap-2">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <span className="min-w-0 truncate text-sm leading-snug text-foreground">
               {pr.title}
             </span>
             <PrNumberBadge number={getPrNumber(pr) ?? 0} />
@@ -37,13 +37,13 @@ export const PrRow = memo(function PrRow({
                 <Button
                   variant="ghost"
                   size="icon-xs"
-                  className="opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="opacity-0 transition-opacity group-hover:opacity-100"
                   onClick={() => rpc.app.openExternal(pr.url)}
                 >
                   <ExternalLink className="size-3.5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Open PR on github</TooltipContent>
+              <TooltipContent>Open PR on GitHub</TooltipContent>
             </Tooltip>
           </div>
           <RelativeTime value={pr.createdAt} className="text-xs text-foreground-passive" compact />
@@ -53,7 +53,7 @@ export const PrRow = memo(function PrRow({
           <PrDiffStat pr={pr} />
         </div>
       </div>
-      <div className="shrink-0 absolute top-0 flex h-full items-center gap-1 right-3  opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="absolute top-0 right-3 flex h-full shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
         <Button
           variant="outline"
           size="sm"

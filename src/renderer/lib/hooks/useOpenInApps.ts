@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
+import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { rpc } from '@renderer/lib/ipc';
 import {
   getResolvedIconPath,
   getResolvedLabel,
@@ -8,8 +10,6 @@ import {
   type OpenInAppId,
   type PlatformKey,
 } from '@shared/openInApps';
-import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
-import { rpc } from '@renderer/lib/ipc';
 
 const iconModules = import.meta.glob('../../../assets/images/*', {
   eager: true,
@@ -26,6 +26,7 @@ export interface UseOpenInAppsResult {
   labels: Partial<Record<OpenInAppId, string>>;
   availability: Record<string, boolean>;
   installedApps: OpenInAppConfig[];
+  platform: PlatformKey;
   loading: boolean;
 }
 
@@ -75,5 +76,5 @@ export function useOpenInApps(): UseOpenInAppsResult {
     );
   }, [availability, loading, openIn?.hidden]);
 
-  return { icons, labels, availability, installedApps, loading };
+  return { icons, labels, availability, installedApps, platform, loading };
 }

@@ -1,10 +1,7 @@
 import { eq } from 'drizzle-orm';
-import { getTaskEnvVars } from '@shared/task/envVars';
-import type { Task } from '@shared/tasks';
 import { LocalConversationProvider } from '@main/core/conversations/impl/local-conversation';
 import { SshConversationProvider } from '@main/core/conversations/impl/ssh-conversation';
 import type { ConversationProvider } from '@main/core/conversations/types';
-import { GitHubAuthExecutionContext } from '@main/core/execution-context/github-auth-execution-context';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
@@ -13,11 +10,14 @@ import { GitFetchService } from '@main/core/git/git-fetch-service';
 import { GitService } from '@main/core/git/impl/git-service';
 import { RemoteStatusFingerprintPoller } from '@main/core/git/remote-status-fingerprint-poller';
 import { GitRepositoryService } from '@main/core/git/repository-service';
-import { githubConnectionService } from '@main/core/github/services/github-connection-service';
 import { workspaceFileIndexService } from '@main/core/search/workspace-file-index-service';
-import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
+import { appSettingsService } from '@main/core/settings/settings-service';
+import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
+import { resolveLocalAutomationShellWithSystemFallback } from '@main/core/terminal-shell/resolver';
+import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
 import { LocalTerminalProvider } from '@main/core/terminals/impl/local-terminal-provider';
 import { SshTerminalProvider } from '@main/core/terminals/impl/ssh-terminal-provider';
+import { runLifecycleScriptWithPolicy } from '@main/core/terminals/lifecycle-script-coordinator';
 import type { TerminalProvider } from '@main/core/terminals/terminal-provider';
 import type { Workspace } from '@main/core/workspaces/workspace';
 import { LifecycleScriptService } from '@main/core/workspaces/workspace-lifecycle-service';
@@ -25,9 +25,10 @@ import { type WorkspaceFactoryResult } from '@main/core/workspaces/workspace-reg
 import { db } from '@main/db/client';
 import { workspaces as workspacesTable } from '@main/db/schema';
 import { log } from '@main/lib/logger';
+import { getTaskEnvVars } from '@shared/task/envVars';
+import type { Task } from '@shared/tasks';
 import { getEffectiveTaskSettings } from '../projects/settings/effective-task-settings';
 import type { ProjectSettingsProvider } from '../projects/settings/provider';
-import { TimeoutSignal, withTimeout } from '../projects/utils';
 import { TEARDOWN_SCRIPT_WAIT_MS } from '../tasks/provision-task-error';
 
 export type WorkspaceType =
@@ -127,21 +128,13 @@ export function createWorkspaceFactory(
       type.kind === 'ssh'
         ? new SshExecutionContext(type.proxy, { root: workDir })
         : new LocalExecutionContext({ root: workDir });
-    const authGitCtx = new GitHubAuthExecutionContext(baseGitCtx, () =>
-      githubConnectionService.getToken()
-    );
-    const gitService = new GitService(baseGitCtx, authGitCtx, workspaceFs);
+    const gitService = new GitService(baseGitCtx, workspaceFs);
 
     const repository = context.repository ?? new GitRepositoryService(gitService, context.settings);
 
     const ownsFetchService = !context.fetchService;
     const fetchService =
-      context.fetchService ??
-      new GitFetchService(
-        gitService,
-        async () => (await githubConnectionService.getToken()) !== null,
-        () => repository.getBaseRemote()
-      );
+      context.fetchService ?? new GitFetchService(gitService, () => repository.getBaseRemote());
     const statusPoller =
       type.kind === 'ssh'
         ? new RemoteStatusFingerprintPoller(context.projectId, workspaceId, gitService)
@@ -190,24 +183,22 @@ export function createWorkspaceFactory(
         statusPoller?.start();
         void workspaceFileIndexService.onWorkspaceCreated(workspaceId, ws);
         if (scripts?.setup) {
-          void ws.lifecycleService.prepareAndRunLifecycleScript({
+          void runLifecycleScriptWithPolicy({
+            workspace: ws,
+            projectId: context.projectId,
+            taskId: context.task.id,
+            workspaceId,
             type: 'setup',
             script: scripts.setup,
             shellSetup,
-          });
-        }
-        if (scripts?.run) {
-          void ws.lifecycleService.prepareLifecycleScript({
-            type: 'run',
-            script: scripts.run,
-            shellSetup,
-          });
-        }
-        if (scripts?.teardown) {
-          void ws.lifecycleService.prepareLifecycleScript({
-            type: 'teardown',
-            script: scripts.teardown,
-            shellSetup,
+            origin: 'auto-setup',
+            policy: {
+              respawnAfterExit: true,
+              logFailure: true,
+              surfaceFailure: true,
+              continueOnFailure: true,
+            },
+            logPrefix,
           });
         }
       },
@@ -229,27 +220,23 @@ export function createWorkspaceFactory(
         const teardownScript = latestTaskSettings.scripts?.teardown;
 
         if (teardownScript) {
-          try {
-            await withTimeout(
-              ws.lifecycleService.runLifecycleScript(
-                { type: 'teardown', script: teardownScript, shellSetup: latestShellSetup },
-                { waitForExit: true, exit: true }
-              ),
-              TEARDOWN_SCRIPT_WAIT_MS
-            );
-          } catch (error) {
-            if (error instanceof TimeoutSignal) {
-              log.debug(`${logPrefix}: teardown script wait timed out`, {
-                workspaceId,
-                timeoutMs: TEARDOWN_SCRIPT_WAIT_MS,
-              });
-            } else {
-              log.warn(`${logPrefix}: teardown script failed (continuing cleanup)`, {
-                workspaceId,
-                error: String(error),
-              });
-            }
-          }
+          await runLifecycleScriptWithPolicy({
+            workspace: ws,
+            projectId: context.projectId,
+            taskId: context.task.id,
+            workspaceId,
+            type: 'teardown',
+            script: teardownScript,
+            shellSetup: latestShellSetup,
+            origin: 'workspace-destroy',
+            policy: {
+              timeoutMs: TEARDOWN_SCRIPT_WAIT_MS,
+              logFailure: true,
+              surfaceFailure: false,
+              continueOnFailure: true,
+            },
+            logPrefix,
+          });
         }
         await context.extraHooks?.onDestroy?.(ws);
       },
@@ -271,14 +258,30 @@ type TaskProviderOpts = {
   taskEnvVars: Record<string, string>;
 };
 
+async function resolveLocalConversationShellProfile(taskId: string): Promise<ResolvedShellProfile> {
+  const { defaultShell } = await appSettingsService.get('terminal');
+  return await resolveLocalAutomationShellWithSystemFallback({
+    intent: defaultShell,
+    onFallback: (error) => {
+      log.warn(
+        'buildTaskProviders: preferred local conversation shell unavailable, using fallback',
+        {
+          shell: error.shell,
+          taskId,
+        }
+      );
+    },
+  });
+}
+
 /**
  * Creates task-scoped conversation and terminal providers for the given transport type.
  * The exec function is derived internally from the WorkspaceType.
  */
-export function buildTaskProviders(
+export async function buildTaskProviders(
   type: WorkspaceType,
   opts: TaskProviderOpts
-): { conversations: ConversationProvider; terminals: TerminalProvider } {
+): Promise<{ conversations: ConversationProvider; terminals: TerminalProvider }> {
   if (type.kind === 'ssh') {
     const ctx = new SshExecutionContext(type.proxy);
     return {
@@ -307,6 +310,7 @@ export function buildTaskProviders(
   }
 
   const ctx = new LocalExecutionContext();
+  const conversationShellProfile = await resolveLocalConversationShellProfile(opts.taskId);
   return {
     conversations: new LocalConversationProvider({
       projectId: opts.projectId,
@@ -314,6 +318,7 @@ export function buildTaskProviders(
       taskId: opts.taskId,
       tmux: opts.tmuxEnabled,
       shellSetup: opts.shellSetup,
+      shellProfile: conversationShellProfile,
       ctx,
       taskEnvVars: opts.taskEnvVars,
     }),

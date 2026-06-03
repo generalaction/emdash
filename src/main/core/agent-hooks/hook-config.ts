@@ -1,14 +1,17 @@
 import { homedir } from 'node:os';
 import * as toml from 'smol-toml';
-import type { AgentProviderId } from '@shared/agent-provider-registry';
 import { resolveCommandPath } from '@main/core/dependencies/probe';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { log } from '@main/lib/logger';
+import type { AgentProviderId } from '@shared/agent-provider-registry';
 import {
+  makeAmpPluginContent,
   makeClaudeHookCommand,
   makeCodexHookCommand,
+  makeCodexSessionStartHookCommand,
+  makeGrokSessionStartHookCommand,
   makeOpenCodePluginContent,
 } from './agent-notify-command';
 import piEmdashExtension from './pi-emdash-extension.ts?raw';
@@ -16,15 +19,33 @@ import piEmdashExtension from './pi-emdash-extension.ts?raw';
 const EMDASH_MARKER = 'EMDASH_HOOK_PORT';
 
 const CLAUDE_SETTINGS_PATH = '.claude/settings.local.json';
+const DEVIN_HOOKS_PATH = '.devin/hooks.v1.json';
 const CODEX_CONFIG_PATH = '.codex/config.toml';
 const CODEX_HOOKS_PATH = '.codex/hooks.json';
+const GROK_HOOKS_PATH = '.grok/hooks/emdash.json';
+const COPILOT_HOOKS_PATH = '.github/hooks/emdash.json';
+const QWEN_SETTINGS_PATH = '.qwen/settings.json';
 const DROID_SETTINGS_PATH = '.factory/settings.json';
+const AMP_PLUGIN_PATH = '.amp/plugins/emdash-hook.ts';
 const PI_EMDASH_EXTENSION_PATH = '.pi/extensions/emdash-hook.ts';
 const OPENCODE_PLUGIN_PATH = '.opencode/plugins/emdash-notifications.js';
 const GITIGNORE_PATH = '.gitignore';
 type HookConfigWriteOptions = { writeGitIgnoreEntries?: boolean };
-type CodexHookEvent = 'Stop' | 'PermissionRequest';
-type DroidHookEvent = 'Notification' | 'Stop';
+type CodexHookEvent = 'Stop' | 'PermissionRequest' | 'SessionStart';
+type CopilotHookEvent = 'agentStop' | 'notification' | 'permissionRequest' | 'sessionStart';
+type GrokHookEvent =
+  | 'Notification'
+  | 'PostToolUse'
+  | 'PostToolUseFailure'
+  | 'PreToolUse'
+  | 'SessionEnd'
+  | 'SessionStart'
+  | 'Stop'
+  | 'StopFailure'
+  | 'UserPromptSubmit';
+type QwenHookEvent = 'PermissionRequest' | 'SessionEnd' | 'Stop';
+type DroidHookEvent = 'Notification' | 'Stop' | 'SessionStart';
+type DevinHookEvent = 'PermissionRequest' | 'SessionEnd' | 'Stop';
 
 const HOOK_EVENT_MAP = [
   { eventType: 'notification', hookKey: 'Notification' },
@@ -36,10 +57,29 @@ const CODEX_HOOK_EVENT_MAP = [
   { hookKey: 'PermissionRequest', notificationType: 'permission_prompt' },
 ] satisfies { hookKey: CodexHookEvent; notificationType: 'idle_prompt' | 'permission_prompt' }[];
 
+const CODEX_SESSION_HOOK_EVENT_MAP = [{ hookKey: 'SessionStart' as const }] satisfies {
+  hookKey: CodexHookEvent;
+}[];
+
+const COPILOT_HOOK_EVENT_MAP = [{ hookKey: 'agentStop', eventType: 'stop' }] satisfies {
+  hookKey: CopilotHookEvent;
+  eventType: 'stop';
+}[];
+
+const COPILOT_SESSION_HOOK_EVENT_MAP = [{ hookKey: 'sessionStart' as const }] satisfies {
+  hookKey: CopilotHookEvent;
+}[];
+
 const DROID_HOOK_EVENT_MAP = [
   { hookKey: 'Notification', eventType: 'notification' },
   { hookKey: 'Stop', eventType: 'stop' },
-] satisfies { hookKey: DroidHookEvent; eventType: 'notification' | 'stop' }[];
+  { hookKey: 'SessionStart', eventType: 'session' },
+] satisfies { hookKey: DroidHookEvent; eventType: 'notification' | 'stop' | 'session' }[];
+
+const DEVIN_HOOK_EVENT_MAP = [
+  { hookKey: 'Stop', eventType: 'stop' },
+  { hookKey: 'SessionEnd', eventType: 'stop' },
+] satisfies { hookKey: DevinHookEvent; eventType: 'stop' }[];
 
 const LEGACY_CODEX_NOTIFY_COMMAND = [
   'bash',
@@ -111,10 +151,154 @@ export class HookConfigWriter {
       );
     }
 
+    for (const { hookKey } of CODEX_SESSION_HOOK_EVENT_MAP) {
+      const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
+      hooks[hookKey] = this.buildHookEntries(
+        existing,
+        makeCodexSessionStartHookCommand({ platform: this.platform })
+      );
+    }
+
     await this.userFs.write(CODEX_HOOKS_PATH, JSON.stringify({ ...config, hooks }, null, 2) + '\n');
     await this.removeLegacyCodexNotify().catch((err: Error) => {
       log.warn('CodexHooks: failed to remove legacy notify entry', { error: String(err) });
     });
+    return true;
+  }
+
+  async writeCopilotHooks(): Promise<boolean> {
+    if (!(await resolveCommandPath('copilot', this.exec))) return false;
+
+    const config: Record<string, unknown> = (await this.fs.exists(COPILOT_HOOKS_PATH))
+      ? await this.fs
+          .read(COPILOT_HOOKS_PATH)
+          .then((r) => JSON.parse(r.content) ?? {})
+          .catch(() => ({}))
+      : {};
+
+    const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
+
+    const existingNotification = Array.isArray(hooks.notification) ? hooks.notification : [];
+    hooks.notification = existingNotification.filter(
+      (entry) => !JSON.stringify(entry).includes(EMDASH_MARKER)
+    );
+
+    for (const { hookKey, eventType } of COPILOT_HOOK_EVENT_MAP) {
+      const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
+      hooks[hookKey] = this.buildCopilotHookEntries(
+        existing,
+        makeClaudeHookCommand(eventType, { platform: this.platform })
+      );
+    }
+
+    for (const { hookKey } of COPILOT_SESSION_HOOK_EVENT_MAP) {
+      const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
+      hooks[hookKey] = this.buildCopilotHookEntries(
+        existing,
+        makeClaudeHookCommand('session', { platform: this.platform })
+      );
+    }
+
+    const existingPermissionRequest = Array.isArray(hooks.permissionRequest)
+      ? hooks.permissionRequest
+      : [];
+    hooks.permissionRequest = this.buildCopilotHookEntries(
+      existingPermissionRequest,
+      makeCodexHookCommand('permission_prompt', { platform: this.platform })
+    );
+
+    await this.fs.write(
+      COPILOT_HOOKS_PATH,
+      JSON.stringify({ ...config, version: 1, hooks }, null, 2) + '\n'
+    );
+    return true;
+  }
+
+  async writeGrokHooks(): Promise<boolean> {
+    if (!(await resolveCommandPath('grok', this.exec))) return false;
+
+    const config: Record<string, unknown> = (await this.userFs.exists(GROK_HOOKS_PATH))
+      ? await this.userFs
+          .read(GROK_HOOKS_PATH)
+          .then((r) => JSON.parse(r.content) ?? {})
+          .catch(() => ({}))
+      : {};
+
+    const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
+    const hookEntries = [
+      {
+        hookKey: 'SessionStart',
+        command: makeGrokSessionStartHookCommand({ platform: this.platform }),
+      },
+      {
+        hookKey: 'UserPromptSubmit',
+        command: makeClaudeHookCommand('start', { platform: this.platform }),
+      },
+      {
+        hookKey: 'PreToolUse',
+        command: makeClaudeHookCommand('start', { platform: this.platform }),
+      },
+      {
+        hookKey: 'PostToolUse',
+        command: makeClaudeHookCommand('start', { platform: this.platform }),
+      },
+      {
+        hookKey: 'PostToolUseFailure',
+        command: makeClaudeHookCommand('start', { platform: this.platform }),
+      },
+      {
+        hookKey: 'Notification',
+        command: makeClaudeHookCommand('notification', { platform: this.platform }),
+      },
+      { hookKey: 'Stop', command: makeClaudeHookCommand('stop', { platform: this.platform }) },
+      {
+        hookKey: 'StopFailure',
+        command: makeClaudeHookCommand('stop', { platform: this.platform }),
+      },
+      {
+        hookKey: 'SessionEnd',
+        command: makeClaudeHookCommand('stop', { platform: this.platform }),
+      },
+    ] satisfies { hookKey: GrokHookEvent; command: string }[];
+
+    for (const { hookKey, command } of hookEntries) {
+      const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
+      hooks[hookKey] = this.buildHookEntries(existing, command);
+    }
+
+    await this.userFs.write(GROK_HOOKS_PATH, JSON.stringify({ ...config, hooks }, null, 2) + '\n');
+    return true;
+  }
+
+  async writeQwenHooks(): Promise<boolean> {
+    if (!(await resolveCommandPath('qwen', this.exec))) return false;
+
+    const config: Record<string, unknown> = (await this.fs.exists(QWEN_SETTINGS_PATH))
+      ? await this.fs
+          .read(QWEN_SETTINGS_PATH)
+          .then((r) => JSON.parse(r.content) ?? {})
+          .catch(() => ({}))
+      : {};
+
+    const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
+    const hookEntries = [
+      {
+        hookKey: 'PermissionRequest',
+        command: makeClaudeHookCommand('notification', { platform: this.platform }),
+      },
+      { hookKey: 'Stop', command: makeClaudeHookCommand('stop', { platform: this.platform }) },
+      {
+        hookKey: 'SessionEnd',
+        command: makeClaudeHookCommand('stop', { platform: this.platform }),
+      },
+    ] satisfies { hookKey: QwenHookEvent; command: string }[];
+
+    for (const { hookKey, command } of hookEntries) {
+      const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
+      hooks[hookKey] = this.buildHookEntries(existing, command);
+    }
+
+    await this.fs.write(QWEN_SETTINGS_PATH, JSON.stringify({ ...config, hooks }, null, 2) + '\n');
     return true;
   }
 
@@ -139,6 +323,36 @@ export class HookConfigWriter {
     }
 
     await this.fs.write(DROID_SETTINGS_PATH, JSON.stringify({ ...config, hooks }, null, 2) + '\n');
+    return true;
+  }
+
+  async writeDevinHooks(): Promise<boolean> {
+    if (!(await resolveCommandPath('devin', this.exec))) return false;
+
+    const hooks: Record<string, unknown[]> = (await this.fs.exists(DEVIN_HOOKS_PATH))
+      ? await this.fs
+          .read(DEVIN_HOOKS_PATH)
+          .then((r) => JSON.parse(r.content) ?? {})
+          .catch(() => ({}))
+      : {};
+
+    for (const { hookKey, eventType } of DEVIN_HOOK_EVENT_MAP) {
+      const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
+      hooks[hookKey] = this.buildHookEntries(
+        existing,
+        makeClaudeHookCommand(eventType, { platform: this.platform })
+      );
+    }
+
+    const existingPermissionRequest = Array.isArray(hooks.PermissionRequest)
+      ? hooks.PermissionRequest
+      : [];
+    hooks.PermissionRequest = this.buildHookEntries(
+      existingPermissionRequest,
+      makeCodexHookCommand('permission_prompt', { platform: this.platform })
+    );
+
+    await this.fs.write(DEVIN_HOOKS_PATH, JSON.stringify(hooks, null, 2) + '\n');
     return true;
   }
 
@@ -169,6 +383,20 @@ export class HookConfigWriter {
     return true;
   }
 
+  async writeAmpPlugin(): Promise<boolean> {
+    if (!(await resolveCommandPath('amp', this.exec))) return false;
+
+    const pluginContent = makeAmpPluginContent();
+    const existing = await this.fs
+      .read(AMP_PLUGIN_PATH)
+      .then((r) => r.content)
+      .catch(() => undefined);
+    if (existing === pluginContent) return true;
+
+    await this.fs.write(AMP_PLUGIN_PATH, pluginContent);
+    return true;
+  }
+
   async writeForProvider(
     providerId: AgentProviderId,
     options: HookConfigWriteOptions = {}
@@ -187,10 +415,38 @@ export class HookConfigWriter {
       return this.writeCodexHooks();
     }
 
+    if (providerId === 'grok') {
+      return this.writeGrokHooks();
+    }
+
+    if (providerId === 'copilot') {
+      const wroteConfig = await this.writeCopilotHooks();
+      if (wroteConfig && writeGitIgnoreEntries) {
+        await this.ensureGitIgnoreEntries([COPILOT_HOOKS_PATH]);
+      }
+      return wroteConfig;
+    }
+
+    if (providerId === 'qwen') {
+      const wroteConfig = await this.writeQwenHooks();
+      if (wroteConfig && writeGitIgnoreEntries) {
+        await this.ensureGitIgnoreEntries([QWEN_SETTINGS_PATH]);
+      }
+      return wroteConfig;
+    }
+
     if (providerId === 'droid') {
       const wroteConfig = await this.writeDroidHooks();
       if (wroteConfig && writeGitIgnoreEntries) {
         await this.ensureGitIgnoreEntries([DROID_SETTINGS_PATH]);
+      }
+      return wroteConfig;
+    }
+
+    if (providerId === 'devin') {
+      const wroteConfig = await this.writeDevinHooks();
+      if (wroteConfig && writeGitIgnoreEntries) {
+        await this.ensureGitIgnoreEntries([DEVIN_HOOKS_PATH]);
       }
       return wroteConfig;
     }
@@ -211,12 +467,33 @@ export class HookConfigWriter {
       return wroteConfig;
     }
 
+    if (providerId === 'amp') {
+      const wroteConfig = await this.writeAmpPlugin();
+      if (wroteConfig && writeGitIgnoreEntries) {
+        await this.ensureGitIgnoreEntries([AMP_PLUGIN_PATH]);
+      }
+      return wroteConfig;
+    }
+
     return false;
   }
 
   async writeAll(options: HookConfigWriteOptions = {}): Promise<void> {
     await Promise.all(
-      (['claude', 'codex', 'droid', 'pi', 'opencode'] as const).map((providerId) =>
+      (
+        [
+          'claude',
+          'codex',
+          'grok',
+          'copilot',
+          'qwen',
+          'devin',
+          'droid',
+          'pi',
+          'opencode',
+          'amp',
+        ] as const
+      ).map((providerId) =>
         this.writeForProvider(providerId, options).catch((err: Error) => {
           log.warn(`Failed to write ${providerId} hook config`, { error: String(err) });
         })
@@ -227,6 +504,11 @@ export class HookConfigWriter {
   private buildHookEntries(existing: unknown[], command: string): unknown[] {
     const userEntries = existing.filter((entry) => !JSON.stringify(entry).includes(EMDASH_MARKER));
     return [...userEntries, { hooks: [{ type: 'command', command }] }];
+  }
+
+  private buildCopilotHookEntries(existing: unknown[], command: string): unknown[] {
+    const userEntries = existing.filter((entry) => !JSON.stringify(entry).includes(EMDASH_MARKER));
+    return [...userEntries, { type: 'command', command }];
   }
 
   private async removeLegacyCodexNotify(): Promise<void> {

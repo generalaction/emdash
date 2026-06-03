@@ -30,6 +30,15 @@ export const APP_COMMAND_DEFS = defineCommandDefs([
     iconKey: 'settings',
   },
   {
+    id: 'app.library',
+    label: 'Open Library',
+    description: 'Open the Library',
+    scope: 'app',
+    shortcutKey: 'library',
+    group: 'App',
+    iconKey: 'library',
+  },
+  {
     id: 'app.newProject',
     label: 'New Project',
     description: 'Add a new local or SSH project',
@@ -92,6 +101,15 @@ export const TASK_COMMAND_DEFS = defineCommandDefs([
     shortcutKey: 'newConversation',
     group: 'Conversations',
     iconKey: 'message-square-plus',
+  },
+  {
+    id: 'task.newConversationSplitRight',
+    label: 'New Conversation in Right Split',
+    description: 'Create a new conversation in a split pane to the right',
+    scope: 'task',
+    shortcutKey: 'newConversationSplitRight',
+    group: 'Conversations',
+    iconKey: 'columns-2',
   },
   {
     id: 'task.sidebarChanges',
@@ -186,6 +204,14 @@ export const TASK_COMMAND_DEFS = defineCommandDefs([
     scope: 'task',
     group: 'Task',
     iconKey: 'pin',
+  },
+  {
+    id: 'task.convertAutomation',
+    label: 'Convert to Regular Task',
+    description: 'Detach this task from its automation run',
+    scope: 'task',
+    group: 'Task',
+    iconKey: 'message-square',
   },
   {
     id: 'task.nextTask',

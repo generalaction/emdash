@@ -1,7 +1,7 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useRef } from 'react';
-import { type GitChange } from '@shared/git';
 import { cn } from '@renderer/utils/utils';
+import { type GitChange } from '@shared/git';
 import { ChangesListItem } from './changes-list-item';
 
 export interface VirtualizedChangesListProps {
@@ -28,7 +28,6 @@ export function VirtualizedChangesList({
   className,
 }: VirtualizedChangesListProps) {
   const parentRef = useRef<HTMLDivElement>(null);
-  // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: changes.length,
     gap: 2,

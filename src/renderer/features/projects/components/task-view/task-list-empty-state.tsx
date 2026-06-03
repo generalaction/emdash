@@ -1,10 +1,11 @@
 import { CircleDot, GitBranch, GitPullRequest, type LucideIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useIntegrationsContext } from '@renderer/features/integrations/integrations-provider';
+import { useConnectedIssueProviders } from '@renderer/features/integrations/use-connected-issue-providers';
 import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { useArrowKeyNavigation } from '@renderer/lib/hooks/use-arrow-key-navigation';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { ActionListItem } from '@renderer/lib/ui/action-list-item';
+import { isGitHubDotComHost } from '@shared/repository-ref';
 
 type TaskStrategy = 'from-branch' | 'from-issue' | 'from-pull-request';
 
@@ -23,9 +24,15 @@ export const TaskListEmptyState = observer(function TaskListEmptyState({
   projectId: string;
 }) {
   const showTaskModal = useShowModal('taskModal');
-  const { connectionStatus } = useIntegrationsContext();
-  const repositoryUrl = getRepositoryStore(projectId)?.repositoryUrl ?? null;
-  const hasAnyIntegration = Object.values(connectionStatus).some((s) => s.connected);
+  const { hasAnyIssueIntegration } = useConnectedIssueProviders();
+  const repositoryStore = getRepositoryStore(projectId);
+  const supportsPullRequests = Boolean(repositoryStore?.pullRequestRepositoryUrl);
+  const supportsGhesIssues = Boolean(
+    repositoryStore?.issueRepositoryUrl &&
+    repositoryStore.providerRepository?.host &&
+    !isGitHubDotComHost(repositoryStore.providerRepository.host)
+  );
+  const hasAnyIntegration = supportsGhesIssues || hasAnyIssueIntegration;
 
   const actions: TaskAction[] = [
     {
@@ -48,7 +55,7 @@ export const TaskListEmptyState = observer(function TaskListEmptyState({
       description: 'Create a task from a pull request',
       icon: GitPullRequest,
       strategy: 'from-pull-request',
-      disabled: !repositoryUrl,
+      disabled: !supportsPullRequests,
       disabledReason: 'No remote repository connected',
     },
   ];
@@ -59,8 +66,8 @@ export const TaskListEmptyState = observer(function TaskListEmptyState({
   });
 
   return (
-    <div className="flex h-full flex-col items-center justify-center p-8 bg-background">
-      <div className="flex flex-col w-full max-w-sm gap-1">
+    <div className="flex h-full flex-col items-center justify-center bg-background p-8">
+      <div className="flex w-full max-w-sm flex-col gap-1">
         {actions.map((action, i) => (
           <ActionListItem
             key={action.strategy}

@@ -1,11 +1,13 @@
 import { Loader2, TriangleAlert, Unplug } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { useConfirmDeleteProject } from '@renderer/features/projects/hooks/use-confirm-delete-project';
 import { useParams } from '@renderer/lib/layout/navigation-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 import { isUnregisteredProject } from '../../stores/project';
 import {
   getProjectManagerStore,
   getProjectStore,
+  projectDisplayName,
   projectViewKind,
   unmountedMountErrorMessage,
 } from '../../stores/project-selectors';
@@ -18,6 +20,7 @@ export const ProjectMainPanel = observer(function ProjectMainPanel() {
   } = useParams('project');
   const store = getProjectStore(projectId);
   const kind = projectViewKind(store);
+  const displayName = projectDisplayName(store) ?? 'this project';
 
   if (kind === 'creating' && store && isUnregisteredProject(store)) {
     return <PendingProjectStatus project={store} />;
@@ -28,7 +31,13 @@ export const ProjectMainPanel = observer(function ProjectMainPanel() {
   }
 
   if (kind === 'path_not_found') {
-    return <ProjectPathNotFoundPanel path={store?.error ?? ''} projectId={projectId} />;
+    return (
+      <ProjectPathNotFoundPanel
+        path={store?.error ?? ''}
+        projectId={projectId}
+        title={displayName}
+      />
+    );
   }
 
   if (kind === 'ssh_disconnected') {
@@ -51,7 +60,7 @@ function ProjectBootstrappingPanel() {
   return (
     <div className="flex h-full w-full flex-col items-center justify-center gap-3">
       <Loader2 className="h-5 w-5 animate-spin text-foreground-passive" />
-      <p className="text-xs font-mono text-foreground-passive">Setting up project…</p>
+      <p className="font-mono text-xs text-foreground-passive">Setting up project…</p>
     </div>
   );
 }
@@ -59,11 +68,11 @@ function ProjectBootstrappingPanel() {
 function ProjectBootstrapErrorPanel({ message }: { message: string }) {
   return (
     <div className="flex h-full w-full flex-col items-center justify-center p-8">
-      <div className="flex max-w-xs flex-col items-center text-center gap-2">
-        <p className="text-sm font-medium font-mono text-foreground-destructive">
+      <div className="flex max-w-xs flex-col items-center gap-2 text-center">
+        <p className="font-mono text-sm font-medium text-foreground-destructive">
           Failed to set up project
         </p>
-        <p className="text-xs font-mono text-foreground-passive">{message}</p>
+        <p className="font-mono text-xs text-foreground-passive">{message}</p>
       </div>
     </div>
   );
@@ -85,15 +94,15 @@ function ProjectSshDisconnectedPanel({
 
   return (
     <div className="flex h-full w-full flex-col items-center justify-center p-8">
-      <div className="flex max-w-sm flex-col items-center text-center gap-3">
+      <div className="flex max-w-sm flex-col items-center gap-3 text-center">
         <Unplug className="h-6 w-6 text-foreground-passive" />
-        <p className="text-sm font-medium font-mono text-foreground">SSH not connected</p>
+        <p className="font-mono text-sm font-medium text-foreground">SSH not connected</p>
         <p className="text-xs text-foreground-passive">
           The SSH connection for this project is unavailable.
         </p>
         <button
           type="button"
-          className="mt-2 text-xs text-foreground underline underline-offset-2 hover:text-foreground/80 transition-colors"
+          className="mt-2 text-xs text-foreground underline underline-offset-2 transition-colors hover:text-foreground/80"
           onClick={handleReconnect}
         >
           Reconnect
@@ -103,22 +112,34 @@ function ProjectSshDisconnectedPanel({
   );
 }
 
-function ProjectPathNotFoundPanel({ path, projectId }: { path: string; projectId: string }) {
+function ProjectPathNotFoundPanel({
+  path,
+  projectId,
+  title,
+}: {
+  path: string;
+  projectId: string;
+  title: string;
+}) {
+  const confirmDeleteProject = useConfirmDeleteProject();
+
   return (
     <div className="flex h-full w-full flex-col items-center justify-center p-8">
-      <div className="flex max-w-sm flex-col items-center text-center gap-3">
+      <div className="flex max-w-sm flex-col items-center gap-3 text-center">
         <TriangleAlert className="h-6 w-6 text-foreground-destructive" />
-        <p className="text-sm font-medium font-mono text-foreground-destructive">
+        <p className="font-mono text-sm font-medium text-foreground-destructive">
           Project not found
         </p>
-        {path && <p className="text-xs font-mono text-foreground-passive break-all">{path}</p>}
+        {path && <p className="font-mono text-xs break-all text-foreground-passive">{path}</p>}
         <p className="text-xs text-foreground-passive">
           The project directory no longer exists at the configured path.
         </p>
         <button
           type="button"
-          className="mt-2 text-xs text-foreground-destructive underline underline-offset-2 hover:text-foreground-destructive/80 transition-colors"
-          onClick={() => void getProjectManagerStore().deleteProject(projectId)}
+          className="mt-2 text-xs text-foreground-destructive underline underline-offset-2 transition-colors hover:text-foreground-destructive/80"
+          onClick={() => {
+            void confirmDeleteProject({ projectId, projectLabel: title });
+          }}
         >
           Remove Project
         </button>

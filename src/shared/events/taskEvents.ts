@@ -1,5 +1,8 @@
 import { defineEvent } from '@shared/ipc/events';
 import type { PullRequest } from '@shared/pull-requests';
+import type { Task } from '@shared/tasks';
+
+export const taskCreatedChannel = defineEvent<{ task: Task }>('task:created');
 
 export const taskStatusUpdatedChannel = defineEvent<{
   taskId: string;
@@ -28,3 +31,37 @@ export const taskProvisionProgressChannel = defineEvent<{
   step: ProvisionStep;
   message: string;
 }>('task:provision-progress');
+
+export type LifecycleScriptType = 'setup' | 'run' | 'teardown';
+export type LifecycleScriptOrigin = 'auto-setup' | 'manual' | 'workspace-destroy';
+
+export type LifecycleScriptStatusEvent = {
+  taskId: string;
+  projectId: string;
+  workspaceId: string;
+  type: LifecycleScriptType;
+  origin: LifecycleScriptOrigin;
+} & (
+  | { status: 'running' }
+  | { status: 'succeeded'; exitCode?: number }
+  | {
+      status: 'failed';
+      message: string;
+      surfaceFailure: boolean;
+      exitCode?: number;
+      signal?: string | number;
+    }
+  | { status: 'stopped'; message?: string }
+);
+
+export const lifecycleScriptStatusChannel = defineEvent<LifecycleScriptStatusEvent>(
+  'task:lifecycle-script-status'
+);
+
+export const taskProvisionedChannel = defineEvent<{
+  taskId: string;
+  projectId: string;
+  path: string;
+  workspaceId: string;
+  sshConnectionId?: string;
+}>('task:provisioned');

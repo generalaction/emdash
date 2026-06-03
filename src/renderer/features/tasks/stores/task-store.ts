@@ -1,4 +1,8 @@
 import { makeAutoObservable, observable, runInAction } from 'mobx';
+import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
+import { DraftCommentsStore } from '@renderer/features/tasks/diff-view/stores/draft-comments-store';
+import { rpc } from '@renderer/lib/ipc';
+import { log } from '@renderer/utils/logger';
 import { err, type Result } from '@shared/result';
 import type {
   Issue,
@@ -7,10 +11,6 @@ import type {
   Task,
   TaskLifecycleStatus,
 } from '@shared/tasks';
-import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
-import { DraftCommentsStore } from '@renderer/features/tasks/diff-view/stores/draft-comments-store';
-import { rpc } from '@renderer/lib/ipc';
-import { log } from '@renderer/utils/logger';
 import { conversationRegistry } from './conversation-registry';
 import { workspaceRegistry } from './workspace-registry';
 import { WorkspaceViewModel } from './workspace-view-model';
@@ -32,6 +32,7 @@ export type UnregisteredTaskData = {
   createdAt: string;
   statusChangedAt: string;
   isPinned: boolean;
+  automationId?: string;
 };
 
 export class TaskStore {
@@ -190,7 +191,10 @@ export class TaskStore {
         return result;
       }
       runInAction(() => {
-        this.data.name = name;
+        const current = registeredTaskData(this);
+        if (current) {
+          current.name = name;
+        }
       });
       return result;
     } catch (e) {
@@ -232,6 +236,31 @@ export class TaskStore {
     } catch (e) {
       runInAction(() => {
         task.isPinned = previous;
+      });
+      log.error(e);
+      throw e;
+    }
+  }
+
+  async convertAutomationTask(): Promise<void> {
+    if (this.state === 'unregistered') return;
+    const task = registeredTaskData(this);
+    if (!task?.automationId) return;
+    const previousAutomationId = task.automationId;
+    runInAction(() => {
+      delete task.automationId;
+    });
+    try {
+      const updatedTask = await rpc.tasks.convertAutomationTask(task.id);
+      if (!updatedTask) {
+        throw new Error(`Task not found: ${task.id}`);
+      }
+      runInAction(() => {
+        this.data = updatedTask;
+      });
+    } catch (e) {
+      runInAction(() => {
+        task.automationId = previousAutomationId;
       });
       log.error(e);
       throw e;

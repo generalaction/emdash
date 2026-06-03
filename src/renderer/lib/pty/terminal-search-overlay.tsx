@@ -36,7 +36,7 @@ export function TerminalSearchOverlay({
       )}
     >
       <div className="relative min-w-0 flex-1">
-        <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-foreground-muted" />
+        <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-foreground-muted" />
         <Input
           ref={searchInputRef}
           value={searchQuery}
@@ -54,7 +54,7 @@ export function TerminalSearchOverlay({
             }
           }}
           placeholder="Find in terminal..."
-          className="h-8 min-w-0 border-0 bg-transparent pl-8 pr-2 text-xs shadow-none focus-visible:ring-0"
+          className="h-8 min-w-0 border-0 bg-transparent pr-2 pl-8 text-xs shadow-none focus-visible:ring-0"
           aria-label="Find in terminal"
         />
       </div>

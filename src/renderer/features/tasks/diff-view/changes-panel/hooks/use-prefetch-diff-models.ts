@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { HEAD_REF, STAGED_REF, type GitRef } from '@shared/git';
 import { isBinaryForDiff } from '@renderer/lib/editor/fileKind';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import { getLanguageFromPath } from '@renderer/utils/languageUtils';
+import { HEAD_REF, STAGED_REF, type GitRef } from '@shared/git';
 
 interface PrefetchEntry {
   diskUri?: string;
@@ -15,7 +15,7 @@ interface PrefetchEntry {
  * clicks to open a diff the models are already loaded. Models are unregistered on unmount.
  * TTL eviction (60 s after last subscriber leaves) handles any remaining cleanup.
  *
- * Pass `modifiedRef` for the 'pr' group to pre-warm the PR head SHA instead of HEAD.
+ * Pass `modifiedRef` for 'git'/'pr' groups to pre-warm a fixed modified-side ref instead of HEAD.
  */
 export function usePrefetchDiffModels(
   projectId: string,
@@ -66,7 +66,8 @@ export function usePrefetchDiffModels(
           modelRegistry.toGitUri(uri, STAGED_REF),
         ];
       } else {
-        const effectiveModifiedRef = group === 'pr' && modifiedRef ? modifiedRef : HEAD_REF;
+        const effectiveModifiedRef =
+          (group === 'git' || group === 'pr') && modifiedRef ? modifiedRef : HEAD_REF;
         void modelRegistry
           .registerModel(projectId, workspaceId, root, filePath, language, 'git', originalRef)
           .catch(() => {});

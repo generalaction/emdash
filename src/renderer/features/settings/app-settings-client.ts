@@ -1,6 +1,6 @@
-import type { AppSettings, AppSettingsKey } from '@shared/app-settings';
 import { rpc } from '@renderer/lib/ipc';
 import { queryClient } from '@renderer/lib/query-client';
+import type { AppSettings, AppSettingsKey } from '@shared/app-settings';
 
 export const APP_SETTINGS_STALE_TIME_MS = 5 * 60_000;
 
@@ -13,6 +13,9 @@ export type SettingsMeta<K extends AppSettingsKey> = {
 export function appSettingsMetaQueryKey<K extends AppSettingsKey>(key: K) {
   return ['appSettings', key, 'meta'] as const;
 }
+
+const appSettingsGcTime = <K extends AppSettingsKey>(key: K) =>
+  key === 'interface' ? Infinity : undefined;
 
 const appSettingsAllQueryKey = ['appSettings', 'all'] as const;
 
@@ -43,6 +46,16 @@ export function fetchAppSettingsMeta<K extends AppSettingsKey>(key: K): Promise<
     queryKey: appSettingsMetaQueryKey(key),
     queryFn: () => requestAppSettingsMeta(key),
     staleTime: APP_SETTINGS_STALE_TIME_MS,
+    gcTime: appSettingsGcTime(key),
+  });
+}
+
+export function prefetchAppSettingsKey<K extends AppSettingsKey>(key: K) {
+  return queryClient.prefetchQuery({
+    queryKey: appSettingsMetaQueryKey(key),
+    queryFn: () => requestAppSettingsMeta(key),
+    staleTime: APP_SETTINGS_STALE_TIME_MS,
+    gcTime: appSettingsGcTime(key),
   });
 }
 
@@ -62,6 +75,13 @@ export function getAppSettingsMetaFromCache<K extends AppSettingsKey>(
   key: K
 ): SettingsMeta<K> | undefined {
   return queryClient.getQueryData<SettingsMeta<K>>(appSettingsMetaQueryKey(key));
+}
+
+/** Synchronous read of the cached settings value. Returns undefined if not yet fetched. */
+export function getAppSettingValueSnapshot<K extends AppSettingsKey>(
+  key: K
+): AppSettings[K] | undefined {
+  return getAppSettingsMetaFromCache(key)?.value;
 }
 
 export function getAllAppSettingsFromCache(): AppSettings | undefined {

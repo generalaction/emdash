@@ -1,278 +1,142 @@
 import crypto from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
-import { resolveAgentAutoApprove } from '@shared/agent-auto-approve-defaults';
+import { mapConversationRowToConversation } from '@main/core/conversations/utils';
+import { projectManager } from '@main/core/projects/project-manager';
+import { db } from '@main/db/client';
+import { conversations, projects, tasks, workspaces } from '@main/db/schema';
+import type { ConversationRow, TaskRow } from '@main/db/schema';
+import { events } from '@main/lib/events';
+import { type ConversationConfig, serializeConversationConfig } from '@shared/conversation-config';
+import type { Conversation } from '@shared/conversations';
+import { conversationCreatedChannel } from '@shared/events/conversationEvents';
 import { err, ok, type Result } from '@shared/result';
 import type {
   CreateTaskError,
   CreateTaskParams,
   CreateTaskSuccess,
-  CreateTaskWarning,
   TaskLifecycleStatus,
 } from '@shared/tasks';
-import { projectManager } from '@main/core/projects/project-manager';
-import { taskEvents } from '@main/core/tasks/task-events';
-import { taskManager } from '@main/core/tasks/task-manager';
-import { db } from '@main/db/client';
-import { tasks, workspaces } from '@main/db/schema';
-import { telemetryService } from '@main/lib/telemetry';
-import { createConversation } from '../../conversations/createConversation';
-import { prQueryService } from '../../pull-requests/pr-query-service';
-import { appSettingsService } from '../../settings/settings-service';
-import type { ProvisionTaskError } from '../provision-task-error';
-import { resolveTaskBranchName } from '../resolveTaskBranchName';
-import { toStoredBranch } from '../stored-branch';
+import { serializeWorkspaceConfig } from '@shared/workspace-config';
 import { mapTaskRowToTask } from '../utils/utils';
 
-function mapProvisionError(error: ProvisionTaskError): CreateTaskError {
-  switch (error.type) {
-    case 'branch-not-found':
-      return { type: 'branch-not-found', branch: error.branch };
-    case 'worktree-setup-failed':
-      return {
-        type: 'worktree-setup-failed',
-        branch: error.branch,
-        message: error.message,
-      };
-    case 'timeout':
-      return { type: 'provision-timeout', timeoutMs: error.timeout, step: error.step };
-    default:
-      return { type: 'provision-failed', message: error.message };
-  }
-}
+type ConvInsert = typeof conversations.$inferInsert;
 
 export async function createTask(
   params: CreateTaskParams
 ): Promise<Result<CreateTaskSuccess, CreateTaskError>> {
-  const { strategy } = params;
-  const suffix = Math.random().toString(36).slice(2, 7);
-  const agentAutoApproveDefaults = await appSettingsService.get('agentAutoApproveDefaults');
-  let warning: CreateTaskWarning | undefined;
-
-  const project = projectManager.getProject(params.projectId);
-  if (!project) {
+  if (!projectManager.getProject(params.projectId)) {
     return err({ type: 'project-not-found' });
   }
-  const projectDefaults = await appSettingsService.get('project');
-  const branchPrefix = projectDefaults.branchPrefix ?? '';
-  const appendRandomSuffix = projectDefaults.appendRandomBranchSuffix ?? true;
-  const { baseRemote, pushRemote } = await project.repository.getConfiguredRemotes();
 
-  // Determines what gets stored as taskBranch in the DB and how the worktree is prepared.
-  let taskBranch: string | undefined;
-  // sourceBranch stored in the DB — defaults to params.sourceBranch but overridden for PRs.
-  let dbSourceBranch = params.sourceBranch;
-
-  switch (strategy.kind) {
-    case 'new-branch': {
-      const rawBranch = strategy.taskBranch;
-      taskBranch = resolveTaskBranchName({
-        rawBranch,
-        branchPrefix,
-        suffix,
-        appendRandomSuffix,
-        linkedIssue: params.linkedIssue,
-      });
-      const repoInfo = await project.repository.getRepositoryInfo();
-      if (repoInfo.isUnborn) {
-        return err({
-          type: 'initial-commit-required',
-          branch: repoInfo.currentBranch ?? params.sourceBranch.branch,
-        });
-      }
-      const createResult = await project.repository.createBranch(
-        taskBranch,
-        params.sourceBranch.branch,
-        params.sourceBranch.type === 'remote',
-        params.sourceBranch.type === 'remote' ? params.sourceBranch.remote.name : undefined
-      );
-      if (!createResult.success) {
-        return err({ type: 'branch-create-failed', branch: taskBranch, error: createResult.error });
-      }
-      if (strategy.pushBranch) {
-        const publishResult = await project.repository.publishBranch(taskBranch, pushRemote);
-        if (!publishResult.success) {
-          warning = {
-            type: 'branch-publish-failed',
-            branch: taskBranch,
-            remote: pushRemote,
-            error: publishResult.error,
-          };
-        }
-      }
-      break;
-    }
-
-    case 'checkout-existing': {
-      // taskBranch === sourceBranch tells the provider to use checkoutExistingBranch.
-      taskBranch = params.sourceBranch.branch;
-      break;
-    }
-
-    case 'from-pull-request': {
-      // If the head branch is already checked out in a valid worktree, skip the fetch.
-      // Git refuses to update a branch that is currently checked out, even with --force.
-      const existingWorktree = await project.worktreeService.findBranchAnywhere(
-        strategy.headBranch
-      );
-
-      if (!existingWorktree) {
-        // Fetch the PR head — handles same-repo and fork PRs.
-        // Uses headRefName directly as the local branch name (same as `gh pr checkout`).
-        const fetchResult = await project.repository.fetchPrForReview(
-          strategy.prNumber,
-          strategy.headBranch,
-          strategy.headRepositoryUrl,
-          strategy.headBranch,
-          strategy.isFork,
-          baseRemote
-        );
-        if (!fetchResult.success) {
-          return err({
-            type: 'pr-fetch-failed',
-            error: fetchResult.error,
-            remote: baseRemote,
-          });
-        }
-      }
-
-      dbSourceBranch = { type: 'local', branch: strategy.headBranch };
-
-      if (strategy.taskBranch) {
-        // Create a new task branch on top of the just-fetched local head branch.
-        const rawBranch = strategy.taskBranch;
-        taskBranch = resolveTaskBranchName({
-          rawBranch,
-          branchPrefix,
-          suffix,
-          appendRandomSuffix,
-        });
-        const createResult = await project.repository.createBranch(
-          taskBranch,
-          strategy.headBranch,
-          false
-        );
-        if (!createResult.success) {
-          return err({
-            type: 'branch-create-failed',
-            branch: taskBranch,
-            error: createResult.error,
-          });
-        }
-        if (strategy.pushBranch) {
-          const publishResult = await project.repository.publishBranch(taskBranch, pushRemote);
-          if (!publishResult.success) {
-            warning = {
-              type: 'branch-publish-failed',
-              branch: taskBranch,
-              remote: pushRemote,
-              error: publishResult.error,
-            };
-          }
-        }
-      } else {
-        // Check out the PR head branch directly — taskBranch === sourceBranch signals
-        // the provider to use checkoutExistingBranch (local branch now exists from fetchPrForReview).
-        taskBranch = strategy.headBranch;
-      }
-      break;
-    }
-
-    case 'no-worktree': {
-      // taskBranch remains undefined → provider uses the project root directory.
-      break;
-    }
-  }
-
+  const { workspaceConfig } = params;
   const initialStatus: TaskLifecycleStatus = params.initialStatus ?? 'in_progress';
+  const configJson = serializeWorkspaceConfig(workspaceConfig);
 
-  const [taskRow] = await db
-    .insert(tasks)
-    .values({
-      id: params.id,
-      projectId: params.projectId,
-      name: params.name,
-      taskBranch,
-      status: initialStatus,
-      sourceBranch: toStoredBranch(dbSourceBranch),
-      linkedIssue: params.linkedIssue ? JSON.stringify(params.linkedIssue) : null,
-      workspaceProvider: params.workspaceProvider ?? null,
-      updatedAt: sql`CURRENT_TIMESTAMP`,
-      statusChangedAt: sql`CURRENT_TIMESTAMP`,
-      lastInteractedAt: sql`CURRENT_TIMESTAMP`,
-    })
-    .returning();
+  // Resolve the workspace ID and determine whether to insert a new workspace row.
+  let workspaceId: string;
+  let newWorkspaceValues: typeof workspaces.$inferInsert | null = null;
 
-  let prs: Awaited<ReturnType<typeof prQueryService.getTaskPullRequests>> = [];
-  if (strategy.kind === 'from-pull-request') {
-    const capability = await prQueryService.getProjectRemoteInfo(params.projectId);
-    if (capability.status === 'ready') {
-      prs = await prQueryService.getTaskPullRequests(
-        params.projectId,
-        strategy.headBranch,
-        capability.repositoryUrl
-      );
+  const wsTarget = workspaceConfig.workspace;
+
+  if (wsTarget.kind === 'repository-instance') {
+    // Reuse the existing shared workspace for this project's repository root.
+    workspaceId = wsTarget.workspaceId;
+  } else {
+    // Create a new workspace row for 'new-worktree' or 'byoi' targets.
+    workspaceId = crypto.randomUUID();
+
+    if (wsTarget.kind === 'byoi') {
+      newWorkspaceValues = {
+        id: workspaceId,
+        kind: 'byoi',
+        location: 'remote',
+        type: 'byoi',
+        config: configJson,
+      };
+    } else {
+      // 'new-worktree' — derive location from the project.
+      const [projectRow] = await db
+        .select({
+          workspaceProvider: projects.workspaceProvider,
+          sshConnectionId: projects.sshConnectionId,
+        })
+        .from(projects)
+        .where(eq(projects.id, params.projectId))
+        .limit(1);
+
+      const isRemote = projectRow?.workspaceProvider === 'ssh';
+      const location = isRemote ? 'remote' : 'local';
+      const sshConnectionId = isRemote ? (projectRow?.sshConnectionId ?? null) : null;
+      const legacyType = isRemote ? 'project-ssh' : 'local';
+
+      newWorkspaceValues = {
+        id: workspaceId,
+        kind: 'worktree',
+        location,
+        sshConnectionId,
+        type: legacyType,
+        config: configJson,
+      };
     }
   }
 
-  const task = mapTaskRowToTask(taskRow, prs);
-
-  taskEvents._emit('task:created', task);
-
-  const workspaceType = ((): 'local' | 'project-ssh' | 'byoi' => {
-    if (params.workspaceProvider === 'byoi') return 'byoi';
-    if (project.defaultWorkspaceType.kind === 'ssh') return 'project-ssh';
-    return 'local';
-  })();
-  const workspaceId = crypto.randomUUID();
-  await db.insert(workspaces).values({ id: workspaceId, type: workspaceType });
-  await db.update(tasks).set({ workspaceId }).where(eq(tasks.id, params.id));
-
-  const provisionResult = await taskManager.provisionTask(project, task, [], [], {
-    id: workspaceId,
-    type: workspaceType,
-  });
-  if (!provisionResult.success) {
-    return err(mapProvisionError(provisionResult.error));
-  }
-  telemetryService.capture('task_provisioned', {
-    project_id: params.projectId,
-    task_id: params.id,
-  });
-
+  // Prepare conversation insert values before the transaction (no async work needed).
+  let convInsert: ConvInsert | undefined;
   if (params.initialConversation) {
-    await createConversation({
-      ...params.initialConversation,
+    const ic = params.initialConversation;
+    const configObj: ConversationConfig = {};
+    if (ic.autoApprove !== undefined) configObj.autoApprove = ic.autoApprove;
+    if (ic.initialPrompt?.trim()) configObj.initialPrompt = ic.initialPrompt.trim();
+    const config =
+      Object.keys(configObj).length > 0 ? serializeConversationConfig(configObj) : undefined;
+    convInsert = {
+      id: ic.id,
+      projectId: ic.projectId,
+      taskId: ic.taskId,
+      title: ic.title,
+      provider: ic.provider,
+      config,
       isInitialConversation: true,
-      autoApprove: resolveAgentAutoApprove(
-        params.initialConversation.autoApprove,
-        agentAutoApproveDefaults,
-        params.initialConversation.provider
-      ),
-    });
+      lastInteractedAt: new Date().toISOString(),
+    };
   }
 
-  const taskCreatedStrategy = (() => {
-    if (strategy.kind === 'from-pull-request') return 'pr';
-    if (params.linkedIssue) return 'issue';
-    if (strategy.kind === 'no-worktree') return 'blank';
-    return 'branch';
-  })();
+  // All inserts in a single atomic transaction.
+  let taskRow!: TaskRow;
+  let convRow: ConversationRow | undefined;
+  db.transaction((tx) => {
+    [taskRow] = tx
+      .insert(tasks)
+      .values({
+        id: params.id,
+        projectId: params.projectId,
+        name: params.name,
+        status: initialStatus,
+        workspaceId,
+        linkedIssue: params.linkedIssue ? JSON.stringify(params.linkedIssue) : null,
+        updatedAt: sql`CURRENT_TIMESTAMP`,
+        statusChangedAt: sql`CURRENT_TIMESTAMP`,
+        lastInteractedAt: sql`CURRENT_TIMESTAMP`,
+      })
+      .returning()
+      .all();
 
-  telemetryService.capture('task_created', {
-    strategy: taskCreatedStrategy,
-    has_initial_prompt: Boolean(params.initialConversation?.initialPrompt?.trim()),
-    has_issue: params.linkedIssue?.provider ?? 'none',
-    provider: params.initialConversation?.provider ?? null,
-    project_id: params.projectId,
-    task_id: params.id,
+    if (newWorkspaceValues) {
+      tx.insert(workspaces).values(newWorkspaceValues).run();
+    }
+
+    if (convInsert) {
+      [convRow] = tx.insert(conversations).values(convInsert).returning().all();
+    }
   });
-  if (params.linkedIssue) {
-    telemetryService.capture('issue_linked_to_task', {
-      provider: params.linkedIssue.provider,
-      project_id: params.projectId,
-      task_id: params.id,
-    });
+
+  // Post-transaction side effects.
+  const task = { ...mapTaskRowToTask(taskRow, []), automationId: params.automationId };
+  let initialConversation: Conversation | undefined;
+  if (convRow) {
+    initialConversation = mapConversationRowToConversation(convRow);
+    events.emit(conversationCreatedChannel, { conversation: initialConversation });
   }
 
-  return ok({ task: { ...task, workspaceId }, warning });
+  return ok({ task: { ...task, workspaceId }, initialConversation });
 }

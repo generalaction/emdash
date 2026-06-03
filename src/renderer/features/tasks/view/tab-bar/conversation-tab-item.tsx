@@ -1,6 +1,16 @@
+import { Pencil } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { useCallback, useRef, useState } from 'react';
 import AgentLogo from '@renderer/lib/components/agent-logo';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from '@renderer/lib/ui/context-menu';
+import { Separator } from '@renderer/lib/ui/separator';
 import { agentConfig } from '@renderer/utils/agentConfig';
+import { MAX_CONVERSATION_TITLE_LENGTH } from '@shared/conversations';
 import { AgentStatusIndicator } from '../../components/agent-status-indicator';
 import { formatConversationTitleForDisplay } from '../../conversations/conversation-title-utils';
 import type { ResolvedConversationTab } from '../../tabs/tab-manager-store';
@@ -13,46 +23,115 @@ export const ConversationTabItem = observer(function ConversationTabItem({
   onSelect,
   onPin,
   onClose,
+  onRenameSubmit,
 }: {
   tab: ResolvedConversationTab;
   onSelect: () => void;
   onPin: () => void;
   onClose: () => void;
+  onRenameSubmit: (newName: string) => void;
 }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const committedRef = useRef(false);
+
   const config = agentConfig[tab.store.data.providerId];
   const title = formatConversationTitleForDisplay(tab.store.data.providerId, tab.store.data.title);
+  const rawTitle = tab.store.data.title ?? '';
+
+  const handleRename = useCallback(() => {
+    committedRef.current = false;
+    window.setTimeout(() => setIsEditing(true), 0);
+  }, []);
+
+  const handleRenameInputRef = useCallback((input: HTMLInputElement | null) => {
+    input?.focus();
+    input?.select();
+  }, []);
+
+  const commitRename = (value: string) => {
+    if (committedRef.current) return;
+    committedRef.current = true;
+    const trimmed = value.trim().slice(0, MAX_CONVERSATION_TITLE_LENGTH);
+    if (trimmed && trimmed !== rawTitle) {
+      onRenameSubmit(trimmed);
+    }
+    setIsEditing(false);
+  };
+
+  if (isEditing) {
+    return (
+      <div className="flex h-full items-center gap-1.5 bg-background-secondary-1 pr-2 pl-3">
+        {config ? (
+          <AgentLogo
+            logo={config.logo}
+            logoDark={config.logoDark}
+            alt={config.alt}
+            isSvg={config.isSvg}
+            invertInDark={config.invertInDark}
+            className="size-4 shrink-0"
+          />
+        ) : null}
+        <input
+          ref={handleRenameInputRef}
+          className="max-w-24 rounded bg-background-1 px-1 py-0.5 text-sm text-foreground ring-1 ring-foreground/20 outline-none focus:ring-foreground/40"
+          defaultValue={rawTitle}
+          maxLength={MAX_CONVERSATION_TITLE_LENGTH}
+          onBlur={(e) => commitRename(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') commitRename(e.currentTarget.value);
+            else if (e.key === 'Escape') {
+              committedRef.current = true;
+              setIsEditing(false);
+            }
+          }}
+        />
+        <Separator orientation="vertical" />
+      </div>
+    );
+  }
 
   return (
-    <TabItemShell
-      tabId={tab.tabId}
-      isActive={tab.isActive}
-      title={tab.isPreview ? `${title} (preview — double-click to keep)` : title}
-      onSelect={onSelect}
-      onPin={onPin}
-      onClose={onClose}
-    >
-      {config ? (
-        <AgentLogo
-          logo={config.logo}
-          alt={config.alt}
-          isSvg={config.isSvg}
-          invertInDark={config.invertInDark}
-          className="size-4 shrink-0"
-        />
-      ) : null}
-      <TabTitle isActive={tab.isActive} isPreview={tab.isPreview} maxWidth="max-w-24">
-        {title}
-      </TabTitle>
-      <TabCloseButton
-        onClose={onClose}
-        ariaLabel={`Close ${title}`}
-        statusIndicator={
-          <span className="transition-opacity group-hover:opacity-0">
-            <AgentStatusIndicator status={tab.store.indicatorStatus} disableTooltip />
-          </span>
-        }
-      />
-    </TabItemShell>
+    <ContextMenu>
+      <ContextMenuTrigger>
+        <TabItemShell
+          tabId={tab.tabId}
+          isActive={tab.isActive}
+          title={tab.isPreview ? `${title} (preview — double-click to keep)` : title}
+          onSelect={onSelect}
+          onPin={onPin}
+          onClose={onClose}
+        >
+          {config ? (
+            <AgentLogo
+              logo={config.logo}
+              logoDark={config.logoDark}
+              alt={config.alt}
+              isSvg={config.isSvg}
+              invertInDark={config.invertInDark}
+              className="size-4 shrink-0"
+            />
+          ) : null}
+          <TabTitle isActive={tab.isActive} isPreview={tab.isPreview} maxWidth="max-w-24">
+            {title}
+          </TabTitle>
+          <TabCloseButton
+            onClose={onClose}
+            ariaLabel={`Close ${title}`}
+            statusIndicator={
+              <span className="transition-opacity group-hover:opacity-0">
+                <AgentStatusIndicator status={tab.store.indicatorStatus} disableTooltip />
+              </span>
+            }
+          />
+        </TabItemShell>
+      </ContextMenuTrigger>
+      <ContextMenuContent finalFocus={false}>
+        <ContextMenuItem onClick={handleRename}>
+          <Pencil className="size-4" />
+          Rename
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 });
 
@@ -68,6 +147,7 @@ export const ConversationTabDragPreview = observer(function ConversationTabDragP
       {config ? (
         <AgentLogo
           logo={config.logo}
+          logoDark={config.logoDark}
           alt={config.alt}
           isSvg={config.isSvg}
           invertInDark={config.invertInDark}

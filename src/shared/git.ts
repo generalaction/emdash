@@ -216,6 +216,7 @@ export function tagRef(name: string): GitObjectRef {
 
 export type Commit = {
   hash: string;
+  parents: string[];
   subject: string;
   body: string;
   author: string;
@@ -226,7 +227,7 @@ export type Commit = {
 
 export type CommitFile = {
   path: string;
-  status: string;
+  status: GitChangeStatus;
   additions: number;
   deletions: number;
 };
@@ -287,13 +288,13 @@ export type SoftResetError =
 
 export type CreateBranchError =
   | { type: 'already_exists'; name: string }
+  | { type: 'fetch_failed'; remote: string; branch: string; error: FetchError }
   | { type: 'invalid_base'; from: string }
   | { type: 'invalid_name'; name: string }
   | { type: 'error'; message: string };
 
 export type RenameBranchError =
   | { type: 'already_exists'; name: string }
-  | { type: 'remote_push_failed'; message: string }
   | { type: 'error'; message: string };
 
 export type DeleteBranchError =

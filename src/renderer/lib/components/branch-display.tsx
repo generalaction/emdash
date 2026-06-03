@@ -15,8 +15,8 @@ export function BranchDisplay({ label, branchName, className }: BranchDisplayPro
         className
       )}
     >
-      <div className="flex flex-col text-left text-sm gap-0.5">
-        <span className="text-foreground-passive text-xs">{label}</span>
+      <div className="flex flex-col gap-0.5 text-left text-sm">
+        <span className="text-xs text-foreground-passive">{label}</span>
         <span className="flex items-center gap-1">
           <GitBranch
             absoluteStrokeWidth

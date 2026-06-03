@@ -55,16 +55,18 @@ export function PromptActionsMenu({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <Tooltip>
-        <TooltipTrigger>
-          <PopoverTrigger
-            disabled={disabled}
-            className="relative self-center flex h-7 max-w-full items-center gap-1.5 rounded-md border border-border bg-background-1 px-2 text-xs font-normal text-foreground hover:bg-background-1/80 disabled:pointer-events-none disabled:opacity-50"
-          >
-            <FileSearch className="size-3.5 shrink-0" />
-            <span className="max-w-72 truncate">Prompts</span>
-            <ChevronDown className="size-3 shrink-0" />
-          </PopoverTrigger>
-        </TooltipTrigger>
+        <TooltipTrigger
+          render={
+            <PopoverTrigger
+              disabled={disabled}
+              className="relative flex h-7 max-w-full items-center gap-1.5 self-center rounded-md border border-border bg-background-1 px-2 text-xs font-normal text-foreground hover:bg-background-1/80 disabled:pointer-events-none disabled:opacity-50"
+            >
+              <FileSearch className="size-3.5 shrink-0" />
+              <span className="max-w-72 truncate">Prompts</span>
+              <ChevronDown className="size-3 shrink-0" />
+            </PopoverTrigger>
+          }
+        />
         <TooltipContent>{disabled ? disabledTooltip : actionTooltip}</TooltipContent>
       </Tooltip>
 
@@ -74,7 +76,7 @@ export function PromptActionsMenu({
       >
         <div className="shrink-0 border-b px-4 py-3">
           <div className="text-sm font-semibold">Prompts</div>
-          <div className="text-xs text-muted-foreground">{actionTooltip}</div>
+          <div className="text-muted-foreground text-xs">{actionTooltip}</div>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-1">
           {actions.map((action) => {
@@ -83,7 +85,7 @@ export function PromptActionsMenu({
             return (
               <div
                 key={action.id}
-                className="flex items-start gap-2 rounded-md px-3 py-2 transition-colors hover:bg-background-quaternary-1 focus-within:bg-background-quaternary-1"
+                className="flex items-start gap-2 rounded-md px-3 py-2 transition-colors focus-within:bg-background-quaternary-1 hover:bg-background-quaternary-1"
               >
                 <button
                   type="button"
@@ -97,8 +99,8 @@ export function PromptActionsMenu({
                     <span
                       className={
                         expanded
-                          ? 'mt-0.5 block max-h-48 overflow-y-auto pr-1 text-xs leading-relaxed text-muted-foreground'
-                          : 'mt-0.5 block text-xs leading-relaxed text-muted-foreground'
+                          ? 'text-muted-foreground mt-0.5 block max-h-48 overflow-y-auto pr-1 text-xs leading-relaxed'
+                          : 'text-muted-foreground mt-0.5 block text-xs leading-relaxed'
                       }
                       style={previewStyle(expanded)}
                     >

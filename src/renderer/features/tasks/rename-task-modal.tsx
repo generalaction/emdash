@@ -1,7 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback, useState } from 'react';
-import { toast } from 'sonner';
-import type { RenameTaskError } from '@shared/tasks';
+import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
 import { getTaskManagerStore } from '@renderer/features/tasks/stores/task-selectors';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
@@ -18,6 +17,7 @@ import {
   liveTransformTaskName,
   MAX_TASK_NAME_LENGTH,
   normalizeTaskName,
+  taskNameCollisionKey,
 } from '@renderer/utils/taskNames';
 
 type RenameTaskModalArgs = {
@@ -27,19 +27,6 @@ type RenameTaskModalArgs = {
 };
 
 type Props = BaseModalProps<void> & RenameTaskModalArgs;
-
-function formatRenameTaskError(error: RenameTaskError): string {
-  switch (error.type) {
-    case 'task-not-found':
-      return 'Task not found.';
-    case 'project-not-found':
-      return 'Project not found.';
-    case 'branch-already-exists':
-      return `Branch "${error.branch}" already exists. Try a different task name.`;
-    case 'branch-rename-failed':
-      return `Could not rename branch "${error.branch}": ${error.message}`;
-  }
-}
 
 export const RenameTaskModal = observer(function RenameTaskModal({
   projectId,
@@ -51,16 +38,19 @@ export const RenameTaskModal = observer(function RenameTaskModal({
   const [name, setName] = useState(currentName);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { preserveNameCapitalization } = useTaskSettings();
 
   const taskManager = getTaskManagerStore(projectId);
   const siblingNames = new Set(
     Array.from(taskManager?.tasks.values() ?? [])
       .filter((t) => t.state !== 'unregistered' && t.data.id !== taskId)
-      .map((t) => t.data.name)
+      .map((t) => taskNameCollisionKey(t.data.name))
   );
 
-  const normalizedName = normalizeTaskName(name);
-  const isDuplicate = siblingNames.has(normalizedName);
+  const normalizedName = normalizeTaskName(name, {
+    preserveCapitalization: preserveNameCapitalization,
+  });
+  const isDuplicate = siblingNames.has(taskNameCollisionKey(normalizedName));
   const isUnchanged = normalizedName === currentName;
   const isEmpty = normalizedName.length === 0;
   const isValid = !isEmpty && !isDuplicate && !isUnchanged;
@@ -71,10 +61,17 @@ export const RenameTaskModal = observer(function RenameTaskModal({
       ? 'Task name cannot be empty.'
       : undefined;
 
-  const handleNameChange = useCallback((value: string) => {
-    setName(liveTransformTaskName(value));
-    setError(null);
-  }, []);
+  const handleNameChange = useCallback(
+    (value: string) => {
+      setName(
+        liveTransformTaskName(value, {
+          preserveCapitalization: preserveNameCapitalization,
+        })
+      );
+      setError(null);
+    },
+    [preserveNameCapitalization]
+  );
 
   const handleSubmit = useCallback(async () => {
     if (!isValid) return;
@@ -85,14 +82,9 @@ export const RenameTaskModal = observer(function RenameTaskModal({
     try {
       const result = await task.rename(normalizedName);
       if (!result.success) {
-        setError(formatRenameTaskError(result.error));
+        setError('Task not found.');
         setIsSubmitting(false);
         return;
-      }
-      if (result.data.warning) {
-        toast.error(
-          `Branch was renamed locally to "${result.data.warning.branch}", but could not be pushed to the remote: ${result.data.warning.message}`
-        );
       }
       onSuccess();
     } catch (e) {
@@ -120,9 +112,9 @@ export const RenameTaskModal = observer(function RenameTaskModal({
               autoFocus
             />
             {validationMessage && !isUnchanged && (
-              <p className="text-xs text-destructive mt-1">{validationMessage}</p>
+              <p className="text-destructive mt-1 text-xs">{validationMessage}</p>
             )}
-            {error && <p className="text-xs text-destructive mt-1">{error}</p>}
+            {error && <p className="text-destructive mt-1 text-xs">{error}</p>}
           </Field>
         </FieldGroup>
       </DialogContentArea>

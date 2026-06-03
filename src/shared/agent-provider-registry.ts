@@ -6,6 +6,7 @@ export const AGENT_PROVIDER_IDS = [
   'qwen',
   'droid',
   'gemini',
+  'antigravity',
   'cursor',
   'copilot',
   'amp',
@@ -44,6 +45,8 @@ export type AgentProviderDefinition = {
   detectable?: boolean;
   cli?: string;
   autoApproveFlag?: string;
+  /** Auto-approval is provided by provider-specific environment variables instead of CLI args. */
+  autoApproveViaEnv?: boolean;
   initialPromptFlag?: string;
   /**
    * When true, the initial prompt is delivered via keystroke injection
@@ -51,6 +54,17 @@ export type AgentProviderDefinition = {
    * Use for agents whose CLI has no flag for interactive-mode prompt delivery.
    */
   useKeystrokeInjection?: boolean;
+  /** Input sequence sent after keystroke-injected prompt text. Defaults to Enter. */
+  keystrokeSubmitSequence?: string;
+  /** Delay between injected prompt text and submit, for TUIs that need paste settling time. */
+  keystrokeSubmitDelayMs?: number;
+  /**
+   * When true, the initial prompt is piped to the agent via stdin and the
+   * spawn becomes `bash -c 'printf ... | <agent...>'`.
+   * Use for agents that read an initial message from stdin then continue
+   * interactively (e.g. amp's `echo "msg" | amp`).
+   */
+  initialPromptViaStdinPipe?: boolean;
   resumeFlag?: string;
   /**
    * CLI flag to assign a unique session ID per chat instance.
@@ -62,10 +76,13 @@ export type AgentProviderDefinition = {
   sessionIdFlag?: string;
   newConversationFlag?: string;
   sessionIdOnResumeOnly?: boolean;
+  /** Resume flag used when sessionIdOnResumeOnly is set but no provider session id is stored yet. */
+  resumeWithoutSessionFlag?: string;
   defaultArgs?: string[];
   planActivateCommand?: string;
   autoStartCommand?: string;
   icon?: string;
+  iconDark?: string;
   /** Accessible alt text for the provider logo. */
   alt?: string;
   /** When true, the logo should be colour-inverted in dark mode. */
@@ -85,9 +102,18 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     commands: ['codex'],
     versionArgs: ['--version'],
     cli: 'codex',
-    autoApproveFlag: '--dangerously-bypass-approvals-and-sandbox',
+    // `--dangerously-bypass-hook-trust` lets Codex run emdash's own hooks (notably the
+    // SessionStart hook that reports the rollout session id) without an interactive trust
+    // prompt. Automations always auto-approve and can't answer that prompt, so without this
+    // the session id is never captured and resume falls back to `codex resume --last`,
+    // reattaching the globally-most-recent Codex session instead of this conversation.
+    autoApproveFlag:
+      '-c approval_policy="never" -c sandbox_mode="danger-full-access" --dangerously-bypass-hook-trust',
     initialPromptFlag: '',
-    resumeFlag: 'resume --last',
+    resumeFlag: 'resume',
+    sessionIdFlag: ' ',
+    sessionIdOnResumeOnly: true,
+    resumeWithoutSessionFlag: 'resume --last',
     icon: 'openai.svg',
     alt: 'Codex',
     terminalOnly: true,
@@ -108,7 +134,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     resumeFlag: '--resume',
     sessionIdFlag: '--session-id',
     planActivateCommand: '/plan',
-    icon: 'claude.png',
+    icon: 'claude.svg',
     alt: 'Claude Code',
     terminalOnly: true,
     supportsHooks: true,
@@ -126,9 +152,14 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     autoApproveFlag: '--always-approve',
     useKeystrokeInjection: true,
     resumeFlag: '-r',
+    sessionIdFlag: '-r',
+    sessionIdOnResumeOnly: true,
+    resumeWithoutSessionFlag: '-r',
     icon: 'xai.svg',
     alt: 'Grok CLI',
+    invertInDark: true,
     terminalOnly: true,
+    supportsHooks: true,
   },
   {
     id: 'devin',
@@ -147,6 +178,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'devin.png',
     alt: 'Devin',
     terminalOnly: true,
+    supportsHooks: true,
   },
   {
     id: 'cursor',
@@ -158,11 +190,12 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     commands: ['cursor-agent'],
     versionArgs: ['--version'],
     cli: 'cursor-agent',
-    autoApproveFlag: '-f',
+    autoApproveFlag: '-f --approve-mcps',
     initialPromptFlag: '',
     resumeFlag: '--resume',
     icon: 'cursor.svg',
     alt: 'Cursor CLI',
+    invertInDark: true,
     terminalOnly: true,
   },
   {
@@ -175,11 +208,29 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     commands: ['gemini'],
     versionArgs: ['--version'],
     cli: 'gemini',
-    autoApproveFlag: '--yolo',
+    autoApproveFlag: '--approval-mode=yolo --skip-trust',
     initialPromptFlag: '-i',
     resumeFlag: '--resume',
-    icon: 'gemini.png',
+    icon: 'gemini.svg',
     alt: 'Gemini CLI',
+    terminalOnly: true,
+  },
+  {
+    id: 'antigravity',
+    name: 'Antigravity',
+    description:
+      'Google Antigravity CLI for terminal-first agent sessions with shared Antigravity settings and conversation history.',
+    docUrl: 'https://antigravity.google/docs/cli-overview',
+    installCommand: 'curl -fsSL https://antigravity.google/cli/install.sh | bash',
+    commands: ['agy', 'antigravity'],
+    versionArgs: ['--version'],
+    cli: 'agy',
+    autoApproveFlag: '--dangerously-skip-permissions',
+    initialPromptFlag: '-i',
+    sessionIdFlag: '--conversation=',
+    planActivateCommand: '/plan',
+    icon: 'antigravity.svg',
+    alt: 'Antigravity CLI',
     terminalOnly: true,
   },
   {
@@ -195,9 +246,10 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     autoApproveFlag: '--yolo',
     initialPromptFlag: '-i',
     resumeFlag: '--continue',
-    icon: 'qwen.png',
+    icon: 'qwen.svg',
     alt: 'Qwen Code CLI',
     terminalOnly: true,
+    supportsHooks: true,
   },
   {
     id: 'droid',
@@ -209,7 +261,9 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     versionArgs: ['--version'],
     cli: 'droid',
     initialPromptFlag: '',
-    sessionIdFlag: '--session-id',
+    resumeFlag: '--resume',
+    /** Value is unused; presence signals that the session ID is passed as an argument to resumeFlag. */
+    sessionIdFlag: '--resume',
     sessionIdOnResumeOnly: true,
     icon: 'droid.svg',
     alt: 'Factory Droid',
@@ -228,10 +282,11 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     cli: 'amp',
     autoApproveFlag: '--dangerously-allow-all',
     initialPromptFlag: '',
-    useKeystrokeInjection: true,
-    icon: 'ampcode.png',
+    initialPromptViaStdinPipe: true,
+    icon: 'ampcode.svg',
     alt: 'Amp CLI',
     terminalOnly: true,
+    supportsHooks: true,
   },
   {
     id: 'opencode',
@@ -243,13 +298,14 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     commands: ['opencode'],
     versionArgs: ['--version'],
     cli: 'opencode',
-    initialPromptFlag: '',
-    useKeystrokeInjection: true,
+    autoApproveViaEnv: true,
+    initialPromptFlag: '--prompt',
     resumeFlag: '--continue',
-    icon: 'opencode.png',
+    icon: 'opencode.svg',
+    iconDark: 'opencode-dark.svg',
     alt: 'OpenCode CLI',
-    invertInDark: true,
     terminalOnly: true,
+    supportsHooks: true,
   },
   {
     id: 'hermes',
@@ -281,10 +337,16 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     versionArgs: ['--version'],
     cli: 'copilot',
     autoApproveFlag: '--allow-all-tools',
+    initialPromptFlag: '-i',
     resumeFlag: '--resume',
+    /** Copilot only accepts an explicit session id on resume (`--resume <id>`). */
+    sessionIdFlag: '--resume',
+    sessionIdOnResumeOnly: true,
     icon: 'gh-copilot.svg',
     alt: 'GitHub Copilot CLI',
+    invertInDark: true,
     terminalOnly: true,
+    supportsHooks: true,
   },
   {
     id: 'charm',
@@ -298,7 +360,6 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     autoApproveFlag: '--yolo',
     icon: 'charm.png',
     alt: 'Charm CLI',
-    invertInDark: true,
     terminalOnly: true,
   },
   {
@@ -317,6 +378,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     defaultArgs: ['--allow-indexing'],
     icon: 'Auggie.svg',
     alt: 'Auggie CLI',
+    invertInDark: true,
     terminalOnly: true,
   },
   {
@@ -350,7 +412,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     autoApproveFlag: '--yolo',
     initialPromptFlag: '-c',
     resumeFlag: '--continue',
-    icon: 'kimi.png',
+    icon: 'kimi.svg',
     alt: 'Kimi CLI',
     terminalOnly: true,
   },
@@ -477,7 +539,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     cli: 'vibe',
     autoApproveFlag: '--auto-approve',
     initialPromptFlag: '',
-    icon: 'mistral.png',
+    icon: 'mistral.svg',
     alt: 'Mistral Vibe CLI',
     terminalOnly: true,
   },

@@ -46,11 +46,11 @@ export const McpServerIcon: React.FC<{ name: string; iconKey?: string }> = ({ na
       );
     }
 
-    return <Server className="h-5 w-5 text-muted-foreground" />;
+    return <Server className="text-muted-foreground h-5 w-5" />;
   };
 
   return (
-    <div className="size-10 p-3 bg-background-2 rounded-lg group-hover:bg-background-3 transition-colors">
+    <div className="size-10 rounded-lg bg-background-2 p-3 transition-colors group-hover:bg-background-3">
       {renderIcon()}
     </div>
   );

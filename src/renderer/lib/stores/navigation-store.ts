@@ -1,10 +1,10 @@
 import { makeAutoObservable, toJS } from 'mobx';
-import type { NavigationSnapshot } from '@shared/view-state';
 import { type GuardResult, type ViewId, type WrapParams } from '@renderer/app/view-registry';
 import type { NonSettingsViewId } from '@renderer/lib/layout/navigation-provider';
 import { modalStore } from '@renderer/lib/modal/modal-store';
 import { focusTracker } from '@renderer/utils/focus-tracker';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
+import type { NavigationSnapshot } from '@shared/view-state';
 import { appState } from './app-state';
 import type { Snapshottable } from './snapshottable';
 
@@ -19,8 +19,10 @@ export const viewEvents: Record<
   | 'library_viewed'
   | 'skills_viewed'
   | 'mcp_viewed'
+  | 'automations_viewed'
 > = {
   home: 'home_viewed',
+  automations: 'automations_viewed',
   library: 'library_viewed',
   project: 'project_viewed',
   task: 'task_viewed',
@@ -29,16 +31,33 @@ export const viewEvents: Record<
   mcp: 'mcp_viewed',
 };
 
+type LibraryViewId = 'library' | 'skills' | 'mcp';
+type NonLibraryViewId = Exclude<ViewId, LibraryViewId>;
+
+function isLibraryView(viewId: ViewId): viewId is LibraryViewId {
+  return viewId === 'library' || viewId === 'skills' || viewId === 'mcp';
+}
+
 export class NavigationStore implements Snapshottable<NavigationSnapshot> {
   currentViewId: ViewId = 'home';
   viewParamsStore: ViewParamsStore = {};
   isNavigating: boolean = false;
   lastNonSettingsView: NonSettingsViewId = 'home';
+  lastNonLibraryView: NonLibraryViewId = 'home';
 
   private readonly _guards = new Map<ViewId, (params: unknown) => GuardResult>();
+  private readonly _registeredViewIds = new Set<ViewId>();
 
   constructor() {
     makeAutoObservable(this);
+  }
+
+  registerView(viewId: ViewId): void {
+    this._registeredViewIds.add(viewId);
+  }
+
+  isRegisteredViewId(value: unknown): value is ViewId {
+    return typeof value === 'string' && this._registeredViewIds.has(value as ViewId);
   }
 
   registerGuard(viewId: ViewId, guard: (params: unknown) => GuardResult): void {
@@ -88,6 +107,9 @@ export class NavigationStore implements Snapshottable<NavigationSnapshot> {
       if (viewId !== 'settings') {
         this.lastNonSettingsView = viewId;
       }
+      if (!isLibraryView(viewId)) {
+        this.lastNonLibraryView = viewId;
+      }
       this.isNavigating = true;
     }
     if (params !== undefined) {
@@ -113,13 +135,24 @@ export class NavigationStore implements Snapshottable<NavigationSnapshot> {
   }
 
   restoreSnapshot(snapshot: Partial<NavigationSnapshot>): void {
-    if (snapshot.currentViewId) {
-      this.currentViewId = snapshot.currentViewId as ViewId;
+    if (this.isRegisteredViewId(snapshot.currentViewId)) {
+      this.currentViewId = snapshot.currentViewId;
       if (snapshot.currentViewId !== 'settings') {
         this.lastNonSettingsView = snapshot.currentViewId as NonSettingsViewId;
       }
+      if (!isLibraryView(snapshot.currentViewId)) {
+        this.lastNonLibraryView = snapshot.currentViewId;
+      }
     }
-    if (snapshot.viewParams) this.viewParamsStore = snapshot.viewParams as ViewParamsStore;
+    if (snapshot.viewParams) {
+      const filtered: ViewParamsStore = {};
+      for (const [key, value] of Object.entries(snapshot.viewParams)) {
+        if (this.isRegisteredViewId(key)) {
+          (filtered as Record<ViewId, unknown>)[key] = value;
+        }
+      }
+      this.viewParamsStore = filtered;
+    }
 
     // Validate after params are loaded so the guard has full context.
     const guard = this._runGuard(this.currentViewId, this.viewParamsStore[this.currentViewId]);
@@ -127,6 +160,9 @@ export class NavigationStore implements Snapshottable<NavigationSnapshot> {
       this.currentViewId = guard.redirect;
       if (guard.redirect !== 'settings') {
         this.lastNonSettingsView = guard.redirect as NonSettingsViewId;
+      }
+      if (!isLibraryView(guard.redirect)) {
+        this.lastNonLibraryView = guard.redirect;
       }
       if (guard.params !== undefined) {
         this.viewParamsStore = { ...this.viewParamsStore, [guard.redirect]: guard.params };

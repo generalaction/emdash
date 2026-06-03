@@ -1,9 +1,9 @@
 import { reaction } from 'mobx';
+import type { DiffTabStore } from '@renderer/features/tasks/tabs/diff-tab-store';
+import type { TabManagerStore } from '@renderer/features/tasks/tabs/tab-manager-store';
 import { commitRef } from '@shared/git';
 import { getPrNumber } from '@shared/pull-requests';
 import type { ActiveFile } from '@shared/view-state';
-import type { DiffTabStore } from '@renderer/features/tasks/tabs/diff-tab-store';
-import type { TabManagerStore } from '@renderer/features/tasks/tabs/tab-manager-store';
 import type { PrStore } from '../../stores/pr-store';
 import type { DiffViewStore } from './diff-view-store';
 import type { GitStore } from './git-store';
@@ -42,6 +42,10 @@ export class DiffTabLifecycleStore {
               originalRef: tab.originalRef,
               modifiedRef: tab.modifiedRef,
               prNumber: tab.prNumber,
+              prBaseOid: tab.prBaseOid,
+              prHeadOid: tab.prHeadOid,
+              commitOriginalSha: tab.commitOriginalSha,
+              commitModifiedSha: tab.commitModifiedSha,
             };
             this.diffView.setActiveFile(activeFile);
           }

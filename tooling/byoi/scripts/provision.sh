@@ -16,6 +16,7 @@ IMAGE_NAME="emdash-byoi-workspace"
 CONTAINER_USER="devuser"
 CONTAINER_PASS="devpass"
 WORKSPACE_PATH="/home/devuser/workspace"
+FORWARD_AGENT="false"
 
 # The Dockerfile lives next to this script (inside testing/byoi/ or wherever
 # you copied these files).
@@ -23,6 +24,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOCKERFILE_DIR="$(dirname "$SCRIPT_DIR")"
 
 # ── Preflight checks ──────────────────────────────────────────────────────────
+
+if [[ "$FORWARD_AGENT" != "true" && "$FORWARD_AGENT" != "false" ]]; then
+  echo "ERROR: FORWARD_AGENT must be 'true' or 'false' (got: '$FORWARD_AGENT')" >&2
+  exit 1
+fi
 
 if ! command -v docker &>/dev/null; then
   echo "ERROR: docker is not installed or not on PATH" >&2
@@ -94,4 +100,5 @@ jq -n \
   --arg username "$CONTAINER_USER" \
   --arg password "$CONTAINER_PASS" \
   --arg worktreePath "$WORKSPACE_PATH" \
-  '{id: $id, host: $host, port: $port, username: $username, password: $password, worktreePath: $worktreePath}'
+  --argjson forwardAgent "$FORWARD_AGENT" \
+  '{id: $id, host: $host, port: $port, username: $username, password: $password, worktreePath: $worktreePath, forwardAgent: $forwardAgent}'

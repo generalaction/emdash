@@ -1,5 +1,6 @@
 import { Check, Copy, ExternalLink, Trash2 } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
+import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 
 type IntegrationStatus =
@@ -12,6 +13,8 @@ type IntegrationStatus =
 
 interface IntegrationRowProps {
   logoSrc?: string;
+  logoSrcDark?: string;
+  invertInDark?: boolean;
   icon?: React.ReactNode;
   name: string;
   onNameClick?: () => void;
@@ -61,6 +64,8 @@ const LOGO_WRAPPER = 'flex h-6 w-6 items-center justify-center';
 
 const IntegrationRow: React.FC<IntegrationRowProps> = ({
   logoSrc,
+  logoSrcDark,
+  invertInDark,
   icon,
   name,
   onNameClick,
@@ -77,6 +82,10 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
   showStatusPill = true,
   installCommand,
 }) => {
+  const { effectiveTheme } = useTheme();
+  const isDark = effectiveTheme === 'emdark';
+  const themedLogoSrc = isDark && logoSrcDark ? logoSrcDark : logoSrc;
+  const shouldInvertLogo = isDark && !!invertInDark && !logoSrcDark;
   const resolvedStatus = STATUS_CLASSES[status] ? status : 'disconnected';
   const showConnect = resolvedStatus !== 'connected' && status !== 'loading' && !!onConnect;
   const showDisconnect = resolvedStatus === 'connected' && !!onDisconnect;
@@ -88,29 +97,25 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
 
   const defaultMiddle =
     status === 'connected' && accountLabel ? (
-      <span className="truncate text-sm text-muted-foreground">{accountLabel}</span>
+      <span className="text-muted-foreground truncate text-sm">{accountLabel}</span>
     ) : null;
 
-  const isSvg = logoSrc?.trim().startsWith('<svg');
-
-  // Process SVG to use currentColor for theme-aware colors (primary)
-  const processedSvg =
-    isSvg && logoSrc
-      ? logoSrc
-          .replace(/\bfill="[^"]*"/g, 'fill="currentColor"')
-          .replace(/\bstroke="[^"]*"/g, 'stroke="currentColor"')
-      : null;
+  const isSvg = themedLogoSrc?.trimStart().startsWith('<svg');
 
   const avatar = (
-    <span className={logoSrc ? LOGO_WRAPPER : ICON_WRAPPER}>
-      {logoSrc ? (
+    <span className={themedLogoSrc ? LOGO_WRAPPER : ICON_WRAPPER}>
+      {themedLogoSrc ? (
         isSvg ? (
           <span
-            className="inline-flex h-5 w-5 items-center justify-center text-primary [&_svg]:h-full [&_svg]:w-full [&_svg]:shrink-0"
-            dangerouslySetInnerHTML={{ __html: processedSvg ?? '' }}
+            className={`${shouldInvertLogo ? 'invert' : ''} inline-flex h-5 w-5 items-center justify-center [&_svg]:h-full [&_svg]:w-full [&_svg]:shrink-0`}
+            dangerouslySetInnerHTML={{ __html: themedLogoSrc }}
           />
         ) : (
-          <img src={logoSrc} alt="" className="h-5 w-5 object-contain" />
+          <img
+            src={themedLogoSrc}
+            alt=""
+            className={`${shouldInvertLogo ? 'invert' : ''} h-5 w-5 object-contain`}
+          />
         )
       ) : icon ? (
         icon
@@ -150,17 +155,17 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
   const showInstallCopy = !!installCommand && status !== 'connected';
 
   return (
-    <div className="group relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg px-3 py-2 transition-colors hover:bg-muted/40">
+    <div className="group hover:bg-muted/40 relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg px-3 py-2 transition-colors">
       <div className="flex items-center gap-3">
         {avatar}
         {onNameClick ? (
           <button
             type="button"
             onClick={onNameClick}
-            className="group flex items-center gap-1 text-sm font-medium text-foreground transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+            className="group focus-visible:ring-ring flex items-center gap-1 text-sm font-medium text-foreground transition focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background focus-visible:outline-none"
           >
             <span>{name}</span>
-            <span className="text-xs text-muted-foreground transition group-hover:text-foreground/80">
+            <span className="text-muted-foreground text-xs transition group-hover:text-foreground/80">
               ↗
             </span>
           </button>
@@ -169,7 +174,7 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
         )}
       </div>
 
-      <div className="flex items-center justify-end gap-2 text-sm text-muted-foreground">
+      <div className="text-muted-foreground flex items-center justify-end gap-2 text-sm">
         {showInstallCopy ? (
           <TooltipProvider>
             <Tooltip>
@@ -188,7 +193,7 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
               <TooltipContent side="top">
                 <div className="max-w-[240px] space-y-1">
                   <div className="text-xs font-medium text-foreground">Copy install command</div>
-                  <code className="block truncate font-mono text-tiny text-muted-foreground">
+                  <code className="text-muted-foreground block truncate font-mono text-tiny">
                     {installCommand}
                   </code>
                 </div>

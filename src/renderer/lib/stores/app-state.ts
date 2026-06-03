@@ -28,7 +28,8 @@ class AppState {
     this.navigation = new NavigationStore();
     this.dependencies = new DependenciesStore();
     this.sshConnections = new SshConnectionStore({
-      onConnectionReady: (connectionId) => void this.dependencies.refreshAgents(connectionId),
+      onConnectionReady: (connectionId) =>
+        void this.dependencies.refreshAgents(connectionId, { refreshShellEnv: false }),
     });
     this.resourceMonitor = new ResourceMonitorStore();
     snapshotRegistry.register('navigation', () => this.navigation.snapshot);

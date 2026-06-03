@@ -1,7 +1,7 @@
 import { CheckCircle, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
-import { getRegisteredTaskData } from '@renderer/features/tasks/stores/task-selectors';
+import { getTaskGitStore } from '@renderer/features/tasks/stores/task-selectors';
 import {
   useTaskViewContext,
   useWorkspace,
@@ -42,13 +42,13 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
   const isInFlight = phase !== 'idle';
 
   const showCreatePrModal = useShowModal('createPrModal');
+  const repositoryUrl = workspace.repository.pullRequestRepositoryUrl;
 
   if (!diffView || !changesView) return null;
 
-  const taskData = getRegisteredTaskData(projectId, taskId);
+  const branchName = getTaskGitStore(projectId, taskId)?.branchName;
   const hasOpenPr = taskView.prStore?.pullRequests.some((p) => p.status === 'open') ?? false;
-  const canCreatePr =
-    Boolean(workspace.repository.repositoryUrl) && Boolean(taskData?.taskBranch) && !hasOpenPr;
+  const canCreatePr = Boolean(repositoryUrl) && Boolean(branchName) && !hasOpenPr;
 
   const doCommit = async () => {
     setPhase('committing');
@@ -120,8 +120,8 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
     showCreatePrModal({
       projectId,
       taskId,
-      repositoryUrl: workspace.repository.repositoryUrl ?? '',
-      branchName: taskData?.taskBranch ?? '',
+      repositoryUrl: repositoryUrl ?? '',
+      branchName: branchName ?? '',
       draft: false,
       workspaceId,
       onSuccess: () => {},
@@ -148,7 +148,7 @@ export const CommitCard = observer(function CommitCard({ autoStage = false }: Co
       : diffView.effectiveCommitAction;
 
   return (
-    <div className="shrink-0 mx-2 mb-2 flex flex-col gap-2 items-center justify-between rounded-xl border border-border bg-background-1 p-2">
+    <div className="mx-2 mb-2 flex shrink-0 flex-col items-center justify-between gap-2 rounded-xl border border-border bg-background-1 p-2">
       <Input
         placeholder="Commit message"
         autoFocus

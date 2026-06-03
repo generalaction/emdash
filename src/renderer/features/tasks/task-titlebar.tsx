@@ -2,16 +2,16 @@ import {
   ArrowDown,
   ArrowUp,
   ChevronDown,
+  Clock,
   FileDiff,
   FolderOpen,
   GitBranch,
-  MessageSquare,
   Pin,
   RefreshCcw,
   Terminal,
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import type { Issue } from '@shared/tasks';
+import { AutomationTaskTitlebar } from '@renderer/features/automations/components/AutomationTaskTitlebar';
 import {
   asMounted,
   getProjectStore,
@@ -42,7 +42,9 @@ import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Toggle } from '@renderer/lib/ui/toggle';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
 import { cn } from '@renderer/utils/utils';
+import type { Issue } from '@shared/tasks';
 import { DevServerPills } from './components/dev-server-pills';
 import { IssueSelector, ProviderLogo } from './components/issue-selector/issue-selector';
 import { type SidebarTab } from './types';
@@ -52,6 +54,10 @@ export const TaskTitlebar = observer(function TaskTitlebar() {
   const { projectId, taskId } = useTaskViewContext();
   const taskStore = getTaskStore(projectId, taskId);
   const kind = taskViewKind(taskStore, projectId);
+
+  if (taskStore?.data.automationId) {
+    return <AutomationTaskTitlebar />;
+  }
 
   if (kind !== 'ready') {
     return <PendingTaskTitlebar taskId={taskId} projectId={projectId} />;
@@ -67,7 +73,7 @@ const PendingTaskTitlebar = observer(function PendingTaskTitlebar({
   taskId: string;
   projectId: string;
 }) {
-  const taskStore = getTaskStore(projectId, taskId)!;
+  const taskStore = getTaskStore(projectId, taskId);
   const projectName = projectDisplayName(getProjectStore(projectId));
   const name = taskDisplayName(taskStore);
   const { navigate } = useNavigate();
@@ -100,8 +106,8 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
   projectId: string;
   taskId: string;
 }) {
-  const taskStore = getTaskStore(projectId, taskId)!;
-  const taskPayload = getRegisteredTaskData(projectId, taskId)!;
+  const taskStore = getTaskStore(projectId, taskId);
+  const taskPayload = getRegisteredTaskData(projectId, taskId);
   const workspace = useWorkspace();
   const taskView = useWorkspaceViewModel();
 
@@ -119,10 +125,16 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
     isPushing,
   } = useGitActions(projectId, taskId);
 
+  const linesAdded = workspace.git.totalLinesAdded;
+  const linesDeleted = workspace.git.totalLinesDeleted;
+  const hasDiffStats = linesAdded > 0 || linesDeleted > 0;
+
   const projectStore = asMounted(getProjectStore(projectId));
 
   const projectName = projectDisplayName(getProjectStore(projectId));
   const { navigate } = useNavigate();
+
+  if (!taskStore || !taskPayload) return null;
 
   const isRemoteProject = projectStore?.data.type === 'ssh';
   return (
@@ -142,8 +154,8 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
               <TooltipTrigger
                 render={
                   <PopoverTrigger className="flex items-center gap-1 text-sm text-foreground-muted hover:text-foreground">
-                    <span className="flex items-center gap-1.5 min-w-0">
-                      <span className="truncate max-w-56">{taskDisplayName(taskStore)}</span>
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className="max-w-56 truncate">{taskDisplayName(taskStore)}</span>
                       <ConnectionStatusDot state={workspace.connectionState} />
                     </span>
                     <ChevronDown className="size-3.5 shrink-0" />
@@ -152,25 +164,17 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
               />
               <TooltipContent>Link to issue</TooltipContent>
             </Tooltip>
-            <PopoverContent align="start" className="w-96 p-4 flex flex-col gap-2">
-              <div className="flex flex-col gap-1 w-full">
-                <MicroLabel className="text-foreground-passive items-center flex">Task</MicroLabel>
+            <PopoverContent align="start" className="flex w-96 flex-col gap-2 p-4">
+              <div className="flex w-full flex-col gap-1">
+                <MicroLabel className="flex items-center text-foreground-passive">Task</MicroLabel>
                 <span className="text-sm tracking-tight">{taskDisplayName(taskStore)}</span>
               </div>
-              <div className="flex flex-col gap-1 border border-border rounded-md p-2">
+              <div className="flex flex-col gap-1 rounded-md border border-border p-2">
                 <span className="flex items-center gap-1 text-foreground-muted">
                   <GitBranch className="size-3.5" />
                   <span>{workspace.git.branchName}</span>
                 </span>
-                {taskPayload.sourceBranch && (
-                  <span className="flex items-center gap-2 text-foreground-passive">
-                    Created from
-                    <span className="flex items-center gap-1 text-foreground-muted">
-                      <GitBranch className="size-3.5" /> {taskPayload.sourceBranch.branch}
-                    </span>
-                  </span>
-                )}
-                <div className="flex items-center gap-1 w-full">
+                <div className="flex w-full items-center gap-1">
                   {hasUpstream ? (
                     <>
                       <Tooltip>
@@ -278,7 +282,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                   void taskStore.updateLinkedIssue(issue ?? undefined);
                 }}
                 projectId={projectId}
-                repositoryUrl={workspace.repository.repositoryUrl ?? ''}
+                repositoryUrl={workspace.repository.issueRepositoryUrl ?? ''}
                 projectPath={workspace.path}
                 excludeTaskId={taskId}
               />
@@ -302,9 +306,13 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
       rightSlot={
         <div className="flex items-center gap-2">
           <DevServerPills projectId={projectId} taskId={taskId} />
-          {!isRemoteProject && (
-            <OpenInMenu path={workspace.path} className="h-7 bg-transparent" borderless />
-          )}
+          <OpenInMenu
+            path={workspace.path}
+            className="h-7 bg-transparent"
+            borderless
+            isRemote={isRemoteProject}
+            sshConnectionId={workspace.sshConnectionId}
+          />
           <Separator orientation="vertical" className="h-5 self-center!" />
           <Tooltip>
             <TooltipTrigger>
@@ -338,33 +346,60 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
             className="border-none bg-transparent"
           >
             <Tooltip>
-              <TooltipTrigger>
-                <ToggleGroupItem size="icon-sm" value="changes" aria-label="Changes">
-                  <FileDiff className="size-3.5" />
-                </ToggleGroupItem>
-              </TooltipTrigger>
+              <TooltipTrigger
+                render={
+                  <ToggleGroupItem
+                    value="changes"
+                    aria-label="Changes"
+                    className={cn('w-auto! min-w-7! gap-0', hasDiffStats && 'w-full px-2!')}
+                  >
+                    <FileDiff className="size-3.5" />
+                    <span
+                      className={cn(
+                        'overflow-hidden transition-[max-width,padding-left] duration-500 ease-in-out flex items-center tabular-nums text-xs leading-none gap-1',
+                        hasDiffStats ? 'max-w-20 pl-1' : 'max-w-0 pl-0'
+                      )}
+                    >
+                      {linesAdded > 0 && (
+                        <span className="text-foreground-diff-added">
+                          +{formatDiffLineCount(linesAdded)}
+                        </span>
+                      )}
+                      {linesDeleted > 0 && (
+                        <span className="text-foreground-diff-deleted">
+                          -{formatDiffLineCount(linesDeleted)}
+                        </span>
+                      )}
+                    </span>
+                  </ToggleGroupItem>
+                }
+              />
               <TooltipContent>
                 Changes <BoundShortcut settingsKey="sidebarChanges" variant="badge" />
               </TooltipContent>
             </Tooltip>
             <Tooltip>
-              <TooltipTrigger>
-                <ToggleGroupItem size="icon-sm" value="conversations" aria-label="Conversations">
-                  <MessageSquare className="size-3.5" />
-                </ToggleGroupItem>
-              </TooltipTrigger>
+              <TooltipTrigger
+                render={
+                  <ToggleGroupItem size="icon-sm" value="files" aria-label="Files">
+                    <FolderOpen className="size-3.5" />
+                  </ToggleGroupItem>
+                }
+              />
               <TooltipContent>
-                Conversations <BoundShortcut settingsKey="sidebarConversations" variant="badge" />
+                Files <BoundShortcut settingsKey="sidebarFiles" variant="badge" />
               </TooltipContent>
             </Tooltip>
             <Tooltip>
-              <TooltipTrigger>
-                <ToggleGroupItem size="icon-sm" value="files" aria-label="Files">
-                  <FolderOpen className="size-3.5" />
-                </ToggleGroupItem>
-              </TooltipTrigger>
+              <TooltipTrigger
+                render={
+                  <ToggleGroupItem size="icon-sm" value="conversations" aria-label="Conversations">
+                    <Clock className="size-3.5" />
+                  </ToggleGroupItem>
+                }
+              />
               <TooltipContent>
-                Files <BoundShortcut settingsKey="sidebarFiles" variant="badge" />
+                Conversations <BoundShortcut settingsKey="sidebarConversations" variant="badge" />
               </TooltipContent>
             </Tooltip>
           </ToggleGroup>
@@ -385,7 +420,7 @@ function LinkedIssueBadge({ issue }: { issue: Issue }) {
             onClick={() => {
               if (issue.url) void rpc.app.openExternal(issue.url);
             }}
-            className="flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-xs text-foreground-muted hover:bg-muted/30 disabled:cursor-default disabled:opacity-60"
+            className="hover:bg-muted/30 flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-xs text-foreground-muted disabled:cursor-default disabled:opacity-60"
           >
             <ProviderLogo provider={issue.provider} className="h-3 w-3" />
             {issue.provider === 'asana' ? (

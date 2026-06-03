@@ -1,10 +1,4 @@
 import { computed, makeAutoObservable, observable, reaction, runInAction } from 'mobx';
-import type { Task } from '@shared/tasks';
-import type {
-  DiffViewSnapshot,
-  TaskViewSnapshot,
-  TerminalDrawerActiveItem,
-} from '@shared/view-state';
 import { DiffTabLifecycleStore } from '@renderer/features/tasks/diff-view/stores/diff-tab-lifecycle-store';
 import { DiffViewStore } from '@renderer/features/tasks/diff-view/stores/diff-view-store';
 import { FileModelLifecycleStore } from '@renderer/features/tasks/editor/stores/file-model-lifecycle-store';
@@ -18,6 +12,14 @@ import type { ILifecycle } from '@renderer/lib/stores/lifecycle';
 import { snapshotRegistry } from '@renderer/lib/stores/snapshot-registry';
 import { focusTracker } from '@renderer/utils/focus-tracker';
 import { log } from '@renderer/utils/logger';
+import type { Task } from '@shared/tasks';
+import type { TerminalShellId } from '@shared/terminal-settings';
+import type {
+  DiffViewSnapshot,
+  TaskViewSnapshot,
+  TerminalDrawerActiveItem,
+} from '@shared/view-state';
+import { ConversationHydrationReconciler } from './conversation-hydration-reconciler';
 import { conversationRegistry } from './conversation-registry';
 import { PrStore } from './pr-store';
 import type { TaskStore } from './task-store';
@@ -67,12 +69,18 @@ export class WorkspaceViewModel implements ILifecycle {
   /** Saved whenever suspend() is called, restored in next initialize(). */
   private _savedDiffViewSnapshot: DiffViewSnapshot | undefined;
   private _isCreatingTerminal = false;
+  private readonly _conversationHydration: ConversationHydrationReconciler;
 
   readonly taskId: string;
 
   constructor(private readonly _taskStore: TaskStore) {
     const taskData = _taskStore.data as Task;
     this.taskId = taskData.id;
+    this._conversationHydration = new ConversationHydrationReconciler({
+      taskId: this.taskId,
+      getConversations: () => conversationRegistry.get(this.taskId),
+      log,
+    });
 
     // UI state defaults — overridden by restoreSnapshot when called
     this.sidebarTab = 'conversations';
@@ -94,10 +102,11 @@ export class WorkspaceViewModel implements ILifecycle {
       workspaceId
     );
 
-    makeAutoObservable(this, {
+    makeAutoObservable<WorkspaceViewModel, '_conversationHydration'>(this, {
       tabGroupManager: false,
       terminalTabs: false,
       editorView: false,
+      _conversationHydration: false,
       diffView: observable.ref,
       activeRenderer: computed,
     });
@@ -299,6 +308,20 @@ export class WorkspaceViewModel implements ILifecycle {
     // Register snapshot with the persistence layer.
     this._snapshotDisposer = snapshotRegistry.register(`task:${this.taskId}`, () => this.snapshot);
 
+    // Open the initial conversation tab if no tabs were restored from a saved snapshot.
+    // This handles the optimistic-conversation case where conversations are already in
+    // the manager before provision completes.
+    if (this.tabGroupManager.focusedGroup.tabOrder.length === 0) {
+      runInAction(() => this.tabGroupManager.focusedGroup.initializeDefault());
+    }
+
+    const conversationHydrationDisposer = reaction(
+      () => this.openConversationIds,
+      (ids) => this.syncConversationHydration(ids),
+      { fireImmediately: true }
+    );
+    this._sessionDisposers.push(conversationHydrationDisposer);
+
     // Auto-create a terminal when the drawer is open and no terminals exist.
     const terminalsDisposer = reaction(
       () => {
@@ -307,7 +330,7 @@ export class WorkspaceViewModel implements ILifecycle {
           this.isTerminalDrawerOpen &&
           !this._isCreatingTerminal &&
           (terminals?.isLoaded ?? false) &&
-          this.terminalTabs.tabs.length === 0
+          (terminals?.terminals.size ?? 0) === 0
         );
       },
       (shouldCreate) => {
@@ -335,6 +358,8 @@ export class WorkspaceViewModel implements ILifecycle {
     this.prStore = null;
     this.devServers?.dispose();
     this.devServers = null;
+
+    this._conversationHydration.dispose();
 
     // Stop snapshot persistence.
     this._snapshotDisposer?.();
@@ -397,11 +422,11 @@ export class WorkspaceViewModel implements ILifecycle {
   }
 
   /** Opens the terminal drawer and always creates a new terminal session. */
-  async openNewTerminal(): Promise<string | undefined> {
+  async openNewTerminal(shell?: TerminalShellId): Promise<string | undefined> {
     this.isTerminalDrawerOpen = true;
     this.setFocusedRegion('bottom');
 
-    const terminalId = await this._createDefaultTerminal();
+    const terminalId = await this._createDefaultTerminal(shell);
     if (!terminalId) return undefined;
     runInAction(() => {
       this.terminalTabs.setActiveTab(terminalId);
@@ -410,12 +435,12 @@ export class WorkspaceViewModel implements ILifecycle {
     return terminalId;
   }
 
-  private async _createDefaultTerminal(): Promise<string | undefined> {
+  private async _createDefaultTerminal(shell?: TerminalShellId): Promise<string | undefined> {
     if (this._isCreatingTerminal) return undefined;
 
     this._isCreatingTerminal = true;
     try {
-      const terminal = await terminalRegistry.get(this.taskId)?.createDefaultTerminal();
+      const terminal = await terminalRegistry.get(this.taskId)?.createDefaultTerminal(shell);
       if (!terminal) return undefined;
       return terminal.id;
     } catch (error) {
@@ -426,5 +451,20 @@ export class WorkspaceViewModel implements ILifecycle {
         this._isCreatingTerminal = false;
       });
     }
+  }
+
+  private get openConversationIds(): string[] {
+    const ids = new Set<string>();
+    for (const { tabManager } of this.tabGroupManager.groups) {
+      for (const tabId of tabManager.tabOrder) {
+        const entry = tabManager.entries.get(tabId);
+        if (entry?.kind === 'conversation') ids.add(entry.conversationId);
+      }
+    }
+    return [...ids].sort();
+  }
+
+  private syncConversationHydration(openIds: string[]): void {
+    this._conversationHydration.sync(openIds);
   }
 }

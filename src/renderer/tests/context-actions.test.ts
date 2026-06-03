@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import type { Issue } from '@shared/tasks';
 import {
   buildDraftCommentsContextAction,
   buildIssueContextText,
@@ -8,6 +7,8 @@ import {
   buildTaskContextActions,
 } from '@renderer/features/tasks/conversations/context-actions';
 import type { DraftComment } from '@renderer/features/tasks/diff-view/stores/draft-comments-store';
+import { getDraftCommentTargetKey, type DraftCommentTarget } from '@shared/lineComments';
+import type { Issue } from '@shared/tasks';
 
 function makeIssue(overrides: Partial<Issue> = {}): Issue {
   return {
@@ -26,10 +27,17 @@ function makeIssue(overrides: Partial<Issue> = {}): Issue {
 }
 
 function makeDraftComment(overrides: Partial<DraftComment> = {}): DraftComment {
+  const target: DraftCommentTarget = overrides.target ?? {
+    kind: 'working-tree',
+    group: 'disk',
+    path: overrides.filePath ?? 'src/foo.ts',
+  };
   return {
     id: crypto.randomUUID(),
     taskId: 'task-1',
-    filePath: 'src/foo.ts',
+    filePath: target.path,
+    target,
+    targetKey: getDraftCommentTargetKey(target),
     lineNumber: 10,
     lineContent: 'const x = 1;',
     content: 'This looks wrong.',

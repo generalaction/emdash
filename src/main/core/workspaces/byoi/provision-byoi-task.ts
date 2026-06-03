@@ -1,24 +1,19 @@
-import type { Conversation } from '@shared/conversations';
-import { taskProvisionProgressChannel } from '@shared/events/taskEvents';
-import type { ProjectSettings } from '@shared/project-settings';
-import type { Task } from '@shared/tasks';
-import type { Terminal } from '@shared/terminals';
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import type { ProvisionResult } from '@main/core/projects/project-provider';
 import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
-import { sshConnectionManager } from '@main/core/ssh/ssh-connection-manager';
-import { buildTaskFromWorkspace } from '@main/core/tasks/task-builder';
+import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
+import { buildTaskFromWorkspace, emitTaskProvisionProgress } from '@main/core/tasks/task-builder';
+import { resolveBYOISshConnectConfig } from '@main/core/workspaces/byoi/byoi-ssh-connect-config';
 import { parseProvisionOutput } from '@main/core/workspaces/byoi/provision-output';
+import type { WorkspaceBootstrapResult } from '@main/core/workspaces/workspace-bootstrap-service';
 import { createWorkspaceFactory } from '@main/core/workspaces/workspace-factory';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
-import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { quoteShellArg } from '@main/utils/shellEscape';
+import type { ProjectSettings } from '@shared/project-settings';
+import type { Task } from '@shared/tasks';
 
 export type ProvisionBYOITaskParams = {
   task: Task;
-  conversations: Conversation[];
-  terminals: Terminal[];
   /** Workspace provider config read from project settings (`workspaceProvider.type === 'script'`). */
   wpConfig: NonNullable<ProjectSettings['workspaceProvider']>;
   /** Execution context for running provision/terminate scripts. */
@@ -37,20 +32,12 @@ export type ProvisionBYOITaskParams = {
  * - Local project: pass `new LocalExecutionContext({ root: projectPath })` (scripts run on local machine)
  * - SSH project:  pass `new SshExecutionContext(proxy, { root: projectPath })` (scripts run on remote host)
  */
-export async function provisionBYOITask(params: ProvisionBYOITaskParams): Promise<ProvisionResult> {
-  const {
-    task,
-    conversations,
-    terminals,
-    wpConfig,
-    ctx,
-    projectId,
-    projectPath,
-    settings,
-    logPrefix,
-  } = params;
+export async function provisionBYOITask(
+  params: ProvisionBYOITaskParams
+): Promise<WorkspaceBootstrapResult> {
+  const { task, wpConfig, ctx, projectId, projectPath, settings, logPrefix } = params;
 
-  events.emit(taskProvisionProgressChannel, {
+  emitTaskProvisionProgress({
     taskId: task.id,
     projectId,
     step: 'running-provision-script',
@@ -65,7 +52,7 @@ export async function provisionBYOITask(params: ProvisionBYOITaskParams): Promis
   }
   const output = parseResult.data;
 
-  events.emit(taskProvisionProgressChannel, {
+  emitTaskProvisionProgress({
     taskId: task.id,
     projectId,
     step: 'connecting',
@@ -73,14 +60,12 @@ export async function provisionBYOITask(params: ProvisionBYOITaskParams): Promis
   });
 
   const connectionId = `task:${task.id}`;
-  const proxy = await sshConnectionManager.connectFromConfig(connectionId, {
-    host: output.host,
-    port: output.port ?? 22,
-    username: output.username ?? process.env['USER'],
-    ...(output.password ? { password: output.password } : { agent: process.env['SSH_AUTH_SOCK'] }),
-  });
+  const proxy = await sshConnectionManager.connectFromConfig(
+    connectionId,
+    resolveBYOISshConnectConfig(output)
+  );
 
-  events.emit(taskProvisionProgressChannel, {
+  emitTaskProvisionProgress({
     taskId: task.id,
     projectId,
     step: 'setting-up-workspace',
@@ -123,11 +108,11 @@ export async function provisionBYOITask(params: ProvisionBYOITaskParams): Promis
 
   let provisionSucceeded = false;
   try {
-    events.emit(taskProvisionProgressChannel, {
+    emitTaskProvisionProgress({
       taskId: task.id,
       projectId,
       step: 'starting-sessions',
-      message: 'Starting sessions…',
+      message: 'Preparing task…',
     });
     const { taskProvider } = await buildTaskFromWorkspace(
       task,
@@ -135,19 +120,16 @@ export async function provisionBYOITask(params: ProvisionBYOITaskParams): Promis
       { kind: 'ssh', proxy, connectionId },
       projectId,
       projectPath,
-      settings,
-      { conversations, terminals },
-      logPrefix
+      settings
     );
     log.debug(`${logPrefix}: provisionBYOITask DONE`, { taskId: task.id });
     provisionSucceeded = true;
     return {
+      path: workDir,
+      workspaceId: workspace.id,
+      sshConnectionId: connectionId,
       taskProvider,
-      persistData: {
-        workspaceId: workspace.id,
-        workspaceProviderData: { ...wpConfig, remoteWorkspaceId: output.id },
-        sshConnectionId: connectionId,
-      },
+      workspaceProviderData: { ...wpConfig, remoteWorkspaceId: output.id },
     };
   } finally {
     if (!provisionSucceeded) {

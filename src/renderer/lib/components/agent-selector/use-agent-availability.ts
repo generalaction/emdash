@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
-import type { AgentProviderId } from '@shared/agent-provider-registry';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import { appState } from '@renderer/lib/stores/app-state';
 import { agentConfig } from '@renderer/utils/agentConfig';
+import type { AgentProviderId } from '@shared/agent-provider-registry';
 import { getAgentInstallErrorMessage } from './agent-install';
 import { buildAgentGroups, getAssumedInstalledAgents } from './agent-selector-options';
 

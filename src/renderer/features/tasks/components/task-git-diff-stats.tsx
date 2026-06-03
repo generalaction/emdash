@@ -41,17 +41,22 @@ export const TaskGitDiffStats = observer(function TaskGitDiffStats({
   return (
     <span
       className={cn(
-        'shrink-0 tabular-nums leading-none text-muted-foreground flex items-center text-xs',
+        'shrink-0 tabular-nums leading-none text-muted-foreground flex items-center gap-1 text-xs',
         className
       )}
-      aria-label={`${linesAdded} lines added, ${linesDeleted} lines removed`}
+      aria-label={[
+        linesAdded > 0 ? `${linesAdded} lines added` : null,
+        linesDeleted > 0 ? `${linesDeleted} lines removed` : null,
+      ]
+        .filter(Boolean)
+        .join(', ')}
     >
-      <span className="min-w-[3ch] inline-block text-right text-foreground-diff-added">
-        {linesAdded > 0 ? `+${formatDiffLineCount(linesAdded)}` : null}
-      </span>
-      <span className="min-w-[3ch] inline-block text-right text-foreground-diff-deleted">
-        {linesDeleted > 0 ? `-${formatDiffLineCount(linesDeleted)}` : null}
-      </span>
+      {linesAdded > 0 ? (
+        <span className="text-foreground-diff-added">+{formatDiffLineCount(linesAdded)}</span>
+      ) : null}
+      {linesDeleted > 0 ? (
+        <span className="text-foreground-diff-deleted">-{formatDiffLineCount(linesDeleted)}</span>
+      ) : null}
     </span>
   );
 });

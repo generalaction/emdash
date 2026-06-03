@@ -9,9 +9,15 @@ export async function isGhCliAuthenticated(ctx: IExecutionContext): Promise<bool
   }
 }
 
-export async function extractGhCliToken(ctx: IExecutionContext): Promise<string | null> {
+export async function extractGhCliToken(
+  ctx: IExecutionContext,
+  options: { hostname?: string } = {}
+): Promise<string | null> {
   try {
-    const { stdout } = await ctx.exec('gh', ['auth', 'token']);
+    const args = options.hostname
+      ? ['auth', 'token', '--hostname', options.hostname]
+      : ['auth', 'token'];
+    const { stdout } = await ctx.exec('gh', args);
     const token = stdout.trim();
     return token || null;
   } catch {

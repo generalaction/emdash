@@ -1,6 +1,6 @@
 import { useHotkey, type Hotkey } from '@tanstack/react-hotkeys';
 import { ChevronDown, ChevronUp, MessageSquare, TextInitial } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Combobox,
   ComboboxCollection,
@@ -18,6 +18,7 @@ import { ProviderLogo } from '../components/issue-selector/issue-selector';
 import { buildContextActionText, type ContextAction } from './context-actions';
 
 const ADD_CONTEXT_HOTKEY: Hotkey = 'Mod+Shift+A';
+type AddContextPopoverSide = 'top' | 'bottom';
 
 export function ActionItemBaseRow({
   icon,
@@ -29,12 +30,12 @@ export function ActionItemBaseRow({
   text: string;
 }) {
   return (
-    <div className="min-w-0 w-full flex gap-4 items-center h-5">
+    <div className="flex h-5 w-full min-w-0 items-center gap-4">
       <div className="flex items-center gap-1.5">
         {icon}
-        <div className="truncate text-sm font-normal shrink-0 text-foreground-muted">{label}</div>
+        <div className="shrink-0 truncate text-sm font-normal text-foreground-muted">{label}</div>
       </div>
-      <div className="text-xs text-foreground-passive truncate">{text}</div>
+      <div className="truncate text-xs text-foreground-passive">{text}</div>
     </div>
   );
 }
@@ -75,17 +76,29 @@ export function ActionItemRow({ action }: { action: ContextAction }) {
 export interface AddContextPopoverProps {
   actions: ContextAction[];
   disabled: boolean;
+  isActivePane?: boolean;
   onApplyAction: (
     text: string,
     action: ContextAction,
     opts?: { andSend?: boolean }
   ) => Promise<void>;
+  /** Replace the default "Add context" button with a custom trigger. */
+  renderTrigger?: (ctx: { open: boolean; disabled: boolean }) => ReactNode;
+  side?: AddContextPopoverSide;
 }
 
-export function AddContextPopover({ actions, disabled, onApplyAction }: AddContextPopoverProps) {
+export function AddContextPopover({
+  actions,
+  disabled,
+  isActivePane = true,
+  onApplyAction,
+  renderTrigger,
+  side = 'top',
+}: AddContextPopoverProps) {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<ContextAction | null>(null);
   const [query, setQuery] = useState('');
+  const ignoreOpenUntilRef = useRef(0);
 
   const filteredActions = useMemo(() => {
     if (!query) return actions;
@@ -108,7 +121,7 @@ export function AddContextPopover({ actions, disabled, onApplyAction }: AddConte
     });
   }, [query, actions]);
 
-  useHotkey(ADD_CONTEXT_HOTKEY, () => setOpen((v) => !v), { enabled: !disabled });
+  useHotkey(ADD_CONTEXT_HOTKEY, () => setOpen((v) => !v), { enabled: !disabled && isActivePane });
 
   const handleConfirm = (action: ContextAction | null, opts?: { andSend?: boolean }) => {
     if (!action) return;
@@ -118,8 +131,21 @@ export function AddContextPopover({ actions, disabled, onApplyAction }: AddConte
   };
 
   const handleOpenChange = (nextOpen: boolean) => {
+    if (nextOpen && Date.now() < ignoreOpenUntilRef.current) {
+      return;
+    }
     setOpen(nextOpen);
     if (!nextOpen) setQuery('');
+  };
+
+  const blockComboboxOpenForContextMenu = () => {
+    ignoreOpenUntilRef.current = Date.now() + 500;
+  };
+
+  const blockSyntheticClickAfterContextMenu = (event: React.SyntheticEvent) => {
+    if (Date.now() >= ignoreOpenUntilRef.current) return;
+    event.preventDefault();
+    event.stopPropagation();
   };
 
   return (
@@ -138,23 +164,44 @@ export function AddContextPopover({ actions, disabled, onApplyAction }: AddConte
     >
       <ComboboxTrigger
         disabled={disabled}
-        className="flex h-6 min-w-[160px] justify-between items-center gap-1.5 rounded-lg text-foreground-muted bg-background-secondary-2 border-border px-2 text-xs font-normal hover:text-foreground hover:bg-background-secondary-3 disabled:pointer-events-none transition-colors"
+        onContextMenuCapture={() => blockComboboxOpenForContextMenu()}
+        onPointerDownCapture={(event) => {
+          if (event.button !== 0) blockComboboxOpenForContextMenu();
+        }}
+        onMouseDownCapture={(event) => {
+          if (event.button !== 0) blockComboboxOpenForContextMenu();
+        }}
+        onClickCapture={(event) => {
+          if (event.button !== 0) blockComboboxOpenForContextMenu();
+          blockSyntheticClickAfterContextMenu(event);
+        }}
+        className={
+          renderTrigger
+            ? undefined
+            : 'flex h-6 min-w-[160px] items-center justify-between gap-1.5 rounded-lg border-border bg-background-secondary-2 px-2 text-xs font-normal text-foreground-muted transition-colors hover:bg-background-secondary-3 hover:text-foreground disabled:pointer-events-none'
+        }
       >
-        <span className="flex items-center gap-1.5">
-          {open ? (
-            <ChevronUp className="size-3 shrink-0" />
-          ) : (
-            <ChevronDown className="size-3 shrink-0" />
-          )}
-          <span>Add context</span>
-        </span>
-        <Shortcut hotkey={ADD_CONTEXT_HOTKEY} />
+        {renderTrigger ? (
+          renderTrigger({ open, disabled })
+        ) : (
+          <>
+            <span className="flex items-center gap-1.5">
+              {open ? (
+                <ChevronUp className="size-3 shrink-0" />
+              ) : (
+                <ChevronDown className="size-3 shrink-0" />
+              )}
+              <span>Add context</span>
+            </span>
+            <Shortcut hotkey={ADD_CONTEXT_HOTKEY} />
+          </>
+        )}
       </ComboboxTrigger>
 
       <ComboboxContent
-        side="top"
+        side={side}
         align="center"
-        className="min-w-[440px] max-w-[92vw] min-h-[200px] flex flex-col"
+        className="flex min-h-[200px] max-w-[92vw] min-w-[440px] flex-col"
         onKeyDown={(e) => {
           if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
             e.preventDefault();
@@ -180,7 +227,7 @@ export function AddContextPopover({ actions, disabled, onApplyAction }: AddConte
             </ComboboxGroup>
           )}
         </ComboboxList>
-        <ComboboxEmpty className="flex-1 flex items-center justify-center">
+        <ComboboxEmpty className="flex flex-1 items-center justify-center">
           No context found
         </ComboboxEmpty>
         <div className="flex items-center justify-end border-t px-2 py-1.5">

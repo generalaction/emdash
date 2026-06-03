@@ -1,7 +1,7 @@
 import { observable, runInAction } from 'mobx';
 import type * as monaco from 'monaco-editor';
-import { gitRefToString, HEAD_REF, refsEqual, type GitRef } from '@shared/git';
 import { rpc } from '@renderer/lib/ipc';
+import { gitRefToString, HEAD_REF, refsEqual, type GitRef } from '@shared/git';
 import { buildMonacoModelPath } from './monacoModelPath';
 
 const BUFFER_DEBOUNCE_MS = 2000;
@@ -126,7 +126,7 @@ export class MonacoModelRegistry {
    * register the same file concurrently before either resolves.
    * Key: `{projectId}:{workspaceId}:{filePath}:disk` or `…:git:{ref}`
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // oxlint-disable-next-line typescript/no-explicit-any
   private pendingFetches = new Map<string, Promise<any>>();
 
   // ---------------------------------------------------------------------------
@@ -273,7 +273,7 @@ export class MonacoModelRegistry {
       type DiskFetchResult = { content: string; truncated: boolean; totalSize: number };
       const [fetchResult, monaco_] = await Promise.all([
         this.dedupFetch<DiskFetchResult>(fetchKey, async () => {
-          const res = await rpc.fs.readFile(projectId, workspaceId, filePath);
+          const res = await rpc.workspace.fs.readFile(projectId, workspaceId, filePath);
           if (!res.success)
             throw new Error(`registerModel(disk): readFile failed for ${filePath}: ${res.error}`);
           const result = res.data.content;
@@ -346,10 +346,10 @@ export class MonacoModelRegistry {
     const [content, m] = await Promise.all([
       this.dedupFetch(fetchKey, async () => {
         if (ref.kind === 'staged') {
-          const res = await rpc.git.getFileAtIndex(projectId, workspaceId, filePath);
+          const res = await rpc.workspace.git.getFileAtIndex(projectId, workspaceId, filePath);
           return res.success ? res.data.content : null;
         }
-        const res = await rpc.git.getFileAtRef(
+        const res = await rpc.workspace.git.getFileAtRef(
           projectId,
           workspaceId,
           filePath,
@@ -411,7 +411,7 @@ export class MonacoModelRegistry {
               if (!currentEntry || currentEntry.type !== 'buffer') return;
               if (!this.isDirty(uri)) return;
               const value = currentEntry.model.getValue();
-              void rpc.editorBuffer.saveBuffer(
+              void rpc.workspace.editor.saveBuffer(
                 currentEntry.projectId,
                 currentEntry.workspaceId,
                 currentEntry.filePath,
@@ -472,7 +472,7 @@ export class MonacoModelRegistry {
             if (!currentEntry || currentEntry.type !== 'buffer') return;
             if (!this.isDirty(uri)) return;
             const value = currentEntry.model.getValue();
-            void rpc.editorBuffer.saveBuffer(
+            void rpc.workspace.editor.saveBuffer(
               currentEntry.projectId,
               currentEntry.workspaceId,
               currentEntry.filePath,
@@ -727,12 +727,17 @@ export class MonacoModelRegistry {
     if (!buf || buf.type !== 'buffer') return null;
 
     const content = buf.model.getValue();
-    const result = await rpc.fs.writeFile(buf.projectId, buf.workspaceId, buf.filePath, content);
+    const result = await rpc.workspace.fs.writeFile(
+      buf.projectId,
+      buf.workspaceId,
+      buf.filePath,
+      content
+    );
     if (!result.success) return null;
 
     this.markSaved(uri);
     this.pendingConflicts.delete(uri);
-    void rpc.editorBuffer.clearBuffer(buf.projectId, buf.workspaceId, buf.filePath);
+    void rpc.workspace.editor.clearBuffer(buf.projectId, buf.workspaceId, buf.filePath);
     return content;
   }
 
@@ -748,20 +753,28 @@ export class MonacoModelRegistry {
     const entry = this.modelMap.get(uri);
     if (!entry) return;
     if (entry.type === 'disk') {
-      const res = await rpc.fs.readFile(entry.projectId, entry.workspaceId, entry.filePath);
+      const res = await rpc.workspace.fs.readFile(
+        entry.projectId,
+        entry.workspaceId,
+        entry.filePath
+      );
       if (res.success) this.applyDiskUpdate(uri, entry, res.data.content);
     } else if (entry.type === 'git') {
       const res =
         entry.ref.kind === 'staged'
-          ? await rpc.git.getFileAtIndex(entry.projectId, entry.workspaceId, entry.filePath)
-          : await rpc.git.getFileAtRef(
+          ? await rpc.workspace.git.getFileAtIndex(
+              entry.projectId,
+              entry.workspaceId,
+              entry.filePath
+            )
+          : await rpc.workspace.git.getFileAtRef(
               entry.projectId,
               entry.workspaceId,
               entry.filePath,
               gitRefToString(entry.ref)
             );
-      if (res.success && res.data.content !== null) {
-        entry.model.setValue(res.data.content);
+      if (res.success) {
+        entry.model.setValue(res.data.content ?? '');
       }
     }
   }

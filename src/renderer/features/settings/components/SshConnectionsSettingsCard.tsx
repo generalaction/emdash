@@ -1,12 +1,12 @@
 import { PlusIcon, ServerIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useEffect, useState } from 'react';
-import type { SshConfig, SshConnectionUsage } from '@shared/ssh';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 import { Button } from '@renderer/lib/ui/button';
+import type { SshConfig, SshConnectionUsage } from '@shared/ssh';
 import { SshConnectionRow } from './SshConnectionRow';
 
 export const SshConnectionsSettingsCard = observer(function SshConnectionsSettingsCard() {
@@ -116,7 +116,7 @@ export const SshConnectionsSettingsCard = observer(function SshConnectionsSettin
       </div>
 
       {connections.length === 0 ? (
-        <div className="flex min-h-48 flex-col items-center justify-center rounded-lg border border-border bg-muted/10 p-8 text-center">
+        <div className="bg-muted/10 flex min-h-48 flex-col items-center justify-center rounded-lg border border-border p-8 text-center">
           <ServerIcon className="mb-3 size-8 text-foreground-passive" />
           <div className="text-sm text-foreground">No SSH connections</div>
           <p className="mt-1 max-w-sm text-xs text-foreground-passive">

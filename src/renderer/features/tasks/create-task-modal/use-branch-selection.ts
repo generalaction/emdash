@@ -1,14 +1,21 @@
 import { useCallback, useState } from 'react';
-import type { Branch } from '@shared/git';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import type { Branch } from '@shared/git';
 
 export type BranchSelectionState = ReturnType<typeof useBranchSelection>;
+
+export type BranchSelectionInitial = {
+  createBranchAndWorktree?: boolean;
+  pushBranch?: boolean;
+  branchOverride?: Branch;
+};
 
 export function useBranchSelection(
   selectedProjectId: string | undefined,
   defaultBranch: Branch | undefined,
   isUnborn: boolean,
   currentBranchName?: string | null,
+  initial?: BranchSelectionInitial,
   createBranchAndWorktreeByDefault = true
 ) {
   const { value: project } = useAppSettingsKey('project');
@@ -16,8 +23,10 @@ export function useBranchSelection(
 
   const [createBranchAndWorktreeOverride, setCreateBranchAndWorktreeOverride] = useState<
     boolean | undefined
-  >(undefined);
-  const [pushBranchOverride, setPushBranchOverride] = useState<boolean | undefined>(undefined);
+  >(initial?.createBranchAndWorktree);
+  const [pushBranchOverride, setPushBranchOverride] = useState<boolean | undefined>(
+    initial?.pushBranch
+  );
   const pushBranch = pushBranchOverride ?? pushOnCreateByDefault;
   const createBranchAndWorktreePreference =
     createBranchAndWorktreeOverride ?? createBranchAndWorktreeByDefault;
@@ -28,7 +37,11 @@ export function useBranchSelection(
   // ignored, so defaultBranch takes effect automatically — no effect needed.
   const [branchOverride, setBranchOverride] = useState<
     { projectId: string; branch: Branch } | undefined
-  >(undefined);
+  >(
+    initial?.branchOverride && selectedProjectId
+      ? { projectId: selectedProjectId, branch: initial.branchOverride }
+      : undefined
+  );
 
   const selectedBranch: Branch | undefined =
     !createBranchAndWorktree && currentBranchName

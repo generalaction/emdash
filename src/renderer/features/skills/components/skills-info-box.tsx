@@ -9,7 +9,7 @@ export function SkillsInfoBox() {
           href="https://github.com/openai/skills"
           target="_blank"
           rel="noopener noreferrer"
-          className="font-medium text-foreground underline decoration-muted-foreground/40 underline-offset-2 hover:decoration-foreground"
+          className="decoration-muted-foreground/40 font-medium text-foreground underline underline-offset-2 hover:decoration-foreground"
         >
           OpenAI
         </a>{' '}
@@ -18,7 +18,7 @@ export function SkillsInfoBox() {
           href="https://github.com/anthropics/skills"
           target="_blank"
           rel="noopener noreferrer"
-          className="font-medium text-foreground underline decoration-muted-foreground/40 underline-offset-2 hover:decoration-foreground"
+          className="decoration-muted-foreground/40 font-medium text-foreground underline underline-offset-2 hover:decoration-foreground"
         >
           Anthropic
         </a>{' '}
@@ -28,7 +28,7 @@ export function SkillsInfoBox() {
           href="https://agentskills.io"
           target="_blank"
           rel="noopener noreferrer"
-          className="font-medium text-foreground underline decoration-muted-foreground/40 underline-offset-2 hover:decoration-foreground"
+          className="decoration-muted-foreground/40 font-medium text-foreground underline underline-offset-2 hover:decoration-foreground"
         >
           Agent Skills
         </a>{' '}

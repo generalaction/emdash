@@ -1,20 +1,23 @@
 import { eq } from 'drizzle-orm';
 import { BrowserWindow, Notification } from 'electron';
-import { getProvider, type AgentProviderId } from '@shared/agent-provider-registry';
-import { isAttentionNotification, type AgentEvent } from '@shared/events/agentEvents';
-import { notificationFocusTaskChannel } from '@shared/events/appEvents';
 import { getMainWindow } from '@main/app/window';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
+import { getProvider, type AgentProviderId } from '@shared/agent-provider-registry';
+import { isAttentionNotification, type AgentEvent } from '@shared/events/agentEvents';
+import { notificationFocusTaskChannel } from '@shared/events/appEvents';
 
 function getNotificationBody(event: AgentEvent): string | null {
   if (event.type === 'stop') return 'Your agent has finished working';
   if (event.type === 'notification') {
     const { notificationType } = event.payload;
     if (!notificationType) return null;
+    if (event.providerId === 'codex' && notificationType === 'idle_prompt') {
+      return 'Your agent has finished working';
+    }
     if (isAttentionNotification(notificationType)) {
       return 'Your agent is waiting for input';
     }

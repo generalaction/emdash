@@ -84,10 +84,10 @@ export function GithubConnectModal({ onSuccess, onClose }: BaseModalProps<void>)
       <DialogContentArea className="gap-2">
         <div className="rounded-lg border border-border p-3">
           <div className="flex items-center gap-3">
-            <Github className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <Github className="text-muted-foreground h-4 w-4 shrink-0" />
             <div className="min-w-0 flex-1">
               <h3 className="text-sm font-medium text-foreground">GitHub OAuth</h3>
-              <p className="mt-0.5 text-xs text-muted-foreground">Sign in with your browser</p>
+              <p className="text-muted-foreground mt-0.5 text-xs">Sign in with your browser</p>
             </div>
             <Button onClick={() => void connectOAuth()} disabled={anyLoading}>
               {oauthLoading ? (
@@ -105,10 +105,10 @@ export function GithubConnectModal({ onSuccess, onClose }: BaseModalProps<void>)
 
         <div className="rounded-lg border border-border p-3">
           <div className="flex items-center gap-3">
-            <Terminal className="h-4 w-4 shrink-0 text-muted-foreground" />
+            <Terminal className="text-muted-foreground h-4 w-4 shrink-0" />
             <div className="min-w-0 flex-1">
               <h3 className="text-sm font-medium text-foreground">GitHub CLI</h3>
-              <p className="mt-0.5 text-xs text-muted-foreground">
+              <p className="text-muted-foreground mt-0.5 text-xs">
                 Run{' '}
                 <code className="rounded bg-background-1 px-1 py-0.5 font-mono text-[11px] text-foreground">
                   gh auth login
@@ -141,7 +141,7 @@ export function GithubConnectModal({ onSuccess, onClose }: BaseModalProps<void>)
 
 function InlineError({ message }: { message: string }) {
   return (
-    <div className="mt-2 flex items-start gap-1.5 rounded-md bg-destructive/10 px-2.5 py-2 text-xs text-destructive">
+    <div className="bg-destructive/10 text-destructive mt-2 flex items-start gap-1.5 rounded-md px-2.5 py-2 text-xs">
       <AlertCircle className="mt-px h-3.5 w-3.5 shrink-0" />
       <span>{message}</span>
     </div>

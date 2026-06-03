@@ -3,6 +3,7 @@ import { config as dotenvConfig } from 'dotenv';
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import dockIcon from '@/assets/images/emdash/icon-dock.png?asset';
 import { PRODUCT_NAME } from '@shared/app-identity';
+import { automationsChangedChannel } from '@shared/events/automationEvents';
 import { registerRPCRouter } from '@shared/ipc/rpc';
 import { setupApplicationMenu } from './app/menu';
 import { registerAppScheme, setupAppProtocol } from './app/protocol';
@@ -11,6 +12,8 @@ import { providerTokenRegistry } from './core/account/provider-token-registry';
 import { emdashAccountService } from './core/account/services/emdash-account-service';
 import { agentHookService } from './core/agent-hooks/agent-hook-service';
 import { appService } from './core/app/service';
+import { automationEvents } from './core/automations/automation-events';
+import { automationScheduler } from './core/automations/automation-scheduler';
 import { localDependencyManager } from './core/dependencies/dependency-manager';
 import { editorBufferService } from './core/editor/editor-buffer-service';
 import { gitWatcherRegistry } from './core/git/git-watcher-registry';
@@ -29,6 +32,12 @@ import { appSettingsService } from './core/settings/settings-service';
 import { updateService } from './core/updates/update-service';
 import { viewStateService } from './core/view-state/view-state-service';
 import { initializeDatabase } from './db/initialize';
+import { events } from './lib/events';
+import {
+  initializeFileLogger,
+  registerProcessErrorLogging,
+  registerRendererLogHandler,
+} from './lib/file-logger';
 import { log } from './lib/logger';
 import { telemetryService } from './lib/telemetry';
 import { rpcRouter } from './rpc';
@@ -46,6 +55,9 @@ registerAppScheme();
 
 app.setName(PRODUCT_NAME);
 app.setPath('userData', join(app.getPath('appData'), 'emdash'));
+initializeFileLogger();
+registerProcessErrorLogging(log);
+registerRendererLogHandler(ipcMain);
 
 app.on('second-instance', () => {
   const win = BrowserWindow.getAllWindows()[0];
@@ -117,6 +129,10 @@ void app.whenReady().then(async () => {
   gitWatcherRegistry.initialize();
   projectSettingsService.initialize();
   prSyncScheduler.initialize();
+  automationEvents.on('automation:changed', () => {
+    events.emit(automationsChangedChannel, undefined);
+  });
+  automationScheduler.start();
   appService.initialize();
   await appSettingsService.initialize();
   await promptLibraryService.initialize();
@@ -158,6 +174,7 @@ app.on('before-quit', (event) => {
   event.preventDefault();
   telemetryService.capture('app_closed');
   void telemetryService.dispose().finally(() => {
+    automationScheduler.stop();
     agentHookService.dispose();
     stopResourceSampler();
     updateService.dispose();

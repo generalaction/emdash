@@ -1,18 +1,21 @@
 import os from 'node:os';
-import type { InstallCommandError } from '@shared/dependencies';
-import { err, ok, type Result } from '@shared/result';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import type { Pty } from '@main/core/pty/pty';
 import { logLocalPtySpawnWarnings, resolveLocalPtySpawn } from '@main/core/pty/pty-spawn-platform';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
-import { buildRemoteShellCommand } from '@main/core/ssh/remote-shell-profile';
-import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
+import { buildRemoteShellCommand } from '@main/core/ssh/lifecycle/remote-shell-profile';
+import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
+import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
 import { log } from '@main/lib/logger';
 import { ensureUserBinDirsInPath } from '@main/utils/userEnv';
+import type { InstallCommandError } from '@shared/dependencies';
+import { err, ok, type Result } from '@shared/result';
 
 export type InstallCommandRunner<TData = void, TError = InstallCommandError> = (
   command: string
 ) => Promise<Result<TData, TError>>;
+
+type ShellProfileResolver = () => Promise<ResolvedShellProfile>;
 
 const ANSI_RE = /\u001b\[[0-?]*[ -/]*[@-~]/g;
 
@@ -59,8 +62,9 @@ function waitForInstallPty(pty: Pty): Promise<Result<void, InstallCommandError>>
   });
 }
 
-export function runLocalInstallCommand(
-  command: string
+export async function runLocalInstallCommand(
+  command: string,
+  shellProfile: ResolvedShellProfile
 ): Promise<Result<void, InstallCommandError>> {
   const installId = `install:${crypto.randomUUID()}`;
   const resolved = resolveLocalPtySpawn({
@@ -70,6 +74,7 @@ export function runLocalInstallCommand(
       kind: 'run-command',
       cwd: os.homedir(),
       command: { kind: 'shell-line', commandLine: command },
+      shellProfile,
     },
   });
   logLocalPtySpawnWarnings('DependencyManager', resolved.warnings, { installId });
@@ -96,6 +101,15 @@ export function runLocalInstallCommand(
     }
     return result;
   });
+}
+
+export function createLocalInstallCommandRunner(
+  resolveShellProfile: ShellProfileResolver
+): InstallCommandRunner {
+  return async (command) => {
+    const shellProfile = await resolveShellProfile();
+    return await runLocalInstallCommand(command, shellProfile);
+  };
 }
 
 export function createSshInstallCommandRunner(proxy: SshClientProxy): InstallCommandRunner {

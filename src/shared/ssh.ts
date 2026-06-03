@@ -8,10 +8,12 @@ export interface SshConfig {
   host: string;
   port: number;
   username: string;
+  sshConfigAlias?: string;
   authType: 'password' | 'key' | 'agent';
   privateKeyPath?: string;
   useAgent?: boolean;
-  worktreesDir?: string;
+  forwardAgent?: boolean;
+  proxyJump?: string;
 }
 
 /**
@@ -127,4 +129,8 @@ export interface SshConfigHost {
   port?: number;
   identityFile?: string;
   identityAgent?: string;
+  proxyJump?: string;
+  proxyCommand?: string;
+  forwardAgent?: boolean;
+  forwardAgentValue?: string;
 }

@@ -199,7 +199,7 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
       onDragCancel={clearDragPointerY}
     >
       <SortableContext items={allDndIds} strategy={verticalListSortingStrategy}>
-        <div ref={scrollRef} className="overflow-y-auto min-h-0 flex-1 px-3 pt-1 pb-3">
+        <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-3 pt-1 pb-3">
           <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
             {virtualizer.getVirtualItems().map((vItem) => {
               const row = rows[vItem.index];
@@ -359,7 +359,7 @@ interface SortableRowProps {
 }
 
 function SortableRow({ dndId, style, children }: SortableRowProps) {
-  const { setNodeRef, transform, transition, isDragging, listeners, attributes } = useSortable({
+  const { setNodeRef, transform, transition, isDragging, listeners } = useSortable({
     id: dndId,
   });
 
@@ -372,7 +372,7 @@ function SortableRow({ dndId, style, children }: SortableRowProps) {
   };
 
   return (
-    <div ref={setNodeRef} style={combinedStyle} {...attributes} {...listeners}>
+    <div ref={setNodeRef} style={combinedStyle} {...listeners}>
       {children}
     </div>
   );

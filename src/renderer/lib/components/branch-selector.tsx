@@ -1,6 +1,5 @@
 import { GitBranch, RefreshCw } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
-import { type Branch, type Remote } from '@shared/git';
 import { Badge } from '@renderer/lib/ui/badge';
 import {
   Combobox,
@@ -16,20 +15,18 @@ import { InputGroupButton } from '@renderer/lib/ui/input-group';
 import { Select, SelectTrigger } from '@renderer/lib/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { cn } from '@renderer/utils/utils';
+import { type Branch, type Remote } from '@shared/git';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
-import { filterBranchesForPicker } from './branch-selector-utils';
+import {
+  filterBranchesForPicker,
+  getBranchLabel,
+  prioritizeExactBranchMatches,
+  type BranchLabelRemoteMode,
+} from './branch-selector-utils';
 import { RemoteSelectContent } from './remote-select-content';
 
 type BranchSelectorTab = 'local' | 'remote';
-export type BranchLabelRemoteMode = 'full' | 'short';
-
-export function getBranchLabel(
-  branch: Branch,
-  options: { remote?: BranchLabelRemoteMode } = {}
-): string {
-  if (branch.type !== 'remote') return branch.branch;
-  return options.remote === 'short' ? branch.branch : `${branch.remote.name}/${branch.branch}`;
-}
+export { getBranchLabel, type BranchLabelRemoteMode } from './branch-selector-utils';
 
 interface BranchSelectorProps {
   branches: Branch[];
@@ -68,6 +65,7 @@ export function BranchSelector({
   const inputRef = React.useRef<HTMLInputElement>(null);
   const keepOpenForRemoteSelectRef = React.useRef(false);
   const [open, setOpen] = useState(false);
+  const [inputValue, setInputValue] = useState('');
   const [remoteSelectOpen, setRemoteSelectOpen] = useState(false);
   const [draftRemoteName, setDraftRemoteName] = useState<string | undefined>(undefined);
   const showRemoteFooter = selectedRemoteName !== undefined;
@@ -84,8 +82,13 @@ export function BranchSelector({
   );
 
   const filteredBranches = useMemo(
-    () => filterBranchesForPicker(branches, tab, showRemoteFooter ? activeRemoteName : undefined),
-    [activeRemoteName, branches, showRemoteFooter, tab]
+    () =>
+      prioritizeExactBranchMatches(
+        filterBranchesForPicker(branches, tab, showRemoteFooter ? activeRemoteName : undefined),
+        inputValue,
+        branchLabelRemote
+      ),
+    [activeRemoteName, branchLabelRemote, branches, inputValue, showRemoteFooter, tab]
   );
 
   const options = useMemo(
@@ -101,12 +104,17 @@ export function BranchSelector({
   return (
     <Combobox
       open={open}
+      inputValue={inputValue}
+      onInputValueChange={(nextInputValue: string, { reason }: { reason: string }) => {
+        if (reason !== 'item-press') setInputValue(nextInputValue);
+      }}
       onOpenChange={(nextOpen) => {
         if (!nextOpen && keepOpenForRemoteSelectRef.current) {
           setOpen(true);
           return;
         }
         setOpen(nextOpen);
+        if (!nextOpen) setInputValue('');
         setDraftRemoteName(nextOpen ? selectedRemoteName : undefined);
       }}
       items={options}
@@ -130,8 +138,8 @@ export function BranchSelector({
       }}
     >
       {trigger ?? (
-        <ComboboxTrigger className="border flex border-border h-9 hover:bg-muted/30 rounded-md px-2.5 py-1 text-left text-sm outline-none items-center justify-between">
-          <div className="flex items-center gap-2 text-muted-foreground">
+        <ComboboxTrigger className="hover:bg-muted/30 flex h-9 items-center justify-between rounded-md border border-border px-2.5 py-1 text-left text-sm outline-none">
+          <div className="text-muted-foreground flex items-center gap-2">
             <GitBranch />
             <ComboboxValue placeholder="Select a branch" />
           </div>
@@ -149,24 +157,24 @@ export function BranchSelector({
                 inputRef.current?.focus();
               }
             }}
-            className="w-full border-0 border-b border-border rounded-b-none bg-transparent"
+            className="w-full rounded-b-none border-0 border-b border-border bg-transparent"
           >
             <ToggleGroupItem
               value="local"
-              className="group flex-1 flex items-center gap-1 hover:bg-background-quaternary-1 data-pressed:bg-background-quaternary-2"
+              className="group flex flex-1 items-center gap-1 hover:bg-background-quaternary-1 data-pressed:bg-background-quaternary-2"
               disabled={localCount === 0}
             >
               Local
               <Badge
                 variant="secondary"
-                className="shrink-0 bg-background-2 transition-colors hover:bg-background-quaternary-1 group-data-pressed:bg-background-quaternary-3"
+                className="group-data-pressed:bg-background-quaternary-3 shrink-0 bg-background-2 transition-colors hover:bg-background-quaternary-1"
               >
                 {localCount}
               </Badge>
             </ToggleGroupItem>
             <ToggleGroupItem
               value="remote"
-              className="group flex-1 flex items-center gap-1 hover:bg-background-quaternary-1 data-pressed:bg-background-quaternary-2"
+              className="group flex flex-1 items-center gap-1 hover:bg-background-quaternary-1 data-pressed:bg-background-quaternary-2"
               disabled={remoteCount === 0}
             >
               Remote

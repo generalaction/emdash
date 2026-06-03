@@ -38,6 +38,12 @@ export const APP_SHORTCUTS = defineShortcuts({
     description: 'Open application settings',
     category: 'Navigation',
   },
+  library: {
+    defaultHotkey: 'Mod+L',
+    label: 'Library',
+    description: 'Open the Library',
+    category: 'Navigation',
+  },
   toggleLeftSidebar: {
     defaultHotkey: 'Mod+B',
     label: 'Toggle Left Sidebar',
@@ -63,6 +69,12 @@ export const APP_SHORTCUTS = defineShortcuts({
     description: 'Create a new task',
     category: 'Navigation',
   },
+  deleteSelectedTasks: {
+    defaultHotkey: 'Mod+Backspace',
+    label: 'Delete Selected Tasks',
+    description: 'Delete the selected tasks',
+    category: 'Navigation',
+  },
   newProject: {
     defaultHotkey: 'Mod+Shift+N',
     label: 'New Project',
@@ -82,13 +94,13 @@ export const APP_SHORTCUTS = defineShortcuts({
     category: 'Task View',
   },
   sidebarConversations: {
-    defaultHotkey: 'Mod+Shift+2',
+    defaultHotkey: 'Mod+Shift+3',
     label: 'View Conversations',
     description: 'Open the right sidebar to the Conversations panel',
     category: 'Task View',
   },
   sidebarFiles: {
-    defaultHotkey: 'Mod+Shift+3',
+    defaultHotkey: 'Mod+Shift+2',
     label: 'View Files',
     description: 'Open the right sidebar to the Files panel',
     category: 'Task View',
@@ -118,6 +130,12 @@ export const APP_SHORTCUTS = defineShortcuts({
     defaultHotkey: 'Mod+T',
     label: 'New Conversation',
     description: 'Create a new conversation in the current task',
+    category: 'Task View',
+  },
+  newConversationSplitRight: {
+    defaultHotkey: 'Mod+D',
+    label: 'New Conversation in Right Split',
+    description: 'Create a new conversation in a split pane to the right',
     category: 'Task View',
   },
   newTerminal: {
