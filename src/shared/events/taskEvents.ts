@@ -33,7 +33,7 @@ export const taskProvisionProgressChannel = defineEvent<{
 }>('task:provision-progress');
 
 export type LifecycleScriptType = 'setup' | 'run' | 'teardown';
-export type LifecycleScriptOrigin = 'auto-setup' | 'manual' | 'workspace-destroy';
+export type LifecycleScriptOrigin = 'auto-setup' | 'auto-run' | 'manual' | 'workspace-destroy';
 
 export type LifecycleScriptStatusEvent = {
   taskId: string;
