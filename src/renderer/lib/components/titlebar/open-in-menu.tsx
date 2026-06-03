@@ -64,6 +64,14 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, className, borderl
     [labels, path, toast]
   );
 
+  const handleSelectApp = useCallback(
+    (appId: OpenInAppId) => {
+      persistPreferredApp(appId);
+      void triggerOpenIn(appId);
+    },
+    [persistPreferredApp, triggerOpenIn]
+  );
+
   const sortedApps = useMemo(() => {
     if (!defaultApp) return installedApps;
     return [...installedApps].sort((a, b) => {
@@ -165,7 +173,12 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, className, borderl
           {menuApps.map((app) => {
             const isAvailable = loading ? availability[app.id] === true : true;
             return (
-              <SelectItem key={app.id} value={app.id} disabled={!isAvailable}>
+              <SelectItem
+                key={app.id}
+                value={app.id}
+                disabled={!isAvailable}
+                onClick={() => handleSelectApp(app.id)}
+              >
                 {icons[app.id] && (
                   <img
                     src={icons[app.id]}
