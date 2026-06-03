@@ -42,18 +42,19 @@ export function MergeFooter({
   const isDraft = uiState.kind === 'draft';
   const mergeDisabled =
     !isMerging && !uiState.canMerge && (!uiState.canBypassRequirements || !bypassRequirements);
-  const { icon: MergeStatusIcon, iconClass } = severityConfig[uiState.severity];
-  const showMergeStatus = !(uiState.canBypassRequirements && bypassRequirements);
+  const bypassEnabled = uiState.canBypassRequirements && bypassRequirements;
+  const { icon: MergeStatusIcon, iconClass } = severityConfig[
+    bypassEnabled ? 'warning' : uiState.severity
+  ];
+  const mergeStatusTitle = bypassEnabled ? 'Bypass requirements enabled' : uiState.title;
 
   return (
     <div className="flex shrink-0 flex-col gap-2 border-t border-border px-3 py-2.5">
       <div className="flex items-center justify-between gap-1.5">
-        {showMergeStatus && (
-          <div className="flex min-w-0 items-center gap-1.5">
-            <MergeStatusIcon className={cn('size-4 shrink-0', iconClass)} />
-            <p className="truncate text-sm leading-tight text-foreground">{uiState.title}</p>
-          </div>
-        )}
+        <div className="flex min-w-0 items-center gap-1.5">
+          <MergeStatusIcon className={cn('size-4 shrink-0', iconClass)} />
+          <p className="truncate text-sm leading-tight text-foreground">{mergeStatusTitle}</p>
+        </div>
         <div className="flex items-center gap-1.5">
           {isDraft ? (
             <Button

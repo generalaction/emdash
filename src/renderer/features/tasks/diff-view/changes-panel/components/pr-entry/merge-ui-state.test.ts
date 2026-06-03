@@ -144,6 +144,7 @@ describe('MergeFooter', () => {
     expect(getMergeButton()?.disabled).toBe(false);
     expect(getMergeButton()?.textContent).toContain('Bypass rules and merge');
     expect(container.textContent).not.toContain('Merging is blocked');
+    expect(container.textContent).toContain('Bypass requirements enabled');
   });
 
   it('keeps the merge action disabled for conflicts', () => {
