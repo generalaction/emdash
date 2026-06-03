@@ -694,6 +694,41 @@ describe('conversation provider respawn state', () => {
     }
   });
 
+  it('resets SSH supervisor state after a shell refresh retry also exits missing-command', async () => {
+    vi.useFakeTimers();
+    try {
+      const exitHandlers: Array<Array<(info: PtyExitInfo) => void>> = [];
+      openSsh2Pty.mockImplementation(() => {
+        const handlers: Array<(info: PtyExitInfo) => void> = [];
+        exitHandlers.push(handlers);
+        return Promise.resolve({ success: true, data: fakePty(handlers) });
+      });
+      const proxy = {
+        getRemoteShellProfile: vi.fn(async () => ({})),
+        refreshRemoteShellProfile: vi.fn(async () => ({})),
+      };
+      const provider = sshProvider(proxy);
+      const item = conversation();
+
+      await provider.startSession(item, undefined, true);
+      for (const handler of exitHandlers[0] ?? []) handler({ exitCode: 127 });
+      await vi.advanceTimersByTimeAsync(500);
+      for (const handler of exitHandlers[1] ?? []) handler({ exitCode: 127 });
+
+      await provider.startSession(item);
+      for (const handler of exitHandlers[2] ?? []) handler({ exitCode: 0 });
+      await vi.advanceTimersByTimeAsync(500);
+
+      expect(proxy.refreshRemoteShellProfile).toHaveBeenCalledTimes(1);
+      expect(openSsh2Pty).toHaveBeenCalledTimes(4);
+      expect(
+        vi.mocked(buildAgentSessionCommand).mock.calls.map(([args]) => args.isResuming)
+      ).toEqual([true, true, false, true]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('does not refresh the SSH shell profile after explicit stop cancels a missing-command retry', async () => {
     vi.useFakeTimers();
     try {

@@ -228,6 +228,7 @@ export class SshConversationProvider implements ConversationProvider {
         }
 
         if (options.shellRefreshRetried && exitCode === 127) {
+          this.supervisor.stop(sessionId);
           events.emit(agentSessionExitedChannel, {
             conversationId: conversation.id,
             taskId: conversation.taskId,
