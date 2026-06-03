@@ -11,21 +11,23 @@ import {
 import { Field, FieldGroup, FieldLabel } from '@renderer/lib/ui/field';
 import { Input } from '@renderer/lib/ui/input';
 import { Textarea } from '@renderer/lib/ui/textarea';
-import type { PromptLibraryPrompt } from '@shared/prompt-library';
+import type { PromptLibraryFolder, PromptLibraryPrompt } from '@shared/prompt-library';
 
-export type PromptFormResult = Pick<PromptLibraryPrompt, 'title' | 'prompt'>;
+export type PromptFormResult = Pick<PromptLibraryPrompt, 'title' | 'prompt' | 'folderId'>;
 
 type PromptModalArgs = {
   initialPrompt?: PromptLibraryPrompt | PromptFormResult;
+  folders?: PromptLibraryFolder[];
 };
 
 type Props = BaseModalProps<PromptFormResult> & PromptModalArgs;
 
-export function PromptModal({ initialPrompt, onSuccess, onClose }: Props) {
+export function PromptModal({ initialPrompt, folders = [], onSuccess, onClose }: Props) {
   const initialForm = useMemo<PromptFormResult>(
     () => ({
       title: initialPrompt?.title ?? '',
       prompt: initialPrompt?.prompt ?? '',
+      folderId: initialPrompt?.folderId,
     }),
     [initialPrompt]
   );
@@ -37,7 +39,11 @@ export function PromptModal({ initialPrompt, onSuccess, onClose }: Props) {
 
   const handleSave = () => {
     if (!canSave) return;
-    onSuccess({ title: normalizedTitle, prompt: normalizedPrompt });
+    onSuccess({
+      title: normalizedTitle,
+      prompt: normalizedPrompt,
+      folderId: form.folderId,
+    });
   };
 
   return (
@@ -65,6 +71,28 @@ export function PromptModal({ initialPrompt, onSuccess, onClose }: Props) {
               className="max-h-[50dvh] min-h-56 resize-y overflow-y-auto px-3 py-2.5 text-[14px] leading-relaxed"
             />
           </Field>
+          {folders.length > 0 && (
+            <Field>
+              <FieldLabel>Folder</FieldLabel>
+              <select
+                value={form.folderId ?? ''}
+                onChange={(e) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    folderId: e.target.value || undefined,
+                  }))
+                }
+                className="border-input focus-visible:border-ring focus-visible:ring-ring/50 flex h-9 w-full rounded-md border bg-background px-3 py-1 text-sm outline-none focus-visible:ring-3"
+              >
+                <option value="">No folder</option>
+                {folders.map((folder) => (
+                  <option key={folder.id} value={folder.id}>
+                    {folder.title}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          )}
         </FieldGroup>
       </DialogContentArea>
       <DialogFooter>

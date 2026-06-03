@@ -1,9 +1,8 @@
 import { createRPCController } from '@shared/ipc/rpc';
-import { type PromptLibraryPrompt } from '@shared/prompt-library';
+import { type PromptLibrary } from '@shared/prompt-library';
 import { promptLibraryService } from './service';
 
 export const promptLibraryController = createRPCController({
-  get: (): Promise<PromptLibraryPrompt[]> => promptLibraryService.getPrompts(),
-  update: (prompts: PromptLibraryPrompt[]): Promise<void> =>
-    promptLibraryService.updatePrompts(prompts),
+  get: (): Promise<PromptLibrary> => promptLibraryService.getLibrary(),
+  update: (library: PromptLibrary): Promise<void> => promptLibraryService.updateLibrary(library),
 });

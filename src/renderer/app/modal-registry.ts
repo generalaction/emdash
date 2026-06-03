@@ -1,5 +1,6 @@
 import { CommandPaletteModal } from '@renderer/features/command-palette/command-palette-modal';
 import { IntegrationSetupModal } from '@renderer/features/integrations/integration-setup-modal';
+import { FolderModal } from '@renderer/features/library/prompts/folder-modal';
 import { PromptModal } from '@renderer/features/library/prompts/prompt-modal';
 import { McpModal } from '@renderer/features/mcp/components/McpModal';
 import { AddProjectModal } from '@renderer/features/projects/components/add-project-modal/add-project-modal';
@@ -51,6 +52,7 @@ export const modalRegistry = {
   createConversationModal: createModal(CreateConversationModal),
   feedbackModal: createModal(FeedbackModal),
   promptModal: createModal(PromptModal, { size: 'lg' }),
+  folderModal: createModal(FolderModal, { size: 'xs' }),
   mcpServerModal: createModal(McpModal),
   createSkillModal: createModal(CreateSkillModal),
   conflictDialog: createModal(ConflictDialog, { size: 'sm' }),

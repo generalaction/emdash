@@ -6,12 +6,13 @@ import type { IInitializable } from '@main/lib/lifecycle';
 import {
   DEFAULT_PROMPT_LIBRARY,
   PROMPT_LIBRARY_SEED_VERSION,
+  promptLibraryPromptSchema,
   promptLibrarySchema,
-  type PromptLibraryPrompt,
+  type PromptLibrary,
 } from '@shared/prompt-library';
 
 type PromptLibraryKV = {
-  prompts: PromptLibraryPrompt[];
+  prompts: PromptLibrary;
   seedVersion: number;
 };
 
@@ -20,10 +21,23 @@ const promptLibraryKV = new KV<PromptLibraryKV>('prompt-library');
 export class PromptLibraryService implements IInitializable {
   private seedPromise: Promise<void> | null = null;
 
-  private async readPrompts(): Promise<PromptLibraryPrompt[]> {
-    const prompts = await promptLibraryKV.get('prompts');
-    const parsed = promptLibrarySchema.safeParse(prompts ?? []);
-    return parsed.success ? parsed.data : [];
+  private parseLibrary(value: unknown): PromptLibrary {
+    const parsed = promptLibrarySchema.safeParse(value);
+    if (parsed.success) return parsed.data;
+
+    const legacyPrompts = promptLibraryPromptSchema.array().safeParse(value);
+    if (legacyPrompts.success) {
+      return {
+        folders: [],
+        prompts: legacyPrompts.data,
+      };
+    }
+
+    return { folders: [], prompts: [] };
+  }
+
+  private async readLibrary(): Promise<PromptLibrary> {
+    return this.parseLibrary(await promptLibraryKV.get('prompts'));
   }
 
   private async readLegacyAppSetting(key: string): Promise<unknown | null> {
@@ -58,12 +72,12 @@ export class PromptLibraryService implements IInitializable {
         return;
       }
 
-      const existingPrompts = await this.readPrompts();
-      const legacyPromptLibrary = promptLibrarySchema.safeParse(
-        await this.readLegacyAppSetting('promptLibrary')
-      );
+      const existingLibrary = await this.readLibrary();
+      const legacyPromptLibrary = promptLibraryPromptSchema
+        .array()
+        .safeParse(await this.readLegacyAppSetting('promptLibrary'));
       const legacyReviewPrompt = await this.readLegacyAppSetting('reviewPrompt');
-      const prompts = [...existingPrompts];
+      const prompts = [...existingLibrary.prompts];
       if (legacyPromptLibrary.success) {
         for (const legacyPrompt of legacyPromptLibrary.data) {
           if (!prompts.some((prompt) => prompt.id === legacyPrompt.id)) {
@@ -71,7 +85,7 @@ export class PromptLibraryService implements IInitializable {
           }
         }
       }
-      const defaultPrompts = DEFAULT_PROMPT_LIBRARY.map((prompt) =>
+      const defaultPrompts = DEFAULT_PROMPT_LIBRARY.prompts.map((prompt) =>
         prompt.id === 'review-prompt' && typeof legacyReviewPrompt === 'string'
           ? { ...prompt, prompt: legacyReviewPrompt }
           : prompt
@@ -79,10 +93,13 @@ export class PromptLibraryService implements IInitializable {
       const missingSeedPrompts = defaultPrompts.filter(
         (seedPrompt) => !prompts.some((prompt) => prompt.id === seedPrompt.id)
       );
-      const nextPrompts = [...missingSeedPrompts, ...prompts];
+      const nextLibrary = {
+        folders: existingLibrary.folders,
+        prompts: [...missingSeedPrompts, ...prompts],
+      };
 
-      if (nextPrompts.length > 0) {
-        await promptLibraryKV.set('prompts', nextPrompts);
+      if (nextLibrary.folders.length > 0 || nextLibrary.prompts.length > 0) {
+        await promptLibraryKV.set('prompts', nextLibrary);
       }
       await promptLibraryKV.set('seedVersion', PROMPT_LIBRARY_SEED_VERSION);
       await this.deleteLegacyPromptSettings();
@@ -97,13 +114,13 @@ export class PromptLibraryService implements IInitializable {
     await this.seedIfNeeded();
   }
 
-  async getPrompts(): Promise<PromptLibraryPrompt[]> {
+  async getLibrary(): Promise<PromptLibrary> {
     await this.seedIfNeeded();
-    return this.readPrompts();
+    return this.readLibrary();
   }
 
-  async updatePrompts(prompts: PromptLibraryPrompt[]): Promise<void> {
-    const validated = promptLibrarySchema.parse(prompts);
+  async updateLibrary(library: PromptLibrary): Promise<void> {
+    const validated = promptLibrarySchema.parse(library);
     await promptLibraryKV.set('prompts', validated);
   }
 
@@ -112,18 +129,18 @@ export class PromptLibraryService implements IInitializable {
     if (!trimmedPrompt) return;
 
     await this.seedIfNeeded();
-    const prompts = await this.readPrompts();
+    const library = await this.readLibrary();
     const reviewPrompt = {
       id: 'review-prompt',
       title: 'Review prompt',
       prompt: trimmedPrompt,
     };
-    const exists = prompts.some((item) => item.id === reviewPrompt.id);
+    const exists = library.prompts.some((item) => item.id === reviewPrompt.id);
     const nextPrompts = exists
-      ? prompts.map((item) => (item.id === reviewPrompt.id ? reviewPrompt : item))
-      : [reviewPrompt, ...prompts];
+      ? library.prompts.map((item) => (item.id === reviewPrompt.id ? reviewPrompt : item))
+      : [reviewPrompt, ...library.prompts];
 
-    await promptLibraryKV.set('prompts', nextPrompts);
+    await promptLibraryKV.set('prompts', { ...library, prompts: nextPrompts });
   }
 }
 

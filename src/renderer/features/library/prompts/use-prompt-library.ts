@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { rpc } from '@renderer/lib/ipc';
-import { type PromptLibraryPrompt } from '@shared/prompt-library';
+import { type PromptLibrary } from '@shared/prompt-library';
 
 const promptLibraryQueryKey = ['promptLibrary'] as const;
+const emptyPromptLibrary: PromptLibrary = { folders: [], prompts: [] };
 
 export function usePromptLibrary() {
   const queryClient = useQueryClient();
@@ -15,19 +16,18 @@ export function usePromptLibrary() {
   const updateMutation = useMutation<
     void,
     Error,
-    PromptLibraryPrompt[],
-    { previousPrompts: PromptLibraryPrompt[] | undefined }
+    PromptLibrary,
+    { previousLibrary: PromptLibrary | undefined }
   >({
-    mutationFn: (prompts) => rpc.promptLibrary.update(prompts),
-    onMutate: async (prompts) => {
+    mutationFn: (library) => rpc.promptLibrary.update(library),
+    onMutate: async (library) => {
       await queryClient.cancelQueries({ queryKey: promptLibraryQueryKey });
-      const previousPrompts =
-        queryClient.getQueryData<PromptLibraryPrompt[]>(promptLibraryQueryKey);
-      queryClient.setQueryData(promptLibraryQueryKey, prompts);
-      return { previousPrompts };
+      const previousLibrary = queryClient.getQueryData<PromptLibrary>(promptLibraryQueryKey);
+      queryClient.setQueryData(promptLibraryQueryKey, library);
+      return { previousLibrary };
     },
-    onError: (_error, _prompts, context) => {
-      queryClient.setQueryData(promptLibraryQueryKey, context?.previousPrompts);
+    onError: (_error, _library, context) => {
+      queryClient.setQueryData(promptLibraryQueryKey, context?.previousLibrary);
       void queryClient.invalidateQueries({ queryKey: promptLibraryQueryKey });
     },
     onSettled: () => {
@@ -36,7 +36,7 @@ export function usePromptLibrary() {
   });
 
   return {
-    value: data ?? [],
+    value: data ?? emptyPromptLibrary,
     update: updateMutation.mutate,
     isLoading,
     isSaving: updateMutation.isPending,
