@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Pty } from '@main/core/pty/pty';
 import {
+  CONVERSATION_FRESH_RECOVERY_GRACE_MS,
   MAX_CONVERSATION_RESUME_ATTEMPTS,
   ConversationSessionSupervisor,
 } from './conversation-session-supervisor';
@@ -52,7 +53,7 @@ describe('ConversationSessionSupervisor', () => {
     }
   });
 
-  it('resets the resume exit count after a fresh spawn', () => {
+  it('fails when a fresh recovery exits before the startup grace period', () => {
     const supervisor = new ConversationSessionSupervisor();
     const first = fakePty();
     const firstToken = supervisor.beginStart('session-1', { mode: 'resume' });
@@ -66,14 +67,39 @@ describe('ConversationSessionSupervisor', () => {
       mode: 'fresh',
     });
     expect(supervisor.acceptSpawn('session-1', freshToken!, fresh)).toBe(true);
-    expect(supervisor.handleExit('session-1', fresh)).toEqual({ kind: 'respawnResume' });
+    expect(supervisor.handleExit('session-1', fresh)).toEqual({ kind: 'failed' });
+    expect(supervisor.isDesired('session-1')).toBe(false);
+  });
 
-    const retry = fakePty();
-    const retryToken = supervisor.beginStart('session-1', {
-      requireDesired: true,
-      mode: 'resume',
-    });
-    expect(supervisor.acceptSpawn('session-1', retryToken!, retry)).toBe(true);
-    expect(supervisor.handleExit('session-1', retry)).toEqual({ kind: 'respawnFresh' });
+  it('resets recovery after a fresh replacement survives the startup grace period', () => {
+    vi.useFakeTimers();
+    try {
+      const supervisor = new ConversationSessionSupervisor();
+      const first = fakePty();
+      const firstToken = supervisor.beginStart('session-1', { mode: 'resume' });
+      expect(supervisor.acceptSpawn('session-1', firstToken!, first)).toBe(true);
+
+      expect(supervisor.handleExit('session-1', first)).toEqual({ kind: 'respawnFresh' });
+
+      const fresh = fakePty();
+      const freshToken = supervisor.beginStart('session-1', {
+        requireDesired: true,
+        mode: 'fresh',
+      });
+      expect(supervisor.acceptSpawn('session-1', freshToken!, fresh)).toBe(true);
+
+      vi.advanceTimersByTime(CONVERSATION_FRESH_RECOVERY_GRACE_MS);
+      expect(supervisor.handleExit('session-1', fresh)).toEqual({ kind: 'respawnResume' });
+
+      const retry = fakePty();
+      const retryToken = supervisor.beginStart('session-1', {
+        requireDesired: true,
+        mode: 'resume',
+      });
+      expect(supervisor.acceptSpawn('session-1', retryToken!, retry)).toBe(true);
+      expect(supervisor.handleExit('session-1', retry)).toEqual({ kind: 'respawnFresh' });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { CONVERSATION_FRESH_RECOVERY_GRACE_MS } from '@main/core/conversations/conversation-session-supervisor';
 import type { Pty, PtyExitInfo } from '@main/core/pty/pty';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import type { Conversation } from '@shared/conversations';
@@ -317,6 +318,65 @@ describe('conversation provider respawn state', () => {
       expect(spawnLocalPty).toHaveBeenCalledTimes(2);
       expect(buildAgentSessionCommand).toHaveBeenLastCalledWith(
         expect.objectContaining({ isResuming: false })
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('stops local recovery when a fresh fallback exits before the startup grace period', async () => {
+    vi.useFakeTimers();
+    try {
+      const exitHandlers: Array<Array<(info: PtyExitInfo) => void>> = [];
+      spawnLocalPty.mockImplementation(() => {
+        const handlers: Array<(info: PtyExitInfo) => void> = [];
+        exitHandlers.push(handlers);
+        return fakePty(handlers);
+      });
+      const provider = localProvider();
+      const item = conversation();
+
+      await provider.startSession(item, undefined, true);
+      for (const handler of exitHandlers[0] ?? []) handler({ exitCode: 0 });
+      await vi.advanceTimersByTimeAsync(500);
+      for (const handler of exitHandlers[1] ?? []) handler({ exitCode: 0 });
+      await vi.advanceTimersByTimeAsync(500);
+
+      expect(spawnLocalPty).toHaveBeenCalledTimes(2);
+      expect(events.emit).toHaveBeenCalledWith(
+        agentSessionExitedChannel,
+        expect.objectContaining({
+          conversationId: item.id,
+          taskId: item.taskId,
+        })
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('starts a new local recovery cycle after fresh fallback survives the startup grace period', async () => {
+    vi.useFakeTimers();
+    try {
+      const exitHandlers: Array<Array<(info: PtyExitInfo) => void>> = [];
+      spawnLocalPty.mockImplementation(() => {
+        const handlers: Array<(info: PtyExitInfo) => void> = [];
+        exitHandlers.push(handlers);
+        return fakePty(handlers);
+      });
+      const provider = localProvider();
+      const item = conversation();
+
+      await provider.startSession(item, undefined, true);
+      for (const handler of exitHandlers[0] ?? []) handler({ exitCode: 0 });
+      await vi.advanceTimersByTimeAsync(500);
+      await vi.advanceTimersByTimeAsync(CONVERSATION_FRESH_RECOVERY_GRACE_MS);
+      for (const handler of exitHandlers[1] ?? []) handler({ exitCode: 0 });
+      await vi.advanceTimersByTimeAsync(500);
+
+      expect(spawnLocalPty).toHaveBeenCalledTimes(3);
+      expect(buildAgentSessionCommand).toHaveBeenLastCalledWith(
+        expect.objectContaining({ isResuming: true })
       );
     } finally {
       vi.useRealTimers();
