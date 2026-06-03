@@ -189,7 +189,7 @@ describe('file link provider', () => {
     expect(decorations).toEqual({ pointerCursor: false, underline: false });
   });
 
-  it('only opens links when the activation modifier is pressed', () => {
+  it('opens links on normal click', () => {
     const openedFiles: string[] = [];
     const openedExternal: string[] = [];
     const buffer = makeBuffer([new MockBufferLine('open ./src/app.ts and /tmp/report.md')]);
@@ -207,11 +207,9 @@ describe('file link provider', () => {
 
     const relativeLink = links[0]!;
     relativeLink.activate({ metaKey: false, ctrlKey: false } as MouseEvent, relativeLink.text);
-    relativeLink.activate({ metaKey: true, ctrlKey: false } as MouseEvent, relativeLink.text);
 
     const externalLink = links[1]!;
     externalLink.activate({ metaKey: false, ctrlKey: false } as MouseEvent, externalLink.text);
-    externalLink.activate({ metaKey: true, ctrlKey: false } as MouseEvent, externalLink.text);
 
     expect(openedFiles).toEqual(['src/app.ts']);
     expect(openedExternal).toEqual(['/tmp/report.md']);

@@ -75,27 +75,19 @@ export class FileLinkProvider implements ILinkProvider {
   }
 
   private toXtermLink(match: FileLinkMatch): ILink {
-    const decorations = this.tracker.decorations();
     const link: ILink = {
       range: match.range,
       text: match.text,
-      decorations,
-      hover: (event) => {
-        this.tracker.hover(link.decorations ?? decorations, event);
+      decorations: {
+        pointerCursor: true,
+        underline: true,
       },
-      leave: () => {
-        this.tracker.leave(link.decorations ?? decorations);
-      },
-      activate: (event, linkText) => {
-        if (!this.tracker.isPressed(event)) return;
+      activate: (_event, linkText) => {
         if (match.isExternal) {
           this.onOpenExternal(linkText);
         } else {
           this.onOpenFile(normalizeFilePath(linkText));
         }
-      },
-      dispose: () => {
-        this.tracker.leave(link.decorations ?? decorations);
       },
     };
     return link;
