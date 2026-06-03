@@ -2,6 +2,7 @@ import { Plus } from 'lucide-react';
 import { Button } from '@renderer/lib/ui/button';
 import { SearchInput } from '@renderer/lib/ui/search-input';
 import { cn } from '@renderer/utils/utils';
+import { PageHeader } from '@renderer/lib/components/page-header';
 
 interface AutomationsHeaderProps {
   title: string;
@@ -29,37 +30,28 @@ export function AutomationsHeader({
   onNewAutomation,
 }: AutomationsHeaderProps) {
   return (
-    <div className="mb-6">
-      <div className="min-w-0">
-        <h1 className="truncate text-lg font-semibold">{title}</h1>
-        <p className="text-muted-foreground mt-1 max-w-md text-xs text-pretty">{subtitle}</p>
-      </div>
-
+    <PageHeader title={title} description={subtitle}>
       {showActions && (
-        <div className="mt-4 flex items-center justify-between gap-2">
+        <div className="flex items-center justify-between gap-2">
           <SearchInput
-            containerClassName={cn('min-w-0 flex-1', panelOpen ? 'max-w-48' : 'max-w-64')}
             placeholder={searchPlaceholder}
             value={search}
             onChange={(event) => onSearchChange(event.target.value)}
             aria-label={searchPlaceholder}
-            className="w-full min-w-0 focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-none"
           />
-
           {showNewButton ? (
             <Button
-              size="sm"
-              variant="outline"
               className="shrink-0 whitespace-nowrap"
               disabled={createPending}
               onClick={onNewAutomation}
             >
-              <Plus className="mr-1.5 h-3.5 w-3.5" />
+              <Plus className="h-3.5 w-3.5" />
               New Automation
             </Button>
           ) : null}
         </div>
       )}
-    </div>
+
+    </PageHeader>
   );
 }
