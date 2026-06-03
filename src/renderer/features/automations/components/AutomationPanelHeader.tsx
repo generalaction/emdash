@@ -110,14 +110,14 @@ export function AutomationPanelHeader({
           ) : null}
         </div>
       ) : null}
-              <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close panel"
-          className="text-muted-foreground hover:bg-muted rounded-md p-1 transition-colors hover:text-foreground"
-        >
-          <X className="size-4" />
-        </button>
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Close panel"
+        className="text-muted-foreground hover:bg-muted rounded-md p-1 transition-colors hover:text-foreground"
+      >
+        <X className="size-4" />
+      </button>
     </div>
   );
 }

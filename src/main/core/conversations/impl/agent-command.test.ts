@@ -367,6 +367,30 @@ describe('buildAgentCommand', () => {
     expect(resume.args).toEqual(resumeArgs);
   });
 
+  it('resumes OpenCode by stored provider session id when available', () => {
+    const result = buildAgentCommand({
+      providerId: 'opencode',
+      providerConfig: providerConfigDefaults.opencode,
+      sessionId: 'conv-1',
+      providerSessionId: 'ses_7e7cTuaNc1DpuMrZrpUv4WRk0Z',
+      isResuming: true,
+    });
+
+    expect(result.args).toEqual(['--session', 'ses_7e7cTuaNc1DpuMrZrpUv4WRk0Z']);
+  });
+
+  it('falls back to last OpenCode session when the stored provider session id is invalid', () => {
+    const result = buildAgentCommand({
+      providerId: 'opencode',
+      providerConfig: providerConfigDefaults.opencode,
+      sessionId: 'conv-1',
+      providerSessionId: 'msg_e8cbf36c300143krNXzZNt6AfZ',
+      isResuming: true,
+    });
+
+    expect(result.args).toEqual(['--continue']);
+  });
+
   it('appends extra args', () => {
     const result = buildAgentCommand({
       providerId: 'claude',

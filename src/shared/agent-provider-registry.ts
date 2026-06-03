@@ -300,7 +300,10 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     cli: 'opencode',
     autoApproveViaEnv: true,
     initialPromptFlag: '--prompt',
-    resumeFlag: '--continue',
+    resumeFlag: '--session',
+    sessionIdFlag: '--session',
+    sessionIdOnResumeOnly: true,
+    resumeWithoutSessionFlag: '--continue',
     icon: 'opencode.svg',
     iconDark: 'opencode-dark.svg',
     alt: 'OpenCode CLI',
@@ -649,6 +652,11 @@ export function getInstallCommandForProvider(id: AgentProviderId): string | null
  */
 export function isValidProviderId(value: unknown): value is AgentProviderId {
   return typeof value === 'string' && AGENT_PROVIDER_IDS.includes(value as AgentProviderId);
+}
+
+export function isValidProviderSessionId(providerId: string, providerSessionId: string): boolean {
+  if (providerId === 'opencode') return providerSessionId.startsWith('ses');
+  return true;
 }
 
 export function getDescriptionForProvider(id: AgentProviderId): string | null {

@@ -108,6 +108,47 @@ describe('handleProviderSessionHook', () => {
     });
   });
 
+  it('persists OpenCode session ids and emits conversation changes', async () => {
+    mockSetProviderSessionId.mockResolvedValue(true);
+    mockEnrichEvent.mockResolvedValue({
+      type: 'start',
+      providerId: 'opencode',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      conversationId: 'conversation-1',
+      timestamp: 0,
+      payload: {},
+    });
+
+    await handleProviderSessionHook({
+      ptyId: 'opencode-conv-conversation-1',
+      type: 'session',
+      body: JSON.stringify({ sessionId: 'ses_7e7cTuaNc1DpuMrZrpUv4WRk0Z' }),
+    });
+
+    expect(mockSetProviderSessionId).toHaveBeenCalledWith(
+      'conversation-1',
+      'ses_7e7cTuaNc1DpuMrZrpUv4WRk0Z'
+    );
+    expect(mockEvents.emit).toHaveBeenCalledWith(conversationChangedChannel, {
+      conversationId: 'conversation-1',
+      taskId: 'task-1',
+      projectId: 'project-1',
+      changes: { providerSessionId: 'ses_7e7cTuaNc1DpuMrZrpUv4WRk0Z' },
+    });
+  });
+
+  it('ignores OpenCode ids that are not session ids', async () => {
+    await handleProviderSessionHook({
+      ptyId: 'opencode-conv-conversation-1',
+      type: 'session',
+      body: JSON.stringify({ sessionId: 'msg_e8cbf36c300143krNXzZNt6AfZ' }),
+    });
+
+    expect(mockSetProviderSessionId).not.toHaveBeenCalled();
+    expect(mockEvents.emit).not.toHaveBeenCalled();
+  });
+
   it('skips enrichment when the Grok session id is already stored', async () => {
     mockSetProviderSessionId.mockResolvedValue(false);
 
