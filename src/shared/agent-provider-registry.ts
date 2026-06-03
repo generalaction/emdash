@@ -654,6 +654,11 @@ export function isValidProviderId(value: unknown): value is AgentProviderId {
   return typeof value === 'string' && AGENT_PROVIDER_IDS.includes(value as AgentProviderId);
 }
 
+export function isValidProviderSessionId(providerId: string, providerSessionId: string): boolean {
+  if (providerId === 'opencode') return providerSessionId.startsWith('ses');
+  return true;
+}
+
 export function getDescriptionForProvider(id: AgentProviderId): string | null {
   return PROVIDER_MAP.get(id)?.description ?? null;
 }

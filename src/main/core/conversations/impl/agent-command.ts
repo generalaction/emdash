@@ -1,5 +1,9 @@
 import { quoteShellArg } from '@main/utils/shellEscape';
-import { getProvider, type AgentProviderId } from '@shared/agent-provider-registry';
+import {
+  getProvider,
+  isValidProviderSessionId,
+  type AgentProviderId,
+} from '@shared/agent-provider-registry';
 import type { ProviderCustomConfig } from '@shared/app-settings';
 
 export type AgentCommand = {
@@ -112,11 +116,6 @@ function dedupeSingletonArgs(args: string[], singletonArgs: readonly string[]): 
     seen.add(arg);
     return true;
   });
-}
-
-function isValidProviderSessionId(providerId: AgentProviderId, providerSessionId: string): boolean {
-  if (providerId === 'opencode') return providerSessionId.startsWith('ses');
-  return true;
 }
 
 export function buildAgentCommand({

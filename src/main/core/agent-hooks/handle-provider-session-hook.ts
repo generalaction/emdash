@@ -2,6 +2,7 @@ import { saveProviderSessionId } from '@main/core/conversations/save-provider-se
 import { setProviderSessionId } from '@main/core/conversations/set-provider-session-id';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
+import { isValidProviderSessionId } from '@shared/agent-provider-registry';
 import { conversationChangedChannel } from '@shared/events/conversationEvents';
 import { parsePtyId } from '@shared/ptyId';
 import { enrichEvent } from './event-enricher';
@@ -18,11 +19,6 @@ export function extractProviderSessionId(body: Record<string, unknown>): string 
     if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
   }
   return undefined;
-}
-
-function isValidProviderSessionId(providerId: string, providerSessionId: string): boolean {
-  if (providerId === 'opencode') return providerSessionId.startsWith('ses');
-  return true;
 }
 
 export async function handleProviderSessionHook(raw: RawHookRequest): Promise<void> {
