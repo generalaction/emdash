@@ -86,14 +86,23 @@ describe('file link provider', () => {
     expect(findFileLinks(buffer, 2)).toEqual([]);
   });
 
-  it('does not join backward from the middle of a wrapped line chain', () => {
+  it('does not join backward from the middle of a wrapped line chain when detecting root files', () => {
     const buffer = makeBuffer([
       new MockBufferLine('src/foo/'),
       new MockBufferLine('bar/', true),
       new MockBufferLine('  baz.ts'),
     ]);
 
-    expect(findFileLinks(buffer, 3)).toEqual([]);
+    expect(findFileLinks(buffer, 3)).toEqual([
+      {
+        range: {
+          start: { x: 3, y: 3 },
+          end: { x: 8, y: 3 },
+        },
+        text: 'baz.ts',
+        isExternal: false,
+      },
+    ]);
   });
 
   it('classifies absolute and home-relative paths as external', () => {
@@ -117,6 +126,29 @@ describe('file link provider', () => {
         },
         text: '~/notes/todo.md',
         isExternal: true,
+      },
+    ]);
+  });
+
+  it('detects repository-root file references without a directory segment', () => {
+    const buffer = makeBuffer([new MockBufferLine('Updated package.json and vite.config.ts')]);
+
+    expect(findFileLinks(buffer, 1)).toEqual([
+      {
+        range: {
+          start: { x: 9, y: 1 },
+          end: { x: 20, y: 1 },
+        },
+        text: 'package.json',
+        isExternal: false,
+      },
+      {
+        range: {
+          start: { x: 26, y: 1 },
+          end: { x: 39, y: 1 },
+        },
+        text: 'vite.config.ts',
+        isExternal: false,
       },
     ]);
   });

@@ -2,7 +2,7 @@ import type { ILink } from '@xterm/xterm';
 
 // Lookbehind on `:` keeps URLs (`https://...`) with WebLinksAddon.
 const FILE_PATH_PATTERN =
-  '(?<![\\w\\-./@:])(~/|/|\\.{1,2}/)?(?:[\\w\\-.@]+/)+[\\w\\-.@]+\\.[a-zA-Z][a-zA-Z0-9]{0,9}\\b';
+  '(?<![\\w\\-./@:])(~/|/|\\.{1,2}/)?(?:[\\w\\-.@]+/)*[\\w\\-.@]+\\.[a-zA-Z][a-zA-Z0-9]{0,9}\\b';
 const URL_PROTOCOL_PATTERN = /[a-zA-Z][a-zA-Z0-9+.-]*:\/\//;
 const MAX_WRAPPED_LINE_LENGTH = 4096;
 
@@ -30,7 +30,7 @@ type LogicalLine = {
 
 export function findFileLinks(buffer: BufferLike, bufferLineNumber: number): FileLinkMatch[] {
   const logicalLine = getWrappedLogicalLine(buffer, bufferLineNumber - 1);
-  if (!logicalLine || !logicalLine.text || logicalLine.text.indexOf('/') === -1) {
+  if (!logicalLine || !logicalLine.text) {
     return [];
   }
 
@@ -42,6 +42,9 @@ export function findFileLinks(buffer: BufferLike, bufferLineNumber: number): Fil
     const matched = match[0];
     const startOffset = match.index;
     if (isEmbeddedInUrl(logicalLine.text, startOffset)) continue;
+    if (!matched.includes('/') && isIndentedPathContinuationFragment(logicalLine, startOffset)) {
+      continue;
+    }
     const endOffset = startOffset + matched.length;
     const range = mapOffsetRangeToBufferRange(logicalLine, startOffset, endOffset);
     if (!range) continue;
@@ -64,6 +67,21 @@ function isEmbeddedInUrl(text: string, startCol: number): boolean {
   const prefix = text.slice(0, startCol);
   const tokenStart = Math.max(prefix.lastIndexOf(' '), prefix.lastIndexOf('\t'), -1) + 1;
   return URL_PROTOCOL_PATTERN.test(prefix.slice(tokenStart));
+}
+
+function isIndentedPathContinuationFragment(logicalLine: LogicalLine, offset: number): boolean {
+  let lineStartOffset = 0;
+  for (let lineIndex = 0; lineIndex < logicalLine.lineTexts.length; lineIndex += 1) {
+    const lineText = logicalLine.lineTexts[lineIndex] ?? '';
+    const lineEndOffset = lineStartOffset + lineText.length;
+    if (offset >= lineStartOffset && offset <= lineEndOffset) {
+      if ((logicalLine.lineStartColumns[lineIndex] ?? 0) === 0) return false;
+      const previousLine = logicalLine.lineTexts[lineIndex - 1];
+      return previousLine !== undefined && endsWithPathContinuation(previousLine);
+    }
+    lineStartOffset = lineEndOffset;
+  }
+  return false;
 }
 
 function getWrappedLogicalLine(buffer: BufferLike, bufferIndex: number): LogicalLine | null {
