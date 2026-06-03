@@ -201,15 +201,16 @@ export class LocalConversationProvider implements ConversationProvider {
       });
 
       /*
-       * Codex hooks can be skipped by the CLI in some live-session edge cases.
-       * Amp hooks only cover lifecycle events today, and Grok hook emission is
-       * still early-beta. Keep the output classifier active as a fallback so
-       * the UI can leave "working" and catch prompts.
+       * Codex and Claude hooks can be skipped by the CLI in some live-session
+       * edge cases. Amp hooks only cover lifecycle events today, and Grok hook
+       * emission is still early-beta. Keep the output classifier active as a
+       * fallback so the UI can leave "working" and catch prompts.
        */
       const useHooksOnly =
         hookActive &&
         providerDef?.supportsHooks &&
         hooksAvailable &&
+        conversation.providerId !== 'claude' &&
         conversation.providerId !== 'codex' &&
         conversation.providerId !== 'grok' &&
         conversation.providerId !== 'amp';

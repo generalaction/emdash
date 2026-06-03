@@ -121,7 +121,7 @@ export class HookConfigWriter {
 
     for (const { eventType, hookKey } of HOOK_EVENT_MAP) {
       const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
-      hooks[hookKey] = this.buildHookEntries(
+      hooks[hookKey] = this.buildClaudeHookEntries(
         existing,
         makeClaudeHookCommand(eventType, { platform: this.platform })
       );
@@ -504,6 +504,11 @@ export class HookConfigWriter {
   private buildHookEntries(existing: unknown[], command: string): unknown[] {
     const userEntries = existing.filter((entry) => !JSON.stringify(entry).includes(EMDASH_MARKER));
     return [...userEntries, { hooks: [{ type: 'command', command }] }];
+  }
+
+  private buildClaudeHookEntries(existing: unknown[], command: string): unknown[] {
+    const userEntries = existing.filter((entry) => !JSON.stringify(entry).includes(EMDASH_MARKER));
+    return [...userEntries, { matcher: '.*', hooks: [{ type: 'command', command }] }];
   }
 
   private buildCopilotHookEntries(existing: unknown[], command: string): unknown[] {

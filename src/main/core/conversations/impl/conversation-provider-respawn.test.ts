@@ -297,6 +297,30 @@ describe('conversation provider respawn state', () => {
     expect(wireAgentClassifier).not.toHaveBeenCalled();
   });
 
+  it('keeps the output classifier as a fallback for Claude when hook config is available', async () => {
+    hookConfigWriteForProvider.mockResolvedValue(true);
+    vi.mocked(agentHookService.getPort).mockReturnValue(1234);
+    const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
+    const pty = fakePty(exitHandlers);
+    spawnLocalPty.mockReturnValue(pty);
+    const item = { ...conversation(), providerId: 'claude' as const };
+
+    await localProvider().startSession(item);
+
+    expect(hookConfigWriteForProvider).toHaveBeenCalledWith('claude', {
+      writeGitIgnoreEntries: true,
+    });
+    expect(wireAgentClassifier).toHaveBeenCalledWith(
+      expect.objectContaining({
+        pty,
+        providerId: 'claude',
+        projectId: 'project-1',
+        taskId: 'task-1',
+        conversationId: 'conversation-1',
+      })
+    );
+  });
+
   it('starts a local conversation fresh after a resumed session exits', async () => {
     vi.useFakeTimers();
     try {

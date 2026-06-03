@@ -24,6 +24,10 @@ function normalizePayload(
     payload.notificationType = 'idle_prompt';
   }
 
+  if (!payload.notificationType && providerId === 'claude' && eventType === 'notification') {
+    payload.notificationType = 'permission_prompt';
+  }
+
   if (!payload.notificationType && providerId === 'grok' && eventType === 'notification') {
     payload.notificationType = 'permission_prompt';
   }
@@ -40,6 +44,16 @@ function normalizePayload(
   return payload;
 }
 
+function parseHookBody(body: string): Record<string, unknown> {
+  if (!body.trim()) return {};
+  try {
+    const parsed = JSON.parse(body);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return { message: body };
+  }
+}
+
 export async function enrichEvent(raw: RawHookRequest): Promise<AgentEvent> {
   const parsed = parsePtyId(raw.ptyId);
   if (!parsed) {
@@ -54,7 +68,7 @@ export async function enrichEvent(raw: RawHookRequest): Promise<AgentEvent> {
 
   const taskId = convRows.taskId;
   const projectId = convRows.projectId;
-  const body = raw.body ? JSON.parse(raw.body) : {};
+  const body = parseHookBody(raw.body);
   const payload = normalizePayload(parsed.providerId, raw.type, body);
 
   return {

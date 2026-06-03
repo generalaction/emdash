@@ -64,6 +64,50 @@ describe('HookConfigWriter', () => {
     expect(fs.files.has('.gitignore')).toBe(false);
   });
 
+  it('writes Claude hooks with matchers to the project-local settings file', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/claude');
+    const fs = new MemoryFs();
+    const writer = makeWriter(fs);
+
+    const wroteConfig = await writer.writeForProvider('claude');
+
+    expect(wroteConfig).toBe(true);
+    const config = JSON.parse(fs.files.get('.claude/settings.local.json')!);
+    expect(config.hooks.Notification[0].matcher).toBe('.*');
+    expect(config.hooks.Notification[0].hooks[0].command).toContain(
+      'X-Emdash-Event-Type: notification'
+    );
+    expect(config.hooks.Stop[0].matcher).toBe('.*');
+    expect(config.hooks.Stop[0].hooks[0].command).toContain('X-Emdash-Event-Type: stop');
+    expect(config.hooks.Stop[0].hooks[0].command).toContain('X-Emdash-Pty-Id');
+    expect(fs.files.get('.gitignore')).toBe('.claude/settings.local.json\n');
+  });
+
+  it('preserves unrelated Claude hooks while replacing Emdash-managed entries', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/claude');
+    const fs = new MemoryFs();
+    fs.files.set(
+      '.claude/settings.local.json',
+      JSON.stringify({
+        hooks: {
+          Stop: [
+            { matcher: '.*', hooks: [{ type: 'command', command: 'echo user hook' }] },
+            { matcher: '.*', hooks: [{ type: 'command', command: 'echo $EMDASH_HOOK_PORT' }] },
+          ],
+        },
+      })
+    );
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('claude');
+
+    const config = JSON.parse(fs.files.get('.claude/settings.local.json')!);
+    expect(config.hooks.Stop).toHaveLength(2);
+    expect(config.hooks.Stop[0].hooks[0].command).toBe('echo user hook');
+    expect(config.hooks.Stop[1].matcher).toBe('.*');
+    expect(config.hooks.Stop[1].hooks[0].command).toContain('X-Emdash-Event-Type: stop');
+  });
+
   it('writes Codex hooks to the global user config and does not update gitignore', async () => {
     mockResolveCommandPath.mockResolvedValue('/usr/local/bin/codex');
     const fs = new MemoryFs();
