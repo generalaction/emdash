@@ -1,9 +1,9 @@
 import { observable } from 'mobx';
 import { describe, expect, it, vi } from 'vitest';
-import type { LocalProject } from '@shared/projects';
 import type { ProjectStore } from '@renderer/features/projects/stores/project';
 import type { ProjectManagerStore } from '@renderer/features/projects/stores/project-manager';
 import type { TaskStore } from '@renderer/features/tasks/stores/task-store';
+import type { LocalProject } from '@shared/projects';
 import { SidebarStore } from './sidebar-store';
 
 vi.mock('@renderer/lib/ipc', () => ({
@@ -38,6 +38,7 @@ function localProject(id: string, name: string): LocalProject {
     name,
     path: `/tmp/${name}`,
     baseRef: 'main',
+    repositoryWorkspaceId: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
   };
