@@ -1,9 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { browserDiagnosticsStore } from '@renderer/features/browser/browser-diagnostics-store';
 import { browserSessionStore } from '@renderer/features/browser/browser-session-store';
+import { events } from '@renderer/lib/ipc';
+import { browserOpenInNewTabChannel } from '@shared/events/browserEvents';
 import { TabManagerStore } from './tab-manager-store';
 
 vi.mock('@renderer/lib/ipc', () => ({
+  events: {
+    on: vi.fn(() => () => {}),
+  },
   rpc: {
     app: {
       readUserFile: vi.fn(),
@@ -34,6 +39,7 @@ function createTabManager(): TabManagerStore {
 
 describe('TabManagerStore browser tabs', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     browserDiagnosticsStore.clear();
     browserSessionStore.clear();
   });
@@ -133,5 +139,33 @@ describe('TabManagerStore browser tabs', () => {
     expect(entry?.kind).toBe('browser');
     expect(browserSessionStore.getSession(browserId)).toBeDefined();
     expect(manager.resolvedTabs).toEqual([]);
+  });
+
+  it('opens webview popup requests as sibling browser tabs', () => {
+    const listeners: Array<(event: { sourceBrowserId: string; url: string }) => void> = [];
+    vi.mocked(events.on).mockImplementation((channel, listener) => {
+      if (channel === browserOpenInNewTabChannel) {
+        listeners.push(listener as (event: { sourceBrowserId: string; url: string }) => void);
+      }
+      return () => {};
+    });
+    const manager = createTabManager();
+    manager.openBrowser('https://source.example/');
+    const source = manager.resolvedTabs[0];
+    const sourceBrowserId = source?.kind === 'browser' ? source.browserId : '';
+
+    listeners[0]?.({
+      sourceBrowserId,
+      url: 'https://target.example/path',
+    });
+
+    expect(manager.resolvedTabs).toHaveLength(2);
+    expect(manager.resolvedTabs[1]).toMatchObject({
+      kind: 'browser',
+      isActive: true,
+    });
+    expect(
+      manager.resolvedTabs[1]?.kind === 'browser' ? manager.resolvedTabs[1].session.currentUrl : ''
+    ).toBe('https://target.example/path');
   });
 });

@@ -8,7 +8,7 @@ import type {
 import { DiffTabStore } from '@renderer/features/tasks/tabs/diff-tab-store';
 import { FileTabStore } from '@renderer/features/tasks/tabs/file-tab-store';
 import type { FileRendererData } from '@renderer/features/tasks/types';
-import { rpc } from '@renderer/lib/ipc';
+import { events, rpc } from '@renderer/lib/ipc';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import type { Snapshottable } from '@renderer/lib/stores/snapshottable';
@@ -22,6 +22,7 @@ import {
 } from '@renderer/lib/stores/tab-utils';
 import { setTelemetryConversationScope } from '@renderer/utils/telemetry-scope';
 import type { BrowserSessionSnapshot } from '@shared/browser';
+import { browserOpenInNewTabChannel } from '@shared/events/browserEvents';
 import { refsEqual, type GitChangeStatus, type GitObjectRef } from '@shared/git';
 import type { ActiveFile, TabDescriptor, TabManagerSnapshot } from '@shared/view-state';
 
@@ -248,6 +249,16 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
           conv.markSeen();
         }
       })
+    );
+
+    this.disposers.push(
+      events.on(
+        browserOpenInNewTabChannel,
+        action(({ sourceBrowserId, url }) => {
+          if (!this._hasBrowserEntry(sourceBrowserId)) return;
+          this.openBrowser(url);
+        })
+      )
     );
 
     // Update telemetry scope when the active conversation changes in the focused pane.
@@ -888,6 +899,13 @@ export class TabManagerStore implements Snapshottable<TabManagerSnapshot> {
       return entry;
     }
     return undefined;
+  }
+
+  private _hasBrowserEntry(browserId: string): boolean {
+    for (const entry of this.entries.values()) {
+      if (entry.kind === 'browser' && entry.browserId === browserId) return true;
+    }
+    return false;
   }
 
   private _removeTab(id: string): void {

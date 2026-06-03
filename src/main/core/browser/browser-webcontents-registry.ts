@@ -1,5 +1,7 @@
-import { session, shell, type WebContents } from 'electron';
+import { session, type WebContents } from 'electron';
+import { events } from '@main/lib/events';
 import { normalizeBrowserUrl } from '@shared/browser';
+import { browserOpenInNewTabChannel } from '@shared/events/browserEvents';
 
 type RegisteredBrowserSession = {
   browserId: string;
@@ -45,7 +47,7 @@ export class BrowserWebContentsRegistry {
 
     webContents.setWindowOpenHandler(({ url }) => {
       if (isExternalHttpUrl(url)) {
-        void shell.openExternal(url);
+        events.emit(browserOpenInNewTabChannel, { sourceBrowserId: browserId, url });
       }
       return { action: 'deny' };
     });
