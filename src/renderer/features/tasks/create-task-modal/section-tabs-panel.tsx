@@ -36,7 +36,7 @@ export function SectionTabsPanel({
     <div className="flex flex-col gap-2">
       <div className="flex w-full items-center justify-between gap-2">
         <ToggleGroup
-          className="w-full shrink-0 gap-1 border-none bg-transparent"
+          className="w-full shrink-0 gap-1 border-none bg-transparent p-1"
           value={[sectionTab]}
           onValueChange={([v]) => {
             if (v) setSectionTab(v as SectionTab);

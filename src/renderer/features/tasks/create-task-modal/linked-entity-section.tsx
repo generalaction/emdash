@@ -27,7 +27,7 @@ export function LinkedEntitySection({
       >
         <span className="shrink-0 text-sm text-foreground-muted">Based on</span>
         <ToggleGroup
-          className="gap-1! border-none bg-transparent p-0!"
+          className="gap-1! border-none bg-transparent p-1!"
           value={state.linkedType ? [state.linkedType] : []}
           onValueChange={([v]) => {
             state.setLinkedType((v as LinkedType) ?? null);
