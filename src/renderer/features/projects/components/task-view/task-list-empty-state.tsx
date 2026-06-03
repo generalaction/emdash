@@ -1,6 +1,6 @@
 import { CircleDot, GitBranch, GitPullRequest, type LucideIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useIntegrationsContext } from '@renderer/features/integrations/integrations-provider';
+import { useConnectedIssueProviders } from '@renderer/features/integrations/use-connected-issue-providers';
 import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { useArrowKeyNavigation } from '@renderer/lib/hooks/use-arrow-key-navigation';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
@@ -24,7 +24,7 @@ export const TaskListEmptyState = observer(function TaskListEmptyState({
   projectId: string;
 }) {
   const showTaskModal = useShowModal('taskModal');
-  const { connectionStatus } = useIntegrationsContext();
+  const { hasAnyIssueIntegration } = useConnectedIssueProviders();
   const repositoryStore = getRepositoryStore(projectId);
   const supportsPullRequests = Boolean(repositoryStore?.pullRequestRepositoryUrl);
   const supportsGhesIssues = Boolean(
@@ -32,8 +32,7 @@ export const TaskListEmptyState = observer(function TaskListEmptyState({
     repositoryStore.providerRepository?.host &&
     !isGitHubDotComHost(repositoryStore.providerRepository.host)
   );
-  const hasAnyIntegration =
-    supportsGhesIssues || Object.values(connectionStatus).some((s) => s.connected);
+  const hasAnyIntegration = supportsGhesIssues || hasAnyIssueIntegration;
 
   const actions: TaskAction[] = [
     {

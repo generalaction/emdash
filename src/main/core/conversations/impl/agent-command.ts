@@ -1,5 +1,9 @@
 import { quoteShellArg } from '@main/utils/shellEscape';
-import { getProvider, type AgentProviderId } from '@shared/agent-provider-registry';
+import {
+  getProvider,
+  isValidProviderSessionId,
+  type AgentProviderId,
+} from '@shared/agent-provider-registry';
 import type { ProviderCustomConfig } from '@shared/app-settings';
 
 export type AgentCommand = {
@@ -143,9 +147,14 @@ export function buildAgentCommand({
   const shouldPassSessionId =
     sessionIdFlag !== undefined && (!providerConfig?.sessionIdOnResumeOnly || isResuming);
 
+  const validProviderSessionId =
+    providerSessionId && isValidProviderSessionId(providerId, providerSessionId)
+      ? providerSessionId
+      : undefined;
+
   if (isResuming && providerConfig?.resumeFlag) {
-    if (providerConfig.sessionIdFlag && providerSessionId) {
-      appendSessionId(args, providerConfig.resumeFlag, providerSessionId);
+    if (providerConfig.sessionIdFlag && validProviderSessionId) {
+      appendSessionId(args, providerConfig.resumeFlag, validProviderSessionId);
     } else if (providerConfig.sessionIdFlag && !providerConfig.sessionIdOnResumeOnly) {
       appendSessionId(args, providerConfig.resumeFlag, sessionId);
     } else if (providerConfig.resumeWithoutSessionFlag) {

@@ -1,14 +1,11 @@
 import { observer } from 'mobx-react-lite';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useIntegrationsContext } from '@renderer/features/integrations/integrations-provider';
-import { ISSUE_PROVIDER_ORDER } from '@renderer/features/integrations/issue-provider-meta';
+import { useMemo } from 'react';
+import { useConnectedIssueProviders } from '@renderer/features/integrations/use-connected-issue-providers';
 import {
   getProjectManagerStore,
   getRepositoryStore,
   mountedProjectData,
 } from '@renderer/features/projects/stores/project-selectors';
-import { nextDefaultConversationTitle } from '@renderer/features/tasks/conversations/conversation-title-utils';
-import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
 import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
@@ -21,37 +18,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
-import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
-import { getPrNumber, isForkPr, type PullRequest } from '@shared/pull-requests';
-import {
-  resolveBranchLikeTaskStrategy,
-  resolvePullRequestTaskStrategy,
-} from './create-task-strategy';
-import {
-  InitialConversationField,
-  useInitialConversationState,
-} from './initial-conversation-section';
-import { buildFinalPrompt } from './initial-conversation-text';
-import { IssueComboboxField } from './issue-combobox-field';
-import { PrComboboxField } from './pr-combobox-field';
+import type { PullRequest } from '@shared/pull-requests';
+import { useInitialConversationState } from './initial-conversation-section';
+import { LinkedEntitySection } from './linked-entity-section';
+import { SectionTabsPanel } from './section-tabs-panel';
 import { TaskNameField } from './task-name-field';
+import { useCreateTaskCallback } from './use-create-task-callback';
 import { type LinkedType, useCreateTaskState } from './use-create-task-state';
-import { WorkspaceSettingsSection } from './workspace-settings-section';
+import { useWorkspaceProviderState } from './use-workspace-provider-state';
 
-type SectionTab = 'conversation' | 'workspace';
-
-export const CreateTaskModal = observer(function CreateTaskModal({
-  projectId,
-  strategy: initialStrategy = 'from-branch',
-  initialPR,
-  onClose,
-}: BaseModalProps & {
-  projectId?: string;
-  strategy?: 'from-branch' | 'from-issue' | 'from-pull-request';
-  initialPR?: PullRequest;
-}) {
-  const [selectedProjectId, _setSelectedProjectId] = useState<string | undefined>(() => {
-    if (projectId) return projectId;
+function useDefaultProjectId(propProjectId?: string): string | undefined {
+  return useMemo(() => {
+    if (propProjectId) return propProjectId;
     const nav = appState.navigation;
     const navProjectId =
       nav.currentViewId === 'task'
@@ -65,10 +43,21 @@ export const CreateTaskModal = observer(function CreateTaskModal({
         .reverse()
         .find((p) => p.state === 'mounted')?.data?.id
     );
-  });
+    // oxlint-disable-next-line react/exhaustive-deps
+  }, []); // computed once on mount
+}
 
-  const [sectionTab, setSectionTab] = useState<SectionTab>('conversation');
-  const [useBYOI, setUseBYOI] = useState(false);
+export const CreateTaskModal = observer(function CreateTaskModal({
+  projectId,
+  strategy: initialStrategy = 'from-branch',
+  initialPR,
+  onClose,
+}: BaseModalProps & {
+  projectId?: string;
+  strategy?: 'from-branch' | 'from-issue' | 'from-pull-request';
+  initialPR?: PullRequest;
+}) {
+  const selectedProjectId = useDefaultProjectId(projectId);
 
   const projectData = selectedProjectId
     ? mountedProjectData(getProjectManagerStore().projects.get(selectedProjectId))
@@ -83,20 +72,9 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     ? (getRepositoryStore(selectedProjectId)?.pullRequestRepositoryUrl ?? undefined)
     : undefined;
 
-  const { connectionStatus } = useIntegrationsContext();
+  const projectPath = projectData?.path;
 
-  const hasAnyIssueIntegration = useMemo(
-    () =>
-      ISSUE_PROVIDER_ORDER.some((p) => {
-        const s = connectionStatus[p];
-        if (!s?.connected) return false;
-        if (s.capabilities.requiresRepositoryUrl && !repositoryUrl) return false;
-        if (s.capabilities.requiresProjectPath && !projectData?.path) return false;
-        return true;
-      }),
-    [connectionStatus, repositoryUrl, projectData?.path]
-  );
-
+  const { hasAnyIssueIntegration } = useConnectedIssueProviders({ repositoryUrl, projectPath });
   const hasPrSupport = !!repositoryUrl;
 
   const defaultLinkedType = useMemo((): LinkedType => {
@@ -119,109 +97,25 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   );
 
   const initialConversation = useInitialConversationState(selectedProjectId);
-  const autoApproveDefaults = useAgentAutoApproveDefaults();
   const { includeIssueContextByDefault } = useTaskSettings();
   const isWorkspaceProviderEnabled = useFeatureFlag('workspace-provider');
   const { navigate } = useNavigate();
 
-  useEffect(() => setUseBYOI(false), [selectedProjectId]);
-  useEffect(() => {
-    if (!isWorkspaceProviderEnabled) setUseBYOI(false);
-  }, [isWorkspaceProviderEnabled]);
-  useEffect(() => {
-    initialConversation.setProvider(null);
-    initialConversation.setPrompt('');
-    initialConversation.setIssueContext(null);
-    // oxlint-disable-next-line react/exhaustive-deps
-  }, [selectedProjectId]);
+  const { useBYOI, setUseBYOI } = useWorkspaceProviderState(
+    selectedProjectId,
+    isWorkspaceProviderEnabled
+  );
 
-  const canCreate = !!selectedProjectId && state.isValid;
-
-  const handleCreateTask = useCallback(() => {
-    if (!selectedProjectId) return;
-    const projectStore = getProjectManagerStore().projects.get(selectedProjectId);
-    if (projectStore?.state !== 'mounted') return;
-
-    const id = crypto.randomUUID();
-
-    const conversationProvider = initialConversation.provider;
-    const builtInitialConversation = conversationProvider
-      ? {
-          id: crypto.randomUUID(),
-          projectId: selectedProjectId,
-          taskId: id,
-          provider: conversationProvider,
-          title: nextDefaultConversationTitle(conversationProvider, []),
-          initialPrompt: buildFinalPrompt(
-            initialConversation.issueContext,
-            initialConversation.prompt
-          ),
-          autoApprove: autoApproveDefaults.getDefault(conversationProvider),
-        }
-      : undefined;
-
-    const { linkedType, linkedIssue, linkedPR, checkoutMode, branchSelection, branchNameState } =
-      state;
-    const taskManager = projectStore.mountedProject!.taskManager;
-    const swallowHandledCreateError = () => {};
-
-    if (linkedType === 'pr' && linkedPR) {
-      const reviewBranch = linkedPR.headRefName;
-      const taskStrategy = resolvePullRequestTaskStrategy({
-        checkoutMode,
-        prNumber: getPrNumber(linkedPR) ?? 0,
-        headBranch: reviewBranch,
-        headRepositoryUrl: linkedPR.headRepositoryUrl,
-        isFork: isForkPr(linkedPR),
-        taskBranch: state.taskName.effectiveTaskName,
-        pushBranch: branchSelection.pushBranch,
-      });
-      void taskManager
-        .createTask({
-          id,
-          projectId: selectedProjectId,
-          name: state.taskName.effectiveTaskName,
-          sourceBranch: { type: 'local', branch: reviewBranch },
-          initialStatus: linkedPR.status === 'open' && !linkedPR.isDraft ? 'review' : undefined,
-          strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
-          workspaceProvider: useBYOI ? 'byoi' : undefined,
-          initialConversation: builtInitialConversation,
-        })
-        .catch(swallowHandledCreateError);
-    } else {
-      if (!branchSelection.selectedBranch) return;
-      const taskStrategy = resolveBranchLikeTaskStrategy({
-        isUnborn,
-        createBranchAndWorktree: branchSelection.createBranchAndWorktree,
-        taskBranch: branchNameState.branchName,
-        pushBranch: branchSelection.pushBranch,
-      });
-      void taskManager
-        .createTask({
-          id,
-          projectId: selectedProjectId,
-          name: state.taskName.effectiveTaskName,
-          sourceBranch: branchSelection.selectedBranch,
-          strategy: useBYOI ? { kind: 'no-worktree' } : taskStrategy,
-          linkedIssue: linkedType === 'issue' ? (linkedIssue ?? undefined) : undefined,
-          workspaceProvider: useBYOI ? 'byoi' : undefined,
-          initialConversation: builtInitialConversation,
-        })
-        .catch(swallowHandledCreateError);
-    }
-
-    navigate('task', { projectId: selectedProjectId, taskId: id });
-    onClose();
-  }, [
+  const { handleCreateTask, canCreate } = useCreateTaskCallback({
     selectedProjectId,
     state,
-    isUnborn,
-    useBYOI,
     initialConversation,
-    autoApproveDefaults,
+    isUnborn,
+    projectData,
+    useBYOI,
     navigate,
     onClose,
-  ]);
+  });
 
   return (
     <>
@@ -230,104 +124,28 @@ export const CreateTaskModal = observer(function CreateTaskModal({
       </DialogHeader>
       <DialogContentArea>
         <div className="flex w-full flex-col gap-5">
-          {/* Task name */}
           <TaskNameField state={state.taskName} />
-          <div className="flex w-full flex-col justify-between overflow-hidden rounded-lg border">
-            <div
-              className={`flex w-full items-center justify-between gap-2 px-2 py-1 ${state.linkedType ? 'border-b' : ''}`}
-            >
-              <span className="shrink-0 text-sm text-foreground-muted">Based on</span>
-              <ToggleGroup
-                className="gap-1! border-none bg-transparent p-0!"
-                value={state.linkedType ? [state.linkedType] : []}
-                onValueChange={([v]) => {
-                  state.setLinkedType((v as LinkedType) ?? null);
-                }}
-              >
-                <ToggleGroupItem
-                  className="h-6! min-w-0! rounded-lg! px-2! py-0.5! text-xs"
-                  value="issue"
-                  disabled={!hasAnyIssueIntegration}
-                >
-                  Issue
-                </ToggleGroupItem>
-                <ToggleGroupItem
-                  className="h-6! min-w-0! rounded-lg! px-2! py-0.5! text-xs"
-                  value="pr"
-                  disabled={!hasPrSupport}
-                >
-                  Pull Request
-                </ToggleGroupItem>
-              </ToggleGroup>
-            </div>
-            {state.linkedType === 'issue' && (
-              <IssueComboboxField
-                value={state.linkedIssue}
-                onValueChange={state.setLinkedIssue}
-                projectId={selectedProjectId}
-                repositoryUrl={repositoryUrl}
-                projectPath={projectData?.path}
-              />
-            )}
-            {state.linkedType === 'pr' && (
-              <PrComboboxField
-                value={state.linkedPR}
-                onValueChange={state.setLinkedPR}
-                projectId={selectedProjectId}
-                repositoryUrl={repositoryUrl}
-              />
-            )}
-          </div>
-          {/* Section tabs */}
-          <div className="flex flex-col gap-2">
-            <div className="flex w-full items-center justify-between gap-2">
-              <ToggleGroup
-                className="w-full shrink-0 gap-1 border-none bg-transparent"
-                value={[sectionTab]}
-                onValueChange={([v]) => {
-                  if (v) setSectionTab(v as SectionTab);
-                }}
-              >
-                <ToggleGroupItem
-                  className="h-6! flex-1 rounded-lg! px-2! py-0.5! text-xs"
-                  value="conversation"
-                >
-                  Initial Conversation
-                </ToggleGroupItem>
-                <ToggleGroupItem
-                  className="h-6! flex-1 rounded-lg! px-2! py-0.5! text-xs"
-                  value="workspace"
-                >
-                  Workspace Settings
-                </ToggleGroupItem>
-              </ToggleGroup>
-            </div>
-            <div className="">
-              {sectionTab === 'conversation' && (
-                <InitialConversationField
-                  state={initialConversation}
-                  linkedIssue={
-                    state.linkedType === 'issue' ? (state.linkedIssue ?? undefined) : undefined
-                  }
-                  includeIssueContextByDefault={includeIssueContextByDefault}
-                />
-              )}
-              {sectionTab === 'workspace' && (
-                <WorkspaceSettingsSection
-                  state={state}
-                  projectId={selectedProjectId}
-                  currentBranch={currentBranch}
-                  isUnborn={isUnborn}
-                  useBYOI={useBYOI}
-                  setUseBYOI={setUseBYOI}
-                  isWorkspaceProviderEnabled={isWorkspaceProviderEnabled}
-                />
-              )}
-            </div>
-          </div>
+          <LinkedEntitySection
+            state={state}
+            hasAnyIssueIntegration={hasAnyIssueIntegration}
+            hasPrSupport={hasPrSupport}
+            projectId={selectedProjectId}
+            repositoryUrl={repositoryUrl}
+            projectPath={projectPath}
+          />
+          <SectionTabsPanel
+            state={state}
+            initialConversation={initialConversation}
+            projectId={selectedProjectId}
+            currentBranch={currentBranch}
+            isUnborn={isUnborn}
+            useBYOI={useBYOI}
+            setUseBYOI={setUseBYOI}
+            isWorkspaceProviderEnabled={isWorkspaceProviderEnabled}
+            includeIssueContextByDefault={includeIssueContextByDefault}
+          />
         </div>
       </DialogContentArea>
-
       <DialogFooter>
         <ConfirmButton size="sm" onClick={handleCreateTask} disabled={!canCreate}>
           Create

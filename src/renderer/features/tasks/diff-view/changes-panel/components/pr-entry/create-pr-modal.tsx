@@ -2,7 +2,6 @@ import { ChevronDown, CircleAlert, GitBranch, GitPullRequest } from 'lucide-reac
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
 import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
-import { getRegisteredTaskData } from '@renderer/features/tasks/stores/task-selectors';
 import { BranchDisplay } from '@renderer/lib/components/branch-display';
 import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
 import { RemoteSelectContent } from '@renderer/lib/components/remote-select-content';
@@ -43,7 +42,7 @@ type Props = BaseModalProps<void> & CreatePrModalArgs;
 
 export const CreatePrModal = observer(function CreatePrModal({
   projectId,
-  taskId,
+  taskId: _taskId,
   repositoryUrl,
   branchName,
   draft,
@@ -58,7 +57,6 @@ export const CreatePrModal = observer(function CreatePrModal({
   const [error, setError] = useState<string | null>(null);
   const repo = getRepositoryStore(projectId);
   const defaultBranch = repo?.defaultBranch;
-  const taskPayload = getRegisteredTaskData(projectId, taskId);
   const isOnRemote = repo?.isBranchOnRemote(branchName) ?? false;
   const aheadCount = repo?.getBranchDivergence(branchName)?.ahead ?? 0;
   const needsPush = !isOnRemote || aheadCount > 0;
@@ -85,7 +83,7 @@ export const CreatePrModal = observer(function CreatePrModal({
     selectedBaseOverride ??
     resolveInitialBaseBranch(
       repo?.remoteBranches ?? [],
-      taskPayload?.sourceBranch,
+      undefined,
       defaultBranch,
       targetRemote?.remote.name ?? projectRemoteName
     );

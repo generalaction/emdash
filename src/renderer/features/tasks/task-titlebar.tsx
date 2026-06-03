@@ -174,14 +174,6 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
                   <GitBranch className="size-3.5" />
                   <span>{workspace.git.branchName}</span>
                 </span>
-                {taskPayload.sourceBranch && (
-                  <span className="flex items-center gap-2 text-foreground-passive">
-                    Created from
-                    <span className="flex items-center gap-1 text-foreground-muted">
-                      <GitBranch className="size-3.5" /> {taskPayload.sourceBranch.branch}
-                    </span>
-                  </span>
-                )}
                 <div className="flex w-full items-center gap-1">
                   {hasUpstream ? (
                     <>
@@ -314,9 +306,13 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
       rightSlot={
         <div className="flex items-center gap-2">
           <DevServerPills projectId={projectId} taskId={taskId} />
-          {!isRemoteProject && (
-            <OpenInMenu path={workspace.path} className="h-7 bg-transparent" borderless />
-          )}
+          <OpenInMenu
+            path={workspace.path}
+            className="h-7 bg-transparent"
+            borderless
+            isRemote={isRemoteProject}
+            sshConnectionId={workspace.sshConnectionId}
+          />
           <Separator orientation="vertical" className="h-5 self-center!" />
           <Tooltip>
             <TooltipTrigger>

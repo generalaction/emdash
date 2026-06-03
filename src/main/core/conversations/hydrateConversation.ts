@@ -1,6 +1,7 @@
 import { and, eq } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
+import { parseConversationConfig } from '@shared/conversation-config';
 import { resolveTask } from '../projects/utils';
 import { mapConversationRowToConversation } from './utils';
 
@@ -25,9 +26,23 @@ export async function hydrateConversation(
     .limit(1);
   if (!row) throw new Error('Conversation not found');
 
+  const isFirstSpawn = row.sessionId === null;
+
+  if (isFirstSpawn) {
+    // Write session_id before spawning — idempotency guard against double-hydrate.
+    await db
+      .update(conversations)
+      .set({ sessionId: conversationId })
+      .where(eq(conversations.id, conversationId));
+  }
+
+  const config = parseConversationConfig(row.config);
+  const isResuming = !isFirstSpawn;
+
   await task.conversations.startSession(
-    mapConversationRowToConversation(row, true),
+    mapConversationRowToConversation(row, isResuming),
     undefined,
-    true
+    isResuming,
+    isFirstSpawn ? config.initialPrompt : undefined
   );
 }

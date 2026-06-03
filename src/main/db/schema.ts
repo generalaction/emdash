@@ -46,6 +46,8 @@ export const projects = sqliteTable(
     sshConnectionId: text('ssh_connection_id').references(() => sshConnections.id, {
       onDelete: 'set null',
     }),
+    /** The shared workspace representing this project's repository root. Set on first mount. */
+    repositoryWorkspaceId: text('repository_workspace_id'),
     createdAt: text('created_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
@@ -111,8 +113,8 @@ export const tasks = sqliteTable(
       .references(() => projects.id, { onDelete: 'cascade' }),
     name: text('name').notNull(),
     status: text('status').notNull(),
-    sourceBranch: text('source_branch').$type<StoredBranch>(),
-    taskBranch: text('task_branch'),
+    sourceBranch: text('source_branch').$type<StoredBranch>(), // @deprecated — moved to workspaces.config (git.fromBranch)
+    taskBranch: text('task_branch'), // @deprecated — moved to workspaces.branch_name
     linkedIssue: text('linked_issue'),
     archivedAt: text('archived_at'), // null = active, timestamp = archived
     createdAt: text('created_at')
@@ -129,6 +131,7 @@ export const tasks = sqliteTable(
     workspaceProvider: text('workspace_provider'), // @deprecated — superseded by workspaces.type; still read in resolveBootstrap for legacy BYOI tasks
     workspaceId: text('workspace_id'),
     workspaceProviderData: text('workspace_provider_data'), // @deprecated — superseded by workspaces.data
+    workspaceIntent: text('workspace_intent'), // JSON: { git: GitSetup; workspace: WorkspaceLocation }
   },
   (table) => ({
     projectIdIdx: index('idx_tasks_project_id').on(table.projectId),
@@ -140,9 +143,19 @@ export const workspaces = sqliteTable(
   {
     id: text('id').primaryKey(),
     key: text('key'),
-    type: text('type').notNull().$type<'local' | 'project-ssh' | 'byoi'>(),
+    type: text('type').notNull().$type<'local' | 'project-ssh' | 'byoi'>(), // @deprecated — use kind + location
+    /** Describes the nature of the workspace: a git worktree, the project root, or BYOI. */
+    kind: text('kind').$type<'worktree' | 'project-root' | 'byoi'>(),
+    /** Where the workspace runs: on the local machine or over SSH. */
+    location: text('location').$type<'local' | 'remote'>(),
+    /** FK to ssh_connections; only set when location = 'remote'. */
+    sshConnectionId: text('ssh_connection_id').references(() => sshConnections.id, {
+      onDelete: 'set null',
+    }),
     data: text('data'),
     path: text('path'),
+    config: text('config'),
+    branchName: text('branch_name'),
     linesAdded: integer('lines_added'),
     linesDeleted: integer('lines_deleted'),
     createdAt: text('created_at')
@@ -358,6 +371,7 @@ export const conversations = sqliteTable(
       .default(sql`CURRENT_TIMESTAMP`),
     lastInteractedAt: text('last_interacted_at'),
     isInitialConversation: integer('is_initial_conversation', { mode: 'boolean' }),
+    sessionId: text('session_id'),
   },
   (table) => ({
     taskIdIdx: index('idx_conversations_task_id').on(table.taskId),

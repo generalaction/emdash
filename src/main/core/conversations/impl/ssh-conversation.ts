@@ -100,7 +100,10 @@ export class SshConversationProvider implements ConversationProvider {
     this.knownSessionIds.add(sessionId);
 
     const spawnSize = ptySessionRegistry.getLastSize(sessionId) ?? initialSize;
-    const spawnToken = this.supervisor.beginStart(sessionId, { requireDesired });
+    const spawnToken = this.supervisor.beginStart(sessionId, {
+      requireDesired,
+      mode: isResuming ? 'resume' : 'fresh',
+    });
     if (!spawnToken) return;
 
     try {
@@ -218,8 +221,17 @@ export class SshConversationProvider implements ConversationProvider {
             conversation,
             sessionId,
             initialSize: replacementSize,
-            isResuming,
+            isResuming: decision.kind === 'respawnResume',
             initialPrompt,
+          });
+          return;
+        }
+
+        if (options.shellRefreshRetried && exitCode === 127) {
+          this.supervisor.stop(sessionId);
+          events.emit(agentSessionExitedChannel, {
+            conversationId: conversation.id,
+            taskId: conversation.taskId,
           });
           return;
         }
@@ -233,6 +245,7 @@ export class SshConversationProvider implements ConversationProvider {
           this.scheduleReplacement({
             conversation,
             initialSize: replacementSize,
+            isResuming: decision.kind === 'respawnResume',
           });
         }
       });
@@ -383,12 +396,14 @@ export class SshConversationProvider implements ConversationProvider {
   private scheduleReplacement({
     conversation,
     initialSize,
+    isResuming,
   }: {
     conversation: Conversation;
     initialSize: { cols: number; rows: number };
+    isResuming: boolean;
   }): void {
     setTimeout(() => {
-      this.startSessionInternal(conversation, initialSize, true, undefined, true, {
+      this.startSessionInternal(conversation, initialSize, isResuming, undefined, true, {
         shellRefreshRetried: false,
       }).catch((e) => {
         log.error('SshConversationProvider: replacement failed', {

@@ -147,7 +147,12 @@ export class LocalWorktreeHost implements WorktreeHost {
   ): Promise<{ success: boolean; error?: string }> {
     try {
       const target = await this.validateExisting(filePath);
-      await fs.rm(target, { recursive: options?.recursive ?? false, force: false });
+      await fs.rm(target, {
+        recursive: options?.recursive ?? false,
+        force: true,
+        maxRetries: options?.recursive ? 3 : 0,
+        retryDelay: 100,
+      });
       return { success: true };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };

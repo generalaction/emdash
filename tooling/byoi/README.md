@@ -6,7 +6,7 @@ Each task gets its own Docker container running a full Linux dev environment wit
 ## How it works
 
 1. When you create a task, emdash runs `provision.sh`
-2. The script builds a Docker image (first run only), starts a new container, clones your repo into it, and prints a JSON blob
+2. The script builds a Docker image (first run only), starts a new container, clones your repo into it, and prints a JSON object to stdout
 3. Emdash SSH-connects to the container using password auth and opens the workspace at `/home/devuser/workspace`
 4. When you terminate the task, emdash runs `terminate.sh` which stops and removes the container
 
@@ -40,6 +40,22 @@ Add the project in emdash, then create a task. That's it.
 
 The first provision builds the Docker image (~2-3 minutes, one-time). Subsequent provisions start a new container and clone the repo (~10-20 seconds).
 
+## Provision output
+
+The provision script must print only one JSON object to stdout. Send logs and progress messages to stderr.
+
+This sample prints:
+
+| Field          | Value                          | Notes                                                            |
+| -------------- | ------------------------------ | ---------------------------------------------------------------- |
+| `id`           | Docker container name          | Passed to `terminate.sh` as `REMOTE_WORKSPACE_ID`                |
+| `host`         | `localhost`                    | Host Emdash connects to                                          |
+| `port`         | Random Docker host port for 22 | Must be a JSON number                                            |
+| `username`     | `devuser`                      | SSH username                                                     |
+| `password`     | `devpass`                      | SSH password                                                     |
+| `worktreePath` | `/home/devuser/workspace`      | Repository path inside the container                             |
+| `forwardAgent` | `false`                        | JSON boolean; set the script constant to `"true"` to enable it   |
+
 ## Forwarding API keys
 
 The provision script forwards API keys from your host environment into the container automatically. Just make sure the relevant variables are set in your shell before emdash runs the provision script:
@@ -58,6 +74,12 @@ To add more keys, edit the `docker run` call in `scripts/provision.sh` and the `
 - **Workspace path:** `/home/devuser/workspace`
 
 Change the password in `Dockerfile` (`devuser:devpass`) and `scripts/provision.sh` (`CONTAINER_PASS`) if needed.
+
+## SSH agent forwarding
+
+This sample sets `"forwardAgent"` from the `FORWARD_AGENT` script constant. It defaults to `"false"`.
+
+Change `FORWARD_AGENT` to `"true"` if Git commit signing or nested SSH/Git commands need your local SSH agent inside the container. Only enable forwarding for BYOI hosts you trust.
 
 ## Cleanup
 

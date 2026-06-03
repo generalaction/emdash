@@ -15,21 +15,61 @@ export function buildRemoteSshAuthority(host: string, username: string): string 
   return `${normalizedUsername}@${normalizedHost}`;
 }
 
+function encodeRemotePath(targetPath: string): string {
+  const normalizedPath = targetPath.startsWith('/') ? targetPath : `/${targetPath}`;
+  return normalizedPath.split('/').map(encodeURIComponent).join('/');
+}
+
+function splitSshAuthority(host: string, username: string): { hostName: string; user?: string } {
+  const normalizedHost = host.trim();
+  const atIndex = normalizedHost.lastIndexOf('@');
+  if (atIndex > 0) {
+    return {
+      user: normalizedHost.slice(0, atIndex),
+      hostName: normalizedHost.slice(atIndex + 1),
+    };
+  }
+
+  const normalizedUsername = username.trim();
+  return {
+    hostName: normalizedHost,
+    ...(normalizedUsername ? { user: normalizedUsername } : {}),
+  };
+}
+
+function buildVsCodeRemoteAuthority(host: string, username: string): string {
+  const { hostName, user } = splitSshAuthority(host, username);
+  if (!user && /^[a-zA-Z0-9.:-]+$/.test(hostName) && !/[A-Z/\\+]/.test(hostName)) {
+    return hostName;
+  }
+
+  return Buffer.from(
+    JSON.stringify({
+      hostName,
+      ...(user ? { user } : {}),
+    })
+  ).toString('hex');
+}
+
 export function buildRemoteEditorUrl(
   scheme: RemoteEditorScheme,
   host: string,
   username: string,
-  targetPath: string
+  targetPath: string,
+  port?: number | string
 ): string {
   const authority = buildRemoteSshAuthority(host, username);
-  const encodedAuthority = encodeURIComponent(authority);
-  const normalizedTargetPath = targetPath.startsWith('/') ? targetPath : `/${targetPath}`;
+  const vscodeAuthority = buildVsCodeRemoteAuthority(host, username);
+  const zedAuthority = port && String(port) !== '22' ? `${authority}:${port}` : authority;
+  const encodedTargetPath = encodeRemotePath(targetPath);
 
   switch (scheme) {
     case 'zed':
-      return `zed://ssh/${encodedAuthority}${normalizedTargetPath}`;
+      return `zed://ssh/${zedAuthority}${encodedTargetPath}`;
+    // VS Code-family editors resolve the SSH port via ~/.ssh/config, so the port
+    // is intentionally omitted from the vscode-remote URL authority.
     default:
-      return `${scheme}://vscode-remote/ssh-remote+${encodedAuthority}${normalizedTargetPath}`;
+      return `${scheme}://vscode-remote/ssh-remote+${vscodeAuthority}${encodedTargetPath}`;
   }
 }
 

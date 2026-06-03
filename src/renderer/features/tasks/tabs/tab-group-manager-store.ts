@@ -49,6 +49,7 @@ export class TabGroupManagerStore {
       allOpenFilePaths: computed,
       registerCloseHandler: action,
       splitRight: action,
+      openConversationInRightSplit: action,
       closeGroup: action,
       moveTab: action,
       handleDragEnd: action,
@@ -102,6 +103,22 @@ export class TabGroupManagerStore {
     // Move (not copy) — moveTab handles remove-from-source, insert-into-target,
     // and sets activeGroupId = newGroup.groupId.
     this.moveTab(activeTabId, sourceGroup.groupId, newGroup.groupId);
+  }
+
+  openConversationInRightSplit(conversationId: string): void {
+    if (this.groups.length >= MAX_PANE_COUNT) {
+      this.openConversation(conversationId);
+      return;
+    }
+
+    const focusedIndex = this.groups.findIndex((g) => g.groupId === this.activeGroupId);
+    const insertAt = focusedIndex === -1 ? this.groups.length : focusedIndex + 1;
+    const newGroup = this._createGroup();
+
+    this.groups.splice(insertAt, 0, newGroup);
+    this._redistributeSizes();
+    this.activeGroupId = newGroup.groupId;
+    newGroup.tabManager.openConversation(conversationId);
   }
 
   /**

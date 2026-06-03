@@ -1,4 +1,7 @@
-import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
+import {
+  getConversationsForTask,
+  getTerminalsForTask,
+} from '@renderer/features/tasks/stores/task-selectors';
 import { agentMeta } from '@renderer/lib/providers/meta';
 import { appState } from '@renderer/lib/stores/app-state';
 import { formatBytes } from '@renderer/utils/formatBytes';
@@ -13,7 +16,7 @@ import { createLifecycleScriptTerminalId } from '@shared/terminals';
 export type Entry = ResourcePtyEntry & {
   taskName?: string;
   providerId?: AgentProviderId;
-  conversationTitle?: string;
+  displayTitle?: string;
 };
 
 export type TaskBucket = {
@@ -52,10 +55,10 @@ export function isLifecycleScriptEntry(entry: Pick<Entry, 'leafId'>): boolean {
 export function entryLabel(entry: Entry): string {
   const meta = entry.providerId ? agentMeta[entry.providerId] : undefined;
   return (
-    entry.conversationTitle ||
+    LIFECYCLE_SCRIPT_LABELS[entry.leafId] ||
+    entry.displayTitle ||
     meta?.label ||
     entry.providerId ||
-    LIFECYCLE_SCRIPT_LABELS[entry.leafId] ||
     entry.leafId.slice(0, 8)
   );
 }
@@ -126,7 +129,7 @@ export function buildGroups(entries: ResourcePtyEntry[]): Group[] {
     // Resolving both to the owning task id groups them under the same branch.
     let bucketKey = entry.scopeId;
     let providerId: AgentProviderId | undefined;
-    let conversationTitle: string | undefined;
+    let displayTitle: string | undefined;
     let projectName = 'Other';
     let projectKey = UNKNOWN_PROJECT_ID;
 
@@ -151,16 +154,17 @@ export function buildGroups(entries: ResourcePtyEntry[]): Group[] {
       if (task) {
         bucketKey = taskId;
         taskName = task.displayName;
-        const conv = conversationRegistry.get(taskId)?.conversations.get(entry.leafId);
+        const conv = getConversationsForTask(taskId)?.conversations.get(entry.leafId);
+        const terminal = getTerminalsForTask(taskId)?.terminals.get(entry.leafId);
         providerId = conv?.data.providerId;
-        conversationTitle = conv?.data.title;
+        displayTitle = conv?.data.title ?? terminal?.data.name;
       }
     }
 
     // Fall back to metadata supplied by the sampler (covers cases where the
-    // owning project isn't mounted, so the conversation join above misses).
+    // owning project isn't mounted, so the conversation/terminal join above misses).
     providerId ??= entry.providerId;
-    conversationTitle ??= entry.title;
+    displayTitle ??= entry.title;
 
     const project = byProject.get(projectKey) ?? {
       projectName,
@@ -172,7 +176,7 @@ export function buildGroups(entries: ResourcePtyEntry[]): Group[] {
       entries: [],
       cpuSum: 0,
     };
-    taskBucket.entries.push({ ...entry, taskName, providerId, conversationTitle });
+    taskBucket.entries.push({ ...entry, taskName, providerId, displayTitle });
     taskBucket.cpuSum += entry.cpu;
     project.tasks.set(bucketKey, taskBucket);
     byProject.set(projectKey, project);

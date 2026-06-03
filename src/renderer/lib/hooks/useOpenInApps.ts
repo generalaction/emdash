@@ -26,6 +26,7 @@ export interface UseOpenInAppsResult {
   labels: Partial<Record<OpenInAppId, string>>;
   availability: Record<string, boolean>;
   installedApps: OpenInAppConfig[];
+  platform: PlatformKey;
   loading: boolean;
 }
 
@@ -75,5 +76,5 @@ export function useOpenInApps(): UseOpenInAppsResult {
     );
   }, [availability, loading, openIn?.hidden]);
 
-  return { icons, labels, availability, installedApps, loading };
+  return { icons, labels, availability, installedApps, platform, loading };
 }
