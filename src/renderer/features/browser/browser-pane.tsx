@@ -19,6 +19,7 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
   const webviewRef = useRef<BrowserWebviewElement | null>(null);
   const focusUrlRef = useRef<() => void>(() => {});
   const [adapter, setAdapter] = useState<BrowserWebviewAdapter | null>(null);
+  const [webviewElement, setWebviewElement] = useState<BrowserWebviewElement | null>(null);
   const [isRegistered, setIsRegistered] = useState(false);
   const sessionBrowserId = session?.browserId;
   const sessionPartition = session?.partition;
@@ -61,14 +62,20 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
     const next = node as BrowserWebviewElement | null;
     if (webviewRef.current === next) return;
     webviewRef.current = next;
-    setAdapter(next ? createBrowserWebviewAdapter(next) : null);
+    setWebviewElement(next);
+    setAdapter(null);
   };
 
   useEffect(() => {
-    const webview = webviewRef.current;
-    if (!sessionBrowserId || !webview) return;
-    return bindBrowserWebviewEvents(sessionBrowserId, webview);
-  }, [adapter, sessionBrowserId]);
+    if (!sessionBrowserId || !webviewElement) return;
+    return bindBrowserWebviewEvents(sessionBrowserId, webviewElement, {
+      onDomReady: () => {
+        if (webviewRef.current === webviewElement) {
+          setAdapter(createBrowserWebviewAdapter(webviewElement));
+        }
+      },
+    });
+  }, [sessionBrowserId, webviewElement]);
 
   useEffect(() => {
     if (!sessionBrowserId) return;

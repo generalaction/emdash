@@ -5,15 +5,25 @@ import type { BrowserWebviewElement } from './browser-webview-types';
 
 export function bindBrowserWebviewEvents(
   browserId: string,
-  webview: BrowserWebviewElement
+  webview: BrowserWebviewElement,
+  options: { onDomReady?: () => void } = {}
 ): () => void {
+  let isDomReady = false;
+
   const syncHistoryState = () => {
+    if (!isDomReady) return;
     browserSessionStore.updateSession(browserId, {
       currentUrl: webview.getURL() || BROWSER_DEFAULT_URL,
       title: webview.getTitle(),
       canGoBack: webview.canGoBack(),
       canGoForward: webview.canGoForward(),
     });
+  };
+
+  const onDomReady = () => {
+    isDomReady = true;
+    syncHistoryState();
+    options.onDomReady?.();
   };
 
   const onStartLoading = () => {
@@ -24,6 +34,7 @@ export function bindBrowserWebviewEvents(
   };
 
   const onStopLoading = () => {
+    if (!isDomReady) return;
     browserSessionStore.updateSession(browserId, {
       isLoading: false,
       currentUrl: webview.getURL() || BROWSER_DEFAULT_URL,
@@ -34,6 +45,7 @@ export function bindBrowserWebviewEvents(
   };
 
   const onNavigate = (event: { url: string }) => {
+    if (!isDomReady) return;
     browserSessionStore.updateSession(browserId, {
       currentUrl: event.url,
       canGoBack: webview.canGoBack(),
@@ -89,6 +101,7 @@ export function bindBrowserWebviewEvents(
     browserSessionStore.updateSession(browserId, { faviconUrl: event.favicons[0] });
   };
 
+  webview.addEventListener('dom-ready', onDomReady);
   webview.addEventListener('did-start-loading', onStartLoading);
   webview.addEventListener('did-stop-loading', onStopLoading);
   webview.addEventListener('did-navigate', onNavigate);
@@ -97,9 +110,9 @@ export function bindBrowserWebviewEvents(
   webview.addEventListener('console-message', onConsoleMessage);
   webview.addEventListener('page-title-updated', onTitle);
   webview.addEventListener('page-favicon-updated', onFavicon);
-  syncHistoryState();
 
   return () => {
+    webview.removeEventListener('dom-ready', onDomReady);
     webview.removeEventListener('did-start-loading', onStartLoading);
     webview.removeEventListener('did-stop-loading', onStopLoading);
     webview.removeEventListener('did-navigate', onNavigate);

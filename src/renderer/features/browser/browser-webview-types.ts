@@ -1,4 +1,5 @@
 export type BrowserWebviewEventMap = {
+  'dom-ready': Event;
   'did-start-loading': Event;
   'did-stop-loading': Event;
   'did-navigate': { url: string };

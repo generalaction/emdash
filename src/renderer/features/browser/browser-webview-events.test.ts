@@ -75,6 +75,15 @@ describe('bindBrowserWebviewEvents', () => {
     bindBrowserWebviewEvents(session.browserId, asWebview(webview));
 
     expect(browserSessionStore.getSession(session.browserId)).toMatchObject({
+      currentUrl: 'about:blank',
+      title: '',
+      canGoBack: false,
+      canGoForward: false,
+    });
+
+    webview.emit('dom-ready');
+
+    expect(browserSessionStore.getSession(session.browserId)).toMatchObject({
       currentUrl: 'https://example.com/',
       title: 'Example',
       canGoBack: true,
@@ -143,8 +152,31 @@ describe('bindBrowserWebviewEvents', () => {
     const dispose = bindBrowserWebviewEvents(session.browserId, asWebview(webview));
 
     dispose();
+    webview.emit('dom-ready');
     webview.emit('did-start-loading');
 
     expect(browserSessionStore.getSession(session.browserId)?.isLoading).toBe(false);
+  });
+
+  it('does not read webview state before dom-ready', () => {
+    const session = browserSessionStore.createSession({
+      browserId: 'browser-1',
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      taskId: 'task-1',
+    });
+    const webview = new FakeBrowserWebview();
+    webview.getURL = () => {
+      throw new Error('not ready');
+    };
+
+    bindBrowserWebviewEvents(session.browserId, asWebview(webview));
+    webview.emit('did-stop-loading');
+    webview.emit('did-navigate', { url: 'https://example.com/' });
+
+    expect(browserSessionStore.getSession(session.browserId)).toMatchObject({
+      currentUrl: 'about:blank',
+      title: '',
+    });
   });
 });
