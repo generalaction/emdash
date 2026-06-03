@@ -41,28 +41,9 @@ export class TerminalTabViewStore
       reaction(
         () => Array.from(this._getResource()?.terminals.keys() ?? []),
         action((ids: string[]) => {
-          const idSet = new Set(ids);
-          // Remove deleted IDs
-          for (let i = this.tabOrder.length - 1; i >= 0; i--) {
-            if (!idSet.has(this.tabOrder[i])) {
-              this.tabOrder.splice(i, 1);
-            }
-          }
-          // Append new IDs
-          for (const id of ids) {
-            if (!this.tabOrder.includes(id)) {
-              this.tabOrder.push(id);
-            }
-          }
-          // Deselect removed active tab
-          if (this.activeTabId && !idSet.has(this.activeTabId)) {
-            this.activeTabId = this.tabOrder[0];
-          }
-          // Auto-select first if nothing is active
-          if (!this.activeTabId && this.tabOrder.length > 0) {
-            this.activeTabId = this.tabOrder[0];
-          }
-        })
+          this.syncTerminalIds(ids);
+        }),
+        { fireImmediately: true }
       )
     );
   }
@@ -84,6 +65,9 @@ export class TerminalTabViewStore
   restoreSnapshot(snapshot: Partial<TabViewSnapshot>): void {
     if (snapshot.tabOrder) this.tabOrder = snapshot.tabOrder;
     if (snapshot.activeTabId !== undefined) this.activeTabId = snapshot.activeTabId;
+
+    const loadedIds = this.loadedTerminalIds();
+    if (loadedIds) this.syncTerminalIds(loadedIds);
   }
 
   setActiveTab(id: string): void {
@@ -119,5 +103,35 @@ export class TerminalTabViewStore
 
   dispose(): void {
     for (const d of this.disposers) d();
+  }
+
+  private loadedTerminalIds(): string[] | null {
+    const resource = this._getResource();
+    if (!resource?.isLoaded) return null;
+    return Array.from(resource.terminals.keys());
+  }
+
+  private syncTerminalIds(ids: string[]): void {
+    const idSet = new Set(ids);
+    // Remove deleted IDs
+    for (let i = this.tabOrder.length - 1; i >= 0; i--) {
+      if (!idSet.has(this.tabOrder[i])) {
+        this.tabOrder.splice(i, 1);
+      }
+    }
+    // Append new IDs
+    for (const id of ids) {
+      if (!this.tabOrder.includes(id)) {
+        this.tabOrder.push(id);
+      }
+    }
+    // Deselect removed active tab
+    if (this.activeTabId && !idSet.has(this.activeTabId)) {
+      this.activeTabId = this.tabOrder[0];
+    }
+    // Auto-select first if nothing is active
+    if (!this.activeTabId && this.tabOrder.length > 0) {
+      this.activeTabId = this.tabOrder[0];
+    }
   }
 }
