@@ -47,8 +47,11 @@ import { cn } from '@renderer/utils/utils';
 import type { Issue } from '@shared/tasks';
 import { DevServerPills } from './components/dev-server-pills';
 import { IssueSelector, ProviderLogo } from './components/issue-selector/issue-selector';
+import { DevServerStore } from './stores/dev-server-store';
 import { type SidebarTab } from './types';
 import { useGitActions } from './use-git-actions';
+
+const globalDevServers = new DevServerStore();
 
 export const TaskTitlebar = observer(function TaskTitlebar() {
   const { projectId, taskId } = useTaskViewContext();
@@ -305,7 +308,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
       }
       rightSlot={
         <div className="flex items-center gap-2">
-          <DevServerPills projectId={projectId} taskId={taskId} />
+          <DevServerPills projectId={projectId} taskId={taskId} devServers={globalDevServers} />
           <OpenInMenu
             path={workspace.path}
             className="h-7 bg-transparent"

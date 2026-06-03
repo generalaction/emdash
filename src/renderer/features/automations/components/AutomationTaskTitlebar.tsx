@@ -9,6 +9,7 @@ import {
   projectDisplayName,
 } from '@renderer/features/projects/stores/project-selectors';
 import { DevServerPills } from '@renderer/features/tasks/components/dev-server-pills';
+import { DevServerStore } from '@renderer/features/tasks/stores/dev-server-store';
 import {
   getRegisteredTaskData,
   getTaskStore,
@@ -38,6 +39,7 @@ import { slugFromRunId } from '@shared/automations/run-slug';
 import type { Automation, AutomationRun } from '@shared/automations/types';
 
 const AUTOMATION_RUNS_POPOVER_LIMIT = 50;
+const globalDevServers = new DevServerStore();
 
 export const AutomationTaskTitlebar = observer(function AutomationTaskTitlebar() {
   const { projectId, taskId } = useTaskViewContext();
@@ -268,7 +270,7 @@ const AutomationTitlebarRightSlot = observer(function AutomationTitlebarRightSlo
 
   return (
     <div className="flex items-center gap-2">
-      <DevServerPills projectId={projectId} taskId={taskId} />
+      <DevServerPills projectId={projectId} taskId={taskId} devServers={globalDevServers} />
       <OpenInMenu
         path={workspace.path}
         className="h-7 bg-background"

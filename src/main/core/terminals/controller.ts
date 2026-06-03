@@ -9,6 +9,7 @@ import { stopLifecycleScriptSession } from './lifecycle-script-coordinator';
 import { prepareLifecycleScript } from './prepareLifecycleScript';
 import { renameTerminal } from './renameTerminal';
 import { runLifecycleScript } from './runLifecycleScript';
+import { stopDevServers } from './stopDevServers';
 
 export const terminalsController = createRPCController({
   getAllTerminals,
@@ -20,6 +21,7 @@ export const terminalsController = createRPCController({
   renameTerminal,
   getTerminalsForTask,
   runLifecycleScript,
+  stopDevServers,
   stopLifecycleScript: (args: {
     projectId: string;
     taskId: string;

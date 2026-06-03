@@ -189,6 +189,7 @@ export class SshTerminalProvider implements TerminalProvider {
     if (policy.watchDevServer) {
       wireTerminalDevServerWatcher({
         pty,
+        projectId: this.projectId,
         scopeId: this.scopeId,
         terminalId: terminal.id,
         probe: false,
@@ -293,15 +294,16 @@ export class SshTerminalProvider implements TerminalProvider {
     const sessionId = makePtySessionId(this.projectId, this.scopeId, terminalId);
     this.knownSessionIds.delete(sessionId);
     const pty = this.sessions.get(sessionId);
+    this.sessions.delete(sessionId);
+    this.respawnCounts.delete(sessionId);
+    this.terminals.delete(terminalId);
+    this.shellProfiles.delete(sessionId);
     if (pty) {
       try {
         pty.kill();
       } catch {}
-      this.sessions.delete(sessionId);
       ptySessionRegistry.unregister(sessionId);
     }
-    this.terminals.delete(terminalId);
-    this.shellProfiles.delete(sessionId);
     if (this.tmux) {
       await killTmuxSession(this.ctx, makeTmuxSessionName(sessionId));
     }
