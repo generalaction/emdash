@@ -42,7 +42,7 @@ export function findFileLinks(buffer: BufferLike, bufferLineNumber: number): Fil
     const matched = match[0];
     const startOffset = match.index;
     if (isEmbeddedInUrl(logicalLine.text, startOffset)) continue;
-    if (!matched.includes('/') && isIndentedPathContinuationFragment(logicalLine, startOffset)) {
+    if (!matched.includes('/') && !isLikelySlashFreeFileReference(logicalLine, startOffset)) {
       continue;
     }
     const endOffset = startOffset + matched.length;
@@ -67,6 +67,35 @@ function isEmbeddedInUrl(text: string, startCol: number): boolean {
   const prefix = text.slice(0, startCol);
   const tokenStart = Math.max(prefix.lastIndexOf(' '), prefix.lastIndexOf('\t'), -1) + 1;
   return URL_PROTOCOL_PATTERN.test(prefix.slice(tokenStart));
+}
+
+function isLikelySlashFreeFileReference(logicalLine: LogicalLine, offset: number): boolean {
+  const token = tokenAtOffset(logicalLine.text, offset);
+  if (hasHostnameTopLevelDomain(token)) return false;
+  if (isCommonRootFileName(token)) return true;
+  if (isIndentedPathContinuationFragment(logicalLine, offset)) return true;
+
+  if (/^\s*$/.test(logicalLine.text.slice(0, offset))) return true;
+
+  const prefix = logicalLine.text.slice(Math.max(0, offset - 32), offset).toLowerCase();
+  return /(?:^|[\s([{"'`<])(?:at|in|from|open(?:ed)?|see|edit(?:ed)?|update(?:d)?|create(?:d)?|modify|modified)\s+$/.test(
+    prefix
+  );
+}
+
+function tokenAtOffset(text: string, offset: number): string {
+  const suffix = text.slice(offset);
+  return /^[^\s)\]}"'`>,:;]+/.exec(suffix)?.[0] ?? '';
+}
+
+function hasHostnameTopLevelDomain(token: string): boolean {
+  return /\.(?:com|org|net|edu|gov|io|dev|app|co|ai|info|biz|me|tv|cloud|site|xyz)$/i.test(token);
+}
+
+function isCommonRootFileName(token: string): boolean {
+  return /^(?:package|tsconfig|jsconfig|vite\.config|vitest\.config|eslint\.config|prettier\.config|tailwind\.config|postcss\.config|components|wrangler|drizzle\.config)\.[\w.-]+$/i.test(
+    token
+  );
 }
 
 function isIndentedPathContinuationFragment(logicalLine: LogicalLine, offset: number): boolean {

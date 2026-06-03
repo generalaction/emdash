@@ -1,11 +1,7 @@
 import type { ILink } from '@xterm/xterm';
 import { describe, expect, it } from 'vitest';
 import { findFileLinks } from '@renderer/lib/pty/file-link-detection';
-import {
-  ActivationModifierTracker,
-  FileLinkProvider,
-  isActivationModifierPressed,
-} from '@renderer/lib/pty/file-link-provider';
+import { FileLinkProvider } from '@renderer/lib/pty/file-link-provider';
 
 class MockBufferLine {
   constructor(
@@ -159,34 +155,14 @@ describe('file link provider', () => {
     expect(findFileLinks(buffer, 1)).toEqual([]);
   });
 
-  it('requires Command on macOS and Control elsewhere', () => {
-    expect(isActivationModifierPressed({ metaKey: true, ctrlKey: false }, true)).toBe(true);
-    expect(isActivationModifierPressed({ metaKey: false, ctrlKey: true }, true)).toBe(false);
-    expect(isActivationModifierPressed({ metaKey: false, ctrlKey: true }, false)).toBe(true);
-    expect(isActivationModifierPressed({ metaKey: true, ctrlKey: false }, false)).toBe(false);
-    expect(isActivationModifierPressed({ metaKey: true, ctrlKey: true }, true)).toBe(false);
-    expect(isActivationModifierPressed({ metaKey: true, ctrlKey: true }, false)).toBe(false);
-  });
+  it('does not detect slash-free domains or incidental extension-bearing text', () => {
+    const buffer = makeBuffer([
+      new MockBufferLine('Visit docs.npmjs.com for more info'),
+      new MockBufferLine('Copied to clipboard.ts'),
+    ]);
 
-  it('clears initial underline decorations from mouse events without the modifier', () => {
-    const tracker = new ActivationModifierTracker(true);
-
-    expect(tracker.update({ metaKey: true, ctrlKey: false })).toBe(true);
-    expect(tracker.decorations()).toEqual({ pointerCursor: true, underline: true });
-
-    expect(tracker.update({ metaKey: false, ctrlKey: false })).toBe(false);
-    expect(tracker.decorations()).toEqual({ pointerCursor: false, underline: false });
-  });
-
-  it('updates hovered decorations when the modifier changes without mouse movement', () => {
-    const tracker = new ActivationModifierTracker(true);
-    const decorations = tracker.decorations();
-
-    tracker.hover(decorations, { metaKey: true, ctrlKey: false });
-    expect(decorations).toEqual({ pointerCursor: true, underline: true });
-
-    tracker.update({ metaKey: false, ctrlKey: false });
-    expect(decorations).toEqual({ pointerCursor: false, underline: false });
+    expect(findFileLinks(buffer, 1)).toEqual([]);
+    expect(findFileLinks(buffer, 2)).toEqual([]);
   });
 
   it('opens links on normal click', () => {
@@ -196,8 +172,7 @@ describe('file link provider', () => {
     const provider = new FileLinkProvider(
       { buffer: { active: buffer } } as never,
       (filePath) => openedFiles.push(filePath),
-      (filePath) => openedExternal.push(filePath),
-      new ActivationModifierTracker(true)
+      (filePath) => openedExternal.push(filePath)
     );
 
     let links: ILink[] = [];
