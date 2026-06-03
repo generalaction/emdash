@@ -24,6 +24,7 @@ const CODEX_CONFIG_PATH = '.codex/config.toml';
 const CODEX_HOOKS_PATH = '.codex/hooks.json';
 const GROK_HOOKS_PATH = '.grok/hooks/emdash.json';
 const COPILOT_HOOKS_PATH = '.github/hooks/emdash.json';
+const QWEN_SETTINGS_PATH = '.qwen/settings.json';
 const DROID_SETTINGS_PATH = '.factory/settings.json';
 const AMP_PLUGIN_PATH = '.amp/plugins/emdash-hook.ts';
 const PI_EMDASH_EXTENSION_PATH = '.pi/extensions/emdash-hook.ts';
@@ -42,6 +43,7 @@ type GrokHookEvent =
   | 'Stop'
   | 'StopFailure'
   | 'UserPromptSubmit';
+type QwenHookEvent = 'PermissionRequest' | 'SessionEnd' | 'Stop';
 type DroidHookEvent = 'Notification' | 'Stop' | 'SessionStart';
 type DevinHookEvent = 'PermissionRequest' | 'SessionEnd' | 'Stop';
 
@@ -268,6 +270,38 @@ export class HookConfigWriter {
     return true;
   }
 
+  async writeQwenHooks(): Promise<boolean> {
+    if (!(await resolveCommandPath('qwen', this.exec))) return false;
+
+    const config: Record<string, unknown> = (await this.fs.exists(QWEN_SETTINGS_PATH))
+      ? await this.fs
+          .read(QWEN_SETTINGS_PATH)
+          .then((r) => JSON.parse(r.content) ?? {})
+          .catch(() => ({}))
+      : {};
+
+    const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
+    const hookEntries = [
+      {
+        hookKey: 'PermissionRequest',
+        command: makeClaudeHookCommand('notification', { platform: this.platform }),
+      },
+      { hookKey: 'Stop', command: makeClaudeHookCommand('stop', { platform: this.platform }) },
+      {
+        hookKey: 'SessionEnd',
+        command: makeClaudeHookCommand('stop', { platform: this.platform }),
+      },
+    ] satisfies { hookKey: QwenHookEvent; command: string }[];
+
+    for (const { hookKey, command } of hookEntries) {
+      const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
+      hooks[hookKey] = this.buildHookEntries(existing, command);
+    }
+
+    await this.fs.write(QWEN_SETTINGS_PATH, JSON.stringify({ ...config, hooks }, null, 2) + '\n');
+    return true;
+  }
+
   async writeDroidHooks(): Promise<boolean> {
     if (!(await resolveCommandPath('droid', this.exec))) return false;
 
@@ -386,12 +420,20 @@ export class HookConfigWriter {
     }
 
     if (providerId === 'copilot') {
-      const wroteConfig = await this.writeCopilotHooks();
-      if (wroteConfig && writeGitIgnoreEntries) {
-        await this.ensureGitIgnoreEntries([COPILOT_HOOKS_PATH]);
+        const wroteConfig = await this.writeCopilotHooks();
+        if (wroteConfig && writeGitIgnoreEntries) {
+          await this.ensureGitIgnoreEntries([COPILOT_HOOKS_PATH]);
+        }
+        return wroteConfig;
       }
-      return wroteConfig;
-    }
+
+      if (providerId === 'qwen') {
+        const wroteConfig = await this.writeQwenHooks();
+        if (wroteConfig && writeGitIgnoreEntries) {
+          await this.ensureGitIgnoreEntries([QWEN_SETTINGS_PATH]);
+        }
+        return wroteConfig;
+      }
 
     if (providerId === 'droid') {
       const wroteConfig = await this.writeDroidHooks();
@@ -438,12 +480,11 @@ export class HookConfigWriter {
 
   async writeAll(options: HookConfigWriteOptions = {}): Promise<void> {
     await Promise.all(
-      (
-        ['claude', 'codex', 'grok', 'copilot', 'devin', 'droid', 'pi', 'opencode', 'amp'] as const
-      ).map((providerId) =>
-        this.writeForProvider(providerId, options).catch((err: Error) => {
-          log.warn(`Failed to write ${providerId} hook config`, { error: String(err) });
-        })
+     (['claude', 'codex', 'grok', 'copilot', 'qwen', 'devin', 'droid', 'pi', 'opencode', 'amp'] as const).map(
+        (providerId) =>
+          this.writeForProvider(providerId, options).catch((err: Error) => {
+            log.warn(`Failed to write ${providerId} hook config`, { error: String(err) });
+          })
       )
     );
   }

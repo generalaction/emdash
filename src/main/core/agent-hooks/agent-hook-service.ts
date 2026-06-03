@@ -5,6 +5,7 @@ import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
 import { telemetryService } from '@main/lib/telemetry';
 import { agentEventChannel, type AgentEvent } from '@shared/events/agentEvents';
 import { conversationChangedChannel } from '@shared/events/conversationEvents';
+import { stopAutomationSessionAfterDone } from './automation-pty-cleanup';
 import { handleCodexSessionStartHook } from './codex-session-start';
 import { enrichEvent } from './event-enricher';
 import { handleProviderSessionHook } from './handle-provider-session-hook';
@@ -31,6 +32,7 @@ class AgentHookService implements IInitializable, IDisposable {
       const appFocused = isAppFocused();
       await maybeShowNotification(event, appFocused);
       events.emit(agentEventChannel, { event, appFocused });
+      void stopAutomationSessionAfterDone(event);
     });
 
     conversationEvents.on(

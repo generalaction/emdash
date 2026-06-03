@@ -8,6 +8,7 @@ const provisionOutputSchema = z.object({
   username: z.string().optional(),
   worktreePath: z.string().optional(),
   password: z.string().optional(),
+  forwardAgent: z.boolean().optional(),
 });
 
 export type ProvisionOutput = z.infer<typeof provisionOutputSchema>;

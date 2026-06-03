@@ -1,8 +1,8 @@
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
-import { taskManager } from '../tasks/task-manager';
+import { taskSessionManager } from '../tasks/task-session-manager';
 
 export function resolveTask(_projectId: string, taskId: string) {
-  return taskManager.getTask(taskId) ?? null;
+  return taskSessionManager.getTask(taskId) ?? null;
 }
 
 export function resolveWorkspace(_projectId: string, workspaceId: string) {

@@ -59,8 +59,30 @@ export class WorktreeService {
     return this.host.existsAbsolute(this.host.pathApi.join(worktreePath, '.git'));
   }
 
+  /** Returns the resolved path to the worktree pool directory. */
+  getWorktreePoolPath(): Promise<string> {
+    return this.resolveWorktreePoolPath();
+  }
+
   private async ensureWorktreePoolDirExists(): Promise<void> {
     await this.host.mkdirAbsolute(await this.resolveWorktreePoolPath(), { recursive: true });
+  }
+
+  private async removePathForReuse(targetPath: string): Promise<void> {
+    const result = await this.host.removeAbsolute(targetPath, { recursive: true });
+    if (!result.success) {
+      throw new Error(
+        result.error
+          ? `Failed to remove stale worktree directory "${targetPath}": ${result.error}`
+          : `Failed to remove stale worktree directory "${targetPath}"`
+      );
+    }
+
+    if (await this.host.existsAbsolute(targetPath)) {
+      throw new Error(
+        `Failed to remove stale worktree directory "${targetPath}": path still exists`
+      );
+    }
   }
 
   private async getRemoteCandidates(): Promise<string[]> {
@@ -162,7 +184,11 @@ export class WorktreeService {
     const worktreePath = this.host.pathApi.join(worktreePoolPath, branchName);
     if (await this.host.existsAbsolute(worktreePath)) {
       if (await this.isValidWorktree(worktreePath)) return worktreePath;
-      await this.host.removeAbsolute(worktreePath, { recursive: true }).catch(() => {});
+      try {
+        await this.removePathForReuse(worktreePath);
+      } catch {
+        return undefined;
+      }
     }
 
     try {
@@ -207,8 +233,12 @@ export class WorktreeService {
         await this.ensureBranchBaseConfig(branchName, baseConfigValue);
         return ok(targetPath);
       }
-      await this.host.removeAbsolute(targetPath, { recursive: true }).catch(() => {});
-      await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
+      try {
+        await this.removePathForReuse(targetPath);
+        await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
+      } catch (cause) {
+        return err({ type: 'worktree-setup-failed', cause });
+      }
     }
 
     try {
@@ -262,8 +292,12 @@ export class WorktreeService {
 
     if (await this.host.existsAbsolute(targetPath)) {
       if (await this.isValidWorktree(targetPath)) return ok(targetPath);
-      await this.host.removeAbsolute(targetPath, { recursive: true });
-      await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
+      try {
+        await this.removePathForReuse(targetPath);
+        await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
+      } catch (cause) {
+        return err({ type: 'worktree-setup-failed', cause });
+      }
     }
 
     try {
@@ -322,8 +356,9 @@ export class WorktreeService {
   }
 
   async removeWorktree(worktreePath: string): Promise<void> {
-    await this.host.removeAbsolute(worktreePath, { recursive: true }).catch(() => {});
-    await this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
+    await this.removePathForReuse(worktreePath).finally(() => {
+      this.ctx.exec('git', ['worktree', 'prune']).catch(() => {});
+    });
   }
 
   private taskConfigFs(targetPath: string): Pick<FileSystemProvider, 'exists' | 'read'> {

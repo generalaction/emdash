@@ -4,8 +4,10 @@ import { ptyStartedChannel } from '@shared/events/appEvents';
 import { PtySession } from './pty-session';
 
 const frontendConnect = vi.hoisted(() => vi.fn());
+const frontendClear = vi.hoisted(() => vi.fn());
 const frontendDispose = vi.hoisted(() => vi.fn());
 const frontendInstances = vi.hoisted(() => [] as Array<{ sessionId: string }>);
+const frontendConnectedSessionIds = vi.hoisted(() => [] as string[]);
 
 vi.mock('@renderer/lib/ipc', () => ({
   events: {
@@ -19,7 +21,11 @@ vi.mock('@renderer/lib/pty/pty', () => ({
       frontendInstances.push(this);
     }
 
-    connect = frontendConnect;
+    connect = () => {
+      frontendConnectedSessionIds.push(this.sessionId);
+      return frontendConnect();
+    };
+    clear = frontendClear;
     dispose = frontendDispose;
   },
 }));
@@ -38,14 +44,16 @@ function ptyStartedListeners() {
   return vi
     .mocked(events.on)
     .mock.calls.filter(([channel]) => channel === ptyStartedChannel)
-    .map(([, listener]) => listener as (event: { id: string; epoch: number }) => void);
+    .map(([, listener]) => listener as (event: { id: string }) => void);
 }
 
 describe('PtySession', () => {
   beforeEach(() => {
     frontendConnect.mockReset();
+    frontendClear.mockReset();
     frontendDispose.mockReset();
     frontendInstances.length = 0;
+    frontendConnectedSessionIds.length = 0;
     vi.mocked(events.on).mockReset();
     vi.mocked(events.on).mockReturnValue(() => {});
   });
@@ -86,7 +94,7 @@ describe('PtySession', () => {
     expect(offPtyStarted).toHaveBeenCalledTimes(1);
   });
 
-  it('recreates the frontend PTY when the backend starts a newer epoch for the session', async () => {
+  it('keeps the frontend PTY when the backend starts again for the session', async () => {
     frontendConnect.mockResolvedValue(undefined);
     const session = new PtySession('session-1');
 
@@ -95,17 +103,66 @@ describe('PtySession', () => {
     expect(initialPty).not.toBeNull();
 
     for (const listener of ptyStartedListeners()) {
-      listener({ id: 'session-1', epoch: 2 });
+      listener({ id: 'session-1' });
     }
     await Promise.resolve();
 
-    expect(frontendDispose).toHaveBeenCalledTimes(1);
-    expect(frontendInstances).toHaveLength(2);
-    expect(session.pty).not.toBe(initialPty);
+    expect(frontendDispose).not.toHaveBeenCalled();
+    expect(frontendInstances).toHaveLength(1);
+    expect(frontendConnect).toHaveBeenCalledTimes(1);
+    expect(frontendConnectedSessionIds).toEqual(['session-1']);
+    expect(session.pty).toBe(initialPty);
     expect(session.status).toBe('ready');
   });
 
-  it('does not recreate for the first backend epoch that arrives during initial connect', async () => {
+  it('clears the frontend PTY when backend replacement is configured to preserve the instance', async () => {
+    frontendConnect.mockResolvedValue(undefined);
+    const session = new PtySession('session-1', undefined, undefined, undefined, {
+      clearOnBackendStart: true,
+    });
+
+    await session.connect();
+    const initialPty = session.pty;
+    expect(initialPty).not.toBeNull();
+
+    for (const listener of ptyStartedListeners()) {
+      listener({ id: 'session-1' });
+    }
+    await Promise.resolve();
+
+    expect(frontendClear).toHaveBeenCalledTimes(1);
+    expect(frontendDispose).not.toHaveBeenCalled();
+    expect(frontendInstances).toHaveLength(1);
+    expect(session.pty).toBe(initialPty);
+    expect(session.status).toBe('ready');
+  });
+
+  it('treats the first backend start after dispose and reconnect as initial', async () => {
+    const reconnect = deferred<void>();
+    frontendConnect.mockResolvedValueOnce(undefined).mockReturnValueOnce(reconnect.promise);
+    const session = new PtySession('session-1', undefined, undefined, undefined, {
+      clearOnBackendStart: true,
+    });
+
+    await session.connect();
+    session.dispose();
+    const reconnectPromise = session.connect();
+    await Promise.resolve();
+
+    for (const listener of ptyStartedListeners()) {
+      listener({ id: 'session-1' });
+    }
+
+    expect(frontendClear).not.toHaveBeenCalled();
+    expect(frontendDispose).toHaveBeenCalledTimes(1);
+    expect(frontendInstances).toHaveLength(2);
+
+    reconnect.resolve();
+    await reconnectPromise;
+    expect(session.status).toBe('ready');
+  });
+
+  it('does not recreate for the first backend start that arrives during initial connect', async () => {
     const connect = deferred<void>();
     frontendConnect.mockReturnValue(connect.promise);
 
@@ -115,7 +172,7 @@ describe('PtySession', () => {
     const initialPty = session.pty;
 
     for (const listener of ptyStartedListeners()) {
-      listener({ id: 'session-1', epoch: 42 });
+      listener({ id: 'session-1' });
     }
     await Promise.resolve();
 
@@ -128,12 +185,9 @@ describe('PtySession', () => {
     expect(session.status).toBe('ready');
   });
 
-  it('lets backend replacement win over an in-flight connect for an older frontend PTY', async () => {
+  it('does not recreate when multiple backend starts arrive during initial connect', async () => {
     const firstConnect = deferred<void>();
-    const secondConnect = deferred<void>();
-    frontendConnect
-      .mockReturnValueOnce(firstConnect.promise)
-      .mockReturnValueOnce(secondConnect.promise);
+    frontendConnect.mockReturnValueOnce(firstConnect.promise);
 
     const session = new PtySession('session-1');
     const firstConnectPromise = session.connect();
@@ -142,21 +196,42 @@ describe('PtySession', () => {
     expect(initialPty).not.toBeNull();
     expect(session.status).toBe('connecting');
 
-    for (const listener of ptyStartedListeners()) listener({ id: 'session-1', epoch: 42 });
-    for (const listener of ptyStartedListeners()) listener({ id: 'session-1', epoch: 43 });
+    for (const listener of ptyStartedListeners()) listener({ id: 'session-1' });
+    for (const listener of ptyStartedListeners()) listener({ id: 'session-1' });
     await Promise.resolve();
-    const replacementPty = session.pty;
-    expect(replacementPty).not.toBe(initialPty);
-    expect(frontendDispose).toHaveBeenCalledTimes(1);
+
+    expect(frontendDispose).not.toHaveBeenCalled();
+    expect(frontendInstances).toHaveLength(1);
+    expect(session.pty).toBe(initialPty);
 
     firstConnect.resolve();
     await firstConnectPromise;
-    expect(session.pty).toBe(replacementPty);
+    expect(session.pty).toBe(initialPty);
+    expect(session.status).toBe('ready');
+  });
+
+  it('does not clear when multiple backend starts arrive during initial connect', async () => {
+    const firstConnect = deferred<void>();
+    frontendConnect.mockReturnValueOnce(firstConnect.promise);
+
+    const session = new PtySession('session-1', undefined, undefined, undefined, {
+      clearOnBackendStart: true,
+    });
+    const firstConnectPromise = session.connect();
+    await Promise.resolve();
     expect(session.status).toBe('connecting');
 
-    secondConnect.resolve();
+    for (const listener of ptyStartedListeners()) listener({ id: 'session-1' });
+    for (const listener of ptyStartedListeners()) listener({ id: 'session-1' });
     await Promise.resolve();
-    expect(session.pty).toBe(replacementPty);
+
+    expect(frontendClear).not.toHaveBeenCalled();
+
+    firstConnect.resolve();
+    await firstConnectPromise;
     expect(session.status).toBe('ready');
+
+    for (const listener of ptyStartedListeners()) listener({ id: 'session-1' });
+    expect(frontendClear).toHaveBeenCalledTimes(1);
   });
 });

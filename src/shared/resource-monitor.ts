@@ -5,10 +5,10 @@ import type { AgentProviderId } from '@shared/agent-provider-registry';
  * on multi-core systems). `memory` is RSS in bytes. `pid` is undefined for
  * remote (SSH) PTYs where the owning process runs on the remote host.
  *
- * `providerId` and `title` are populated for agent-conversation PTYs and
- * absent for plain shell terminals. They are sourced from the registry at
- * register-time so the renderer can label entries even when the owning
- * project isn't mounted (in which case the renderer-side conversation join
+ * `providerId` is populated for agent-conversation PTYs. `title` is populated
+ * for conversations and user-created shell terminals. They are sourced from
+ * the registry at register-time so the renderer can label entries even when
+ * the owning project isn't mounted (in which case the renderer-side store join
  * would fail and the row would fall back to a leafId hex).
  */
 export interface ResourcePtyEntry {

@@ -8,7 +8,7 @@ import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { SplitButton, type SplitButtonAction } from '@renderer/lib/ui/split-button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
-import { getRegisteredTaskData } from '../../stores/task-selectors';
+import { getTaskGitStore } from '../../stores/task-selectors';
 import {
   useTaskViewContext,
   useWorkspace,
@@ -33,7 +33,7 @@ export const PullRequestsSection = observer(function PullRequestsSection({
   const taskView = useWorkspaceViewModel();
   const prStore = taskView.prStore;
   const repositoryUrl = workspace.repository.pullRequestRepositoryUrl;
-  const taskBranch = getRegisteredTaskData(projectId, taskId)?.taskBranch;
+  const taskBranch = getTaskGitStore(projectId, taskId)?.branchName;
   const pullRequests = prStore?.pullRequests ?? [];
   const currentPr = prStore?.currentPr;
   const showCreatePrModal = useShowModal('createPrModal');

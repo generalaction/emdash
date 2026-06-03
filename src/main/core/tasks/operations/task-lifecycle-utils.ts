@@ -6,7 +6,7 @@ import { log } from '@main/lib/logger';
 import type { ProjectProvider } from '../../projects/project-provider';
 
 /**
- * Removes the worktree when no remaining sibling tasks share the same branch.
+ * Removes the worktree when no remaining sibling tasks share the same workspace.
  *
  * `excludeArchived = true`  — only non-archived siblings block removal (use for archiveTask).
  * `excludeArchived = false` — any remaining sibling blocks removal (use for deleteTask).
@@ -14,29 +14,28 @@ import type { ProjectProvider } from '../../projects/project-provider';
  * Returns `true` if the worktree was removed (no siblings found), `false` otherwise.
  */
 export async function removeWorktreeIfUnused(
-  task: { taskBranch: string | null; projectId: string },
+  workspace: { id: string; branchName: string | null },
   project: ProjectProvider,
   excludeArchived: boolean
 ): Promise<boolean> {
-  if (!task.taskBranch) return false;
+  if (!workspace.branchName) return false;
 
   const where = excludeArchived
-    ? and(
-        eq(tasks.projectId, task.projectId),
-        eq(tasks.taskBranch, task.taskBranch),
-        isNull(tasks.archivedAt)
-      )
-    : and(eq(tasks.projectId, task.projectId), eq(tasks.taskBranch, task.taskBranch));
+    ? and(eq(tasks.workspaceId, workspace.id), isNull(tasks.archivedAt))
+    : eq(tasks.workspaceId, workspace.id);
 
   const siblings = await db.select({ id: tasks.id }).from(tasks).where(where).limit(1);
   if (siblings.length > 0) return false;
 
-  await project.removeTaskWorktree(task.taskBranch).catch((e) => {
+  try {
+    await project.removeTaskWorktree(workspace.branchName);
+  } catch (e) {
     log.warn('removeWorktreeIfUnused: worktree removal failed', {
-      taskBranch: task.taskBranch,
+      branchName: workspace.branchName,
       error: String(e),
     });
-  });
+    return false;
+  }
   return true;
 }
 
@@ -54,6 +53,15 @@ export async function deleteWorkspaceIfUnused(
   workspaceId: string,
   excludeTaskId: string
 ): Promise<void> {
+  const [wsRow] = await db
+    .select({ id: workspaces.id, kind: workspaces.kind })
+    .from(workspaces)
+    .where(eq(workspaces.id, workspaceId))
+    .limit(1);
+
+  // project-root workspaces outlive any individual task — never delete them.
+  if (wsRow?.kind === 'project-root') return;
+
   const [sibling] = await db
     .select({ id: tasks.id })
     .from(tasks)

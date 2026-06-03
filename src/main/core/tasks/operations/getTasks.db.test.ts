@@ -34,7 +34,7 @@ describe('getTasks', () => {
     mocks.db = undefined;
   });
 
-  it('loads tasks whose source_branch is a historical raw branch string', async () => {
+  it('loads tasks from the database', async () => {
     fixture.sqlite
       .prepare(
         `INSERT INTO tasks (
@@ -42,8 +42,6 @@ describe('getTasks', () => {
            project_id,
            name,
            status,
-           source_branch,
-           task_branch,
            created_at,
            updated_at,
            status_changed_at
@@ -51,10 +49,8 @@ describe('getTasks', () => {
          VALUES (
            'task-1',
            'project-1',
-           'Raw Branch Task',
+           'My Task',
            'in_progress',
-           'main',
-           'feature/raw-branch',
            CURRENT_TIMESTAMP,
            CURRENT_TIMESTAMP,
            CURRENT_TIMESTAMP
@@ -65,6 +61,7 @@ describe('getTasks', () => {
     const rows = await getTasks('project-1');
 
     expect(rows).toHaveLength(1);
-    expect(rows[0]!.sourceBranch).toEqual({ type: 'local', branch: 'main' });
+    expect(rows[0]!.name).toBe('My Task');
+    expect(rows[0]!.id).toBe('task-1');
   });
 });

@@ -146,6 +146,11 @@ export class FrontendPty {
     this.terminal.options.theme = buildTheme(this.theme);
   }
 
+  clear(): void {
+    this.terminal.clear();
+    this.terminal.clearSelection();
+  }
+
   /**
    * Subscribe to the session: fetches the ring buffer from the main process,
    * writes it directly to xterm, then sets up a live IPC listener for future

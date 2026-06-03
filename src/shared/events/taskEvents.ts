@@ -57,3 +57,11 @@ export type LifecycleScriptStatusEvent = {
 export const lifecycleScriptStatusChannel = defineEvent<LifecycleScriptStatusEvent>(
   'task:lifecycle-script-status'
 );
+
+export const taskProvisionedChannel = defineEvent<{
+  taskId: string;
+  projectId: string;
+  path: string;
+  workspaceId: string;
+  sshConnectionId?: string;
+}>('task:provisioned');

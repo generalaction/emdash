@@ -56,6 +56,7 @@ describe('createTaskCommandProvider', () => {
       setTerminalDrawerOpen: vi.fn(),
       tabGroupManager: {
         openConversation: vi.fn(),
+        openConversationInRightSplit: vi.fn(),
       },
       tabManager: {
         resolvedTabs: [{ id: 'tab-1' }],
@@ -88,5 +89,32 @@ describe('createTaskCommandProvider', () => {
         expect(command.shortcutKey in APP_SHORTCUTS).toBe(true);
       }
     }
+  });
+
+  it('opens a new conversation in a right split from the split command', () => {
+    const provider = createTaskCommandProvider('project-1', 'task-1');
+
+    const command = provider
+      .getCommands()
+      .find((candidate) => candidate.id === 'task.newConversationSplitRight');
+
+    const taskView = mocks.getTaskView.mock.results.at(-1)?.value ?? mocks.getTaskView();
+
+    command?.execute();
+
+    expect(command?.shortcutKey).toBe('newConversationSplitRight');
+    expect(mocks.showModal).toHaveBeenCalledWith('createConversationModal', {
+      projectId: 'project-1',
+      taskId: 'task-1',
+      onSuccess: expect.any(Function),
+    });
+
+    const modalOptions = mocks.showModal.mock.calls[0][1];
+    modalOptions.onSuccess({ conversationId: 'conversation-1' });
+
+    expect(taskView.tabGroupManager.openConversationInRightSplit).toHaveBeenCalledWith(
+      'conversation-1'
+    );
+    expect(taskView.setFocusedRegion).toHaveBeenCalledWith('main');
   });
 });

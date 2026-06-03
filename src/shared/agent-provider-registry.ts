@@ -249,6 +249,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     icon: 'qwen.svg',
     alt: 'Qwen Code CLI',
     terminalOnly: true,
+    supportsHooks: true,
   },
   {
     id: 'droid',

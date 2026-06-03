@@ -8,7 +8,7 @@ import type { Branch, FetchError } from '@shared/git';
 import type { ProjectRemoteState } from '@shared/projects';
 import type { Result } from '@shared/result';
 import type { ConversationProvider } from '../conversations/types';
-import { taskManager } from '../tasks/task-manager';
+import { taskSessionManager } from '../tasks/task-session-manager';
 import type { TerminalProvider } from '../terminals/terminal-provider';
 import type { WorkspaceType } from '../workspaces/workspace-factory';
 import type { ProjectSettingsProvider } from './settings/provider';
@@ -64,6 +64,7 @@ export class ProjectProvider implements IDisposable {
   readonly gitFetchService: GitFetchService;
   /** Workspace type for standard worktree tasks. BYOI tasks use their own remote workspace type. */
   readonly defaultWorkspaceType: WorkspaceType;
+  readonly worktreeHost: WorktreeHost;
 
   private readonly _ctx: IExecutionContext;
 
@@ -86,6 +87,7 @@ export class ProjectProvider implements IDisposable {
     this.worktreeService = worktreeService;
     this.gitFetchService = gitFetchService;
     this.defaultWorkspaceType = transport.defaultWorkspaceType;
+    this.worktreeHost = transport.worktreeHost;
   }
 
   get ctx(): IExecutionContext {
@@ -116,7 +118,7 @@ export class ProjectProvider implements IDisposable {
     this.gitFetchService.stop();
     const projectSettings = await this.settings.get();
     const mode = projectSettings.tmux ? 'detach' : 'terminate';
-    await taskManager.teardownAllForProject(this.projectId, mode);
+    await taskSessionManager.teardownAllForProject(this.projectId, mode);
     await workspaceRegistry.releaseAllForProject(this.projectId, mode);
   }
 }

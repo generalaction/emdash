@@ -89,8 +89,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
   const showLineChanges = interfaceSettings?.showLeftSidebarLineChanges ?? true;
   const showPrStatus = interfaceSettings?.showLeftSidebarPrStatus ?? true;
   const showTimestamps = interfaceSettings?.showLeftSidebarTimestamps ?? true;
-  const branchName =
-    git?.branchName ?? ('taskBranch' in task.data ? task.data.taskBranch : undefined);
+  const branchName = git?.branchName ?? undefined;
   const handleReconnect =
     workspaceStore?.connectionState != null ? () => workspaceStore.reconnect() : undefined;
 

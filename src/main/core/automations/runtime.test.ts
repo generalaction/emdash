@@ -101,7 +101,7 @@ describe('runQueuedAutomation', () => {
     expect(automationEvents._emit).toHaveBeenCalledWith('automation:run:skipped', skippedRun);
   });
 
-  it('runs multiple actions and keeps the first created task id', async () => {
+  it('runs multiple actions and keeps the first created task id while linking the latest task', async () => {
     const multiActionAutomation = {
       ...automation,
       actions: [
@@ -120,7 +120,7 @@ describe('runQueuedAutomation', () => {
     expect(updateRun).toHaveBeenLastCalledWith(run.id, {
       status: 'success',
       finishedAt: expect.any(Number),
-      taskId: 'task-1',
+      taskId: 'task-2',
       createdTaskId: 'task-1',
     });
   });

@@ -12,7 +12,7 @@ const SSH_PROVIDER_TIMEOUT_MS = 60_000;
 const LOCAL_PROVIDER_TIMEOUT_MS = 20_000;
 const TEARDOWN_PROVIDER_TIMEOUT_MS = 60_000;
 
-type ProjectManagerHooks = {
+type ProjectSessionManagerHooks = {
   projectOpened: (projectId: string, provider: ProjectProvider) => void | Promise<void>;
   projectClosed: (projectId: string) => void | Promise<void>;
 };
@@ -31,16 +31,20 @@ function toTeardownError(e: unknown): ProviderLifecycleError {
   return { type: 'error', message: e instanceof Error ? e.message : String(e) };
 }
 
-class ProjectManager implements Hookable<ProjectManagerHooks>, IDisposable {
-  private readonly _hooks = new HookCore<ProjectManagerHooks>((name, e) =>
+class ProjectSessionManager implements Hookable<ProjectSessionManagerHooks>, IDisposable {
+  private readonly _hooks = new HookCore<ProjectSessionManagerHooks>((name, e) =>
     log.error(`ProjectManager: ${String(name)} hook error`, e)
   );
-  private readonly _lifecycle = new LifecycleMap<ProjectProvider, ProviderLifecycleError>({
+  private readonly _lifecycle = new LifecycleMap<
+    ProjectProvider,
+    ProviderLifecycleError,
+    ProviderLifecycleError
+  >({
     postProvision: (id, provider) => this._hooks.callHookBackground('projectOpened', id, provider),
     postTeardown: (id) => this._hooks.callHookBackground('projectClosed', id),
   });
 
-  on<K extends keyof ProjectManagerHooks>(name: K, handler: ProjectManagerHooks[K]) {
+  on<K extends keyof ProjectSessionManagerHooks>(name: K, handler: ProjectSessionManagerHooks[K]) {
     return this._hooks.on(name, handler);
   }
 
@@ -87,7 +91,16 @@ class ProjectManager implements Hookable<ProjectManagerHooks>, IDisposable {
   async dispose(): Promise<void> {
     const ids = Array.from(this._lifecycle.keys());
     await Promise.allSettled(ids.map((id) => this.closeProject(id)));
+    for (const id of ids) {
+      const status = this._lifecycle.teardownStatus(id);
+      if (status.status === 'error') {
+        log.error('ProjectManager: project teardown error recorded after dispose', {
+          projectId: id,
+          message: status.error.message,
+        });
+      }
+    }
   }
 }
 
-export const projectManager = new ProjectManager();
+export const projectManager = new ProjectSessionManager();

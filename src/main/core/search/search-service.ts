@@ -1,5 +1,6 @@
+import { eq } from 'drizzle-orm';
 import { db, sqlite } from '@main/db/client';
-import { conversations, projects, tasks } from '@main/db/schema';
+import { conversations, projects, tasks, workspaces } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { ALL_COMMAND_DEFS } from '@shared/commands';
 import type { Conversation } from '@shared/conversations';
@@ -35,8 +36,8 @@ type RecentConversationRow = {
 
 class SearchService {
   initialize(): void {
-    taskService.on('task:created', (task) => this.upsertTask(task));
-    taskService.on('task:updated', (task) => this.upsertTask(task));
+    taskService.on('task:created', (task) => void this.upsertTaskWithBranch(task));
+    taskService.on('task:updated', (task) => void this.upsertTaskWithBranch(task));
     taskService.on('task:archived', (taskId) => this.removeByType('task', taskId));
     taskService.on('task:deleted', (taskId) => this.removeByType('task', taskId));
 
@@ -188,8 +189,21 @@ class SearchService {
     return results;
   }
 
-  private upsertTask(task: Task): void {
-    const keywords = [task.taskBranch, task.linkedIssue?.identifier, task.linkedIssue?.title]
+  private async upsertTaskWithBranch(task: Task): Promise<void> {
+    let branchName: string | undefined;
+    if (task.workspaceId) {
+      const [ws] = await db
+        .select({ branchName: workspaces.branchName })
+        .from(workspaces)
+        .where(eq(workspaces.id, task.workspaceId))
+        .limit(1);
+      branchName = ws?.branchName ?? undefined;
+    }
+    this.upsertTask(task, branchName);
+  }
+
+  private upsertTask(task: Task, branchName?: string): void {
+    const keywords = [branchName, task.linkedIssue?.identifier, task.linkedIssue?.title]
       .filter(Boolean)
       .join(' ');
 
@@ -294,7 +308,17 @@ class SearchService {
 
       if (count > 0) return;
 
-      const allTasks = db.select().from(tasks).all();
+      const allTasks = db
+        .select({
+          id: tasks.id,
+          projectId: tasks.projectId,
+          name: tasks.name,
+          archivedAt: tasks.archivedAt,
+          branchName: workspaces.branchName,
+        })
+        .from(tasks)
+        .leftJoin(workspaces, eq(tasks.workspaceId, workspaces.id))
+        .all();
       const allProjects = db.select().from(projects).all();
       const allConversations = db.select().from(conversations).all();
 
@@ -306,7 +330,7 @@ class SearchService {
       sqlite.transaction(() => {
         for (const t of allTasks) {
           if (t.archivedAt) continue;
-          upsertStmt.run('task', t.id, t.projectId, null, t.name, t.taskBranch ?? '');
+          upsertStmt.run('task', t.id, t.projectId, null, t.name, t.branchName ?? '');
         }
         for (const p of allProjects) {
           upsertStmt.run('project', p.id, null, null, p.name, p.path);

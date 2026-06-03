@@ -1,26 +1,16 @@
 import { useCallback, useMemo, useState } from 'react';
-import { useIntegrationsContext } from '@renderer/features/integrations/integrations-provider';
-import { ISSUE_PROVIDER_ORDER } from '@renderer/features/integrations/issue-provider-meta';
+import { useConnectedIssueProviders } from '@renderer/features/integrations/use-connected-issue-providers';
 import { useIssues } from '@renderer/features/integrations/use-issues';
 import { getProjectViewStore } from '@renderer/features/projects/stores/project-selectors';
-import type { ConnectionStatus } from '@shared/issue-providers';
 import type { Issue } from '@shared/tasks';
 
 export type UseIssueSearchResult = ReturnType<typeof useIssueSearch>;
 
-function isProviderUsable(
-  status: ConnectionStatus | undefined,
-  context: { projectPath?: string; repositoryUrl?: string }
-): boolean {
-  if (!status?.connected) return false;
-  if (status.capabilities.requiresProjectPath && !context.projectPath) return false;
-  if (status.capabilities.requiresRepositoryUrl && !context.repositoryUrl) return false;
-  return true;
-}
-
 export function useIssueSearch(repositoryUrl: string, projectPath = '', projectId?: string) {
-  const { connectionStatus, isCheckingConnections } = useIntegrationsContext();
   const context = useMemo(() => ({ projectPath, repositoryUrl }), [projectPath, repositoryUrl]);
+
+  const { connectedProviders, hasAnyIssueIntegration, isProviderUsable, isCheckingConnections } =
+    useConnectedIssueProviders(context);
 
   const projectView = projectId ? getProjectViewStore(projectId) : undefined;
 
@@ -41,26 +31,13 @@ export function useIssueSearch(repositoryUrl: string, projectPath = '', projectI
     [projectView]
   );
 
-  const connectedProviders = useMemo(
-    () =>
-      ISSUE_PROVIDER_ORDER.filter((provider) =>
-        isProviderUsable(connectionStatus[provider], context)
-      ),
-    [connectionStatus, context]
-  );
-
-  const hasAnyIntegration = connectedProviders.length > 0;
-
   const issueProvider = useMemo(() => {
-    if (
-      selectedIssueProvider &&
-      isProviderUsable(connectionStatus[selectedIssueProvider], context)
-    ) {
+    if (selectedIssueProvider && isProviderUsable(selectedIssueProvider)) {
       return selectedIssueProvider;
     }
 
     return connectedProviders[0] ?? null;
-  }, [connectedProviders, connectionStatus, context, selectedIssueProvider]);
+  }, [connectedProviders, isProviderUsable, selectedIssueProvider]);
 
   const issuesHook = useIssues(issueProvider, {
     projectId,
@@ -78,8 +55,8 @@ export function useIssueSearch(repositoryUrl: string, projectPath = '', projectI
   );
 
   const isProviderDisabled = useCallback(
-    (provider: Issue['provider']) => !isProviderUsable(connectionStatus[provider], context),
-    [connectionStatus, context]
+    (provider: Issue['provider']) => !isProviderUsable(provider),
+    [isProviderUsable]
   );
 
   const isProviderLoading =
@@ -88,7 +65,7 @@ export function useIssueSearch(repositoryUrl: string, projectPath = '', projectI
   return {
     issues: issuesHook.issues,
     issueProvider,
-    hasAnyIntegration,
+    hasAnyIntegration: hasAnyIssueIntegration,
     isProviderLoading,
     isProviderDisabled,
     connectedProviderCount: connectedProviders.length,

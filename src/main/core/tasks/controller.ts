@@ -3,11 +3,9 @@ import type {
   CreateTaskParams,
   DeleteTaskOptions,
   Issue,
-  RenameTaskOptions,
   TaskLifecycleStatus,
 } from '@shared/tasks';
 import { generateTaskName } from './name-generation/generateTaskName';
-import { formatProvisionTaskError } from './provision-task-error';
 import { taskService } from './task-service';
 
 export const taskController = createRPCController({
@@ -32,13 +30,8 @@ export const taskController = createRPCController({
   async restoreTask(id: string) {
     return taskService.restoreTask(id);
   },
-  async renameTask(
-    projectId: string,
-    taskId: string,
-    newName: string,
-    options?: RenameTaskOptions
-  ) {
-    return taskService.renameTask(projectId, taskId, newName, options);
+  async renameTask(projectId: string, taskId: string, newName: string) {
+    return taskService.renameTask(projectId, taskId, newName);
   },
   async updateLinkedIssue(taskId: string, issue?: Issue) {
     return taskService.updateLinkedIssue(taskId, issue);
@@ -52,15 +45,11 @@ export const taskController = createRPCController({
   async convertAutomationTask(taskId: string) {
     return taskService.convertAutomationTask(taskId);
   },
-  async provisionTask(taskId: string) {
-    const result = await taskService.provision(taskId);
-    if (!result.success) {
-      throw new Error(`Failed to provision task: ${formatProvisionTaskError(result.error)}`);
-    }
-    return result.data;
-  },
   async teardownTask(_projectId: string, taskId: string) {
     return taskService.teardown(taskId, 'terminate');
+  },
+  async provisionWorkspace(taskId: string) {
+    return taskService.provisionWorkspace(taskId);
   },
   generateTaskName,
 });
