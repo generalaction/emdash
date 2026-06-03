@@ -1,4 +1,4 @@
-import { CirclePause, CirclePlay, Loader2, RotateCcw, Trash2, X } from 'lucide-react';
+import { Loader2, RotateCcw, Trash2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAutomationsTab } from '@renderer/features/automations/automations-view';
 import { ListPopoverCard } from '@renderer/lib/components/list-popover-card';
@@ -60,17 +60,6 @@ export function AutomationsView() {
     runFacetFilters: tab === 'runs' ? runFacetFilters : undefined,
   });
 
-  const visibleAutomations = useMemo(
-    () => [...filter.drafts, ...filter.active, ...filter.paused],
-    [filter.drafts, filter.active, filter.paused]
-  );
-
-  const selection = useMultiSelect<Automation>({
-    items: visibleAutomations,
-    getId: (automation) => automation.id,
-  });
-  const clearSelection = selection.clear;
-
   const visibleRuns = filter.visibleRuns ?? EMPTY_VISIBLE_RUNS;
   const runSelection = useMultiSelect<AutomationRunWithContext>({
     items: visibleRuns,
@@ -80,22 +69,12 @@ export function AutomationsView() {
 
   const handleTabChange = useCallback(
     (nextTab: typeof tab) => {
-      if (nextTab !== 'all') clearSelection();
       if (nextTab !== 'runs') clearRunSelection();
       if (nextTab !== 'runs') setRunFacetFilters(EMPTY_AUTOMATION_RUNS_FACET_FILTERS);
       onTabChange(nextTab);
     },
-    [onTabChange, clearSelection, clearRunSelection]
+    [onTabChange, clearRunSelection]
   );
-
-  const selectedAutomations = useMemo(
-    () => visibleAutomations.filter((automation) => selection.selectedIds.has(automation.id)),
-    [visibleAutomations, selection.selectedIds]
-  );
-  const selectedCount = selectedAutomations.length;
-  const togglableSelected = selectedAutomations.filter((automation) => !automation.isDraft);
-  const hasEnabled = togglableSelected.some((automation) => automation.enabled);
-  const hasPaused = togglableSelected.some((automation) => !automation.enabled);
 
   const automationById = useMemo(() => {
     const map = new Map<string, Automation>();
@@ -154,16 +133,6 @@ export function AutomationsView() {
       ? 'Activity across all automations'
       : 'Run agents on a schedule across your projects';
 
-  const handleBulkPause = () => {
-    void actions.requestBulkSetEnabled(togglableSelected, false, selection.clear);
-  };
-  const handleBulkResume = () => {
-    void actions.requestBulkSetEnabled(togglableSelected, true, selection.clear);
-  };
-  const handleBulkDelete = () => {
-    actions.requestBulkDelete(selectedAutomations, selection.clear);
-  };
-
   const handleBulkDeleteRuns = () => {
     runActions.bulkDeleteRuns(
       selectedRuns.map((run) => run.id),
@@ -213,12 +182,7 @@ export function AutomationsView() {
                       paused={filter.paused}
                       runsByAutomation={filter.runsByAutomation}
                       onEdit={openEdit}
-                      onRunNow={actions.requestRunNow}
                       onToggleEnabled={actions.requestToggleEnabled}
-                      onCopy={actions.requestCopy}
-                      onDelete={actions.requestDelete}
-                      isSelected={selection.isSelected}
-                      onToggleSelect={selection.toggle}
                     />
                   ) : (
                     <AutomationsNoResults />
@@ -277,39 +241,6 @@ export function AutomationsView() {
               </ListPopoverCard>
             ) : null}
 
-            {tab === 'all' && selectedCount > 0 ? (
-              <ListPopoverCard className="justify-between">
-                <span className="whitespace-nowrap text-foreground-muted">
-                  {selectedCount} selected
-                </span>
-                <div className="flex items-center gap-2">
-                  {hasEnabled ? (
-                    <Button variant="outline" size="sm" onClick={handleBulkPause}>
-                      <CirclePause className="size-3.5" />
-                      Pause
-                    </Button>
-                  ) : null}
-                  {hasPaused ? (
-                    <Button variant="outline" size="sm" onClick={handleBulkResume}>
-                      <CirclePlay className="size-3.5" />
-                      Resume
-                    </Button>
-                  ) : null}
-                  <Button variant="destructive" size="sm" onClick={handleBulkDelete}>
-                    <Trash2 className="size-3.5" />
-                    Delete
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    onClick={selection.clear}
-                    aria-label="Clear selection"
-                  >
-                    <X className="size-3.5" />
-                  </Button>
-                </div>
-              </ListPopoverCard>
-            ) : null}
           </div>
         </div>
       </div>
