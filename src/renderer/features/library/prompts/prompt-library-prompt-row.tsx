@@ -100,9 +100,6 @@ function PromptContextMenuContent({
                 </ContextMenuItem>
               </>
             ) : null}
-            {otherFolders.length === 0 && !prompt.folderId ? (
-              <ContextMenuItem disabled>No other folders</ContextMenuItem>
-            ) : null}
           </ContextMenuSubContent>
         </ContextMenuSub>
       ) : null}

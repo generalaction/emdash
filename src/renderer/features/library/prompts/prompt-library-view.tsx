@@ -1,7 +1,6 @@
 import {
   DndContext,
   DragOverlay,
-  MouseSensor,
   PointerSensor,
   pointerWithin,
   useDroppable,
@@ -22,21 +21,10 @@ import { SearchInput } from '@renderer/lib/ui/search-input';
 import { cn } from '@renderer/utils/utils';
 import type { PromptLibraryFolder, PromptLibraryPrompt } from '@shared/prompt-library';
 import type { FolderFormResult } from './folder-modal';
-import {
-  parsePromptLibraryDndId,
-  toFolderDndId,
-  UNFILED_DROP_ID,
-} from './prompt-library-dnd';
+import { parsePromptLibraryDndId, toFolderDndId, UNFILED_DROP_ID } from './prompt-library-dnd';
 import { PromptLibraryPromptRow } from './prompt-library-prompt-row';
 import type { PromptFormResult } from './prompt-modal';
 import { usePromptLibrary } from './use-prompt-library';
-
-type PromptListItem = {
-  id: string;
-  title: string;
-  prompt: string;
-  folderId?: string;
-};
 
 function createPromptId() {
   return globalThis.crypto?.randomUUID?.() ?? `prompt-${Date.now()}`;
@@ -46,23 +34,10 @@ function createFolderId() {
   return globalThis.crypto?.randomUUID?.() ?? `folder-${Date.now()}`;
 }
 
-function matchesSearch(item: PromptListItem, search: string) {
+function matchesSearch(item: PromptLibraryPrompt, search: string) {
   if (!search) return true;
   const haystack = `${item.title} ${item.prompt}`.toLowerCase();
   return haystack.includes(search.toLowerCase());
-}
-
-function folderMatchesSearch(
-  folder: PromptLibraryFolder,
-  prompts: PromptLibraryPrompt[],
-  search: string
-) {
-  if (!search) return true;
-  const normalizedSearch = search.toLowerCase();
-  return (
-    folder.title.toLowerCase().includes(normalizedSearch) ||
-    prompts.some((prompt) => matchesSearch(prompt, normalizedSearch))
-  );
 }
 
 function FolderPromptList({
@@ -228,11 +203,10 @@ export function PromptLibraryView() {
   const [activeDragPromptId, setActiveDragPromptId] = useState<string | null>(null);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(MouseSensor, { activationConstraint: { distance: 8 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
 
-  const promptLibrary = useMemo(() => promptLibraryValue, [promptLibraryValue]);
+  const promptLibrary = promptLibraryValue;
   const isDisabled = isPromptLibraryLoading || isPromptLibrarySaving;
   const isDragging = activeDragPromptId !== null;
 
@@ -251,29 +225,26 @@ export function PromptLibraryView() {
     () => unfiledPrompts.filter((item) => matchesSearch(item, normalizedSearch)),
     [normalizedSearch, unfiledPrompts]
   );
-  const folderSections = useMemo(
-    () =>
-      promptLibrary.folders
-        .map((folder) => ({
-          folder,
-          prompts: promptLibrary.prompts.filter((prompt) => prompt.folderId === folder.id),
-        }))
-        .map(({ folder, prompts }) => ({
-          folder,
-          prompts,
-          isFolderMatch:
-            isSearching && folder.title.toLowerCase().includes(normalizedSearch.toLowerCase()),
-        }))
-        .filter(({ folder, prompts }) => folderMatchesSearch(folder, prompts, normalizedSearch))
-        .map(({ folder, prompts, isFolderMatch }) => ({
-          folder,
-          prompts:
-            isSearching && !isFolderMatch
-              ? prompts.filter((prompt) => matchesSearch(prompt, normalizedSearch))
-              : prompts,
-        })),
-    [isSearching, normalizedSearch, promptLibrary]
-  );
+  const folderSections = useMemo(() => {
+    const loweredSearch = normalizedSearch.toLowerCase();
+    const sections: { folder: PromptLibraryFolder; prompts: PromptLibraryPrompt[] }[] = [];
+    for (const folder of promptLibrary.folders) {
+      const folderPrompts = promptLibrary.prompts.filter((p) => p.folderId === folder.id);
+      if (!isSearching) {
+        sections.push({ folder, prompts: folderPrompts });
+        continue;
+      }
+      if (folder.title.toLowerCase().includes(loweredSearch)) {
+        sections.push({ folder, prompts: folderPrompts });
+        continue;
+      }
+      const matchingPrompts = folderPrompts.filter((p) => matchesSearch(p, normalizedSearch));
+      if (matchingPrompts.length > 0) {
+        sections.push({ folder, prompts: matchingPrompts });
+      }
+    }
+    return sections;
+  }, [isSearching, normalizedSearch, promptLibrary.folders, promptLibrary.prompts]);
   const hasVisibleItems = filteredUnfiledPrompts.length > 0 || folderSections.length > 0;
 
   const activeDragPrompt = useMemo(
