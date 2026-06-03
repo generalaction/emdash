@@ -1,4 +1,4 @@
-import { action, computed, makeObservable, observable, reaction } from 'mobx';
+import { action, comparer, computed, makeObservable, observable, reaction } from 'mobx';
 import { type TabViewProvider, type TabViewSnapshot } from '@renderer/lib/stores/generic-tab-view';
 import type { Snapshottable } from '@renderer/lib/stores/snapshottable';
 import {
@@ -21,7 +21,7 @@ export class TerminalTabViewStore
 
   constructor(getResource: () => TerminalManagerStore | null) {
     this._getResource = getResource;
-    makeObservable(this, {
+    makeObservable<TerminalTabViewStore, 'syncTerminalIds'>(this, {
       tabOrder: observable,
       activeTabId: observable,
       tabs: computed,
@@ -35,15 +35,23 @@ export class TerminalTabViewStore
       setTabActiveIndex: action,
       setActiveTab: action,
       restoreSnapshot: action,
+      syncTerminalIds: action,
     });
 
     this.disposers.push(
       reaction(
-        () => Array.from(this._getResource()?.terminals.keys() ?? []),
-        action((ids: string[]) => {
+        () => {
+          const resource = this._getResource();
+          return {
+            isLoaded: resource?.isLoaded ?? false,
+            ids: Array.from(resource?.terminals.keys() ?? []),
+          };
+        },
+        action(({ isLoaded, ids }) => {
+          if (!isLoaded) return;
           this.syncTerminalIds(ids);
         }),
-        { fireImmediately: true }
+        { fireImmediately: true, equals: comparer.structural }
       )
     );
   }

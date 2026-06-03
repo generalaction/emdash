@@ -25,6 +25,16 @@ function makeManager(terminals: TerminalManagerStore['terminals']): TerminalMana
   return { terminals, isLoaded: true, dispose: vi.fn() } as unknown as TerminalManagerStore;
 }
 
+function makeLoadingManager(terminals: TerminalManagerStore['terminals']): TerminalManagerStore & {
+  isLoaded: boolean;
+} {
+  return observable({
+    terminals,
+    isLoaded: false,
+    dispose: vi.fn(),
+  }) as unknown as TerminalManagerStore & { isLoaded: boolean };
+}
+
 function registryEntries(): {
   set(taskId: string, manager: TerminalManagerStore): void;
   delete(taskId: string): boolean;
@@ -111,6 +121,27 @@ describe('TerminalTabViewStore', () => {
 
     expect(view.tabOrder).toEqual(['terminal-1']);
     expect(view.activeTabId).toBe('terminal-1');
+
+    view.dispose();
+  });
+
+  it('clears stale restored ids when an empty terminal list finishes loading', () => {
+    const terminals = observable.map<string, TerminalStore>();
+    const manager = makeLoadingManager(terminals);
+    registryEntries().set('task-1', manager);
+
+    const view = new TerminalTabViewStore(() => terminalRegistry.get('task-1') ?? null);
+    view.restoreSnapshot({
+      tabOrder: ['deleted-terminal'],
+      activeTabId: 'deleted-terminal',
+    });
+
+    runInAction(() => {
+      manager.isLoaded = true;
+    });
+
+    expect(view.tabOrder).toEqual([]);
+    expect(view.activeTabId).toBeUndefined();
 
     view.dispose();
   });
