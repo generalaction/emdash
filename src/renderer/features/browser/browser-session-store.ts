@@ -8,7 +8,6 @@ import {
   type BrowserLoadError,
   type BrowserSessionSnapshot,
 } from '@shared/browser';
-import { browserNavigationHistoryStore } from './browser-navigation-history-store';
 
 export type BrowserSessionCreateInput = {
   projectId: string;
@@ -100,12 +99,10 @@ export class BrowserSessionStore {
   }
 
   removeSession(browserId: string): void {
-    browserNavigationHistoryStore.remove(browserId);
     this.sessions.delete(browserId);
   }
 
   clear(): void {
-    browserNavigationHistoryStore.clear();
     this.sessions.clear();
   }
 }

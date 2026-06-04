@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { browserDiagnosticsStore } from './browser-diagnostics-store';
-import { browserNavigationHistoryStore } from './browser-navigation-history-store';
 import { browserSessionStore } from './browser-session-store';
 import { bindBrowserWebviewEvents } from './browser-webview-events';
 import type { BrowserWebviewElement, BrowserWebviewEventMap } from './browser-webview-types';
@@ -59,7 +58,6 @@ describe('bindBrowserWebviewEvents', () => {
   beforeEach(() => {
     vi.useRealTimers();
     browserDiagnosticsStore.clear();
-    browserNavigationHistoryStore.clear();
     browserSessionStore.clear();
   });
 
@@ -217,7 +215,7 @@ describe('bindBrowserWebviewEvents', () => {
     bindBrowserWebviewEvents(session.browserId, asWebview(webview));
     webview.emit('dom-ready');
     webview.emit('did-navigate', { url: 'https://example.com/docs' });
-    expect(browserSessionStore.getSession(session.browserId)?.canGoBack).toBe(true);
+    expect(browserSessionStore.getSession(session.browserId)?.canGoBack).toBe(false);
 
     webview.url = 'https://example.com/docs';
     webview.back = true;
@@ -247,7 +245,7 @@ describe('bindBrowserWebviewEvents', () => {
     webview.emit('did-stop-loading');
 
     await vi.advanceTimersByTimeAsync(0);
-    expect(browserSessionStore.getSession(session.browserId)?.canGoBack).toBe(true);
+    expect(browserSessionStore.getSession(session.browserId)?.canGoBack).toBe(false);
 
     webview.back = true;
     await vi.advanceTimersByTimeAsync(50);

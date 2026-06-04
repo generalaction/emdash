@@ -1,6 +1,4 @@
 import {
-  ArrowLeft,
-  ArrowRight,
   ExternalLink,
   Globe,
   Loader2,
@@ -25,8 +23,6 @@ export function BrowserToolbar({
   adapter,
   devServerUrls = [],
   onNavigate,
-  onBack,
-  onForward,
   onReload,
   onFocusUrl,
 }: {
@@ -34,8 +30,6 @@ export function BrowserToolbar({
   adapter: BrowserWebviewAdapter | null;
   devServerUrls?: string[];
   onNavigate?: (url: string) => boolean;
-  onBack?: () => void;
-  onForward?: () => void;
   onReload?: () => void;
   onFocusUrl?: (focus: () => void) => void;
 }) {
@@ -81,16 +75,8 @@ export function BrowserToolbar({
     confirmClearBrowserStorage(session, adapter);
   };
 
-  const disabled = adapter === null;
-
   return (
     <div className="flex h-10 shrink-0 items-center gap-1 border-b border-border bg-background-secondary px-2">
-      <ToolbarIconButton label="Back" disabled={disabled} onClick={() => onBack?.()}>
-        <ArrowLeft className="size-4" />
-      </ToolbarIconButton>
-      <ToolbarIconButton label="Forward" disabled={disabled} onClick={() => onForward?.()}>
-        <ArrowRight className="size-4" />
-      </ToolbarIconButton>
       <ToolbarIconButton label={session.isLoading ? 'Stop' : 'Reload'} onClick={() => onReload?.()}>
         {session.isLoading ? <Square className="size-3.5" /> : <RefreshCw className="size-4" />}
       </ToolbarIconButton>
