@@ -81,18 +81,10 @@ export function BrowserToolbar({
 
   return (
     <div className="flex h-10 shrink-0 items-center gap-1 border-b border-border bg-background-secondary px-2">
-      <ToolbarIconButton
-        label="Back"
-        disabled={disabled || !session.canGoBack}
-        onClick={() => adapter?.goBack()}
-      >
+      <ToolbarIconButton label="Back" disabled={disabled} onClick={() => adapter?.goBack()}>
         <ArrowLeft className="size-4" />
       </ToolbarIconButton>
-      <ToolbarIconButton
-        label="Forward"
-        disabled={disabled || !session.canGoForward}
-        onClick={() => adapter?.goForward()}
-      >
+      <ToolbarIconButton label="Forward" disabled={disabled} onClick={() => adapter?.goForward()}>
         <ArrowRight className="size-4" />
       </ToolbarIconButton>
       <ToolbarIconButton label={session.isLoading ? 'Stop' : 'Reload'} onClick={() => onReload?.()}>
