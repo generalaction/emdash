@@ -9,7 +9,7 @@ export function bindBrowserWebviewEvents(
   options: { onDomReady?: () => void } = {}
 ): () => void {
   let isDomReady = false;
-  let historySyncTimer: ReturnType<typeof setTimeout> | undefined;
+  const historySyncTimers = new Set<ReturnType<typeof setTimeout>>();
 
   const syncHistoryState = () => {
     if (!isDomReady) return;
@@ -22,11 +22,21 @@ export function bindBrowserWebviewEvents(
   };
 
   const scheduleHistoryStateSync = () => {
-    if (historySyncTimer) clearTimeout(historySyncTimer);
-    historySyncTimer = setTimeout(() => {
-      historySyncTimer = undefined;
+    for (const delay of [0, 50, 200]) {
+      const timer = setTimeout(() => {
+        historySyncTimers.delete(timer);
+        syncHistoryState();
+      }, delay);
+      historySyncTimers.add(timer);
+    }
+  };
+
+  const scheduleHistoryStateSyncOnce = () => {
+    const timer = setTimeout(() => {
+      historySyncTimers.delete(timer);
       syncHistoryState();
     }, 0);
+    historySyncTimers.add(timer);
   };
 
   const onDomReady = () => {
@@ -51,7 +61,7 @@ export function bindBrowserWebviewEvents(
       canGoBack: webview.canGoBack(),
       canGoForward: webview.canGoForward(),
     });
-    scheduleHistoryStateSync();
+    scheduleHistoryStateSyncOnce();
   };
 
   const onNavigate = (event: { url: string }) => {
@@ -124,7 +134,8 @@ export function bindBrowserWebviewEvents(
   webview.addEventListener('page-favicon-updated', onFavicon);
 
   return () => {
-    if (historySyncTimer) clearTimeout(historySyncTimer);
+    for (const timer of historySyncTimers) clearTimeout(timer);
+    historySyncTimers.clear();
     webview.removeEventListener('dom-ready', onDomReady);
     webview.removeEventListener('did-start-loading', onStartLoading);
     webview.removeEventListener('did-stop-loading', onStopLoading);

@@ -226,4 +226,33 @@ describe('bindBrowserWebviewEvents', () => {
       canGoBack: true,
     });
   });
+
+  it('refreshes history state when Electron updates navigation entries after load events', async () => {
+    vi.useFakeTimers();
+    const session = browserSessionStore.createSession({
+      browserId: 'browser-1',
+      projectId: 'project-1',
+      workspaceId: 'workspace-1',
+      taskId: 'task-1',
+    });
+    const webview = new FakeBrowserWebview();
+    webview.url = 'https://example.com/';
+
+    bindBrowserWebviewEvents(session.browserId, asWebview(webview));
+    webview.emit('dom-ready');
+    webview.emit('did-navigate', { url: 'https://example.com/docs' });
+    webview.emit('did-stop-loading');
+
+    await vi.advanceTimersByTimeAsync(0);
+    expect(browserSessionStore.getSession(session.browserId)?.canGoBack).toBe(false);
+
+    webview.url = 'https://example.com/docs';
+    webview.back = true;
+    await vi.advanceTimersByTimeAsync(50);
+
+    expect(browserSessionStore.getSession(session.browserId)).toMatchObject({
+      currentUrl: 'https://example.com/docs',
+      canGoBack: true,
+    });
+  });
 });
