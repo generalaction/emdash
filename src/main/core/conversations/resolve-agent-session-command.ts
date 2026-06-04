@@ -7,10 +7,10 @@ export function resolveAgentSessionCommandArgs(
   options: { requireProviderSessionId?: boolean } = {}
 ): { sessionId: string; isResuming: boolean } {
   if (conversation.providerId === 'codex' && isResuming) {
-    return {
-      sessionId: conversation.providerSessionId ?? conversation.id,
-      isResuming: true,
-    };
+    if (conversation.providerSessionId) {
+      return { sessionId: conversation.providerSessionId, isResuming: true };
+    }
+    return { sessionId: conversation.id, isResuming: false };
   }
 
   if (conversation.providerId === 'droid' && isResuming) {

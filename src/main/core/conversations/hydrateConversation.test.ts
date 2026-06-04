@@ -20,6 +20,23 @@ describe('shouldHydrateAsFirstSpawn', () => {
     }
   });
 
+  it('parses SQLite CURRENT_TIMESTAMP values as UTC for pending initial prompts', () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date('2026-06-03T08:00:00.000Z'));
+
+      expect(
+        shouldHydrateAsFirstSpawn({
+          sessionId: null,
+          config: serializeConversationConfig({ initialPrompt: 'Fix the bug' }),
+          createdAt: '2026-06-03 07:59:00',
+        })
+      ).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('treats legacy null-session rows as resume instead of first spawn', () => {
     vi.useFakeTimers();
     try {

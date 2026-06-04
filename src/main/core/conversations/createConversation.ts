@@ -47,10 +47,13 @@ export async function createConversation(
     .where(eq(conversations.taskId, params.taskId))
     .limit(1);
 
-  const config =
-    params.autoApprove === undefined
-      ? undefined
-      : serializeConversationConfig({ autoApprove: params.autoApprove });
+  const configObject = {
+    ...(params.autoApprove !== undefined ? { autoApprove: params.autoApprove } : {}),
+    ...(params.initialPrompt?.trim() ? { initialPrompt: params.initialPrompt.trim() } : {}),
+  };
+  const config = Object.keys(configObject).length
+    ? serializeConversationConfig(configObject)
+    : undefined;
 
   const [row] = await database
     .insert(conversations)

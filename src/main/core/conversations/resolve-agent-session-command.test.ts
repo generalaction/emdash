@@ -30,11 +30,11 @@ describe('resolveAgentSessionCommandArgs', () => {
     ).toEqual({ sessionId: '019c95f6-cd96-7812-ba15-574286674599', isResuming: true });
   });
 
-  it('keeps Codex resuming without a stored session id so command building can use --last', () => {
+  it('starts fresh instead of resuming Codex --last without a stored session id', () => {
     expect(resolveAgentSessionCommandArgs(makeConversation({ providerId: 'codex' }), true)).toEqual(
       {
         sessionId: 'conv-1',
-        isResuming: true,
+        isResuming: false,
       }
     );
   });
@@ -121,7 +121,7 @@ describe('resolveAgentSessionCommandArgs', () => {
     });
   });
 
-  it('builds a Codex replacement resume command using --last when no session id was captured', () => {
+  it('builds a fresh Codex replacement command when no session id was captured', () => {
     const conversation = makeConversation({
       id: '6fac6620-9fa8-4604-b7e0-1fe361589104',
       providerId: 'codex',
@@ -139,7 +139,7 @@ describe('resolveAgentSessionCommandArgs', () => {
       })
     ).toEqual({
       command: 'codex',
-      args: ['resume', '--last'],
+      args: [],
     });
   });
 });
