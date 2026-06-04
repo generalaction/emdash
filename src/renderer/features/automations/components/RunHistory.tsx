@@ -1,8 +1,6 @@
-import { History } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Spinner } from '@renderer/lib/ui/spinner';
 import type { Automation } from '@shared/automations/types';
-import { useAutomationRunActions } from '../use-automation-run-actions';
 import { useAutomationRuns } from '../useAutomations';
 import { AutomationRunRow } from './AutomationRunRow';
 
@@ -20,13 +18,11 @@ export function RunHistory({ automation }: RunHistoryProps) {
   const loadMoreLockRef = useRef(false);
 
   const runs = useAutomationRuns(automation.id, visibleLimit + 1);
-  const { deleteRun, rerunFrom } = useAutomationRunActions();
   const visibleRuns = useMemo(
     () => runs.data?.slice(0, visibleLimit) ?? [],
     [runs.data, visibleLimit]
   );
   const hasMore = Boolean(runs.data && runs.data.length > visibleLimit);
-  const canRerun = !automation.isDraft && automation.projectId != null;
   const isLoadingMore = runs.isFetching && !runs.isPending;
 
   useEffect(() => {
@@ -60,10 +56,6 @@ export function RunHistory({ automation }: RunHistoryProps) {
 
   return (
     <section className="flex flex-col gap-2">
-      <div className="flex items-center gap-1.5">
-        <History className="text-muted-foreground size-3" />
-        <h3 className="text-muted-foreground text-xs font-medium">Run history</h3>
-      </div>
       {runs.isPending ? (
         <div className="flex h-24 items-center justify-center">
           <Spinner />
@@ -74,15 +66,7 @@ export function RunHistory({ automation }: RunHistoryProps) {
           className="max-h-80 divide-y divide-border/70 overflow-y-auto rounded-md border border-border"
         >
           {visibleRuns.map((run) => (
-            <AutomationRunRow
-              key={run.id}
-              run={run}
-              automation={automation}
-              projectId={automation.projectId}
-              title={automation.name}
-              onDelete={deleteRun}
-              onRerun={canRerun ? () => rerunFrom(automation.id) : undefined}
-            />
+            <AutomationRunRow key={run.id} runId={run.id} automationId={automation.id} />
           ))}
           {hasMore ? (
             <div

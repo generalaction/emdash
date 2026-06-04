@@ -1,4 +1,4 @@
-import { CheckCircle2, ChevronDown, FolderOpen } from 'lucide-react';
+import { Ellipsis, Trash2, CheckCircle2, ChevronDown, FolderOpen } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState, type ReactNode } from 'react';
 import {
@@ -21,8 +21,16 @@ import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { Button } from '@renderer/lib/ui/button';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@renderer/lib/ui/dropdown-menu';
+import { EditableNameField } from '@renderer/lib/ui/editable-name-field';
 import { Input } from '@renderer/lib/ui/input';
 import { Label } from '@renderer/lib/ui/label';
+import { PanelTabs } from '@renderer/lib/ui/panel-tabs';
 import { SheetFooter } from '@renderer/lib/ui/sheet';
 import { Switch } from '@renderer/lib/ui/switch';
 import { isValidProviderId } from '@shared/agent-provider-registry';
@@ -113,6 +121,13 @@ function plainBranch(branch: Branch): Branch {
     : { type: 'local', branch: branch.branch };
 }
 
+type AutomationTab = 'runs' | 'settings';
+
+const AUTOMATION_TABS: { value: AutomationTab; label: string }[] = [
+  { value: 'runs', label: 'Runs' },
+  { value: 'settings', label: 'Settings' },
+];
+
 export const AutomationPanel = observer(function AutomationPanel({
   mode,
   onClose,
@@ -124,6 +139,7 @@ export const AutomationPanel = observer(function AutomationPanel({
 }: AutomationPanelProps) {
   const isEdit = mode.kind === 'edit';
   const automation = mode.kind === 'edit' ? mode.automation : undefined;
+  const [activeTab, setActiveTab] = useState<AutomationTab>('runs');
   const [appliedTemplate, setAppliedTemplate] = useState<BuiltinAutomationTemplate | undefined>(
     mode.kind === 'create' ? mode.template : undefined
   );
@@ -316,94 +332,144 @@ export const AutomationPanel = observer(function AutomationPanel({
     }
   }
 
+  const settingsContent = (
+    <>
+      <section className="flex flex-col gap-2">
+        <Label className="text-muted-foreground text-xs font-medium">Prompt</Label>
+        <InitialConversationField
+          state={initialConversation}
+          includeIssueContextByDefault={false}
+        />
+      </section>
+
+      <section className="flex flex-col gap-2">
+        <h3 className="text-muted-foreground text-xs font-medium">Schedule</h3>
+        <div className="bg-muted/10 rounded-md border border-border">
+          <RowField label="Runs">
+            <SchedulePicker
+              value={cronExpr}
+              onChange={(nextCronExpr) => {
+                setCronExpr(nextCronExpr);
+                setCronError(null);
+              }}
+            />
+          </RowField>
+        </div>
+        {cronError && <p className="text-destructive text-xs">{cronError}</p>}
+      </section>
+
+      <section className="flex flex-col gap-2">
+        <h3 className="text-muted-foreground text-xs font-medium">Execution</h3>
+        <BranchPickerField
+          key={workspaceSettingsKey}
+          state={branchSelection}
+          branchNameState={branchNameState}
+          projectId={effectiveProjectId}
+          currentBranch={currentBranch}
+          isUnborn={isUnborn}
+        />
+
+        <div className="bg-muted/10 rounded-md border border-border">
+          <RowField label="Project">
+            <ProjectSelector
+              value={effectiveProjectId}
+              onChange={handleProjectChange}
+              trigger={
+                <ComboboxTrigger className="hover:bg-muted/40 data-popup-open:bg-muted/40 flex h-8 w-full items-center justify-between gap-2 rounded-md border border-border bg-background px-2.5 text-xs outline-none">
+                  <span className="inline-flex min-w-0 items-center gap-2">
+                    <FolderOpen className="text-muted-foreground size-3.5 shrink-0" />
+                    <ComboboxValue placeholder="Select a project" />
+                  </span>
+                  <ChevronDown className="size-3 shrink-0 text-foreground-passive" />
+                </ComboboxTrigger>
+              }
+            />
+          </RowField>
+        </div>
+
+        {isWorkspaceProviderEnabled ? (
+          <div className="flex items-center gap-2 pt-1">
+            <Switch size="sm" checked={useBYOI} onCheckedChange={setUseBYOI} />
+            <span className="text-muted-foreground text-sm">Use BYOI infrastructure</span>
+          </div>
+        ) : null}
+      </section>
+
+      {error && <p className="text-destructive text-xs">{error}</p>}
+    </>
+  );
+
   return (
     <div className="flex h-full flex-col">
       <AutomationPanelHeader onClose={onClose} />
 
       <div className="flex-1 overflow-y-auto">
-        <div className="flex flex-col gap-5 px-5 py-5">
-          <section className="flex flex-col gap-2">
-            <Label className="text-muted-foreground text-xs font-medium">Name</Label>
-            <Input
-              autoFocus={!isEdit && name.trim().length === 0}
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              onKeyDown={(event) => {
-                if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
-                  event.preventDefault();
-                  void handleSave();
-                }
-              }}
-              placeholder="Name this automation"
-              maxLength={AUTOMATION_NAME_MAX_LENGTH}
-              className="h-9 text-sm"
-            />
-          </section>
-
-          <section className="flex flex-col gap-2">
-            <Label className="text-muted-foreground text-xs font-medium">Prompt</Label>
-            <InitialConversationField
-              state={initialConversation}
-              includeIssueContextByDefault={false}
-            />
-          </section>
-
-          <section className="flex flex-col gap-2">
-            <h3 className="text-muted-foreground text-xs font-medium">Schedule</h3>
-            <div className="bg-muted/10 rounded-md border border-border">
-              <RowField label="Runs">
-                <SchedulePicker
-                  value={cronExpr}
-                  onChange={(nextCronExpr) => {
-                    setCronExpr(nextCronExpr);
-                    setCronError(null);
-                  }}
+        <div className="flex flex-col gap-4 p-4">
+          {isEdit && automation ? (
+            <>
+              <div className="flex items-center gap-2">
+                <EditableNameField
+                  autoFocus={false}
+                  value={name}
+                  onChange={setName}
+                  placeholder="Name this automation"
+                  maxLength={AUTOMATION_NAME_MAX_LENGTH}
+                  className="flex-1"
                 />
-              </RowField>
-            </div>
-            {cronError && <p className="text-destructive text-xs">{cronError}</p>}
-          </section>
-
-          <section className="flex flex-col gap-2">
-            <h3 className="text-muted-foreground text-xs font-medium">Execution</h3>
-            <BranchPickerField
-              key={workspaceSettingsKey}
-              state={branchSelection}
-              branchNameState={branchNameState}
-              projectId={effectiveProjectId}
-              currentBranch={currentBranch}
-              isUnborn={isUnborn}
-            />
-
-            <div className="bg-muted/10 rounded-md border border-border">
-              <RowField label="Project">
-                <ProjectSelector
-                  value={effectiveProjectId}
-                  onChange={handleProjectChange}
-                  trigger={
-                    <ComboboxTrigger className="hover:bg-muted/40 data-popup-open:bg-muted/40 flex h-8 w-full items-center justify-between gap-2 rounded-md border border-border bg-background px-2.5 text-xs outline-none">
-                      <span className="inline-flex min-w-0 items-center gap-2">
-                        <FolderOpen className="text-muted-foreground size-3.5 shrink-0" />
-                        <ComboboxValue placeholder="Select a project" />
-                      </span>
-                      <ChevronDown className="size-3 shrink-0 text-foreground-passive" />
-                    </ComboboxTrigger>
-                  }
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={
+                      <button
+                        type="button"
+                        aria-label="More options"
+                        className="text-muted-foreground hover:bg-muted rounded-md p-1 transition-colors hover:text-foreground"
+                      />
+                    }
+                  >
+                    <Ellipsis className="size-4" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent side="bottom" align="end">
+                    <DropdownMenuItem variant="destructive" onClick={() => onDelete?.(automation)}>
+                      <Trash2 />
+                      Delete automation
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <Switch
+                  size="sm"
+                  checked={automation.enabled && !automation.isDraft}
+                  disabled={automation.isDraft}
+                  onCheckedChange={(checked) => onToggleEnabled?.(automation, checked)}
+                  aria-label={automation.enabled ? 'Pause automation' : 'Enable automation'}
                 />
-              </RowField>
-            </div>
-
-            {isWorkspaceProviderEnabled ? (
-              <div className="flex items-center gap-2 pt-1">
-                <Switch size="sm" checked={useBYOI} onCheckedChange={setUseBYOI} />
-                <span className="text-muted-foreground text-sm">Use BYOI infrastructure</span>
               </div>
-            ) : null}
-          </section>
 
-          {error && <p className="text-destructive text-xs">{error}</p>}
-
-          {isEdit && automation ? <RunHistory automation={automation} /> : null}
+              <PanelTabs value={activeTab} onChange={setActiveTab} tabs={AUTOMATION_TABS} />
+              {activeTab === 'runs' && <RunHistory automation={automation} />}
+              {activeTab === 'settings' && settingsContent}
+            </>
+          ) : (
+            <>
+              <section className="flex flex-col gap-2">
+                <Label className="text-muted-foreground text-xs font-medium">Name</Label>
+                <Input
+                  autoFocus={name.trim().length === 0}
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  onKeyDown={(event) => {
+                    if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+                      event.preventDefault();
+                      void handleSave();
+                    }
+                  }}
+                  placeholder="Name this automation"
+                  maxLength={AUTOMATION_NAME_MAX_LENGTH}
+                  className="h-9 text-sm"
+                />
+              </section>
+              {settingsContent}
+            </>
+          )}
         </div>
       </div>
       <SheetFooter className="flex flex-row items-center justify-end gap-2">

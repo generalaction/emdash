@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
+import { PanelTabs } from '@renderer/lib/ui/panel-tabs';
 import type { InitialConversationState } from '../conversations/initial-conversation-section';
 import { InitialConversationField } from '../conversations/initial-conversation-section';
 import type { CreateTaskState } from './use-create-task-state';
@@ -34,28 +34,14 @@ export function SectionTabsPanel({
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex w-full items-center justify-between gap-2">
-        <ToggleGroup
-          className="w-full shrink-0 gap-1 border-none bg-transparent"
-          value={[sectionTab]}
-          onValueChange={([v]) => {
-            if (v) setSectionTab(v as SectionTab);
-          }}
-        >
-          <ToggleGroupItem
-            className="h-6! flex-1 rounded-lg! px-2! py-0.5! text-xs"
-            value="conversation"
-          >
-            Initial Conversation
-          </ToggleGroupItem>
-          <ToggleGroupItem
-            className="h-6! flex-1 rounded-lg! px-2! py-0.5! text-xs"
-            value="workspace"
-          >
-            Workspace Settings
-          </ToggleGroupItem>
-        </ToggleGroup>
-      </div>
+      <PanelTabs
+        value={sectionTab}
+        onChange={setSectionTab}
+        tabs={[
+          { value: 'conversation', label: 'Initial Conversation' },
+          { value: 'workspace', label: 'Workspace Settings' },
+        ]}
+      />
       <div>
         {sectionTab === 'conversation' && (
           <InitialConversationField

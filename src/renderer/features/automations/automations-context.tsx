@@ -6,7 +6,7 @@ import type {
   AutomationRun,
   AutomationRunWithContext,
 } from '@shared/automations/types';
-import { useAutomations, useRecentAutomationRuns } from './useAutomations';
+import { useAutomations, useRecentAutomationRuns, useAutomationRuns } from './useAutomations';
 
 const RECENT_RUNS_LIMIT = 200;
 
@@ -78,4 +78,10 @@ export function useToggleAutomation(): (id: string, enabled: boolean) => void {
     (id: string, enabled: boolean) => setEnabled.mutate({ id, enabled }),
     [setEnabled]
   );
+}
+
+/** Returns a single run from the automation's cached run list. */
+export function useAutomationRun(automationId: string, runId: string): AutomationRun | undefined {
+  const runs = useAutomationRuns(automationId);
+  return useMemo(() => runs.data?.find((r) => r.id === runId), [runs.data, runId]);
 }

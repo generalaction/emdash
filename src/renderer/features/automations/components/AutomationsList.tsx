@@ -10,21 +10,17 @@ interface AutomationsListProps {
 export function AutomationsList({ automations, onEdit }: AutomationsListProps) {
   if (automations.length === 0) return null;
   return (
-    <div className="py-1 space-y-1">
-      {automations.map((automation,index) => (
+    <div className="space-y-1 py-1">
+      {automations.map((automation) => (
         <>
           <AutomationRow
             key={automation.id}
             automationId={automation.id}
             onClick={() => onEdit(automation)}
           />
-          {
-            index < automations.length - 1 && (
-              <Separator key={automation.id} />
-            )
-          }
+          <Separator key={automation.id} />
         </>
       ))}
     </div>
-  )
+  );
 }
