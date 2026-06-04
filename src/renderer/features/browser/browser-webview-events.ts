@@ -1,5 +1,6 @@
 import { BROWSER_DEFAULT_URL } from '@shared/browser';
 import { browserDiagnosticsStore } from './browser-diagnostics-store';
+import { browserNavigationHistoryStore } from './browser-navigation-history-store';
 import { browserSessionStore } from './browser-session-store';
 import type { BrowserWebviewElement } from './browser-webview-types';
 
@@ -13,11 +14,13 @@ export function bindBrowserWebviewEvents(
 
   const syncHistoryState = () => {
     if (!isDomReady) return;
+    const currentUrl = webview.getURL() || BROWSER_DEFAULT_URL;
+    browserNavigationHistoryStore.recordNavigation(browserId, currentUrl);
     browserSessionStore.updateSession(browserId, {
-      currentUrl: webview.getURL() || BROWSER_DEFAULT_URL,
+      currentUrl,
       title: webview.getTitle(),
-      canGoBack: webview.canGoBack(),
-      canGoForward: webview.canGoForward(),
+      canGoBack: webview.canGoBack() || browserNavigationHistoryStore.canGoBack(browserId),
+      canGoForward: webview.canGoForward() || browserNavigationHistoryStore.canGoForward(browserId),
     });
   };
 
@@ -54,22 +57,25 @@ export function bindBrowserWebviewEvents(
 
   const onStopLoading = () => {
     if (!isDomReady) return;
+    const currentUrl = webview.getURL() || BROWSER_DEFAULT_URL;
+    browserNavigationHistoryStore.recordNavigation(browserId, currentUrl);
     browserSessionStore.updateSession(browserId, {
       isLoading: false,
-      currentUrl: webview.getURL() || BROWSER_DEFAULT_URL,
+      currentUrl,
       title: webview.getTitle(),
-      canGoBack: webview.canGoBack(),
-      canGoForward: webview.canGoForward(),
+      canGoBack: webview.canGoBack() || browserNavigationHistoryStore.canGoBack(browserId),
+      canGoForward: webview.canGoForward() || browserNavigationHistoryStore.canGoForward(browserId),
     });
     scheduleHistoryStateSyncOnce();
   };
 
   const onNavigate = (event: { url: string }) => {
     if (!isDomReady) return;
+    browserNavigationHistoryStore.recordNavigation(browserId, event.url);
     browserSessionStore.updateSession(browserId, {
       currentUrl: event.url,
-      canGoBack: webview.canGoBack(),
-      canGoForward: webview.canGoForward(),
+      canGoBack: webview.canGoBack() || browserNavigationHistoryStore.canGoBack(browserId),
+      canGoForward: webview.canGoForward() || browserNavigationHistoryStore.canGoForward(browserId),
       loadError: null,
     });
     scheduleHistoryStateSync();

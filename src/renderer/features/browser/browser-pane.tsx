@@ -5,6 +5,7 @@ import { rpc } from '@renderer/lib/ipc';
 import { normalizeBrowserUrl } from '@shared/browser';
 import { browserControlsRegistry } from './browser-controls-registry';
 import { decideBrowserReload } from './browser-navigation-controls';
+import { browserNavigationHistoryStore } from './browser-navigation-history-store';
 import { browserSessionStore } from './browser-session-store';
 import { BrowserStartPage } from './browser-start-page';
 import { BrowserToolbar } from './browser-toolbar';
@@ -136,6 +137,26 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
     if (decision.kind === 'retry-url') loadUrl(decision.url);
   }, [adapter, loadUrl, session]);
 
+  const goBack = useCallback(() => {
+    if (!sessionBrowserId) return;
+    const url = browserNavigationHistoryStore.goBack(sessionBrowserId);
+    if (url) {
+      loadUrl(url);
+      return;
+    }
+    adapter?.goBack();
+  }, [adapter, loadUrl, sessionBrowserId]);
+
+  const goForward = useCallback(() => {
+    if (!sessionBrowserId) return;
+    const url = browserNavigationHistoryStore.goForward(sessionBrowserId);
+    if (url) {
+      loadUrl(url);
+      return;
+    }
+    adapter?.goForward();
+  }, [adapter, loadUrl, sessionBrowserId]);
+
   const attachWebview = (node: Element | null) => {
     const next = node as BrowserWebviewElement | null;
     if (webviewRef.current === next) return;
@@ -185,6 +206,8 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
         adapter={adapter}
         devServerUrls={devServers.urls}
         onNavigate={navigateTo}
+        onBack={goBack}
+        onForward={goForward}
         onReload={reload}
         onFocusUrl={(focus) => {
           focusUrlRef.current = focus;
