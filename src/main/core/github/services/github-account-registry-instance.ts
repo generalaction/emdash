@@ -4,16 +4,23 @@ import { GitHubAccountRegistry, type GitHubAccount } from './github-account-regi
 
 type GitHubAccountsKVSchema = {
   accounts: GitHubAccount[];
+  defaultAccountId: string | null;
 };
 
 const githubAccountsKV = new KV<GitHubAccountsKVSchema>('githubAccounts');
 
 const metadataStore = {
-  get(): Promise<GitHubAccount[] | null> {
+  getAccounts(): Promise<GitHubAccount[] | null> {
     return githubAccountsKV.get('accounts');
   },
-  set(accounts: GitHubAccount[]): Promise<void> {
+  setAccounts(accounts: GitHubAccount[]): Promise<void> {
     return githubAccountsKV.set('accounts', accounts);
+  },
+  getDefaultAccountId(): Promise<string | null> {
+    return githubAccountsKV.get('defaultAccountId');
+  },
+  setDefaultAccountId(accountId: string | null): Promise<void> {
+    return githubAccountsKV.set('defaultAccountId', accountId);
   },
 };
 

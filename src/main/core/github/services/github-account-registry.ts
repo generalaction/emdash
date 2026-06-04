@@ -1,4 +1,5 @@
 import type { GitHubTokenSource } from '@shared/github';
+import { normalizeRepositoryHost } from '@shared/repository-ref';
 
 export type GitHubAccountCredentialSource = Exclude<GitHubTokenSource, null>;
 
@@ -28,8 +29,10 @@ export type GitHubAccountUpsert = {
 };
 
 export type GitHubAccountMetadataStore = {
-  get(): Promise<GitHubAccount[] | null>;
-  set(accounts: GitHubAccount[]): Promise<void>;
+  getAccounts(): Promise<GitHubAccount[] | null>;
+  setAccounts(accounts: GitHubAccount[]): Promise<void>;
+  getDefaultAccountId(): Promise<string | null>;
+  setDefaultAccountId(accountId: string | null): Promise<void>;
 };
 
 export type GitHubAccountSecretStore = {
@@ -61,16 +64,40 @@ export class GitHubAccountRegistry {
     };
 
     await this.secretStore.setSecret(this.tokenSecretKey(id), input.accessToken);
-    await this.metadataStore.set(
-      existing
-        ? accounts.map((account) => (account.id === id ? next : account))
-        : [...accounts, next]
-    );
+    const nextAccounts = existing
+      ? accounts.map((account) => (account.id === id ? next : account))
+      : [...accounts, next];
+    await this.metadataStore.setAccounts(nextAccounts);
+    await this.ensureDefaultAccount(nextAccounts);
     return next;
   }
 
   async listAccounts(): Promise<GitHubAccount[]> {
-    return (await this.metadataStore.get()) ?? [];
+    return (await this.metadataStore.getAccounts()) ?? [];
+  }
+
+  async getDefaultAccountId(): Promise<string | null> {
+    const [accounts, storedDefaultAccountId] = await Promise.all([
+      this.listAccounts(),
+      this.metadataStore.getDefaultAccountId(),
+    ]);
+    const defaultAccount = storedDefaultAccountId
+      ? accounts.find((account) => account.id === storedDefaultAccountId)
+      : undefined;
+    if (defaultAccount) return defaultAccount.id;
+
+    const fallback = this.oldestAccount(accounts)?.id ?? null;
+    if (fallback !== storedDefaultAccountId) {
+      await this.metadataStore.setDefaultAccountId(fallback);
+    }
+    return fallback;
+  }
+
+  async setDefaultAccountId(accountId: string): Promise<GitHubAccount | null> {
+    const account = (await this.listAccounts()).find((candidate) => candidate.id === accountId);
+    if (!account) return null;
+    await this.metadataStore.setDefaultAccountId(account.id);
+    return account;
   }
 
   async resolveToken(accountId: string): Promise<string | null> {
@@ -79,10 +106,15 @@ export class GitHubAccountRegistry {
 
   async removeAccount(accountId: string): Promise<void> {
     const accounts = await this.listAccounts();
+    const nextAccounts = accounts.filter((account) => account.id !== accountId);
     await Promise.all([
-      this.metadataStore.set(accounts.filter((account) => account.id !== accountId)),
+      this.metadataStore.setAccounts(nextAccounts),
       this.secretStore.deleteSecret(this.tokenSecretKey(accountId)),
     ]);
+    const defaultAccountId = await this.metadataStore.getDefaultAccountId();
+    if (defaultAccountId === accountId) {
+      await this.metadataStore.setDefaultAccountId(this.oldestAccount(nextAccounts)?.id ?? null);
+    }
   }
 
   private accountId(providerAccount: GitHubProviderAccount): string {
@@ -90,10 +122,23 @@ export class GitHubAccountRegistry {
   }
 
   private normalizeHost(host: string): string {
-    return host.trim().toLowerCase() || 'github.com';
+    return normalizeRepositoryHost(host) || 'github.com';
   }
 
   private tokenSecretKey(accountId: string): string {
     return `github-account-token:${accountId}`;
+  }
+
+  private async ensureDefaultAccount(accounts: GitHubAccount[]): Promise<void> {
+    const defaultAccountId = await this.metadataStore.getDefaultAccountId();
+    if (defaultAccountId && accounts.some((account) => account.id === defaultAccountId)) return;
+    await this.metadataStore.setDefaultAccountId(this.oldestAccount(accounts)?.id ?? null);
+  }
+
+  private oldestAccount(accounts: GitHubAccount[]): GitHubAccount | undefined {
+    return accounts.reduce<GitHubAccount | undefined>((oldest, account) => {
+      if (!oldest || account.connectedAt < oldest.connectedAt) return account;
+      return oldest;
+    }, undefined);
   }
 }
