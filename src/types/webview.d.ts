@@ -10,7 +10,7 @@ declare module 'react' {
       > & {
         src?: string;
         partition?: string;
-        allowpopups?: string;
+        allowpopups?: boolean;
       };
     }
   }
