@@ -18,14 +18,14 @@ export function AutomationsView() {
   const [search, setSearch] = useState('');
 
   const panel = useAutomationsPanel(automations ?? []);
-  const { update, setEnabled } = useAutomations();
+  const { setEnabled, destroy } = useAutomations();
 
   function handleToggleEnabled(automation: Automation, enabled: boolean) {
     void setEnabled.mutateAsync({ id: automation.id, enabled });
   }
 
-  function handleDelete(_automation: Automation) {
-    panel.close();
+  function handleDelete(automation: Automation) {
+    void destroy.mutateAsync(automation.id).then(() => panel.close());
   }
 
   return (

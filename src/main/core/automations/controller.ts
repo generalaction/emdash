@@ -1,18 +1,13 @@
 import { createRPCController } from '@shared/ipc/rpc';
-import { createAutomation } from './operations/createAutomation';
-import { listAutomationRuns } from './operations/listAutomationRuns';
-import { listAutomations } from './operations/listAutomations';
-import { runAutomation } from './operations/runAutomation';
-import { setAutomationEnabled } from './operations/setAutomationEnabled';
-import { stopRun } from './operations/stopRun';
-import { updateAutomation } from './operations/updateAutomation';
+import { automationsService } from './automations-service';
 
 export const automationsController = createRPCController({
-  listAutomations,
-  createAutomation,
-  updateAutomation,
-  setAutomationEnabled,
-  listAutomationRuns,
-  runAutomation,
-  stopRun,
+  listAutomations: automationsService.listAutomations.bind(automationsService),
+  createAutomation: automationsService.createAutomation.bind(automationsService),
+  updateAutomation: automationsService.updateAutomation.bind(automationsService),
+  setAutomationEnabled: automationsService.setAutomationEnabled.bind(automationsService),
+  listAutomationRuns: automationsService.listAutomationRuns.bind(automationsService),
+  runAutomation: automationsService.runAutomation.bind(automationsService),
+  stopRun: automationsService.stopRun.bind(automationsService),
+  deleteAutomation: automationsService.deleteAutomation.bind(automationsService),
 });

@@ -48,7 +48,12 @@ export function useAutomations(projectId?: string) {
     onSuccess: () => invalidateRuns(),
   });
 
-  return { automations, create, update, setEnabled, runNow, stop };
+  const destroy = useMutation({
+    mutationFn: (id: string) => rpc.automations.deleteAutomation(id),
+    onSuccess: invalidateAutomations,
+  });
+
+  return { automations, create, update, setEnabled, runNow, stop, destroy };
 }
 
 export function useAutomationRuns(automationId: string, limit = 20) {
