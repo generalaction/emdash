@@ -45,6 +45,7 @@ export const baseProjectSettingsSchema = z.object({
   defaultBranch: defaultBranchSettingSchema.optional(),
   baseRemote: z.string().optional(),
   pushRemote: z.string().optional(),
+  githubAccountId: z.string().trim().min(1).nullable().optional(),
   tmux: z.boolean().optional(),
   autoRunSetupScriptOnTaskCreation: z.boolean().optional(),
   autoRunRunScriptOnTaskCreation: z.boolean().optional(),

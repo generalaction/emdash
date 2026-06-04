@@ -274,6 +274,34 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     await expect(provider.getWorktreeDirectory()).resolves.toBe(expectedOverride);
   });
 
+  it('stores the selected GitHub account as base project settings', async () => {
+    const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
+    tempDirs.push(projectPath);
+    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main');
+
+    const result = await provider.update({
+      preservePatterns: [],
+      githubAccountId: 'github.com:42',
+    });
+
+    expect(result.success).toBe(true);
+    await expect(provider.get()).resolves.toMatchObject({ githubAccountId: 'github.com:42' });
+  });
+
+  it('stores null GitHub account selection as an explicit project override', async () => {
+    const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
+    tempDirs.push(projectPath);
+    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main');
+
+    const result = await provider.update({
+      preservePatterns: [],
+      githubAccountId: null,
+    });
+
+    expect(result.success).toBe(true);
+    await expect(provider.get()).resolves.toMatchObject({ githubAccountId: null });
+  });
+
   it('retries legacy config migration after a failed attempt', async () => {
     const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
     tempDirs.push(projectPath);
