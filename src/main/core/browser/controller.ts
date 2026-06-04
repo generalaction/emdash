@@ -24,7 +24,7 @@ export const browserController = createRPCController({
   getActiveBrowser: () => ({ browserId: browserWebContentsRegistry.getActiveBrowser() }),
 
   openDevTools: (browserId: string) => ({
-    success: browserWebContentsRegistry.openDevTools(browserId),
+    success: import.meta.env.DEV && browserWebContentsRegistry.openDevTools(browserId),
   }),
 
   clearStorage: async (browserId: string) => ({
