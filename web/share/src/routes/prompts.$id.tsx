@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { shareMeta } from '../components/share-meta';
-import { ContentPane, SharePage } from '../components/SharePage';
+import { ContentPane, PromptText, SharePage } from '../components/SharePage';
 import { getPromptSharePage } from '../server/share-fns';
 
 export const Route = createFileRoute('/prompts/$id')({
@@ -28,9 +28,7 @@ function PromptSharePage() {
       deepLink={`emdash://share/prompts/${data.id}`}
     >
       <ContentPane label="Prompt" copyText={data.prompt.prompt}>
-        <pre className="prompt-text">
-          <code>{data.prompt.prompt}</code>
-        </pre>
+        <PromptText>{data.prompt.prompt}</PromptText>
       </ContentPane>
     </SharePage>
   );

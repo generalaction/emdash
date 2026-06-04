@@ -8,6 +8,9 @@
     "types": ["@cloudflare/workers-types", "vite/client"],
     "strict": true,
     "noEmit": true,
+    "paths": {
+      "@/*": ["./src/*"]
+    },
     "skipLibCheck": true,
     "isolatedModules": true,
     "allowSyntheticDefaultImports": true,

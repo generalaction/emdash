@@ -25,7 +25,7 @@ function SkillSharePage() {
       eyebrow="Skill"
       title={data.skill.displayName}
       description={data.skill.description}
-      meta={<span className="meta-line">1 file</span>}
+      meta={<span className="text-xs text-foreground-passive">1 file</span>}
       deepLink={`emdash://share/skills/${data.id}`}
     >
       <ContentPane label="SKILL.md" copyText={data.skill.skillMdContent}>

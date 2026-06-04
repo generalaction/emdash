@@ -1,8 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router';
+import type { ReactNode } from 'react';
 import type { SharedAutomation } from '../../../../src/shared/share';
 import { AgentBadge } from '../components/AgentBadge';
 import { shareMeta } from '../components/share-meta';
-import { ContentPane, SharePage } from '../components/SharePage';
+import { ContentPane, PromptText, SharePage } from '../components/SharePage';
 import { getAutomationSharePage } from '../server/share-fns';
 
 export const Route = createFileRoute('/automations/$id')({
@@ -32,31 +33,20 @@ function AutomationSharePage() {
       description={automation.description ?? null}
       deepLink={`emdash://share/automations/${data.id}`}
     >
-      <section className="share-pane">
-        <div className="pane-content">
-          <div className="facts">
-            <div>
-              <h2>Schedule</h2>
-              <p>
-                <code>{automation.trigger.expr}</code> · {automation.trigger.tz}
-              </p>
-            </div>
+      <section className="border-t border-border bg-background">
+        <div className="overflow-x-auto p-6 max-[560px]:p-4">
+          <div className="grid [grid-template-columns:repeat(auto-fit,minmax(170px,1fr))] gap-3">
+            <Fact label="Schedule">
+              <code className="font-mono text-code">{automation.trigger.expr}</code> ·{' '}
+              {automation.trigger.tz}
+            </Fact>
             {automation.agentProviderId ? (
-              <div>
-                <h2>Agent</h2>
-                <p>
-                  <AgentBadge providerId={automation.agentProviderId} />
-                </p>
-              </div>
+              <Fact label="Agent">
+                <AgentBadge providerId={automation.agentProviderId} />
+              </Fact>
             ) : null}
-            <div>
-              <h2>Category</h2>
-              <p>{automation.category}</p>
-            </div>
-            <div>
-              <h2>Deadline</h2>
-              <p>{deadlineLabel(automation)}</p>
-            </div>
+            <Fact label="Category">{automation.category}</Fact>
+            <Fact label="Deadline">{deadlineLabel(automation)}</Fact>
           </div>
         </div>
       </section>
@@ -66,12 +56,21 @@ function AutomationSharePage() {
           label={automation.actions.length > 1 ? `Task prompt ${index + 1}` : 'Task prompt'}
           copyText={action.prompt}
         >
-          <pre className="prompt-text">
-            <code>{action.prompt}</code>
-          </pre>
+          <PromptText>{action.prompt}</PromptText>
         </ContentPane>
       ))}
     </SharePage>
+  );
+}
+
+function Fact({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="rounded-lg border border-border bg-background-1 px-4 py-3.5">
+      <h2 className="mb-1.5 font-mono text-micro font-medium tracking-[0.1em] text-foreground-muted uppercase">
+        {label}
+      </h2>
+      <p className="text-sm wrap-anywhere text-foreground">{children}</p>
+    </div>
   );
 }
 

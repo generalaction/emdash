@@ -32,7 +32,7 @@ function RootDocument({ children }: { children: ReactNode }) {
       <head>
         <HeadContent />
       </head>
-      <body>
+      <body className="bg-background font-sans text-foreground antialiased">
         {children}
         <Scripts />
       </body>

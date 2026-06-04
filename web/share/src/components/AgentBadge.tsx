@@ -1,3 +1,4 @@
+import { cn } from '@/lib/utils';
 import {
   AGENT_PROVIDERS,
   type AgentProviderId,
@@ -24,11 +25,19 @@ export function AgentBadge({ providerId }: { providerId: AgentProviderId }) {
   const iconDark = provider.iconDark ? resolveIcon(provider.iconDark) : null;
 
   return (
-    <span className="agent-badge">
+    <span className="inline-flex items-center gap-[7px] text-[13px] text-foreground">
       {icon ? (
-        <picture className={provider.invertInDark ? 'agent-icon invert-dark' : 'agent-icon'}>
+        <picture
+          className={cn('inline-flex size-4 flex-none', provider.invertInDark && 'dark:invert')}
+        >
           {iconDark ? <source srcSet={iconDark} media="(prefers-color-scheme: dark)" /> : null}
-          <img src={icon} alt="" width={16} height={16} />
+          <img
+            src={icon}
+            alt=""
+            width={16}
+            height={16}
+            className="block size-4 rounded-[3px] object-contain"
+          />
         </picture>
       ) : null}
       {provider.name}

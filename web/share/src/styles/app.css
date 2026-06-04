@@ -1,16 +1,50 @@
-/* Emdash design language — tokens mirror src/renderer/index.css (.emlight / .emdark). */
+/* Emdash design language — tokens mirror src/renderer/index.css (.emlight / .emdark),
+   exposed to Tailwind through the same `@theme inline` mapping the renderer uses. */
 
-:root {
-  color-scheme: light dark;
+@import 'tailwindcss';
 
+@theme inline {
   --font-sans:
     -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans',
     'Droid Sans', 'Helvetica Neue', sans-serif;
   --font-mono: Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
 
-  --radius: 0.5rem;
+  --text-code: 13px;
+  --text-code--line-height: 1.2;
+  --text-tiny: 11px;
+  --text-tiny--line-height: 1.3;
+  --text-micro: 10px;
+  --text-micro--line-height: 1.2;
+
+  --radius-lg: var(--radius);
   --radius-md: calc(var(--radius) - 2px);
   --radius-sm: calc(var(--radius) - 4px);
+
+  --color-background: var(--background);
+  --color-background-1: var(--background-1);
+  --color-background-2: var(--background-2);
+
+  --color-foreground: var(--foreground);
+  --color-foreground-muted: var(--foreground-muted);
+  --color-foreground-passive: var(--foreground-passive);
+
+  --color-border: var(--border);
+  --color-border-1: var(--border-1);
+  --color-ring: var(--ring);
+
+  --color-primary-button-background: var(--primary-button-background);
+  --color-primary-button-background-hover: var(--primary-button-background-hover);
+  --color-primary-button-foreground: var(--primary-button-foreground);
+  --color-primary-button-border: var(--primary-button-border);
+
+  --color-selection-background: var(--selection-background);
+  --color-selection-foreground: var(--selection-foreground);
+}
+
+:root {
+  color-scheme: light dark;
+
+  --radius: 0.5rem;
 
   /* Neutral (Radix light P3) */
   --neutral-2: color(display-p3 0.975 0.975 0.975);
@@ -45,7 +79,7 @@
   --primary-button-foreground: var(--jade-2);
   --primary-button-border: transparent;
 
-  --selection: var(--blue-6);
+  --selection-background: var(--blue-6);
   --selection-foreground: var(--blue-12);
 }
 
@@ -81,541 +115,174 @@
     --primary-button-foreground: var(--jade-12);
     --primary-button-border: var(--jade-7);
 
-    --selection: var(--blue-9);
+    --selection-background: var(--blue-9);
     --selection-foreground: color(display-p3 0.788 0.898 0.99);
   }
 }
 
-::selection {
-  background: var(--selection);
-  color: var(--selection-foreground);
-}
-
-body {
-  -webkit-font-smoothing: antialiased;
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans);
-  margin: 0;
-}
-
-/* ── Brand bar ─────────────────────────────────────────────── */
-
-.brand-bar {
-  align-items: center;
-  display: flex;
-  justify-content: space-between;
-  margin: 0 auto;
-  padding: 24px 0 16px;
-  width: min(840px, calc(100% - 40px));
-}
-
-.brand-logo {
-  color: var(--foreground);
-  display: inline-flex;
-}
-
-.brand-download {
-  border-radius: var(--radius-md);
-  color: var(--foreground-muted);
-  font-size: 13px;
-  padding: 5px 10px;
-  text-decoration: none;
-  transition:
-    background-color 150ms ease,
-    color 150ms ease;
-}
-
-.brand-download:hover {
-  background: var(--background-1);
-  color: var(--foreground);
-}
-
-/* ── Page ──────────────────────────────────────────────────── */
-
-main {
-  margin: 0 auto;
-  padding: 8px 0 168px;
-  width: min(840px, calc(100% - 40px));
-}
-
-/* ── Share card ────────────────────────────────────────────── */
-
-.share-card {
-  background: var(--background-1);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.share-card-header {
-  align-items: flex-start;
-  display: flex;
-  gap: 16px;
-  padding: 24px;
-}
-
-.icon-tile {
-  background: var(--foreground);
-  border-radius: 12px;
-  color: var(--background);
-  display: grid;
-  flex: none;
-  height: 48px;
-  place-items: center;
-  width: 48px;
-}
-
-.icon-tile-mark {
-  width: 24px;
-}
-
-.share-card-heading {
-  display: grid;
-  gap: 6px;
-  min-width: 0;
-}
-
-.eyebrow {
-  color: var(--foreground-muted);
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.1em;
-  margin: 0;
-  text-transform: uppercase;
-}
-
-h1 {
-  font-size: 20px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  line-height: 1.3;
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
-.description {
-  color: var(--foreground-muted);
-  font-size: 14px;
-  line-height: 1.625;
-  margin: 0;
-  max-width: 70ch;
-}
-
-.share-card-meta {
-  margin-top: 2px;
-}
-
-.meta-line {
-  color: var(--foreground-passive);
-  font-size: 12px;
-}
-
-/* ── Content panes ─────────────────────────────────────────── */
-
-.share-pane {
-  background: var(--background);
-  border-top: 1px solid var(--border);
-}
-
-.pane-tab {
-  align-items: center;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  justify-content: space-between;
-  padding: 8px 12px 8px 24px;
-}
-
-.pane-tab-label {
-  align-items: center;
-  color: var(--foreground-muted);
-  display: inline-flex;
-  font-family: var(--font-mono);
-  font-size: 12px;
-  gap: 8px;
-}
-
-.pane-file-icon {
-  height: 14px;
-  width: 14px;
-}
-
-.pane-content {
-  overflow-x: auto;
-  padding: 24px;
-}
-
-.prompt-text {
-  color: var(--foreground);
-  font-family: var(--font-mono);
-  font-size: 13px;
-  line-height: 1.6;
-  margin: 0;
-  white-space: pre-wrap;
-}
-
-.ghost-button {
-  background: transparent;
-  border: none;
-  border-radius: var(--radius-md);
-  color: var(--foreground-muted);
-  cursor: pointer;
-  font: inherit;
-  font-size: 12px;
-  height: 26px;
-  padding: 0 10px;
-  transition:
-    background-color 150ms ease,
-    color 150ms ease;
-}
-
-.ghost-button:hover {
-  background: var(--background-1);
-  color: var(--foreground);
-}
-
-.ghost-button:focus-visible {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
-  outline: none;
-}
-
-code {
-  font-family: var(--font-mono);
-  font-size: 13px;
-  line-height: 1.55;
-}
-
-/* ── Facts (automations) ───────────────────────────────────── */
-
-.facts {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-}
-
-.facts > div {
-  background: var(--background-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 14px 16px;
-}
-
-.facts h2 {
-  color: var(--foreground-muted);
-  font-family: var(--font-mono);
-  font-size: 10px;
-  font-weight: 500;
-  letter-spacing: 0.1em;
-  margin: 0 0 6px;
-  text-transform: uppercase;
-}
-
-.facts p {
-  color: var(--foreground);
-  font-size: 14px;
-  margin: 0;
-  overflow-wrap: anywhere;
-}
-
-/* ── Agent badge ───────────────────────────────────────────── */
-
-.agent-badge {
-  align-items: center;
-  color: var(--foreground);
-  display: inline-flex;
-  font-size: 13px;
-  gap: 7px;
-}
-
-.agent-icon {
-  display: inline-flex;
-  flex: none;
-  height: 16px;
-  width: 16px;
-}
-
-.agent-icon img {
-  border-radius: 3px;
-  display: block;
-  height: 16px;
-  object-fit: contain;
-  width: 16px;
-}
-
-@media (prefers-color-scheme: dark) {
-  .invert-dark {
-    filter: invert(1);
+@layer base {
+  ::selection {
+    background: var(--selection-background);
+    color: var(--selection-foreground);
   }
 }
 
-/* ── Bottom CTA ────────────────────────────────────────────── */
+/* ── Rendered SKILL.md markdown — mirrors the desktop markdown renderer ──
+   The HTML comes pre-rendered from `marked` on the server, so these styles
+   cannot be expressed as utility classes on elements. */
 
-.cta-bar {
-  align-items: center;
-  background: linear-gradient(to top, var(--background) 62%, transparent);
-  bottom: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  left: 0;
-  padding: 40px 20px calc(16px + env(safe-area-inset-bottom));
-  pointer-events: none;
-  position: fixed;
-  right: 0;
-}
+@layer components {
+  .markdown {
+    font-size: 14px;
+    line-height: 1.625;
+    overflow-wrap: anywhere;
+  }
 
-.cta-pill {
-  align-items: center;
-  background: var(--primary-button-background);
-  border: 1px solid var(--primary-button-border);
-  border-radius: 999px;
-  color: var(--primary-button-foreground);
-  display: inline-flex;
-  font-size: 15px;
-  font-weight: 500;
-  gap: 8px;
-  height: 48px;
-  justify-content: center;
-  pointer-events: auto;
-  text-decoration: none;
-  transition: background-color 150ms ease;
-  width: min(560px, 100%);
-}
+  .markdown > :first-child {
+    margin-top: 0;
+  }
 
-.cta-pill:hover {
-  background: var(--primary-button-background-hover);
-}
+  .markdown > :last-child {
+    margin-bottom: 0;
+  }
 
-.cta-pill:focus-visible {
-  border-color: var(--ring);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
-  outline: none;
-}
+  .markdown h1,
+  .markdown h2 {
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+  }
 
-.cta-arrow {
-  height: 16px;
-  transition: transform 150ms ease;
-  width: 16px;
-}
+  .markdown h1 {
+    font-size: 24px;
+    font-weight: 600;
+    letter-spacing: normal;
+    line-height: 1.3;
+    margin: 24px 0 16px;
+  }
 
-.cta-pill:hover .cta-arrow {
-  transform: translateX(2px);
-}
+  .markdown h2 {
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1.3;
+    margin: 24px 0 12px;
+  }
 
-.cta-hint {
-  color: var(--foreground-muted);
-  font-size: 12px;
-  margin: 0;
-  pointer-events: auto;
-}
+  .markdown h3 {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 16px 0 8px;
+  }
 
-.cta-hint a {
-  color: inherit;
-  text-decoration-color: color-mix(in srgb, currentColor 50%, transparent);
-}
+  .markdown h4,
+  .markdown h5,
+  .markdown h6 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 16px 0 8px;
+  }
 
-.cta-hint a:hover {
-  color: var(--foreground);
-  text-decoration-color: currentColor;
-}
+  .markdown p,
+  .markdown ul,
+  .markdown ol {
+    color: var(--foreground);
+    margin: 0 0 12px;
+  }
 
-/* ── Footer ────────────────────────────────────────────────── */
+  .markdown ul,
+  .markdown ol {
+    padding-left: 24px;
+  }
 
-footer {
-  color: var(--foreground-passive);
-  font-size: 12px;
-  margin-top: 20px;
-}
+  .markdown ul {
+    list-style: disc;
+  }
 
-footer p {
-  margin: 0;
-}
+  .markdown ol {
+    list-style: decimal;
+  }
 
-footer a {
-  color: inherit;
-  text-decoration-color: color-mix(in srgb, currentColor 50%, transparent);
-}
+  .markdown li {
+    margin: 4px 0;
+  }
 
-footer a:hover {
-  color: var(--foreground);
-  text-decoration-color: currentColor;
-}
+  .markdown a {
+    color: var(--foreground);
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, currentColor 50%, transparent);
+  }
 
-/* ── Not found ─────────────────────────────────────────────── */
+  .markdown a:hover {
+    text-decoration-color: currentColor;
+  }
 
-.not-found {
-  display: grid;
-  gap: 10px;
-  justify-items: start;
-  padding-top: 14vh;
-}
+  .markdown blockquote {
+    border-left: 2px solid var(--border-1);
+    color: var(--foreground-muted);
+    margin: 0 0 12px;
+    padding-left: 12px;
+  }
 
-.not-found h1 {
-  font-size: clamp(24px, 4vw, 32px);
-}
+  .markdown code {
+    background: var(--background-2);
+    border-radius: var(--radius-sm);
+    font-size: 12px;
+    padding: 2px 6px;
+  }
 
-.not-found-cta {
-  margin-top: 10px;
-  padding: 0 28px;
-  width: auto;
-}
+  .markdown pre {
+    background: var(--background-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    margin: 0 0 12px;
+    overflow: auto;
+    padding: 12px 14px;
+  }
 
-/* ── Rendered SKILL.md markdown — mirrors the desktop markdown renderer ── */
+  .markdown pre code {
+    background: transparent;
+    border-radius: 0;
+    font-size: 13px;
+    padding: 0;
+  }
 
-.markdown {
-  font-size: 14px;
-  line-height: 1.625;
-  overflow-wrap: anywhere;
-}
+  .markdown table {
+    border-collapse: collapse;
+    display: block;
+    margin: 0 0 12px;
+    overflow: auto;
+    width: 100%;
+  }
 
-.markdown > :first-child {
-  margin-top: 0;
-}
+  .markdown th,
+  .markdown td {
+    border-bottom: 1px solid var(--border);
+    padding: 6px 10px;
+    text-align: left;
+  }
 
-.markdown > :last-child {
-  margin-bottom: 0;
-}
+  .markdown th {
+    font-weight: 500;
+  }
 
-.markdown h1,
-.markdown h2 {
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 8px;
-}
+  .markdown hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 24px 0;
+  }
 
-.markdown h1 {
-  font-size: 24px;
-  font-weight: 600;
-  letter-spacing: normal;
-  line-height: 1.3;
-  margin: 24px 0 16px;
-}
-
-.markdown h2 {
-  font-size: 20px;
-  font-weight: 600;
-  line-height: 1.3;
-  margin: 24px 0 12px;
-}
-
-.markdown h3 {
-  font-size: 18px;
-  font-weight: 600;
-  margin: 16px 0 8px;
-}
-
-.markdown h4,
-.markdown h5,
-.markdown h6 {
-  font-size: 16px;
-  font-weight: 600;
-  margin: 16px 0 8px;
-}
-
-.markdown p,
-.markdown ul,
-.markdown ol {
-  color: var(--foreground);
-  margin: 0 0 12px;
-}
-
-.markdown li {
-  margin: 4px 0;
-}
-
-.markdown a {
-  color: var(--foreground);
-  text-decoration: underline;
-  text-decoration-color: color-mix(in srgb, currentColor 50%, transparent);
-}
-
-.markdown a:hover {
-  text-decoration-color: currentColor;
-}
-
-.markdown blockquote {
-  border-left: 2px solid var(--border-1);
-  color: var(--foreground-muted);
-  margin: 0 0 12px;
-  padding-left: 12px;
-}
-
-.markdown code {
-  background: var(--background-2);
-  border-radius: var(--radius-sm);
-  font-size: 12px;
-  padding: 2px 6px;
-}
-
-.markdown pre {
-  background: var(--background-1);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  margin: 0 0 12px;
-  overflow: auto;
-  padding: 12px 14px;
-}
-
-.markdown pre code {
-  background: transparent;
-  border-radius: 0;
-  font-size: 13px;
-  padding: 0;
-}
-
-.markdown table {
-  border-collapse: collapse;
-  display: block;
-  margin: 0 0 12px;
-  overflow: auto;
-  width: 100%;
-}
-
-.markdown th,
-.markdown td {
-  border-bottom: 1px solid var(--border);
-  padding: 6px 10px;
-  text-align: left;
-}
-
-.markdown th {
-  font-weight: 500;
-}
-
-.markdown hr {
-  border: none;
-  border-top: 1px solid var(--border);
-  margin: 24px 0;
-}
-
-/* Shiki: drop the theme background so code sits on our panel surface, and
-   swap to the dark token palette via CSS variables. */
-.markdown .shiki {
-  background-color: transparent !important;
-}
-
-@media (prefers-color-scheme: dark) {
-  .markdown .shiki span {
+  /* Shiki: drop the theme background so code sits on our panel surface, and
+     swap to the dark token palette via CSS variables. */
+  .markdown .shiki {
     background-color: transparent !important;
-    color: var(--shiki-dark) !important;
-    font-style: var(--shiki-dark-font-style) !important;
-    font-weight: var(--shiki-dark-font-weight) !important;
-    text-decoration: var(--shiki-dark-text-decoration) !important;
-  }
-}
-
-/* ── Mobile ────────────────────────────────────────────────── */
-
-@media (max-width: 560px) {
-  .share-card-header {
-    padding: 16px;
   }
 
-  .pane-tab {
-    padding-left: 16px;
-  }
-
-  .pane-content {
-    padding: 16px;
+  @media (prefers-color-scheme: dark) {
+    .markdown .shiki span {
+      background-color: transparent !important;
+      color: var(--shiki-dark) !important;
+      font-style: var(--shiki-dark-font-style) !important;
+      font-weight: var(--shiki-dark-font-weight) !important;
+      text-decoration: var(--shiki-dark-text-decoration) !important;
+    }
   }
 }

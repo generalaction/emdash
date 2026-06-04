@@ -402,6 +402,12 @@ importers:
       '@tanstack/react-start':
         specifier: ^1.168.20
         version: 1.168.20(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(vite@8.0.16(@types/node@24.11.0)(esbuild@0.27.3)(jiti@2.7.0)(yaml@2.8.2))
+      class-variance-authority:
+        specifier: ^0.7.1
+        version: 0.7.1
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
       evlog:
         specifier: ^2.18.1
         version: 2.18.1(@tanstack/start-client-core@1.170.7)(hono@4.12.23)(react@19.2.7)(vite@8.0.16(@types/node@24.11.0)(esbuild@0.27.3)(jiti@2.7.0)(yaml@2.8.2))
@@ -420,6 +426,9 @@ importers:
       shiki:
         specifier: ^4.2.0
         version: 4.2.0
+      tailwind-merge:
+        specifier: ^2.6.0
+        version: 2.6.1
       zod:
         specifier: ^4.3.6
         version: 4.3.6
@@ -430,6 +439,9 @@ importers:
       '@cloudflare/workers-types':
         specifier: ^4.20260601.0
         version: 4.20260604.1
+      '@tailwindcss/vite':
+        specifier: ^4.2.1
+        version: 4.2.1(vite@8.0.16(@types/node@24.11.0)(esbuild@0.27.3)(jiti@2.7.0)(yaml@2.8.2))
       '@types/react':
         specifier: ^19.2.7
         version: 19.2.14
@@ -439,6 +451,9 @@ importers:
       '@vitejs/plugin-react':
         specifier: ^6.0.2
         version: 6.0.2(vite@8.0.16(@types/node@24.11.0)(esbuild@0.27.3)(jiti@2.7.0)(yaml@2.8.2))
+      tailwindcss:
+        specifier: ^4.2.1
+        version: 4.2.1
       typescript:
         specifier: ^6.0.2
         version: 6.0.2
@@ -9796,6 +9811,13 @@ snapshots:
       '@tailwindcss/oxide': 4.2.1
       tailwindcss: 4.2.1
       vite: 6.4.1(@types/node@20.19.32)(jiti@2.7.0)(lightningcss@1.32.0)(yaml@2.8.2)
+
+  '@tailwindcss/vite@4.2.1(vite@8.0.16(@types/node@24.11.0)(esbuild@0.27.3)(jiti@2.7.0)(yaml@2.8.2))':
+    dependencies:
+      '@tailwindcss/node': 4.2.1
+      '@tailwindcss/oxide': 4.2.1
+      tailwindcss: 4.2.1
+      vite: 8.0.16(@types/node@24.11.0)(esbuild@0.27.3)(jiti@2.7.0)(yaml@2.8.2)
 
   '@tanstack/devtools-event-client@0.4.1': {}
 
