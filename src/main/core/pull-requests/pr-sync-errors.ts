@@ -4,11 +4,22 @@ import {
 } from '@main/core/github/services/github-api-auth-errors';
 import type { RepositoryRefParseError } from '@shared/repository-ref';
 
+export type PrSyncHostUnreachableError = {
+  type: 'host_unreachable';
+  host: string;
+  reason: string;
+};
+
+export type PrSyncApiError = {
+  type: 'api_error';
+  message: string;
+};
+
 export type PrSyncEngineError =
   | RepositoryRefParseError
   | GitHubApiAuthError
-  | { type: 'host_unreachable'; host: string; reason: string }
-  | { type: 'api_error'; message: string };
+  | PrSyncHostUnreachableError
+  | PrSyncApiError;
 
 function isAuthStatus(error: unknown): boolean {
   if (!error || typeof error !== 'object' || !('status' in error)) return false;
@@ -43,7 +54,7 @@ function isNetworkConnectivityError(error: unknown): boolean {
 
 export function isPrSyncHostUnreachable(
   error: PrSyncEngineError
-): error is Extract<PrSyncEngineError, { type: 'host_unreachable' }> {
+): error is PrSyncHostUnreachableError {
   return error.type === 'host_unreachable';
 }
 

@@ -127,7 +127,7 @@ export const CreatePrModal = observer(function CreatePrModal({
           ? `${headRepository.owner}:${branchName}`
           : branchName;
 
-      const result = await rpc.pullRequests.createPullRequest({
+      const result = await rpc.pullRequests.createPullRequest(projectId, {
         repositoryUrl: targetRepositoryUrl,
         headRepositoryUrl: headRepository?.repositoryUrl,
         head,

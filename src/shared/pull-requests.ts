@@ -127,13 +127,19 @@ export type PrFilterOptions = {
   assignees: PullRequestUser[];
 };
 
-export type PullRequestError =
-  | { type: 'invalid_repository'; input: string }
-  | { type: 'remote_not_ready'; status: string }
+export type RemoteNotReadyPullRequestError = { type: 'remote_not_ready'; status: string };
+
+export type PullRequestAuthError =
   | { type: 'github_auth_required'; host: string; hint: string }
-  | { type: 'ghes_auth_required'; host: string; hint: string }
+  | { type: 'ghes_auth_required'; host: string; hint: string };
+
+export type PullRequestRepositoryError =
+  | { type: 'invalid_repository'; input: string }
+  | RemoteNotReadyPullRequestError
   | { type: 'cross_host_pr'; baseHost: string; headHost: string }
-  | { type: 'host_unreachable'; host: string; reason: string }
+  | { type: 'host_unreachable'; host: string; reason: string };
+
+export type PullRequestOperationError =
   | { type: 'list_failed'; message: string }
   | { type: 'filter_options_failed'; message: string }
   | { type: 'task_pull_requests_failed'; message: string }
@@ -145,6 +151,11 @@ export type PullRequestError =
   | { type: 'merge_failed'; message: string }
   | { type: 'mark_ready_failed'; message: string }
   | { type: 'files_failed'; message: string };
+
+export type PullRequestError =
+  | PullRequestRepositoryError
+  | PullRequestAuthError
+  | PullRequestOperationError;
 
 // ── Pass-through types ────────────────────────────────────────────────────────
 
