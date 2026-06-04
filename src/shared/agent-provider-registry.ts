@@ -42,6 +42,8 @@ export type AgentProviderDefinition = {
   installCommand?: string;
   commands?: string[];
   versionArgs?: string[];
+  /** Skip running the CLI for dependency version detection. */
+  skipVersionProbe?: boolean;
   detectable?: boolean;
   cli?: string;
   autoApproveFlag?: string;
@@ -602,7 +604,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     docUrl: 'https://docs.letta.com/letta-code/cli',
     installCommand: 'npm install -g @letta-ai/letta-code',
     commands: ['letta'],
-    versionArgs: ['--version'],
+    skipVersionProbe: true,
     cli: 'letta',
     autoApproveFlag: '--yolo',
     initialPromptFlag: '',
