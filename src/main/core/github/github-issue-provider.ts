@@ -8,9 +8,11 @@ import {
 import type { RepositoryRef } from '@shared/repository-ref';
 import { err, ok, type Result } from '@shared/result';
 import type { Issue } from '@shared/tasks';
+import type { GitHubApiAuthContext } from './services/github-api-auth-service';
 import { githubConnectionService } from './services/github-connection-service';
 import { githubRepositoryResolver } from './services/github-repository-resolver';
 import { issueService } from './services/issue-service';
+import { resolveProjectGitHubAuthContext } from './services/project-github-auth-context';
 
 function toIssue(raw: {
   number: number;
@@ -46,9 +48,10 @@ function toIssueListResult(result: Result<Issue[], IssueListError>): IssueListRe
 
 async function listIssues(
   repository: RepositoryRef,
-  limit: number
+  limit: number,
+  authContext?: GitHubApiAuthContext
 ): Promise<Result<Issue[], IssueListError>> {
-  const issues = await issueService.listIssues(repository, limit);
+  const issues = await issueService.listIssues(repository, limit, authContext);
   if (!issues.success) return err(issues.error);
   return ok(issues.data.map(toIssue));
 }
@@ -56,15 +59,23 @@ async function listIssues(
 async function searchIssues(
   repository: RepositoryRef,
   searchTerm: string,
-  limit: number
+  limit: number,
+  authContext?: GitHubApiAuthContext
 ): Promise<Result<Issue[], IssueListError>> {
   if (!normalizeSearchTerm(searchTerm)) {
     return ok([]);
   }
 
-  const issues = await issueService.searchIssues(repository, searchTerm, limit);
+  const issues = await issueService.searchIssues(repository, searchTerm, limit, authContext);
   if (!issues.success) return err(issues.error);
   return ok(issues.data.map(toIssue));
+}
+
+async function resolveIssueAuthContext(
+  projectId: string | undefined
+): Promise<GitHubApiAuthContext | undefined> {
+  if (!projectId) return undefined;
+  return resolveProjectGitHubAuthContext(projectId);
 }
 
 async function resolveRepository(opts: {
@@ -110,15 +121,17 @@ export const githubIssueProvider: IssueProvider = {
     const repository = await resolveRepository(opts);
     if (!repository.success) return toIssueListResult(repository);
 
-    return toIssueListResult(await listIssues(repository.data, opts.limit ?? 50));
+    const authContext = await resolveIssueAuthContext(opts.projectId);
+    return toIssueListResult(await listIssues(repository.data, opts.limit ?? 50, authContext));
   },
 
   searchIssues: async (opts) => {
     const repository = await resolveRepository(opts);
     if (!repository.success) return toIssueListResult(repository);
 
+    const authContext = await resolveIssueAuthContext(opts.projectId);
     return toIssueListResult(
-      await searchIssues(repository.data, opts.searchTerm, opts.limit ?? 20)
+      await searchIssues(repository.data, opts.searchTerm, opts.limit ?? 20, authContext)
     );
   },
 };

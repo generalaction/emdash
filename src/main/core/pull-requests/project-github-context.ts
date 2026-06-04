@@ -1,8 +1,8 @@
 import type { GitHubApiAuthContext } from '@main/core/github/services/github-api-auth-service';
+import { resolveProjectGitHubAuthContext } from '@main/core/github/services/project-github-auth-context';
 import { providerRepositoryService } from '@main/core/repository/provider-repository-service';
 import type { ProviderRepositoryError } from '@shared/provider-repository';
 import { err, ok, type Result } from '@shared/result';
-import { resolveProjectGitHubAuthContext } from './project-github-auth-context';
 
 export type ProjectGitHubContext = {
   projectId: string;

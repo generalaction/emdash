@@ -3,6 +3,7 @@ import { err, ok } from '@shared/result';
 import { githubIssueProvider } from './github-issue-provider';
 import { githubRepositoryResolver } from './services/github-repository-resolver';
 import { issueService } from './services/issue-service';
+import { resolveProjectGitHubAuthContext } from './services/project-github-auth-context';
 
 vi.mock('./services/issue-service', () => ({
   issueService: {
@@ -23,8 +24,13 @@ vi.mock('./services/github-repository-resolver', () => ({
   },
 }));
 
+vi.mock('./services/project-github-auth-context', () => ({
+  resolveProjectGitHubAuthContext: vi.fn(),
+}));
+
 const mockIssueService = vi.mocked(issueService);
 const mockRepositoryResolver = vi.mocked(githubRepositoryResolver);
+const mockResolveProjectGitHubAuthContext = vi.mocked(resolveProjectGitHubAuthContext);
 
 const githubRepository = {
   host: 'github.com',
@@ -46,6 +52,7 @@ describe('githubIssueProvider', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRepositoryResolver.resolve.mockResolvedValue(ok(githubRepository));
+    mockResolveProjectGitHubAuthContext.mockResolvedValue({});
   });
 
   it('uses repositoryUrl to resolve the GitHub repository before listing issues', async () => {
@@ -56,7 +63,24 @@ describe('githubIssueProvider', () => {
       limit: 7,
     });
 
-    expect(mockIssueService.listIssues).toHaveBeenCalledWith(githubRepository, 7);
+    expect(mockResolveProjectGitHubAuthContext).not.toHaveBeenCalled();
+    expect(mockIssueService.listIssues).toHaveBeenCalledWith(githubRepository, 7, undefined);
+  });
+
+  it('passes project GitHub account context when listing issues for a project', async () => {
+    mockResolveProjectGitHubAuthContext.mockResolvedValue({ accountId: 'github.com:42' });
+    mockIssueService.listIssues.mockResolvedValue(ok([]));
+
+    await githubIssueProvider.listIssues({
+      projectId: 'project-1',
+      repositoryUrl: 'https://github.com/owner/repo',
+      limit: 7,
+    });
+
+    expect(mockResolveProjectGitHubAuthContext).toHaveBeenCalledWith('project-1');
+    expect(mockIssueService.listIssues).toHaveBeenCalledWith(githubRepository, 7, {
+      accountId: 'github.com:42',
+    });
   });
 
   it('falls back to the resolved remote when repositoryUrl is not provided', async () => {
@@ -68,7 +92,30 @@ describe('githubIssueProvider', () => {
       limit: 3,
     });
 
-    expect(mockIssueService.searchIssues).toHaveBeenCalledWith(githubRepository, 'bug', 3);
+    expect(mockResolveProjectGitHubAuthContext).not.toHaveBeenCalled();
+    expect(mockIssueService.searchIssues).toHaveBeenCalledWith(
+      githubRepository,
+      'bug',
+      3,
+      undefined
+    );
+  });
+
+  it('passes project GitHub account context when searching issues for a project', async () => {
+    mockResolveProjectGitHubAuthContext.mockResolvedValue({ accountId: 'github.com:42' });
+    mockIssueService.searchIssues.mockResolvedValue(ok([]));
+
+    await githubIssueProvider.searchIssues({
+      projectId: 'project-1',
+      remote: 'git@github.com:owner/repo.git',
+      searchTerm: 'bug',
+      limit: 3,
+    });
+
+    expect(mockResolveProjectGitHubAuthContext).toHaveBeenCalledWith('project-1');
+    expect(mockIssueService.searchIssues).toHaveBeenCalledWith(githubRepository, 'bug', 3, {
+      accountId: 'github.com:42',
+    });
   });
 
   it('returns unsupported host errors from repository resolution', async () => {

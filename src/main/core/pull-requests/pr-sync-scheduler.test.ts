@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { resolveProjectGitHubAuthContext } from '@main/core/github/services/project-github-auth-context';
 import { ok } from '@shared/result';
 import { prSyncEngine } from './pr-sync-engine';
 import { PrSyncScheduler } from './pr-sync-scheduler';
-import { resolveProjectGitHubAuthContext } from './project-github-auth-context';
 
 const mocks = vi.hoisted(() => {
   const where = vi.fn();
@@ -59,7 +59,7 @@ vi.mock('./pr-sync-engine', () => ({
   },
 }));
 
-vi.mock('./project-github-auth-context', () => ({
+vi.mock('@main/core/github/services/project-github-auth-context', () => ({
   resolveProjectGitHubAuthContext: mocks.resolveProjectGitHubAuthContext,
 }));
 

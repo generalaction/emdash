@@ -3,6 +3,7 @@ import type { IssueListError } from '@shared/issue-providers';
 import { isGitHubDotComHost, type RepositoryRef } from '@shared/repository-ref';
 import { err, ok, type Result } from '@shared/result';
 import type { GitHubApiAuthError } from './github-api-auth-errors';
+import type { GitHubApiAuthContext } from './github-api-auth-service';
 import { getOctokit } from './octokit-provider';
 
 // ---------------------------------------------------------------------------
@@ -28,16 +29,19 @@ export type GitHubIssueDetail = GitHubIssue;
 export interface GitHubIssueService {
   listIssues(
     repository: RepositoryRef,
-    limit?: number
+    limit?: number,
+    authContext?: GitHubApiAuthContext
   ): Promise<Result<GitHubIssue[], IssueListError>>;
   searchIssues(
     repository: RepositoryRef,
     searchTerm: string,
-    limit?: number
+    limit?: number,
+    authContext?: GitHubApiAuthContext
   ): Promise<Result<GitHubIssue[], IssueListError>>;
   getIssue(
     repository: RepositoryRef,
-    issueNumber: number
+    issueNumber: number,
+    authContext?: GitHubApiAuthContext
   ): Promise<Result<GitHubIssueDetail | null, IssueListError>>;
 }
 
@@ -66,15 +70,19 @@ interface RestIssue {
 
 export class GitHubIssueServiceImpl implements GitHubIssueService {
   constructor(
-    private readonly getOctokit: (host: string) => Promise<Result<Octokit, GitHubApiAuthError>>
+    private readonly getOctokit: (
+      host: string,
+      context?: GitHubApiAuthContext
+    ) => Promise<Result<Octokit, GitHubApiAuthError>>
   ) {}
 
   async listIssues(
     repository: RepositoryRef,
-    limit: number = 50
+    limit: number = 50,
+    authContext: GitHubApiAuthContext = {}
   ): Promise<Result<GitHubIssue[], IssueListError>> {
     const { owner, repo, host } = repository;
-    const octokit = await this.getOctokit(host);
+    const octokit = await this.getOctokit(host, authContext);
     if (!octokit.success) return err(this.mapAuthError(octokit.error));
 
     try {
@@ -99,12 +107,13 @@ export class GitHubIssueServiceImpl implements GitHubIssueService {
   async searchIssues(
     repository: RepositoryRef,
     searchTerm: string,
-    limit: number = 20
+    limit: number = 20,
+    authContext: GitHubApiAuthContext = {}
   ): Promise<Result<GitHubIssue[], IssueListError>> {
     const term = searchTerm.trim();
     if (!term) return ok([]);
     const { owner, repo, host } = repository;
-    const octokit = await this.getOctokit(host);
+    const octokit = await this.getOctokit(host, authContext);
     if (!octokit.success) return err(this.mapAuthError(octokit.error));
 
     try {
@@ -122,10 +131,11 @@ export class GitHubIssueServiceImpl implements GitHubIssueService {
 
   async getIssue(
     repository: RepositoryRef,
-    issueNumber: number
+    issueNumber: number,
+    authContext: GitHubApiAuthContext = {}
   ): Promise<Result<GitHubIssueDetail | null, IssueListError>> {
     const { owner, repo, host } = repository;
-    const octokit = await this.getOctokit(host);
+    const octokit = await this.getOctokit(host, authContext);
     if (!octokit.success) return err(this.mapAuthError(octokit.error));
 
     try {

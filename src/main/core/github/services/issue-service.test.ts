@@ -79,7 +79,7 @@ describe('GitHubIssueServiceImpl', () => {
 
       const result = await issueService.listIssues(repository, 30);
 
-      expect(mockGetOctokit).toHaveBeenCalledWith('github.com');
+      expect(mockGetOctokit).toHaveBeenCalledWith('github.com', {});
       expect(listForRepo).toHaveBeenCalledWith({
         owner: 'owner',
         repo: 'repo',
@@ -89,6 +89,15 @@ describe('GitHubIssueServiceImpl', () => {
         direction: 'desc',
       });
       expect(result).toEqual(ok([expectedIssue]));
+    });
+
+    it('passes selected GitHub account context to Octokit resolution', async () => {
+      const listForRepo = vi.fn().mockResolvedValue({ data: [] });
+      mockGetOctokit.mockResolvedValue(ok(makeOctokit({ listForRepo })));
+
+      await issueService.listIssues(repository, 30, { accountId: 'github.com:42' });
+
+      expect(mockGetOctokit).toHaveBeenCalledWith('github.com', { accountId: 'github.com:42' });
     });
 
     it('filters out pull requests', async () => {
@@ -157,6 +166,15 @@ describe('GitHubIssueServiceImpl', () => {
         order: 'desc',
       });
       expect(result).toEqual(ok([expectedIssue]));
+    });
+
+    it('passes selected GitHub account context to search Octokit resolution', async () => {
+      const issuesAndPullRequests = vi.fn().mockResolvedValue({ data: { items: [] } });
+      mockGetOctokit.mockResolvedValue(ok(makeOctokit({ issuesAndPullRequests })));
+
+      await issueService.searchIssues(repository, 'bug', 15, { accountId: 'github.com:42' });
+
+      expect(mockGetOctokit).toHaveBeenCalledWith('github.com', { accountId: 'github.com:42' });
     });
 
     it('returns empty for blank search term', async () => {

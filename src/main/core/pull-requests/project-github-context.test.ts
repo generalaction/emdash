@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { resolveProjectGitHubAuthContext } from '@main/core/github/services/project-github-auth-context';
 import { providerRepositoryService } from '@main/core/repository/provider-repository-service';
 import { err, ok } from '@shared/result';
-import { resolveProjectGitHubAuthContext } from './project-github-auth-context';
 import { resolveProjectGitHubContext } from './project-github-context';
 
 vi.mock('@main/core/repository/provider-repository-service', () => ({
@@ -10,7 +10,7 @@ vi.mock('@main/core/repository/provider-repository-service', () => ({
   },
 }));
 
-vi.mock('./project-github-auth-context', () => ({
+vi.mock('@main/core/github/services/project-github-auth-context', () => ({
   resolveProjectGitHubAuthContext: vi.fn(),
 }));
 

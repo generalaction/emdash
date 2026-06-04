@@ -1,6 +1,7 @@
 import { eq } from 'drizzle-orm';
 import { gitWatcherRegistry } from '@main/core/git/git-watcher-registry';
 import { githubRepositoryResolver } from '@main/core/github/services/github-repository-resolver';
+import { resolveProjectGitHubAuthContext } from '@main/core/github/services/project-github-auth-context';
 import { projectManager } from '@main/core/projects/project-manager';
 import { taskSessionManager } from '@main/core/tasks/task-session-manager';
 import { db } from '@main/db/client';
@@ -9,7 +10,6 @@ import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
 import { log } from '@main/lib/logger';
 import { parseRepositoryRef } from '@shared/repository-ref';
 import { prSyncEngine } from './pr-sync-engine';
-import { resolveProjectGitHubAuthContext } from './project-github-auth-context';
 import { syncProjectRemotes } from './project-remotes-service';
 
 const INCREMENTAL_SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
