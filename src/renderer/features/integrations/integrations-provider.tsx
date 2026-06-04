@@ -193,6 +193,8 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
     () => invalidateProvider('featurebase'),
     [invalidateProvider]
   );
+  const invalidateAsana = useCallback(() => invalidateProvider('asana'), [invalidateProvider]);
+  const invalidateMonday = useCallback(() => invalidateProvider('monday'), [invalidateProvider]);
 
   const linearConnection = useProviderConnection({
     ...PROVIDER_CONNECTION_CONFIG.linear,
@@ -220,11 +222,11 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
   });
   const asanaConnection = useProviderConnection({
     ...PROVIDER_CONNECTION_CONFIG.asana,
-    invalidate: invalidateStatuses,
+    invalidate: invalidateAsana,
   });
   const mondayConnection = useProviderConnection({
     ...PROVIDER_CONNECTION_CONFIG.monday,
-    invalidate: invalidateStatuses,
+    invalidate: invalidateMonday,
   });
 
   const connectionStatus = statusData ?? DEFAULT_CONNECTION_STATUS;
