@@ -116,6 +116,7 @@ export function BrowserToolbar({
             onFocus={(event) => event.currentTarget.select()}
             className="h-7 truncate pr-8 pl-7 text-sm"
             aria-label="Browser URL"
+            placeholder="Enter URL"
             spellCheck={false}
             autoCapitalize="none"
           />

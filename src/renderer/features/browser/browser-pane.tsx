@@ -6,6 +6,7 @@ import { normalizeBrowserUrl } from '@shared/browser';
 import { browserControlsRegistry } from './browser-controls-registry';
 import { decideBrowserReload } from './browser-navigation-controls';
 import { browserSessionStore } from './browser-session-store';
+import { BrowserStartPage } from './browser-start-page';
 import { BrowserToolbar } from './browser-toolbar';
 import { bindBrowserWebviewEvents } from './browser-webview-events';
 import {
@@ -33,6 +34,7 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
   const [isRegistered, setIsRegistered] = useState(false);
   const sessionBrowserId = session?.browserId;
   const sessionPartition = session?.partition;
+  const showStartPage = session?.currentUrl === 'about:blank' && !session.isLoading;
 
   useEffect(() => {
     if (!sessionBrowserId || !sessionPartition || !session) {
@@ -189,7 +191,9 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
         }}
       />
       <div className="min-h-0 flex-1 bg-background">
-        {webviewProps && isRegistered ? (
+        {showStartPage ? (
+          <BrowserStartPage devServerUrls={devServers.urls} onOpenUrl={navigateTo} />
+        ) : webviewProps && isRegistered ? (
           <webview
             key={`${webviewMount?.browserId ?? 'browser'}:${webviewMount?.revision ?? 0}`}
             ref={attachWebview}
