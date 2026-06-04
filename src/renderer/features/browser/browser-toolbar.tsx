@@ -17,6 +17,7 @@ import { Input } from '@renderer/lib/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { normalizeBrowserUrl, type BrowserSessionSnapshot } from '@shared/browser';
 import { confirmClearBrowserStorage, openBrowserUrlExternally } from './browser-toolbar-actions';
+import { browserUrlInputText } from './browser-url-input';
 import type { BrowserWebviewAdapter } from './browser-webview-types';
 
 export function BrowserToolbar({
@@ -34,12 +35,12 @@ export function BrowserToolbar({
   onReload?: () => void;
   onFocusUrl?: (focus: () => void) => void;
 }) {
-  const [urlText, setUrlText] = useState(session.currentUrl);
+  const [urlText, setUrlText] = useState(browserUrlInputText(session.currentUrl));
   const [urlError, setUrlError] = useState<string | null>(null);
   const urlInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    setUrlText(session.currentUrl);
+    setUrlText(browserUrlInputText(session.currentUrl));
   }, [session.currentUrl]);
 
   useEffect(() => {

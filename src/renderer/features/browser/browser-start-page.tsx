@@ -23,7 +23,7 @@ export function BrowserStartPage({
                 <button
                   key={url}
                   type="button"
-                  className="group focus-visible:ring-ring/50 flex min-h-16 w-full items-center gap-3 rounded-lg border border-border bg-background px-4 py-3 text-left transition-colors hover:border-border-info hover:bg-background-secondary focus-visible:ring-3 focus-visible:outline-none"
+                  className="group focus-visible:ring-ring/50 flex min-h-16 w-full items-center gap-3 rounded-lg border border-border bg-background px-4 py-3 text-left transition-colors hover:border-border hover:bg-background-secondary focus-visible:ring-3 focus-visible:outline-none"
                   onClick={() => onOpenUrl(url)}
                 >
                   <span className="flex size-9 shrink-0 items-center justify-center rounded-md border border-border bg-background-secondary text-foreground-info">
