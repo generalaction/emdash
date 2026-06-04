@@ -484,14 +484,12 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
 const FieldTooltip: React.FC<{ content: string }> = ({ content }) => (
   <TooltipProvider>
     <Tooltip>
-      <TooltipTrigger>
-        <button
-          type="button"
-          className="text-muted-foreground hover:text-foreground"
-          aria-label="More information"
-        >
-          <Info className="h-3.5 w-3.5" aria-hidden="true" />
-        </button>
+      <TooltipTrigger
+        type="button"
+        className="text-muted-foreground hover:text-foreground"
+        aria-label="More information"
+      >
+        <Info className="h-3.5 w-3.5" aria-hidden="true" />
       </TooltipTrigger>
       <TooltipContent side="top" className="max-w-[200px] text-xs">
         {content}

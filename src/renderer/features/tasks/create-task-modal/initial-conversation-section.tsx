@@ -10,7 +10,7 @@ import {
 import { useEffectiveProvider } from '@renderer/features/tasks/conversations/use-effective-provider';
 import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
-import { Button } from '@renderer/lib/ui/button';
+import { Button, buttonVariants } from '@renderer/lib/ui/button';
 import { Field } from '@renderer/lib/ui/field';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
 import { Textarea } from '@renderer/lib/ui/textarea';
@@ -116,17 +116,17 @@ export function InitialConversationField({
               )}
             />
             <Tooltip>
-              <TooltipTrigger>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  onClick={handleToggleAutoApprove}
-                  disabled={!state.provider}
-                  data-active={autoApprove || undefined}
-                  className="transition-colors data-active:bg-background-destructive data-active:text-foreground-destructive"
-                >
-                  <CheckCheckIcon className="size-4" />
-                </Button>
+              <TooltipTrigger
+                type="button"
+                onClick={handleToggleAutoApprove}
+                disabled={!state.provider}
+                data-active={autoApprove || undefined}
+                className={cn(
+                  buttonVariants({ variant: 'ghost', size: 'icon-xs' }),
+                  'transition-colors data-active:bg-background-destructive data-active:text-foreground-destructive'
+                )}
+              >
+                <CheckCheckIcon className="size-4" />
               </TooltipTrigger>
               <TooltipContent>Auto approve</TooltipContent>
             </Tooltip>
@@ -138,6 +138,7 @@ export function InitialConversationField({
           <div className="px-2 py-1">
             <Popover>
               <PopoverTrigger
+                render={<div />}
                 className={cn(
                   'group relative flex items-center gap-1.5 rounded bg-background-2 py-0.5 pr-6 pl-2 text-xs text-foreground-muted',
                   'hover:bg-background-3 cursor-pointer'
