@@ -39,6 +39,15 @@ export class BrowserWebContentsRegistry {
     return this.browserIdByPartition.get(partition);
   }
 
+  getBrowserIdForWebContents(webContents: WebContents): string | undefined {
+    for (const registered of this.sessionsByBrowserId.values()) {
+      if (session.fromPartition(registered.partition) === webContents.session) {
+        return registered.browserId;
+      }
+    }
+    return undefined;
+  }
+
   attachWebContents(browserId: string, webContents: WebContents): void {
     if (!this.sessionsByBrowserId.has(browserId)) return;
 

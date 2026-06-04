@@ -86,8 +86,6 @@ export function getMainWindow(): BrowserWindow | null {
 }
 
 function registerBrowserWebviewHandlers(win: BrowserWindow): void {
-  const pendingBrowserIds: string[] = [];
-
   win.webContents.on('will-attach-webview', (event, webPreferences, params) => {
     const validation = validateBrowserWebviewAttach(
       params,
@@ -101,13 +99,10 @@ function registerBrowserWebviewHandlers(win: BrowserWindow): void {
 
     hardenBrowserWebviewPreferences(webPreferences);
     stripBrowserWebviewParams(params);
-    pendingBrowserIds.push(
-      browserWebContentsRegistry.getBrowserIdForPartition(validation.partition) ?? ''
-    );
   });
 
   win.webContents.on('did-attach-webview', (_event, webContents) => {
-    const browserId = pendingBrowserIds.shift();
+    const browserId = browserWebContentsRegistry.getBrowserIdForWebContents(webContents);
     if (!browserId) {
       webContents.close();
       return;
