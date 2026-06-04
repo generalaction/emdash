@@ -14,6 +14,7 @@ import {
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import type { BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { agentMeta } from '@renderer/lib/providers/meta';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
@@ -102,12 +103,17 @@ export const ImportShareModal = observer(function ImportShareModal({
 
         const automation = share.payload.automation;
         // Imported automations start paused so a shared cron never runs silently.
+        // Only the shared agent provider is carried over; workspace and branch
+        // fall back to project defaults at run time.
         const result = await rpc.automations.create({
           name: automation.name,
           description: automation.description ?? null,
           category: automation.category,
           trigger: automation.trigger,
           actions: automation.actions,
+          taskConfig: automation.agentProviderId
+            ? { initialConversation: { provider: automation.agentProviderId } }
+            : null,
           projectId: targetProjectId,
           enabled: false,
           isDraft: false,
@@ -220,6 +226,9 @@ export const ImportShareModal = observer(function ImportShareModal({
               <p className="text-muted-foreground mt-1 text-xs">
                 {formatTriggerLabel(share.payload.automation.trigger)} ·{' '}
                 {share.payload.automation.trigger.tz} · {share.payload.automation.category}
+                {share.payload.automation.agentProviderId
+                  ? ` · ${agentMeta[share.payload.automation.agentProviderId].label}`
+                  : ''}
               </p>
             </div>
             <pre className="bg-muted/20 text-muted-foreground max-h-60 overflow-auto rounded-md px-3 py-2 text-xs wrap-break-word whitespace-pre-wrap">
@@ -230,7 +239,10 @@ export const ImportShareModal = observer(function ImportShareModal({
                 Project
               </Label>
               {mountedProjects.length > 0 ? (
-                <Select value={targetProjectId} onValueChange={setTargetProjectId}>
+                <Select
+                  value={targetProjectId}
+                  onValueChange={(value) => setTargetProjectId(value ?? undefined)}
+                >
                   <SelectTrigger id="shared-automation-project" className="w-full">
                     <SelectValue placeholder="Select a project" />
                   </SelectTrigger>

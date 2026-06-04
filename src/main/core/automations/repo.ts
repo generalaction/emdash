@@ -22,12 +22,12 @@ import type {
   AutomationRunStatus,
   AutomationRunTriggerKind,
   AutomationRunWithContext,
+  AutomationTaskConfig,
   CreateAutomationInput,
   CronTrigger,
   UpdateAutomationPatch,
 } from '@shared/automations/types';
 import { assertValidCronTrigger, assertValidDeadline } from '@shared/automations/validation';
-import type { CreateTaskParams } from '@shared/tasks';
 
 const DEFAULT_TZ = getLocalTimeZone();
 
@@ -74,12 +74,12 @@ function assertValidAutomationInput(input: {
   if (!input.isDraft) assertPublishableActions(input.actions);
 }
 
-function parseTaskConfig(raw: string | null): CreateTaskParams | null {
+function parseTaskConfig(raw: string | null): AutomationTaskConfig | null {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as unknown;
     if (!parsed || typeof parsed !== 'object') return null;
-    return parsed as CreateTaskParams;
+    return parsed as AutomationTaskConfig;
   } catch (error) {
     log.warn('automations.repo: failed to parse taskConfig JSON', {
       error: String(error),

@@ -128,6 +128,8 @@ export function useAutomationsActions({
       try {
         // Share only the automation definition; projectId, taskConfig, and
         // runtime state stay local (workspace, SSH, and issue details live there).
+        // The agent provider id is the one exception: share pages show which
+        // agent backs the automation.
         const result = await rpc.share.create({
           type: 'automation',
           automation: {
@@ -138,6 +140,7 @@ export function useAutomationsActions({
             actions: automation.actions,
             deadlinePolicy: automation.deadlinePolicy,
             deadlineMs: automation.deadlineMs,
+            agentProviderId: automation.taskConfig?.initialConversation?.provider ?? null,
           },
         });
         if (!result.success || !result.data) {

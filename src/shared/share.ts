@@ -1,4 +1,5 @@
 import z from 'zod';
+import { AGENT_PROVIDER_IDS } from './agent-provider-registry';
 
 export const SHARE_MAX_PAYLOAD_BYTES = 100_000;
 
@@ -38,6 +39,8 @@ export const sharedAutomationSchema = z.object({
   actions: z.array(sharedTaskCreateActionSchema).min(1).max(20),
   deadlinePolicy: z.enum(['next-interval', 'fixed', 'none']),
   deadlineMs: z.number().int().positive().nullable().optional(),
+  /** Provider that backs the automation's tasks, so share pages can show the agent. */
+  agentProviderId: z.enum(AGENT_PROVIDER_IDS).nullable().optional(),
 });
 
 export const sharePayloadSchema = z.discriminatedUnion('type', [

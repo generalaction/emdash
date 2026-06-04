@@ -33,6 +33,7 @@ import { getLocalTimeZone } from '@shared/automations/timezone';
 import {
   AUTOMATION_NAME_MAX_LENGTH,
   type Automation,
+  type AutomationTaskConfig,
   type BuiltinAutomationTemplate,
   type CronTrigger,
 } from '@shared/automations/types';
@@ -75,7 +76,7 @@ function cronTzFromTrigger(trigger: CronTrigger | undefined): string {
 }
 
 /** Derives initial branch picker state from a stored task config. */
-function branchInitialFromConfig(config: CreateTaskParams | null | undefined): {
+function branchInitialFromConfig(config: AutomationTaskConfig | null | undefined): {
   createBranchAndWorktree: boolean;
   pushBranch?: boolean;
   branchOverride?: Branch;

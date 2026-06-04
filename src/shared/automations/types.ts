@@ -1,5 +1,6 @@
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 import type { TaskCreateAction } from '@shared/automations/actions';
+import type { CreateConversationParams } from '@shared/conversations';
 import type { CreateTaskParams } from '@shared/tasks';
 
 export const AUTOMATION_NAME_MAX_LENGTH = 120;
@@ -8,6 +9,15 @@ export type CronTrigger = { expr: string; tz: string };
 
 export type AutomationDeadlinePolicy = 'next-interval' | 'fixed' | 'none';
 
+/**
+ * Stored task template for automation runs. Persisted configs may be partial —
+ * imported automations only carry the agent provider — and `executeTaskCreate`
+ * fills the rest from project defaults at run time.
+ */
+export type AutomationTaskConfig = Partial<Omit<CreateTaskParams, 'initialConversation'>> & {
+  initialConversation?: Partial<CreateConversationParams>;
+};
+
 export type Automation = {
   id: string;
   name: string;
@@ -15,7 +25,7 @@ export type Automation = {
   category: string;
   trigger: CronTrigger;
   actions: TaskCreateAction[];
-  taskConfig: CreateTaskParams | null;
+  taskConfig: AutomationTaskConfig | null;
   projectId: string | null;
   /** Controls cron scheduling only. Manual runs are allowed while false. */
   enabled: boolean;
@@ -69,7 +79,7 @@ export type CreateAutomationInput = {
   category: string;
   trigger: CronTrigger;
   actions: TaskCreateAction[];
-  taskConfig?: CreateTaskParams | null;
+  taskConfig?: AutomationTaskConfig | null;
   projectId: string;
   enabled?: boolean;
   isDraft?: boolean;

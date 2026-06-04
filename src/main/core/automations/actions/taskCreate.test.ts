@@ -330,6 +330,38 @@ describe('executeTaskCreate', () => {
     expect(taskConfig?.initialConversation?.autoApprove).toBe(true);
   });
 
+  it('uses the provider from a partial imported task config and project-default workspace', async () => {
+    vi.mocked(appSettingsService.get).mockImplementation(async (key) =>
+      key === 'defaultAgent' ? 'claude' : (null as never)
+    );
+    vi.mocked(projectManager.getProject).mockReturnValue({
+      defaultWorkspaceType: { kind: 'local' },
+      repository: {
+        getBranchesPayload: vi.fn().mockResolvedValue({
+          gitDefaultBranch: 'main',
+          branches: [{ type: 'local', branch: 'main' }],
+        }),
+        getRepositoryInfo: vi.fn().mockResolvedValue({ isUnborn: false, currentBranch: 'main' }),
+        getConfiguredRemotes: vi.fn().mockResolvedValue({ baseRemote: 'origin' }),
+      },
+    } as never);
+    vi.mocked(taskService.createTask).mockResolvedValueOnce({
+      success: true,
+      data: { task: {} as never },
+    });
+
+    // Share imports only persist the agent provider (see import-share-modal).
+    await executeTaskCreate(automation.actions[0]!, {
+      automation: { ...automation, taskConfig: { initialConversation: { provider: 'codex' } } },
+      run,
+    });
+
+    const taskConfig = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
+    expect(taskConfig?.initialConversation?.provider).toBe('codex');
+    // Workspace falls back to project defaults, not the stored config.
+    expect(taskConfig?.workspaceConfig.git.kind).toBe('create-branch');
+  });
+
   it('persists the run task link immediately after task creation', async () => {
     vi.mocked(projectManager.getProject).mockReturnValue({} as never);
     vi.mocked(taskService.createTask).mockResolvedValueOnce({

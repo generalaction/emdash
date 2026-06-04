@@ -59,6 +59,22 @@ describe('share schemas', () => {
     ).toMatchObject({ type: 'automation' });
   });
 
+  it('accepts a known agent provider id and rejects unknown ones', () => {
+    const automation = {
+      name: 'Nightly triage',
+      category: 'maintenance',
+      trigger: { expr: '0 3 * * *', tz: 'UTC' },
+      actions: [{ kind: 'task.create', prompt: 'Triage all new issues.' }],
+      deadlinePolicy: 'none',
+    };
+    expect(
+      sharedAutomationSchema.parse({ ...automation, agentProviderId: 'claude' })
+    ).toMatchObject({ agentProviderId: 'claude' });
+    expect(() =>
+      sharedAutomationSchema.parse({ ...automation, agentProviderId: 'not-a-provider' })
+    ).toThrow();
+  });
+
   it('rejects automations without actions', () => {
     expect(() =>
       sharedAutomationSchema.parse({

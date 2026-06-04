@@ -12,6 +12,7 @@ import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
 import { resolveAutomationAgentAutoApprove } from '@shared/agent-auto-approve-defaults';
 import type { TaskCreateAction } from '@shared/automations/actions';
+import type { AutomationTaskConfig } from '@shared/automations/types';
 import type { Branch } from '@shared/git';
 import { bareRefName } from '@shared/git-utils';
 import type { LocalProject, SshProject } from '@shared/projects';
@@ -149,7 +150,10 @@ async function getProjectData(projectId: string): Promise<LocalProject | SshProj
   };
 }
 
-function makeRunTaskName(storedConfig: CreateTaskParams | null | undefined, ctx: ActionContext) {
+function makeRunTaskName(
+  storedConfig: AutomationTaskConfig | null | undefined,
+  ctx: ActionContext
+) {
   return generateTaskName({
     title: storedConfig?.name?.trim() || ctx.automation.name,
     description: ctx.run.id,
@@ -184,7 +188,7 @@ function scopeWorkspaceConfigToRun(config: WorkspaceConfig, runId: string): Work
  */
 function resolveStoredWorkspaceConfig(
   storedConfig:
-    | (CreateTaskParams & { gitSetup?: GitSetup; workspaceLocation?: WorkspaceLocation })
+    | (AutomationTaskConfig & { gitSetup?: GitSetup; workspaceLocation?: WorkspaceLocation })
     | null
     | undefined
 ): WorkspaceConfig | null {
@@ -221,7 +225,7 @@ export async function executeTaskCreate(
   if (!projectId) return err({ message: 'no_project_attached' });
 
   try {
-    const storedConfig = ctx.automation.taskConfig as CreateTaskParams | null | undefined;
+    const storedConfig = ctx.automation.taskConfig;
     const taskId = randomUUID();
     const conversationId = randomUUID();
     const taskName = makeRunTaskName(storedConfig, ctx);
