@@ -1,6 +1,7 @@
 import { CommandPaletteModal } from '@renderer/features/command-palette/command-palette-modal';
 import { IntegrationSetupModal } from '@renderer/features/integrations/integration-setup-modal';
 import { PromptModal } from '@renderer/features/library/prompts/prompt-modal';
+import { ImportShareModal } from '@renderer/features/library/share/import-share-modal';
 import { McpModal } from '@renderer/features/mcp/components/McpModal';
 import { AddProjectModal } from '@renderer/features/projects/components/add-project-modal/add-project-modal';
 import { ProjectConfigImportModal } from '@renderer/features/projects/components/settings-view/project-config-import-modal';
@@ -58,6 +59,7 @@ export const modalRegistry = {
   renameTaskModal: createModal(RenameTaskModal, { size: 'xs' }),
   shareProjectConfigModal: createModal(ShareProjectConfigModal, { size: 'md' }),
   projectConfigImportModal: createModal(ProjectConfigImportModal, { size: 'md' }),
+  importShareModal: createModal(ImportShareModal, { size: 'md' }),
   integrationSetupModal: createModal(IntegrationSetupModal, { size: 'md' }),
   githubConnectModal: createModal(GithubConnectModal, { size: 'md' }),
   addRemoteModal: createModal(AddRemoteModal),

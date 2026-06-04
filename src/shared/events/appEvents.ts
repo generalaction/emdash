@@ -26,6 +26,8 @@ export const notificationFocusTaskChannel = defineEvent<{
   conversationId?: string;
 }>('notification:focus-task');
 
+export const deepLinkChannel = defineEvent<{ url: string }>('deeplink:received');
+
 export const ptyStartedChannel = defineEvent<{
   id: string;
 }>('pty:started');

@@ -9,6 +9,7 @@ import {
   menuGiveFeedbackChannel,
   menuOpenSettingsChannel,
   menuQuitRequestedChannel,
+  deepLinkChannel,
   notificationFocusTaskChannel,
 } from '@shared/events/appEvents';
 
@@ -17,6 +18,7 @@ export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boole
   const { currentView, lastNonSettingsView } = useWorkspaceSlots();
   const showConfirmQuitModal = useShowModal('confirmActionModal');
   const showFeedbackModal = useShowModal('feedbackModal');
+  const showImportShareModal = useShowModal('importShareModal');
 
   useEffect(() => {
     return events.on(menuOpenSettingsChannel, () => {
@@ -47,6 +49,14 @@ export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boole
       showFeedbackModal({});
     });
   }, [showFeedbackModal]);
+
+  useEffect(() => {
+    return events.on(deepLinkChannel, ({ url }) => {
+      const parsed = parseShareDeepLink(url);
+      if (!parsed) return;
+      showImportShareModal(parsed);
+    });
+  }, [showImportShareModal]);
 
   useEffect(() => {
     const disposers = new Set<() => void>();
@@ -80,4 +90,19 @@ export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boole
   }, [navigate]);
 
   return null;
+}
+
+function parseShareDeepLink(urlValue: string): { type: 'skill' | 'prompt'; id: string } | null {
+  try {
+    const url = new URL(urlValue);
+    const parts = url.pathname.split('/').filter(Boolean);
+    if (url.hostname !== 'share' || parts.length !== 2) return null;
+    const [typePath, id] = parts;
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) return null;
+    if (typePath === 'skills') return { type: 'skill', id };
+    if (typePath === 'prompts') return { type: 'prompt', id };
+    return null;
+  } catch {
+    return null;
+  }
 }

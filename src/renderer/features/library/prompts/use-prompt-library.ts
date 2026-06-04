@@ -38,6 +38,7 @@ export function usePromptLibrary() {
   return {
     value: data ?? [],
     update: updateMutation.mutate,
+    updateAsync: updateMutation.mutateAsync,
     isLoading,
     isSaving: updateMutation.isPending,
   };

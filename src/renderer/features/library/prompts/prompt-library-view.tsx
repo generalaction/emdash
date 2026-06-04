@@ -1,8 +1,9 @@
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Share2, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { MultiLineListItem } from '@renderer/lib/components/multi-line-list-item';
 import { PageHeader } from '@renderer/lib/components/page-header';
 import { toast } from '@renderer/lib/hooks/use-toast';
+import { rpc } from '@renderer/lib/ipc';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
@@ -18,7 +19,7 @@ type PromptListItem = {
   prompt: string;
 };
 
-function createPromptId() {
+export function createPromptId() {
   return globalThis.crypto?.randomUUID?.() ?? `prompt-${Date.now()}`;
 }
 
@@ -32,11 +33,13 @@ function PromptRow({
   item,
   disabled,
   onEdit,
+  onShare,
   onDelete,
 }: {
   item: PromptListItem;
   disabled: boolean;
   onEdit: () => void;
+  onShare: () => void;
   onDelete: () => void;
 }) {
   return (
@@ -61,6 +64,15 @@ function PromptRow({
           aria-label={`Edit ${item.title}`}
         >
           <Pencil />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-xs"
+          onClick={onShare}
+          disabled={disabled}
+          aria-label={`Share ${item.title}`}
+        >
+          <Share2 />
         </Button>
         <Button
           variant="ghost"
@@ -136,6 +148,26 @@ export function PromptLibraryView() {
     });
   };
 
+  const sharePrompt = async (prompt: PromptLibraryPrompt) => {
+    try {
+      const result = await rpc.share.create({
+        type: 'prompt',
+        prompt: { title: prompt.title, prompt: prompt.prompt },
+      });
+      if (!result.success || !result.data) {
+        toast({ title: 'Failed to share prompt', description: result.error });
+        return;
+      }
+      await rpc.app.clipboardWriteText(result.data.url);
+      toast({ title: 'Link copied' });
+    } catch (error) {
+      toast({
+        title: 'Failed to share prompt',
+        description: error instanceof Error ? error.message : 'Unexpected error',
+      });
+    }
+  };
+
   return (
     <div className="flex h-full flex-col overflow-y-auto bg-background text-foreground">
       <div className="mx-auto w-full max-w-3xl px-8 py-8">
@@ -168,6 +200,7 @@ export function PromptLibraryView() {
                     item={prompt}
                     disabled={isDisabled}
                     onEdit={() => editPrompt(prompt)}
+                    onShare={() => void sharePrompt(prompt)}
                     onDelete={() => deletePrompt(prompt)}
                   />
                 </MultiLineListItem>

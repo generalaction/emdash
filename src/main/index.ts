@@ -5,6 +5,12 @@ import dockIcon from '@/assets/images/emdash/icon-dock.png?asset';
 import { PRODUCT_NAME } from '@shared/app-identity';
 import { automationsChangedChannel } from '@shared/events/automationEvents';
 import { registerRPCRouter } from '@shared/ipc/rpc';
+import {
+  attachDeepLinkFlush,
+  findDeepLinkInArgv,
+  handleDeepLinkUrl,
+  registerDeepLinkProtocol,
+} from './app/deep-link';
 import { setupApplicationMenu } from './app/menu';
 import { registerAppScheme, setupAppProtocol } from './app/protocol';
 import { createMainWindow } from './app/window';
@@ -59,7 +65,18 @@ initializeFileLogger();
 registerProcessErrorLogging(log);
 registerRendererLogHandler(ipcMain);
 
-app.on('second-instance', () => {
+app.on('open-url', (event, url) => {
+  event.preventDefault();
+  handleDeepLinkUrl(url);
+});
+
+app.on('second-instance', (_event, argv) => {
+  const deepLinkUrl = findDeepLinkInArgv(argv);
+  if (deepLinkUrl) {
+    handleDeepLinkUrl(deepLinkUrl);
+    return;
+  }
+
   const win = BrowserWindow.getAllWindows()[0];
   if (win?.isMinimized()) win.restore();
   win?.focus();
@@ -92,6 +109,7 @@ app.on('activate', () => {
 
 void app.whenReady().then(async () => {
   await resolveUserEnv();
+  registerDeepLinkProtocol();
 
   try {
     await initializeDatabase();
@@ -159,7 +177,13 @@ void app.whenReady().then(async () => {
 
   setupAppProtocol(join(app.getAppPath(), 'out', 'renderer'));
   setupApplicationMenu();
-  createMainWindow();
+  const mainWindow = createMainWindow();
+  attachDeepLinkFlush(mainWindow);
+
+  const coldStartDeepLink = findDeepLinkInArgv(process.argv);
+  if (coldStartDeepLink) {
+    handleDeepLinkUrl(coldStartDeepLink);
+  }
 
   try {
     await updateService.initialize();

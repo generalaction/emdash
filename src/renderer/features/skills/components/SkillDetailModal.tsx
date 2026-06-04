@@ -1,4 +1,4 @@
-import { FolderOpen, Trash2 } from 'lucide-react';
+import { Check, FolderOpen, Loader2, Share2, Trash2 } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
@@ -29,6 +29,7 @@ interface SkillDetailModalProps {
   onInstall: (skillId: string) => Promise<boolean>;
   onUninstall: (skillId: string) => void;
   onOpenTerminal?: (skillPath: string) => void;
+  onShare?: (skill: CatalogSkill) => Promise<boolean>;
 }
 
 export const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
@@ -39,8 +40,10 @@ export const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
   onInstall,
   onUninstall,
   onOpenTerminal,
+  onShare,
 }) => {
   const [isProcessing, setIsProcessing] = useState(false);
+  const [shareState, setShareState] = useState<'idle' | 'sharing' | 'done'>('idle');
 
   const handleInstall = useCallback(async () => {
     if (!skill) return;
@@ -63,6 +66,16 @@ export const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
       onOpenTerminal(skill.localPath);
     }
   }, [skill, onOpenTerminal]);
+
+  const handleShare = useCallback(async () => {
+    if (!skill || !onShare) return;
+    setShareState('sharing');
+    const success = await onShare(skill);
+    setShareState(success ? 'done' : 'idle');
+    if (success) {
+      window.setTimeout(() => setShareState('idle'), 1600);
+    }
+  }, [skill, onShare]);
 
   if (!skill) return null;
 
@@ -112,6 +125,23 @@ export const SkillDetailModal: React.FC<SkillDetailModalProps> = ({
         </DialogContentArea>
 
         <DialogFooter className="gap-2 sm:gap-2">
+          {skill.skillMdContent && onShare && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void handleShare()}
+              disabled={isProcessing || shareState === 'sharing'}
+            >
+              {shareState === 'sharing' ? (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              ) : shareState === 'done' ? (
+                <Check className="mr-1.5 h-3.5 w-3.5" />
+              ) : (
+                <Share2 className="mr-1.5 h-3.5 w-3.5" />
+              )}
+              Share
+            </Button>
+          )}
           {skill.installed && (
             <>
               <Button

@@ -2,10 +2,13 @@ import { Loader2, Plus, RefreshCw } from 'lucide-react';
 import React, { useCallback } from 'react';
 import { CardGridSection } from '@renderer/lib/components/card-grid';
 import { PageHeader } from '@renderer/lib/components/page-header';
+import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { SearchInput } from '@renderer/lib/ui/search-input';
+import type { CatalogSkill } from '@shared/skills/types';
+import { parseFrontmatter } from '@shared/skills/validation';
 import { SkillCard } from './SkillCard';
 import { SkillDetailModal } from './SkillDetailModal';
 import { useSkills } from './useSkills';
@@ -36,6 +39,37 @@ export const SkillsView: React.FC = () => {
   const handleOpenTerminal = (skillPath: string) => {
     void rpc.app.openIn({ app: 'terminal', path: skillPath });
   };
+
+  const handleShareSkill = useCallback(async (skill: CatalogSkill): Promise<boolean> => {
+    if (!skill.skillMdContent) return false;
+
+    const { frontmatter } = parseFrontmatter(skill.skillMdContent);
+    const name = frontmatter.name || skill.id;
+    try {
+      const result = await rpc.share.create({
+        type: 'skill',
+        skill: {
+          name,
+          displayName: skill.displayName,
+          description: skill.description,
+          skillMdContent: skill.skillMdContent,
+        },
+      });
+      if (!result.success || !result.data) {
+        toast({ title: 'Failed to share skill', description: result.error });
+        return false;
+      }
+      await rpc.app.clipboardWriteText(result.data.url);
+      toast({ title: 'Link copied' });
+      return true;
+    } catch (error) {
+      toast({
+        title: 'Failed to share skill',
+        description: error instanceof Error ? error.message : 'Unexpected error',
+      });
+      return false;
+    }
+  }, []);
 
   const handleUninstallRequest = useCallback(
     (skillId: string) => {
@@ -145,6 +179,7 @@ export const SkillsView: React.FC = () => {
         onInstall={install}
         onUninstall={handleUninstallRequest}
         onOpenTerminal={handleOpenTerminal}
+        onShare={handleShareSkill}
       />
     </div>
   );

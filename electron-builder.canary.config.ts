@@ -5,6 +5,7 @@ import {
   PRODUCT_NAME,
   R2_BASE_URL,
   UPDATE_CHANNEL,
+  APP_NAME_LOWER,
 } from './src/shared/app-identity.canary';
 
 const config: Configuration = {
@@ -20,6 +21,7 @@ const config: Configuration = {
     },
   ],
   generateUpdatesFilesForAllChannels: false,
+  protocols: [{ name: PRODUCT_NAME, schemes: [APP_NAME_LOWER] }],
   files: ['out/**/*', 'node_modules/**/*', 'drizzle/**/*'],
   asarUnpack: [
     'node_modules/better-sqlite3/**',
