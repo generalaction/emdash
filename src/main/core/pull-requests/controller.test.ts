@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { providerRepositoryService } from '@main/core/repository/provider-repository-service';
 import { err, ok } from '@shared/result';
 import { pullRequestController } from './controller';
 import { prSyncEngine } from './pr-sync-engine';
+import { resolveProjectGitHubAuthContext } from './project-github-auth-context';
 
 vi.mock('@main/core/repository/provider-repository-service', () => ({
   providerRepositoryService: {
@@ -46,7 +48,13 @@ vi.mock('./pr-sync-engine', () => ({
   },
 }));
 
+vi.mock('./project-github-auth-context', () => ({
+  resolveProjectGitHubAuthContext: vi.fn(),
+}));
+
 const mockPrSyncEngine = vi.mocked(prSyncEngine);
+const mockProviderRepositoryService = vi.mocked(providerRepositoryService);
+const mockResolveProjectGitHubAuthContext = vi.mocked(resolveProjectGitHubAuthContext);
 
 describe('pullRequestController', () => {
   beforeEach(() => {
@@ -172,6 +180,48 @@ describe('pullRequestController', () => {
     ).resolves.toEqual(
       err({ type: 'host_unreachable', host: 'github.com', reason: 'Connect Timeout Error' })
     );
+  });
+
+  it('passes the project GitHub account context to project-scoped PR sync', async () => {
+    mockResolveProjectGitHubAuthContext.mockResolvedValue({ accountId: 'github.com:42' });
+    mockProviderRepositoryService.resolveProject.mockResolvedValue(
+      ok({
+        provider: 'github',
+        host: 'github.com',
+        repositoryUrl: 'https://github.com/acme/repo',
+        nameWithOwner: 'acme/repo',
+        capabilities: { pullRequests: true, issues: true },
+      })
+    );
+
+    await expect(pullRequestController.syncPullRequests('project-1')).resolves.toEqual(ok());
+
+    expect(mockResolveProjectGitHubAuthContext).toHaveBeenCalledWith('project-1');
+    expect(mockPrSyncEngine.sync).toHaveBeenCalledWith('https://github.com/acme/repo', {
+      accountId: 'github.com:42',
+    });
+  });
+
+  it('passes the project GitHub account context to force-full PR sync', async () => {
+    mockResolveProjectGitHubAuthContext.mockResolvedValue({ accountId: 'github.com:42' });
+    mockProviderRepositoryService.resolveProject.mockResolvedValue(
+      ok({
+        provider: 'github',
+        host: 'github.com',
+        repositoryUrl: 'https://github.com/acme/repo',
+        nameWithOwner: 'acme/repo',
+        capabilities: { pullRequests: true, issues: true },
+      })
+    );
+
+    await expect(pullRequestController.forceFullSyncPullRequests('project-1')).resolves.toEqual(
+      ok()
+    );
+
+    expect(mockResolveProjectGitHubAuthContext).toHaveBeenCalledWith('project-1');
+    expect(mockPrSyncEngine.forceFullSync).toHaveBeenCalledWith('https://github.com/acme/repo', {
+      accountId: 'github.com:42',
+    });
   });
 
   it('maps create API errors to create_failed', async () => {

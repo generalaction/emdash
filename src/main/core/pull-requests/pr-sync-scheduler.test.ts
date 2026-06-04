@@ -1,5 +1,8 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ok } from '@shared/result';
+import { prSyncEngine } from './pr-sync-engine';
 import { PrSyncScheduler } from './pr-sync-scheduler';
+import { resolveProjectGitHubAuthContext } from './project-github-auth-context';
 
 const mocks = vi.hoisted(() => {
   const where = vi.fn();
@@ -11,6 +14,9 @@ const mocks = vi.hoisted(() => {
     select,
     where,
     resolveRepository: vi.fn(),
+    getProject: vi.fn(),
+    projectOn: vi.fn(),
+    resolveProjectGitHubAuthContext: vi.fn(),
   };
 });
 
@@ -32,8 +38,8 @@ vi.mock('@main/core/git/git-watcher-registry', () => ({
 
 vi.mock('@main/core/projects/project-manager', () => ({
   projectManager: {
-    getProject: vi.fn(),
-    on: vi.fn(),
+    getProject: mocks.getProject,
+    on: mocks.projectOn,
   },
 }));
 
@@ -53,6 +59,10 @@ vi.mock('./pr-sync-engine', () => ({
   },
 }));
 
+vi.mock('./project-github-auth-context', () => ({
+  resolveProjectGitHubAuthContext: mocks.resolveProjectGitHubAuthContext,
+}));
+
 vi.mock('./project-remotes-service', () => ({
   syncProjectRemotes: vi.fn(),
 }));
@@ -62,6 +72,49 @@ type SchedulerInternals = {
 };
 
 describe('PrSyncScheduler', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('passes selected GitHub account context to mounted project syncs', async () => {
+    vi.useFakeTimers();
+    try {
+      const project = {
+        settings: {},
+        ctx: {},
+        repository: {
+          getRemotes: vi
+            .fn()
+            .mockResolvedValue([{ name: 'origin', url: 'https://github.com/acme/repo.git' }]),
+        },
+      };
+      mocks.getProject.mockReturnValue(project);
+      mocks.resolveRepository.mockResolvedValue(
+        ok({
+          host: 'github.com',
+          repositoryUrl: 'https://github.com/acme/repo',
+          nameWithOwner: 'acme/repo',
+          owner: 'acme',
+          repo: 'repo',
+        })
+      );
+      mocks.resolveProjectGitHubAuthContext.mockResolvedValue({ accountId: 'github.com:42' });
+
+      const scheduler = new PrSyncScheduler();
+
+      await scheduler.onProjectMounted('project-1');
+
+      expect(resolveProjectGitHubAuthContext).toHaveBeenCalledWith('project-1');
+      expect(prSyncEngine.sync).toHaveBeenCalledWith('https://github.com/acme/repo', {
+        accountId: 'github.com:42',
+      });
+
+      scheduler.onProjectUnmounted('project-1');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('does not re-probe DB-backed fallback remotes', async () => {
     mocks.where.mockResolvedValue([
       { remoteUrl: 'https://ghe.example.com/acme/repo' },

@@ -13,6 +13,7 @@ import { err, ok } from '@shared/result';
 import { prQueryService } from './pr-query-service';
 import { prSyncEngine } from './pr-sync-engine';
 import { type PrSyncEngineError } from './pr-sync-errors';
+import { resolveProjectGitHubAuthContext } from './project-github-auth-context';
 
 type PrControllerFailureType =
   | 'create_failed'
@@ -131,7 +132,8 @@ export const pullRequestController = createRPCController({
       if (!capability.success) {
         return err<PullRequestError>({ type: 'remote_not_ready', status: capability.error.type });
       }
-      prSyncEngine.forceFullSync(capability.data.repositoryUrl);
+      const authContext = await resolveProjectGitHubAuthContext(projectId);
+      prSyncEngine.forceFullSync(capability.data.repositoryUrl, authContext);
       return ok();
     } catch (error) {
       log.error('Failed to force full sync:', error);
@@ -157,7 +159,8 @@ export const pullRequestController = createRPCController({
         projectId,
         repositoryUrl: capability.data.repositoryUrl,
       });
-      prSyncEngine.sync(capability.data.repositoryUrl);
+      const authContext = await resolveProjectGitHubAuthContext(projectId);
+      prSyncEngine.sync(capability.data.repositoryUrl, authContext);
       return ok();
     } catch (error) {
       log.error('Failed to trigger sync:', error);

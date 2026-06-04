@@ -48,6 +48,10 @@ function makeOctokit(overrides: {
   } as unknown as Octokit;
 }
 
+function flushPromises(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 describe('PrSyncEngine', () => {
   it('creates pull requests with a host-aware Octokit client', async () => {
     const createPullRequest = vi.fn().mockResolvedValue({
@@ -75,6 +79,22 @@ describe('PrSyncEngine', () => {
       draft: false,
     });
     expect(result).toEqual(ok({ url: 'https://ghe.example.com/acme/repo/pull/12', number: 12 }));
+  });
+
+  it('passes account context to repository sync Octokit resolution', async () => {
+    const getOctokit = vi.fn().mockResolvedValue(
+      err({
+        type: 'auth_required',
+        host: 'github.com',
+        message: 'GitHub authentication required.',
+      })
+    );
+    const engine = new PrSyncEngine(getOctokit);
+
+    engine.sync('https://github.com/acme/repo', { accountId: 'github.com:42' });
+    await flushPromises();
+
+    expect(getOctokit).toHaveBeenCalledWith('github.com', { accountId: 'github.com:42' });
   });
 
   it('maps post-token PR API auth failures to typed auth errors', async () => {

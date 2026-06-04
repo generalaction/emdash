@@ -9,6 +9,7 @@ import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
 import { log } from '@main/lib/logger';
 import { parseRepositoryRef } from '@shared/repository-ref';
 import { prSyncEngine } from './pr-sync-engine';
+import { resolveProjectGitHubAuthContext } from './project-github-auth-context';
 import { syncProjectRemotes } from './project-remotes-service';
 
 const INCREMENTAL_SYNC_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
@@ -52,14 +53,15 @@ export class PrSyncScheduler implements IInitializable, IDisposable {
 
     log.info('PrSyncScheduler: found GitHub remotes', { projectId, remoteUrls });
     this._projectRemoteUrls.set(projectId, remoteUrls);
+    const authContext = await resolveProjectGitHubAuthContext(projectId);
     const intervals: ReturnType<typeof setInterval>[] = [];
 
     for (const url of remoteUrls) {
       // sync() routes to full or incremental based on cursor state
-      prSyncEngine.sync(url);
+      prSyncEngine.sync(url, authContext);
 
       const handle = setInterval(() => {
-        prSyncEngine.sync(url);
+        prSyncEngine.sync(url, authContext);
       }, INCREMENTAL_SYNC_INTERVAL_MS);
 
       intervals.push(handle);
@@ -91,10 +93,11 @@ export class PrSyncScheduler implements IInitializable, IDisposable {
     if (!taskBranch) return;
 
     const remoteUrls = await this._getGitHubRemoteUrls(projectId);
+    const authContext = await resolveProjectGitHubAuthContext(projectId);
     for (const url of remoteUrls) {
       const prNumber = await this._findPrNumberForBranch(url, taskBranch);
       if (prNumber !== null) {
-        void prSyncEngine.syncSingle(url, prNumber);
+        void prSyncEngine.syncSingle(url, prNumber, authContext);
       }
     }
   }
@@ -120,13 +123,14 @@ export class PrSyncScheduler implements IInitializable, IDisposable {
     for (const h of handles) clearInterval(h);
 
     this._projectRemoteUrls.set(projectId, newUrls);
+    const authContext = await resolveProjectGitHubAuthContext(projectId);
     const intervals: ReturnType<typeof setInterval>[] = [];
 
     for (const url of newUrls) {
-      prSyncEngine.sync(url);
+      prSyncEngine.sync(url, authContext);
 
       const handle = setInterval(() => {
-        prSyncEngine.sync(url);
+        prSyncEngine.sync(url, authContext);
       }, INCREMENTAL_SYNC_INTERVAL_MS);
 
       intervals.push(handle);
