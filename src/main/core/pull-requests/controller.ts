@@ -1,8 +1,3 @@
-import type { GitHubApiAuthContext } from '@main/core/github/services/github-api-auth-service';
-import {
-  resolveProjectGitHubAuthContext,
-  type ProjectGitHubAuthContextError,
-} from '@main/core/github/services/project-github-auth-context';
 import { providerRepositoryService } from '@main/core/repository/provider-repository-service';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
@@ -14,15 +9,14 @@ import type {
   PullRequestFile,
 } from '@shared/pull-requests';
 import { isGitHubDotComHost, parseRepositoryRef } from '@shared/repository-ref';
-import { err, ok, type Result } from '@shared/result';
+import { err, ok } from '@shared/result';
 import { prQueryService } from './pr-query-service';
 import { prSyncEngine } from './pr-sync-engine';
 import { type PrSyncEngineError } from './pr-sync-errors';
 import {
-  resolveProjectGitHubContext,
-  type ProjectGitHubContext,
-  type ProjectGitHubContextError,
-} from './project-github-context';
+  resolveProjectPullRequestAuthContext,
+  resolveProjectPullRequestContext,
+} from './project-pull-request-context';
 
 type PrControllerFailureType =
   | 'create_failed'
@@ -47,43 +41,6 @@ type MergePullRequestOptions = {
   strategy: 'merge' | 'squash' | 'rebase';
   commitHeadOid?: string;
 };
-
-async function resolveProjectPullRequestContext(
-  projectId: string
-): Promise<Result<ProjectGitHubContext, PullRequestError>> {
-  const context = await resolveProjectGitHubContext(projectId);
-  if (!context.success) return err(mapProjectGitHubContextError(context.error));
-  return ok(context.data);
-}
-
-async function resolveProjectPullRequestAuthContext(
-  projectId: string
-): Promise<Result<GitHubApiAuthContext, PullRequestError>> {
-  const authContext = await resolveProjectGitHubAuthContext(projectId);
-  if (!authContext.success) return err(mapProjectGitHubAuthContextError(authContext.error));
-  return ok(authContext.data);
-}
-
-function mapProjectGitHubContextError(error: ProjectGitHubContextError): PullRequestError {
-  switch (error.type) {
-    case 'project_not_found':
-    case 'account_selection_failed':
-      return mapProjectGitHubAuthContextError(error);
-    case 'no_remote':
-    case 'invalid_remote':
-    case 'unsupported_provider':
-    case 'host_unreachable':
-    case 'host_error':
-      return { type: 'remote_not_ready', status: error.type };
-  }
-}
-
-function mapProjectGitHubAuthContextError(error: ProjectGitHubAuthContextError): PullRequestError {
-  return {
-    type: 'github_account_resolution_failed',
-    message: `Unable to resolve GitHub account for project: ${error.message}`,
-  };
-}
 
 function mapPrSyncEngineError(
   error: PrSyncEngineError,

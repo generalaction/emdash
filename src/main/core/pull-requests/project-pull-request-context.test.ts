@@ -2,7 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveProjectGitHubAuthContext } from '@main/core/github/services/project-github-auth-context';
 import { providerRepositoryService } from '@main/core/repository/provider-repository-service';
 import { err, ok } from '@shared/result';
-import { resolveProjectGitHubContext } from './project-github-context';
+import {
+  resolveProjectPullRequestAuthContext,
+  resolveProjectPullRequestContext,
+} from './project-pull-request-context';
 
 vi.mock('@main/core/repository/provider-repository-service', () => ({
   providerRepositoryService: {
@@ -17,12 +20,12 @@ vi.mock('@main/core/github/services/project-github-auth-context', () => ({
 const mockProviderRepositoryService = vi.mocked(providerRepositoryService);
 const mockResolveProjectGitHubAuthContext = vi.mocked(resolveProjectGitHubAuthContext);
 
-describe('resolveProjectGitHubContext', () => {
+describe('project GitHub pull request context', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('combines the project GitHub repository and auth context', async () => {
+  it('resolves pull request repository and auth context for a project', async () => {
     mockProviderRepositoryService.resolveProject.mockResolvedValue(
       ok({
         provider: 'github',
@@ -34,7 +37,7 @@ describe('resolveProjectGitHubContext', () => {
     );
     mockResolveProjectGitHubAuthContext.mockResolvedValue(ok({ accountId: 'github.com:42' }));
 
-    await expect(resolveProjectGitHubContext('project-1')).resolves.toEqual(
+    await expect(resolveProjectPullRequestContext('project-1')).resolves.toEqual(
       ok({
         projectId: 'project-1',
         repositoryUrl: 'https://github.com/acme/repo',
@@ -47,16 +50,16 @@ describe('resolveProjectGitHubContext', () => {
     expect(mockResolveProjectGitHubAuthContext).toHaveBeenCalledWith('project-1');
   });
 
-  it('returns the project repository error without resolving account context', async () => {
+  it('maps project repository errors to pull request remote readiness errors', async () => {
     mockProviderRepositoryService.resolveProject.mockResolvedValue(err({ type: 'no_remote' }));
 
-    await expect(resolveProjectGitHubContext('project-1')).resolves.toEqual(
-      err({ type: 'no_remote' })
+    await expect(resolveProjectPullRequestContext('project-1')).resolves.toEqual(
+      err({ type: 'remote_not_ready', status: 'no_remote' })
     );
     expect(mockResolveProjectGitHubAuthContext).not.toHaveBeenCalled();
   });
 
-  it('returns account resolution errors without falling back to the default account', async () => {
+  it('maps account resolution errors without falling back to the default account', async () => {
     mockProviderRepositoryService.resolveProject.mockResolvedValue(
       ok({
         provider: 'github',
@@ -74,11 +77,38 @@ describe('resolveProjectGitHubContext', () => {
       })
     );
 
-    await expect(resolveProjectGitHubContext('project-1')).resolves.toEqual(
+    await expect(resolveProjectPullRequestContext('project-1')).resolves.toEqual(
+      err({
+        type: 'github_account_resolution_failed',
+        message: 'Unable to resolve GitHub account for project: git config failed',
+      })
+    );
+  });
+
+  it('resolves auth-only context without resolving the project repository', async () => {
+    mockResolveProjectGitHubAuthContext.mockResolvedValue(ok({ accountId: 'github.com:42' }));
+
+    await expect(resolveProjectPullRequestAuthContext('project-1')).resolves.toEqual(
+      ok({ accountId: 'github.com:42' })
+    );
+
+    expect(mockProviderRepositoryService.resolveProject).not.toHaveBeenCalled();
+    expect(mockResolveProjectGitHubAuthContext).toHaveBeenCalledWith('project-1');
+  });
+
+  it('maps auth-only account resolution errors', async () => {
+    mockResolveProjectGitHubAuthContext.mockResolvedValue(
       err({
         type: 'account_selection_failed',
         projectId: 'project-1',
         message: 'git config failed',
+      })
+    );
+
+    await expect(resolveProjectPullRequestAuthContext('project-1')).resolves.toEqual(
+      err({
+        type: 'github_account_resolution_failed',
+        message: 'Unable to resolve GitHub account for project: git config failed',
       })
     );
   });

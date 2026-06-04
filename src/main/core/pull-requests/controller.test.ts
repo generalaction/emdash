@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { resolveProjectGitHubAuthContext } from '@main/core/github/services/project-github-auth-context';
 import { err, ok } from '@shared/result';
 import { pullRequestController } from './controller';
 import { prSyncEngine } from './pr-sync-engine';
-import { resolveProjectGitHubContext } from './project-github-context';
+import {
+  resolveProjectPullRequestAuthContext,
+  resolveProjectPullRequestContext,
+} from './project-pull-request-context';
 
 vi.mock('@main/core/repository/provider-repository-service', () => ({
   providerRepositoryService: {
@@ -48,17 +50,14 @@ vi.mock('./pr-sync-engine', () => ({
   },
 }));
 
-vi.mock('./project-github-context', () => ({
-  resolveProjectGitHubContext: vi.fn(),
-}));
-
-vi.mock('@main/core/github/services/project-github-auth-context', () => ({
-  resolveProjectGitHubAuthContext: vi.fn(),
+vi.mock('./project-pull-request-context', () => ({
+  resolveProjectPullRequestAuthContext: vi.fn(),
+  resolveProjectPullRequestContext: vi.fn(),
 }));
 
 const mockPrSyncEngine = vi.mocked(prSyncEngine);
-const mockResolveProjectGitHubContext = vi.mocked(resolveProjectGitHubContext);
-const mockResolveProjectGitHubAuthContext = vi.mocked(resolveProjectGitHubAuthContext);
+const mockResolveProjectPullRequestContext = vi.mocked(resolveProjectPullRequestContext);
+const mockResolveProjectPullRequestAuthContext = vi.mocked(resolveProjectPullRequestAuthContext);
 
 const selectedAuthContext = { accountId: 'github.com:42' };
 
@@ -71,7 +70,7 @@ function mockProjectGithubContext(
     authContext: { accountId?: string | null };
   }> = {}
 ) {
-  mockResolveProjectGitHubContext.mockResolvedValue(
+  mockResolveProjectPullRequestContext.mockResolvedValue(
     ok({
       projectId: overrides.projectId ?? 'project-1',
       host: overrides.host ?? 'github.com',
@@ -80,7 +79,7 @@ function mockProjectGithubContext(
       authContext: overrides.authContext ?? selectedAuthContext,
     })
   );
-  mockResolveProjectGitHubAuthContext.mockResolvedValue(
+  mockResolveProjectPullRequestAuthContext.mockResolvedValue(
     ok(overrides.authContext ?? selectedAuthContext)
   );
 }
@@ -104,7 +103,7 @@ describe('pullRequestController', () => {
       err({ type: 'cross_host_pr', baseHost: 'ghe.example.com', headHost: 'github.com' })
     );
     expect(mockPrSyncEngine.createPullRequest).not.toHaveBeenCalled();
-    expect(mockResolveProjectGitHubContext).not.toHaveBeenCalled();
+    expect(mockResolveProjectPullRequestContext).not.toHaveBeenCalled();
   });
 
   it('maps github.com auth failures separately from GHES auth failures', async () => {
@@ -231,7 +230,7 @@ describe('pullRequestController', () => {
 
     await expect(pullRequestController.syncPullRequests('project-1')).resolves.toEqual(ok());
 
-    expect(mockResolveProjectGitHubContext).toHaveBeenCalledWith('project-1');
+    expect(mockResolveProjectPullRequestContext).toHaveBeenCalledWith('project-1');
     expect(mockPrSyncEngine.sync).toHaveBeenCalledWith(
       'https://github.com/acme/repo',
       selectedAuthContext
@@ -245,7 +244,7 @@ describe('pullRequestController', () => {
       ok()
     );
 
-    expect(mockResolveProjectGitHubContext).toHaveBeenCalledWith('project-1');
+    expect(mockResolveProjectPullRequestContext).toHaveBeenCalledWith('project-1');
     expect(mockPrSyncEngine.forceFullSync).toHaveBeenCalledWith(
       'https://github.com/acme/repo',
       selectedAuthContext
@@ -271,8 +270,8 @@ describe('pullRequestController', () => {
       ok({ url: 'https://github.com/acme/repo/pull/12', number: 12 })
     );
 
-    expect(mockResolveProjectGitHubContext).not.toHaveBeenCalled();
-    expect(mockResolveProjectGitHubAuthContext).toHaveBeenCalledWith('project-1');
+    expect(mockResolveProjectPullRequestContext).not.toHaveBeenCalled();
+    expect(mockResolveProjectPullRequestAuthContext).toHaveBeenCalledWith('project-1');
     expect(mockPrSyncEngine.createPullRequest).toHaveBeenCalledWith(params, selectedAuthContext);
     expect(mockPrSyncEngine.syncSingle).toHaveBeenCalledWith(
       'https://github.com/acme/repo',
@@ -282,11 +281,10 @@ describe('pullRequestController', () => {
   });
 
   it('does not create pull requests with the default account when project account resolution fails', async () => {
-    mockResolveProjectGitHubAuthContext.mockResolvedValue(
+    mockResolveProjectPullRequestAuthContext.mockResolvedValue(
       err({
-        type: 'account_selection_failed',
-        projectId: 'project-1',
-        message: 'git config failed',
+        type: 'github_account_resolution_failed',
+        message: 'Unable to resolve GitHub account for project: git config failed',
       })
     );
 
@@ -306,7 +304,7 @@ describe('pullRequestController', () => {
     );
 
     expect(mockPrSyncEngine.createPullRequest).not.toHaveBeenCalled();
-    expect(mockResolveProjectGitHubContext).not.toHaveBeenCalled();
+    expect(mockResolveProjectPullRequestContext).not.toHaveBeenCalled();
   });
 
   it('passes the project GitHub account context to pull request mutations', async () => {
@@ -383,8 +381,8 @@ describe('pullRequestController', () => {
       12,
       selectedAuthContext
     );
-    expect(mockResolveProjectGitHubContext).not.toHaveBeenCalled();
-    expect(mockResolveProjectGitHubAuthContext).toHaveBeenCalledTimes(4);
+    expect(mockResolveProjectPullRequestContext).not.toHaveBeenCalled();
+    expect(mockResolveProjectPullRequestAuthContext).toHaveBeenCalledTimes(4);
   });
 
   it('maps create API errors to create_failed', async () => {
