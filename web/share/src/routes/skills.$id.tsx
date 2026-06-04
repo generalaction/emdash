@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { shareMeta } from '../components/share-meta';
-import { SharePage } from '../components/SharePage';
+import { ContentPane, SharePage } from '../components/SharePage';
 import { getSkillSharePage } from '../server/share-fns';
 
 export const Route = createFileRoute('/skills/$id')({
@@ -25,11 +25,13 @@ function SkillSharePage() {
       eyebrow="Skill"
       title={data.skill.displayName}
       description={data.skill.description}
+      meta={<span className="meta-line">1 file</span>}
       deepLink={`emdash://share/skills/${data.id}`}
-      copyText={data.skill.skillMdContent}
     >
-      {/* renderMarkdown escapes text, drops raw HTML, and rejects unsafe link protocols. */}
-      <article className="markdown" dangerouslySetInnerHTML={{ __html: data.contentHtml }} />
+      <ContentPane label="SKILL.md" copyText={data.skill.skillMdContent}>
+        {/* renderMarkdown escapes text, drops raw HTML, and rejects unsafe link protocols. */}
+        <article className="markdown" dangerouslySetInnerHTML={{ __html: data.contentHtml }} />
+      </ContentPane>
     </SharePage>
   );
 }

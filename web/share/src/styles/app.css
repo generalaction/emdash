@@ -1,161 +1,431 @@
+/* Emdash design language — tokens mirror src/renderer/index.css (.emlight / .emdark). */
+
 :root {
   color-scheme: light dark;
-  font-family:
-    Inter,
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    sans-serif;
-  --bg: #f7f7f4;
-  --fg: #171717;
-  --muted: #4d4d46;
-  --faint: #6b6b62;
-  --border: #c9c8bf;
-  --panel-bg: #ffffff;
-  --panel-border: #deddd4;
+
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans',
+    'Droid Sans', 'Helvetica Neue', sans-serif;
+  --font-mono: Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+
+  --radius: 0.5rem;
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  /* Neutral (Radix light P3) */
+  --neutral-2: color(display-p3 0.975 0.975 0.975);
+  --neutral-3: color(display-p3 0.939 0.939 0.939);
+  --neutral-5: color(display-p3 0.88 0.88 0.88);
+  --neutral-8: color(display-p3 0.732 0.732 0.732);
+  --neutral-11: color(display-p3 0.392 0.392 0.392);
+  --neutral-12: color(display-p3 0.125 0.125 0.125);
+
+  /* Jade (primary button) */
+  --jade-2: color(display-p3 0.962 0.983 0.969);
+  --jade-11: color(display-p3 0.15 0.5 0.37);
+  --jade-12: color(display-p3 0.142 0.229 0.194);
+
+  /* Blue (selection) */
+  --blue-6: color(display-p3 0.709 0.843 0.976);
+  --blue-12: color(display-p3 0.102 0.193 0.379);
+
+  /* Semantic tokens */
+  --background: white;
+  --background-1: var(--neutral-2);
+  --background-2: var(--neutral-3);
+  --foreground: var(--neutral-12);
+  --foreground-muted: var(--neutral-11);
+  --foreground-passive: var(--neutral-8);
+  --border: var(--neutral-5);
+  --border-1: var(--neutral-8);
+  --ring: hsl(0 0% 3.9%);
+
+  --primary-button-background: var(--jade-12);
+  --primary-button-background-hover: var(--jade-11);
+  --primary-button-foreground: var(--jade-2);
+  --primary-button-border: transparent;
+
+  --selection: var(--blue-6);
+  --selection-foreground: var(--blue-12);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #11110f;
-    --fg: #f4f4ef;
-    --muted: #aaa89f;
-    --faint: #aaa89f;
-    --border: #3d3c37;
-    --panel-bg: #191916;
-    --panel-border: #33322d;
+    /* Neutral (Radix dark P3) */
+    --neutral-2: color(display-p3 0.098 0.098 0.098);
+    --neutral-3: color(display-p3 0.135 0.135 0.135);
+    --neutral-5: color(display-p3 0.192 0.192 0.192);
+    --neutral-8: color(display-p3 0.375 0.375 0.375);
+    --neutral-11: color(display-p3 0.706 0.706 0.706);
+    --neutral-12: color(display-p3 0.933 0.933 0.933);
+
+    --jade-4: color(display-p3 0.102 0.228 0.177);
+    --jade-5: color(display-p3 0.133 0.279 0.221);
+    --jade-7: color(display-p3 0.219 0.402 0.335);
+    --jade-12: color(display-p3 0.734 0.934 0.838);
+
+    --blue-9: color(display-p3 0.247 0.556 0.969);
+
+    --background: color(display-p3 0.067 0.067 0.067);
+    --background-1: var(--neutral-2);
+    --background-2: var(--neutral-3);
+    --foreground: var(--neutral-12);
+    --foreground-muted: var(--neutral-11);
+    --foreground-passive: color(display-p3 0.431 0.431 0.431);
+    --border: color(display-p3 0.228 0.228 0.228);
+    --border-1: color(display-p3 0.283 0.283 0.283);
+    --ring: var(--neutral-11);
+
+    --primary-button-background: var(--jade-4);
+    --primary-button-background-hover: var(--jade-5);
+    --primary-button-foreground: var(--jade-12);
+    --primary-button-border: var(--jade-7);
+
+    --selection: var(--blue-9);
+    --selection-foreground: color(display-p3 0.788 0.898 0.99);
   }
 }
 
-body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--fg);
+::selection {
+  background: var(--selection);
+  color: var(--selection-foreground);
 }
+
+body {
+  -webkit-font-smoothing: antialiased;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  margin: 0;
+}
+
+/* ── Brand bar ─────────────────────────────────────────────── */
+
+.brand-bar {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  margin: 0 auto;
+  padding: 24px 0 16px;
+  width: min(840px, calc(100% - 40px));
+}
+
+.brand-logo {
+  color: var(--foreground);
+  display: inline-flex;
+}
+
+.brand-download {
+  border-radius: var(--radius-md);
+  color: var(--foreground-muted);
+  font-size: 13px;
+  padding: 5px 10px;
+  text-decoration: none;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.brand-download:hover {
+  background: var(--background-1);
+  color: var(--foreground);
+}
+
+/* ── Page ──────────────────────────────────────────────────── */
 
 main {
-  width: min(880px, calc(100% - 32px));
   margin: 0 auto;
-  padding: 56px 0;
+  padding: 8px 0 168px;
+  width: min(840px, calc(100% - 40px));
 }
 
-.header {
-  display: grid;
+/* ── Share card ────────────────────────────────────────────── */
+
+.share-card {
+  background: var(--background-1);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.share-card-header {
+  align-items: flex-start;
+  display: flex;
   gap: 16px;
-  margin-bottom: 24px;
+  padding: 24px;
+}
+
+.icon-tile {
+  background: var(--foreground);
+  border-radius: 12px;
+  color: var(--background);
+  display: grid;
+  flex: none;
+  height: 48px;
+  place-items: center;
+  width: 48px;
+}
+
+.icon-tile-mark {
+  width: 24px;
+}
+
+.share-card-heading {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
 }
 
 .eyebrow {
-  color: var(--faint);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  color: var(--foreground-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
   margin: 0;
   text-transform: uppercase;
 }
 
 h1 {
-  font-size: clamp(32px, 5vw, 56px);
-  line-height: 1.05;
-  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
   letter-spacing: -0.01em;
+  line-height: 1.3;
+  margin: 0;
   overflow-wrap: anywhere;
 }
 
 .description {
-  color: var(--muted);
-  font-size: 16px;
-  line-height: 1.55;
-  margin: 0;
-  max-width: 680px;
-}
-
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.actions a,
-.actions button {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: inherit;
-  cursor: pointer;
-  font: inherit;
+  color: var(--foreground-muted);
   font-size: 14px;
-  padding: 10px 14px;
-  text-decoration: none;
-  transition: opacity 120ms ease;
+  line-height: 1.625;
+  margin: 0;
+  max-width: 70ch;
 }
 
-.actions a:hover,
-.actions button:hover {
-  opacity: 0.8;
+.share-card-meta {
+  margin-top: 2px;
 }
 
-.actions button {
-  background: transparent;
+.meta-line {
+  color: var(--foreground-passive);
+  font-size: 12px;
 }
 
-.actions .primary {
-  background: var(--fg);
-  border-color: var(--fg);
-  color: var(--bg);
+/* ── Content panes ─────────────────────────────────────────── */
+
+.share-pane {
+  background: var(--background);
+  border-top: 1px solid var(--border);
 }
 
-.panel {
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
-  border-radius: 8px;
-  margin: 0 0 16px;
-  overflow: auto;
-  padding: 18px;
+.pane-tab {
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 12px 8px 24px;
+}
+
+.pane-tab-label {
+  align-items: center;
+  color: var(--foreground-muted);
+  display: inline-flex;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  gap: 8px;
+}
+
+.pane-file-icon {
+  height: 14px;
+  width: 14px;
+}
+
+.pane-content {
+  overflow-x: auto;
+  padding: 24px;
+}
+
+.prompt-text {
+  color: var(--foreground);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 0;
   white-space: pre-wrap;
 }
 
+.ghost-button {
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-md);
+  color: var(--foreground-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  height: 26px;
+  padding: 0 10px;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.ghost-button:hover {
+  background: var(--background-1);
+  color: var(--foreground);
+}
+
+.ghost-button:focus-visible {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
+  outline: none;
+}
+
 code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   font-size: 13px;
   line-height: 1.55;
 }
 
+/* ── Facts (automations) ───────────────────────────────────── */
+
 .facts {
   display: grid;
   gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  margin-bottom: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
 }
 
 .facts > div {
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
-  border-radius: 8px;
+  background: var(--background-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
   padding: 14px 16px;
 }
 
 .facts h2 {
-  color: var(--faint);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  color: var(--foreground-muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
   margin: 0 0 6px;
   text-transform: uppercase;
 }
 
 .facts p {
-  color: var(--fg);
+  color: var(--foreground);
   font-size: 14px;
   margin: 0;
   overflow-wrap: anywhere;
 }
 
-footer {
-  border-top: 1px solid var(--panel-border);
-  color: var(--faint);
+/* ── Agent badge ───────────────────────────────────────────── */
+
+.agent-badge {
+  align-items: center;
+  color: var(--foreground);
+  display: inline-flex;
   font-size: 13px;
-  margin-top: 40px;
-  padding-top: 20px;
+  gap: 7px;
+}
+
+.agent-icon {
+  display: inline-flex;
+  flex: none;
+  height: 16px;
+  width: 16px;
+}
+
+.agent-icon img {
+  border-radius: 3px;
+  display: block;
+  height: 16px;
+  object-fit: contain;
+  width: 16px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .invert-dark {
+    filter: invert(1);
+  }
+}
+
+/* ── Bottom CTA ────────────────────────────────────────────── */
+
+.cta-bar {
+  align-items: center;
+  background: linear-gradient(to top, var(--background) 62%, transparent);
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  left: 0;
+  padding: 40px 20px calc(16px + env(safe-area-inset-bottom));
+  pointer-events: none;
+  position: fixed;
+  right: 0;
+}
+
+.cta-pill {
+  align-items: center;
+  background: var(--primary-button-background);
+  border: 1px solid var(--primary-button-border);
+  border-radius: 999px;
+  color: var(--primary-button-foreground);
+  display: inline-flex;
+  font-size: 15px;
+  font-weight: 500;
+  gap: 8px;
+  height: 48px;
+  justify-content: center;
+  pointer-events: auto;
+  text-decoration: none;
+  transition: background-color 150ms ease;
+  width: min(560px, 100%);
+}
+
+.cta-pill:hover {
+  background: var(--primary-button-background-hover);
+}
+
+.cta-pill:focus-visible {
+  border-color: var(--ring);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 50%, transparent);
+  outline: none;
+}
+
+.cta-arrow {
+  height: 16px;
+  transition: transform 150ms ease;
+  width: 16px;
+}
+
+.cta-pill:hover .cta-arrow {
+  transform: translateX(2px);
+}
+
+.cta-hint {
+  color: var(--foreground-muted);
+  font-size: 12px;
+  margin: 0;
+  pointer-events: auto;
+}
+
+.cta-hint a {
+  color: inherit;
+  text-decoration-color: color-mix(in srgb, currentColor 50%, transparent);
+}
+
+.cta-hint a:hover {
+  color: var(--foreground);
+  text-decoration-color: currentColor;
+}
+
+/* ── Footer ────────────────────────────────────────────────── */
+
+footer {
+  color: var(--foreground-passive);
+  font-size: 12px;
+  margin-top: 20px;
 }
 
 footer p {
@@ -164,17 +434,39 @@ footer p {
 
 footer a {
   color: inherit;
+  text-decoration-color: color-mix(in srgb, currentColor 50%, transparent);
 }
 
-/* Rendered SKILL.md markdown */
+footer a:hover {
+  color: var(--foreground);
+  text-decoration-color: currentColor;
+}
+
+/* ── Not found ─────────────────────────────────────────────── */
+
+.not-found {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+  padding-top: 14vh;
+}
+
+.not-found h1 {
+  font-size: clamp(24px, 4vw, 32px);
+}
+
+.not-found-cta {
+  margin-top: 10px;
+  padding: 0 28px;
+  width: auto;
+}
+
+/* ── Rendered SKILL.md markdown — mirrors the desktop markdown renderer ── */
+
 .markdown {
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
-  border-radius: 8px;
-  font-size: 15px;
-  line-height: 1.65;
+  font-size: 14px;
+  line-height: 1.625;
   overflow-wrap: anywhere;
-  padding: 24px 28px;
 }
 
 .markdown > :first-child {
@@ -186,81 +478,144 @@ footer a {
 }
 
 .markdown h1,
-.markdown h2,
-.markdown h3,
-.markdown h4 {
-  font-size: revert;
+.markdown h2 {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+
+.markdown h1 {
+  font-size: 24px;
+  font-weight: 600;
   letter-spacing: normal;
   line-height: 1.3;
-  margin: 1.4em 0 0.5em;
+  margin: 24px 0 16px;
+}
+
+.markdown h2 {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 24px 0 12px;
+}
+
+.markdown h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 16px 0 8px;
+}
+
+.markdown h4,
+.markdown h5,
+.markdown h6 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 16px 0 8px;
 }
 
 .markdown p,
 .markdown ul,
 .markdown ol {
-  color: var(--fg);
-  margin: 0 0 0.9em;
+  color: var(--foreground);
+  margin: 0 0 12px;
 }
 
 .markdown li {
-  margin: 0.25em 0;
+  margin: 4px 0;
+}
+
+.markdown a {
+  color: var(--foreground);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, currentColor 50%, transparent);
+}
+
+.markdown a:hover {
+  text-decoration-color: currentColor;
 }
 
 .markdown blockquote {
-  border-left: 3px solid var(--border);
-  color: var(--muted);
-  margin: 0 0 0.9em;
-  padding-left: 14px;
+  border-left: 2px solid var(--border-1);
+  color: var(--foreground-muted);
+  margin: 0 0 12px;
+  padding-left: 12px;
 }
 
 .markdown code {
-  background: color-mix(in srgb, var(--fg) 7%, transparent);
-  border-radius: 4px;
-  padding: 0.15em 0.35em;
+  background: var(--background-2);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  padding: 2px 6px;
 }
 
 .markdown pre {
-  border: 1px solid var(--panel-border);
-  border-radius: 8px;
-  margin: 0 0 0.9em;
+  background: var(--background-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  margin: 0 0 12px;
   overflow: auto;
-  padding: 14px 16px;
+  padding: 12px 14px;
 }
 
 .markdown pre code {
   background: transparent;
+  border-radius: 0;
+  font-size: 13px;
   padding: 0;
 }
 
 .markdown table {
   border-collapse: collapse;
   display: block;
-  margin: 0 0 0.9em;
+  margin: 0 0 12px;
   overflow: auto;
   width: 100%;
 }
 
 .markdown th,
 .markdown td {
-  border: 1px solid var(--panel-border);
+  border-bottom: 1px solid var(--border);
   padding: 6px 10px;
   text-align: left;
 }
 
-.markdown hr {
-  border: none;
-  border-top: 1px solid var(--panel-border);
-  margin: 1.4em 0;
+.markdown th {
+  font-weight: 500;
 }
 
-/* Shiki dual theme: swap to the dark palette via CSS variables */
+.markdown hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 24px 0;
+}
+
+/* Shiki: drop the theme background so code sits on our panel surface, and
+   swap to the dark token palette via CSS variables. */
+.markdown .shiki {
+  background-color: transparent !important;
+}
+
 @media (prefers-color-scheme: dark) {
-  .markdown .shiki,
   .markdown .shiki span {
-    background-color: var(--shiki-dark-bg) !important;
+    background-color: transparent !important;
     color: var(--shiki-dark) !important;
     font-style: var(--shiki-dark-font-style) !important;
     font-weight: var(--shiki-dark-font-weight) !important;
     text-decoration: var(--shiki-dark-text-decoration) !important;
+  }
+}
+
+/* ── Mobile ────────────────────────────────────────────────── */
+
+@media (max-width: 560px) {
+  .share-card-header {
+    padding: 16px;
+  }
+
+  .pane-tab {
+    padding-left: 16px;
+  }
+
+  .pane-content {
+    padding: 16px;
   }
 }
