@@ -87,8 +87,7 @@ export type Task = {
   conversations: Record<string, number>;
   workspaceGit?: { linesAdded: number; linesDeleted: number };
   workspaceId?: string;
-  workspaceProviderData?: string; // JSON, BYOI only
-  automationId?: string;
+  runId?: string;
 };
 
 export type TaskBootstrapStatus =

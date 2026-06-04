@@ -8,7 +8,6 @@ interface AutomationsListProps {
 }
 
 export function AutomationsList({ automations, onEdit }: AutomationsListProps) {
-  if (automations.length === 0) return null;
   return (
     <div className="space-y-1 py-1">
       {automations.map((automation) => (

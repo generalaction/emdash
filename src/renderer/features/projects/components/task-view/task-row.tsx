@@ -52,8 +52,6 @@ export const TaskRow = observer(function TaskRow({
       taskId: task.data.id,
       currentName: task.data.name,
     });
-  const handleConvertAutomation = () => void task.convertAutomationTask();
-
   const isArchived = Boolean(task.data.archivedAt);
   const canPin = task.state !== 'unregistered';
   const agentAttention = taskAgentStatus(task);
@@ -71,7 +69,7 @@ export const TaskRow = observer(function TaskRow({
       onRename={handleRename}
       onArchive={handleArchive}
       onRestore={handleRestore}
-      onConvertAutomation={task.data.automationId ? handleConvertAutomation : undefined}
+      onConvertAutomation={undefined}
       onDelete={handleDelete}
     >
       <button

@@ -1,4 +1,13 @@
-import { Ellipsis, Trash2, CheckCircle2, ChevronDown, FolderOpen } from 'lucide-react';
+import {
+  CheckCircle2,
+  ChevronDown,
+  Ellipsis,
+  FolderOpen,
+  Play,
+  Square,
+  Trash2,
+  X,
+} from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState, type ReactNode } from 'react';
 import {
@@ -16,8 +25,10 @@ import { ProjectSelector } from '@renderer/features/tasks/create-task-modal/proj
 import { useBranchName } from '@renderer/features/tasks/create-task-modal/use-branch-name';
 import { useBranchSelection } from '@renderer/features/tasks/create-task-modal/use-branch-selection';
 import { useTaskName } from '@renderer/features/tasks/create-task-modal/use-task-name';
+import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
+import { rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
@@ -28,47 +39,33 @@ import {
   DropdownMenuTrigger,
 } from '@renderer/lib/ui/dropdown-menu';
 import { EditableNameField } from '@renderer/lib/ui/editable-name-field';
-import { Input } from '@renderer/lib/ui/input';
 import { Label } from '@renderer/lib/ui/label';
 import { PanelTabs } from '@renderer/lib/ui/panel-tabs';
 import { SheetFooter } from '@renderer/lib/ui/sheet';
+import { Spinner } from '@renderer/lib/ui/spinner';
 import { Switch } from '@renderer/lib/ui/switch';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { isValidProviderId } from '@shared/agent-provider-registry';
 import type { TaskCreateAction } from '@shared/automations/actions';
-import { automationCatalogCategories } from '@shared/automations/builtin-catalog';
 import { formatAutomationError } from '@shared/automations/format';
 import { DEFAULT_SCHEDULE, scheduleToCron } from '@shared/automations/schedule';
 import { getLocalTimeZone } from '@shared/automations/timezone';
 import {
   AUTOMATION_NAME_MAX_LENGTH,
   type Automation,
-  type BuiltinAutomationTemplate,
   type CronTrigger,
 } from '@shared/automations/types';
 import { assertValidCronTrigger } from '@shared/automations/validation';
 import type { Branch } from '@shared/git';
+import { makePtySessionId } from '@shared/ptySessionId';
 import type { CreateTaskParams } from '@shared/tasks';
 import type { WorkspaceConfig, WorkspaceTarget } from '@shared/workspace-config';
-import { useAutomations } from '../useAutomations';
-import { AutomationPanelHeader } from './AutomationPanelHeader';
+import { isActiveStatus } from '../run-status-styles';
+import { useAutomations, useAutomationRuns } from '../useAutomations';
 import { SchedulePicker } from './pickers/SchedulePicker';
 import { RunHistory } from './RunHistory';
 
 const DEFAULT_CRON = scheduleToCron(DEFAULT_SCHEDULE);
-
-export type AutomationPanelMode =
-  | { kind: 'create'; template?: BuiltinAutomationTemplate }
-  | { kind: 'edit'; automation: Automation };
-
-interface AutomationPanelProps {
-  mode: AutomationPanelMode;
-  onClose: () => void;
-  onSaved?: (automation: Automation) => void;
-  onDelete?: (automation: Automation) => void;
-  onRunNow?: (automation: Automation) => void;
-  onToggleEnabled?: (automation: Automation, enabled: boolean) => void;
-  runNowPending?: boolean;
-}
 
 function extractTaskAction(actions: TaskCreateAction[] | undefined): TaskCreateAction | undefined {
   return actions?.[0];
@@ -82,14 +79,12 @@ function cronTzFromTrigger(trigger: CronTrigger | undefined): string {
   return trigger?.tz ?? getLocalTimeZone();
 }
 
-/** Derives initial branch picker state from a stored task config. */
 function branchInitialFromConfig(config: CreateTaskParams | null | undefined): {
   createBranchAndWorktree: boolean;
   pushBranch?: boolean;
   branchOverride?: Branch;
 } {
   if (!config) return { createBranchAndWorktree: true };
-
   const git = config.workspaceConfig?.git;
   if (git?.kind === 'create-branch') {
     return {
@@ -98,9 +93,7 @@ function branchInitialFromConfig(config: CreateTaskParams | null | undefined): {
       branchOverride: git.fromBranch,
     };
   }
-  if (git?.kind === 'none') {
-    return { createBranchAndWorktree: false };
-  }
+  if (git?.kind === 'none') return { createBranchAndWorktree: false };
   return { createBranchAndWorktree: true };
 }
 
@@ -113,11 +106,7 @@ function plainBranch(branch: Branch): Branch {
     };
   }
   return branch.remote
-    ? {
-        type: 'local',
-        branch: branch.branch,
-        remote: { name: branch.remote.name, url: branch.remote.url },
-      }
+    ? { type: 'local', branch: branch.branch, remote: { name: branch.remote.name, url: branch.remote.url } }
     : { type: 'local', branch: branch.branch };
 }
 
@@ -128,35 +117,36 @@ const AUTOMATION_TABS: { value: AutomationTab; label: string }[] = [
   { value: 'settings', label: 'Settings' },
 ];
 
-export const AutomationPanel = observer(function AutomationPanel({
-  mode,
+export interface AutomationDetailViewProps {
+  automation: Automation;
+  onClose: () => void;
+  onDelete?: (automation: Automation) => void;
+  onRunNow?: (automation: Automation) => void;
+  onToggleEnabled?: (automation: Automation, enabled: boolean) => void;
+  runNowPending?: boolean;
+}
+
+export const AutomationDetailView = observer(function AutomationDetailView({
+  automation,
   onClose,
-  onSaved,
   onDelete,
-  onRunNow,
   onToggleEnabled,
-  runNowPending,
-}: AutomationPanelProps) {
-  const isEdit = mode.kind === 'edit';
-  const automation = mode.kind === 'edit' ? mode.automation : undefined;
+  runNowPending: _runNowPending,
+}: AutomationDetailViewProps) {
   const [activeTab, setActiveTab] = useState<AutomationTab>('runs');
-  const [appliedTemplate, setAppliedTemplate] = useState<BuiltinAutomationTemplate | undefined>(
-    mode.kind === 'create' ? mode.template : undefined
-  );
 
-  const seedTrigger = automation?.trigger ?? appliedTemplate?.defaultTrigger;
-  const seedTaskAction = extractTaskAction(automation?.actions ?? appliedTemplate?.defaultActions);
-  const seedConfig = automation?.taskConfig;
+  const seedTrigger = automation.trigger;
+  const seedTaskAction = extractTaskAction(automation.actions);
+  const seedConfig = automation.taskConfig;
 
-  const [name, setName] = useState(automation?.name ?? appliedTemplate?.name ?? '');
+  const [name, setName] = useState(automation.name);
   const [projectId, setProjectId] = useState<string | undefined>(
-    automation?.projectId ?? firstMountedProjectId()
+    automation.projectId ?? firstMountedProjectId()
   );
   const [cronExpr, setCronExpr] = useState<string>(cronExprFromTrigger(seedTrigger));
-  const [cronTz, setCronTz] = useState<string>(cronTzFromTrigger(seedTrigger));
+  const [cronTz] = useState<string>(cronTzFromTrigger(seedTrigger));
   const [useBYOI, setUseBYOI] = useState(() => {
     const ws = seedConfig?.workspaceConfig?.workspace;
-    // Support both v2 (kind='byoi') and legacy v1 (host='byoi') stored configs.
     return ws?.kind === 'byoi' || (ws as { host?: string } | undefined)?.host === 'byoi';
   });
   const [error, setError] = useState<string | null>(null);
@@ -171,7 +161,6 @@ export const AutomationPanel = observer(function AutomationPanel({
 
   const initialConversation = useInitialConversationState(effectiveProjectId, seedProvider);
 
-  // Seed the prompt from the saved action on first render (edit mode or template).
   const [promptSeeded, setPromptSeeded] = useState(false);
   if (!promptSeeded && seedTaskAction?.prompt) {
     setPromptSeeded(true);
@@ -184,10 +173,7 @@ export const AutomationPanel = observer(function AutomationPanel({
   const currentBranch = repo?.currentBranch ?? null;
 
   const branchInitial = useMemo(() => branchInitialFromConfig(seedConfig), [seedConfig]);
-  const taskName = useTaskName({
-    generatedName: seedConfig?.name,
-    resetKey: effectiveProjectId,
-  });
+  const taskName = useTaskName({ generatedName: seedConfig?.name, resetKey: effectiveProjectId });
   const branchSelection = useBranchSelection(
     effectiveProjectId,
     defaultBranch,
@@ -219,9 +205,14 @@ export const AutomationPanel = observer(function AutomationPanel({
     [effectiveProjectId, seedConfig?.id]
   );
 
-  const { create, update } = useAutomations();
+  const { update, runNow } = useAutomations();
   const { toast } = useToast();
-  const isPending = create.isPending || update.isPending;
+  const isPending = update.isPending;
+
+  const recentRuns = useAutomationRuns(automation.id, 10);
+  const hasActiveRuns = recentRuns.data?.some((r) => isActiveStatus(r.status)) ?? false;
+  const canRunNow = !automation.isDraft && automation.projectId != null && !runNow.isPending;
+
   const isWorkspaceProviderEnabled = useFeatureFlag('workspace-provider');
   const effectiveUseBYOI = isWorkspaceProviderEnabled && useBYOI;
 
@@ -235,9 +226,30 @@ export const AutomationPanel = observer(function AutomationPanel({
     fromBranch.isValid &&
     !isPending;
 
+  function handleRunNow() {
+    if (!canRunNow) return;
+    runNow.mutate(automation.id);
+  }
+
+  function handleStopAll() {
+    if (!automation.projectId) return;
+    const pid = automation.projectId;
+    for (const run of recentRuns.data ?? []) {
+      if (!isActiveStatus(run.status)) continue;
+      const taskId = run.createdTaskId ?? run.taskId;
+      if (!taskId) continue;
+      const mgr = conversationRegistry.get(taskId);
+      if (!mgr) continue;
+      for (const conv of mgr.conversations.values()) {
+        if (conv.status === 'working' || conv.status === 'awaiting-input') {
+          void rpc.pty.stopSession(makePtySessionId(pid, taskId, conv.data.id));
+        }
+      }
+    }
+  }
+
   function buildTaskConfig(targetProjectId: string): CreateTaskParams | null {
     if (!fromBranch.selectedBranch) return null;
-
     const noWorktree = isUnborn || !fromBranch.createBranchAndWorktree || effectiveUseBYOI;
     const git = noWorktree
       ? { kind: 'none' as const }
@@ -247,7 +259,6 @@ export const AutomationPanel = observer(function AutomationPanel({
           fromBranch: plainBranch(fromBranch.selectedBranch),
           pushBranch: fromBranch.pushBranch,
         };
-
     let workspace: WorkspaceTarget;
     if (effectiveUseBYOI) {
       workspace = { kind: 'byoi' };
@@ -260,7 +271,6 @@ export const AutomationPanel = observer(function AutomationPanel({
     } else {
       workspace = { kind: 'new-worktree' };
     }
-
     const workspaceConfig: WorkspaceConfig = { version: '2', git, workspace };
     const taskId = crypto.randomUUID();
     return {
@@ -279,10 +289,6 @@ export const AutomationPanel = observer(function AutomationPanel({
     };
   }
 
-  function handleProjectChange(nextProjectId: string | undefined) {
-    setProjectId(nextProjectId);
-  }
-
   async function handleSave() {
     if (!effectiveProjectId || !canSave) return;
     setError(null);
@@ -299,34 +305,24 @@ export const AutomationPanel = observer(function AutomationPanel({
     const actions: TaskCreateAction[] = [{ kind: 'task.create', prompt: prompt.trim() }];
     try {
       const trimmedName = name.trim();
-      const saved = automation
-        ? await update.mutateAsync({
-            id: automation.id,
-            patch: {
-              name: trimmedName,
-              trigger: triggerSpec,
-              actions,
-              taskConfig,
-              projectId: effectiveProjectId,
-              enabled: automation.isDraft ? true : automation.enabled,
-              isDraft: false,
-            },
-          })
-        : await create.mutateAsync({
-            name: trimmedName,
-            description: null,
-            category: appliedTemplate?.category ?? automationCatalogCategories[0],
-            trigger: triggerSpec,
-            actions,
-            taskConfig,
-            projectId: effectiveProjectId,
-          });
+      await update.mutateAsync({
+        id: automation.id,
+        patch: {
+          name: trimmedName,
+          trigger: triggerSpec,
+          actions,
+          taskConfig,
+          projectId: effectiveProjectId,
+          enabled: automation.isDraft ? true : automation.enabled,
+          isDraft: false,
+        },
+      });
       toast({
-        title: automation ? 'Automation saved' : 'Automation created',
-        description: `"${saved.name}" is ready to go.`,
+        title: 'Automation saved',
+        description: `"${trimmedName}" is ready to go.`,
         icon: <CheckCircle2 className="size-4 text-emerald-500" aria-hidden="true" />,
       });
-      onSaved?.(saved);
+      onClose();
     } catch (saveError) {
       setError(formatAutomationError(saveError));
     }
@@ -368,12 +364,11 @@ export const AutomationPanel = observer(function AutomationPanel({
           currentBranch={currentBranch}
           isUnborn={isUnborn}
         />
-
         <div className="bg-muted/10 rounded-md border border-border">
           <RowField label="Project">
             <ProjectSelector
               value={effectiveProjectId}
-              onChange={handleProjectChange}
+              onChange={(nextProjectId) => setProjectId(nextProjectId)}
               trigger={
                 <ComboboxTrigger className="hover:bg-muted/40 data-popup-open:bg-muted/40 flex h-8 w-full items-center justify-between gap-2 rounded-md border border-border bg-background px-2.5 text-xs outline-none">
                   <span className="inline-flex min-w-0 items-center gap-2">
@@ -386,7 +381,6 @@ export const AutomationPanel = observer(function AutomationPanel({
             />
           </RowField>
         </div>
-
         {isWorkspaceProviderEnabled ? (
           <div className="flex items-center gap-2 pt-1">
             <Switch size="sm" checked={useBYOI} onCheckedChange={setUseBYOI} />
@@ -401,89 +395,122 @@ export const AutomationPanel = observer(function AutomationPanel({
 
   return (
     <div className="flex h-full flex-col">
-      <AutomationPanelHeader onClose={onClose} />
-
       <div className="flex-1 overflow-y-auto">
         <div className="flex flex-col gap-4 p-4">
-          {isEdit && automation ? (
-            <>
-              <div className="flex items-center gap-2">
-                <EditableNameField
-                  autoFocus={false}
-                  value={name}
-                  onChange={setName}
-                  placeholder="Name this automation"
-                  maxLength={AUTOMATION_NAME_MAX_LENGTH}
-                  className="flex-1"
-                />
-                <DropdownMenu>
-                  <DropdownMenuTrigger
+          <div className="flex w-full items-center justify-between gap-2">
+            <div className="flex flex-row items-center gap-3">
+              <Switch
+                checked={automation.enabled && !automation.isDraft}
+                disabled={automation.isDraft}
+                onCheckedChange={(checked) => onToggleEnabled?.(automation, checked)}
+                aria-label={automation.enabled ? 'Pause automation' : 'Enable automation'}
+              />
+              <EditableNameField
+                autoFocus={false}
+                value={name}
+                onChange={setName}
+                placeholder="Name this automation"
+                maxLength={AUTOMATION_NAME_MAX_LENGTH}
+                className="flex-1"
+              />
+            </div>
+            <div>
+              <DropdownMenu>
+                <DropdownMenuTrigger render={<Button variant="ghost" size="sm" />}>
+                  <Ellipsis className="size-4" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent side="bottom" align="end">
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onClick={() => onDelete?.(automation)}
+                  >
+                    <Trash2 />
+                    Delete automation
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <Button variant="ghost" size="sm" onClick={onClose}>
+                <X className="size-4" />
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <PanelTabs
+              compact
+              value={activeTab}
+              onChange={setActiveTab}
+              tabs={AUTOMATION_TABS}
+            />
+            {activeTab === 'runs' && (
+              <div className="ml-auto flex items-center gap-1">
+                <Tooltip>
+                  <TooltipTrigger
                     render={
                       <button
                         type="button"
-                        aria-label="More options"
-                        className="text-muted-foreground hover:bg-muted rounded-md p-1 transition-colors hover:text-foreground"
+                        aria-label="Stop all active runs"
+                        disabled={!hasActiveRuns}
+                        onClick={handleStopAll}
+                        className={
+                          hasActiveRuns
+                            ? 'flex h-6 w-6 items-center justify-center rounded-md text-foreground-muted transition-colors hover:bg-background-1 hover:text-foreground'
+                            : 'flex h-6 w-6 cursor-not-allowed items-center justify-center rounded-md text-foreground-passive opacity-40'
+                        }
                       />
                     }
                   >
-                    <Ellipsis className="size-4" />
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent side="bottom" align="end">
-                    <DropdownMenuItem variant="destructive" onClick={() => onDelete?.(automation)}>
-                      <Trash2 />
-                      Delete automation
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-                <Switch
-                  size="sm"
-                  checked={automation.enabled && !automation.isDraft}
-                  disabled={automation.isDraft}
-                  onCheckedChange={(checked) => onToggleEnabled?.(automation, checked)}
-                  aria-label={automation.enabled ? 'Pause automation' : 'Enable automation'}
-                />
-              </div>
+                    <Square className="size-3.5" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {hasActiveRuns ? 'Stop all active runs' : 'No active runs'}
+                  </TooltipContent>
+                </Tooltip>
 
-              <PanelTabs value={activeTab} onChange={setActiveTab} tabs={AUTOMATION_TABS} />
-              {activeTab === 'runs' && <RunHistory automation={automation} />}
-              {activeTab === 'settings' && settingsContent}
-            </>
-          ) : (
-            <>
-              <section className="flex flex-col gap-2">
-                <Label className="text-muted-foreground text-xs font-medium">Name</Label>
-                <Input
-                  autoFocus={name.trim().length === 0}
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                  onKeyDown={(event) => {
-                    if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
-                      event.preventDefault();
-                      void handleSave();
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <button
+                        type="button"
+                        aria-label="Run now"
+                        disabled={!canRunNow}
+                        onClick={handleRunNow}
+                        className={
+                          canRunNow
+                            ? 'flex h-6 w-6 items-center justify-center rounded-md text-foreground-muted transition-colors hover:bg-background-1 hover:text-foreground'
+                            : 'flex h-6 w-6 cursor-not-allowed items-center justify-center rounded-md text-foreground-passive opacity-40'
+                        }
+                      />
                     }
-                  }}
-                  placeholder="Name this automation"
-                  maxLength={AUTOMATION_NAME_MAX_LENGTH}
-                  className="h-9 text-sm"
-                />
-              </section>
-              {settingsContent}
-            </>
-          )}
+                  >
+                    {runNow.isPending ? (
+                      <Spinner className="size-3.5" />
+                    ) : (
+                      <Play className="size-3.5" />
+                    )}
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {automation.isDraft
+                      ? 'Save the automation before running'
+                      : automation.projectId == null
+                        ? 'Assign a project before running'
+                        : 'Run now'}
+                  </TooltipContent>
+                </Tooltip>
+              </div>
+            )}
+          </div>
+
+          {activeTab === 'runs' && <RunHistory automation={automation} />}
+          {activeTab === 'settings' && settingsContent}
         </div>
       </div>
       <SheetFooter className="flex flex-row items-center justify-end gap-2">
         <Button variant="outline" size="sm" onClick={onClose}>
           Cancel
         </Button>
-        <ConfirmButton size="sm" onClick={() => void handleSave()} disabled={!canSave}>
-          {isPending
-            ? 'Saving…'
-            : automation?.isDraft
-              ? 'Start from draft'
-              : isEdit
-                ? 'Save'
-                : 'Create'}
+        <ConfirmButton size="sm" onClick={() => { void handleSave(); }} disabled={!canSave}>
+          {isPending ? 'Saving…' : automation.isDraft ? 'Start from draft' : 'Save'}
         </ConfirmButton>
       </SheetFooter>
     </div>

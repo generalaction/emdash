@@ -7,13 +7,11 @@ import { EMPTY_AUTOMATION_RUNS_FACET_FILTERS } from '../automation-runs-filter-t
 import { useAutomationsActions } from '../use-automations-actions';
 import { useAutomationsFilter } from '../use-automations-filter';
 import { useAutomationsPanel } from '../use-automations-panel';
-import { AutomationRunsFilterBar } from './automation-runs-filter-bar';
-import { AutomationPanel } from './AutomationPanel';
+import { AutomationDetailView } from './AutomationDetailView';
 import { AutomationsEmptyState, AutomationsNoResults } from './AutomationsEmptyState';
 import { AutomationsHeader } from './AutomationsHeader';
 import { AutomationsList } from './AutomationsList';
-import { AutomationsSidebarNav } from './AutomationsSidebarNav';
-import { RecentRunsList } from './RecentRunsList';
+import { CreateAutomationView } from './CreateAutomationView';
 
 const RECENT_RUNS_VISIBLE_LIMIT = 50;
 
@@ -29,7 +27,6 @@ export function AutomationsView() {
 
   const {
     panel,
-    isOpen: panelOpen,
     selectedAutomationId,
     openEdit,
     openCreate,
@@ -57,18 +54,6 @@ export function AutomationsView() {
     [filter.drafts, filter.active, filter.paused]
   );
 
-  const handleTabChange = useCallback(
-    (nextTab: typeof tab) => {
-      if (nextTab !== 'runs') setRunFacetFilters(EMPTY_AUTOMATION_RUNS_FACET_FILTERS);
-      onTabChange(nextTab);
-    },
-    [onTabChange]
-  );
-
-  function handleSaved() {
-    closePanel();
-  }
-
   if (automationsIsPending) {
     return (
       <div className="flex h-full items-center justify-center bg-background text-foreground">
@@ -86,20 +71,16 @@ export function AutomationsView() {
       : 'Run agents on a schedule across your projects';
 
   return (
-    <div className="h-full overflow-hidden bg-background text-foreground">
-      <div className="mx-auto grid h-full min-h-0 w-full max-w-[1060px] grid-cols-[13rem_minmax(0,1fr)] gap-8 px-8">
-        <div className="py-10">
-          <AutomationsSidebarNav tab={tab} onTabChange={handleTabChange} />
-        </div>
-
-        <div className="relative min-h-0 min-w-0 overflow-y-auto">
+    <div className="mt-6 h-full overflow-hidden bg-background text-foreground">
+      <div className="mx-auto grid h-full min-h-0 w-full max-w-4xl grid-cols-1 gap-8 px-8">
+        <div className="relative min-h-0 w-full min-w-0 overflow-y-auto">
           <div className="w-full py-8">
             <AutomationsHeader
               title={headerTitle}
               subtitle={headerSubtitle}
               showActions={hasAutomations}
               showNewButton={tab === 'all'}
-              panelOpen={panelOpen}
+              panelOpen={panel !== null}
               search={search}
               onSearchChange={setSearch}
               searchPlaceholder={searchPlaceholder}
@@ -107,62 +88,64 @@ export function AutomationsView() {
               onNewAutomation={actions.requestCreate}
             />
 
-            {tab === 'all' ? (
-              hasAutomations ? (
-                filter.hasResults ? (
-                  <AutomationsList automations={filteredAutomations} onEdit={openEdit} />
-                ) : (
-                  <AutomationsNoResults />
-                )
+            {hasAutomations ? (
+              filter.hasResults ? (
+                <AutomationsList automations={filteredAutomations} onEdit={openEdit} />
               ) : (
-                <AutomationsEmptyState
-                  createPending={actions.createPending}
-                  onNewAutomation={actions.requestCreate}
-                  onSelectTemplate={openCreateWithTemplate}
-                />
+                <AutomationsNoResults />
               )
             ) : (
-              <section>
-                <AutomationRunsFilterBar
-                  filters={runFacetFilters}
-                  options={filter.runsFilterOptions}
-                  onChange={setRunFacetFilters}
-                />
-                <RecentRunsList
-                  runs={filter.visibleRuns}
-                  isPending={recentRuns.isPending}
-                  automations={automationItems}
-                  filtersActive={filter.query.length > 0 || filter.hasRunFacetFilters}
-                />
-              </section>
+              <AutomationsEmptyState
+                createPending={actions.createPending}
+                onNewAutomation={actions.requestCreate}
+                onSelectTemplate={openCreateWithTemplate}
+              />
             )}
           </div>
         </div>
       </div>
 
+      {/* Detail sheet — opens when editing an existing automation */}
       <Sheet
-        open={panelOpen}
+        open={panel?.kind === 'edit'}
         onOpenChange={(open) => {
           if (!open) closePanel();
         }}
       >
-        <SheetContent side="right" showCloseButton={false} className="p-0 sm:max-w-[480px]">
-          {panel ? (
-            <AutomationPanel
-              key={panel.kind === 'edit' ? panel.automation.id : (panel.template?.id ?? 'create')}
-              mode={panel}
+        <SheetContent side="right" showCloseButton={false} className="p-0">
+          {panel?.kind === 'edit' && (
+            <AutomationDetailView
+              key={panel.automation.id}
+              automation={panel.automation}
               onClose={closePanel}
-              onSaved={handleSaved}
               onDelete={actions.requestDelete}
               onRunNow={actions.requestRunNow}
               onToggleEnabled={actions.requestToggleEnabled}
               runNowPending={
-                panel.kind === 'edit' &&
                 actions.runNowState.isPending &&
                 actions.runNowState.variables === panel.automation.id
               }
             />
-          ) : null}
+          )}
+        </SheetContent>
+      </Sheet>
+
+      {/* Create sheet — opens when creating a new automation */}
+      <Sheet
+        open={panel?.kind === 'create'}
+        onOpenChange={(open) => {
+          if (!open) closePanel();
+        }}
+      >
+        <SheetContent side="right" showCloseButton={false} className="p-0">
+          {panel?.kind === 'create' && (
+            <CreateAutomationView
+              key={panel.template?.id ?? 'create'}
+              template={panel.template}
+              onClose={closePanel}
+              onSaved={closePanel}
+            />
+          )}
         </SheetContent>
       </Sheet>
     </div>

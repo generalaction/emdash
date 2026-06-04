@@ -1,4 +1,4 @@
-import { Ellipsis, MessageSquarePlus, Square, Trash2 } from 'lucide-react';
+import { Ellipsis, Square, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
 import { automationRunTool } from '@renderer/features/automations/automation-tools';
@@ -79,12 +79,6 @@ export const AutomationRunRow = observer(function AutomationRunRow({
     navigate('task', { projectId, taskId });
   }
 
-  function handleAddAsNormalTask() {
-    void taskStore?.convertAutomationTask();
-  }
-
-  const canAddAsNormalTask = Boolean(taskStore && task?.automationId);
-
   if (!run) return null;
 
   return (
@@ -109,17 +103,19 @@ export const AutomationRunRow = observer(function AutomationRunRow({
       aria-disabled={!interactive}
     >
       {/* Line 1: task name + agent status | agent logos */}
-      <div className="flex min-w-0 items-center gap-2">
-        <span
-          className={cn(
-            'min-w-0 flex-1 truncate text-sm font-medium text-foreground',
-            isRunActive && 'text-shimmer',
-            missedDeadline && 'text-destructive'
-          )}
-        >
-          {displayName}
-        </span>
-        <AgentStatusIndicator status={agentStatus} disableTooltip />
+      <div className="flex min-w-0 items-center justify-between gap-2">
+        <div className="flex flex-row items-center gap-1">
+          <span
+            className={cn(
+              'min-w-0 flex-1 truncate text-sm font-medium text-foreground',
+              isRunActive && 'text-shimmer',
+              missedDeadline && 'text-destructive'
+            )}
+          >
+            {displayName}
+          </span>
+          <AgentStatusIndicator status={agentStatus} disableTooltip />
+        </div>
         <StackedAgentLogos stats={agentLogoStats} />
       </div>
 
@@ -128,9 +124,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
         <span className="flex-1">
           {displayTime ? <AbsoluteTime value={displayTime} /> : <span>—</span>}
         </span>
-        {triggerLabel && (
-          <span className="shrink-0">Triggered by &lsquo;{triggerLabel}&rsquo;</span>
-        )}
+        {triggerLabel && <span className="shrink-0">Triggered by {triggerLabel}</span>}
       </div>
 
       {/* Hover action overlay */}
@@ -170,12 +164,6 @@ export const AutomationRunRow = observer(function AutomationRunRow({
             <Ellipsis className="size-3.5" />
           </DropdownMenuTrigger>
           <DropdownMenuContent side="bottom" align="end">
-            {canAddAsNormalTask && (
-              <DropdownMenuItem onClick={handleAddAsNormalTask}>
-                <MessageSquarePlus />
-                Convert run to task
-              </DropdownMenuItem>
-            )}
             <DropdownMenuItem variant="destructive" onClick={() => deleteRun(run)}>
               <Trash2 />
               Delete run

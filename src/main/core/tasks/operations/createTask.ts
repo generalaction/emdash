@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import { mapConversationRowToConversation } from '@main/core/conversations/utils';
 import { projectManager } from '@main/core/projects/project-manager';
-import { db } from '@main/db/client';
+import { db, type DrizzleTx } from '@main/db/client';
 import { conversations, projects, tasks, workspaces } from '@main/db/schema';
 import type { ConversationRow, TaskRow } from '@main/db/schema';
 import { events } from '@main/lib/events';
@@ -21,9 +21,22 @@ import { mapTaskRowToTask } from '../utils/utils';
 
 type ConvInsert = typeof conversations.$inferInsert;
 
-export async function createTask(
+export interface PreparedCreateTask {
+  params: CreateTaskParams;
+  initialStatus: TaskLifecycleStatus;
+  workspaceId: string;
+  newWorkspaceValues: typeof workspaces.$inferInsert | null;
+  convInsert: ConvInsert | undefined;
+}
+
+/**
+ * Performs all async preparation for creating a task (project validation, workspace
+ * resolution). Returns a `PreparedCreateTask` that can be committed synchronously
+ * inside a Drizzle transaction via `commitCreateTask`.
+ */
+export async function prepareCreateTask(
   params: CreateTaskParams
-): Promise<Result<CreateTaskSuccess, CreateTaskError>> {
+): Promise<Result<PreparedCreateTask, CreateTaskError>> {
   if (!projectManager.getProject(params.projectId)) {
     return err({ type: 'project-not-found' });
   }
@@ -32,17 +45,14 @@ export async function createTask(
   const initialStatus: TaskLifecycleStatus = params.initialStatus ?? 'in_progress';
   const configJson = serializeWorkspaceConfig(workspaceConfig);
 
-  // Resolve the workspace ID and determine whether to insert a new workspace row.
   let workspaceId: string;
   let newWorkspaceValues: typeof workspaces.$inferInsert | null = null;
 
   const wsTarget = workspaceConfig.workspace;
 
   if (wsTarget.kind === 'repository-instance') {
-    // Reuse the existing shared workspace for this project's repository root.
     workspaceId = wsTarget.workspaceId;
   } else {
-    // Create a new workspace row for 'new-worktree' or 'byoi' targets.
     workspaceId = crypto.randomUUID();
 
     if (wsTarget.kind === 'byoi') {
@@ -80,7 +90,6 @@ export async function createTask(
     }
   }
 
-  // Prepare conversation insert values before the transaction (no async work needed).
   let convInsert: ConvInsert | undefined;
   if (params.initialConversation) {
     const ic = params.initialConversation;
@@ -101,42 +110,83 @@ export async function createTask(
     };
   }
 
-  // All inserts in a single atomic transaction.
-  let taskRow!: TaskRow;
+  return ok({ params, initialStatus, workspaceId, newWorkspaceValues, convInsert });
+}
+
+/**
+ * Synchronously runs the task/workspace/conversation inserts within the provided
+ * transaction. Must be called with a `PreparedCreateTask` from `prepareCreateTask`.
+ * Returns the raw DB rows; call `finalizeCreateTask` after the transaction commits
+ * to build the result and emit side-effect events.
+ */
+export function commitCreateTask(
+  prepared: PreparedCreateTask,
+  tx: DrizzleTx
+): { taskRow: TaskRow; convRow: ConversationRow | undefined } {
+  const { params, initialStatus, workspaceId, newWorkspaceValues, convInsert } = prepared;
+
+  const [taskRow] = tx
+    .insert(tasks)
+    .values({
+      id: params.id,
+      projectId: params.projectId,
+      name: params.name,
+      status: initialStatus,
+      workspaceId,
+      linkedIssue: params.linkedIssue ? JSON.stringify(params.linkedIssue) : null,
+      updatedAt: sql`CURRENT_TIMESTAMP`,
+      statusChangedAt: sql`CURRENT_TIMESTAMP`,
+      lastInteractedAt: sql`CURRENT_TIMESTAMP`,
+    })
+    .returning()
+    .all();
+
+  if (newWorkspaceValues) {
+    tx.insert(workspaces).values(newWorkspaceValues).run();
+  }
+
   let convRow: ConversationRow | undefined;
-  db.transaction((tx) => {
-    [taskRow] = tx
-      .insert(tasks)
-      .values({
-        id: params.id,
-        projectId: params.projectId,
-        name: params.name,
-        status: initialStatus,
-        workspaceId,
-        linkedIssue: params.linkedIssue ? JSON.stringify(params.linkedIssue) : null,
-        updatedAt: sql`CURRENT_TIMESTAMP`,
-        statusChangedAt: sql`CURRENT_TIMESTAMP`,
-        lastInteractedAt: sql`CURRENT_TIMESTAMP`,
-      })
-      .returning()
-      .all();
+  if (convInsert) {
+    [convRow] = tx.insert(conversations).values(convInsert).returning().all();
+  }
 
-    if (newWorkspaceValues) {
-      tx.insert(workspaces).values(newWorkspaceValues).run();
-    }
+  return { taskRow, convRow };
+}
 
-    if (convInsert) {
-      [convRow] = tx.insert(conversations).values(convInsert).returning().all();
-    }
-  });
+/**
+ * Builds the `CreateTaskSuccess` result and emits post-commit side-effect events.
+ * Call this after the transaction that ran `commitCreateTask` has committed.
+ */
+export function finalizeCreateTask(
+  prepared: PreparedCreateTask,
+  taskRow: TaskRow,
+  convRow: ConversationRow | undefined
+): CreateTaskSuccess {
+  const task = {
+    ...mapTaskRowToTask(taskRow, []),
+    automationId: prepared.params.automationId,
+  };
 
-  // Post-transaction side effects.
-  const task = { ...mapTaskRowToTask(taskRow, []), automationId: params.automationId };
   let initialConversation: Conversation | undefined;
   if (convRow) {
     initialConversation = mapConversationRowToConversation(convRow);
     events.emit(conversationCreatedChannel, { conversation: initialConversation });
   }
 
-  return ok({ task: { ...task, workspaceId }, initialConversation });
+  return { task: { ...task, workspaceId: prepared.workspaceId }, initialConversation };
+}
+
+export async function createTask(
+  params: CreateTaskParams
+): Promise<Result<CreateTaskSuccess, CreateTaskError>> {
+  const prepared = await prepareCreateTask(params);
+  if (!prepared.success) return prepared;
+
+  let taskRow!: TaskRow;
+  let convRow: ConversationRow | undefined;
+  db.transaction((tx) => {
+    ({ taskRow, convRow } = commitCreateTask(prepared.data, tx));
+  });
+
+  return ok(finalizeCreateTask(prepared.data, taskRow, convRow));
 }

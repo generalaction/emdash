@@ -55,7 +55,7 @@ export function RunHistory({ automation }: RunHistoryProps) {
   }, [hasMore, runs.isFetching, visibleRuns.length]);
 
   return (
-    <section className="flex flex-col gap-2">
+    <section className="flex h-full flex-col gap-2">
       {runs.isPending ? (
         <div className="flex h-24 items-center justify-center">
           <Spinner />
@@ -63,7 +63,7 @@ export function RunHistory({ automation }: RunHistoryProps) {
       ) : visibleRuns.length > 0 ? (
         <div
           ref={scrollRef}
-          className="max-h-80 divide-y divide-border/70 overflow-y-auto rounded-md border border-border"
+          className="h-full divide-y divide-border/70 overflow-y-auto rounded-md border border-border"
         >
           {visibleRuns.map((run) => (
             <AutomationRunRow key={run.id} runId={run.id} automationId={automation.id} />

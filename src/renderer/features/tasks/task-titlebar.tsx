@@ -55,10 +55,6 @@ export const TaskTitlebar = observer(function TaskTitlebar() {
   const taskStore = getTaskStore(projectId, taskId);
   const kind = taskViewKind(taskStore, projectId);
 
-  if (taskStore?.data.automationId) {
-    return <AutomationTaskTitlebar />;
-  }
-
   if (kind !== 'ready') {
     return <PendingTaskTitlebar taskId={taskId} projectId={projectId} />;
   }

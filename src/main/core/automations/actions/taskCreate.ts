@@ -7,9 +7,15 @@ import { projectManager } from '@main/core/projects/project-manager';
 import { DEFAULT_AGENT_ID } from '@main/core/settings/settings-registry';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { generateTaskName } from '@main/core/tasks/name-generation/generateTaskName';
+import {
+  commitCreateTask,
+  finalizeCreateTask,
+  prepareCreateTask,
+} from '@main/core/tasks/operations/createTask';
 import { taskService } from '@main/core/tasks/task-service';
 import { db } from '@main/db/client';
-import { projects } from '@main/db/schema';
+import type { ConversationRow, TaskRow } from '@main/db/schema';
+import { automationRuns, projects } from '@main/db/schema';
 import { resolveAutomationAgentAutoApprove } from '@shared/agent-auto-approve-defaults';
 import type { TaskCreateAction } from '@shared/automations/actions';
 import type { Branch } from '@shared/git';
@@ -28,14 +34,8 @@ import {
   type WorkspaceConfig,
   type WorkspaceTarget,
 } from '@shared/workspace-config';
-import { linkRunTask } from '../run-transitions';
+import { emitRunUpdated } from '../run-transitions';
 import type { ActionContext, ActionError, ActionOutcome } from './types';
-
-function createTaskErrorLeavesTask(error: CreateTaskError): boolean {
-  // Provisioning runs after createTask has inserted the task/workspace, so
-  // automation callers can still link to the partially-created task.
-  return error.type === 'provision-failed' || error.type === 'provision-timeout';
-}
 
 function formatCreateTaskActionError(error: CreateTaskError): string {
   switch (error.type) {
@@ -267,18 +267,29 @@ export async function executeTaskCreate(
       initialConversation,
     };
 
-    const result = await taskService.createTask(taskConfig);
-    if (!result.success) {
+    // Prepare all async data before opening the transaction.
+    const prepared = await prepareCreateTask(taskConfig);
+    if (!prepared.success) {
       return err({
-        message: formatCreateTaskActionError(result.error),
-        taskId: createTaskErrorLeavesTask(result.error) ? taskId : undefined,
+        message: formatCreateTaskActionError(prepared.error),
       });
     }
-    try {
-      await linkRunTask(ctx.run.id, taskId);
-    } catch (error) {
-      return err({ message: error instanceof Error ? error.message : String(error), taskId });
-    }
+
+    // Atomically insert the task rows and link the run in a single transaction.
+    let taskRow!: TaskRow;
+    let convRow: ConversationRow | undefined;
+    db.transaction((tx) => {
+      ({ taskRow, convRow } = commitCreateTask(prepared.data, tx));
+      tx.update(automationRuns)
+        .set({ taskId, createdTaskId: taskId })
+        .where(eq(automationRuns.id, ctx.run.id))
+        .run();
+    });
+
+    // Emit post-commit side effects.
+    const createSuccess = finalizeCreateTask(prepared.data, taskRow, convRow);
+    taskService.notifyTaskCreated(createSuccess.task, taskConfig);
+    emitRunUpdated({ ...ctx.run, taskId, createdTaskId: taskId });
 
     try {
       const provision = await taskService.launch(taskId);

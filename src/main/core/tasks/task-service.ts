@@ -64,10 +64,16 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
   async createTask(params: CreateTaskParams): Promise<Result<CreateTaskSuccess, CreateTaskError>> {
     const result = await createTask(params);
     if (result.success) {
-      this._hooks.callHookBackground('task:created', result.data.task, params);
-      events.emit(taskCreatedChannel, { task: result.data.task });
+      this.notifyTaskCreated(result.data.task, params);
     }
     return result;
+  }
+
+  /** Fires the task:created hook and event. Call this after committing a task insert
+   *  that was performed outside of `createTask` (e.g. inside an external transaction). */
+  notifyTaskCreated(task: Task, params: CreateTaskParams): void {
+    this._hooks.callHookBackground('task:created', task, params);
+    events.emit(taskCreatedChannel, { task });
   }
 
   /**

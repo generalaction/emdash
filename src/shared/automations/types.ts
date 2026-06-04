@@ -11,8 +11,6 @@ export type AutomationDeadlinePolicy = 'next-interval' | 'fixed' | 'none';
 export type Automation = {
   id: string;
   name: string;
-  description: string | null;
-  category: string;
   trigger: CronTrigger;
   actions: TaskCreateAction[];
   taskConfig: CreateTaskParams | null;
