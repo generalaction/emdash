@@ -15,17 +15,21 @@ const idPattern = /^[A-Za-z0-9_-]{1,64}$/;
 export class ShareService {
   async createShare(payload: SharePayload): Promise<{ id: string; url: string }> {
     const parsedPayload = sharePayloadSchema.parse(payload);
-    const body =
+    const shareBaseUrl = getShareBaseUrl();
+    const body = JSON.stringify(
       parsedPayload.type === 'skill'
-        ? JSON.stringify(parsedPayload.skill)
-        : JSON.stringify(parsedPayload.prompt);
+        ? parsedPayload.skill
+        : parsedPayload.type === 'automation'
+          ? parsedPayload.automation
+          : parsedPayload.prompt
+    );
 
     if (new TextEncoder().encode(body).byteLength > SHARE_MAX_PAYLOAD_BYTES) {
       throw new Error('Share payload is too large');
     }
 
     const response = await withTimeout(
-      fetch(`${getShareBaseUrl()}/api/${typeToPath(parsedPayload.type)}`, {
+      fetch(`${shareBaseUrl}/api/${typeToPath(parsedPayload.type)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body,
@@ -37,7 +41,11 @@ export class ShareService {
       throw new Error(await readShareError(response, 'Failed to create share link'));
     }
 
-    return createShareResponseSchema.parse(await response.json());
+    const result = createShareResponseSchema.parse(await response.json());
+    return {
+      id: result.id,
+      url: `${shareBaseUrl}/${typeToPath(parsedPayload.type)}/${result.id}`,
+    };
   }
 
   async fetchShare(type: ShareType, id: string): Promise<ShareFetchResponse> {
@@ -72,7 +80,9 @@ async function readShareError(response: Response, fallback: string): Promise<str
 }
 
 function typeToPath(type: ShareType): string {
-  return type === 'skill' ? 'skills' : 'prompts';
+  if (type === 'skill') return 'skills';
+  if (type === 'automation') return 'automations';
+  return 'prompts';
 }
 
 const createShareResponseSchema = z.object({

@@ -39,21 +39,53 @@ describe('ShareService', () => {
       'https://share.test.emdash.sh/api/skills',
       expect.objectContaining({ method: 'POST' })
     );
-    expect(result).toEqual({ id: 'abc123', url: 'https://share.test/skills/abc123' });
+    expect(result).toEqual({ id: 'abc123', url: 'https://share.test.emdash.sh/skills/abc123' });
+  });
+
+  it('creates automation shares against the typed endpoint', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({ id: 'abc123', url: 'https://share.test/automations/abc123' })
+    );
+
+    const result = await service.createShare({
+      type: 'automation',
+      automation: {
+        name: 'Nightly triage',
+        description: 'Triage new issues every night',
+        category: 'maintenance',
+        trigger: { expr: '0 3 * * *', tz: 'UTC' },
+        actions: [{ kind: 'task.create', prompt: 'Triage all new issues.' }],
+        deadlinePolicy: 'next-interval',
+        deadlineMs: null,
+      },
+    });
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      'https://share.test.emdash.sh/api/automations',
+      expect.objectContaining({ method: 'POST' })
+    );
+    expect(result).toEqual({
+      id: 'abc123',
+      url: 'https://share.test.emdash.sh/automations/abc123',
+    });
   });
 
   it('reads the base URL when creating a share', async () => {
     mockGetShareBaseUrl.mockReturnValue('http://localhost:8787');
     mockFetch.mockResolvedValueOnce(
-      jsonResponse({ id: 'abc123', url: 'http://localhost:8787/prompts/abc123' })
+      jsonResponse({ id: 'abc123', url: 'http://share.emdash.sh/prompts/abc123' })
     );
 
-    await service.createShare({ type: 'prompt', prompt: { title: 'Review', prompt: 'Do it' } });
+    const result = await service.createShare({
+      type: 'prompt',
+      prompt: { title: 'Review', prompt: 'Do it' },
+    });
 
     expect(mockFetch).toHaveBeenCalledWith(
       'http://localhost:8787/api/prompts',
       expect.objectContaining({ method: 'POST' })
     );
+    expect(result).toEqual({ id: 'abc123', url: 'http://localhost:8787/prompts/abc123' });
   });
 
   it('rejects oversized payloads before fetching', async () => {

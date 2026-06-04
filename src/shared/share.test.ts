@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   SHARE_MAX_PAYLOAD_BYTES,
+  sharedAutomationSchema,
   sharedPromptSchema,
   sharedSkillSchema,
   sharePayloadSchema,
@@ -37,6 +38,47 @@ describe('share schemas', () => {
       sharedPromptSchema.parse({
         title: 'Large prompt',
         prompt: 'x'.repeat(SHARE_MAX_PAYLOAD_BYTES + 1),
+      })
+    ).toThrow();
+  });
+
+  it('accepts valid automation payloads', () => {
+    expect(
+      sharePayloadSchema.parse({
+        type: 'automation',
+        automation: {
+          name: 'Nightly triage',
+          description: 'Triage new issues every night',
+          category: 'maintenance',
+          trigger: { expr: '0 3 * * *', tz: 'UTC' },
+          actions: [{ kind: 'task.create', prompt: 'Triage all new issues.' }],
+          deadlinePolicy: 'next-interval',
+          deadlineMs: null,
+        },
+      })
+    ).toMatchObject({ type: 'automation' });
+  });
+
+  it('rejects automations without actions', () => {
+    expect(() =>
+      sharedAutomationSchema.parse({
+        name: 'Nightly triage',
+        category: 'maintenance',
+        trigger: { expr: '0 3 * * *', tz: 'UTC' },
+        actions: [],
+        deadlinePolicy: 'none',
+      })
+    ).toThrow();
+  });
+
+  it('rejects oversized automation action prompts', () => {
+    expect(() =>
+      sharedAutomationSchema.parse({
+        name: 'Nightly triage',
+        category: 'maintenance',
+        trigger: { expr: '0 3 * * *', tz: 'UTC' },
+        actions: [{ kind: 'task.create', prompt: 'x'.repeat(20_001) }],
+        deadlinePolicy: 'none',
       })
     ).toThrow();
   });
