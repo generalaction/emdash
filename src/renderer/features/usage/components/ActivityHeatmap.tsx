@@ -126,6 +126,15 @@ export function ActivityHeatmap({ daily }: { daily: DailyPoint[] }) {
                 const max =
                   mode === 'weekly' ? maxWeekly : mode === 'cumulative' ? maxCumulative : maxDaily;
                 const level = levelOf(value, max);
+                // Tooltip reports the SAME number that drives the cell colour (`value`),
+                // so weekly/cumulative cells don't show a mismatched per-day count.
+                const date = `${MONTHS[cell.date.getMonth()]} ${cell.date.getDate()}`;
+                const tip =
+                  mode === 'weekly'
+                    ? `${fmtTokens(value)} tokens · week of ${date}`
+                    : mode === 'cumulative'
+                      ? `${fmtTokens(value)} tokens total · ${date}`
+                      : `${fmtTokens(value)} tokens · ${date}`;
                 return (
                   <div
                     key={ri}
@@ -136,10 +145,7 @@ export function ActivityHeatmap({ daily }: { daily: DailyPoint[] }) {
                     )}
                     onMouseEnter={(e) => {
                       if (cell.future) return;
-                      show(
-                        e,
-                        `${fmtTokens(cell.tokens)} tokens on ${MONTHS[cell.date.getMonth()]} ${cell.date.getDate()}`
-                      );
+                      show(e, tip);
                     }}
                   />
                 );

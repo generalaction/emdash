@@ -29,11 +29,13 @@ export function reconcileCache(
       records.push(...cached.records);
       continue;
     }
-    let parsed: UsageRecord[] = [];
+    let parsed: UsageRecord[];
     try {
       parsed = parse(readText(file), file);
     } catch {
-      parsed = []; // unreadable file — skip its records, keep going
+      // Unreadable/partial file (e.g. caught mid-write): skip it entirely rather than caching
+      // an empty-record entry, which would match next run's mtime+size and never re-parse.
+      continue;
     }
     nextFiles[file.path] = { mtimeMs: file.mtimeMs, size: file.size, records: parsed };
     records.push(...parsed);

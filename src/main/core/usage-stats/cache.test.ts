@@ -61,6 +61,24 @@ describe('reconcileCache', () => {
     expect(afterDelete.records).toHaveLength(0);
   });
 
+  it('does not cache a file whose parse throws, so it retries next run', () => {
+    const readText = () => 'x';
+    const scan = [file('/bad.jsonl', 1, 10)];
+
+    const throwing = vi.fn(() => {
+      throw new Error('partial json');
+    });
+    const first = reconcileCache({ version: CACHE_VERSION, files: {} }, scan, readText, throwing);
+    expect(first.records).toHaveLength(0);
+    expect(first.index.files['/bad.jsonl']).toBeUndefined(); // not cached as an empty entry
+
+    // Same mtime+size next run: still re-parsed (not served from a poisoned empty cache).
+    const ok = vi.fn((_t: string, f: ScannedFile) => recordsFor(f.path));
+    const second = reconcileCache(first.index, scan, readText, ok);
+    expect(ok).toHaveBeenCalledTimes(1);
+    expect(second.records).toHaveLength(1);
+  });
+
   it('discards the whole index on version mismatch', () => {
     const parse = vi.fn((_t: string, f: ScannedFile) => recordsFor(f.path));
     const stale: UsageIndex = {

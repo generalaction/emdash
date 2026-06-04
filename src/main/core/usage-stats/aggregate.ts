@@ -59,6 +59,7 @@ export function aggregate(allRecords: UsageRecord[], now: Date): UsageSnapshot {
 
     totals.tokens += tokens;
     totals.cost += cost;
+    windows.allTime += cost; // unconditional so it always equals totals.cost (records may lack ts)
     if (r.isMessage) totals.messages += 1;
     if (r.sessionId) sessionIds.add(r.sessionId);
 
@@ -105,7 +106,6 @@ export function aggregate(allRecords: UsageRecord[], now: Date): UsageSnapshot {
       dp.tokens += tokens;
       daily.set(parts.date, dp);
 
-      windows.allTime += cost;
       if (parts.time >= startOfDay) windows.today += cost;
       if (parts.time >= startOfWeek) windows.week += cost;
       if (parts.time >= startOfMonth) windows.month += cost;

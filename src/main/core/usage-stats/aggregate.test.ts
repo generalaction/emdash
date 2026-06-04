@@ -55,4 +55,16 @@ describe('aggregate', () => {
     const snap = aggregate([rec({ id: 'a', input: 10 })], new Date('2026-05-30T18:00:00Z'));
     expect(snap.byHour).toHaveLength(24);
   });
+
+  it('keeps windows.allTime equal to totals.cost even for records with no timestamp', () => {
+    const snap = aggregate(
+      [
+        rec({ id: 'a', input: 1_000_000, model: 'claude-opus-4-8', ts: '' }), // unparseable ts
+        rec({ id: 'b', input: 1_000_000, model: 'claude-opus-4-8' }),
+      ],
+      new Date('2026-05-30T18:00:00Z')
+    );
+    expect(snap.windows.allTime).toBeCloseTo(snap.totals.cost, 6); // no silent disagreement
+    expect(snap.windows.allTime).toBeCloseTo(10, 6); // both opus input records counted
+  });
 });
