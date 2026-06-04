@@ -2,12 +2,6 @@ import { CheckCheckIcon, PlusIcon, X } from 'lucide-react';
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
 import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
-import { AddContextPopover } from '@renderer/features/tasks/conversations/add-context-popover';
-import {
-  buildIssueContextText,
-  buildTaskContextActions,
-} from '@renderer/features/tasks/conversations/context-actions';
-import { useEffectiveProvider } from '@renderer/features/tasks/conversations/use-effective-provider';
 import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
 import { Button } from '@renderer/lib/ui/button';
@@ -19,7 +13,10 @@ import { cn } from '@renderer/utils/utils';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 import type { Issue } from '@shared/tasks';
 import { ProviderLogo } from '../components/issue-selector/issue-selector';
-import { appendInitialConversationText } from './initial-conversation-text';
+import { appendInitialConversationText } from '../create-task-modal/initial-conversation-text';
+import { AddContextPopover } from './add-context-popover';
+import { buildIssueContextText, buildTaskContextActions } from './context-actions';
+import { useEffectiveProvider } from './use-effective-provider';
 
 export type InitialConversationState = {
   provider: AgentProviderId | null;
@@ -31,9 +28,12 @@ export type InitialConversationState = {
   connectionId?: string;
 };
 
-export function useInitialConversationState(projectId?: string): InitialConversationState {
+export function useInitialConversationState(
+  projectId?: string,
+  initialProvider?: AgentProviderId
+): InitialConversationState {
   const connectionId = projectId ? getProjectSshConnectionId(projectId) : undefined;
-  const { providerId, setProviderOverride } = useEffectiveProvider(connectionId);
+  const { providerId, setProviderOverride } = useEffectiveProvider(connectionId, initialProvider);
   const [prompt, setPrompt] = useState('');
   const [issueContext, setIssueContext] = useState<string | null>(null);
 

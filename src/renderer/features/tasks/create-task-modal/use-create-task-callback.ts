@@ -4,12 +4,12 @@ import { getTaskManagerStore } from '@renderer/features/tasks/stores/task-select
 import type { NavigateFnTyped } from '@renderer/lib/layout/navigation-provider';
 import { log } from '@renderer/utils/logger';
 import type { LocalProject, SshProject } from '@shared/projects';
+import type { InitialConversationState } from '../conversations/initial-conversation-section';
 import {
   buildInitialConversation,
   buildWorkspaceConfig,
   deriveInitialStatus,
 } from './build-create-task-params';
-import type { InitialConversationState } from './initial-conversation-section';
 import type { CreateTaskState } from './use-create-task-state';
 
 interface UseCreateTaskCallbackParams {

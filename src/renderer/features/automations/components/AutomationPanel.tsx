@@ -4,17 +4,18 @@ import { useMemo, useState, type ReactNode } from 'react';
 import {
   asMounted,
   firstMountedProjectId,
-  getProjectSshConnectionId,
   getProjectStore,
   getRepositoryStore,
 } from '@renderer/features/projects/stores/project-selectors';
-import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import {
+  InitialConversationField,
+  useInitialConversationState,
+} from '@renderer/features/tasks/conversations/initial-conversation-section';
 import { BranchPickerField } from '@renderer/features/tasks/create-task-modal/branch-picker-field';
 import { ProjectSelector } from '@renderer/features/tasks/create-task-modal/project-selector';
 import { useBranchName } from '@renderer/features/tasks/create-task-modal/use-branch-name';
 import { useBranchSelection } from '@renderer/features/tasks/create-task-modal/use-branch-selection';
 import { useTaskName } from '@renderer/features/tasks/create-task-modal/use-task-name';
-import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { Button } from '@renderer/lib/ui/button';
@@ -22,12 +23,12 @@ import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import { Input } from '@renderer/lib/ui/input';
 import { Label } from '@renderer/lib/ui/label';
+import { SheetFooter } from '@renderer/lib/ui/sheet';
 import { Switch } from '@renderer/lib/ui/switch';
-import { cn } from '@renderer/utils/utils';
-import { isValidProviderId, type AgentProviderId } from '@shared/agent-provider-registry';
+import { isValidProviderId } from '@shared/agent-provider-registry';
 import type { TaskCreateAction } from '@shared/automations/actions';
 import { automationCatalogCategories } from '@shared/automations/builtin-catalog';
-import { formatAutomationError, formatCronLabel } from '@shared/automations/format';
+import { formatAutomationError } from '@shared/automations/format';
 import { DEFAULT_SCHEDULE, scheduleToCron } from '@shared/automations/schedule';
 import { getLocalTimeZone } from '@shared/automations/timezone';
 import {
@@ -43,7 +44,6 @@ import type { WorkspaceConfig, WorkspaceTarget } from '@shared/workspace-config'
 import { useAutomations } from '../useAutomations';
 import { AutomationPanelHeader } from './AutomationPanelHeader';
 import { SchedulePicker } from './pickers/SchedulePicker';
-import { UseTemplateButton } from './pickers/UseTemplateButton';
 import { RunHistory } from './RunHistory';
 
 const DEFAULT_CRON = scheduleToCron(DEFAULT_SCHEDULE);
@@ -132,19 +132,9 @@ export const AutomationPanel = observer(function AutomationPanel({
   const seedTaskAction = extractTaskAction(automation?.actions ?? appliedTemplate?.defaultActions);
   const seedConfig = automation?.taskConfig;
 
-  const { value: defaultAgentValue } = useAppSettingsKey('defaultAgent');
-  const fallbackProvider: AgentProviderId = isValidProviderId(defaultAgentValue)
-    ? defaultAgentValue
-    : 'claude';
-
   const [name, setName] = useState(automation?.name ?? appliedTemplate?.name ?? '');
-  const [prompt, setPrompt] = useState(seedTaskAction?.prompt ?? '');
   const [projectId, setProjectId] = useState<string | undefined>(
     automation?.projectId ?? firstMountedProjectId()
-  );
-  const seedProvider = seedConfig?.initialConversation?.provider;
-  const [provider, setProvider] = useState<AgentProviderId>(
-    isValidProviderId(seedProvider) ? seedProvider : fallbackProvider
   );
   const [cronExpr, setCronExpr] = useState<string>(cronExprFromTrigger(seedTrigger));
   const [cronTz, setCronTz] = useState<string>(cronTzFromTrigger(seedTrigger));
@@ -155,13 +145,22 @@ export const AutomationPanel = observer(function AutomationPanel({
   });
   const [error, setError] = useState<string | null>(null);
   const [cronError, setCronError] = useState<string | null>(null);
-  const [templatePopoverOpen, setTemplatePopoverOpen] = useState(false);
 
   const effectiveProjectId =
     projectId && asMounted(getProjectStore(projectId)) ? projectId : firstMountedProjectId();
-  const agentConnectionId = effectiveProjectId
-    ? getProjectSshConnectionId(effectiveProjectId)
+
+  const seedProvider = isValidProviderId(seedConfig?.initialConversation?.provider)
+    ? seedConfig.initialConversation.provider
     : undefined;
+
+  const initialConversation = useInitialConversationState(effectiveProjectId, seedProvider);
+
+  // Seed the prompt from the saved action on first render (edit mode or template).
+  const [promptSeeded, setPromptSeeded] = useState(false);
+  if (!promptSeeded && seedTaskAction?.prompt) {
+    setPromptSeeded(true);
+    initialConversation.setPrompt(seedTaskAction.prompt);
+  }
 
   const repo = effectiveProjectId ? getRepositoryStore(effectiveProjectId) : undefined;
   const defaultBranch = repo?.defaultBranch;
@@ -209,6 +208,9 @@ export const AutomationPanel = observer(function AutomationPanel({
   const isPending = create.isPending || update.isPending;
   const isWorkspaceProviderEnabled = useFeatureFlag('workspace-provider');
   const effectiveUseBYOI = isWorkspaceProviderEnabled && useBYOI;
+
+  const prompt = initialConversation.prompt;
+  const provider = initialConversation.provider ?? 'claude';
 
   const canSave =
     name.trim().length > 0 &&
@@ -305,7 +307,7 @@ export const AutomationPanel = observer(function AutomationPanel({
           });
       toast({
         title: automation ? 'Automation saved' : 'Automation created',
-        description: `“${saved.name}” is ready to go.`,
+        description: `"${saved.name}" is ready to go.`,
         icon: <CheckCircle2 className="size-4 text-emerald-500" aria-hidden="true" />,
       });
       onSaved?.(saved);
@@ -314,48 +316,9 @@ export const AutomationPanel = observer(function AutomationPanel({
     }
   }
 
-  function applyTemplate(template: BuiltinAutomationTemplate) {
-    setAppliedTemplate(template);
-    setName(template.name);
-    const action = extractTaskAction(template.defaultActions);
-    setPrompt(action?.prompt ?? '');
-    if (template.defaultTrigger) {
-      setCronExpr(template.defaultTrigger.expr);
-      setCronTz(template.defaultTrigger.tz);
-      setCronError(null);
-    }
-    setTemplatePopoverOpen(false);
-  }
-
   return (
     <div className="flex h-full flex-col">
-      <AutomationPanelHeader
-        isEdit={isEdit}
-        automation={automation}
-        scheduleLabel={formatCronLabel(cronExpr)}
-        onClose={onClose}
-        onRunNow={
-          onRunNow && automation && !automation.isDraft && automation.projectId
-            ? () => onRunNow(automation)
-            : undefined
-        }
-        onToggleEnabled={
-          onToggleEnabled
-            ? (enabled) => automation && onToggleEnabled(automation, enabled)
-            : undefined
-        }
-        onDelete={onDelete ? () => automation && onDelete(automation) : undefined}
-        runNowPending={runNowPending}
-        headerAction={
-          !isEdit ? (
-            <UseTemplateButton
-              open={templatePopoverOpen}
-              onOpenChange={setTemplatePopoverOpen}
-              onSelect={applyTemplate}
-            />
-          ) : null
-        }
-      />
+      <AutomationPanelHeader onClose={onClose} />
 
       <div className="flex-1 overflow-y-auto">
         <div className="flex flex-col gap-5 px-5 py-5">
@@ -379,21 +342,9 @@ export const AutomationPanel = observer(function AutomationPanel({
 
           <section className="flex flex-col gap-2">
             <Label className="text-muted-foreground text-xs font-medium">Prompt</Label>
-            <textarea
-              value={prompt}
-              onChange={(event) => setPrompt(event.target.value)}
-              onKeyDown={(event) => {
-                if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
-                  event.preventDefault();
-                  void handleSave();
-                }
-              }}
-              placeholder="Describe what this automation should do…"
-              className={cn(
-                'block w-full resize-none rounded-md border border-border bg-background',
-                'px-3 py-2 text-sm placeholder:text-muted-foreground outline-none',
-                'min-h-20 max-h-64 overflow-y-auto field-sizing-content focus:ring-1 focus:ring-ring'
-              )}
+            <InitialConversationField
+              state={initialConversation}
+              includeIssueContextByDefault={false}
             />
           </section>
 
@@ -440,14 +391,6 @@ export const AutomationPanel = observer(function AutomationPanel({
                   }
                 />
               </RowField>
-              <RowField label="Agent">
-                <AgentSelector
-                  value={provider}
-                  onChange={setProvider}
-                  connectionId={agentConnectionId}
-                  className="h-8 bg-background text-xs"
-                />
-              </RowField>
             </div>
 
             {isWorkspaceProviderEnabled ? (
@@ -463,8 +406,7 @@ export const AutomationPanel = observer(function AutomationPanel({
           {isEdit && automation ? <RunHistory automation={automation} /> : null}
         </div>
       </div>
-
-      <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border bg-background px-5 py-3">
+      <SheetFooter className="flex flex-row items-center justify-end gap-2">
         <Button variant="outline" size="sm" onClick={onClose}>
           Cancel
         </Button>
@@ -477,7 +419,7 @@ export const AutomationPanel = observer(function AutomationPanel({
                 ? 'Save'
                 : 'Create'}
         </ConfirmButton>
-      </div>
+      </SheetFooter>
     </div>
   );
 });

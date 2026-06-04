@@ -6,7 +6,7 @@ import { getPrNumber, isForkPr } from '@shared/pull-requests';
 import type { GitSetup, TaskLifecycleStatus } from '@shared/tasks';
 import type { WorkspaceConfig, WorkspaceTarget } from '@shared/workspace-config';
 import { nextDefaultConversationTitle } from '../conversations/conversation-title-utils';
-import type { InitialConversationState } from './initial-conversation-section';
+import type { InitialConversationState } from '../conversations/initial-conversation-section';
 import { buildFinalPrompt } from './initial-conversation-text';
 import type { CreateTaskState, LinkedType } from './use-create-task-state';
 

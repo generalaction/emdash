@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
-import type { InitialConversationState } from './initial-conversation-section';
-import { InitialConversationField } from './initial-conversation-section';
+import type { InitialConversationState } from '../conversations/initial-conversation-section';
+import { InitialConversationField } from '../conversations/initial-conversation-section';
 import type { CreateTaskState } from './use-create-task-state';
 import { WorkspaceSettingsSection } from './workspace-settings-section';
 

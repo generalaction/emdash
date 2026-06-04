@@ -9,8 +9,8 @@ interface RecentRunsListProps {
   isPending: boolean;
   automations: Automation[];
   filtersActive?: boolean;
-  isSelected: (id: string) => boolean;
-  onToggleSelect: (id: string) => void;
+  isSelected?: (id: string) => boolean;
+  onToggleSelect?: (id: string) => void;
 }
 
 export function RecentRunsList({
@@ -65,8 +65,8 @@ export function RecentRunsList({
             variant="card"
             onDelete={deleteRun}
             onRerun={canRerun ? () => rerunFrom(run.automationId) : undefined}
-            isSelected={isSelected(run.id)}
-            onToggleSelect={() => onToggleSelect(run.id)}
+            isSelected={isSelected?.(run.id) ?? false}
+            onToggleSelect={onToggleSelect ? () => onToggleSelect(run.id) : undefined}
           />
         );
       })}

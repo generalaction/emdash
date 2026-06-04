@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, type ReactNode } from 'react';
 import { Titlebar } from '@renderer/lib/components/titlebar/Titlebar';
 import { useParams } from '@renderer/lib/layout/navigation-provider';
+import { AutomationsProvider } from './automations-context';
 import { AutomationsBreadcrumb } from './components/AutomationsBreadcrumb';
 import { AutomationsView } from './components/AutomationsView';
 
@@ -48,7 +49,11 @@ export function AutomationsTitlebar() {
 }
 
 export function AutomationsMainPanel() {
-  return <AutomationsView />;
+  return (
+    <AutomationsProvider>
+      <AutomationsView />
+    </AutomationsProvider>
+  );
 }
 
 export const automationsView = {
