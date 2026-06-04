@@ -23,7 +23,7 @@
     "dev:main": "electron-vite dev --watch main",
     "dev:renderer": "electron-vite dev --watch renderer",
     "db:generate": "drizzle-kit generate",
-    "db:dev": "mkdir -p tooling/db && EMDASH_DB_FILE=$(pwd)/tooling/db/dev.db electron-vite dev",
+    "db:dev": "mkdir -p tooling/db && EMDASH_DB_FILE=$(pwd)/tooling/db/dev.db EMDASH_SHARE_BASE_URL=http://localhost:8787 electron-vite dev",
     "db:dev:reset": "rm -f tooling/db/dev.db tooling/db/dev.db-wal tooling/db/dev.db-shm",
     "db:setup": "npm install --prefix tooling/node-deps",
     "db:fixtures": "vitest run --project fixtures",

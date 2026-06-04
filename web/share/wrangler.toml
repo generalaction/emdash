@@ -1,0 +1,20 @@
+"$schema" = "./node_modules/wrangler/config-schema.json"
+name = "emdash-share"
+main = "src/index.ts"
+compatibility_date = "2026-06-01"
+
+routes = [{ pattern = "share.emdash.sh", custom_domain = true }]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "emdash-share"
+# Local dev uses Wrangler's local D1 store under .wrangler/state via `pnpm run dev`.
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+
+[[ratelimits]]
+name = "SHARE_CREATE_LIMITER"
+namespace_id = "1513"
+
+[ratelimits.simple]
+limit = 20
+period = 60

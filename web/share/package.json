@@ -1,0 +1,22 @@
+{
+  "name": "@emdash/share-worker",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --local",
+    "db:migrate": "CI=true wrangler d1 migrations apply emdash-share --local",
+    "db:migrate:remote": "CI=true wrangler d1 migrations apply emdash-share --remote",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "evlog": "^2.18.1",
+    "hono": "^4.10.7",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260601.0",
+    "typescript": "^6.0.2",
+    "wrangler": "^4.50.0"
+  }
+}

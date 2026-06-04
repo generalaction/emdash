@@ -1,5 +1,6 @@
 packages:
   - '.'
+  - 'web/share'
 
 onlyBuiltDependencies:
   - better-sqlite3
