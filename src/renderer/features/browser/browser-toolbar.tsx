@@ -16,7 +16,6 @@ import { Button } from '@renderer/lib/ui/button';
 import { Input } from '@renderer/lib/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { normalizeBrowserUrl, type BrowserSessionSnapshot } from '@shared/browser';
-import { browserSessionStore } from './browser-session-store';
 import { confirmClearBrowserStorage, openBrowserUrlExternally } from './browser-toolbar-actions';
 import type { BrowserWebviewAdapter } from './browser-webview-types';
 
@@ -24,11 +23,15 @@ export function BrowserToolbar({
   session,
   adapter,
   devServerUrls = [],
+  onNavigate,
+  onReload,
   onFocusUrl,
 }: {
   session: BrowserSessionSnapshot;
   adapter: BrowserWebviewAdapter | null;
   devServerUrls?: string[];
+  onNavigate?: (url: string) => boolean;
+  onReload?: () => void;
   onFocusUrl?: (focus: () => void) => void;
 }) {
   const [urlText, setUrlText] = useState(session.currentUrl);
@@ -58,12 +61,7 @@ export function BrowserToolbar({
     }
     setUrlError(null);
     setUrlText(normalized.url);
-    browserSessionStore.updateSession(session.browserId, {
-      currentUrl: normalized.url,
-      isLoading: true,
-      loadError: null,
-    });
-    void adapter?.loadUrl(normalized.url);
+    onNavigate?.(normalized.url);
   };
 
   const openExternal = () => {
@@ -96,11 +94,7 @@ export function BrowserToolbar({
       >
         <ArrowRight className="size-4" />
       </ToolbarIconButton>
-      <ToolbarIconButton
-        label={session.isLoading ? 'Stop' : 'Reload'}
-        disabled={disabled}
-        onClick={() => (session.isLoading ? adapter?.stop() : adapter?.reload())}
-      >
+      <ToolbarIconButton label={session.isLoading ? 'Stop' : 'Reload'} onClick={() => onReload?.()}>
         {session.isLoading ? <Square className="size-3.5" /> : <RefreshCw className="size-4" />}
       </ToolbarIconButton>
       <form
