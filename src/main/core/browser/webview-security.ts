@@ -1,6 +1,10 @@
-import { BROWSER_DEFAULT_URL, normalizeBrowserUrl } from '@shared/browser';
+import {
+  BROWSER_DEFAULT_URL,
+  BROWSER_PARTITION_PREFIX,
+  normalizeBrowserUrl,
+} from '@shared/browser';
 
-const BROWSER_PARTITION_PREFIX = 'persist:emdash-browser-';
+const BROWSER_PARTITION_INSTANCE_PREFIX = `${BROWSER_PARTITION_PREFIX}-`;
 
 export type WebviewAttachParams = {
   src?: string;
@@ -25,7 +29,7 @@ export type WebviewAttachValidation =
   | { ok: false; reason: 'missing-partition' | 'unregistered-partition' | 'unsupported-url' };
 
 export function isBrowserPartition(partition: string): boolean {
-  return partition.startsWith(BROWSER_PARTITION_PREFIX);
+  return partition.startsWith(BROWSER_PARTITION_INSTANCE_PREFIX);
 }
 
 export function validateBrowserWebviewAttach(

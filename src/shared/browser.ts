@@ -1,4 +1,4 @@
-const BROWSER_PARTITION_PREFIX = 'persist:emdash-browser';
+export const BROWSER_PARTITION_PREFIX = 'persist:emdash-browser';
 
 export type BrowserNavigationProtocol = 'about:' | 'file:' | 'http:' | 'https:';
 
