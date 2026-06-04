@@ -292,21 +292,22 @@ export class TaskManagerStore {
 
   async createTask(params: CreateTaskParams) {
     runInAction(() => {
+      const { taskConfig } = params;
       this.tasks.set(
         params.id,
         createUnregisteredTask({
           id: params.id,
           lastInteractedAt: new Date().toISOString(),
           createdAt: new Date().toISOString(),
-          name: params.name,
-          status: params.initialStatus ?? 'in_progress',
+          name: taskConfig.name,
+          status: taskConfig.initialStatus ?? 'in_progress',
           statusChangedAt: new Date().toISOString(),
           isPinned: false,
         })
       );
 
-      if (params.initialConversation) {
-        const ic = params.initialConversation;
+      if (taskConfig.initialConversation) {
+        const ic = taskConfig.initialConversation;
         const optimistic: Conversation = {
           id: ic.id,
           projectId: ic.projectId,

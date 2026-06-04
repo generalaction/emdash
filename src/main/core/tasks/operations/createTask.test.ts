@@ -94,7 +94,7 @@ describe('createTask', () => {
     const result = await createTask({
       id: 'task-1',
       projectId: 'project-1',
-      name: 'Test Task',
+      taskConfig: { version: '1', name: 'Test Task' },
       workspaceConfig: {
         version: '2',
         git: { kind: 'none' },
@@ -109,7 +109,7 @@ describe('createTask', () => {
     await createTask({
       id: 'task-1',
       projectId: 'project-1',
-      name: 'Test Task',
+      taskConfig: { version: '1', name: 'Test Task' },
       workspaceConfig: {
         version: '2',
         git: { kind: 'none' },
@@ -125,7 +125,7 @@ describe('createTask', () => {
     await createTask({
       id: 'task-1',
       projectId: 'project-1',
-      name: 'Test Task',
+      taskConfig: { version: '1', name: 'Test Task' },
       workspaceConfig: {
         version: '2',
         git: {
@@ -149,7 +149,7 @@ describe('createTask', () => {
     await createTask({
       id: 'task-1',
       projectId: 'project-1',
-      name: 'Test Task',
+      taskConfig: { version: '1', name: 'Test Task' },
       workspaceConfig: {
         version: '2',
         git: { kind: 'none' },
@@ -168,7 +168,7 @@ describe('createTask', () => {
       await createTask({
         id: 'task-1',
         projectId: 'project-1',
-        name: 'Test Task',
+        taskConfig: { version: '1', name: 'Test Task' },
         workspaceConfig: {
           version: '2',
           git: { kind: 'none' },
@@ -186,7 +186,7 @@ describe('createTask', () => {
       await createTask({
         id: 'task-1',
         projectId: 'project-1',
-        name: 'Test Task',
+        taskConfig: { version: '1', name: 'Test Task' },
         workspaceConfig: {
           version: '2',
           git: { kind: 'none' },
@@ -216,7 +216,7 @@ describe('createTask', () => {
       await createTask({
         id: 'task-1',
         projectId: 'project-1',
-        name: 'Test Task',
+        taskConfig: { version: '1', name: 'Test Task' },
         workspaceConfig,
       });
 
@@ -235,7 +235,7 @@ describe('createTask', () => {
       await createTask({
         id: 'task-1',
         projectId: 'project-1',
-        name: 'Test Task',
+        taskConfig: { version: '1', name: 'Test Task' },
         workspaceConfig: {
           version: '2',
           git: {
@@ -261,7 +261,7 @@ describe('createTask', () => {
       await createTask({
         id: 'task-1',
         projectId: 'project-1',
-        name: 'Test Task',
+        taskConfig: { version: '1', name: 'Test Task' },
         workspaceConfig: {
           version: '2',
           git: { kind: 'none' },

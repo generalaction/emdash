@@ -18,22 +18,13 @@ import type { ConversationRow, TaskRow } from '@main/db/schema';
 import { automationRuns, projects } from '@main/db/schema';
 import { resolveAutomationAgentAutoApprove } from '@shared/agent-auto-approve-defaults';
 import type { TaskCreateAction } from '@shared/automations/actions';
+import type { StoredAutomationTaskConfig } from '@shared/automations/types';
 import type { Branch } from '@shared/git';
 import { bareRefName } from '@shared/git-utils';
 import type { LocalProject, SshProject } from '@shared/projects';
 import { err, ok, type Result } from '@shared/result';
-import type {
-  CreateTaskError,
-  CreateTaskParams,
-  GitSetup,
-  ProvisionWorkspaceError,
-  WorkspaceLocation,
-} from '@shared/tasks';
-import {
-  parseWorkspaceConfig,
-  type WorkspaceConfig,
-  type WorkspaceTarget,
-} from '@shared/workspace-config';
+import type { CreateTaskError, CreateTaskParams, GitSetup, ProvisionWorkspaceError } from '@shared/tasks';
+import { type WorkspaceConfig, type WorkspaceTarget } from '@shared/workspace-config';
 import { emitRunUpdated } from '../run-transitions';
 import type { ActionContext, ActionError, ActionOutcome } from './types';
 
@@ -149,9 +140,9 @@ async function getProjectData(projectId: string): Promise<LocalProject | SshProj
   };
 }
 
-function makeRunTaskName(storedConfig: CreateTaskParams | null | undefined, ctx: ActionContext) {
+function makeRunTaskName(storedConfig: StoredAutomationTaskConfig | null, ctx: ActionContext) {
   return generateTaskName({
-    title: storedConfig?.name?.trim() || ctx.automation.name,
+    title: storedConfig?.taskConfig.name?.trim() || ctx.automation.name,
     description: ctx.run.id,
   });
 }
@@ -172,44 +163,6 @@ function scopeWorkspaceConfigToRun(config: WorkspaceConfig, runId: string): Work
   return config;
 }
 
-/**
- * Resolves a WorkspaceConfig from a stored automation task config.
- *
- * Handles backwards compat:
- * - v2 configs are returned as-is.
- * - v1 configs are upgraded via `parseWorkspaceConfig` (git.kind='none' cases return null
- *   and fall back to `resolveProjectDefaults` in the caller).
- * - Very old configs had `gitSetup` + `workspaceLocation` as top-level fields; these are
- *   wrapped into a v1 structure and upgraded.
- */
-function resolveStoredWorkspaceConfig(
-  storedConfig:
-    | (CreateTaskParams & { gitSetup?: GitSetup; workspaceLocation?: WorkspaceLocation })
-    | null
-    | undefined
-): WorkspaceConfig | null {
-  if (!storedConfig) return null;
-
-  if (storedConfig.workspaceConfig) {
-    const config = storedConfig.workspaceConfig;
-    // Already v2 — return directly.
-    if (config.version === '2') return config;
-    // v1 — try to upgrade.
-    return parseWorkspaceConfig(JSON.stringify(config));
-  }
-
-  // Very old stored configs had gitSetup + workspaceLocation as top-level fields.
-  const legacyGit = (storedConfig as { gitSetup?: GitSetup }).gitSetup;
-  const legacyWorkspace = (storedConfig as { workspaceLocation?: WorkspaceLocation })
-    .workspaceLocation;
-  if (legacyGit && legacyWorkspace) {
-    return parseWorkspaceConfig(
-      JSON.stringify({ version: '1', git: legacyGit, workspace: legacyWorkspace })
-    );
-  }
-  return null;
-}
-
 export async function executeTaskCreate(
   action: TaskCreateAction,
   ctx: ActionContext
@@ -221,7 +174,7 @@ export async function executeTaskCreate(
   if (!projectId) return err({ message: 'no_project_attached' });
 
   try {
-    const storedConfig = ctx.automation.taskConfig as CreateTaskParams | null | undefined;
+    const storedConfig = ctx.automation.taskConfig;
     const taskId = randomUUID();
     const conversationId = randomUUID();
     const taskName = makeRunTaskName(storedConfig, ctx);
@@ -232,43 +185,44 @@ export async function executeTaskCreate(
 
     // Resolve workspace config from stored config or project defaults.
     let workspaceConfig: WorkspaceConfig;
-    const storedWorkspaceConfig = resolveStoredWorkspaceConfig(storedConfig);
-    if (storedWorkspaceConfig) {
-      workspaceConfig = scopeWorkspaceConfigToRun(storedWorkspaceConfig, ctx.run.id);
+    if (storedConfig?.workspaceConfig) {
+      workspaceConfig = scopeWorkspaceConfigToRun(storedConfig.workspaceConfig, ctx.run.id);
     } else {
       workspaceConfig = await resolveProjectDefaults(project, taskName);
     }
 
+    const storedConversation = storedConfig?.taskConfig.initialConversation;
     const provider =
-      storedConfig?.initialConversation?.provider ??
+      storedConversation?.provider ??
       (await appSettingsService.get('defaultAgent')) ??
       DEFAULT_AGENT_ID;
 
     const initialConversation = {
-      ...(storedConfig?.initialConversation ?? {}),
+      ...(storedConversation ?? {}),
       id: conversationId,
       projectId,
       taskId,
       provider,
-      title: storedConfig?.initialConversation?.title ?? ctx.automation.name,
-      autoApprove: resolveAutomationAgentAutoApprove(
-        provider,
-        storedConfig?.initialConversation?.autoApprove
-      ),
+      title: storedConversation?.title ?? ctx.automation.name,
+      autoApprove: resolveAutomationAgentAutoApprove(provider, storedConversation?.autoApprove),
       initialPrompt: prompt,
     };
 
-    const taskConfig: CreateTaskParams = {
-      ...storedConfig,
+    const createTaskParams: CreateTaskParams = {
       id: taskId,
       projectId,
-      name: taskName,
+      taskConfig: {
+        version: '1',
+        name: taskName,
+        linkedIssue: storedConfig?.taskConfig.linkedIssue,
+        initialConversation,
+        initialStatus: storedConfig?.taskConfig.initialStatus,
+      },
       workspaceConfig,
-      initialConversation,
     };
 
     // Prepare all async data before opening the transaction.
-    const prepared = await prepareCreateTask(taskConfig);
+    const prepared = await prepareCreateTask(createTaskParams);
     if (!prepared.success) {
       return err({
         message: formatCreateTaskActionError(prepared.error),
@@ -288,7 +242,7 @@ export async function executeTaskCreate(
 
     // Emit post-commit side effects.
     const createSuccess = finalizeCreateTask(prepared.data, taskRow, convRow);
-    taskService.notifyTaskCreated(createSuccess.task, taskConfig);
+    taskService.notifyTaskCreated(createSuccess.task, createTaskParams);
     emitRunUpdated({ ...ctx.run, taskId, createdTaskId: taskId });
 
     try {

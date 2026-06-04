@@ -37,8 +37,8 @@ import {
   type CronTrigger,
 } from '@shared/automations/types';
 import { assertValidCronTrigger } from '@shared/automations/validation';
+import type { StoredAutomationTaskConfig } from '@shared/automations/types';
 import type { Branch } from '@shared/git';
-import type { CreateTaskParams } from '@shared/tasks';
 import type { WorkspaceConfig, WorkspaceTarget } from '@shared/workspace-config';
 import { useAutomations } from '../useAutomations';
 import { SchedulePicker } from './pickers/SchedulePicker';
@@ -57,21 +57,21 @@ function cronTzFromTrigger(trigger: CronTrigger | undefined): string {
   return trigger?.tz ?? getLocalTimeZone();
 }
 
-function branchInitialFromConfig(config: CreateTaskParams | null | undefined): {
+function branchInitialFromConfig(config: StoredAutomationTaskConfig | null | undefined): {
   createBranchAndWorktree: boolean;
   pushBranch?: boolean;
   branchOverride?: Branch;
 } {
   if (!config) return { createBranchAndWorktree: true };
-  const git = config.workspaceConfig?.git;
-  if (git?.kind === 'create-branch') {
+  const git = config.workspaceConfig.git;
+  if (git.kind === 'create-branch') {
     return {
       createBranchAndWorktree: true,
       pushBranch: git.pushBranch,
       branchOverride: git.fromBranch,
     };
   }
-  if (git?.kind === 'none') return { createBranchAndWorktree: false };
+  if (git.kind === 'none') return { createBranchAndWorktree: false };
   return { createBranchAndWorktree: true };
 }
 
@@ -176,7 +176,7 @@ export const CreateAutomationView = observer(function CreateAutomationView({
     fromBranch.isValid &&
     !isPending;
 
-  function buildTaskConfig(targetProjectId: string): CreateTaskParams | null {
+  function buildTaskConfig(targetProjectId: string): StoredAutomationTaskConfig | null {
     if (!fromBranch.selectedBranch) return null;
     const noWorktree = isUnborn || !fromBranch.createBranchAndWorktree || effectiveUseBYOI;
     const git = noWorktree
@@ -200,20 +200,21 @@ export const CreateAutomationView = observer(function CreateAutomationView({
       workspace = { kind: 'new-worktree' };
     }
     const workspaceConfig: WorkspaceConfig = { version: '2', git, workspace };
-    const taskId = crypto.randomUUID();
+    const placeholderTaskId = crypto.randomUUID();
     return {
-      id: taskId,
-      projectId: targetProjectId,
-      name: fromBranch.taskName?.trim() || name.trim(),
-      workspaceConfig,
-      initialConversation: {
-        id: crypto.randomUUID(),
-        projectId: targetProjectId,
-        taskId,
-        provider,
-        title: name.trim(),
-        initialPrompt: prompt.trim(),
+      taskConfig: {
+        version: '1',
+        name: fromBranch.taskName?.trim() || name.trim(),
+        initialConversation: {
+          id: crypto.randomUUID(),
+          projectId: targetProjectId,
+          taskId: placeholderTaskId,
+          provider,
+          title: name.trim(),
+          initialPrompt: prompt.trim(),
+        },
       },
+      workspaceConfig,
     };
   }
 

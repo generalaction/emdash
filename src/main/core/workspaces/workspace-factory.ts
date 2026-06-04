@@ -25,7 +25,7 @@ import { type WorkspaceFactoryResult } from '@main/core/workspaces/workspace-reg
 import { db } from '@main/db/client';
 import { workspaces as workspacesTable } from '@main/db/schema';
 import { log } from '@main/lib/logger';
-import { getTaskEnvVars } from '@shared/task/envVars';
+import { getTaskEnvVars } from './workspace-env';
 import type { Task } from '@shared/tasks';
 import { getEffectiveTaskSettings } from '../projects/settings/effective-task-settings';
 import type { ProjectSettingsProvider } from '../projects/settings/provider';

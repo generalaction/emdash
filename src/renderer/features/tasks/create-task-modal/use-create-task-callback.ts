@@ -46,16 +46,19 @@ export function useCreateTaskCallback({
       .createTask({
         id,
         projectId: selectedProjectId,
-        name: state.taskName.effectiveTaskName,
+        taskConfig: {
+          version: '1',
+          name: state.taskName.effectiveTaskName,
+          linkedIssue: state.linkedType === 'issue' ? (state.linkedIssue ?? undefined) : undefined,
+          initialStatus: deriveInitialStatus(state.linkedType, state.linkedPR),
+          initialConversation: buildInitialConversation(
+            id,
+            selectedProjectId,
+            initialConversation,
+            autoApproveDefaults.getDefault
+          ),
+        },
         workspaceConfig: buildWorkspaceConfig(state, isUnborn, projectData, useBYOI),
-        linkedIssue: state.linkedType === 'issue' ? (state.linkedIssue ?? undefined) : undefined,
-        initialStatus: deriveInitialStatus(state.linkedType, state.linkedPR),
-        initialConversation: buildInitialConversation(
-          id,
-          selectedProjectId,
-          initialConversation,
-          autoApproveDefaults.getDefault
-        ),
       })
       .catch((e) => log.error('create task failed', e));
 

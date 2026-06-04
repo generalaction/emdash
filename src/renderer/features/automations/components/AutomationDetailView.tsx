@@ -56,9 +56,9 @@ import {
   type CronTrigger,
 } from '@shared/automations/types';
 import { assertValidCronTrigger } from '@shared/automations/validation';
+import type { StoredAutomationTaskConfig } from '@shared/automations/types';
 import type { Branch } from '@shared/git';
 import { makePtySessionId } from '@shared/ptySessionId';
-import type { CreateTaskParams } from '@shared/tasks';
 import type { WorkspaceConfig, WorkspaceTarget } from '@shared/workspace-config';
 import { isActiveStatus } from '../run-status-styles';
 import { useAutomations, useAutomationRuns } from '../useAutomations';
@@ -79,21 +79,21 @@ function cronTzFromTrigger(trigger: CronTrigger | undefined): string {
   return trigger?.tz ?? getLocalTimeZone();
 }
 
-function branchInitialFromConfig(config: CreateTaskParams | null | undefined): {
+function branchInitialFromConfig(config: StoredAutomationTaskConfig | null | undefined): {
   createBranchAndWorktree: boolean;
   pushBranch?: boolean;
   branchOverride?: Branch;
 } {
   if (!config) return { createBranchAndWorktree: true };
-  const git = config.workspaceConfig?.git;
-  if (git?.kind === 'create-branch') {
+  const git = config.workspaceConfig.git;
+  if (git.kind === 'create-branch') {
     return {
       createBranchAndWorktree: true,
       pushBranch: git.pushBranch,
       branchOverride: git.fromBranch,
     };
   }
-  if (git?.kind === 'none') return { createBranchAndWorktree: false };
+  if (git.kind === 'none') return { createBranchAndWorktree: false };
   return { createBranchAndWorktree: true };
 }
 
@@ -146,7 +146,7 @@ export const AutomationDetailView = observer(function AutomationDetailView({
   const [cronExpr, setCronExpr] = useState<string>(cronExprFromTrigger(seedTrigger));
   const [cronTz] = useState<string>(cronTzFromTrigger(seedTrigger));
   const [useBYOI, setUseBYOI] = useState(() => {
-    const ws = seedConfig?.workspaceConfig?.workspace;
+    const ws = seedConfig?.workspaceConfig.workspace;
     return ws?.kind === 'byoi' || (ws as { host?: string } | undefined)?.host === 'byoi';
   });
   const [error, setError] = useState<string | null>(null);
@@ -155,8 +155,8 @@ export const AutomationDetailView = observer(function AutomationDetailView({
   const effectiveProjectId =
     projectId && asMounted(getProjectStore(projectId)) ? projectId : firstMountedProjectId();
 
-  const seedProvider = isValidProviderId(seedConfig?.initialConversation?.provider)
-    ? seedConfig.initialConversation.provider
+  const seedProvider = isValidProviderId(seedConfig?.taskConfig.initialConversation?.provider)
+    ? seedConfig.taskConfig.initialConversation.provider
     : undefined;
 
   const initialConversation = useInitialConversationState(effectiveProjectId, seedProvider);
@@ -173,7 +173,7 @@ export const AutomationDetailView = observer(function AutomationDetailView({
   const currentBranch = repo?.currentBranch ?? null;
 
   const branchInitial = useMemo(() => branchInitialFromConfig(seedConfig), [seedConfig]);
-  const taskName = useTaskName({ generatedName: seedConfig?.name, resetKey: effectiveProjectId });
+  const taskName = useTaskName({ generatedName: seedConfig?.taskConfig.name, resetKey: effectiveProjectId });
   const branchSelection = useBranchSelection(
     effectiveProjectId,
     defaultBranch,
@@ -201,8 +201,8 @@ export const AutomationDetailView = observer(function AutomationDetailView({
   };
 
   const workspaceSettingsKey = useMemo(
-    () => `${effectiveProjectId ?? 'none'}:${seedConfig?.id ?? 'new'}`,
-    [effectiveProjectId, seedConfig?.id]
+    () => `${effectiveProjectId ?? 'none'}:${automation.id}`,
+    [effectiveProjectId, automation.id]
   );
 
   const { update, runNow } = useAutomations();
@@ -248,7 +248,7 @@ export const AutomationDetailView = observer(function AutomationDetailView({
     }
   }
 
-  function buildTaskConfig(targetProjectId: string): CreateTaskParams | null {
+  function buildTaskConfig(targetProjectId: string): StoredAutomationTaskConfig | null {
     if (!fromBranch.selectedBranch) return null;
     const noWorktree = isUnborn || !fromBranch.createBranchAndWorktree || effectiveUseBYOI;
     const git = noWorktree
@@ -272,20 +272,21 @@ export const AutomationDetailView = observer(function AutomationDetailView({
       workspace = { kind: 'new-worktree' };
     }
     const workspaceConfig: WorkspaceConfig = { version: '2', git, workspace };
-    const taskId = crypto.randomUUID();
+    const placeholderTaskId = crypto.randomUUID();
     return {
-      id: taskId,
-      projectId: targetProjectId,
-      name: fromBranch.taskName?.trim() || name.trim(),
-      workspaceConfig,
-      initialConversation: {
-        id: crypto.randomUUID(),
-        projectId: targetProjectId,
-        taskId,
-        provider,
-        title: name.trim(),
-        initialPrompt: prompt.trim(),
+      taskConfig: {
+        version: '1',
+        name: fromBranch.taskName?.trim() || name.trim(),
+        initialConversation: {
+          id: crypto.randomUUID(),
+          projectId: targetProjectId,
+          taskId: placeholderTaskId,
+          provider,
+          title: name.trim(),
+          initialPrompt: prompt.trim(),
+        },
       },
+      workspaceConfig,
     };
   }
 

@@ -1,6 +1,7 @@
-import type { Conversation, CreateConversationParams } from '@shared/conversations';
+import type { Conversation } from '@shared/conversations';
 import type { Branch, CreateBranchError, FetchPrForReviewError, PushError } from '@shared/git';
 import type { PullRequest } from '@shared/pull-requests';
+import type { TaskConfig } from '@shared/task-config';
 import type { WorkspaceConfig } from '@shared/workspace-config';
 
 // ---------------------------------------------------------------------------
@@ -88,6 +89,7 @@ export type Task = {
   workspaceGit?: { linesAdded: number; linesDeleted: number };
   workspaceId?: string;
   runId?: string;
+  automationId?: string;
 };
 
 export type TaskBootstrapStatus =
@@ -99,14 +101,10 @@ export type TaskBootstrapStatus =
 export type CreateTaskParams = {
   id: string;
   projectId: string;
-  name: string;
+  /** Typed, versioned task configuration (name, issue link, conversation, status). */
+  taskConfig: TaskConfig;
   /** Typed, versioned workspace configuration (git setup + workspace location). */
   workspaceConfig: WorkspaceConfig;
-  /** The issue to link to the task */
-  linkedIssue?: Issue;
-  initialConversation?: CreateConversationParams;
-  initialStatus?: TaskLifecycleStatus;
-  automationId?: string;
 };
 
 export type CreateTaskError =
@@ -165,15 +163,3 @@ export type TaskDeletePreflightItem = {
 export type DeletePreflightResult = {
   tasks: TaskDeletePreflightItem[];
 };
-
-export function formatIssueAsPrompt(issue: Issue, initialPrompt?: string): string {
-  const parts = [
-    `[${issue.identifier}] ${issue.title}`,
-    issue.url,
-    issue.description,
-    issue.context,
-  ].filter(Boolean);
-
-  if (initialPrompt?.trim()) parts.push('', initialPrompt.trim());
-  return parts.join('\n');
-}

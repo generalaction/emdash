@@ -1,6 +1,7 @@
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 import type { TaskCreateAction } from '@shared/automations/actions';
-import type { CreateTaskParams } from '@shared/tasks';
+import type { TaskConfig } from '@shared/task-config';
+import type { WorkspaceConfig } from '@shared/workspace-config';
 
 export const AUTOMATION_NAME_MAX_LENGTH = 120;
 
@@ -8,13 +9,21 @@ export type CronTrigger = { expr: string; tz: string };
 
 export type AutomationDeadlinePolicy = 'next-interval' | 'fixed' | 'none';
 
+/** Configuration stored on an automation row — no per-run id/projectId. */
+export type StoredAutomationTaskConfig = {
+  taskConfig: TaskConfig;
+  workspaceConfig: WorkspaceConfig;
+};
+
 export type Automation = {
   id: string;
+  projectId: string | null;
   name: string;
+  description: string | null;
+  category: string;
   trigger: CronTrigger;
   actions: TaskCreateAction[];
-  taskConfig: CreateTaskParams | null;
-  projectId: string | null;
+  taskConfig: StoredAutomationTaskConfig | null;
   /** Controls cron scheduling only. Manual runs are allowed while false. */
   enabled: boolean;
   isDraft: boolean;
@@ -67,7 +76,7 @@ export type CreateAutomationInput = {
   category: string;
   trigger: CronTrigger;
   actions: TaskCreateAction[];
-  taskConfig?: CreateTaskParams | null;
+  taskConfig?: StoredAutomationTaskConfig | null;
   projectId: string;
   enabled?: boolean;
   isDraft?: boolean;

@@ -27,7 +27,7 @@ import type {
   UpdateAutomationPatch,
 } from '@shared/automations/types';
 import { assertValidCronTrigger, assertValidDeadline } from '@shared/automations/validation';
-import type { CreateTaskParams } from '@shared/tasks';
+import type { StoredAutomationTaskConfig } from '@shared/automations/types';
 
 const DEFAULT_TZ = getLocalTimeZone();
 
@@ -74,12 +74,14 @@ function assertValidAutomationInput(input: {
   if (!input.isDraft) assertPublishableActions(input.actions);
 }
 
-function parseTaskConfig(raw: string | null): CreateTaskParams | null {
+function parseTaskConfig(raw: string | null): StoredAutomationTaskConfig | null {
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as unknown;
     if (!parsed || typeof parsed !== 'object') return null;
-    return parsed as CreateTaskParams;
+    const obj = parsed as Record<string, unknown>;
+    if (!('taskConfig' in obj) || !('workspaceConfig' in obj)) return null;
+    return parsed as StoredAutomationTaskConfig;
   } catch (error) {
     log.warn('automations.repo: failed to parse taskConfig JSON', {
       error: String(error),
@@ -104,7 +106,7 @@ function asAgentProviderId(
 function automationTaskConfigAgentProvider(
   row: Pick<AutomationRow, 'id' | 'taskConfig'>
 ): AgentProviderId | null {
-  const provider = parseTaskConfig(row.taskConfig)?.initialConversation?.provider;
+  const provider = parseTaskConfig(row.taskConfig)?.taskConfig.initialConversation?.provider;
   return asAgentProviderId(provider, { automationId: row.id });
 }
 

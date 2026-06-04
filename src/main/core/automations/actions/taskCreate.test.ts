@@ -43,9 +43,17 @@ const automation: Automation = {
   trigger: { expr: '0 9 * * *', tz: 'UTC' },
   actions: [{ kind: 'task.create', prompt: 'Check things' }],
   taskConfig: {
-    id: 'stored-task-id',
-    projectId: 'project-1',
-    name: 'Stored task',
+    taskConfig: {
+      version: '1',
+      name: 'Stored task',
+      initialConversation: {
+        id: 'stored-conversation-id',
+        projectId: 'project-1',
+        taskId: 'stored-task-id',
+        provider: 'claude' as never,
+        title: 'Stored task',
+      },
+    },
     workspaceConfig: {
       version: '2' as const,
       git: {
@@ -55,13 +63,6 @@ const automation: Automation = {
         pushBranch: false,
       },
       workspace: { kind: 'new-worktree' as const },
-    },
-    initialConversation: {
-      id: 'stored-conversation-id',
-      projectId: 'project-1',
-      taskId: 'stored-task-id',
-      provider: 'claude' as never,
-      title: 'Stored task',
     },
   },
   projectId: 'project-1',
@@ -132,18 +133,21 @@ describe('executeTaskCreate', () => {
         ...automation,
         taskConfig: {
           ...automation.taskConfig!,
-          initialConversation: {
-            ...automation.taskConfig!.initialConversation!,
-            provider: 'cursor',
-            autoApprove: false,
+          taskConfig: {
+            ...automation.taskConfig!.taskConfig,
+            initialConversation: {
+              ...automation.taskConfig!.taskConfig.initialConversation!,
+              provider: 'cursor',
+              autoApprove: false,
+            },
           },
         },
       },
       run,
     });
 
-    const taskConfig = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
-    expect(taskConfig?.initialConversation?.autoApprove).toBe(true);
+    const createArg = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
+    expect(createArg?.taskConfig.initialConversation?.autoApprove).toBe(true);
   });
 
   it.each(['claude', 'codex'] as const)(
@@ -160,18 +164,21 @@ describe('executeTaskCreate', () => {
           ...automation,
           taskConfig: {
             ...automation.taskConfig!,
-            initialConversation: {
-              ...automation.taskConfig!.initialConversation!,
-              provider,
-              autoApprove: false,
+            taskConfig: {
+              ...automation.taskConfig!.taskConfig,
+              initialConversation: {
+                ...automation.taskConfig!.taskConfig.initialConversation!,
+                provider,
+                autoApprove: false,
+              },
             },
           },
         },
         run,
       });
 
-      const taskConfig = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
-      expect(taskConfig?.initialConversation?.autoApprove).toBe(true);
+      const createArg = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
+      expect(createArg?.taskConfig.initialConversation?.autoApprove).toBe(true);
     }
   );
 
@@ -187,18 +194,21 @@ describe('executeTaskCreate', () => {
         ...automation,
         taskConfig: {
           ...automation.taskConfig!,
-          initialConversation: {
-            ...automation.taskConfig!.initialConversation!,
-            provider: 'opencode',
-            autoApprove: false,
+          taskConfig: {
+            ...automation.taskConfig!.taskConfig,
+            initialConversation: {
+              ...automation.taskConfig!.taskConfig.initialConversation!,
+              provider: 'opencode',
+              autoApprove: false,
+            },
           },
         },
       },
       run,
     });
 
-    const taskConfig = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
-    expect(taskConfig?.initialConversation?.autoApprove).toBe(true);
+    const createArg = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
+    expect(createArg?.taskConfig.initialConversation?.autoApprove).toBe(true);
   });
 
   it('creates a task even when a previous action already created one for the run', async () => {
@@ -229,9 +239,9 @@ describe('executeTaskCreate', () => {
     const result = await executeTaskCreate(automation.actions[0]!, { automation, run });
 
     expect(result.success).toBe(true);
-    const taskConfig = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
-    expect(taskConfig?.name).toBe('stored-task-run');
-    expect(taskConfig?.workspaceConfig.git).toEqual({
+    const createArg = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
+    expect(createArg?.taskConfig.name).toBe('stored-task-run');
+    expect(createArg?.workspaceConfig.git).toEqual({
       kind: 'create-branch',
       branchName: 'stored-task-branch-run',
       fromBranch: { type: 'local', branch: 'main' },
@@ -325,9 +335,9 @@ describe('executeTaskCreate', () => {
       run,
     });
 
-    const taskConfig = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
-    expect(taskConfig?.initialConversation?.provider).toBe('cursor');
-    expect(taskConfig?.initialConversation?.autoApprove).toBe(true);
+    const createArg = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
+    expect(createArg?.taskConfig.initialConversation?.provider).toBe('cursor');
+    expect(createArg?.taskConfig.initialConversation?.autoApprove).toBe(true);
   });
 
   it('persists the run task link immediately after task creation', async () => {

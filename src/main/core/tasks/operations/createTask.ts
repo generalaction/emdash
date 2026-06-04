@@ -42,7 +42,7 @@ export async function prepareCreateTask(
   }
 
   const { workspaceConfig } = params;
-  const initialStatus: TaskLifecycleStatus = params.initialStatus ?? 'in_progress';
+  const initialStatus: TaskLifecycleStatus = params.taskConfig.initialStatus ?? 'in_progress';
   const configJson = serializeWorkspaceConfig(workspaceConfig);
 
   let workspaceId: string;
@@ -91,8 +91,8 @@ export async function prepareCreateTask(
   }
 
   let convInsert: ConvInsert | undefined;
-  if (params.initialConversation) {
-    const ic = params.initialConversation;
+  if (params.taskConfig.initialConversation) {
+    const ic = params.taskConfig.initialConversation;
     const configObj: ConversationConfig = {};
     if (ic.autoApprove !== undefined) configObj.autoApprove = ic.autoApprove;
     if (ic.initialPrompt?.trim()) configObj.initialPrompt = ic.initialPrompt.trim();
@@ -130,10 +130,10 @@ export function commitCreateTask(
     .values({
       id: params.id,
       projectId: params.projectId,
-      name: params.name,
+      name: params.taskConfig.name,
       status: initialStatus,
       workspaceId,
-      linkedIssue: params.linkedIssue ? JSON.stringify(params.linkedIssue) : null,
+      linkedIssue: params.taskConfig.linkedIssue ? JSON.stringify(params.taskConfig.linkedIssue) : null,
       updatedAt: sql`CURRENT_TIMESTAMP`,
       statusChangedAt: sql`CURRENT_TIMESTAMP`,
       lastInteractedAt: sql`CURRENT_TIMESTAMP`,
@@ -162,10 +162,7 @@ export function finalizeCreateTask(
   taskRow: TaskRow,
   convRow: ConversationRow | undefined
 ): CreateTaskSuccess {
-  const task = {
-    ...mapTaskRowToTask(taskRow, []),
-    automationId: prepared.params.automationId,
-  };
+  const task = mapTaskRowToTask(taskRow, []);
 
   let initialConversation: Conversation | undefined;
   if (convRow) {
