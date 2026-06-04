@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
     availability: {
       finder: true,
       cursor: true,
+      terminal: true,
     },
     loading: false,
   },
@@ -54,9 +55,11 @@ vi.mock('@renderer/lib/hooks/useOpenInApps', () => ({
     labels: {
       finder: 'Explorer',
       cursor: 'Cursor',
+      terminal: 'Terminal',
     },
     availability: mocks.openInApps.availability,
-    installedApps: [OPEN_IN_APPS.finder, OPEN_IN_APPS.cursor],
+    installedApps: [OPEN_IN_APPS.finder, OPEN_IN_APPS.cursor, OPEN_IN_APPS.terminal],
+    platform: 'win32',
     loading: mocks.openInApps.loading,
   }),
 }));
@@ -156,6 +159,7 @@ describe('OpenInMenu', () => {
     mocks.openInApps.availability = {
       finder: true,
       cursor: true,
+      terminal: true,
     };
     mocks.openInApps.loading = false;
     dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>');
@@ -188,10 +192,14 @@ describe('OpenInMenu', () => {
     });
 
     expect(mocks.updateOpenIn).toHaveBeenCalledWith({ default: 'cursor' });
+    expect(mocks.updateOpenIn).toHaveBeenCalledTimes(1);
     expect(mocks.openIn).toHaveBeenCalledWith({
       app: 'cursor',
+      isRemote: false,
       path: 'C:/repo',
+      sshConnectionId: undefined,
     });
+    expect(mocks.openIn).toHaveBeenCalledTimes(1);
   });
 
   it('keeps the preferred app persisted when a dropdown launch fails', async () => {
@@ -222,6 +230,7 @@ describe('OpenInMenu', () => {
     mocks.openInApps.availability = {
       finder: true,
       cursor: false,
+      terminal: true,
     };
 
     await act(async () => {
