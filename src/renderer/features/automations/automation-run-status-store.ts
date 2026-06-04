@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import type { AgentStatus } from '@renderer/features/tasks/conversations/conversation-manager';
-import type { AutomationRunStatus } from '@shared/automations/types';
+import type { AutomationRunStatus } from '@shared/automations/automation-run';
 
 export type AutomationRunStatusSnapshot = {
   runId: string;

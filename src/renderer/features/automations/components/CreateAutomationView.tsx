@@ -25,36 +25,34 @@ import { Input } from '@renderer/lib/ui/input';
 import { Label } from '@renderer/lib/ui/label';
 import { SheetFooter } from '@renderer/lib/ui/sheet';
 import { Switch } from '@renderer/lib/ui/switch';
-import type { TaskCreateAction } from '@shared/automations/actions';
-import { automationCatalogCategories } from '@shared/automations/builtin-catalog';
+import type { Automation } from '@shared/automations/automation';
+import type { ConversationConfig, TriggerConfig, StoredAutomationTaskConfig } from '@shared/automations/config';
 import { formatAutomationError } from '@shared/automations/format';
 import { DEFAULT_SCHEDULE, scheduleToCron } from '@shared/automations/schedule';
 import { getLocalTimeZone } from '@shared/automations/timezone';
-import {
-  AUTOMATION_NAME_MAX_LENGTH,
-  type Automation,
-  type BuiltinAutomationTemplate,
-  type CronTrigger,
-} from '@shared/automations/types';
-import type { StoredAutomationTaskConfig } from '@shared/automations/types';
 import { assertValidCronTrigger } from '@shared/automations/validation';
 import type { Branch } from '@shared/git';
 import type { WorkspaceConfig, WorkspaceTarget } from '@shared/workspace-config';
-import { useAutomations } from '../useAutomations';
+import { useAutomations } from '../use-automations';
 import { SchedulePicker } from './pickers/SchedulePicker';
 
 const DEFAULT_CRON = scheduleToCron(DEFAULT_SCHEDULE);
 
-function extractTaskAction(actions: TaskCreateAction[] | undefined): TaskCreateAction | undefined {
-  return actions?.[0];
-}
-
-function cronExprFromTrigger(trigger: CronTrigger | undefined): string {
-  return trigger?.expr ?? DEFAULT_CRON;
-}
-
-function cronTzFromTrigger(trigger: CronTrigger | undefined): string {
-  return trigger?.tz ?? getLocalTimeZone();
+function plainBranch(branch: Branch): Branch {
+  if (branch.type === 'remote') {
+    return {
+      type: 'remote',
+      branch: branch.branch,
+      remote: { name: branch.remote.name, url: branch.remote.url },
+    };
+  }
+  return branch.remote
+    ? {
+        type: 'local',
+        branch: branch.branch,
+        remote: { name: branch.remote.name, url: branch.remote.url },
+      }
+    : { type: 'local', branch: branch.branch };
 }
 
 function branchInitialFromConfig(config: StoredAutomationTaskConfig | null | undefined): {
@@ -75,41 +73,19 @@ function branchInitialFromConfig(config: StoredAutomationTaskConfig | null | und
   return { createBranchAndWorktree: true };
 }
 
-function plainBranch(branch: Branch): Branch {
-  if (branch.type === 'remote') {
-    return {
-      type: 'remote',
-      branch: branch.branch,
-      remote: { name: branch.remote.name, url: branch.remote.url },
-    };
-  }
-  return branch.remote
-    ? {
-        type: 'local',
-        branch: branch.branch,
-        remote: { name: branch.remote.name, url: branch.remote.url },
-      }
-    : { type: 'local', branch: branch.branch };
-}
-
 export interface CreateAutomationViewProps {
-  template?: BuiltinAutomationTemplate;
   onClose: () => void;
   onSaved?: (automation: Automation) => void;
 }
 
 export const CreateAutomationView = observer(function CreateAutomationView({
-  template,
   onClose,
   onSaved,
 }: CreateAutomationViewProps) {
-  const seedTrigger = template?.defaultTrigger;
-  const seedTaskAction = extractTaskAction(template?.defaultActions);
-
-  const [name, setName] = useState(template?.name ?? '');
+  const [name, setName] = useState('');
   const [projectId, setProjectId] = useState<string | undefined>(firstMountedProjectId());
-  const [cronExpr, setCronExpr] = useState<string>(cronExprFromTrigger(seedTrigger));
-  const [cronTz] = useState<string>(cronTzFromTrigger(seedTrigger));
+  const [cronExpr, setCronExpr] = useState<string>(DEFAULT_CRON);
+  const [cronTz] = useState<string>(getLocalTimeZone());
   const [useBYOI, setUseBYOI] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [cronError, setCronError] = useState<string | null>(null);
@@ -118,12 +94,6 @@ export const CreateAutomationView = observer(function CreateAutomationView({
     projectId && asMounted(getProjectStore(projectId)) ? projectId : firstMountedProjectId();
 
   const initialConversation = useInitialConversationState(effectiveProjectId, undefined);
-
-  const [promptSeeded, setPromptSeeded] = useState(false);
-  if (!promptSeeded && seedTaskAction?.prompt) {
-    setPromptSeeded(true);
-    initialConversation.setPrompt(seedTaskAction.prompt);
-  }
 
   const repo = effectiveProjectId ? getRepositoryStore(effectiveProjectId) : undefined;
   const defaultBranch = repo?.defaultBranch;
@@ -204,19 +174,10 @@ export const CreateAutomationView = observer(function CreateAutomationView({
       workspace = { kind: 'new-worktree' };
     }
     const workspaceConfig: WorkspaceConfig = { version: '2', git, workspace };
-    const placeholderTaskId = crypto.randomUUID();
     return {
       taskConfig: {
         version: '1',
         name: fromBranch.taskName?.trim() || name.trim(),
-        initialConversation: {
-          id: crypto.randomUUID(),
-          projectId: targetProjectId,
-          taskId: placeholderTaskId,
-          provider,
-          title: name.trim(),
-          initialPrompt: prompt.trim(),
-        },
       },
       workspaceConfig,
     };
@@ -227,23 +188,25 @@ export const CreateAutomationView = observer(function CreateAutomationView({
     setError(null);
     const taskConfig = buildTaskConfig(effectiveProjectId);
     if (!taskConfig) return;
-    const triggerSpec: CronTrigger = { expr: cronExpr.trim(), tz: cronTz };
+    const triggerConfig: TriggerConfig = { expr: cronExpr.trim(), tz: cronTz };
     try {
-      assertValidCronTrigger(triggerSpec);
+      assertValidCronTrigger(triggerConfig);
     } catch (validationError) {
       setCronError(formatAutomationError(validationError));
       return;
     }
     setCronError(null);
-    const actions: TaskCreateAction[] = [{ kind: 'task.create', prompt: prompt.trim() }];
+    const conversationConfig: ConversationConfig = {
+      prompt: prompt.trim(),
+      provider,
+      autoApprove: false,
+    };
     try {
       const trimmedName = name.trim();
       const saved = await create.mutateAsync({
         name: trimmedName,
-        description: null,
-        category: template?.category ?? automationCatalogCategories[0],
-        trigger: triggerSpec,
-        actions,
+        triggerConfig,
+        conversationConfig,
         taskConfig,
         projectId: effectiveProjectId,
       });
@@ -275,7 +238,6 @@ export const CreateAutomationView = observer(function CreateAutomationView({
                 }
               }}
               placeholder="Name this automation"
-              maxLength={AUTOMATION_NAME_MAX_LENGTH}
               className="h-9 text-sm"
             />
           </section>

@@ -291,18 +291,11 @@ export const automations = sqliteTable(
   {
     id: text('id').primaryKey(),
     name: text('name').notNull(),
-    description: text('description'),
-    category: text('category').notNull(),
-    cronExpr: text('cron_expr').notNull(),
-    cronTz: text('cron_tz'),
-    promptTemplate: text('prompt_template').notNull().default(''),
-    actions: text('actions').notNull().default('[]'),
-    taskConfig: text('task_config'),
     projectId: text('project_id').references(() => projects.id, { onDelete: 'set null' }),
+    triggerConfig: text('trigger_config'),
+    conversationConfig: text('conversation_config'),
+    taskConfig: text('task_config'),
     enabled: integer('enabled').notNull().default(1),
-    isDraft: integer('is_draft').notNull().default(0),
-    deadlinePolicy: text('deadline_policy').notNull().default('next-interval'),
-    deadlineMs: integer('deadline_ms'),
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
   },
@@ -324,10 +317,12 @@ export const automationRuns = sqliteTable(
     finishedAt: integer('finished_at'),
     status: text('status').notNull(),
     taskId: text('task_id').references(() => tasks.id, { onDelete: 'set null' }),
-    createdTaskId: text('created_task_id'),
     error: text('error'),
     triggerKind: text('trigger_kind').notNull(),
     workerId: text('worker_id'),
+    triggerConfigSnapshot: text('trigger_config_snapshot').notNull().default('{}'),
+    conversationConfigSnapshot: text('conversation_config_snapshot').notNull().default('{}'),
+    taskConfigSnapshot: text('task_config_snapshot'),
   },
   (table) => ({
     automationStartedIdx: index('idx_automation_runs_automation_started').on(
@@ -347,7 +342,6 @@ export const automationRuns = sqliteTable(
       table.status,
       table.scheduledAt
     ),
-    createdTaskIdIdx: index('idx_automation_runs_created_task_id').on(table.createdTaskId),
   })
 );
 

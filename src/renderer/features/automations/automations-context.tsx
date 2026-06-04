@@ -1,56 +1,24 @@
-import type { UseMutationResult } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useMemo, type ReactNode } from 'react';
-import { isQueueDeadlineExceededRun } from '@shared/automations/format';
-import type {
-  Automation,
-  AutomationRun,
-  AutomationRunWithContext,
-} from '@shared/automations/types';
-import { useAutomations, useRecentAutomationRuns, useAutomationRuns } from './useAutomations';
-
-const RECENT_RUNS_LIMIT = 200;
+import type { Automation } from '@shared/automations/automation';
+import type { AutomationRun } from '@shared/automations/automation-run';
+import { useAutomationRuns, useAutomations } from './use-automations';
 
 interface AutomationsContextValue {
   automations: Automation[];
   automationsIsPending: boolean;
-  recentRuns: { data: AutomationRunWithContext[] | undefined; isPending: boolean };
-  runsByAutomation: Map<string, AutomationRun[]>;
-  setEnabled: UseMutationResult<Automation, Error, { id: string; enabled: boolean }>;
 }
 
 const AutomationsContext = createContext<AutomationsContextValue | null>(null);
 
 export function AutomationsProvider({ children }: { children: ReactNode }) {
-  const { automations, setEnabled } = useAutomations();
-  const recentRunsQuery = useRecentAutomationRuns(undefined, RECENT_RUNS_LIMIT);
-
-  const runsByAutomation = useMemo(() => {
-    const map = new Map<string, AutomationRun[]>();
-    for (const run of recentRunsQuery.data ?? []) {
-      if (isQueueDeadlineExceededRun(run)) continue;
-      const list = map.get(run.automationId);
-      if (list) list.push(run);
-      else map.set(run.automationId, [run]);
-    }
-    return map;
-  }, [recentRunsQuery.data]);
+  const { automations } = useAutomations();
 
   const value = useMemo<AutomationsContextValue>(
     () => ({
       automations: automations.data ?? [],
       automationsIsPending: automations.isPending,
-      recentRuns: { data: recentRunsQuery.data, isPending: recentRunsQuery.isPending },
-      runsByAutomation,
-      setEnabled,
     }),
-    [
-      automations.data,
-      automations.isPending,
-      recentRunsQuery.data,
-      recentRunsQuery.isPending,
-      runsByAutomation,
-      setEnabled,
-    ]
+    [automations.data, automations.isPending]
   );
 
   return <AutomationsContext.Provider value={value}>{children}</AutomationsContext.Provider>;
@@ -68,16 +36,14 @@ export function useAutomation(id: string): Automation | undefined {
 }
 
 export function useAutomationLatestRun(id: string): AutomationRun | undefined {
-  const { runsByAutomation } = useAutomationsContext();
-  return runsByAutomation.get(id)?.[0];
+  const runs = useAutomationRuns(id);
+  return runs.data?.[0];
 }
 
 export function useToggleAutomation(): (id: string, enabled: boolean) => void {
-  const { setEnabled } = useAutomationsContext();
-  return useCallback(
-    (id: string, enabled: boolean) => setEnabled.mutate({ id, enabled }),
-    [setEnabled]
-  );
+  return useCallback((_id: string, _enabled: boolean) => {
+    // setEnabled not yet implemented
+  }, []);
 }
 
 /** Returns a single run from the automation's cached run list. */

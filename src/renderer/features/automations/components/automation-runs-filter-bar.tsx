@@ -9,7 +9,7 @@ import { ListFilterMultiSelect } from '@renderer/lib/components/list-filters/lis
 import { ListFilterRow } from '@renderer/lib/components/list-filters/list-filter-row';
 import { ListFilterSearchableSelect } from '@renderer/lib/components/list-filters/list-filter-searchable-select';
 import { ListFilterSingleSelect } from '@renderer/lib/components/list-filters/list-filter-single-select';
-import type { AutomationRunStatus } from '@shared/automations/types';
+import type { AutomationRunStatus } from '@shared/automations/automation-run';
 
 interface AutomationRunsFilterBarProps {
   filters: AutomationRunsFacetFilters;

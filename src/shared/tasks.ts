@@ -89,7 +89,6 @@ export type Task = {
   workspaceGit?: { linesAdded: number; linesDeleted: number };
   workspaceId?: string;
   runId?: string;
-  automationId?: string;
 };
 
 export type TaskBootstrapStatus =

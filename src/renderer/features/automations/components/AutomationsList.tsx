@@ -1,5 +1,5 @@
 import { Separator } from '@renderer/lib/ui/separator';
-import type { Automation } from '@shared/automations/types';
+import type { Automation } from '@shared/automations/automation';
 import { AutomationRow } from './AutomationRow';
 
 interface AutomationsListProps {
@@ -14,7 +14,7 @@ export function AutomationsList({ automations, onEdit }: AutomationsListProps) {
         <>
           <AutomationRow
             key={automation.id}
-            automationId={automation.id}
+            automation={automation}
             onClick={() => onEdit(automation)}
           />
           <Separator key={automation.id} />

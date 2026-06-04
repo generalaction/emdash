@@ -1,5 +1,5 @@
 import { CardGridItem } from '@renderer/lib/components/card-grid';
-import type { BuiltinAutomationTemplate } from '@shared/automations/types';
+import type { BuiltinAutomationTemplate } from '@shared/automations/automation';
 
 interface AutomationTemplateCardProps {
   template: BuiltinAutomationTemplate;

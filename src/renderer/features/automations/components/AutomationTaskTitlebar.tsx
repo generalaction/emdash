@@ -2,7 +2,11 @@ import { Bot, ChevronDown, FileDiff, FolderOpen, MessageSquare, Pin, Terminal } 
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import { automationTool } from '@renderer/features/automations/automation-tools';
-import { useAutomationRuns, useAutomations } from '@renderer/features/automations/useAutomations';
+import {
+  useAutomationRunById,
+  useAutomationRuns,
+  useAutomations,
+} from '@renderer/features/automations/use-automations';
 import {
   asMounted,
   getProjectStore,
@@ -34,8 +38,9 @@ import { Toggle } from '@renderer/lib/ui/toggle';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
-import { slugFromRunId } from '@shared/automations/run-slug';
-import type { Automation, AutomationRun } from '@shared/automations/types';
+import type { Automation } from '@shared/automations/automation';
+import type { AutomationRun } from '@shared/automations/automation-run';
+import { formatRunStatusLabel } from '@shared/automations/format';
 
 const AUTOMATION_RUNS_POPOVER_LIMIT = 50;
 
@@ -45,7 +50,9 @@ export const AutomationTaskTitlebar = observer(function AutomationTaskTitlebar()
   const { automations } = useAutomations();
   const taskStore = getTaskStore(projectId, taskId);
   const kind = taskViewKind(taskStore, projectId);
-  const automationId = taskStore?.data.automationId;
+  const runId = taskStore?.data.runId;
+  const { data: automationRun } = useAutomationRunById(runId);
+  const automationId = automationRun?.automationId;
   if (!automationId) return null;
 
   const ready = kind === 'ready';
@@ -134,7 +141,7 @@ function AutomationRunsPopover({
   const { navigate } = useNavigate();
   const runs = useAutomationRuns(automationId, AUTOMATION_RUNS_POPOVER_LIMIT);
   const tool = automationTool(automation);
-  const currentRun = runs.data?.find((run) => (run.taskId ?? run.createdTaskId) === currentTaskId);
+  const currentTask = getRegisteredTaskData(projectId, currentTaskId);
 
   function handleSelectRun(run: AutomationRun) {
     setOpen(false);
@@ -154,9 +161,7 @@ function AutomationRunsPopover({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger className="flex items-center gap-1 text-sm text-foreground-muted hover:text-foreground focus:outline-none">
-        <span className="max-w-64 truncate">
-          {currentRun ? slugFromRunId(currentRun.id) : 'Run'}
-        </span>
+        <span className="max-w-64 truncate">{currentTask?.name ?? 'Run'}</span>
         <ChevronDown className="size-3.5 shrink-0" />
       </PopoverTrigger>
       <PopoverContent align="start" className="w-80 gap-0 p-0">
@@ -244,7 +249,7 @@ const AutomationRunPopoverItem = observer(function AutomationRunPopoverItem({
           isFailed ? 'text-destructive' : 'text-foreground'
         )}
       >
-        {slugFromRunId(run.id)}
+        {task?.name ?? formatRunStatusLabel(run.status) ?? run.status}
         {isCurrent ? <span className="text-muted-foreground ml-1.5">(current)</span> : null}
       </span>
       {timestamp != null ? (

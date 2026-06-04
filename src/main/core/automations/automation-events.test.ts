@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { AutomationRun } from '@shared/automations/types';
+import type { AutomationRun } from '@shared/automations/automation';
 import { automationEvents } from './automation-events';
 
 vi.mock('@main/lib/logger', () => ({ log: { error: vi.fn() } }));

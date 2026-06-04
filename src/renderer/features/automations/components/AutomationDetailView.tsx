@@ -1,13 +1,4 @@
-import {
-  CheckCircle2,
-  ChevronDown,
-  Ellipsis,
-  FolderOpen,
-  Play,
-  Square,
-  Trash2,
-  X,
-} from 'lucide-react';
+import { ChevronDown, Ellipsis, FolderOpen, Play, Square, Trash2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState, type ReactNode } from 'react';
 import {
@@ -42,40 +33,34 @@ import { EditableNameField } from '@renderer/lib/ui/editable-name-field';
 import { Label } from '@renderer/lib/ui/label';
 import { PanelTabs } from '@renderer/lib/ui/panel-tabs';
 import { SheetFooter } from '@renderer/lib/ui/sheet';
-import { Spinner } from '@renderer/lib/ui/spinner';
 import { Switch } from '@renderer/lib/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { isValidProviderId } from '@shared/agent-provider-registry';
-import type { TaskCreateAction } from '@shared/automations/actions';
+import type { Automation } from '@shared/automations/automation';
+import {
+  AUTOMATION_NAME_MAX_LENGTH,
+  type StoredAutomationTaskConfig,
+} from '@shared/automations/automation-run';
+import type { ConversationConfig, TriggerConfig } from '@shared/automations/config';
 import { formatAutomationError } from '@shared/automations/format';
 import { DEFAULT_SCHEDULE, scheduleToCron } from '@shared/automations/schedule';
 import { getLocalTimeZone } from '@shared/automations/timezone';
-import {
-  AUTOMATION_NAME_MAX_LENGTH,
-  type Automation,
-  type CronTrigger,
-} from '@shared/automations/types';
-import type { StoredAutomationTaskConfig } from '@shared/automations/types';
 import { assertValidCronTrigger } from '@shared/automations/validation';
 import type { Branch } from '@shared/git';
 import { makePtySessionId } from '@shared/ptySessionId';
 import type { WorkspaceConfig, WorkspaceTarget } from '@shared/workspace-config';
 import { isActiveStatus } from '../run-status-styles';
-import { useAutomations, useAutomationRuns } from '../useAutomations';
+import { useAutomationRuns } from '../use-automations';
 import { SchedulePicker } from './pickers/SchedulePicker';
 import { RunHistory } from './RunHistory';
 
 const DEFAULT_CRON = scheduleToCron(DEFAULT_SCHEDULE);
 
-function extractTaskAction(actions: TaskCreateAction[] | undefined): TaskCreateAction | undefined {
-  return actions?.[0];
-}
-
-function cronExprFromTrigger(trigger: CronTrigger | undefined): string {
+function cronExprFromTrigger(trigger: TriggerConfig | undefined): string {
   return trigger?.expr ?? DEFAULT_CRON;
 }
 
-function cronTzFromTrigger(trigger: CronTrigger | undefined): string {
+function cronTzFromTrigger(trigger: TriggerConfig | undefined): string {
   return trigger?.tz ?? getLocalTimeZone();
 }
 
@@ -139,8 +124,8 @@ export const AutomationDetailView = observer(function AutomationDetailView({
 }: AutomationDetailViewProps) {
   const [activeTab, setActiveTab] = useState<AutomationTab>('runs');
 
-  const seedTrigger = automation.trigger;
-  const seedTaskAction = extractTaskAction(automation.actions);
+  const seedTrigger = automation.triggerConfig;
+  const seedConversationConfig = automation.conversationConfig;
   const seedConfig = automation.taskConfig;
 
   const [name, setName] = useState(automation.name);
@@ -159,16 +144,16 @@ export const AutomationDetailView = observer(function AutomationDetailView({
   const effectiveProjectId =
     projectId && asMounted(getProjectStore(projectId)) ? projectId : firstMountedProjectId();
 
-  const seedProvider = isValidProviderId(seedConfig?.taskConfig.initialConversation?.provider)
-    ? seedConfig.taskConfig.initialConversation.provider
+  const seedProvider = isValidProviderId(seedConversationConfig?.provider)
+    ? seedConversationConfig?.provider
     : undefined;
 
   const initialConversation = useInitialConversationState(effectiveProjectId, seedProvider);
 
   const [promptSeeded, setPromptSeeded] = useState(false);
-  if (!promptSeeded && seedTaskAction?.prompt) {
+  if (!promptSeeded && seedConversationConfig?.prompt) {
     setPromptSeeded(true);
-    initialConversation.setPrompt(seedTaskAction.prompt);
+    initialConversation.setPrompt(seedConversationConfig.prompt);
   }
 
   const repo = effectiveProjectId ? getRepositoryStore(effectiveProjectId) : undefined;
@@ -212,13 +197,12 @@ export const AutomationDetailView = observer(function AutomationDetailView({
     [effectiveProjectId, automation.id]
   );
 
-  const { update, runNow } = useAutomations();
   const { toast } = useToast();
-  const isPending = update.isPending;
+  const isPending = false;
 
   const recentRuns = useAutomationRuns(automation.id, 10);
   const hasActiveRuns = recentRuns.data?.some((r) => isActiveStatus(r.status)) ?? false;
-  const canRunNow = !automation.isDraft && automation.projectId != null && !runNow.isPending;
+  const canRunNow = false;
 
   const isWorkspaceProviderEnabled = useFeatureFlag('workspace-provider');
   const effectiveUseBYOI = isWorkspaceProviderEnabled && useBYOI;
@@ -232,11 +216,6 @@ export const AutomationDetailView = observer(function AutomationDetailView({
     !!effectiveProjectId &&
     fromBranch.isValid &&
     !isPending;
-
-  function handleRunNow() {
-    if (!canRunNow) return;
-    runNow.mutate(automation.id);
-  }
 
   function handleStopAll() {
     if (!automation.projectId) return;
@@ -279,19 +258,12 @@ export const AutomationDetailView = observer(function AutomationDetailView({
       workspace = { kind: 'new-worktree' };
     }
     const workspaceConfig: WorkspaceConfig = { version: '2', git, workspace };
-    const placeholderTaskId = crypto.randomUUID();
     return {
       taskConfig: {
         version: '1',
         name: fromBranch.taskName?.trim() || name.trim(),
-        initialConversation: {
-          id: crypto.randomUUID(),
-          projectId: targetProjectId,
-          taskId: placeholderTaskId,
-          provider,
-          title: name.trim(),
-          initialPrompt: prompt.trim(),
-        },
+        linkedIssue: seedConfig?.taskConfig.linkedIssue,
+        initialStatus: seedConfig?.taskConfig.initialStatus,
       },
       workspaceConfig,
     };
@@ -302,38 +274,24 @@ export const AutomationDetailView = observer(function AutomationDetailView({
     setError(null);
     const taskConfig = buildTaskConfig(effectiveProjectId);
     if (!taskConfig) return;
-    const triggerSpec: CronTrigger = { expr: cronExpr.trim(), tz: cronTz };
+    const triggerConfig: TriggerConfig = { expr: cronExpr.trim(), tz: cronTz };
     try {
-      assertValidCronTrigger(triggerSpec);
+      assertValidCronTrigger(triggerConfig);
     } catch (validationError) {
       setCronError(formatAutomationError(validationError));
       return;
     }
     setCronError(null);
-    const actions: TaskCreateAction[] = [{ kind: 'task.create', prompt: prompt.trim() }];
-    try {
-      const trimmedName = name.trim();
-      await update.mutateAsync({
-        id: automation.id,
-        patch: {
-          name: trimmedName,
-          trigger: triggerSpec,
-          actions,
-          taskConfig,
-          projectId: effectiveProjectId,
-          enabled: automation.isDraft ? true : automation.enabled,
-          isDraft: false,
-        },
-      });
-      toast({
-        title: 'Automation saved',
-        description: `"${trimmedName}" is ready to go.`,
-        icon: <CheckCircle2 className="size-4 text-emerald-500" aria-hidden="true" />,
-      });
-      onClose();
-    } catch (saveError) {
-      setError(formatAutomationError(saveError));
-    }
+    const _conversationConfig: ConversationConfig = {
+      prompt: prompt.trim(),
+      provider,
+      autoApprove: false,
+    };
+    // update not yet implemented
+    toast({
+      title: 'Not yet available',
+      description: 'Saving changes to an automation is coming soon.',
+    });
   }
 
   const settingsContent = (
@@ -408,8 +366,7 @@ export const AutomationDetailView = observer(function AutomationDetailView({
           <div className="flex w-full items-center justify-between gap-2">
             <div className="flex flex-row items-center gap-3">
               <Switch
-                checked={automation.enabled && !automation.isDraft}
-                disabled={automation.isDraft}
+                checked={automation.enabled}
                 onCheckedChange={(checked) => onToggleEnabled?.(automation, checked)}
                 aria-label={automation.enabled ? 'Pause automation' : 'Enable automation'}
               />
@@ -474,7 +431,7 @@ export const AutomationDetailView = observer(function AutomationDetailView({
                         type="button"
                         aria-label="Run now"
                         disabled={!canRunNow}
-                        onClick={handleRunNow}
+                        onClick={() => undefined}
                         className={
                           canRunNow
                             ? 'flex h-6 w-6 items-center justify-center rounded-md text-foreground-muted transition-colors hover:bg-background-1 hover:text-foreground'
@@ -483,18 +440,10 @@ export const AutomationDetailView = observer(function AutomationDetailView({
                       />
                     }
                   >
-                    {runNow.isPending ? (
-                      <Spinner className="size-3.5" />
-                    ) : (
-                      <Play className="size-3.5" />
-                    )}
+                    <Play className="size-3.5" />
                   </TooltipTrigger>
                   <TooltipContent>
-                    {automation.isDraft
-                      ? 'Save the automation before running'
-                      : automation.projectId == null
-                        ? 'Assign a project before running'
-                        : 'Run now'}
+                    {automation.projectId == null ? 'Assign a project before running' : 'Run now'}
                   </TooltipContent>
                 </Tooltip>
               </div>
@@ -516,7 +465,7 @@ export const AutomationDetailView = observer(function AutomationDetailView({
           }}
           disabled={!canSave}
         >
-          {isPending ? 'Saving…' : automation.isDraft ? 'Start from draft' : 'Save'}
+          {isPending ? 'Saving…' : 'Save'}
         </ConfirmButton>
       </SheetFooter>
     </div>

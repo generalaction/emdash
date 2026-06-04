@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Automation, AutomationRun } from '@shared/automations/types';
+import type { Automation, AutomationRun } from '@shared/automations/automation';
 import { automationsController } from './controller';
 import {
   createAutomation,
@@ -51,7 +51,7 @@ const draftAutomation: Automation = {
   name: 'Draft automation',
   description: null,
   category: 'custom',
-  trigger: { expr: '0 9 * * *', tz: 'UTC' },
+  triggerConfig: { expr: '0 9 * * *', tz: 'UTC' },
   actions: [],
   taskConfig: null,
   projectId: 'project-1',

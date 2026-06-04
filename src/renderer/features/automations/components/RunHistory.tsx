@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Spinner } from '@renderer/lib/ui/spinner';
-import type { Automation } from '@shared/automations/types';
-import { useAutomationRuns } from '../useAutomations';
+import type { Automation } from '@shared/automations/automation';
+import { useAutomationRuns } from '../use-automations';
 import { AutomationRunRow } from './AutomationRunRow';
 
 const INITIAL_RUNS_LIMIT = 50;

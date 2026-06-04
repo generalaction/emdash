@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { log } from '@main/lib/logger';
+import type { Automation } from '@shared/automations/automation';
+import type { AutomationRun } from '@shared/automations/automation-run';
 import { QUEUE_DEADLINE_EXCEEDED_ERROR } from '@shared/automations/format';
-import type { Automation, AutomationRun } from '@shared/automations/types';
 import { automationEvents } from './automation-events';
 import {
   automationRunDeadline,

@@ -5,10 +5,10 @@ import {
   getProjectStore,
   projectDisplayName,
 } from '@renderer/features/projects/stores/project-selectors';
+import { getRegisteredTaskData } from '@renderer/features/tasks/stores/task-selectors';
 import { useNavigate, useParams } from '@renderer/lib/layout/navigation-provider';
 import { cn } from '@renderer/utils/utils';
-import { slugFromRunId } from '@shared/automations/run-slug';
-import { useAutomations } from '../useAutomations';
+import { useAutomationRunById, useAutomations } from '../use-automations';
 
 interface Crumb {
   key: string;
@@ -54,6 +54,10 @@ export const AutomationsBreadcrumb = observer(function AutomationsBreadcrumb() {
   const projectId = selected?.projectId ?? null;
   const projectName = projectId ? projectDisplayName(getProjectStore(projectId)) : null;
 
+  const { data: selectedRun } = useAutomationRunById(params.selectedRunId);
+  const runTaskId = selectedRun ? (selectedRun.createdTaskId ?? selectedRun.taskId) : null;
+  const runTask = runTaskId && projectId ? getRegisteredTaskData(projectId, runTaskId) : null;
+
   const crumbs: Crumb[] = [];
   if (projectId && projectName) {
     crumbs.push({
@@ -71,7 +75,7 @@ export const AutomationsBreadcrumb = observer(function AutomationsBreadcrumb() {
     crumbs.push({ key: 'automation', label: selected.name });
   }
   if (params.selectedRunId) {
-    crumbs.push({ key: 'run', label: slugFromRunId(params.selectedRunId) });
+    crumbs.push({ key: 'run', label: runTask?.name ?? 'Run' });
   }
 
   return (

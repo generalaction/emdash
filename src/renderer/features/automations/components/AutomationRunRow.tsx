@@ -26,7 +26,6 @@ import {
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 import { formatRunTriggerKindLabel, isQueueDeadlineExceededRun } from '@shared/automations/format';
-import { slugFromRunId } from '@shared/automations/run-slug';
 import { useAutomationAgentActivity } from '../automation-run-status-store';
 
 interface AutomationRunRowProps {
@@ -68,7 +67,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
   const isRunActive = run ? isActiveStatus(run.status) : false;
   const missedDeadline = run ? isQueueDeadlineExceededRun(run) : false;
 
-  const displayName = task?.name ?? (run ? slugFromRunId(run.id) : runId);
+  const displayName = task?.name ?? null;
 
   function handleOpenTask() {
     if (!taskId || !projectId || !interactive) return;
@@ -100,21 +99,23 @@ export const AutomationRunRow = observer(function AutomationRunRow({
             }
           : undefined
       }
-      aria-label={`Open run ${slugFromRunId(run.id)}`}
+      aria-label={displayName ? `Open ${displayName}` : 'Open run'}
       aria-disabled={!interactive}
     >
       {/* Line 1: task name + agent status | agent logos */}
       <div className="flex min-w-0 items-center justify-between gap-2">
         <div className="flex flex-row items-center gap-1">
-          <span
-            className={cn(
-              'min-w-0 flex-1 truncate text-sm font-medium text-foreground',
-              isRunActive && 'text-shimmer',
-              missedDeadline && 'text-destructive'
-            )}
-          >
-            {displayName}
-          </span>
+          {displayName && (
+            <span
+              className={cn(
+                'min-w-0 flex-1 truncate text-sm font-medium text-foreground',
+                isRunActive && 'text-shimmer',
+                missedDeadline && 'text-destructive'
+              )}
+            >
+              {displayName}
+            </span>
+          )}
           <AgentStatusIndicator status={agentStatus} disableTooltip />
         </div>
         <StackedAgentLogos stats={agentLogoStats} />
@@ -165,7 +166,11 @@ export const AutomationRunRow = observer(function AutomationRunRow({
             <Ellipsis className="size-3.5" />
           </DropdownMenuTrigger>
           <DropdownMenuContent side="bottom" align="end">
-            <DropdownMenuItem variant="destructive" onClick={() => deleteRun(run)}>
+            <DropdownMenuItem
+              variant="destructive"
+              disabled={!deleteRun}
+              onClick={() => deleteRun?.(run)}
+            >
               <Trash2 />
               Delete run
             </DropdownMenuItem>

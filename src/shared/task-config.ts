@@ -1,30 +1,17 @@
-import type { CreateConversationParams } from '@shared/conversations';
-import type { Issue, TaskLifecycleStatus } from '@shared/tasks';
+import z from 'zod';
+import { conversationConfigSchema } from './automations/config';
 
-// ---------------------------------------------------------------------------
-// v1 — TaskConfig groups the task-identity fields that travel with a task.
-// ---------------------------------------------------------------------------
+export const taskConfigSchema = z.object({
+  version: z.literal('1'),
+  name: z.string(),
+  linkedIssue: z
+    .object({
+      id: z.string(),
+      number: z.number(),
+    })
+    .optional(),
+  initialConversation: conversationConfigSchema.optional(),
+  initialStatus: z.enum(['in_progress', 'completed', 'failed']).optional(),
+});
 
-export type TaskConfig = {
-  version: '1';
-  name: string;
-  linkedIssue?: Issue;
-  initialConversation?: CreateConversationParams;
-  initialStatus?: TaskLifecycleStatus;
-};
-
-export function parseTaskConfig(raw: string | null | undefined): TaskConfig | null {
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (typeof parsed !== 'object' || parsed === null) return null;
-    if ((parsed as { version?: unknown }).version === '1') return parsed as TaskConfig;
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-export function serializeTaskConfig(config: TaskConfig): string {
-  return JSON.stringify(config);
-}
+export type TaskConfig = z.infer<typeof taskConfigSchema>;

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Automation, AutomationRun } from '@shared/automations/types';
+import type { Automation, AutomationRun } from '@shared/automations/automation';
 import { executeTaskCreate } from './actions/taskCreate';
 import { automationEvents } from './automation-events';
 import { updateRun } from './repo';
@@ -16,7 +16,7 @@ const automation: Automation = {
   name: 'Daily follow-up',
   description: null,
   category: 'custom',
-  trigger: { expr: '0 9 * * *', tz: 'UTC' },
+  triggerConfig: { expr: '0 9 * * *', tz: 'UTC' },
   actions: [{ kind: 'task.create', prompt: 'Check things' }],
   taskConfig: null,
   projectId: 'project-1',

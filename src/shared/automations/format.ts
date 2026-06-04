@@ -1,145 +1,22 @@
-import { dayTokenIndex, isWeekdaysToken, isWeekendToken } from '@shared/automations/schedule';
+import cronstrue from 'cronstrue';
 import type {
   AutomationRun,
   AutomationRunStatus,
   AutomationRunTriggerKind,
-  CronTrigger,
-} from '@shared/automations/types';
+} from '@shared/automations/automation-run';
+import type { TriggerConfig } from '@shared/automations/config';
 
 export const QUEUE_DEADLINE_EXCEEDED_ERROR = 'queue_deadline_exceeded' as const;
 
-const dayNames = [
-  'Sundays',
-  'Mondays',
-  'Tuesdays',
-  'Wednesdays',
-  'Thursdays',
-  'Fridays',
-  'Saturdays',
-] as const;
-
-function ordinal(n: number): string {
-  const v = n % 100;
-  if (v >= 11 && v <= 13) return `${n}th`;
-  switch (n % 10) {
-    case 1:
-      return `${n}st`;
-    case 2:
-      return `${n}nd`;
-    case 3:
-      return `${n}rd`;
-    default:
-      return `${n}th`;
-  }
-}
-
-function formatTimeOfDay(hour: number, minute: number): string {
-  const period = hour >= 12 ? 'PM' : 'AM';
-  const h12 = hour % 12 || 12;
-  if (minute === 0) return `${h12} ${period}`;
-  return `${h12}:${minute.toString().padStart(2, '0')} ${period}`;
-}
-
-type DayOfWeekDesc =
-  | { kind: 'all' }
-  | { kind: 'weekdays' }
-  | { kind: 'weekends' }
-  | { kind: 'list'; days: number[] };
-
-function parseDayOfWeek(dow: string): DayOfWeekDesc | null {
-  if (dow === '*') return { kind: 'all' };
-  if (isWeekdaysToken(dow)) return { kind: 'weekdays' };
-  if (isWeekendToken(dow)) return { kind: 'weekends' };
-
-  const tokens = dow.split(',').map((token) => token.trim());
-  const days: number[] = [];
-  for (const token of tokens) {
-    if (token.length === 0) return null;
-    const upper = token.toUpperCase();
-    if (/^\d$/.test(upper)) {
-      const n = parseInt(upper, 10);
-      if (n < 0 || n > 6) return null;
-      days.push(n);
-    } else if (upper in dayTokenIndex) {
-      days.push(dayTokenIndex[upper]);
-    } else {
-      return null;
-    }
-  }
-  if (days.length === 0) return null;
-  return { kind: 'list', days };
-}
-
-function joinLabels(labels: string[]): string {
-  if (labels.length === 0) return '';
-  if (labels.length === 1) return labels[0];
-  if (labels.length === 2) return `${labels[0]} and ${labels[1]}`;
-  const last = labels[labels.length - 1];
-  return `${labels.slice(0, -1).join(', ')} and ${last}`;
-}
-
-function dayDescription(desc: DayOfWeekDesc): string | null {
-  switch (desc.kind) {
-    case 'all':
-      return null;
-    case 'weekdays':
-      return 'Mon–Fri';
-    case 'weekends':
-      return 'Sat–Sun';
-    case 'list':
-      return joinLabels(desc.days.map((index) => dayNames[index]));
-  }
-}
-
 export function formatCronLabel(expr: string): string {
-  const parts = expr.trim().split(/\s+/);
-  if (parts.length !== 5) return expr;
-  const [min, hour, dom, mon, dow] = parts;
-  const minNum = /^\d+$/.test(min) ? parseInt(min, 10) : null;
-  const hourNum = /^\d+$/.test(hour) ? parseInt(hour, 10) : null;
-
-  if (mon === '*' && dow === '*' && /^\d+$/.test(dom) && minNum !== null && hourNum !== null) {
-    const day = parseInt(dom, 10);
-    return `Monthly · ${ordinal(day)} · ${formatTimeOfDay(hourNum, minNum)}`;
-  }
-
-  if (dom !== '*' || mon !== '*') return expr;
-
-  const dowDesc = parseDayOfWeek(dow);
-  if (!dowDesc) return expr;
-
-  if (hour === '*') {
-    if (min === '*') {
-      if (dowDesc.kind === 'all') return 'Every minute';
-      const days = dayDescription(dowDesc);
-      return days ? `Every minute · ${days}` : expr;
-    }
-    const everyN = min.match(/^\*\/(\d+)$/);
-    if (everyN) {
-      if (dowDesc.kind === 'all') return `Every ${everyN[1]} min`;
-      const days = dayDescription(dowDesc);
-      return days ? `Every ${everyN[1]} min · ${days}` : expr;
-    }
-    if (minNum !== null) {
-      const base = minNum === 0 ? 'Hourly' : `Hourly :${minNum.toString().padStart(2, '0')}`;
-      if (dowDesc.kind === 'all') return base;
-      const days = dayDescription(dowDesc);
-      return days ? `${base} · ${days}` : expr;
-    }
+  try {
+    return cronstrue.toString(expr.trim());
+  } catch {
     return expr;
   }
-
-  if (minNum !== null && hourNum !== null) {
-    const time = formatTimeOfDay(hourNum, minNum);
-    if (dowDesc.kind === 'all') return `Daily · ${time}`;
-    const days = dayDescription(dowDesc);
-    return days ? `${days} · ${time}` : expr;
-  }
-
-  return expr;
 }
 
-export function formatTriggerLabel(trigger: CronTrigger): string {
+export function formatTriggerLabel(trigger: TriggerConfig): string {
   return formatCronLabel(trigger.expr);
 }
 

@@ -1,6 +1,6 @@
 import { CheckCircle2, Clock, Loader2, MinusCircle, XCircle, type LucideIcon } from 'lucide-react';
 import type { AgentStatus } from '@renderer/features/tasks/conversations/conversation-manager';
-import type { AutomationRunStatus } from '@shared/automations/types';
+import type { AutomationRunStatus } from '@shared/automations/automation-run';
 
 export interface StatusIndicatorConfig {
   Icon: LucideIcon;

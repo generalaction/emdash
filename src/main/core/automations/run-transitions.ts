@@ -1,6 +1,6 @@
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
-import type { AutomationRun } from '@shared/automations/types';
+import type { AutomationRun } from '@shared/automations/automation-run';
 import { automationRunUpdatedChannel } from '@shared/events/automationEvents';
 import { automationEvents, type AutomationHooks } from './automation-events';
 import { updateRun } from './repo';

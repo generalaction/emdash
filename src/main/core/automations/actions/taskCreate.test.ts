@@ -5,7 +5,7 @@ import { projectManager } from '@main/core/projects/project-manager';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { generateTaskName } from '@main/core/tasks/name-generation/generateTaskName';
 import { taskService } from '@main/core/tasks/task-service';
-import type { Automation, AutomationRun } from '@shared/automations/types';
+import type { Automation, AutomationRun } from '@shared/automations/automation';
 import { updateRun } from '../repo';
 import { executeTaskCreate } from './taskCreate';
 
@@ -40,19 +40,12 @@ const automation: Automation = {
   name: 'Daily follow-up',
   description: null,
   category: 'custom',
-  trigger: { expr: '0 9 * * *', tz: 'UTC' },
-  actions: [{ kind: 'task.create', prompt: 'Check things' }],
+  triggerConfig: { expr: '0 9 * * *', tz: 'UTC' },
+  conversationConfig: { initialPrompt: 'Check things' },
   taskConfig: {
     taskConfig: {
       version: '1',
       name: 'Stored task',
-      initialConversation: {
-        id: 'stored-conversation-id',
-        projectId: 'project-1',
-        taskId: 'stored-task-id',
-        provider: 'claude' as never,
-        title: 'Stored task',
-      },
     },
     workspaceConfig: {
       version: '2' as const,
@@ -67,7 +60,6 @@ const automation: Automation = {
   },
   projectId: 'project-1',
   enabled: true,
-  isDraft: false,
   deadlinePolicy: 'next-interval',
   deadlineMs: null,
   createdAt: 0,
@@ -112,7 +104,7 @@ describe('executeTaskCreate', () => {
       data: { task: {} as never },
     });
 
-    const result = await executeTaskCreate(automation.actions[0]!, { automation, run });
+    const result = await executeTaskCreate({ automation, run });
 
     expect(result.success).toBe(true);
     expect(openProject).toHaveBeenCalledWith('project-1');
@@ -126,19 +118,13 @@ describe('executeTaskCreate', () => {
       data: { task: {} as never },
     });
 
-    await executeTaskCreate(automation.actions[0]!, {
+    await executeTaskCreate({
       automation: {
         ...automation,
-        taskConfig: {
-          ...automation.taskConfig!,
-          taskConfig: {
-            ...automation.taskConfig!.taskConfig,
-            initialConversation: {
-              ...automation.taskConfig!.taskConfig.initialConversation!,
-              provider: 'cursor',
-              autoApprove: false,
-            },
-          },
+        conversationConfig: {
+          initialPrompt: 'Check things',
+          provider: 'cursor',
+          autoApprove: false,
         },
       },
       run,
@@ -157,20 +143,10 @@ describe('executeTaskCreate', () => {
         data: { task: {} as never },
       });
 
-      await executeTaskCreate(automation.actions[0]!, {
+      await executeTaskCreate({
         automation: {
           ...automation,
-          taskConfig: {
-            ...automation.taskConfig!,
-            taskConfig: {
-              ...automation.taskConfig!.taskConfig,
-              initialConversation: {
-                ...automation.taskConfig!.taskConfig.initialConversation!,
-                provider,
-                autoApprove: false,
-              },
-            },
-          },
+          conversationConfig: { initialPrompt: 'Check things', provider, autoApprove: false },
         },
         run,
       });
@@ -187,19 +163,13 @@ describe('executeTaskCreate', () => {
       data: { task: {} as never },
     });
 
-    await executeTaskCreate(automation.actions[0]!, {
+    await executeTaskCreate({
       automation: {
         ...automation,
-        taskConfig: {
-          ...automation.taskConfig!,
-          taskConfig: {
-            ...automation.taskConfig!.taskConfig,
-            initialConversation: {
-              ...automation.taskConfig!.taskConfig.initialConversation!,
-              provider: 'opencode',
-              autoApprove: false,
-            },
-          },
+        conversationConfig: {
+          initialPrompt: 'Check things',
+          provider: 'opencode',
+          autoApprove: false,
         },
       },
       run,
@@ -216,7 +186,7 @@ describe('executeTaskCreate', () => {
       data: { task: {} as never },
     });
 
-    await executeTaskCreate(automation.actions[0]!, {
+    await executeTaskCreate({
       automation,
       run: { ...run, taskId: 'task-existing', createdTaskId: 'task-existing' },
     });
@@ -234,7 +204,7 @@ describe('executeTaskCreate', () => {
       data: { task: {} as never },
     });
 
-    const result = await executeTaskCreate(automation.actions[0]!, { automation, run });
+    const result = await executeTaskCreate({ automation, run });
 
     expect(result.success).toBe(true);
     const createArg = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
@@ -259,7 +229,7 @@ describe('executeTaskCreate', () => {
       data: { task: {} as never },
     });
 
-    const result = await executeTaskCreate(automation.actions[0]!, {
+    const result = await executeTaskCreate({
       automation: {
         ...automation,
         taskConfig: {
@@ -297,7 +267,7 @@ describe('executeTaskCreate', () => {
       data: { task: {} as never },
     });
 
-    await executeTaskCreate(automation.actions[0]!, {
+    await executeTaskCreate({
       automation: { ...automation, taskConfig: null },
       run,
     });
@@ -328,7 +298,7 @@ describe('executeTaskCreate', () => {
       data: { task: {} as never },
     });
 
-    await executeTaskCreate(automation.actions[0]!, {
+    await executeTaskCreate({
       automation: { ...automation, taskConfig: null },
       run,
     });
@@ -345,7 +315,7 @@ describe('executeTaskCreate', () => {
       data: { task: {} as never },
     });
 
-    const result = await executeTaskCreate(automation.actions[0]!, { automation, run });
+    const result = await executeTaskCreate({ automation, run });
 
     expect(result.success).toBe(true);
     if (!result.success) return;
@@ -362,7 +332,7 @@ describe('executeTaskCreate', () => {
       data: { task: {} as never },
     });
 
-    const result = await executeTaskCreate(automation.actions[0]!, { automation, run });
+    const result = await executeTaskCreate({ automation, run });
 
     expect(result.success).toBe(true);
     if (!result.success) return;
@@ -396,7 +366,7 @@ describe('executeTaskCreate', () => {
       },
     });
 
-    const result = await executeTaskCreate(automation.actions[0]!, { automation, run });
+    const result = await executeTaskCreate({ automation, run });
 
     expect(result).toEqual({
       success: false,
@@ -416,7 +386,7 @@ describe('executeTaskCreate', () => {
     });
     vi.mocked(updateRun).mockResolvedValueOnce(null);
 
-    const result = await executeTaskCreate(automation.actions[0]!, { automation, run });
+    const result = await executeTaskCreate({ automation, run });
 
     expect(result).toEqual({
       success: false,
@@ -431,7 +401,7 @@ describe('executeTaskCreate', () => {
       throw new Error('after_uuid');
     });
 
-    const result = await executeTaskCreate(automation.actions[0]!, {
+    const result = await executeTaskCreate({
       automation: { ...automation, taskConfig: null },
       run,
     });

@@ -30,7 +30,6 @@ export async function getTasks(projectId?: string): Promise<Task[]> {
     db
       .select({
         taskId: automationRuns.createdTaskId,
-        automationId: automationRuns.automationId,
         runId: automationRuns.id,
       })
       .from(automationRuns)
@@ -44,11 +43,9 @@ export async function getTasks(projectId?: string): Promise<Task[]> {
     convByTask.set(taskId, rec);
   }
 
-  const automationByTask = new Map<string, string>();
   const runByTask = new Map<string, string>();
-  for (const { taskId, automationId, runId } of automationRunRows) {
+  for (const { taskId, runId } of automationRunRows) {
     if (taskId) {
-      automationByTask.set(taskId, automationId);
       runByTask.set(taskId, runId);
     }
   }
@@ -72,7 +69,6 @@ export async function getTasks(projectId?: string): Promise<Task[]> {
       ...mapTaskRowToTask(row),
       prs: [],
       conversations: convByTask.get(row.id) ?? {},
-      automationId: automationByTask.get(row.id),
       runId: runByTask.get(row.id),
       workspaceGit:
         ws?.linesAdded != null

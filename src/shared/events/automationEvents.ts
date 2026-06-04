@@ -1,4 +1,4 @@
-import type { AutomationRunStatus } from '@shared/automations/types';
+import type { AutomationRunStatus } from '@shared/automations/automation-run';
 import { defineEvent } from '@shared/ipc/events';
 
 export const automationsChangedChannel = defineEvent<void>('automations:changed');

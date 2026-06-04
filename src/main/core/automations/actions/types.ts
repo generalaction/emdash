@@ -1,4 +1,5 @@
-import type { Automation, AutomationRun } from '@shared/automations/types';
+import type { Automation } from '@shared/automations/automation';
+import type { AutomationRun } from '@shared/automations/automation-run';
 
 export type ActionContext = {
   automation: Automation;

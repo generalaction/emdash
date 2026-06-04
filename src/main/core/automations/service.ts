@@ -1,4 +1,4 @@
-import type { Automation } from '@shared/automations/types';
+import type { Automation } from '@shared/automations/automation';
 import {
   detachProjectAutomations,
   ensureNextCronRun,

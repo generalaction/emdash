@@ -1,5 +1,6 @@
 import { log } from '@main/lib/logger';
-import type { Automation, AutomationRun } from '@shared/automations/types';
+import type { Automation } from '@shared/automations/automation';
+import type { AutomationRun } from '@shared/automations/automation-run';
 import { err, ok, type Result } from '@shared/result';
 import { executeTaskCreate } from './actions/taskCreate';
 import type { ActionError, ActionOutcome } from './actions/types';

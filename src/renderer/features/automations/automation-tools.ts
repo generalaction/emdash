@@ -1,6 +1,7 @@
 import { agentConfig } from '@renderer/utils/agentConfig';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
-import type { Automation, AutomationRun } from '@shared/automations/types';
+import type { Automation } from '@shared/automations/automation';
+import type { AutomationRun } from '@shared/automations/automation-run';
 
 export type AutomationTool = {
   id: string;

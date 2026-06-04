@@ -1,4 +1,4 @@
-import type { AutomationRunStatus } from '@shared/automations/types';
+import type { AutomationRunStatus } from '@shared/automations/automation-run';
 
 export type AutomationRunsTimeRange =
   | 'last-24-hours'

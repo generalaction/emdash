@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useParams } from '@renderer/lib/layout/navigation-provider';
-import type { Automation, BuiltinAutomationTemplate } from '@shared/automations/types';
+import type { Automation, BuiltinAutomationTemplate } from '@shared/automations/automation';
 
 export type AutomationsPanelState =
   | { kind: 'create'; template?: BuiltinAutomationTemplate }

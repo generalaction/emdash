@@ -2,8 +2,8 @@ import { Plus } from 'lucide-react';
 import { CardGrid } from '@renderer/lib/components/card-grid';
 import { Button } from '@renderer/lib/ui/button';
 import { MicroLabel } from '@renderer/lib/ui/label';
+import type { BuiltinAutomationTemplate } from '@shared/automations/automation';
 import { emptyStateAutomationTemplates } from '@shared/automations/builtin-catalog';
-import type { BuiltinAutomationTemplate } from '@shared/automations/types';
 import { AutomationTemplateCard } from './automation-template-card';
 
 interface AutomationsEmptyStateProps {

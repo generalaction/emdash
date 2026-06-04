@@ -18,7 +18,7 @@ import type { ConversationRow, TaskRow } from '@main/db/schema';
 import { automationRuns, projects } from '@main/db/schema';
 import { resolveAutomationAgentAutoApprove } from '@shared/agent-auto-approve-defaults';
 import type { TaskCreateAction } from '@shared/automations/actions';
-import type { StoredAutomationTaskConfig } from '@shared/automations/types';
+import type { StoredAutomationTaskConfig } from '@shared/automations/automation';
 import type { Branch } from '@shared/git';
 import { bareRefName } from '@shared/git-utils';
 import type { LocalProject, SshProject } from '@shared/projects';
