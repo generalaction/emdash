@@ -291,6 +291,14 @@ export class TaskManagerStore {
   }
 
   async createTask(params: CreateTaskParams) {
+    const clearOptimisticInitialConversationWorking = () => {
+      if (!params.initialConversation?.initialPrompt?.trim()) return;
+      conversationRegistry
+        .acquire(params.id, this.projectId)
+        .conversations.get(params.initialConversation.id)
+        ?.clearWorking();
+    };
+
     runInAction(() => {
       this.tasks.set(
         params.id,
@@ -333,6 +341,7 @@ export class TaskManagerStore {
       .createTask(JSON.parse(JSON.stringify(toJS(params))) as typeof params)
       .catch((e: unknown) => {
         const message = e instanceof Error ? e.message : String(e);
+        clearOptimisticInitialConversationWorking();
         runInAction(() => {
           const current = this.tasks.get(params.id);
           if (current && isUnregistered(current)) {
@@ -345,6 +354,7 @@ export class TaskManagerStore {
 
     if (!result.success) {
       const message = formatCreateTaskError(result.error);
+      clearOptimisticInitialConversationWorking();
       runInAction(() => {
         const current = this.tasks.get(params.id);
         if (current && isUnregistered(current)) {
