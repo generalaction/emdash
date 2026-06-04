@@ -10,3 +10,4 @@ onlyBuiltDependencies:
   - node-pty
   - protobufjs
   - sqlite3
+  - workerd

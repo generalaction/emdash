@@ -10,7 +10,15 @@
   "categories": {
     "correctness": "error"
   },
-  "ignorePatterns": ["dist/**", "out/**", "build/**", "node_modules/**", "**/_*/**"],
+  "ignorePatterns": [
+    "dist/**",
+    "out/**",
+    "build/**",
+    "node_modules/**",
+    "**/_*/**",
+    "web/share/dist/**",
+    "**/routeTree.gen.ts"
+  ],
   "options": {
     "typeAware": true,
     "respectEslintDisableDirectives": false,

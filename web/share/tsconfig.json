@@ -3,13 +3,15 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "lib": ["ES2022", "WebWorker"],
-    "types": ["@cloudflare/workers-types"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "types": ["@cloudflare/workers-types", "vite/client"],
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true,
     "isolatedModules": true,
-    "allowSyntheticDefaultImports": true
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true
   },
-  "include": ["src/**/*.ts", "../../src/shared/share.ts"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "../../src/shared/share.ts"]
 }

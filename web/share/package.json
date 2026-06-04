@@ -3,20 +3,34 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev --local",
+    "build": "vite build",
     "db:migrate": "CI=true wrangler d1 migrations apply emdash-share --local",
     "db:migrate:remote": "CI=true wrangler d1 migrations apply emdash-share --remote",
-    "deploy": "wrangler deploy",
+    "deploy": "pnpm run build && wrangler deploy",
+    "dev": "vite dev",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@shikijs/langs": "^4.2.0",
+    "@shikijs/themes": "^4.2.0",
+    "@tanstack/react-router": "^1.170.11",
+    "@tanstack/react-start": "^1.168.20",
     "evlog": "^2.18.1",
     "hono": "^4.10.7",
+    "marked": "^18.0.4",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "shiki": "^4.2.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.40.0",
     "@cloudflare/workers-types": "^4.20260601.0",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.2",
     "typescript": "^6.0.2",
-    "wrangler": "^4.50.0"
+    "vite": "^8.0.16",
+    "wrangler": "^4.98.0"
   }
 }

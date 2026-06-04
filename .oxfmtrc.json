@@ -24,7 +24,9 @@
     "**/yarn.lock",
     "**/*.md",
     "**/*.yaml",
-    "**/*.yml"
+    "**/*.yml",
+    "**/.wrangler",
+    "**/routeTree.gen.ts"
   ],
   "sortImports": {
     "newlinesBetween": false,
