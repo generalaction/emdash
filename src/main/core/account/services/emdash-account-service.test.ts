@@ -216,6 +216,131 @@ describe('EmdashAccountService', () => {
     });
   });
 
+  describe('linkProviderAccount()', () => {
+    it('starts an account-link transaction and stores the linked provider token', async () => {
+      mockCredGet.mockResolvedValue('session-abc');
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ accountLinkState: 'account-link-state' }),
+      });
+      const oauthResponse = {
+        accessToken: 'ghp_linked',
+        providerId: 'github',
+        providerAccount: {
+          providerId: 'github',
+          providerAccountId: '84',
+          host: 'github.com',
+          login: 'octocat',
+          avatarUrl: 'https://avatars.githubusercontent.com/u/84',
+        },
+      };
+      mockExecuteOAuthFlow.mockResolvedValue(oauthResponse);
+
+      const result = await service.linkProviderAccount();
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://auth.test.emdash.sh/api/v1/auth/electron/account-link/start',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { Authorization: 'Bearer session-abc' },
+          signal: expect.any(AbortSignal),
+        })
+      );
+      expect(mockExecuteOAuthFlow).toHaveBeenCalledWith({
+        authorizeUrl: 'https://auth.test.emdash.sh/auth/github',
+        exchangeUrl: 'https://auth.test.emdash.sh/api/v1/auth/electron/exchange',
+        successRedirectUrl: 'https://auth.test.emdash.sh/auth/success',
+        errorRedirectUrl: 'https://auth.test.emdash.sh/auth/error',
+        extraParams: {
+          intent: 'link',
+          account_link_state: 'account-link-state',
+        },
+        timeoutMs: 5000,
+      });
+      expect(mockDispatch).toHaveBeenCalledWith('github', {
+        accessToken: 'ghp_linked',
+        providerAccount: {
+          providerId: 'github',
+          providerAccountId: '84',
+          host: 'github.com',
+          login: 'octocat',
+          avatarUrl: 'https://avatars.githubusercontent.com/u/84',
+        },
+      });
+      expect(result).toEqual({
+        provider: 'github',
+        providerAccount: {
+          providerId: 'github',
+          providerAccountId: '84',
+          host: 'github.com',
+          login: 'octocat',
+          avatarUrl: 'https://avatars.githubusercontent.com/u/84',
+        },
+      });
+    });
+
+    it('requires an existing Emdash session', async () => {
+      mockCredGet.mockResolvedValue(null);
+
+      await expect(service.linkProviderAccount()).rejects.toThrow(
+        'You must be signed in to link a provider account'
+      );
+      expect(mockFetch).not.toHaveBeenCalled();
+      expect(mockExecuteOAuthFlow).not.toHaveBeenCalled();
+      expect(mockDispatch).not.toHaveBeenCalled();
+    });
+
+    it('rejects unsupported providers before starting a link transaction', async () => {
+      await expect(service.linkProviderAccount('gitlab')).rejects.toThrow(
+        'Account linking is not supported for provider "gitlab"'
+      );
+      expect(mockCredGet).not.toHaveBeenCalled();
+      expect(mockFetch).not.toHaveBeenCalled();
+      expect(mockExecuteOAuthFlow).not.toHaveBeenCalled();
+    });
+
+    it('surfaces account-link start failures from the auth server', async () => {
+      mockCredGet.mockResolvedValue('session-abc');
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 401,
+        json: async () => ({ error: 'No active session' }),
+      });
+
+      await expect(service.linkProviderAccount()).rejects.toThrow('No active session');
+      expect(mockExecuteOAuthFlow).not.toHaveBeenCalled();
+      expect(mockDispatch).not.toHaveBeenCalled();
+    });
+
+    it('rejects malformed account-link start responses', async () => {
+      mockCredGet.mockResolvedValue('session-abc');
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ expiresAt: '2026-01-01T00:00:00.000Z' }),
+      });
+
+      await expect(service.linkProviderAccount()).rejects.toThrow(
+        'Invalid account link start response: missing accountLinkState'
+      );
+      expect(mockExecuteOAuthFlow).not.toHaveBeenCalled();
+      expect(mockDispatch).not.toHaveBeenCalled();
+    });
+
+    it('rejects account-link exchange responses without a provider token', async () => {
+      mockCredGet.mockResolvedValue('session-abc');
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ accountLinkState: 'account-link-state' }),
+      });
+      mockExecuteOAuthFlow.mockResolvedValue({ providerId: 'github' });
+
+      await expect(service.linkProviderAccount()).rejects.toThrow(
+        'Invalid account link response: missing provider token'
+      );
+      expect(mockDispatch).not.toHaveBeenCalled();
+    });
+  });
+
   describe('signOut()', () => {
     it('clears session token and preserves hasAccount in profile cache', async () => {
       const exchangeResult = {

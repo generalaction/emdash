@@ -29,6 +29,11 @@ export interface SignInResult {
   user: AccountUser;
 }
 
+export interface LinkProviderAccountResult {
+  provider: string;
+  providerAccount?: ProviderAccountPayload;
+}
+
 export interface SessionState {
   user: AccountUser | null;
   isSignedIn: boolean;
@@ -68,6 +73,17 @@ function parseProviderAccountPayload(raw: unknown): ProviderAccountPayload | und
     login: candidate.login,
     avatarUrl: candidate.avatarUrl,
   };
+}
+
+function parseAuthProviderToken(raw: Record<string, unknown>): {
+  accessToken?: string;
+  providerId?: string;
+  providerAccount?: ProviderAccountPayload;
+} {
+  const accessToken = typeof raw.accessToken === 'string' ? raw.accessToken : undefined;
+  const providerId = typeof raw.providerId === 'string' ? raw.providerId : undefined;
+  const providerAccount = parseProviderAccountPayload(raw.providerAccount);
+  return { accessToken, providerId, providerAccount };
 }
 
 export class EmdashAccountService implements Hookable<AccountServiceHooks> {
@@ -154,9 +170,7 @@ export class EmdashAccountService implements Hookable<AccountServiceHooks> {
     this.cachedProfile = profile;
     await accountKV.set('profile', profile);
 
-    const accessToken = raw.accessToken as string | undefined;
-    const providerId = raw.providerId as string | undefined;
-    const providerAccount = parseProviderAccountPayload(raw.providerAccount);
+    const { accessToken, providerId, providerAccount } = parseAuthProviderToken(raw);
     if (accessToken && providerId) {
       await providerTokenRegistry.dispatch(providerId, { accessToken, providerAccount });
     }
@@ -167,6 +181,43 @@ export class EmdashAccountService implements Hookable<AccountServiceHooks> {
       providerToken: accessToken || undefined,
       provider: providerId || undefined,
       user,
+    };
+    if (providerAccount) {
+      result.providerAccount = providerAccount;
+    }
+    return result;
+  }
+
+  async linkProviderAccount(provider: string = 'github'): Promise<LinkProviderAccountResult> {
+    if (provider !== 'github') {
+      throw new Error(`Account linking is not supported for provider "${provider}"`);
+    }
+
+    const sessionToken = await this.requireSessionToken();
+    const { baseUrl } = ACCOUNT_CONFIG.authServer;
+    const accountLinkState = await this.startAccountLink(sessionToken);
+
+    const raw = await executeOAuthFlow({
+      authorizeUrl: `${baseUrl}/auth/github`,
+      exchangeUrl: `${baseUrl}/api/v1/auth/electron/exchange`,
+      successRedirectUrl: `${baseUrl}/auth/success`,
+      errorRedirectUrl: `${baseUrl}/auth/error`,
+      extraParams: {
+        intent: 'link',
+        account_link_state: accountLinkState,
+      },
+      timeoutMs: ACCOUNT_CONFIG.authServer.authTimeoutMs,
+    });
+
+    const { accessToken, providerId, providerAccount } = parseAuthProviderToken(raw);
+    if (!accessToken || !providerId) {
+      throw new Error('Invalid account link response: missing provider token');
+    }
+
+    await providerTokenRegistry.dispatch(providerId, { accessToken, providerAccount });
+
+    const result: LinkProviderAccountResult = {
+      provider: providerId,
     };
     if (providerAccount) {
       result.providerAccount = providerAccount;
@@ -226,6 +277,39 @@ export class EmdashAccountService implements Hookable<AccountServiceHooks> {
     } catch {
       return this.sessionToken !== null;
     }
+  }
+
+  private async requireSessionToken(): Promise<string> {
+    if (this.sessionToken) return this.sessionToken;
+
+    const token = await accountCredentialStore.get();
+    if (!token) {
+      throw new Error('You must be signed in to link a provider account');
+    }
+    this.sessionToken = token;
+    return token;
+  }
+
+  private async startAccountLink(sessionToken: string): Promise<string> {
+    const { baseUrl } = ACCOUNT_CONFIG.authServer;
+    const response = await fetch(`${baseUrl}/api/v1/auth/electron/account-link/start`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${sessionToken}`,
+      },
+      signal: AbortSignal.timeout(ACCOUNT_CONFIG.authServer.authTimeoutMs),
+    });
+
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(payload?.error || `Account link start failed (${response.status})`);
+    }
+
+    const payload = (await response.json()) as { accountLinkState?: unknown };
+    if (typeof payload.accountLinkState !== 'string' || payload.accountLinkState.length === 0) {
+      throw new Error('Invalid account link start response: missing accountLinkState');
+    }
+    return payload.accountLinkState;
   }
 }
 
