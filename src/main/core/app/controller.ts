@@ -1,3 +1,4 @@
+import { getDiagnosticLogAttachment } from '@main/lib/file-logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { createRPCController } from '@shared/ipc/rpc';
 import type { OpenInAppId } from '@shared/openInApps';
@@ -11,6 +12,25 @@ export const appController = createRPCController({
       return { success: true };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  },
+  openPath: async (path: string) => {
+    try {
+      await appService.openPath(path);
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : String(error) };
+    }
+  },
+  readUserFile: async (path: string) => {
+    try {
+      const result = await appService.readUserFile(path);
+      return { success: true as const, ...result };
+    } catch (error) {
+      return {
+        success: false as const,
+        error: error instanceof Error ? error.message : String(error),
+      };
     }
   },
   clipboardWriteText: async (text: string) => {
@@ -62,4 +82,5 @@ export const appController = createRPCController({
   getAppVersion: () => appService.getCachedAppVersion(),
   getElectronVersion: () => process.versions.electron,
   getPlatform: () => process.platform,
+  getDiagnosticLogAttachment,
 });

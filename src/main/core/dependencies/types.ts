@@ -33,3 +33,7 @@ export interface DependencyDescriptor {
    */
   resolveStatus?: (result: ProbeResult) => DependencyStatus;
 }
+
+export type DependencyProbeOptions = {
+  refreshShellEnv?: boolean;
+};

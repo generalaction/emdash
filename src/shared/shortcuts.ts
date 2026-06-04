@@ -38,6 +38,12 @@ export const APP_SHORTCUTS = defineShortcuts({
     description: 'Open application settings',
     category: 'Navigation',
   },
+  library: {
+    defaultHotkey: 'Mod+L',
+    label: 'Library',
+    description: 'Open the Library',
+    category: 'Navigation',
+  },
   toggleLeftSidebar: {
     defaultHotkey: 'Mod+B',
     label: 'Toggle Left Sidebar',
@@ -61,6 +67,12 @@ export const APP_SHORTCUTS = defineShortcuts({
     defaultHotkey: 'Mod+N',
     label: 'New Task',
     description: 'Create a new task',
+    category: 'Navigation',
+  },
+  deleteSelectedTasks: {
+    defaultHotkey: 'Mod+Backspace',
+    label: 'Delete Selected Tasks',
+    description: 'Delete the selected tasks',
     category: 'Navigation',
   },
   newProject: {

@@ -74,6 +74,18 @@ describe('adaptForward (canonical → agent)', () => {
         enabled: true,
       });
     });
+
+    it('writes stdio env vars under `environment`, not `env`', () => {
+      const server = { command: 'npx', args: ['-y', 'foo'], env: { FOO: 'bar' } };
+      const result = adaptForward('opencode', { s1: server });
+      expect(result.s1).toEqual({
+        type: 'local',
+        command: ['npx', '-y', 'foo'],
+        enabled: true,
+        environment: { FOO: 'bar' },
+      });
+      expect(result.s1).not.toHaveProperty('env');
+    });
   });
 
   describe('copilot', () => {
@@ -196,6 +208,24 @@ describe('adaptReverse (agent → canonical)', () => {
       const result = adaptReverse('opencode', servers);
       expect(result.s1).toMatchObject({ command: 'npx', args: ['-y', 'foo'] });
       expect(result.s1).not.toHaveProperty('type');
+    });
+
+    it("translates opencode's `environment` back to canonical `env` for local servers", () => {
+      const servers: ServerMap = {
+        s1: {
+          type: 'local',
+          command: ['npx', '-y', 'foo'],
+          environment: { FOO: 'bar' },
+          enabled: true,
+        },
+      };
+      const result = adaptReverse('opencode', servers);
+      expect(result.s1).toEqual({
+        command: 'npx',
+        args: ['-y', 'foo'],
+        env: { FOO: 'bar' },
+      });
+      expect(result.s1).not.toHaveProperty('environment');
     });
   });
 

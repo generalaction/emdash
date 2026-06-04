@@ -359,7 +359,7 @@ interface SortableRowProps {
 }
 
 function SortableRow({ dndId, style, children }: SortableRowProps) {
-  const { setNodeRef, transform, transition, isDragging, listeners, attributes } = useSortable({
+  const { setNodeRef, transform, transition, isDragging, listeners } = useSortable({
     id: dndId,
   });
 
@@ -372,7 +372,7 @@ function SortableRow({ dndId, style, children }: SortableRowProps) {
   };
 
   return (
-    <div ref={setNodeRef} style={combinedStyle} {...attributes} {...listeners}>
+    <div ref={setNodeRef} style={combinedStyle} {...listeners}>
       {children}
     </div>
   );

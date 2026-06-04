@@ -1,5 +1,6 @@
 import { Check, Copy, ExternalLink, Trash2 } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
+import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 
 type IntegrationStatus =
@@ -12,6 +13,8 @@ type IntegrationStatus =
 
 interface IntegrationRowProps {
   logoSrc?: string;
+  logoSrcDark?: string;
+  invertInDark?: boolean;
   icon?: React.ReactNode;
   name: string;
   onNameClick?: () => void;
@@ -61,6 +64,8 @@ const LOGO_WRAPPER = 'flex h-6 w-6 items-center justify-center';
 
 const IntegrationRow: React.FC<IntegrationRowProps> = ({
   logoSrc,
+  logoSrcDark,
+  invertInDark,
   icon,
   name,
   onNameClick,
@@ -77,6 +82,10 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
   showStatusPill = true,
   installCommand,
 }) => {
+  const { effectiveTheme } = useTheme();
+  const isDark = effectiveTheme === 'emdark';
+  const themedLogoSrc = isDark && logoSrcDark ? logoSrcDark : logoSrc;
+  const shouldInvertLogo = isDark && !!invertInDark && !logoSrcDark;
   const resolvedStatus = STATUS_CLASSES[status] ? status : 'disconnected';
   const showConnect = resolvedStatus !== 'connected' && status !== 'loading' && !!onConnect;
   const showDisconnect = resolvedStatus === 'connected' && !!onDisconnect;
@@ -91,26 +100,22 @@ const IntegrationRow: React.FC<IntegrationRowProps> = ({
       <span className="text-muted-foreground truncate text-sm">{accountLabel}</span>
     ) : null;
 
-  const isSvg = logoSrc?.trim().startsWith('<svg');
-
-  // Process SVG to use currentColor for theme-aware colors (primary)
-  const processedSvg =
-    isSvg && logoSrc
-      ? logoSrc
-          .replace(/\bfill="[^"]*"/g, 'fill="currentColor"')
-          .replace(/\bstroke="[^"]*"/g, 'stroke="currentColor"')
-      : null;
+  const isSvg = themedLogoSrc?.trimStart().startsWith('<svg');
 
   const avatar = (
-    <span className={logoSrc ? LOGO_WRAPPER : ICON_WRAPPER}>
-      {logoSrc ? (
+    <span className={themedLogoSrc ? LOGO_WRAPPER : ICON_WRAPPER}>
+      {themedLogoSrc ? (
         isSvg ? (
           <span
-            className="text-primary inline-flex h-5 w-5 items-center justify-center [&_svg]:h-full [&_svg]:w-full [&_svg]:shrink-0"
-            dangerouslySetInnerHTML={{ __html: processedSvg ?? '' }}
+            className={`${shouldInvertLogo ? 'invert' : ''} inline-flex h-5 w-5 items-center justify-center [&_svg]:h-full [&_svg]:w-full [&_svg]:shrink-0`}
+            dangerouslySetInnerHTML={{ __html: themedLogoSrc }}
           />
         ) : (
-          <img src={logoSrc} alt="" className="h-5 w-5 object-contain" />
+          <img
+            src={themedLogoSrc}
+            alt=""
+            className={`${shouldInvertLogo ? 'invert' : ''} h-5 w-5 object-contain`}
+          />
         )
       ) : icon ? (
         icon

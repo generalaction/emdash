@@ -8,6 +8,10 @@ import {
   useWorkspaceId,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
+import {
+  DEFAULT_TERMINAL_SHELL_AVAILABILITY,
+  useTerminalShellAvailability,
+} from '@renderer/lib/hooks/use-terminal-shell-availability';
 import { useTabShortcuts } from '@renderer/lib/hooks/useTabShortcuts';
 import { rpc } from '@renderer/lib/ipc';
 import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
@@ -15,6 +19,7 @@ import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
 import { BoundShortcut } from '@renderer/lib/ui/shortcut';
+import type { TerminalShellId } from '@shared/terminal-settings';
 import { useIsActiveTask } from '../hooks/use-is-active-task';
 import { TerminalDrawerSidebar } from './terminal-drawer-sidebar';
 import { resolveTerminalPanelActiveItem } from './terminal-panel-selection';
@@ -31,6 +36,9 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
   const isActive = useIsActiveTask(taskId);
   const remoteConnectionId = workspace.sshConnectionId;
   const [isPanelFocused, setIsPanelFocused] = useState(false);
+  const [shouldLoadShellAvailability, setShouldLoadShellAvailability] = useState(false);
+  const { data: shellAvailability = DEFAULT_TERMINAL_SHELL_AVAILABILITY } =
+    useTerminalShellAvailability(remoteConnectionId, { enabled: shouldLoadShellAvailability });
 
   const autoFocus =
     isActive && taskView.isTerminalDrawerOpen && taskView.focusedRegion === 'bottom';
@@ -69,8 +77,8 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
     activeItem.kind === 'terminal' ? terminalTabView : (lifecycleScriptsMgr ?? undefined);
   useTabShortcuts(activeStore, { focused: isPanelFocused });
 
-  const handleCreate = async () => {
-    await taskView.openNewTerminal();
+  const handleCreate = async (shell?: TerminalShellId) => {
+    await taskView.openNewTerminal(shell);
   };
 
   const handleRunScript = (id: string) => {
@@ -78,22 +86,25 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
     if (!script || script.isRunning) return;
     lifecycleScriptsMgr?.setActiveTab(id);
     taskView.setTerminalDrawerActiveItem({ kind: 'script', id });
-    script.markRunning();
     void rpc.terminals
       .runLifecycleScript({
         projectId,
+        taskId,
         workspaceId,
         type: script.data.type,
       })
-      .catch(() => {
-        script.markExited();
-      });
+      .catch(() => {});
   };
 
   const handleStopScript = (id: string) => {
     const script = lifecycleScriptsMgr?.tabs.find((s) => s.data.id === id);
     if (!script) return;
-    void rpc.pty.sendInput(script.session.sessionId, '\x03');
+    void rpc.terminals.stopLifecycleScript({
+      projectId,
+      taskId,
+      workspaceId,
+      type: script.data.type,
+    });
   };
 
   const emptyState = (
@@ -105,7 +116,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
         <Button
           size="sm"
           variant="outline"
-          onClick={handleCreate}
+          onClick={() => void handleCreate()}
           className="flex items-center gap-2"
         >
           New terminal
@@ -164,11 +175,13 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
           onStopScript={handleStopScript}
           terminalTabView={terminalTabView}
           activeTerminalId={activeTerminalId}
+          shellAvailability={shellAvailability}
+          onShellMenuOpen={() => setShouldLoadShellAvailability(true)}
           onSelectTerminal={(id) => {
             terminalTabView.setActiveTab(id);
             taskView.setTerminalDrawerActiveItem({ kind: 'terminal', id });
           }}
-          onAddTerminal={() => void handleCreate()}
+          onAddTerminal={(shell) => void handleCreate(shell)}
           onRemoveTerminal={(id) => terminalTabView.removeTab(id)}
           onRenameTerminal={(id, name) => void terminalMgr?.renameTerminal(id, name)}
           onHoverTerminal={handleHoverTerminal}

@@ -60,6 +60,39 @@ describe('pty env Windows shell handling', () => {
 });
 
 describe('buildAgentEnv provider env forwarding', () => {
+  it('passes through global user environment variables by default', async () => {
+    Object.assign(process.env, {
+      EDITOR: 'zed',
+      VISUAL: 'zed --wait',
+      GIT_EDITOR: 'zed --wait',
+      HOME: '/Users/dev',
+      HOSTNAME: 'dev-machine',
+      LANG: 'en_US.UTF-8',
+      TZ: 'America/Los_Angeles',
+    });
+
+    const { buildAgentEnv } = await loadPtyEnv();
+    const env = buildAgentEnv({ agentApiVars: false });
+
+    expect(env.EDITOR).toBe('zed');
+    expect(env.VISUAL).toBe('zed --wait');
+    expect(env.GIT_EDITOR).toBe('zed --wait');
+    expect(env.HOME).toBe('/Users/dev');
+    expect(env.HOSTNAME).toBe('dev-machine');
+    expect(env.LANG).toBe('en_US.UTF-8');
+    expect(env.TZ).toBe('America/Los_Angeles');
+  });
+
+  it('only passes SHELL when requested', async () => {
+    setPlatform('linux');
+    process.env.SHELL = '/bin/zsh';
+
+    const { buildAgentEnv } = await loadPtyEnv();
+
+    expect(buildAgentEnv({ agentApiVars: false }).SHELL).toBeUndefined();
+    expect(buildAgentEnv({ agentApiVars: false, includeShellVar: true }).SHELL).toBe('/bin/zsh');
+  });
+
   it('passes through documented provider launch environment variables', async () => {
     const providerEnv = {
       CLAUDE_CONFIG_DIR: '/tmp/claude-config',
@@ -71,6 +104,7 @@ describe('buildAgentEnv provider env forwarding', () => {
       GEMINI_MODEL: 'gemini-2.5-pro',
       GOOGLE_GENAI_API_VERSION: 'v1beta',
       GROK_CODE_XAI_API_KEY: 'xai-key',
+      GROK_HOME: '/tmp/grok-home',
       BAILIAN_CODING_PLAN_API_KEY: 'bailian-key',
       GOOSE_PROVIDER: 'openai',
       GOOSE_MODEL: 'gpt-5.1',
@@ -105,6 +139,7 @@ describe('buildAgentEnv provider env forwarding', () => {
       hook: { port: 1234, ptyId: 'claude:conv-1', token: 'real-token' },
       providerVars: {
         ANTHROPIC_BASE_URL: 'https://example.test',
+        EDITOR: 'vim',
         EMDASH_HOOK_PORT: '9999',
         EMDASH_PTY_ID: 'wrong',
         EMDASH_HOOK_TOKEN: 'wrong-token',
@@ -112,6 +147,7 @@ describe('buildAgentEnv provider env forwarding', () => {
     });
 
     expect(env.ANTHROPIC_BASE_URL).toBe('https://example.test');
+    expect(env.EDITOR).toBe('vim');
     expect(env.EMDASH_HOOK_PORT).toBe('1234');
     expect(env.EMDASH_PTY_ID).toBe('claude:conv-1');
     expect(env.EMDASH_HOOK_TOKEN).toBe('real-token');

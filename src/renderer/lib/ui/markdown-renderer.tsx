@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Markdown from 'react-markdown';
+import type { ExtraProps } from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import rehypeKatex from 'rehype-katex';
@@ -9,9 +10,9 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import type { PluggableList } from 'unified';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
-import { rpc } from '@renderer/lib/ipc';
+import { confirmOpenExternalLink } from '@renderer/lib/open-external-link';
 import { cn } from '@renderer/utils/utils';
-import { ContainedImage } from './contained-image';
+import { ExpandableImage } from './expandable-image';
 import { normalizeLatexDelimiters } from './markdown-latex';
 import { MermaidDiagram } from './mermaid-diagram';
 
@@ -101,13 +102,20 @@ const ResolvedImage: React.FC<{
       <span className="text-muted-foreground my-3 inline-block text-xs">Loading image...</span>
     );
   }
-  return <ContainedImage src={dataUrl} alt={alt} className="my-3 max-w-full rounded" />;
+  return (
+    <ExpandableImage
+      src={dataUrl}
+      alt={alt}
+      containerClassName="my-3"
+      className="max-w-full rounded"
+    />
+  );
 };
 
 type WithChildren = { children?: React.ReactNode };
 type WithChildrenAndClass = { children?: React.ReactNode; className?: string };
 type AnchorProps = { href?: string; children?: React.ReactNode };
-type ImgProps = { src?: string; alt?: string };
+type ImgProps = React.ComponentPropsWithoutRef<'img'> & ExtraProps;
 
 function getCodeBlock(children: React.ReactNode, className?: string) {
   const language = /language-(\w+)/.exec(className || '')?.[1] ?? '';
@@ -201,7 +209,7 @@ function useFullComponents(
         const handleClick = (e: React.MouseEvent) => {
           if (isHttp) {
             e.preventDefault();
-            rpc.app.openExternal(href).catch(() => {});
+            confirmOpenExternalLink(href);
           }
         };
         return (
@@ -236,12 +244,20 @@ function useFullComponents(
         <td className="border-t border-border px-3 py-2 text-foreground">{children}</td>
       ),
       hr: () => <hr className="my-6 border-border" />,
-      img: ({ src, alt }: ImgProps) => {
+      img: ({ node: _node, src, alt, className, ...props }: ImgProps) => {
         const isExternal = typeof src === 'string' && /^https?:\/\//i.test(src);
         if (!isExternal && resolveImage && src) {
           return <ResolvedImage src={src} alt={alt || ''} resolveImage={resolveImage} />;
         }
-        return <ContainedImage src={src} alt={alt || ''} className="my-3 max-w-full rounded" />;
+        return (
+          <ExpandableImage
+            src={src}
+            alt={alt || ''}
+            containerClassName="my-3"
+            className={cn('max-w-full rounded', className)}
+            {...props}
+          />
+        );
       },
       strong: ({ children }: WithChildren) => (
         <strong className="font-semibold text-foreground">{children}</strong>
@@ -274,10 +290,12 @@ function useCompactComponents(isDark: boolean) {
       ),
       p: ({ children }: WithChildren) => <p className="mb-2 leading-relaxed">{children}</p>,
       ul: ({ children }: WithChildren) => (
-        <ul className="mb-2 ml-4 list-disc space-y-0.5">{children}</ul>
+        <ul className="marker:text-muted-foreground mb-2 ml-4 list-disc space-y-1">{children}</ul>
       ),
       ol: ({ children }: WithChildren) => (
-        <ol className="mb-2 ml-4 list-decimal space-y-0.5">{children}</ol>
+        <ol className="marker:text-muted-foreground mb-2 ml-4 list-decimal space-y-1">
+          {children}
+        </ol>
       ),
       li: ({ children }: WithChildren) => <li className="leading-relaxed">{children}</li>,
       code: ({ children, className }: WithChildrenAndClass) => {
@@ -287,12 +305,16 @@ function useCompactComponents(isDark: boolean) {
         const { isBlock } = getCodeBlock(children, className);
         if (isBlock) {
           return (
-            <code className="bg-muted/60 block overflow-x-auto rounded p-2 text-[11px]">
+            <code className="bg-muted/60 block overflow-x-auto rounded-md border border-border p-2 text-[11px] leading-relaxed">
               {children}
             </code>
           );
         }
-        return <code className="bg-muted/60 rounded px-1 py-0.5 text-[11px]">{children}</code>;
+        return (
+          <code className="bg-muted/60 rounded px-1 py-0.5 font-mono text-[0.92em]">
+            {children}
+          </code>
+        );
       },
       pre: ({ children }: WithChildren) =>
         isOnlyMermaidDiagramChild(children) ? (
@@ -300,6 +322,32 @@ function useCompactComponents(isDark: boolean) {
         ) : (
           <pre className="mb-2 overflow-x-auto">{children}</pre>
         ),
+      blockquote: ({ children }: WithChildren) => (
+        <blockquote className="text-muted-foreground mb-2 border-l-2 border-border pl-3 italic">
+          {children}
+        </blockquote>
+      ),
+      table: ({ children }: WithChildren) => (
+        <div className="my-3 overflow-x-auto rounded-md border border-border">
+          <table className="w-full min-w-max border-collapse text-left text-[11px] leading-snug">
+            {children}
+          </table>
+        </div>
+      ),
+      thead: ({ children }: WithChildren) => (
+        <thead className="bg-muted/50 border-b border-border text-foreground">{children}</thead>
+      ),
+      th: ({ children }: WithChildren) => (
+        <th className="border-r border-border px-2.5 py-1.5 font-semibold last:border-r-0">
+          {children}
+        </th>
+      ),
+      td: ({ children }: WithChildren) => (
+        <td className="border-t border-r border-border px-2.5 py-1.5 align-top last:border-r-0">
+          {children}
+        </td>
+      ),
+      hr: () => <hr className="my-4 border-border" />,
       strong: ({ children }: WithChildren) => (
         <strong className="font-semibold text-foreground">{children}</strong>
       ),
@@ -308,7 +356,7 @@ function useCompactComponents(isDark: boolean) {
         const handleClick = (e: React.MouseEvent) => {
           if (isHttp) {
             e.preventDefault();
-            rpc.app.openExternal(href).catch(() => {});
+            confirmOpenExternalLink(href);
           }
         };
         return (
@@ -323,11 +371,13 @@ function useCompactComponents(isDark: boolean) {
           </a>
         );
       },
-      img: ({ src, alt }: ImgProps) => (
-        <ContainedImage
+      img: ({ node: _node, src, alt, className, ...props }: ImgProps) => (
+        <ExpandableImage
           src={src}
           alt={alt || ''}
-          className="my-2 h-auto max-h-80 max-w-full rounded"
+          containerClassName="my-2"
+          className={cn('h-auto max-h-80 max-w-full rounded', className)}
+          {...props}
         />
       ),
     }),

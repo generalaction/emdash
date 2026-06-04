@@ -1,9 +1,16 @@
 import type { CreateConversationParams } from '@shared/conversations';
-import type { ProvisionStep } from '@shared/events/taskEvents';
 import type { Branch, CreateBranchError, FetchPrForReviewError, PushError } from '@shared/git';
 import type { PullRequest } from '@shared/pull-requests';
 
-export type TaskLifecycleStatus = 'todo' | 'in_progress' | 'review' | 'done' | 'cancelled';
+export type TaskLifecycleStatus =
+  | 'todo'
+  | 'in_progress'
+  | 'review'
+  | 'done'
+  | 'cancelled'
+  | 'backlog'
+  | 'duplicate'
+  | 'triage';
 
 export type Issue = {
   provider: 'github' | 'linear' | 'jira' | 'gitlab' | 'plain' | 'forgejo' | 'featurebase' | 'asana';
@@ -84,9 +91,7 @@ export type CreateTaskError =
   | { type: 'branch-create-failed'; branch: string; error: CreateBranchError }
   | { type: 'pr-fetch-failed'; error: FetchPrForReviewError; remote: string }
   | { type: 'branch-not-found'; branch: string }
-  | { type: 'worktree-setup-failed'; branch: string; message?: string }
-  | { type: 'provision-failed'; message: string }
-  | { type: 'provision-timeout'; timeoutMs: number; step: ProvisionStep | null };
+  | { type: 'worktree-setup-failed'; branch: string; message?: string };
 
 export type CreateTaskWarning = {
   type: 'branch-publish-failed';
@@ -103,22 +108,42 @@ export type CreateTaskSuccess = {
 export type RenameTaskError =
   | { type: 'task-not-found'; taskId: string }
   | { type: 'project-not-found'; projectId: string }
+  | { type: 'branch-managed-by-linked-issue'; provider: Issue['provider'] }
+  | { type: 'branch-has-open-pr'; branch: string }
+  | { type: 'branch-has-siblings'; branch: string }
   | { type: 'branch-already-exists'; branch: string }
   | { type: 'branch-rename-failed'; branch: string; message: string };
 
-export type RenameTaskWarning = {
-  type: 'branch-remote-push-failed';
-  branch: string;
-  message: string;
+export type RenameTaskSuccess = {
+  task: Task;
 };
 
-export type RenameTaskSuccess = {
-  warning?: RenameTaskWarning;
+export type RenameTaskOptions = {
+  renameBranch?: boolean;
 };
 
 export type ProvisionTaskResult = {
   path: string;
   workspaceId: string;
+};
+
+export type DeleteTaskOptions = {
+  deleteWorktree?: boolean;
+  deleteBranch?: boolean;
+};
+
+export type TaskDeletePreflightItem = {
+  taskId: string;
+  /** taskBranch exists and no sibling task shares it */
+  hasWorktree: boolean;
+  /** staged or unstaged changes exist in the worktree */
+  hasUncommittedChanges: boolean;
+  /** hasWorktree && taskBranch differs from sourceBranch */
+  hasDeletableBranch: boolean;
+};
+
+export type DeletePreflightResult = {
+  tasks: TaskDeletePreflightItem[];
 };
 
 export function formatIssueAsPrompt(issue: Issue, initialPrompt?: string): string {

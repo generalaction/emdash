@@ -18,7 +18,7 @@ import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { cn } from '@renderer/utils/utils';
 import { selectCurrentPr } from '@shared/pull-requests';
 import { PrBadge } from '../../lib/components/pr-badge';
-import { SidebarMenuRow } from './sidebar-primitives';
+import { SidebarMenuAction, SidebarMenuRow } from './sidebar-primitives';
 
 interface SidebarTaskItemProps {
   taskId: string;
@@ -34,7 +34,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
 }: SidebarTaskItemProps) {
   const { navigate } = useNavigate();
   const showRename = useShowModal('renameTaskModal');
-  const showConfirm = useShowModal('confirmActionModal');
+  const showDeleteTask = useShowModal('deleteTaskModal');
 
   const { currentView } = useWorkspaceSlots();
   const { params } = useParams('task');
@@ -56,6 +56,11 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
     void taskManager?.provisionTask(taskId);
   };
 
+  const openTask = () => {
+    handleProvision();
+    navigate('task', { projectId, taskId });
+  };
+
   const handleArchive = () => {
     if (isActive) navigate('project', { projectId });
     void taskManager?.archiveTask(taskId);
@@ -64,12 +69,11 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
   const handleRename = () => showRename({ projectId, taskId, currentName: taskName });
 
   const handleDelete = () =>
-    showConfirm({
-      title: 'Delete task',
-      description: `"${taskName}" will be permanently deleted. This action cannot be undone.`,
-      confirmLabel: 'Delete',
-      onSuccess: () => {
-        void taskManager?.deleteTask(taskId);
+    showDeleteTask({
+      projectId,
+      tasks: [{ taskId, taskName }],
+      onSuccess: ({ deleteWorktree, deleteBranch }) => {
+        void taskManager?.deleteTasks([taskId], { deleteWorktree, deleteBranch });
         if (isActive) navigate('project', { projectId });
       },
     });
@@ -103,12 +107,12 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
         )}
         isActive={isActive}
         onMouseDown={(e) => e.preventDefault()}
-        onClick={() => {
-          handleProvision();
-          navigate('task', { projectId, taskId });
-        }}
+        onClick={openTask}
       >
-        <div className="flex min-w-0 flex-1 items-center gap-1 self-stretch overflow-hidden">
+        <SidebarMenuAction
+          aria-label={`Open task ${taskName || 'task'}`}
+          className="gap-1 overflow-hidden"
+        >
           <span
             className={cn(
               'min-w-0 truncate text-left transition-colors',
@@ -118,8 +122,8 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
             {taskName}
           </span>
           <TaskGitDiffStats task={task} className="flex h-full shrink-0 items-center pr-1 pl-1" />
-          <RenderPrBadge task={task} />
-        </div>
+        </SidebarMenuAction>
+        <RenderPrBadge task={task} />
         <TaskSidebarAgentStatus task={task} />
       </SidebarMenuRow>
     </TaskContextMenu>
@@ -129,5 +133,9 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
 const RenderPrBadge = observer(function RenderPrBadge({ task }: { task: TaskStore }) {
   if (!('prs' in task.data)) return null;
   const pr = selectCurrentPr(task.data.prs);
-  return pr ? <PrBadge variant="compact" pr={pr} hoverDelay={100} /> : null;
+  return pr ? (
+    <span onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
+      <PrBadge variant="compact" pr={pr} hoverDelay={100} />
+    </span>
+  ) : null;
 });

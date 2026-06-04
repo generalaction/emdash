@@ -19,6 +19,10 @@ export class DiffTabStore {
   originalRef: GitObjectRef;
   modifiedRef: GitObjectRef | undefined;
   prNumber: number | undefined;
+  prBaseOid: string | undefined;
+  prHeadOid: string | undefined;
+  commitOriginalSha: string | null | undefined;
+  commitModifiedSha: string | undefined;
   status: GitChangeStatus | undefined;
 
   constructor(
@@ -35,6 +39,10 @@ export class DiffTabStore {
     this.originalRef = activeFile.originalRef;
     this.modifiedRef = activeFile.modifiedRef;
     this.prNumber = activeFile.prNumber;
+    this.prBaseOid = activeFile.prBaseOid;
+    this.prHeadOid = activeFile.prHeadOid;
+    this.commitOriginalSha = activeFile.commitOriginalSha;
+    this.commitModifiedSha = activeFile.commitModifiedSha;
     this.status = status;
 
     makeObservable(this, {
@@ -44,6 +52,10 @@ export class DiffTabStore {
       originalRef: observable,
       modifiedRef: observable,
       prNumber: observable,
+      prBaseOid: observable,
+      prHeadOid: observable,
+      commitOriginalSha: observable,
+      commitModifiedSha: observable,
       status: observable,
       transition: action,
       pin: action,
@@ -64,6 +76,10 @@ export class DiffTabStore {
     this.originalRef = newOriginalRef;
     this.modifiedRef = undefined;
     this.prNumber = undefined;
+    this.prBaseOid = undefined;
+    this.prHeadOid = undefined;
+    this.commitOriginalSha = undefined;
+    this.commitModifiedSha = undefined;
     this.status = status;
   }
 

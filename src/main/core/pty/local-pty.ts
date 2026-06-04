@@ -46,6 +46,8 @@ export function spawnLocalPty(options: LocalSpawnOptions): LocalPtySession {
 
 export class LocalPtySession implements Pty {
   readonly id: string;
+  private killTimer: ReturnType<typeof setTimeout> | null = null;
+  private killed = false;
 
   constructor(
     id: string,
@@ -73,7 +75,25 @@ export class LocalPtySession implements Pty {
   }
 
   kill(): void {
-    this.proc.kill();
+    if (this.killed) return;
+    this.killed = true;
+
+    const pid = this.proc.pid;
+    if (process.platform !== 'win32' && Number.isInteger(pid) && pid > 0) {
+      try {
+        process.kill(-pid, 'SIGTERM');
+      } catch {}
+      this.killTimer = setTimeout(() => {
+        try {
+          process.kill(-pid, 'SIGKILL');
+        } catch {}
+        this.killTimer = null;
+      }, 2000);
+    }
+
+    try {
+      this.proc.kill();
+    } catch {}
   }
 
   onData(handler: (data: string) => void): void {
@@ -82,6 +102,10 @@ export class LocalPtySession implements Pty {
 
   onExit(handler: (info: PtyExitInfo) => void): void {
     this.proc.onExit(({ exitCode, signal }) => {
+      if (this.killTimer) {
+        clearTimeout(this.killTimer);
+        this.killTimer = null;
+      }
       handler({ exitCode, signal: normalizeSignal(signal) });
     });
   }

@@ -1,10 +1,12 @@
-import { ImageIcon, Paperclip, XIcon } from 'lucide-react';
-import React, { useCallback } from 'react';
+import { ImageIcon, Info, Paperclip, XIcon } from 'lucide-react';
+import React, { useCallback, useState } from 'react';
 import { useAttachments } from '@renderer/lib/hooks/use-attachments';
+import { rpc } from '@renderer/lib/ipc';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 import { Button } from '@renderer/lib/ui/button';
+import { Checkbox } from '@renderer/lib/ui/checkbox';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
   DialogContentArea,
@@ -16,6 +18,7 @@ import {
 import { Input } from '@renderer/lib/ui/input';
 import { Spinner } from '@renderer/lib/ui/spinner';
 import { Textarea } from '@renderer/lib/ui/textarea';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 import { useFeedbackSubmit } from './use-feedback-submit';
 
@@ -53,6 +56,7 @@ function AttachmentThumbnail({
 }
 
 export function FeedbackModal({ onSuccess, blurb }: Props) {
+  const [includeDiagnosticLogs, setIncludeDiagnosticLogs] = useState(false);
   const { user: githubUser } = useGithubContext();
   const appVersion = appState.update.currentVersion;
   const {
@@ -87,6 +91,7 @@ export function FeedbackModal({ onSuccess, blurb }: Props) {
     appVersion,
     onSuccess: () => {
       resetAttachments();
+      setIncludeDiagnosticLogs(false);
       onSuccess();
     },
   });
@@ -94,9 +99,20 @@ export function FeedbackModal({ onSuccess, blurb }: Props) {
   const handleFormSubmit = useCallback(
     async (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      await handleSubmit(attachments.map((attachment) => attachment.file));
+      const loadDiagnosticLog = includeDiagnosticLogs
+        ? async () => {
+            const attachment = await rpc.app.getDiagnosticLogAttachment();
+            return new File([attachment.content], attachment.filename, {
+              type: attachment.mimeType,
+            });
+          }
+        : undefined;
+      await handleSubmit(
+        attachments.map((attachment) => attachment.file),
+        loadDiagnosticLog
+      );
     },
-    [handleSubmit, attachments]
+    [handleSubmit, attachments, includeDiagnosticLogs]
   );
 
   return (
@@ -116,7 +132,7 @@ export function FeedbackModal({ onSuccess, blurb }: Props) {
         </div>
       )}
       <DialogHeader>
-        <div className="flex flex-col gap-0.5">
+        <div className="flex flex-col gap-1">
           <DialogTitle>Feedback</DialogTitle>
           {blurb ? <DialogDescription className="text-xs">{blurb}</DialogDescription> : null}
         </div>
@@ -171,6 +187,33 @@ export function FeedbackModal({ onSuccess, blurb }: Props) {
           </div>
 
           <div className="space-y-2">
+            <div className="flex items-center gap-1.5">
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={includeDiagnosticLogs}
+                  onCheckedChange={(checked) => setIncludeDiagnosticLogs(Boolean(checked))}
+                  disabled={submitting}
+                />
+                <span className="min-w-0">Include diagnostic logs</span>
+              </label>
+              <TooltipProvider delay={150}>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <button
+                      type="button"
+                      className="text-muted-foreground mt-1 inline-flex size-4 items-center justify-center hover:text-foreground"
+                      aria-label="More information about diagnostic logs"
+                    >
+                      <Info className="size-3.5" aria-hidden="true" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs text-xs">
+                    Attaches recent app logs with sensitive details redacted.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+
             <input
               ref={fileInputRef}
               type="file"

@@ -64,11 +64,11 @@ export const AutoTrustWorktreesRow: React.FC = () => {
           Auto-trust worktree directories
           <InfoTooltip
             label="More info about auto-trust worktrees"
-            content="Only applies to Claude Code. Writes trust entries to ~/.claude.json before launching."
+            content="Applies to Claude Code and GitHub Copilot. Writes trust entries before launching."
           />
         </div>
       }
-      description="Skip the folder trust prompt in Claude Code for new tasks."
+      description="Skip the folder trust prompt in supported CLIs for new tasks."
       control={
         <>
           <ResetToDefaultButton
@@ -107,6 +107,58 @@ export const CreateBranchAndWorktreeRow: React.FC = () => {
             checked={taskSettings.createBranchAndWorktree}
             disabled={taskSettings.loading || taskSettings.saving}
             onCheckedChange={taskSettings.updateCreateBranchAndWorktree}
+          />
+        </>
+      }
+    />
+  );
+};
+
+export const PreserveTaskNameCapitalizationRow: React.FC = () => {
+  const taskSettings = useTaskSettings();
+
+  return (
+    <SettingRow
+      title="Preserve task name capitalization"
+      description="Keep uppercase letters in generated and manually entered task names. Defaults to lowercase."
+      control={
+        <>
+          <ResetToDefaultButton
+            visible={taskSettings.isFieldOverridden('preserveNameCapitalization')}
+            defaultLabel="off"
+            onReset={taskSettings.resetPreserveNameCapitalization}
+            disabled={taskSettings.loading || taskSettings.saving}
+          />
+          <Switch
+            checked={taskSettings.preserveNameCapitalization}
+            disabled={taskSettings.loading || taskSettings.saving}
+            onCheckedChange={taskSettings.updatePreserveNameCapitalization}
+          />
+        </>
+      }
+    />
+  );
+};
+
+export const IncludeIssueContextByDefaultRow: React.FC = () => {
+  const taskSettings = useTaskSettings();
+
+  return (
+    <SettingRow
+      title="Include issue context by default"
+      description="Add the selected issue to the initial agent prompt when creating a task from an issue."
+      control={
+        <>
+          <ResetToDefaultButton
+            visible={taskSettings.isFieldOverridden('includeIssueContextByDefault')}
+            defaultLabel="on"
+            onReset={taskSettings.resetIncludeIssueContextByDefault}
+            disabled={taskSettings.loading || taskSettings.saving}
+          />
+          <Switch
+            checked={taskSettings.includeIssueContextByDefault}
+            disabled={taskSettings.loading || taskSettings.saving}
+            onCheckedChange={taskSettings.updateIncludeIssueContextByDefault}
           />
         </>
       }

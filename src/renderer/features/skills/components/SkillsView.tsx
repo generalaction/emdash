@@ -1,5 +1,5 @@
 import { Loader2, Plus, RefreshCw } from 'lucide-react';
-import React from 'react';
+import React, { useCallback } from 'react';
 import { CardGridSection } from '@renderer/lib/components/card-grid';
 import { PageHeader } from '@renderer/lib/components/page-header';
 import { rpc } from '@renderer/lib/ipc';
@@ -12,14 +12,18 @@ import { useSkills } from './useSkills';
 
 export const SkillsView: React.FC = () => {
   const {
+    catalog,
     isLoading,
     isRefreshing,
     searchQuery,
     setSearchQuery,
     selectedSkill,
+    isLoadingDetail,
     showDetailModal,
     installedSkills,
     recommendedSkills,
+    skillShSearchSkills,
+    isSearchingSkillSh,
     refresh,
     install,
     uninstall,
@@ -27,10 +31,27 @@ export const SkillsView: React.FC = () => {
     closeDetail,
   } = useSkills();
   const showCreateSkillModal = useShowModal('createSkillModal');
+  const showConfirm = useShowModal('confirmActionModal');
 
   const handleOpenTerminal = (skillPath: string) => {
     void rpc.app.openIn({ app: 'terminal', path: skillPath });
   };
+
+  const handleUninstallRequest = useCallback(
+    (skillId: string) => {
+      const displayName = catalog?.skills.find((s) => s.id === skillId)?.displayName ?? skillId;
+      showConfirm({
+        title: 'Uninstall skill?',
+        description: `This will uninstall "${displayName}" from all agents. This action cannot be undone.`,
+        confirmLabel: 'Uninstall',
+        onSuccess: () => {
+          closeDetail();
+          void uninstall(skillId);
+        },
+      });
+    },
+    [catalog, closeDetail, showConfirm, uninstall]
+  );
 
   if (isLoading) {
     return (
@@ -80,7 +101,7 @@ export const SkillsView: React.FC = () => {
                   skill={skill}
                   isInstalled={true}
                   onInstall={install}
-                  onUninstall={uninstall}
+                  onUninstall={handleUninstallRequest}
                   onClick={() => openDetail(skill)}
                 />
               ))}
@@ -94,7 +115,21 @@ export const SkillsView: React.FC = () => {
                   skill={skill}
                   isInstalled={false}
                   onInstall={install}
-                  onUninstall={uninstall}
+                  onUninstall={handleUninstallRequest}
+                  onClick={() => openDetail(skill)}
+                />
+              ))}
+            </CardGridSection>
+          )}
+          {(isSearchingSkillSh || skillShSearchSkills.length > 0) && (
+            <CardGridSection title={isSearchingSkillSh ? 'Searching Skills.SH...' : 'Skills.SH'}>
+              {skillShSearchSkills.map((skill) => (
+                <SkillCard
+                  key={skill.id}
+                  skill={skill}
+                  isInstalled={false}
+                  onInstall={install}
+                  onUninstall={handleUninstallRequest}
                   onClick={() => openDetail(skill)}
                 />
               ))}
@@ -104,10 +139,11 @@ export const SkillsView: React.FC = () => {
       </div>
       <SkillDetailModal
         skill={selectedSkill}
+        isLoading={isLoadingDetail}
         isOpen={showDetailModal}
         onClose={closeDetail}
         onInstall={install}
-        onUninstall={uninstall}
+        onUninstall={handleUninstallRequest}
         onOpenTerminal={handleOpenTerminal}
       />
     </div>

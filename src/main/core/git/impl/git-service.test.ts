@@ -59,7 +59,7 @@ function makeContext(exec: MockExec, root = '/repo'): IExecutionContext {
 
 function makeService(exec: MockExec): GitService {
   const ctx = makeContext(exec);
-  return new GitService(ctx, ctx, stubFs);
+  return new GitService(ctx, stubFs);
 }
 
 // ---------------------------------------------------------------------------
@@ -389,6 +389,146 @@ describe('GitService.push', () => {
     );
 
     await expect(svc.push('fork')).resolves.toEqual({
+      success: true,
+      data: { output: 'pushed' },
+    });
+  });
+});
+
+describe('GitService.createBranch', () => {
+  it('records local source branch metadata after creating a branch', async () => {
+    const svc = makeService(
+      makeExec({
+        'branch --no-track task/local refs/heads/main': '',
+        'config branch.task/local.base main': '',
+      })
+    );
+
+    await expect(svc.createBranch('task/local', 'main', false)).resolves.toEqual({
+      success: true,
+      data: undefined,
+    });
+  });
+
+  it('records remote source branch metadata after creating a branch', async () => {
+    const svc = makeService(
+      makeExec({
+        'fetch upstream': '',
+        'branch --no-track task/remote upstream/main': '',
+        'config branch.task/remote.base upstream/main': '',
+      })
+    );
+
+    await expect(svc.createBranch('task/remote', 'main', true, 'upstream')).resolves.toEqual({
+      success: true,
+      data: undefined,
+    });
+  });
+
+  it('fails remote source branch creation when fetch fails', async () => {
+    const svc = makeService(async (_cmd, args = []) => {
+      const key = args.join(' ');
+      if (key === 'fetch origin') {
+        throw Object.assign(new Error('fetch failed'), {
+          stdout: '',
+          stderr:
+            "fatal: could not read Username for 'https://github.com': terminal prompts disabled",
+          code: 128,
+        });
+      }
+      throw Object.assign(new Error(`Unexpected git command: git ${key}`), {
+        stdout: '',
+        stderr: 'fatal: not expected',
+        code: 128,
+      });
+    });
+
+    await expect(svc.createBranch('task/remote', 'main', true, 'origin')).resolves.toEqual({
+      success: false,
+      error: {
+        type: 'fetch_failed',
+        remote: 'origin',
+        branch: 'main',
+        error: {
+          type: 'auth_failed',
+          message:
+            "fatal: could not read Username for 'https://github.com': terminal prompts disabled",
+        },
+      },
+    });
+  });
+
+  it('classifies SSH connection failures while creating a remote source branch as network errors', async () => {
+    const message =
+      'ssh: connect to host github.com port 22: Undefined error: 0\nfatal: Could not read from remote repository.';
+    const svc = makeService(async (_cmd, args = []) => {
+      const key = args.join(' ');
+      if (key === 'fetch origin') {
+        throw Object.assign(new Error('fetch failed'), {
+          stdout: '',
+          stderr: message,
+          code: 128,
+        });
+      }
+      throw Object.assign(new Error(`Unexpected git command: git ${key}`), {
+        stdout: '',
+        stderr: 'fatal: not expected',
+        code: 128,
+      });
+    });
+
+    await expect(svc.createBranch('task/remote', 'main', true, 'origin')).resolves.toEqual({
+      success: false,
+      error: {
+        type: 'fetch_failed',
+        remote: 'origin',
+        branch: 'main',
+        error: {
+          type: 'network_error',
+          message,
+        },
+      },
+    });
+  });
+});
+
+describe('GitService.renameBranch', () => {
+  it('renames only the local branch ref', async () => {
+    const svc = makeService(
+      makeExec({
+        'branch -m emdash/old-name emdash/new-name': '',
+      })
+    );
+
+    await expect(svc.renameBranch('emdash/old-name', 'emdash/new-name')).resolves.toEqual({
+      success: true,
+      data: undefined,
+    });
+  });
+});
+
+describe('GitService.fetch', () => {
+  it('fetches through plain git without injected GitHub auth config', async () => {
+    const svc = makeService(
+      makeExec({
+        remote: 'origin\n',
+        'fetch origin': '',
+      })
+    );
+
+    await expect(svc.fetch('origin')).resolves.toEqual({ success: true, data: undefined });
+  });
+});
+
+describe('GitService.publishBranch', () => {
+  it('publishes through plain git without injected GitHub auth config', async () => {
+    const svc = makeService(
+      makeExec({
+        'push --set-upstream origin emdash/test-branch': 'pushed',
+      })
+    );
+
+    await expect(svc.publishBranch('emdash/test-branch', 'origin')).resolves.toEqual({
       success: true,
       data: { output: 'pushed' },
     });

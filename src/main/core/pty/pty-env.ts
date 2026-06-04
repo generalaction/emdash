@@ -1,4 +1,5 @@
 import os from 'node:os';
+import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
 import { detectSshAuthSock } from '@main/utils/shellEnv';
 import { getWindowsEnvValue } from '@main/utils/windows-env';
 
@@ -9,6 +10,9 @@ export const AGENT_ENV_VARS = [
   'ANTHROPIC_API_KEY',
   'ANTHROPIC_AUTH_TOKEN',
   'ANTHROPIC_BASE_URL',
+  'ANTHROPIC_DEFAULT_HAIKU_MODEL',
+  'ANTHROPIC_DEFAULT_OPUS_MODEL',
+  'ANTHROPIC_DEFAULT_SONNET_MODEL',
   'ANTHROPIC_MODEL',
   'ANTHROPIC_SMALL_FAST_MODEL',
   'AUTOHAND_API_KEY',
@@ -23,6 +27,9 @@ export const AGENT_ENV_VARS = [
   'AZURE_OPENAI_API_KEY',
   'AZURE_OPENAI_KEY',
   'BAILIAN_CODING_PLAN_API_KEY',
+  'CLAUDE_CODE_DISABLE_BACKGROUND_TASKS',
+  'CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS',
+  'CLAUDE_CODE_SUBAGENT_MODEL',
   'CLAUDE_CODE_USE_BEDROCK',
   'CLAUDE_CODE_USE_VERTEX',
   'CLAUDE_CONFIG_DIR',
@@ -56,6 +63,7 @@ export const AGENT_ENV_VARS = [
   'GOOSE_PROVIDER__TYPE',
   'GROK_CODE_XAI_API_KEY',
   'GROK_DEPLOYMENT_KEY',
+  'GROK_HOME',
   'GROK_PROXY_URL',
   'GROK_SANDBOX',
   'HTTP_PROXY',
@@ -85,9 +93,11 @@ const DISPLAY_ENV_VARS = [
   'DBUS_SESSION_BUS_ADDRESS', // Needed by gio open and desktop portals
 ] as const;
 
-function getDisplayEnv(): Record<string, string> {
+const GLOBAL_AGENT_ENV_VARS = ['EDITOR', 'VISUAL', 'GIT_EDITOR', 'HOSTNAME', 'LANG', 'TZ'] as const;
+
+function getAllowlistedEnv(keys: readonly string[]): Record<string, string> {
   const env: Record<string, string> = {};
-  for (const key of DISPLAY_ENV_VARS) {
+  for (const key of keys) {
     const val = process.env[key];
     if (val) env[key] = val;
   }
@@ -169,7 +179,9 @@ export interface AgentEnvOptions {
  * SSH_AUTH_SOCK is injected via the same cached detector used for agents,
  * since GUI-launched apps often don't inherit it from the user's login shell.
  */
-export function buildTerminalEnv(): Record<string, string> {
+export function buildTerminalEnv(
+  options: { shellProfile?: ResolvedShellProfile } = {}
+): Record<string, string> {
   // Inherit the full process environment, stripping undefined values.
   const env: Record<string, string> = {};
   for (const [key, val] of Object.entries(process.env)) {
@@ -184,7 +196,10 @@ export function buildTerminalEnv(): Record<string, string> {
   // Ensure SHELL reflects the user's configured shell on POSIX. Native Windows
   // shells are selected via ComSpec by the spawn resolver, not SHELL.
   if (process.platform !== 'win32') {
-    env.SHELL = process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
+    env.SHELL =
+      options.shellProfile?.family === 'posix' || options.shellProfile?.family === 'csh'
+        ? options.shellProfile.executable
+        : (process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash'));
   } else if (process.env.SHELL) {
     env.SHELL = process.env.SHELL;
   }
@@ -224,9 +239,9 @@ export function buildAgentEnv(options: AgentEnvOptions = {}): Record<string, str
     HOME: process.env.HOME || os.homedir(),
     USER: process.env.USER || os.userInfo().username,
     PATH: resolvedPath,
-    ...(process.env.LANG && { LANG: process.env.LANG }),
     ...(process.env.TMPDIR && { TMPDIR: process.env.TMPDIR }),
-    ...getDisplayEnv(),
+    ...getAllowlistedEnv(GLOBAL_AGENT_ENV_VARS),
+    ...getAllowlistedEnv(DISPLAY_ENV_VARS),
     ...(process.platform === 'win32' ? getWindowsEssentialEnv(resolvedPath) : {}),
   };
 

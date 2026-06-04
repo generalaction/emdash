@@ -7,8 +7,11 @@ import type { FileSystemProvider } from '@main/core/fs/types';
 import { log } from '@main/lib/logger';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 import {
+  makeAmpPluginContent,
   makeClaudeHookCommand,
   makeCodexHookCommand,
+  makeCodexSessionStartHookCommand,
+  makeGrokSessionStartHookCommand,
   makeOpenCodePluginContent,
 } from './agent-notify-command';
 import piEmdashExtension from './pi-emdash-extension.ts?raw';
@@ -18,13 +21,25 @@ const EMDASH_MARKER = 'EMDASH_HOOK_PORT';
 const CLAUDE_SETTINGS_PATH = '.claude/settings.local.json';
 const CODEX_CONFIG_PATH = '.codex/config.toml';
 const CODEX_HOOKS_PATH = '.codex/hooks.json';
+const GROK_HOOKS_PATH = '.grok/hooks/emdash.json';
 const DROID_SETTINGS_PATH = '.factory/settings.json';
+const AMP_PLUGIN_PATH = '.amp/plugins/emdash-hook.ts';
 const PI_EMDASH_EXTENSION_PATH = '.pi/extensions/emdash-hook.ts';
 const OPENCODE_PLUGIN_PATH = '.opencode/plugins/emdash-notifications.js';
 const GITIGNORE_PATH = '.gitignore';
 type HookConfigWriteOptions = { writeGitIgnoreEntries?: boolean };
-type CodexHookEvent = 'Stop' | 'PermissionRequest';
-type DroidHookEvent = 'Notification' | 'Stop';
+type CodexHookEvent = 'Stop' | 'PermissionRequest' | 'SessionStart';
+type GrokHookEvent =
+  | 'Notification'
+  | 'PostToolUse'
+  | 'PostToolUseFailure'
+  | 'PreToolUse'
+  | 'SessionEnd'
+  | 'SessionStart'
+  | 'Stop'
+  | 'StopFailure'
+  | 'UserPromptSubmit';
+type DroidHookEvent = 'Notification' | 'Stop' | 'SessionStart';
 
 const HOOK_EVENT_MAP = [
   { eventType: 'notification', hookKey: 'Notification' },
@@ -36,10 +51,15 @@ const CODEX_HOOK_EVENT_MAP = [
   { hookKey: 'PermissionRequest', notificationType: 'permission_prompt' },
 ] satisfies { hookKey: CodexHookEvent; notificationType: 'idle_prompt' | 'permission_prompt' }[];
 
+const CODEX_SESSION_HOOK_EVENT_MAP = [{ hookKey: 'SessionStart' as const }] satisfies {
+  hookKey: CodexHookEvent;
+}[];
+
 const DROID_HOOK_EVENT_MAP = [
   { hookKey: 'Notification', eventType: 'notification' },
   { hookKey: 'Stop', eventType: 'stop' },
-] satisfies { hookKey: DroidHookEvent; eventType: 'notification' | 'stop' }[];
+  { hookKey: 'SessionStart', eventType: 'session' },
+] satisfies { hookKey: DroidHookEvent; eventType: 'notification' | 'stop' | 'session' }[];
 
 const LEGACY_CODEX_NOTIFY_COMMAND = [
   'bash',
@@ -111,10 +131,74 @@ export class HookConfigWriter {
       );
     }
 
+    for (const { hookKey } of CODEX_SESSION_HOOK_EVENT_MAP) {
+      const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
+      hooks[hookKey] = this.buildHookEntries(
+        existing,
+        makeCodexSessionStartHookCommand({ platform: this.platform })
+      );
+    }
+
     await this.userFs.write(CODEX_HOOKS_PATH, JSON.stringify({ ...config, hooks }, null, 2) + '\n');
     await this.removeLegacyCodexNotify().catch((err: Error) => {
       log.warn('CodexHooks: failed to remove legacy notify entry', { error: String(err) });
     });
+    return true;
+  }
+
+  async writeGrokHooks(): Promise<boolean> {
+    if (!(await resolveCommandPath('grok', this.exec))) return false;
+
+    const config: Record<string, unknown> = (await this.userFs.exists(GROK_HOOKS_PATH))
+      ? await this.userFs
+          .read(GROK_HOOKS_PATH)
+          .then((r) => JSON.parse(r.content) ?? {})
+          .catch(() => ({}))
+      : {};
+
+    const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
+    const hookEntries = [
+      {
+        hookKey: 'SessionStart',
+        command: makeGrokSessionStartHookCommand({ platform: this.platform }),
+      },
+      {
+        hookKey: 'UserPromptSubmit',
+        command: makeClaudeHookCommand('start', { platform: this.platform }),
+      },
+      {
+        hookKey: 'PreToolUse',
+        command: makeClaudeHookCommand('start', { platform: this.platform }),
+      },
+      {
+        hookKey: 'PostToolUse',
+        command: makeClaudeHookCommand('start', { platform: this.platform }),
+      },
+      {
+        hookKey: 'PostToolUseFailure',
+        command: makeClaudeHookCommand('start', { platform: this.platform }),
+      },
+      {
+        hookKey: 'Notification',
+        command: makeClaudeHookCommand('notification', { platform: this.platform }),
+      },
+      { hookKey: 'Stop', command: makeClaudeHookCommand('stop', { platform: this.platform }) },
+      {
+        hookKey: 'StopFailure',
+        command: makeClaudeHookCommand('stop', { platform: this.platform }),
+      },
+      {
+        hookKey: 'SessionEnd',
+        command: makeClaudeHookCommand('stop', { platform: this.platform }),
+      },
+    ] satisfies { hookKey: GrokHookEvent; command: string }[];
+
+    for (const { hookKey, command } of hookEntries) {
+      const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
+      hooks[hookKey] = this.buildHookEntries(existing, command);
+    }
+
+    await this.userFs.write(GROK_HOOKS_PATH, JSON.stringify({ ...config, hooks }, null, 2) + '\n');
     return true;
   }
 
@@ -169,6 +253,20 @@ export class HookConfigWriter {
     return true;
   }
 
+  async writeAmpPlugin(): Promise<boolean> {
+    if (!(await resolveCommandPath('amp', this.exec))) return false;
+
+    const pluginContent = makeAmpPluginContent();
+    const existing = await this.fs
+      .read(AMP_PLUGIN_PATH)
+      .then((r) => r.content)
+      .catch(() => undefined);
+    if (existing === pluginContent) return true;
+
+    await this.fs.write(AMP_PLUGIN_PATH, pluginContent);
+    return true;
+  }
+
   async writeForProvider(
     providerId: AgentProviderId,
     options: HookConfigWriteOptions = {}
@@ -185,6 +283,10 @@ export class HookConfigWriter {
 
     if (providerId === 'codex') {
       return this.writeCodexHooks();
+    }
+
+    if (providerId === 'grok') {
+      return this.writeGrokHooks();
     }
 
     if (providerId === 'droid') {
@@ -211,12 +313,20 @@ export class HookConfigWriter {
       return wroteConfig;
     }
 
+    if (providerId === 'amp') {
+      const wroteConfig = await this.writeAmpPlugin();
+      if (wroteConfig && writeGitIgnoreEntries) {
+        await this.ensureGitIgnoreEntries([AMP_PLUGIN_PATH]);
+      }
+      return wroteConfig;
+    }
+
     return false;
   }
 
   async writeAll(options: HookConfigWriteOptions = {}): Promise<void> {
     await Promise.all(
-      (['claude', 'codex', 'droid', 'pi', 'opencode'] as const).map((providerId) =>
+      (['claude', 'codex', 'grok', 'droid', 'pi', 'opencode', 'amp'] as const).map((providerId) =>
         this.writeForProvider(providerId, options).catch((err: Error) => {
           log.warn(`Failed to write ${providerId} hook config`, { error: String(err) });
         })

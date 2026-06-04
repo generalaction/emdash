@@ -11,7 +11,10 @@ import {
 } from '@renderer/lib/stores/tab-utils';
 import { fsWatchEventChannel } from '@shared/events/fsEvents';
 import { projectSettingsChangedChannel } from '@shared/events/projectEvents';
-import { ptyExitChannel } from '@shared/events/ptyEvents';
+import {
+  lifecycleScriptStatusChannel,
+  type LifecycleScriptStatusEvent,
+} from '@shared/events/taskEvents';
 import { PROJECT_CONFIG_FILE } from '@shared/project-settings';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { createLifecycleScriptTerminalId } from '@shared/terminals';
@@ -25,37 +28,54 @@ export type LifecycleScriptData = {
   command: string;
 };
 
+export type LifecycleScriptStatus = 'idle' | LifecycleScriptStatusEvent['status'];
+
 export class LifecycleScriptStore {
   data: LifecycleScriptData;
   session: PtySession;
-  isRunning = false;
-  private offPtyExit: (() => void) | null = null;
+  status: LifecycleScriptStatus = 'idle';
+  private offStatus: (() => void) | null = null;
 
   constructor(data: LifecycleScriptData, projectId: string, workspaceId: string) {
     this.data = data;
-    this.session = new PtySession(makePtySessionId(projectId, workspaceId, data.id));
-    this.offPtyExit = events.on(ptyExitChannel, () => this.markExited(), this.session.sessionId);
+    this.session = new PtySession(makePtySessionId(projectId, workspaceId, data.id), () =>
+      rpc.terminals.prepareLifecycleScript({
+        projectId,
+        workspaceId,
+        type: data.type,
+      })
+    );
+    this.offStatus = events.on(lifecycleScriptStatusChannel, (event) => {
+      if (
+        event.projectId !== projectId ||
+        event.workspaceId !== workspaceId ||
+        event.type !== this.data.type
+      ) {
+        return;
+      }
+      this.setStatus(event.status);
+    });
     makeObservable(this, {
       data: observable,
       session: observable,
-      isRunning: observable,
-      markRunning: action,
-      markExited: action,
+      status: observable,
+      isRunning: computed,
+      setStatus: action,
     });
   }
 
-  markRunning(): void {
-    this.isRunning = true;
+  get isRunning(): boolean {
+    return this.status === 'running';
   }
 
-  markExited(): void {
-    this.isRunning = false;
+  setStatus(status: LifecycleScriptStatusEvent['status']): void {
+    this.status = status;
   }
 
   dispose() {
-    this.offPtyExit?.();
-    this.offPtyExit = null;
-    this.session.dispose();
+    this.offStatus?.();
+    this.offStatus = null;
+    this.session.destroy();
   }
 }
 
@@ -178,7 +198,7 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
   private async reload(): Promise<void> {
     if (this._disposed) return;
     const refreshSeq = ++this._refreshSeq;
-    const settings = await rpc.tasks.getWorkspaceSettings(this.projectId, this.workspaceId);
+    const settings = await rpc.projectSettings.getSettings(this.workspaceId);
     if (this._disposed) return;
 
     const entries: { type: ScriptType; command: string; label: string }[] = [];
@@ -218,7 +238,6 @@ export class LifecycleScriptsStore implements TabViewProvider<LifecycleScriptSto
           const store = new LifecycleScriptStore(data, this.projectId, this.workspaceId);
           this.scripts.set(entry.id, store);
           addTabId(this, entry.id);
-          void store.session.connect();
         }
       }
 

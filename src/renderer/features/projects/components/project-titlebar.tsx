@@ -13,6 +13,7 @@ import { Titlebar } from '@renderer/lib/components/titlebar/Titlebar';
 import { rpc } from '@renderer/lib/ipc';
 import { useNavigate, useParams } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { Button } from '@renderer/lib/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,7 +21,7 @@ import {
   DropdownMenuTrigger,
 } from '@renderer/lib/ui/dropdown-menu';
 import { Separator } from '@renderer/lib/ui/separator';
-import { parseGitHubRepository } from '@shared/github-repository';
+import { isGitHubDotComHost, parseRepositoryRef } from '@shared/repository-ref';
 
 const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
   projectId,
@@ -35,10 +36,10 @@ const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
   const repo = getRepositoryStore(projectId);
   const baseRemote = repo?.baseRemote;
   const remoteUrl = baseRemote?.url;
-  const repositoryUrl = repo?.repositoryUrl;
-  const repository = parseGitHubRepository(repositoryUrl);
+  const repositoryUrl = repo?.canonicalRepositoryUrl;
+  const repository = parseRepositoryRef(repositoryUrl);
 
-  const isGithubUrl = Boolean(repository);
+  const isGithubUrl = repository ? isGitHubDotComHost(repository.host) : false;
   const repoLabel = repository?.nameWithOwner ?? remoteUrl?.replace(/^https?:\/\//, '');
 
   return (
@@ -80,16 +81,21 @@ const MountedProjectTitlebarLeft = observer(function ProjectTitlebarLeft({
             orientation="vertical"
             className="h-4 data-[orientation=vertical]:self-center"
           />
-          <button
+          <Button
+            variant="ghost"
             className="group flex items-center gap-1.5 text-sm text-foreground-muted transition-colors hover:text-foreground"
-            onClick={() => void rpc.app.openExternal(remoteUrl ?? '')}
+            onClick={() =>
+              void rpc.app.openExternal(
+                isGithubUrl ? (repository?.repositoryUrl ?? remoteUrl ?? '') : (remoteUrl ?? '')
+              )
+            }
           >
             <div className="flex items-center gap-1 text-sm">
               {isGithubUrl ? <GithubIcon className="size-3.5" /> : <Globe className="size-3.5" />}
               <span className="truncate">{repoLabel}</span>
             </div>
             <ExternalLink className="size-3.5 shrink-0 text-foreground-muted opacity-0 transition-opacity group-hover:opacity-100 hover:text-foreground" />
-          </button>
+          </Button>
         </>
       )}
     </div>

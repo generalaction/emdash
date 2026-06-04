@@ -2,6 +2,11 @@ import { ChevronsUpDownIcon, LoaderCircle, Minus, Plus } from 'lucide-react';
 import React, { useCallback, useMemo, useState } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { useInstalledFonts } from '@renderer/features/settings/use-installed-fonts';
+import { TerminalShellOptionLabel } from '@renderer/lib/components/terminal-shell-option-label';
+import {
+  DEFAULT_TERMINAL_SHELL_AVAILABILITY,
+  useTerminalShellAvailability,
+} from '@renderer/lib/hooks/use-terminal-shell-availability';
 import { Button } from '@renderer/lib/ui/button';
 import {
   Combobox,
@@ -16,11 +21,19 @@ import {
   ComboboxTrigger,
   ComboboxValue,
 } from '@renderer/lib/ui/combobox';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@renderer/lib/ui/select';
 import { Switch } from '@renderer/lib/ui/switch';
 import {
   TERMINAL_FONT_SIZE_DEFAULT,
   TERMINAL_FONT_SIZE_MAX,
   TERMINAL_FONT_SIZE_MIN,
+  type TerminalShellId,
 } from '@shared/terminal-settings';
 import { SettingRow } from './SettingRow';
 
@@ -46,9 +59,11 @@ const POPULAR_FONTS = [
   'MesloLGS NF',
 ];
 
+const DEFAULT_FONT_FAMILY = 'Menlo';
+
 const DEFAULT_OPTION: FontOption = {
   value: '',
-  label: 'Default (Menlo)',
+  label: `Default (${DEFAULT_FONT_FAMILY})`,
 };
 
 const clampFontSize = (size: number) =>
@@ -64,10 +79,23 @@ const TerminalSettingsCard: React.FC = () => {
   const [pickerOpen, setPickerOpen] = useState<boolean>(false);
   const [query, setQuery] = useState<string>('');
   const { fonts: installedFonts, isLoading: loadingFonts } = useInstalledFonts();
+  const { data: localShellAvailability = DEFAULT_TERMINAL_SHELL_AVAILABILITY } =
+    useTerminalShellAvailability(undefined);
 
   const fontFamily = terminal?.fontFamily ?? '';
   const fontSize = terminal?.fontSize ?? TERMINAL_FONT_SIZE_DEFAULT;
   const autoCopyOnSelection = terminal?.autoCopyOnSelection ?? false;
+  const defaultShell = terminal?.defaultShell ?? 'system';
+  const selectedShell = useMemo(
+    () =>
+      localShellAvailability.find((entry) => entry.id === defaultShell) ?? {
+        id: defaultShell,
+        label: defaultShell === 'system' ? 'Loading...' : defaultShell,
+        isSystemDefault: false,
+        available: true,
+      },
+    [defaultShell, localShellAvailability]
+  );
 
   const groups = useMemo<FontGroup[]>(() => {
     const popularSet = new Set(POPULAR_FONTS.map((f) => f.toLowerCase()));
@@ -145,8 +173,44 @@ const TerminalSettingsCard: React.FC = () => {
     [update]
   );
 
+  const applyDefaultShell = useCallback(
+    (next: TerminalShellId) => {
+      update({ defaultShell: next });
+    },
+    [update]
+  );
+
   return (
     <div className="flex flex-col gap-4">
+      <SettingRow
+        title="Default terminal shell"
+        description="Used for new local terminals. Remote terminals use the remote system shell."
+        control={
+          <Select
+            value={defaultShell}
+            onValueChange={(next) => applyDefaultShell(next as TerminalShellId)}
+            disabled={loading || saving}
+          >
+            <SelectTrigger className="w-[183px] shrink-0 gap-2 [&>span]:line-clamp-none">
+              <SelectValue>
+                <TerminalShellOptionLabel entry={selectedShell} showSystemBadge={false} />
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent align="end" className="min-w-max">
+              {localShellAvailability.map((entry) => (
+                <SelectItem
+                  key={entry.id}
+                  value={entry.id}
+                  disabled={!entry.available}
+                  title={entry.reason}
+                >
+                  <TerminalShellOptionLabel entry={entry} />
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        }
+      />
       <SettingRow
         title="Terminal font"
         description="Choose the font family for the terminal."
@@ -203,7 +267,13 @@ const TerminalSettingsCard: React.FC = () => {
                       <ComboboxCollection>
                         {(item: FontOption) => (
                           <ComboboxItem key={item.value || '__default__'} value={item}>
-                            {item.label}
+                            <span
+                              style={{
+                                fontFamily: item.value ? `"${item.value}"` : DEFAULT_FONT_FAMILY,
+                              }}
+                            >
+                              {item.label}
+                            </span>
                           </ComboboxItem>
                         )}
                       </ComboboxCollection>

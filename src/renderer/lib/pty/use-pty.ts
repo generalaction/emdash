@@ -20,6 +20,7 @@ import {
   shouldMapShiftEnterToCtrlJ,
   shouldPasteToTerminal,
 } from './pty-keybindings';
+import { buildTerminalFontFamily } from './terminal-font';
 
 // xterm's proposed API and internal fields are not in the public TypeScript
 // types. Both code paths are necessary: the proposed `dimensions` API works in
@@ -34,6 +35,14 @@ interface XtermInternals {
     renderService?: { dimensions?: XtermCellDimensions };
   };
 }
+
+const PTY_RESIZE_DEBOUNCE_MS = 120;
+const MIN_TERMINAL_COLS = 2;
+const MIN_TERMINAL_ROWS = 1;
+const IS_MAC_PLATFORM =
+  typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+const IS_WINDOWS_PLATFORM = typeof navigator !== 'undefined' && /Win/.test(navigator.platform);
+const LAST_SELECTION_COPY_GRACE_MS = 2_000;
 
 function getCellMetrics(terminal: Terminal): { width: number; height: number } | null {
   const t = terminal as unknown as XtermInternals;
@@ -51,11 +60,11 @@ function getCellMetrics(terminal: Terminal): { width: number; height: number } |
   return null;
 }
 
-const PTY_RESIZE_DEBOUNCE_MS = 120;
-const MIN_TERMINAL_COLS = 2;
-const MIN_TERMINAL_ROWS = 1;
-const IS_MAC_PLATFORM =
-  typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+function getRecentSelection(selection: { text: string; capturedAt: number } | null): string {
+  if (!selection) return '';
+  if (Date.now() - selection.capturedAt > LAST_SELECTION_COPY_GRACE_MS) return '';
+  return selection.text;
+}
 
 export interface UsePtyOptions {
   /** Deterministic PTY session ID: makePtySessionId(projectId, scopeId, leafId). */
@@ -69,6 +78,7 @@ export interface UsePtyOptions {
   onFirstMessage?: (message: string) => void;
   onEnterPress?: (message: string) => void;
   onInterruptPress?: () => void;
+  onPasteFromClipboard?: PasteFromClipboardHandler;
 }
 
 export interface UseTerminalReturn {
@@ -76,6 +86,11 @@ export interface UseTerminalReturn {
   setTheme: (theme: SessionTheme) => void;
   sendInput: (data: string, options?: { track?: boolean }) => void;
 }
+
+export type PasteFromClipboardHandler = (helpers: {
+  focus: UseTerminalReturn['focus'];
+  sendInput: UseTerminalReturn['sendInput'];
+}) => void;
 
 /**
  * React hook that manages a full xterm.js terminal instance attached to
@@ -109,6 +124,7 @@ export function usePty(
     onFirstMessage,
     onEnterPress,
     onInterruptPress,
+    onPasteFromClipboard,
   } = options;
 
   // Stable refs for callbacks so the effect doesn't re-run on every render.
@@ -122,6 +138,8 @@ export function usePty(
   onEnterPressRef.current = onEnterPress;
   const onInterruptPressRef = useRef(onInterruptPress);
   onInterruptPressRef.current = onInterruptPress;
+  const onPasteFromClipboardRef = useRef(onPasteFromClipboard);
+  onPasteFromClipboardRef.current = onPasteFromClipboard;
   const themeRef = useRef(theme);
   themeRef.current = theme;
 
@@ -163,6 +181,7 @@ export function usePty(
 
   // Auto-copy on selection
   const autoCopyOnSelectionRef = useRef(false);
+  const lastSelectionRef = useRef<{ text: string; capturedAt: number } | null>(null);
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -269,7 +288,8 @@ export function usePty(
   }, []);
 
   const copySelectionToClipboard = useCallback(() => {
-    const selection = termRef.current?.getSelection();
+    const selection =
+      termRef.current?.getSelection() || getRecentSelection(lastSelectionRef.current);
     if (selection) {
       navigator.clipboard.writeText(selection).catch(() => {});
     }
@@ -292,13 +312,21 @@ export function usePty(
   );
 
   const pasteFromClipboard = useCallback(() => {
-    navigator.clipboard
-      .readText()
-      .then((text) => {
+    const customPasteFromClipboard = onPasteFromClipboardRef.current;
+    if (customPasteFromClipboard) {
+      customPasteFromClipboard({ focus, sendInput });
+      return;
+    }
+
+    void (async () => {
+      try {
+        const text = await navigator.clipboard.readText();
         if (text) sendInput(text);
-      })
-      .catch(() => {});
-  }, [sendInput]);
+      } catch {
+        // Clipboard read denied or unavailable.
+      }
+    })();
+  }, [focus, sendInput]);
 
   // ─── Main effect: mount terminal once per sessionId ────────────────────────
 
@@ -335,6 +363,7 @@ export function usePty(
     {
       const frontendPty = pty;
       termRef.current = frontendPty.terminal;
+      lastSelectionRef.current = null;
 
       // Apply current theme before mounting (in case it differs from the
       // theme the terminal was constructed with).
@@ -354,7 +383,9 @@ export function usePty(
         (terminalSettings) => {
           if (terminalSettings?.fontFamily) {
             customFontFamily = terminalSettings.fontFamily.trim();
-            if (customFontFamily) frontendPty.terminal.options.fontFamily = customFontFamily;
+            if (customFontFamily) {
+              frontendPty.terminal.options.fontFamily = buildTerminalFontFamily(customFontFamily);
+            }
           }
           frontendPty.terminal.options.fontSize =
             terminalSettings?.fontSize ?? TERMINAL_FONT_SIZE_DEFAULT;
@@ -401,7 +432,14 @@ export function usePty(
       terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
         if (document.querySelector('[role="dialog"]')) return false;
 
-        if (shouldCopySelectionFromTerminal(event, IS_MAC_PLATFORM, terminal.hasSelection())) {
+        if (
+          shouldCopySelectionFromTerminal(
+            event,
+            IS_MAC_PLATFORM,
+            terminal.hasSelection(),
+            getRecentSelection(lastSelectionRef.current) !== ''
+          )
+        ) {
           event.preventDefault();
           event.stopImmediatePropagation();
           event.stopPropagation();
@@ -409,7 +447,7 @@ export function usePty(
           return false;
         }
 
-        if (shouldPasteToTerminal(event, IS_MAC_PLATFORM)) {
+        if (shouldPasteToTerminal(event, IS_MAC_PLATFORM, IS_WINDOWS_PLATFORM)) {
           event.preventDefault();
           event.stopImmediatePropagation();
           event.stopPropagation();
@@ -508,11 +546,18 @@ export function usePty(
       // ── Auto-copy on selection ─────────────────────────────────────────────
       let selectionDebounceTimer: ReturnType<typeof setTimeout> | null = null;
       const selectionDisposable = terminal.onSelectionChange(() => {
+        const selection = terminal.getSelection();
+        if (selection) {
+          lastSelectionRef.current = { text: selection, capturedAt: Date.now() };
+        }
+
         if (!autoCopyOnSelectionRef.current) return;
         if (!terminal.hasSelection()) return;
         if (selectionDebounceTimer) clearTimeout(selectionDebounceTimer);
         selectionDebounceTimer = setTimeout(() => {
-          if (terminal.hasSelection()) copySelectionToClipboard();
+          if (terminal.hasSelection()) {
+            copySelectionToClipboard();
+          }
         }, 150);
       });
       cleanups.push(() => {
@@ -541,7 +586,7 @@ export function usePty(
         const detail = (e as CustomEvent<{ fontFamily?: string; fontSize?: number }>).detail;
         if (detail?.fontFamily !== undefined) {
           customFontFamily = detail.fontFamily.trim();
-          terminal.options.fontFamily = customFontFamily || undefined;
+          terminal.options.fontFamily = buildTerminalFontFamily(customFontFamily);
         }
         if (detail?.fontSize !== undefined) {
           terminal.options.fontSize = detail.fontSize;

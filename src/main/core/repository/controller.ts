@@ -7,6 +7,7 @@ import { err, ok } from '@shared/result';
 import type { GitRepositoryService } from '../git/repository-service';
 import { projectManager } from '../projects/project-manager';
 import { workspaceRegistry } from '../workspaces/workspace-registry';
+import { providerRepositoryService } from './provider-repository-service';
 
 function resolveRepository(projectId: string, workspaceId?: string): GitRepositoryService {
   const project = projectManager.getProject(projectId);
@@ -49,6 +50,10 @@ export const repositoryController = createRPCController({
     return project.repository.getRemotes();
   },
 
+  resolveProviderRepository: async (projectId: string) => {
+    return providerRepositoryService.resolveProject(projectId);
+  },
+
   addRemote: async (projectId: string, name: string, url: string) => {
     const project = projectManager.getProject(projectId);
     if (!project) return err({ type: 'not_found' as const });
@@ -65,7 +70,7 @@ export const repositoryController = createRPCController({
     if (!project) return err({ type: 'not_found' as const });
     const result = await project.repository.renameBranch(oldBranch, newBranch);
     if (!result.success) return err(result.error);
-    return ok({ remotePushed: result.data.remotePushed });
+    return ok();
   },
 
   fetch: async (projectId: string, workspaceId?: string) => {

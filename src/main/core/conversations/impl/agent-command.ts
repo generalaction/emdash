@@ -1,3 +1,4 @@
+import { quoteShellArg } from '@main/utils/shellEscape';
 import { getProvider, type AgentProviderId } from '@shared/agent-provider-registry';
 import type { ProviderCustomConfig } from '@shared/app-settings';
 
@@ -91,12 +92,24 @@ function parseCliPrefix(value: string | undefined, providerId: AgentProviderId):
   return parsed.words;
 }
 
+function appendSessionId(args: string[], flag: string, sessionId: string): void {
+  const parts = parseArgField(flag);
+  if (parts[parts.length - 1]?.endsWith('=')) {
+    parts[parts.length - 1] += sessionId;
+    args.push(...parts);
+    return;
+  }
+
+  args.push(...parts, sessionId);
+}
+
 export function buildAgentCommand({
   providerId,
   providerConfig,
   autoApprove,
   initialPrompt,
   sessionId,
+  providerSessionId,
   isResuming,
 }: {
   providerId: AgentProviderId;
@@ -104,23 +117,31 @@ export function buildAgentCommand({
   autoApprove?: boolean;
   initialPrompt?: string;
   sessionId: string;
+  providerSessionId?: string;
   isResuming?: boolean;
 }): AgentCommand {
   const providerDef = getProvider(providerId);
   const [command, ...args] = parseCliPrefix(providerConfig?.cli, providerId);
+  const initialPromptFlag = providerConfig?.initialPromptFlag;
 
   args.push(...(providerConfig?.defaultArgs ?? []));
 
+  const sessionIdFlag = providerConfig?.sessionIdFlag;
   const shouldPassSessionId =
-    providerConfig?.sessionIdFlag && (!providerConfig.sessionIdOnResumeOnly || isResuming);
+    sessionIdFlag !== undefined && (!providerConfig?.sessionIdOnResumeOnly || isResuming);
 
   if (isResuming && providerConfig?.resumeFlag) {
-    args.push(...parseArgField(providerConfig.resumeFlag));
-    if (providerConfig.sessionIdFlag) {
-      args.push(sessionId);
+    if (providerConfig.sessionIdFlag && providerSessionId) {
+      appendSessionId(args, providerConfig.resumeFlag, providerSessionId);
+    } else if (providerConfig.sessionIdFlag && !providerConfig.sessionIdOnResumeOnly) {
+      appendSessionId(args, providerConfig.resumeFlag, sessionId);
+    } else if (providerConfig.resumeWithoutSessionFlag) {
+      args.push(...parseArgField(providerConfig.resumeWithoutSessionFlag));
+    } else {
+      args.push(...parseArgField(providerConfig.resumeFlag));
     }
   } else if (shouldPassSessionId) {
-    args.push(...parseArgField(providerConfig.sessionIdFlag), sessionId);
+    appendSessionId(args, sessionIdFlag, sessionId);
   } else if (!isResuming && providerDef?.newConversationFlag) {
     args.push(providerDef.newConversationFlag);
   }
@@ -129,11 +150,40 @@ export function buildAgentCommand({
     args.push(...parseArgField(providerConfig.autoApproveFlag));
   }
 
-  if (!isResuming && initialPrompt && !providerDef?.useKeystrokeInjection) {
-    args.push(...parseArgField(providerConfig?.initialPromptFlag), initialPrompt);
+  if (
+    !isResuming &&
+    initialPrompt &&
+    !providerDef?.useKeystrokeInjection &&
+    !providerDef?.initialPromptViaStdinPipe
+  ) {
+    args.push(...parseArgField(initialPromptFlag), initialPrompt);
   }
 
   args.push(...parseArgField(providerConfig?.extraArgs));
 
   return { command, args };
+}
+
+export function wrapAgentCommandWithStdinPipe(agent: AgentCommand, prompt: string): AgentCommand {
+  const agentLine = [agent.command, ...agent.args].map(quoteShellArg).join(' ');
+  const shellLine = `printf '%s\\n' ${quoteShellArg(prompt)} | ${agentLine}`;
+  return { command: 'bash', args: ['-c', shellLine] };
+}
+
+export function buildAgentSessionCommand(args: {
+  providerId: AgentProviderId;
+  providerConfig: ProviderCustomConfig | undefined;
+  autoApprove?: boolean;
+  initialPrompt?: string;
+  sessionId: string;
+  providerSessionId?: string;
+  isResuming?: boolean;
+}): AgentCommand {
+  const command = buildAgentCommand(args);
+  const prompt = args.initialPrompt?.trim();
+  const providerDef = getProvider(args.providerId);
+  if (!args.isResuming && prompt && providerDef?.initialPromptViaStdinPipe) {
+    return wrapAgentCommandWithStdinPipe(command, prompt);
+  }
+  return command;
 }

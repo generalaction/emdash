@@ -3,6 +3,7 @@ import {
   CheckCircle2,
   GitMerge,
   HelpCircle,
+  Loader2,
   XCircle,
   type LucideIcon,
 } from 'lucide-react';
@@ -24,11 +25,13 @@ export function MergeFooter({
   uiState,
   mergeActions,
   isMerging,
+  isMarkingReady,
   onMarkReady,
 }: {
   uiState: MergeUiState;
   mergeActions: SplitButtonAction[];
   isMerging: boolean;
+  isMarkingReady: boolean;
   onMarkReady: () => void;
 }) {
   const isDraft = uiState.kind === 'draft';
@@ -44,7 +47,14 @@ export function MergeFooter({
           </div>
           <div className="flex items-center gap-1.5">
             {isDraft ? (
-              <Button variant="outline" size="xs" onClick={onMarkReady}>
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={onMarkReady}
+                disabled={isMarkingReady}
+                aria-label={isMarkingReady ? 'Marking ready...' : 'Mark ready'}
+              >
+                {isMarkingReady && <Loader2 className="size-3 animate-spin" aria-hidden />}
                 Mark ready
               </Button>
             ) : (

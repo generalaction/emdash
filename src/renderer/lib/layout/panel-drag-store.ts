@@ -35,6 +35,10 @@ function getSnapshot(): boolean {
   return getCurrentValue();
 }
 
+function getIsSuppressing(): boolean {
+  return isSuppressing;
+}
+
 function setDragging(value: boolean): void {
   if (isDragging === value) return;
   const previous = getCurrentValue();
@@ -55,4 +59,10 @@ function suppressFor(ms: number): void {
   notifyIfChanged(previous);
 }
 
-export const panelDragStore = { subscribe, getSnapshot, setDragging, suppressFor };
+export const panelDragStore = {
+  subscribe,
+  getSnapshot,
+  getIsSuppressing,
+  setDragging,
+  suppressFor,
+};
