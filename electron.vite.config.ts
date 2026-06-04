@@ -15,6 +15,16 @@ export default defineConfig({
         '@root': resolve('.'),
       },
     },
+    build: {
+      rollupOptions: {
+        // Second entry: the usage-stats utilityProcess worker, emitted alongside index.js
+        // so the main process can fork it via join(__dirname, 'usage-worker.js').
+        input: {
+          index: resolve('src/main/index.ts'),
+          'usage-worker': resolve('src/main/core/usage-stats/usage-worker.ts'),
+        },
+      },
+    },
   },
   preload: {
     root: 'src/preload',

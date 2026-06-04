@@ -28,6 +28,11 @@ export function setRemoteRates(rates: Map<string, ModelRate>): void {
   remoteRates = rates;
 }
 
+/** Current remote rates, so the main process can forward them into the worker (separate module state). */
+export function getRemoteRates(): Map<string, ModelRate> {
+  return remoteRates;
+}
+
 /** Substring match -> family, so new model versions still price instead of costing $0. */
 export function normalizeModelFamily(model: string): string | null {
   const m = model.toLowerCase();

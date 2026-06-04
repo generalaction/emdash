@@ -1,44 +1,26 @@
-import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { app } from 'electron';
-import { EMPTY_USAGE_SNAPSHOT, type UsageProvider, type UsageSnapshot } from '@shared/usage';
-import { aggregate } from './aggregate';
-import { loadIndex, reconcileCache, saveIndex, type UsageIndex } from './cache';
+import { app, utilityProcess, type UtilityProcess } from 'electron';
+import { log } from '@main/lib/logger';
+import { EMPTY_USAGE_SNAPSHOT, type UsageSnapshot } from '@shared/usage';
 import { ensureModelsDevPricing } from './models-dev';
-import { parseClaudeTranscript } from './parse-claude';
-import { parseCodexRollout } from './parse-codex';
-import { parsePiTranscript } from './parse-pi';
-import { scanAll } from './scanner';
-import type { ScannedFile, UsageRecord } from './types';
+import { runPipeline } from './pipeline';
+import { getRemoteRates, type ModelRate } from './pricing';
+import type { WorkerResponse } from './usage-worker';
 
-function readScannedText(file: ScannedFile): string {
-  return readFileSync(file.path, 'utf8');
-}
-
-type ParseFn = (text: string, file: ScannedFile) => UsageRecord[];
-
-// One parser per provider. Keying by the UsageProvider union makes a missing parser a
-// compile error rather than silently falling through to the wrong format.
-const PARSERS: Record<UsageProvider, ParseFn> = {
-  claude: (text) => parseClaudeTranscript(text),
-  codex: (text, file) => parseCodexRollout(text, file.path),
-  pi: (text, file) => parsePiTranscript(text, file.path),
-};
-
-function parseScannedFile(text: string, file: ScannedFile): UsageRecord[] {
-  return PARSERS[file.provider](text, file);
-}
+// Generous: protects against a wedged worker. On timeout we fall back to the inline pass.
+const WORKER_TIMEOUT_MS = 120_000;
 
 class UsageStatsService {
   private snapshot: UsageSnapshot = EMPTY_USAGE_SNAPSHOT;
   private indexPath = '';
   private computing: Promise<UsageSnapshot> | null = null;
+  private worker: UtilityProcess | null = null;
 
   /**
-   * Lazily computes on first access, then serves the cached snapshot. We do NOT warm
-   * on app start: a cold cache scans/parses every local transcript (potentially GBs of
-   * JSONL) and that work is synchronous, so warming eagerly would block the main process
-   * during startup. The first Usage-tab open pays the cost instead, behind a spinner.
+   * Lazily computes on first access, then serves the cached snapshot. We do NOT warm on app
+   * start: a cold cache scans/parses every local transcript (potentially GBs of JSONL). That
+   * work runs in a utilityProcess worker (off the main thread), with an inline fallback if the
+   * worker can't run, so the first Usage-tab open pays the cost without freezing the UI.
    */
   async getSnapshot(): Promise<UsageSnapshot> {
     if (this.snapshot.generatedAt === '') return this.refresh();
@@ -54,17 +36,62 @@ class UsageStatsService {
   }
 
   private async compute(): Promise<UsageSnapshot> {
-    // Refresh rates (cached 24h) in parallel with the disk scan — they're independent, and
-    // only aggregate() consumes pricing, so we just await it before pricing the records.
-    const pricing = ensureModelsDevPricing();
+    await ensureModelsDevPricing(); // installs rates in the main pricing module (electron + network)
     const indexPath = this.getIndexPath();
-    const prev: UsageIndex = loadIndex(indexPath);
-    const scan = scanAll();
-    const { index, records } = reconcileCache(prev, scan, readScannedText, parseScannedFile);
-    saveIndex(indexPath, index);
-    await pricing;
-    this.snapshot = aggregate(records, new Date());
+    const now = new Date();
+    try {
+      this.snapshot = await this.computeInWorker(indexPath, now);
+    } catch (error) {
+      // Worker couldn't run (spawn/asar/timeout) — fall back to the inline pass. Same result,
+      // just blocking; the rates are already installed in this process from ensureModelsDevPricing.
+      log.warn('usage-stats: worker compute failed, running inline', { error });
+      this.snapshot = runPipeline(indexPath, now);
+    }
     return this.snapshot;
+  }
+
+  private computeInWorker(indexPath: string, now: Date): Promise<UsageSnapshot> {
+    const worker = this.ensureWorker();
+    const rates: Array<[string, ModelRate]> = [...getRemoteRates().entries()];
+
+    return new Promise<UsageSnapshot>((resolve, reject) => {
+      const cleanup = (): void => {
+        clearTimeout(timer);
+        worker.off('message', onMessage);
+        worker.off('exit', onExit);
+      };
+      const onMessage = (res: WorkerResponse): void => {
+        cleanup();
+        if (res.ok) resolve(res.snapshot);
+        else reject(new Error(res.error));
+      };
+      const onExit = (code: number): void => {
+        cleanup();
+        reject(new Error(`usage worker exited (${code}) before responding`));
+      };
+      const timer = setTimeout(() => {
+        cleanup();
+        reject(new Error('usage worker timed out'));
+      }, WORKER_TIMEOUT_MS);
+
+      worker.on('message', onMessage);
+      worker.on('exit', onExit);
+      worker.postMessage({ indexPath, rates, nowISO: now.toISOString() });
+    });
+  }
+
+  /** Fork the worker lazily and reuse it across refreshes; respawn after an exit. */
+  private ensureWorker(): UtilityProcess {
+    if (this.worker) return this.worker;
+    // __dirname resolves to out/main/ at runtime; the worker is emitted alongside index.js.
+    const w = utilityProcess.fork(join(__dirname, 'usage-worker.js'), [], {
+      serviceName: 'emdash-usage-stats',
+    });
+    w.on('exit', () => {
+      if (this.worker === w) this.worker = null;
+    });
+    this.worker = w;
+    return w;
   }
 
   private getIndexPath(): string {
