@@ -35,6 +35,7 @@ type GithubContextValue = {
 
 const GITHUB_STATUS_KEY = ['github:status'] as const;
 const ISSUE_CONNECTION_STATUS_QUERY_KEY = ['issues:connection-status'] as const;
+const GITHUB_ISSUE_PROVIDER = 'github' as const;
 
 const GithubContext = createContext<GithubContextValue | null>(null);
 
@@ -67,6 +68,12 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
 
   const needsGhAuth = isInitialized && !authenticated;
 
+  const invalidateGithubIssueQueries = useCallback(() => {
+    queryClient.removeQueries({ queryKey: ['issues:initial', GITHUB_ISSUE_PROVIDER] });
+    queryClient.removeQueries({ queryKey: ['issues:search', GITHUB_ISSUE_PROVIDER] });
+    void queryClient.invalidateQueries({ queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY });
+  }, [queryClient]);
+
   const prevAuthenticatedRef = useRef<boolean | undefined>(undefined);
   useEffect(() => {
     if (!isInitialized) return;
@@ -87,7 +94,7 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
     mutationFn: () => rpc.github.logout(),
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: GITHUB_STATUS_KEY });
-      void queryClient.invalidateQueries({ queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY });
+      invalidateGithubIssueQueries();
     },
   });
 
@@ -112,13 +119,13 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
       log.info('[GithubContext] auth success via device flow', { user: flowUser?.login });
       void checkStatus();
       setTimeout(() => void checkStatus(), 500);
-      void queryClient.invalidateQueries({ queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY });
+      invalidateGithubIssueQueries();
       toast({
         title: 'Connected to GitHub',
         description: `Signed in as ${flowUser?.login || flowUser?.name || 'user'}`,
       });
     },
-    [checkStatus, queryClient, toast]
+    [checkStatus, invalidateGithubIssueQueries, toast]
   );
 
   const handleDeviceFlowError = useCallback(
@@ -176,7 +183,7 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
         const oauthResult = await rpc.github.connectOAuth();
         if (oauthResult?.success) {
           await checkStatus();
-          void queryClient.invalidateQueries({ queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY });
+          invalidateGithubIssueQueries();
           if (oauthResult.user) {
             toast({
               title: 'Connected to GitHub',
@@ -214,7 +221,7 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
     handleDeviceFlowError,
     hasAccount,
     fetchAccountHealth,
-    queryClient,
+    invalidateGithubIssueQueries,
   ]);
 
   const cancelGithubConnect = useCallback(() => {
