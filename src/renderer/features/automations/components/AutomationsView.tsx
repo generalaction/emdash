@@ -1,5 +1,5 @@
 import { Loader2, RotateCcw, Trash2, X } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useAutomationsTab } from '@renderer/features/automations/automations-view';
 import { ListPopoverCard } from '@renderer/lib/components/list-popover-card';
 import { useMultiSelect } from '@renderer/lib/hooks/use-multi-select';
@@ -13,8 +13,8 @@ import { useAutomationsPanel } from '../use-automations-panel';
 import { useAutomations, useRecentAutomationRuns } from '../useAutomations';
 import { AutomationRunsFilterBar } from './automation-runs-filter-bar';
 import { AutomationPanel } from './AutomationPanel';
-import { AutomationPanelShell } from './AutomationPanelShell';
 import { AutomationsEmptyState, AutomationsNoResults } from './AutomationsEmptyState';
+import { Sheet, SheetContent } from '@renderer/lib/ui/sheet';
 import { AutomationsHeader } from './AutomationsHeader';
 import { AutomationsList } from './AutomationsList';
 import { AutomationsSidebarNav } from './AutomationsSidebarNav';
@@ -100,20 +100,6 @@ export function AutomationsView() {
 
   const hasAutomations = automationItems.length > 0;
 
-  useEffect(() => {
-    if (!panelOpen) return;
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key !== 'Escape' || event.defaultPrevented) return;
-      const target = event.target as HTMLElement | null;
-      if (target?.closest('[role="dialog"], [data-radix-popper-content-wrapper]')) return;
-      event.preventDefault();
-      event.stopPropagation();
-      closePanel();
-    }
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [panelOpen, closePanel]);
-
   function handleSaved() {
     closePanel();
   }
@@ -151,9 +137,8 @@ export function AutomationsView() {
   };
 
   return (
-    <div className="flex h-full overflow-hidden bg-background text-foreground">
-      <div className="relative z-10 flex min-w-0 flex-1 overflow-hidden">
-        <div className="mx-auto grid h-full min-h-0 w-full max-w-[1060px] grid-cols-[13rem_minmax(0,1fr)] gap-8 px-8">
+    <div className="h-full overflow-hidden bg-background text-foreground">
+      <div className="mx-auto grid h-full min-h-0 w-full max-w-[1060px] grid-cols-[13rem_minmax(0,1fr)] gap-8 px-8">
           <div className="py-10">
             <AutomationsSidebarNav tab={tab} onTabChange={handleTabChange} />
           </div>
@@ -242,27 +227,28 @@ export function AutomationsView() {
             ) : null}
 
           </div>
-        </div>
       </div>
 
-      <AutomationPanelShell open={panelOpen}>
-        {panel ? (
-          <AutomationPanel
-            key={panel.kind === 'edit' ? panel.automation.id : (panel.template?.id ?? 'create')}
-            mode={panel}
-            onClose={closePanel}
-            onSaved={handleSaved}
-            onDelete={actions.requestDelete}
-            onRunNow={actions.requestRunNow}
-            onToggleEnabled={actions.requestToggleEnabled}
-            runNowPending={
-              panel.kind === 'edit' &&
-              actions.runNowState.isPending &&
-              actions.runNowState.variables === panel.automation.id
-            }
-          />
-        ) : null}
-      </AutomationPanelShell>
+      <Sheet open={panelOpen} onOpenChange={(open) => { if (!open) closePanel(); }}>
+        <SheetContent side="right" showCloseButton={false} className="sm:max-w-[480px] p-0">
+          {panel ? (
+            <AutomationPanel
+              key={panel.kind === 'edit' ? panel.automation.id : (panel.template?.id ?? 'create')}
+              mode={panel}
+              onClose={closePanel}
+              onSaved={handleSaved}
+              onDelete={actions.requestDelete}
+              onRunNow={actions.requestRunNow}
+              onToggleEnabled={actions.requestToggleEnabled}
+              runNowPending={
+                panel.kind === 'edit' &&
+                actions.runNowState.isPending &&
+                actions.runNowState.variables === panel.automation.id
+              }
+            />
+          ) : null}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
