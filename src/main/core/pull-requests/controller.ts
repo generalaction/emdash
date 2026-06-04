@@ -13,7 +13,7 @@ import { err, ok } from '@shared/result';
 import { prQueryService } from './pr-query-service';
 import { prSyncEngine } from './pr-sync-engine';
 import { type PrSyncEngineError } from './pr-sync-errors';
-import { resolveProjectGitHubAuthContext } from './project-github-auth-context';
+import { resolveProjectGitHubContext } from './project-github-context';
 
 type PrControllerFailureType =
   | 'create_failed'
@@ -128,12 +128,11 @@ export const pullRequestController = createRPCController({
 
   forceFullSyncPullRequests: async (projectId: string) => {
     try {
-      const capability = await providerRepositoryService.resolveProject(projectId);
-      if (!capability.success) {
-        return err<PullRequestError>({ type: 'remote_not_ready', status: capability.error.type });
+      const context = await resolveProjectGitHubContext(projectId);
+      if (!context.success) {
+        return err<PullRequestError>({ type: 'remote_not_ready', status: context.error.type });
       }
-      const authContext = await resolveProjectGitHubAuthContext(projectId);
-      prSyncEngine.forceFullSync(capability.data.repositoryUrl, authContext);
+      prSyncEngine.forceFullSync(context.data.repositoryUrl, context.data.authContext);
       return ok();
     } catch (error) {
       log.error('Failed to force full sync:', error);
@@ -147,20 +146,19 @@ export const pullRequestController = createRPCController({
   syncPullRequests: async (projectId: string) => {
     try {
       log.info('PrController: syncPullRequests called', { projectId });
-      const capability = await providerRepositoryService.resolveProject(projectId);
-      if (!capability.success) {
+      const context = await resolveProjectGitHubContext(projectId);
+      if (!context.success) {
         log.warn('PrController: remote not ready, skipping sync', {
           projectId,
-          status: capability.error.type,
+          status: context.error.type,
         });
-        return err<PullRequestError>({ type: 'remote_not_ready', status: capability.error.type });
+        return err<PullRequestError>({ type: 'remote_not_ready', status: context.error.type });
       }
       log.info('PrController: triggering sync', {
         projectId,
-        repositoryUrl: capability.data.repositoryUrl,
+        repositoryUrl: context.data.repositoryUrl,
       });
-      const authContext = await resolveProjectGitHubAuthContext(projectId);
-      prSyncEngine.sync(capability.data.repositoryUrl, authContext);
+      prSyncEngine.sync(context.data.repositoryUrl, context.data.authContext);
       return ok();
     } catch (error) {
       log.error('Failed to trigger sync:', error);
