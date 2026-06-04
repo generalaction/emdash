@@ -1,12 +1,13 @@
 import { computed, makeObservable } from 'mobx';
 import { toast } from 'sonner';
-import { fsWatchEventChannel } from '@shared/events/fsEvents';
-import { gitWorkspaceChangedChannel } from '@shared/events/gitEvents';
-import type { FullGitStatus, GitChange } from '@shared/git';
-import { err, ok } from '@shared/result';
 import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
+import { fsWatchEventChannel } from '@shared/events/fsEvents';
+import { gitRefChangedChannel, gitWorkspaceChangedChannel } from '@shared/events/gitEvents';
+import { localRef, refsEqual, type FullGitStatus, type GitChange } from '@shared/git';
+import { err, ok } from '@shared/result';
+import { formatPushErrorDetail } from '../../utils';
 
 const TOO_MANY_FILES_MSG = 'Too many files changed to display';
 
@@ -45,8 +46,33 @@ export class GitStore {
         },
         {
           kind: 'event',
+          subscribe: (handler) =>
+            events.on(gitRefChangedChannel, (payload) => {
+              if (payload.projectId !== this.projectId) return;
+              if (payload.workspaceId !== undefined && payload.workspaceId !== this.workspaceId)
+                return;
+              if (payload.kind !== 'local-refs') return;
+
+              const currentBranch = this.fullStatus.data?.currentBranch;
+              if (
+                currentBranch &&
+                payload.changedRefs &&
+                !payload.changedRefs.some((ref) => refsEqual(ref, localRef(currentBranch)))
+              ) {
+                return;
+              }
+
+              handler();
+            }),
+          onEvent: 'reload',
+          debounceMs: 500,
+        },
+        {
+          kind: 'event',
           subscribe: (handler) => {
-            rpc.fs.watchSetPaths(projectId, workspaceId, [''], 'git-store-status').catch(() => {});
+            rpc.workspace.fs
+              .watchSetPaths(projectId, workspaceId, [''], 'git-store-status')
+              .catch(() => {});
             const unsub = events.on(fsWatchEventChannel, (payload) => {
               if (payload.workspaceId !== workspaceId) return;
               const relevant = payload.events.some((e) => {
@@ -58,7 +84,9 @@ export class GitStore {
             });
             return () => {
               unsub();
-              rpc.fs.watchStop(projectId, workspaceId, 'git-store-status').catch(() => {});
+              rpc.workspace.fs
+                .watchStop(projectId, workspaceId, 'git-store-status')
+                .catch(() => {});
             };
           },
           onEvent: 'reload',
@@ -80,6 +108,8 @@ export class GitStore {
       aheadCount: computed,
       behindCount: computed,
       branchName: computed,
+      headKind: computed,
+      headDisplay: computed,
     });
   }
 
@@ -151,6 +181,22 @@ export class GitStore {
     return this.fullStatus.data?.currentBranch ?? null;
   }
 
+  /** The HEAD state: 'branch' (normal), 'detached' (mid-rebase etc.), or 'unborn' (no commits yet). */
+  get headKind(): 'branch' | 'detached' | 'unborn' {
+    return this.fullStatus.data?.headKind ?? 'branch';
+  }
+
+  /**
+   * Always non-null once hasData is true.
+   * Returns the branch name on a branch/unborn repo, or the short commit hash when detached.
+   */
+  get headDisplay(): string | null {
+    const d = this.fullStatus.data;
+    if (!d) return null;
+    if (d.headKind === 'detached') return d.shortHash;
+    return d.currentBranch;
+  }
+
   /** True when this workspace's branch has a remote tracking ref. */
   get isBranchPublished(): boolean {
     const name = this.branchName;
@@ -212,7 +258,7 @@ export class GitStore {
       };
     });
     try {
-      await rpc.git.stageFiles(this.projectId, this.workspaceId, paths);
+      await rpc.workspace.git.stageFiles(this.projectId, this.workspaceId, paths);
       this.fullStatus.invalidate();
     } catch (e) {
       if (previous) this.fullStatus.setValue(previous);
@@ -232,7 +278,7 @@ export class GitStore {
       };
     });
     try {
-      await rpc.git.stageAllFiles(this.projectId, this.workspaceId);
+      await rpc.workspace.git.stageAllFiles(this.projectId, this.workspaceId);
       this.fullStatus.invalidate();
     } catch (e) {
       if (previous) this.fullStatus.setValue(previous);
@@ -253,7 +299,7 @@ export class GitStore {
       };
     });
     try {
-      await rpc.git.unstageFiles(this.projectId, this.workspaceId, paths);
+      await rpc.workspace.git.unstageFiles(this.projectId, this.workspaceId, paths);
       this.fullStatus.invalidate();
     } catch (e) {
       if (previous) this.fullStatus.setValue(previous);
@@ -270,7 +316,7 @@ export class GitStore {
       totalDeleted: 0,
     }));
     try {
-      await rpc.git.unstageAllFiles(this.projectId, this.workspaceId);
+      await rpc.workspace.git.unstageAllFiles(this.projectId, this.workspaceId);
       this.fullStatus.invalidate();
     } catch (e) {
       if (previous) this.fullStatus.setValue(previous);
@@ -285,7 +331,7 @@ export class GitStore {
       unstaged: prev.unstaged.filter((c) => !pathSet.has(c.path)),
     }));
     try {
-      await rpc.git.revertFiles(this.projectId, this.workspaceId, paths);
+      await rpc.workspace.git.revertFiles(this.projectId, this.workspaceId, paths);
       this.fullStatus.invalidate();
     } catch (e) {
       if (previous) this.fullStatus.setValue(previous);
@@ -296,7 +342,7 @@ export class GitStore {
   async discardAllFiles(): Promise<void> {
     const previous = this._applyOptimistic((prev) => ({ ...prev, unstaged: [] }));
     try {
-      await rpc.git.revertAllFiles(this.projectId, this.workspaceId);
+      await rpc.workspace.git.revertAllFiles(this.projectId, this.workspaceId);
       this.fullStatus.invalidate();
     } catch (e) {
       if (previous) this.fullStatus.setValue(previous);
@@ -305,7 +351,7 @@ export class GitStore {
   }
 
   async commit(message: string) {
-    const result = await rpc.git.commit(this.projectId, this.workspaceId, message);
+    const result = await rpc.workspace.git.commit(this.projectId, this.workspaceId, message);
     if (result.success) {
       // Clear staged list immediately so the UI doesn't flash stale state
       // while the authoritative reload is in flight.
@@ -336,15 +382,14 @@ export class GitStore {
   }
 
   async push() {
-    const remote = this.repositoryStore.configuredRemote.name;
-    const result = await rpc.git.push(this.projectId, this.workspaceId, remote);
+    const remote = this.repositoryStore.pushRemote.name;
+    const result = await rpc.workspace.git.push(this.projectId, this.workspaceId, remote);
     if (result.success) {
       this.repositoryStore.refreshLocal(); // divergence resets to 0
       this.repositoryStore.refreshRemote(); // remote now has the commits
       return ok();
     } else {
-      const detail =
-        'message' in result.error ? (result.error.message ?? result.error.type) : result.error.type;
+      const detail = formatPushErrorDetail(result.error);
       toast.error(`Failed to push: ${detail}`);
       return err(result.error);
     }
@@ -353,8 +398,8 @@ export class GitStore {
   async publishBranch() {
     const branchName = this.branchName;
     if (!branchName) return err({ type: 'git_error' as const, message: 'No branch checked out' });
-    const remote = this.repositoryStore.configuredRemote.name;
-    const result = await rpc.git.publishBranch(
+    const remote = this.repositoryStore.pushRemote.name;
+    const result = await rpc.workspace.git.publishBranch(
       this.projectId,
       this.workspaceId,
       branchName,
@@ -364,15 +409,14 @@ export class GitStore {
       this.repositoryStore.refreshRemote(); // branch now exists on remote
       return ok();
     } else {
-      const detail =
-        'message' in result.error ? (result.error.message ?? result.error.type) : result.error.type;
+      const detail = formatPushErrorDetail(result.error);
       toast.error(`Failed to publish branch: ${detail}`);
       return err(result.error);
     }
   }
 
   async pull() {
-    const result = await rpc.git.pull(this.projectId, this.workspaceId);
+    const result = await rpc.workspace.git.pull(this.projectId, this.workspaceId);
     if (result.success) {
       this.fullStatus.invalidate();
       this.repositoryStore.refreshLocal(); // local branch updated with pulled commits
@@ -384,7 +428,7 @@ export class GitStore {
   }
 
   private async _fetchFullStatus(): Promise<FullGitStatus> {
-    const result = await rpc.git.getFullStatus(this.projectId, this.workspaceId);
+    const result = await rpc.workspace.git.getFullStatus(this.projectId, this.workspaceId);
     if (!result.success) {
       if (result.error.type === 'too_many_files') {
         throw new Error(TOO_MANY_FILES_MSG);

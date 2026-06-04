@@ -1,4 +1,11 @@
 import { action, computed, makeObservable, observable, reaction, runInAction } from 'mobx';
+import { makeFileLinkHandlers } from '@renderer/features/tasks/stores/open-file-in-file-editor';
+import { events, rpc } from '@renderer/lib/ipc';
+import { PtySession } from '@renderer/lib/pty/pty-session';
+import type { IDisposable } from '@renderer/lib/stores/lifecycle';
+import { Resource } from '@renderer/lib/stores/resource';
+import { log } from '@renderer/utils/logger';
+import { soundPlayer } from '@renderer/utils/soundPlayer';
 import { type Conversation, type CreateConversationParams } from '@shared/conversations';
 import {
   agentEventChannel,
@@ -6,18 +13,19 @@ import {
   isAttentionNotification,
   type NotificationType,
 } from '@shared/events/agentEvents';
+import {
+  conversationChangedChannel,
+  conversationCreatedChannel,
+} from '@shared/events/conversationEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
-import { events, rpc } from '@renderer/lib/ipc';
-import { PtySession } from '@renderer/lib/pty/pty-session';
-import { Resource } from '@renderer/lib/stores/resource';
-import { log } from '@renderer/utils/logger';
-import { soundPlayer } from '@renderer/utils/soundPlayer';
 
 export type AgentStatus = 'idle' | 'working' | 'awaiting-input' | 'error' | 'completed';
 
-export class ConversationManagerStore {
+export class ConversationManagerStore implements IDisposable {
   private offAgentEvents: (() => void) | null = null;
   private offSessionExited: (() => void) | null = null;
+  private offConversationCreated: (() => void) | null = null;
+  private offConversationChanges: (() => void) | null = null;
   private readonly _disposeReaction: () => void;
 
   /** Data layer: plain Conversation records loaded from the main process. */
@@ -45,8 +53,26 @@ export class ConversationManagerStore {
       hasPreloaded ? { init: preloaded } : undefined
     );
 
+    // When preloaded data is available, populate the maps synchronously so
+    // they are accessible immediately — even when this constructor is called
+    // from within a MobX action, where reaction callbacks (including
+    // fireImmediately) are deferred until the outermost action completes.
+    if (preloaded) {
+      runInAction(() => {
+        for (const conversation of preloaded) {
+          if (!this.conversations.has(conversation.id)) {
+            this.conversations.set(conversation.id, new ConversationStore(conversation));
+          }
+          if (!this.sessions.has(conversation.id)) {
+            this.sessions.set(conversation.id, this.createSession(conversation));
+          }
+        }
+      });
+    }
+
     // Sync conversations and sessions maps whenever resource data changes.
-    // fireImmediately triggers immediately with preloaded data or once load completes.
+    // fireImmediately handles the non-preloaded case; for preloaded data the
+    // maps are already populated above so this is a no-op on first run.
     this._disposeReaction = reaction(
       () => this.list.data,
       (data) => {
@@ -57,12 +83,7 @@ export class ConversationManagerStore {
               this.conversations.set(conversation.id, new ConversationStore(conversation));
             }
             if (!this.sessions.has(conversation.id)) {
-              this.sessions.set(
-                conversation.id,
-                new PtySession(
-                  makePtySessionId(conversation.projectId, conversation.taskId, conversation.id)
-                )
-              );
+              this.sessions.set(conversation.id, this.createSession(conversation));
             }
           }
         });
@@ -72,6 +93,17 @@ export class ConversationManagerStore {
 
     this.offAgentEvents = this.listenToAgentEvents();
     this.offSessionExited = this.listenToSessionExited();
+    this.offConversationCreated = this.listenToConversationCreated();
+    this.offConversationChanges = this.listenToConversationChanges();
+  }
+
+  private addConversation(conversation: Conversation): void {
+    if (!this.conversations.has(conversation.id)) {
+      this.conversations.set(conversation.id, new ConversationStore(conversation));
+    }
+    if (!this.sessions.has(conversation.id)) {
+      this.sessions.set(conversation.id, this.createSession(conversation));
+    }
   }
 
   private listenToAgentEvents(): () => void {
@@ -79,9 +111,20 @@ export class ConversationManagerStore {
       if (event.taskId !== this.taskId) return;
       const conversationStore = this.conversations.get(event.conversationId);
       if (!conversationStore) return;
+      if (event.type === 'start') {
+        conversationStore.setWorking();
+        return;
+      }
       if (event.type === 'notification') {
         const nt = event.payload.notificationType;
         if (!isAttentionNotification(nt)) return;
+        if ((event.providerId === 'codex' || event.providerId === 'amp') && nt === 'idle_prompt') {
+          if (conversationStore.status === 'working') {
+            conversationStore.setStatus('completed');
+            soundPlayer.play('task_complete', appFocused);
+          }
+          return;
+        }
         conversationStore.setAwaitingInput(nt);
         soundPlayer.play('needs_attention', appFocused);
         return;
@@ -106,6 +149,26 @@ export class ConversationManagerStore {
     });
   }
 
+  private listenToConversationCreated(): () => void {
+    return events.on(conversationCreatedChannel, ({ conversation }) => {
+      if (conversation.taskId !== this.taskId || conversation.projectId !== this.projectId) return;
+      runInAction(() => {
+        this.addConversation(conversation);
+      });
+    });
+  }
+
+  private listenToConversationChanges(): () => void {
+    return events.on(conversationChangedChannel, (event) => {
+      if (event.taskId !== this.taskId) return;
+      const store = this.conversations.get(event.conversationId);
+      if (!store) return;
+      runInAction(() => {
+        Object.assign(store.data, event.changes);
+      });
+    });
+  }
+
   get taskStatus(): AgentStatus | null {
     let hasWorking = false;
     let hasUnseenError = false;
@@ -125,16 +188,9 @@ export class ConversationManagerStore {
   async createConversation(params: CreateConversationParams): Promise<Conversation> {
     const conversation = await rpc.conversations.createConversation(params);
     runInAction(() => {
-      if (!this.conversations.has(conversation.id)) {
-        this.conversations.set(conversation.id, new ConversationStore(conversation));
-      }
-      if (!this.sessions.has(conversation.id)) {
-        this.sessions.set(
-          conversation.id,
-          new PtySession(
-            makePtySessionId(conversation.projectId, conversation.taskId, conversation.id)
-          )
-        );
+      this.addConversation(conversation);
+      if (params.initialPrompt?.trim()) {
+        this.conversations.get(conversation.id)?.setWorking();
       }
     });
     return conversation;
@@ -158,6 +214,16 @@ export class ConversationManagerStore {
     });
   }
 
+  async hydrateConversation(conversationId: string): Promise<void> {
+    await rpc.conversations.hydrateConversation(this.projectId, this.taskId, conversationId);
+  }
+
+  async dehydrateConversation(conversationId: string): Promise<void> {
+    const session = this.sessions.get(conversationId);
+    session?.dispose();
+    await rpc.conversations.dehydrateConversation(this.projectId, this.taskId, conversationId);
+  }
+
   async deleteConversation(conversationId: string): Promise<void> {
     const store = this.conversations.get(conversationId);
     const session = this.sessions.get(conversationId);
@@ -170,7 +236,7 @@ export class ConversationManagerStore {
 
     try {
       await rpc.conversations.deleteConversation(this.projectId, this.taskId, conversationId);
-      session?.dispose();
+      session?.destroy();
     } catch (err) {
       runInAction(() => {
         this.conversations.set(conversationId, store);
@@ -200,25 +266,30 @@ export class ConversationManagerStore {
     }
   }
 
-  async touchConversation(conversationId: string): Promise<void> {
-    const store = this.conversations.get(conversationId);
-    if (!store) return;
-    const now = new Date().toISOString();
-    runInAction(() => {
-      store.data.lastInteractedAt = now;
-    });
-    await rpc.conversations.touchConversation(conversationId, now);
-  }
-
   dispose(): void {
     this._disposeReaction();
     this.offAgentEvents?.();
     this.offAgentEvents = null;
     this.offSessionExited?.();
     this.offSessionExited = null;
+    this.offConversationCreated?.();
+    this.offConversationCreated = null;
+    this.offConversationChanges?.();
+    this.offConversationChanges = null;
     for (const session of this.sessions.values()) {
-      session.dispose();
+      session.destroy();
     }
+  }
+
+  private createSession(conversation: Conversation): PtySession {
+    const handlers = makeFileLinkHandlers(conversation.projectId, conversation.taskId);
+    return new PtySession(
+      makePtySessionId(conversation.projectId, conversation.taskId, conversation.id),
+      undefined,
+      handlers.onOpenFile,
+      handlers.onOpenExternal,
+      { clearOnBackendStart: true }
+    );
   }
 }
 
@@ -280,7 +351,7 @@ export class ConversationStore {
   }
 
   clearWorking() {
-    if (this.status === 'working') {
+    if (this.status === 'working' || this.status === 'awaiting-input') {
       this.setStatus('idle');
     }
   }

@@ -1,12 +1,13 @@
 import { eq } from 'drizzle-orm';
-import { parseGitHubRepository } from '@shared/github-repository';
 import { gitWatcherRegistry } from '@main/core/git/git-watcher-registry';
+import { githubRepositoryResolver } from '@main/core/github/services/github-repository-resolver';
 import { projectManager } from '@main/core/projects/project-manager';
-import { taskManager } from '@main/core/tasks/task-manager';
+import { taskSessionManager } from '@main/core/tasks/task-session-manager';
 import { db } from '@main/db/client';
 import { projectRemotes } from '@main/db/schema';
 import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
 import { log } from '@main/lib/logger';
+import { parseRepositoryRef } from '@shared/repository-ref';
 import { prSyncEngine } from './pr-sync-engine';
 import { syncProjectRemotes } from './project-remotes-service';
 
@@ -27,8 +28,8 @@ export class PrSyncScheduler implements IInitializable, IDisposable {
     this._unsubscribes = [
       projectManager.on('projectOpened', (id) => this.onProjectMounted(id)),
       projectManager.on('projectClosed', (id) => this.onProjectUnmounted(id)),
-      taskManager.hooks.on('task:provisioned', ({ projectId, taskBranch }) => {
-        void this.onTaskProvisioned(projectId, taskBranch);
+      taskSessionManager.hooks.on('task:provisioned', ({ projectId, branchName }) => {
+        void this.onTaskProvisioned(projectId, branchName);
       }),
       gitWatcherRegistry.on('ref:changed', (p) => {
         if (p.kind === 'config') void this.onRemoteChanged(p.projectId);
@@ -143,10 +144,12 @@ export class PrSyncScheduler implements IInitializable, IDisposable {
     try {
       const remotes = await project.repository.getRemotes();
       await syncProjectRemotes(projectId, remotes);
-      return remotes.flatMap((r) => {
-        const repository = parseGitHubRepository(r.url);
-        return repository ? [repository.repositoryUrl] : [];
-      });
+      const resolved = await Promise.all(
+        remotes.map((r) => githubRepositoryResolver.resolve(r.url))
+      );
+      return resolved.flatMap((repository) =>
+        repository.success ? [repository.data.repositoryUrl] : []
+      );
     } catch (e) {
       log.warn('PrSyncScheduler: failed to sync project remotes', { projectId, error: String(e) });
       return [];
@@ -163,7 +166,7 @@ export class PrSyncScheduler implements IInitializable, IDisposable {
       .where(eq(projectRemotes.projectId, projectId));
 
     return rows.flatMap((r) => {
-      const repository = parseGitHubRepository(r.remoteUrl);
+      const repository = parseRepositoryRef(r.remoteUrl);
       return repository ? [repository.repositoryUrl] : [];
     });
   }

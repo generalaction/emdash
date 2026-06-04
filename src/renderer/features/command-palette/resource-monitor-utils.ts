@@ -1,17 +1,22 @@
+import {
+  getConversationsForTask,
+  getTerminalsForTask,
+} from '@renderer/features/tasks/stores/task-selectors';
+import { agentMeta } from '@renderer/lib/providers/meta';
+import { appState } from '@renderer/lib/stores/app-state';
+import { formatBytes } from '@renderer/utils/formatBytes';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 import type {
   ResourceAppProcess,
   ResourcePtyEntry,
   ResourceSnapshot,
 } from '@shared/resource-monitor';
-import { agentMeta } from '@renderer/lib/providers/meta';
-import { appState } from '@renderer/lib/stores/app-state';
-import { formatBytes } from '@renderer/utils/formatBytes';
+import { createLifecycleScriptTerminalId } from '@shared/terminals';
 
 export type Entry = ResourcePtyEntry & {
   taskName?: string;
   providerId?: AgentProviderId;
-  conversationTitle?: string;
+  displayTitle?: string;
 };
 
 export type TaskBucket = {
@@ -29,6 +34,34 @@ export type Group = {
 };
 
 const UNKNOWN_PROJECT_ID = '__unknown__';
+
+/**
+ * Lifecycle-script PTYs are labelled by their terminal id (see
+ * `createLifecycleScriptTerminalId`), which has no provider/conversation
+ * metadata. Map those ids to friendly labels so they don't render as the
+ * truncated "script-l…" leaf id.
+ */
+const LIFECYCLE_SCRIPT_LABELS: Record<string, string> = {
+  [createLifecycleScriptTerminalId('setup')]: 'Setup script',
+  [createLifecycleScriptTerminalId('run')]: 'Run script',
+  [createLifecycleScriptTerminalId('teardown')]: 'Teardown script',
+};
+
+export function isLifecycleScriptEntry(entry: Pick<Entry, 'leafId'>): boolean {
+  return entry.leafId in LIFECYCLE_SCRIPT_LABELS;
+}
+
+/** Single source of truth for an entry's display label. */
+export function entryLabel(entry: Entry): string {
+  const meta = entry.providerId ? agentMeta[entry.providerId] : undefined;
+  return (
+    LIFECYCLE_SCRIPT_LABELS[entry.leafId] ||
+    entry.displayTitle ||
+    meta?.label ||
+    entry.providerId ||
+    entry.leafId.slice(0, 8)
+  );
+}
 
 export function formatReport(snapshot: ResourceSnapshot, groups: Group[]): string {
   const entryMem = snapshot.entries.reduce((n, e) => n + e.memory, 0);
@@ -49,9 +82,7 @@ export function formatReport(snapshot: ResourceSnapshot, groups: Group[]): strin
   for (const g of groups) {
     for (const t of g.tasks) {
       for (const e of t.entries) {
-        const meta = e.providerId ? agentMeta[e.providerId] : undefined;
-        const label = e.conversationTitle || meta?.label || e.providerId || e.leafId.slice(0, 8);
-        const path = `${g.projectName} / ${t.taskName} / ${label}`;
+        const path = `${g.projectName} / ${t.taskName} / ${entryLabel(e)}`;
         const parts: string[] = [];
         if (e.pid !== undefined) parts.push(`pid=${e.pid}`);
         if (e.ppid !== undefined) parts.push(`ppid=${e.ppid}`);
@@ -86,11 +117,6 @@ export function sortAppProcesses(processes: ResourceAppProcess[]): ResourceAppPr
   });
 }
 
-function entryLabel(entry: Entry): string {
-  const meta = entry.providerId ? agentMeta[entry.providerId] : undefined;
-  return entry.conversationTitle || meta?.label || entry.providerId || entry.leafId.slice(0, 8);
-}
-
 export function buildGroups(entries: ResourcePtyEntry[]): Group[] {
   const projects = appState.projects.projects;
   const byProject = new Map<string, { projectName: string; tasks: Map<string, TaskBucket> }>();
@@ -98,8 +124,12 @@ export function buildGroups(entries: ResourcePtyEntry[]): Group[] {
   for (const entry of entries) {
     const projectStore = projects.get(entry.projectId);
     let taskName = entry.scopeId;
+    // The bucket key normally matches the entry's scopeId, but lifecycle
+    // scripts are scoped by workspaceId while agents are scoped by taskId.
+    // Resolving both to the owning task id groups them under the same branch.
+    let bucketKey = entry.scopeId;
     let providerId: AgentProviderId | undefined;
-    let conversationTitle: string | undefined;
+    let displayTitle: string | undefined;
     let projectName = 'Other';
     let projectKey = UNKNOWN_PROJECT_ID;
 
@@ -107,33 +137,48 @@ export function buildGroups(entries: ResourcePtyEntry[]): Group[] {
       projectKey = entry.projectId;
       projectName = projectStore.name ?? projectStore.data?.name ?? entry.projectId.slice(0, 8);
       const mounted = projectStore.mountedProject;
-      const task = mounted?.taskManager.tasks.get(entry.scopeId);
+      // Agent PTYs use the task id as scopeId; lifecycle-script PTYs use the
+      // workspace id. Try the direct lookup first, then fall back to matching
+      // a task by its workspaceId so scripts attach to their owning branch.
+      let taskId = entry.scopeId;
+      let task = mounted?.taskManager.tasks.get(entry.scopeId);
+      if (!task && mounted) {
+        for (const [id, candidate] of mounted.taskManager.tasks) {
+          if (candidate.workspaceId === entry.scopeId) {
+            taskId = id;
+            task = candidate;
+            break;
+          }
+        }
+      }
       if (task) {
+        bucketKey = taskId;
         taskName = task.displayName;
-        const conv = task.provisionedTask?.conversations.conversations.get(entry.leafId);
+        const conv = getConversationsForTask(taskId)?.conversations.get(entry.leafId);
+        const terminal = getTerminalsForTask(taskId)?.terminals.get(entry.leafId);
         providerId = conv?.data.providerId;
-        conversationTitle = conv?.data.title;
+        displayTitle = conv?.data.title ?? terminal?.data.name;
       }
     }
 
     // Fall back to metadata supplied by the sampler (covers cases where the
-    // owning project isn't mounted, so the conversation join above misses).
+    // owning project isn't mounted, so the conversation/terminal join above misses).
     providerId ??= entry.providerId;
-    conversationTitle ??= entry.title;
+    displayTitle ??= entry.title;
 
     const project = byProject.get(projectKey) ?? {
       projectName,
       tasks: new Map<string, TaskBucket>(),
     };
-    const taskBucket = project.tasks.get(entry.scopeId) ?? {
-      scopeId: entry.scopeId,
+    const taskBucket = project.tasks.get(bucketKey) ?? {
+      scopeId: bucketKey,
       taskName,
       entries: [],
       cpuSum: 0,
     };
-    taskBucket.entries.push({ ...entry, taskName, providerId, conversationTitle });
+    taskBucket.entries.push({ ...entry, taskName, providerId, displayTitle });
     taskBucket.cpuSum += entry.cpu;
-    project.tasks.set(entry.scopeId, taskBucket);
+    project.tasks.set(bucketKey, taskBucket);
     byProject.set(projectKey, project);
   }
 

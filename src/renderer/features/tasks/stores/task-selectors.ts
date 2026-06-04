@@ -1,18 +1,21 @@
-import type { Task } from '@shared/tasks';
 import { isUnmountedProject } from '@renderer/features/projects/stores/project';
 import { getProjectManagerStore } from '@renderer/features/projects/stores/project-selectors';
 import type { AgentStatus } from '@renderer/features/tasks/conversations/conversation-manager';
 import type { DiffViewStore } from '@renderer/features/tasks/diff-view/stores/diff-view-store';
 import type { FileModelLifecycleStore } from '@renderer/features/tasks/editor/stores/file-model-lifecycle-store';
+import type { Task } from '@shared/tasks';
+import { conversationRegistry } from './conversation-registry';
+import type { TaskManagerStore } from './task-manager';
 import {
+  isProvisioned,
   isUnprovisioned,
   isUnregistered,
   registeredTaskData,
-  type ProvisionedTask,
   type TaskStore,
-} from './task';
-import type { TaskManagerStore } from './task-manager';
-import type { TaskViewStore } from './task-view';
+} from './task-store';
+import { terminalRegistry } from './terminal-registry';
+import { workspaceRegistry } from './workspace-registry';
+import type { WorkspaceViewModel } from './workspace-view-model';
 
 /** Call only inside `observer` components (or other MobX reactions). */
 export function getTaskManagerStore(projectId: string): TaskManagerStore | undefined {
@@ -33,8 +36,8 @@ export function getRegisteredTaskData(projectId: string, taskId: string): Task |
 }
 
 /** Call only inside `observer` components (or other MobX reactions). */
-export function getTaskView(projectId: string, taskId: string): TaskViewStore | undefined {
-  return asProvisioned(getTaskStore(projectId, taskId))?.taskView;
+export function getTaskView(projectId: string, taskId: string): WorkspaceViewModel | undefined {
+  return getTaskStore(projectId, taskId)?.viewModel ?? undefined;
 }
 
 /** Call only inside `observer` components (or other MobX reactions). */
@@ -47,15 +50,18 @@ export function getEditorView(
 
 /** Call only inside `observer` components (or other MobX reactions). */
 export function getDiffView(projectId: string, taskId: string): DiffViewStore | undefined {
-  return getTaskView(projectId, taskId)?.diffView;
+  return getTaskView(projectId, taskId)?.diffView ?? undefined;
 }
 
 export function getTaskGitStore(projectId: string, taskId: string) {
-  return asProvisioned(getTaskStore(projectId, taskId))?.workspace.git;
+  const store = getTaskStore(projectId, taskId);
+  if (!store?.workspaceId) return undefined;
+  return workspaceRegistry.get(projectId, store.workspaceId)?.git;
 }
 
 export function taskAgentStatus(store: TaskStore): AgentStatus | null {
-  return asProvisioned(store)?.conversations.taskStatus ?? null;
+  const mgr = conversationRegistry.get(store.data.id);
+  return mgr?.taskStatus ?? null;
 }
 
 export type TaskViewKind =
@@ -80,21 +86,16 @@ export type TaskViewKind =
 export function taskViewKind(store: TaskStore | undefined, projectId: string): TaskViewKind {
   const projectStore = getProjectManagerStore().projects.get(projectId);
 
-  // Project doesn't exist at all
   if (!projectStore) return 'missing';
 
-  // Project is being opened — tasks won't be available yet
   if (isUnmountedProject(projectStore)) {
     if (projectStore.phase === 'opening') return 'project-mounting';
     if (projectStore.phase === 'error') return 'project-error';
-    // idle/closing unmounted — still needs to be opened
     return 'project-mounting';
   }
 
-  // Project is still being created (unregistered)
   if (projectStore.state === 'unregistered') return 'missing';
 
-  // Project is mounted — dispatch on task state
   if (!store) return 'missing';
 
   if (isUnregistered(store)) {
@@ -102,7 +103,9 @@ export function taskViewKind(store: TaskStore | undefined, projectId: string): T
     return 'create-error';
   }
   if (isUnprovisioned(store)) {
-    if (store.phase === 'provision') return 'provisioning';
+    if (store.phase === 'provision') {
+      return 'provisioning';
+    }
     if (store.phase === 'provision-error') return 'provision-error';
     if (store.phase === 'teardown') return 'teardown';
     if (store.phase === 'teardown-error') return 'teardown-error';
@@ -111,9 +114,35 @@ export function taskViewKind(store: TaskStore | undefined, projectId: string): T
   return 'ready';
 }
 
-/** Returns the provisioned task payload if ready, otherwise undefined. */
-export function asProvisioned(store: TaskStore | undefined): ProvisionedTask | undefined {
-  return store?.provisionedTask ?? undefined;
+/** Returns the narrowed provisioned task store if the task is provisioned, otherwise undefined. */
+export function asProvisioned(
+  store: TaskStore | undefined
+): (TaskStore & { state: 'provisioned'; workspaceId: string }) | undefined {
+  return store && isProvisioned(store) ? store : undefined;
+}
+
+// ---------------------------------------------------------------------------
+// New focused selectors (Phase 4)
+// ---------------------------------------------------------------------------
+
+export function getWorkspaceForTask(projectId: string, taskId: string) {
+  const wsId = getTaskStore(projectId, taskId)?.workspaceId;
+  return wsId ? (workspaceRegistry.get(projectId, wsId) ?? undefined) : undefined;
+}
+
+export function getWorkspaceViewModel(
+  projectId: string,
+  taskId: string
+): WorkspaceViewModel | undefined {
+  return getTaskStore(projectId, taskId)?.viewModel ?? undefined;
+}
+
+export function getConversationsForTask(taskId: string) {
+  return conversationRegistry.get(taskId);
+}
+
+export function getTerminalsForTask(taskId: string) {
+  return terminalRegistry.get(taskId);
 }
 
 /** Returns the display name from any task store variant. */

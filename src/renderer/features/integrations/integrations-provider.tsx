@@ -1,11 +1,11 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import React, { createContext, useCallback, useContext } from 'react';
+import { rpc } from '@renderer/lib/ipc';
 import {
   ISSUE_PROVIDER_CAPABILITIES,
   type ConnectionStatusMap,
   type IssueProviderType,
 } from '@shared/issue-providers';
-import { rpc } from '@renderer/lib/ipc';
 import { useProviderConnection } from './use-provider-connection';
 
 export const ISSUE_CONNECTION_STATUS_QUERY_KEY = ['issues:connection-status'] as const;
@@ -37,6 +37,13 @@ function validateJiraCredentials(input: {
 function validateInstanceCredentials(input: { instanceUrl: string; token: string }): string | null {
   if (!input.instanceUrl?.trim() || !input.token?.trim()) {
     return 'Instance URL and API token are required.';
+  }
+  return null;
+}
+
+function validateMondayCredentials(input: { token: string; boardUrls: string }): string | null {
+  if (!input.token?.trim()) {
+    return 'API token is required.';
   }
   return null;
 }
@@ -81,6 +88,19 @@ const PROVIDER_CONNECTION_CONFIG = {
     fallbackError: DEFAULT_CONNECT_ERROR,
     validateInput: validateTokenInput,
   },
+  asana: {
+    connectMutationFn: (apiKey: string) => rpc.asana.saveToken(apiKey),
+    disconnectMutationFn: () => rpc.asana.clearToken(),
+    fallbackError: DEFAULT_CONNECT_ERROR,
+    validateInput: validateTokenInput,
+  },
+  monday: {
+    connectMutationFn: (credentials: { token: string; boardUrls: string }) =>
+      rpc.monday.saveCredentials(credentials),
+    disconnectMutationFn: () => rpc.monday.clearCredentials(),
+    fallbackError: DEFAULT_CONNECT_ERROR,
+    validateInput: validateMondayCredentials,
+  },
 } as const;
 
 type IntegrationsContextValue = {
@@ -94,6 +114,8 @@ type IntegrationsContextValue = {
   isPlainConnected: boolean | null;
   isForgejoConnected: boolean | null;
   isFeaturebaseConnected: boolean | null;
+  isAsanaConnected: boolean | null;
+  isMondayConnected: boolean | null;
 
   // Auth mutations stay per provider.
   isLinearLoading: boolean;
@@ -102,6 +124,8 @@ type IntegrationsContextValue = {
   isPlainLoading: boolean;
   isForgejoLoading: boolean;
   isFeaturebaseLoading: boolean;
+  isAsanaLoading: boolean;
+  isMondayLoading: boolean;
   connectLinear: (apiKey: string) => Promise<void>;
   disconnectLinear: () => Promise<void>;
   connectJira: (credentials: { siteUrl: string; email: string; token: string }) => Promise<void>;
@@ -114,6 +138,10 @@ type IntegrationsContextValue = {
   disconnectForgejo: () => Promise<void>;
   connectFeaturebase: (apiKey: string) => Promise<void>;
   disconnectFeaturebase: () => Promise<void>;
+  connectAsana: (apiKey: string) => Promise<void>;
+  disconnectAsana: () => Promise<void>;
+  connectMonday: (credentials: { token: string; boardUrls: string }) => Promise<void>;
+  disconnectMonday: () => Promise<void>;
 };
 
 const IntegrationsContext = createContext<IntegrationsContextValue | null>(null);
@@ -190,6 +218,14 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
     ...PROVIDER_CONNECTION_CONFIG.featurebase,
     invalidate: invalidateFeaturebase,
   });
+  const asanaConnection = useProviderConnection({
+    ...PROVIDER_CONNECTION_CONFIG.asana,
+    invalidate: invalidateStatuses,
+  });
+  const mondayConnection = useProviderConnection({
+    ...PROVIDER_CONNECTION_CONFIG.monday,
+    invalidate: invalidateStatuses,
+  });
 
   const connectionStatus = statusData ?? DEFAULT_CONNECTION_STATUS;
 
@@ -204,12 +240,16 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
         isPlainConnected: isConnected(statusData, 'plain'),
         isForgejoConnected: isConnected(statusData, 'forgejo'),
         isFeaturebaseConnected: isConnected(statusData, 'featurebase'),
+        isAsanaConnected: isConnected(statusData, 'asana'),
+        isMondayConnected: isConnected(statusData, 'monday'),
         isLinearLoading: isInitialConnectionCheck || linearConnection.isLoading,
         isJiraLoading: isInitialConnectionCheck || jiraConnection.isLoading,
         isGitlabLoading: isInitialConnectionCheck || gitlabConnection.isLoading,
         isPlainLoading: isInitialConnectionCheck || plainConnection.isLoading,
         isForgejoLoading: isInitialConnectionCheck || forgejoConnection.isLoading,
         isFeaturebaseLoading: isInitialConnectionCheck || featurebaseConnection.isLoading,
+        isAsanaLoading: isInitialConnectionCheck || asanaConnection.isLoading,
+        isMondayLoading: isInitialConnectionCheck || mondayConnection.isLoading,
         connectLinear: linearConnection.connect,
         disconnectLinear: linearConnection.disconnect,
         connectJira: jiraConnection.connect,
@@ -222,6 +262,10 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
         disconnectForgejo: forgejoConnection.disconnect,
         connectFeaturebase: featurebaseConnection.connect,
         disconnectFeaturebase: featurebaseConnection.disconnect,
+        connectAsana: asanaConnection.connect,
+        disconnectAsana: asanaConnection.disconnect,
+        connectMonday: mondayConnection.connect,
+        disconnectMonday: mondayConnection.disconnect,
       }}
     >
       {children}

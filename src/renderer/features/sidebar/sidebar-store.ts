@@ -1,6 +1,4 @@
 import { computed, makeAutoObservable, observable, reaction, runInAction } from 'mobx';
-import { type LocalProject, type SshProject } from '@shared/projects';
-import type { SidebarSnapshot, SidebarTaskSortBy } from '@shared/view-state';
 import {
   type ProjectStore,
   type UnregisteredProject,
@@ -10,14 +8,22 @@ import {
   registeredTaskData,
   unregisteredTaskData,
   type TaskStore,
-} from '@renderer/features/tasks/stores/task';
+} from '@renderer/features/tasks/stores/task-store';
 import type { Snapshottable } from '@renderer/lib/stores/snapshottable';
+import { type LocalProject, type SshProject } from '@shared/projects';
+import type { SidebarSnapshot, SidebarTaskSortBy } from '@shared/view-state';
 
 function parseSidebarTaskSortBy(value: unknown): SidebarTaskSortBy | undefined {
   return value === 'created-at' || value === 'updated-at' ? value : undefined;
 }
 
-export function getSortInstant(task: TaskStore, kind: 'created' | 'updated'): string {
+export type TaskSortKind = 'created' | 'updated';
+
+export function sortKindFor(sortBy: SidebarTaskSortBy): TaskSortKind {
+  return sortBy === 'created-at' ? 'created' : 'updated';
+}
+
+export function getSortInstant(task: TaskStore, kind: TaskSortKind): string | undefined {
   const reg = registeredTaskData(task);
   if (reg) {
     if (kind === 'created') return reg.createdAt;
@@ -28,7 +34,7 @@ export function getSortInstant(task: TaskStore, kind: 'created' | 'updated'): st
     if (kind === 'created') return u.createdAt;
     return u.lastInteractedAt;
   }
-  return '';
+  return undefined;
 }
 
 export type SidebarRow =
@@ -101,7 +107,9 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
       rows.push({ kind: 'project', projectId });
       if (this.expandedProjectIds.has(projectId) && project.mountedProject) {
         const tasks = Array.from(project.mountedProject.taskManager.tasks.values()).filter(
-          (t) => t.state === 'unregistered' || !('archivedAt' in t.data && t.data.archivedAt)
+          (t) =>
+            !t.data.automationId &&
+            (t.state === 'unregistered' || !('archivedAt' in t.data && t.data.archivedAt))
         );
         const manualOrder = this.taskOrderByProject[projectId];
         const ordered = manualOrder?.length
@@ -132,6 +140,27 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
     }
     pairs.sort((a, b) => this.compareSidebarTasks(a.task, b.task));
     return pairs.map(({ projectId, task }) => ({ projectId, taskId: task.data.id }));
+  }
+
+  /**
+   * Visible unpinned task IDs for a project in sidebar order. Archived tasks are
+   * and automation tasks are excluded. Independent of expand state so Next/Previous
+   * Task navigation works even when the project is collapsed.
+   */
+  visibleTaskIdsForProject(projectId: string): string[] {
+    const project = this.projectManager.projects.get(projectId);
+    if (!project?.mountedProject) return [];
+    const tasks = Array.from(project.mountedProject.taskManager.tasks.values()).filter(
+      (t) =>
+        !t.data.automationId &&
+        !t.data.isPinned &&
+        (t.state === 'unregistered' || !('archivedAt' in t.data && t.data.archivedAt))
+    );
+    const manualOrder = this.taskOrderByProject[projectId];
+    const ordered = manualOrder?.length
+      ? this.mergeTaskOrder(projectId, tasks)
+      : this.sortTasksForSidebar(tasks);
+    return ordered.map((t) => t.data.id);
   }
 
   get isEmpty(): boolean {
@@ -222,9 +251,9 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
   }
 
   private compareSidebarTasks(a: TaskStore, b: TaskStore): number {
-    const kind: 'created' | 'updated' = this.taskSortBy === 'created-at' ? 'created' : 'updated';
-    const ia = getSortInstant(a, kind);
-    const ib = getSortInstant(b, kind);
+    const kind = sortKindFor(this.taskSortBy);
+    const ia = getSortInstant(a, kind) ?? '';
+    const ib = getSortInstant(b, kind) ?? '';
     const d = ib.localeCompare(ia);
     if (d !== 0) return d;
     return a.data.id.localeCompare(b.data.id);

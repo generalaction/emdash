@@ -1,12 +1,16 @@
 import { computed, makeObservable, observable, reaction, runInAction } from 'mobx';
-import { makePtySessionId } from '@shared/ptySessionId';
-import { type CreateTerminalParams, type Terminal } from '@shared/terminals';
+import { getAppSettingValueSnapshot } from '@renderer/features/settings/app-settings-client';
+import { makeFileLinkHandlers } from '@renderer/features/tasks/stores/open-file-in-file-editor';
 import { rpc } from '@renderer/lib/ipc';
 import { PtySession } from '@renderer/lib/pty/pty-session';
+import type { IDisposable } from '@renderer/lib/stores/lifecycle';
 import { Resource } from '@renderer/lib/stores/resource';
+import { makePtySessionId } from '@shared/ptySessionId';
+import type { TerminalShellId } from '@shared/terminal-settings';
+import { type CreateTerminalParams, type Terminal } from '@shared/terminals';
 import { nextTerminalName } from './terminal-tabs';
 
-export class TerminalManagerStore {
+export class TerminalManagerStore implements IDisposable {
   readonly projectId: string;
   readonly taskId: string;
   /** Data layer: plain Terminal records loaded from the main process. */
@@ -48,17 +52,14 @@ export class TerminalManagerStore {
               this.terminals.set(terminal.id, new TerminalStore(terminal));
             }
             if (!this.sessions.has(terminal.id)) {
-              this.sessions.set(
-                terminal.id,
-                new PtySession(makePtySessionId(terminal.projectId, terminal.taskId, terminal.id))
-              );
+              this.sessions.set(terminal.id, this.createSession(terminal));
             }
           }
 
           // Remove stale entries.
           const staleIds = Array.from(this.terminals.keys()).filter((id) => !incomingIds.has(id));
           for (const id of staleIds) {
-            this.sessions.get(id)?.dispose();
+            this.sessions.get(id)?.destroy();
             this.sessions.delete(id);
             this.terminals.delete(id);
           }
@@ -73,19 +74,18 @@ export class TerminalManagerStore {
   }
 
   async createTerminal(params: CreateTerminalParams): Promise<Terminal> {
+    const defaultShell = getAppSettingValueSnapshot('terminal')?.defaultShell ?? 'system';
     const optimistic: Terminal = {
       id: params.id,
       projectId: params.projectId,
       taskId: params.taskId,
+      shellId: params.shell ?? defaultShell,
       name: params.name,
     };
 
     runInAction(() => {
       this.terminals.set(params.id, new TerminalStore(optimistic));
-      this.sessions.set(
-        params.id,
-        new PtySession(makePtySessionId(params.projectId, params.taskId, params.id))
-      );
+      this.sessions.set(params.id, this.createSession(optimistic));
     });
 
     try {
@@ -99,7 +99,7 @@ export class TerminalManagerStore {
       return terminal;
     } catch (err) {
       runInAction(() => {
-        this.sessions.get(params.id)?.dispose();
+        this.sessions.get(params.id)?.destroy();
         this.sessions.delete(params.id);
         this.terminals.delete(params.id);
       });
@@ -107,11 +107,18 @@ export class TerminalManagerStore {
     }
   }
 
-  async createDefaultTerminal(): Promise<Terminal> {
+  async createDefaultTerminal(shell?: TerminalShellId): Promise<Terminal> {
     const names = Array.from(this.terminals.values()).map((t) => t.data.name);
     const name = nextTerminalName(names);
     const id = crypto.randomUUID();
-    return this.createTerminal({ id, projectId: this.projectId, taskId: this.taskId, name });
+    const params: CreateTerminalParams = {
+      id,
+      projectId: this.projectId,
+      taskId: this.taskId,
+      name,
+    };
+    if (shell !== undefined) params.shell = shell;
+    return this.createTerminal(params);
   }
 
   async deleteTerminal(terminalId: string): Promise<void> {
@@ -130,7 +137,7 @@ export class TerminalManagerStore {
         taskId: this.taskId,
         terminalId,
       });
-      session?.dispose();
+      session?.destroy();
     } catch (err) {
       runInAction(() => {
         this.terminals.set(terminalId, store);
@@ -140,10 +147,20 @@ export class TerminalManagerStore {
     }
   }
 
+  async hydrateTerminal(terminalId: string): Promise<void> {
+    const store = this.terminals.get(terminalId);
+    if (!store) return;
+    await rpc.terminals.hydrateTerminal({
+      projectId: this.projectId,
+      taskId: this.taskId,
+      terminalId,
+    });
+  }
+
   dispose(): void {
     this._disposeReaction();
     for (const session of this.sessions.values()) {
-      session.dispose();
+      session.destroy();
     }
     this.list.dispose();
   }
@@ -166,6 +183,16 @@ export class TerminalManagerStore {
       });
       throw err;
     }
+  }
+
+  private createSession(terminal: Terminal): PtySession {
+    const handlers = makeFileLinkHandlers(terminal.projectId, terminal.taskId);
+    return new PtySession(
+      makePtySessionId(terminal.projectId, terminal.taskId, terminal.id),
+      () => this.hydrateTerminal(terminal.id),
+      handlers.onOpenFile,
+      handlers.onOpenExternal
+    );
   }
 }
 

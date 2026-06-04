@@ -9,6 +9,7 @@
 
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
+import { parseRepositoryRef } from '@shared/repository-ref';
 
 // ---------------------------------------------------------------------------
 // cloneRepository
@@ -33,6 +34,11 @@ export async function cloneRepository(
       error: error instanceof Error ? error.message : 'Clone failed',
     };
   }
+}
+
+export function remoteNameForRepositoryUrl(repositoryUrl: string): string {
+  const owner = parseRepositoryRef(repositoryUrl)?.owner;
+  return owner?.split('/').filter(Boolean).join('-') || 'fork';
 }
 
 // ---------------------------------------------------------------------------

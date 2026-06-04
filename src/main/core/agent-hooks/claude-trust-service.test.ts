@@ -10,6 +10,7 @@ import { ClaudeTrustService } from './claude-trust-service';
 
 const mockReadFile = vi.hoisted(() => vi.fn());
 const mockWriteFile = vi.hoisted(() => vi.fn());
+const mockMkdir = vi.hoisted(() => vi.fn());
 const mockRename = vi.hoisted(() => vi.fn());
 const mockRm = vi.hoisted(() => vi.fn());
 const mockWarn = vi.hoisted(() => vi.fn());
@@ -18,6 +19,7 @@ vi.mock('node:fs', () => ({
   promises: {
     readFile: mockReadFile,
     writeFile: mockWriteFile,
+    mkdir: mockMkdir,
     rename: mockRename,
     rm: mockRm,
   },
@@ -67,11 +69,12 @@ describe('ClaudeTrustService', () => {
     vi.clearAllMocks();
     mockReadFile.mockRejectedValue(Object.assign(new Error('not found'), { code: 'ENOENT' }));
     mockWriteFile.mockResolvedValue(undefined);
+    mockMkdir.mockResolvedValue(undefined);
     mockRename.mockResolvedValue(undefined);
     mockRm.mockResolvedValue(undefined);
   });
 
-  it('skips non-Claude providers', async () => {
+  it('skips providers without trust config', async () => {
     const service = makeService();
 
     await service.maybeAutoTrustLocal({
@@ -97,6 +100,20 @@ describe('ClaudeTrustService', () => {
     expect(mockWriteFile).not.toHaveBeenCalled();
   });
 
+  it('trusts Claude worktrees when forced even if auto-trust is disabled', async () => {
+    const service = makeService({ autoTrustWorktrees: false });
+
+    await service.maybeAutoTrustLocal({
+      providerId: 'claude',
+      cwd: '/tmp/worktree',
+      homedir: '/home/local-user',
+      force: true,
+    });
+
+    expect(mockReadFile).toHaveBeenCalledWith('/home/local-user/.claude.json', 'utf8');
+    expect(mockWriteFile).toHaveBeenCalledTimes(1);
+  });
+
   it('writes local config atomically when missing', async () => {
     const service = makeService();
     const relPath = './relative/path';
@@ -108,6 +125,7 @@ describe('ClaudeTrustService', () => {
     });
 
     expect(mockWriteFile).toHaveBeenCalledTimes(1);
+    expect(mockMkdir).toHaveBeenCalledWith('/home/local-user', { recursive: true });
     expect(mockRename).toHaveBeenCalledTimes(1);
 
     const [tmpPath, content] = mockWriteFile.mock.calls[0];
@@ -122,6 +140,42 @@ describe('ClaudeTrustService', () => {
       hasTrustDialogAccepted: true,
       hasCompletedProjectOnboarding: true,
     });
+  });
+
+  it('adds Copilot trusted folders', async () => {
+    const service = makeService();
+    mockReadFile.mockResolvedValue(JSON.stringify({ trustedFolders: ['/already/trusted'] }));
+
+    await service.maybeAutoTrustLocal({
+      providerId: 'copilot',
+      cwd: '/tmp/worktree',
+      homedir: '/home/local-user',
+    });
+
+    expect(mockMkdir).toHaveBeenCalledWith('/home/local-user/.copilot', { recursive: true });
+    const [tmpPath, content] = mockWriteFile.mock.calls[0];
+    const [renameFrom, renameTo] = mockRename.mock.calls[0];
+    expect(tmpPath).toContain('/home/local-user/.copilot/config.json.');
+    expect(renameFrom).toBe(tmpPath);
+    expect(renameTo).toBe('/home/local-user/.copilot/config.json');
+    expect(JSON.parse(String(content)).trustedFolders).toEqual([
+      '/already/trusted',
+      '/tmp/worktree',
+    ]);
+  });
+
+  it('does not rewrite Copilot config when folder is already trusted', async () => {
+    const service = makeService();
+    mockReadFile.mockResolvedValue(JSON.stringify({ trustedFolders: ['/tmp/worktree'] }));
+
+    await service.maybeAutoTrustLocal({
+      providerId: 'copilot',
+      cwd: '/tmp/worktree',
+      homedir: '/home/local-user',
+    });
+
+    expect(mockWriteFile).not.toHaveBeenCalled();
+    expect(mockRename).not.toHaveBeenCalled();
   });
 
   it('is idempotent when already trusted', async () => {
@@ -234,6 +288,9 @@ describe('ClaudeTrustService', () => {
         if (command === 'mv') {
           expect(args[0]).toContain('/home/remote-user/.claude.json.');
           expect(args[1]).toBe('/home/remote-user/.claude.json');
+          return { stdout: '', stderr: '' };
+        }
+        if (command === 'mkdir') {
           return { stdout: '', stderr: '' };
         }
         return { stdout: '', stderr: '' };

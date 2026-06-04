@@ -9,6 +9,8 @@ export type LocalProject = {
   name: string;
   path: string;
   baseRef: string;
+  /** The workspace ID of this project's repository-root workspace. Set on first mount. */
+  repositoryWorkspaceId: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -20,6 +22,8 @@ export type SshProject = {
   path: string;
   baseRef: string;
   connectionId: string;
+  /** The workspace ID of this project's repository-root workspace. Set on first mount. */
+  repositoryWorkspaceId: string | null;
   createdAt: string;
   updatedAt: string;
 };

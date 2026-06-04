@@ -4,11 +4,11 @@
  */
 
 import type { SFTPWrapper } from 'ssh2';
-import type { FileWatchEvent } from '@shared/fs';
-import { buildRemoteShellCommand } from '@main/core/ssh/remote-shell-profile';
-import type { SshClientProxy } from '@main/core/ssh/ssh-client-proxy';
+import { buildRemoteShellCommand } from '@main/core/ssh/lifecycle/remote-shell-profile';
+import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { log } from '@main/lib/logger';
 import { quoteShellArg } from '@main/utils/shellEscape';
+import type { FileWatchEvent } from '@shared/fs';
 import {
   FileSystemError,
   FileSystemErrorCodes,
@@ -48,6 +48,15 @@ const MAX_READ_SIZE = 100 * 1024 * 1024;
  * Default max bytes for read operations
  */
 const DEFAULT_MAX_BYTES = 200 * 1024;
+
+function fileEntryMetadataChanged(prev: FileEntry, next: FileEntry): boolean {
+  return (
+    prev.type !== next.type ||
+    prev.size !== next.size ||
+    prev.mode !== next.mode ||
+    prev.mtime?.getTime() !== next.mtime?.getTime()
+  );
+}
 
 /**
  * SshFileSystem implements IFileSystem using SFTP over SSH.
@@ -868,13 +877,15 @@ export class SshFileSystem implements FileSystemProvider {
 
         const sftpErr = err as SftpError;
         const msg = sftpErr.message ?? '';
+        const lowerMsg = msg.toLowerCase();
         const code = sftpErr.code;
 
         const isAlreadyExists =
-          msg.includes('already exists') ||
-          msg.includes('File exists') ||
+          lowerMsg.includes('already exists') ||
+          lowerMsg.includes('file exists') ||
           (code === SFTP_STATUS.FAILURE && (msg === 'Failure' || msg === ''));
-        const isMissingParent = code === SFTP_STATUS.NO_SUCH_FILE || msg.includes('No such file');
+        const isMissingParent =
+          code === SFTP_STATUS.NO_SUCH_FILE || lowerMsg.includes('no such file');
 
         if (isAlreadyExists) {
           resolve();
@@ -978,9 +989,16 @@ export class SshFileSystem implements FileSystemProvider {
 
         const evts: FileWatchEvent[] = [];
         for (const [p, e] of currMap) {
-          if (!prevMap.has(p))
+          const prev = prevMap.get(p);
+          if (!prev)
             evts.push({
               type: 'create',
+              entryType: e.type === 'dir' ? 'directory' : 'file',
+              path: p,
+            });
+          else if (fileEntryMetadataChanged(prev, e))
+            evts.push({
+              type: 'modify',
               entryType: e.type === 'dir' ? 'directory' : 'file',
               path: p,
             });

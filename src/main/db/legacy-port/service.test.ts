@@ -36,6 +36,7 @@ function createAppDb(): Database.Database {
       workspace_provider TEXT NOT NULL DEFAULT 'local',
       base_ref TEXT,
       ssh_connection_id TEXT,
+      repository_workspace_id TEXT,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
@@ -56,7 +57,8 @@ function createAppDb(): Database.Database {
       is_pinned INTEGER NOT NULL DEFAULT 0,
       workspace_provider TEXT,
       workspace_id TEXT,
-      workspace_provider_data TEXT
+      workspace_provider_data TEXT,
+      workspace_intent TEXT
     );
 
     CREATE TABLE conversations (

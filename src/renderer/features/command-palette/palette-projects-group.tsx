@@ -7,6 +7,7 @@ import {
 } from '@renderer/features/projects/stores/project-selectors';
 import type { NavigateFnTyped } from '@renderer/lib/layout/navigation-provider';
 import { cn } from '@renderer/utils/utils';
+import { PALETTE_ITEM_CLASS } from './palette-item-styles';
 
 const GROUP_CLASS = cn(
   '[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5',
@@ -53,7 +54,7 @@ export function PaletteProjectsGroup({
             navigate('project', { projectId: p.id });
             onClose();
           }}
-          className="flex cursor-pointer items-center gap-2.5 text-foreground-muted aria-selected:text-foreground rounded-md px-2 py-2 text-sm aria-selected:bg-background-2"
+          className={PALETTE_ITEM_CLASS}
         >
           <FolderOpen size={14} className="shrink-0 text-foreground/40" />
           <span className="flex-1 truncate">{p.name}</span>

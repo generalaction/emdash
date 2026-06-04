@@ -4,7 +4,15 @@ import type { TaskLifecycleStatus } from '@shared/tasks';
 
 type EmptyProps = Record<string, never>;
 
-export type FocusView = 'home' | 'project' | 'task' | 'settings' | 'skills' | 'mcp';
+export type FocusView =
+  | 'home'
+  | 'project'
+  | 'task'
+  | 'settings'
+  | 'library'
+  | 'skills'
+  | 'mcp'
+  | 'automations';
 export type FocusMainPanel = 'agents' | 'editor' | 'diff';
 export type FocusedRegion = 'main' | 'bottom';
 
@@ -44,8 +52,10 @@ export type TelemetryEventProperties = {
   project_viewed: { from_view: FocusView | null };
   task_viewed: { from_view: FocusView | null };
   settings_viewed: { from_view: FocusView | null };
+  library_viewed: { from_view: FocusView | null };
   skills_viewed: { from_view: FocusView | null };
   mcp_viewed: { from_view: FocusView | null };
+  automations_viewed: { from_view: FocusView | null };
 
   project_added: { type: 'local' | 'ssh'; strategy: 'open' | 'create' | 'clone'; success: boolean };
   project_deleted: EmptyProps;
@@ -53,7 +63,16 @@ export type TelemetryEventProperties = {
   task_created: {
     strategy: 'blank' | 'branch' | 'issue' | 'pr';
     has_initial_prompt: boolean;
-    has_issue: 'github' | 'linear' | 'jira' | 'gitlab' | 'plain' | 'forgejo' | 'none';
+    has_issue:
+      | 'github'
+      | 'linear'
+      | 'jira'
+      | 'gitlab'
+      | 'plain'
+      | 'forgejo'
+      | 'featurebase'
+      | 'asana'
+      | 'none';
     provider: AgentProviderId | null;
   };
   task_provisioned: EmptyProps;
@@ -64,7 +83,6 @@ export type TelemetryEventProperties = {
   conversation_created: { provider: AgentProviderId; is_first_in_task: boolean };
   conversation_deleted: EmptyProps;
   agent_run_started: { provider: AgentProviderId };
-  agent_run_finished: { provider: AgentProviderId; exit_code: number };
 
   terminal_created: { terminal_id: string };
   terminal_deleted: { terminal_id: string };
@@ -88,9 +106,19 @@ export type TelemetryEventProperties = {
   user_signed_in: EmptyProps;
   user_signed_out: EmptyProps;
 
-  integration_connected: { provider: 'github' | 'linear' | 'jira' };
-  integration_disconnected: { provider: 'github' | 'linear' | 'jira' };
-  issue_linked_to_task: { provider: 'github' | 'linear' | 'jira' | 'gitlab' | 'plain' | 'forgejo' };
+  integration_connected: { provider: 'github' | 'linear' | 'jira' | 'asana' };
+  integration_disconnected: { provider: 'github' | 'linear' | 'jira' | 'asana' };
+  issue_linked_to_task: {
+    provider:
+      | 'github'
+      | 'linear'
+      | 'jira'
+      | 'gitlab'
+      | 'plain'
+      | 'forgejo'
+      | 'featurebase'
+      | 'asana';
+  };
 
   open_in_external: { app: OpenInAppId | 'browser' };
   ssh_connection_attempted: { success: boolean };

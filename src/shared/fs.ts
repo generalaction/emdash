@@ -4,6 +4,7 @@ export interface FileNode {
   parentPath: string | null;
   depth: number;
   type: 'file' | 'directory';
+  children: FileNode[];
   isHidden: boolean;
   extension?: string;
   mtime?: Date;

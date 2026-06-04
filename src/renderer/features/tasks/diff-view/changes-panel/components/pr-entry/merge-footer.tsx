@@ -3,6 +3,7 @@ import {
   CheckCircle2,
   GitMerge,
   HelpCircle,
+  Loader2,
   XCircle,
   type LucideIcon,
 } from 'lucide-react';
@@ -12,9 +13,9 @@ import { cn } from '@renderer/utils/utils';
 import { type MergeSeverity, type MergeUiState } from './pr-entry';
 
 const severityConfig: Record<MergeSeverity, SeverityConfig> = {
-  success: { icon: CheckCircle2, iconClass: 'text-green-600' },
-  warning: { icon: AlertTriangle, iconClass: 'text-amber-500' },
-  error: { icon: XCircle, iconClass: 'text-red-500' },
+  success: { icon: CheckCircle2, iconClass: 'text-foreground-success' },
+  warning: { icon: AlertTriangle, iconClass: 'text-foreground-warning' },
+  error: { icon: XCircle, iconClass: 'text-foreground-error' },
   neutral: { icon: HelpCircle, iconClass: 'text-foreground-passive' },
 };
 
@@ -24,27 +25,36 @@ export function MergeFooter({
   uiState,
   mergeActions,
   isMerging,
+  isMarkingReady,
   onMarkReady,
 }: {
   uiState: MergeUiState;
   mergeActions: SplitButtonAction[];
   isMerging: boolean;
+  isMarkingReady: boolean;
   onMarkReady: () => void;
 }) {
   const isDraft = uiState.kind === 'draft';
   const { icon: MergeStatusIcon, iconClass } = severityConfig[uiState.severity];
 
   return (
-    <div className="shrink-0 border-t border-border px-3 py-2.5 flex items-center gap-3">
-      <div className="flex-1 min-w-0 flex flex-col gap-0.5">
-        <div className="flex items-center gap-1.5 justify-between">
-          <div className="flex items-center gap-1.5 min-w-0">
+    <div className="flex shrink-0 items-center gap-3 border-t border-border px-3 py-2.5">
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <div className="flex items-center justify-between gap-1.5">
+          <div className="flex min-w-0 items-center gap-1.5">
             <MergeStatusIcon className={cn('size-4 shrink-0', iconClass)} />
-            <p className="text-sm leading-tight text-foreground truncate">{uiState.title}</p>
+            <p className="truncate text-sm leading-tight text-foreground">{uiState.title}</p>
           </div>
           <div className="flex items-center gap-1.5">
             {isDraft ? (
-              <Button variant="outline" size="xs" onClick={onMarkReady}>
+              <Button
+                variant="outline"
+                size="xs"
+                onClick={onMarkReady}
+                disabled={isMarkingReady}
+                aria-label={isMarkingReady ? 'Marking ready...' : 'Mark ready'}
+              >
+                {isMarkingReady && <Loader2 className="size-3 animate-spin" aria-hidden />}
                 Mark ready
               </Button>
             ) : (

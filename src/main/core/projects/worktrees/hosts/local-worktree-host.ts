@@ -22,7 +22,21 @@ function isNotFound(error: unknown): boolean {
 }
 
 export class LocalWorktreeHost implements WorktreeHost {
+  readonly pathApi = path;
+
   private constructor(private readonly roots: string[]) {}
+
+  private static async resolveAllowedRoot(root: string): Promise<string> {
+    const resolved = path.resolve(root);
+    if (!path.isAbsolute(resolved)) {
+      throw new FileSystemError(
+        `Expected absolute allowed root: ${root}`,
+        FileSystemErrorCodes.INVALID_PATH,
+        root
+      );
+    }
+    return fs.realpath(resolved);
+  }
 
   static async create(args: { allowedRoots: string[] }): Promise<LocalWorktreeHost> {
     if (args.allowedRoots.length === 0) {
@@ -33,20 +47,17 @@ export class LocalWorktreeHost implements WorktreeHost {
     }
 
     const roots = await Promise.all(
-      args.allowedRoots.map(async (root) => {
-        const resolved = path.resolve(root);
-        if (!path.isAbsolute(resolved)) {
-          throw new FileSystemError(
-            `Expected absolute allowed root: ${root}`,
-            FileSystemErrorCodes.INVALID_PATH,
-            root
-          );
-        }
-        return fs.realpath(resolved);
-      })
+      args.allowedRoots.map((root) => LocalWorktreeHost.resolveAllowedRoot(root))
     );
 
     return new LocalWorktreeHost(roots);
+  }
+
+  async allowRoot(root: string): Promise<void> {
+    const resolved = await LocalWorktreeHost.resolveAllowedRoot(root);
+    if (!this.roots.some((existing) => existing === resolved)) {
+      this.roots.push(resolved);
+    }
   }
 
   private assertAbsolute(input: string): string {
@@ -136,7 +147,12 @@ export class LocalWorktreeHost implements WorktreeHost {
   ): Promise<{ success: boolean; error?: string }> {
     try {
       const target = await this.validateExisting(filePath);
-      await fs.rm(target, { recursive: options?.recursive ?? false, force: false });
+      await fs.rm(target, {
+        recursive: options?.recursive ?? false,
+        force: true,
+        maxRetries: options?.recursive ? 3 : 0,
+        retryDelay: 100,
+      });
       return { success: true };
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : String(error) };

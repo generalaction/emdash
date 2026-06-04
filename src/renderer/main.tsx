@@ -1,10 +1,10 @@
 import ReactDOM from 'react-dom/client';
-import { App } from './App';
-import { ErrorBoundary } from './lib/components/error-boundary';
+import { setupNavigationGuards } from '@renderer/app/view-registry';
+import { wireAutomationCacheInvalidation } from '@renderer/features/automations/automation-cache-invalidation';
+import { prefetchAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import './index.css';
 import 'devicon/devicon.min.css';
 import 'katex/dist/katex.min.css';
-import type { NavigationSnapshot, SidebarSnapshot } from '@shared/view-state';
 import { setupAppCommandProvider } from '@renderer/lib/commands/app-commands';
 import { setupViewCommandProvider } from '@renderer/lib/commands/registry';
 import { wireCommitHistoryInvalidation } from '@renderer/lib/commit-history-invalidation';
@@ -17,6 +17,9 @@ import { wirePrCacheInvalidation } from '@renderer/lib/pr-cache-invalidation';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import { log } from '@renderer/utils/logger';
 import { initSoundPlayer } from '@renderer/utils/soundPlayer';
+import type { NavigationSnapshot, SidebarSnapshot } from '@shared/view-state';
+import { App } from './App';
+import { ErrorBoundary } from './lib/components/error-boundary';
 import { appState } from './lib/stores/app-state';
 
 async function bootstrap() {
@@ -24,9 +27,9 @@ async function bootstrap() {
   wireModelRegistryInvalidation(modelRegistry);
   wirePrCacheInvalidation();
   wireCommitHistoryInvalidation();
+  wireAutomationCacheInvalidation();
 
   appState.update.start();
-  appState.resourceMonitor.start();
   initSoundPlayer();
 
   // Initialize Monaco and load app data in parallel. Awaiting Monaco here
@@ -43,10 +46,12 @@ async function bootstrap() {
     rpc.viewState.get('sidebar'),
     rpc.viewState.getAll(),
     appState.projects.load(),
+    prefetchAppSettingsKey('interface'),
   ]);
 
   viewStateCache.populate(allViewState as Record<string, unknown>);
 
+  setupNavigationGuards();
   if (navResult) appState.navigation.restoreSnapshot(navResult);
   setupAppCommandProvider();
   setupViewCommandProvider();

@@ -3,6 +3,7 @@ import { config as dotenvConfig } from 'dotenv';
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import dockIcon from '@/assets/images/emdash/icon-dock.png?asset';
 import { PRODUCT_NAME } from '@shared/app-identity';
+import { automationsChangedChannel } from '@shared/events/automationEvents';
 import { registerRPCRouter } from '@shared/ipc/rpc';
 import { setupApplicationMenu } from './app/menu';
 import { registerAppScheme, setupAppProtocol } from './app/protocol';
@@ -11,21 +12,32 @@ import { providerTokenRegistry } from './core/account/provider-token-registry';
 import { emdashAccountService } from './core/account/services/emdash-account-service';
 import { agentHookService } from './core/agent-hooks/agent-hook-service';
 import { appService } from './core/app/service';
+import { automationEvents } from './core/automations/automation-events';
+import { automationScheduler } from './core/automations/automation-scheduler';
 import { localDependencyManager } from './core/dependencies/dependency-manager';
 import { editorBufferService } from './core/editor/editor-buffer-service';
 import { gitWatcherRegistry } from './core/git/git-watcher-registry';
 import { githubConnectionService } from './core/github/services/github-connection-service';
 import { projectManager } from './core/projects/project-manager';
+import { projectSettingsService } from './core/projects/settings/project-settings-service';
+import { promptLibraryService } from './core/prompt-library/service';
 import { prSyncScheduler } from './core/pull-requests/pr-sync-scheduler';
 import {
   reconcileResourceSampler,
   stopResourceSampler,
 } from './core/resource-monitor/resource-sampler';
 import { searchService } from './core/search/search-service';
+import { workspaceFileIndexService } from './core/search/workspace-file-index-service';
 import { appSettingsService } from './core/settings/settings-service';
 import { updateService } from './core/updates/update-service';
 import { viewStateService } from './core/view-state/view-state-service';
 import { initializeDatabase } from './db/initialize';
+import { events } from './lib/events';
+import {
+  initializeFileLogger,
+  registerProcessErrorLogging,
+  registerRendererLogHandler,
+} from './lib/file-logger';
 import { log } from './lib/logger';
 import { telemetryService } from './lib/telemetry';
 import { rpcRouter } from './rpc';
@@ -43,6 +55,9 @@ registerAppScheme();
 
 app.setName(PRODUCT_NAME);
 app.setPath('userData', join(app.getPath('appData'), 'emdash'));
+initializeFileLogger();
+registerProcessErrorLogging(log);
+registerRendererLogHandler(ipcMain);
 
 app.on('second-instance', () => {
   const win = BrowserWindow.getAllWindows()[0];
@@ -81,6 +96,7 @@ void app.whenReady().then(async () => {
   try {
     await initializeDatabase();
     searchService.initialize();
+    workspaceFileIndexService.initialize();
     void editorBufferService.pruneStale();
     try {
       viewStateService.pruneOrphans();
@@ -111,9 +127,15 @@ void app.whenReady().then(async () => {
   });
 
   gitWatcherRegistry.initialize();
+  projectSettingsService.initialize();
   prSyncScheduler.initialize();
+  automationEvents.on('automation:changed', () => {
+    events.emit(automationsChangedChannel, undefined);
+  });
+  automationScheduler.start();
   appService.initialize();
   await appSettingsService.initialize();
+  await promptLibraryService.initialize();
 
   agentHookService.initialize().catch((e) => {
     log.error('Failed to start agent event service:', e);
@@ -123,7 +145,9 @@ void app.whenReady().then(async () => {
     log.warn('Failed to load account session token:', e);
   });
 
-  providerTokenRegistry.register('github', (token) => githubConnectionService.storeToken(token));
+  providerTokenRegistry.register('github', (token) =>
+    githubConnectionService.storeToken(token, 'emdash_oauth')
+  );
 
   registerRPCRouter(rpcRouter, ipcMain);
 
@@ -150,6 +174,7 @@ app.on('before-quit', (event) => {
   event.preventDefault();
   telemetryService.capture('app_closed');
   void telemetryService.dispose().finally(() => {
+    automationScheduler.stop();
     agentHookService.dispose();
     stopResourceSampler();
     updateService.dispose();

@@ -1,54 +1,76 @@
 import { Plus, Undo2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { commitRef, HEAD_REF, type GitChange } from '@shared/git';
-import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
+import {
+  useTaskViewContext,
+  useWorkspace,
+  useWorkspaceId,
+  useWorkspaceViewModel,
+} from '@renderer/features/tasks/task-view-context';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
+import { commitRef, type GitChange, HEAD_REF } from '@shared/git';
 import { ActionCard } from './components/action-card';
+import { ChangesListOrTree } from './components/changes-list-or-tree';
+import { ChangesViewModeToggle } from './components/changes-view-mode-toggle';
 import { CommitCard } from './components/commit-card';
 import { SectionHeader } from './components/section-header';
-import { VirtualizedChangesList } from './components/virtualized-changes-list';
+import { useChangesViewMode } from './hooks/use-changes-view-mode';
 import { usePrefetchDiffModels } from './hooks/use-prefetch-diff-models';
 
 export const UnstagedSection = observer(function UnstagedSection() {
   const { projectId } = useTaskViewContext();
-  const provisioned = useProvisionedTask();
-  const git = provisioned.workspace.git;
-  const changesView = provisioned.taskView.diffView.changesView;
+  const workspaceId = useWorkspaceId();
+  const taskView = useWorkspaceViewModel();
+  const workspace = useWorkspace();
+  const git = workspace.git;
+  const diffView = taskView.diffView;
+  const changesView = diffView?.changesView;
 
   const changes = git.unstagedFileChanges;
   const hasChanges = changes.length > 0;
   const hasStagedChanges = git.stagedFileChanges.length > 0;
-  const selectedPaths = changesView.unstagedSelection;
-  const selectionState = changesView.unstagedSelectionState;
 
   const activePath =
-    provisioned.taskView.tabManager.activeDescriptor?.kind === 'diff' &&
-    provisioned.taskView.tabManager.activeDescriptor.diffGroup === 'disk'
-      ? provisioned.taskView.tabManager.activeDescriptor.path
+    taskView.tabManager.activeDescriptor?.kind === 'diff' &&
+    taskView.tabManager.activeDescriptor.diffGroup === 'disk'
+      ? taskView.tabManager.activeDescriptor.path
       : undefined;
 
-  const prefetch = usePrefetchDiffModels(projectId, provisioned.workspaceId, 'disk', HEAD_REF);
+  const prefetch = usePrefetchDiffModels(projectId, workspaceId, 'disk', HEAD_REF);
+
+  const { mode: viewMode, setMode: setViewMode } = useChangesViewMode('unstaged');
 
   const showConfirmActionModal = useShowModal('confirmActionModal');
 
+  if (!diffView || !changesView) return null;
+
   const handleSelectChange = (change: GitChange) => {
-    provisioned.taskView.tabManager.openDiffPreview(
-      { path: change.path, type: 'disk', group: 'disk', originalRef: commitRef('HEAD') },
+    taskView.tabManager.openDiffPreview(
+      {
+        path: change.path,
+        type: 'disk',
+        group: 'disk',
+        originalRef: commitRef('HEAD'),
+      },
       change.status
     );
   };
 
   const handleDoubleClickChange = (change: GitChange) => {
-    provisioned.taskView.tabManager.openDiff(
-      { path: change.path, type: 'disk', group: 'disk', originalRef: commitRef('HEAD') },
+    taskView.tabManager.openDiff(
+      {
+        path: change.path,
+        type: 'disk',
+        group: 'disk',
+        originalRef: commitRef('HEAD'),
+      },
       change.status
     );
   };
 
   const handleDiscardSelection = () => {
-    const paths = [...selectedPaths];
+    const paths = [...changesView.unstagedSelection];
     showConfirmActionModal({
       title: 'Discard Files Changes',
       variant: 'destructive',
@@ -73,7 +95,7 @@ export const UnstagedSection = observer(function UnstagedSection() {
   };
 
   const handleStageSelection = () => {
-    const paths = [...selectedPaths];
+    const paths = [...changesView.unstagedSelection];
     void git.stageFiles(paths);
     changesView.clearUnstagedSelection();
   };
@@ -89,9 +111,9 @@ export const UnstagedSection = observer(function UnstagedSection() {
         collapsed={!changesView.expandedSections.unstaged}
         onToggleCollapsed={() => changesView.toggleExpanded('unstaged')}
         count={changes.length}
-        selectionState={selectionState}
+        selectionState={changesView.unstagedSelectionState}
         onToggleAll={() => changesView.toggleAllUnstaged()}
-        actions={undefined}
+        actions={<ChangesViewModeToggle value={viewMode} onChange={setViewMode} label="Changed" />}
       />
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         {!hasChanges && (
@@ -99,7 +121,7 @@ export const UnstagedSection = observer(function UnstagedSection() {
         )}
         {hasChanges && (
           <ActionCard
-            selectedCount={selectedPaths.size}
+            selectedCount={changesView.unstagedSelection.size}
             selectionActions={
               <>
                 <Button
@@ -151,9 +173,10 @@ export const UnstagedSection = observer(function UnstagedSection() {
           />
         )}
         <div className="min-h-0 flex-1 px-1">
-          <VirtualizedChangesList
+          <ChangesListOrTree
+            viewMode={viewMode}
             changes={changes}
-            isSelected={(path) => selectedPaths.has(path)}
+            isSelected={(path) => changesView.unstagedSelection.has(path)}
             onToggleSelect={(path) => changesView.toggleUnstagedItem(path)}
             activePath={activePath}
             onSelectChange={handleSelectChange}

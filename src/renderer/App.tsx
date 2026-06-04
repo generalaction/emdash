@@ -9,6 +9,7 @@ import { useAccountSession } from './lib/hooks/useAccount';
 import { useLegacyPortStatus } from './lib/hooks/useLegacyPort';
 import { WorkspaceLayoutContextProvider } from './lib/layout/layout-provider';
 import { WorkspaceViewProvider } from './lib/layout/provider';
+import { ModalRenderer } from './lib/modal/modal-renderer';
 import { FeatureFlagProvider } from './lib/providers/feature-flag-override-context';
 import { GithubContextProvider } from './lib/providers/github-context-provider';
 import { ThemeProvider } from './lib/providers/theme-provider';
@@ -43,7 +44,7 @@ function AppContent() {
       if (!session?.isSignedIn) computed.push('sign-in');
       const needsImport = legacyStatus?.hasImportSources && !legacyStatus.portStatus;
       if (needsImport) computed.push('import');
-      setFrozenSteps(computed); // eslint-disable-line react-hooks/set-state-in-effect
+      setFrozenSteps(computed);
     }
   }, [view, isLoading, frozenSteps, session, legacyStatus]);
 
@@ -84,7 +85,10 @@ function AppContent() {
               <WorkspaceViewProvider>
                 <AppMenuEvents onOpenSettings={handleOpenSettingsFromMenu} />
                 <RightSidebarProvider>
-                  <ThemeProvider>{renderContent()}</ThemeProvider>
+                  <ThemeProvider>
+                    <ModalRenderer />
+                    {renderContent()}
+                  </ThemeProvider>
                 </RightSidebarProvider>
               </WorkspaceViewProvider>
             </IntegrationsProvider>

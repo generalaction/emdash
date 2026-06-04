@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo } from 'react';
+import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import { rpc } from '@renderer/lib/ipc';
 import {
   getResolvedIconPath,
   getResolvedLabel,
@@ -8,8 +10,6 @@ import {
   type OpenInAppId,
   type PlatformKey,
 } from '@shared/openInApps';
-import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
-import { rpc } from '@renderer/lib/ipc';
 
 const iconModules = import.meta.glob('../../../assets/images/*', {
   eager: true,
@@ -26,13 +26,18 @@ export interface UseOpenInAppsResult {
   labels: Partial<Record<OpenInAppId, string>>;
   availability: Record<string, boolean>;
   installedApps: OpenInAppConfig[];
+  platform?: PlatformKey;
   loading: boolean;
+}
+
+function supportsPlatform(app: OpenInAppConfig, platform: PlatformKey): boolean {
+  return app.alwaysAvailable === true || Boolean(app.platforms[platform]);
 }
 
 export function useOpenInApps(): UseOpenInAppsResult {
   const { value: openIn, isLoading: settingsLoading } = useAppSettingsKey('openIn');
 
-  const { data: platform = 'darwin' } = useQuery({
+  const { data: platform, isLoading: platformLoading } = useQuery({
     queryKey: ['app', 'platform'],
     queryFn: () => rpc.app.getPlatform() as Promise<PlatformKey>,
     staleTime: Infinity,
@@ -47,10 +52,11 @@ export function useOpenInApps(): UseOpenInAppsResult {
     staleTime: 5 * 60 * 1000,
   });
 
-  const loading = settingsLoading || availabilityLoading;
+  const loading = settingsLoading || platformLoading || availabilityLoading;
 
   const labels = useMemo(() => {
     const result: Partial<Record<OpenInAppId, string>> = {};
+    if (!platform) return result;
     for (const app of Object.values(OPEN_IN_APPS)) {
       result[app.id] = getResolvedLabel(app, platform);
     }
@@ -59,6 +65,7 @@ export function useOpenInApps(): UseOpenInAppsResult {
 
   const icons = useMemo(() => {
     const result: Partial<Record<OpenInAppId, string>> = {};
+    if (!platform) return result;
     for (const app of Object.values(OPEN_IN_APPS)) {
       const iconPath = getResolvedIconPath(app, platform);
       const url = getIconUrl(iconPath);
@@ -69,11 +76,13 @@ export function useOpenInApps(): UseOpenInAppsResult {
 
   const installedApps = useMemo(() => {
     const hiddenApps: OpenInAppId[] = openIn?.hidden ?? [];
-    if (loading) return Object.values(OPEN_IN_APPS);
-    return Object.values(OPEN_IN_APPS).filter(
-      (app) => availability[app.id] && !hiddenApps.includes(app.id)
+    if (!platform) return [];
+    const platformApps = Object.values(OPEN_IN_APPS).filter(
+      (app) => supportsPlatform(app, platform) && !hiddenApps.includes(app.id)
     );
-  }, [availability, loading, openIn?.hidden]);
+    if (loading) return platformApps;
+    return platformApps.filter((app) => availability[app.id] && !hiddenApps.includes(app.id));
+  }, [availability, loading, openIn?.hidden, platform]);
 
-  return { icons, labels, availability, installedApps, loading };
+  return { icons, labels, availability, installedApps, platform, loading };
 }

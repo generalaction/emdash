@@ -1,10 +1,20 @@
 import os from 'node:os';
+import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
 import { detectSshAuthSock } from '@main/utils/shellEnv';
 import { getWindowsEnvValue } from '@main/utils/windows-env';
 
 export const AGENT_ENV_VARS = [
+  'ALL_PROXY',
   'AMP_API_KEY',
+  'AMP_TOOLBOX',
   'ANTHROPIC_API_KEY',
+  'ANTHROPIC_AUTH_TOKEN',
+  'ANTHROPIC_BASE_URL',
+  'ANTHROPIC_DEFAULT_HAIKU_MODEL',
+  'ANTHROPIC_DEFAULT_OPUS_MODEL',
+  'ANTHROPIC_DEFAULT_SONNET_MODEL',
+  'ANTHROPIC_MODEL',
+  'ANTHROPIC_SMALL_FAST_MODEL',
   'AUTOHAND_API_KEY',
   'AUGMENT_SESSION_AUTH',
   'AWS_ACCESS_KEY_ID',
@@ -16,18 +26,46 @@ export const AGENT_ENV_VARS = [
   'AZURE_OPENAI_API_ENDPOINT',
   'AZURE_OPENAI_API_KEY',
   'AZURE_OPENAI_KEY',
+  'BAILIAN_CODING_PLAN_API_KEY',
+  'CLAUDE_CODE_DISABLE_BACKGROUND_TASKS',
+  'CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS',
+  'CLAUDE_CODE_SUBAGENT_MODEL',
+  'CLAUDE_CODE_USE_BEDROCK',
+  'CLAUDE_CODE_USE_VERTEX',
+  'CLAUDE_CONFIG_DIR',
   'CODEBUFF_API_KEY',
+  'CODEX_HOME',
   'COPILOT_CLI_TOKEN',
   'CURSOR_API_KEY',
   'DASHSCOPE_API_KEY',
   'FACTORY_API_KEY',
   'GEMINI_API_KEY',
+  'GEMINI_MODEL',
   'GH_TOKEN',
   'GITHUB_TOKEN',
   'GOOGLE_API_KEY',
   'GOOGLE_APPLICATION_CREDENTIALS',
   'GOOGLE_CLOUD_LOCATION',
   'GOOGLE_CLOUD_PROJECT',
+  'GOOGLE_GEMINI_BASE_URL',
+  'GOOGLE_GENAI_API_VERSION',
+  'GOOGLE_VERTEX_BASE_URL',
+  'GOOSE_CONTEXT_LIMIT',
+  'GOOSE_LEAD_MODEL',
+  'GOOSE_LEAD_PROVIDER',
+  'GOOSE_MODE',
+  'GOOSE_MODEL',
+  'GOOSE_PLANNER_MODEL',
+  'GOOSE_PLANNER_PROVIDER',
+  'GOOSE_PROVIDER',
+  'GOOSE_PROVIDER__API_KEY',
+  'GOOSE_PROVIDER__HOST',
+  'GOOSE_PROVIDER__TYPE',
+  'GROK_CODE_XAI_API_KEY',
+  'GROK_DEPLOYMENT_KEY',
+  'GROK_HOME',
+  'GROK_PROXY_URL',
+  'GROK_SANDBOX',
   'HTTP_PROXY',
   'HTTPS_PROXY',
   'KIMI_API_KEY',
@@ -36,8 +74,13 @@ export const AGENT_ENV_VARS = [
   'NO_PROXY',
   'OPENAI_API_KEY',
   'OPENAI_BASE_URL',
+  'OPENAI_MODEL',
+  'OPENAI_ORGANIZATION',
+  'OPENAI_PROJECT',
+  'OPENCODE_MODEL',
   'OPENROUTER_API_KEY',
   'OPENROUTER_BASE_URL',
+  'XAI_API_KEY',
 ] as const;
 
 const DISPLAY_ENV_VARS = [
@@ -50,9 +93,11 @@ const DISPLAY_ENV_VARS = [
   'DBUS_SESSION_BUS_ADDRESS', // Needed by gio open and desktop portals
 ] as const;
 
-function getDisplayEnv(): Record<string, string> {
+const GLOBAL_AGENT_ENV_VARS = ['EDITOR', 'VISUAL', 'GIT_EDITOR', 'HOSTNAME', 'LANG', 'TZ'] as const;
+
+function getAllowlistedEnv(keys: readonly string[]): Record<string, string> {
   const env: Record<string, string> = {};
-  for (const key of DISPLAY_ENV_VARS) {
+  for (const key of keys) {
     const val = process.env[key];
     if (val) env[key] = val;
   }
@@ -105,6 +150,13 @@ export interface AgentEnvOptions {
   includeShellVar?: boolean;
 
   /**
+   * Resolved shell used to launch the agent command. POSIX login shells can
+   * synthesize SHELL from the user's account default, so pass the configured
+   * shell explicitly when the command is shell-wrapped.
+   */
+  shellProfile?: ResolvedShellProfile;
+
+  /**
    * Emdash hook server connection details.  When set, injects
    * EMDASH_HOOK_PORT, EMDASH_PTY_ID, and EMDASH_HOOK_TOKEN so agent CLIs
    * can call back on lifecycle events.
@@ -134,7 +186,9 @@ export interface AgentEnvOptions {
  * SSH_AUTH_SOCK is injected via the same cached detector used for agents,
  * since GUI-launched apps often don't inherit it from the user's login shell.
  */
-export function buildTerminalEnv(): Record<string, string> {
+export function buildTerminalEnv(
+  options: { shellProfile?: ResolvedShellProfile } = {}
+): Record<string, string> {
   // Inherit the full process environment, stripping undefined values.
   const env: Record<string, string> = {};
   for (const [key, val] of Object.entries(process.env)) {
@@ -149,7 +203,10 @@ export function buildTerminalEnv(): Record<string, string> {
   // Ensure SHELL reflects the user's configured shell on POSIX. Native Windows
   // shells are selected via ComSpec by the spawn resolver, not SHELL.
   if (process.platform !== 'win32') {
-    env.SHELL = process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash');
+    env.SHELL =
+      options.shellProfile?.family === 'posix' || options.shellProfile?.family === 'csh'
+        ? options.shellProfile.executable
+        : (process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash'));
   } else if (process.env.SHELL) {
     env.SHELL = process.env.SHELL;
   }
@@ -174,7 +231,13 @@ export function buildTerminalEnv(): Record<string, string> {
  * find its own dependencies.
  */
 export function buildAgentEnv(options: AgentEnvOptions = {}): Record<string, string> {
-  const { agentApiVars = true, includeShellVar = false, hook, providerVars } = options;
+  const {
+    agentApiVars = true,
+    includeShellVar = false,
+    hook,
+    providerVars,
+    shellProfile,
+  } = options;
 
   // process.env.PATH is enriched at startup by resolveUserEnv() so it already
   // contains the full login-shell PATH (Homebrew, nvm, npm globals, etc.).
@@ -189,16 +252,21 @@ export function buildAgentEnv(options: AgentEnvOptions = {}): Record<string, str
     HOME: process.env.HOME || os.homedir(),
     USER: process.env.USER || os.userInfo().username,
     PATH: resolvedPath,
-    ...(process.env.LANG && { LANG: process.env.LANG }),
     ...(process.env.TMPDIR && { TMPDIR: process.env.TMPDIR }),
-    ...getDisplayEnv(),
+    ...getAllowlistedEnv(GLOBAL_AGENT_ENV_VARS),
+    ...getAllowlistedEnv(DISPLAY_ENV_VARS),
     ...(process.platform === 'win32' ? getWindowsEssentialEnv(resolvedPath) : {}),
   };
 
   const sshAuthSock = process.env.SSH_AUTH_SOCK ?? detectSshAuthSock();
   if (sshAuthSock) env.SSH_AUTH_SOCK = sshAuthSock;
 
-  if (includeShellVar && process.platform !== 'win32') {
+  if (
+    process.platform !== 'win32' &&
+    (shellProfile?.family === 'posix' || shellProfile?.family === 'csh')
+  ) {
+    env.SHELL = shellProfile.executable;
+  } else if (includeShellVar && process.platform !== 'win32') {
     env.SHELL = process.env.SHELL || '/bin/bash';
   } else if (includeShellVar && process.env.SHELL) {
     env.SHELL = process.env.SHELL;

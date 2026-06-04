@@ -1,10 +1,10 @@
-import type { DiffMode, GitObjectRef, GitRef, MergeBaseRange } from '@shared/git';
-import { createRPCController } from '@shared/ipc/rpc';
-import { err, ok } from '@shared/result';
 import { TooManyFilesChangedError } from '@main/core/git/impl/status-parser';
 import { resolveWorkspace } from '@main/core/projects/utils';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
+import type { DiffMode, GitObjectRef, GitRef, MergeBaseRange } from '@shared/git';
+import { createRPCController } from '@shared/ipc/rpc';
+import { err, ok } from '@shared/result';
 
 export const gitController = createRPCController({
   getFullStatus: async (projectId: string, workspaceId: string) => {

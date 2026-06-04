@@ -1,10 +1,9 @@
-import { makePtySessionId } from '@shared/ptySessionId';
-import type { Terminal } from '@shared/terminals';
 import type { IExecutionContext } from '@main/core/execution-context/types';
+import { isUnexpectedPtyExit } from '@main/core/pty/exit-classification';
 import { spawnLocalPty } from '@main/core/pty/local-pty';
 import type { Pty } from '@main/core/pty/pty';
 import { buildTerminalEnv } from '@main/core/pty/pty-env';
-import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
+import { ptySessionRegistry, type PtySessionMetadata } from '@main/core/pty/pty-session-registry';
 import {
   logLocalPtySpawnWarnings,
   resolveLocalPtySpawn,
@@ -12,9 +11,18 @@ import {
   type PtySpawnIntent,
 } from '@main/core/pty/pty-spawn-platform';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
+import { resolveTerminalShellWithSystemFallback } from '@main/core/terminal-shell/resolver';
+import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
 import { log } from '@main/lib/logger';
+import { makePtySessionId } from '@shared/ptySessionId';
+import type { TerminalShellId } from '@shared/terminal-settings';
+import type { Terminal } from '@shared/terminals';
 import { wireTerminalDevServerWatcher } from '../dev-server-watcher';
-import { type LifecycleScriptSpawnRequest, type TerminalProvider } from '../terminal-provider';
+import {
+  type LifecycleScriptSpawnRequest,
+  type TerminalProvider,
+  type TerminalSpawnOptions,
+} from '../terminal-provider';
 
 const DEFAULT_COLS = 80;
 const DEFAULT_ROWS = 24;
@@ -27,8 +35,11 @@ type SpawnPolicy = {
 };
 
 export class LocalTerminalProvider implements TerminalProvider {
+  readonly kind = 'local' as const;
+
   private sessions = new Map<string, Pty>();
   private knownSessionIds = new Set<string>();
+  private shellProfiles = new Map<string, ResolvedShellProfile>();
   private respawnCounts = new Map<string, number>();
   private readonly projectId: string;
   private readonly scopeId: string;
@@ -67,12 +78,17 @@ export class LocalTerminalProvider implements TerminalProvider {
   async spawnTerminal(
     terminal: Terminal,
     initialSize: { cols: number; rows: number } = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS },
-    command?: { command: string; args: string[] }
+    options: TerminalSpawnOptions = {}
   ): Promise<void> {
     return this.spawnWithPolicy(
       terminal,
       initialSize,
-      command ? { kind: 'argv', command: command.command, args: command.args } : undefined,
+      options.command
+        ? { kind: 'argv', command: options.command.command, args: options.command.args }
+        : undefined,
+      undefined,
+      options.shell ?? terminal.shellId,
+      { title: terminal.name },
       {
         respawnOnExit: true,
         preserveBufferOnExit: false,
@@ -84,6 +100,7 @@ export class LocalTerminalProvider implements TerminalProvider {
   async spawnLifecycleScript({
     terminal,
     command,
+    shellSetup,
     initialSize = { cols: DEFAULT_COLS, rows: DEFAULT_ROWS },
     respawnOnExit = false,
     preserveBufferOnExit = true,
@@ -93,6 +110,9 @@ export class LocalTerminalProvider implements TerminalProvider {
       terminal,
       initialSize,
       command === undefined ? undefined : { kind: 'shell-line', commandLine: command },
+      shellSetup,
+      'system',
+      undefined,
       {
         respawnOnExit,
         preserveBufferOnExit,
@@ -105,24 +125,30 @@ export class LocalTerminalProvider implements TerminalProvider {
     terminal: Terminal,
     initialSize: { cols: number; rows: number },
     command: PtyCommandSpec | undefined,
+    shellSetup: string | undefined,
+    shellIntent: TerminalShellId,
+    metadata: PtySessionMetadata | undefined,
     policy: SpawnPolicy
   ): Promise<void> {
     const sessionId = makePtySessionId(terminal.projectId, terminal.taskId, terminal.id);
     this.knownSessionIds.add(sessionId);
     if (this.sessions.has(sessionId)) return;
+    const shellProfile = await this.getSessionShellProfile(sessionId, shellIntent);
 
     const intent: PtySpawnIntent = command
       ? {
           kind: 'run-command',
           cwd: this.taskPath,
           command,
-          shellSetup: this.shellSetup,
+          shellProfile,
+          shellSetup: shellSetup ?? this.shellSetup,
           tmuxSessionName: this.tmux ? makeTmuxSessionName(sessionId) : undefined,
         }
       : {
           kind: 'interactive-shell',
           cwd: this.taskPath,
-          shellSetup: this.shellSetup,
+          shellProfile,
+          shellSetup: shellSetup ?? this.shellSetup,
           tmuxSessionName: this.tmux ? makeTmuxSessionName(sessionId) : undefined,
         };
     const resolved = resolveLocalPtySpawn({
@@ -141,7 +167,7 @@ export class LocalTerminalProvider implements TerminalProvider {
       command: resolved.command,
       args: resolved.args,
       cwd: resolved.cwd,
-      env: { ...buildTerminalEnv(), ...this.taskEnvVars },
+      env: { ...buildTerminalEnv({ shellProfile }), ...this.taskEnvVars },
       cols: initialSize.cols,
       rows: initialSize.rows,
     });
@@ -150,11 +176,15 @@ export class LocalTerminalProvider implements TerminalProvider {
       wireTerminalDevServerWatcher({ pty, scopeId: this.scopeId, terminalId: terminal.id });
     }
 
-    pty.onExit(() => {
-      const shouldRespawn = policy.respawnOnExit && this.sessions.has(sessionId);
+    pty.onExit((info) => {
+      const { exitCode, signal } = info;
+      const shouldRespawn =
+        policy.respawnOnExit &&
+        this.sessions.has(sessionId) &&
+        isUnexpectedPtyExit({ exitCode, signal });
       this.sessions.delete(sessionId);
       if (!policy.preserveBufferOnExit) {
-        ptySessionRegistry.unregister(sessionId);
+        ptySessionRegistry.unregister(sessionId, { pty, exitInfo: info });
       }
       if (shouldRespawn && !this.tmux) {
         const count = (this.respawnCounts.get(sessionId) ?? 0) + 1;
@@ -166,24 +196,56 @@ export class LocalTerminalProvider implements TerminalProvider {
             respawnCount: count,
           });
           this.respawnCounts.delete(sessionId);
+          this.shellProfiles.delete(sessionId);
           return;
         }
 
         setTimeout(() => {
-          this.spawnWithPolicy(terminal, initialSize, command, policy).catch((e) => {
+          this.spawnWithPolicy(
+            terminal,
+            initialSize,
+            command,
+            shellSetup,
+            shellIntent,
+            metadata,
+            policy
+          ).catch((e) => {
             log.error('LocalTerminalProvider: respawn failed', {
               terminalId: terminal.id,
               error: String(e),
             });
           });
         }, 500);
+      } else {
+        this.shellProfiles.delete(sessionId);
       }
     });
 
     ptySessionRegistry.register(sessionId, pty, {
       preserveBufferOnExit: policy.preserveBufferOnExit,
+      metadata,
     });
     this.sessions.set(sessionId, pty);
+  }
+
+  private async getSessionShellProfile(
+    sessionId: string,
+    shellIntent: TerminalShellId
+  ): Promise<ResolvedShellProfile> {
+    const existing = this.shellProfiles.get(sessionId);
+    if (existing) return existing;
+    const profile = await resolveTerminalShellWithSystemFallback({
+      intent: shellIntent,
+      target: { kind: 'local' },
+      onFallback: () => {
+        log.warn('LocalTerminalProvider: stored shell unavailable, using system shell', {
+          shell: shellIntent,
+          sessionId,
+        });
+      },
+    });
+    this.shellProfiles.set(sessionId, profile);
+    return profile;
   }
 
   async killTerminal(terminalId: string): Promise<void> {
@@ -197,6 +259,7 @@ export class LocalTerminalProvider implements TerminalProvider {
       this.sessions.delete(sessionId);
       ptySessionRegistry.unregister(sessionId);
     }
+    this.shellProfiles.delete(sessionId);
     if (this.tmux) {
       await killTmuxSession(this.ctx, makeTmuxSessionName(sessionId));
     }
@@ -209,6 +272,7 @@ export class LocalTerminalProvider implements TerminalProvider {
       await Promise.all(sessionIds.map((id) => killTmuxSession(this.ctx, makeTmuxSessionName(id))));
     }
     this.knownSessionIds.clear();
+    this.shellProfiles.clear();
   }
 
   async detachAll(): Promise<void> {
@@ -217,6 +281,7 @@ export class LocalTerminalProvider implements TerminalProvider {
         pty.kill();
       } catch {}
       ptySessionRegistry.unregister(sessionId);
+      this.shellProfiles.delete(sessionId);
     }
     this.sessions.clear();
   }

@@ -1,18 +1,47 @@
 import { randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
-import { type Conversation, type CreateConversationParams } from '@shared/conversations';
 import { withCompensation } from '@main/core/utils/compensation';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
+import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
+import { serializeConversationConfig } from '@shared/conversation-config';
+import { type Conversation, type CreateConversationParams } from '@shared/conversations';
+import { agentEventChannel, type AgentEvent } from '@shared/events/agentEvents';
+import { conversationCreatedChannel } from '@shared/events/conversationEvents';
+import { isAppFocused } from '../agent-hooks/notification';
 import { resolveTask } from '../projects/utils';
 import { conversationEvents } from './conversation-events';
 import { mapConversationRowToConversation } from './utils';
 
-export async function createConversation(params: CreateConversationParams): Promise<Conversation> {
+type ConversationCreateDb = Pick<typeof db, 'delete' | 'insert' | 'select'>;
+
+function emitInitialPromptStarted(
+  conversation: Conversation,
+  params: CreateConversationParams
+): void {
+  if (!params.initialPrompt?.trim()) return;
+
+  const agentEvent: AgentEvent = {
+    type: 'start',
+    source: 'input',
+    providerId: params.provider,
+    projectId: params.projectId,
+    taskId: params.taskId,
+    conversationId: conversation.id,
+    timestamp: Date.now(),
+    payload: {},
+  };
+  events.emit(agentEventChannel, { event: agentEvent, appFocused: isAppFocused() });
+}
+
+export async function createConversation(
+  params: CreateConversationParams,
+  database: ConversationCreateDb = db
+): Promise<Conversation> {
   const id = params.id ?? randomUUID();
-  const [existingConversation] = await db
+  const [existingConversation] = await database
     .select({ id: conversations.id })
     .from(conversations)
     .where(eq(conversations.taskId, params.taskId))
@@ -21,9 +50,9 @@ export async function createConversation(params: CreateConversationParams): Prom
   const config =
     params.autoApprove === undefined
       ? undefined
-      : JSON.stringify({ autoApprove: params.autoApprove });
+      : serializeConversationConfig({ autoApprove: params.autoApprove });
 
-  const [row] = await db
+  const [row] = await database
     .insert(conversations)
     .values({
       id,
@@ -32,6 +61,7 @@ export async function createConversation(params: CreateConversationParams): Prom
       title: params.title,
       provider: params.provider,
       config,
+      sessionId: id,
       isInitialConversation: params.isInitialConversation ?? false,
       createdAt: sql`CURRENT_TIMESTAMP`,
       updatedAt: sql`CURRENT_TIMESTAMP`,
@@ -55,7 +85,7 @@ export async function createConversation(params: CreateConversationParams): Prom
         params.initialPrompt
       ),
     compensate: async () => {
-      await db.delete(conversations).where(eq(conversations.id, row.id)).execute();
+      await database.delete(conversations).where(eq(conversations.id, row.id)).execute();
     },
     onCompensationError: (error) => {
       log.error('createConversation: failed to roll back conversation row after spawn failure', {
@@ -66,6 +96,8 @@ export async function createConversation(params: CreateConversationParams): Prom
   });
 
   conversationEvents._emit('conversation:created', conversation);
+  events.emit(conversationCreatedChannel, { conversation });
+  emitInitialPromptStarted(conversation, params);
   telemetryService.capture('conversation_created', {
     provider: params.provider,
     is_first_in_task: existingConversation === undefined,

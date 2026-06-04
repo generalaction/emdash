@@ -32,7 +32,7 @@ export function useMonacoLease<T>(pool: {
       runInAction(() => box.set(null));
       if (entry) pool.release(entry);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react/exhaustive-deps
   }, []);
 
   return box;

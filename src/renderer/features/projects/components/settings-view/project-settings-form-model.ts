@@ -11,12 +11,15 @@ export type FormState = {
   preservePatterns: string;
   shellSetup: string;
   tmux: boolean;
+  autoRunSetupScriptOnTaskCreation: boolean;
+  autoRunRunScriptOnTaskCreation: boolean;
   scriptSetup: string;
   scriptRun: string;
   scriptTeardown: string;
   worktreeDirectory: string;
   defaultBranch: Branch | null;
-  remote: string;
+  baseRemote: string;
+  pushRemote: string;
   provisionCommand: string;
   terminateCommand: string;
 };
@@ -39,11 +42,11 @@ function blankToUndefined(value: string): string | undefined {
 
 export function settingsToForm(
   s: ProjectSettings,
-  configuredRemote: string,
+  baseRemote: string,
   remotes: { name: string; url: string }[]
 ): FormState {
-  const configuredRemoteMeta = remotes.find((remote) => remote.name === configuredRemote) ?? {
-    name: configuredRemote,
+  const baseRemoteMeta = remotes.find((remote) => remote.name === baseRemote) ?? {
+    name: baseRemote,
     url: '',
   };
 
@@ -51,13 +54,15 @@ export function settingsToForm(
     preservePatterns: (s.preservePatterns ?? []).join('\n'),
     shellSetup: s.shellSetup ?? '',
     tmux: s.tmux ?? false,
+    autoRunSetupScriptOnTaskCreation: s.autoRunSetupScriptOnTaskCreation ?? true,
+    autoRunRunScriptOnTaskCreation: s.autoRunRunScriptOnTaskCreation ?? false,
     scriptSetup: normalizeScript(s.scripts?.setup),
     scriptRun: normalizeScript(s.scripts?.run),
     scriptTeardown: normalizeScript(s.scripts?.teardown),
     worktreeDirectory: s.worktreeDirectory ?? '',
-    defaultBranch:
-      projectDefaultBranchToBranch(s.defaultBranch, configuredRemoteMeta, remotes) ?? null,
-    remote: s.remote ?? '',
+    defaultBranch: projectDefaultBranchToBranch(s.defaultBranch, baseRemoteMeta, remotes) ?? null,
+    baseRemote: s.baseRemote ?? '',
+    pushRemote: s.pushRemote ?? '',
     provisionCommand: s.workspaceProvider?.provisionCommand ?? '',
     terminateCommand: s.workspaceProvider?.terminateCommand ?? '',
   };
@@ -87,10 +92,16 @@ export function formToSettings(f: FormState): ProjectSettings {
     preservePatterns: preservePatterns.length > 0 ? preservePatterns : undefined,
     shellSetup: blankToUndefined(f.shellSetup),
     tmux: f.tmux,
+    ...(f.autoRunSetupScriptOnTaskCreation ? {} : { autoRunSetupScriptOnTaskCreation: false }),
+    ...(f.autoRunRunScriptOnTaskCreation ? { autoRunRunScriptOnTaskCreation: true } : {}),
     scripts: hasScripts ? scripts : undefined,
     worktreeDirectory: blankToUndefined(f.worktreeDirectory),
     defaultBranch,
-    remote: blankToUndefined(f.remote),
+    baseRemote: blankToUndefined(f.baseRemote),
+    pushRemote:
+      f.pushRemote.trim() && f.pushRemote.trim() !== f.baseRemote.trim()
+        ? f.pushRemote.trim()
+        : undefined,
     workspaceProvider:
       provisionCommand && terminateCommand
         ? {

@@ -7,19 +7,21 @@ interface TaskNameFieldProps {
 }
 
 export function TaskNameField({ state }: TaskNameFieldProps) {
-  const { taskName, handleTaskNameChange, showSlugHint } = state;
+  const { taskName, placeholder, handleTaskNameChange, showSlugHint } = state;
 
   return (
-    <Field>
+    <Field className="flex flex-col gap-1">
       <FieldLabel>Task name</FieldLabel>
       <Input
         data-autofocus
         value={taskName}
+        placeholder={placeholder || 'Task name...'}
+        className="border-none px-0 text-lg! focus-visible:ring-0"
         onChange={(e) => handleTaskNameChange(e.target.value)}
       />
       {showSlugHint && (
-        <p className="text-xs text-muted-foreground mt-1">
-          Task names only allow lowercase letters, numbers, and hyphens.
+        <p className="text-muted-foreground mt-1 text-xs">
+          Task names only allow letters, numbers, and hyphens.
         </p>
       )}
     </Field>

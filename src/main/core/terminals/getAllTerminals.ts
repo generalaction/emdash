@@ -1,7 +1,7 @@
 import { eq, isNull } from 'drizzle-orm';
-import type { Terminal } from '@shared/terminals';
 import { db } from '@main/db/client';
 import { tasks, terminals } from '@main/db/schema';
+import type { Terminal } from '@shared/terminals';
 import { mapTerminalRowToTerminal } from './core';
 
 export async function getAllTerminals(): Promise<Terminal[]> {

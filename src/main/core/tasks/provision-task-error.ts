@@ -57,6 +57,15 @@ export function isProvisionTaskError(e: unknown): e is ProvisionTaskError {
   );
 }
 
+export function formatTeardownTaskError(error: TeardownTaskError): string {
+  switch (error.type) {
+    case 'timeout':
+      return error.message;
+    case 'error':
+      return error.message;
+  }
+}
+
 export function formatProvisionTaskError(error: ProvisionTaskError): string {
   switch (error.type) {
     case 'timeout':

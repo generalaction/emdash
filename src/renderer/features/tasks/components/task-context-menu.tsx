@@ -1,4 +1,4 @@
-import { Archive, Copy, Pencil, Pin, PinOff, RotateCcw, Trash2 } from 'lucide-react';
+import { Archive, Copy, MessageSquare, Pencil, Pin, PinOff, RotateCcw, Trash2 } from 'lucide-react';
 import React from 'react';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import {
@@ -21,6 +21,7 @@ interface TaskContextMenuProps {
   onArchive: () => void;
   onRestore?: () => void;
   onReconnect?: () => void;
+  onConvertAutomation?: () => void;
   onDelete: () => void;
 }
 
@@ -36,6 +37,7 @@ export function TaskContextMenu({
   onArchive,
   onRestore,
   onReconnect,
+  onConvertAutomation,
   onDelete,
 }: TaskContextMenuProps) {
   const handleCopyBranchName = async () => {
@@ -77,6 +79,12 @@ export function TaskContextMenu({
           <ContextMenuItem onClick={onReconnect}>
             <RotateCcw className="size-4" />
             Reconnect
+          </ContextMenuItem>
+        )}
+        {onConvertAutomation && (
+          <ContextMenuItem onClick={onConvertAutomation}>
+            <MessageSquare className="size-4" />
+            Convert to regular task
           </ContextMenuItem>
         )}
         {!isArchived && (

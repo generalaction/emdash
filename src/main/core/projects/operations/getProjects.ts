@@ -1,7 +1,7 @@
 import { and, desc, eq } from 'drizzle-orm';
-import type { LocalProject, SshProject } from '@shared/projects';
 import { db } from '@main/db/client';
 import { projects } from '@main/db/schema';
+import type { LocalProject, SshProject } from '@shared/projects';
 
 export async function getProjects(): Promise<(LocalProject | SshProject)[]> {
   const rows = await db.select().from(projects).orderBy(desc(projects.updatedAt));
@@ -13,6 +13,7 @@ export async function getProjects(): Promise<(LocalProject | SshProject)[]> {
           name: row.name,
           path: row.path,
           baseRef: row.baseRef ?? 'main',
+          repositoryWorkspaceId: row.repositoryWorkspaceId ?? null,
           createdAt: row.createdAt,
           updatedAt: row.updatedAt,
         }
@@ -23,6 +24,7 @@ export async function getProjects(): Promise<(LocalProject | SshProject)[]> {
           path: row.path,
           baseRef: row.baseRef ?? 'main',
           connectionId: row.sshConnectionId!,
+          repositoryWorkspaceId: row.repositoryWorkspaceId ?? null,
           createdAt: row.createdAt,
           updatedAt: row.updatedAt,
         }
@@ -41,6 +43,7 @@ export async function getProjectById(
       name: row.name,
       path: row.path,
       baseRef: row.baseRef ?? 'main',
+      repositoryWorkspaceId: row.repositoryWorkspaceId ?? null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
@@ -52,6 +55,7 @@ export async function getProjectById(
     path: row.path,
     baseRef: row.baseRef ?? 'main',
     connectionId: row.sshConnectionId!,
+    repositoryWorkspaceId: row.repositoryWorkspaceId ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -66,6 +70,7 @@ export async function getLocalProjectByPath(path: string): Promise<LocalProject 
     name: row.name,
     path: row.path,
     baseRef: row.baseRef ?? 'main',
+    repositoryWorkspaceId: row.repositoryWorkspaceId ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -88,6 +93,7 @@ export async function getSshProjectByPath(
     path: row.path,
     baseRef: row.baseRef ?? 'main',
     connectionId: row.sshConnectionId!,
+    repositoryWorkspaceId: row.repositoryWorkspaceId ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

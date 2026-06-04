@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
@@ -10,7 +11,7 @@ import {
 
 export type ConfirmActionDialogArgs = {
   title: string;
-  description: string;
+  description: ReactNode;
   confirmLabel?: string;
   variant?: 'destructive' | 'default';
 };
@@ -31,7 +32,7 @@ export function ConfirmActionDialog({
         <DialogTitle>{title}</DialogTitle>
       </DialogHeader>
       <DialogContentArea className="pt-0">
-        <p>{description}</p>
+        {typeof description === 'string' ? <p>{description}</p> : description}
       </DialogContentArea>
       <DialogFooter>
         <Button variant="outline" onClick={onClose}>

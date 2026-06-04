@@ -1,85 +1,72 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AppSettings, AppSettingsKey } from '@shared/app-settings';
-import { rpc } from '@renderer/lib/ipc';
+import {
+  APP_SETTINGS_STALE_TIME_MS,
+  appSettingsMetaQueryKey,
+  getAllAppSettingsFromCache,
+  getAppSettingValueSnapshot,
+  invalidateAppSettingsKey,
+  mergeAppSettingsValue,
+  prefetchAppSettingsKey,
+  requestAppSettingsMeta,
+  resetAppSettingsFieldRequest,
+  resetAppSettingsRequest,
+  restoreAppSettingsCache,
+  setAppSettingsValueInCache,
+  updateAppSettingsRequest,
+  type SettingsMeta,
+} from './app-settings-client';
 
-type SettingsMeta<K extends AppSettingsKey> = {
-  value: AppSettings[K];
-  defaults: AppSettings[K];
-  overrides: Partial<AppSettings[K]>;
-};
-
-function mergeValue<K extends AppSettingsKey>(
-  current: AppSettings[K] | undefined,
-  partial: Partial<AppSettings[K]>
-): AppSettings[K] {
-  if (
-    typeof partial === 'object' &&
-    partial !== null &&
-    typeof current === 'object' &&
-    current !== null
-  ) {
-    return { ...current, ...partial } as AppSettings[K];
-  }
-  return partial as AppSettings[K];
-}
+export { getAppSettingValueSnapshot, prefetchAppSettingsKey };
 
 export function useAppSettingsKey<K extends AppSettingsKey>(key: K) {
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery<SettingsMeta<K>>({
-    queryKey: ['appSettings', key, 'meta'] as const,
-    queryFn: () => rpc.appSettings.getWithMeta(key) as Promise<SettingsMeta<K>>,
-    staleTime: 5 * 60_000,
+    queryKey: appSettingsMetaQueryKey(key),
+    queryFn: () => requestAppSettingsMeta(key),
+    staleTime: APP_SETTINGS_STALE_TIME_MS,
   });
 
   const updateMutation = useMutation<
     void,
     Error,
     Partial<AppSettings[K]>,
-    { prev: SettingsMeta<K> | undefined }
+    { prev: SettingsMeta<K> | undefined; prevAll: AppSettings | undefined }
   >({
     mutationFn: (partial) => {
-      const current = queryClient.getQueryData<SettingsMeta<K>>(['appSettings', key, 'meta']);
-      const merged = mergeValue(current?.value, partial);
-      return rpc.appSettings.update(key, merged) as Promise<void>;
+      const current = queryClient.getQueryData<SettingsMeta<K>>(appSettingsMetaQueryKey(key));
+      const merged = mergeAppSettingsValue(current?.value, partial);
+      return updateAppSettingsRequest(key, merged);
     },
     onMutate: async (partial) => {
-      await queryClient.cancelQueries({ queryKey: ['appSettings', key, 'meta'] });
-      const prev = queryClient.getQueryData<SettingsMeta<K>>(['appSettings', key, 'meta']);
-      queryClient.setQueryData(['appSettings', key, 'meta'], (old: SettingsMeta<K> | undefined) =>
-        old ? { ...old, value: mergeValue(old.value, partial) } : old
-      );
-      queryClient.setQueryData(['appSettings', 'all'], (all: AppSettings | undefined) =>
-        all && prev ? ({ ...all, [key]: mergeValue(prev.value, partial) } as AppSettings) : all
-      );
-      return { prev };
+      await queryClient.cancelQueries({ queryKey: appSettingsMetaQueryKey(key) });
+      const prev = queryClient.getQueryData<SettingsMeta<K>>(appSettingsMetaQueryKey(key));
+      const prevAll = getAllAppSettingsFromCache();
+      const merged = mergeAppSettingsValue(prev?.value, partial);
+      setAppSettingsValueInCache(key, merged);
+      return { prev, prevAll };
     },
     onError: (_err, _partial, ctx) => {
-      if (ctx?.prev !== undefined) {
-        queryClient.setQueryData(['appSettings', key, 'meta'], ctx.prev);
-      }
-      void queryClient.invalidateQueries({ queryKey: ['appSettings', key, 'meta'] });
-      void queryClient.invalidateQueries({ queryKey: ['appSettings', 'all'] });
+      if (ctx) restoreAppSettingsCache(key, ctx.prev, ctx.prevAll);
+      invalidateAppSettingsKey(key);
     },
     onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: ['appSettings', key, 'meta'] });
-      void queryClient.invalidateQueries({ queryKey: ['appSettings', 'all'] });
+      invalidateAppSettingsKey(key);
     },
   });
 
   const resetMutation = useMutation<void, Error, void>({
-    mutationFn: () => rpc.appSettings.reset(key) as Promise<void>,
+    mutationFn: () => resetAppSettingsRequest(key),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['appSettings', key, 'meta'] });
-      void queryClient.invalidateQueries({ queryKey: ['appSettings', 'all'] });
+      invalidateAppSettingsKey(key);
     },
   });
 
   const resetFieldMutation = useMutation<void, Error, keyof AppSettings[K]>({
-    mutationFn: (field) => rpc.appSettings.resetField(key, field as string) as Promise<void>,
+    mutationFn: (field) => resetAppSettingsFieldRequest(key, field),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['appSettings', key, 'meta'] });
-      void queryClient.invalidateQueries({ queryKey: ['appSettings', 'all'] });
+      invalidateAppSettingsKey(key);
     },
   });
 

@@ -1,6 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
+import { useWorkspace } from '@renderer/features/tasks/task-view-context';
+import { rpc } from '@renderer/lib/ipc';
+import { formatBytes } from '@renderer/utils/formatBytes';
 import {
   gitRefToString,
   HEAD_REF,
@@ -10,9 +13,6 @@ import {
 } from '@shared/git';
 import type { Result } from '@shared/result';
 import type { ActiveFile } from '@shared/view-state';
-import { useProvisionedTask } from '@renderer/features/tasks/task-view-context';
-import { rpc } from '@renderer/lib/ipc';
-import { formatBytes } from '@renderer/utils/formatBytes';
 
 interface ImageDiffViewProps {
   projectId: string;
@@ -75,7 +75,7 @@ function loadFromRef(
   ref: GitRef
 ): Promise<SideState> {
   return loadGitImage(() =>
-    rpc.git.getImageAtRef(projectId, workspaceId, filePath, gitRefToString(ref))
+    rpc.workspace.git.getImageAtRef(projectId, workspaceId, filePath, gitRefToString(ref))
   );
 }
 
@@ -84,7 +84,7 @@ async function loadFromDisk(
   workspaceId: string,
   filePath: string
 ): Promise<SideState> {
-  const res = await rpc.fs.readImage(projectId, workspaceId, filePath);
+  const res = await rpc.workspace.fs.readImage(projectId, workspaceId, filePath);
   if (!res.success) return { status: 'unavailable', reason: 'git-error' };
   const image = res.data;
   if (!image?.success) {
@@ -119,7 +119,9 @@ function loadModified(
     case 'disk':
       return loadFromDisk(projectId, workspaceId, activeFile.path);
     case 'staged':
-      return loadGitImage(() => rpc.git.getImageAtIndex(projectId, workspaceId, activeFile.path));
+      return loadGitImage(() =>
+        rpc.workspace.git.getImageAtIndex(projectId, workspaceId, activeFile.path)
+      );
     case 'git':
     case 'pr':
       return loadFromRef(
@@ -162,7 +164,7 @@ function ImageSidePanel({ label, state, side }: { label: string; state: SideStat
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-1 flex-col">
       <div className="flex shrink-0 items-baseline gap-2 border-b border-border px-3 py-2">
-        <span className="font-mono text-xs uppercase tracking-wide text-foreground-muted">
+        <span className="font-mono text-xs tracking-wide text-foreground-muted uppercase">
           {label}
         </span>
         {state.status === 'ready' && (
@@ -228,8 +230,8 @@ export const ImageDiffView = observer(function ImageDiffView({
   workspaceId,
   activeFile,
 }: ImageDiffViewProps) {
-  const provisioned = useProvisionedTask();
-  const git = provisioned.workspace.git;
+  const workspace = useWorkspace();
+  const git = workspace.git;
 
   const fileKey = `${activeFile.path}|${activeFile.group}|${gitRefToString(activeFile.originalRef)}|${activeFile.modifiedRef ? gitRefToString(activeFile.modifiedRef) : ''}`;
 

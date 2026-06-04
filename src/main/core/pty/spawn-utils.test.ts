@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import type { RemoteShellProfile } from '@main/core/ssh/lifecycle/remote-shell-profile';
+import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
 import type { AgentSessionConfig } from '@shared/agent-session';
 import type { GeneralSessionConfig } from '@shared/general-session';
-import type { RemoteShellProfile } from '@main/core/ssh/remote-shell-profile';
 import { resolveSshCommand } from './spawn-utils';
 
 function makeAgentConfig(overrides: Partial<AgentSessionConfig> = {}): AgentSessionConfig {
@@ -31,6 +32,45 @@ const zshProfile: RemoteShellProfile = {
   env: {
     PATH: '/Users/jona/.local/bin:/opt/homebrew/bin:/usr/bin',
   },
+};
+
+const tcshLoginProfile: RemoteShellProfile = {
+  shell: '/bin/tcsh',
+  env: {
+    PATH: '/usr/bin',
+  },
+};
+
+const bashRemoteProfile: ResolvedShellProfile = {
+  id: 'bash',
+  resolvedShellId: 'bash',
+  resolvedFromSystem: false,
+  executable: 'bash',
+  available: true,
+  family: 'posix',
+  interactiveArgs: ['-il'],
+  commandArgs: ['-lc'],
+  envCaptureArgs: ['-ilc'],
+  capturedEnv: {
+    PATH: '/Users/jona/.local/bin:/opt/homebrew/bin:/usr/bin',
+  },
+  remotePathLookup: true,
+};
+
+const tcshRemoteProfile: ResolvedShellProfile = {
+  id: 'tcsh',
+  resolvedShellId: 'tcsh',
+  resolvedFromSystem: false,
+  executable: 'tcsh',
+  available: true,
+  family: 'csh',
+  interactiveArgs: ['-i'],
+  commandArgs: ['-c'],
+  envCaptureArgs: ['-i', '-c'],
+  capturedEnv: {
+    PATH: '/usr/bin',
+  },
+  remotePathLookup: true,
 };
 
 describe('resolveSshCommand', () => {
@@ -67,6 +107,21 @@ describe('resolveSshCommand', () => {
     );
   });
 
+  it('keeps captured csh-family login shells on the supported sh fallback for agents', () => {
+    const result = resolveSshCommand(
+      'agent',
+      makeAgentConfig({
+        shellSetup: 'export FOO=bar',
+      }),
+      undefined,
+      tcshLoginProfile
+    );
+
+    expect(result).toBe(
+      `'/bin/sh' -c 'export PATH='\\''/usr/bin'\\''; cd "/workspace" && export FOO=bar && '\\''claude'\\'' '\\''--resume'\\'' '\\''conv-1'\\'''`
+    );
+  });
+
   it('quotes remote agent argv tokens independently', () => {
     const result = resolveSshCommand(
       'agent',
@@ -93,9 +148,10 @@ describe('resolveSshCommand', () => {
       zshProfile
     );
 
-    expect(result).toContain('tmux has-session -t "agent-session"');
-    expect(result).toContain('tmux new-session -d -s "agent-session"');
-    expect(result).toContain('tmux attach-session -t "agent-session"');
+    expect(result).toContain('tmux has-session -t \\"agent-session\\"');
+    expect(result).toContain('tmux new-session -d -s \\"agent-session\\"');
+    expect(result).toContain('tmux attach-session -t \\"agent-session\\"');
+    expect(result).toContain('/bin/sh -c');
     expect(result).toContain("'\\''claude'\\'' '\\''--resume'\\'' '\\''conv-1'\\''");
   });
 
@@ -105,5 +161,48 @@ describe('resolveSshCommand', () => {
     expect(result).toBe(
       `'/bin/zsh' -lc 'export PATH='\\''/Users/jona/.local/bin:/opt/homebrew/bin:/usr/bin'\\''; cd "/workspace" && exec /bin/zsh -il'`
     );
+  });
+
+  it('uses the selected remote shell profile with PATH lookup for general terminals', () => {
+    const result = resolveSshCommand('general', makeGeneralConfig(), undefined, bashRemoteProfile);
+
+    expect(result).toContain(
+      `'/usr/bin/env' 'PATH=/Users/jona/.local/bin:/opt/homebrew/bin:/usr/bin' 'bash' -lc`
+    );
+    expect(result).toContain(
+      `export PATH='\\''/Users/jona/.local/bin:/opt/homebrew/bin:/usr/bin'\\''`
+    );
+    expect(result).toContain(`export SHELL='\\''bash'\\''`);
+    expect(result).toContain(`cd "/workspace" && exec bash -il`);
+  });
+
+  it('uses task PATH overrides when looking up the selected remote shell', () => {
+    const result = resolveSshCommand(
+      'general',
+      makeGeneralConfig(),
+      { PATH: '/task/bin:/usr/bin' },
+      bashRemoteProfile
+    );
+
+    expect(result).toContain(`'/usr/bin/env' 'PATH=/task/bin:/usr/bin' 'bash' -lc`);
+    expect(result.indexOf('/Users/jona/.local/bin')).toBeLessThan(
+      result.lastIndexOf('/task/bin:/usr/bin')
+    );
+    expect(result).toContain(`export SHELL='\\''bash'\\''`);
+  });
+
+  it('escapes history expansion for csh-family remote argv commands', () => {
+    const result = resolveSshCommand(
+      'agent',
+      makeAgentConfig({
+        command: 'printf',
+        args: ['hello!'],
+      }),
+      undefined,
+      tcshRemoteProfile
+    );
+
+    expect(result).toContain("'/usr/bin/env' 'PATH=/usr/bin' 'tcsh' -c");
+    expect(result).toContain("'\\''hello\\!'\\''");
   });
 });

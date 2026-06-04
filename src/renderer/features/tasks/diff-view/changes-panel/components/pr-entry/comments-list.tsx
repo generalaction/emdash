@@ -1,25 +1,28 @@
 import { ExternalLink, MessageSquare } from 'lucide-react';
 import { useMemo } from 'react';
-import type { PullRequestComment } from '@shared/pull-requests';
 import { rpc } from '@renderer/lib/ipc';
 import { MarkdownRenderer } from '@renderer/lib/ui/markdown-renderer';
 import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { cn } from '@renderer/utils/utils';
+import {
+  sortPullRequestConversationItems,
+  type PullRequestConversationItem,
+} from './pull-request-conversation';
 
-function commentAuthorLabel(comment: PullRequestComment): string {
+function commentAuthorLabel(comment: PullRequestConversationItem): string {
   return comment.author?.displayName ?? comment.author?.userName ?? 'Unknown author';
 }
 
-function commentLocationLabel(comment: PullRequestComment): string | null {
+function commentLocationLabel(comment: PullRequestConversationItem): string | null {
   if (!comment.path) return null;
   return comment.line ? `${comment.path}:${comment.line}` : comment.path;
 }
 
-function isBotAuthor(comment: PullRequestComment): boolean {
+function isBotAuthor(comment: PullRequestConversationItem): boolean {
   return comment.author?.userName.endsWith('[bot]') ?? false;
 }
 
-function CommentItem({ comment }: { comment: PullRequestComment }) {
+function CommentItem({ comment }: { comment: PullRequestConversationItem }) {
   const location = commentLocationLabel(comment);
   const author = commentAuthorLabel(comment);
   const avatarRadiusClass = isBotAuthor(comment) ? 'rounded' : 'rounded-full';
@@ -46,7 +49,7 @@ function CommentItem({ comment }: { comment: PullRequestComment }) {
         <div className="flex min-w-0 items-center gap-1.5 text-xs text-foreground-muted">
           <span className="truncate font-medium text-foreground">{author}</span>
           <span className="shrink-0 text-foreground-passive">/</span>
-          <RelativeTime compact value={comment.updatedAt} className="shrink-0" />
+          <RelativeTime compact value={comment.createdAt} className="shrink-0" />
           {comment.isResolved && (
             <>
               <span className="shrink-0 text-foreground-passive">/</span>
@@ -65,15 +68,11 @@ function CommentItem({ comment }: { comment: PullRequestComment }) {
             comment.isOutdated && 'text-foreground-passive'
           )}
         >
-          <MarkdownRenderer
-            content={comment.body}
-            variant="compact"
-            allowHtml={isBotAuthor(comment)}
-          />
+          <MarkdownRenderer content={comment.body} variant="compact" allowHtml />
         </div>
       </div>
       <button
-        className="absolute right-3 top-2 hidden items-center justify-center rounded bg-background-1 px-1 py-0.5 text-foreground-muted hover:text-foreground group-hover:flex"
+        className="absolute top-2 right-3 hidden items-center justify-center rounded bg-background-1 px-1 py-0.5 text-foreground-muted group-hover:flex hover:text-foreground"
         onClick={() => void rpc.app.openExternal(comment.url)}
       >
         <ExternalLink className="size-3.5" />
@@ -87,23 +86,17 @@ export function CommentsList({
   isLoading,
   error,
 }: {
-  comments: PullRequestComment[];
+  comments: PullRequestConversationItem[];
   isLoading?: boolean;
   error?: Error | null;
 }) {
-  const sorted = useMemo(
-    () =>
-      [...comments].sort(
-        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-      ),
-    [comments]
-  );
+  const sorted = useMemo(() => [...comments].sort(sortPullRequestConversationItems), [comments]);
 
-  if (isLoading) {
+  if (isLoading && sorted.length === 0) {
     return <div className="px-3 py-2 text-xs text-foreground-passive">Loading comments...</div>;
   }
 
-  if (error) {
+  if (error && sorted.length === 0) {
     return <div className="px-3 py-2 text-xs text-foreground-passive">Unable to load comments</div>;
   }
 
@@ -116,6 +109,12 @@ export function CommentsList({
       {sorted.map((comment) => (
         <CommentItem key={comment.id} comment={comment} />
       ))}
+      {isLoading && (
+        <div className="px-3 py-2 text-xs text-foreground-passive">Loading comments...</div>
+      )}
+      {error && (
+        <div className="px-3 py-2 text-xs text-foreground-passive">Unable to load comments</div>
+      )}
     </div>
   );
 }

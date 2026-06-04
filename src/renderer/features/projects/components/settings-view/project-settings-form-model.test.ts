@@ -19,12 +19,15 @@ function makeForm(overrides: Partial<FormState> = {}): FormState {
     preservePatterns: '',
     shellSetup: '',
     tmux: false,
+    autoRunSetupScriptOnTaskCreation: true,
+    autoRunRunScriptOnTaskCreation: false,
     scriptSetup: '',
     scriptRun: '',
     scriptTeardown: '',
     worktreeDirectory: '',
     defaultBranch: null,
-    remote: '',
+    baseRemote: '',
+    pushRemote: '',
     provisionCommand: '',
     terminateCommand: '',
     ...overrides,
@@ -38,6 +41,8 @@ describe('project settings form model', () => {
         preservePatterns: ['.env', '.env.local'],
         shellSetup: 'source .envrc',
         tmux: true,
+        autoRunSetupScriptOnTaskCreation: false,
+        autoRunRunScriptOnTaskCreation: true,
         scripts: {
           setup: 'pnpm install',
           run: 'pnpm dev',
@@ -45,7 +50,8 @@ describe('project settings form model', () => {
         },
         worktreeDirectory: '../worktrees',
         defaultBranch: 'upstream/main',
-        remote: 'upstream',
+        baseRemote: 'upstream',
+        pushRemote: 'origin',
         workspaceProvider: {
           type: 'script',
           provisionCommand: './provision.sh',
@@ -60,12 +66,15 @@ describe('project settings form model', () => {
       preservePatterns: '.env\n.env.local',
       shellSetup: 'source .envrc',
       tmux: true,
+      autoRunSetupScriptOnTaskCreation: false,
+      autoRunRunScriptOnTaskCreation: true,
       scriptSetup: 'pnpm install',
       scriptRun: 'pnpm dev',
       scriptTeardown: 'docker compose down',
       worktreeDirectory: '../worktrees',
       defaultBranch: { type: 'remote', branch: 'main', remote: upstream },
-      remote: 'upstream',
+      baseRemote: 'upstream',
+      pushRemote: 'origin',
       provisionCommand: './provision.sh',
       terminateCommand: './terminate.sh',
     });
@@ -97,10 +106,13 @@ describe('project settings form model', () => {
           preservePatterns: ' .env \n\n.env.local ',
           shellSetup: 'source .envrc',
           tmux: true,
+          autoRunSetupScriptOnTaskCreation: false,
+          autoRunRunScriptOnTaskCreation: true,
           scriptRun: 'pnpm dev',
           worktreeDirectory: '../worktrees',
           defaultBranch: { type: 'remote', branch: 'main', remote: origin },
-          remote: 'origin',
+          baseRemote: 'origin',
+          pushRemote: '',
           provisionCommand: ' ./provision.sh ',
           terminateCommand: ' ./terminate.sh ',
         })
@@ -109,6 +121,8 @@ describe('project settings form model', () => {
       preservePatterns: ['.env', '.env.local'],
       shellSetup: 'source .envrc',
       tmux: true,
+      autoRunSetupScriptOnTaskCreation: false,
+      autoRunRunScriptOnTaskCreation: true,
       scripts: {
         setup: undefined,
         run: 'pnpm dev',
@@ -116,13 +130,18 @@ describe('project settings form model', () => {
       },
       worktreeDirectory: '../worktrees',
       defaultBranch: 'origin/main',
-      remote: 'origin',
+      baseRemote: 'origin',
       workspaceProvider: {
         type: 'script',
         provisionCommand: './provision.sh',
         terminateCommand: './terminate.sh',
       },
     });
+  });
+
+  it('omits default auto-run lifecycle settings from persisted form settings', () => {
+    expect(formToSettings(makeForm())).not.toHaveProperty('autoRunSetupScriptOnTaskCreation');
+    expect(formToSettings(makeForm())).not.toHaveProperty('autoRunRunScriptOnTaskCreation');
   });
 
   it('requires workspace provider commands to be filled together', () => {

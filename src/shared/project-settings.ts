@@ -43,8 +43,11 @@ export type ShareableProjectSettings = z.infer<typeof shareableProjectSettingsSc
 export const baseProjectSettingsSchema = z.object({
   worktreeDirectory: z.string().trim().optional(),
   defaultBranch: defaultBranchSettingSchema.optional(),
-  remote: z.string().optional(),
+  baseRemote: z.string().optional(),
+  pushRemote: z.string().optional(),
   tmux: z.boolean().optional(),
+  autoRunSetupScriptOnTaskCreation: z.boolean().optional(),
+  autoRunRunScriptOnTaskCreation: z.boolean().optional(),
   workspaceProvider: z
     .object({
       type: z.literal('script'),
@@ -56,11 +59,17 @@ export const baseProjectSettingsSchema = z.object({
 
 export type BaseProjectSettings = z.infer<typeof baseProjectSettingsSchema>;
 
+export const legacyBaseProjectSettingsSchema = baseProjectSettingsSchema.extend({
+  remote: z.string().optional(),
+});
+
 export const projectSettingsSchema = baseProjectSettingsSchema.merge(
   shareableProjectSettingsSchema
 );
 
-export const legacyProjectConfigSchema = projectSettingsSchema;
+export const legacyProjectConfigSchema = legacyBaseProjectSettingsSchema.merge(
+  shareableProjectSettingsSchema
+);
 
 export function defaultShareableProjectSettings(): ShareableProjectSettings {
   return shareableProjectSettingsWithDefaultsSchema.parse({});
@@ -75,6 +84,8 @@ export type ProjectSettingsPage = {
   };
   writeTargets: ProjectSettingsWriteTargetOption[];
   overrideState: ProjectSettingsOverrideState;
+  configMigrations: ProjectConfigMigration[];
+  shouldPromptConfigMigration: boolean;
 };
 
 export type ProjectSettingsWriteTarget =
@@ -117,6 +128,28 @@ export type ProjectSettingsOverrideState = Record<
   ShareableProjectSettingsWriteField,
   ProjectSettingsOverrideSource[]
 >;
+
+export type ProjectConfigMigrationProvider = 'conductor' | 'superset' | 'paseo' | 'codex';
+
+export type ProjectConfigMigration = {
+  provider: ProjectConfigMigrationProvider;
+  label: string;
+  files: string[];
+  fields: ShareableProjectSettingsWriteField[];
+  unsupportedFields: string[];
+};
+
+export type ProjectConfigMigrationDestination = 'local' | 'shared';
+
+export type MigrateProjectConfigRequest = {
+  provider: ProjectConfigMigrationProvider;
+  destination: ProjectConfigMigrationDestination;
+};
+
+export type MigrateProjectConfigResult = {
+  page: ProjectSettingsPage;
+  migration: ProjectConfigMigration;
+};
 
 export function emptyProjectSettingsOverrideState(): ProjectSettingsOverrideState {
   return {

@@ -1,6 +1,10 @@
 import { observer } from 'mobx-react-lite';
 import { useEffect, useRef, useState } from 'react';
-import { useProvisionedTask, useTaskViewContext } from '@renderer/features/tasks/task-view-context';
+import {
+  useTaskViewContext,
+  useWorkspaceId,
+  useWorkspaceViewModel,
+} from '@renderer/features/tasks/task-view-context';
 import { HTML_EXTS } from '@renderer/lib/editor/fileKind';
 import { PreviewSourceToggle } from '@renderer/lib/editor/preview-source-toggle';
 import { rpc } from '@renderer/lib/ipc';
@@ -31,9 +35,9 @@ const LINK_INTERCEPT_SCRIPT = `
 
 export const HtmlRenderer = observer(function HtmlRenderer({ filePath }: HtmlRendererProps) {
   const { projectId } = useTaskViewContext();
-  const provisioned = useProvisionedTask();
-  const { workspaceId } = provisioned;
-  const { editorView, tabManager } = provisioned.taskView;
+  const workspaceId = useWorkspaceId();
+  const taskView = useWorkspaceViewModel();
+  const { editorView, tabManager } = taskView;
   const bufferUri = buildMonacoModelPath(editorView.modelRootPath, filePath);
 
   // Touch bufferVersions so this observer re-renders when the buffer is first
@@ -253,7 +257,7 @@ async function readWorkspaceText(
   workspaceId: string,
   filePath: string
 ): Promise<string | null> {
-  const result = await rpc.fs.readFile(projectId, workspaceId, filePath);
+  const result = await rpc.workspace.fs.readFile(projectId, workspaceId, filePath);
   return result.success ? (result.data?.content ?? null) : null;
 }
 
@@ -262,7 +266,7 @@ async function readWorkspaceImage(
   workspaceId: string,
   filePath: string
 ): Promise<string | null> {
-  const result = await rpc.fs.readImage(projectId, workspaceId, filePath);
+  const result = await rpc.workspace.fs.readImage(projectId, workspaceId, filePath);
   return result.success ? (result.data?.dataUrl ?? null) : null;
 }
 

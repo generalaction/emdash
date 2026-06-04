@@ -1,6 +1,6 @@
 import { Check } from 'lucide-react';
-import { type LegacyImportSource, type LegacyPortPreviewSource } from '@shared/legacy-port';
 import { cn } from '@renderer/utils/utils';
+import { type LegacyImportSource, type LegacyPortPreviewSource } from '@shared/legacy-port';
 import { formatCount, sourceLabel } from './import-format';
 
 function SourceCard({
