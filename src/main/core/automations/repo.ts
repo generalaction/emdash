@@ -11,7 +11,11 @@ import {
   type AutomationRunRow,
 } from '@main/db/schema';
 import { log } from '@main/lib/logger';
-import type { Automation, CreateAutomationParams, UpdateAutomationPatch } from '@shared/automations/automation';
+import type {
+  Automation,
+  CreateAutomationParams,
+  UpdateAutomationPatch,
+} from '@shared/automations/automation';
 import type {
   AutomationRun,
   AutomationRunStatus,
@@ -140,7 +144,11 @@ function mapAutomationRows(rows: AutomationRow[]): Automation[] {
 function parseSnapshotTriggerConfig(raw: string, runId: string): TriggerConfig {
   try {
     const parsed = JSON.parse(raw) as unknown;
-    if (parsed && typeof parsed === 'object' && typeof (parsed as Record<string, unknown>)['expr'] === 'string') {
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      typeof (parsed as Record<string, unknown>)['expr'] === 'string'
+    ) {
       return parsed as TriggerConfig;
     }
   } catch {
@@ -181,7 +189,10 @@ function mapAutomationRunRow(row: AutomationRunRow): AutomationRun {
     triggerKind: asRunTriggerKind(row.triggerKind, row.id),
     workerId: row.workerId,
     triggerConfigSnapshot: parseSnapshotTriggerConfig(row.triggerConfigSnapshot, row.id),
-    conversationConfigSnapshot: parseSnapshotConversationConfig(row.conversationConfigSnapshot, row.id),
+    conversationConfigSnapshot: parseSnapshotConversationConfig(
+      row.conversationConfigSnapshot,
+      row.id
+    ),
     taskConfigSnapshot: parseTaskConfig(row.taskConfigSnapshot),
   };
 }

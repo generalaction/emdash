@@ -1,5 +1,10 @@
-import { AutomationRow } from '@main/db/schema';
+import { AutomationRow, AutomationRunRow } from '@main/db/schema';
 import { Automation } from '@shared/automations/automation';
+import {
+  AutomationRun,
+  AutomationRunStatus,
+  AutomationRunTriggerKind,
+} from '@shared/automations/automation-run';
 
 export function mapAutomationRowToAutomation(row: AutomationRow): Automation {
   return {
@@ -12,5 +17,28 @@ export function mapAutomationRowToAutomation(row: AutomationRow): Automation {
     enabled: row.enabled === 1,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+  };
+}
+
+export function mapAutomationRunRowToAutomationRun(row: AutomationRunRow): AutomationRun {
+  return {
+    id: row.id,
+    automationId: row.automationId,
+    status: row.status as AutomationRunStatus,
+    triggerKind: row.triggerKind as AutomationRunTriggerKind,
+    triggerConfigSnapshot: row.triggerConfigSnapshot
+      ? JSON.parse(row.triggerConfigSnapshot)
+      : undefined,
+    conversationConfigSnapshot: row.conversationConfigSnapshot
+      ? JSON.parse(row.conversationConfigSnapshot)
+      : undefined,
+    taskConfigSnapshot: row.taskConfigSnapshot ? JSON.parse(row.taskConfigSnapshot) : undefined,
+    scheduledAt: row.scheduledAt,
+    deadlineAt: row.deadlineAt,
+    startedAt: row.startedAt,
+    finishedAt: row.finishedAt,
+    taskId: row.taskId,
+    error: row.error,
+    workerId: row.workerId,
   };
 }

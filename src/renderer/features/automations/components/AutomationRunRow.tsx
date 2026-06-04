@@ -109,7 +109,6 @@ export const AutomationRunRow = observer(function AutomationRunRow({
           <AgentStatusIndicator status={agentStatus} disableTooltip />
         </div>
         <span>Stacked agent logos</span>
-
       </div>
 
       {/* Line 2: date | triggered by */}

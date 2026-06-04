@@ -1,27 +1,10 @@
-import { ChevronDown, Ellipsis, FolderOpen, Play, Square, Trash2, X } from 'lucide-react';
+import { CheckCircle2, Ellipsis, Play, Square, Trash2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useMemo, useState, type ReactNode } from 'react';
-import {
-  asMounted,
-  firstMountedProjectId,
-  getProjectStore,
-  getRepositoryStore,
-} from '@renderer/features/projects/stores/project-selectors';
-import {
-  InitialConversationField,
-  useInitialConversationState,
-} from '@renderer/features/tasks/conversations/initial-conversation-section';
-import { BranchPickerField } from '@renderer/features/tasks/create-task-modal/branch-picker-field';
-import { ProjectSelector } from '@renderer/features/tasks/create-task-modal/project-selector';
-import { useBranchName } from '@renderer/features/tasks/create-task-modal/use-branch-name';
-import { useBranchSelection } from '@renderer/features/tasks/create-task-modal/use-branch-selection';
-import { useTaskName } from '@renderer/features/tasks/create-task-modal/use-task-name';
+import { useState } from 'react';
 import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
 import { useToast } from '@renderer/lib/hooks/use-toast';
-import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
-import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
   DropdownMenu,
@@ -30,70 +13,20 @@ import {
   DropdownMenuTrigger,
 } from '@renderer/lib/ui/dropdown-menu';
 import { EditableNameField } from '@renderer/lib/ui/editable-name-field';
-import { Label } from '@renderer/lib/ui/label';
 import { PanelTabs } from '@renderer/lib/ui/panel-tabs';
 import { SheetFooter } from '@renderer/lib/ui/sheet';
 import { Switch } from '@renderer/lib/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import { isValidProviderId } from '@shared/agent-provider-registry';
 import type { Automation } from '@shared/automations/automation';
-import type { ConversationConfig, TriggerConfig, StoredAutomationTaskConfig } from '@shared/automations/config';
+import type { ConversationConfig } from '@shared/automations/config';
 import { formatAutomationError } from '@shared/automations/format';
-import { DEFAULT_SCHEDULE, scheduleToCron } from '@shared/automations/schedule';
-import { getLocalTimeZone } from '@shared/automations/timezone';
 import { assertValidCronTrigger } from '@shared/automations/validation';
-import type { Branch } from '@shared/git';
 import { makePtySessionId } from '@shared/ptySessionId';
-import type { WorkspaceConfig, WorkspaceTarget } from '@shared/workspace-config';
 import { isActiveStatus } from '../run-status-styles';
-import { useAutomationRuns } from '../use-automations';
-import { SchedulePicker } from './pickers/SchedulePicker';
+import { useAutomationRuns, useAutomations } from '../use-automations';
+import { useAutomationFormState } from '../useAutomationFormState';
+import { AutomationSettingsFields } from './AutomationSettingsFields';
 import { RunHistory } from './RunHistory';
-
-const DEFAULT_CRON = scheduleToCron(DEFAULT_SCHEDULE);
-
-function cronExprFromTrigger(trigger: TriggerConfig | undefined): string {
-  return trigger?.expr ?? DEFAULT_CRON;
-}
-
-function cronTzFromTrigger(trigger: TriggerConfig | undefined): string {
-  return trigger?.tz ?? getLocalTimeZone();
-}
-
-function branchInitialFromConfig(config: StoredAutomationTaskConfig | null | undefined): {
-  createBranchAndWorktree: boolean;
-  pushBranch?: boolean;
-  branchOverride?: Branch;
-} {
-  if (!config) return { createBranchAndWorktree: true };
-  const git = config.workspaceConfig.git;
-  if (git.kind === 'create-branch') {
-    return {
-      createBranchAndWorktree: true,
-      pushBranch: git.pushBranch,
-      branchOverride: git.fromBranch,
-    };
-  }
-  if (git.kind === 'none') return { createBranchAndWorktree: false };
-  return { createBranchAndWorktree: true };
-}
-
-function plainBranch(branch: Branch): Branch {
-  if (branch.type === 'remote') {
-    return {
-      type: 'remote',
-      branch: branch.branch,
-      remote: { name: branch.remote.name, url: branch.remote.url },
-    };
-  }
-  return branch.remote
-    ? {
-        type: 'local',
-        branch: branch.branch,
-        remote: { name: branch.remote.name, url: branch.remote.url },
-      }
-    : { type: 'local', branch: branch.branch };
-}
 
 type AutomationTab = 'runs' | 'settings';
 
@@ -119,106 +52,35 @@ export const AutomationDetailView = observer(function AutomationDetailView({
   runNowPending: _runNowPending,
 }: AutomationDetailViewProps) {
   const [activeTab, setActiveTab] = useState<AutomationTab>('runs');
-
-  const seedTrigger = automation.triggerConfig;
-  const seedConversationConfig = automation.conversationConfig;
-  const seedConfig = automation.taskConfig;
-
-  const [name, setName] = useState(automation.name);
-  const [projectId, setProjectId] = useState<string | undefined>(
-    automation.projectId ?? firstMountedProjectId()
-  );
-  const [cronExpr, setCronExpr] = useState<string>(cronExprFromTrigger(seedTrigger));
-  const [cronTz] = useState<string>(cronTzFromTrigger(seedTrigger));
-  const [useBYOI, setUseBYOI] = useState(() => {
-    const ws = seedConfig?.workspaceConfig.workspace;
-    return ws?.kind === 'byoi' || (ws as { host?: string } | undefined)?.host === 'byoi';
-  });
   const [error, setError] = useState<string | null>(null);
   const [cronError, setCronError] = useState<string | null>(null);
 
-  const effectiveProjectId =
-    projectId && asMounted(getProjectStore(projectId)) ? projectId : firstMountedProjectId();
-
-  const seedProvider = isValidProviderId(seedConversationConfig?.provider)
-    ? seedConversationConfig?.provider
-    : undefined;
-
-  const initialConversation = useInitialConversationState(effectiveProjectId, seedProvider);
-
-  const [promptSeeded, setPromptSeeded] = useState(false);
-  if (!promptSeeded && seedConversationConfig?.prompt) {
-    setPromptSeeded(true);
-    initialConversation.setPrompt(seedConversationConfig.prompt);
-  }
-
-  const repo = effectiveProjectId ? getRepositoryStore(effectiveProjectId) : undefined;
-  const defaultBranch = repo?.defaultBranch;
-  const isUnborn = repo?.isUnborn ?? false;
-  const currentBranch = repo?.currentBranch ?? null;
-
-  const branchInitial = useMemo(() => branchInitialFromConfig(seedConfig), [seedConfig]);
-  const taskName = useTaskName({
-    generatedName: seedConfig?.taskConfig.name,
-    resetKey: effectiveProjectId,
-  });
-  const branchSelection = useBranchSelection(
+  const formState = useAutomationFormState(automation);
+  const {
+    name,
+    setName,
     effectiveProjectId,
-    defaultBranch,
-    isUnborn,
-    currentBranch,
-    branchInitial
-  );
-  const branchNameState = useBranchName({
-    taskName: taskName.effectiveTaskName || name,
-    projectId: effectiveProjectId,
-    resetKey: effectiveProjectId,
-  });
-  const isBranchValid =
-    !branchSelection.createBranchAndWorktree ||
-    (branchNameState.branchName.trim().length > 0 && !branchNameState.branchAlreadyExists);
-  const isTaskConfigValid = !!branchSelection.selectedBranch && isBranchValid;
+    prompt,
+    provider,
+    canSave,
+    triggerConfig,
+    buildTaskConfig,
+  } = formState;
 
-  const fromBranch = {
-    selectedBranch: branchSelection.selectedBranch,
-    createBranchAndWorktree: branchSelection.createBranchAndWorktree,
-    pushBranch: branchSelection.pushBranch,
-    branchName: branchNameState.branchName,
-    taskName: taskName.effectiveTaskName,
-    isValid: isTaskConfigValid,
-  };
-
-  const workspaceSettingsKey = useMemo(
-    () => `${effectiveProjectId ?? 'none'}:${automation.id}`,
-    [effectiveProjectId, automation.id]
-  );
-
+  const { update } = useAutomations();
   const { toast } = useToast();
-  const isPending = false;
+  const isPending = update.isPending;
 
   const recentRuns = useAutomationRuns(automation.id, 10);
   const hasActiveRuns = recentRuns.data?.some((r) => isActiveStatus(r.status)) ?? false;
   const canRunNow = false;
-
-  const isWorkspaceProviderEnabled = useFeatureFlag('workspace-provider');
-  const effectiveUseBYOI = isWorkspaceProviderEnabled && useBYOI;
-
-  const prompt = initialConversation.prompt;
-  const provider = initialConversation.provider ?? 'claude';
-
-  const canSave =
-    name.trim().length > 0 &&
-    prompt.trim().length > 0 &&
-    !!effectiveProjectId &&
-    fromBranch.isValid &&
-    !isPending;
 
   function handleStopAll() {
     if (!automation.projectId) return;
     const pid = automation.projectId;
     for (const run of recentRuns.data ?? []) {
       if (!isActiveStatus(run.status)) continue;
-      const taskId = run.taskId
+      const taskId = run.taskId;
       if (!taskId) continue;
       const mgr = conversationRegistry.get(taskId);
       if (!mgr) continue;
@@ -230,48 +92,11 @@ export const AutomationDetailView = observer(function AutomationDetailView({
     }
   }
 
-  function buildTaskConfig(targetProjectId: string): StoredAutomationTaskConfig | null {
-    if (!fromBranch.selectedBranch) return null;
-    const noWorktree = isUnborn || !fromBranch.createBranchAndWorktree || effectiveUseBYOI;
-    const git = noWorktree
-      ? { kind: 'none' as const }
-      : {
-          kind: 'create-branch' as const,
-          branchName: fromBranch.branchName,
-          fromBranch: plainBranch(fromBranch.selectedBranch),
-          pushBranch: fromBranch.pushBranch,
-        };
-    let workspace: WorkspaceTarget;
-    if (effectiveUseBYOI) {
-      workspace = { kind: 'byoi' };
-    } else if (git.kind === 'none') {
-      const repositoryWorkspaceId = asMounted(getProjectStore(targetProjectId))?.data
-        ?.repositoryWorkspaceId;
-      workspace = repositoryWorkspaceId
-        ? { kind: 'repository-instance', workspaceId: repositoryWorkspaceId }
-        : { kind: 'new-worktree' };
-    } else {
-      workspace = { kind: 'new-worktree' };
-    }
-    const workspaceConfig: WorkspaceConfig = { version: '2', git, workspace };
-    return {
-      version: '1',
-      taskConfig: {
-        version: '1',
-        name: fromBranch.taskName?.trim() || name.trim(),
-        linkedIssue: seedConfig?.taskConfig.linkedIssue,
-        initialStatus: seedConfig?.taskConfig.initialStatus,
-      },
-      workspaceConfig,
-    };
-  }
-
   async function handleSave() {
     if (!effectiveProjectId || !canSave) return;
     setError(null);
     const taskConfig = buildTaskConfig(effectiveProjectId);
     if (!taskConfig) return;
-    const triggerConfig: TriggerConfig = { expr: cronExpr.trim(), tz: cronTz };
     try {
       assertValidCronTrigger(triggerConfig);
     } catch (validationError) {
@@ -279,82 +104,31 @@ export const AutomationDetailView = observer(function AutomationDetailView({
       return;
     }
     setCronError(null);
-    const _conversationConfig: ConversationConfig = {
+    const conversationConfig: ConversationConfig = {
       prompt: prompt.trim(),
       provider,
       autoApprove: false,
     };
-    // update not yet implemented
-    toast({
-      title: 'Not yet available',
-      description: 'Saving changes to an automation is coming soon.',
-    });
+    try {
+      const saved = await update.mutateAsync({
+        id: automation.id,
+        patch: {
+          name: name.trim(),
+          triggerConfig,
+          conversationConfig,
+          taskConfig,
+          projectId: effectiveProjectId,
+        },
+      });
+      toast({
+        title: 'Automation saved',
+        description: `"${saved.name}" updated.`,
+        icon: <CheckCircle2 className="size-4 text-emerald-500" aria-hidden="true" />,
+      });
+    } catch (saveError) {
+      setError(formatAutomationError(saveError));
+    }
   }
-
-  const settingsContent = (
-    <>
-      <section className="flex flex-col gap-2">
-        <Label className="text-muted-foreground text-xs font-medium">Prompt</Label>
-        <InitialConversationField
-          state={initialConversation}
-          includeIssueContextByDefault={false}
-        />
-      </section>
-
-      <section className="flex flex-col gap-2">
-        <h3 className="text-muted-foreground text-xs font-medium">Schedule</h3>
-        <div className="bg-muted/10 rounded-md border border-border">
-          <RowField label="Runs">
-            <SchedulePicker
-              value={cronExpr}
-              onChange={(nextCronExpr) => {
-                setCronExpr(nextCronExpr);
-                setCronError(null);
-              }}
-            />
-          </RowField>
-        </div>
-        {cronError && <p className="text-destructive text-xs">{cronError}</p>}
-      </section>
-
-      <section className="flex flex-col gap-2">
-        <h3 className="text-muted-foreground text-xs font-medium">Execution</h3>
-        <BranchPickerField
-          key={workspaceSettingsKey}
-          state={branchSelection}
-          branchNameState={branchNameState}
-          projectId={effectiveProjectId}
-          currentBranch={currentBranch}
-          isUnborn={isUnborn}
-        />
-        <div className="bg-muted/10 rounded-md border border-border">
-          <RowField label="Project">
-            <ProjectSelector
-              value={effectiveProjectId}
-              onChange={(nextProjectId) => setProjectId(nextProjectId)}
-              trigger={
-                <ComboboxTrigger className="hover:bg-muted/40 data-popup-open:bg-muted/40 flex h-8 w-full items-center justify-between gap-2 rounded-md border border-border bg-background px-2.5 text-xs outline-none">
-                  <span className="inline-flex min-w-0 items-center gap-2">
-                    <FolderOpen className="text-muted-foreground size-3.5 shrink-0" />
-                    <ComboboxValue placeholder="Select a project" />
-                  </span>
-                  <ChevronDown className="size-3 shrink-0 text-foreground-passive" />
-                </ComboboxTrigger>
-              }
-            />
-          </RowField>
-        </div>
-        {isWorkspaceProviderEnabled ? (
-          <div className="flex items-center gap-2 pt-1">
-            <Switch size="sm" checked={useBYOI} onCheckedChange={setUseBYOI} />
-            <span className="text-muted-foreground text-sm">Use BYOI infrastructure</span>
-          </div>
-        ) : null}
-      </section>
-
-      {error && <p className="text-destructive text-xs">{error}</p>}
-    </>
-  );
 
   return (
     <div className="flex h-full flex-col">
@@ -447,7 +221,15 @@ export const AutomationDetailView = observer(function AutomationDetailView({
           </div>
 
           {activeTab === 'runs' && <RunHistory automation={automation} />}
-          {activeTab === 'settings' && settingsContent}
+          {activeTab === 'settings' && (
+            <AutomationSettingsFields
+              state={formState}
+              cronError={cronError}
+              onCronExprChange={(expr) => formState.setCronExpr(expr)}
+              onCronErrorClear={() => setCronError(null)}
+              error={error}
+            />
+          )}
         </div>
       </div>
       <SheetFooter className="flex flex-row items-center justify-end gap-2">
@@ -459,7 +241,7 @@ export const AutomationDetailView = observer(function AutomationDetailView({
           onClick={() => {
             void handleSave();
           }}
-          disabled={!canSave}
+          disabled={!canSave || isPending}
         >
           {isPending ? 'Saving…' : 'Save'}
         </ConfirmButton>
@@ -467,12 +249,3 @@ export const AutomationDetailView = observer(function AutomationDetailView({
     </div>
   );
 });
-
-function RowField({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex min-h-11 items-center gap-3 border-b border-border px-3 py-2 last:border-b-0">
-      <span className="w-20 shrink-0 text-xs font-medium text-foreground">{label}</span>
-      <div className="min-w-0 flex-1">{children}</div>
-    </div>
-  );
-}

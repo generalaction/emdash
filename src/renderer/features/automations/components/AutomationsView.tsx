@@ -2,6 +2,10 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { rpc } from '@renderer/lib/ipc';
 import { Sheet, SheetContent } from '@renderer/lib/ui/sheet';
+import type { Automation } from '@shared/automations/automation';
+import { useAutomations } from '../use-automations';
+import { useAutomationsPanel } from '../use-automations-panel';
+import { AutomationDetailView } from './AutomationDetailView';
 import { AutomationsHeader } from './AutomationsHeader';
 import { AutomationsList } from './AutomationsList';
 import { CreateAutomationView } from './CreateAutomationView';
@@ -12,11 +16,17 @@ export function AutomationsView() {
     queryFn: () => rpc.automations.listAutomations(),
   });
   const [search, setSearch] = useState('');
-  const [openNewAutomation, setOpenNewAutomation] = useState(false);
 
-  const handleCreateAutomation = () => {
-    setOpenNewAutomation(true);
-  };
+  const panel = useAutomationsPanel(automations ?? []);
+  const { update, setEnabled } = useAutomations();
+
+  function handleToggleEnabled(automation: Automation, enabled: boolean) {
+    void setEnabled.mutateAsync({ id: automation.id, enabled });
+  }
+
+  function handleDelete(_automation: Automation) {
+    panel.close();
+  }
 
   return (
     <div className="mt-6 h-full overflow-hidden bg-background text-foreground">
@@ -27,15 +37,25 @@ export function AutomationsView() {
               search={search}
               onSearchChange={setSearch}
               createPending={false}
-              onNewAutomation={handleCreateAutomation}
+              onNewAutomation={panel.openCreate}
             />
-            <AutomationsList automations={automations ?? []} onEdit={() => {}} />
+            <AutomationsList automations={automations ?? []} onEdit={panel.openEdit} />
           </div>
         </div>
       </div>
-      <Sheet open={openNewAutomation} onOpenChange={setOpenNewAutomation}>
+      <Sheet open={panel.isOpen} onOpenChange={(open) => !open && panel.close()}>
         <SheetContent>
-          <CreateAutomationView onClose={() => setOpenNewAutomation(false)} onSaved={() => {}} />
+          {panel.panel?.kind === 'create' && (
+            <CreateAutomationView onClose={panel.close} onSaved={panel.close} />
+          )}
+          {panel.panel?.kind === 'edit' && (
+            <AutomationDetailView
+              automation={panel.panel.automation}
+              onClose={panel.close}
+              onDelete={handleDelete}
+              onToggleEnabled={handleToggleEnabled}
+            />
+          )}
         </SheetContent>
       </Sheet>
     </div>
