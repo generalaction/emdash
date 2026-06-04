@@ -1,13 +1,18 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { rpc } from '@renderer/lib/ipc';
 import type { CreateAutomationParams, UpdateAutomationPatch } from '@shared/automations/automation';
-import type { AutomationRun } from '@shared/automations/automation-run';
 
 export function useAutomations(projectId?: string) {
   const queryClient = useQueryClient();
 
   function invalidateAutomations() {
     void queryClient.invalidateQueries({ queryKey: ['automations', projectId] });
+  }
+
+  function invalidateRuns(automationId?: string) {
+    void queryClient.invalidateQueries({
+      queryKey: automationId ? ['automations', 'runs', automationId] : ['automations', 'runs'],
+    });
   }
 
   const automations = useQuery({
@@ -33,21 +38,23 @@ export function useAutomations(projectId?: string) {
     onSuccess: invalidateAutomations,
   });
 
-  return { automations, create, update, setEnabled };
-}
-
-export function useAutomationRuns(_automationId: string, _limit = 20) {
-  return useQuery({
-    queryKey: ['automations', 'runs', _automationId, _limit],
-    queryFn: (): AutomationRun[] => [],
-    enabled: false,
+  const runNow = useMutation({
+    mutationFn: (id: string) => rpc.automations.runAutomation(id),
+    onSuccess: (_run, id) => invalidateRuns(id),
   });
+
+  const stop = useMutation({
+    mutationFn: (runId: string) => rpc.automations.stopRun(runId),
+    onSuccess: () => invalidateRuns(),
+  });
+
+  return { automations, create, update, setEnabled, runNow, stop };
 }
 
-export function useAutomationRunById(_runId: string | undefined) {
+export function useAutomationRuns(automationId: string, limit = 20) {
   return useQuery({
-    queryKey: ['automations', 'run', _runId],
-    queryFn: (): AutomationRun | null => null,
-    enabled: false,
+    queryKey: ['automations', 'runs', automationId, limit],
+    queryFn: () => rpc.automations.listAutomationRuns(automationId, limit, 0),
+    enabled: !!automationId,
   });
 }

@@ -8,7 +8,7 @@ import {
 import { getRegisteredTaskData } from '@renderer/features/tasks/stores/task-selectors';
 import { useNavigate, useParams } from '@renderer/lib/layout/navigation-provider';
 import { cn } from '@renderer/utils/utils';
-import { useAutomationRunById, useAutomations } from '../use-automations';
+import { useAutomationRuns, useAutomations } from '../use-automations';
 
 interface Crumb {
   key: string;
@@ -54,8 +54,9 @@ export const AutomationsBreadcrumb = observer(function AutomationsBreadcrumb() {
   const projectId = selected?.projectId ?? null;
   const projectName = projectId ? projectDisplayName(getProjectStore(projectId)) : null;
 
-  const { data: selectedRun } = useAutomationRunById(params.selectedRunId);
-  const runTaskId = selectedRun ? (selectedRun.createdTaskId ?? selectedRun.taskId) : null;
+  const { data: selectedRun } = useAutomationRuns(selected?.id ?? '', 50);
+  const matchedRun = selectedRun?.find((r) => r.id === params.selectedRunId);
+  const runTaskId = matchedRun?.taskId ?? null;
   const runTask = runTaskId && projectId ? getRegisteredTaskData(projectId, runTaskId) : null;
 
   const crumbs: Crumb[] = [];

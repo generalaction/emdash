@@ -3,7 +3,6 @@ import { log } from '@main/lib/logger';
 import type { Automation } from '@shared/automations/automation';
 import type { AutomationRun } from '@shared/automations/automation-run';
 import { QUEUE_DEADLINE_EXCEEDED_ERROR } from '@shared/automations/format';
-import { automationEvents } from './automation-events';
 import {
   automationRunDeadline,
   claimQueuedRun,
@@ -62,9 +61,9 @@ export class AutomationScheduler {
 
   start(): void {
     if (this.timer) return;
-    this.unsubscribeAutomationChanged = automationEvents.on('automation:changed', () => {
-      void this.reload();
-    });
+    // this.unsubscribeAutomationChanged = automationEvents.on('automation:changed', () => {
+    //   void this.reload();
+    // });
     this.recoverAndBootstrap().catch((error) => {
       log.error('AutomationScheduler bootstrap failed', { error: String(error) });
     });

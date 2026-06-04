@@ -28,7 +28,6 @@ import type {
   ProvisionWorkspaceError,
 } from '@shared/tasks';
 import { type WorkspaceConfig, type WorkspaceTarget } from '@shared/workspace-config';
-import { emitRunUpdated } from '../run-transitions';
 import type { ActionContext, ActionError, ActionOutcome } from './types';
 
 function formatCreateTaskActionError(error: CreateTaskError): string {
@@ -242,7 +241,6 @@ export async function executeTaskCreate(
 
     const createSuccess = finalizeCreateTask(prepared.data, taskRow, convRow);
     taskService.notifyTaskCreated(createSuccess.task, createTaskParams);
-    emitRunUpdated({ ...ctx.run, taskId });
 
     try {
       const provision = await taskService.launch(taskId);

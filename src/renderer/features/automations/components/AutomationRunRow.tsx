@@ -1,31 +1,22 @@
-import { Ellipsis, Square, Trash2 } from 'lucide-react';
+import { Square } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useMemo } from 'react';
-import { automationRunTool } from '@renderer/features/automations/automation-tools';
-import {
-  useAutomation,
-  useAutomationRun,
-} from '@renderer/features/automations/automations-context';
+import { useAutomationRun } from '@renderer/features/automations/automations-context';
 import { isActiveStatus } from '@renderer/features/automations/run-status-styles';
 import { useAutomationRunActions } from '@renderer/features/automations/use-automation-run-actions';
 import { AgentStatusIndicator } from '@renderer/features/tasks/components/agent-status-indicator';
+import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
 import {
   getRegisteredTaskData,
   getTaskStore,
   taskAgentStatus,
 } from '@renderer/features/tasks/stores/task-selectors';
-import { StackedAgentLogos } from '@renderer/lib/components/stacked-agent-logos';
+import { rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { AbsoluteTime } from '@renderer/lib/ui/absolute-time';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@renderer/lib/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 import { formatRunTriggerKindLabel, isQueueDeadlineExceededRun } from '@shared/automations/format';
+import { makePtySessionId } from '@shared/ptySessionId';
 import { useAutomationAgentActivity } from '../automation-run-status-store';
 
 interface AutomationRunRowProps {
@@ -39,11 +30,9 @@ export const AutomationRunRow = observer(function AutomationRunRow({
 }: AutomationRunRowProps) {
   const { navigate } = useNavigate();
   const run = useAutomationRun(automationId, runId);
-  const automation = useAutomation(automationId);
-  const { deleteRun } = useAutomationRunActions();
+  const { stopRun, projectId } = useAutomationRunActions(automationId);
 
   const taskId = run ? run.taskId : null;
-  const projectId = automation?.projectId ?? null;
   const agentActivity = useAutomationAgentActivity(taskId);
   const taskStore = taskId && projectId ? getTaskStore(projectId, taskId) : undefined;
   const task = taskId && projectId ? getRegisteredTaskData(projectId, taskId) : undefined;
@@ -65,8 +54,15 @@ export const AutomationRunRow = observer(function AutomationRunRow({
   }
 
   function handleStop() {
-    if (!taskId || !projectId) return;
-    navigate('task', { projectId, taskId });
+    if (!run) return;
+    stopRun(run.id);
+    if (run.status === 'running' && taskId && projectId) {
+      for (const conv of conversationRegistry.get(taskId)?.conversations.values() ?? []) {
+        if (conv.status === 'working' || conv.status === 'awaiting-input') {
+          void rpc.pty.stopSession(makePtySessionId(projectId, taskId, conv.data.id));
+        }
+      }
+    }
   }
 
   if (!run) return null;
@@ -92,7 +88,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
       aria-label={displayName ? `Open ${displayName}` : 'Open run'}
       aria-disabled={!interactive}
     >
-      {/* Line 1: task name + agent status | agent logos */}
+      {/* Line 1: task name + agent status */}
       <div className="flex min-w-0 items-center justify-between gap-2">
         <div className="flex flex-row items-center gap-1">
           {displayName && (
@@ -108,7 +104,6 @@ export const AutomationRunRow = observer(function AutomationRunRow({
           )}
           <AgentStatusIndicator status={agentStatus} disableTooltip />
         </div>
-        <span>Stacked agent logos</span>
       </div>
 
       {/* Line 2: date | triggered by */}
@@ -120,12 +115,12 @@ export const AutomationRunRow = observer(function AutomationRunRow({
       </div>
 
       {/* Hover action overlay */}
-      <div
-        className="absolute inset-y-0 right-3 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100"
-        onClick={(e) => e.stopPropagation()}
-        onPointerDown={(e) => e.stopPropagation()}
-      >
-        {isRunActive && (
+      {isRunActive && (
+        <div
+          className="absolute inset-y-0 right-3 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100"
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
           <Tooltip>
             <TooltipTrigger
               render={
@@ -141,32 +136,8 @@ export const AutomationRunRow = observer(function AutomationRunRow({
             </TooltipTrigger>
             <TooltipContent>Stop run</TooltipContent>
           </Tooltip>
-        )}
-
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            render={
-              <button
-                type="button"
-                aria-label="More options"
-                className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background text-foreground-muted transition-colors hover:bg-background-1 hover:text-foreground"
-              />
-            }
-          >
-            <Ellipsis className="size-3.5" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent side="bottom" align="end">
-            <DropdownMenuItem
-              variant="destructive"
-              disabled={!deleteRun}
-              onClick={() => deleteRun?.(run)}
-            >
-              <Trash2 />
-              Delete run
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+        </div>
+      )}
     </div>
   );
 });

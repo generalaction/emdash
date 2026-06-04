@@ -689,33 +689,3 @@ export async function removeRun(id: string): Promise<boolean> {
     .returning({ id: automationRuns.id });
   return deleted.length > 0;
 }
-
-export async function listRuns(automationId: string, limit = 20): Promise<AutomationRun[]> {
-  const rows = await db
-    .select()
-    .from(automationRuns)
-    .where(eq(automationRuns.automationId, automationId))
-    .orderBy(desc(automationRuns.scheduledAt))
-    .limit(limit);
-  return rows.map(mapAutomationRunRow);
-}
-
-export async function listRecentRuns(
-  projectId: string | undefined,
-  limit = 50
-): Promise<AutomationRunWithContext[]> {
-  const base = db
-    .select({ run: automationRuns, automation: automations })
-    .from(automationRuns)
-    .innerJoin(automations, eq(automationRuns.automationId, automations.id));
-  const rows = await (projectId ? base.where(eq(automations.projectId, projectId)) : base)
-    .orderBy(
-      sql`coalesce(${automationRuns.startedAt}, ${automationRuns.scheduledAt}, ${automationRuns.finishedAt}) desc`
-    )
-    .limit(limit);
-  return rows.map(({ run, automation }) => ({
-    ...mapAutomationRunRow(run),
-    automationName: automation.name,
-    projectId: automation.projectId ?? null,
-  }));
-}

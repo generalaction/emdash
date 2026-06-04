@@ -1,11 +1,18 @@
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import type { AutomationRun } from '@shared/automations/automation-run';
-import { automationRunUpdatedChannel } from '@shared/events/automationEvents';
-import { automationEvents, type AutomationHooks } from './automation-events';
+import {
+  automationsChangedChannel,
+  automationRunUpdatedChannel,
+} from '@shared/events/automationEvents';
 import { updateRun } from './repo';
 
-type RunHookName = Exclude<keyof AutomationHooks, 'automation:changed'>;
+type RunHookName =
+  | 'automation:run:start'
+  | 'automation:run:finish'
+  | 'automation:run:failed'
+  | 'automation:run:skipped';
+
 type RunUpdateValues = Parameters<typeof updateRun>[1];
 
 interface EmitRunTransitionOptions {
@@ -13,39 +20,23 @@ interface EmitRunTransitionOptions {
   emitUpdate?: boolean;
 }
 
-function hookForStatus(status: AutomationRun['status']): RunHookName | undefined {
-  switch (status) {
-    case 'running':
-      return 'automation:run:start';
-    case 'success':
-      return 'automation:run:finish';
-    case 'failed':
-      return 'automation:run:failed';
-    case 'skipped':
-      return 'automation:run:skipped';
-    case 'queued':
-      return undefined;
+function emitRunTransition(run: AutomationRun, options?: EmitRunTransitionOptions): void {
+  if (options?.emitUpdate !== false) {
+    events.emit(automationRunUpdatedChannel, {
+      automationId: run.automationId,
+      runId: run.id,
+      status: run.status,
+      taskId: run.taskId,
+      startedAt: run.startedAt,
+    });
+  }
+  if (options?.hook) {
+    events.emit(automationsChangedChannel, undefined);
   }
 }
 
 export function emitRunUpdated(run: AutomationRun): void {
-  events.emit(automationRunUpdatedChannel, {
-    automationId: run.automationId,
-    runId: run.id,
-    status: run.status,
-    taskId: run.taskId,
-    startedAt: run.startedAt,
-  });
-}
-
-export function emitRunTransition(
-  run: AutomationRun,
-  options: EmitRunTransitionOptions = {}
-): void {
-  if (options.emitUpdate !== false) emitRunUpdated(run);
-
-  const hook = options.hook === undefined ? hookForStatus(run.status) : options.hook;
-  if (hook) automationEvents._emit(hook, run);
+  emitRunTransition(run, { hook: false });
 }
 
 export async function updateRunOrThrow(

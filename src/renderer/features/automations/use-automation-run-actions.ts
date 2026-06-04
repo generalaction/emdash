@@ -1,11 +1,11 @@
-import type { AutomationRun } from '@shared/automations/automation-run';
+import { useAutomation } from './automations-context';
+import { useAutomations } from './use-automations';
 
-export function useAutomationRunActions() {
+export function useAutomationRunActions(automationId: string) {
+  const { stop } = useAutomations();
+  const automation = useAutomation(automationId);
   return {
-    deleteRun: undefined as ((run: AutomationRun) => void) | undefined,
-    bulkDeleteRuns: undefined as
-      | ((runIds: ReadonlyArray<string>, onDone?: () => void) => void)
-      | undefined,
-    rerunFrom: undefined as ((automationId: string) => void) | undefined,
+    stopRun: stop.mutate,
+    projectId: automation?.projectId ?? null,
   };
 }

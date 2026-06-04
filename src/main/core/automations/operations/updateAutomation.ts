@@ -1,5 +1,4 @@
 import type { UpdateAutomationPatch } from '@shared/automations/automation';
-import { automationEvents } from '../automation-events';
 import { ensureNextCronRun, skipQueuedCronRuns, updateAutomation as updateInRepo } from '../repo';
 
 export async function updateAutomation(id: string, patch: UpdateAutomationPatch) {
@@ -9,6 +8,5 @@ export async function updateAutomation(id: string, patch: UpdateAutomationPatch)
     await skipQueuedCronRuns(id, 'trigger_changed');
     if (automation.enabled) await ensureNextCronRun(automation);
   }
-  automationEvents._emit('automation:changed');
   return automation;
 }

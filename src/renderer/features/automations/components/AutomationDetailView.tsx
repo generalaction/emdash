@@ -67,13 +67,13 @@ export const AutomationDetailView = observer(function AutomationDetailView({
     buildTaskConfig,
   } = formState;
 
-  const { update } = useAutomations();
+  const { update, runNow } = useAutomations();
   const { toast } = useToast();
   const isPending = update.isPending;
 
   const recentRuns = useAutomationRuns(automation.id, 10);
   const hasActiveRuns = recentRuns.data?.some((r) => isActiveStatus(r.status)) ?? false;
-  const canRunNow = false;
+  const canRunNow = automation.enabled && !!automation.projectId && !runNow.isPending;
 
   function handleStopAll() {
     if (!automation.projectId) return;
@@ -201,7 +201,7 @@ export const AutomationDetailView = observer(function AutomationDetailView({
                         type="button"
                         aria-label="Run now"
                         disabled={!canRunNow}
-                        onClick={() => undefined}
+                        onClick={() => void runNow.mutateAsync(automation.id)}
                         className={
                           canRunNow
                             ? 'flex h-6 w-6 items-center justify-center rounded-md text-foreground-muted transition-colors hover:bg-background-1 hover:text-foreground'
