@@ -11,7 +11,9 @@ export class GitHubAuthServerAdapter {
   ) {}
 
   async storeOAuthToken(payload: ProviderTokenPayload): Promise<void> {
-    await this.legacyTokenStore.storeToken(payload.accessToken, 'emdash_oauth');
+    if (payload.intent !== 'account-link') {
+      await this.legacyTokenStore.storeToken(payload.accessToken, 'emdash_oauth');
+    }
 
     if (!payload.providerAccount) {
       return;

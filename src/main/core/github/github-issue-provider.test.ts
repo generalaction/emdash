@@ -52,7 +52,7 @@ describe('githubIssueProvider', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockRepositoryResolver.resolve.mockResolvedValue(ok(githubRepository));
-    mockResolveProjectGitHubAuthContext.mockResolvedValue({});
+    mockResolveProjectGitHubAuthContext.mockResolvedValue(ok({}));
   });
 
   it('uses repositoryUrl to resolve the GitHub repository before listing issues', async () => {
@@ -68,7 +68,7 @@ describe('githubIssueProvider', () => {
   });
 
   it('passes project GitHub account context when listing issues for a project', async () => {
-    mockResolveProjectGitHubAuthContext.mockResolvedValue({ accountId: 'github.com:42' });
+    mockResolveProjectGitHubAuthContext.mockResolvedValue(ok({ accountId: 'github.com:42' }));
     mockIssueService.listIssues.mockResolvedValue(ok([]));
 
     await githubIssueProvider.listIssues({
@@ -81,6 +81,32 @@ describe('githubIssueProvider', () => {
     expect(mockIssueService.listIssues).toHaveBeenCalledWith(githubRepository, 7, {
       accountId: 'github.com:42',
     });
+  });
+
+  it('does not list issues with the default account when project account resolution fails', async () => {
+    mockResolveProjectGitHubAuthContext.mockResolvedValue(
+      err({
+        type: 'account_selection_failed',
+        projectId: 'project-1',
+        message: 'git config failed',
+      })
+    );
+    mockIssueService.listIssues.mockResolvedValue(ok([]));
+
+    await expect(
+      githubIssueProvider.listIssues({
+        projectId: 'project-1',
+        repositoryUrl: 'https://github.com/owner/repo',
+        limit: 7,
+      })
+    ).resolves.toEqual({
+      success: false,
+      error: 'Unable to resolve GitHub account for project: git config failed',
+      errorType: 'generic',
+      host: undefined,
+    });
+
+    expect(mockIssueService.listIssues).not.toHaveBeenCalled();
   });
 
   it('falls back to the resolved remote when repositoryUrl is not provided', async () => {
@@ -102,7 +128,7 @@ describe('githubIssueProvider', () => {
   });
 
   it('passes project GitHub account context when searching issues for a project', async () => {
-    mockResolveProjectGitHubAuthContext.mockResolvedValue({ accountId: 'github.com:42' });
+    mockResolveProjectGitHubAuthContext.mockResolvedValue(ok({ accountId: 'github.com:42' }));
     mockIssueService.searchIssues.mockResolvedValue(ok([]));
 
     await githubIssueProvider.searchIssues({

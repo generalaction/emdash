@@ -150,6 +150,7 @@ describe('EmdashAccountService', () => {
 
       expect(mockDispatch).toHaveBeenCalledWith('github', {
         accessToken: 'ghp_123',
+        intent: 'sign-in',
         providerAccount: {
           providerId: 'github',
           providerAccountId: '42',
@@ -185,6 +186,7 @@ describe('EmdashAccountService', () => {
 
       expect(mockDispatch).toHaveBeenCalledWith('github', {
         accessToken: 'ghp_123',
+        intent: 'sign-in',
         providerAccount: undefined,
       });
       expect(result.providerAccount).toBeUndefined();
@@ -259,6 +261,7 @@ describe('EmdashAccountService', () => {
       });
       expect(mockDispatch).toHaveBeenCalledWith('github', {
         accessToken: 'ghp_linked',
+        intent: 'account-link',
         providerAccount: {
           providerId: 'github',
           providerAccountId: '84',

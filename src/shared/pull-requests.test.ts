@@ -39,4 +39,13 @@ describe('pullRequestErrorMessage', () => {
       })
     ).toBe('Unable to reach GitHub host ghe.example.com: Connect Timeout Error');
   });
+
+  it('formats project GitHub account resolution failures', () => {
+    expect(
+      pullRequestErrorMessage({
+        type: 'github_account_resolution_failed',
+        message: 'Unable to resolve GitHub account for project: git config failed',
+      })
+    ).toBe('Unable to resolve GitHub account for project: git config failed');
+  });
 });

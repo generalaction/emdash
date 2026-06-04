@@ -32,7 +32,7 @@ describe('resolveProjectGitHubContext', () => {
         capabilities: { pullRequests: true, issues: true },
       })
     );
-    mockResolveProjectGitHubAuthContext.mockResolvedValue({ accountId: 'github.com:42' });
+    mockResolveProjectGitHubAuthContext.mockResolvedValue(ok({ accountId: 'github.com:42' }));
 
     await expect(resolveProjectGitHubContext('project-1')).resolves.toEqual(
       ok({
@@ -54,5 +54,32 @@ describe('resolveProjectGitHubContext', () => {
       err({ type: 'no_remote' })
     );
     expect(mockResolveProjectGitHubAuthContext).not.toHaveBeenCalled();
+  });
+
+  it('returns account resolution errors without falling back to the default account', async () => {
+    mockProviderRepositoryService.resolveProject.mockResolvedValue(
+      ok({
+        provider: 'github',
+        host: 'github.com',
+        repositoryUrl: 'https://github.com/acme/repo',
+        nameWithOwner: 'acme/repo',
+        capabilities: { pullRequests: true, issues: true },
+      })
+    );
+    mockResolveProjectGitHubAuthContext.mockResolvedValue(
+      err({
+        type: 'account_selection_failed',
+        projectId: 'project-1',
+        message: 'git config failed',
+      })
+    );
+
+    await expect(resolveProjectGitHubContext('project-1')).resolves.toEqual(
+      err({
+        type: 'account_selection_failed',
+        projectId: 'project-1',
+        message: 'git config failed',
+      })
+    );
   });
 });

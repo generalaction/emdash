@@ -73,9 +73,14 @@ async function searchIssues(
 
 async function resolveIssueAuthContext(
   projectId: string | undefined
-): Promise<GitHubApiAuthContext | undefined> {
-  if (!projectId) return undefined;
-  return resolveProjectGitHubAuthContext(projectId);
+): Promise<Result<GitHubApiAuthContext | undefined, IssueListError>> {
+  if (!projectId) return ok(undefined);
+  const authContext = await resolveProjectGitHubAuthContext(projectId);
+  if (authContext.success) return ok(authContext.data);
+  return err({
+    type: 'generic',
+    message: `Unable to resolve GitHub account for project: ${authContext.error.message}`,
+  });
 }
 
 async function resolveRepository(opts: {
@@ -122,7 +127,8 @@ export const githubIssueProvider: IssueProvider = {
     if (!repository.success) return toIssueListResult(repository);
 
     const authContext = await resolveIssueAuthContext(opts.projectId);
-    return toIssueListResult(await listIssues(repository.data, opts.limit ?? 50, authContext));
+    if (!authContext.success) return toIssueListResult(err(authContext.error));
+    return toIssueListResult(await listIssues(repository.data, opts.limit ?? 50, authContext.data));
   },
 
   searchIssues: async (opts) => {
@@ -130,8 +136,9 @@ export const githubIssueProvider: IssueProvider = {
     if (!repository.success) return toIssueListResult(repository);
 
     const authContext = await resolveIssueAuthContext(opts.projectId);
+    if (!authContext.success) return toIssueListResult(err(authContext.error));
     return toIssueListResult(
-      await searchIssues(repository.data, opts.searchTerm, opts.limit ?? 20, authContext)
+      await searchIssues(repository.data, opts.searchTerm, opts.limit ?? 20, authContext.data)
     );
   },
 };

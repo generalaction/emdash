@@ -68,7 +68,7 @@ describe('PrSyncEngine', () => {
       draft: false,
     });
 
-    expect(getOctokit).toHaveBeenCalledWith('ghe.example.com');
+    expect(getOctokit).toHaveBeenCalledWith('ghe.example.com', {});
     expect(createPullRequest).toHaveBeenCalledWith({
       owner: 'acme',
       repo: 'repo',

@@ -57,6 +57,7 @@ describe('GitHubAuthServerAdapter', () => {
   it('stores auth-server tokens with provider account metadata in the account registry and legacy token store', async () => {
     const payload: ProviderTokenPayload = {
       accessToken: 'gho_monalisa',
+      intent: 'sign-in',
       providerAccount: {
         providerId: 'github',
         providerAccountId: '42',
@@ -79,8 +80,34 @@ describe('GitHubAuthServerAdapter', () => {
     expect(legacyStore.stored).toEqual([{ token: 'gho_monalisa', source: 'emdash_oauth' }]);
   });
 
+  it('stores linked provider accounts without replacing the default legacy GitHub token', async () => {
+    const payload = {
+      accessToken: 'gho_octocat',
+      intent: 'account-link',
+      providerAccount: {
+        providerId: 'github',
+        providerAccountId: '84',
+        host: 'github.com',
+        login: 'octocat',
+        avatarUrl: 'https://avatars.githubusercontent.com/u/84',
+      },
+    } as ProviderTokenPayload & { intent: 'account-link' };
+
+    await adapter.storeOAuthToken(payload);
+
+    const accounts = await registry.listAccounts();
+    expect(accounts).toHaveLength(1);
+    expect(accounts[0]).toMatchObject({
+      id: 'github.com:84',
+      login: 'octocat',
+      credentialSource: 'emdash_oauth',
+    });
+    await expect(registry.resolveToken('github.com:84')).resolves.toBe('gho_octocat');
+    expect(legacyStore.stored).toEqual([]);
+  });
+
   it('falls back to legacy token storage when auth-server metadata is absent', async () => {
-    await adapter.storeOAuthToken({ accessToken: 'gho_legacy' });
+    await adapter.storeOAuthToken({ accessToken: 'gho_legacy', intent: 'sign-in' });
 
     await expect(registry.listAccounts()).resolves.toEqual([]);
     expect(legacyStore.stored).toEqual([{ token: 'gho_legacy', source: 'emdash_oauth' }]);

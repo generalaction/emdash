@@ -1,63 +1,106 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { githubAccountSelectionResolver } from '@main/core/github/services/github-account-selection-resolver';
-import { projectManager } from '@main/core/projects/project-manager';
-import { log } from '@main/lib/logger';
-import { resolveProjectGitHubAuthContext } from './project-github-auth-context';
+import { err, ok } from '@shared/result';
+import {
+  ProjectGitHubAuthContextResolver,
+  type ProjectGitHubAuthContextError,
+} from './project-github-auth-context-resolver';
 
-vi.mock('@main/core/github/services/github-account-selection-resolver', () => ({
-  githubAccountSelectionResolver: {
-    resolve: vi.fn(),
-  },
-}));
+type FakeProject = {
+  settings: { get(): Promise<Record<string, unknown>> };
+  ctx: { exec(): Promise<{ stdout: string; stderr: string }> };
+};
 
-vi.mock('@main/core/projects/project-manager', () => ({
-  projectManager: {
-    getProject: vi.fn(),
-  },
-}));
+class FakeProjectLookup {
+  private readonly projects = new Map<string, FakeProject>();
 
-vi.mock('@main/lib/logger', () => ({
-  log: {
-    warn: vi.fn(),
-  },
-}));
+  setProject(projectId: string, project: FakeProject): void {
+    this.projects.set(projectId, project);
+  }
 
-const mockProjectManager = vi.mocked(projectManager);
-const mockGithubAccountSelectionResolver = vi.mocked(githubAccountSelectionResolver);
+  getProject(projectId: string): FakeProject | undefined {
+    return this.projects.get(projectId);
+  }
+}
 
-describe('resolveProjectGitHubAuthContext', () => {
+class FakeAccountSelectionResolver {
+  resolve = vi.fn();
+}
+
+class FakeLogger {
+  warn = vi.fn();
+}
+
+function makeProject(): FakeProject {
+  return {
+    settings: { get: async () => ({}) },
+    ctx: { exec: async () => ({ stdout: '', stderr: '' }) },
+  };
+}
+
+describe('ProjectGitHubAuthContextResolver', () => {
+  let projects: FakeProjectLookup;
+  let accountSelectionResolver: FakeAccountSelectionResolver;
+  let logger: FakeLogger;
+  let resolver: ProjectGitHubAuthContextResolver;
+
   beforeEach(() => {
-    vi.clearAllMocks();
+    projects = new FakeProjectLookup();
+    accountSelectionResolver = new FakeAccountSelectionResolver();
+    logger = new FakeLogger();
+    resolver = new ProjectGitHubAuthContextResolver({
+      projects,
+      accountSelectionResolver,
+      logger,
+    });
   });
 
   it('resolves account selection for a mounted project', async () => {
-    const project = { settings: {}, ctx: {} } as never;
-    mockProjectManager.getProject.mockReturnValue(project);
-    mockGithubAccountSelectionResolver.resolve.mockResolvedValue({
+    const project = makeProject();
+    projects.setProject('project-1', project);
+    accountSelectionResolver.resolve.mockResolvedValue({
       accountId: 'github.com:42',
       source: 'project-settings',
     });
 
-    await expect(resolveProjectGitHubAuthContext('project-1')).resolves.toEqual({
-      accountId: 'github.com:42',
+    await expect(resolver.resolve('project-1')).resolves.toEqual(
+      ok({ accountId: 'github.com:42' })
+    );
+    expect(accountSelectionResolver.resolve).toHaveBeenCalledWith(project);
+  });
+
+  it('keeps explicit default-account selections distinct from resolution failure', async () => {
+    projects.setProject('project-1', makeProject());
+    accountSelectionResolver.resolve.mockResolvedValue({
+      accountId: null,
+      source: 'project-settings',
     });
-    expect(mockGithubAccountSelectionResolver.resolve).toHaveBeenCalledWith(project);
+
+    await expect(resolver.resolve('project-1')).resolves.toEqual(ok({ accountId: null }));
   });
 
-  it('returns empty context when the project is not mounted', async () => {
-    mockProjectManager.getProject.mockReturnValue(undefined);
-
-    await expect(resolveProjectGitHubAuthContext('project-1')).resolves.toEqual({});
-    expect(mockGithubAccountSelectionResolver.resolve).not.toHaveBeenCalled();
+  it('fails when the project is not mounted instead of silently falling back', async () => {
+    await expect(resolver.resolve('project-1')).resolves.toEqual(
+      err<ProjectGitHubAuthContextError>({
+        type: 'project_not_found',
+        projectId: 'project-1',
+        message: 'Project project-1 is not mounted.',
+      })
+    );
+    expect(accountSelectionResolver.resolve).not.toHaveBeenCalled();
   });
 
-  it('returns empty context when account selection resolution fails', async () => {
-    const project = { settings: {}, ctx: {} } as never;
-    mockProjectManager.getProject.mockReturnValue(project);
-    mockGithubAccountSelectionResolver.resolve.mockRejectedValue(new Error('git config failed'));
+  it('fails when account selection cannot be resolved instead of silently falling back', async () => {
+    projects.setProject('project-1', makeProject());
+    accountSelectionResolver.resolve.mockRejectedValue(new Error('git config failed'));
 
-    await expect(resolveProjectGitHubAuthContext('project-1')).resolves.toEqual({});
-    expect(log.warn).toHaveBeenCalledWith('Failed to resolve project GitHub account selection', {
+    await expect(resolver.resolve('project-1')).resolves.toEqual(
+      err<ProjectGitHubAuthContextError>({
+        type: 'account_selection_failed',
+        projectId: 'project-1',
+        message: 'git config failed',
+      })
+    );
+    expect(logger.warn).toHaveBeenCalledWith('Failed to resolve project GitHub account selection', {
       projectId: 'project-1',
       error: 'git config failed',
     });

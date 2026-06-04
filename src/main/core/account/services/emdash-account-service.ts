@@ -172,7 +172,11 @@ export class EmdashAccountService implements Hookable<AccountServiceHooks> {
 
     const { accessToken, providerId, providerAccount } = parseAuthProviderToken(raw);
     if (accessToken && providerId) {
-      await providerTokenRegistry.dispatch(providerId, { accessToken, providerAccount });
+      await providerTokenRegistry.dispatch(providerId, {
+        accessToken,
+        intent: 'sign-in',
+        providerAccount,
+      });
     }
 
     this._hooks.callHookBackground('accountChanged', user.username, user.userId, user.email);
@@ -214,7 +218,11 @@ export class EmdashAccountService implements Hookable<AccountServiceHooks> {
       throw new Error('Invalid account link response: missing provider token');
     }
 
-    await providerTokenRegistry.dispatch(providerId, { accessToken, providerAccount });
+    await providerTokenRegistry.dispatch(providerId, {
+      accessToken,
+      intent: 'account-link',
+      providerAccount,
+    });
 
     const result: LinkProviderAccountResult = {
       provider: providerId,

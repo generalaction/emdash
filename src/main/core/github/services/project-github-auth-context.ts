@@ -2,21 +2,22 @@ import { githubAccountSelectionResolver } from '@main/core/github/services/githu
 import type { GitHubApiAuthContext } from '@main/core/github/services/github-api-auth-service';
 import { projectManager } from '@main/core/projects/project-manager';
 import { log } from '@main/lib/logger';
+import type { Result } from '@shared/result';
+import {
+  ProjectGitHubAuthContextResolver,
+  type ProjectGitHubAuthContextError,
+} from './project-github-auth-context-resolver';
 
-export async function resolveProjectGitHubAuthContext(
+export type { ProjectGitHubAuthContextError } from './project-github-auth-context-resolver';
+
+const projectGitHubAuthContextResolver = new ProjectGitHubAuthContextResolver({
+  projects: projectManager,
+  accountSelectionResolver: githubAccountSelectionResolver,
+  logger: log,
+});
+
+export function resolveProjectGitHubAuthContext(
   projectId: string
-): Promise<GitHubApiAuthContext> {
-  const project = projectManager.getProject(projectId);
-  if (!project) return {};
-
-  try {
-    const selection = await githubAccountSelectionResolver.resolve(project);
-    return { accountId: selection.accountId };
-  } catch (error) {
-    log.warn('Failed to resolve project GitHub account selection', {
-      projectId,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    return {};
-  }
+): Promise<Result<GitHubApiAuthContext, ProjectGitHubAuthContextError>> {
+  return projectGitHubAuthContextResolver.resolve(projectId);
 }
