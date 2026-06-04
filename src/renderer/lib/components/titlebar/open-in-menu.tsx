@@ -74,6 +74,14 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
     [isRemote, labels, path, sshConnectionId, toast]
   );
 
+  const selectAndOpenApp = useCallback(
+    (appId: OpenInAppId) => {
+      persistPreferredApp(appId);
+      void triggerOpenIn(appId);
+    },
+    [persistPreferredApp, triggerOpenIn]
+  );
+
   const sortedApps = useMemo(() => {
     const availableApps = isRemote
       ? installedApps.filter(
@@ -158,8 +166,7 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
         value={defaultApp ?? undefined}
         onValueChange={(value) => {
           if (isValidOpenInAppId(value)) {
-            persistPreferredApp(value);
-            void triggerOpenIn(value);
+            selectAndOpenApp(value as OpenInAppId);
           }
         }}
       >
@@ -179,7 +186,9 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
         </Tooltip>
         <SelectContent align="end" alignItemWithTrigger={false} sideOffset={6}>
           {menuApps.map((app) => {
-            const isAvailable = loading ? availability[app.id] === true : true;
+            const isAvailable = loading
+              ? availability[app.id] === true
+              : availability[app.id] !== false;
             return (
               <SelectItem key={app.id} value={app.id} disabled={!isAvailable}>
                 {icons[app.id] && (
