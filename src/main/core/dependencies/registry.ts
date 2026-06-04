@@ -80,6 +80,7 @@ function buildAgentDependencies(): DependencyDescriptor[] {
     category: 'agent' as const,
     commands: provider.commands ?? [provider.cli ?? provider.id],
     versionArgs: provider.versionArgs ?? ['--version'],
+    skipVersionProbe: provider.skipVersionProbe,
     docUrl: provider.docUrl,
     installHint: provider.installCommand ? `Run: ${provider.installCommand}` : undefined,
     installCommand: provider.installCommand,
