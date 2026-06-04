@@ -20,7 +20,7 @@ export function isAttentionNotification(nt: NotificationType | undefined): nt is
 
 export interface AgentEvent {
   type: AgentEventType;
-  source?: 'hook' | 'classifier' | 'input';
+  source?: 'hook' | 'input';
   ptyId?: string;
   providerId?: string;
   projectId: string;

@@ -54,11 +54,11 @@ describe('stopAutomationSessionAfterDone', () => {
       conversations: { stopSession },
     } as never);
 
-    const hookStop = stopAutomationSessionAfterDone(stopEvent);
-    const classifierStop = stopAutomationSessionAfterDone({ ...stopEvent, source: 'classifier' });
+    const firstStop = stopAutomationSessionAfterDone(stopEvent);
+    const duplicateStop = stopAutomationSessionAfterDone({ ...stopEvent });
     await Promise.resolve();
     finishStopSession();
-    await Promise.all([hookStop, classifierStop]);
+    await Promise.all([firstStop, duplicateStop]);
 
     expect(stopSession).toHaveBeenCalledTimes(1);
   });

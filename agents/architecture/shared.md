@@ -40,6 +40,7 @@ When adding a provider:
 
 1. update `src/shared/agent-provider-registry.ts`
 2. add any required env passthrough in `src/main/core/pty/pty-env.ts`
-3. add an agent event classifier in `src/main/core/conversations/impl/agent-event-classifiers/`
+3. add or update hook/plugin installation in `src/main/core/agent-hooks/` if the provider
+   supports explicit events
 4. update renderer surfaces that assume provider metadata
 5. add tests for non-standard spawn or detection behavior
