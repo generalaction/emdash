@@ -51,6 +51,32 @@ describe('aggregate', () => {
     expect(snap.byProject.map((p) => p.name)).toContain('f1-game');
   });
 
+  it('collapses git worktrees to their parent repo so one project does not fragment', () => {
+    const snap = aggregate(
+      [
+        rec({
+          id: 'a',
+          sessionId: 's1',
+          input: 100,
+          cwd: '/Users/x/emdash/worktrees/emdash/task-a',
+        }),
+        rec({
+          id: 'b',
+          sessionId: 's2',
+          input: 100,
+          cwd: '/Users/x/emdash/worktrees/emdash/task-b',
+        }),
+        rec({ id: 'c', sessionId: 's3', input: 100, cwd: '/Users/x/dev/stagehand' }), // non-worktree
+      ],
+      new Date('2026-05-30T18:00:00Z')
+    );
+    const emdash = snap.byProject.find((p) => p.name === 'emdash');
+    expect(emdash?.tokens).toBe(200); // task-a + task-b merged
+    expect(emdash?.sessions).toBe(2); // both worktree sessions counted under emdash
+    expect(snap.byProject.find((p) => p.name === 'stagehand')?.tokens).toBe(100);
+    expect(snap.byProject.some((p) => p.name === 'task-a' || p.name === 'task-b')).toBe(false);
+  });
+
   it('produces a 24-length byHour array', () => {
     const snap = aggregate([rec({ id: 'a', input: 10 })], new Date('2026-05-30T18:00:00Z'));
     expect(snap.byHour).toHaveLength(24);

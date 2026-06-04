@@ -26,6 +26,21 @@ function dirName(p: string | null): string {
   return (p ? basenameFromAnyPath(p) : '') || 'unknown';
 }
 
+/**
+ * Project bucket for a working dir. emdash runs each task in a git worktree laid out as
+ * `…/worktrees/<project>/<branch>` (see create-project-provider), so we collapse a worktree to
+ * its parent <project>. Otherwise one repo's many task-branch worktrees fragment into dozens of
+ * rows and the long tail rolls into "other". Non-worktree paths just use the basename.
+ */
+function projectName(cwd: string | null): string {
+  if (!cwd) return 'unknown';
+  const segments = cwd.split(/[\\/]+/).filter(Boolean);
+  for (let i = segments.length - 2; i >= 0; i--) {
+    if (segments[i] === 'worktrees' || segments[i] === '.worktrees') return segments[i + 1];
+  }
+  return dirName(cwd);
+}
+
 export function aggregate(allRecords: UsageRecord[], now: Date): UsageSnapshot {
   // 1. Global dedup, first-wins.
   const byId = new Map<string, UsageRecord>();
@@ -84,18 +99,13 @@ export function aggregate(allRecords: UsageRecord[], now: Date): UsageSnapshot {
       models.set(r.model, mu);
     }
 
-    // by project
+    // by project (worktrees collapsed to their parent repo)
     if (r.cwd) {
-      const pu = projects.get(r.cwd) ?? {
-        path: r.cwd,
-        name: dirName(r.cwd),
-        tokens: 0,
-        cost: 0,
-        sessions: 0,
-      };
+      const pk = projectName(r.cwd);
+      const pu = projects.get(pk) ?? { path: pk, name: pk, tokens: 0, cost: 0, sessions: 0 };
       pu.tokens += tokens;
       pu.cost += cost;
-      projects.set(r.cwd, pu);
+      projects.set(pk, pu);
     }
 
     const parts = localParts(r.ts);
@@ -126,11 +136,13 @@ export function aggregate(allRecords: UsageRecord[], now: Date): UsageSnapshot {
     }
   }
 
-  // project session counts
-  const sessionCwd = new Map<string, string>();
-  for (const r of records) if (r.sessionId && r.cwd) sessionCwd.set(r.sessionId, r.cwd);
-  for (const cwd of sessionCwd.values()) {
-    const pu = projects.get(cwd);
+  // project session counts (keyed by the same collapsed project)
+  const sessionProject = new Map<string, string>();
+  for (const r of records) {
+    if (r.sessionId && r.cwd) sessionProject.set(r.sessionId, projectName(r.cwd));
+  }
+  for (const pk of sessionProject.values()) {
+    const pu = projects.get(pk);
     if (pu) pu.sessions += 1;
   }
 
