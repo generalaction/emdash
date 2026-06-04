@@ -3,7 +3,7 @@ import { KV } from '@main/db/kv';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
 import { ACCOUNT_CONFIG } from '../config';
-import { providerTokenRegistry } from '../provider-token-registry';
+import { providerTokenRegistry, type ProviderAccountPayload } from '../provider-token-registry';
 import { accountCredentialStore } from './credential-store';
 
 export interface AccountUser {
@@ -25,6 +25,7 @@ export interface CachedProfile {
 export interface SignInResult {
   providerToken?: string;
   provider?: string;
+  providerAccount?: ProviderAccountPayload;
   user: AccountUser;
 }
 
@@ -44,6 +45,30 @@ type AccountServiceHooks = {
 };
 
 const accountKV = new KV<AccountKVSchema>('account');
+
+function parseProviderAccountPayload(raw: unknown): ProviderAccountPayload | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined;
+
+  const candidate = raw as Record<string, unknown>;
+  if (
+    typeof candidate.providerId !== 'string' ||
+    typeof candidate.providerAccountId !== 'string' ||
+    candidate.providerAccountId.length === 0 ||
+    typeof candidate.host !== 'string' ||
+    typeof candidate.login !== 'string' ||
+    typeof candidate.avatarUrl !== 'string'
+  ) {
+    return undefined;
+  }
+
+  return {
+    providerId: candidate.providerId,
+    providerAccountId: candidate.providerAccountId,
+    host: candidate.host,
+    login: candidate.login,
+    avatarUrl: candidate.avatarUrl,
+  };
+}
 
 export class EmdashAccountService implements Hookable<AccountServiceHooks> {
   private readonly _hooks = new HookCore<AccountServiceHooks>((name, e) =>
@@ -131,17 +156,22 @@ export class EmdashAccountService implements Hookable<AccountServiceHooks> {
 
     const accessToken = raw.accessToken as string | undefined;
     const providerId = raw.providerId as string | undefined;
+    const providerAccount = parseProviderAccountPayload(raw.providerAccount);
     if (accessToken && providerId) {
-      await providerTokenRegistry.dispatch(providerId, accessToken);
+      await providerTokenRegistry.dispatch(providerId, { accessToken, providerAccount });
     }
 
     this._hooks.callHookBackground('accountChanged', user.username, user.userId, user.email);
 
-    return {
+    const result: SignInResult = {
       providerToken: accessToken || undefined,
       provider: providerId || undefined,
       user,
     };
+    if (providerAccount) {
+      result.providerAccount = providerAccount;
+    }
+    return result;
   }
 
   async signOut(): Promise<void> {

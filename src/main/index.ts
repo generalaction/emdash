@@ -17,6 +17,8 @@ import { automationScheduler } from './core/automations/automation-scheduler';
 import { localDependencyManager } from './core/dependencies/dependency-manager';
 import { editorBufferService } from './core/editor/editor-buffer-service';
 import { gitWatcherRegistry } from './core/git/git-watcher-registry';
+import { githubAccountRegistry } from './core/github/services/github-account-registry-instance';
+import { GitHubAuthServerAdapter } from './core/github/services/github-auth-server-adapter';
 import { githubConnectionService } from './core/github/services/github-connection-service';
 import { projectManager } from './core/projects/project-manager';
 import { projectSettingsService } from './core/projects/settings/project-settings-service';
@@ -145,8 +147,12 @@ void app.whenReady().then(async () => {
     log.warn('Failed to load account session token:', e);
   });
 
-  providerTokenRegistry.register('github', (token) =>
-    githubConnectionService.storeToken(token, 'emdash_oauth')
+  const githubAuthServerAdapter = new GitHubAuthServerAdapter(
+    githubAccountRegistry,
+    githubConnectionService
+  );
+  providerTokenRegistry.register('github', (payload) =>
+    githubAuthServerAdapter.storeOAuthToken(payload)
   );
 
   registerRPCRouter(rpcRouter, ipcMain);

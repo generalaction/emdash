@@ -135,13 +135,59 @@ describe('EmdashAccountService', () => {
         sessionToken: 'session-abc',
         accessToken: 'ghp_123',
         providerId: 'github',
+        providerAccount: {
+          providerId: 'github',
+          providerAccountId: '42',
+          host: 'github.com',
+          login: 'monalisa',
+          avatarUrl: 'https://avatars.githubusercontent.com/u/42',
+        },
         user: { userId: 'u1', username: 'test', avatarUrl: '', email: '' },
       };
       mockExecuteOAuthFlow.mockResolvedValue(oauthResponse);
 
-      await service.signIn();
+      const result = await service.signIn();
 
-      expect(mockDispatch).toHaveBeenCalledWith('github', 'ghp_123');
+      expect(mockDispatch).toHaveBeenCalledWith('github', {
+        accessToken: 'ghp_123',
+        providerAccount: {
+          providerId: 'github',
+          providerAccountId: '42',
+          host: 'github.com',
+          login: 'monalisa',
+          avatarUrl: 'https://avatars.githubusercontent.com/u/42',
+        },
+      });
+      expect(result.providerAccount).toEqual({
+        providerId: 'github',
+        providerAccountId: '42',
+        host: 'github.com',
+        login: 'monalisa',
+        avatarUrl: 'https://avatars.githubusercontent.com/u/42',
+      });
+    });
+
+    it('ignores malformed provider account metadata from the auth server', async () => {
+      const oauthResponse = {
+        sessionToken: 'session-abc',
+        accessToken: 'ghp_123',
+        providerId: 'github',
+        providerAccount: {
+          providerId: 'github',
+          host: 'github.com',
+          login: 'monalisa',
+        },
+        user: { userId: 'u1', username: 'test', avatarUrl: '', email: '' },
+      };
+      mockExecuteOAuthFlow.mockResolvedValue(oauthResponse);
+
+      const result = await service.signIn();
+
+      expect(mockDispatch).toHaveBeenCalledWith('github', {
+        accessToken: 'ghp_123',
+        providerAccount: undefined,
+      });
+      expect(result.providerAccount).toBeUndefined();
     });
 
     it('throws when provider token persistence fails', async () => {
