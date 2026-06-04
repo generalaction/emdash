@@ -812,6 +812,7 @@ describe('conversation provider respawn state', () => {
 
     await provider.startSession(item);
     await provider.detachSession(item.id);
+    vi.mocked(events.emit).mockClear();
     await provider.stopSession(item.id);
 
     expect(ctx.exec).toHaveBeenCalledWith('tmux', [
@@ -819,6 +820,10 @@ describe('conversation provider respawn state', () => {
       '-t',
       expect.stringContaining(Buffer.from(sessionId, 'utf8').toString('base64url')),
     ]);
+    expect(events.emit).toHaveBeenCalledWith(agentSessionExitedChannel, {
+      conversationId: item.id,
+      taskId: item.taskId,
+    });
     expect((provider as unknown as RespawnState).knownSessionIds.has(sessionId)).toBe(false);
   });
 
@@ -837,6 +842,7 @@ describe('conversation provider respawn state', () => {
 
     await provider.startSession(item);
     await provider.detachSession(item.id);
+    vi.mocked(events.emit).mockClear();
     await provider.stopSession(item.id);
 
     expect(ctx.exec).toHaveBeenCalledWith('tmux', [
@@ -844,6 +850,10 @@ describe('conversation provider respawn state', () => {
       '-t',
       expect.stringContaining(Buffer.from(sessionId, 'utf8').toString('base64url')),
     ]);
+    expect(events.emit).toHaveBeenCalledWith(agentSessionExitedChannel, {
+      conversationId: item.id,
+      taskId: item.taskId,
+    });
     expect((provider as unknown as RespawnState).knownSessionIds.has(sessionId)).toBe(false);
   });
 

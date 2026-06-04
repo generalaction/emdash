@@ -313,7 +313,7 @@ export class LocalConversationProvider implements ConversationProvider {
     }
   }
 
-  private detachPty(sessionId: string): void {
+  private detachPty(sessionId: string): boolean {
     const pty = this.supervisor.stop(sessionId) ?? this.sessions.get(sessionId);
     this.sessions.delete(sessionId);
     ptySessionRegistry.unregister(sessionId);
@@ -327,11 +327,18 @@ export class LocalConversationProvider implements ConversationProvider {
         });
       }
     }
+    return pty !== undefined;
   }
 
   async detachSession(conversationId: string): Promise<void> {
     const sessionId = makePtySessionId(this.projectId, this.taskId, conversationId);
-    this.detachPty(sessionId);
+    const detached = this.detachPty(sessionId);
+    if (detached && !this.tmux) {
+      events.emit(agentSessionExitedChannel, {
+        conversationId,
+        taskId: this.taskId,
+      });
+    }
     if (!this.tmux) {
       this.knownSessionIds.delete(sessionId);
       this.supervisor.forget(sessionId);
@@ -340,7 +347,7 @@ export class LocalConversationProvider implements ConversationProvider {
 
   async stopSession(conversationId: string): Promise<void> {
     const sessionId = makePtySessionId(this.projectId, this.taskId, conversationId);
-    this.knownSessionIds.delete(sessionId);
+    const wasKnownSession = this.knownSessionIds.delete(sessionId);
     const pty = this.supervisor.stop(sessionId) ?? this.sessions.get(sessionId);
     this.sessions.delete(sessionId);
     ptySessionRegistry.unregister(sessionId);
@@ -357,6 +364,12 @@ export class LocalConversationProvider implements ConversationProvider {
     if (this.tmux) {
       await killTmuxSession(this.ctx, makeTmuxSessionName(sessionId));
     }
+    if (pty || (this.tmux && wasKnownSession)) {
+      events.emit(agentSessionExitedChannel, {
+        conversationId,
+        taskId: this.taskId,
+      });
+    }
     this.supervisor.forget(sessionId);
   }
 
@@ -365,6 +378,12 @@ export class LocalConversationProvider implements ConversationProvider {
     await this.detachAll();
     if (this.tmux) {
       await Promise.all(sessionIds.map((id) => killTmuxSession(this.ctx, makeTmuxSessionName(id))));
+      for (const sessionId of sessionIds) {
+        events.emit(agentSessionExitedChannel, {
+          conversationId: sessionId.slice(`${this.projectId}:${this.taskId}:`.length),
+          taskId: this.taskId,
+        });
+      }
     }
     for (const sessionId of sessionIds) {
       this.supervisor.forget(sessionId);
@@ -374,11 +393,18 @@ export class LocalConversationProvider implements ConversationProvider {
 
   async detachAll(): Promise<void> {
     for (const [sessionId, pty] of this.sessions) {
+      const conversationId = sessionId.slice(`${this.projectId}:${this.taskId}:`.length);
       this.supervisor.stop(sessionId);
       try {
         pty.kill();
       } catch {}
       ptySessionRegistry.unregister(sessionId);
+      if (!this.tmux) {
+        events.emit(agentSessionExitedChannel, {
+          conversationId,
+          taskId: this.taskId,
+        });
+      }
     }
     this.sessions.clear();
   }
