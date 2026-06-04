@@ -34,12 +34,12 @@ export function ExternalLinkChoiceDialog({
           {url}
         </div>
       </DialogContentArea>
-      <DialogFooter className="flex-col-reverse sm:flex-col-reverse md:flex-row md:justify-end">
-        <Button className="w-full md:w-auto" variant="outline" onClick={onClose}>
+      <DialogFooter className="flex-col-reverse sm:flex-col-reverse">
+        <Button className="w-full" variant="outline" onClick={onClose}>
           Cancel
         </Button>
         <Button
-          className="w-full md:w-auto"
+          className="w-full"
           variant="outline"
           disabled={!canOpenInEmdashBrowser}
           onClick={() => onSuccess('emdash-browser')}
@@ -47,11 +47,7 @@ export function ExternalLinkChoiceDialog({
           <Globe className="size-4" />
           Open in Emdash
         </Button>
-        <Button
-          className="w-full md:w-auto"
-          variant="default"
-          onClick={() => onSuccess('external-browser')}
-        >
+        <Button className="w-full" variant="default" onClick={() => onSuccess('external-browser')}>
           <ExternalLink className="size-4" />
           Open in Browser
         </Button>
