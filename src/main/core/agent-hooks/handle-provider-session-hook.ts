@@ -2,6 +2,7 @@ import { saveProviderSessionId } from '@main/core/conversations/save-provider-se
 import { setProviderSessionId } from '@main/core/conversations/set-provider-session-id';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
+import { isValidProviderSessionId } from '@shared/agent-provider-registry';
 import { conversationChangedChannel } from '@shared/events/conversationEvents';
 import { parsePtyId } from '@shared/ptyId';
 import { enrichEvent } from './event-enricher';
@@ -26,7 +27,8 @@ export async function handleProviderSessionHook(raw: RawHookRequest): Promise<vo
     !parsed ||
     (parsed.providerId !== 'copilot' &&
       parsed.providerId !== 'droid' &&
-      parsed.providerId !== 'grok')
+      parsed.providerId !== 'grok' &&
+      parsed.providerId !== 'opencode')
   ) {
     return;
   }
@@ -46,6 +48,7 @@ export async function handleProviderSessionHook(raw: RawHookRequest): Promise<vo
 
   const providerSessionId = extractProviderSessionId(body);
   if (!providerSessionId) return;
+  if (!isValidProviderSessionId(parsed.providerId, providerSessionId)) return;
 
   if (parsed.providerId === 'droid') {
     await saveProviderSessionId(parsed.conversationId, providerSessionId);

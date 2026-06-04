@@ -7,25 +7,50 @@ export const EmdashNotifications = async () => ({
     const ptyId = process.env.EMDASH_PTY_ID;
     if (!port || !token || !ptyId) return;
 
+    const sessionId = getOpenCodeSessionId(event);
+    if (sessionId) {
+      await postToEmdash({ port, token, ptyId, type: 'session', body: { sessionId } });
+    }
+
     const payload = toEmdashPayload(event);
     if (!payload) return;
 
-    try {
-      await fetch(`http://127.0.0.1:${port}/hook`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Emdash-Token': token,
-          'X-Emdash-Pty-Id': ptyId,
-          'X-Emdash-Event-Type': payload.type,
-        },
-        body: JSON.stringify(payload.body),
-      });
-    } catch {
-      // Hook delivery is best-effort and must never interrupt OpenCode.
-    }
+    await postToEmdash({ port, token, ptyId, type: payload.type, body: payload.body });
   },
 });
+
+async function postToEmdash({ port, token, ptyId, type, body }) {
+  try {
+    await fetch(`http://127.0.0.1:${port}/hook`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Emdash-Token': token,
+        'X-Emdash-Pty-Id': ptyId,
+        'X-Emdash-Event-Type': type,
+      },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    // Hook delivery is best-effort and must never interrupt OpenCode.
+  }
+}
+
+function getOpenCodeSessionId(event) {
+  if (!event.type?.startsWith('session.')) return undefined;
+
+  const infoId = event.properties?.info?.id;
+  if (isOpenCodeSessionId(infoId)) return infoId.trim();
+
+  const sessionId = event.properties?.sessionID;
+  if (isOpenCodeSessionId(sessionId)) return sessionId.trim();
+
+  return undefined;
+}
+
+function isOpenCodeSessionId(value) {
+  return typeof value === 'string' && value.trim().startsWith('ses');
+}
 
 function toEmdashPayload(event) {
   if (event.type === 'session.idle') {

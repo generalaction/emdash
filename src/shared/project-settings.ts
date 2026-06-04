@@ -46,6 +46,8 @@ export const baseProjectSettingsSchema = z.object({
   baseRemote: z.string().optional(),
   pushRemote: z.string().optional(),
   tmux: z.boolean().optional(),
+  autoRunSetupScriptOnTaskCreation: z.boolean().optional(),
+  autoRunRunScriptOnTaskCreation: z.boolean().optional(),
   workspaceProvider: z
     .object({
       type: z.literal('script'),
