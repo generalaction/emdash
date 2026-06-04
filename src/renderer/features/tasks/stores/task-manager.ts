@@ -317,7 +317,12 @@ export class TaskManagerStore {
           autoApprove: ic.autoApprove ?? false,
           isInitialConversation: true,
         };
-        conversationRegistry.acquire(params.id, this.projectId, [optimistic]);
+        const conversationManager = conversationRegistry.acquire(params.id, this.projectId, [
+          optimistic,
+        ]);
+        if (ic.initialPrompt?.trim()) {
+          void conversationManager.markConversationWorking(ic.id);
+        }
       } else {
         conversationRegistry.acquire(params.id, this.projectId);
       }
