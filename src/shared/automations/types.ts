@@ -27,8 +27,6 @@ export type Automation = {
   /** Controls cron scheduling only. Manual runs are allowed while false. */
   enabled: boolean;
   isDraft: boolean;
-  lastRunAt: number | null;
-  nextRunAt: number | null;
   deadlinePolicy: AutomationDeadlinePolicy;
   deadlineMs: number | null;
   createdAt: number;

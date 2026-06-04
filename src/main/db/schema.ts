@@ -301,15 +301,12 @@ export const automations = sqliteTable(
     projectId: text('project_id').references(() => projects.id, { onDelete: 'set null' }),
     enabled: integer('enabled').notNull().default(1),
     isDraft: integer('is_draft').notNull().default(0),
-    lastRunAt: integer('last_run_at'),
-    nextRunAt: integer('next_run_at'),
     deadlinePolicy: text('deadline_policy').notNull().default('next-interval'),
     deadlineMs: integer('deadline_ms'),
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
   },
   (table) => ({
-    enabledNextRunIdx: index('idx_automations_enabled_next_run').on(table.enabled, table.nextRunAt),
     projectIdIdx: index('idx_automations_project_id').on(table.projectId),
   })
 );
@@ -346,6 +343,10 @@ export const automationRuns = sqliteTable(
       table.status
     ),
     statusIdx: index('idx_automation_runs_status').on(table.status),
+    statusScheduledIdx: index('idx_automation_runs_status_scheduled').on(
+      table.status,
+      table.scheduledAt
+    ),
     createdTaskIdIdx: index('idx_automation_runs_created_task_id').on(table.createdTaskId),
   })
 );

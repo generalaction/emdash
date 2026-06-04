@@ -4,31 +4,26 @@ import { QUEUE_DEADLINE_EXCEEDED_ERROR } from '@shared/automations/format';
 import type { Automation, AutomationRun } from '@shared/automations/types';
 import { automationEvents } from './automation-events';
 import {
+  automationRunDeadline,
   claimQueuedRun,
-  dueCronAutomations,
-  enabledCronAutomations,
-  enqueueAutomationRun,
-  getNextRunAt,
+  dueQueuedCronRuns,
+  enabledAutomationsWithoutQueuedRun,
+  ensureNextCronRun,
   hasRunningRuns,
-  listRunningRunsForRecovery,
   listQueuedRuns,
+  listRunningRunsForRecovery,
   recoverQueuedRuns,
   taskExists,
-  updateAutomationSchedule,
 } from './repo';
-import {
-  emitClaimedRunStarted,
-  emitQueuedRun,
-  markRunFailed,
-  markRunSkipped,
-} from './run-transitions';
+import { emitClaimedRunStarted, markRunFailed, markRunSkipped } from './run-transitions';
 import { runQueuedAutomation } from './runtime';
+
+export { automationRunDeadline };
 
 const TICK_MS = 60_000;
 const MAX_DUE_ENQUEUE = 100;
 // Each run may allocate a worktree, PTY and agent process; keep local fan-out conservative.
 const MAX_CONCURRENT_RUNS = 4;
-const DEFAULT_QUEUE_DEADLINE_MS = 5 * 60_000;
 
 class AutomationWorkerPool {
   private activeCount = 0;
@@ -51,20 +46,6 @@ class AutomationWorkerPool {
     });
     return true;
   }
-}
-
-export function automationRunDeadline(
-  automation: Automation,
-  scheduledAt: number,
-  triggerKind: 'cron' | 'manual' = 'cron'
-): number | null {
-  if (automation.deadlinePolicy === 'none') return null;
-
-  if (automation.deadlinePolicy === 'fixed' || triggerKind !== 'cron') {
-    return scheduledAt + (automation.deadlineMs ?? DEFAULT_QUEUE_DEADLINE_MS);
-  }
-
-  return getNextRunAt(automation.trigger, scheduledAt);
 }
 
 export class AutomationScheduler {
@@ -137,26 +118,28 @@ export class AutomationScheduler {
 
   private async bootstrapDueRuns(): Promise<void> {
     const now = Date.now();
-    const rows = await enabledCronAutomations();
-    const results = await Promise.allSettled(
-      rows.map(async (automation) => {
-        const isDue = automation.nextRunAt != null && automation.nextRunAt <= now;
-        if (isDue) {
-          await this.enqueueCronAutomation(automation, automation.nextRunAt!);
-        }
-        if (!automation.nextRunAt || isDue) {
-          await this.advanceNextRun(automation, now);
+
+    // Ensure every enabled automation has a queued cron run (self-healing).
+    const needsQueued = await enabledAutomationsWithoutQueuedRun();
+    await Promise.allSettled(
+      needsQueued.map(async (automation) => {
+        try {
+          await ensureNextCronRun(automation, now);
+        } catch (error) {
+          log.error('AutomationScheduler failed to ensure next cron run on bootstrap', {
+            automationId: automation.id,
+            error: String(error),
+          });
         }
       })
     );
-    results.forEach((result, index) => {
-      if (result.status === 'rejected') {
-        log.error('AutomationScheduler bootstrap automation failed', {
-          automationId: rows[index]?.id,
-          error: String(result.reason),
-        });
-      }
-    });
+
+    // Dispatch any queued cron runs that are now past their scheduled time.
+    const due = await dueQueuedCronRuns(now);
+    for (const { run, automation } of due.slice(0, MAX_DUE_ENQUEUE)) {
+      await this.dispatchDueRun(run, automation, now);
+    }
+
     await this.drainQueue();
   }
 
@@ -165,10 +148,9 @@ export class AutomationScheduler {
     this.ticking = true;
     try {
       const now = Date.now();
-      const due = await dueCronAutomations(now);
-      for (const automation of due.slice(0, MAX_DUE_ENQUEUE)) {
-        await this.enqueueCronAutomation(automation, automation.nextRunAt ?? now);
-        await this.advanceNextRun(automation, Date.now());
+      const due = await dueQueuedCronRuns(now);
+      for (const { run, automation } of due.slice(0, MAX_DUE_ENQUEUE)) {
+        await this.dispatchDueRun(run, automation, now);
       }
       await this.drainQueue();
     } catch (error) {
@@ -178,21 +160,17 @@ export class AutomationScheduler {
     }
   }
 
-  private async advanceNextRun(automation: Automation, from: number): Promise<void> {
-    const nextRunAt = getNextRunAt(automation.trigger, from);
-    await updateAutomationSchedule(automation.id, { nextRunAt });
-  }
-
-  private async enqueueCronAutomation(automation: Automation, scheduledAt: number): Promise<void> {
-    const run = await enqueueAutomationRun({
-      automationId: automation.id,
-      scheduledAt,
-      deadlineAt: automationRunDeadline(automation, scheduledAt, 'cron'),
-      triggerKind: 'cron',
-    });
-    if (run) {
-      emitQueuedRun(run);
-    }
+  /**
+   * When a queued cron run is past due, ensure the next occurrence is already
+   * pre-materialized before we dispatch this one, so the schedule stays live.
+   */
+  private async dispatchDueRun(
+    run: AutomationRun,
+    automation: Automation,
+    now: number
+  ): Promise<void> {
+    await ensureNextCronRun(automation, now);
+    // The run is already queued — nothing to enqueue; pumpQueue will claim it.
   }
 
   async drainQueue(): Promise<void> {
@@ -261,6 +239,17 @@ export class AutomationScheduler {
           runId: run.id,
           error: markError instanceof Error ? markError.message : String(markError),
         });
+      }
+    } finally {
+      if (run.triggerKind === 'cron' && automation.enabled) {
+        try {
+          await ensureNextCronRun(automation, Date.now());
+        } catch (scheduleError) {
+          log.error('AutomationScheduler failed to schedule next cron run', {
+            automationId: automation.id,
+            error: String(scheduleError),
+          });
+        }
       }
     }
   }

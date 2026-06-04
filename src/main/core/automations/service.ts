@@ -1,6 +1,7 @@
 import type { Automation } from '@shared/automations/types';
 import {
   detachProjectAutomations,
+  ensureNextCronRun,
   setAutomationEnabled as setAutomationEnabledInRepo,
   skipQueuedCronRuns,
 } from './repo';
@@ -11,6 +12,9 @@ export async function setAutomationEnabled(
   enabled: boolean
 ): Promise<Automation | null> {
   const automation = await setAutomationEnabledInRepo(id, enabled);
+  if (automation && enabled) {
+    await ensureNextCronRun(automation);
+  }
   if (automation && !enabled) {
     const skippedRuns = await skipQueuedCronRuns(id, 'automation_disabled');
     skippedRuns.forEach((run) => emitRunTransition(run));

@@ -2,14 +2,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Automation, AutomationRun } from '@shared/automations/types';
 import { executeTaskCreate } from './actions/taskCreate';
 import { automationEvents } from './automation-events';
-import { updateAutomationSchedule, updateRun } from './repo';
+import { updateRun } from './repo';
 import { runQueuedAutomation } from './runtime';
 
 vi.mock('@main/lib/events', () => ({ events: { emit: vi.fn() } }));
 vi.mock('@main/lib/logger', () => ({ log: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
 vi.mock('./actions/taskCreate', () => ({ executeTaskCreate: vi.fn() }));
 vi.mock('./automation-events', () => ({ automationEvents: { _emit: vi.fn() } }));
-vi.mock('./repo', () => ({ updateAutomationSchedule: vi.fn(), updateRun: vi.fn() }));
+vi.mock('./repo', () => ({ updateRun: vi.fn() }));
 
 const automation: Automation = {
   id: 'automation-1',
@@ -22,8 +22,6 @@ const automation: Automation = {
   projectId: 'project-1',
   enabled: true,
   isDraft: false,
-  lastRunAt: null,
-  nextRunAt: null,
   deadlinePolicy: 'next-interval',
   deadlineMs: null,
   createdAt: 0,
@@ -49,7 +47,6 @@ describe('runQueuedAutomation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(updateRun).mockImplementation(async (_, values) => ({ ...run, ...values }));
-    vi.mocked(updateAutomationSchedule).mockResolvedValue(undefined as never);
   });
 
   it('marks a successful run and stores the created task id', async () => {
@@ -68,7 +65,6 @@ describe('runQueuedAutomation', () => {
       taskId: 'task-1',
       createdTaskId: 'task-1',
     });
-    expect(updateAutomationSchedule).toHaveBeenCalledWith(automation.id, { lastRunAt: 1 });
     expect(automationEvents._emit).toHaveBeenCalledWith('automation:run:finish', {
       ...run,
       status: 'success',

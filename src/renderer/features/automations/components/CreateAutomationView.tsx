@@ -36,8 +36,8 @@ import {
   type BuiltinAutomationTemplate,
   type CronTrigger,
 } from '@shared/automations/types';
-import { assertValidCronTrigger } from '@shared/automations/validation';
 import type { StoredAutomationTaskConfig } from '@shared/automations/types';
+import { assertValidCronTrigger } from '@shared/automations/validation';
 import type { Branch } from '@shared/git';
 import type { WorkspaceConfig, WorkspaceTarget } from '@shared/workspace-config';
 import { useAutomations } from '../useAutomations';
@@ -84,7 +84,11 @@ function plainBranch(branch: Branch): Branch {
     };
   }
   return branch.remote
-    ? { type: 'local', branch: branch.branch, remote: { name: branch.remote.name, url: branch.remote.url } }
+    ? {
+        type: 'local',
+        branch: branch.branch,
+        remote: { name: branch.remote.name, url: branch.remote.url },
+      }
     : { type: 'local', branch: branch.branch };
 }
 
@@ -342,7 +346,13 @@ export const CreateAutomationView = observer(function CreateAutomationView({
         <Button variant="outline" size="sm" onClick={onClose}>
           Cancel
         </Button>
-        <ConfirmButton size="sm" onClick={() => { void handleSave(); }} disabled={!canSave}>
+        <ConfirmButton
+          size="sm"
+          onClick={() => {
+            void handleSave();
+          }}
+          disabled={!canSave}
+        >
           {isPending ? 'Saving…' : 'Create'}
         </ConfirmButton>
       </SheetFooter>

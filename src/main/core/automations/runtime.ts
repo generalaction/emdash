@@ -3,7 +3,6 @@ import type { Automation, AutomationRun } from '@shared/automations/types';
 import { err, ok, type Result } from '@shared/result';
 import { executeTaskCreate } from './actions/taskCreate';
 import type { ActionError, ActionOutcome } from './actions/types';
-import { updateAutomationSchedule } from './repo';
 import { markRunFailed, markRunSkipped, markRunSucceeded } from './run-transitions';
 
 export async function runQueuedAutomation(
@@ -73,6 +72,5 @@ export async function runQueuedAutomation(
     taskId: latestTaskId,
     createdTaskId: firstTaskId,
   });
-  await updateAutomationSchedule(automation.id, { lastRunAt: run.startedAt ?? Date.now() });
   return ok(run);
 }

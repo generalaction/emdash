@@ -25,14 +25,8 @@ export function AutomationsView() {
   const [search, setSearch] = useState('');
   const [runFacetFilters, setRunFacetFilters] = useState(EMPTY_AUTOMATION_RUNS_FACET_FILTERS);
 
-  const {
-    panel,
-    selectedAutomationId,
-    openEdit,
-    openCreate,
-    openCreateWithTemplate,
-    close,
-  } = useAutomationsPanel(automationItems);
+  const { panel, selectedAutomationId, openEdit, openCreate, openCreateWithTemplate, close } =
+    useAutomationsPanel(automationItems);
 
   const closePanel = useCallback(() => close(), [close]);
 

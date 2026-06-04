@@ -78,8 +78,6 @@ const automationRow = {
   projectId: 'project-1',
   enabled: 1,
   isDraft: 0,
-  lastRunAt: null,
-  nextRunAt: 123,
   deadlinePolicy: 'next-interval',
   deadlineMs: null,
   createdAt: 1,
@@ -120,7 +118,6 @@ describe('automations repo', () => {
     expect(dbMock.update).toHaveBeenNthCalledWith(1, automations);
     expect(dbMock.updateSet).toHaveBeenNthCalledWith(1, {
       projectId: null,
-      nextRunAt: null,
       updatedAt: expect.any(Number),
     });
     expect(dbMock.updateReturning).toHaveBeenCalledWith({ id: automations.id });
@@ -153,7 +150,6 @@ describe('automations repo', () => {
     expect(dbMock.update).toHaveBeenNthCalledWith(1, automations);
     expect(dbMock.updateSet).toHaveBeenNthCalledWith(1, {
       enabled: 0,
-      nextRunAt: 123,
       updatedAt: expect.any(Number),
     });
     expect(dbMock.update).toHaveBeenNthCalledWith(2, automationRuns);
@@ -245,21 +241,18 @@ describe('automations repo', () => {
     expect(dbMock.update).not.toHaveBeenCalled();
   });
 
-  it('refreshes nextRunAt when updateAutomation enables a paused automation', async () => {
-    dbMock.selectLimit.mockReturnValueOnce(
-      dbMock.rowsResult([{ ...automationRow, enabled: 0, nextRunAt: null }])
-    );
+  it('enables a paused automation without touching nextRunAt (scheduling is done separately)', async () => {
+    dbMock.selectLimit.mockReturnValueOnce(dbMock.rowsResult([{ ...automationRow, enabled: 0 }]));
     dbMock.updateReturning.mockReturnValueOnce(
-      dbMock.rowsResult([{ ...automationRow, enabled: 1, nextRunAt: 999 }])
+      dbMock.rowsResult([{ ...automationRow, enabled: 1 }])
     );
 
     await expect(updateAutomation('automation-1', { enabled: true })).resolves.toEqual(
-      expect.objectContaining({ id: 'automation-1', enabled: true, nextRunAt: 999 })
+      expect.objectContaining({ id: 'automation-1', enabled: true })
     );
 
     expect(dbMock.updateSet).toHaveBeenCalledWith({
       enabled: 1,
-      nextRunAt: expect.any(Number),
       updatedAt: expect.any(Number),
     });
   });

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Cron } from 'croner';
-import { and, asc, desc, eq, inArray, isNotNull, lte, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import {
   automationRuns,
@@ -26,8 +26,8 @@ import type {
   CronTrigger,
   UpdateAutomationPatch,
 } from '@shared/automations/types';
-import { assertValidCronTrigger, assertValidDeadline } from '@shared/automations/validation';
 import type { StoredAutomationTaskConfig } from '@shared/automations/types';
+import { assertValidCronTrigger, assertValidDeadline } from '@shared/automations/validation';
 
 const DEFAULT_TZ = getLocalTimeZone();
 
@@ -178,8 +178,6 @@ function mapAutomationRow(row: AutomationRow): Automation {
     projectId: row.projectId,
     enabled: row.enabled === 1,
     isDraft: row.isDraft === 1,
-    lastRunAt: row.lastRunAt,
-    nextRunAt: row.nextRunAt,
     deadlinePolicy: asDeadlinePolicy(row.deadlinePolicy, row.id),
     deadlineMs: row.deadlineMs,
     createdAt: row.createdAt,
@@ -308,11 +306,26 @@ export function getNextRunAt(
   return next?.getTime() ?? null;
 }
 
+const DEFAULT_QUEUE_DEADLINE_MS = 5 * 60_000;
+
+export function automationRunDeadline(
+  automation: Automation,
+  scheduledAt: number,
+  triggerKind: 'cron' | 'manual' = 'cron'
+): number | null {
+  if (automation.deadlinePolicy === 'none') return null;
+
+  if (automation.deadlinePolicy === 'fixed' || triggerKind !== 'cron') {
+    return scheduledAt + (automation.deadlineMs ?? DEFAULT_QUEUE_DEADLINE_MS);
+  }
+
+  return getNextRunAt(automation.trigger, scheduledAt);
+}
+
 function rowValuesFromTrigger(trigger: CronTrigger) {
   return {
     cronExpr: trigger.expr.trim(),
     cronTz: trigger.tz || DEFAULT_TZ,
-    nextRunAt: getNextRunAt(trigger),
   };
 }
 
@@ -385,14 +398,17 @@ export async function createAutomation(input: CreateAutomationInput): Promise<Au
       projectId: input.projectId,
       enabled: input.isDraft ? 0 : input.enabled === false ? 0 : 1,
       isDraft: input.isDraft ? 1 : 0,
-      lastRunAt: null,
       deadlinePolicy: input.deadlinePolicy ?? 'next-interval',
       deadlineMs: input.deadlineMs ?? null,
       createdAt: now,
       updatedAt: now,
     })
     .returning();
-  return mapAutomationRow(row);
+  const automation = mapAutomationRow(row);
+  if (automation.enabled && !automation.isDraft) {
+    await ensureNextCronRun(automation);
+  }
+  return automation;
 }
 
 export async function updateAutomation(
@@ -436,9 +452,6 @@ export async function updateAutomation(
     }
     if (patch.enabled !== undefined) {
       values.enabled = patch.enabled ? 1 : 0;
-      if (patch.enabled && !existing.enabled && patch.trigger === undefined) {
-        values.nextRunAt = getNextRunAt(existing.trigger);
-      }
     }
     if (patch.isDraft !== undefined) values.isDraft = patch.isDraft ? 1 : 0;
     if (patch.deadlinePolicy !== undefined) values.deadlinePolicy = patch.deadlinePolicy;
@@ -465,7 +478,7 @@ export async function updateAutomation(
 export async function detachProjectAutomations(projectId: string): Promise<Array<{ id: string }>> {
   const rows = await db
     .update(automations)
-    .set({ projectId: null, nextRunAt: null, updatedAt: Date.now() })
+    .set({ projectId: null, updatedAt: Date.now() })
     .where(eq(automations.projectId, projectId))
     .returning({ id: automations.id });
   return rows;
@@ -491,48 +504,78 @@ export async function setAutomationEnabled(
   if (existing.projectId == null && enabled) {
     throw new Error('no_project_attached');
   }
-  const nextRunAt = enabled ? getNextRunAt(existing.trigger) : existing.nextRunAt;
   const [row] = await db
     .update(automations)
-    .set({ enabled: enabled ? 1 : 0, nextRunAt, updatedAt: Date.now() })
+    .set({ enabled: enabled ? 1 : 0, updatedAt: Date.now() })
     .where(eq(automations.id, id))
     .returning();
   return row ? mapAutomationRow(row) : null;
 }
 
-export async function updateAutomationSchedule(
-  id: string,
-  values: { lastRunAt?: number | null; nextRunAt?: number | null }
-): Promise<void> {
-  await db
-    .update(automations)
-    .set({ ...values, updatedAt: Date.now() })
-    .where(eq(automations.id, id));
+export async function ensureNextCronRun(
+  automation: Automation,
+  from: number | Date = new Date()
+): Promise<AutomationRun | null> {
+  const scheduledAt = getNextRunAt(automation.trigger, from);
+  if (scheduledAt == null) return null;
+  return enqueueAutomationRun({
+    automationId: automation.id,
+    scheduledAt,
+    deadlineAt: automationRunDeadline(automation, scheduledAt, 'cron'),
+    triggerKind: 'cron',
+  });
 }
 
-async function activeCronAutomations(whereNextRunDue?: number): Promise<Automation[]> {
-  const predicates = [
-    eq(automations.enabled, 1),
-    eq(automations.isDraft, 0),
-    isNotNull(automations.projectId),
-  ];
-  if (whereNextRunDue !== undefined) {
-    predicates.push(isNotNull(automations.nextRunAt), lte(automations.nextRunAt, whereNextRunDue));
-  }
-
+export async function dueQueuedCronRuns(
+  now = Date.now()
+): Promise<Array<{ run: AutomationRun; automation: Automation }>> {
   const rows = await db
-    .select()
+    .select({ run: automationRuns, automation: automations })
+    .from(automationRuns)
+    .innerJoin(automations, eq(automationRuns.automationId, automations.id))
+    .where(
+      and(
+        eq(automationRuns.status, 'queued'),
+        eq(automationRuns.triggerKind, 'cron'),
+        sql`${automationRuns.scheduledAt} <= ${now}`,
+        eq(automations.enabled, 1),
+        eq(automations.isDraft, 0),
+        sql`${automations.projectId} IS NOT NULL`
+      )
+    )
+    .orderBy(asc(automationRuns.scheduledAt));
+  return rows.flatMap(({ run, automation }) => {
+    const mappedAutomation = mapAutomationRowSafely(automation);
+    return mappedAutomation
+      ? [{ run: mapAutomationRunRow(run), automation: mappedAutomation }]
+      : [];
+  });
+}
+
+export async function enabledAutomationsWithoutQueuedRun(): Promise<Automation[]> {
+  const rows = await db
+    .select({ automation: automations })
     .from(automations)
-    .where(and(...predicates));
-  return mapAutomationRows(rows);
-}
-
-export async function dueCronAutomations(now = Date.now()): Promise<Automation[]> {
-  return activeCronAutomations(now);
-}
-
-export async function enabledCronAutomations(): Promise<Automation[]> {
-  return activeCronAutomations();
+    .leftJoin(
+      automationRuns,
+      and(
+        eq(automationRuns.automationId, automations.id),
+        eq(automationRuns.status, 'queued'),
+        eq(automationRuns.triggerKind, 'cron')
+      )
+    )
+    .where(
+      and(
+        eq(automations.enabled, 1),
+        eq(automations.isDraft, 0),
+        sql`${automations.projectId} IS NOT NULL`,
+        isNull(automationRuns.id)
+      )
+    );
+  return rows.flatMap(({ automation }) => {
+    const mapped = mapAutomationRowSafely(automation);
+    return mapped ? [mapped] : [];
+  });
 }
 
 export async function hasRunningRuns(automationId: string): Promise<boolean> {

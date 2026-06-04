@@ -55,8 +55,8 @@ import {
   type Automation,
   type CronTrigger,
 } from '@shared/automations/types';
-import { assertValidCronTrigger } from '@shared/automations/validation';
 import type { StoredAutomationTaskConfig } from '@shared/automations/types';
+import { assertValidCronTrigger } from '@shared/automations/validation';
 import type { Branch } from '@shared/git';
 import { makePtySessionId } from '@shared/ptySessionId';
 import type { WorkspaceConfig, WorkspaceTarget } from '@shared/workspace-config';
@@ -106,7 +106,11 @@ function plainBranch(branch: Branch): Branch {
     };
   }
   return branch.remote
-    ? { type: 'local', branch: branch.branch, remote: { name: branch.remote.name, url: branch.remote.url } }
+    ? {
+        type: 'local',
+        branch: branch.branch,
+        remote: { name: branch.remote.name, url: branch.remote.url },
+      }
     : { type: 'local', branch: branch.branch };
 }
 
@@ -173,7 +177,10 @@ export const AutomationDetailView = observer(function AutomationDetailView({
   const currentBranch = repo?.currentBranch ?? null;
 
   const branchInitial = useMemo(() => branchInitialFromConfig(seedConfig), [seedConfig]);
-  const taskName = useTaskName({ generatedName: seedConfig?.taskConfig.name, resetKey: effectiveProjectId });
+  const taskName = useTaskName({
+    generatedName: seedConfig?.taskConfig.name,
+    resetKey: effectiveProjectId,
+  });
   const branchSelection = useBranchSelection(
     effectiveProjectId,
     defaultBranch,
@@ -421,10 +428,7 @@ export const AutomationDetailView = observer(function AutomationDetailView({
                   <Ellipsis className="size-4" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent side="bottom" align="end">
-                  <DropdownMenuItem
-                    variant="destructive"
-                    onClick={() => onDelete?.(automation)}
-                  >
+                  <DropdownMenuItem variant="destructive" onClick={() => onDelete?.(automation)}>
                     <Trash2 />
                     Delete automation
                   </DropdownMenuItem>
@@ -437,12 +441,7 @@ export const AutomationDetailView = observer(function AutomationDetailView({
           </div>
 
           <div className="flex items-center gap-2">
-            <PanelTabs
-              compact
-              value={activeTab}
-              onChange={setActiveTab}
-              tabs={AUTOMATION_TABS}
-            />
+            <PanelTabs compact value={activeTab} onChange={setActiveTab} tabs={AUTOMATION_TABS} />
             {activeTab === 'runs' && (
               <div className="ml-auto flex items-center gap-1">
                 <Tooltip>
@@ -510,7 +509,13 @@ export const AutomationDetailView = observer(function AutomationDetailView({
         <Button variant="outline" size="sm" onClick={onClose}>
           Cancel
         </Button>
-        <ConfirmButton size="sm" onClick={() => { void handleSave(); }} disabled={!canSave}>
+        <ConfirmButton
+          size="sm"
+          onClick={() => {
+            void handleSave();
+          }}
+          disabled={!canSave}
+        >
           {isPending ? 'Saving…' : automation.isDraft ? 'Start from draft' : 'Save'}
         </ConfirmButton>
       </SheetFooter>

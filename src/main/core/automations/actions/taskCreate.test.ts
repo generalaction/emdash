@@ -68,8 +68,6 @@ const automation: Automation = {
   projectId: 'project-1',
   enabled: true,
   isDraft: false,
-  lastRunAt: null,
-  nextRunAt: null,
   deadlinePolicy: 'next-interval',
   deadlineMs: null,
   createdAt: 0,

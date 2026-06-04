@@ -23,7 +23,12 @@ import type { Branch } from '@shared/git';
 import { bareRefName } from '@shared/git-utils';
 import type { LocalProject, SshProject } from '@shared/projects';
 import { err, ok, type Result } from '@shared/result';
-import type { CreateTaskError, CreateTaskParams, GitSetup, ProvisionWorkspaceError } from '@shared/tasks';
+import type {
+  CreateTaskError,
+  CreateTaskParams,
+  GitSetup,
+  ProvisionWorkspaceError,
+} from '@shared/tasks';
 import { type WorkspaceConfig, type WorkspaceTarget } from '@shared/workspace-config';
 import { emitRunUpdated } from '../run-transitions';
 import type { ActionContext, ActionError, ActionOutcome } from './types';

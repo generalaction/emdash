@@ -34,6 +34,7 @@ vi.mock('./repo', () => ({
   listRuns: vi.fn(),
   removeAutomation: vi.fn(),
   removeRun: vi.fn(),
+  skipQueuedCronRuns: vi.fn(),
   updateAutomation: vi.fn(),
 }));
 
@@ -56,8 +57,6 @@ const draftAutomation: Automation = {
   projectId: 'project-1',
   enabled: false,
   isDraft: true,
-  lastRunAt: null,
-  nextRunAt: null,
   deadlinePolicy: 'next-interval',
   deadlineMs: null,
   createdAt: 0,

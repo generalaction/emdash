@@ -1,22 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
-import type { Automation } from '@shared/automations/types';
+import type { Automation, AutomationRun } from '@shared/automations/types';
 import { automationRunUpdatedChannel } from '@shared/events/automationEvents';
 import { automationEvents } from './automation-events';
 import { AutomationScheduler } from './automation-scheduler';
 import {
   claimQueuedRun,
-  dueCronAutomations,
-  enabledCronAutomations,
-  enqueueAutomationRun,
-  getNextRunAt,
+  dueQueuedCronRuns,
+  enabledAutomationsWithoutQueuedRun,
+  ensureNextCronRun,
   hasRunningRuns,
   listRunningRunsForRecovery,
   listQueuedRuns,
   recoverQueuedRuns,
   taskExists,
-  updateAutomationSchedule,
   updateRun,
 } from './repo';
 import { runQueuedAutomation } from './runtime';
@@ -34,15 +32,13 @@ vi.mock('./automation-events', () => ({
 vi.mock('./repo', () => ({
   claimQueuedRun: vi.fn(),
   hasRunningRuns: vi.fn(),
-  dueCronAutomations: vi.fn(),
-  enabledCronAutomations: vi.fn(),
-  enqueueAutomationRun: vi.fn(),
-  getNextRunAt: vi.fn(),
+  dueQueuedCronRuns: vi.fn(),
+  enabledAutomationsWithoutQueuedRun: vi.fn(),
+  ensureNextCronRun: vi.fn(),
   listRunningRunsForRecovery: vi.fn(),
   listQueuedRuns: vi.fn(),
   recoverQueuedRuns: vi.fn(),
   taskExists: vi.fn(),
-  updateAutomationSchedule: vi.fn(),
   updateRun: vi.fn(),
 }));
 
@@ -61,29 +57,25 @@ const baseAutomation: Automation = {
   projectId: 'project-1',
   enabled: true,
   isDraft: false,
-  lastRunAt: null,
-  nextRunAt: null,
   deadlinePolicy: 'next-interval',
   deadlineMs: null,
   createdAt: 0,
   updatedAt: 0,
 };
 
-describe('AutomationScheduler missed runs', () => {
+describe('AutomationScheduler bootstrap', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.clearAllMocks();
     vi.mocked(recoverQueuedRuns).mockResolvedValue(0);
     vi.mocked(listRunningRunsForRecovery).mockResolvedValue([]);
     vi.mocked(taskExists).mockResolvedValue(false);
-    vi.mocked(enabledCronAutomations).mockResolvedValue([]);
-    vi.mocked(dueCronAutomations).mockResolvedValue([]);
+    vi.mocked(enabledAutomationsWithoutQueuedRun).mockResolvedValue([]);
+    vi.mocked(dueQueuedCronRuns).mockResolvedValue([]);
     vi.mocked(listQueuedRuns).mockResolvedValue([]);
     vi.mocked(claimQueuedRun).mockResolvedValue(null);
     vi.mocked(hasRunningRuns).mockResolvedValue(false);
-    vi.mocked(enqueueAutomationRun).mockResolvedValue(null);
-    vi.mocked(getNextRunAt).mockReturnValue(null);
-    vi.mocked(updateAutomationSchedule).mockResolvedValue();
+    vi.mocked(ensureNextCronRun).mockResolvedValue(null);
     vi.mocked(updateRun).mockResolvedValue(null);
     vi.mocked(runQueuedAutomation).mockResolvedValue({
       success: true,
@@ -104,70 +96,66 @@ describe('AutomationScheduler missed runs', () => {
     });
   });
 
-  it('queues one missed cron run with a fresh queue deadline on bootstrap', async () => {
-    const now = Date.UTC(2026, 4, 15, 12, 0, 0);
-    const missedScheduledAt = Date.UTC(2026, 4, 15, 9, 0, 0);
-    const nextFutureRunAt = Date.UTC(2026, 4, 16, 9, 0, 0);
-    const automation = { ...baseAutomation, nextRunAt: missedScheduledAt };
-    vi.setSystemTime(now);
-    vi.mocked(enabledCronAutomations).mockResolvedValue([automation]);
-    vi.mocked(getNextRunAt).mockReturnValue(nextFutureRunAt);
+  it('calls ensureNextCronRun for each automation without a queued run', async () => {
+    vi.mocked(enabledAutomationsWithoutQueuedRun).mockResolvedValue([baseAutomation]);
 
     await new AutomationScheduler().reload();
 
-    expect(enqueueAutomationRun).toHaveBeenCalledTimes(1);
-    expect(enqueueAutomationRun).toHaveBeenCalledWith({
-      automationId: automation.id,
-      scheduledAt: missedScheduledAt,
-      deadlineAt: nextFutureRunAt,
-      triggerKind: 'cron',
-    });
-    expect(updateAutomationSchedule).toHaveBeenCalledWith(automation.id, {
-      nextRunAt: nextFutureRunAt,
-    });
+    expect(ensureNextCronRun).toHaveBeenCalledWith(baseAutomation, expect.any(Number));
   });
 
-  it('does not backfill every missed cron slot after downtime', async () => {
+  it('calls ensureNextCronRun for the next interval when a due run is dispatched', async () => {
     const now = Date.UTC(2026, 4, 15, 12, 0, 0);
-    const firstMissedScheduledAt = Date.UTC(2026, 4, 15, 8, 0, 0);
-    const nextFutureRunAt = Date.UTC(2026, 4, 15, 13, 0, 0);
-    const automation = { ...baseAutomation, nextRunAt: firstMissedScheduledAt };
+    const dueRun: AutomationRun = {
+      id: 'run-1',
+      automationId: baseAutomation.id,
+      scheduledAt: Date.UTC(2026, 4, 15, 9, 0, 0),
+      deadlineAt: null,
+      startedAt: null,
+      finishedAt: null,
+      status: 'queued',
+      taskId: null,
+      createdTaskId: null,
+      error: null,
+      triggerKind: 'cron',
+      workerId: null,
+    };
     vi.setSystemTime(now);
-    vi.mocked(enabledCronAutomations).mockResolvedValue([automation]);
-    vi.mocked(getNextRunAt).mockReturnValue(nextFutureRunAt);
+    vi.mocked(dueQueuedCronRuns).mockResolvedValue([{ run: dueRun, automation: baseAutomation }]);
 
     await new AutomationScheduler().reload();
 
-    expect(enqueueAutomationRun).toHaveBeenCalledTimes(1);
-    expect(updateAutomationSchedule).toHaveBeenCalledTimes(1);
-    expect(getNextRunAt).toHaveBeenCalledWith(automation.trigger, now);
+    expect(ensureNextCronRun).toHaveBeenCalledWith(baseAutomation, now);
   });
 
-  it('queues a recently due cron run on bootstrap', async () => {
+  it('does not backfill multiple missed slots — only dispatches the one due run', async () => {
     const now = Date.UTC(2026, 4, 15, 12, 0, 0);
-    const recentlyDueScheduledAt = now - 2 * 60_000;
-    const nextFutureRunAt = Date.UTC(2026, 4, 15, 12, 5, 0);
-    const automation = { ...baseAutomation, nextRunAt: recentlyDueScheduledAt };
+    const dueRun: AutomationRun = {
+      id: 'run-1',
+      automationId: baseAutomation.id,
+      scheduledAt: Date.UTC(2026, 4, 15, 8, 0, 0),
+      deadlineAt: null,
+      startedAt: null,
+      finishedAt: null,
+      status: 'queued',
+      taskId: null,
+      createdTaskId: null,
+      error: null,
+      triggerKind: 'cron',
+      workerId: null,
+    };
     vi.setSystemTime(now);
-    vi.mocked(enabledCronAutomations).mockResolvedValue([automation]);
-    vi.mocked(getNextRunAt).mockReturnValue(nextFutureRunAt);
+    vi.mocked(dueQueuedCronRuns).mockResolvedValue([{ run: dueRun, automation: baseAutomation }]);
 
     await new AutomationScheduler().reload();
 
-    expect(enqueueAutomationRun).toHaveBeenCalledWith({
-      automationId: automation.id,
-      scheduledAt: recentlyDueScheduledAt,
-      deadlineAt: nextFutureRunAt,
-      triggerKind: 'cron',
-    });
-    expect(updateAutomationSchedule).toHaveBeenCalledWith(automation.id, {
-      nextRunAt: nextFutureRunAt,
-    });
+    expect(ensureNextCronRun).toHaveBeenCalledTimes(1);
+    expect(ensureNextCronRun).toHaveBeenCalledWith(baseAutomation, now);
   });
 
   it('serializes overlapping reloads and re-runs bootstrap once', async () => {
     let finishFirstBootstrap: ((value: Automation[]) => void) | undefined;
-    vi.mocked(enabledCronAutomations)
+    vi.mocked(enabledAutomationsWithoutQueuedRun)
       .mockImplementationOnce(
         () =>
           new Promise<Automation[]>((resolve) => {
@@ -181,15 +169,15 @@ describe('AutomationScheduler missed runs', () => {
     const secondReload = scheduler.reload();
 
     await vi.waitFor(() => expect(finishFirstBootstrap).toBeDefined());
-    expect(enabledCronAutomations).toHaveBeenCalledTimes(1);
+    expect(enabledAutomationsWithoutQueuedRun).toHaveBeenCalledTimes(1);
     finishFirstBootstrap?.([]);
     await Promise.all([firstReload, secondReload]);
 
-    expect(enabledCronAutomations).toHaveBeenCalledTimes(2);
+    expect(enabledAutomationsWithoutQueuedRun).toHaveBeenCalledTimes(2);
   });
 
   it('logs bootstrap failures without rejecting fire-and-forget reload callers', async () => {
-    vi.mocked(enabledCronAutomations).mockRejectedValueOnce(new Error('db failed'));
+    vi.mocked(enabledAutomationsWithoutQueuedRun).mockRejectedValueOnce(new Error('db failed'));
 
     await expect(new AutomationScheduler().reload()).resolves.toBeUndefined();
     expect(log.error).toHaveBeenCalledWith('AutomationScheduler bootstrap failed', {
@@ -396,6 +384,43 @@ describe('AutomationScheduler missed runs', () => {
       error: 'Error: db failed',
     });
   });
+
+  it('schedules the next cron run after a worker completes a cron run', async () => {
+    const queuedRun = {
+      id: 'run-1',
+      automationId: baseAutomation.id,
+      scheduledAt: Date.now(),
+      deadlineAt: Date.now() + 60_000,
+      startedAt: null,
+      finishedAt: null,
+      status: 'queued' as const,
+      taskId: null,
+      createdTaskId: null,
+      error: null,
+      triggerKind: 'cron' as const,
+      workerId: null,
+    };
+    const runningRun = {
+      ...queuedRun,
+      status: 'running' as const,
+      startedAt: Date.now(),
+      workerId: 'worker-1',
+    };
+
+    vi.mocked(listQueuedRuns)
+      .mockResolvedValueOnce([{ run: queuedRun, automation: baseAutomation }])
+      .mockResolvedValue([]);
+    vi.mocked(claimQueuedRun).mockResolvedValue(runningRun);
+    vi.mocked(runQueuedAutomation).mockResolvedValue({
+      success: true,
+      data: { ...runningRun, status: 'success' },
+    });
+
+    await new AutomationScheduler().drainQueue();
+    await vi.waitFor(() => expect(ensureNextCronRun).toHaveBeenCalled());
+
+    expect(ensureNextCronRun).toHaveBeenCalledWith(baseAutomation, expect.any(Number));
+  });
 });
 
 describe('AutomationScheduler concurrency', () => {
@@ -438,6 +463,7 @@ describe('AutomationScheduler concurrency', () => {
     vi.mocked(listQueuedRuns).mockResolvedValue([]);
     vi.mocked(claimQueuedRun).mockResolvedValue(null);
     vi.mocked(updateRun).mockResolvedValue(null);
+    vi.mocked(ensureNextCronRun).mockResolvedValue(null);
   });
 
   it('runs at most four automation workers at a time', async () => {

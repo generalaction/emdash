@@ -21,6 +21,7 @@ import {
   listRuns,
   removeAutomation,
   removeRun as removeRunFromDb,
+  skipQueuedCronRuns,
   updateAutomation,
 } from './repo';
 import { emitQueuedRun } from './run-transitions';
@@ -87,6 +88,9 @@ export const automationsController = createRPCController({
       }
       const automation = await updateAutomation(id, patch);
       if (!automation) return err('automation_not_found');
+      if (patch.trigger !== undefined) {
+        await skipQueuedCronRuns(id, 'trigger_changed');
+      }
       emitChanged();
       return ok(automation);
     });

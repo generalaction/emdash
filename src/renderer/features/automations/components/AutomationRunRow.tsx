@@ -57,7 +57,8 @@ export const AutomationRunRow = observer(function AutomationRunRow({
 
   const agentLogoStats = useMemo(() => {
     if (!tool || !run) return {};
-    const providerId = run.agentProviderId ?? automation?.taskConfig?.taskConfig.initialConversation?.provider;
+    const providerId =
+      run.agentProviderId ?? automation?.taskConfig?.taskConfig.initialConversation?.provider;
     if (!providerId) return {};
     return { [providerId]: 1 };
   }, [tool, run, automation]);
