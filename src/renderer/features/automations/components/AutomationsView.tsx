@@ -216,6 +216,7 @@ export function AutomationsView() {
                       onRunNow={actions.requestRunNow}
                       onToggleEnabled={actions.requestToggleEnabled}
                       onCopy={actions.requestCopy}
+                      onShare={(automation) => void actions.requestShare(automation)}
                       onDelete={actions.requestDelete}
                       isSelected={selection.isSelected}
                       onToggleSelect={selection.toggle}

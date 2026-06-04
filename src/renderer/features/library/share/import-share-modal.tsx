@@ -1,8 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
+import { isAutomationQuery } from '@renderer/features/automations/automation-query-keys';
 import { createPromptId } from '@renderer/features/library/prompts/prompt-library-view';
 import { usePromptLibrary } from '@renderer/features/library/prompts/use-prompt-library';
+import {
+  asMounted,
+  firstMountedProjectId,
+  getProjectManagerStore,
+  projectDisplayName,
+} from '@renderer/features/projects/stores/project-selectors';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import type { BaseModalProps } from '@renderer/lib/modal/modal-provider';
@@ -17,6 +25,14 @@ import {
 import { Input } from '@renderer/lib/ui/input';
 import { Label } from '@renderer/lib/ui/label';
 import { MarkdownRenderer } from '@renderer/lib/ui/markdown-renderer';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@renderer/lib/ui/select';
+import { formatAutomationError, formatTriggerLabel } from '@shared/automations/format';
 import type { ShareType } from '@shared/share';
 import { isValidSkillName, parseFrontmatter } from '@shared/skills/validation';
 
@@ -25,11 +41,27 @@ type Props = BaseModalProps<void> & {
   id: string;
 };
 
-export function ImportShareModal({ type, id, onClose, onSuccess }: Props) {
+export const ImportShareModal = observer(function ImportShareModal({
+  type,
+  id,
+  onClose,
+  onSuccess,
+}: Props) {
   const queryClient = useQueryClient();
   const promptLibrary = usePromptLibrary();
   const [skillNameOverride, setSkillNameOverride] = useState('');
   const [inlineError, setInlineError] = useState<string | null>(null);
+  const [targetProjectId, setTargetProjectId] = useState(() => firstMountedProjectId());
+
+  const mountedProjects =
+    type === 'automation'
+      ? [...getProjectManagerStore().projects.entries()]
+          .filter(([, store]) => asMounted(store))
+          .map(([projectId, store]) => ({
+            id: projectId,
+            name: projectDisplayName(store) ?? 'Untitled project',
+          }))
+      : [];
 
   const shareQuery = useQuery({
     queryKey: ['share', type, id],
@@ -63,6 +95,34 @@ export function ImportShareModal({ type, id, onClose, onSuccess }: Props) {
         return;
       }
 
+      if (share.payload.type === 'automation') {
+        if (!targetProjectId) {
+          throw new Error('Select a project to import this automation into.');
+        }
+
+        const automation = share.payload.automation;
+        // Imported automations start paused so a shared cron never runs silently.
+        const result = await rpc.automations.create({
+          name: automation.name,
+          description: automation.description ?? null,
+          category: automation.category,
+          trigger: automation.trigger,
+          actions: automation.actions,
+          projectId: targetProjectId,
+          enabled: false,
+          isDraft: false,
+          deadlinePolicy: automation.deadlinePolicy,
+          deadlineMs: automation.deadlineMs ?? null,
+        });
+        if (!result.success) throw new Error(formatAutomationError(result.error));
+        void queryClient.invalidateQueries({
+          predicate: (query) => isAutomationQuery(query.queryKey),
+        });
+        toast({ title: 'Automation added', description: 'It starts paused — resume to schedule.' });
+        onSuccess();
+        return;
+      }
+
       const { frontmatter, body } = parseFrontmatter(share.payload.skill.skillMdContent);
       const name = skillNameOverride.trim() || frontmatter.name || share.payload.skill.name;
       if (!isValidSkillName(name)) {
@@ -88,7 +148,13 @@ export function ImportShareModal({ type, id, onClose, onSuccess }: Props) {
   const share = shareQuery.data;
   const isPromptLibraryLoading = share?.payload.type === 'prompt' && promptLibrary.isLoading;
   const isPending = shareQuery.isLoading || isPromptLibraryLoading || importMutation.isPending;
-  const title = type === 'skill' ? 'Import Skill' : 'Import Prompt';
+  const missingAutomationProject = share?.payload.type === 'automation' && !targetProjectId;
+  const title =
+    type === 'skill'
+      ? 'Import Skill'
+      : type === 'automation'
+        ? 'Import Automation'
+        : 'Import Prompt';
 
   return (
     <>
@@ -142,6 +208,51 @@ export function ImportShareModal({ type, id, onClose, onSuccess }: Props) {
             </pre>
           </div>
         )}
+        {share?.payload.type === 'automation' && (
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-sm font-medium">{share.payload.automation.name}</h3>
+              {share.payload.automation.description ? (
+                <p className="text-muted-foreground mt-1 text-xs">
+                  {share.payload.automation.description}
+                </p>
+              ) : null}
+              <p className="text-muted-foreground mt-1 text-xs">
+                {formatTriggerLabel(share.payload.automation.trigger)} ·{' '}
+                {share.payload.automation.trigger.tz} · {share.payload.automation.category}
+              </p>
+            </div>
+            <pre className="bg-muted/20 text-muted-foreground max-h-60 overflow-auto rounded-md px-3 py-2 text-xs wrap-break-word whitespace-pre-wrap">
+              {share.payload.automation.actions.map((action) => action.prompt).join('\n\n')}
+            </pre>
+            <div className="space-y-2">
+              <Label htmlFor="shared-automation-project" className="text-xs">
+                Project
+              </Label>
+              {mountedProjects.length > 0 ? (
+                <Select value={targetProjectId} onValueChange={setTargetProjectId}>
+                  <SelectTrigger id="shared-automation-project" className="w-full">
+                    <SelectValue placeholder="Select a project" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {mountedProjects.map((project) => (
+                      <SelectItem key={project.id} value={project.id}>
+                        {project.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <p className="text-muted-foreground text-xs">
+                  Add or open a project to import this automation.
+                </p>
+              )}
+              <p className="text-muted-foreground text-xs">
+                The automation is added paused, so it never runs without your review.
+              </p>
+            </div>
+          </div>
+        )}
         {inlineError && <p className="text-destructive mt-3 text-xs">{inlineError}</p>}
       </DialogContentArea>
 
@@ -151,7 +262,7 @@ export function ImportShareModal({ type, id, onClose, onSuccess }: Props) {
         </Button>
         <ConfirmButton
           size="sm"
-          disabled={!share || isPending}
+          disabled={!share || isPending || missingAutomationProject}
           onClick={() => {
             setInlineError(null);
             importMutation.mutate();
@@ -162,7 +273,7 @@ export function ImportShareModal({ type, id, onClose, onSuccess }: Props) {
       </DialogFooter>
     </>
   );
-}
+});
 
 function ImportShimmer() {
   return (

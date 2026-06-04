@@ -8,6 +8,7 @@ import {
   Loader2,
   Pencil,
   Play,
+  Share2,
   Trash2,
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
@@ -42,6 +43,7 @@ interface AutomationRowProps {
   onRunNow?: (automation: Automation) => void;
   onToggleEnabled?: (automation: Automation, enabled: boolean) => void;
   onCopy?: (automation: Automation) => void;
+  onShare?: (automation: Automation) => void;
   onDelete?: (automation: Automation) => void;
   isSelected?: boolean;
   onToggleSelect?: () => void;
@@ -54,6 +56,7 @@ export const AutomationRow = observer(function AutomationRow({
   onRunNow,
   onToggleEnabled,
   onCopy,
+  onShare,
   onDelete,
   isSelected,
   onToggleSelect,
@@ -99,7 +102,7 @@ export const AutomationRow = observer(function AutomationRow({
   const isActiveRun = (runStatus ? isActiveStatus(runStatus.status) : false) || agentIsWorking;
   const isRunning = runStatus?.status === 'running' || agentIsWorking;
 
-  const hasContextMenu = Boolean(onRunNow || onToggleEnabled || onCopy || onDelete);
+  const hasContextMenu = Boolean(onRunNow || onToggleEnabled || onCopy || onShare || onDelete);
   const canRunNow = !automation.isDraft && !isDetached;
   const canToggle = !automation.isDraft && !isDetached;
   const canCopy = !isDetached;
@@ -249,6 +252,12 @@ export const AutomationRow = observer(function AutomationRow({
           <ContextMenuItem disabled={!canCopy} onClick={() => onCopy(automation)}>
             <Copy />
             Copy automation
+          </ContextMenuItem>
+        ) : null}
+        {onShare ? (
+          <ContextMenuItem disabled={automation.isDraft} onClick={() => onShare(automation)}>
+            <Share2 />
+            Share automation
           </ContextMenuItem>
         ) : null}
         {onDelete ? (

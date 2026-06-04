@@ -12,6 +12,7 @@ import {
   deepLinkChannel,
   notificationFocusTaskChannel,
 } from '@shared/events/appEvents';
+import type { ShareType } from '@shared/share';
 
 export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boolean | void }) {
   const { navigate } = useNavigate();
@@ -92,7 +93,7 @@ export function AppMenuEvents({ onOpenSettings }: { onOpenSettings?: () => boole
   return null;
 }
 
-function parseShareDeepLink(urlValue: string): { type: 'skill' | 'prompt'; id: string } | null {
+function parseShareDeepLink(urlValue: string): { type: ShareType; id: string } | null {
   try {
     const url = new URL(urlValue);
     const parts = url.pathname.split('/').filter(Boolean);
@@ -101,6 +102,7 @@ function parseShareDeepLink(urlValue: string): { type: 'skill' | 'prompt'; id: s
     if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) return null;
     if (typePath === 'skills') return { type: 'skill', id };
     if (typePath === 'prompts') return { type: 'prompt', id };
+    if (typePath === 'automations') return { type: 'automation', id };
     return null;
   } catch {
     return null;

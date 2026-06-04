@@ -1,6 +1,7 @@
 import { useCallback } from 'react';
 import { firstMountedProjectId } from '@renderer/features/projects/stores/project-selectors';
 import { useToast } from '@renderer/lib/hooks/use-toast';
+import { rpc } from '@renderer/lib/ipc';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { formatAutomationError } from '@shared/automations/format';
 import { AUTOMATION_NAME_MAX_LENGTH, type Automation } from '@shared/automations/types';
@@ -122,6 +123,44 @@ export function useAutomationsActions({
     [create, toast]
   );
 
+  const requestShare = useCallback(
+    async (automation: Automation) => {
+      try {
+        // Share only the automation definition; projectId, taskConfig, and
+        // runtime state stay local (workspace, SSH, and issue details live there).
+        const result = await rpc.share.create({
+          type: 'automation',
+          automation: {
+            name: automation.name,
+            description: automation.description,
+            category: automation.category,
+            trigger: automation.trigger,
+            actions: automation.actions,
+            deadlinePolicy: automation.deadlinePolicy,
+            deadlineMs: automation.deadlineMs,
+          },
+        });
+        if (!result.success || !result.data) {
+          toast({
+            title: 'Failed to share automation',
+            description: result.error,
+            variant: 'destructive',
+          });
+          return;
+        }
+        await rpc.app.clipboardWriteText(result.data.url);
+        toast({ title: 'Link copied' });
+      } catch (error) {
+        toast({
+          title: 'Failed to share automation',
+          description: error instanceof Error ? error.message : 'Unexpected error',
+          variant: 'destructive',
+        });
+      }
+    },
+    [toast]
+  );
+
   const requestBulkDelete = useCallback(
     (automations: ReadonlyArray<Automation>, onDone?: () => void) => {
       if (automations.length === 0) return;
@@ -182,6 +221,7 @@ export function useAutomationsActions({
     requestRunNow,
     requestToggleEnabled,
     requestCopy,
+    requestShare,
     requestBulkDelete,
     requestBulkSetEnabled,
   };

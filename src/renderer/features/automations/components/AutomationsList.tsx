@@ -6,6 +6,7 @@ interface RowActions {
   onRunNow?: (automation: Automation) => void;
   onToggleEnabled?: (automation: Automation, enabled: boolean) => void;
   onCopy?: (automation: Automation) => void;
+  onShare?: (automation: Automation) => void;
   onDelete?: (automation: Automation) => void;
 }
 
@@ -35,6 +36,7 @@ function Section({
   onRunNow,
   onToggleEnabled,
   onCopy,
+  onShare,
   onDelete,
   isSelected,
   onToggleSelect,
@@ -53,6 +55,7 @@ function Section({
             onRunNow={onRunNow}
             onToggleEnabled={onToggleEnabled}
             onCopy={onCopy}
+            onShare={onShare}
             onDelete={onDelete}
             isSelected={isSelected?.(automation.id) ?? false}
             onToggleSelect={onToggleSelect ? () => onToggleSelect(automation.id) : undefined}
@@ -72,11 +75,12 @@ export function AutomationsList({
   onRunNow,
   onToggleEnabled,
   onCopy,
+  onShare,
   onDelete,
   isSelected,
   onToggleSelect,
 }: AutomationsListProps) {
-  const rowActions: RowActions = { onEdit, onRunNow, onToggleEnabled, onCopy, onDelete };
+  const rowActions: RowActions = { onEdit, onRunNow, onToggleEnabled, onCopy, onShare, onDelete };
   const selectionProps = { isSelected, onToggleSelect };
   return (
     <div className="mb-6 space-y-5">
