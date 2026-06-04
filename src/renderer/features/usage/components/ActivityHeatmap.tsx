@@ -1,12 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { cn } from '@renderer/utils/utils';
 import type { DailyPoint } from '@shared/usage';
 import { fmtTokens } from '../format';
 import { ChartTooltip, useChartHover } from './ChartTooltip';
 
-type Mode = 'daily' | 'weekly' | 'cumulative';
-
-const MODES: Mode[] = ['daily', 'weekly', 'cumulative'];
 const WEEKS = 53;
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -32,10 +29,10 @@ function levelOf(value: number, max: number): number {
   return Math.min(4, Math.max(1, Math.ceil(r * 4)));
 }
 
-type Cell = { date: Date; tokens: number; cumulative: number; future: boolean };
+type Cell = { date: Date; tokens: number; future: boolean };
 
+/** GitHub-style contribution graph: one square per day over the past ~year, shaded by tokens. */
 export function ActivityHeatmap({ daily }: { daily: DailyPoint[] }) {
-  const [mode, setMode] = useState<Mode>('daily');
   const { ref, hover, show, hide } = useChartHover();
 
   const byDate = useMemo(() => {
@@ -44,7 +41,7 @@ export function ActivityHeatmap({ daily }: { daily: DailyPoint[] }) {
     return m;
   }, [daily]);
 
-  const { columns, weekTotals, monthLabels, maxDaily, maxWeekly, maxCumulative } = useMemo(() => {
+  const { columns, monthLabels, maxDaily } = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const start = new Date(today);
@@ -52,7 +49,6 @@ export function ActivityHeatmap({ daily }: { daily: DailyPoint[] }) {
 
     const columns: Cell[][] = [];
     let maxDaily = 0;
-    let running = 0;
     for (let w = 0; w < WEEKS; w++) {
       const col: Cell[] = [];
       for (let dow = 0; dow < 7; dow++) {
@@ -61,14 +57,10 @@ export function ActivityHeatmap({ daily }: { daily: DailyPoint[] }) {
         const future = date.getTime() > today.getTime();
         const tokens = future ? 0 : (byDate.get(ymd(date)) ?? 0);
         if (tokens > maxDaily) maxDaily = tokens;
-        if (!future) running += tokens; // columns build chronologically
-        col.push({ date, tokens, cumulative: running, future });
+        col.push({ date, tokens, future });
       }
       columns.push(col);
     }
-
-    const weekTotals = columns.map((col) => col.reduce((s, c) => s + (c.future ? 0 : c.tokens), 0));
-    const maxWeekly = Math.max(1, ...weekTotals);
 
     const monthLabels = columns.map((col, i) => {
       const month = col[0].date.getMonth();
@@ -76,39 +68,13 @@ export function ActivityHeatmap({ daily }: { daily: DailyPoint[] }) {
       return month !== prevMonth ? MONTHS[month] : '';
     });
 
-    return {
-      columns,
-      weekTotals,
-      monthLabels,
-      maxDaily: Math.max(1, maxDaily),
-      maxWeekly,
-      maxCumulative: Math.max(1, running),
-    };
+    return { columns, monthLabels, maxDaily: Math.max(1, maxDaily) };
   }, [byDate]);
 
   return (
     <div>
-      <div className="mb-3 flex items-center justify-between">
-        <div className="text-[10px] font-medium tracking-wider text-foreground/40 uppercase">
-          Token activity
-        </div>
-        <div className="flex items-center gap-3 text-xs">
-          {MODES.map((m) => (
-            <button
-              key={m}
-              type="button"
-              onClick={() => setMode(m)}
-              className={cn(
-                'capitalize transition-colors',
-                mode === m
-                  ? 'font-medium text-foreground'
-                  : 'text-foreground/40 hover:text-foreground'
-              )}
-            >
-              {m}
-            </button>
-          ))}
-        </div>
+      <div className="mb-3 text-[10px] font-medium tracking-wider text-foreground/40 uppercase">
+        Token activity · past year
       </div>
 
       {/* Columns flex to fill the panel width, like the GitHub contribution graph. */}
@@ -116,40 +82,23 @@ export function ActivityHeatmap({ daily }: { daily: DailyPoint[] }) {
         <div className="flex w-full gap-[3px]">
           {columns.map((col, ci) => (
             <div key={ci} className="flex min-w-0 flex-1 flex-col gap-[3px]">
-              {col.map((cell, ri) => {
-                const value =
-                  mode === 'weekly'
-                    ? weekTotals[ci]
-                    : mode === 'cumulative'
-                      ? cell.cumulative
-                      : cell.tokens;
-                const max =
-                  mode === 'weekly' ? maxWeekly : mode === 'cumulative' ? maxCumulative : maxDaily;
-                const level = levelOf(value, max);
-                // Tooltip reports the SAME number that drives the cell colour (`value`),
-                // so weekly/cumulative cells don't show a mismatched per-day count.
-                const date = `${MONTHS[cell.date.getMonth()]} ${cell.date.getDate()}`;
-                const tip =
-                  mode === 'weekly'
-                    ? `${fmtTokens(value)} tokens · week of ${date}`
-                    : mode === 'cumulative'
-                      ? `${fmtTokens(value)} tokens total · ${date}`
-                      : `${fmtTokens(value)} tokens · ${date}`;
-                return (
-                  <div
-                    key={ri}
-                    className={cn(
-                      'aspect-square w-full rounded-[3px] transition-[box-shadow]',
-                      cell.future ? 'bg-transparent' : LEVEL_BG[level],
-                      !cell.future && 'hover:ring-1 hover:ring-foreground/70'
-                    )}
-                    onMouseEnter={(e) => {
-                      if (cell.future) return;
-                      show(e, tip);
-                    }}
-                  />
-                );
-              })}
+              {col.map((cell, ri) => (
+                <div
+                  key={ri}
+                  className={cn(
+                    'aspect-square w-full rounded-[3px] transition-[box-shadow]',
+                    cell.future ? 'bg-transparent' : LEVEL_BG[levelOf(cell.tokens, maxDaily)],
+                    !cell.future && 'hover:ring-1 hover:ring-foreground/70'
+                  )}
+                  onMouseEnter={(e) => {
+                    if (cell.future) return;
+                    show(
+                      e,
+                      `${fmtTokens(cell.tokens)} tokens · ${MONTHS[cell.date.getMonth()]} ${cell.date.getDate()}`
+                    );
+                  }}
+                />
+              ))}
             </div>
           ))}
         </div>
