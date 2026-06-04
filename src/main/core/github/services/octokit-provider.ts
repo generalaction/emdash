@@ -3,7 +3,7 @@ import { log } from '@main/lib/logger';
 import { normalizeRepositoryHost } from '@shared/repository-ref';
 import { err, ok, type Result } from '@shared/result';
 import type { GitHubApiAuthError } from './github-api-auth-errors';
-import { githubApiAuthService } from './github-api-auth-service';
+import { githubApiAuthService, type GitHubApiAuthContext } from './github-api-auth-service';
 
 const cachedOctokits = new Map<string, { octokit: Octokit; token: string }>();
 
@@ -25,12 +25,21 @@ export class GitHubApiAuthErrorException extends Error {
   }
 }
 
-export async function getOctokit(host: string): Promise<Result<Octokit, GitHubApiAuthError>> {
+function cacheKeyFor(host: string, context: GitHubApiAuthContext): string {
+  const accountId = context.accountId?.trim() || 'default';
+  return `${host}:${accountId}`;
+}
+
+export async function getOctokit(
+  host: string,
+  context: GitHubApiAuthContext = {}
+): Promise<Result<Octokit, GitHubApiAuthError>> {
   const normalizedHost = normalizeRepositoryHost(host);
-  const token = await githubApiAuthService.getToken(normalizedHost);
+  const token = await githubApiAuthService.getToken(normalizedHost, context);
   if (!token.success) return err(token.error);
 
-  const cached = cachedOctokits.get(normalizedHost);
+  const cacheKey = cacheKeyFor(normalizedHost, context);
+  const cached = cachedOctokits.get(cacheKey);
   if (cached?.token === token.data) return ok(cached.octokit);
 
   const octokit = new Octokit({
@@ -39,13 +48,16 @@ export async function getOctokit(host: string): Promise<Result<Octokit, GitHubAp
     log: octokitLog,
   });
 
-  cachedOctokits.set(normalizedHost, { octokit, token: token.data });
+  cachedOctokits.set(cacheKey, { octokit, token: token.data });
   return ok(octokit);
 }
 
 export function clearOctokitCache(host?: string): void {
   if (host) {
-    cachedOctokits.delete(normalizeRepositoryHost(host));
+    const normalizedHost = normalizeRepositoryHost(host);
+    for (const key of cachedOctokits.keys()) {
+      if (key.startsWith(`${normalizedHost}:`)) cachedOctokits.delete(key);
+    }
     return;
   }
   cachedOctokits.clear();
