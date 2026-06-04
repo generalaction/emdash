@@ -42,7 +42,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
   const automation = useAutomation(automationId);
   const { deleteRun } = useAutomationRunActions();
 
-  const taskId = run ? (run.createdTaskId ?? run.taskId) : null;
+  const taskId = run ? run.taskId : null;
   const projectId = automation?.projectId ?? null;
   const agentActivity = useAutomationAgentActivity(taskId);
   const taskStore = taskId && projectId ? getTaskStore(projectId, taskId) : undefined;
@@ -51,16 +51,6 @@ export const AutomationRunRow = observer(function AutomationRunRow({
   const interactive = Boolean(taskId && task && !task.archivedAt);
   const taskAgentActivityStatus = taskStore ? taskAgentStatus(taskStore) : null;
   const agentStatus = taskStore ? taskAgentActivityStatus : (agentActivity?.status ?? null);
-
-  const tool = useMemo(() => (run ? automationRunTool(run, automation) : null), [automation, run]);
-
-  const agentLogoStats = useMemo(() => {
-    if (!tool || !run) return {};
-    const providerId =
-      run.agentProviderId ?? automation?.taskConfig?.taskConfig.initialConversation?.provider;
-    if (!providerId) return {};
-    return { [providerId]: 1 };
-  }, [tool, run, automation]);
 
   const displayTime = run ? (run.startedAt ?? run.scheduledAt ?? run.finishedAt) : null;
   const triggerLabel = run ? formatRunTriggerKindLabel(run.triggerKind) : null;
@@ -118,7 +108,8 @@ export const AutomationRunRow = observer(function AutomationRunRow({
           )}
           <AgentStatusIndicator status={agentStatus} disableTooltip />
         </div>
-        <StackedAgentLogos stats={agentLogoStats} />
+        <span>Stacked agent logos</span>
+
       </div>
 
       {/* Line 2: date | triggered by */}

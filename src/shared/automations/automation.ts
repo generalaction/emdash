@@ -21,6 +21,15 @@ export type CreateAutomationParams = {
   enabled?: boolean;
 };
 
+export type UpdateAutomationPatch = {
+  name?: string;
+  projectId?: string;
+  enabled?: boolean;
+  triggerConfig?: TriggerConfig;
+  conversationConfig?: ConversationConfig;
+  taskConfig?: StoredAutomationTaskConfig | null;
+};
+
 export type BuiltinAutomationTemplate = {
   id: string;
   category: string;

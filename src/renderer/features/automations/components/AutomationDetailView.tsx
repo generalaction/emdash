@@ -37,11 +37,7 @@ import { Switch } from '@renderer/lib/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { isValidProviderId } from '@shared/agent-provider-registry';
 import type { Automation } from '@shared/automations/automation';
-import {
-  AUTOMATION_NAME_MAX_LENGTH,
-  type StoredAutomationTaskConfig,
-} from '@shared/automations/automation-run';
-import type { ConversationConfig, TriggerConfig } from '@shared/automations/config';
+import type { ConversationConfig, TriggerConfig, StoredAutomationTaskConfig } from '@shared/automations/config';
 import { formatAutomationError } from '@shared/automations/format';
 import { DEFAULT_SCHEDULE, scheduleToCron } from '@shared/automations/schedule';
 import { getLocalTimeZone } from '@shared/automations/timezone';
@@ -222,7 +218,7 @@ export const AutomationDetailView = observer(function AutomationDetailView({
     const pid = automation.projectId;
     for (const run of recentRuns.data ?? []) {
       if (!isActiveStatus(run.status)) continue;
-      const taskId = run.createdTaskId ?? run.taskId;
+      const taskId = run.taskId
       if (!taskId) continue;
       const mgr = conversationRegistry.get(taskId);
       if (!mgr) continue;
@@ -259,6 +255,7 @@ export const AutomationDetailView = observer(function AutomationDetailView({
     }
     const workspaceConfig: WorkspaceConfig = { version: '2', git, workspace };
     return {
+      version: '1',
       taskConfig: {
         version: '1',
         name: fromBranch.taskName?.trim() || name.trim(),
@@ -375,7 +372,6 @@ export const AutomationDetailView = observer(function AutomationDetailView({
                 value={name}
                 onChange={setName}
                 placeholder="Name this automation"
-                maxLength={AUTOMATION_NAME_MAX_LENGTH}
                 className="flex-1"
               />
             </div>

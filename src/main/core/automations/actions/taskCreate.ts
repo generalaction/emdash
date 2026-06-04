@@ -17,8 +17,6 @@ import { db } from '@main/db/client';
 import type { ConversationRow, TaskRow } from '@main/db/schema';
 import { automationRuns, projects } from '@main/db/schema';
 import { resolveAutomationAgentAutoApprove } from '@shared/agent-auto-approve-defaults';
-import type { TaskCreateAction } from '@shared/automations/actions';
-import type { StoredAutomationTaskConfig } from '@shared/automations/automation';
 import type { Branch } from '@shared/git';
 import { bareRefName } from '@shared/git-utils';
 import type { LocalProject, SshProject } from '@shared/projects';
@@ -107,7 +105,6 @@ async function resolveProjectDefaults(
 
   let workspace: WorkspaceTarget;
   if (git.kind === 'none') {
-    // Unborn repo — link to the project's repository-instance workspace.
     const workspaceId = await ensureRepositoryWorkspace(await getProjectData(project.projectId));
     workspace = { kind: 'repository-instance', workspaceId };
   } else {
@@ -145,7 +142,8 @@ async function getProjectData(projectId: string): Promise<LocalProject | SshProj
   };
 }
 
-function makeRunTaskName(storedConfig: StoredAutomationTaskConfig | null, ctx: ActionContext) {
+function makeRunTaskName(ctx: ActionContext) {
+  const storedConfig = ctx.run.taskConfigSnapshot;
   return generateTaskName({
     title: storedConfig?.taskConfig.name?.trim() || ctx.automation.name,
     description: ctx.run.id,
@@ -169,26 +167,24 @@ function scopeWorkspaceConfigToRun(config: WorkspaceConfig, runId: string): Work
 }
 
 export async function executeTaskCreate(
-  action: TaskCreateAction,
   ctx: ActionContext
 ): Promise<Result<ActionOutcome, ActionError>> {
-  const prompt = action.prompt.trim();
+  const prompt = ctx.run.conversationConfigSnapshot.prompt.trim();
   if (!prompt) return err({ message: 'task_create_prompt_empty' });
 
   const projectId = ctx.automation.projectId;
   if (!projectId) return err({ message: 'no_project_attached' });
 
   try {
-    const storedConfig = ctx.automation.taskConfig;
+    const storedConfig = ctx.run.taskConfigSnapshot;
     const taskId = randomUUID();
     const conversationId = randomUUID();
-    const taskName = makeRunTaskName(storedConfig, ctx);
+    const taskName = makeRunTaskName(ctx);
 
     const projectResult = await ensureProjectOpen(projectId);
     if (!projectResult.success) return err({ message: projectResult.error });
     const project = projectResult.data;
 
-    // Resolve workspace config from stored config or project defaults.
     let workspaceConfig: WorkspaceConfig;
     if (storedConfig?.workspaceConfig) {
       workspaceConfig = scopeWorkspaceConfigToRun(storedConfig.workspaceConfig, ctx.run.id);
@@ -196,20 +192,26 @@ export async function executeTaskCreate(
       workspaceConfig = await resolveProjectDefaults(project, taskName);
     }
 
-    const storedConversation = storedConfig?.taskConfig.initialConversation;
     const provider =
-      storedConversation?.provider ??
-      (await appSettingsService.get('defaultAgent')) ??
+      ctx.run.conversationConfigSnapshot.provider ||
+      (await appSettingsService.get('defaultAgent')) ||
       DEFAULT_AGENT_ID;
 
+    const storedConversation = storedConfig?.taskConfig.initialConversation;
     const initialConversation = {
       ...(storedConversation ?? {}),
       id: conversationId,
       projectId,
       taskId,
       provider,
-      title: storedConversation?.title ?? ctx.automation.name,
-      autoApprove: resolveAutomationAgentAutoApprove(provider, storedConversation?.autoApprove),
+      title:
+        ctx.run.conversationConfigSnapshot.title ??
+        storedConversation?.title ??
+        ctx.automation.name,
+      autoApprove: resolveAutomationAgentAutoApprove(
+        provider,
+        ctx.run.conversationConfigSnapshot.autoApprove
+      ),
       initialPrompt: prompt,
     };
 
@@ -226,29 +228,21 @@ export async function executeTaskCreate(
       workspaceConfig,
     };
 
-    // Prepare all async data before opening the transaction.
     const prepared = await prepareCreateTask(createTaskParams);
     if (!prepared.success) {
-      return err({
-        message: formatCreateTaskActionError(prepared.error),
-      });
+      return err({ message: formatCreateTaskActionError(prepared.error) });
     }
 
-    // Atomically insert the task rows and link the run in a single transaction.
     let taskRow!: TaskRow;
     let convRow: ConversationRow | undefined;
     db.transaction((tx) => {
       ({ taskRow, convRow } = commitCreateTask(prepared.data, tx));
-      tx.update(automationRuns)
-        .set({ taskId, createdTaskId: taskId })
-        .where(eq(automationRuns.id, ctx.run.id))
-        .run();
+      tx.update(automationRuns).set({ taskId }).where(eq(automationRuns.id, ctx.run.id)).run();
     });
 
-    // Emit post-commit side effects.
     const createSuccess = finalizeCreateTask(prepared.data, taskRow, convRow);
     taskService.notifyTaskCreated(createSuccess.task, createTaskParams);
-    emitRunUpdated({ ...ctx.run, taskId, createdTaskId: taskId });
+    emitRunUpdated({ ...ctx.run, taskId });
 
     try {
       const provision = await taskService.launch(taskId);

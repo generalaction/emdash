@@ -26,7 +26,11 @@ import { Label } from '@renderer/lib/ui/label';
 import { SheetFooter } from '@renderer/lib/ui/sheet';
 import { Switch } from '@renderer/lib/ui/switch';
 import type { Automation } from '@shared/automations/automation';
-import type { ConversationConfig, TriggerConfig, StoredAutomationTaskConfig } from '@shared/automations/config';
+import type {
+  ConversationConfig,
+  TriggerConfig,
+  StoredAutomationTaskConfig,
+} from '@shared/automations/config';
 import { formatAutomationError } from '@shared/automations/format';
 import { DEFAULT_SCHEDULE, scheduleToCron } from '@shared/automations/schedule';
 import { getLocalTimeZone } from '@shared/automations/timezone';
@@ -175,6 +179,7 @@ export const CreateAutomationView = observer(function CreateAutomationView({
     }
     const workspaceConfig: WorkspaceConfig = { version: '2', git, workspace };
     return {
+      version: '1',
       taskConfig: {
         version: '1',
         name: fromBranch.taskName?.trim() || name.trim(),

@@ -1,6 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { rpc } from '@renderer/lib/ipc';
-import type { Automation } from '@shared/automations/automation';
 import type { CreateAutomationParams } from '@shared/automations/automation';
 import type { AutomationRun } from '@shared/automations/automation-run';
 

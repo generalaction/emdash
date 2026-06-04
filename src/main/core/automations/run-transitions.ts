@@ -79,7 +79,7 @@ export function emitClaimedRunStarted(run: AutomationRun): void {
 }
 
 export async function linkRunTask(runId: string, taskId: string): Promise<AutomationRun> {
-  return updateRunAndEmit(runId, { taskId, createdTaskId: taskId }, { hook: false });
+  return updateRunAndEmit(runId, { taskId }, { hook: false });
 }
 
 export async function markRunSkipped(
@@ -102,7 +102,6 @@ export async function markRunFailed(
     error: string;
     finishedAt?: number;
     taskId?: string | null;
-    createdTaskId?: string | null;
   }
 ): Promise<AutomationRun> {
   const values: RunUpdateValues = {
@@ -111,7 +110,6 @@ export async function markRunFailed(
     error: input.error,
   };
   if ('taskId' in input) values.taskId = input.taskId;
-  if ('createdTaskId' in input) values.createdTaskId = input.createdTaskId;
   return updateRunAndEmit(runId, values, { hook: 'automation:run:failed' });
 }
 
@@ -120,7 +118,6 @@ export async function markRunSucceeded(
   input: {
     finishedAt?: number;
     taskId: string | null;
-    createdTaskId: string | null;
   }
 ): Promise<AutomationRun> {
   return updateRunAndEmit(
@@ -129,7 +126,6 @@ export async function markRunSucceeded(
       status: 'success',
       finishedAt: input.finishedAt ?? Date.now(),
       taskId: input.taskId,
-      createdTaskId: input.createdTaskId,
     },
     { hook: 'automation:run:finish' }
   );
