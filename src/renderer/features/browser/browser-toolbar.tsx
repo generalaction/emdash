@@ -14,7 +14,11 @@ import { Button } from '@renderer/lib/ui/button';
 import { Input } from '@renderer/lib/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { normalizeBrowserUrl, type BrowserSessionSnapshot } from '@shared/browser';
-import { confirmClearBrowserStorage, openBrowserUrlExternally } from './browser-toolbar-actions';
+import {
+  canOpenBrowserUrlExternally,
+  confirmClearBrowserStorage,
+  openBrowserUrlExternally,
+} from './browser-toolbar-actions';
 import { browserUrlInputText } from './browser-url-input';
 import type { BrowserWebviewAdapter } from './browser-webview-types';
 
@@ -74,6 +78,7 @@ export function BrowserToolbar({
   const confirmClearStorage = () => {
     confirmClearBrowserStorage(session, adapter);
   };
+  const canOpenExternal = canOpenBrowserUrlExternally(session.currentUrl);
 
   return (
     <div className="flex h-10 shrink-0 items-center gap-1 border-b border-border bg-background-secondary px-2">
@@ -113,7 +118,7 @@ export function BrowserToolbar({
           </div>
         )}
       </form>
-      <ToolbarIconButton label="Open externally" onClick={openExternal}>
+      <ToolbarIconButton label="Open externally" disabled={!canOpenExternal} onClick={openExternal}>
         <ExternalLink className="size-4" />
       </ToolbarIconButton>
       {devServerUrls.slice(0, 3).map((url) => (

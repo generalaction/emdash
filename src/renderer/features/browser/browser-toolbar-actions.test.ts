@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { confirmClearBrowserStorage, openBrowserUrlExternally } from './browser-toolbar-actions';
+import {
+  canOpenBrowserUrlExternally,
+  confirmClearBrowserStorage,
+  openBrowserUrlExternally,
+} from './browser-toolbar-actions';
 
 const mocks = vi.hoisted(() => ({
   clearStorage: vi.fn(),
@@ -49,9 +53,17 @@ describe('browser toolbar actions', () => {
   it('opens only http and https URLs externally', () => {
     openBrowserUrlExternally('example.com');
     openBrowserUrlExternally('javascript:alert(1)');
+    openBrowserUrlExternally('about:blank');
 
     expect(mocks.openExternal).toHaveBeenCalledTimes(1);
     expect(mocks.openExternal).toHaveBeenCalledWith('https://example.com/');
+  });
+
+  it('reports whether the current URL can be opened externally', () => {
+    expect(canOpenBrowserUrlExternally('https://example.com/')).toBe(true);
+    expect(canOpenBrowserUrlExternally('localhost:3000')).toBe(true);
+    expect(canOpenBrowserUrlExternally('about:blank')).toBe(false);
+    expect(canOpenBrowserUrlExternally('javascript:alert(1)')).toBe(false);
   });
 
   it('clears storage only after explicit modal confirmation and reloads on success', async () => {

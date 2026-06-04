@@ -4,10 +4,16 @@ import { normalizeBrowserUrl, type BrowserSessionSnapshot } from '@shared/browse
 import type { BrowserWebviewAdapter } from './browser-webview-types';
 
 export function openBrowserUrlExternally(url: string): void {
+  if (!canOpenBrowserUrlExternally(url)) return;
   const normalized = normalizeBrowserUrl(url);
-  if (normalized.ok && (normalized.protocol === 'http:' || normalized.protocol === 'https:')) {
+  if (normalized.ok) {
     void rpc.app.openExternal(normalized.url);
   }
+}
+
+export function canOpenBrowserUrlExternally(url: string): boolean {
+  const normalized = normalizeBrowserUrl(url);
+  return normalized.ok && (normalized.protocol === 'http:' || normalized.protocol === 'https:');
 }
 
 export function confirmClearBrowserStorage(
