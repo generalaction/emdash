@@ -127,6 +127,7 @@ function makeConversation(overrides: Partial<Conversation> = {}): Conversation {
     taskId: 'task-1',
     providerId: 'codex',
     title: 'Conversation 1',
+    runtime: 'terminal',
     lastInteractedAt: null,
     isInitialConversation: false,
     ...overrides,

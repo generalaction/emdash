@@ -6,18 +6,24 @@ import {
 } from './conversation-config';
 
 describe('conversation-config', () => {
-  it('parses autoApprove and providerSessionId', () => {
+  it('parses runtime, autoApprove, and providerSessionId', () => {
     expect(
       parseConversationConfig(
         JSON.stringify({
           autoApprove: true,
+          runtime: 'acp',
           providerSessionId: '31477a03-961a-4451-82d4-efded56947fc',
         })
       )
     ).toEqual({
       autoApprove: true,
+      runtime: 'acp',
       providerSessionId: '31477a03-961a-4451-82d4-efded56947fc',
     });
+  });
+
+  it('ignores unknown runtime values', () => {
+    expect(parseConversationConfig(JSON.stringify({ runtime: 'chat' }))).toEqual({});
   });
 
   it('returns empty config for invalid JSON', () => {
@@ -25,7 +31,7 @@ describe('conversation-config', () => {
   });
 
   it('round-trips through serialize', () => {
-    const config = { autoApprove: false, providerSessionId: 'abc' };
+    const config = { autoApprove: false, runtime: 'terminal' as const, providerSessionId: 'abc' };
     expect(parseConversationConfig(serializeConversationConfig(config))).toEqual(config);
   });
 

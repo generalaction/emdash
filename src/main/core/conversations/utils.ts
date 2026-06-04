@@ -15,6 +15,7 @@ export function mapConversationRowToConversation(
     projectId: row.projectId,
     providerId: row.provider as AgentProviderId,
     autoApprove: config.autoApprove,
+    runtime: config.runtime ?? 'terminal',
     providerSessionId: config.providerSessionId,
     resume: resume,
     lastInteractedAt: row.lastInteractedAt ?? null,

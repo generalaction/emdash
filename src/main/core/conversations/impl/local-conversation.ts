@@ -1,4 +1,5 @@
 import { homedir } from 'node:os';
+import { acpSessionService } from '@main/core/acp/acp-session-service';
 import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
 import { wireAgentClassifier } from '@main/core/agent-hooks/classifier-wiring';
 import { HookConfigWriter } from '@main/core/agent-hooks/hook-config';
@@ -38,6 +39,7 @@ const RESPAWN_DELAY_MS = 500;
 export class LocalConversationProvider implements ConversationProvider {
   private sessions = new Map<string, Pty>();
   private knownSessionIds = new Set<string>();
+  private knownAcpConversationIds = new Set<string>();
   private supervisor = new ConversationSessionSupervisor();
   private readonly projectId: string;
   private readonly taskPath: string;
@@ -92,6 +94,17 @@ export class LocalConversationProvider implements ConversationProvider {
     isResuming: boolean = false,
     initialPrompt?: string
   ): Promise<void> {
+    if (conversation.runtime === 'acp') {
+      this.knownAcpConversationIds.add(conversation.id);
+      await acpSessionService.startLocalSession({
+        conversation,
+        cwd: this.taskPath,
+        initialPrompt,
+        shellProfile: this.shellProfile,
+        taskEnvVars: this.taskEnvVars,
+      });
+      return;
+    }
     return this.startSessionInternal(conversation, initialSize, isResuming, initialPrompt, false);
   }
 
@@ -330,6 +343,11 @@ export class LocalConversationProvider implements ConversationProvider {
   }
 
   async detachSession(conversationId: string): Promise<void> {
+    if (this.knownAcpConversationIds.has(conversationId)) {
+      acpSessionService.stop(conversationId);
+      this.knownAcpConversationIds.delete(conversationId);
+      return;
+    }
     const sessionId = makePtySessionId(this.projectId, this.taskId, conversationId);
     this.detachPty(sessionId);
     if (!this.tmux) {
@@ -339,6 +357,11 @@ export class LocalConversationProvider implements ConversationProvider {
   }
 
   async stopSession(conversationId: string): Promise<void> {
+    if (this.knownAcpConversationIds.has(conversationId)) {
+      acpSessionService.stop(conversationId);
+      this.knownAcpConversationIds.delete(conversationId);
+      return;
+    }
     const sessionId = makePtySessionId(this.projectId, this.taskId, conversationId);
     this.knownSessionIds.delete(sessionId);
     const pty = this.supervisor.stop(sessionId) ?? this.sessions.get(sessionId);
@@ -361,6 +384,10 @@ export class LocalConversationProvider implements ConversationProvider {
   }
 
   async destroyAll(): Promise<void> {
+    for (const conversationId of this.knownAcpConversationIds) {
+      acpSessionService.stop(conversationId);
+    }
+    this.knownAcpConversationIds.clear();
     const sessionIds = Array.from(this.knownSessionIds);
     await this.detachAll();
     if (this.tmux) {
@@ -373,6 +400,10 @@ export class LocalConversationProvider implements ConversationProvider {
   }
 
   async detachAll(): Promise<void> {
+    for (const conversationId of this.knownAcpConversationIds) {
+      acpSessionService.stop(conversationId);
+    }
+    this.knownAcpConversationIds.clear();
     for (const [sessionId, pty] of this.sessions) {
       this.supervisor.stop(sessionId);
       try {

@@ -313,6 +313,7 @@ export class TaskManagerStore {
           taskId: ic.taskId,
           providerId: ic.provider,
           title: ic.title,
+          runtime: ic.runtime ?? 'terminal',
           lastInteractedAt: null,
           autoApprove: ic.autoApprove ?? false,
           isInitialConversation: true,

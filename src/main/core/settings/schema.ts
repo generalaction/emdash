@@ -1,6 +1,7 @@
 import z from 'zod';
 import { AGENT_PROVIDER_IDS, AGENT_PROVIDERS } from '@shared/agent-provider-registry';
 import { normalizeBranchPrefix } from '@shared/branch-prefix';
+import { CONVERSATION_RUNTIMES } from '@shared/conversation-runtime';
 import { openInAppIdSchema } from '@shared/openInApps';
 import { APP_SHORTCUTS } from '@shared/shortcuts';
 import {
@@ -71,6 +72,8 @@ export const keyboardSettingsSchema = z
 
 export const providerCustomConfigEntrySchema = z.object({
   cli: z.string().optional(),
+  defaultConversationRuntime: z.enum(CONVERSATION_RUNTIMES).optional(),
+  acpCommand: z.array(z.string()).optional(),
   resumeFlag: z.string().optional(),
   defaultArgs: z.array(z.string()).optional(),
   autoApproveFlag: z.string().optional(),
@@ -89,6 +92,8 @@ export const providerConfigDefaults = Object.fromEntries(
     p.id,
     {
       ...(p.cli ? { cli: p.cli } : {}),
+      defaultConversationRuntime: 'terminal' as const,
+      ...(p.acpCommand ? { acpCommand: p.acpCommand } : {}),
       ...(p.resumeFlag ? { resumeFlag: p.resumeFlag } : {}),
       ...(p.autoApproveFlag ? { autoApproveFlag: p.autoApproveFlag } : {}),
       ...(p.initialPromptFlag !== undefined ? { initialPromptFlag: p.initialPromptFlag } : {}),

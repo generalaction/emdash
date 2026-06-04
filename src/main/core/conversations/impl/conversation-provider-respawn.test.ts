@@ -160,6 +160,7 @@ function conversation(): Conversation {
     taskId: 'task-1',
     providerId: 'codex',
     title: 'Conversation 1',
+    runtime: 'terminal',
     lastInteractedAt: null,
     providerSessionId: 'provider-session-1',
     isInitialConversation: false,

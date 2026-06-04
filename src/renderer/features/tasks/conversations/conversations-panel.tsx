@@ -1,5 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useRef } from 'react';
+import { AcpChatPane } from '@renderer/features/acp-chat/acp-chat-pane';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { useIsActiveTask } from '@renderer/features/tasks/hooks/use-is-active-task';
 import { useTabGroupContext } from '@renderer/features/tasks/tabs/tab-group-context';
@@ -32,6 +33,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
   const allSessionIds = useMemo(() => {
     return tm.resolvedTabs
       .filter((t) => t.kind === 'conversation')
+      .filter((t) => t.store.data.runtime !== 'acp')
       .map((t) => conversations.sessions.get(t.store.data.id)?.sessionId)
       .filter((id): id is string => Boolean(id));
   }, [tm.resolvedTabs, conversations.sessions]);
@@ -41,6 +43,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
     ? (conversations.sessions.get(activeConversation.data.id) ?? null)
     : null;
   const activeSessionId = activeSession?.sessionId ?? null;
+  const isAcpConversation = activeConversation?.data.runtime === 'acp';
 
   const containerRef = useRef<HTMLDivElement>(null);
   const terminalContainerRef = useRef<HTMLDivElement>(null);
@@ -58,7 +61,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
   } = useTerminalSearch({
     terminal: activeSession?.pty?.terminal,
     containerRef: terminalContainerRef,
-    enabled: Boolean(activeSession?.pty),
+    enabled: !isAcpConversation && Boolean(activeSession?.pty),
     onCloseFocus: () => terminalRef.current?.focus(),
   });
 
@@ -81,7 +84,8 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
     }
   }, [sessionStatus]);
 
-  const onInterruptPress = activeConversation ? () => activeConversation.clearWorking() : undefined;
+  const onInterruptPress =
+    activeConversation && !isAcpConversation ? () => activeConversation.clearWorking() : undefined;
   const showContextBar = !(interfaceSettings?.hideContextBar ?? false);
 
   return (
@@ -102,7 +106,9 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
         >
           <PaneSizingProvider paneId={`conversations-${groupId}`} sessionIds={allSessionIds}>
             <div className="flex min-h-0 flex-1 flex-col">
-              {activeSessionId && activeSession?.status === 'ready' && activeSession.pty ? (
+              {isAcpConversation && activeConversation ? (
+                <AcpChatPane conversationId={activeConversation.data.id} />
+              ) : activeSessionId && activeSession?.status === 'ready' && activeSession.pty ? (
                 <div ref={terminalContainerRef} className="relative flex h-full min-h-0 flex-1">
                   <TerminalSearchOverlay
                     isOpen={isSearchOpen}

@@ -10,6 +10,7 @@ function makeConversation(providerId: Conversation['providerId']): Conversation 
     taskId: 'task-1',
     providerId,
     title: '',
+    runtime: 'terminal',
     autoApprove: false,
     lastInteractedAt: null,
     isInitialConversation: false,

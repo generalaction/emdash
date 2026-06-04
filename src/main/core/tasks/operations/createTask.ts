@@ -2,11 +2,14 @@ import crypto from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import { mapConversationRowToConversation } from '@main/core/conversations/utils';
 import { projectManager } from '@main/core/projects/project-manager';
+import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
 import { db } from '@main/db/client';
 import { conversations, projects, tasks, workspaces } from '@main/db/schema';
 import type { ConversationRow, TaskRow } from '@main/db/schema';
 import { events } from '@main/lib/events';
+import { getProvider } from '@shared/agent-provider-registry';
 import { type ConversationConfig, serializeConversationConfig } from '@shared/conversation-config';
+import { resolveConversationRuntime } from '@shared/conversation-runtime';
 import type { Conversation } from '@shared/conversations';
 import { conversationCreatedChannel } from '@shared/events/conversationEvents';
 import { err, ok, type Result } from '@shared/result';
@@ -35,17 +38,25 @@ export async function createTask(
   // Resolve the workspace ID and determine whether to insert a new workspace row.
   let workspaceId: string;
   let newWorkspaceValues: typeof workspaces.$inferInsert | null = null;
+  let isRemoteWorkspace = false;
 
   const wsTarget = workspaceConfig.workspace;
 
   if (wsTarget.kind === 'repository-instance') {
     // Reuse the existing shared workspace for this project's repository root.
     workspaceId = wsTarget.workspaceId;
+    const [workspaceRow] = await db
+      .select({ location: workspaces.location })
+      .from(workspaces)
+      .where(eq(workspaces.id, workspaceId))
+      .limit(1);
+    isRemoteWorkspace = workspaceRow?.location === 'remote';
   } else {
     // Create a new workspace row for 'new-worktree' or 'byoi' targets.
     workspaceId = crypto.randomUUID();
 
     if (wsTarget.kind === 'byoi') {
+      isRemoteWorkspace = true;
       newWorkspaceValues = {
         id: workspaceId,
         kind: 'byoi',
@@ -65,6 +76,7 @@ export async function createTask(
         .limit(1);
 
       const isRemote = projectRow?.workspaceProvider === 'ssh';
+      isRemoteWorkspace = isRemote;
       const location = isRemote ? 'remote' : 'local';
       const sshConnectionId = isRemote ? (projectRow?.sshConnectionId ?? null) : null;
       const legacyType = isRemote ? 'project-ssh' : 'local';
@@ -84,18 +96,23 @@ export async function createTask(
   let convInsert: ConvInsert | undefined;
   if (params.initialConversation) {
     const ic = params.initialConversation;
-    const configObj: ConversationConfig = {};
+    const providerConfig = await providerOverrideSettings.getItem(ic.provider);
+    const resolvedRuntime = resolveConversationRuntime({
+      provider: getProvider(ic.provider),
+      providerConfig,
+      requestedRuntime: ic.runtime,
+    });
+    const runtime = isRemoteWorkspace ? 'terminal' : resolvedRuntime;
+    const configObj: ConversationConfig = { runtime };
     if (ic.autoApprove !== undefined) configObj.autoApprove = ic.autoApprove;
     if (ic.initialPrompt?.trim()) configObj.initialPrompt = ic.initialPrompt.trim();
-    const config =
-      Object.keys(configObj).length > 0 ? serializeConversationConfig(configObj) : undefined;
     convInsert = {
       id: ic.id,
       projectId: ic.projectId,
       taskId: ic.taskId,
       title: ic.title,
       provider: ic.provider,
-      config,
+      config: serializeConversationConfig(configObj),
       isInitialConversation: true,
       lastInteractedAt: new Date().toISOString(),
     };

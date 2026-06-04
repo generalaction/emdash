@@ -11,6 +11,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@rende
 import { log } from '@renderer/utils/logger';
 import { AGENT_PROVIDERS, type AgentProviderDefinition } from '@shared/agent-provider-registry';
 import type { ProviderCustomConfig } from '@shared/app-settings';
+import type { ConversationRuntimeKind } from '@shared/conversation-runtime';
 
 interface CustomCommandModalProps {
   isOpen: boolean;
@@ -22,6 +23,8 @@ type EnvEntry = { key: string; value: string };
 
 type FormState = {
   cli: string;
+  defaultConversationRuntime: ConversationRuntimeKind;
+  acpCommand: string;
   resumeFlag: string;
   defaultArgs: string;
   extraArgs: string;
@@ -32,6 +35,8 @@ type FormState = {
 
 const getDefaultFromProvider = (provider: AgentProviderDefinition | undefined): FormState => ({
   cli: provider?.cli ?? '',
+  defaultConversationRuntime: 'terminal',
+  acpCommand: provider?.acpCommand?.join(' ') ?? '',
   resumeFlag: provider?.resumeFlag ?? '',
   defaultArgs: provider?.defaultArgs?.join(' ') ?? '',
   extraArgs: '',
@@ -42,6 +47,9 @@ const getDefaultFromProvider = (provider: AgentProviderDefinition | undefined): 
 
 const configToFormState = (config: ProviderCustomConfig, fallback: FormState): FormState => ({
   cli: config.cli ?? fallback.cli,
+  defaultConversationRuntime:
+    config.defaultConversationRuntime ?? fallback.defaultConversationRuntime,
+  acpCommand: config.acpCommand?.join(' ') ?? fallback.acpCommand,
   resumeFlag: config.resumeFlag ?? fallback.resumeFlag,
   defaultArgs: Array.isArray(config.defaultArgs)
     ? config.defaultArgs.join(' ')
@@ -127,6 +135,8 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
 
       const isAtDefaults =
         form.cli === registryDefaults.cli &&
+        form.defaultConversationRuntime === registryDefaults.defaultConversationRuntime &&
+        form.acpCommand === registryDefaults.acpCommand &&
         form.resumeFlag === registryDefaults.resumeFlag &&
         form.defaultArgs === registryDefaults.defaultArgs &&
         form.extraArgs === '' &&
@@ -141,6 +151,8 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
       } else {
         const config: ProviderCustomConfig = {
           cli: form.cli,
+          defaultConversationRuntime: form.defaultConversationRuntime,
+          acpCommand: form.acpCommand.trim() ? form.acpCommand.trim().split(/\s+/) : undefined,
           resumeFlag: form.resumeFlag,
           defaultArgs: form.defaultArgs.trim() ? form.defaultArgs.trim().split(/\s+/) : undefined,
           extraArgs: form.extraArgs.trim() || undefined,
@@ -177,6 +189,8 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
     const hasEnv = form.envEntries.some((e) => e.key.trim() !== '');
     return (
       form.cli !== registryDefaults.cli ||
+      form.defaultConversationRuntime !== registryDefaults.defaultConversationRuntime ||
+      form.acpCommand !== registryDefaults.acpCommand ||
       form.resumeFlag !== registryDefaults.resumeFlag ||
       form.defaultArgs !== registryDefaults.defaultArgs ||
       form.extraArgs !== '' ||
@@ -187,6 +201,7 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
   }, [form, registryDefaults, isOverridden]);
 
   if (!provider) return null;
+  const supportsAcp = provider.supportsAcp === true;
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -227,6 +242,62 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
                   className="font-mono text-sm"
                 />
               </div>
+
+              {supportsAcp && (
+                <div className="space-y-3 rounded-md border border-border/60 p-3">
+                  <div className="space-y-1">
+                    <Label className="text-sm font-medium">Conversation interface</Label>
+                    <p className="text-muted-foreground text-xs">
+                      Terminal UI remains the compatibility default. Chat UI uses ACP over stdio.
+                    </p>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <label className="flex cursor-pointer items-start gap-2 rounded-md border border-border/60 p-2 text-sm">
+                      <input
+                        type="radio"
+                        name="conversationRuntime"
+                        className="mt-1"
+                        checked={form.defaultConversationRuntime === 'terminal'}
+                        onChange={() => handleChange('defaultConversationRuntime', 'terminal')}
+                      />
+                      <span>
+                        <span className="block font-medium">Terminal UI</span>
+                        <span className="text-muted-foreground text-xs">Raw CLI session</span>
+                      </span>
+                    </label>
+                    <label className="flex cursor-pointer items-start gap-2 rounded-md border border-border/60 p-2 text-sm">
+                      <input
+                        type="radio"
+                        name="conversationRuntime"
+                        className="mt-1"
+                        checked={form.defaultConversationRuntime === 'acp'}
+                        onChange={() => handleChange('defaultConversationRuntime', 'acp')}
+                      />
+                      <span>
+                        <span className="block font-medium">Chat UI</span>
+                        <span className="text-muted-foreground text-xs">
+                          ACP structured session
+                        </span>
+                      </span>
+                    </label>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="acpCommand" className="text-sm font-medium">
+                        ACP command
+                      </Label>
+                      <FieldTooltip content="Command and arguments for the provider's ACP stdio server" />
+                    </div>
+                    <Input
+                      id="acpCommand"
+                      value={form.acpCommand}
+                      onChange={(e) => handleChange('acpCommand', e.target.value)}
+                      placeholder={registryDefaults.acpCommand || '(none)'}
+                      className="font-mono text-sm"
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Resume Flag */}
               <div className="space-y-2">

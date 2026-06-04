@@ -6,12 +6,16 @@ import { conversations } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
+import { getProvider } from '@shared/agent-provider-registry';
 import { serializeConversationConfig } from '@shared/conversation-config';
+import { resolveConversationRuntime } from '@shared/conversation-runtime';
 import { type Conversation, type CreateConversationParams } from '@shared/conversations';
 import { agentEventChannel, type AgentEvent } from '@shared/events/agentEvents';
 import { conversationCreatedChannel } from '@shared/events/conversationEvents';
 import { isAppFocused } from '../agent-hooks/notification';
+import { projectManager } from '../projects/project-manager';
 import { resolveTask } from '../projects/utils';
+import { providerOverrideSettings } from '../settings/provider-settings-service';
 import { conversationEvents } from './conversation-events';
 import { mapConversationRowToConversation } from './utils';
 
@@ -47,10 +51,19 @@ export async function createConversation(
     .where(eq(conversations.taskId, params.taskId))
     .limit(1);
 
-  const config =
-    params.autoApprove === undefined
-      ? undefined
-      : serializeConversationConfig({ autoApprove: params.autoApprove });
+  const providerConfig = await providerOverrideSettings.getItem(params.provider);
+  const resolvedRuntime = resolveConversationRuntime({
+    provider: getProvider(params.provider),
+    providerConfig,
+    requestedRuntime: params.runtime,
+  });
+  const project = projectManager.getProject(params.projectId);
+  const runtime = project?.type === 'ssh' ? 'terminal' : resolvedRuntime;
+
+  const config = serializeConversationConfig({
+    ...(params.autoApprove !== undefined ? { autoApprove: params.autoApprove } : {}),
+    runtime,
+  });
 
   const [row] = await database
     .insert(conversations)
@@ -100,6 +113,7 @@ export async function createConversation(
   emitInitialPromptStarted(conversation, params);
   telemetryService.capture('conversation_created', {
     provider: params.provider,
+    runtime,
     is_first_in_task: existingConversation === undefined,
     project_id: params.projectId,
     task_id: params.taskId,

@@ -11,6 +11,7 @@ function makeConversation(overrides: Partial<Conversation> = {}): Conversation {
     taskId: 'task-1',
     providerId: 'droid',
     title: 'Test',
+    runtime: 'terminal',
     lastInteractedAt: null,
     isInitialConversation: false,
     ...overrides,
