@@ -4,7 +4,6 @@ import { useDevServers } from '@renderer/features/tasks/task-view-context';
 import { rpc } from '@renderer/lib/ipc';
 import { normalizeBrowserUrl } from '@shared/browser';
 import { browserControlsRegistry } from './browser-controls-registry';
-import { BrowserDiagnosticsPanel } from './browser-diagnostics-panel';
 import { decideBrowserReload } from './browser-navigation-controls';
 import { browserSessionStore } from './browser-session-store';
 import { BrowserToolbar } from './browser-toolbar';
@@ -203,7 +202,6 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
           </div>
         )}
       </div>
-      <BrowserDiagnosticsPanel browserId={session.browserId} />
     </div>
   );
 });
