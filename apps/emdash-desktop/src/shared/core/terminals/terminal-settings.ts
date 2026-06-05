@@ -9,6 +9,7 @@ export const TERMINAL_SHELL_IDS = [
   'fish',
   'powershell',
   'pwsh',
+  'wsl',
   'zsh',
 ] as const;
 
@@ -23,13 +24,14 @@ export const RUNTIME_TERMINAL_SHELL_IDS = [
   'pwsh',
   'sh',
   'tcsh',
+  'wsl',
   'zsh',
 ] as const;
 
 export type TerminalShellId = (typeof TERMINAL_SHELL_IDS)[number];
 export type ExplicitTerminalShellId = Exclude<TerminalShellId, 'system'>;
 export type RuntimeTerminalShellId = (typeof RUNTIME_TERMINAL_SHELL_IDS)[number];
-export type TerminalShellFamily = 'posix' | 'csh' | 'windows-cmd' | 'powershell';
+export type TerminalShellFamily = 'posix' | 'csh' | 'windows-cmd' | 'powershell' | 'wsl';
 
 export type TerminalShellAvailability = {
   id: TerminalShellId;
@@ -63,13 +65,14 @@ export function terminalShellFamily(shell: string): TerminalShellFamily {
   if (base === 'cmd' || base === 'cmd.exe') return 'windows-cmd';
   if (base === 'powershell' || base === 'powershell.exe' || base === 'pwsh' || base === 'pwsh.exe')
     return 'powershell';
+  if (base === 'wsl' || base === 'wsl.exe') return 'wsl';
   if (CSH_SHELLS.has(base)) return 'csh';
   return 'posix';
 }
 
 export function terminalInteractiveShellArgs(shell: string): string[] {
   const family = terminalShellFamily(shell);
-  if (family === 'windows-cmd' || family === 'powershell') return [];
+  if (family === 'windows-cmd' || family === 'powershell' || family === 'wsl') return [];
   return BASIC_INTERACTIVE_SHELLS.has(terminalShellBasename(shell)) ? ['-i'] : ['-il'];
 }
 
@@ -79,6 +82,8 @@ export function terminalCommandArgs(shell: string): string[] {
       return ['/d', '/s', '/c'];
     case 'powershell':
       return ['-NoProfile', '-Command'];
+    case 'wsl':
+      return ['--exec', 'sh', '-lc'];
     case 'posix':
     case 'csh':
       return BASIC_INTERACTIVE_SHELLS.has(terminalShellBasename(shell)) ? ['-c'] : ['-lc'];
@@ -93,6 +98,7 @@ export function terminalEnvCaptureArgs(shell: string): string[] | undefined {
       return BASIC_INTERACTIVE_SHELLS.has(terminalShellBasename(shell)) ? ['-ic'] : ['-ilc'];
     case 'windows-cmd':
     case 'powershell':
+    case 'wsl':
       return undefined;
   }
 }

@@ -328,22 +328,30 @@ export class WorkspaceViewModel implements ILifecycle {
     );
     this._sessionDisposers.push(conversationHydrationDisposer);
 
-    // Auto-create a terminal when the drawer is open and no terminals exist.
-    const terminalsDisposer = reaction(
+    const closeEmptyTerminalDrawerDisposer = reaction(
       () => {
         const terminals = terminalRegistry.get(this.taskId);
-        return (
-          this.isTerminalDrawerOpen &&
-          !this._isCreatingTerminal &&
-          (terminals?.isLoaded ?? false) &&
-          (terminals?.terminals.size ?? 0) === 0
-        );
+        return {
+          isDrawerOpen: this.isTerminalDrawerOpen,
+          isLoaded: terminals?.isLoaded ?? false,
+          terminalCount: terminals?.terminals.size ?? 0,
+        };
       },
-      (shouldCreate) => {
-        if (shouldCreate) void this._createDefaultTerminal();
+      (state, previous) => {
+        if (
+          state.isDrawerOpen &&
+          state.isLoaded &&
+          state.terminalCount === 0 &&
+          (previous?.terminalCount ?? 0) > 0
+        ) {
+          runInAction(() => {
+            this.setTerminalDrawerOpen(false);
+            this.terminalDrawerActiveItem = undefined;
+          });
+        }
       }
     );
-    this._sessionDisposers.push(terminalsDisposer);
+    this._sessionDisposers.push(closeEmptyTerminalDrawerDisposer);
   }
 
   /**
