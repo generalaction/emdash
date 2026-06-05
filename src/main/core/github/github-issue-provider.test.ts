@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { err, ok } from '@shared/result';
 import { githubIssueProvider } from './github-issue-provider';
+import { githubAccountRegistry } from './services/github-account-registry-instance';
+import { githubConnectionService } from './services/github-connection-service';
 import { githubRepositoryResolver } from './services/github-repository-resolver';
 import { issueService } from './services/issue-service';
 import { resolveProjectGitHubAuthContext } from './services/project-github-auth-context';
@@ -18,6 +20,14 @@ vi.mock('./services/github-connection-service', () => ({
   },
 }));
 
+vi.mock('./services/github-account-registry-instance', () => ({
+  githubAccountRegistry: {
+    getDefaultAccountId: vi.fn(),
+    listAccounts: vi.fn(),
+    resolveToken: vi.fn(),
+  },
+}));
+
 vi.mock('./services/github-repository-resolver', () => ({
   githubRepositoryResolver: {
     resolve: vi.fn(),
@@ -31,6 +41,8 @@ vi.mock('./services/project-github-auth-context', () => ({
 const mockIssueService = vi.mocked(issueService);
 const mockRepositoryResolver = vi.mocked(githubRepositoryResolver);
 const mockResolveProjectGitHubAuthContext = vi.mocked(resolveProjectGitHubAuthContext);
+const mockGithubAccountRegistry = vi.mocked(githubAccountRegistry);
+const mockGithubConnectionService = vi.mocked(githubConnectionService);
 
 const githubRepository = {
   host: 'github.com',
@@ -53,6 +65,73 @@ describe('githubIssueProvider', () => {
     vi.clearAllMocks();
     mockRepositoryResolver.resolve.mockResolvedValue(ok(githubRepository));
     mockResolveProjectGitHubAuthContext.mockResolvedValue(ok({}));
+    mockGithubAccountRegistry.getDefaultAccountId.mockResolvedValue(null);
+    mockGithubAccountRegistry.listAccounts.mockResolvedValue([]);
+    mockGithubAccountRegistry.resolveToken.mockResolvedValue(null);
+    mockGithubConnectionService.getStatus.mockResolvedValue({
+      authenticated: false,
+      user: null,
+      tokenSource: null,
+    });
+  });
+
+  it('reports GitHub connected when a default linked account exists', async () => {
+    mockGithubAccountRegistry.getDefaultAccountId.mockResolvedValue('github.com:42');
+    mockGithubAccountRegistry.listAccounts.mockResolvedValue([
+      {
+        id: 'github.com:42',
+        providerAccountId: '42',
+        host: 'github.com',
+        login: 'monalisa',
+        avatarUrl: '',
+        credentialSource: 'emdash_oauth',
+        connectedAt: 1,
+        updatedAt: 1,
+      },
+    ]);
+    mockGithubAccountRegistry.resolveToken.mockResolvedValue('gho_monalisa');
+
+    await expect(githubIssueProvider.checkConnection()).resolves.toEqual({
+      connected: true,
+      displayName: 'monalisa',
+      capabilities: githubIssueProvider.capabilities,
+    });
+    expect(mockGithubConnectionService.getStatus).not.toHaveBeenCalled();
+  });
+
+  it('falls back to legacy GitHub status when the default linked account token is missing', async () => {
+    mockGithubAccountRegistry.getDefaultAccountId.mockResolvedValue('github.com:42');
+    mockGithubAccountRegistry.listAccounts.mockResolvedValue([
+      {
+        id: 'github.com:42',
+        providerAccountId: '42',
+        host: 'github.com',
+        login: 'monalisa',
+        avatarUrl: '',
+        credentialSource: 'emdash_oauth',
+        connectedAt: 1,
+        updatedAt: 1,
+      },
+    ]);
+    mockGithubAccountRegistry.resolveToken.mockResolvedValue(null);
+    mockGithubConnectionService.getStatus.mockResolvedValue({
+      authenticated: true,
+      user: {
+        id: 84,
+        login: 'octocat',
+        name: 'Octocat',
+        email: '',
+        avatar_url: '',
+      },
+      tokenSource: 'secure_storage',
+    });
+
+    await expect(githubIssueProvider.checkConnection()).resolves.toEqual({
+      connected: true,
+      displayName: 'octocat',
+      capabilities: githubIssueProvider.capabilities,
+    });
+    expect(mockGithubConnectionService.getStatus).toHaveBeenCalled();
   });
 
   it('uses repositoryUrl to resolve the GitHub repository before listing issues', async () => {
@@ -204,6 +283,23 @@ describe('githubIssueProvider', () => {
       error: 'Run: gh auth login --hostname ghe.example.com',
       errorType: 'auth_required',
       host: 'ghe.example.com',
+    });
+  });
+
+  it('passes project GitHub Enterprise account context when listing issues for a project', async () => {
+    mockRepositoryResolver.resolve.mockResolvedValue(ok(ghesRepository));
+    mockResolveProjectGitHubAuthContext.mockResolvedValue(ok({ accountId: 'ghe.example.com:168' }));
+    mockIssueService.listIssues.mockResolvedValue(ok([]));
+
+    await githubIssueProvider.listIssues({
+      projectId: 'project-1',
+      repositoryUrl: 'https://ghe.example.com/owner/repo',
+      limit: 7,
+    });
+
+    expect(mockResolveProjectGitHubAuthContext).toHaveBeenCalledWith('project-1');
+    expect(mockIssueService.listIssues).toHaveBeenCalledWith(ghesRepository, 7, {
+      accountId: 'ghe.example.com:168',
     });
   });
 });

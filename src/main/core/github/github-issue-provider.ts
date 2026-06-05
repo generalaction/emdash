@@ -8,6 +8,7 @@ import {
 import type { RepositoryRef } from '@shared/repository-ref';
 import { err, ok, type Result } from '@shared/result';
 import type { Issue } from '@shared/tasks';
+import { githubAccountRegistry } from './services/github-account-registry-instance';
 import type { GitHubApiAuthContext } from './services/github-api-auth-service';
 import { githubConnectionService } from './services/github-connection-service';
 import { githubRepositoryResolver } from './services/github-repository-resolver';
@@ -109,11 +110,33 @@ async function resolveRepository(opts: {
   }
 }
 
+async function getDefaultLinkedAccountConnection() {
+  const defaultAccountId = await githubAccountRegistry.getDefaultAccountId();
+  if (!defaultAccountId) return null;
+
+  const account = (await githubAccountRegistry.listAccounts()).find(
+    (candidate) => candidate.id === defaultAccountId
+  );
+  if (!account) return null;
+
+  const token = await githubAccountRegistry.resolveToken(account.id);
+  if (!token) return null;
+
+  return {
+    connected: true,
+    displayName: account.login,
+    capabilities: ISSUE_PROVIDER_CAPABILITIES.github,
+  };
+}
+
 export const githubIssueProvider: IssueProvider = {
   type: 'github',
   capabilities: ISSUE_PROVIDER_CAPABILITIES.github,
 
   checkConnection: async () => {
+    const linkedAccountConnection = await getDefaultLinkedAccountConnection();
+    if (linkedAccountConnection) return linkedAccountConnection;
+
     const status = await githubConnectionService.getStatus();
     return {
       connected: status.authenticated,
