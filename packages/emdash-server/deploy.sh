@@ -16,7 +16,7 @@ npm run build
 
 # ── Sync to server ───────────────────────────────────────────────────────────
 echo "→ Syncing to ${SSH_USER}@${SSH_HOST}:${REMOTE_DIR} ..."
-ssh "${SSH_USER}@${SSH_HOST}" "mkdir -p '${REMOTE_DIR}'"
+ssh "${SSH_USER}@${SSH_HOST}" "sudo mkdir -p '${REMOTE_DIR}' && sudo chown '${SSH_USER}:${SSH_USER}' '${REMOTE_DIR}'"
 
 rsync -az --delete \
   --exclude='node_modules' \
@@ -60,7 +60,7 @@ node dist/cli.js migrate 2>/dev/null || node -e "
 # Install pm2 globally if missing
 if ! command -v pm2 &>/dev/null; then
   echo "  → Installing pm2..."
-  npm install -g pm2
+  sudo npm install -g pm2
 fi
 
 # Start or reload the process
