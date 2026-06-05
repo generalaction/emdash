@@ -12,8 +12,8 @@ import {
   markDueCronRunsQueued,
   startCreatingTask,
 } from './repo';
-import { emitRunUpdated, markRunFailed, markRunSkipped } from './run-transitions';
-import { runQueuedAutomation } from './runtime';
+import { markRunFailed, markRunSkipped, type OnStepCompleted } from './run-transitions';
+import { runQueuedAutomation, type AutomationRunExecutor } from './runtime';
 
 export { automationRunDeadline };
 
@@ -55,12 +55,20 @@ export class AutomationScheduler {
     void this.drainQueue();
   });
 
+  constructor(
+    private readonly executor: AutomationRunExecutor = runQueuedAutomation,
+    // Non-readonly so start() can wire the real automationsService callback via lazy import.
+    // Tests inject a spy directly via this constructor param.
+    private onRunStep: OnStepCompleted = () => {},
+  ) {}
+
   start(): void {
     if (this.timer) return;
 
     // Lazy import to avoid circular dependency at module load time.
     // automationsService → scheduler, so scheduler must not import automationsService at top level.
     void import('./automations-service').then(({ automationsService }) => {
+      this.onRunStep = (run) => automationsService.notifyRunStep(run);
       automationsService.on('automation:created', () => void this.reload());
       automationsService.on('automation:enabled', () => void this.reload());
       automationsService.on('automation:updated', () => void this.reload());
@@ -98,7 +106,8 @@ export class AutomationScheduler {
 
     const stuckCreating = await findRunsStuckInCreatingTask();
     for (const { id } of stuckCreating) {
-      await markRunFailed(id, { step: 'create_task', code: 'interrupted_by_restart' }, now);
+      const failed = await markRunFailed(id, { step: 'create_task', code: 'interrupted_by_restart' }, now);
+      this.onRunStep(failed);
     }
     if (stuckCreating.length > 0) {
       log.warn('AutomationScheduler recovered stuck creating_task runs', {
@@ -108,7 +117,8 @@ export class AutomationScheduler {
 
     const stuckLaunching = await findRunsStuckInLaunchingTask();
     for (const { id } of stuckLaunching) {
-      await markRunFailed(id, { step: 'launch_task', code: 'interrupted_by_restart' }, now);
+      const failed = await markRunFailed(id, { step: 'launch_task', code: 'interrupted_by_restart' }, now);
+      this.onRunStep(failed);
     }
     if (stuckLaunching.length > 0) {
       log.warn('AutomationScheduler recovered stuck launching_task runs', {
@@ -118,7 +128,8 @@ export class AutomationScheduler {
 
     const stuckConversation = await findRunsStuckInCreatingConversation();
     for (const { id } of stuckConversation) {
-      await markRunFailed(id, { step: 'create_conversation', code: 'interrupted_by_restart' }, now);
+      const failed = await markRunFailed(id, { step: 'create_conversation', code: 'interrupted_by_restart' }, now);
+      this.onRunStep(failed);
     }
     if (stuckConversation.length > 0) {
       log.warn('AutomationScheduler recovered stuck creating_conversation runs', {
@@ -204,19 +215,22 @@ export class AutomationScheduler {
         if (this.slotPool.availableSlots <= 0) return;
 
         if (entry.run.deadlineAt != null && entry.run.deadlineAt <= Date.now()) {
-          await markRunSkipped(entry.run.id, { step: 'queue', code: 'deadline_exceeded' });
+          const skipped = await markRunSkipped(entry.run.id, { step: 'queue', code: 'deadline_exceeded' });
+          this.onRunStep(skipped);
           madeProgress = true;
           continue;
         }
 
         if (entry.automation.projectId == null) {
-          await markRunSkipped(entry.run.id, { step: 'queue', code: 'no_project' });
+          const skipped = await markRunSkipped(entry.run.id, { step: 'queue', code: 'no_project' });
+          this.onRunStep(skipped);
           madeProgress = true;
           continue;
         }
 
         if (this.inFlight.has(entry.automation.id)) {
-          await markRunSkipped(entry.run.id, { step: 'queue', code: 'previous_running' });
+          const skipped = await markRunSkipped(entry.run.id, { step: 'queue', code: 'previous_running' });
+          this.onRunStep(skipped);
           madeProgress = true;
           continue;
         }
@@ -225,7 +239,7 @@ export class AutomationScheduler {
         if (!run) continue;
 
         madeProgress = true;
-        emitRunUpdated(run);
+        this.onRunStep(run);
         this.inFlight.add(entry.automation.id);
         this.slotPool.start(() => this.runWorker(entry.automation, run));
       }
@@ -257,7 +271,7 @@ export class AutomationScheduler {
 
   private async runWorker(automation: Automation, run: AutomationRun): Promise<void> {
     try {
-      await runQueuedAutomation(automation, run);
+      await this.executor(automation, run, this.onRunStep);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       log.error('AutomationScheduler worker failed unexpectedly', {
@@ -266,7 +280,8 @@ export class AutomationScheduler {
         error: message,
       });
       try {
-        await markRunFailed(run.id, { step: 'create_task', code: 'unknown', message });
+        const failed = await markRunFailed(run.id, { step: 'create_task', code: 'unknown', message });
+        this.onRunStep(failed);
       } catch (markError) {
         log.error('AutomationScheduler failed to mark worker failed', {
           automationId: automation.id,

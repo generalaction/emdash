@@ -32,6 +32,7 @@ export type AutomationsServiceHooks = {
   'automation:deleted': (id: string) => void | Promise<void>;
   'run:started': (run: AutomationRun) => void | Promise<void>;
   'run:stopped': (run: AutomationRun) => void | Promise<void>;
+  'run:step-completed': (run: AutomationRun) => void | Promise<void>;
 };
 
 export class AutomationsService implements Hookable<AutomationsServiceHooks> {
@@ -41,6 +42,10 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
 
   on<K extends keyof AutomationsServiceHooks>(name: K, handler: AutomationsServiceHooks[K]) {
     return this._hooks.on(name, handler);
+  }
+
+  notifyRunStep(run: AutomationRun): void {
+    this._hooks.callHookBackground('run:step-completed', run);
   }
 
   async listAutomations(projectId?: string): Promise<Automation[]> {
@@ -155,6 +160,7 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
       throw new Error('run_not_stoppable');
     }
     this._hooks.callHookBackground('run:stopped', stopped);
+    this._hooks.callHookBackground('run:step-completed', stopped);
     return stopped;
   }
 

@@ -2,17 +2,27 @@ import { log } from '@main/lib/logger';
 import type { Automation } from '@shared/automations/automation';
 import type { AutomationRun } from '@shared/automations/automation-run';
 import { err, ok, type Result } from '@shared/result';
+import { markRunDone, markRunSkipped, type OnStepCompleted } from './run-transitions';
 import { executeTaskCreate } from './actions/taskCreate';
-import { markRunDone, markRunSkipped } from './run-transitions';
+
+export type { OnStepCompleted };
+
+export type AutomationRunExecutor = (
+  automation: Automation,
+  run: AutomationRun,
+  onStepCompleted: OnStepCompleted,
+) => Promise<Result<AutomationRun, string>>;
 
 export async function runQueuedAutomation(
   automation: Automation,
-  initialRun: AutomationRun
+  initialRun: AutomationRun,
+  onStepCompleted: OnStepCompleted,
 ): Promise<Result<AutomationRun, string>> {
   let run = initialRun;
 
   if (automation.projectId == null) {
     run = await markRunSkipped(run.id, { step: 'queue', code: 'no_project' });
+    onStepCompleted(run);
     return err('no_project');
   }
 
@@ -23,10 +33,11 @@ export async function runQueuedAutomation(
       runId: run.id,
     });
     run = await markRunSkipped(run.id, { step: 'queue', code: 'no_actions_configured' });
+    onStepCompleted(run);
     return ok(run);
   }
 
-  const result = await executeTaskCreate(automation, run).catch(
+  const result = await executeTaskCreate(automation, run, onStepCompleted).catch(
     (error): Result<string, string> => ({
       success: false,
       error: error instanceof Error ? error.message : String(error),
@@ -44,5 +55,6 @@ export async function runQueuedAutomation(
   }
 
   run = await markRunDone(run.id, Date.now());
+  onStepCompleted(run);
   return ok(run);
 }

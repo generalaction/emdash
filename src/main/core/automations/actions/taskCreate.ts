@@ -26,6 +26,7 @@ import {
   markRunCreatingConversation,
   markRunFailed,
   markRunLaunchingTask,
+  type OnStepCompleted,
 } from '../run-transitions';
 
 async function ensureProjectOpen(projectId: string) {
@@ -50,7 +51,8 @@ function scopeWorkspaceConfigToRun(config: WorkspaceConfig, taskName: string): W
 
 export async function executeTaskCreate(
   automation: Automation,
-  run: AutomationRun
+  run: AutomationRun,
+  onStepCompleted: OnStepCompleted,
 ): Promise<Result<{ taskId: string }, string>> {
   const prompt = automation.conversationConfig?.prompt.trim();
   if (!prompt) return err('task_create_prompt_empty');
@@ -66,12 +68,14 @@ export async function executeTaskCreate(
 
     const projectResult = await ensureProjectOpen(projectId);
     if (!projectResult.success) {
-      await markRunFailed(run.id, { step: 'create_task', code: 'project_not_found' });
+      const failed = await markRunFailed(run.id, { step: 'create_task', code: 'project_not_found' });
+      onStepCompleted(failed);
       return err(projectResult.error);
     }
 
     if (!taskConfig?.workspaceConfig) {
-      await markRunFailed(run.id, { step: 'create_task', code: 'no_workspace_config' });
+      const failed = await markRunFailed(run.id, { step: 'create_task', code: 'no_workspace_config' });
+      onStepCompleted(failed);
       return err('no_workspace_config');
     }
     const workspaceConfig = scopeWorkspaceConfigToRun(taskConfig.workspaceConfig, taskName);
@@ -136,7 +140,8 @@ export async function executeTaskCreate(
         default:
           runError = { step: 'create_task', code: 'unknown' };
       }
-      await markRunFailed(run.id, runError);
+      const failed = await markRunFailed(run.id, runError);
+      onStepCompleted(failed);
       return err(error.type);
     }
 
@@ -150,21 +155,24 @@ export async function executeTaskCreate(
     const createSuccess = finalizeCreateTask(prepared.data, taskRow, convRow);
     taskService.notifyTaskCreated(createSuccess.task, createTaskParams);
 
-    await markRunLaunchingTask(run.id, taskId, Date.now());
+    const launching = await markRunLaunchingTask(run.id, taskId, Date.now());
+    onStepCompleted(launching);
 
     try {
       const provision = await taskService.launch(taskId);
       if (!provision.success) {
         const msg = provision.error.type === 'setup-failed' ? provision.error.message : undefined;
-        await markRunFailed(run.id, {
+        const failed = await markRunFailed(run.id, {
           step: 'launch_task',
           code: 'provision_failed',
           message: msg,
         });
+        onStepCompleted(failed);
         return err('provision_failed');
       }
 
-      await markRunCreatingConversation(run.id, Date.now());
+      const creatingConv = await markRunCreatingConversation(run.id, Date.now());
+      onStepCompleted(creatingConv);
 
       await createConversation({
         id: conversationId,
@@ -181,18 +189,20 @@ export async function executeTaskCreate(
       });
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
-      await markRunFailed(run.id, {
+      const failed = await markRunFailed(run.id, {
         step: 'create_conversation',
         code: 'failed',
         message: msg,
       });
+      onStepCompleted(failed);
       return err(msg);
     }
 
     return ok({ taskId });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    await markRunFailed(run.id, { step: 'create_task', code: 'unknown', message: msg });
+    const failed = await markRunFailed(run.id, { step: 'create_task', code: 'unknown', message: msg });
+    onStepCompleted(failed);
     return err(msg);
   }
 }

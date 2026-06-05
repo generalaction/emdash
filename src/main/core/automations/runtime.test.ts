@@ -1,16 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { events } from '@main/lib/events';
 import type { Automation } from '@shared/automations/automation';
 import type { AutomationRun } from '@shared/automations/automation-run';
-import {
-  automationRunUpdatedChannel,
-  automationsChangedChannel,
-} from '@shared/events/automationEvents';
 import { executeTaskCreate } from './actions/taskCreate';
 import { updateRun } from './repo';
 import { runQueuedAutomation } from './runtime';
 
-vi.mock('@main/lib/events', () => ({ events: { emit: vi.fn() } }));
 vi.mock('@main/lib/logger', () => ({ log: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
 vi.mock('./actions/taskCreate', () => ({ executeTaskCreate: vi.fn() }));
 vi.mock('./repo', () => ({ updateRun: vi.fn() }));
@@ -45,27 +39,26 @@ const run: AutomationRun = {
 };
 
 describe('runQueuedAutomation', () => {
+  let onStepCompleted: ReturnType<typeof vi.fn>;
+
   beforeEach(() => {
     vi.clearAllMocks();
+    onStepCompleted = vi.fn();
     vi.mocked(updateRun).mockImplementation(async (_, values) => ({ ...run, ...values }));
   });
 
-  it('marks a successful run as done', async () => {
+  it('marks a successful run as done and notifies the step callback', async () => {
     vi.mocked(executeTaskCreate).mockResolvedValue({ success: true, data: { taskId: 'task-1' } });
 
-    const result = await runQueuedAutomation(automation, run);
+    const result = await runQueuedAutomation(automation, run, onStepCompleted);
 
     expect(result.success).toBe(true);
-    expect(executeTaskCreate).toHaveBeenCalledWith(automation, run);
+    expect(executeTaskCreate).toHaveBeenCalledWith(automation, run, onStepCompleted);
     expect(updateRun).toHaveBeenCalledWith(run.id, {
       status: 'done',
       finishedAt: expect.any(Number),
     });
-    expect(events.emit).toHaveBeenCalledWith(automationsChangedChannel, undefined);
-    expect(events.emit).toHaveBeenCalledWith(
-      automationRunUpdatedChannel,
-      expect.objectContaining({ runId: run.id, status: 'done' })
-    );
+    expect(onStepCompleted).toHaveBeenCalledWith(expect.objectContaining({ status: 'done' }));
   });
 
   it('propagates error from executeTaskCreate without calling markRunFailed again', async () => {
@@ -75,11 +68,13 @@ describe('runQueuedAutomation', () => {
       error: 'project_not_found',
     });
 
-    const result = await runQueuedAutomation(automation, run);
+    const result = await runQueuedAutomation(automation, run, onStepCompleted);
 
     expect(result).toEqual({ success: false, error: 'project_not_found' });
     // updateRun should NOT be called by runtime.ts (taskCreate already handled it)
     expect(updateRun).not.toHaveBeenCalled();
+    // onStepCompleted not called by runtime (executeTaskCreate is responsible for step callbacks)
+    expect(onStepCompleted).not.toHaveBeenCalled();
   });
 
   it('skips orphan automations before calling executeTaskCreate', async () => {
@@ -91,7 +86,7 @@ describe('runQueuedAutomation', () => {
     };
     vi.mocked(updateRun).mockResolvedValue(skippedRun);
 
-    const result = await runQueuedAutomation({ ...automation, projectId: undefined }, run);
+    const result = await runQueuedAutomation({ ...automation, projectId: undefined }, run, onStepCompleted);
 
     expect(result).toEqual({ success: false, error: 'no_project' });
     expect(executeTaskCreate).not.toHaveBeenCalled();
@@ -100,7 +95,7 @@ describe('runQueuedAutomation', () => {
       error: JSON.stringify({ step: 'queue', code: 'no_project' }),
       finishedAt: expect.any(Number),
     });
-    expect(events.emit).toHaveBeenCalledWith(automationsChangedChannel, undefined);
+    expect(onStepCompleted).toHaveBeenCalledWith(expect.objectContaining({ status: 'skipped' }));
   });
 
   it('skips a run with empty prompt before calling executeTaskCreate', async () => {
@@ -116,7 +111,7 @@ describe('runQueuedAutomation', () => {
     };
     vi.mocked(updateRun).mockResolvedValue(skippedRun);
 
-    const result = await runQueuedAutomation(noPromptAutomation, run);
+    const result = await runQueuedAutomation(noPromptAutomation, run, onStepCompleted);
 
     expect(result.success).toBe(true);
     expect(executeTaskCreate).not.toHaveBeenCalled();
@@ -125,12 +120,13 @@ describe('runQueuedAutomation', () => {
       error: JSON.stringify({ step: 'queue', code: 'no_actions_configured' }),
       finishedAt: expect.any(Number),
     });
+    expect(onStepCompleted).toHaveBeenCalledWith(expect.objectContaining({ status: 'skipped' }));
   });
 
   it('catches unexpected throws from executeTaskCreate and propagates them', async () => {
     vi.mocked(executeTaskCreate).mockRejectedValue(new Error('unexpected'));
 
-    const result = await runQueuedAutomation(automation, run);
+    const result = await runQueuedAutomation(automation, run, onStepCompleted);
 
     expect(result).toEqual({ success: false, error: 'unexpected' });
     // updateRun not called by runtime (no terminal transition for caught throws)

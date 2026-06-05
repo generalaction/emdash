@@ -1,26 +1,10 @@
-import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import type { AutomationRun, RunError } from '@shared/automations/automation-run';
-import {
-  automationsChangedChannel,
-  automationRunUpdatedChannel,
-} from '@shared/events/automationEvents';
 import { updateRun } from './repo';
 
-type RunUpdateValues = Parameters<typeof updateRun>[1];
+export type OnStepCompleted = (run: AutomationRun) => void;
 
-function emitRunUpdatedEvent(run: AutomationRun, emitChanged = false): void {
-  events.emit(automationRunUpdatedChannel, {
-    automationId: run.automationId,
-    runId: run.id,
-    status: run.status,
-    taskId: run.taskId,
-    startedAt: run.startedAt,
-  });
-  if (emitChanged) {
-    events.emit(automationsChangedChannel, undefined);
-  }
-}
+type RunUpdateValues = Parameters<typeof updateRun>[1];
 
 export async function updateRunOrThrow(
   runId: string,
@@ -34,28 +18,14 @@ export async function updateRunOrThrow(
   return run;
 }
 
-async function updateRunAndEmit(
-  runId: string,
-  values: RunUpdateValues,
-  emitChanged = false
-): Promise<AutomationRun> {
-  const run = await updateRunOrThrow(runId, values);
-  emitRunUpdatedEvent(run, emitChanged);
-  return run;
-}
-
-export function emitRunUpdated(run: AutomationRun): void {
-  emitRunUpdatedEvent(run);
-}
-
 /** scheduled → queued */
 export async function markRunQueued(runId: string): Promise<AutomationRun> {
-  return updateRunAndEmit(runId, { status: 'queued' }, false);
+  return updateRunOrThrow(runId, { status: 'queued' });
 }
 
 /** queued → creating_task, writes startedAt */
 export async function markRunCreatingTask(runId: string, now: number): Promise<AutomationRun> {
-  return updateRunAndEmit(runId, { status: 'creating_task', startedAt: now }, true);
+  return updateRunOrThrow(runId, { status: 'creating_task', startedAt: now });
 }
 
 /** creating_task → launching_task, writes taskId + taskCreatedAt */
@@ -64,7 +34,7 @@ export async function markRunLaunchingTask(
   taskId: string,
   now: number
 ): Promise<AutomationRun> {
-  return updateRunAndEmit(runId, { status: 'launching_task', taskId, taskCreatedAt: now });
+  return updateRunOrThrow(runId, { status: 'launching_task', taskId, taskCreatedAt: now });
 }
 
 /** launching_task → creating_conversation, writes launchedAt */
@@ -72,12 +42,12 @@ export async function markRunCreatingConversation(
   runId: string,
   now: number
 ): Promise<AutomationRun> {
-  return updateRunAndEmit(runId, { status: 'creating_conversation', launchedAt: now });
+  return updateRunOrThrow(runId, { status: 'creating_conversation', launchedAt: now });
 }
 
 /** creating_conversation → done, writes finishedAt */
 export async function markRunDone(runId: string, finishedAt: number): Promise<AutomationRun> {
-  return updateRunAndEmit(runId, { status: 'done', finishedAt }, true);
+  return updateRunOrThrow(runId, { status: 'done', finishedAt });
 }
 
 /** any step → failed, writes JSON error + finishedAt */
@@ -86,26 +56,18 @@ export async function markRunFailed(
   error: RunError,
   finishedAt?: number
 ): Promise<AutomationRun> {
-  return updateRunAndEmit(
-    runId,
-    {
-      status: 'failed',
-      error: JSON.stringify(error),
-      finishedAt: finishedAt ?? Date.now(),
-    },
-    true
-  );
+  return updateRunOrThrow(runId, {
+    status: 'failed',
+    error: JSON.stringify(error),
+    finishedAt: finishedAt ?? Date.now(),
+  });
 }
 
 /** queued → skipped, writes JSON error + finishedAt */
 export async function markRunSkipped(runId: string, error: RunError): Promise<AutomationRun> {
-  return updateRunAndEmit(
-    runId,
-    {
-      status: 'skipped',
-      error: JSON.stringify(error),
-      finishedAt: Date.now(),
-    },
-    true
-  );
+  return updateRunOrThrow(runId, {
+    status: 'skipped',
+    error: JSON.stringify(error),
+    finishedAt: Date.now(),
+  });
 }

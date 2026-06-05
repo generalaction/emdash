@@ -32,16 +32,18 @@ export function RunHistory({ automation }: RunHistoryProps) {
   const scheduledRun = scheduledRunQuery.data ?? null;
   const allRuns = runsQuery.data ?? [];
   const historyRuns = allRuns.slice(0, PAGE_SIZE);
-  const hasNextPage = allRuns.length > PAGE_SIZE;
+  const hasNextPage = !runsQuery.isPlaceholderData && allRuns.length > PAGE_SIZE;
   const hasPrevPage = page > 0;
 
   return (
     <section className="flex h-full flex-col gap-2">
       {scheduledRun?.scheduledAt && (
-        <div className="flex items-center gap-1.5 text-xs text-foreground-muted">
+        <div className=" p-2 flex items-center gap-1.5 bg-background-info text-foreground-info rounded-lg border border-border-info">
+
           <Clock className="size-3 shrink-0" aria-hidden />
-          Next run scheduled at <AbsoluteTime value={scheduledRun.scheduledAt} />
+          Next run scheduled <AbsoluteTime value={scheduledRun.scheduledAt} />
         </div>
+    
       )}
       {runsQuery.isPending ? (
         <div className="flex flex-1 items-center justify-center">
