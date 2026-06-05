@@ -27,6 +27,24 @@ export const accountController = createRPCController({
     }
   },
 
+  linkProviderAccount: async (provider?: string) => {
+    try {
+      const result = await emdashAccountService.linkProviderAccount(provider);
+      telemetryService.capture('integration_connected', { provider: result.provider });
+      return {
+        success: true,
+        provider: result.provider,
+        providerAccount: result.providerAccount,
+      };
+    } catch (error) {
+      log.error('Provider account link failed:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Account link failed',
+      };
+    }
+  },
+
   signOut: async () => {
     try {
       await emdashAccountService.signOut();
