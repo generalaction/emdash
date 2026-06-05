@@ -83,9 +83,8 @@ export const AutomationDetailView = observer(function AutomationDetailView({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex-1 overflow-y-auto">
-        <div className="flex flex-col gap-4 p-4">
-          <div className="flex w-full items-center justify-between gap-2">
+      <div className="flex flex-col gap-4 p-4">
+        <div className="flex w-full items-center justify-between gap-2">
             <div className="flex flex-row items-center gap-3">
               <Switch
                 checked={automation.enabled}
@@ -172,22 +171,23 @@ export const AutomationDetailView = observer(function AutomationDetailView({
             )}
           </div>
 
-          {activeTab === 'runs' && <RunHistory automation={automation} />}
-          {activeTab === 'settings' && (
-            <AutomationSettingsFields
-              state={formState}
-              cronError={cronError}
-              onCronExprChange={(expr) => {
-                setCronExpr(expr);
-                setCronError(null);
-              }}
-              onCronErrorClear={() => setCronError(null)}
-              onPromptBlur={handlePromptBlur}
-              onUseBYOIChange={setUseBYOI}
-              error={saveError}
-            />
-          )}
-        </div>
+      </div>
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4">
+        {activeTab === 'runs' && <RunHistory automation={automation} />}
+        {activeTab === 'settings' && (
+          <AutomationSettingsFields
+            state={formState}
+            cronError={cronError}
+            onCronExprChange={(expr) => {
+              setCronExpr(expr);
+              setCronError(null);
+            }}
+            onCronErrorClear={() => setCronError(null)}
+            onPromptBlur={handlePromptBlur}
+            onUseBYOIChange={setUseBYOI}
+            error={saveError}
+          />
+        )}
       </div>
     </div>
   );

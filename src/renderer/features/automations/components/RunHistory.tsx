@@ -31,8 +31,8 @@ export function RunHistory({ automation }: RunHistoryProps) {
 
   const scheduledRun = scheduledRunQuery.data ?? null;
   const allRuns = runsQuery.data ?? [];
-  const historyRuns = allRuns.filter((r) => r.status !== 'scheduled').slice(0, PAGE_SIZE);
-  const hasNextPage = allRuns.filter((r) => r.status !== 'scheduled').length > PAGE_SIZE;
+  const historyRuns = allRuns.slice(0, PAGE_SIZE);
+  const hasNextPage = allRuns.length > PAGE_SIZE;
   const hasPrevPage = page > 0;
 
   return (
@@ -44,11 +44,11 @@ export function RunHistory({ automation }: RunHistoryProps) {
         </div>
       )}
       {runsQuery.isPending ? (
-        <div className="flex h-24 items-center justify-center">
+        <div className="flex flex-1 items-center justify-center">
           <Spinner />
         </div>
       ) : historyRuns.length > 0 ? (
-        <div className="divide-y divide-border/70 overflow-hidden rounded-md border border-border">
+        <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-border/70 rounded-md border border-border">
           {historyRuns.map((run) => (
             <AutomationRunRow key={run.id} runId={run.id} automationId={automation.id} />
           ))}

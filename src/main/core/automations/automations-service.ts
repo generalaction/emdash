@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, ne } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { automationRuns } from '@main/db/schema';
 import { HookCore, type Hookable } from '@main/lib/hookable';
@@ -90,7 +90,7 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
     const rows = await db
       .select()
       .from(automationRuns)
-      .where(eq(automationRuns.automationId, automationId))
+      .where(and(eq(automationRuns.automationId, automationId), ne(automationRuns.status, 'scheduled')))
       .orderBy(desc(automationRuns.scheduledAt))
       .limit(limit)
       .offset(offset);
