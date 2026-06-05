@@ -6,7 +6,7 @@ import { Button } from '@renderer/lib/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 
-type Status = 'checking' | 'online' | 'offline';
+type Status = 'checking' | 'online' | 'auth_error' | 'offline';
 
 function useServerStatus(server: EmdashServerConnection): Status {
   const [status, setStatus] = useState<Status>('checking');
@@ -15,13 +15,15 @@ function useServerStatus(server: EmdashServerConnection): Status {
     let cancelled = false;
 
     async function check() {
-      setStatus('checking');
       try {
         const res = await fetch(`${server.url}/api/health`, {
           headers: { Authorization: `Bearer ${server.apiKey}` },
           signal: AbortSignal.timeout(5_000),
         });
-        if (!cancelled) setStatus(res.ok ? 'online' : 'offline');
+        if (cancelled) return;
+        if (res.ok) setStatus('online');
+        else if (res.status === 401) setStatus('auth_error');
+        else setStatus('offline');
       } catch {
         if (!cancelled) setStatus('offline');
       }
@@ -38,6 +40,13 @@ function useServerStatus(server: EmdashServerConnection): Status {
   return status;
 }
 
+const STATUS_LABEL: Record<Status, string> = {
+  checking: 'Checking…',
+  online: 'Online',
+  auth_error: 'Wrong API key',
+  offline: 'Unreachable',
+};
+
 function StatusBadge({ status }: { status: Status }) {
   return (
     <Badge
@@ -45,19 +54,20 @@ function StatusBadge({ status }: { status: Status }) {
       className={cn(
         'gap-1.5',
         status === 'online' && 'text-foreground-success',
-        status === 'offline' && 'text-foreground-muted',
-        status === 'checking' && 'text-foreground-muted'
+        status === 'auth_error' && 'text-amber-500',
+        (status === 'offline' || status === 'checking') && 'text-foreground-muted'
       )}
     >
       <span
         className={cn(
           'size-1.5 rounded-full',
           status === 'online' && 'bg-foreground-success',
+          status === 'auth_error' && 'bg-amber-500',
           status === 'offline' && 'bg-destructive',
           status === 'checking' && 'bg-foreground-muted animate-pulse'
         )}
       />
-      {status === 'online' ? 'Online' : status === 'offline' ? 'Offline' : 'Checking…'}
+      {STATUS_LABEL[status]}
     </Badge>
   );
 }
