@@ -287,7 +287,8 @@ export class ConversationManagerStore implements IDisposable {
       makePtySessionId(conversation.projectId, conversation.taskId, conversation.id),
       undefined,
       handlers.onOpenFile,
-      handlers.onOpenExternal
+      handlers.onOpenExternal,
+      { clearOnBackendStart: true }
     );
   }
 }

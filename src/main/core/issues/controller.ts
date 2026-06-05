@@ -16,6 +16,7 @@ import { getAllIssueProviders, getIssueProvider } from './registry';
 const DEFAULT_CAPABILITIES = {
   requiresProjectPath: false,
   requiresRepositoryUrl: false,
+  supportsIssueContext: false,
 } as const;
 
 const CONNECTION_CHECK_TIMEOUT_MS = 8_000;

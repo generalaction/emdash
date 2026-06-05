@@ -4,6 +4,7 @@ import { Button } from '@renderer/lib/ui/button';
 import { Field, FieldDescription, FieldTitle } from '@renderer/lib/ui/field';
 import { Input } from '@renderer/lib/ui/input';
 import { Separator } from '@renderer/lib/ui/separator';
+import { Switch } from '@renderer/lib/ui/switch';
 import { Textarea } from '@renderer/lib/ui/textarea';
 import type {
   ProjectConfigMigration,
@@ -38,11 +39,13 @@ function ShareableField({
   form,
   update,
   getOverrideSources,
+  beforeInput,
 }: {
   descriptor: ShareableFieldDescriptor;
   form: FormState;
   update: FormUpdate;
   getOverrideSources: ShareableSettingsSectionProps['getOverrideSources'];
+  beforeInput?: React.ReactNode;
 }) {
   return (
     <Field>
@@ -58,6 +61,7 @@ function ShareableField({
           {descriptor.description}
         </FieldDescription>
       ) : null}
+      {beforeInput}
       {descriptor.multiline ? (
         <Textarea
           rows={descriptor.id === 'preservePatterns' ? 5 : 3}
@@ -73,6 +77,23 @@ function ShareableField({
         />
       )}
     </Field>
+  );
+}
+
+function AutoRunToggle({
+  label,
+  checked,
+  onCheckedChange,
+}: {
+  label: string;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-sm text-foreground-muted">{label}</span>
+      <Switch checked={checked} onCheckedChange={onCheckedChange} />
+    </div>
   );
 }
 
@@ -111,7 +132,8 @@ export function ShareableSettingsSection({
         <div className="flex flex-col gap-1">
           <FieldTitle>Lifecycle scripts</FieldTitle>
           <FieldDescription className="text-foreground-muted">
-            Shell commands run at each stage of the worktree lifecycle. One command per line.
+            Shell commands run at each stage of the worktree lifecycle. One command per line. When
+            both are set to auto-run, the Run script waits for Setup to complete.
             <span> See </span>
             <Button
               type="button"
@@ -138,6 +160,21 @@ export function ShareableSettingsSection({
             form={form}
             update={update}
             getOverrideSources={getOverrideSources}
+            beforeInput={
+              descriptor.id === 'scripts.setup' ? (
+                <AutoRunToggle
+                  label="Auto-run on task creation"
+                  checked={form.autoRunSetupScriptOnTaskCreation}
+                  onCheckedChange={(checked) => update('autoRunSetupScriptOnTaskCreation', checked)}
+                />
+              ) : descriptor.id === 'scripts.run' ? (
+                <AutoRunToggle
+                  label="Auto-run on task creation"
+                  checked={form.autoRunRunScriptOnTaskCreation}
+                  onCheckedChange={(checked) => update('autoRunRunScriptOnTaskCreation', checked)}
+                />
+              ) : undefined
+            }
           />
         ))}
 

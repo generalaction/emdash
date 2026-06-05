@@ -28,6 +28,15 @@ function normalizePayload(
     payload.notificationType = 'permission_prompt';
   }
 
+  if (
+    !payload.notificationType &&
+    providerId === 'qwen' &&
+    eventType === 'notification' &&
+    body.hook_event_name === 'PermissionRequest'
+  ) {
+    payload.notificationType = 'permission_prompt';
+  }
+
   return payload;
 }
 

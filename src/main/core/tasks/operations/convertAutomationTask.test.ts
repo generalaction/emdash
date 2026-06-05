@@ -51,13 +51,16 @@ describe('convertAutomationTask', () => {
   });
 
   it('detaches automation metadata in the same transaction as the active-run guard', async () => {
+    const set = vi.fn(() => ({ where: vi.fn(() => ({ run: vi.fn() })) }));
     dbMock.update.mockReturnValue({
-      set: vi.fn(() => ({ where: vi.fn(() => ({ run: vi.fn() })) })),
+      set,
     });
 
     await convertAutomationTask('task-1');
 
     expect(dbMock.transaction).toHaveBeenCalledOnce();
-    expect(dbMock.update).toHaveBeenCalledTimes(2);
+    expect(dbMock.update).toHaveBeenCalledTimes(3);
+    expect(set).toHaveBeenCalledWith({ createdTaskId: null });
+    expect(set).toHaveBeenCalledWith({ taskId: null });
   });
 });

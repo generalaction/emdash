@@ -40,7 +40,7 @@ const ICON_PATHS = {
   terminal: 'terminal.png',
   kaku: 'kaku.png',
   alacritty: 'alacritty.svg',
-  warp: 'warp.svg',
+  warp: 'warp.png',
   iterm2: 'iterm2.png',
   ghostty: 'ghostty.png',
   kitty: 'kitty.png',
@@ -64,15 +64,13 @@ const _OPEN_IN_APPS = {
     label: 'Finder',
     iconPath: ICON_PATHS.finder,
     alwaysAvailable: true,
+    // AppService opens the platform file manager via Electron shell.openPath.
     platforms: {
-      darwin: { openCommands: ['open {{path}}'] },
       win32: {
-        openCommands: ['explorer "{{path_raw}}"'],
         label: 'Explorer',
         iconPath: ICON_PATHS.explorer,
       },
       linux: {
-        openCommands: ['xdg-open {{path}}'],
         label: 'Files',
         iconPath: ICON_PATHS.files,
       },
@@ -279,6 +277,7 @@ const _OPEN_IN_APPS = {
           'warppreview://action/new_window?path={{path_url}}',
         ],
         bundleIds: ['dev.warp.Warp-Stable'],
+        appNames: ['Warp'],
       },
     },
   },

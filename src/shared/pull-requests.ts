@@ -11,6 +11,14 @@ export type MergeStateStatus =
   | 'UNSTABLE'
   | 'UNKNOWN';
 
+export type PullRequestMergeStrategy = 'merge' | 'squash' | 'rebase';
+
+export type PullRequestMergeOptions = {
+  strategy: PullRequestMergeStrategy;
+  commitHeadOid?: string;
+  bypassRequirements?: boolean;
+};
+
 export type PullRequestUser = {
   userId: string;
   userName: string;

@@ -48,6 +48,7 @@ export async function createLocalProject(params: CreateLocalProjectParams): Prom
     name: row.name,
     path: row.path,
     baseRef: row.baseRef ?? baseRef,
+    repositoryWorkspaceId: null as string | null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

@@ -5,6 +5,7 @@ import { log } from '@main/lib/logger';
 import { type AgentProviderId } from '@shared/agent-provider-registry';
 import { agentEventChannel, type AgentEvent } from '@shared/events/agentEvents';
 import { makePtyId } from '@shared/ptyId';
+import { stopAutomationSessionAfterDone } from './automation-pty-cleanup';
 import { createClassifier } from './classifiers';
 import { stripAnsi, type ClassificationResult } from './classifiers/base';
 import { maybeShowNotification } from './notification';
@@ -118,6 +119,7 @@ export function wireAgentClassifier({
         const appFocused = isAppFocused();
         void maybeShowNotification(event, appFocused);
         events.emit(agentEventChannel, { event, appFocused });
+        void stopAutomationSessionAfterDone(event);
       } catch (err) {
         log.warn('wireAgentClassifier: idle check failed', { error: String(err) });
       }

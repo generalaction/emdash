@@ -57,6 +57,7 @@ export const SETTINGS_DEFAULTS = {
     showLeftSidebarPrStatus: true,
     showLeftSidebarTimestamps: true,
     confirmTabClose: false,
+    hideContextBar: false,
   },
   browserPreview: {
     enabled: true,

@@ -8,7 +8,6 @@ import { conversationRegistry } from './conversation-registry';
 import type { TaskManagerStore } from './task-manager';
 import {
   isProvisioned,
-  isRegistered,
   isUnprovisioned,
   isUnregistered,
   registeredTaskData,
@@ -76,7 +75,6 @@ export type TaskViewKind =
   | 'teardown'
   | 'teardown-error'
   | 'idle'
-  | 'needs-resolution'
   | 'ready';
 
 /**
@@ -106,11 +104,6 @@ export function taskViewKind(store: TaskStore | undefined, projectId: string): T
   }
   if (isUnprovisioned(store)) {
     if (store.phase === 'provision') {
-      const wsId = isRegistered(store) ? (store.data as Task).workspaceId : null;
-      if (wsId) {
-        const bs = workspaceRegistry.bootstrapStateFor(projectId, wsId);
-        if (bs?.kind === 'needs-resolution') return 'needs-resolution';
-      }
       return 'provisioning';
     }
     if (store.phase === 'provision-error') return 'provision-error';

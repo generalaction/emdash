@@ -19,11 +19,19 @@ interface OpenInMenuProps {
   path: string;
   className?: string;
   borderless?: boolean;
+  isRemote?: boolean;
+  sshConnectionId?: string;
 }
 
-export const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, className, borderless = false }) => {
+export const OpenInMenu: React.FC<OpenInMenuProps> = ({
+  path,
+  className,
+  borderless = false,
+  isRemote = false,
+  sshConnectionId,
+}) => {
   const { toast } = useToast();
-  const { icons, labels, installedApps, availability, loading } = useOpenInApps();
+  const { icons, labels, installedApps, availability, platform, loading } = useOpenInApps();
   const { value: openIn, update } = useAppSettingsKey('openIn');
   const { value: keyboard } = useAppSettingsKey('keyboard');
   const openInHotkey = getEffectiveHotkey('openInEditor', keyboard);
@@ -45,6 +53,8 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, className, borderl
         const res = await rpc.app.openIn({
           app: appId,
           path,
+          isRemote,
+          sshConnectionId,
         });
         if (!res?.success) {
           toast({
@@ -61,17 +71,30 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, className, borderl
         });
       }
     },
-    [labels, path, toast]
+    [isRemote, labels, path, sshConnectionId, toast]
+  );
+
+  const selectAndOpenApp = useCallback(
+    (appId: OpenInAppId) => {
+      persistPreferredApp(appId);
+      void triggerOpenIn(appId);
+    },
+    [persistPreferredApp, triggerOpenIn]
   );
 
   const sortedApps = useMemo(() => {
-    if (!defaultApp) return installedApps;
-    return [...installedApps].sort((a, b) => {
+    const availableApps = isRemote
+      ? installedApps.filter(
+          (app) => app.supportsRemote && (app.id !== 'terminal' || platform === 'darwin')
+        )
+      : installedApps;
+    if (!defaultApp) return availableApps;
+    return [...availableApps].sort((a, b) => {
       if (a.id === defaultApp) return -1;
       if (b.id === defaultApp) return 1;
       return 0;
     });
-  }, [defaultApp, installedApps]);
+  }, [defaultApp, installedApps, isRemote, platform]);
 
   const menuApps = useMemo(
     () => sortedApps.filter((app) => !app.hideIfUnavailable || availability[app.id]),
@@ -125,7 +148,7 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, className, borderl
                   src={icons[buttonAppId]}
                   alt={labels[buttonAppId] || buttonAppId}
                   className={`size-3.5 rounded ${
-                    getAppById(buttonAppId)?.invertInDark ? 'dark:invert' : ''
+                    getAppById(buttonAppId)?.invertInDark ? 'emdark:invert' : ''
                   }`}
                 />
               )}
@@ -143,7 +166,7 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, className, borderl
         value={defaultApp ?? undefined}
         onValueChange={(value) => {
           if (isValidOpenInAppId(value)) {
-            persistPreferredApp(value as OpenInAppId);
+            selectAndOpenApp(value as OpenInAppId);
           }
         }}
       >
@@ -163,14 +186,16 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({ path, className, borderl
         </Tooltip>
         <SelectContent align="end" alignItemWithTrigger={false} sideOffset={6}>
           {menuApps.map((app) => {
-            const isAvailable = loading ? availability[app.id] === true : true;
+            const isAvailable = loading
+              ? availability[app.id] === true
+              : availability[app.id] !== false;
             return (
               <SelectItem key={app.id} value={app.id} disabled={!isAvailable}>
                 {icons[app.id] && (
                   <img
                     src={icons[app.id]}
                     alt={labels[app.id] || app.label}
-                    className={`h-4 w-4 rounded ${app.invertInDark ? 'dark:invert' : ''}`}
+                    className={`h-4 w-4 rounded ${app.invertInDark ? 'emdark:invert' : ''}`}
                   />
                 )}
                 {labels[app.id] || app.label}

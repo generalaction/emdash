@@ -32,9 +32,9 @@ import { sshController } from './core/ssh/controller';
 import { taskController } from './core/tasks/controller';
 import { telemetryController } from './core/telemetry/controller';
 import { terminalsController } from './core/terminals/controller';
+import { trelloController } from './core/trello/controller';
 import { updateController } from './core/updates/controller';
 import { viewStateController } from './core/view-state/controller';
-import { workspaceController } from './core/workspaces/controller';
 import { projectSettingsController } from './core/workspaces/project-settings-controller';
 import { legacyPortController } from './db/legacy-port/controller';
 
@@ -59,6 +59,7 @@ export const rpcRouter = createRPCRouter({
   linear: linearController,
   monday: mondayController,
   plain: plainController,
+  trello: trelloController,
   promptLibrary: promptLibraryController,
   skills: skillsController,
   ssh: sshController,
@@ -72,7 +73,6 @@ export const rpcRouter = createRPCRouter({
   pullRequests: pullRequestController,
   viewState: viewStateController,
   search: searchController,
-  workspaces: workspaceController,
   projectSettings: projectSettingsController,
   workspace: createRPCNamespace({
     git: gitController,

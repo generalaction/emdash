@@ -69,7 +69,7 @@ export const ResourceMonitorView = observer(function ResourceMonitorView({
           </Section>
         )}
 
-        <Section heading="Active agents">
+        <Section heading="Active sessions">
           {hasProjects ? (
             <div className="flex flex-col gap-1">
               {groups.map((g) => (
@@ -78,7 +78,7 @@ export const ResourceMonitorView = observer(function ResourceMonitorView({
             </div>
           ) : (
             <div className="rounded-md py-6 text-center text-xs text-foreground/40">
-              No active agents
+              No active sessions
             </div>
           )}
         </Section>
@@ -182,7 +182,7 @@ function AgentRow({ entry }: { entry: Entry }) {
             className="h-3.5 w-3.5"
           />
         </span>
-      ) : isLifecycleScriptEntry(entry) ? (
+      ) : isLifecycleScriptEntry(entry) || !entry.providerId ? (
         <span className="flex size-4 shrink-0 items-center justify-center">
           <Terminal size={12} className="text-foreground/40" />
         </span>

@@ -82,7 +82,10 @@ export class FrontendPty {
       cols: 120,
       rows: 32,
       scrollback: SCROLLBACK_LINES,
-      convertEol: true,
+      // NOTE: convertEol must stay false (the default). The PTY/app owns line
+      // discipline; rewriting bare \n to \r\n corrupts raw-mode TUIs (tmux, claude
+      // code) that use \n as "line feed, keep column" — yanking the cursor to
+      // column 0 and mangling column alignment, while leaving plain shells fine.
       fontFamily: buildTerminalFontFamily(),
       fontSize: 13,
       lineHeight: 1.2,
@@ -144,6 +147,11 @@ export class FrontendPty {
 
   refreshTheme(): void {
     this.terminal.options.theme = buildTheme(this.theme);
+  }
+
+  clear(): void {
+    this.terminal.clear();
+    this.terminal.clearSelection();
   }
 
   /**

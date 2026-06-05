@@ -10,7 +10,7 @@ export function buildFinalPrompt(
 ): string | undefined {
   const parts: string[] = [];
   if (issueContext?.trim()) {
-    parts.push(`<issue_context>\n${issueContext.trim()}\n</issue_context>`);
+    parts.push(issueContext.trim());
   }
   if (userPrompt.trim()) {
     parts.push(userPrompt.trim());

@@ -7,7 +7,6 @@ import { PrNumberBadge } from '@renderer/lib/components/pr-number-badge';
 import { StatusIcon } from '@renderer/lib/components/pr-status-icon';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
-import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { type SplitButtonAction } from '@renderer/lib/ui/split-button';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { cn } from '@renderer/utils/utils';
@@ -16,18 +15,9 @@ import { PrChecksList } from './checks-list';
 import { PrCommitsList } from './commits-list';
 import { PrFilesList } from './files-list';
 import { MergeFooter } from './merge-footer';
+import { computeMergeUiState } from './merge-ui-state';
 
 export type MergeMode = 'merge' | 'squash' | 'rebase';
-
-export type MergeSeverity = 'success' | 'warning' | 'error' | 'neutral';
-
-export type MergeUiState = {
-  kind: 'ready' | 'draft' | 'conflicts' | 'behind' | 'blocked' | 'unstable' | 'unknown';
-  severity: MergeSeverity;
-  title: string;
-  detail?: string;
-  canMerge: boolean;
-};
 
 const mergeLabels: Record<MergeMode, string> = {
   merge: 'Merge pull request',
@@ -41,102 +31,49 @@ const mergeDescriptions: Record<MergeMode, string> = {
   rebase: 'All commits from this branch will be rebased and added to the base branch.',
 };
 
-function computeMergeUiState(pr: PullRequest): MergeUiState {
-  if (pr.status !== 'open') {
-    return {
-      kind: 'unknown',
-      severity: 'neutral',
-      title: 'Merge status unknown',
-      detail: 'Refresh PR status and try again.',
-      canMerge: false,
-    };
-  }
-  if (pr.isDraft) {
-    return {
-      kind: 'draft',
-      severity: 'neutral',
-      title: 'Draft pull request',
-      detail: 'Mark ready for review to enable merging.',
-      canMerge: false,
-    };
-  }
-  switch (pr.mergeStateStatus) {
-    case 'CLEAN':
-      return {
-        kind: 'ready',
-        severity: 'success',
-        title: 'Ready to merge',
-        detail: 'No conflicts or required reviews.',
-        canMerge: true,
-      };
-    case 'DIRTY':
-      return {
-        kind: 'conflicts',
-        severity: 'error',
-        title: 'Merge conflicts',
-        detail: 'Resolve conflicts before merging.',
-        canMerge: false,
-      };
-    case 'BEHIND':
-      return {
-        kind: 'behind',
-        severity: 'warning',
-        title: 'Branch is out-of-date',
-        detail: 'Update branch before merging.',
-        canMerge: false,
-      };
-    case 'BLOCKED':
-      return {
-        kind: 'blocked',
-        severity: 'error',
-        title: 'Merging is blocked',
-        detail: 'Required reviews or branch protections not satisfied.',
-        canMerge: false,
-      };
-    case 'HAS_HOOKS':
-      return {
-        kind: 'blocked',
-        severity: 'error',
-        title: 'Merging is blocked',
-        detail: 'Required checks are not satisfied.',
-        canMerge: false,
-      };
-    case 'UNSTABLE':
-      return {
-        kind: 'unstable',
-        severity: 'warning',
-        title: 'Checks not passing',
-        detail: 'Review failing checks before merging.',
-        canMerge: false,
-      };
-    default:
-      return {
-        kind: 'unknown',
-        severity: 'neutral',
-        title: 'Merge status unknown',
-        detail: 'Refresh to try again.',
-        canMerge: false,
-      };
-  }
-}
+const bypassMergeLabels: Record<MergeMode, string> = {
+  merge: 'Bypass rules and merge',
+  squash: 'Squash without waiting',
+  rebase: 'Rebase without waiting',
+};
+
+const bypassMergeDescriptions: Record<MergeMode, string> = {
+  merge: 'Bypass unmet requirements and add all commits via a merge commit.',
+  squash: 'Bypass unmet requirements and combine all commits into one commit.',
+  rebase: 'Bypass unmet requirements and rebase all commits onto the base branch.',
+};
 
 export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr: PullRequest }) {
   const taskView = useWorkspaceViewModel();
   const prStore = taskView.prStore!;
   const diffView = taskView.diffView;
-  const showConfirm = useShowModal('confirmActionModal');
   const [isMerging, setIsMerging] = useState(false);
   const [isMarkingReady, setIsMarkingReady] = useState(false);
+  const [bypassRequirements, setBypassRequirements] = useState(false);
   if (!diffView) return null;
   const tab = diffView.effectivePrTab;
   const isOpen = pr.status === 'open';
 
   const uiState = computeMergeUiState(pr);
+  const shouldBypassRequirements = uiState.canBypassRequirements && bypassRequirements;
 
-  const doMerge = async (strategy: MergeMode) => {
+  const doMerge = async (strategy: MergeMode, bypassRequirements: boolean) => {
     setIsMerging(true);
     try {
-      await prStore.mergePr(pr.url, { strategy, commitHeadOid: pr.headRefOid });
+      const result = await prStore.mergePr(pr.url, {
+        strategy,
+        commitHeadOid: pr.headRefOid,
+        bypassRequirements,
+      });
+      if (!result.success) {
+        toast({
+          title: bypassRequirements
+            ? 'Failed to merge without waiting'
+            : 'Failed to merge pull request',
+          description: result.error,
+          variant: 'destructive',
+        });
+      }
     } finally {
       setIsMerging(false);
     }
@@ -144,23 +81,19 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
 
   const handleMergeClick = (strategy: MergeMode) => {
     if (uiState.canMerge) {
-      void doMerge(strategy);
-    } else {
-      showConfirm({
-        title: 'Merge anyway?',
-        description: (uiState.detail ?? uiState.title) + ' Are you sure you want to proceed?',
-        confirmLabel: 'Merge anyway',
-        variant: 'destructive',
-        onSuccess: () => void doMerge(strategy),
-      });
+      void doMerge(strategy, false);
+    } else if (shouldBypassRequirements) {
+      void doMerge(strategy, true);
     }
   };
 
   const mergeActions: SplitButtonAction[] = (['merge', 'squash', 'rebase'] as const).map(
     (strategy) => ({
       value: strategy,
-      label: mergeLabels[strategy],
-      description: mergeDescriptions[strategy],
+      label: shouldBypassRequirements ? bypassMergeLabels[strategy] : mergeLabels[strategy],
+      description: shouldBypassRequirements
+        ? bypassMergeDescriptions[strategy]
+        : mergeDescriptions[strategy],
       action: () => handleMergeClick(strategy),
     })
   );
@@ -216,6 +149,7 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
           mergeActions={mergeActions}
           isMerging={isMerging}
           isMarkingReady={isMarkingReady}
+          bypassRequirements={bypassRequirements}
           onMarkReady={() => {
             setIsMarkingReady(true);
             prStore
@@ -229,6 +163,7 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
               })
               .finally(() => setIsMarkingReady(false));
           }}
+          onBypassRequirementsChange={setBypassRequirements}
         />
       )}
     </div>

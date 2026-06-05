@@ -1,12 +1,11 @@
 import { refreshLinkedIssueContext } from '@renderer/features/tasks/issue-context/refresh-linked-issue-context';
+import { ISSUE_PROVIDER_CAPABILITIES } from '@shared/issue-providers';
 import type { Issue } from '@shared/tasks';
 import {
   buildContextActionText,
   buildLinkedIssueContextAction,
   type ContextAction,
 } from './context-actions';
-
-const PROVIDERS_WITH_CONTEXT = new Set<Issue['provider']>(['linear', 'plain', 'monday']);
 
 export async function resolveContextActionText(args: {
   action: ContextAction;
@@ -17,7 +16,7 @@ export async function resolveContextActionText(args: {
   if (
     action.kind !== 'linked-issue' ||
     !linkedIssue ||
-    !PROVIDERS_WITH_CONTEXT.has(linkedIssue.provider)
+    !ISSUE_PROVIDER_CAPABILITIES[linkedIssue.provider].supportsIssueContext
   ) {
     return buildContextActionText(action);
   }

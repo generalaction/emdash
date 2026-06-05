@@ -1,11 +1,13 @@
 import { observer } from 'mobx-react-lite';
 import { useEffect, useMemo, useRef } from 'react';
+import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { useIsActiveTask } from '@renderer/features/tasks/hooks/use-is-active-task';
 import { useTabGroupContext } from '@renderer/features/tasks/tabs/tab-group-context';
 import {
   useConversations,
   useTaskViewContext,
   useWorkspace,
+  useWorkspaceId,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
 import { PaneSizingProvider } from '@renderer/lib/pty/pane-sizing-context';
@@ -20,6 +22,8 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
   const taskView = useWorkspaceViewModel();
   const conversations = useConversations();
   const workspace = useWorkspace();
+  const workspaceId = useWorkspaceId();
+  const { value: interfaceSettings } = useAppSettingsKey('interface');
   const { groupId, tabManager: tm } = useTabGroupContext();
   const isActive = useIsActiveTask(taskId);
   const remoteConnectionId = workspace.sshConnectionId;
@@ -80,14 +84,15 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
   }, [sessionStatus]);
 
   const onInterruptPress = activeConversation ? () => activeConversation.clearWorking() : undefined;
+  const showContextBar = !(interfaceSettings?.hideContextBar ?? false);
 
   return (
     <div className="flex h-full flex-col">
-      <div className="min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1">
         <div
           ref={containerRef}
           tabIndex={-1}
-          className="flex h-full flex-col outline-none"
+          className="flex h-full min-w-0 flex-1 flex-col outline-none"
           onFocus={() => {
             if (isActive) taskView.setFocusedRegion('main');
           }}
@@ -119,6 +124,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
                     onInterruptPress={onInterruptPress}
                     mapShiftEnterToCtrlJ
                     remoteConnectionId={remoteConnectionId}
+                    workspaceId={workspaceId}
                   />
                 </div>
               ) : null}
@@ -126,7 +132,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
           </PaneSizingProvider>
         </div>
       </div>
-      <ContextBar conversationId={tm.activeConversationId} />
+      {showContextBar && <ContextBar conversationId={tm.activeConversationId} />}
     </div>
   );
 });

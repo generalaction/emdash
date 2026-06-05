@@ -110,7 +110,10 @@ export class LocalConversationProvider implements ConversationProvider {
     this.knownSessionIds.add(sessionId);
 
     const spawnSize = ptySessionRegistry.getLastSize(sessionId) ?? initialSize;
-    const spawnToken = this.supervisor.beginStart(sessionId, { requireDesired });
+    const spawnToken = this.supervisor.beginStart(sessionId, {
+      requireDesired,
+      mode: isResuming ? 'resume' : 'fresh',
+    });
     if (!spawnToken) return;
 
     try {
@@ -237,10 +240,6 @@ export class LocalConversationProvider implements ConversationProvider {
           taskId: conversation.taskId,
         });
 
-        if (decision.kind === 'failed') {
-          return;
-        }
-
         if (this.tmux) {
           return;
         }
@@ -249,6 +248,7 @@ export class LocalConversationProvider implements ConversationProvider {
           this.scheduleReplacement({
             conversation,
             initialSize: replacementSize,
+            isResuming: decision.kind === 'respawnResume',
           });
         }
       });
@@ -388,17 +388,21 @@ export class LocalConversationProvider implements ConversationProvider {
   private scheduleReplacement({
     conversation,
     initialSize,
+    isResuming,
   }: {
     conversation: Conversation;
     initialSize: { cols: number; rows: number };
+    isResuming: boolean;
   }): void {
     setTimeout(() => {
-      this.startSessionInternal(conversation, initialSize, true, undefined, true).catch((e) => {
-        log.error('LocalConversationProvider: replacement failed', {
-          conversationId: conversation.id,
-          error: String(e),
-        });
-      });
+      this.startSessionInternal(conversation, initialSize, isResuming, undefined, true).catch(
+        (e) => {
+          log.error('LocalConversationProvider: replacement failed', {
+            conversationId: conversation.id,
+            error: String(e),
+          });
+        }
+      );
     }, RESPAWN_DELAY_MS);
   }
 }

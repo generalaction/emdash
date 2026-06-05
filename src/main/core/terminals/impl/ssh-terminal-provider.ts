@@ -1,7 +1,7 @@
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { isUnexpectedPtyExit } from '@main/core/pty/exit-classification';
 import type { Pty } from '@main/core/pty/pty';
-import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
+import { ptySessionRegistry, type PtySessionMetadata } from '@main/core/pty/pty-session-registry';
 import { resolveSshCommand } from '@main/core/pty/spawn-utils';
 import { openSsh2Pty } from '@main/core/pty/ssh2-pty';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
@@ -107,6 +107,7 @@ export class SshTerminalProvider implements TerminalProvider {
       options.command,
       undefined,
       options.shell ?? terminal.shellId,
+      { title: terminal.name, isRemote: true },
       {
         respawnOnExit: true,
         preserveBufferOnExit: false,
@@ -131,6 +132,7 @@ export class SshTerminalProvider implements TerminalProvider {
       command === undefined ? undefined : { command, args: [] },
       shellSetup,
       'system',
+      { isRemote: true },
       {
         respawnOnExit,
         preserveBufferOnExit,
@@ -146,6 +148,7 @@ export class SshTerminalProvider implements TerminalProvider {
     command: { command: string; args: string[] } | undefined,
     shellSetup: string | undefined,
     shellIntent: TerminalShellId,
+    metadata: PtySessionMetadata | undefined,
     policy: SpawnPolicy
   ): Promise<void> {
     const sessionId = makePtySessionId(terminal.projectId, terminal.taskId, terminal.id);
@@ -223,6 +226,7 @@ export class SshTerminalProvider implements TerminalProvider {
             command,
             shellSetup,
             shellIntent,
+            metadata,
             policy
           ).catch((e) => {
             log.error('SshTerminalProvider: respawn failed', {
@@ -238,6 +242,7 @@ export class SshTerminalProvider implements TerminalProvider {
 
     ptySessionRegistry.register(sessionId, pty, {
       preserveBufferOnExit: policy.preserveBufferOnExit,
+      metadata,
     });
     this.sessions.set(sessionId, pty);
   }

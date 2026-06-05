@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { PtyExitInfo } from '@main/core/pty/pty';
+import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { makePtySessionId } from '@shared/ptySessionId';
 import type { Terminal } from '@shared/terminals';
 import { LocalTerminalProvider } from './local-terminal-provider';
@@ -50,6 +51,25 @@ const ctx = {
 describe('LocalTerminalProvider', () => {
   beforeEach(() => {
     ptyMock.exitHandlers.length = 0;
+    vi.mocked(ptySessionRegistry.register).mockClear();
+  });
+
+  it('registers user terminals with their display name for resource monitor labels', async () => {
+    const provider = new LocalTerminalProvider({
+      projectId: terminal.projectId,
+      scopeId: terminal.taskId,
+      taskPath: '/repo',
+      ctx,
+    });
+
+    await provider.spawnTerminal(terminal);
+
+    const sessionId = makePtySessionId(terminal.projectId, terminal.taskId, terminal.id);
+    expect(ptySessionRegistry.register).toHaveBeenCalledWith(
+      sessionId,
+      expect.anything(),
+      expect.objectContaining({ metadata: { title: terminal.name } })
+    );
   });
 
   it('cleans up cached shell profiles after a non-respawned exit', async () => {

@@ -7,6 +7,7 @@ import type {
   PullRequestComment,
   PullRequestError,
   PullRequestFile,
+  PullRequestMergeOptions,
 } from '@shared/pull-requests';
 import { isGitHubDotComHost, parseRepositoryRef } from '@shared/repository-ref';
 import { err, ok } from '@shared/result';
@@ -82,28 +83,38 @@ export const pullRequestController = createRPCController({
     try {
       const capability = await providerRepositoryService.resolveProject(projectId);
       if (!capability.success) {
-        return ok({ prs: [], taskBranch: null });
+        return ok({ prs: [], branchName: null });
       }
 
-      const { tasks } = await import('@main/db/schema');
+      const { tasks, workspaces } = await import('@main/db/schema');
       const { eq } = await import('drizzle-orm');
       const { db } = await import('@main/db/client');
       const [taskRow] = await db
-        .select({ taskBranch: tasks.taskBranch })
+        .select({ workspaceId: tasks.workspaceId })
         .from(tasks)
         .where(eq(tasks.id, taskId))
         .limit(1);
 
-      if (!taskRow?.taskBranch) {
-        return ok({ prs: [], taskBranch: null });
+      if (!taskRow?.workspaceId) {
+        return ok({ prs: [], branchName: null });
+      }
+
+      const [wsRow] = await db
+        .select({ branchName: workspaces.branchName })
+        .from(workspaces)
+        .where(eq(workspaces.id, taskRow.workspaceId))
+        .limit(1);
+
+      if (!wsRow?.branchName) {
+        return ok({ prs: [], branchName: null });
       }
 
       const prs = await prQueryService.getTaskPullRequests(
         projectId,
-        taskRow.taskBranch,
+        wsRow.branchName,
         capability.data.repositoryUrl
       );
-      return ok({ prs, taskBranch: taskRow.taskBranch });
+      return ok({ prs, branchName: wsRow.branchName });
     } catch (error) {
       log.error('Failed to get pull requests for task:', error);
       return err<PullRequestError>({
@@ -241,7 +252,7 @@ export const pullRequestController = createRPCController({
   mergePullRequest: async (
     repositoryUrl: string,
     prNumber: number,
-    options: { strategy: 'merge' | 'squash' | 'rebase'; commitHeadOid?: string }
+    options: PullRequestMergeOptions
   ) => {
     try {
       const result = await prSyncEngine.mergePullRequest(repositoryUrl, prNumber, options);

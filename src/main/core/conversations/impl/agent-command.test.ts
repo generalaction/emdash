@@ -171,6 +171,10 @@ describe('buildAgentCommand', () => {
       providerId: 'copilot',
       expectedArgs: ['--allow-all-tools', '-i', 'Fix the issue'],
     },
+    {
+      providerId: 'mistral',
+      expectedArgs: ['--agent', 'auto-approve', 'Fix the issue'],
+    },
   ])('uses automation-safe auto-approve args for $providerId', ({ providerId, expectedArgs }) => {
     const command = buildAgentCommand({
       providerId,
@@ -465,6 +469,30 @@ describe('buildAgentCommand', () => {
     expect(resume.args).toEqual(resumeArgs);
   });
 
+  it('resumes OpenCode by stored provider session id when available', () => {
+    const result = buildAgentCommand({
+      providerId: 'opencode',
+      providerConfig: providerConfigDefaults.opencode,
+      sessionId: 'conv-1',
+      providerSessionId: 'ses_7e7cTuaNc1DpuMrZrpUv4WRk0Z',
+      isResuming: true,
+    });
+
+    expect(result.args).toEqual(['--session', 'ses_7e7cTuaNc1DpuMrZrpUv4WRk0Z']);
+  });
+
+  it('falls back to last OpenCode session when the stored provider session id is invalid', () => {
+    const result = buildAgentCommand({
+      providerId: 'opencode',
+      providerConfig: providerConfigDefaults.opencode,
+      sessionId: 'conv-1',
+      providerSessionId: 'msg_e8cbf36c300143krNXzZNt6AfZ',
+      isResuming: true,
+    });
+
+    expect(result.args).toEqual(['--continue']);
+  });
+
   it('appends extra args', () => {
     const result = buildAgentCommand({
       providerId: 'claude',
@@ -493,6 +521,18 @@ describe('buildAgentCommand', () => {
     });
 
     expect(result).toEqual({ command: 'copilot', args: ['Fix the bug'] });
+  });
+
+  it('resumes Copilot by stored provider session id when available', () => {
+    const result = buildAgentCommand({
+      providerId: 'copilot',
+      providerConfig: providerConfigDefaults.copilot,
+      sessionId: 'conv-1',
+      providerSessionId: 'copilot-session-1',
+      isResuming: true,
+    });
+
+    expect(result.args).toEqual(['--resume', 'copilot-session-1']);
   });
 
   it('rejects shell control syntax that makes managed args ambiguous', () => {

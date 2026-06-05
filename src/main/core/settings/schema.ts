@@ -109,6 +109,7 @@ export const interfaceSettingsSchema = z.object({
   showLeftSidebarPrStatus: z.boolean(),
   showLeftSidebarTimestamps: z.boolean(),
   confirmTabClose: z.boolean(),
+  hideContextBar: z.boolean(),
 });
 
 export const changesViewModeSchema = z.object({

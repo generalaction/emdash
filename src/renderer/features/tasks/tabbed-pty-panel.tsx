@@ -21,6 +21,7 @@ export interface TabbedPtyPanelProps<TEntity> {
   onInterruptPress?: (entity: TEntity) => void;
   mapShiftEnterToCtrlJ?: boolean;
   remoteConnectionId?: string;
+  workspaceId: string;
 }
 
 export const TabbedPtyPanel = observer(function TabbedPtyPanel<TEntity>({
@@ -35,6 +36,7 @@ export const TabbedPtyPanel = observer(function TabbedPtyPanel<TEntity>({
   onInterruptPress,
   mapShiftEnterToCtrlJ,
   remoteConnectionId,
+  workspaceId,
 }: TabbedPtyPanelProps<TEntity>) {
   const tabs = useMemo(() => store?.tabs ?? [], [store?.tabs]);
   const activeTab = store?.activeTab;
@@ -135,6 +137,7 @@ export const TabbedPtyPanel = observer(function TabbedPtyPanel<TEntity>({
                   onInterruptPress={activeOnInterruptPress}
                   mapShiftEnterToCtrlJ={mapShiftEnterToCtrlJ}
                   remoteConnectionId={remoteConnectionId}
+                  workspaceId={workspaceId}
                 />
               </div>
             ) : null}

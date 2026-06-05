@@ -53,6 +53,7 @@ export async function createSshProject(params: CreateSshProjectParams): Promise<
     path: row.path,
     connectionId: params.connectionId,
     baseRef: row.baseRef ?? baseRef,
+    repositoryWorkspaceId: null as string | null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

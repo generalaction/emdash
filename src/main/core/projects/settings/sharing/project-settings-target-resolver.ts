@@ -4,7 +4,11 @@ import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { db } from '@main/db/client';
-import { projects as projectsTable, tasks as tasksTable } from '@main/db/schema';
+import {
+  projects as projectsTable,
+  tasks as tasksTable,
+  workspaces as workspacesTable,
+} from '@main/db/schema';
 import type {
   ProjectSettingsWriteTarget,
   ProjectSettingsWriteTargetOption,
@@ -39,8 +43,8 @@ function targetKey(target: ProjectSettingsWriteTarget): string {
 type TaskTargetRow = {
   id: string;
   name: string;
-  taskBranch: string | null;
   workspaceId: string | null;
+  workspaceBranchName: string | null;
 };
 
 async function resolveTaskTarget(
@@ -58,8 +62,9 @@ async function resolveTaskTarget(
     }
   }
 
-  if (!targetPath && task.taskBranch) {
-    targetPath = (await project.worktreeService.findBranchAnywhere(task.taskBranch)) ?? null;
+  if (!targetPath && task.workspaceBranchName) {
+    targetPath =
+      (await project.worktreeService.findBranchAnywhere(task.workspaceBranchName)) ?? null;
   }
   if (!targetPath) return null;
   if (targetPath === project.repoPath) return null;
@@ -98,10 +103,11 @@ export async function resolveAllProjectSettingsTargets(
     .select({
       id: tasksTable.id,
       name: tasksTable.name,
-      taskBranch: tasksTable.taskBranch,
       workspaceId: tasksTable.workspaceId,
+      workspaceBranchName: workspacesTable.branchName,
     })
     .from(tasksTable)
+    .leftJoin(workspacesTable, eq(tasksTable.workspaceId, workspacesTable.id))
     .where(eq(tasksTable.projectId, project.projectId));
 
   const taskTargets = (
