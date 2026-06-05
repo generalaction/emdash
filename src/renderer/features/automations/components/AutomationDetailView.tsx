@@ -125,7 +125,7 @@ export const AutomationDetailView = observer(function AutomationDetailView({
           )}
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4">
         {activeTab === 'runs' && <RunHistory automation={automation} />}
         {activeTab === 'settings' && (
           <AutomationSettingsFields
