@@ -2,9 +2,9 @@ import { JSDOM } from 'jsdom';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { MergeStateStatus, PullRequest } from '@shared/pull-requests';
+import type { MergeStateStatus, PullRequest, PullRequestCheck } from '@shared/pull-requests';
 import { MergeFooter } from './merge-footer';
-import { computeMergeUiState, type MergeUiState } from './merge-ui-state';
+import { computeMergeUiState, deriveMergeCheckState, type MergeUiState } from './merge-ui-state';
 
 function makePr(overrides: Partial<PullRequest> = {}): PullRequest {
   return {
@@ -37,6 +37,40 @@ function makePr(overrides: Partial<PullRequest> = {}): PullRequest {
     ...overrides,
   };
 }
+
+function makeCheck(overrides: Partial<PullRequestCheck> = {}): PullRequestCheck {
+  return {
+    id: 'check-1',
+    pullRequestUrl: 'https://github.com/acme/repo/pull/1',
+    commitSha: 'head',
+    name: 'CI',
+    status: 'IN_PROGRESS',
+    conclusion: 'NEUTRAL',
+    detailsUrl: null,
+    startedAt: null,
+    completedAt: null,
+    workflowName: null,
+    appName: null,
+    appLogoUrl: null,
+    ...overrides,
+  };
+}
+
+describe('deriveMergeCheckState', () => {
+  it('classifies pending checks before a merge UI state is resolved', () => {
+    expect(deriveMergeCheckState([makeCheck()])).toBe('pending');
+  });
+
+  it('classifies failed checks before a merge UI state is resolved', () => {
+    expect(deriveMergeCheckState([makeCheck({ status: 'COMPLETED', conclusion: 'FAILURE' })])).toBe(
+      'failed'
+    );
+  });
+
+  it('classifies missing checks as unknown', () => {
+    expect(deriveMergeCheckState([])).toBe('unknown');
+  });
+});
 
 describe('computeMergeUiState', () => {
   it.each(['BLOCKED', 'BEHIND', 'HAS_HOOKS', 'UNSTABLE'] satisfies MergeStateStatus[])(
@@ -73,6 +107,40 @@ describe('computeMergeUiState', () => {
       kind: 'draft',
       canMerge: false,
       canBypassRequirements: false,
+    });
+  });
+
+  it('shows checks as still running when an unstable pull request only has pending checks', () => {
+    expect(
+      computeMergeUiState(
+        makePr({
+          mergeStateStatus: 'UNSTABLE',
+          checks: [makeCheck(), makeCheck({ id: 'check-2', status: 'QUEUED' })],
+        })
+      )
+    ).toMatchObject({
+      kind: 'unstable',
+      title: 'Checks still running',
+      detail: 'Waiting for GitHub checks to finish.',
+      canMerge: false,
+      canBypassRequirements: true,
+    });
+  });
+
+  it('shows checks as not passing when an unstable pull request has failed checks', () => {
+    expect(
+      computeMergeUiState(
+        makePr({
+          mergeStateStatus: 'UNSTABLE',
+          checks: [makeCheck({ status: 'COMPLETED', conclusion: 'FAILURE' })],
+        })
+      )
+    ).toMatchObject({
+      kind: 'unstable',
+      title: 'Checks not passing',
+      detail: 'Review failing checks before merging.',
+      canMerge: false,
+      canBypassRequirements: true,
     });
   });
 });

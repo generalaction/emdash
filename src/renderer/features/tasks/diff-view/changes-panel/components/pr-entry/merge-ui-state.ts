@@ -1,6 +1,8 @@
-import type { PullRequest } from '@shared/pull-requests';
+import { computeCheckRunsSummary } from '@renderer/utils/github';
+import type { PullRequest, PullRequestCheck } from '@shared/pull-requests';
 
 export type MergeSeverity = 'success' | 'warning' | 'error' | 'neutral';
+export type MergeCheckState = 'pending' | 'failed' | 'passing' | 'unknown';
 
 export type MergeUiState = {
   kind: 'ready' | 'draft' | 'conflicts' | 'behind' | 'blocked' | 'unstable' | 'unknown';
@@ -10,6 +12,14 @@ export type MergeUiState = {
   canMerge: boolean;
   canBypassRequirements: boolean;
 };
+
+export function deriveMergeCheckState(checks: PullRequestCheck[]): MergeCheckState {
+  const summary = computeCheckRunsSummary(checks);
+  if (summary.failed > 0) return 'failed';
+  if (summary.pending > 0) return 'pending';
+  if (summary.total > 0) return 'passing';
+  return 'unknown';
+}
 
 export function computeMergeUiState(pr: PullRequest): MergeUiState {
   if (pr.status !== 'open') {
@@ -79,14 +89,36 @@ export function computeMergeUiState(pr: PullRequest): MergeUiState {
         canBypassRequirements: true,
       };
     case 'UNSTABLE':
-      return {
-        kind: 'unstable',
-        severity: 'warning',
-        title: 'Checks not passing',
-        detail: 'Review failing checks before merging.',
-        canMerge: false,
-        canBypassRequirements: true,
-      };
+      switch (deriveMergeCheckState(pr.checks)) {
+        case 'pending':
+          return {
+            kind: 'unstable',
+            severity: 'warning',
+            title: 'Checks still running',
+            detail: 'Waiting for GitHub checks to finish.',
+            canMerge: false,
+            canBypassRequirements: true,
+          };
+        case 'failed':
+          return {
+            kind: 'unstable',
+            severity: 'warning',
+            title: 'Checks not passing',
+            detail: 'Review failing checks before merging.',
+            canMerge: false,
+            canBypassRequirements: true,
+          };
+        case 'passing':
+        case 'unknown':
+          return {
+            kind: 'unstable',
+            severity: 'warning',
+            title: 'Checks pending or not passing',
+            detail: 'Review GitHub checks before merging.',
+            canMerge: false,
+            canBypassRequirements: true,
+          };
+      }
     default:
       return {
         kind: 'unknown',
