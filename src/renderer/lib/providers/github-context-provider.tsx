@@ -16,6 +16,7 @@ import type {
 } from '@shared/github';
 import { useToast } from '../hooks/use-toast';
 import { useAccountSession, useFetchAccountHealth } from '../hooks/useAccount';
+import { GITHUB_ACCOUNTS_QUERY_KEY } from '../hooks/useGithubAccounts';
 import { useModalContext } from '../modal/modal-provider';
 
 type GithubContextValue = {
@@ -83,6 +84,11 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
 
   const loginMutation = useMutation({
     mutationFn: () => rpc.github.auth(),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: GITHUB_ACCOUNTS_QUERY_KEY });
+      void queryClient.invalidateQueries({ queryKey: GITHUB_STATUS_KEY });
+      void queryClient.invalidateQueries({ queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY });
+    },
   });
 
   const logoutMutation = useMutation({
@@ -127,6 +133,7 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
       log.info('[GithubContext] auth success via device flow', { user: flowUser?.login });
       void checkStatus();
       setTimeout(() => void checkStatus(), 500);
+      void queryClient.invalidateQueries({ queryKey: GITHUB_ACCOUNTS_QUERY_KEY });
       void queryClient.invalidateQueries({ queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY });
       toast({
         title: 'Connected to GitHub',
@@ -191,6 +198,7 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
         const oauthResult = await rpc.github.connectOAuth();
         if (oauthResult?.success) {
           await checkStatus();
+          void queryClient.invalidateQueries({ queryKey: GITHUB_ACCOUNTS_QUERY_KEY });
           void queryClient.invalidateQueries({ queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY });
           if (oauthResult.user) {
             toast({

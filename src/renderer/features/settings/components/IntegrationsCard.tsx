@@ -1,28 +1,11 @@
-import { Check, Loader2, Plus, RefreshCw } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
+import { Check, Loader2, Plus } from 'lucide-react';
+import React from 'react';
 import { useIntegrationsContext } from '@renderer/features/integrations/integrations-provider';
 import { PROVIDER_ICON_COMPONENTS } from '@renderer/features/integrations/provider-icons';
-import { useToast } from '@renderer/lib/hooks/use-toast';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
-import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import type { IssueProviderType } from '@shared/issue-providers';
-
-function githubAuthSourceLabel(tokenSource: string | null): string {
-  switch (tokenSource) {
-    case 'cli':
-      return 'GitHub CLI';
-    case 'emdash_oauth':
-      return 'OAuth';
-    case 'device_flow':
-      return 'device flow';
-    case 'secure_storage':
-      return 'saved token';
-    default:
-      return 'GitHub';
-  }
-}
 
 type IntegrationCardItem = {
   id: IssueProviderType;
@@ -38,9 +21,6 @@ type IntegrationCardItem = {
 };
 
 const IntegrationsCard: React.FC = () => {
-  const { authenticated, user, isLoading, logout, tokenSource, checkStatus } = useGithubContext();
-  const { toast } = useToast();
-  const [githubCliRefreshing, setGithubCliRefreshing] = useState(false);
   const {
     connectionStatus,
     isLinearConnected,
@@ -70,18 +50,7 @@ const IntegrationsCard: React.FC = () => {
   } = useIntegrationsContext();
 
   const showIntegrationSetup = useShowModal('integrationSetupModal');
-  const showGithubConnect = useShowModal('githubConnectModal');
   const showConfirmDisconnect = useShowModal('confirmActionModal');
-
-  const isGithubCliConnected = authenticated && tokenSource === 'cli';
-  const isGithubStoredTokenConnected = authenticated && tokenSource !== 'cli';
-  const githubAuthSource = githubAuthSourceLabel(tokenSource);
-  const githubDescription =
-    authenticated && user ? `@${user.login} via ${githubAuthSource}` : 'Connect your repositories';
-
-  useEffect(() => {
-    void checkStatus();
-  }, [checkStatus]);
 
   const confirmDisconnect = ({
     name,
@@ -104,76 +73,7 @@ const IntegrationsCard: React.FC = () => {
     });
   };
 
-  const refreshGithubCliStatus = async () => {
-    setGithubCliRefreshing(true);
-    try {
-      const status = await checkStatus({ refresh: true });
-      if (status.authenticated && status.tokenSource === 'cli') {
-        toast({
-          title: 'GitHub CLI is still authenticated',
-          description: status.user
-            ? `Run gh auth logout to disconnect @${status.user.login}.`
-            : 'Run gh auth logout to disconnect.',
-        });
-      } else {
-        toast({
-          title: 'GitHub CLI disconnected',
-          description: 'Emdash no longer has access to GitHub',
-        });
-      }
-    } finally {
-      setGithubCliRefreshing(false);
-    }
-  };
-
-  const githubAction = isGithubCliConnected ? (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="h-8 w-8 shrink-0"
-            disabled={githubCliRefreshing}
-            onClick={() => void refreshGithubCliStatus()}
-            aria-label="Refresh GitHub CLI status"
-          >
-            {githubCliRefreshing ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4" />
-            )}
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="top">
-          <p className="text-xs">Run `gh auth logout`, then refresh</p>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  ) : isGithubStoredTokenConnected ? (
-    <Button
-      type="button"
-      variant="outline"
-      size="icon"
-      className="h-8 w-8 shrink-0"
-      onClick={() => confirmDisconnect({ name: 'GitHub', onDisconnect: logout })}
-      aria-label="Disconnect GitHub"
-    >
-      <Check className="h-4 w-4 text-foreground-success" />
-    </Button>
-  ) : undefined;
-
   const integrations: IntegrationCardItem[] = [
-    {
-      id: 'github',
-      name: 'GitHub',
-      description: githubDescription,
-      connected: authenticated,
-      loading: isLoading,
-      onConnect: () => showGithubConnect({}),
-      rightAction: githubAction,
-    },
     {
       id: 'linear',
       name: 'Linear',

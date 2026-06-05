@@ -1,9 +1,14 @@
-import { useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, Github, Loader2, Terminal } from 'lucide-react';
+import { AlertCircle, Github, KeyRound, Loader2, Terminal } from 'lucide-react';
 import { useState } from 'react';
 import { useToast } from '@renderer/lib/hooks/use-toast';
-import { rpc } from '@renderer/lib/ipc';
+import {
+  useAccountLinkProvider,
+  useAccountSession,
+  useAccountSignIn,
+} from '@renderer/lib/hooks/useAccount';
+import { useImportGitHubCliAccounts } from '@renderer/lib/hooks/useGithubAccounts';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
 import { Button } from '@renderer/lib/ui/button';
 import {
@@ -13,25 +18,31 @@ import {
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
 
-const ISSUE_CONNECTION_STATUS_QUERY_KEY = ['issues:connection-status'] as const;
-
-type MethodError = { method: 'oauth' | 'cli'; message: string } | null;
+type MethodError = { method: 'oauth' | 'cli' | 'device_flow'; message: string } | null;
 
 export function GithubConnectModal({ onSuccess, onClose }: BaseModalProps<void>) {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const { checkStatus } = useGithubContext();
+  const { data: session } = useAccountSession();
+  const signInMutation = useAccountSignIn();
+  const linkProviderMutation = useAccountLinkProvider();
+  const importCliAccountsMutation = useImportGitHubCliAccounts();
+  const showDeviceFlow = useShowModal('githubDeviceFlowModal');
+  const { login } = useGithubContext();
   const [oauthLoading, setOauthLoading] = useState(false);
   const [cliLoading, setCliLoading] = useState(false);
   const [error, setError] = useState<MethodError>(null);
 
   const anyLoading = oauthLoading || cliLoading;
+  const isSignedIn = session?.isSignedIn === true;
 
   const connectOAuth = async () => {
     setError(null);
     setOauthLoading(true);
     try {
-      const result = await rpc.github.connectOAuth();
+      const result = isSignedIn
+        ? await linkProviderMutation.mutateAsync('github')
+        : await signInMutation.mutateAsync('github');
+
       if (!result.success) {
         setError({
           method: 'oauth',
@@ -40,11 +51,12 @@ export function GithubConnectModal({ onSuccess, onClose }: BaseModalProps<void>)
         return;
       }
 
-      await checkStatus();
-      void queryClient.invalidateQueries({ queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY });
       toast({
         title: 'Connected to GitHub',
-        description: result.user ? `Signed in as ${result.user.login}` : undefined,
+        description:
+          'providerAccount' in result && result.providerAccount
+            ? `Linked @${result.providerAccount.login}.`
+            : 'GitHub is connected.',
       });
       onSuccess();
     } finally {
@@ -56,8 +68,16 @@ export function GithubConnectModal({ onSuccess, onClose }: BaseModalProps<void>)
     setError(null);
     setCliLoading(true);
     try {
-      const status = await checkStatus({ refresh: true });
-      if (!status.authenticated || status.tokenSource !== 'cli') {
+      const result = await importCliAccountsMutation.mutateAsync();
+      if (!result.success) {
+        setError({
+          method: 'cli',
+          message: result.error,
+        });
+        return;
+      }
+
+      if (result.importedAccountIds.length === 0) {
         setError({
           method: 'cli',
           message: 'No GitHub CLI session found. Run gh auth login first.',
@@ -65,15 +85,23 @@ export function GithubConnectModal({ onSuccess, onClose }: BaseModalProps<void>)
         return;
       }
 
-      void queryClient.invalidateQueries({ queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY });
       toast({
-        title: 'GitHub CLI detected',
-        description: status.user ? `Using @${status.user.login} via GitHub CLI.` : undefined,
+        title: 'GitHub CLI accounts imported',
+        description:
+          result.importedAccountIds.length === 1
+            ? '1 account is available in Emdash.'
+            : `${result.importedAccountIds.length} accounts are available in Emdash.`,
       });
       onSuccess();
     } finally {
       setCliLoading(false);
     }
+  };
+
+  const connectDeviceFlow = () => {
+    setError(null);
+    showDeviceFlow({});
+    void login();
   };
 
   return (
@@ -101,6 +129,20 @@ export function GithubConnectModal({ onSuccess, onClose }: BaseModalProps<void>)
             </Button>
           </div>
           {error?.method === 'oauth' && <InlineError message={error.message} />}
+        </div>
+
+        <div className="rounded-lg border border-border p-3">
+          <div className="flex items-center gap-3">
+            <KeyRound className="text-muted-foreground h-4 w-4 shrink-0" />
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm font-medium text-foreground">Device Flow</h3>
+              <p className="text-muted-foreground mt-0.5 text-xs">Authorize with a one-time code</p>
+            </div>
+            <Button variant="outline" onClick={connectDeviceFlow} disabled={anyLoading}>
+              Connect
+            </Button>
+          </div>
+          {error?.method === 'device_flow' && <InlineError message={error.message} />}
         </div>
 
         <div className="rounded-lg border border-border p-3">
