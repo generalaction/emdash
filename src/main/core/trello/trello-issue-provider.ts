@@ -67,7 +67,7 @@ function toIssue(card: TrelloCard, boardName?: string, context?: string): Issue 
 }
 
 function sortByUpdatedAtDesc(issues: Issue[]): Issue[] {
-  return issues.sort(
+  return [...issues].sort(
     (a, b) => new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime()
   );
 }
