@@ -41,8 +41,9 @@ if ! command -v make &>/dev/null; then
   sudo apt-get install -y -q build-essential python3
 fi
 
-# Install production deps
+# Install production deps and rebuild native addons
 npm install --omit=dev
+npm rebuild better-sqlite3
 
 # Ensure emdash-server config exists (skips if already initialised)
 if [ ! -f "\${HOME}/.emdash-server/config.json" ]; then
