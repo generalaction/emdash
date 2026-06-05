@@ -68,7 +68,17 @@ export function useAutomations(projectId?: string) {
     onSuccess: invalidateAutomations,
   });
 
-  return { automations, create, updateSettings, rename, setEnabled, toggleEnabled, runNow, stop, destroy };
+  return {
+    automations,
+    create,
+    updateSettings,
+    rename,
+    setEnabled,
+    toggleEnabled,
+    runNow,
+    stop,
+    destroy,
+  };
 }
 
 export function useAutomationRuns(automationId: string, limit = 20) {

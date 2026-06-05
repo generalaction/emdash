@@ -44,14 +44,8 @@ export const AutomationDetailView = observer(function AutomationDetailView({
   const [activeTab, setActiveTab] = useState<AutomationTab>('runs');
   const [cronError, setCronError] = useState<string | null>(null);
 
-  const {
-    formState,
-    setCronExpr,
-    setUseBYOI,
-    handlePromptBlur,
-    handleNameBlur,
-    saveError,
-  } = useAutomationSettingsAutoSave(automation);
+  const { formState, setCronExpr, setUseBYOI, handlePromptBlur, handleNameBlur, saveError } =
+    useAutomationSettingsAutoSave(automation);
   const { name, setName } = formState;
 
   const { runNow } = useAutomations();
@@ -62,75 +56,74 @@ export const AutomationDetailView = observer(function AutomationDetailView({
     <div className="flex h-full flex-col">
       <div className="flex flex-col gap-4 p-4">
         <div className="flex w-full items-center justify-between gap-2">
-            <div className="flex flex-row items-center gap-3">
-              <Switch
-                checked={automation.enabled}
-                onCheckedChange={(checked) => onToggleEnabled?.(automation, checked)}
-                aria-label={automation.enabled ? 'Pause automation' : 'Enable automation'}
-              />
-              <EditableNameField
-                autoFocus={false}
-                value={name}
-                onChange={setName}
-                onBlur={handleNameBlur}
-                placeholder="Name this automation"
-                className="flex-1"
-              />
-            </div>
-            <div>
-              <DropdownMenu>
-                <DropdownMenuTrigger render={<Button variant="ghost" size="sm" />}>
-                  <Ellipsis className="size-4" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent side="bottom" align="end">
-                  <DropdownMenuItem variant="destructive" onClick={() => onDelete?.(automation)}>
-                    <Trash2 />
-                    Delete automation
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Button variant="ghost" size="sm" onClick={onClose}>
-                <X className="size-4" />
-              </Button>
-            </div>
+          <div className="flex flex-row items-center gap-3">
+            <Switch
+              checked={automation.enabled}
+              onCheckedChange={(checked) => onToggleEnabled?.(automation, checked)}
+              aria-label={automation.enabled ? 'Pause automation' : 'Enable automation'}
+            />
+            <EditableNameField
+              autoFocus={false}
+              value={name}
+              onChange={setName}
+              onBlur={handleNameBlur}
+              placeholder="Name this automation"
+              className="flex-1"
+            />
           </div>
-
-          <div className="flex items-center gap-2">
-            <PanelTabs compact value={activeTab} onChange={setActiveTab} tabs={AUTOMATION_TABS} />
-            {activeTab === 'runs' && (
-              <div className="ml-auto flex items-center gap-1">
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <button
-                        type="button"
-                        aria-label="Run now"
-                        disabled={!canRunNow}
-                        onClick={() => void runNow.mutateAsync(automation.id)}
-                        className={
-                          canRunNow
-                            ? 'flex h-6 w-6 items-center justify-center rounded-md text-foreground-muted transition-colors hover:bg-background-1 hover:text-foreground'
-                            : 'flex h-6 w-6 cursor-not-allowed items-center justify-center rounded-md text-foreground-passive opacity-40'
-                        }
-                      />
-                    }
-                  >
-                    <Play className="size-3.5" />
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {automation.projectId == null
-                      ? 'Assign a project before running'
-                      : !automation.conversationConfig || !automation.triggerConfig
-                        ? 'Configure the automation before running'
-                        : 'Run now'}
-                  </TooltipContent>
-                </Tooltip>
-              </div>
-            )}
+          <div>
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<Button variant="ghost" size="sm" />}>
+                <Ellipsis className="size-4" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent side="bottom" align="end">
+                <DropdownMenuItem variant="destructive" onClick={() => onDelete?.(automation)}>
+                  <Trash2 />
+                  Delete automation
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button variant="ghost" size="sm" onClick={onClose}>
+              <X className="size-4" />
+            </Button>
           </div>
+        </div>
 
+        <div className="flex items-center gap-2">
+          <PanelTabs compact value={activeTab} onChange={setActiveTab} tabs={AUTOMATION_TABS} />
+          {activeTab === 'runs' && (
+            <div className="ml-auto flex items-center gap-1">
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <button
+                      type="button"
+                      aria-label="Run now"
+                      disabled={!canRunNow}
+                      onClick={() => void runNow.mutateAsync(automation.id)}
+                      className={
+                        canRunNow
+                          ? 'flex h-6 w-6 items-center justify-center rounded-md text-foreground-muted transition-colors hover:bg-background-1 hover:text-foreground'
+                          : 'flex h-6 w-6 cursor-not-allowed items-center justify-center rounded-md text-foreground-passive opacity-40'
+                      }
+                    />
+                  }
+                >
+                  <Play className="size-3.5" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  {automation.projectId == null
+                    ? 'Assign a project before running'
+                    : !automation.conversationConfig || !automation.triggerConfig
+                      ? 'Configure the automation before running'
+                      : 'Run now'}
+                </TooltipContent>
+              </Tooltip>
+            </div>
+          )}
+        </div>
       </div>
-      <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-4">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
         {activeTab === 'runs' && <RunHistory automation={automation} />}
         {activeTab === 'settings' && (
           <AutomationSettingsFields

@@ -126,7 +126,11 @@ describe('AutomationScheduler drain serialization', () => {
         error: null,
         triggerKind: 'cron' as const,
         triggerConfigSnapshot: { expr: '0 9 * * *', tz: 'UTC' },
-        conversationConfigSnapshot: { prompt: 'Check things', provider: 'claude', autoApprove: false },
+        conversationConfigSnapshot: {
+          prompt: 'Check things',
+          provider: 'claude',
+          autoApprove: false,
+        },
         taskConfigSnapshot: null,
       },
       automation: {
@@ -140,7 +144,11 @@ describe('AutomationScheduler drain serialization', () => {
         updatedAt: 0,
       },
     };
-    const creatingTaskRun = { ...entry.run, status: 'creating_task' as const, startedAt: Date.now() };
+    const creatingTaskRun = {
+      ...entry.run,
+      status: 'creating_task' as const,
+      startedAt: Date.now(),
+    };
 
     vi.mocked(listQueuedRuns)
       .mockImplementationOnce(

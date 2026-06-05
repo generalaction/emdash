@@ -86,7 +86,11 @@ describe('runQueuedAutomation', () => {
     };
     vi.mocked(updateRun).mockResolvedValue(skippedRun);
 
-    const result = await runQueuedAutomation({ ...automation, projectId: undefined }, run, onStepCompleted);
+    const result = await runQueuedAutomation(
+      { ...automation, projectId: undefined },
+      run,
+      onStepCompleted
+    );
 
     expect(result).toEqual({ success: false, error: 'no_project' });
     expect(executeTaskCreate).not.toHaveBeenCalled();

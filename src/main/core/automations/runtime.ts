@@ -2,21 +2,21 @@ import { log } from '@main/lib/logger';
 import type { Automation } from '@shared/automations/automation';
 import type { AutomationRun } from '@shared/automations/automation-run';
 import { err, ok, type Result } from '@shared/result';
-import { markRunDone, markRunSkipped, type OnStepCompleted } from './run-transitions';
 import { executeTaskCreate } from './actions/taskCreate';
+import { markRunDone, markRunSkipped, type OnStepCompleted } from './run-transitions';
 
 export type { OnStepCompleted };
 
 export type AutomationRunExecutor = (
   automation: Automation,
   run: AutomationRun,
-  onStepCompleted: OnStepCompleted,
+  onStepCompleted: OnStepCompleted
 ) => Promise<Result<AutomationRun, string>>;
 
 export async function runQueuedAutomation(
   automation: Automation,
   initialRun: AutomationRun,
-  onStepCompleted: OnStepCompleted,
+  onStepCompleted: OnStepCompleted
 ): Promise<Result<AutomationRun, string>> {
   let run = initialRun;
 

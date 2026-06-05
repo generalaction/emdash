@@ -59,7 +59,7 @@ export class AutomationScheduler {
     private readonly executor: AutomationRunExecutor = runQueuedAutomation,
     // Non-readonly so start() can wire the real automationsService callback via lazy import.
     // Tests inject a spy directly via this constructor param.
-    private onRunStep: OnStepCompleted = () => {},
+    private onRunStep: OnStepCompleted = () => {}
   ) {}
 
   start(): void {
@@ -106,7 +106,11 @@ export class AutomationScheduler {
 
     const stuckCreating = await findRunsStuckInCreatingTask();
     for (const { id } of stuckCreating) {
-      const failed = await markRunFailed(id, { step: 'create_task', code: 'interrupted_by_restart' }, now);
+      const failed = await markRunFailed(
+        id,
+        { step: 'create_task', code: 'interrupted_by_restart' },
+        now
+      );
       this.onRunStep(failed);
     }
     if (stuckCreating.length > 0) {
@@ -117,7 +121,11 @@ export class AutomationScheduler {
 
     const stuckLaunching = await findRunsStuckInLaunchingTask();
     for (const { id } of stuckLaunching) {
-      const failed = await markRunFailed(id, { step: 'launch_task', code: 'interrupted_by_restart' }, now);
+      const failed = await markRunFailed(
+        id,
+        { step: 'launch_task', code: 'interrupted_by_restart' },
+        now
+      );
       this.onRunStep(failed);
     }
     if (stuckLaunching.length > 0) {
@@ -128,7 +136,11 @@ export class AutomationScheduler {
 
     const stuckConversation = await findRunsStuckInCreatingConversation();
     for (const { id } of stuckConversation) {
-      const failed = await markRunFailed(id, { step: 'create_conversation', code: 'interrupted_by_restart' }, now);
+      const failed = await markRunFailed(
+        id,
+        { step: 'create_conversation', code: 'interrupted_by_restart' },
+        now
+      );
       this.onRunStep(failed);
     }
     if (stuckConversation.length > 0) {
@@ -215,7 +227,10 @@ export class AutomationScheduler {
         if (this.slotPool.availableSlots <= 0) return;
 
         if (entry.run.deadlineAt != null && entry.run.deadlineAt <= Date.now()) {
-          const skipped = await markRunSkipped(entry.run.id, { step: 'queue', code: 'deadline_exceeded' });
+          const skipped = await markRunSkipped(entry.run.id, {
+            step: 'queue',
+            code: 'deadline_exceeded',
+          });
           this.onRunStep(skipped);
           madeProgress = true;
           continue;
@@ -229,7 +244,10 @@ export class AutomationScheduler {
         }
 
         if (this.inFlight.has(entry.automation.id)) {
-          const skipped = await markRunSkipped(entry.run.id, { step: 'queue', code: 'previous_running' });
+          const skipped = await markRunSkipped(entry.run.id, {
+            step: 'queue',
+            code: 'previous_running',
+          });
           this.onRunStep(skipped);
           madeProgress = true;
           continue;
@@ -280,7 +298,11 @@ export class AutomationScheduler {
         error: message,
       });
       try {
-        const failed = await markRunFailed(run.id, { step: 'create_task', code: 'unknown', message });
+        const failed = await markRunFailed(run.id, {
+          step: 'create_task',
+          code: 'unknown',
+          message,
+        });
         this.onRunStep(failed);
       } catch (markError) {
         log.error('AutomationScheduler failed to mark worker failed', {

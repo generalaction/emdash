@@ -1,7 +1,6 @@
 import { openFixture } from '@tooling/utils/db';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppDb } from '@main/db/client';
-import type { AutomationRun } from '@shared/automations/automation-run';
 import { ok } from '@shared/result';
 import { AutomationScheduler } from './automation-scheduler';
 import { insertRun } from './repo';
@@ -86,9 +85,7 @@ function countRunsByStatus(
   if (automationId) {
     return (
       fixture.sqlite
-        .prepare(
-          'SELECT COUNT(*) as n FROM automation_runs WHERE status = ? AND automation_id = ?'
-        )
+        .prepare('SELECT COUNT(*) as n FROM automation_runs WHERE status = ? AND automation_id = ?')
         .get(status, automationId) as { n: number }
     ).n;
   }
@@ -159,7 +156,11 @@ describe('AutomationScheduler recovery', () => {
     const run = await insertRun({
       automationId,
       triggerConfigSnapshot: { expr: '0 9 * * *', tz: 'UTC' },
-      conversationConfigSnapshot: { prompt: 'Check things', provider: 'claude', autoApprove: false },
+      conversationConfigSnapshot: {
+        prompt: 'Check things',
+        provider: 'claude',
+        autoApprove: false,
+      },
       status: 'creating_task',
       triggerKind: 'cron',
       startedAt: Date.now(),
@@ -184,7 +185,11 @@ describe('AutomationScheduler recovery', () => {
     const run = await insertRun({
       automationId,
       triggerConfigSnapshot: { expr: '0 9 * * *', tz: 'UTC' },
-      conversationConfigSnapshot: { prompt: 'Check things', provider: 'claude', autoApprove: false },
+      conversationConfigSnapshot: {
+        prompt: 'Check things',
+        provider: 'claude',
+        autoApprove: false,
+      },
       status: 'launching_task',
       triggerKind: 'cron',
       startedAt: Date.now(),
@@ -205,7 +210,11 @@ describe('AutomationScheduler recovery', () => {
     const run = await insertRun({
       automationId,
       triggerConfigSnapshot: { expr: '0 9 * * *', tz: 'UTC' },
-      conversationConfigSnapshot: { prompt: 'Check things', provider: 'claude', autoApprove: false },
+      conversationConfigSnapshot: {
+        prompt: 'Check things',
+        provider: 'claude',
+        autoApprove: false,
+      },
       status: 'creating_conversation',
       triggerKind: 'cron',
       startedAt: Date.now(),
@@ -228,7 +237,11 @@ describe('AutomationScheduler recovery', () => {
     const run = await insertRun({
       automationId,
       triggerConfigSnapshot: { expr: '0 9 * * *', tz: 'UTC' },
-      conversationConfigSnapshot: { prompt: 'Check things', provider: 'claude', autoApprove: false },
+      conversationConfigSnapshot: {
+        prompt: 'Check things',
+        provider: 'claude',
+        autoApprove: false,
+      },
       status: 'queued',
       triggerKind: 'cron',
     });
@@ -281,7 +294,11 @@ describe('AutomationScheduler bootstrap self-healing', () => {
     await insertRun({
       automationId,
       triggerConfigSnapshot: { expr: '0 9 * * *', tz: 'UTC' },
-      conversationConfigSnapshot: { prompt: 'Check things', provider: 'claude', autoApprove: false },
+      conversationConfigSnapshot: {
+        prompt: 'Check things',
+        provider: 'claude',
+        autoApprove: false,
+      },
       scheduledAt: Date.UTC(2026, 4, 16, 9, 0, 0),
       deadlineAt: Date.UTC(2026, 4, 17, 9, 0, 0),
       status: 'scheduled',
@@ -325,7 +342,11 @@ describe('AutomationScheduler due cron transition', () => {
     await insertRun({
       automationId,
       triggerConfigSnapshot: { expr: '0 9 * * *', tz: 'UTC' },
-      conversationConfigSnapshot: { prompt: 'Check things', provider: 'claude', autoApprove: false },
+      conversationConfigSnapshot: {
+        prompt: 'Check things',
+        provider: 'claude',
+        autoApprove: false,
+      },
       scheduledAt: Date.UTC(2026, 4, 15, 9, 0, 0), // 9 AM, before our "now" of 12 PM
       deadlineAt: Date.UTC(2026, 4, 16, 9, 0, 0),
       status: 'scheduled',
@@ -339,16 +360,14 @@ describe('AutomationScheduler due cron transition', () => {
 
     // The due run should have become queued (or been drained to creating_task)
     const rows = fixture.sqlite
-      .prepare(
-        "SELECT status FROM automation_runs WHERE automation_id = ? AND scheduled_at = ?",
-      )
+      .prepare('SELECT status FROM automation_runs WHERE automation_id = ? AND scheduled_at = ?')
       .all(automationId, Date.UTC(2026, 4, 15, 9, 0, 0)) as { status: string }[];
     expect(['queued', 'creating_task', 'done']).toContain(rows[0]?.status);
 
     // A next occurrence should have been pre-scheduled
     const nextRows = fixture.sqlite
       .prepare(
-        "SELECT status FROM automation_runs WHERE automation_id = ? AND scheduled_at > ? AND status = 'scheduled'",
+        "SELECT status FROM automation_runs WHERE automation_id = ? AND scheduled_at > ? AND status = 'scheduled'"
       )
       .all(automationId, Date.UTC(2026, 4, 15, 9, 0, 0)) as { status: string }[];
     expect(nextRows.length).toBeGreaterThanOrEqual(1);
@@ -364,7 +383,11 @@ describe('AutomationScheduler due cron transition', () => {
     await insertRun({
       automationId,
       triggerConfigSnapshot: { expr: '0 9 * * *', tz: 'UTC' },
-      conversationConfigSnapshot: { prompt: 'Check things', provider: 'claude', autoApprove: false },
+      conversationConfigSnapshot: {
+        prompt: 'Check things',
+        provider: 'claude',
+        autoApprove: false,
+      },
       scheduledAt: Date.UTC(2026, 4, 15, 9, 0, 0), // 9 AM — still in the future
       deadlineAt: Date.UTC(2026, 4, 16, 9, 0, 0),
       status: 'scheduled',
@@ -394,7 +417,11 @@ describe('AutomationScheduler drain queue decisions', () => {
     const run = await insertRun({
       automationId,
       triggerConfigSnapshot: { expr: '0 9 * * *', tz: 'UTC' },
-      conversationConfigSnapshot: { prompt: 'Check things', provider: 'claude', autoApprove: false },
+      conversationConfigSnapshot: {
+        prompt: 'Check things',
+        provider: 'claude',
+        autoApprove: false,
+      },
       scheduledAt: Date.UTC(2026, 4, 15, 9, 0, 0),
       deadlineAt: Date.UTC(2026, 4, 15, 10, 0, 0), // already past
       status: 'queued',
@@ -423,7 +450,11 @@ describe('AutomationScheduler drain queue decisions', () => {
     const run = await insertRun({
       automationId: 'automation-orphan',
       triggerConfigSnapshot: { expr: '0 9 * * *', tz: 'UTC' },
-      conversationConfigSnapshot: { prompt: 'Check things', provider: 'claude', autoApprove: false },
+      conversationConfigSnapshot: {
+        prompt: 'Check things',
+        provider: 'claude',
+        autoApprove: false,
+      },
       status: 'queued',
       triggerKind: 'manual',
     });
@@ -450,7 +481,11 @@ describe('AutomationScheduler drain queue decisions', () => {
     const run1 = await insertRun({
       automationId,
       triggerConfigSnapshot: { expr: '0 9 * * *', tz: 'UTC' },
-      conversationConfigSnapshot: { prompt: 'Check things', provider: 'claude', autoApprove: false },
+      conversationConfigSnapshot: {
+        prompt: 'Check things',
+        provider: 'claude',
+        autoApprove: false,
+      },
       status: 'queued',
       triggerKind: 'cron',
       scheduledAt: Date.UTC(2026, 4, 15, 9, 0, 0),
@@ -458,7 +493,11 @@ describe('AutomationScheduler drain queue decisions', () => {
     const run2 = await insertRun({
       automationId,
       triggerConfigSnapshot: { expr: '0 9 * * *', tz: 'UTC' },
-      conversationConfigSnapshot: { prompt: 'Check things', provider: 'claude', autoApprove: false },
+      conversationConfigSnapshot: {
+        prompt: 'Check things',
+        provider: 'claude',
+        autoApprove: false,
+      },
       status: 'queued',
       triggerKind: 'cron',
       scheduledAt: Date.UTC(2026, 4, 15, 10, 0, 0),
@@ -486,7 +525,11 @@ describe('AutomationScheduler drain queue decisions', () => {
     const run = await insertRun({
       automationId,
       triggerConfigSnapshot: { expr: '0 9 * * *', tz: 'UTC' },
-      conversationConfigSnapshot: { prompt: 'Check things', provider: 'claude', autoApprove: false },
+      conversationConfigSnapshot: {
+        prompt: 'Check things',
+        provider: 'claude',
+        autoApprove: false,
+      },
       status: 'creating_task',
       triggerKind: 'cron',
       startedAt: Date.now(),
@@ -580,7 +623,11 @@ describe('AutomationScheduler post-worker rescheduling', () => {
     const run = await insertRun({
       automationId,
       triggerConfigSnapshot: { expr: '0 9 * * *', tz: 'UTC' },
-      conversationConfigSnapshot: { prompt: 'Check things', provider: 'claude', autoApprove: false },
+      conversationConfigSnapshot: {
+        prompt: 'Check things',
+        provider: 'claude',
+        autoApprove: false,
+      },
       status: 'queued',
       triggerKind: 'cron',
       scheduledAt: now,
@@ -594,7 +641,7 @@ describe('AutomationScheduler post-worker rescheduling', () => {
     // A subsequent scheduled run should now exist
     const nextRows = fixture.sqlite
       .prepare(
-        "SELECT status FROM automation_runs WHERE automation_id = ? AND id != ? AND status = 'scheduled'",
+        "SELECT status FROM automation_runs WHERE automation_id = ? AND id != ? AND status = 'scheduled'"
       )
       .all(automationId, run.id) as { status: string }[];
     expect(nextRows.length).toBeGreaterThanOrEqual(1);
@@ -613,7 +660,11 @@ describe('AutomationScheduler step notifications', () => {
     await insertRun({
       automationId: 'automation-orphan',
       triggerConfigSnapshot: { expr: '0 9 * * *', tz: 'UTC' },
-      conversationConfigSnapshot: { prompt: 'Check things', provider: 'claude', autoApprove: false },
+      conversationConfigSnapshot: {
+        prompt: 'Check things',
+        provider: 'claude',
+        autoApprove: false,
+      },
       status: 'queued',
       triggerKind: 'manual',
     });
@@ -634,7 +685,11 @@ describe('AutomationScheduler step notifications', () => {
     const run = await insertRun({
       automationId,
       triggerConfigSnapshot: { expr: '0 9 * * *', tz: 'UTC' },
-      conversationConfigSnapshot: { prompt: 'Check things', provider: 'claude', autoApprove: false },
+      conversationConfigSnapshot: {
+        prompt: 'Check things',
+        provider: 'claude',
+        autoApprove: false,
+      },
       status: 'creating_task',
       triggerKind: 'cron',
       startedAt: Date.now(),
@@ -661,7 +716,11 @@ describe('AutomationScheduler step notifications', () => {
     const run = await insertRun({
       automationId,
       triggerConfigSnapshot: { expr: '0 9 * * *', tz: 'UTC' },
-      conversationConfigSnapshot: { prompt: 'Check things', provider: 'claude', autoApprove: false },
+      conversationConfigSnapshot: {
+        prompt: 'Check things',
+        provider: 'claude',
+        autoApprove: false,
+      },
       status: 'queued',
       triggerKind: 'manual',
       scheduledAt: now,
@@ -672,9 +731,7 @@ describe('AutomationScheduler step notifications', () => {
     await scheduler.drainQueue();
 
     await vi.waitFor(() =>
-      expect(stepSpy).toHaveBeenCalledWith(
-        expect.objectContaining({ id: run.id, status: 'done' })
-      )
+      expect(stepSpy).toHaveBeenCalledWith(expect.objectContaining({ id: run.id, status: 'done' }))
     );
   });
 
@@ -685,7 +742,11 @@ describe('AutomationScheduler step notifications', () => {
     const run = await insertRun({
       automationId,
       triggerConfigSnapshot: { expr: '0 9 * * *', tz: 'UTC' },
-      conversationConfigSnapshot: { prompt: 'Check things', provider: 'claude', autoApprove: false },
+      conversationConfigSnapshot: {
+        prompt: 'Check things',
+        provider: 'claude',
+        autoApprove: false,
+      },
       status: 'queued',
       triggerKind: 'manual',
     });
@@ -717,7 +778,11 @@ describe('AutomationScheduler worker error handling', () => {
     const run = await insertRun({
       automationId,
       triggerConfigSnapshot: { expr: '0 9 * * *', tz: 'UTC' },
-      conversationConfigSnapshot: { prompt: 'Check things', provider: 'claude', autoApprove: false },
+      conversationConfigSnapshot: {
+        prompt: 'Check things',
+        provider: 'claude',
+        autoApprove: false,
+      },
       status: 'queued',
       triggerKind: 'manual',
     });

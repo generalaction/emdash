@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { formatAutomationError } from '@shared/automations/format';
-import { assertValidCronTrigger } from '@shared/automations/validation';
 import type { Automation } from '@shared/automations/automation';
 import type { ConversationConfig, TriggerConfig } from '@shared/automations/config';
+import { formatAutomationError } from '@shared/automations/format';
+import { assertValidCronTrigger } from '@shared/automations/validation';
 import { useAutomations } from './use-automations';
 import { useAutomationFormState } from './useAutomationFormState';
 

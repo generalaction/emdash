@@ -52,7 +52,7 @@ function scopeWorkspaceConfigToRun(config: WorkspaceConfig, taskName: string): W
 export async function executeTaskCreate(
   automation: Automation,
   run: AutomationRun,
-  onStepCompleted: OnStepCompleted,
+  onStepCompleted: OnStepCompleted
 ): Promise<Result<{ taskId: string }, string>> {
   const prompt = automation.conversationConfig?.prompt.trim();
   if (!prompt) return err('task_create_prompt_empty');
@@ -68,13 +68,19 @@ export async function executeTaskCreate(
 
     const projectResult = await ensureProjectOpen(projectId);
     if (!projectResult.success) {
-      const failed = await markRunFailed(run.id, { step: 'create_task', code: 'project_not_found' });
+      const failed = await markRunFailed(run.id, {
+        step: 'create_task',
+        code: 'project_not_found',
+      });
       onStepCompleted(failed);
       return err(projectResult.error);
     }
 
     if (!taskConfig?.workspaceConfig) {
-      const failed = await markRunFailed(run.id, { step: 'create_task', code: 'no_workspace_config' });
+      const failed = await markRunFailed(run.id, {
+        step: 'create_task',
+        code: 'no_workspace_config',
+      });
       onStepCompleted(failed);
       return err('no_workspace_config');
     }
@@ -201,7 +207,11 @@ export async function executeTaskCreate(
     return ok({ taskId });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
-    const failed = await markRunFailed(run.id, { step: 'create_task', code: 'unknown', message: msg });
+    const failed = await markRunFailed(run.id, {
+      step: 'create_task',
+      code: 'unknown',
+      message: msg,
+    });
     onStepCompleted(failed);
     return err(msg);
   }

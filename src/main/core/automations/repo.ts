@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { Cron } from 'croner';
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { generateRandom } from '@main/core/tasks/name-generation/generateTaskName';
 import { db } from '@main/db/client';
 import {
   automationRuns,
@@ -10,7 +11,6 @@ import {
   type AutomationRunRow,
 } from '@main/db/schema';
 import { log } from '@main/lib/logger';
-import { generateRandom } from '@main/core/tasks/name-generation/generateTaskName';
 import type {
   Automation,
   CreateAutomationParams,

@@ -1,6 +1,5 @@
 import { Clock } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { cn } from '@renderer/utils/utils';
 import {
   Pagination,
   PaginationContent,
@@ -10,6 +9,7 @@ import {
 } from '@renderer/lib/components/pagination';
 import { AbsoluteTime } from '@renderer/lib/ui/absolute-time';
 import { Spinner } from '@renderer/lib/ui/spinner';
+import { cn } from '@renderer/utils/utils';
 import type { Automation } from '@shared/automations/automation';
 import {
   useAutomationRunCounts,
@@ -56,14 +56,12 @@ export function RunHistory({ automation }: RunHistoryProps) {
   return (
     <section className="flex h-full flex-col gap-2">
       {scheduledRun?.scheduledAt && (
-        <div className=" p-2 flex items-center gap-1.5 bg-background-info text-foreground-info rounded-lg border border-border-info">
-
+        <div className="flex items-center gap-1.5 rounded-lg border border-border-info bg-background-info p-2 text-foreground-info">
           <Clock className="size-3 shrink-0" aria-hidden />
           Next run scheduled <AbsoluteTime value={scheduledRun.scheduledAt} />
         </div>
-    
       )}
-      <div className="flex gap-1.5 w-full">
+      <div className="flex w-full gap-1.5">
         {FILTERS.map(({ value, label }) => {
           const count = counts ? counts[value] : undefined;
           return (
@@ -80,7 +78,12 @@ export function RunHistory({ automation }: RunHistoryProps) {
             >
               {label}
               {count !== undefined && (
-                <span className={cn('tabular-nums', filter === value ? 'text-foreground-muted' : 'text-foreground-passive')}>
+                <span
+                  className={cn(
+                    'tabular-nums',
+                    filter === value ? 'text-foreground-muted' : 'text-foreground-passive'
+                  )}
+                >
                   {count}
                 </span>
               )}
@@ -93,7 +96,7 @@ export function RunHistory({ automation }: RunHistoryProps) {
           <Spinner />
         </div>
       ) : historyRuns.length > 0 ? (
-        <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-border/70 rounded-md border border-border">
+        <div className="min-h-0 flex-1 divide-y divide-border/70 overflow-y-auto rounded-md border border-border">
           {historyRuns.map((run) => (
             <AutomationRunRow key={run.id} runId={run.id} automationId={automation.id} run={run} />
           ))}

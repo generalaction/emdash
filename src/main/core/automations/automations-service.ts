@@ -58,7 +58,10 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
     return automation;
   }
 
-  async updateAutomationSettings(id: string, patch: UpdateAutomationSettingsPatch): Promise<Automation> {
+  async updateAutomationSettings(
+    id: string,
+    patch: UpdateAutomationSettingsPatch
+  ): Promise<Automation> {
     const automation = await updateSettingsInRepo(id, patch);
     if (!automation) throw new Error('automation_not_found');
     if (patch.triggerConfig !== undefined) {
@@ -125,10 +128,7 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
       })
       .from(automationRuns)
       .where(
-        and(
-          eq(automationRuns.automationId, automationId),
-          ne(automationRuns.status, 'scheduled')
-        )
+        and(eq(automationRuns.automationId, automationId), ne(automationRuns.status, 'scheduled'))
       );
     return result ?? { all: 0, done: 0, failed: 0, skipped: 0 };
   }
