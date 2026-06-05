@@ -38,7 +38,7 @@ export type Automation = {
 };
 
 export type AutomationRunStatus = 'queued' | 'running' | 'success' | 'failed' | 'skipped';
-export type AutomationRunTriggerKind = 'cron' | 'manual';
+export type AutomationRunTriggerKind = 'cron' | 'manual' | 'webhook';
 
 export type AutomationRun = {
   id: string;

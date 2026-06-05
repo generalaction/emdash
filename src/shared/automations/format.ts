@@ -254,5 +254,7 @@ export function formatRunTriggerKindLabel(kind: AutomationRunTriggerKind): strin
       return 'Schedule';
     case 'manual':
       return 'Manual';
+    case 'webhook':
+      return 'Webhook';
   }
 }

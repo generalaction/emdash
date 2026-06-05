@@ -24,10 +24,10 @@ import type {
   AutomationRunWithContext,
   AutomationTrigger,
   CreateAutomationInput,
-  CronTrigger,
+  CronTrigger,  // used in getNextRunAt signature
   UpdateAutomationPatch,
 } from '@shared/automations/types';
-import { assertValidCronTrigger, assertValidDeadline } from '@shared/automations/validation';
+import { assertValidCronTrigger, assertValidDeadline, assertValidWebhookTrigger } from '@shared/automations/validation';
 import type { CreateTaskParams } from '@shared/tasks';
 
 const DEFAULT_TZ = getLocalTimeZone();
@@ -71,6 +71,7 @@ function assertValidAutomationInput(input: {
   actions: TaskCreateAction[];
 }): void {
   if (input.trigger.kind === 'cron') assertValidCronTrigger(input.trigger);
+  if (input.trigger.kind === 'webhook') assertValidWebhookTrigger(input.trigger);
   assertValidDeadline(input.deadlinePolicy, input.deadlineMs);
   if (!input.isDraft) assertPublishableActions(input.actions);
 }
@@ -116,7 +117,7 @@ const RUN_STATUSES: ReadonlySet<AutomationRunStatus> = new Set([
   'failed',
   'skipped',
 ]);
-const RUN_TRIGGER_KINDS: ReadonlySet<AutomationRunTriggerKind> = new Set(['cron', 'manual']);
+const RUN_TRIGGER_KINDS: ReadonlySet<AutomationRunTriggerKind> = new Set(['cron', 'manual', 'webhook']);
 const DEADLINE_POLICIES: ReadonlySet<AutomationDeadlinePolicy> = new Set([
   'next-interval',
   'fixed',
@@ -160,12 +161,12 @@ function asDeadlinePolicy(
 }
 
 function mapAutomationRow(row: AutomationRow): Automation {
-  if (!row.cronExpr) throw new Error(`automation_row_missing_cron_expr:${row.id}`);
-  const trigger: CronTrigger = {
-    kind: 'cron' as const,
-    expr: row.cronExpr,
-    tz: row.cronTz ?? DEFAULT_TZ,
-  };
+  const trigger: AutomationTrigger = row.webhookToken
+    ? { kind: 'webhook', token: row.webhookToken, serverUrl: '' }
+    : (() => {
+        if (!row.cronExpr) throw new Error(`automation_row_missing_cron_expr:${row.id}`);
+        return { kind: 'cron' as const, expr: row.cronExpr, tz: row.cronTz ?? DEFAULT_TZ };
+      })();
 
   return {
     id: row.id,
@@ -309,11 +310,19 @@ export function getNextRunAt(
 }
 
 function rowValuesFromTrigger(trigger: AutomationTrigger) {
-  if (trigger.kind !== 'cron') throw new Error('only_cron_triggers_supported_in_db');
+  if (trigger.kind === 'webhook') {
+    return {
+      cronExpr: '',
+      cronTz: null,
+      nextRunAt: null,
+      webhookToken: trigger.token,
+    };
+  }
   return {
     cronExpr: trigger.expr.trim(),
     cronTz: trigger.tz || DEFAULT_TZ,
     nextRunAt: getNextRunAt(trigger),
+    webhookToken: null,
   };
 }
 
@@ -534,6 +543,20 @@ export async function dueCronAutomations(now = Date.now()): Promise<Automation[]
 
 export async function enabledCronAutomations(): Promise<Automation[]> {
   return activeCronAutomations();
+}
+
+export async function webhookAutomations(): Promise<Automation[]> {
+  const rows = await db
+    .select()
+    .from(automations)
+    .where(
+      and(
+        eq(automations.enabled, 1),
+        eq(automations.isDraft, 0),
+        isNotNull(automations.webhookToken)
+      )
+    );
+  return mapAutomationRows(rows);
 }
 
 export async function hasRunningRuns(automationId: string): Promise<boolean> {
