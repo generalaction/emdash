@@ -324,6 +324,7 @@ export const automationRuns = sqliteTable(
     triggerConfigSnapshot: text('trigger_config_snapshot').notNull().default('{}'),
     conversationConfigSnapshot: text('conversation_config_snapshot').notNull().default('{}'),
     taskConfigSnapshot: text('task_config_snapshot'),
+    generatedTaskName: text('generated_task_name'),
   },
   (table) => ({
     automationStartedIdx: index('idx_automation_runs_automation_started').on(

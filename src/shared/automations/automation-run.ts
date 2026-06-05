@@ -35,6 +35,7 @@ export type AutomationRun = {
   launchedAt: number | null; // written when launching_task → creating_conversation
   finishedAt: number | null;
   taskId: string | null;
+  generatedTaskName: string | null;
   error: string | null; // stores JSON.stringify(RunError)
 };
 

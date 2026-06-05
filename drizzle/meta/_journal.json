@@ -113,6 +113,13 @@
       "when": 1780619336457,
       "tag": "0015_overjoyed_amphibian",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1780681705229,
+      "tag": "0016_narrow_karma",
+      "breakpoints": true
     }
   ]
 }

@@ -47,7 +47,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
   const isRunActive = run ? isActiveStatus(run.status) : false;
   const missedDeadline = run ? parseRunError(run.error)?.code === 'deadline_exceeded' : false;
 
-  const displayName = task?.name ?? null;
+  const displayName = task?.name ?? run?.generatedTaskName ?? null;
 
   function handleOpenTask() {
     if (!taskId || !projectId || !interactive) return;

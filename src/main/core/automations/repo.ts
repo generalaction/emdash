@@ -10,6 +10,7 @@ import {
   type AutomationRunRow,
 } from '@main/db/schema';
 import { log } from '@main/lib/logger';
+import { generateRandom } from '@main/core/tasks/name-generation/generateTaskName';
 import type {
   Automation,
   CreateAutomationParams,
@@ -188,6 +189,7 @@ function mapAutomationRunRow(row: AutomationRunRow): AutomationRun {
     finishedAt: row.finishedAt,
     status: asRunStatus(row.status, row.id),
     taskId: row.taskId,
+    generatedTaskName: row.generatedTaskName ?? null,
     error: row.error,
     triggerKind: asRunTriggerKind(row.triggerKind, row.id),
     triggerConfigSnapshot: parseSnapshotTriggerConfig(row.triggerConfigSnapshot, row.id),
@@ -479,18 +481,21 @@ export async function scheduleAutomationRun(input: {
   triggerKind: AutomationRunTriggerKind;
 }): Promise<AutomationRun | null> {
   const runId = randomUUID();
+  const generatedTaskName = generateRandom();
   const triggerSnap = JSON.stringify(input.triggerConfigSnapshot);
   const convSnap = JSON.stringify(input.conversationConfigSnapshot);
   const taskSnap = input.taskConfigSnapshot ? JSON.stringify(input.taskConfigSnapshot) : null;
   const rows = db.all<AutomationRunRow>(sql`
     INSERT INTO automation_runs (
       id, automation_id, scheduled_at, deadline_at, status, trigger_kind,
-      trigger_config_snapshot, conversation_config_snapshot, task_config_snapshot
+      trigger_config_snapshot, conversation_config_snapshot, task_config_snapshot,
+      generated_task_name
     )
     SELECT
       ${runId}, ${input.automationId}, ${input.scheduledAt}, ${input.deadlineAt},
       'scheduled', ${input.triggerKind},
-      ${triggerSnap}, ${convSnap}, ${taskSnap}
+      ${triggerSnap}, ${convSnap}, ${taskSnap},
+      ${generatedTaskName}
     WHERE NOT EXISTS (
       SELECT 1
       FROM automation_runs
@@ -510,6 +515,7 @@ export async function scheduleAutomationRun(input: {
       finished_at AS finishedAt,
       status,
       task_id AS taskId,
+      generated_task_name AS generatedTaskName,
       error,
       trigger_kind AS triggerKind,
       trigger_config_snapshot AS triggerConfigSnapshot,
@@ -602,6 +608,7 @@ export async function insertRun(input: {
   launchedAt?: number | null;
   finishedAt?: number | null;
   taskId?: string | null;
+  generatedTaskName?: string | null;
   error?: string | null;
 }): Promise<AutomationRun> {
   const [row] = await db
@@ -617,6 +624,7 @@ export async function insertRun(input: {
       finishedAt: input.finishedAt ?? null,
       status: input.status,
       taskId: input.taskId ?? null,
+      generatedTaskName: input.generatedTaskName ?? generateRandom(),
       error: input.error ?? null,
       triggerKind: input.triggerKind,
       triggerConfigSnapshot: JSON.stringify(input.triggerConfigSnapshot),

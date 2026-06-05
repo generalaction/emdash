@@ -64,7 +64,7 @@ export async function executeTaskCreate(
     const taskConfig = automation.taskConfig;
     const taskId = randomUUID();
     const conversationId = randomUUID();
-    const taskName = generateRandom();
+    const taskName = run.generatedTaskName ?? generateRandom();
 
     const projectResult = await ensureProjectOpen(projectId);
     if (!projectResult.success) {
