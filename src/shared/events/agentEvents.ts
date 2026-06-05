@@ -2,6 +2,8 @@ import { defineEvent } from '@shared/ipc/events';
 
 export type AgentEventType = 'notification' | 'stop' | 'error' | 'start';
 
+export type AgentStatus = 'idle' | 'working' | 'awaiting-input' | 'error' | 'completed';
+
 export type NotificationType =
   | 'permission_prompt'
   | 'idle_prompt'

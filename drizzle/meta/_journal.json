@@ -120,6 +120,13 @@
       "when": 1780681705229,
       "tag": "0016_narrow_karma",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1780682670878,
+      "tag": "0017_petite_monster_badoon",
+      "breakpoints": true
     }
   ]
 }

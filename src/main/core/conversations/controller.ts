@@ -5,6 +5,7 @@ import { deleteConversation } from './deleteConversation';
 import { getConversations } from './getConversations';
 import { getConversationsForTask } from './getConversationsForTask';
 import { hydrateConversation } from './hydrateConversation';
+import { markConversationSeen } from './markConversationSeen';
 import { renameConversation } from './renameConversation';
 
 export const conversationController = createRPCController({
@@ -15,4 +16,5 @@ export const conversationController = createRPCController({
   dehydrateConversation,
   renameConversation,
   getConversationsForTask,
+  markConversationSeen,
 });

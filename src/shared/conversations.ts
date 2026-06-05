@@ -1,4 +1,5 @@
 import type { AgentProviderId } from '@shared/agent-provider-registry';
+import type { AgentStatus } from '@shared/events/agentEvents';
 
 export const MAX_CONVERSATION_TITLE_LENGTH = 100;
 
@@ -14,6 +15,8 @@ export type Conversation = {
   /** Provider-native session id captured at runtime for per-chat resume. */
   providerSessionId?: string;
   isInitialConversation: boolean | null;
+  agentStatus?: AgentStatus | null;
+  agentStatusSeen?: boolean;
 };
 
 export type RenameConversationParams = {

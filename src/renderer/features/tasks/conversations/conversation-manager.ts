@@ -11,6 +11,7 @@ import {
   agentEventChannel,
   agentSessionExitedChannel,
   isAttentionNotification,
+  type AgentStatus,
   type NotificationType,
 } from '@shared/events/agentEvents';
 import {
@@ -19,7 +20,7 @@ import {
 } from '@shared/events/conversationEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 
-export type AgentStatus = 'idle' | 'working' | 'awaiting-input' | 'error' | 'completed';
+export type { AgentStatus } from '@shared/events/agentEvents';
 
 export class ConversationManagerStore implements IDisposable {
   private offAgentEvents: (() => void) | null = null;
@@ -295,12 +296,14 @@ export class ConversationManagerStore implements IDisposable {
 
 export class ConversationStore {
   data: Conversation;
-  status: AgentStatus = 'idle';
-  seen = true;
+  status: AgentStatus;
+  seen: boolean;
   lastNotificationType: NotificationType | null = null;
 
   constructor(conversation: Conversation) {
     this.data = conversation;
+    this.status = conversation.agentStatus ?? 'idle';
+    this.seen = conversation.agentStatusSeen ?? true;
     makeObservable(this, {
       data: observable,
       status: observable,
@@ -358,6 +361,7 @@ export class ConversationStore {
 
   markSeen() {
     this.seen = true;
+    void rpc.conversations.markConversationSeen(this.data.id);
   }
 
   dispose() {
