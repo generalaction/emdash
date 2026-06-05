@@ -52,8 +52,6 @@ export function useCreateTaskCallback({
           linkedIssue: state.linkedType === 'issue' ? (state.linkedIssue ?? undefined) : undefined,
           initialStatus: deriveInitialStatus(state.linkedType, state.linkedPR),
           initialConversation: buildInitialConversation(
-            id,
-            selectedProjectId,
             initialConversation,
             autoApproveDefaults.getDefault
           ),

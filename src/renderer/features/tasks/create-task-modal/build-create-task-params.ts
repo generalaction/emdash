@@ -1,9 +1,9 @@
 import type { AgentProviderId } from '@shared/agent-provider-registry';
-import type { CreateConversationParams } from '@shared/conversations';
 import type { LocalProject, SshProject } from '@shared/projects';
 import type { PullRequest } from '@shared/pull-requests';
 import { getPrNumber, isForkPr } from '@shared/pull-requests';
 import type { GitSetup, TaskLifecycleStatus } from '@shared/tasks';
+import type { TaskConfig } from '@shared/task-config';
 import type { WorkspaceConfig, WorkspaceTarget } from '@shared/workspace-config';
 import { nextDefaultConversationTitle } from '../conversations/conversation-title-utils';
 import type { InitialConversationState } from '../conversations/initial-conversation-section';
@@ -77,18 +77,14 @@ function buildGitSetupFromBranch(state: CreateTaskState, isUnborn: boolean): Git
 }
 
 export function buildInitialConversation(
-  taskId: string,
-  projectId: string,
   state: InitialConversationState,
   getAutoApproveDefault: (provider: AgentProviderId) => boolean
-): CreateConversationParams | undefined {
+): NonNullable<TaskConfig['initialConversation']> | undefined {
   const { provider } = state;
   if (!provider) return undefined;
 
   return {
     id: crypto.randomUUID(),
-    projectId,
-    taskId,
     provider,
     title: nextDefaultConversationTitle(provider, []),
     initialPrompt: buildFinalPrompt(state.issueContext, state.prompt),

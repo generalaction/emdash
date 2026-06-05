@@ -100,9 +100,9 @@ export async function prepareCreateTask(
       Object.keys(configObj).length > 0 ? serializeConversationConfig(configObj) : undefined;
     convInsert = {
       id: ic.id,
-      projectId: ic.projectId,
-      taskId: ic.taskId,
-      title: ic.title,
+      projectId: params.projectId,
+      taskId: params.id,
+      title: ic.title ?? '',
       provider: ic.provider,
       config,
       isInitialConversation: true,

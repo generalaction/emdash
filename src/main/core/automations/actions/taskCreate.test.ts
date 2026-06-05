@@ -33,11 +33,9 @@ vi.mock('@main/db/client', () => ({
       }),
     }),
     transaction: vi.fn((fn: (tx: unknown) => unknown) => fn(mockTx)),
-    update: vi
-      .fn()
-      .mockReturnValue({
-        set: vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue({ run: vi.fn() }) }),
-      }),
+    update: vi.fn().mockReturnValue({
+      set: vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue({ run: vi.fn() }) }),
+    }),
   },
 }));
 vi.mock('@main/core/projects/project-manager', () => ({

@@ -7,6 +7,7 @@ import { getTaskGitStore } from '@renderer/features/tasks/stores/task-selectors'
 import { events, rpc } from '@renderer/lib/ipc';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import type { Conversation } from '@shared/conversations';
+import type { AgentProviderId } from '@shared/agent-provider-registry';
 import { prSyncProgressChannel, prUpdatedChannel } from '@shared/events/prEvents';
 import {
   lifecycleScriptStatusChannel,
@@ -310,10 +311,10 @@ export class TaskManagerStore {
         const ic = taskConfig.initialConversation;
         const optimistic: Conversation = {
           id: ic.id,
-          projectId: ic.projectId,
-          taskId: ic.taskId,
-          providerId: ic.provider,
-          title: ic.title,
+          projectId: this.projectId,
+          taskId: params.id,
+          providerId: ic.provider as AgentProviderId,
+          title: ic.title ?? '',
           lastInteractedAt: null,
           autoApprove: ic.autoApprove ?? false,
           isInitialConversation: true,
