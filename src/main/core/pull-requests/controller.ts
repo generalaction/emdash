@@ -7,6 +7,7 @@ import type {
   PullRequestComment,
   PullRequestError,
   PullRequestFile,
+  PullRequestMergeOptions,
 } from '@shared/pull-requests';
 import { isGitHubDotComHost, parseRepositoryRef } from '@shared/repository-ref';
 import { err, ok } from '@shared/result';
@@ -251,7 +252,7 @@ export const pullRequestController = createRPCController({
   mergePullRequest: async (
     repositoryUrl: string,
     prNumber: number,
-    options: { strategy: 'merge' | 'squash' | 'rebase'; commitHeadOid?: string }
+    options: PullRequestMergeOptions
   ) => {
     try {
       const result = await prSyncEngine.mergePullRequest(repositoryUrl, prNumber, options);
