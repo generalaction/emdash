@@ -3,6 +3,7 @@ import {
   ChevronRight,
   FolderClosed,
   FolderInput,
+  FolderOpen,
   Loader2,
   Plus,
   RotateCcw,
@@ -98,7 +99,7 @@ export const SidebarProjectItem = observer(function SidebarProjectItem({
     ? appState.sshConnections.stateFor(sshConnectionId)
     : null;
   const canReconnect = sshConnectionState !== 'connected';
-  const ProjectIcon = isSshProject ? FolderInput : FolderClosed;
+  const ProjectIcon = isSshProject ? FolderInput : isExpanded ? FolderOpen : FolderClosed;
   const projectLabel = project.name ?? 'project';
   const openProject = () => navigate('project', { projectId });
 
