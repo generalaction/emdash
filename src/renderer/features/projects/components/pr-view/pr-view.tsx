@@ -1,4 +1,4 @@
-import { CheckIcon, ChevronDownIcon, Github, RefreshCw, X } from 'lucide-react';
+import { CheckIcon, ChevronDownIcon, RefreshCw, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { motion } from 'motion/react';
 import { useState } from 'react';
@@ -9,8 +9,7 @@ import {
   type StatusFilter,
 } from '@renderer/features/projects/components/pr-view/usePrViewState';
 import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
-import { useNavigate, useParams } from '@renderer/lib/layout/navigation-provider';
-import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
+import { useParams } from '@renderer/lib/layout/navigation-provider';
 import { Button } from '@renderer/lib/ui/button';
 import {
   ContextMenu,
@@ -30,7 +29,6 @@ import {
 } from '@renderer/lib/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import type { PrSortField } from '@shared/pull-requests';
-import { isGitHubDotComHost } from '@shared/repository-ref';
 import { PrSyncStatusCard } from './pr-sync-status-card';
 import { PrVirtualList } from './pr-virtual-list';
 
@@ -213,9 +211,6 @@ export const PullRequestView = observer(function PullRequestView() {
   } = useParams('project');
   const repositoryStore = getRepositoryStore(projectId);
   const repositoryUrl = repositoryStore?.pullRequestRepositoryUrl ?? null;
-  const repositoryHost = repositoryStore?.providerRepository?.host ?? null;
-  const { needsGhAuth } = useGithubContext();
-  const { navigate } = useNavigate();
 
   const {
     statusFilter,
@@ -236,6 +231,7 @@ export const PullRequestView = observer(function PullRequestView() {
     removeLabel,
     prs,
     loading,
+    error,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
@@ -255,34 +251,6 @@ export const PullRequestView = observer(function PullRequestView() {
           Pull requests are currently available only for configured GitHub remotes. You can change
           the remote in the project settings.
         </p>
-      </div>
-    );
-  }
-
-  if (needsGhAuth && repositoryHost && isGitHubDotComHost(repositoryHost)) {
-    return (
-      <div className="flex h-full min-h-0 w-full flex-col">
-        <div className="mt-4 flex w-full flex-col items-center justify-center gap-5 rounded-md border border-dashed border-border p-8">
-          <span className="relative flex size-8 items-center justify-center overflow-hidden rounded-full bg-background-2">
-            <Github className="size-4 text-foreground-muted" />
-          </span>
-          <p className="text-center text-sm font-normal text-foreground-muted">
-            GitHub is not connected. Create a user account and connect your GitHub account to view
-            pull requests.
-          </p>
-          <Button
-            type="button"
-            variant="outline"
-            size="xs"
-            onClick={() =>
-              navigate('settings', {
-                tab: 'account',
-              })
-            }
-          >
-            Connect User Account
-          </Button>
-        </div>
       </div>
     );
   }
@@ -407,6 +375,7 @@ export const PullRequestView = observer(function PullRequestView() {
         prs={prs}
         projectId={projectId}
         loading={loading}
+        error={error}
         hasNextPage={hasNextPage}
         isFetchingNextPage={isFetchingNextPage}
         fetchNextPage={fetchNextPage}

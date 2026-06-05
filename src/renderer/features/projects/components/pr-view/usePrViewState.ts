@@ -3,9 +3,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { getPrSyncStore } from '@renderer/features/projects/stores/project-selectors';
 import { useDebounce } from '@renderer/lib/hooks/useDebounce';
 import { rpc } from '@renderer/lib/ipc';
-import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
 import type { PrFilters, PrSortField } from '@shared/pull-requests';
-import { toUserItem, usersWithLoginFirst, type UserItem } from './pr-filter-items';
+import { toUserItem, type UserItem } from './pr-filter-items';
 import { useFilterOptions, usePullRequests } from './usePullRequests';
 
 export type StatusFilter = 'open' | 'not-open';
@@ -14,7 +13,6 @@ export type LabelItem = { value: string; label: string; color?: string };
 
 export function usePrViewState(projectId: string, repositoryUrl: string | null) {
   const queryClient = useQueryClient();
-  const { user } = useGithubContext();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('open');
   const [sortFilter, setSortFilter] = useState<PrSortField>('newest');
   const [selectedAuthorUserId, setSelectedAuthorUserId] = useState<string | null>(null);
@@ -31,12 +29,20 @@ export function usePrViewState(projectId: string, repositoryUrl: string | null) 
     ...(selectedAssigneeUserId ? { assigneeUserIds: [selectedAssigneeUserId] } : {}),
   };
 
-  const { prs, refresh, loading, dataUpdatedAt, fetchNextPage, hasNextPage, isFetchingNextPage } =
-    usePullRequests(projectId, repositoryUrl ?? undefined, {
-      filters,
-      sort: sortFilter,
-      searchQuery: debouncedQuery || undefined,
-    });
+  const {
+    prs,
+    refresh,
+    loading,
+    dataUpdatedAt,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    error,
+  } = usePullRequests(projectId, repositoryUrl ?? undefined, {
+    filters,
+    sort: sortFilter,
+    searchQuery: debouncedQuery || undefined,
+  });
 
   useEffect(() => {
     if (dataUpdatedAt > 0 && repositoryUrl) {
@@ -47,11 +53,8 @@ export function usePrViewState(projectId: string, repositoryUrl: string | null) 
   const { data: filterOptions } = useFilterOptions(projectId, repositoryUrl ?? undefined);
 
   const authorItems: UserItem[] = useMemo(
-    () =>
-      usersWithLoginFirst(filterOptions?.authors ?? [], user?.login).map((author) =>
-        toUserItem(author)
-      ),
-    [filterOptions?.authors, user?.login]
+    () => (filterOptions?.authors ?? []).map((author) => toUserItem(author)),
+    [filterOptions?.authors]
   );
 
   const assigneeItems: UserItem[] = useMemo(
@@ -136,6 +139,7 @@ export function usePrViewState(projectId: string, repositoryUrl: string | null) 
     // data
     prs,
     loading,
+    error,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,

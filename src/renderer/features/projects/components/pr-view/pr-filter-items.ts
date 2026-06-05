@@ -9,19 +9,3 @@ export function toUserItem(user: PullRequestUser): UserItem {
     avatarUrl: user.avatarUrl ?? undefined,
   };
 }
-
-export function usersWithLoginFirst(
-  users: ReadonlyArray<PullRequestUser>,
-  login?: string | null
-): PullRequestUser[] {
-  if (!login) return [...users];
-
-  const normalizedLogin = login.toLowerCase();
-  const currentUserIndex = users.findIndex(
-    (user) => user.userName.toLowerCase() === normalizedLogin
-  );
-  if (currentUserIndex === -1) return [...users];
-
-  const currentUser = users[currentUserIndex];
-  return [currentUser, ...users.slice(0, currentUserIndex), ...users.slice(currentUserIndex + 1)];
-}
