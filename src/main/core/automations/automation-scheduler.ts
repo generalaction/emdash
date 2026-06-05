@@ -64,6 +64,10 @@ export function automationRunDeadline(
     return scheduledAt + (automation.deadlineMs ?? DEFAULT_QUEUE_DEADLINE_MS);
   }
 
+  if (automation.trigger.kind !== 'cron') {
+    return scheduledAt + (automation.deadlineMs ?? DEFAULT_QUEUE_DEADLINE_MS);
+  }
+
   return getNextRunAt(automation.trigger, scheduledAt);
 }
 
@@ -179,6 +183,7 @@ export class AutomationScheduler {
   }
 
   private async advanceNextRun(automation: Automation, from: number): Promise<void> {
+    if (automation.trigger.kind !== 'cron') return;
     const nextRunAt = getNextRunAt(automation.trigger, from);
     await updateAutomationSchedule(automation.id, { nextRunAt });
   }

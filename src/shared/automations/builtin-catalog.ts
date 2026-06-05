@@ -10,7 +10,7 @@ export const builtinAutomationCatalog: BuiltinAutomationTemplate[] = [
     name: 'Find critical bugs',
     description: 'Analyze recent commits for high-severity correctness bugs and submit safe fixes',
     icon: 'Bug',
-    defaultTrigger: { expr: '0 10 * * MON-FRI', tz: 'UTC' },
+    defaultTrigger: { kind: 'cron' as const, expr: '0 10 * * MON-FRI', tz: 'UTC' },
     defaultActions: [
       {
         kind: 'task.create',
@@ -26,7 +26,7 @@ export const builtinAutomationCatalog: BuiltinAutomationTemplate[] = [
     description:
       'Post a daily digest summarizing notable repository changes and risks from the previous day',
     icon: 'Mail',
-    defaultTrigger: { expr: '0 9 * * MON-FRI', tz: 'UTC' },
+    defaultTrigger: { kind: 'cron' as const, expr: '0 9 * * MON-FRI', tz: 'UTC' },
     defaultActions: [
       {
         kind: 'task.create',
@@ -42,7 +42,7 @@ export const builtinAutomationCatalog: BuiltinAutomationTemplate[] = [
     description:
       'Review the full repository on a schedule and alert on validated high-impact security issues',
     icon: 'Search',
-    defaultTrigger: { expr: '0 11 * * MON', tz: 'UTC' },
+    defaultTrigger: { kind: 'cron' as const, expr: '0 11 * * MON', tz: 'UTC' },
     defaultActions: [
       {
         kind: 'task.create',
@@ -58,7 +58,7 @@ export const builtinAutomationCatalog: BuiltinAutomationTemplate[] = [
     description:
       'Use error details you provide in the prompt or project docs to identify root causes and propose fixes',
     icon: 'Search',
-    defaultTrigger: { expr: '0 13 * * MON-FRI', tz: 'UTC' },
+    defaultTrigger: { kind: 'cron' as const, expr: '0 13 * * MON-FRI', tz: 'UTC' },
     defaultActions: [
       {
         kind: 'task.create',
@@ -74,7 +74,7 @@ export const builtinAutomationCatalog: BuiltinAutomationTemplate[] = [
     description:
       'Review recent changes and add tests for high-risk logic that lacks adequate coverage',
     icon: 'FlaskConical',
-    defaultTrigger: { expr: '0 10 * * TUE', tz: 'UTC' },
+    defaultTrigger: { kind: 'cron' as const, expr: '0 10 * * TUE', tz: 'UTC' },
     defaultActions: [{ kind: 'task.create', prompt: TEST_COVERAGE_PROMPT }],
   },
   {
@@ -83,7 +83,7 @@ export const builtinAutomationCatalog: BuiltinAutomationTemplate[] = [
     name: 'Clean up feature flags',
     description: 'Find stale feature flags that are fully rolled out and remove dead code paths',
     icon: 'Flag',
-    defaultTrigger: { expr: '0 12 * * WED', tz: 'UTC' },
+    defaultTrigger: { kind: 'cron' as const, expr: '0 12 * * WED', tz: 'UTC' },
     defaultActions: [
       {
         kind: 'task.create',
@@ -99,7 +99,7 @@ export const builtinAutomationCatalog: BuiltinAutomationTemplate[] = [
     description:
       'Investigate bug reports you provide in issues, docs, or prompt notes and fix with a PR',
     icon: 'Wrench',
-    defaultTrigger: { expr: '0 10 * * MON-FRI', tz: 'UTC' },
+    defaultTrigger: { kind: 'cron' as const, expr: '0 10 * * MON-FRI', tz: 'UTC' },
     defaultActions: [
       {
         kind: 'task.create',
@@ -115,7 +115,7 @@ export const builtinAutomationCatalog: BuiltinAutomationTemplate[] = [
     description:
       'Create and update developer documentation for recently changed or under-documented code',
     icon: 'BookOpen',
-    defaultTrigger: { expr: '0 14 * * FRI', tz: 'UTC' },
+    defaultTrigger: { kind: 'cron' as const, expr: '0 14 * * FRI', tz: 'UTC' },
     defaultActions: [
       {
         kind: 'task.create',
@@ -130,7 +130,7 @@ export const builtinAutomationCatalog: BuiltinAutomationTemplate[] = [
     name: 'Investigate incidents',
     description: 'Investigate incidents using provided incident details and code context',
     icon: 'Search',
-    defaultTrigger: { expr: '0 15 * * MON-FRI', tz: 'UTC' },
+    defaultTrigger: { kind: 'cron' as const, expr: '0 15 * * MON-FRI', tz: 'UTC' },
     defaultActions: [
       {
         kind: 'task.create',

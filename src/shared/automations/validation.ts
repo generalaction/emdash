@@ -1,6 +1,6 @@
 import { Cron } from 'croner';
 import { getLocalTimeZone } from '@shared/automations/timezone';
-import type { AutomationDeadlinePolicy, CronTrigger } from '@shared/automations/types';
+import type { AutomationDeadlinePolicy, CronTrigger, WebhookTrigger } from '@shared/automations/types';
 
 const DEADLINE_POLICIES: ReadonlySet<AutomationDeadlinePolicy> = new Set([
   'next-interval',
@@ -31,5 +31,14 @@ export function assertValidDeadline(
   if (deadlineMs === null) return;
   if (!Number.isSafeInteger(deadlineMs) || deadlineMs <= 0) {
     throw new Error('deadline_ms_invalid');
+  }
+}
+
+export function assertValidWebhookTrigger(trigger: WebhookTrigger): void {
+  if (!trigger.token || trigger.token.trim().length === 0) {
+    throw new Error('webhook_trigger_token_required');
+  }
+  if (!trigger.serverUrl || trigger.serverUrl.trim().length === 0) {
+    throw new Error('webhook_trigger_server_url_required');
   }
 }

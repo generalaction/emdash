@@ -33,6 +33,7 @@ import { getLocalTimeZone } from '@shared/automations/timezone';
 import {
   AUTOMATION_NAME_MAX_LENGTH,
   type Automation,
+  type AutomationTrigger,
   type BuiltinAutomationTemplate,
   type CronTrigger,
 } from '@shared/automations/types';
@@ -66,12 +67,12 @@ function extractTaskAction(actions: TaskCreateAction[] | undefined): TaskCreateA
   return actions?.[0];
 }
 
-function cronExprFromTrigger(trigger: CronTrigger | undefined): string {
-  return trigger?.expr ?? DEFAULT_CRON;
+function cronExprFromTrigger(trigger: AutomationTrigger | undefined): string {
+  return trigger?.kind === 'cron' ? trigger.expr : DEFAULT_CRON;
 }
 
-function cronTzFromTrigger(trigger: CronTrigger | undefined): string {
-  return trigger?.tz ?? getLocalTimeZone();
+function cronTzFromTrigger(trigger: AutomationTrigger | undefined): string {
+  return trigger?.kind === 'cron' ? trigger.tz : getLocalTimeZone();
 }
 
 /** Derives initial branch picker state from a stored task config. */
@@ -270,7 +271,7 @@ export const AutomationPanel = observer(function AutomationPanel({
     setError(null);
     const taskConfig = buildTaskConfig(effectiveProjectId);
     if (!taskConfig) return;
-    const triggerSpec: CronTrigger = { expr: cronExpr.trim(), tz: cronTz };
+    const triggerSpec: CronTrigger = { kind: 'cron', expr: cronExpr.trim(), tz: cronTz };
     try {
       assertValidCronTrigger(triggerSpec);
     } catch (validationError) {
@@ -319,7 +320,7 @@ export const AutomationPanel = observer(function AutomationPanel({
     setName(template.name);
     const action = extractTaskAction(template.defaultActions);
     setPrompt(action?.prompt ?? '');
-    if (template.defaultTrigger) {
+    if (template.defaultTrigger?.kind === 'cron') {
       setCronExpr(template.defaultTrigger.expr);
       setCronTz(template.defaultTrigger.tz);
       setCronError(null);

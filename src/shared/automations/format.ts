@@ -3,6 +3,7 @@ import type {
   AutomationRun,
   AutomationRunStatus,
   AutomationRunTriggerKind,
+  AutomationTrigger,
   CronTrigger,
 } from '@shared/automations/types';
 
@@ -139,7 +140,8 @@ export function formatCronLabel(expr: string): string {
   return expr;
 }
 
-export function formatTriggerLabel(trigger: CronTrigger): string {
+export function formatTriggerLabel(trigger: AutomationTrigger): string {
+  if (trigger.kind !== 'cron') return 'Webhook';
   return formatCronLabel(trigger.expr);
 }
 

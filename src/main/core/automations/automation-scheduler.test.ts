@@ -55,7 +55,7 @@ const baseAutomation: Automation = {
   name: 'Daily follow-up',
   description: null,
   category: 'custom',
-  trigger: { expr: '0 9 * * *', tz: 'UTC' },
+  trigger: { kind: 'cron' as const, expr: '0 9 * * *', tz: 'UTC' },
   actions: [{ kind: 'task.create', prompt: 'Check things' }],
   taskConfig: null,
   projectId: 'project-1',
@@ -533,5 +533,19 @@ describe('AutomationScheduler concurrency', () => {
 
     releaseWorker?.();
     await vi.waitFor(() => expect(listQueuedRuns).toHaveBeenCalledTimes(4));
+  });
+});
+
+import { assertValidWebhookTrigger } from '@shared/automations/validation';
+
+describe('assertValidWebhookTrigger', () => {
+  it('does not throw for a valid webhook trigger', () => {
+    expect(() => assertValidWebhookTrigger({ kind: 'webhook', token: 'wh_abc123', serverUrl: 'http://home-server.local:8080' })).not.toThrow();
+  });
+  it('throws for missing token', () => {
+    expect(() => assertValidWebhookTrigger({ kind: 'webhook', token: '', serverUrl: 'http://home-server.local:8080' })).toThrow('webhook_trigger_token_required');
+  });
+  it('throws for missing serverUrl', () => {
+    expect(() => assertValidWebhookTrigger({ kind: 'webhook', token: 'wh_abc', serverUrl: '' })).toThrow('webhook_trigger_server_url_required');
   });
 });

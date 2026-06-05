@@ -4,7 +4,16 @@ import type { CreateTaskParams } from '@shared/tasks';
 
 export const AUTOMATION_NAME_MAX_LENGTH = 120;
 
-export type CronTrigger = { expr: string; tz: string };
+export type CronTrigger = { kind: 'cron'; expr: string; tz: string };
+
+export type WebhookTrigger = {
+  kind: 'webhook';
+  token: string;
+  serverUrl: string;
+  description?: string;
+};
+
+export type AutomationTrigger = CronTrigger | WebhookTrigger;
 
 export type AutomationDeadlinePolicy = 'next-interval' | 'fixed' | 'none';
 
@@ -13,7 +22,7 @@ export type Automation = {
   name: string;
   description: string | null;
   category: string;
-  trigger: CronTrigger;
+  trigger: AutomationTrigger;
   actions: TaskCreateAction[];
   taskConfig: CreateTaskParams | null;
   projectId: string | null;
@@ -59,7 +68,7 @@ export type BuiltinAutomationTemplate = {
   name: string;
   description: string;
   icon: string;
-  defaultTrigger: CronTrigger;
+  defaultTrigger: AutomationTrigger;
   defaultActions: TaskCreateAction[];
 };
 
@@ -67,7 +76,7 @@ export type CreateAutomationInput = {
   name: string;
   description?: string | null;
   category: string;
-  trigger: CronTrigger;
+  trigger: AutomationTrigger;
   actions: TaskCreateAction[];
   taskConfig?: CreateTaskParams | null;
   projectId: string;

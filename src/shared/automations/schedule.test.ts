@@ -12,7 +12,8 @@ describe('automation schedule parsing', () => {
 
   it('keeps builtin catalog crons editable in the schedule picker', () => {
     for (const template of builtinAutomationCatalog) {
-      expect(parseCronToSchedule(template.defaultTrigger.expr), template.id).not.toBeNull();
+      const trigger = template.defaultTrigger;
+      expect(parseCronToSchedule(trigger.kind === 'cron' ? trigger.expr : ''), template.id).not.toBeNull();
     }
   });
 

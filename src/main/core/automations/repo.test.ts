@@ -189,7 +189,7 @@ describe('automations repo', () => {
     dbMock.selectLimit.mockReturnValueOnce(dbMock.rowsResult([automationRow]));
 
     await expect(
-      updateAutomation('automation-1', { trigger: { expr: 'not cron', tz: 'UTC' } })
+      updateAutomation('automation-1', { trigger: { kind: 'cron' as const, expr: 'not cron', tz: 'UTC' } })
     ).rejects.toThrow('cron_invalid');
 
     expect(dbMock.update).not.toHaveBeenCalled();

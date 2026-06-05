@@ -16,7 +16,7 @@ const automation: Automation = {
   name: 'Daily follow-up',
   description: null,
   category: 'custom',
-  trigger: { expr: '0 9 * * *', tz: 'UTC' },
+  trigger: { kind: 'cron' as const, expr: '0 9 * * *', tz: 'UTC' },
   actions: [{ kind: 'task.create', prompt: 'Check things' }],
   taskConfig: null,
   projectId: 'project-1',

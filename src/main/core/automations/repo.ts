@@ -22,6 +22,7 @@ import type {
   AutomationRunStatus,
   AutomationRunTriggerKind,
   AutomationRunWithContext,
+  AutomationTrigger,
   CreateAutomationInput,
   CronTrigger,
   UpdateAutomationPatch,
@@ -63,13 +64,13 @@ function assertPublishableActions(actions: TaskCreateAction[]): void {
 }
 
 function assertValidAutomationInput(input: {
-  trigger: CronTrigger;
+  trigger: AutomationTrigger;
   deadlinePolicy: AutomationDeadlinePolicy;
   deadlineMs: number | null;
   isDraft: boolean;
   actions: TaskCreateAction[];
 }): void {
-  assertValidCronTrigger(input.trigger);
+  if (input.trigger.kind === 'cron') assertValidCronTrigger(input.trigger);
   assertValidDeadline(input.deadlinePolicy, input.deadlineMs);
   if (!input.isDraft) assertPublishableActions(input.actions);
 }
@@ -161,6 +162,7 @@ function asDeadlinePolicy(
 function mapAutomationRow(row: AutomationRow): Automation {
   if (!row.cronExpr) throw new Error(`automation_row_missing_cron_expr:${row.id}`);
   const trigger: CronTrigger = {
+    kind: 'cron' as const,
     expr: row.cronExpr,
     tz: row.cronTz ?? DEFAULT_TZ,
   };
@@ -306,7 +308,8 @@ export function getNextRunAt(
   return next?.getTime() ?? null;
 }
 
-function rowValuesFromTrigger(trigger: CronTrigger) {
+function rowValuesFromTrigger(trigger: AutomationTrigger) {
+  if (trigger.kind !== 'cron') throw new Error('only_cron_triggers_supported_in_db');
   return {
     cronExpr: trigger.expr.trim(),
     cronTz: trigger.tz || DEFAULT_TZ,
@@ -435,7 +438,7 @@ export async function updateAutomation(
     if (patch.enabled !== undefined) {
       values.enabled = patch.enabled ? 1 : 0;
       if (patch.enabled && !existing.enabled && patch.trigger === undefined) {
-        values.nextRunAt = getNextRunAt(existing.trigger);
+        values.nextRunAt = existing.trigger.kind === 'cron' ? getNextRunAt(existing.trigger) : null;
       }
     }
     if (patch.isDraft !== undefined) values.isDraft = patch.isDraft ? 1 : 0;
@@ -489,7 +492,7 @@ export async function setAutomationEnabled(
   if (existing.projectId == null && enabled) {
     throw new Error('no_project_attached');
   }
-  const nextRunAt = enabled ? getNextRunAt(existing.trigger) : existing.nextRunAt;
+  const nextRunAt = enabled && existing.trigger.kind === 'cron' ? getNextRunAt(existing.trigger) : existing.nextRunAt;
   const [row] = await db
     .update(automations)
     .set({ enabled: enabled ? 1 : 0, nextRunAt, updatedAt: Date.now() })

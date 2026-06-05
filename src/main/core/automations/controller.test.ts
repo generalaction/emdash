@@ -50,7 +50,7 @@ const draftAutomation: Automation = {
   name: 'Draft automation',
   description: null,
   category: 'custom',
-  trigger: { expr: '0 9 * * *', tz: 'UTC' },
+  trigger: { kind: 'cron' as const, expr: '0 9 * * *', tz: 'UTC' },
   actions: [],
   taskConfig: null,
   projectId: 'project-1',
@@ -106,7 +106,7 @@ describe('automationsController.create', () => {
       name: 'Automation',
       description: null,
       category: 'custom',
-      trigger: { expr: '0 9 * * *', tz: 'UTC' },
+      trigger: { kind: 'cron' as const, expr: '0 9 * * *', tz: 'UTC' },
       actions: [{ kind: 'task.create' } as never],
       projectId: 'project-1',
     });
