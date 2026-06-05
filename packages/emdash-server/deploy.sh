@@ -59,9 +59,7 @@ else
 fi
 
 # Run any new DB migrations
-node dist/cli.js migrate 2>/dev/null || node -e "
-  import('./dist/db/migrate.js').then(m => m.runMigrations()).catch(e => { console.error(e); process.exit(1); });
-"
+node dist/cli.js migrate
 
 # Install pm2 globally if missing
 if ! command -v pm2 &>/dev/null; then
