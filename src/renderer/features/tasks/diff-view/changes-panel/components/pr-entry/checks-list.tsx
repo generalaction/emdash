@@ -13,7 +13,7 @@ import {
 } from '@renderer/features/tasks/task-view-context';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
-import { pastePromptInjection } from '@renderer/lib/pty/prompt-injection';
+import { buildPromptInjectionPayload } from '@renderer/lib/pty/prompt-injection';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import {
   computeCheckBucket,
@@ -157,13 +157,13 @@ export const PrChecksList = observer(function PrChecksList({ pr }: { pr: PullReq
 
       try {
         const text = formatPullRequestCommentForAgent(pr, comment);
-        await pastePromptInjection({
+        const payload = buildPromptInjectionPayload({
           providerId: activeConversationStore?.data.providerId,
           text,
           forceBracketedPaste: true,
-          sendInput: (data) => rpc.pty.sendInput(activeSessionId, data),
         });
-        await rpc.pty.sendInput(activeSessionId, '\r');
+        if (!payload) return;
+        await rpc.pty.sendInput(activeSessionId, `${payload}\r`);
         activeSession?.pty?.terminal.focus();
         taskView.setFocusedRegion('main');
       } catch {
