@@ -1,3 +1,4 @@
+import { mapWithConcurrency } from '@main/core/issues/helpers/map-with-concurrency';
 import { clampIssueLimit, normalizeSearchTerm } from '@main/core/issues/helpers/provider-inputs';
 import type {
   IssueContextOpts,
@@ -50,19 +51,6 @@ type TrelloCardWithContext = TrelloCard & {
 const CARD_FIELDS = 'name,desc,url,shortLink,dateLastActivity';
 const DEFAULT_BOARD_LIMIT = 20;
 const TRELLO_REQUEST_CONCURRENCY = 5;
-
-async function mapWithConcurrency<TInput, TOutput>(
-  items: readonly TInput[],
-  concurrency: number,
-  mapper: (item: TInput) => Promise<TOutput>
-) {
-  const results: TOutput[] = [];
-  for (let index = 0; index < items.length; index += concurrency) {
-    const chunk = items.slice(index, index + concurrency);
-    results.push(...(await Promise.all(chunk.map(mapper))));
-  }
-  return results;
-}
 
 function toIssue(card: TrelloCard, boardName?: string, context?: string): Issue {
   return {

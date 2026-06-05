@@ -1,3 +1,4 @@
+import { mapWithConcurrency } from '@main/core/issues/helpers/map-with-concurrency';
 import { encryptedAppSecretsStore } from '@main/core/secrets/encrypted-app-secrets-store';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
@@ -66,19 +67,6 @@ function toTrelloApiErrorMessage(status: number, apiMessage?: string): string {
   if (status >= 500) return TRELLO_API_ERROR_MESSAGES.UNAVAILABLE;
 
   return apiMessage || `Trello API error (${status})`;
-}
-
-async function mapWithConcurrency<TInput, TOutput>(
-  items: readonly TInput[],
-  concurrency: number,
-  mapper: (item: TInput) => Promise<TOutput>
-) {
-  const results: TOutput[] = [];
-  for (let index = 0; index < items.length; index += concurrency) {
-    const chunk = items.slice(index, index + concurrency);
-    results.push(...(await Promise.all(chunk.map(mapper))));
-  }
-  return results;
 }
 
 export class TrelloConnectionService {
