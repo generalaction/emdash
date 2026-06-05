@@ -1,11 +1,20 @@
-import { ExternalLink, MessageSquare } from 'lucide-react';
+import { ExternalLink, MessageSquare, Send } from 'lucide-react';
 import { useMemo } from 'react';
 import { rpc } from '@renderer/lib/ipc';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from '@renderer/lib/ui/context-menu';
 import { MarkdownRenderer } from '@renderer/lib/ui/markdown-renderer';
 import { RelativeTime } from '@renderer/lib/ui/relative-time';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 import {
+  isAddressablePullRequestComment,
   sortPullRequestConversationItems,
+  type AddressablePullRequestComment,
   type PullRequestConversationItem,
 } from './pull-request-conversation';
 
@@ -22,12 +31,22 @@ function isBotAuthor(comment: PullRequestConversationItem): boolean {
   return comment.author?.userName.endsWith('[bot]') ?? false;
 }
 
-function CommentItem({ comment }: { comment: PullRequestConversationItem }) {
+function CommentItem({
+  comment,
+  onAddressInActiveChat,
+  onAddressInNewChat,
+}: {
+  comment: PullRequestConversationItem;
+  onAddressInActiveChat?: (comment: AddressablePullRequestComment) => void;
+  onAddressInNewChat?: (comment: AddressablePullRequestComment) => void;
+}) {
   const location = commentLocationLabel(comment);
   const author = commentAuthorLabel(comment);
   const avatarRadiusClass = isBotAuthor(comment) ? 'rounded' : 'rounded-full';
-
-  return (
+  const addressable = isAddressablePullRequestComment(comment);
+  const canAddressInActiveChat = addressable && !!onAddressInActiveChat;
+  const canAddressInNewChat = addressable && !!onAddressInNewChat;
+  const content = (
     <div className="group relative flex w-full min-w-0 gap-2 rounded-md px-3 py-2 text-left hover:bg-background-1">
       {comment.author?.avatarUrl ? (
         <img
@@ -71,13 +90,59 @@ function CommentItem({ comment }: { comment: PullRequestConversationItem }) {
           <MarkdownRenderer content={comment.body} variant="compact" allowHtml />
         </div>
       </div>
-      <button
-        className="absolute top-2 right-3 hidden items-center justify-center rounded bg-background-1 px-1 py-0.5 text-foreground-muted group-hover:flex hover:text-foreground"
-        onClick={() => void rpc.app.openExternal(comment.url)}
-      >
-        <ExternalLink className="size-3.5" />
-      </button>
+      <div className="absolute top-2 right-3 hidden items-center gap-1 group-hover:flex">
+        {canAddressInActiveChat && (
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  className="flex items-center gap-1 rounded bg-background-1 px-1.5 py-0.5 text-xs text-foreground-muted hover:text-foreground"
+                  onClick={() => onAddressInActiveChat(comment)}
+                >
+                  <Send className="size-3" />
+                  Address comment
+                </button>
+              }
+            />
+            <TooltipContent>Send this comment to active chat</TooltipContent>
+          </Tooltip>
+        )}
+        <button
+          type="button"
+          className="flex items-center justify-center rounded bg-background-1 px-1 py-0.5 text-foreground-muted hover:text-foreground"
+          onClick={() => void rpc.app.openExternal(comment.url)}
+        >
+          <ExternalLink className="size-3.5" />
+        </button>
+      </div>
     </div>
+  );
+
+  if (!addressable) return content;
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger>{content}</ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem
+          disabled={!canAddressInActiveChat}
+          onClick={() => {
+            if (canAddressInActiveChat) onAddressInActiveChat(comment);
+          }}
+        >
+          Address comment in active chat
+        </ContextMenuItem>
+        <ContextMenuItem
+          disabled={!canAddressInNewChat}
+          onClick={() => {
+            if (canAddressInNewChat) onAddressInNewChat(comment);
+          }}
+        >
+          Address comment in new chat
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }
 
@@ -85,10 +150,14 @@ export function CommentsList({
   comments,
   isLoading,
   error,
+  onAddressInActiveChat,
+  onAddressInNewChat,
 }: {
   comments: PullRequestConversationItem[];
   isLoading?: boolean;
   error?: Error | null;
+  onAddressInActiveChat?: (comment: AddressablePullRequestComment) => void;
+  onAddressInNewChat?: (comment: AddressablePullRequestComment) => void;
 }) {
   const sorted = useMemo(() => [...comments].sort(sortPullRequestConversationItems), [comments]);
 
@@ -107,7 +176,12 @@ export function CommentsList({
   return (
     <div className="flex flex-col gap-[1px]">
       {sorted.map((comment) => (
-        <CommentItem key={comment.id} comment={comment} />
+        <CommentItem
+          key={comment.id}
+          comment={comment}
+          onAddressInActiveChat={onAddressInActiveChat}
+          onAddressInNewChat={onAddressInNewChat}
+        />
       ))}
       {isLoading && (
         <div className="px-3 py-2 text-xs text-foreground-passive">Loading comments...</div>

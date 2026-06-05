@@ -2,7 +2,10 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { CommentsList } from '@renderer/features/tasks/diff-view/changes-panel/components/pr-entry/comments-list';
-import { buildPullRequestConversationItems } from '@renderer/features/tasks/diff-view/changes-panel/components/pr-entry/pull-request-conversation';
+import {
+  buildPullRequestConversationItems,
+  formatPullRequestCommentForAgent,
+} from '@renderer/features/tasks/diff-view/changes-panel/components/pr-entry/pull-request-conversation';
 import type { PullRequest, PullRequestComment } from '@shared/pull-requests';
 
 vi.mock('@renderer/lib/hooks/useTheme', () => ({
@@ -136,6 +139,30 @@ describe('CommentsList', () => {
     expect(html).toContain('PR body');
     expect(html).toContain('Unable to load comments');
   });
+
+  it('renders address action for real comments when a handler is available', () => {
+    const html = renderToStaticMarkup(
+      React.createElement(CommentsList, {
+        comments: [makeComment('Please fix this')],
+        onAddressInActiveChat: vi.fn(),
+      })
+    );
+
+    expect(html).toContain('Address comment');
+  });
+
+  it('does not render address action for the pull request description item', () => {
+    const html = renderToStaticMarkup(
+      React.createElement(CommentsList, {
+        comments: buildPullRequestConversationItems(makePullRequest(), []),
+        onAddressInActiveChat: vi.fn(),
+        onAddressInNewChat: vi.fn(),
+      })
+    );
+
+    expect(html).toContain('PR body');
+    expect(html).not.toContain('Address comment');
+  });
 });
 
 describe('buildPullRequestConversationItems', () => {
@@ -149,5 +176,31 @@ describe('buildPullRequestConversationItems', () => {
 
     expect(items.map((item) => item.kind)).toEqual(['description', 'issue']);
     expect(items[0]?.body).toBe('PR body');
+  });
+});
+
+describe('formatPullRequestCommentForAgent', () => {
+  it('formats a single inline pull request comment with location and status metadata', () => {
+    const text = formatPullRequestCommentForAgent(
+      makePullRequest({ identifier: '#42', title: 'Fix review findings' }),
+      makeComment('Please address <this> edge case.', {
+        id: 'review-comment:12',
+        kind: 'review',
+        url: 'https://github.com/org/repo/pull/42#discussion_r12',
+        path: 'src/app.ts',
+        line: 18,
+        isOutdated: true,
+        createdAt: '2026-05-17T00:00:00Z',
+      })
+    );
+
+    expect(text).not.toContain('Address this pull request comment');
+    expect(text).not.toContain('<pull_request_comment>');
+    expect(text).toContain('Pull request: #42 Fix review findings');
+    expect(text).toContain('Comment URL: https://github.com/org/repo/pull/42#discussion_r12');
+    expect(text).toContain('Author: Arne Strickmann');
+    expect(text).toContain('Location: src/app.ts:18');
+    expect(text).toContain('Status: outdated');
+    expect(text).toContain('Please address &lt;this&gt; edge case.');
   });
 });

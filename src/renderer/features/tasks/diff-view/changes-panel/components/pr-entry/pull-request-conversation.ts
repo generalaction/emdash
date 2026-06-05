@@ -17,6 +17,8 @@ export type PullRequestDescriptionItem = {
 
 export type PullRequestConversationItem = PullRequestDescriptionItem | PullRequestComment;
 
+export type AddressablePullRequestComment = PullRequestComment;
+
 function descriptionItemForPr(pr: PullRequest): PullRequestDescriptionItem | null {
   const body = pr.description?.trim();
   if (!body) return null;
@@ -56,4 +58,50 @@ export function buildPullRequestConversationItems(
 ): PullRequestConversationItem[] {
   const description = descriptionItemForPr(pr);
   return [...(description ? [description] : []), ...comments];
+}
+
+export function isAddressablePullRequestComment(
+  item: PullRequestConversationItem
+): item is AddressablePullRequestComment {
+  return item.kind !== 'description';
+}
+
+function commentAuthorLabel(comment: AddressablePullRequestComment): string {
+  return comment.author?.displayName ?? comment.author?.userName ?? 'Unknown author';
+}
+
+function commentLocationLabel(comment: AddressablePullRequestComment): string | null {
+  if (!comment.path) return null;
+  return comment.line ? `${comment.path}:${comment.line}` : comment.path;
+}
+
+function escapeXmlText(value: string): string {
+  return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+}
+
+function metadataLine(label: string, value: string): string {
+  return `${label}: ${escapeXmlText(value)}`;
+}
+
+export function formatPullRequestCommentForAgent(
+  pr: PullRequest,
+  comment: AddressablePullRequestComment
+): string {
+  const prLabel = pr.identifier ? `${pr.identifier} ${pr.title}` : pr.title;
+  const location = commentLocationLabel(comment);
+  const metadata = [
+    metadataLine('Pull request', prLabel),
+    metadataLine('Pull request URL', pr.url),
+    metadataLine('Comment URL', comment.url),
+    metadataLine('Author', commentAuthorLabel(comment)),
+    metadataLine('Created', comment.createdAt),
+    location ? metadataLine('Location', location) : null,
+    comment.isResolved ? 'Status: resolved' : null,
+    comment.isOutdated ? 'Status: outdated' : null,
+  ].filter((line): line is string => line !== null);
+
+  return `${metadata.join('\n')}
+
+Body:
+${escapeXmlText(comment.body.trim())}`;
 }

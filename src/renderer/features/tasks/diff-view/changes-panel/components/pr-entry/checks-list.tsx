@@ -1,8 +1,19 @@
 import { CheckCircle2, ExternalLink, Loader2, MinusCircle, XCircle } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
+import { getProjectSshConnectionId } from '@renderer/features/projects/stores/project-selectors';
+import { nextDefaultConversationTitle } from '@renderer/features/tasks/conversations/conversation-title-utils';
+import { useEffectiveProvider } from '@renderer/features/tasks/conversations/use-effective-provider';
 import { useSyncCheckRuns } from '@renderer/features/tasks/diff-view/state/use-check-runs';
+import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useAgentAutoApproveDefaults';
+import {
+  useConversations,
+  useTaskViewContext,
+  useWorkspaceViewModel,
+} from '@renderer/features/tasks/task-view-context';
+import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
+import { pastePromptInjection } from '@renderer/lib/pty/prompt-injection';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import {
   computeCheckBucket,
@@ -12,7 +23,11 @@ import {
 } from '@renderer/utils/github';
 import type { PullRequest, PullRequestComment } from '@shared/pull-requests';
 import { CommentsList } from './comments-list';
-import { buildPullRequestConversationItems } from './pull-request-conversation';
+import {
+  buildPullRequestConversationItems,
+  formatPullRequestCommentForAgent,
+  type AddressablePullRequestComment,
+} from './pull-request-conversation';
 import { usePullRequestComments } from './use-pull-request-comments';
 
 const EMPTY_COMMENTS: PullRequestComment[] = [];
@@ -107,12 +122,108 @@ export function ChecksList({ checks }: { checks: CheckRun[] }) {
 }
 
 export const PrChecksList = observer(function PrChecksList({ pr }: { pr: PullRequest }) {
+  const { projectId, taskId } = useTaskViewContext();
+  const taskView = useWorkspaceViewModel();
+  const conversations = useConversations();
+  const connectionId = getProjectSshConnectionId(projectId);
+  const { providerId, createDisabled } = useEffectiveProvider(connectionId);
+  const autoApproveDefaults = useAgentAutoApproveDefaults();
   const { checks } = useSyncCheckRuns(pr);
   const commentsQuery = usePullRequestComments(pr);
   const comments = commentsQuery.data ?? EMPTY_COMMENTS;
   const conversationItems = useMemo(
     () => buildPullRequestConversationItems(pr, comments),
     [pr, comments]
+  );
+  const activeConversationId = taskView.tabManager.activeConversationId;
+  const activeSession = activeConversationId
+    ? conversations.sessions.get(activeConversationId)
+    : undefined;
+  const activeConversationStore = activeConversationId
+    ? conversations.conversations.get(activeConversationId)
+    : undefined;
+  const activeSessionId = activeSession?.sessionId;
+
+  const handleAddressInActiveChat = useCallback(
+    async (comment: AddressablePullRequestComment) => {
+      if (!activeSessionId) {
+        toast({
+          title: 'No active chat',
+          description: 'Open a conversation tab before addressing a PR comment.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      try {
+        const text = formatPullRequestCommentForAgent(pr, comment);
+        await pastePromptInjection({
+          providerId: activeConversationStore?.data.providerId,
+          text,
+          forceBracketedPaste: true,
+          sendInput: (data) => rpc.pty.sendInput(activeSessionId, data),
+        });
+        await rpc.pty.sendInput(activeSessionId, '\r');
+        activeSession?.pty?.terminal.focus();
+        taskView.setFocusedRegion('main');
+      } catch {
+        toast({
+          title: 'Failed to send comment',
+          description: 'Try again after the chat is ready.',
+          variant: 'destructive',
+        });
+      }
+    },
+    [activeConversationStore?.data.providerId, activeSession, activeSessionId, pr, taskView]
+  );
+
+  const handleAddressInNewChat = useCallback(
+    async (comment: AddressablePullRequestComment) => {
+      if (createDisabled || !providerId) {
+        toast({
+          title: 'No agent available',
+          description: 'Install or select an available agent before creating a chat.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const id = crypto.randomUUID();
+      const title = nextDefaultConversationTitle(
+        providerId,
+        Array.from(conversations.conversations.values(), (conversation) => conversation.data)
+      );
+
+      try {
+        await conversations.createConversation({
+          id,
+          projectId,
+          taskId,
+          provider: providerId,
+          title,
+          autoApprove: autoApproveDefaults.getDefault(providerId),
+          initialPrompt: formatPullRequestCommentForAgent(pr, comment),
+        });
+        taskView.tabGroupManager.openConversation(id);
+        taskView.setFocusedRegion('main');
+      } catch {
+        toast({
+          title: 'Failed to create chat',
+          description: 'Try again after the current task finishes loading.',
+          variant: 'destructive',
+        });
+      }
+    },
+    [
+      autoApproveDefaults,
+      conversations,
+      createDisabled,
+      projectId,
+      providerId,
+      pr,
+      taskId,
+      taskView,
+    ]
   );
 
   if (checks.length === 0 && conversationItems.length === 0 && !commentsQuery.isLoading) {
@@ -135,6 +246,8 @@ export const PrChecksList = observer(function PrChecksList({ pr }: { pr: PullReq
           comments={conversationItems}
           isLoading={commentsQuery.isLoading}
           error={commentsQuery.error}
+          onAddressInActiveChat={activeSessionId ? handleAddressInActiveChat : undefined}
+          onAddressInNewChat={!createDisabled && providerId ? handleAddressInNewChat : undefined}
         />
       </section>
     </div>
