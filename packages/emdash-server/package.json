@@ -16,10 +16,11 @@
   },
   "dependencies": {
     "@fastify/rate-limit": "^9.0.0",
-    "better-sqlite3": "^11.0.0",
-    "drizzle-orm": "^0.36.0",
+    "better-sqlite3": "^12.10.0",
     "drizzle-kit": "^0.28.0",
+    "drizzle-orm": "^0.36.0",
     "fastify": "^5.0.0",
+    "fastify-plugin": "^5.1.0",
     "nanoid": "^5.0.0",
     "zod": "^3.23.0"
   },
@@ -29,5 +30,8 @@
     "tsx": "^4.0.0",
     "typescript": "^5.5.0",
     "vitest": "^2.0.0"
+  },
+  "allowScripts": {
+    "better-sqlite3@12.10.0": true
   }
 }
