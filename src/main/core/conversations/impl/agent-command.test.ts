@@ -1,3 +1,4 @@
+import * as toml from 'smol-toml';
 import { describe, expect, it } from 'vitest';
 import { providerConfigDefaults } from '@main/core/settings/schema';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
@@ -186,6 +187,103 @@ describe('buildAgentCommand', () => {
     expect(command.args).toEqual(expectedArgs);
   });
 
+  it('does not pass Kimi auto-approve args when resuming', () => {
+    const command = buildAgentCommand({
+      providerId: 'kimi',
+      providerConfig: providerConfigDefaults.kimi,
+      autoApprove: true,
+      sessionId: 'session-1',
+      isResuming: true,
+    });
+
+    expect(command.args).toEqual(['-C']);
+  });
+
+  it('resumes Kimi by stored provider session id when available', () => {
+    const command = buildAgentCommand({
+      providerId: 'kimi',
+      providerConfig: providerConfigDefaults.kimi,
+      autoApprove: true,
+      sessionId: 'conv-1',
+      providerSessionId: 'ses_kimi_1',
+      isResuming: true,
+    });
+
+    expect(command.args).toEqual(['-S', 'ses_kimi_1']);
+  });
+
+  it('injects Kimi hooks into inline TOML --config args', () => {
+    const command = buildAgentCommand({
+      providerId: 'kimi',
+      providerConfig: {
+        ...providerConfigDefaults.kimi,
+        defaultArgs: [
+          '--config',
+          toml.stringify({
+            default_model: 'openrouter-glm',
+            models: {
+              'openrouter-glm': { provider: 'openrouter', model: 'glm', max_context_size: 1 },
+            },
+            providers: {
+              openrouter: { type: 'openai_legacy', base_url: 'https://example.com', api_key: '' },
+            },
+          }),
+        ],
+      },
+      sessionId: 'session-1',
+    });
+
+    const config = toml.parse(command.args[1]) as Record<string, unknown>;
+    const hooks = config.hooks as Record<string, string>[];
+    expect(command.args[0]).toBe('--config');
+    expect(hooks.find((hook) => hook.event === 'UserPromptSubmit')?.command).toContain(
+      'X-Emdash-Event-Type: start'
+    );
+    expect(hooks.find((hook) => hook.event === 'Stop')?.command).toContain(
+      'X-Emdash-Event-Type: stop'
+    );
+  });
+
+  it('injects Kimi hooks into inline JSON --config args', () => {
+    const command = buildAgentCommand({
+      providerId: 'kimi',
+      providerConfig: {
+        ...providerConfigDefaults.kimi,
+        defaultArgs: [
+          `--config=${JSON.stringify({
+            default_model: 'openrouter-glm',
+            models: {
+              'openrouter-glm': { provider: 'openrouter', model: 'glm', max_context_size: 1 },
+            },
+            providers: {
+              openrouter: { type: 'openai_legacy', base_url: 'https://example.com', api_key: '' },
+            },
+          })}`,
+        ],
+      },
+      sessionId: 'session-1',
+    });
+
+    const config = JSON.parse(command.args[0].slice('--config='.length)) as Record<string, unknown>;
+    const hooks = config.hooks as Record<string, string>[];
+    expect(hooks.find((hook) => hook.event === 'SessionStart')?.command).toContain(
+      'X-Emdash-Event-Type: session'
+    );
+  });
+
+  it('leaves invalid Kimi inline --config args unchanged', () => {
+    const command = buildAgentCommand({
+      providerId: 'kimi',
+      providerConfig: {
+        ...providerConfigDefaults.kimi,
+        defaultArgs: ['--config', 'not valid toml = {'],
+      },
+      sessionId: 'session-1',
+    });
+
+    expect(command.args).toEqual(['--config', 'not valid toml = {']);
+  });
+
   it('supports custom CLI command prefixes and appends managed provider args', () => {
     const result = buildAgentCommand({
       providerId: 'claude',
@@ -343,7 +441,7 @@ describe('buildAgentCommand', () => {
       freshArgs: ['run', '-s', '-t', 'Fix the bug'],
       resumeArgs: ['run', '-s', '--resume'],
     },
-    { providerId: 'kimi', freshArgs: ['-c', 'Fix the bug'], resumeArgs: ['--continue'] },
+    { providerId: 'kimi', freshArgs: [], resumeArgs: ['-C'] },
     { providerId: 'codebuff', freshArgs: ['Fix the bug'], resumeArgs: [] },
     { providerId: 'freebuff', freshArgs: ['Fix the bug'], resumeArgs: [] },
     { providerId: 'mistral', freshArgs: ['Fix the bug'], resumeArgs: [] },
