@@ -67,10 +67,19 @@ describe('deriveMergeCheckState', () => {
     );
   });
 
-  it('classifies completed checks without failures as passing', () => {
+  it('classifies successful checks as passing', () => {
     expect(deriveMergeCheckState([makeCheck({ status: 'COMPLETED', conclusion: 'SUCCESS' })])).toBe(
       'passing'
     );
+  });
+
+  it('classifies skipped or cancelled checks without passing checks as unknown', () => {
+    expect(
+      deriveMergeCheckState([
+        makeCheck({ status: 'COMPLETED', conclusion: 'SKIPPED' }),
+        makeCheck({ id: 'check-2', status: 'COMPLETED', conclusion: 'CANCELLED' }),
+      ])
+    ).toBe('unknown');
   });
 
   it('classifies missing checks as unknown', () => {

@@ -17,7 +17,7 @@ export function deriveMergeCheckState(checks: PullRequestCheck[]): MergeCheckSta
   const summary = computeCheckRunsSummary(checks);
   if (summary.failed > 0) return 'failed';
   if (summary.pending > 0) return 'pending';
-  if (summary.total > 0) return 'passing';
+  if (summary.passed > 0) return 'passing';
   return 'unknown';
 }
 
