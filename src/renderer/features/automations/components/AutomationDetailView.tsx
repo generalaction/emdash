@@ -1,8 +1,6 @@
-import { Ellipsis, Play, Square, Trash2, X } from 'lucide-react';
+import { Ellipsis, Play, Trash2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
-import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
-import { rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
 import {
   DropdownMenu,
@@ -15,9 +13,7 @@ import { PanelTabs } from '@renderer/lib/ui/panel-tabs';
 import { Switch } from '@renderer/lib/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import type { Automation } from '@shared/automations/automation';
-import { makePtySessionId } from '@shared/ptySessionId';
-import { isActiveStatus } from '../run-status-styles';
-import { useAutomationRuns, useAutomations } from '../use-automations';
+import { useAutomations } from '../use-automations';
 import { useAutomationSettingsAutoSave } from '../useAutomationSettingsAutoSave';
 import { AutomationSettingsFields } from './AutomationSettingsFields';
 import { RunHistory } from './RunHistory';
@@ -60,26 +56,7 @@ export const AutomationDetailView = observer(function AutomationDetailView({
 
   const { runNow } = useAutomations();
 
-  const recentRuns = useAutomationRuns(automation.id, 10);
-  const hasActiveRuns = recentRuns.data?.some((r) => isActiveStatus(r.status)) ?? false;
-  const canRunNow = automation.enabled && !!automation.projectId && !runNow.isPending;
-
-  function handleStopAll() {
-    if (!automation.projectId) return;
-    const pid = automation.projectId;
-    for (const run of recentRuns.data ?? []) {
-      if (!isActiveStatus(run.status)) continue;
-      const taskId = run.taskId;
-      if (!taskId) continue;
-      const mgr = conversationRegistry.get(taskId);
-      if (!mgr) continue;
-      for (const conv of mgr.conversations.values()) {
-        if (conv.status === 'working' || conv.status === 'awaiting-input') {
-          void rpc.pty.stopSession(makePtySessionId(pid, taskId, conv.data.id));
-        }
-      }
-    }
-  }
+  const canRunNow = !!automation.projectId && !runNow.isPending;
 
   return (
     <div className="flex h-full flex-col">
@@ -127,29 +104,6 @@ export const AutomationDetailView = observer(function AutomationDetailView({
                     render={
                       <button
                         type="button"
-                        aria-label="Stop all active runs"
-                        disabled={!hasActiveRuns}
-                        onClick={handleStopAll}
-                        className={
-                          hasActiveRuns
-                            ? 'flex h-6 w-6 items-center justify-center rounded-md text-foreground-muted transition-colors hover:bg-background-1 hover:text-foreground'
-                            : 'flex h-6 w-6 cursor-not-allowed items-center justify-center rounded-md text-foreground-passive opacity-40'
-                        }
-                      />
-                    }
-                  >
-                    <Square className="size-3.5" />
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    {hasActiveRuns ? 'Stop all active runs' : 'No active runs'}
-                  </TooltipContent>
-                </Tooltip>
-
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <button
-                        type="button"
                         aria-label="Run now"
                         disabled={!canRunNow}
                         onClick={() => void runNow.mutateAsync(automation.id)}
@@ -164,7 +118,11 @@ export const AutomationDetailView = observer(function AutomationDetailView({
                     <Play className="size-3.5" />
                   </TooltipTrigger>
                   <TooltipContent>
-                    {automation.projectId == null ? 'Assign a project before running' : 'Run now'}
+                    {automation.projectId == null
+                      ? 'Assign a project before running'
+                      : !automation.conversationConfig || !automation.triggerConfig
+                        ? 'Configure the automation before running'
+                        : 'Run now'}
                   </TooltipContent>
                 </Tooltip>
               </div>

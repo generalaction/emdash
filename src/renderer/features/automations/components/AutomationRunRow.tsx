@@ -42,7 +42,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
   const interactive = Boolean(taskId && task && !task.archivedAt);
   const agentStatus = taskStore ? taskAgentStatus(taskStore) : null;
 
-  const displayTime = run ? (run.startedAt ?? run.scheduledAt ?? run.finishedAt) : null;
+  const displayTime = run ? (run.startedAt ?? run.finishedAt) : null;
   const triggerLabel = run ? formatRunTriggerKindLabel(run.triggerKind) : null;
   const isRunActive = run ? isActiveStatus(run.status) : false;
   const missedDeadline = run ? parseRunError(run.error)?.code === 'deadline_exceeded' : false;

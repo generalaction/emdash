@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, ne } from 'drizzle-orm';
+import { and, asc, count, desc, eq, ne, sql } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { automationRuns } from '@main/db/schema';
 import { HookCore, type Hookable } from '@main/lib/hookable';
@@ -76,6 +76,10 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
     return automation;
   }
 
+  async toggleAutomationEnabled(id: string, enabled: boolean): Promise<void> {
+    return this.setAutomationEnabled(id, enabled);
+  }
+
   async setAutomationEnabled(id: string, enabled: boolean): Promise<void> {
     const automation = await repoSetAutomationEnabled(id, enabled);
     if (!automation) throw new Error('automation_not_found');
@@ -90,16 +94,43 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
   async listAutomationRuns(
     automationId: string,
     limit: number,
-    offset: number
+    offset: number,
+    statusFilter?: 'done' | 'failed' | 'skipped'
   ): Promise<AutomationRun[]> {
     const rows = await db
       .select()
       .from(automationRuns)
-      .where(and(eq(automationRuns.automationId, automationId), ne(automationRuns.status, 'scheduled')))
-      .orderBy(desc(automationRuns.scheduledAt))
+      .where(
+        and(
+          eq(automationRuns.automationId, automationId),
+          ne(automationRuns.status, 'scheduled'),
+          statusFilter ? eq(automationRuns.status, statusFilter) : undefined
+        )
+      )
+      .orderBy(desc(automationRuns.startedAt))
       .limit(limit)
       .offset(offset);
     return rows.map(mapAutomationRunRowToAutomationRun);
+  }
+
+  async countAutomationRunsByStatus(
+    automationId: string
+  ): Promise<{ all: number; done: number; failed: number; skipped: number }> {
+    const [result] = await db
+      .select({
+        all: count(),
+        done: sql<number>`COUNT(CASE WHEN ${automationRuns.status} = 'done' THEN 1 END)`,
+        failed: sql<number>`COUNT(CASE WHEN ${automationRuns.status} = 'failed' THEN 1 END)`,
+        skipped: sql<number>`COUNT(CASE WHEN ${automationRuns.status} = 'skipped' THEN 1 END)`,
+      })
+      .from(automationRuns)
+      .where(
+        and(
+          eq(automationRuns.automationId, automationId),
+          ne(automationRuns.status, 'scheduled')
+        )
+      );
+    return result ?? { all: 0, done: 0, failed: 0, skipped: 0 };
   }
 
   async getNextScheduledRun(automationId: string): Promise<AutomationRun | null> {

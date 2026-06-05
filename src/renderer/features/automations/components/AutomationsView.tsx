@@ -13,12 +13,17 @@ type PanelState =
   | null;
 
 export function AutomationsView() {
-  const { automations, setEnabled, destroy } = useAutomations();
+  const { automations, toggleEnabled, destroy } = useAutomations();
   const [search, setSearch] = useState('');
   const [panel, setPanel] = useState<PanelState>(null);
 
+  const liveAutomation =
+    panel?.kind === 'edit'
+      ? (automations.data?.find((a) => a.id === panel.automation.id) ?? panel.automation)
+      : null;
+
   function handleToggleEnabled(automation: Automation, enabled: boolean) {
-    void setEnabled.mutateAsync({ id: automation.id, enabled });
+    void toggleEnabled.mutateAsync({ id: automation.id, enabled });
   }
 
   function handleDelete(automation: Automation) {
@@ -49,9 +54,9 @@ export function AutomationsView() {
           {panel?.kind === 'create' && (
             <CreateAutomationView onClose={() => setPanel(null)} onSaved={() => setPanel(null)} />
           )}
-          {panel?.kind === 'edit' && (
+          {panel?.kind === 'edit' && liveAutomation && (
             <AutomationDetailView
-              automation={panel.automation}
+              automation={liveAutomation}
               onClose={() => setPanel(null)}
               onDelete={handleDelete}
               onToggleEnabled={handleToggleEnabled}

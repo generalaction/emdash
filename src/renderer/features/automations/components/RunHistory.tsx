@@ -1,5 +1,6 @@
 import { Clock } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { cn } from '@renderer/utils/utils';
 import {
   Pagination,
   PaginationContent,
@@ -10,10 +11,23 @@ import {
 import { AbsoluteTime } from '@renderer/lib/ui/absolute-time';
 import { Spinner } from '@renderer/lib/ui/spinner';
 import type { Automation } from '@shared/automations/automation';
-import { useAutomationRunsPaginated, useScheduledAutomationRun } from '../use-automations';
+import {
+  useAutomationRunCounts,
+  useAutomationRunsPaginated,
+  useScheduledAutomationRun,
+} from '../use-automations';
 import { AutomationRunRow } from './AutomationRunRow';
 
 const PAGE_SIZE = 25;
+
+type FilterOption = 'all' | 'done' | 'failed' | 'skipped';
+
+const FILTERS: { value: FilterOption; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'done', label: 'Done' },
+  { value: 'failed', label: 'Failed' },
+  { value: 'skipped', label: 'Skipped' },
+];
 
 interface RunHistoryProps {
   automation: Automation;
@@ -21,14 +35,18 @@ interface RunHistoryProps {
 
 export function RunHistory({ automation }: RunHistoryProps) {
   const [page, setPage] = useState(0);
+  const [filter, setFilter] = useState<FilterOption>('all');
 
   useEffect(() => {
     setPage(0);
-  }, [automation.id]);
+  }, [automation.id, filter]);
 
+  const statusFilter = filter === 'all' ? undefined : filter;
   const scheduledRunQuery = useScheduledAutomationRun(automation.id);
-  const runsQuery = useAutomationRunsPaginated(automation.id, page);
+  const runsQuery = useAutomationRunsPaginated(automation.id, page, statusFilter);
+  const countsQuery = useAutomationRunCounts(automation.id);
 
+  const counts = countsQuery.data;
   const scheduledRun = scheduledRunQuery.data ?? null;
   const allRuns = runsQuery.data ?? [];
   const historyRuns = allRuns.slice(0, PAGE_SIZE);
@@ -45,6 +63,31 @@ export function RunHistory({ automation }: RunHistoryProps) {
         </div>
     
       )}
+      <div className="flex gap-1.5 w-full">
+        {FILTERS.map(({ value, label }) => {
+          const count = counts ? counts[value] : undefined;
+          return (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setFilter(value)}
+              className={cn(
+                'flex items-center gap-1 w-full justify-center rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+                filter === value
+                  ? 'bg-background-2 text-foreground'
+                  : 'text-foreground-muted hover:bg-background-1 hover:text-foreground'
+              )}
+            >
+              {label}
+              {count !== undefined && (
+                <span className={cn('tabular-nums', filter === value ? 'text-foreground-muted' : 'text-foreground-passive')}>
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
       {runsQuery.isPending ? (
         <div className="flex flex-1 items-center justify-center">
           <Spinner />

@@ -47,6 +47,12 @@ export function useAutomations(projectId?: string) {
     onSuccess: invalidateAutomations,
   });
 
+  const toggleEnabled = useMutation({
+    mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
+      rpc.automations.toggleAutomationEnabled(id, enabled),
+    onSuccess: invalidateAutomations,
+  });
+
   const runNow = useMutation({
     mutationFn: (id: string) => rpc.automations.runAutomation(id),
     onSuccess: (_run, id) => invalidateRuns(id),
@@ -62,7 +68,7 @@ export function useAutomations(projectId?: string) {
     onSuccess: invalidateAutomations,
   });
 
-  return { automations, create, updateSettings, rename, setEnabled, runNow, stop, destroy };
+  return { automations, create, updateSettings, rename, setEnabled, toggleEnabled, runNow, stop, destroy };
 }
 
 export function useAutomationRuns(automationId: string, limit = 20) {
@@ -83,16 +89,31 @@ export function useScheduledAutomationRun(automationId: string) {
   });
 }
 
-export function useAutomationRunsPaginated(automationId: string, page: number) {
+type RunStatusFilter = 'done' | 'failed' | 'skipped' | undefined;
+
+export function useAutomationRunsPaginated(
+  automationId: string,
+  page: number,
+  statusFilter?: RunStatusFilter
+) {
   return useQuery({
-    queryKey: ['automations', 'runs', automationId, 'page', page],
+    queryKey: ['automations', 'runs', automationId, 'page', page, statusFilter],
     queryFn: () =>
       rpc.automations.listAutomationRuns(
         automationId,
         PAGINATED_PAGE_SIZE + 1,
-        page * PAGINATED_PAGE_SIZE
+        page * PAGINATED_PAGE_SIZE,
+        statusFilter
       ),
     placeholderData: keepPreviousData,
+    enabled: !!automationId,
+  });
+}
+
+export function useAutomationRunCounts(automationId: string) {
+  return useQuery({
+    queryKey: ['automations', 'runs', automationId, 'counts'],
+    queryFn: () => rpc.automations.countAutomationRunsByStatus(automationId),
     enabled: !!automationId,
   });
 }
