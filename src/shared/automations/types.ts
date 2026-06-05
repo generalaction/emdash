@@ -9,7 +9,8 @@ export type CronTrigger = { kind: 'cron'; expr: string; tz: string };
 export type WebhookTrigger = {
   kind: 'webhook';
   token: string;
-  serverUrl: string;
+  /** Not stored per-automation; resolved at runtime from emdashServerConnections settings. */
+  serverUrl?: string;
   description?: string;
 };
 

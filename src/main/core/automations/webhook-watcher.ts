@@ -102,7 +102,14 @@ class ServerPoller {
             deadlineAt: null,
             triggerKind: 'webhook',
           });
-          if (run) emitQueuedRun(run);
+          if (run) {
+            emitQueuedRun(run);
+          } else {
+            log.warn('WebhookWatcher: run enqueue skipped (automation busy)', {
+              automationId: automation.id,
+              eventId: event.id,
+            });
+          }
           await ackEvent(this.server, event.id);
         } catch (err) {
           await ackEvent(this.server, event.id, String(err)).catch(() => {});
