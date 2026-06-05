@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { err, ok } from '@shared/result';
-import { githubApiAuthService } from './github-api-auth-service';
+import { githubApiAuthService } from './github-api-auth-service-instance';
 import { clearOctokitCache, getOctokit } from './octokit-provider';
 
 const mockOctokit = vi.hoisted(() => vi.fn());
@@ -9,7 +9,7 @@ vi.mock('@octokit/rest', () => ({
   Octokit: mockOctokit,
 }));
 
-vi.mock('./github-api-auth-service', () => ({
+vi.mock('./github-api-auth-service-instance', () => ({
   githubApiAuthService: {
     getToken: vi.fn(),
   },

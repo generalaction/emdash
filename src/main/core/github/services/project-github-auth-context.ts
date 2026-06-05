@@ -1,4 +1,3 @@
-import { githubAccountSelectionResolver } from '@main/core/github/services/github-account-selection-resolver';
 import type { GitHubApiAuthContext } from '@main/core/github/services/github-api-auth-service';
 import { projectManager } from '@main/core/projects/project-manager';
 import { log } from '@main/lib/logger';
@@ -12,7 +11,6 @@ export type { ProjectGitHubAuthContextError } from './project-github-auth-contex
 
 const projectGitHubAuthContextResolver = new ProjectGitHubAuthContextResolver({
   projects: projectManager,
-  accountSelectionResolver: githubAccountSelectionResolver,
   logger: log,
 });
 

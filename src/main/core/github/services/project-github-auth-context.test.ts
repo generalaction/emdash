@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ProjectSettings } from '@shared/project-settings';
 import { err, ok } from '@shared/result';
 import {
   ProjectGitHubAuthContextResolver,
@@ -6,8 +7,7 @@ import {
 } from './project-github-auth-context-resolver';
 
 type FakeProject = {
-  settings: { get(): Promise<Record<string, unknown>> };
-  ctx: { exec(): Promise<{ stdout: string; stderr: string }> };
+  settings: { get(): Promise<ProjectSettings> };
 };
 
 class FakeProjectLookup {
@@ -22,60 +22,62 @@ class FakeProjectLookup {
   }
 }
 
-class FakeAccountSelectionResolver {
-  resolve = vi.fn();
-}
-
 class FakeLogger {
   warn = vi.fn();
 }
 
-function makeProject(): FakeProject {
+function makeProject(settings: ProjectSettings = {}): FakeProject {
   return {
-    settings: { get: async () => ({}) },
-    ctx: { exec: async () => ({ stdout: '', stderr: '' }) },
+    settings: { get: vi.fn().mockResolvedValue(settings) },
   };
 }
 
 describe('ProjectGitHubAuthContextResolver', () => {
   let projects: FakeProjectLookup;
-  let accountSelectionResolver: FakeAccountSelectionResolver;
   let logger: FakeLogger;
   let resolver: ProjectGitHubAuthContextResolver;
 
   beforeEach(() => {
     projects = new FakeProjectLookup();
-    accountSelectionResolver = new FakeAccountSelectionResolver();
     logger = new FakeLogger();
     resolver = new ProjectGitHubAuthContextResolver({
       projects,
-      accountSelectionResolver,
       logger,
     });
   });
 
-  it('resolves account selection for a mounted project', async () => {
-    const project = makeProject();
+  it('resolves the selected account from project settings for a mounted project', async () => {
+    const project = makeProject({ githubAccountId: ' github.com:42 ' });
     projects.setProject('project-1', project);
-    accountSelectionResolver.resolve.mockResolvedValue({
-      accountId: 'github.com:42',
-      source: 'project-settings',
-    });
 
     await expect(resolver.resolve('project-1')).resolves.toEqual(
       ok({ accountId: 'github.com:42' })
     );
-    expect(accountSelectionResolver.resolve).toHaveBeenCalledWith(project);
+    expect(project.settings.get).toHaveBeenCalled();
   });
 
-  it('keeps explicit default-account selections distinct from resolution failure', async () => {
-    projects.setProject('project-1', makeProject());
-    accountSelectionResolver.resolve.mockResolvedValue({
-      accountId: null,
-      source: 'project-settings',
-    });
+  it('fails when the project settings have no selected GitHub account', async () => {
+    projects.setProject('project-1', makeProject({}));
 
-    await expect(resolver.resolve('project-1')).resolves.toEqual(ok({ accountId: null }));
+    await expect(resolver.resolve('project-1')).resolves.toEqual(
+      err<ProjectGitHubAuthContextError>({
+        type: 'account_selection_failed',
+        projectId: 'project-1',
+        message: 'No GitHub account selected for project.',
+      })
+    );
+  });
+
+  it('fails when the project settings explicitly clear the selected GitHub account', async () => {
+    projects.setProject('project-1', makeProject({ githubAccountId: null }));
+
+    await expect(resolver.resolve('project-1')).resolves.toEqual(
+      err<ProjectGitHubAuthContextError>({
+        type: 'account_selection_failed',
+        projectId: 'project-1',
+        message: 'No GitHub account selected for project.',
+      })
+    );
   });
 
   it('fails when the project is not mounted instead of silently falling back', async () => {
@@ -86,23 +88,23 @@ describe('ProjectGitHubAuthContextResolver', () => {
         message: 'Project project-1 is not mounted.',
       })
     );
-    expect(accountSelectionResolver.resolve).not.toHaveBeenCalled();
   });
 
   it('fails when account selection cannot be resolved instead of silently falling back', async () => {
-    projects.setProject('project-1', makeProject());
-    accountSelectionResolver.resolve.mockRejectedValue(new Error('git config failed'));
+    const project = makeProject();
+    vi.mocked(project.settings.get).mockRejectedValue(new Error('settings failed'));
+    projects.setProject('project-1', project);
 
     await expect(resolver.resolve('project-1')).resolves.toEqual(
       err<ProjectGitHubAuthContextError>({
         type: 'account_selection_failed',
         projectId: 'project-1',
-        message: 'git config failed',
+        message: 'settings failed',
       })
     );
     expect(logger.warn).toHaveBeenCalledWith('Failed to resolve project GitHub account selection', {
       projectId: 'project-1',
-      error: 'git config failed',
+      error: 'settings failed',
     });
   });
 });

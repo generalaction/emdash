@@ -1,41 +1,57 @@
-import { isGitHubDotComHost, normalizeRepositoryHost } from '@shared/repository-ref';
+import { normalizeRepositoryHost } from '@shared/repository-ref';
 import { err, ok, type Result } from '@shared/result';
-import { ghCliGitHubEnterpriseAuthSource } from './ghes-auth-source';
-import { githubAccountRegistry } from './github-account-registry-instance';
+import type { GitHubAccount } from './github-account-registry';
 import { githubApiAuthRequired, type GitHubApiAuthError } from './github-api-auth-errors';
-import { githubConnectionService } from './github-connection-service';
 
 export type GitHubApiAuthContext = {
-  accountId?: string | null;
+  accountId?: string;
+};
+
+type GitHubAccountLookup = {
+  getDefaultAccountId(): Promise<string | null>;
+  listAccounts(): Promise<GitHubAccount[]>;
+  resolveToken(accountId: string): Promise<string | null>;
 };
 
 export class GitHubApiAuthService {
+  constructor(private readonly accountLookup: GitHubAccountLookup) {}
+
   async getToken(
     host: string,
     context: GitHubApiAuthContext = {}
   ): Promise<Result<string, GitHubApiAuthError>> {
     const normalizedHost = normalizeRepositoryHost(host);
-    const token = isGitHubDotComHost(normalizedHost)
-      ? await this.getGitHubDotComToken(normalizedHost, context)
-      : await ghCliGitHubEnterpriseAuthSource.getToken(normalizedHost);
+    const account = await this.resolveAccount(normalizedHost, context.accountId?.trim() || null);
+    if (!account) return err(githubApiAuthRequired(normalizedHost));
 
+    const token = await this.accountLookup.resolveToken(account.id);
     if (!token) return err(githubApiAuthRequired(normalizedHost));
     return ok(token);
   }
 
-  private async getGitHubDotComToken(
+  private async resolveAccount(
     normalizedHost: string,
-    context: GitHubApiAuthContext
-  ): Promise<string | null> {
-    const accountId = context.accountId?.trim();
-    if (!accountId) return githubConnectionService.getToken();
+    accountId: string | null
+  ): Promise<GitHubAccount | null> {
+    const accounts = await this.accountLookup.listAccounts();
+    if (accountId) {
+      return (
+        accounts.find(
+          (candidate) =>
+            candidate.id === accountId && normalizeRepositoryHost(candidate.host) === normalizedHost
+        ) ?? null
+      );
+    }
 
-    const accounts = await githubAccountRegistry.listAccounts();
-    const account = accounts.find((candidate) => candidate.id === accountId);
-    if (!account || normalizeRepositoryHost(account.host) !== normalizedHost) return null;
+    const defaultAccountId = await this.accountLookup.getDefaultAccountId();
+    if (!defaultAccountId) return null;
 
-    return githubAccountRegistry.resolveToken(account.id);
+    return (
+      accounts.find(
+        (candidate) =>
+          candidate.id === defaultAccountId &&
+          normalizeRepositoryHost(candidate.host) === normalizedHost
+      ) ?? null
+    );
   }
 }
-
-export const githubApiAuthService = new GitHubApiAuthService();

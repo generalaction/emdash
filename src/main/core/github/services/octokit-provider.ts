@@ -3,7 +3,9 @@ import { log } from '@main/lib/logger';
 import { normalizeRepositoryHost } from '@shared/repository-ref';
 import { err, ok, type Result } from '@shared/result';
 import type { GitHubApiAuthError } from './github-api-auth-errors';
-import { githubApiAuthService, type GitHubApiAuthContext } from './github-api-auth-service';
+import type { GitHubApiAuthContext } from './github-api-auth-service';
+import { githubApiAuthService } from './github-api-auth-service-instance';
+import { githubApiBaseUrlForHost } from './github-api-base-url';
 
 const cachedOctokits = new Map<string, { octokit: Octokit; token: string }>();
 
@@ -13,10 +15,6 @@ const octokitLog = {
   warn: (...input: unknown[]) => log.warn('Octokit:', ...input),
   error: (...input: unknown[]) => log.debug('Octokit request failed:', ...input),
 };
-
-function apiBaseUrlForHost(host: string): string {
-  return host === 'github.com' ? 'https://api.github.com' : `https://${host}/api/v3`;
-}
 
 export class GitHubApiAuthErrorException extends Error {
   constructor(readonly authError: GitHubApiAuthError) {
@@ -44,7 +42,7 @@ export async function getOctokit(
 
   const octokit = new Octokit({
     auth: token.data,
-    baseUrl: apiBaseUrlForHost(normalizedHost),
+    baseUrl: githubApiBaseUrlForHost(normalizedHost),
     log: octokitLog,
   });
 

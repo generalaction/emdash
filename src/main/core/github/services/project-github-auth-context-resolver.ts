@@ -1,5 +1,5 @@
-import type { GitHubAccountSelectionProject } from '@main/core/github/services/github-account-selection-resolver';
 import type { GitHubApiAuthContext } from '@main/core/github/services/github-api-auth-service';
+import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
 import { err, ok, type Result } from '@shared/result';
 
 export type ProjectGitHubAuthContextError =
@@ -14,12 +14,12 @@ export type ProjectGitHubAuthContextError =
       message: string;
     };
 
-type ProjectLookup = {
-  getProject(projectId: string): GitHubAccountSelectionProject | undefined;
+type ProjectGitHubAuthContextProject = {
+  settings: Pick<ProjectSettingsProvider, 'get'>;
 };
 
-type AccountSelectionResolver = {
-  resolve(project: GitHubAccountSelectionProject): Promise<{ accountId: string | null }>;
+type ProjectLookup = {
+  getProject(projectId: string): ProjectGitHubAuthContextProject | undefined;
 };
 
 type WarningLogger = {
@@ -34,7 +34,6 @@ export class ProjectGitHubAuthContextResolver {
   constructor(
     private readonly deps: {
       projects: ProjectLookup;
-      accountSelectionResolver: AccountSelectionResolver;
       logger: WarningLogger;
     }
   ) {}
@@ -52,8 +51,18 @@ export class ProjectGitHubAuthContextResolver {
     }
 
     try {
-      const selection = await this.deps.accountSelectionResolver.resolve(project);
-      return ok({ accountId: selection.accountId });
+      const settings = await project.settings.get();
+      const accountId = Object.hasOwn(settings, 'githubAccountId')
+        ? settings.githubAccountId?.trim() || null
+        : null;
+      if (!accountId) {
+        return err({
+          type: 'account_selection_failed',
+          projectId,
+          message: 'No GitHub account selected for project.',
+        });
+      }
+      return ok({ accountId });
     } catch (error) {
       const message = errorMessage(error);
       this.deps.logger.warn('Failed to resolve project GitHub account selection', {

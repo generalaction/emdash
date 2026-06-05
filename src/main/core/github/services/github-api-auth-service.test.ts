@@ -1,94 +1,111 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { err, ok } from '@shared/result';
-import { ghCliGitHubEnterpriseAuthSource } from './ghes-auth-source';
-import { githubAccountRegistry } from './github-account-registry-instance';
+import {
+  GitHubAccountRegistry,
+  type GitHubAccountMetadataStore,
+  type GitHubAccountSecretStore,
+} from './github-account-registry';
 import { GitHubApiAuthService } from './github-api-auth-service';
-import { githubConnectionService } from './github-connection-service';
 
-vi.mock('./github-connection-service', () => ({
-  githubConnectionService: {
-    getToken: vi.fn(),
-  },
-}));
+class InMemoryMetadataStore implements GitHubAccountMetadataStore {
+  accounts = null as Awaited<ReturnType<GitHubAccountMetadataStore['getAccounts']>>;
+  defaultAccountId: string | null = null;
 
-vi.mock('./github-account-registry-instance', () => ({
-  githubAccountRegistry: {
-    listAccounts: vi.fn(),
-    resolveToken: vi.fn(),
-  },
-}));
+  async getAccounts() {
+    return this.accounts;
+  }
 
-vi.mock('./ghes-auth-source', () => ({
-  ghCliGitHubEnterpriseAuthSource: {
-    getToken: vi.fn(),
-  },
-}));
+  async setAccounts(accounts: NonNullable<typeof this.accounts>) {
+    this.accounts = accounts;
+  }
 
-const mockGithubConnectionService = vi.mocked(githubConnectionService);
-const mockGithubAccountRegistry = vi.mocked(githubAccountRegistry);
-const mockGhesAuthSource = vi.mocked(ghCliGitHubEnterpriseAuthSource);
+  async getDefaultAccountId() {
+    return this.defaultAccountId;
+  }
+
+  async setDefaultAccountId(accountId: string | null) {
+    this.defaultAccountId = accountId;
+  }
+}
+
+class InMemorySecretStore implements GitHubAccountSecretStore {
+  private readonly secrets = new Map<string, string>();
+
+  async getSecret(key: string) {
+    return this.secrets.get(key) ?? null;
+  }
+
+  async setSecret(key: string, value: string) {
+    this.secrets.set(key, value);
+  }
+
+  async deleteSecret(key: string) {
+    this.secrets.delete(key);
+  }
+}
 
 describe('GitHubApiAuthService', () => {
+  let registry: GitHubAccountRegistry;
+  let secretStore: InMemorySecretStore;
+  let service: GitHubApiAuthService;
+
   beforeEach(() => {
-    vi.clearAllMocks();
+    secretStore = new InMemorySecretStore();
+    registry = new GitHubAccountRegistry(new InMemoryMetadataStore(), secretStore);
+    service = new GitHubApiAuthService(registry);
   });
+
+  async function upsertAccount({
+    host = 'github.com',
+    providerAccountId = '42',
+    login = 'monalisa',
+    token = `token-${providerAccountId}`,
+  }: {
+    host?: string;
+    providerAccountId?: string;
+    login?: string;
+    token?: string;
+  } = {}) {
+    return registry.upsertAccount({
+      accessToken: token,
+      credentialSource: 'emdash_oauth',
+      providerAccount: {
+        providerId: 'github',
+        providerAccountId,
+        host,
+        login,
+        avatarUrl: '',
+      },
+    });
+  }
 
   it('uses the selected GitHub.com account token when an account id is provided', async () => {
-    mockGithubAccountRegistry.listAccounts.mockResolvedValue([
-      {
-        id: 'github.com:42',
-        providerAccountId: '42',
-        host: 'github.com',
-        login: 'monalisa',
-        avatarUrl: '',
-        credentialSource: 'emdash_oauth',
-        connectedAt: 1,
-        updatedAt: 1,
-      },
-    ]);
-    mockGithubAccountRegistry.resolveToken.mockResolvedValue('selected-account-token');
+    await upsertAccount({ providerAccountId: '42', token: 'selected-account-token' });
 
-    await expect(
-      new GitHubApiAuthService().getToken('github.com', { accountId: 'github.com:42' })
-    ).resolves.toEqual(ok('selected-account-token'));
-    expect(mockGithubAccountRegistry.resolveToken).toHaveBeenCalledWith('github.com:42');
-    expect(mockGithubConnectionService.getToken).not.toHaveBeenCalled();
-  });
-
-  it('returns auth required when the selected GitHub.com account is missing', async () => {
-    mockGithubAccountRegistry.listAccounts.mockResolvedValue([]);
-
-    await expect(
-      new GitHubApiAuthService().getToken('github.com', { accountId: 'github.com:42' })
-    ).resolves.toEqual(
-      err({
-        type: 'auth_required',
-        host: 'github.com',
-        message: 'GitHub authentication required.',
-      })
+    await expect(service.getToken('github.com', { accountId: 'github.com:42' })).resolves.toEqual(
+      ok('selected-account-token')
     );
-    expect(mockGithubAccountRegistry.resolveToken).not.toHaveBeenCalled();
-    expect(mockGithubConnectionService.getToken).not.toHaveBeenCalled();
   });
 
-  it('returns auth required when the selected GitHub.com account token is missing', async () => {
-    mockGithubAccountRegistry.listAccounts.mockResolvedValue([
-      {
-        id: 'github.com:42',
-        providerAccountId: '42',
-        host: 'github.com',
-        login: 'monalisa',
-        avatarUrl: '',
-        credentialSource: 'emdash_oauth',
-        connectedAt: 1,
-        updatedAt: 1,
-      },
-    ]);
-    mockGithubAccountRegistry.resolveToken.mockResolvedValue(null);
+  it('uses the selected GitHub Enterprise account token when an account id is provided', async () => {
+    await upsertAccount({
+      host: 'ghe.example.com',
+      providerAccountId: '168',
+      login: 'enterprise',
+      token: 'selected-ghes-account-token',
+    });
 
     await expect(
-      new GitHubApiAuthService().getToken('github.com', { accountId: 'github.com:42' })
-    ).resolves.toEqual(
+      service.getToken('GHE.EXAMPLE.COM', {
+        accountId: 'ghe.example.com:168',
+      })
+    ).resolves.toEqual(ok('selected-ghes-account-token'));
+  });
+
+  it('returns auth required when the selected account is missing', async () => {
+    await upsertAccount({ providerAccountId: '84' });
+
+    await expect(service.getToken('github.com', { accountId: 'github.com:42' })).resolves.toEqual(
       err({
         type: 'auth_required',
         host: 'github.com',
@@ -97,41 +114,68 @@ describe('GitHubApiAuthService', () => {
     );
   });
 
-  it('uses the GitHub.com connection service for github.com hosts', async () => {
-    mockGithubConnectionService.getToken.mockResolvedValue('github-token');
-
-    await expect(new GitHubApiAuthService().getToken('www.github.com')).resolves.toEqual(
-      ok('github-token')
-    );
-    expect(mockGithubConnectionService.getToken).toHaveBeenCalledTimes(1);
-    expect(mockGhesAuthSource.getToken).not.toHaveBeenCalled();
-  });
-
-  it('uses the GHES auth source for enterprise hosts', async () => {
-    mockGhesAuthSource.getToken.mockResolvedValue('ghes-token');
-
-    await expect(new GitHubApiAuthService().getToken('GHE.EXAMPLE.COM')).resolves.toEqual(
-      ok('ghes-token')
-    );
-    expect(mockGhesAuthSource.getToken).toHaveBeenCalledWith('ghe.example.com');
-    expect(mockGithubConnectionService.getToken).not.toHaveBeenCalled();
-  });
-
-  it('continues to use the GHES auth source when an account id is provided', async () => {
-    mockGhesAuthSource.getToken.mockResolvedValue('ghes-token');
+  it('returns auth required when the selected account host does not match the requested host', async () => {
+    await upsertAccount({ providerAccountId: '42' });
 
     await expect(
-      new GitHubApiAuthService().getToken('GHE.EXAMPLE.COM', { accountId: 'github.com:42' })
-    ).resolves.toEqual(ok('ghes-token'));
-    expect(mockGhesAuthSource.getToken).toHaveBeenCalledWith('ghe.example.com');
-    expect(mockGithubAccountRegistry.listAccounts).not.toHaveBeenCalled();
-    expect(mockGithubConnectionService.getToken).not.toHaveBeenCalled();
+      service.getToken('ghe.example.com', { accountId: 'github.com:42' })
+    ).resolves.toEqual(
+      err({
+        type: 'auth_required',
+        host: 'ghe.example.com',
+        message:
+          'GitHub Enterprise authentication required for ghe.example.com. Run: gh auth login --hostname ghe.example.com',
+        hint: 'Run: gh auth login --hostname ghe.example.com',
+      })
+    );
   });
 
-  it('returns a GHES login hint when the enterprise token is missing', async () => {
-    mockGhesAuthSource.getToken.mockResolvedValue(null);
+  it('returns auth required when the selected account token is missing', async () => {
+    const account = await upsertAccount({ providerAccountId: '42' });
+    await secretStore.deleteSecret(`github-account-token:${account.id}`);
 
-    await expect(new GitHubApiAuthService().getToken('ghe.example.com')).resolves.toEqual(
+    await expect(service.getToken('github.com', { accountId: 'github.com:42' })).resolves.toEqual(
+      err({
+        type: 'auth_required',
+        host: 'github.com',
+        message: 'GitHub authentication required.',
+      })
+    );
+  });
+
+  it('uses the default account when no account id is provided and the default host matches', async () => {
+    await upsertAccount({ providerAccountId: '42', token: 'default-account-token' });
+
+    await expect(service.getToken('www.github.com')).resolves.toEqual(ok('default-account-token'));
+  });
+
+  it('uses a default GitHub Enterprise account when no account id is provided and the host matches', async () => {
+    await upsertAccount({
+      host: 'ghe.example.com',
+      providerAccountId: '168',
+      login: 'enterprise',
+      token: 'default-ghes-token',
+    });
+
+    await expect(service.getToken('ghe.example.com')).resolves.toEqual(ok('default-ghes-token'));
+  });
+
+  it('does not use the default account when no account id is provided and the host differs', async () => {
+    await upsertAccount({ providerAccountId: '42' });
+
+    await expect(service.getToken('ghe.example.com')).resolves.toEqual(
+      err({
+        type: 'auth_required',
+        host: 'ghe.example.com',
+        message:
+          'GitHub Enterprise authentication required for ghe.example.com. Run: gh auth login --hostname ghe.example.com',
+        hint: 'Run: gh auth login --hostname ghe.example.com',
+      })
+    );
+  });
+
+  it('returns a GHES login hint when no account is selected for an enterprise host', async () => {
+    await expect(service.getToken('ghe.example.com')).resolves.toEqual(
       err({
         type: 'auth_required',
         host: 'ghe.example.com',
