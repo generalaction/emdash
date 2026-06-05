@@ -4,7 +4,37 @@ Runs webhook-triggered agents on the server, each in an isolated Docker
 container. No Electron, no Xvfb. Design:
 `docs/superpowers/specs/2026-06-05-dockerized-agent-runner-design.md`.
 
-## One-time setup (on the server)
+## Quick path: `setup-runner.sh` (recommended)
+
+After `emdash-server` is deployed (via `deploy.sh`), SSH to the server and run
+the one-shot setup script. It is idempotent — re-run it to change the prompt,
+rotate the token, or add another automation.
+
+```bash
+# on the server, from where deploy.sh synced the package (e.g. /opt/emdash-server)
+cd /opt/emdash-server
+./setup-runner.sh \
+  --token  wh_810f6d8cfca484d05543d034c678c22a520724b2d0813e41 \
+  --repo   https://github.com/you/doc-engine.git \
+  --path   /opt/projects/doc-engine \
+  --prompt "Review the repo for exploitable security vulnerabilities."
+```
+
+It will: install Docker + jq if missing, build the `emdash-runner` image, clone
+the repo, **prompt you (hidden) for the Claude OAuth token** from
+`claude setup-token`, upsert the automation into `~/.emdash-server/config.json`,
+enable the runner, and restart pm2. Then it prints the test-webhook command.
+
+Pass `--oauth-token TOKEN` to supply the token non-interactively (it won't be
+echoed, but it will be in your shell history — prefer the prompt). Add `--push`
+to enable `git push` after runs. `--help` lists all flags.
+
+> First run only: if Docker had to add you to the `docker` group, **re-login**
+> afterwards so the node process can run `docker` without sudo.
+
+The rest of this doc is the manual equivalent, for reference or debugging.
+
+## One-time setup (on the server) — manual
 
 ### 1. Prerequisites
 
