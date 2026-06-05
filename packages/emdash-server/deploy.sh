@@ -46,21 +46,13 @@ echo "  → Running npm install..."
 npm install --omit=dev
 
 # Rebuild better-sqlite3 native addon only if the binary is missing
-SQLITE_BINDING=$(node -e "
-  try {
-    require('./node_modules/better-sqlite3');
-    console.log('ok');
-  } catch(e) {
-    console.log('missing');
-  }
-" 2>/dev/null || echo "missing")
-
-if [ "\$SQLITE_BINDING" = "missing" ]; then
+SQLITE_NODE=$(find ./node_modules/better-sqlite3 -name 'better_sqlite3.node' 2>/dev/null | head -1)
+if [ -z "\$SQLITE_NODE" ]; then
   echo "  → Compiling better-sqlite3 native addon (this takes ~1 min)..."
-  npm rebuild better-sqlite3 --verbose
+  npm rebuild better-sqlite3
   echo "  → Compilation done."
 else
-  echo "  → better-sqlite3 binary already compiled, skipping rebuild."
+  echo "  → better-sqlite3 binary found at \$SQLITE_NODE, skipping rebuild."
 fi
 
 # Ensure emdash-server config exists (skips if already initialised)
