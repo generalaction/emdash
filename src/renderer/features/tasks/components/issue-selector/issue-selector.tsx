@@ -97,7 +97,9 @@ export function IssueRow({ issue, linkedTo }: { issue: Issue; linkedTo?: LinkedI
       <div className="flex min-w-0 items-center gap-2">
         {issue.status ? (
           <Tooltip>
-            <TooltipTrigger render={<IssueStatusIndicator status={toIssueStatus(issue.status)} />} />
+            <TooltipTrigger
+              render={<IssueStatusIndicator status={toIssueStatus(issue.status)} />}
+            />
             <TooltipContent>{issue.status}</TooltipContent>
           </Tooltip>
         ) : null}
