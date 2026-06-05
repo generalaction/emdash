@@ -1,6 +1,9 @@
 # Headless Emdash Agent Runner on the Home Server — Design
 
-**Status:** Approved for iteration 1 (prove-it-works)
+**Status:** SUPERSEDED by `2026-06-05-dockerized-agent-runner-design.md`.
+Kept as a documented fallback (full desktop app under Xvfb). The chosen
+direction is a standalone Dockerized runner inside `emdash-server`, which drops
+Electron/Xvfb/node-pty entirely.
 **Date:** 2026-06-05
 
 ## Goal

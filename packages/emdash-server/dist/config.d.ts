@@ -32,6 +32,44 @@ declare const routeSchema: z.ZodObject<{
     automationToken: string;
     fanOut?: boolean | undefined;
 }>;
+declare const automationSchema: z.ZodObject<{
+    token: z.ZodString;
+    repoPath: z.ZodString;
+    prompt: z.ZodString;
+    image: z.ZodDefault<z.ZodString>;
+    push: z.ZodDefault<z.ZodBoolean>;
+    branch: z.ZodOptional<z.ZodString>;
+    timeoutMs: z.ZodDefault<z.ZodNumber>;
+}, "strip", z.ZodTypeAny, {
+    push: boolean;
+    token: string;
+    repoPath: string;
+    prompt: string;
+    image: string;
+    timeoutMs: number;
+    branch?: string | undefined;
+}, {
+    token: string;
+    repoPath: string;
+    prompt: string;
+    push?: boolean | undefined;
+    image?: string | undefined;
+    branch?: string | undefined;
+    timeoutMs?: number | undefined;
+}>;
+declare const runnerSchema: z.ZodDefault<z.ZodObject<{
+    enabled: z.ZodDefault<z.ZodBoolean>;
+    pollIntervalMs: z.ZodDefault<z.ZodNumber>;
+    maxConcurrent: z.ZodDefault<z.ZodNumber>;
+}, "strip", z.ZodTypeAny, {
+    enabled: boolean;
+    pollIntervalMs: number;
+    maxConcurrent: number;
+}, {
+    enabled?: boolean | undefined;
+    pollIntervalMs?: number | undefined;
+    maxConcurrent?: number | undefined;
+}>>;
 export declare const configSchema: z.ZodObject<{
     apiKey: z.ZodString;
     port: z.ZodDefault<z.ZodNumber>;
@@ -71,6 +109,45 @@ export declare const configSchema: z.ZodObject<{
         automationToken: string;
         fanOut?: boolean | undefined;
     }>, "many">>;
+    claudeOauthToken: z.ZodOptional<z.ZodString>;
+    runner: z.ZodDefault<z.ZodObject<{
+        enabled: z.ZodDefault<z.ZodBoolean>;
+        pollIntervalMs: z.ZodDefault<z.ZodNumber>;
+        maxConcurrent: z.ZodDefault<z.ZodNumber>;
+    }, "strip", z.ZodTypeAny, {
+        enabled: boolean;
+        pollIntervalMs: number;
+        maxConcurrent: number;
+    }, {
+        enabled?: boolean | undefined;
+        pollIntervalMs?: number | undefined;
+        maxConcurrent?: number | undefined;
+    }>>;
+    automations: z.ZodDefault<z.ZodArray<z.ZodObject<{
+        token: z.ZodString;
+        repoPath: z.ZodString;
+        prompt: z.ZodString;
+        image: z.ZodDefault<z.ZodString>;
+        push: z.ZodDefault<z.ZodBoolean>;
+        branch: z.ZodOptional<z.ZodString>;
+        timeoutMs: z.ZodDefault<z.ZodNumber>;
+    }, "strip", z.ZodTypeAny, {
+        push: boolean;
+        token: string;
+        repoPath: string;
+        prompt: string;
+        image: string;
+        timeoutMs: number;
+        branch?: string | undefined;
+    }, {
+        token: string;
+        repoPath: string;
+        prompt: string;
+        push?: boolean | undefined;
+        image?: string | undefined;
+        branch?: string | undefined;
+        timeoutMs?: number | undefined;
+    }>, "many">>;
 }, "strip", z.ZodTypeAny, {
     apiKey: string;
     port: number;
@@ -86,6 +163,21 @@ export declare const configSchema: z.ZodObject<{
         automationToken: string;
         fanOut: boolean;
     }[];
+    runner: {
+        enabled: boolean;
+        pollIntervalMs: number;
+        maxConcurrent: number;
+    };
+    automations: {
+        push: boolean;
+        token: string;
+        repoPath: string;
+        prompt: string;
+        image: string;
+        timeoutMs: number;
+        branch?: string | undefined;
+    }[];
+    claudeOauthToken?: string | undefined;
 }, {
     apiKey: string;
     dbPath: string;
@@ -101,9 +193,26 @@ export declare const configSchema: z.ZodObject<{
         automationToken: string;
         fanOut?: boolean | undefined;
     }[] | undefined;
+    claudeOauthToken?: string | undefined;
+    runner?: {
+        enabled?: boolean | undefined;
+        pollIntervalMs?: number | undefined;
+        maxConcurrent?: number | undefined;
+    } | undefined;
+    automations?: {
+        token: string;
+        repoPath: string;
+        prompt: string;
+        push?: boolean | undefined;
+        image?: string | undefined;
+        branch?: string | undefined;
+        timeoutMs?: number | undefined;
+    }[] | undefined;
 }>;
 export type Config = z.infer<typeof configSchema>;
 export type Route = z.infer<typeof routeSchema>;
+export type Automation = z.infer<typeof automationSchema>;
+export type RunnerConfig = z.infer<typeof runnerSchema>;
 export declare function defaultConfigDir(): string;
 export declare function defaultConfigPath(): string;
 export declare function defaultDbPath(): string;
