@@ -6,7 +6,7 @@ import { projectManager } from '@main/core/projects/project-manager';
 import { DEFAULT_AGENT_ID } from '@main/core/settings/settings-registry';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 import { appSettingsService } from '@main/core/settings/settings-service';
-import { generateRandom, generateTaskName } from '@main/core/tasks/name-generation/generateTaskName';
+import { generateRandom } from '@main/core/tasks/name-generation/generateTaskName';
 import {
   commitCreateTask,
   finalizeCreateTask,
@@ -40,19 +40,12 @@ async function ensureProjectOpen(projectId: string) {
   return ok(project);
 }
 
-function makeRunBranchName(baseBranch: string, runId: string) {
-  return generateTaskName({ title: baseBranch, description: runId });
-}
-
-function scopeWorkspaceConfigToRun(config: WorkspaceConfig, runId: string): WorkspaceConfig {
+function scopeWorkspaceConfigToRun(config: WorkspaceConfig, taskName: string): WorkspaceConfig {
   const git = config.git;
   if (git.kind === 'create-branch')
-    return { ...config, git: { ...git, branchName: makeRunBranchName(git.branchName, runId) } };
+    return { ...config, git: { ...git, branchName: taskName } };
   if (git.kind === 'pr-branch' && git.taskBranch)
-    return {
-      ...config,
-      git: { ...git, taskBranch: makeRunBranchName(git.taskBranch, runId) },
-    };
+    return { ...config, git: { ...git, taskBranch: taskName } };
   return config;
 }
 
@@ -82,7 +75,7 @@ export async function executeTaskCreate(
       await markRunFailed(run.id, { step: 'create_task', code: 'no_workspace_config' });
       return err('no_workspace_config');
     }
-    const workspaceConfig = scopeWorkspaceConfigToRun(taskConfig.workspaceConfig, run.id);
+    const workspaceConfig = scopeWorkspaceConfigToRun(taskConfig.workspaceConfig, taskName);
 
     const provider =
       (automation.conversationConfig?.provider ||

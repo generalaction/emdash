@@ -44,7 +44,6 @@ vi.mock('@main/core/settings/settings-service', () => ({
 }));
 vi.mock('@main/core/tasks/name-generation/generateTaskName', () => ({
   generateRandom: vi.fn(() => 'random-task-name'),
-  generateTaskName: vi.fn(({ title }: { title: string; description?: string }) => `${title}-scoped`),
 }));
 vi.mock('@main/core/tasks/operations/createTask', () => ({
   prepareCreateTask: vi.fn(),
@@ -253,14 +252,18 @@ describe('executeTaskCreate', () => {
     );
   });
 
-  it('scopes branch name from automation.taskConfig with run.id', async () => {
-    const { generateTaskName } = await import('@main/core/tasks/name-generation/generateTaskName');
+  it('uses the random task name as the branch name in the workspace config', async () => {
+    vi.mocked(generateRandom).mockReturnValue('jolly-tiger-runs-fast');
+
     await executeTaskCreate(automation, run);
 
-    expect(generateTaskName).toHaveBeenCalledWith({
-      title: 'stored-task-branch',
-      description: run.id,
-    });
+    expect(prepareCreateTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceConfig: expect.objectContaining({
+          git: expect.objectContaining({ branchName: 'jolly-tiger-runs-fast' }),
+        }),
+      })
+    );
   });
 
   it('enables auto-approval for Cursor conversations', async () => {
