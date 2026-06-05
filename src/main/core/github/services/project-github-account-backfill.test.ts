@@ -119,6 +119,22 @@ describe('ProjectGitHubAccountBackfillService', () => {
     expect(settings.update).toHaveBeenCalledWith({ githubAccountId: 'ghe.example.com:252' });
   });
 
+  it('uses the oldest account for the project remote host when no default is set', async () => {
+    accountLookup.defaultAccountId = null;
+    accountLookup.accounts = [
+      { ...account('github.com:84'), connectedAt: 2 },
+      { ...account('github.com:42'), connectedAt: 1 },
+    ];
+    const { project, settings } = makeProject();
+
+    await expect(service.backfillProject(project)).resolves.toEqual({
+      status: 'updated',
+      accountId: 'github.com:42',
+    });
+
+    expect(settings.update).toHaveBeenCalledWith({ githubAccountId: 'github.com:42' });
+  });
+
   it('does not backfill projects when no account exists for the remote host', async () => {
     accountLookup.accounts = [account('github.com:42')];
     const { project, settings } = makeProject({

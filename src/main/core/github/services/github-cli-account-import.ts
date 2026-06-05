@@ -18,6 +18,8 @@ type GitHubCliAuthStatus = {
   hosts?: unknown;
 };
 
+const GITHUB_CLI_AUTH_STATUS_TIMEOUT_MS = 5_000;
+
 function parseCliStatus(raw: string): GitHubCliAuthStatus {
   try {
     const parsed = JSON.parse(raw);
@@ -81,13 +83,13 @@ export class GitHubCliAccountImportService {
 
   private async readCliStatus(): Promise<string | null> {
     try {
-      const { stdout } = await this.ctx.exec('gh', [
-        'auth',
-        'status',
-        '--json',
-        'hosts',
-        '--show-token',
-      ]);
+      const { stdout } = await this.ctx.exec(
+        'gh',
+        ['auth', 'status', '--json', 'hosts', '--show-token'],
+        {
+          timeout: GITHUB_CLI_AUTH_STATUS_TIMEOUT_MS,
+        }
+      );
       return stdout;
     } catch {
       return null;

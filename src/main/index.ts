@@ -17,7 +17,7 @@ import { automationScheduler } from './core/automations/automation-scheduler';
 import { localDependencyManager } from './core/dependencies/dependency-manager';
 import { editorBufferService } from './core/editor/editor-buffer-service';
 import { gitWatcherRegistry } from './core/git/git-watcher-registry';
-import { githubAccountBackfillService } from './core/github/services/github-account-backfill-instance';
+import { githubAccountReconciliationService } from './core/github/services/github-account-reconciliation-instance';
 import { githubAccountRegistry } from './core/github/services/github-account-registry-instance';
 import { GitHubAuthServerAdapter } from './core/github/services/github-auth-server-adapter';
 import { githubConnectionService } from './core/github/services/github-connection-service';
@@ -156,11 +156,7 @@ void app.whenReady().then(async () => {
     githubAuthServerAdapter.storeOAuthToken(payload)
   );
 
-  try {
-    await githubAccountBackfillService.backfillLegacyToken();
-  } catch (error) {
-    log.warn('Failed to backfill legacy GitHub account token:', error);
-  }
+  await githubAccountReconciliationService.reconcileAtStartup();
 
   registerRPCRouter(rpcRouter, ipcMain);
 

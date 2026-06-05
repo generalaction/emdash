@@ -116,6 +116,19 @@ describe('GitHubCliAccountImportService', () => {
     await expect(registry.getDefaultAccountId()).resolves.toBe('github.com:42');
   });
 
+  it('bounds the GitHub CLI status call so startup cannot hang indefinitely', async () => {
+    const ctx = makeCtx(JSON.stringify({ hosts: {} }));
+    const service = new GitHubCliAccountImportService(registry, ctx, { getUserInfo });
+
+    await service.importAccounts();
+
+    expect(ctx.exec).toHaveBeenCalledWith(
+      'gh',
+      ['auth', 'status', '--json', 'hosts', '--show-token'],
+      { timeout: 5_000 }
+    );
+  });
+
   it('keeps existing linked accounts that are no longer reported by GitHub CLI', async () => {
     await registry.upsertAccount({
       accessToken: 'gho_existing',
