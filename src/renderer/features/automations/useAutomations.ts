@@ -84,6 +84,11 @@ export function useAutomations(projectId?: string) {
     onSuccess: invalidateAutomations,
   });
 
+  const forceCancelRun = useMutation({
+    mutationFn: (runId: string) => unwrap<void>(rpc.automations.forceCancelRun(runId)),
+    onSuccess: invalidateAutomations,
+  });
+
   return {
     automations,
     create,
@@ -92,6 +97,7 @@ export function useAutomations(projectId?: string) {
     setEnabled,
     runNow,
     removeRun,
+    forceCancelRun,
   };
 }
 

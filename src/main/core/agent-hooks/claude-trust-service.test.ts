@@ -136,6 +136,7 @@ describe('ClaudeTrustService', () => {
     expect(renameTo).toBe('/home/local-user/.claude.json');
 
     const written = JSON.parse(String(content));
+    expect(written.bypassPermissionsModeAccepted).toBe(true);
     expect(written.projects[path.resolve(relPath)]).toEqual({
       hasTrustDialogAccepted: true,
       hasCompletedProjectOnboarding: true,
@@ -178,7 +179,32 @@ describe('ClaudeTrustService', () => {
     expect(mockRename).not.toHaveBeenCalled();
   });
 
-  it('is idempotent when already trusted', async () => {
+  it('is idempotent when already trusted and bypass already acknowledged', async () => {
+    const service = makeService();
+    const trustedPath = '/already/trusted';
+    mockReadFile.mockResolvedValue(
+      JSON.stringify({
+        bypassPermissionsModeAccepted: true,
+        projects: {
+          [trustedPath]: {
+            hasTrustDialogAccepted: true,
+            hasCompletedProjectOnboarding: true,
+          },
+        },
+      })
+    );
+
+    await service.maybeAutoTrustLocal({
+      providerId: 'claude',
+      cwd: trustedPath,
+      homedir: '/home/local-user',
+    });
+
+    expect(mockWriteFile).not.toHaveBeenCalled();
+    expect(mockRename).not.toHaveBeenCalled();
+  });
+
+  it('acknowledges bypass mode even when the project is already trusted', async () => {
     const service = makeService();
     const trustedPath = '/already/trusted';
     mockReadFile.mockResolvedValue(
@@ -198,8 +224,9 @@ describe('ClaudeTrustService', () => {
       homedir: '/home/local-user',
     });
 
-    expect(mockWriteFile).not.toHaveBeenCalled();
-    expect(mockRename).not.toHaveBeenCalled();
+    expect(mockWriteFile).toHaveBeenCalledTimes(1);
+    const [, content] = mockWriteFile.mock.calls[0];
+    expect(JSON.parse(String(content)).bypassPermissionsModeAccepted).toBe(true);
   });
 
   it('refuses to overwrite corrupt JSON and logs a warning', async () => {

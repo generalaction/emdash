@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import { createConversation } from '@main/core/conversations/createConversation';
 import { ensureRepositoryWorkspace } from '@main/core/projects/operations/ensure-repository-workspace';
 import { openProject } from '@main/core/projects/operations/openProject';
 import { projectManager } from '@main/core/projects/project-manager';
@@ -286,7 +285,20 @@ export async function executeTaskCreate(
         return err({ message: formatProvisionActionError(provision.error), taskId });
       }
 
-      await createConversation({ ...initialConversation, isInitialConversation: true });
+      // The conversation row was already inserted by createTask — just start the session.
+      const createdConversation = result.data.initialConversation;
+      if (createdConversation) {
+        const { resolveTask } = await import('@main/core/projects/utils');
+        const task = resolveTask(projectId, taskId);
+        if (task) {
+          await task.conversations.startSession(
+            createdConversation,
+            undefined,
+            false,
+            initialConversation.initialPrompt
+          );
+        }
+      }
     } catch (error) {
       return err({ message: error instanceof Error ? error.message : String(error), taskId });
     }

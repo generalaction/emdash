@@ -24,7 +24,7 @@ import {
   removeRun as removeRunFromDb,
   updateAutomation,
 } from './repo';
-import { emitQueuedRun } from './run-transitions';
+import { emitQueuedRun, markRunFailed } from './run-transitions';
 import { setAutomationEnabled } from './service';
 
 function emitChanged(): void {
@@ -165,6 +165,16 @@ export const automationsController = createRPCController({
 
       const removed = await removeRunFromDb(id);
       if (!removed) return err('automation_run_not_found');
+      emitChanged();
+      return ok();
+    });
+  },
+
+  forceCancelRun(id: string): Promise<Result<void, string>> {
+    return safe(async () => {
+      const run = await getRun(id);
+      if (!run) return err('automation_run_not_found');
+      await markRunFailed(run.id, { error: 'force_cancelled', finishedAt: Date.now() });
       emitChanged();
       return ok();
     });

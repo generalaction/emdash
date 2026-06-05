@@ -38,7 +38,4 @@ export function assertValidWebhookTrigger(trigger: WebhookTrigger): void {
   if (!trigger.token || trigger.token.trim().length === 0) {
     throw new Error('webhook_trigger_token_required');
   }
-  if (!trigger.serverUrl || trigger.serverUrl.trim().length === 0) {
-    throw new Error('webhook_trigger_server_url_required');
-  }
 }

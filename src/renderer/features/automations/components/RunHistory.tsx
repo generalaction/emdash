@@ -20,7 +20,7 @@ export function RunHistory({ automation }: RunHistoryProps) {
   const loadMoreLockRef = useRef(false);
 
   const runs = useAutomationRuns(automation.id, visibleLimit + 1);
-  const { deleteRun, rerunFrom } = useAutomationRunActions();
+  const { deleteRun, rerunFrom, forceCancel } = useAutomationRunActions();
   const visibleRuns = useMemo(
     () => runs.data?.slice(0, visibleLimit) ?? [],
     [runs.data, visibleLimit]
@@ -81,6 +81,7 @@ export function RunHistory({ automation }: RunHistoryProps) {
               projectId={automation.projectId}
               title={automation.name}
               onDelete={deleteRun}
+              onForceCancel={forceCancel}
               onRerun={canRerun ? () => rerunFrom(automation.id) : undefined}
             />
           ))}

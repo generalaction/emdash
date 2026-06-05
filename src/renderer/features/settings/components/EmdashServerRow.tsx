@@ -1,41 +1,12 @@
 import { PencilIcon, ServerIcon, Trash2Icon } from 'lucide-react';
-import { useEffect, useState } from 'react';
 import type { EmdashServerConnection } from '@main/core/settings/schema';
-import { rpc } from '@renderer/lib/ipc';
 import { Badge } from '@renderer/lib/ui/badge';
 import { Button } from '@renderer/lib/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
+import { type ServerStatus, useServerStatus } from './useServerStatus';
 
-type Status = 'checking' | 'online' | 'auth_error' | 'offline';
-
-function useServerStatus(server: EmdashServerConnection): Status {
-  const [status, setStatus] = useState<Status>('checking');
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function check() {
-      try {
-        const result = await rpc.automations.checkServerHealth(server.url, server.apiKey);
-        if (cancelled) return;
-        if (result.success) setStatus(result.data);
-        else setStatus('offline');
-      } catch {
-        if (!cancelled) setStatus('offline');
-      }
-    }
-
-    void check();
-    const interval = setInterval(() => void check(), 30_000);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, [server.url, server.apiKey]);
-
-  return status;
-}
+type Status = ServerStatus;
 
 const STATUS_LABEL: Record<Status, string> = {
   checking: 'Checking…',

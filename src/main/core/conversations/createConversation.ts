@@ -67,14 +67,26 @@ export async function createConversation(
       updatedAt: sql`CURRENT_TIMESTAMP`,
       lastInteractedAt: new Date().toISOString(),
     })
+    .onConflictDoNothing()
     .returning();
+
+  // If onConflictDoNothing() swallowed the insert, fetch the existing row.
+  const conversationRow =
+    row ??
+    (
+      await database
+        .select()
+        .from(conversations)
+        .where(eq(conversations.id, id))
+        .limit(1)
+    )[0];
 
   const task = resolveTask(params.projectId, params.taskId);
   if (!task) {
     throw new Error('Task not found');
   }
 
-  const conversation = mapConversationRowToConversation(row);
+  const conversation = mapConversationRowToConversation(conversationRow);
 
   await withCompensation({
     action: () =>
@@ -85,7 +97,7 @@ export async function createConversation(
         params.initialPrompt
       ),
     compensate: async () => {
-      await database.delete(conversations).where(eq(conversations.id, row.id)).execute();
+      await database.delete(conversations).where(eq(conversations.id, conversationRow.id)).execute();
     },
     onCompensationError: (error) => {
       log.error('createConversation: failed to roll back conversation row after spawn failure', {

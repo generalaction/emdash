@@ -14,6 +14,10 @@ vi.mock('@main/core/projects/operations/ensure-repository-workspace', () => ({
   ensureRepositoryWorkspace: vi.fn().mockResolvedValue('ws-repo-1'),
 }));
 vi.mock('@main/core/projects/operations/openProject', () => ({ openProject: vi.fn() }));
+const startSessionMock = vi.fn().mockResolvedValue(undefined);
+vi.mock('@main/core/projects/utils', () => ({
+  resolveTask: vi.fn(() => ({ conversations: { startSession: startSessionMock } })),
+}));
 vi.mock('@main/db/client', () => ({ db: { select: vi.fn(), insert: vi.fn(), update: vi.fn() } }));
 vi.mock('@main/core/projects/project-manager', () => ({
   projectManager: { getProject: vi.fn() },
@@ -101,6 +105,7 @@ describe('executeTaskCreate', () => {
     });
     vi.mocked(createConversation).mockResolvedValue({} as never);
     vi.mocked(updateRun).mockImplementation(async (_, values) => ({ ...run, ...values }));
+    startSessionMock.mockResolvedValue(undefined);
   });
 
   it('opens the project before creating a task from stored config', async () => {
@@ -349,9 +354,14 @@ describe('executeTaskCreate', () => {
 
   it('provisions the task and starts its initial conversation', async () => {
     vi.mocked(projectManager.getProject).mockReturnValue({} as never);
+    const initialConversation = {
+      id: 'created-conversation-id',
+      projectId: 'project-1',
+      taskId: 'created-task-id',
+    } as never;
     vi.mocked(taskService.createTask).mockResolvedValueOnce({
       success: true,
-      data: { task: {} as never },
+      data: { task: {} as never, initialConversation },
     });
 
     const result = await executeTaskCreate(automation.actions[0]!, { automation, run });
@@ -359,16 +369,16 @@ describe('executeTaskCreate', () => {
     expect(result.success).toBe(true);
     if (!result.success) return;
     expect(taskService.launch).toHaveBeenCalledWith(result.data.taskId);
-    expect(createConversation).toHaveBeenCalledWith(
-      expect.objectContaining({
-        projectId: 'project-1',
-        taskId: result.data.taskId,
-        initialPrompt: 'Check things',
-        isInitialConversation: true,
-      })
+    // The conversation row is inserted by createTask; the action only starts the session.
+    expect(createConversation).not.toHaveBeenCalled();
+    expect(startSessionMock).toHaveBeenCalledWith(
+      initialConversation,
+      undefined,
+      false,
+      'Check things'
     );
     expect(vi.mocked(taskService.launch).mock.invocationCallOrder[0]).toBeLessThan(
-      vi.mocked(createConversation).mock.invocationCallOrder[0]
+      startSessionMock.mock.invocationCallOrder[0]
     );
   });
 

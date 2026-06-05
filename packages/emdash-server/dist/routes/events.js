@@ -4,13 +4,19 @@ import { webhookEvents } from '../db/schema.js';
 export const eventsPlugin = async (fastify) => {
     fastify.get('/api/events/pending', async (_request, reply) => {
         const db = getDb();
-        const events = await db
-            .select()
+        const rows = await db
+            .select({
+            id: webhookEvents.id,
+            automationToken: webhookEvents.token,
+            source: webhookEvents.source,
+            payload: webhookEvents.payload,
+            createdAt: webhookEvents.createdAt,
+        })
             .from(webhookEvents)
             .where(eq(webhookEvents.status, 'pending'))
             .orderBy(asc(webhookEvents.createdAt))
             .limit(100);
-        return reply.send({ events });
+        return reply.send({ events: rows });
     });
     fastify.post('/api/events/:id/ack', async (request, reply) => {
         const { id } = request.params;

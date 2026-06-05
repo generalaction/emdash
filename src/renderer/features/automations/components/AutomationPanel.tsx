@@ -1,4 +1,4 @@
-import { CheckCircle2, ChevronDown, FolderOpen } from 'lucide-react';
+import { CheckCircle2, ChevronDown, ClipboardCopy, FolderOpen, RefreshCw, Webhook } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState, type ReactNode } from 'react';
 import {
@@ -36,11 +36,13 @@ import {
   type AutomationTrigger,
   type BuiltinAutomationTemplate,
   type CronTrigger,
+  type WebhookTrigger,
 } from '@shared/automations/types';
-import { assertValidCronTrigger } from '@shared/automations/validation';
+import { assertValidCronTrigger, assertValidWebhookTrigger } from '@shared/automations/validation';
 import type { Branch } from '@shared/git';
 import type { CreateTaskParams } from '@shared/tasks';
 import type { WorkspaceConfig, WorkspaceTarget } from '@shared/workspace-config';
+import { rpc } from '@renderer/lib/ipc';
 import { useAutomations } from '../useAutomations';
 import { AutomationPanelHeader } from './AutomationPanelHeader';
 import { SchedulePicker } from './pickers/SchedulePicker';
@@ -134,6 +136,7 @@ export const AutomationPanel = observer(function AutomationPanel({
   const seedConfig = automation?.taskConfig;
 
   const { value: defaultAgentValue } = useAppSettingsKey('defaultAgent');
+  const { value: emdashServers } = useAppSettingsKey('emdashServers');
   const fallbackProvider: AgentProviderId = isValidProviderId(defaultAgentValue)
     ? defaultAgentValue
     : 'claude';
@@ -147,8 +150,15 @@ export const AutomationPanel = observer(function AutomationPanel({
   const [provider, setProvider] = useState<AgentProviderId>(
     isValidProviderId(seedProvider) ? seedProvider : fallbackProvider
   );
+  const [triggerKind, setTriggerKind] = useState<'cron' | 'webhook'>(
+    seedTrigger?.kind === 'webhook' ? 'webhook' : 'cron'
+  );
   const [cronExpr, setCronExpr] = useState<string>(cronExprFromTrigger(seedTrigger));
   const [cronTz, setCronTz] = useState<string>(cronTzFromTrigger(seedTrigger));
+  const [webhookToken, setWebhookToken] = useState<string>(
+    seedTrigger?.kind === 'webhook' ? seedTrigger.token : ''
+  );
+  const [webhookCopied, setWebhookCopied] = useState(false);
   const [useBYOI, setUseBYOI] = useState(() => {
     const ws = seedConfig?.workspaceConfig?.workspace;
     // Support both v2 (kind='byoi') and legacy v1 (host='byoi') stored configs.
@@ -271,12 +281,25 @@ export const AutomationPanel = observer(function AutomationPanel({
     setError(null);
     const taskConfig = buildTaskConfig(effectiveProjectId);
     if (!taskConfig) return;
-    const triggerSpec: CronTrigger = { kind: 'cron', expr: cronExpr.trim(), tz: cronTz };
-    try {
-      assertValidCronTrigger(triggerSpec);
-    } catch (validationError) {
-      setCronError(formatAutomationError(validationError));
-      return;
+    let triggerSpec: CronTrigger | WebhookTrigger;
+    if (triggerKind === 'webhook') {
+      const spec: WebhookTrigger = { kind: 'webhook', token: webhookToken.trim() };
+      try {
+        assertValidWebhookTrigger(spec);
+      } catch (validationError) {
+        setCronError(formatAutomationError(validationError));
+        return;
+      }
+      triggerSpec = spec;
+    } else {
+      const spec: CronTrigger = { kind: 'cron', expr: cronExpr.trim(), tz: cronTz };
+      try {
+        assertValidCronTrigger(spec);
+      } catch (validationError) {
+        setCronError(formatAutomationError(validationError));
+        return;
+      }
+      triggerSpec = spec;
     }
     setCronError(null);
     const actions: TaskCreateAction[] = [{ kind: 'task.create', prompt: prompt.trim() }];
@@ -321,8 +344,13 @@ export const AutomationPanel = observer(function AutomationPanel({
     const action = extractTaskAction(template.defaultActions);
     setPrompt(action?.prompt ?? '');
     if (template.defaultTrigger?.kind === 'cron') {
+      setTriggerKind('cron');
       setCronExpr(template.defaultTrigger.expr);
       setCronTz(template.defaultTrigger.tz);
+      setCronError(null);
+    } else if (template.defaultTrigger?.kind === 'webhook') {
+      setTriggerKind('webhook');
+      setWebhookToken(template.defaultTrigger.token);
       setCronError(null);
     }
     setTemplatePopoverOpen(false);
@@ -333,7 +361,7 @@ export const AutomationPanel = observer(function AutomationPanel({
       <AutomationPanelHeader
         isEdit={isEdit}
         automation={automation}
-        scheduleLabel={formatCronLabel(cronExpr)}
+        scheduleLabel={triggerKind === 'webhook' ? 'Webhook' : formatCronLabel(cronExpr)}
         onClose={onClose}
         onRunNow={
           onRunNow && automation && !automation.isDraft && automation.projectId
@@ -399,19 +427,127 @@ export const AutomationPanel = observer(function AutomationPanel({
           </section>
 
           <section className="flex flex-col gap-2">
-            <h3 className="text-muted-foreground text-xs font-medium">Schedule</h3>
-            <div className="bg-muted/10 rounded-md border border-border">
-              <RowField label="Runs">
-                <SchedulePicker
-                  value={cronExpr}
-                  onChange={(nextCronExpr) => {
-                    setCronExpr(nextCronExpr);
-                    setCronError(null);
-                  }}
-                />
-              </RowField>
+            <div className="flex items-center justify-between">
+              <h3 className="text-muted-foreground text-xs font-medium">Trigger</h3>
+              <div className="flex items-center gap-1 rounded-md border border-border bg-background p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setTriggerKind('cron')}
+                  className={cn(
+                    'rounded px-2 py-0.5 text-xs transition-colors',
+                    triggerKind === 'cron'
+                      ? 'bg-muted text-foreground'
+                      : 'text-foreground-muted hover:text-foreground'
+                  )}
+                >
+                  Schedule
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTriggerKind('webhook')}
+                  className={cn(
+                    'rounded px-2 py-0.5 text-xs transition-colors',
+                    triggerKind === 'webhook'
+                      ? 'bg-muted text-foreground'
+                      : 'text-foreground-muted hover:text-foreground'
+                  )}
+                >
+                  Webhook
+                </button>
+              </div>
             </div>
-            {cronError && <p className="text-destructive text-xs">{cronError}</p>}
+
+            {triggerKind === 'cron' ? (
+              <>
+                <div className="bg-muted/10 rounded-md border border-border">
+                  <RowField label="Runs">
+                    <SchedulePicker
+                      value={cronExpr}
+                      onChange={(nextCronExpr) => {
+                        setCronExpr(nextCronExpr);
+                        setCronError(null);
+                      }}
+                    />
+                  </RowField>
+                </div>
+                {cronError && <p className="text-destructive text-xs">{cronError}</p>}
+              </>
+            ) : (
+              <div className="flex flex-col gap-3 rounded-md border border-border bg-muted/10 p-3">
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-foreground-muted">Webhook token</span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        title="Generate new token"
+                        className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-foreground-muted hover:bg-muted hover:text-foreground transition-colors"
+                        onClick={async () => {
+                          const result = await rpc.automations.generateWebhookToken();
+                          if (result.success) setWebhookToken(result.data);
+                        }}
+                      >
+                        <RefreshCw className="size-3" />
+                        Regenerate
+                      </button>
+                      <button
+                        type="button"
+                        title="Copy token"
+                        className="flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-foreground-muted hover:bg-muted hover:text-foreground transition-colors"
+                        onClick={() => {
+                          void navigator.clipboard.writeText(webhookToken);
+                          setWebhookCopied(true);
+                          setTimeout(() => setWebhookCopied(false), 1500);
+                        }}
+                      >
+                        <ClipboardCopy className="size-3" />
+                        {webhookCopied ? 'Copied!' : 'Copy'}
+                      </button>
+                    </div>
+                  </div>
+                  {webhookToken ? (
+                    <code className="block w-full truncate rounded bg-muted px-2 py-1.5 font-mono text-xs text-foreground">
+                      {webhookToken}
+                    </code>
+                  ) : (
+                    <button
+                      type="button"
+                      className="flex items-center gap-1.5 rounded border border-dashed border-border px-2 py-1.5 text-xs text-foreground-muted hover:border-foreground-muted hover:text-foreground transition-colors"
+                      onClick={async () => {
+                        const result = await rpc.automations.generateWebhookToken();
+                        if (result.success) setWebhookToken(result.data);
+                      }}
+                    >
+                      <RefreshCw className="size-3" />
+                      Generate token
+                    </button>
+                  )}
+                </div>
+
+                {webhookToken && (
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-xs text-foreground-muted">Endpoint</span>
+                    {emdashServers && Array.isArray(emdashServers) && emdashServers.length > 0 ? (
+                      emdashServers.map((server: { id: string; label: string; url: string }) => (
+                        <div key={server.id} className="flex items-center gap-1.5">
+                          <Webhook className="size-3 shrink-0 text-foreground-muted" />
+                          <code className="min-w-0 truncate rounded bg-muted px-1.5 py-1 font-mono text-xs text-foreground">
+                            {server.url}/webhook/{webhookToken}
+                          </code>
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-xs text-foreground-muted">
+                        No servers configured. Add one in{' '}
+                        <span className="text-foreground">Settings → Server</span>.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {cronError && <p className="text-destructive text-xs">{cronError}</p>}
+              </div>
+            )}
           </section>
 
           <section className="flex flex-col gap-2">

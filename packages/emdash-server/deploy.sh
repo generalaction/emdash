@@ -1,13 +1,33 @@
 #!/usr/bin/env bash
 # deploy.sh — install or update emdash-server on home-server.local via SSH + pm2
+#
+# Usage:
+#   ./deploy.sh                  # deploy app only
+#   ./deploy.sh --tunnel         # deploy app, then run tunnel setup
+#   ./deploy.sh --tunnel-only    # run tunnel setup without deploying app
 set -euo pipefail
 
 SSH_HOST="${EMDASH_SERVER_HOST:-home-server.local}"
 SSH_USER="${EMDASH_SERVER_USER:-$(whoami)}"
 REMOTE_DIR="${EMDASH_SERVER_DIR:-/opt/emdash-server}"
 PM2_APP_NAME="emdash-server"
+SETUP_TUNNEL=false
+TUNNEL_ONLY=false
+
+for arg in "$@"; do
+  [[ "$arg" == "--tunnel" ]] && SETUP_TUNNEL=true
+  [[ "$arg" == "--tunnel-only" ]] && TUNNEL_ONLY=true SETUP_TUNNEL=true
+done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# ── Tunnel-only shortcut ──────────────────────────────────────────────────────
+if $TUNNEL_ONLY; then
+  EMDASH_SERVER_HOST="$SSH_HOST" \
+  EMDASH_SERVER_USER="$SSH_USER" \
+    "$SCRIPT_DIR/setup-tunnel.sh" "${@/--tunnel-only/}"
+  exit 0
+fi
 
 # ── Build locally first ──────────────────────────────────────────────────────
 echo "→ Building emdash-server..."
@@ -110,3 +130,11 @@ echo ""
 echo "  Webhook endpoint:  http://${SSH_HOST}:8080/webhook/<token>"
 echo "  Health check:      http://${SSH_HOST}:8080/api/health"
 echo "  Server logs:       ssh ${SSH_USER}@${SSH_HOST} 'pm2 logs ${PM2_APP_NAME}'"
+
+# ── Tunnel setup (optional) ───────────────────────────────────────────────────
+if $SETUP_TUNNEL; then
+  echo ""
+  EMDASH_SERVER_HOST="$SSH_HOST" \
+  EMDASH_SERVER_USER="$SSH_USER" \
+    "$SCRIPT_DIR/setup-tunnel.sh"
+fi

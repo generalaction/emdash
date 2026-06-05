@@ -174,13 +174,18 @@ function withClaudeTrustedProject(
   const projects = isPlainObject(config.projects) ? config.projects : {};
   const existing = isPlainObject(projects[worktreePath]) ? projects[worktreePath] : {};
 
+  // The CLI also requires a one-time, machine-wide acknowledgment before it will
+  // honor `--dangerously-skip-permissions` non-interactively. Without it the agent
+  // blocks on the "accept the risk" prompt — fatal for unattended automation runs.
+  const needsBypassAck = config['bypassPermissionsModeAccepted'] !== true;
   const alreadyTrusted =
     existing['hasTrustDialogAccepted'] === true &&
     existing['hasCompletedProjectOnboarding'] === true;
-  if (alreadyTrusted) return null;
+  if (alreadyTrusted && !needsBypassAck) return null;
 
   return {
     ...config,
+    bypassPermissionsModeAccepted: true,
     projects: {
       ...projects,
       [worktreePath]: {

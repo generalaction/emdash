@@ -1,4 +1,4 @@
-import { Bot, Clock, Folder, MessageSquarePlus, RotateCcw, Trash2 } from 'lucide-react';
+import { Ban, Bot, Clock, Folder, MessageSquarePlus, RotateCcw, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
 import { automationRunTool } from '@renderer/features/automations/automation-tools';
@@ -53,6 +53,7 @@ interface AutomationRunRowProps {
   showProjectName?: boolean;
   variant?: AutomationRunRowVariant;
   onDelete?: (run: AutomationRun) => void;
+  onForceCancel?: (run: AutomationRun) => void;
   onRerun?: (run: AutomationRun) => void;
   isSelected?: boolean;
   onToggleSelect?: () => void;
@@ -66,6 +67,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
   showProjectName = false,
   variant = 'row',
   onDelete,
+  onForceCancel,
   onRerun,
   isSelected,
   onToggleSelect,
@@ -365,7 +367,9 @@ export const AutomationRunRow = observer(function AutomationRunRow({
     </Tooltip>
   );
 
-  if (!onDelete && !onRerun && !canAddAsNormalTask) return wrapped;
+  const isInFlight = run.status === 'queued' || run.status === 'running';
+
+  if (!onDelete && !onForceCancel && !onRerun && !canAddAsNormalTask) return wrapped;
 
   return (
     <ContextMenu>
@@ -383,7 +387,13 @@ export const AutomationRunRow = observer(function AutomationRunRow({
             Convert to task
           </ContextMenuItem>
         ) : null}
-        {onDelete ? (
+        {onForceCancel && isInFlight ? (
+          <ContextMenuItem variant="destructive" onClick={() => onForceCancel(run)}>
+            <Ban />
+            Force cancel
+          </ContextMenuItem>
+        ) : null}
+        {onDelete && !isInFlight ? (
           <ContextMenuItem variant="destructive" onClick={() => onDelete(run)}>
             <Trash2 />
             Delete run

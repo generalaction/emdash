@@ -1,8 +1,27 @@
 import { spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const require = createRequire(import.meta.url);
+
+// Resolve the installed Electron version so electron-rebuild targets the exact
+// ABI the app runs against. Auto-detection has produced wrong-ABI native builds
+// in mixed package-manager layouts, which crashes node-pty at pty.fork() with an
+// uncatchable Napi::Error. Reading the resolved version keeps it pinned without
+// hardcoding it in two places.
+function getElectronVersion(): string | null {
+  try {
+    return require('electron/package.json').version as string;
+  } catch (error) {
+    console.warn(
+      'postinstall: could not resolve electron version; electron-rebuild will auto-detect:',
+      error instanceof Error ? error.message : String(error)
+    );
+    return null;
+  }
+}
 
 // Install the isolated better-sqlite3 for system Node unconditionally.
 // Vitest fixture and migration projects alias better-sqlite3 to this copy so
@@ -36,6 +55,11 @@ function getElectronRebuildBin() {
 function runElectronRebuild(onlyModules) {
   const electronRebuildBin = getElectronRebuildBin();
   const args = ['-f'];
+
+  const electronVersion = getElectronVersion();
+  if (electronVersion) {
+    args.push('-v', electronVersion);
+  }
 
   if (onlyModules && onlyModules.length > 0) {
     args.push('--only', onlyModules.join(','));

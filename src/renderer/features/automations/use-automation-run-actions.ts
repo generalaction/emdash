@@ -6,7 +6,7 @@ import type { AutomationRun } from '@shared/automations/types';
 import { useAutomations } from './useAutomations';
 
 export function useAutomationRunActions() {
-  const { removeRun, runNow } = useAutomations();
+  const { removeRun, runNow, forceCancelRun } = useAutomations();
   const { toast } = useToast();
   const showConfirmDelete = useShowModal('confirmActionModal');
 
@@ -61,9 +61,21 @@ export function useAutomationRunActions() {
     });
   }
 
+  function forceCancel(run: AutomationRun) {
+    forceCancelRun.mutate(run.id, {
+      onError: (error) =>
+        toast({
+          title: 'Failed to cancel run',
+          description: error instanceof Error ? error.message : String(error),
+          variant: 'destructive',
+        }),
+    });
+  }
+
   return {
     deleteRun,
     bulkDeleteRuns,
     rerunFrom,
+    forceCancel,
   };
 }

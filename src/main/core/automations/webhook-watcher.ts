@@ -3,6 +3,7 @@ import type { EmdashServerConnection } from '@main/core/settings/schema';
 import type { Automation } from '@shared/automations/types';
 import { enqueueAutomationRun, webhookAutomations } from './repo';
 import { emitQueuedRun } from './run-transitions';
+import { automationScheduler } from './automation-scheduler';
 import { appSettingsService } from '@main/core/settings/settings-service';
 
 const POLL_INTERVAL_MS = 5_000;
@@ -104,6 +105,7 @@ class ServerPoller {
           });
           if (run) {
             emitQueuedRun(run);
+            void automationScheduler.drainQueue();
           } else {
             log.warn('WebhookWatcher: run enqueue skipped (automation busy)', {
               automationId: automation.id,

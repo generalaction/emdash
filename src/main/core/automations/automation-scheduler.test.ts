@@ -540,12 +540,18 @@ import { assertValidWebhookTrigger } from '@shared/automations/validation';
 
 describe('assertValidWebhookTrigger', () => {
   it('does not throw for a valid webhook trigger', () => {
-    expect(() => assertValidWebhookTrigger({ kind: 'webhook', token: 'wh_abc123', serverUrl: 'http://home-server.local:8080' })).not.toThrow();
+    expect(() =>
+      assertValidWebhookTrigger({ kind: 'webhook', token: 'wh_abc123', serverUrl: '' })
+    ).not.toThrow();
   });
   it('throws for missing token', () => {
-    expect(() => assertValidWebhookTrigger({ kind: 'webhook', token: '', serverUrl: 'http://home-server.local:8080' })).toThrow('webhook_trigger_token_required');
+    expect(() =>
+      assertValidWebhookTrigger({ kind: 'webhook', token: '', serverUrl: '' })
+    ).toThrow('webhook_trigger_token_required');
   });
-  it('throws for missing serverUrl', () => {
-    expect(() => assertValidWebhookTrigger({ kind: 'webhook', token: 'wh_abc', serverUrl: '' })).toThrow('webhook_trigger_server_url_required');
+  it('does not require serverUrl (resolved at runtime from configured servers)', () => {
+    expect(() =>
+      assertValidWebhookTrigger({ kind: 'webhook', token: 'wh_abc', serverUrl: '' })
+    ).not.toThrow();
   });
 });
