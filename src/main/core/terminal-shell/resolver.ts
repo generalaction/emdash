@@ -161,10 +161,7 @@ function windowsSystemCommand(
   const systemCandidate = systemRoot
     ? path.win32.join(systemRoot, 'System32', executable)
     : undefined;
-  return (
-    firstExisting(systemCandidate ? [systemCandidate] : [], fileExists) ??
-    findOnPath(executable, env, 'win32', fileExists)
-  );
+  return firstExisting(systemCandidate ? [systemCandidate] : [], fileExists);
 }
 
 function isWindowsWslBashLauncher(candidate: string): boolean {

@@ -141,6 +141,7 @@ describe('terminal shell resolver', () => {
         kind: 'local',
         platform: 'win32',
         env: {
+          SystemRoot: 'C:\\Windows',
           Path: 'C:\\Windows\\System32',
           PATHEXT: '.EXE;.CMD',
         },
@@ -156,6 +157,24 @@ describe('terminal shell resolver', () => {
       interactiveArgs: [],
       commandArgs: ['--exec', 'sh', '-lc'],
     });
+  });
+
+  it('does not resolve explicit WSL from an arbitrary PATH entry on Windows', async () => {
+    await expect(
+      resolveTerminalShell({
+        intent: 'wsl',
+        target: {
+          kind: 'local',
+          platform: 'win32',
+          env: {
+            SystemRoot: 'C:\\Windows',
+            Path: 'C:\\Tools',
+            PATHEXT: '.EXE;.CMD',
+          },
+        },
+        fileExists: (candidate) => candidate.toLowerCase() === 'c:\\tools\\wsl.exe',
+      })
+    ).rejects.toBeInstanceOf(ShellUnavailableError);
   });
 
   it('falls Windows automation shell back to Windows PowerShell before cmd', async () => {
@@ -259,6 +278,7 @@ describe('terminal shell resolver', () => {
       env: {
         ComSpec: 'C:\\Windows\\System32\\cmd.exe',
         ProgramFiles: 'C:\\Program Files',
+        SystemRoot: 'C:\\Windows',
         Path: 'C:\\Windows\\System32;C:\\Program Files\\Git\\bin',
         PATHEXT: '.EXE;.CMD',
       },
