@@ -8,7 +8,8 @@ import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
 import { Label } from '@renderer/lib/ui/label';
 import { Switch } from '@renderer/lib/ui/switch';
 import type { AutomationFormState } from '../useAutomationFormState';
-import { SchedulePicker } from './pickers/SchedulePicker';
+import { CronPicker } from '@renderer/lib/CronPicker';
+import { Field, FieldError } from '@renderer/lib/ui/field';
 
 interface AutomationSettingsFieldsProps {
   state: AutomationFormState;
@@ -50,6 +51,19 @@ export function AutomationSettingsFields({
   return (
     <>
       <section className="flex flex-col gap-2">
+        <Field>
+        <Label>Schedule</Label>
+            <CronPicker
+              value={cronExpr}
+              onChange={(nextCronExpr) => {
+                onCronExprChange(nextCronExpr);
+                onCronErrorClear();
+              }}
+            />
+        {cronError && <FieldError>{cronError}</FieldError>}
+        </Field>
+      </section>
+      <section className="flex flex-col gap-2">
         <Label className="text-muted-foreground text-xs font-medium">Prompt</Label>
         <InitialConversationField
           state={initialConversation}
@@ -58,21 +72,6 @@ export function AutomationSettingsFields({
         />
       </section>
 
-      <section className="flex flex-col gap-2">
-        <h3 className="text-muted-foreground text-xs font-medium">Schedule</h3>
-        <div className="bg-muted/10 rounded-md border border-border">
-          <RowField label="Runs">
-            <SchedulePicker
-              value={cronExpr}
-              onChange={(nextCronExpr) => {
-                onCronExprChange(nextCronExpr);
-                onCronErrorClear();
-              }}
-            />
-          </RowField>
-        </div>
-        {cronError && <p className="text-destructive text-xs">{cronError}</p>}
-      </section>
 
       <section className="flex flex-col gap-2">
         <h3 className="text-muted-foreground text-xs font-medium">Execution</h3>

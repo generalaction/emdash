@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Sheet, SheetContent } from '@renderer/lib/ui/sheet';
 import type { Automation, BuiltinAutomationTemplate } from '@shared/automations/automation';
 import { useAutomations } from '../use-automations';
@@ -16,6 +17,7 @@ export function AutomationsView() {
   const { automations, toggleEnabled, destroy } = useAutomations();
   const [search, setSearch] = useState('');
   const [panel, setPanel] = useState<PanelState>(null);
+  const showConfirm = useShowModal('confirmActionModal');
 
   const liveAutomation =
     panel?.kind === 'edit'
@@ -27,7 +29,14 @@ export function AutomationsView() {
   }
 
   function handleDelete(automation: Automation) {
-    void destroy.mutateAsync(automation.id).then(() => setPanel(null));
+    showConfirm({
+      title: 'Delete automation',
+      description: `"${automation.name}" will be permanently deleted. Run history will be preserved.`,
+      confirmLabel: 'Delete',
+      onSuccess: () => {
+        void destroy.mutateAsync(automation.id).then(() => setPanel(null));
+      },
+    });
   }
 
   return (

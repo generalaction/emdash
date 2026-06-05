@@ -22,7 +22,7 @@ import {
   getRun,
   insertRun,
   listAutomations as repoListAutomations,
-  removeAutomation,
+  softDeleteAutomation,
   renameAutomation as renameInRepo,
   setAutomationEnabled as repoSetAutomationEnabled,
   skipQueuedCronRuns,
@@ -228,7 +228,7 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
 
   async deleteAutomation(id: string): Promise<void> {
     await skipQueuedCronRuns(id, 'automation_deleted');
-    const deleted = await removeAutomation(id);
+    const deleted = await softDeleteAutomation(id);
     if (!deleted) throw new Error('automation_not_found');
     this._hooks.callHookBackground('automation:deleted', id);
     events.emit(automationChangedChannel, { automationId: id });

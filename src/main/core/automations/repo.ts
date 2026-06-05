@@ -224,14 +224,21 @@ export function getNextRunAt(
 
 export async function listAutomations(projectId?: string): Promise<Automation[]> {
   const query = projectId
-    ? db.select().from(automations).where(eq(automations.projectId, projectId))
-    : db.select().from(automations);
+    ? db
+        .select()
+        .from(automations)
+        .where(and(eq(automations.projectId, projectId), isNull(automations.deletedAt)))
+    : db.select().from(automations).where(isNull(automations.deletedAt));
   const rows = await query;
   return mapAutomationRows(rows);
 }
 
 export async function getAutomation(id: string): Promise<Automation | null> {
-  const [row] = await db.select().from(automations).where(eq(automations.id, id)).limit(1);
+  const [row] = await db
+    .select()
+    .from(automations)
+    .where(and(eq(automations.id, id), isNull(automations.deletedAt)))
+    .limit(1);
   return row ? mapAutomationRowSafely(row) : null;
 }
 
@@ -307,7 +314,7 @@ export async function updateAutomationSettings(
     const [existingRow] = tx
       .select()
       .from(automations)
-      .where(eq(automations.id, id))
+      .where(and(eq(automations.id, id), isNull(automations.deletedAt)))
       .limit(1)
       .all();
     if (!existingRow) return null;
@@ -351,7 +358,7 @@ export async function renameAutomation(id: string, name: string): Promise<Automa
   const [row] = await db
     .update(automations)
     .set({ name: name.trim(), updatedAt: Date.now() })
-    .where(eq(automations.id, id))
+    .where(and(eq(automations.id, id), isNull(automations.deletedAt)))
     .returning();
   return row ? mapAutomationRow(row) : null;
 }
@@ -360,17 +367,18 @@ export async function detachProjectAutomations(projectId: string): Promise<Array
   const rows = await db
     .update(automations)
     .set({ projectId: null, updatedAt: Date.now() })
-    .where(eq(automations.projectId, projectId))
+    .where(and(eq(automations.projectId, projectId), isNull(automations.deletedAt)))
     .returning({ id: automations.id });
   return rows;
 }
 
-export async function removeAutomation(id: string): Promise<boolean> {
-  const deleted = await db
-    .delete(automations)
-    .where(eq(automations.id, id))
+export async function softDeleteAutomation(id: string): Promise<boolean> {
+  const rows = await db
+    .update(automations)
+    .set({ deletedAt: Date.now() })
+    .where(and(eq(automations.id, id), isNull(automations.deletedAt)))
     .returning({ id: automations.id });
-  return deleted.length > 0;
+  return rows.length > 0;
 }
 
 export async function setAutomationEnabled(
@@ -421,7 +429,8 @@ export async function markDueCronRunsQueued(
         eq(automationRuns.triggerKind, 'cron'),
         sql`${automationRuns.scheduledAt} <= ${now}`,
         eq(automations.enabled, 1),
-        sql`${automations.projectId} IS NOT NULL`
+        sql`${automations.projectId} IS NOT NULL`,
+        isNull(automations.deletedAt)
       )
     )
     .orderBy(asc(automationRuns.scheduledAt));
@@ -460,6 +469,7 @@ export async function enabledAutomationsWithoutQueuedRun(): Promise<Automation[]
       and(
         eq(automations.enabled, 1),
         sql`${automations.projectId} IS NOT NULL`,
+        isNull(automations.deletedAt),
         isNull(automationRuns.id)
       )
     );
@@ -533,7 +543,13 @@ export async function listQueuedRuns(limit = 100): Promise<
     .select({ run: automationRuns, automation: automations })
     .from(automationRuns)
     .innerJoin(automations, eq(automationRuns.automationId, automations.id))
-    .where(and(eq(automationRuns.status, 'queued'), eq(automations.enabled, 1)))
+    .where(
+      and(
+        eq(automationRuns.status, 'queued'),
+        eq(automations.enabled, 1),
+        isNull(automations.deletedAt)
+      )
+    )
     .orderBy(asc(automationRuns.scheduledAt), asc(automationRuns.startedAt))
     .limit(limit);
   return rows.flatMap(({ run, automation }) => {

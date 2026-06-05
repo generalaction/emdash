@@ -71,8 +71,8 @@ export const AutomationRunRow = observer(function AutomationRunRow({
   return (
     <div
       className={cn(
-        'group relative flex cursor-pointer flex-col gap-1 rounded-lg px-3 py-2.5 transition-colors',
-        interactive ? 'hover:bg-background-1' : 'cursor-default opacity-70'
+        'group relative flex cursor-pointer flex-col gap-1 px-3 py-2.5 transition-colors',
+        interactive ? 'hover:bg-background-2' : 'cursor-default opacity-70'
       )}
       role="button"
       tabIndex={interactive ? 0 : -1}
@@ -87,7 +87,11 @@ export const AutomationRunRow = observer(function AutomationRunRow({
           : undefined
       }
       aria-label={
-        taskStore ? `Open ${taskStore.displayName}` : displayName ? `Open ${displayName}` : 'Open run'
+        taskStore
+          ? `Open ${taskStore.displayName}`
+          : displayName
+            ? `Open ${displayName}`
+            : 'Open run'
       }
       aria-disabled={!interactive}
     >
@@ -101,11 +105,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
       ) : (
         <TaskPlaceholder name={displayName} />
       )}
-      <RunMetaLine
-        displayTime={displayTime}
-        triggerKind={run.triggerKind}
-        runStatus={run.status}
-      />
+      <RunMetaLine displayTime={displayTime} triggerKind={run.triggerKind} runStatus={run.status} />
 
       {/* Hover action overlay */}
       {isRunActive && (

@@ -127,6 +127,13 @@
       "when": 1780682670878,
       "tag": "0017_petite_monster_badoon",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1780690295894,
+      "tag": "0018_material_quasar",
+      "breakpoints": true
     }
   ]
 }

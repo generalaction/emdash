@@ -17,6 +17,7 @@ import { useAutomationEventBridge, useAutomations } from '../use-automations';
 import { useAutomationSettingsAutoSave } from '../useAutomationSettingsAutoSave';
 import { AutomationSettingsFields } from './AutomationSettingsFields';
 import { RunHistory } from './RunHistory';
+import { SheetHeader } from './sheet-header';
 
 type AutomationTab = 'runs' | 'settings';
 
@@ -56,14 +57,10 @@ export const AutomationDetailView = observer(function AutomationDetailView({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex flex-col gap-4 p-4">
+      <SheetHeader title="Automation details" onClose={onClose} />
+      <div className="flex flex-col gap-4 px-4">
         <div className="flex w-full items-center justify-between gap-2">
           <div className="flex flex-row items-center gap-3">
-            <Switch
-              checked={automation.enabled}
-              onCheckedChange={(checked) => onToggleEnabled?.(automation, checked)}
-              aria-label={automation.enabled ? 'Pause automation' : 'Enable automation'}
-            />
             <EditableNameField
               autoFocus={false}
               value={name}
@@ -85,9 +82,11 @@ export const AutomationDetailView = observer(function AutomationDetailView({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button variant="ghost" size="sm" onClick={onClose}>
-              <X className="size-4" />
-            </Button>
+            <Switch
+              checked={automation.enabled}
+              onCheckedChange={(checked) => onToggleEnabled?.(automation, checked)}
+              aria-label={automation.enabled ? 'Pause automation' : 'Enable automation'}
+            />
           </div>
         </div>
 

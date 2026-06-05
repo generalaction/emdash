@@ -2,7 +2,10 @@ import { CheckCircle2 } from 'lucide-react';
 import { statusIndicatorConfig } from '@renderer/features/automations/run-status-styles';
 import { AbsoluteTime } from '@renderer/lib/ui/absolute-time';
 import { cn } from '@renderer/utils/utils';
-import type { AutomationRunStatus, AutomationRunTriggerKind } from '@shared/automations/automation-run';
+import type {
+  AutomationRunStatus,
+  AutomationRunTriggerKind,
+} from '@shared/automations/automation-run';
 import { formatRunTriggerKindLabel } from '@shared/automations/format';
 
 export interface RunMetaLineProps {
@@ -37,7 +40,14 @@ export function RunMetaLine({ displayTime, triggerKind, runStatus }: RunMetaLine
   return (
     <div className="flex min-w-0 items-center gap-2 text-xs text-foreground-muted">
       <span className="flex-1">
-        {displayTime ? <AbsoluteTime className="font-mono text-tiny text-foreground-passive" value={displayTime} /> : <span>—</span>}
+        {displayTime ? (
+          <AbsoluteTime
+            className="font-mono text-tiny text-foreground-passive"
+            value={displayTime}
+          />
+        ) : (
+          <span>—</span>
+        )}
       </span>
       {triggerLabel && <span className="shrink-0">Triggered by {triggerLabel}</span>}
       {statusContent}

@@ -25,7 +25,7 @@ export const TaskDataLine = observer(function TaskDataLine({
     <div className="flex min-w-0 items-center gap-2">
       <span
         className={cn(
-          'min-w-0 flex-1 truncate text-sm font-medium text-foreground',
+          'min-w-0 flex-1 truncate text-sm text-foreground',
           isRunActive && 'text-shimmer',
           missedDeadline && 'text-destructive'
         )}

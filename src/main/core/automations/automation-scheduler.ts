@@ -8,6 +8,7 @@ import {
   findRunsStuckInCreatingConversation,
   findRunsStuckInCreatingTask,
   findRunsStuckInLaunchingTask,
+  getAutomation,
   listQueuedRuns,
   markDueCronRunsQueued,
   startCreatingTask,
@@ -289,8 +290,14 @@ export class AutomationScheduler {
   }
 
   private async runWorker(automation: Automation, run: AutomationRun): Promise<void> {
+    const current = await getAutomation(automation.id);
+    if (!current) {
+      const skipped = await markRunSkipped(run.id, { step: 'queue', code: 'automation_deleted' });
+      this.callbacks.onRunStep(skipped);
+      return;
+    }
     try {
-      await this.executor(automation, run, this.callbacks.onRunStep);
+      await this.executor(current, run, this.callbacks.onRunStep);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       log.error('AutomationScheduler worker failed unexpectedly', {

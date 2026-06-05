@@ -298,6 +298,7 @@ export const automations = sqliteTable(
     enabled: integer('enabled').notNull().default(1),
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
+    deletedAt: integer('deleted_at'),
   },
   (table) => ({
     projectIdIdx: index('idx_automations_project_id').on(table.projectId),

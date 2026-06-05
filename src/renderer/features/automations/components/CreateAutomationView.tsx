@@ -5,7 +5,7 @@ import { useToast } from '@renderer/lib/hooks/use-toast';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import { Input } from '@renderer/lib/ui/input';
-import { Label } from '@renderer/lib/ui/label';
+import { Label, MicroLabel } from '@renderer/lib/ui/label';
 import { SheetFooter } from '@renderer/lib/ui/sheet';
 import type { Automation } from '@shared/automations/automation';
 import type { ConversationConfig } from '@shared/automations/config';
@@ -14,6 +14,9 @@ import { assertValidCronTrigger } from '@shared/automations/validation';
 import { useAutomations } from '../use-automations';
 import { useAutomationFormState } from '../useAutomationFormState';
 import { AutomationSettingsFields } from './AutomationSettingsFields';
+import { SheetHeader } from './sheet-header';
+import { EditableNameField } from '@renderer/lib/ui/editable-name-field';
+import { Field } from '@renderer/lib/ui/field';
 
 export interface CreateAutomationViewProps {
   onClose: () => void;
@@ -82,25 +85,19 @@ export const CreateAutomationView = observer(function CreateAutomationView({
 
   return (
     <div className="flex h-full flex-col">
+      <SheetHeader title="Create automation" onClose={onClose} />
       <div className="flex-1 overflow-y-auto">
-        <div className="flex flex-col gap-4 p-4">
-          <section className="flex flex-col gap-2">
-            <Label className="text-muted-foreground text-xs font-medium">Name</Label>
-            <Input
+        <div className="flex flex-col gap-4 px-4">
+          <Field>
+            <Label>Name</Label>
+            <EditableNameField
               autoFocus={name.trim().length === 0}
               value={name}
-              onChange={(event) => setName(event.target.value)}
-              onKeyDown={(event) => {
-                if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
-                  event.preventDefault();
-                  void handleSave();
-                }
-              }}
-              placeholder="Name this automation"
+              onChange={setName}
+              placeholder="Daily Pull Request Review"
               className="h-9 text-sm"
             />
-          </section>
-
+          </Field>
           <AutomationSettingsFields
             state={formState}
             cronError={cronError}
