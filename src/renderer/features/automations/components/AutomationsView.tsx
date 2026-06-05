@@ -45,7 +45,7 @@ export function AutomationsView() {
         </div>
       </div>
       <Sheet open={panel !== null} onOpenChange={(open) => !open && setPanel(null)}>
-        <SheetContent>
+        <SheetContent showCloseButton={false}>
           {panel?.kind === 'create' && (
             <CreateAutomationView onClose={() => setPanel(null)} onSaved={() => setPanel(null)} />
           )}

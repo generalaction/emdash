@@ -64,6 +64,30 @@ export function useAutomationRuns(automationId: string, limit = 20) {
   });
 }
 
+const PAGINATED_PAGE_SIZE = 25;
+
+export function useScheduledAutomationRun(automationId: string) {
+  return useQuery({
+    queryKey: ['automations', 'runs', automationId, 'scheduled'],
+    queryFn: () => rpc.automations.getNextScheduledRun(automationId),
+    enabled: !!automationId,
+  });
+}
+
+export function useAutomationRunsPaginated(automationId: string, page: number) {
+  return useQuery({
+    queryKey: ['automations', 'runs', automationId, 'page', page],
+    queryFn: () =>
+      rpc.automations.listAutomationRuns(
+        automationId,
+        PAGINATED_PAGE_SIZE + 1,
+        page * PAGINATED_PAGE_SIZE
+      ),
+    placeholderData: keepPreviousData,
+    enabled: !!automationId,
+  });
+}
+
 export function useAutomationRun(automationId: string, runId: string) {
   const runs = useAutomationRuns(automationId);
   return runs.data?.find((r) => r.id === runId);
