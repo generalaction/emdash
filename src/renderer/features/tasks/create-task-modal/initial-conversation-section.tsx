@@ -20,6 +20,7 @@ import type { AgentProviderId } from '@shared/agent-provider-registry';
 import type { Issue } from '@shared/tasks';
 import { ProviderLogo } from '../components/issue-selector/issue-selector';
 import { appendInitialConversationText } from './initial-conversation-text';
+import { usePromptFileDrop } from './use-prompt-file-drop';
 
 export type InitialConversationState = {
   provider: AgentProviderId | null;
@@ -93,9 +94,22 @@ export function InitialConversationField({
     state.setPrompt((current) => appendInitialConversationText(current, text));
   };
 
+  const { isDragOver, dropHandlers } = usePromptFileDrop({
+    // Local paths would not exist on the remote host of an SSH project.
+    disableLocalFiles: Boolean(state.connectionId),
+    onDropText: (text) =>
+      state.setPrompt((current) => appendInitialConversationText(current, text)),
+  });
+
   return (
     <Field>
-      <div className="flex flex-col rounded-md border border-border">
+      <div
+        className={cn(
+          'flex flex-col rounded-md border border-border transition-colors',
+          isDragOver && 'bg-accent/10 ring-2 ring-accent/50 ring-inset'
+        )}
+        {...dropHandlers}
+      >
         <div className="flex w-full items-center justify-between gap-2 px-2 pt-1">
           <AgentSelector
             value={state.provider}

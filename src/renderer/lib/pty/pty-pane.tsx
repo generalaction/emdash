@@ -1,4 +1,5 @@
 import React, { forwardRef, useCallback, useImperativeHandle, useRef } from 'react';
+import { getDraggedWorkspaceFile } from '@renderer/lib/drag-files';
 import { rpc } from '@renderer/lib/ipc';
 import { log } from '@renderer/utils/logger';
 import { cn } from '@renderer/utils/utils';
@@ -8,6 +9,7 @@ import {
   buildTerminalImageInjection,
   clipboardDataMayContainImage,
   extractClipboardImageFiles,
+  formatTerminalImagePaths,
   isNearDuplicatePaste,
 } from './terminal-image-paths';
 import { type PasteFromClipboardHandler, usePty } from './use-pty';
@@ -253,7 +255,35 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
       try {
         event.preventDefault();
         const dt = event.dataTransfer;
-        if (!dt?.files?.length) return;
+        if (!dt) return;
+
+        // In-app drag from the editor file tree. The drag payload already
+        // carries the path in the workspace environment where this agent runs.
+        const draggedWorkspaceFile = getDraggedWorkspaceFile(dt);
+        if (draggedWorkspaceFile) {
+          void (async () => {
+            try {
+              const platform =
+                draggedWorkspaceFile.targetPlatform ??
+                ((await rpc.app.getPlatform()) as NodeJS.Platform);
+              // Plain text, not bracketed paste: Claude Code swallows externally
+              // injected paste markers, and the escaped single-line path needs
+              // no paste protection in shells or other agent TUIs.
+              sendInput(
+                `${formatTerminalImagePaths([draggedWorkspaceFile.targetPath], platform)} `,
+                {
+                  track: false,
+                }
+              );
+              focus();
+            } catch (error) {
+              log.warn('Terminal drop failed', { error });
+            }
+          })();
+          return;
+        }
+
+        if (!dt.files?.length) return;
 
         const files = Array.from(dt.files);
 
