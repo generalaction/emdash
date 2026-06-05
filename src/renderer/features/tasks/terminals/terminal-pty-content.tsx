@@ -19,6 +19,7 @@ export interface TerminalPtyContentProps {
   mapShiftEnterToCtrlJ?: boolean;
   emptyState: ReactNode;
   remoteConnectionId?: string;
+  workspaceId: string;
   className?: string;
 }
 
@@ -33,6 +34,7 @@ export const TerminalPtyContent = observer(function TerminalPtyContent({
   mapShiftEnterToCtrlJ,
   emptyState,
   remoteConnectionId,
+  workspaceId,
   className,
 }: TerminalPtyContentProps) {
   const activeSessionId = activeSession?.sessionId ?? null;
@@ -123,6 +125,7 @@ export const TerminalPtyContent = observer(function TerminalPtyContent({
                   onInterruptPress={onInterruptPress}
                   mapShiftEnterToCtrlJ={mapShiftEnterToCtrlJ}
                   remoteConnectionId={remoteConnectionId}
+                  workspaceId={workspaceId}
                 />
               </div>
             ) : null}
