@@ -29,15 +29,15 @@ describe('buildFinalPrompt', () => {
     expect(buildFinalPrompt(null, 'Fix the bug.')).toBe('Fix the bug.');
   });
 
-  it('wraps issue context in XML tags and prepends it before user text', () => {
+  it('prepends issue context before user text', () => {
     expect(buildFinalPrompt('Provider: Linear | Identifier: ENG-1', 'Fix the bug.')).toBe(
-      '<issue_context>\nProvider: Linear | Identifier: ENG-1\n</issue_context>\n\nFix the bug.'
+      'Provider: Linear | Identifier: ENG-1\n\nFix the bug.'
     );
   });
 
-  it('returns only the issue context block when user prompt is empty', () => {
+  it('returns only the issue context when user prompt is empty', () => {
     expect(buildFinalPrompt('Provider: Linear | Identifier: ENG-1', '')).toBe(
-      '<issue_context>\nProvider: Linear | Identifier: ENG-1\n</issue_context>'
+      'Provider: Linear | Identifier: ENG-1'
     );
   });
 
@@ -47,8 +47,6 @@ describe('buildFinalPrompt', () => {
   });
 
   it('trims whitespace from both parts', () => {
-    expect(buildFinalPrompt('  context  ', '  prompt  ')).toBe(
-      '<issue_context>\ncontext\n</issue_context>\n\nprompt'
-    );
+    expect(buildFinalPrompt('  context  ', '  prompt  ')).toBe('context\n\nprompt');
   });
 });

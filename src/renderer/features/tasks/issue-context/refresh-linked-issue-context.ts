@@ -1,13 +1,12 @@
 import { rpc } from '@renderer/lib/ipc';
+import { ISSUE_PROVIDER_CAPABILITIES } from '@shared/issue-providers';
 import type { Issue } from '@shared/tasks';
-
-const PROVIDERS_WITH_CONTEXT = new Set<Issue['provider']>(['linear', 'plain', 'monday']);
 
 export async function refreshLinkedIssueContext(
   issue: Issue,
   projectId: string | undefined
 ): Promise<Issue> {
-  if (!PROVIDERS_WITH_CONTEXT.has(issue.provider) || !projectId) return issue;
+  if (!ISSUE_PROVIDER_CAPABILITIES[issue.provider].supportsIssueContext || !projectId) return issue;
 
   const result = await rpc.issues
     .getIssueContext(issue.provider, {

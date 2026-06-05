@@ -154,6 +154,16 @@ function MondayIcon(props: ProviderIconProps) {
   );
 }
 
+function TrelloIcon(props: ProviderIconProps) {
+  return (
+    <ProviderSvg {...props} viewBox="0 0 24 24">
+      <rect width="24" height="24" rx="3" fill="#0079BF" />
+      <rect x="3.5" y="3.5" width="7.5" height="13.5" rx="1.5" fill="#fff" />
+      <rect x="13" y="3.5" width="7.5" height="9" rx="1.5" fill="#fff" />
+    </ProviderSvg>
+  );
+}
+
 function PlainIcon(props: ProviderIconProps) {
   return (
     <ProviderSvg
@@ -180,6 +190,7 @@ export const PROVIDER_ICON_COMPONENTS = {
   gitlab: GitLabIcon,
   asana: AsanaIcon,
   monday: MondayIcon,
+  trello: TrelloIcon,
   forgejo: ForgejoIcon,
   featurebase: FeaturebaseIcon,
   plain: PlainIcon,
