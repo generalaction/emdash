@@ -333,6 +333,7 @@ export class WorkspaceViewModel implements ILifecycle {
         const terminals = terminalRegistry.get(this.taskId);
         return {
           isDrawerOpen: this.isTerminalDrawerOpen,
+          isCreatingTerminal: this._isCreatingTerminal,
           isLoaded: terminals?.isLoaded ?? false,
           terminalCount: terminals?.terminals.size ?? 0,
         };
@@ -340,16 +341,18 @@ export class WorkspaceViewModel implements ILifecycle {
       (state, previous) => {
         if (
           state.isDrawerOpen &&
+          !state.isCreatingTerminal &&
           state.isLoaded &&
           state.terminalCount === 0 &&
-          (previous?.terminalCount ?? 0) > 0
+          (previous === undefined || previous.terminalCount > 0 || !previous.isLoaded)
         ) {
           runInAction(() => {
             this.setTerminalDrawerOpen(false);
             this.terminalDrawerActiveItem = undefined;
           });
         }
-      }
+      },
+      { fireImmediately: true }
     );
     this._sessionDisposers.push(closeEmptyTerminalDrawerDisposer);
   }

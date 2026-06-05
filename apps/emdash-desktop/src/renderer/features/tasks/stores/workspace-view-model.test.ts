@@ -257,6 +257,74 @@ describe('WorkspaceViewModel terminal drawer snapshot', () => {
     viewModel.dispose();
   });
 
+  it('closes a restored empty terminal drawer after terminal state is loaded', async () => {
+    const terminals = makeTerminalManager({ terminalIds: [], isLoaded: true });
+    terminalRegistryEntries().set('task-1', terminals);
+    workspaceRegistry.acquire(
+      'project-1',
+      'workspace-1',
+      '/tmp/emdash-test-workspace',
+      { settings: {} } as never,
+      'main'
+    );
+
+    const viewModel = makeProvisionedViewModel();
+    viewModel.restoreSnapshot({
+      focusedRegion: 'bottom',
+      isTerminalDrawerOpen: true,
+      terminals: {
+        tabOrder: [],
+        activeTabId: undefined,
+      },
+    });
+
+    viewModel.initialize();
+    await Promise.resolve();
+
+    expect(terminals.createDefaultTerminal).not.toHaveBeenCalled();
+    expect(viewModel.isTerminalDrawerOpen).toBe(false);
+    expect(viewModel.focusedRegion).toBe('main');
+    expect(viewModel.terminalDrawerActiveItem).toBeUndefined();
+
+    viewModel.dispose();
+  });
+
+  it('closes a restored empty terminal drawer when empty terminal state finishes loading', async () => {
+    const terminals = makeTerminalManager({ terminalIds: [], isLoaded: false });
+    terminalRegistryEntries().set('task-1', terminals);
+    workspaceRegistry.acquire(
+      'project-1',
+      'workspace-1',
+      '/tmp/emdash-test-workspace',
+      { settings: {} } as never,
+      'main'
+    );
+
+    const viewModel = makeProvisionedViewModel();
+    viewModel.restoreSnapshot({
+      focusedRegion: 'bottom',
+      isTerminalDrawerOpen: true,
+      terminals: {
+        tabOrder: [],
+        activeTabId: undefined,
+      },
+    });
+
+    viewModel.initialize();
+
+    runInAction(() => {
+      terminals.isLoaded = true;
+    });
+    await Promise.resolve();
+
+    expect(terminals.createDefaultTerminal).not.toHaveBeenCalled();
+    expect(viewModel.isTerminalDrawerOpen).toBe(false);
+    expect(viewModel.focusedRegion).toBe('main');
+    expect(viewModel.terminalDrawerActiveItem).toBeUndefined();
+
+    viewModel.dispose();
+  });
+
   it('closes the terminal drawer after the user closes the last terminal', async () => {
     const terminals = makeTerminalManager({ terminalIds: ['terminal-1'], isLoaded: true });
     terminalRegistryEntries().set('task-1', terminals);
