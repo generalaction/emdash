@@ -27,6 +27,7 @@ import TelemetryCard from './TelemetryCard';
 import TerminalSettingsCard from './TerminalSettingsCard';
 import ThemeCard from './ThemeCard';
 import { UpdateCard } from './UpdateCard';
+import { EmdashServerSettingsCard } from './EmdashServerSettingsCard';
 
 export type SettingsPageTab =
   | 'general'
@@ -36,6 +37,7 @@ export type SettingsPageTab =
   | 'connections'
   | 'repository'
   | 'interface'
+  | 'emdash-server'
   | 'docs';
 
 interface SectionConfig {
@@ -67,6 +69,7 @@ export function SettingsPage({
     { id: 'connections', label: 'Connections' },
     { id: 'repository', label: 'Repository' },
     { id: 'interface', label: 'Interface' },
+    { id: 'emdash-server', label: 'Server' },
     { id: 'docs', label: 'Docs', isExternal: true },
   ];
 
@@ -141,6 +144,11 @@ export function SettingsPage({
       title: 'Repository',
       description: 'Configure repository and branch settings.',
       sections: [{ title: 'Branch prefix', component: <RepositorySettingsCard /> }],
+    },
+    'emdash-server': {
+      title: 'Server',
+      description: 'Connect to self-hosted emdash-server instances for webhook-triggered automations.',
+      sections: [{ component: <EmdashServerSettingsCard /> }],
     },
     interface: {
       title: 'Interface',
