@@ -8,13 +8,12 @@ import { log } from '@renderer/utils/logger';
 import { soundPlayer } from '@renderer/utils/soundPlayer';
 import { type Conversation, type CreateConversationParams } from '@shared/conversations';
 import {
-  agentEventChannel,
   agentSessionExitedChannel,
-  isAttentionNotification,
   type AgentStatus,
   type NotificationType,
 } from '@shared/events/agentEvents';
 import {
+  conversationAgentStatusChangedChannel,
   conversationChangedChannel,
   conversationCreatedChannel,
 } from '@shared/events/conversationEvents';
@@ -23,7 +22,7 @@ import { makePtySessionId } from '@shared/ptySessionId';
 export type { AgentStatus } from '@shared/events/agentEvents';
 
 export class ConversationManagerStore implements IDisposable {
-  private offAgentEvents: (() => void) | null = null;
+  private offAgentStatusChanged: (() => void) | null = null;
   private offSessionExited: (() => void) | null = null;
   private offConversationCreated: (() => void) | null = null;
   private offConversationChanges: (() => void) | null = null;
@@ -92,7 +91,7 @@ export class ConversationManagerStore implements IDisposable {
       { fireImmediately: true }
     );
 
-    this.offAgentEvents = this.listenToAgentEvents();
+    this.offAgentStatusChanged = this.listenToAgentStatusChanged();
     this.offSessionExited = this.listenToSessionExited();
     this.offConversationCreated = this.listenToConversationCreated();
     this.offConversationChanges = this.listenToConversationChanges();
@@ -107,36 +106,22 @@ export class ConversationManagerStore implements IDisposable {
     }
   }
 
-  private listenToAgentEvents(): () => void {
-    return events.on(agentEventChannel, ({ event, appFocused }) => {
-      if (event.taskId !== this.taskId) return;
-      const conversationStore = this.conversations.get(event.conversationId);
+  private listenToAgentStatusChanged(): () => void {
+    return events.on(conversationAgentStatusChangedChannel, (payload) => {
+      if (payload.taskId !== this.taskId) return;
+      const conversationStore = this.conversations.get(payload.conversationId);
       if (!conversationStore) return;
-      if (event.type === 'start') {
-        conversationStore.setWorking();
-        return;
-      }
-      if (event.type === 'notification') {
-        const nt = event.payload.notificationType;
-        if (!isAttentionNotification(nt)) return;
-        if ((event.providerId === 'codex' || event.providerId === 'amp') && nt === 'idle_prompt') {
-          if (conversationStore.status === 'working') {
-            conversationStore.setStatus('completed');
-            soundPlayer.play('task_complete', appFocused);
-          }
-          return;
+
+      runInAction(() => {
+        conversationStore.status = payload.status;
+        conversationStore.seen = payload.seen;
+        if (payload.status !== 'awaiting-input') {
+          conversationStore.lastNotificationType = null;
         }
-        conversationStore.setAwaitingInput(nt);
-        soundPlayer.play('needs_attention', appFocused);
-        return;
-      }
-      if (event.type === 'stop') {
-        conversationStore.setStatus('completed');
-        soundPlayer.play('task_complete', appFocused);
-        return;
-      }
-      if (event.type === 'error') {
-        conversationStore.setStatus('error');
+      });
+
+      if (payload.soundEvent) {
+        soundPlayer.play(payload.soundEvent, true);
       }
     });
   }
@@ -269,8 +254,8 @@ export class ConversationManagerStore implements IDisposable {
 
   dispose(): void {
     this._disposeReaction();
-    this.offAgentEvents?.();
-    this.offAgentEvents = null;
+    this.offAgentStatusChanged?.();
+    this.offAgentStatusChanged = null;
     this.offSessionExited?.();
     this.offSessionExited = null;
     this.offConversationCreated?.();

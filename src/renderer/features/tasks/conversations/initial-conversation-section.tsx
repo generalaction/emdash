@@ -14,10 +14,10 @@ import type { AgentProviderId } from '@shared/agent-provider-registry';
 import type { Issue } from '@shared/tasks';
 import { ProviderLogo } from '../components/issue-selector/issue-selector';
 import { appendInitialConversationText } from '../create-task-modal/initial-conversation-text';
+import { usePromptFileDrop } from '../create-task-modal/use-prompt-file-drop';
 import { AddContextPopover } from './add-context-popover';
 import { buildIssueContextText, buildTaskContextActions } from './context-actions';
 import { useEffectiveProvider } from './use-effective-provider';
-import { usePromptFileDrop } from '../create-task-modal/use-prompt-file-drop';
 
 export type InitialConversationState = {
   provider: AgentProviderId | null;

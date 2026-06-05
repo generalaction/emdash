@@ -1,8 +1,8 @@
 import { eq } from 'drizzle-orm';
-import { db } from '@main/db/client';
-import { conversations } from '@main/db/schema';
 import { conversationEvents } from '@main/core/conversations/conversation-events';
 import { touchConversation } from '@main/core/conversations/touchConversation';
+import { db } from '@main/db/client';
+import { conversations } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
@@ -14,7 +14,10 @@ import {
   type AgentEvent,
   type AgentStatus,
 } from '@shared/events/agentEvents';
-import { conversationChangedChannel } from '@shared/events/conversationEvents';
+import {
+  conversationAgentStatusChangedChannel,
+  conversationChangedChannel,
+} from '@shared/events/conversationEvents';
 import { stopAutomationSessionAfterDone } from './automation-pty-cleanup';
 import { handleCodexSessionStartHook } from './codex-session-start';
 import { enrichEvent } from './event-enricher';
@@ -40,6 +43,23 @@ function deriveAgentStatus(event: AgentEvent): AgentStatus | null {
     if (isAttentionNotification(nt)) return 'awaiting-input';
   }
   return null;
+}
+
+function determineSoundEvent(
+  event: AgentEvent,
+  status: AgentStatus
+): 'needs_attention' | 'task_complete' | undefined {
+  if (status === 'awaiting-input') return 'needs_attention';
+  if (status === 'completed' && event.type === 'stop') return 'task_complete';
+  if (
+    status === 'completed' &&
+    event.type === 'notification' &&
+    event.payload.notificationType === 'idle_prompt' &&
+    (event.providerId === 'codex' || event.providerId === 'amp')
+  ) {
+    return 'task_complete';
+  }
+  return undefined;
 }
 
 class AgentHookService implements IInitializable, IDisposable, Hookable<AgentHookServiceHooks> {
@@ -111,15 +131,25 @@ class AgentHookService implements IInitializable, IDisposable, Hookable<AgentHoo
       }
     );
 
-    // Persist agent status to DB on every agent event.
+    // Persist agent status to DB and emit simplified IPC for renderer.
     this.on('agent:event', async (event) => {
       const status = deriveAgentStatus(event);
       if (!status) return;
       const seen = status === 'idle' || status === 'working' ? 1 : 0;
+
       await db
         .update(conversations)
         .set({ agentStatus: status, agentStatusSeen: seen })
         .where(eq(conversations.id, event.conversationId));
+
+      events.emit(conversationAgentStatusChangedChannel, {
+        conversationId: event.conversationId,
+        taskId: event.taskId,
+        projectId: event.projectId,
+        status,
+        seen: seen === 1,
+        soundEvent: determineSoundEvent(event, status),
+      });
     });
   }
 

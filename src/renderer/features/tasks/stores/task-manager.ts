@@ -150,7 +150,7 @@ export class TaskManagerStore {
         // Acquire conversation/terminal managers inside the same action so the
         // WorkspaceViewModel's reaction on `conversations.size` registers the
         // manager's observable map as a dependency on its first evaluation.
-        conversationRegistry.acquire(task.id, this.projectId);
+        conversationRegistry.acquire(task.id, this.projectId, []);
         terminalRegistry.acquire(task.id, this.projectId);
       });
     });
@@ -267,14 +267,26 @@ export class TaskManagerStore {
 
   loadTasks(): Promise<void> {
     if (!this._loadPromise) {
-      this._loadPromise = rpc.tasks
-        .getTasks(this.projectId)
-        .then((tasks) => {
+      this._loadPromise = Promise.all([
+        rpc.tasks.getTasks(this.projectId),
+        rpc.conversations.getConversationsForProject(this.projectId),
+      ])
+        .then(([tasks, allConversations]) => {
+          const conversationsByTask = new Map<string, Conversation[]>();
+          for (const conv of allConversations) {
+            const list = conversationsByTask.get(conv.taskId) ?? [];
+            list.push(conv);
+            conversationsByTask.set(conv.taskId, list);
+          }
           runInAction(() => {
             for (const t of tasks) {
               this.tasks.set(t.id, createUnprovisionedTask(t));
-              // Acquire conversation and terminal managers for each registered task.
-              conversationRegistry.acquire(t.id, this.projectId);
+              // Preload conversations for each task so sidebar badges are available immediately.
+              conversationRegistry.acquire(
+                t.id,
+                this.projectId,
+                conversationsByTask.get(t.id) ?? []
+              );
               terminalRegistry.acquire(t.id, this.projectId);
             }
           });
@@ -321,7 +333,7 @@ export class TaskManagerStore {
         };
         conversationRegistry.acquire(params.id, this.projectId, [optimistic]);
       } else {
-        conversationRegistry.acquire(params.id, this.projectId);
+        conversationRegistry.acquire(params.id, this.projectId, []);
       }
       terminalRegistry.acquire(params.id, this.projectId);
     });
