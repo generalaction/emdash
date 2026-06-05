@@ -23,7 +23,6 @@ export type CreateAutomationParams = {
 
 export type UpdateAutomationSettingsPatch = {
   projectId?: string;
-  enabled?: boolean;
   triggerConfig?: TriggerConfig;
   conversationConfig?: ConversationConfig;
   taskConfig?: StoredAutomationTaskConfig | null;

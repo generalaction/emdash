@@ -1,8 +1,8 @@
 import { log } from '@main/lib/logger';
 import type { Automation } from '@shared/automations/automation';
 import type { AutomationRun } from '@shared/automations/automation-run';
+export { automationRunDeadline } from './repo';
 import {
-  automationRunDeadline,
   enabledAutomationsWithoutQueuedRun,
   ensureNextCronRun,
   findRunsStuckInCreatingConversation,
@@ -15,12 +15,15 @@ import {
 import { markRunFailed, markRunSkipped, type OnStepCompleted } from './run-transitions';
 import { runQueuedAutomation, type AutomationRunExecutor } from './runtime';
 
-export { automationRunDeadline };
-
 const TICK_MS = 60_000;
 const MAX_DUE_ENQUEUE = 100;
 // Each run may allocate a worktree, PTY and agent process; keep local fan-out conservative.
 const MAX_CONCURRENT_RUNS = 4;
+
+export interface SchedulerCallbacks {
+  onRunStep: OnStepCompleted;
+  onScheduledRunChanged: (automationId: string) => void;
+}
 
 class SlotPool {
   private activeCount = 0;
@@ -56,23 +59,12 @@ export class AutomationScheduler {
   });
 
   constructor(
-    private readonly executor: AutomationRunExecutor = runQueuedAutomation,
-    // Non-readonly so start() can wire the real automationsService callback via lazy import.
-    // Tests inject a spy directly via this constructor param.
-    private onRunStep: OnStepCompleted = () => {}
+    private readonly callbacks: SchedulerCallbacks,
+    private readonly executor: AutomationRunExecutor = runQueuedAutomation
   ) {}
 
   start(): void {
     if (this.timer) return;
-
-    // Lazy import to avoid circular dependency at module load time.
-    // automationsService → scheduler, so scheduler must not import automationsService at top level.
-    void import('./automations-service').then(({ automationsService }) => {
-      this.onRunStep = (run) => automationsService.notifyRunStep(run);
-      automationsService.on('automation:created', () => void this.reload());
-      automationsService.on('automation:enabled', () => void this.reload());
-      automationsService.on('automation:updated', () => void this.reload());
-    });
 
     this.recoverInterruptedRuns().catch((error) => {
       log.error('AutomationScheduler recovery failed', { error: String(error) });
@@ -111,7 +103,7 @@ export class AutomationScheduler {
         { step: 'create_task', code: 'interrupted_by_restart' },
         now
       );
-      this.onRunStep(failed);
+      this.callbacks.onRunStep(failed);
     }
     if (stuckCreating.length > 0) {
       log.warn('AutomationScheduler recovered stuck creating_task runs', {
@@ -126,7 +118,7 @@ export class AutomationScheduler {
         { step: 'launch_task', code: 'interrupted_by_restart' },
         now
       );
-      this.onRunStep(failed);
+      this.callbacks.onRunStep(failed);
     }
     if (stuckLaunching.length > 0) {
       log.warn('AutomationScheduler recovered stuck launching_task runs', {
@@ -141,7 +133,7 @@ export class AutomationScheduler {
         { step: 'create_conversation', code: 'interrupted_by_restart' },
         now
       );
-      this.onRunStep(failed);
+      this.callbacks.onRunStep(failed);
     }
     if (stuckConversation.length > 0) {
       log.warn('AutomationScheduler recovered stuck creating_conversation runs', {
@@ -159,6 +151,7 @@ export class AutomationScheduler {
       needsScheduled.map(async (automation) => {
         try {
           await ensureNextCronRun(automation, now);
+          this.callbacks.onScheduledRunChanged(automation.id);
         } catch (error) {
           log.error('AutomationScheduler failed to ensure next cron run on bootstrap', {
             automationId: automation.id,
@@ -171,12 +164,16 @@ export class AutomationScheduler {
     // Transition any due scheduled cron runs to queued.
     const transitioned = await markDueCronRunsQueued(now);
     for (const { automation } of transitioned.slice(0, MAX_DUE_ENQUEUE)) {
-      await ensureNextCronRun(automation, now).catch((error) => {
-        log.error('AutomationScheduler failed to schedule next cron run after transition', {
-          automationId: automation.id,
-          error: String(error),
+      await ensureNextCronRun(automation, now)
+        .then(() => {
+          this.callbacks.onScheduledRunChanged(automation.id);
+        })
+        .catch((error) => {
+          log.error('AutomationScheduler failed to schedule next cron run after transition', {
+            automationId: automation.id,
+            error: String(error),
+          });
         });
-      });
     }
 
     await this.drainQueue();
@@ -191,12 +188,16 @@ export class AutomationScheduler {
       // Phase 1: transition due scheduled runs → queued and pre-schedule next occurrences.
       const transitioned = await markDueCronRunsQueued(now);
       for (const { automation } of transitioned.slice(0, MAX_DUE_ENQUEUE)) {
-        await ensureNextCronRun(automation, now).catch((error) => {
-          log.error('AutomationScheduler failed to schedule next cron run', {
-            automationId: automation.id,
-            error: String(error),
+        await ensureNextCronRun(automation, now)
+          .then(() => {
+            this.callbacks.onScheduledRunChanged(automation.id);
+          })
+          .catch((error) => {
+            log.error('AutomationScheduler failed to schedule next cron run', {
+              automationId: automation.id,
+              error: String(error),
+            });
           });
-        });
       }
 
       // Phase 2: drain the queue.
@@ -231,14 +232,14 @@ export class AutomationScheduler {
             step: 'queue',
             code: 'deadline_exceeded',
           });
-          this.onRunStep(skipped);
+          this.callbacks.onRunStep(skipped);
           madeProgress = true;
           continue;
         }
 
         if (entry.automation.projectId == null) {
           const skipped = await markRunSkipped(entry.run.id, { step: 'queue', code: 'no_project' });
-          this.onRunStep(skipped);
+          this.callbacks.onRunStep(skipped);
           madeProgress = true;
           continue;
         }
@@ -248,7 +249,7 @@ export class AutomationScheduler {
             step: 'queue',
             code: 'previous_running',
           });
-          this.onRunStep(skipped);
+          this.callbacks.onRunStep(skipped);
           madeProgress = true;
           continue;
         }
@@ -257,7 +258,7 @@ export class AutomationScheduler {
         if (!run) continue;
 
         madeProgress = true;
-        this.onRunStep(run);
+        this.callbacks.onRunStep(run);
         this.inFlight.add(entry.automation.id);
         this.slotPool.start(() => this.runWorker(entry.automation, run));
       }
@@ -289,7 +290,7 @@ export class AutomationScheduler {
 
   private async runWorker(automation: Automation, run: AutomationRun): Promise<void> {
     try {
-      await this.executor(automation, run, this.onRunStep);
+      await this.executor(automation, run, this.callbacks.onRunStep);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       log.error('AutomationScheduler worker failed unexpectedly', {
@@ -303,7 +304,7 @@ export class AutomationScheduler {
           code: 'unknown',
           message,
         });
-        this.onRunStep(failed);
+        this.callbacks.onRunStep(failed);
       } catch (markError) {
         log.error('AutomationScheduler failed to mark worker failed', {
           automationId: automation.id,
@@ -316,6 +317,7 @@ export class AutomationScheduler {
       if (run.triggerKind === 'cron' && automation.enabled) {
         try {
           await ensureNextCronRun(automation, Date.now());
+          this.callbacks.onScheduledRunChanged(automation.id);
         } catch (scheduleError) {
           log.error('AutomationScheduler failed to schedule next cron run', {
             automationId: automation.id,
@@ -326,5 +328,3 @@ export class AutomationScheduler {
     }
   }
 }
-
-export const automationScheduler = new AutomationScheduler();

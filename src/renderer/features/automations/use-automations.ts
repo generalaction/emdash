@@ -1,9 +1,14 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { rpc } from '@renderer/lib/ipc';
+import { useEffect } from 'react';
+import { events, rpc } from '@renderer/lib/ipc';
 import type {
   CreateAutomationParams,
   UpdateAutomationSettingsPatch,
 } from '@shared/automations/automation';
+import {
+  automationChangedChannel,
+  automationRunChangedChannel,
+} from '@shared/events/automationEvents';
 
 export function useAutomations(projectId?: string) {
   const queryClient = useQueryClient();
@@ -136,4 +141,23 @@ export function useAutomationRun(automationId: string, runId: string) {
 export function useAutomation(automationId: string, projectId?: string) {
   const { automations } = useAutomations(projectId);
   return automations.data?.find((a) => a.id === automationId);
+}
+
+export function useAutomationEventBridge(automationId: string) {
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    const unsubChanged = events.on(automationChangedChannel, ({ automationId: id }) => {
+      if (id !== automationId) return;
+      void queryClient.invalidateQueries({ queryKey: ['automations'] });
+      void queryClient.invalidateQueries({ queryKey: ['automations', 'runs', id, 'scheduled'] });
+    });
+    const unsubRun = events.on(automationRunChangedChannel, ({ automationId: id }) => {
+      if (id !== automationId) return;
+      void queryClient.invalidateQueries({ queryKey: ['automations', 'runs', id] });
+    });
+    return () => {
+      unsubChanged();
+      unsubRun();
+    };
+  }, [automationId, queryClient]);
 }

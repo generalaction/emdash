@@ -8,7 +8,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { log } from '@main/lib/logger';
 import type { Automation } from '@shared/automations/automation';
-import { AutomationScheduler } from './automation-scheduler';
+import { AutomationScheduler, type SchedulerCallbacks } from './automation-scheduler';
 import {
   enabledAutomationsWithoutQueuedRun,
   ensureNextCronRun,
@@ -40,9 +40,7 @@ vi.mock('./runtime', () => ({
   runQueuedAutomation: vi.fn(),
 }));
 
-vi.mock('./automations-service', () => ({
-  automationsService: { on: vi.fn() },
-}));
+const noopCallbacks: SchedulerCallbacks = { onRunStep: () => {}, onScheduledRunChanged: () => {} };
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -71,7 +69,7 @@ describe('AutomationScheduler bootstrap serialization', () => {
       )
       .mockResolvedValue([]);
 
-    const scheduler = new AutomationScheduler();
+    const scheduler = new AutomationScheduler(noopCallbacks);
     const firstReload = scheduler.reload();
     const secondReload = scheduler.reload();
 
@@ -86,7 +84,7 @@ describe('AutomationScheduler bootstrap serialization', () => {
   it('swallows bootstrap failures and does not reject reload callers', async () => {
     vi.mocked(enabledAutomationsWithoutQueuedRun).mockRejectedValueOnce(new Error('db failed'));
 
-    await expect(new AutomationScheduler().reload()).resolves.toBeUndefined();
+    await expect(new AutomationScheduler(noopCallbacks).reload()).resolves.toBeUndefined();
     expect(log.error).toHaveBeenCalledWith('AutomationScheduler bootstrap failed', {
       error: 'Error: db failed',
     });
@@ -97,7 +95,7 @@ describe('AutomationScheduler drain serialization', () => {
   it('swallows queue drain failures and does not reject drain callers', async () => {
     vi.mocked(listQueuedRuns).mockRejectedValueOnce(new Error('db failed'));
 
-    await expect(new AutomationScheduler().drainQueue()).resolves.toBeUndefined();
+    await expect(new AutomationScheduler(noopCallbacks).drainQueue()).resolves.toBeUndefined();
     expect(log.error).toHaveBeenCalledWith('AutomationScheduler queue drain failed', {
       error: 'Error: db failed',
     });
@@ -168,7 +166,7 @@ describe('AutomationScheduler drain serialization', () => {
         })
     );
 
-    const scheduler = new AutomationScheduler();
+    const scheduler = new AutomationScheduler(noopCallbacks);
     const firstDrain = scheduler.drainQueue();
     const secondDrain = scheduler.drainQueue();
 

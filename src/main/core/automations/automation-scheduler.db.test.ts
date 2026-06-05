@@ -2,7 +2,7 @@ import { openFixture } from '@tooling/utils/db';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppDb } from '@main/db/client';
 import { ok } from '@shared/result';
-import { AutomationScheduler } from './automation-scheduler';
+import { AutomationScheduler, type SchedulerCallbacks } from './automation-scheduler';
 import { insertRun } from './repo';
 import { markRunDone } from './run-transitions';
 import type { AutomationRunExecutor } from './runtime';
@@ -17,12 +17,6 @@ vi.mock('@main/db/client', () => ({
   },
 }));
 
-// The lazy import inside start() picks up automationsService — it uses @main/db/client
-// through repo, which is already intercepted above, so no additional mock is needed.
-// We still prevent it from emitting hook callbacks that could interfere with tests.
-vi.mock('./automations-service', () => ({
-  automationsService: { on: vi.fn(), notifyRunStep: vi.fn() },
-}));
 
 // ---------------------------------------------------------------------------
 // Seeding helpers
@@ -127,6 +121,10 @@ const throwingExecutor: AutomationRunExecutor = async () => {
   throw new Error('boom');
 };
 
+function makeCallbacks(onRunStep?: SchedulerCallbacks['onRunStep']): SchedulerCallbacks {
+  return { onRunStep: onRunStep ?? (() => {}), onScheduledRunChanged: () => {} };
+}
+
 // ---------------------------------------------------------------------------
 // Test setup
 // ---------------------------------------------------------------------------
@@ -166,7 +164,7 @@ describe('AutomationScheduler recovery', () => {
       startedAt: Date.now(),
     });
 
-    const scheduler = new AutomationScheduler(doneExecutor);
+    const scheduler = new AutomationScheduler(makeCallbacks(), doneExecutor);
     scheduler.start();
     await vi.waitFor(() => {
       const row = getRunRow(fixture, run.id);
@@ -196,7 +194,7 @@ describe('AutomationScheduler recovery', () => {
       taskId: 'task-placeholder',
     });
 
-    const scheduler = new AutomationScheduler(doneExecutor);
+    const scheduler = new AutomationScheduler(makeCallbacks(), doneExecutor);
     scheduler.start();
     await vi.waitFor(() => expect(getRunRow(fixture, run.id)?.status).toBe('failed'));
     scheduler.stop();
@@ -221,7 +219,7 @@ describe('AutomationScheduler recovery', () => {
       taskId: 'task-placeholder',
     });
 
-    const scheduler = new AutomationScheduler(doneExecutor);
+    const scheduler = new AutomationScheduler(makeCallbacks(), doneExecutor);
     scheduler.start();
     await vi.waitFor(() => expect(getRunRow(fixture, run.id)?.status).toBe('failed'));
     scheduler.stop();
@@ -248,7 +246,7 @@ describe('AutomationScheduler recovery', () => {
 
     // Use a held executor so the drain doesn't immediately consume it — we only care about recovery
     const { executor, release } = makeHeldExecutor();
-    const scheduler = new AutomationScheduler(executor);
+    const scheduler = new AutomationScheduler(makeCallbacks(), executor);
     scheduler.start();
 
     // Give recovery time to run (it runs immediately on start())
@@ -277,7 +275,7 @@ describe('AutomationScheduler bootstrap self-healing', () => {
     seedProject(fixture);
     seedAutomation(fixture); // enabled, no runs yet
 
-    const scheduler = new AutomationScheduler(doneExecutor);
+    const scheduler = new AutomationScheduler(makeCallbacks(), doneExecutor);
     await scheduler.reload();
 
     expect(countRunsByStatus(fixture, 'scheduled', 'automation-1')).toBe(1);
@@ -305,7 +303,7 @@ describe('AutomationScheduler bootstrap self-healing', () => {
       triggerKind: 'cron',
     });
 
-    const scheduler = new AutomationScheduler(doneExecutor);
+    const scheduler = new AutomationScheduler(makeCallbacks(), doneExecutor);
     await scheduler.reload();
 
     expect(countRunsByStatus(fixture, 'scheduled', automationId)).toBe(1);
@@ -318,7 +316,7 @@ describe('AutomationScheduler bootstrap self-healing', () => {
     seedProject(fixture);
     seedAutomation(fixture);
 
-    const scheduler = new AutomationScheduler(doneExecutor);
+    const scheduler = new AutomationScheduler(makeCallbacks(), doneExecutor);
     await scheduler.reload();
     await scheduler.reload();
 
@@ -354,7 +352,7 @@ describe('AutomationScheduler due cron transition', () => {
     });
 
     const { executor, release } = makeHeldExecutor();
-    const scheduler = new AutomationScheduler(executor);
+    const scheduler = new AutomationScheduler(makeCallbacks(), executor);
     await scheduler.reload();
     release();
 
@@ -394,7 +392,7 @@ describe('AutomationScheduler due cron transition', () => {
       triggerKind: 'cron',
     });
 
-    const scheduler = new AutomationScheduler(doneExecutor);
+    const scheduler = new AutomationScheduler(makeCallbacks(), doneExecutor);
     await scheduler.reload();
 
     expect(countRunsByStatus(fixture, 'scheduled', automationId)).toBe(1);
@@ -429,7 +427,7 @@ describe('AutomationScheduler drain queue decisions', () => {
     });
 
     let executorCalled = false;
-    const scheduler = new AutomationScheduler(async (_a, r, onStep) => {
+    const scheduler = new AutomationScheduler(makeCallbacks(), async (_a, r, onStep) => {
       executorCalled = true;
       const done = await markRunDone(r.id, Date.now());
       onStep(done);
@@ -460,7 +458,7 @@ describe('AutomationScheduler drain queue decisions', () => {
     });
 
     let executorCalled = false;
-    const scheduler = new AutomationScheduler(async (_a, r, onStep) => {
+    const scheduler = new AutomationScheduler(makeCallbacks(), async (_a, r, onStep) => {
       executorCalled = true;
       const done = await markRunDone(r.id, Date.now());
       onStep(done);
@@ -504,7 +502,7 @@ describe('AutomationScheduler drain queue decisions', () => {
     });
 
     const { executor, release } = makeHeldExecutor();
-    const scheduler = new AutomationScheduler(executor);
+    const scheduler = new AutomationScheduler(makeCallbacks(), executor);
     await scheduler.drainQueue();
 
     // First run should be in flight (creating_task)
@@ -536,7 +534,7 @@ describe('AutomationScheduler drain queue decisions', () => {
     });
 
     let executorCalled = false;
-    const scheduler = new AutomationScheduler(async (_a, r, onStep) => {
+    const scheduler = new AutomationScheduler(makeCallbacks(), async (_a, r, onStep) => {
       executorCalled = true;
       const done = await markRunDone(r.id, Date.now());
       onStep(done);
@@ -587,7 +585,7 @@ describe('AutomationScheduler concurrency', () => {
       return ok(done);
     };
 
-    const scheduler = new AutomationScheduler(executor);
+    const scheduler = new AutomationScheduler(makeCallbacks(), executor);
     await scheduler.drainQueue();
 
     // Only 4 should be in creating_task (slot cap)
@@ -633,7 +631,7 @@ describe('AutomationScheduler post-worker rescheduling', () => {
       scheduledAt: now,
     });
 
-    const scheduler = new AutomationScheduler(doneExecutor);
+    const scheduler = new AutomationScheduler(makeCallbacks(), doneExecutor);
     await scheduler.drainQueue();
 
     await vi.waitFor(() => expect(getRunRow(fixture, run.id)?.status).toBe('done'));
@@ -670,7 +668,7 @@ describe('AutomationScheduler step notifications', () => {
     });
 
     const stepSpy = vi.fn();
-    const scheduler = new AutomationScheduler(doneExecutor, stepSpy);
+    const scheduler = new AutomationScheduler(makeCallbacks(stepSpy), doneExecutor);
     await scheduler.drainQueue();
 
     expect(stepSpy).toHaveBeenCalledWith(
@@ -696,7 +694,7 @@ describe('AutomationScheduler step notifications', () => {
     });
 
     const stepSpy = vi.fn();
-    const scheduler = new AutomationScheduler(doneExecutor, stepSpy);
+    const scheduler = new AutomationScheduler(makeCallbacks(stepSpy), doneExecutor);
     scheduler.start();
     await vi.waitFor(() =>
       expect(stepSpy).toHaveBeenCalledWith(
@@ -727,7 +725,7 @@ describe('AutomationScheduler step notifications', () => {
     });
 
     const stepSpy = vi.fn();
-    const scheduler = new AutomationScheduler(doneExecutor, stepSpy);
+    const scheduler = new AutomationScheduler(makeCallbacks(stepSpy), doneExecutor);
     await scheduler.drainQueue();
 
     await vi.waitFor(() =>
@@ -753,7 +751,7 @@ describe('AutomationScheduler step notifications', () => {
 
     const stepSpy = vi.fn();
     const { executor, release } = makeHeldExecutor();
-    const scheduler = new AutomationScheduler(executor, stepSpy);
+    const scheduler = new AutomationScheduler(makeCallbacks(stepSpy), executor);
     await scheduler.drainQueue();
 
     // Scheduler calls onRunStep after startCreatingTask
@@ -787,7 +785,7 @@ describe('AutomationScheduler worker error handling', () => {
       triggerKind: 'manual',
     });
 
-    const scheduler = new AutomationScheduler(throwingExecutor);
+    const scheduler = new AutomationScheduler(makeCallbacks(), throwingExecutor);
     await scheduler.drainQueue();
 
     await vi.waitFor(() => {

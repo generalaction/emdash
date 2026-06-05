@@ -13,7 +13,7 @@ import { PanelTabs } from '@renderer/lib/ui/panel-tabs';
 import { Switch } from '@renderer/lib/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import type { Automation } from '@shared/automations/automation';
-import { useAutomations } from '../use-automations';
+import { useAutomationEventBridge, useAutomations } from '../use-automations';
 import { useAutomationSettingsAutoSave } from '../useAutomationSettingsAutoSave';
 import { AutomationSettingsFields } from './AutomationSettingsFields';
 import { RunHistory } from './RunHistory';
@@ -43,6 +43,8 @@ export const AutomationDetailView = observer(function AutomationDetailView({
 }: AutomationDetailViewProps) {
   const [activeTab, setActiveTab] = useState<AutomationTab>('runs');
   const [cronError, setCronError] = useState<string | null>(null);
+
+  useAutomationEventBridge(automation.id);
 
   const { formState, setCronExpr, setUseBYOI, handlePromptBlur, handleNameBlur, saveError } =
     useAutomationSettingsAutoSave(automation);

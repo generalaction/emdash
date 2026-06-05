@@ -1,6 +1,7 @@
 import { and, asc, count, desc, eq, ne, sql } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { automationRuns } from '@main/db/schema';
+import { events } from '@main/lib/events';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
 import type {
@@ -9,6 +10,10 @@ import type {
   UpdateAutomationSettingsPatch,
 } from '@shared/automations/automation';
 import type { AutomationRun } from '@shared/automations/automation-run';
+import {
+  automationChangedChannel,
+  automationRunChangedChannel,
+} from '@shared/events/automationEvents';
 import {
   createAutomation as repoCreateAutomation,
   ensureNextCronRun,
@@ -23,6 +28,7 @@ import {
   updateAutomationSettings as updateSettingsInRepo,
 } from './repo';
 import { markRunSkipped } from './run-transitions';
+import { AutomationScheduler } from './automation-scheduler';
 import { mapAutomationRunRowToAutomationRun } from './utils';
 
 export type AutomationsServiceHooks = {
@@ -40,8 +46,26 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
     log.error(`AutomationsService: ${String(name)} hook error`, e)
   );
 
+  private readonly scheduler = new AutomationScheduler({
+    onRunStep: (run) => {
+      this._hooks.callHookBackground('run:step-completed', run);
+      events.emit(automationRunChangedChannel, { automationId: run.automationId, run });
+    },
+    onScheduledRunChanged: (automationId) => {
+      events.emit(automationChangedChannel, { automationId });
+    },
+  });
+
   on<K extends keyof AutomationsServiceHooks>(name: K, handler: AutomationsServiceHooks[K]) {
     return this._hooks.on(name, handler);
+  }
+
+  start(): void {
+    this.scheduler.start();
+  }
+
+  stop(): void {
+    this.scheduler.stop();
   }
 
   notifyRunStep(run: AutomationRun): void {
@@ -55,6 +79,8 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
   async createAutomation(params: CreateAutomationParams): Promise<Automation> {
     const automation = await repoCreateAutomation(params);
     this._hooks.callHookBackground('automation:created', automation);
+    events.emit(automationChangedChannel, { automationId: automation.id });
+    void this.scheduler.reload();
     return automation;
   }
 
@@ -66,9 +92,14 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
     if (!automation) throw new Error('automation_not_found');
     if (patch.triggerConfig !== undefined) {
       await skipQueuedCronRuns(id, 'trigger_changed');
-      if (automation.enabled) await ensureNextCronRun(automation);
+      if (automation.enabled) {
+        await ensureNextCronRun(automation);
+        events.emit(automationChangedChannel, { automationId: id });
+      }
+      void this.scheduler.reload();
     }
     this._hooks.callHookBackground('automation:updated', automation);
+    events.emit(automationChangedChannel, { automationId: id });
     return automation;
   }
 
@@ -76,6 +107,7 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
     const automation = await renameInRepo(id, name);
     if (!automation) throw new Error('automation_not_found');
     this._hooks.callHookBackground('automation:updated', automation);
+    events.emit(automationChangedChannel, { automationId: id });
     return automation;
   }
 
@@ -92,6 +124,8 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
       await skipQueuedCronRuns(id, 'disabled');
     }
     this._hooks.callHookBackground('automation:enabled', automation);
+    events.emit(automationChangedChannel, { automationId: id });
+    void this.scheduler.reload();
   }
 
   async listAutomationRuns(
@@ -165,10 +199,7 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
       startedAt: now,
     });
 
-    // Lazy import to avoid circular dep: service is imported by scheduler.
-    void import('./automation-scheduler').then(({ automationScheduler }) => {
-      automationScheduler.executeNow(automation, run);
-    });
+    this.scheduler.executeNow(automation, run);
 
     this._hooks.callHookBackground('run:started', run);
     return run;
@@ -200,6 +231,7 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
     const deleted = await removeAutomation(id);
     if (!deleted) throw new Error('automation_not_found');
     this._hooks.callHookBackground('automation:deleted', id);
+    events.emit(automationChangedChannel, { automationId: id });
   }
 }
 

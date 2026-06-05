@@ -315,7 +315,6 @@ export async function updateAutomationSettings(
     const existing = mapAutomationRow(existingRow);
     const finalTriggerConfig = patch.triggerConfig ?? existing.triggerConfig;
     const finalConversationConfig = patch.conversationConfig ?? existing.conversationConfig;
-    const finalEnabled = patch.enabled ?? existing.enabled;
     const finalProjectId = patch.projectId !== undefined ? patch.projectId : existing.projectId;
 
     if (finalTriggerConfig && finalConversationConfig) {
@@ -324,11 +323,10 @@ export async function updateAutomationSettings(
         conversationConfig: finalConversationConfig,
       });
     }
-    if (finalEnabled && finalProjectId == null) throw new Error('no_project_attached');
+    if (existing.enabled && finalProjectId == null) throw new Error('no_project_attached');
 
     const values: Partial<typeof automations.$inferInsert> = { updatedAt: Date.now() };
     if (patch.projectId !== undefined) values.projectId = patch.projectId;
-    if (patch.enabled !== undefined) values.enabled = patch.enabled ? 1 : 0;
     if (patch.triggerConfig !== undefined) {
       values.triggerConfig = JSON.stringify(patch.triggerConfig);
     }
