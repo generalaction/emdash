@@ -126,7 +126,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     name: 'Claude Code',
     description:
       'CLI that uses Anthropic Claude for code edits, explanations, and structured refactors in the terminal.',
-    docUrl: 'https://docs.anthropic.com/claude/docs/claude-code',
+    docUrl: 'https://code.claude.com/docs/en/quickstart',
     installCommand: 'curl -fsSL https://claude.ai/install.sh | bash',
     commands: ['claude'],
     versionArgs: ['--version'],
@@ -168,7 +168,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     name: 'Devin',
     description:
       "Cognition's Devin for Terminal agent for local, interactive coding sessions with Devin Cloud integration.",
-    docUrl: 'https://cli.devin.ai/docs',
+    docUrl: 'https://docs.devin.ai/cli',
     installCommand: 'curl -fsSL https://cli.devin.ai/install.sh | bash',
     commands: ['devin'],
     versionArgs: ['--version'],
@@ -187,7 +187,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     name: 'Cursor',
     description:
       "Cursor's agent CLI; provides editor-style, project-aware assistance from the shell.",
-    docUrl: 'https://cursor.sh',
+    docUrl: 'https://cursor.com/docs/cli/overview',
     installCommand: 'curl https://cursor.com/install -fsS | bash',
     commands: ['cursor-agent'],
     versionArgs: ['--version'],
@@ -390,9 +390,9 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     id: 'goose',
     name: 'Goose',
     description: 'Goose CLI that routes tasks to tools and models for coding workflows.',
-    docUrl: 'https://block.github.io/goose/docs/quickstart/',
+    docUrl: 'https://goose-docs.ai/docs/quickstart/',
     installCommand:
-      'curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash',
+      'curl -fsSL https://github.com/aaif-goose/goose/releases/download/stable/download_cli.sh | bash',
     commands: ['goose'],
     versionArgs: ['--version'],
     cli: 'goose',
