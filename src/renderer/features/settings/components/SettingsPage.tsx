@@ -5,6 +5,7 @@ import { rpc } from '@renderer/lib/ipc';
 import { cn } from '@renderer/utils/utils';
 import { AccountTab } from './AccountTab';
 import { CliAgentsList } from './CliAgentsList';
+import ConversationUiCard from './ConversationUiCard';
 import DefaultAgentSettingsCard from './DefaultAgentSettingsCard';
 import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
 import IntegrationsCard from './IntegrationsCard';
@@ -117,6 +118,7 @@ export function SettingsPage({
       description: 'Manage CLI agents and model configurations.',
       sections: [
         { component: <DefaultAgentSettingsCard /> },
+        { component: <ConversationUiCard /> },
         {
           title: 'CLI agents',
           component: (

@@ -1,4 +1,5 @@
 import { and, eq } from 'drizzle-orm';
+import { codexChatService } from '@main/core/codex-chat/codex-chat-service';
 import { projectManager } from '@main/core/projects/project-manager';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { db } from '@main/db/client';
@@ -24,6 +25,9 @@ export async function deleteConversation(
     );
 
   conversationEvents._emit('conversation:deleted', conversationId);
+
+  // No-op for terminal-mode conversations; kills any running native turn.
+  codexChatService.dispose(conversationId);
 
   const task = resolveTask(projectId, taskId);
   if (task) {

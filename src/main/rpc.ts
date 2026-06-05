@@ -3,6 +3,7 @@ import { accountController } from './core/account/controller';
 import { appController } from './core/app/controller';
 import { asanaController } from './core/asana/controller';
 import { automationsController } from './core/automations/controller';
+import { codexChatController } from './core/codex-chat/controller';
 import { conversationController } from './core/conversations/controller';
 import { dependenciesController } from './core/dependencies/controller';
 import { editorBufferController } from './core/editor/controller';
@@ -64,6 +65,7 @@ export const rpcRouter = createRPCRouter({
   projects: projectController,
   tasks: taskController,
   conversations: conversationController,
+  codexChat: codexChatController,
   terminals: terminalsController,
   dependencies: dependenciesController,
   mcp: mcpController,

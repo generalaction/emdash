@@ -82,7 +82,7 @@ export function parseArgField(value: string | undefined): string[] {
   return parsed.words;
 }
 
-function parseCliPrefix(value: string | undefined, providerId: AgentProviderId): string[] {
+export function parseCliPrefix(value: string | undefined, providerId: AgentProviderId): string[] {
   const cli = value?.trim();
   if (!cli) throw new Error(`Missing CLI command for provider: ${providerId}`);
 

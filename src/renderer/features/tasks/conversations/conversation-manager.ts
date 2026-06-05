@@ -98,7 +98,13 @@ export class ConversationManagerStore implements IDisposable {
   }
 
   private addConversation(conversation: Conversation): void {
-    if (!this.conversations.has(conversation.id)) {
+    const existing = this.conversations.get(conversation.id);
+    if (existing) {
+      // Reconcile optimistic records (e.g. task creation seeds a Conversation
+      // before the main process decides fields like uiMode) with the
+      // authoritative data from the main process.
+      Object.assign(existing.data, conversation);
+    } else {
       this.conversations.set(conversation.id, new ConversationStore(conversation));
     }
     if (!this.sessions.has(conversation.id)) {

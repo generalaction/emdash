@@ -33,7 +33,12 @@ export interface FocusContext {
   focused_region: FocusedRegion | null;
 }
 
-export type SettingName = 'theme' | 'default_provider' | 'telemetry' | 'notifications';
+export type SettingName =
+  | 'theme'
+  | 'default_provider'
+  | 'telemetry'
+  | 'notifications'
+  | 'conversation_ui';
 
 export type TelemetryEventProperties = {
   app_started: EmptyProps;

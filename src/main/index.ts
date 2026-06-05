@@ -14,6 +14,7 @@ import { agentHookService } from './core/agent-hooks/agent-hook-service';
 import { appService } from './core/app/service';
 import { automationEvents } from './core/automations/automation-events';
 import { automationScheduler } from './core/automations/automation-scheduler';
+import { codexChatService } from './core/codex-chat/codex-chat-service';
 import { localDependencyManager } from './core/dependencies/dependency-manager';
 import { editorBufferService } from './core/editor/editor-buffer-service';
 import { gitWatcherRegistry } from './core/git/git-watcher-registry';
@@ -175,6 +176,7 @@ app.on('before-quit', (event) => {
   telemetryService.capture('app_closed');
   void telemetryService.dispose().finally(() => {
     automationScheduler.stop();
+    codexChatService.disposeAll();
     agentHookService.dispose();
     stopResourceSampler();
     updateService.dispose();

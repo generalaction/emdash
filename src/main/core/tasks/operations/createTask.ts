@@ -1,12 +1,15 @@
 import crypto from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
+import { resolveConversationUiMode } from '@main/core/conversations/resolve-conversation-ui-mode';
 import { mapConversationRowToConversation } from '@main/core/conversations/utils';
 import { projectManager } from '@main/core/projects/project-manager';
+import { appSettingsService } from '@main/core/settings/settings-service';
 import { db } from '@main/db/client';
 import { conversations, projects, tasks, workspaces } from '@main/db/schema';
 import type { ConversationRow, TaskRow } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { type ConversationConfig, serializeConversationConfig } from '@shared/conversation-config';
+import { isNativeChatProvider } from '@shared/conversation-ui';
 import type { Conversation } from '@shared/conversations';
 import { conversationCreatedChannel } from '@shared/events/conversationEvents';
 import { err, ok, type Result } from '@shared/result';
@@ -80,13 +83,29 @@ export async function createTask(
     }
   }
 
-  // Prepare conversation insert values before the transaction (no async work needed).
+  // Prepare conversation insert values before the transaction.
   let convInsert: ConvInsert | undefined;
   if (params.initialConversation) {
     const ic = params.initialConversation;
     const configObj: ConversationConfig = {};
     if (ic.autoApprove !== undefined) configObj.autoApprove = ic.autoApprove;
     if (ic.initialPrompt?.trim()) configObj.initialPrompt = ic.initialPrompt.trim();
+    if (isNativeChatProvider(ic.provider)) {
+      // Snapshot the conversation surface at creation time; the deferred
+      // initial prompt is delivered by hydrateConversation through the
+      // matching path (native turn vs. PTY keystrokes).
+      const [projectRow] = await db
+        .select({ workspaceProvider: projects.workspaceProvider })
+        .from(projects)
+        .where(eq(projects.id, params.projectId))
+        .limit(1);
+      const uiMode = resolveConversationUiMode({
+        providerId: ic.provider,
+        conversationUi: await appSettingsService.get('conversationUi'),
+        isRemoteTask: wsTarget.kind === 'byoi' || projectRow?.workspaceProvider === 'ssh',
+      });
+      if (uiMode === 'native-chat') configObj.uiMode = 'native-chat';
+    }
     const config =
       Object.keys(configObj).length > 0 ? serializeConversationConfig(configObj) : undefined;
     convInsert = {

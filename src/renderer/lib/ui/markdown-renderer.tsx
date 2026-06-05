@@ -302,12 +302,17 @@ function useCompactComponents(isDark: boolean) {
         const mermaidBlock = renderMermaidCodeBlock(children, className, isDark, true);
         if (mermaidBlock) return mermaidBlock;
 
-        const { isBlock } = getCodeBlock(children, className);
+        const { code, isBlock, language } = getCodeBlock(children, className);
         if (isBlock) {
           return (
-            <code className="bg-muted/60 block overflow-x-auto rounded-md border border-border p-2 text-[11px] leading-relaxed">
-              {children}
-            </code>
+            <SyntaxHighlighter
+              style={isDark ? oneDark : oneLight}
+              language={language}
+              PreTag="div"
+              className="!my-0 !rounded-md !text-xs"
+            >
+              {code}
+            </SyntaxHighlighter>
           );
         }
         return (
@@ -320,7 +325,7 @@ function useCompactComponents(isDark: boolean) {
         isOnlyMermaidDiagramChild(children) ? (
           <>{children}</>
         ) : (
-          <pre className="mb-2 overflow-x-auto">{children}</pre>
+          <pre className="mb-2 overflow-x-auto rounded-md border border-border/60">{children}</pre>
         ),
       blockquote: ({ children }: WithChildren) => (
         <blockquote className="text-muted-foreground mb-2 border-l-2 border-border pl-3 italic">

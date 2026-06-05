@@ -1,18 +1,23 @@
 import { randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
+import { codexChatService } from '@main/core/codex-chat/codex-chat-service';
+import { resolveNativeChatTarget } from '@main/core/codex-chat/resolve-native-chat-target';
+import { appSettingsService } from '@main/core/settings/settings-service';
+import { taskSessionManager } from '@main/core/tasks/task-session-manager';
 import { withCompensation } from '@main/core/utils/compensation';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
-import { serializeConversationConfig } from '@shared/conversation-config';
+import { serializeConversationConfig, type ConversationConfig } from '@shared/conversation-config';
 import { type Conversation, type CreateConversationParams } from '@shared/conversations';
 import { agentEventChannel, type AgentEvent } from '@shared/events/agentEvents';
 import { conversationCreatedChannel } from '@shared/events/conversationEvents';
 import { isAppFocused } from '../agent-hooks/notification';
 import { resolveTask } from '../projects/utils';
 import { conversationEvents } from './conversation-events';
+import { resolveConversationUiMode } from './resolve-conversation-ui-mode';
 import { mapConversationRowToConversation } from './utils';
 
 type ConversationCreateDb = Pick<typeof db, 'delete' | 'insert' | 'select'>;
@@ -47,10 +52,17 @@ export async function createConversation(
     .where(eq(conversations.taskId, params.taskId))
     .limit(1);
 
+  const uiMode = resolveConversationUiMode({
+    providerId: params.provider,
+    conversationUi: await appSettingsService.get('conversationUi'),
+    isRemoteTask: Boolean(taskSessionManager.getPersistData(params.taskId)?.sshConnectionId),
+  });
+
+  const configObj: ConversationConfig = {};
+  if (params.autoApprove !== undefined) configObj.autoApprove = params.autoApprove;
+  if (uiMode === 'native-chat') configObj.uiMode = 'native-chat';
   const config =
-    params.autoApprove === undefined
-      ? undefined
-      : serializeConversationConfig({ autoApprove: params.autoApprove });
+    Object.keys(configObj).length > 0 ? serializeConversationConfig(configObj) : undefined;
 
   const [row] = await database
     .insert(conversations)
@@ -77,13 +89,28 @@ export async function createConversation(
   const conversation = mapConversationRowToConversation(row);
 
   await withCompensation({
-    action: () =>
-      task.conversations.startSession(
+    action: async () => {
+      if (uiMode === 'native-chat') {
+        // Native chat has no PTY session — the first turn (if any) runs
+        // through `codex exec` and follow-ups arrive via the chat composer.
+        if (params.initialPrompt?.trim()) {
+          const target = resolveNativeChatTarget(params.taskId);
+          await codexChatService.startTurn({
+            conversation,
+            cwd: target.cwd,
+            taskEnvVars: target.taskEnvVars,
+            prompt: params.initialPrompt,
+          });
+        }
+        return;
+      }
+      await task.conversations.startSession(
         conversation,
         params.initialSize,
         false,
         params.initialPrompt
-      ),
+      );
+    },
     compensate: async () => {
       await database.delete(conversations).where(eq(conversations.id, row.id)).execute();
     },
@@ -97,7 +124,8 @@ export async function createConversation(
 
   conversationEvents._emit('conversation:created', conversation);
   events.emit(conversationCreatedChannel, { conversation });
-  emitInitialPromptStarted(conversation, params);
+  // Native chat emits its own 'start' agent event per turn from the service.
+  if (uiMode !== 'native-chat') emitInitialPromptStarted(conversation, params);
   telemetryService.capture('conversation_created', {
     provider: params.provider,
     is_first_in_task: existingConversation === undefined,
