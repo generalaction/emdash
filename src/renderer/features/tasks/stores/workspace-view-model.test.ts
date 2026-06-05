@@ -240,6 +240,41 @@ describe('WorkspaceViewModel terminal drawer snapshot', () => {
 
     viewModel.dispose();
   });
+
+  it('closes the terminal drawer after the user closes the last terminal', async () => {
+    const terminals = makeTerminalManager({ terminalIds: ['terminal-1'], isLoaded: true });
+    terminalRegistryEntries().set('task-1', terminals);
+    workspaceRegistry.acquire(
+      'project-1',
+      'workspace-1',
+      '/tmp/emdash-test-workspace',
+      { settings: {} } as never,
+      'main'
+    );
+
+    const viewModel = makeProvisionedViewModel();
+    viewModel.restoreSnapshot({
+      focusedRegion: 'bottom',
+      isTerminalDrawerOpen: true,
+      terminals: {
+        tabOrder: ['terminal-1'],
+        activeTabId: 'terminal-1',
+      },
+    });
+
+    viewModel.initialize();
+
+    runInAction(() => {
+      terminals.terminals.delete('terminal-1');
+    });
+    await Promise.resolve();
+
+    expect(terminals.createDefaultTerminal).not.toHaveBeenCalled();
+    expect(viewModel.isTerminalDrawerOpen).toBe(false);
+    expect(viewModel.focusedRegion).toBe('main');
+
+    viewModel.dispose();
+  });
 });
 
 describe('WorkspaceViewModel conversation hydration', () => {

@@ -58,6 +58,9 @@ describe('createTaskCommandProvider', () => {
         openConversation: vi.fn(),
         openConversationInRightSplit: vi.fn(),
       },
+      terminalTabs: {
+        tabs: [],
+      },
       tabManager: {
         resolvedTabs: [{ id: 'tab-1' }],
         setNextTabActive: vi.fn(),
@@ -116,5 +119,20 @@ describe('createTaskCommandProvider', () => {
       'conversation-1'
     );
     expect(taskView.setFocusedRegion).toHaveBeenCalledWith('main');
+  });
+
+  it('creates the default terminal when the terminal drawer shortcut opens an empty drawer', () => {
+    const provider = createTaskCommandProvider('project-1', 'task-1');
+
+    const command = provider
+      .getCommands()
+      .find((candidate) => candidate.id === 'task.toggleTerminalDrawer');
+    const taskView = mocks.getTaskView.mock.results.at(-1)?.value ?? mocks.getTaskView();
+
+    command?.execute();
+
+    expect(taskView.openNewTerminal).toHaveBeenCalledTimes(1);
+    expect(taskView.openNewTerminal).toHaveBeenCalledWith();
+    expect(taskView.setTerminalDrawerOpen).not.toHaveBeenCalled();
   });
 });
