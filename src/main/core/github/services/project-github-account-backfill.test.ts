@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProjectSettings } from '@shared/project-settings';
-import type { GitHubAccount } from './github-account-registry';
+import type { GitHubAccount } from '../accounts/github-account-registry';
 import { ProjectGitHubAccountBackfillService } from './project-github-account-backfill';
 
 function account(id: string, host = id.split(':')[0]): GitHubAccount {

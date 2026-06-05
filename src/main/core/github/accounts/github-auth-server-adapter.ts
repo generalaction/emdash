@@ -1,6 +1,6 @@
 import type { ProviderTokenPayload } from '@main/core/account/provider-token-registry';
+import type { GitHubConnectionService } from '../services/github-connection-service';
 import type { GitHubAccountRegistry } from './github-account-registry';
-import type { GitHubConnectionService } from './github-connection-service';
 
 type LegacyGitHubTokenStore = Pick<GitHubConnectionService, 'storeToken'>;
 

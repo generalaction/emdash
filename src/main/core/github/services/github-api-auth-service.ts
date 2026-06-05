@@ -1,6 +1,6 @@
 import { normalizeRepositoryHost } from '@shared/repository-ref';
 import { err, ok, type Result } from '@shared/result';
-import type { GitHubAccount } from './github-account-registry';
+import type { GitHubAccount } from '../accounts/github-account-registry';
 import { githubApiAuthRequired, type GitHubApiAuthError } from './github-api-auth-errors';
 
 export type GitHubApiAuthContext = {

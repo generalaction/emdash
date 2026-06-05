@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { err, ok } from '@shared/result';
+import { githubAccountRegistry } from './accounts/github-account-registry-instance';
 import { githubIssueProvider } from './github-issue-provider';
-import { githubAccountRegistry } from './services/github-account-registry-instance';
 import { githubConnectionService } from './services/github-connection-service';
 import { githubRepositoryResolver } from './services/github-repository-resolver';
 import { issueService } from './services/issue-service';
@@ -20,7 +20,7 @@ vi.mock('./services/github-connection-service', () => ({
   },
 }));
 
-vi.mock('./services/github-account-registry-instance', () => ({
+vi.mock('./accounts/github-account-registry-instance', () => ({
   githubAccountRegistry: {
     getDefaultAccountId: vi.fn(),
     listAccounts: vi.fn(),

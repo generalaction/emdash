@@ -1,6 +1,6 @@
 import type { GitHubTokenSource, GitHubUser } from '@shared/github';
+import type { GitHubConnectionService } from '../services/github-connection-service';
 import type { GitHubAccount, GitHubAccountRegistry } from './github-account-registry';
-import type { GitHubConnectionService } from './github-connection-service';
 
 type LegacyGitHubConnection = Pick<GitHubConnectionService, 'getStoredTokenRecord' | 'getUserInfo'>;
 

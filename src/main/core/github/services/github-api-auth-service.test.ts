@@ -4,7 +4,7 @@ import {
   GitHubAccountRegistry,
   type GitHubAccountMetadataStore,
   type GitHubAccountSecretStore,
-} from './github-account-registry';
+} from '../accounts/github-account-registry';
 import { GitHubApiAuthService } from './github-api-auth-service';
 
 class InMemoryMetadataStore implements GitHubAccountMetadataStore {

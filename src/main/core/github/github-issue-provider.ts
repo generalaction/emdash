@@ -8,7 +8,7 @@ import {
 import type { RepositoryRef } from '@shared/repository-ref';
 import { err, ok, type Result } from '@shared/result';
 import type { Issue } from '@shared/tasks';
-import { githubAccountRegistry } from './services/github-account-registry-instance';
+import { githubAccountRegistry } from './accounts/github-account-registry-instance';
 import type { GitHubApiAuthContext } from './services/github-api-auth-service';
 import { githubConnectionService } from './services/github-connection-service';
 import { githubRepositoryResolver } from './services/github-repository-resolver';
