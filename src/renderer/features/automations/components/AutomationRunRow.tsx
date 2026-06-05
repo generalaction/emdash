@@ -1,6 +1,5 @@
 import { Square } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { useAutomationRun } from '@renderer/features/automations/automations-context';
 import { isActiveStatus } from '@renderer/features/automations/run-status-styles';
 import { useAutomationRunActions } from '@renderer/features/automations/use-automation-run-actions';
 import { AgentStatusIndicator } from '@renderer/features/tasks/components/agent-status-indicator';
@@ -17,6 +16,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/toolti
 import { cn } from '@renderer/utils/utils';
 import { formatRunTriggerKindLabel, parseRunError } from '@shared/automations/format';
 import { makePtySessionId } from '@shared/ptySessionId';
+import { useAutomationRun } from '../use-automations';
 
 interface AutomationRunRowProps {
   runId: string;

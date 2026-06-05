@@ -63,3 +63,13 @@ export function useAutomationRuns(automationId: string, limit = 20) {
     enabled: !!automationId,
   });
 }
+
+export function useAutomationRun(automationId: string, runId: string) {
+  const runs = useAutomationRuns(automationId);
+  return runs.data?.find((r) => r.id === runId);
+}
+
+export function useAutomation(automationId: string, projectId?: string) {
+  const { automations } = useAutomations(projectId);
+  return automations.data?.find((a) => a.id === automationId);
+}

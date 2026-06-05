@@ -1,5 +1,4 @@
-import { useAutomation } from './automations-context';
-import { useAutomations } from './use-automations';
+import { useAutomation, useAutomations } from './use-automations';
 
 export function useAutomationRunActions(automationId: string) {
   const { stop } = useAutomations();
