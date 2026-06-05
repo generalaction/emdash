@@ -113,7 +113,8 @@ export function computeMergeUiState(pr: PullRequest): MergeUiState {
             kind: 'unstable',
             severity: 'warning',
             title: 'Checks passing, but PR is unstable',
-            detail: 'GitHub still reports the branch as unstable. Review branch rules before merging.',
+            detail:
+              'GitHub still reports the branch as unstable. Review branch rules before merging.',
             canMerge: false,
             canBypassRequirements: true,
           };
