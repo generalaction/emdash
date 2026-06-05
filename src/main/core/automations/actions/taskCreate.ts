@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
 import { createConversation } from '@main/core/conversations/createConversation';
-import { ensureRepositoryWorkspace } from '@main/core/projects/operations/ensure-repository-workspace';
 import { openProject } from '@main/core/projects/operations/openProject';
 import { projectManager } from '@main/core/projects/project-manager';
 import { DEFAULT_AGENT_ID } from '@main/core/settings/settings-registry';
@@ -16,16 +15,13 @@ import {
 import { taskService } from '@main/core/tasks/task-service';
 import { db } from '@main/db/client';
 import type { ConversationRow, TaskRow } from '@main/db/schema';
-import { automationRuns, projects } from '@main/db/schema';
+import { automationRuns } from '@main/db/schema';
 import { resolveAutomationAgentAutoApprove } from '@shared/agent-auto-approve-defaults';
-import type { Branch } from '@shared/git';
-import { bareRefName } from '@shared/git-utils';
 import type { Automation } from '@shared/automations/automation';
 import type { AutomationRun } from '@shared/automations/automation-run';
-import type { LocalProject, SshProject } from '@shared/projects';
 import { err, ok, type Result } from '@shared/result';
-import type { CreateTaskParams, GitSetup } from '@shared/tasks';
-import { type WorkspaceConfig, type WorkspaceTarget } from '@shared/workspace-config';
+import type { CreateTaskParams } from '@shared/tasks';
+import type { WorkspaceConfig } from '@shared/workspace-config';
 import {
   markRunCreatingConversation,
   markRunFailed,
@@ -42,75 +38,6 @@ async function ensureProjectOpen(projectId: string) {
   }
 
   return ok(project);
-}
-
-async function resolveProjectDefaults(
-  project: NonNullable<ReturnType<typeof projectManager.getProject>>,
-  taskName: string
-): Promise<WorkspaceConfig> {
-  const [branchesPayload, repoInfo, configuredRemotes] = await Promise.all([
-    project.repository.getBranchesPayload(),
-    project.repository.getRepositoryInfo(),
-    project.repository.getConfiguredRemotes(),
-  ]);
-  const defaultBranchName = bareRefName(branchesPayload.gitDefaultBranch);
-  const localDefault = branchesPayload.branches.find(
-    (branch: Branch) => branch.type === 'local' && branch.branch === defaultBranchName
-  );
-  const remoteDefault = branchesPayload.branches.find(
-    (branch: Branch) =>
-      branch.type === 'remote' &&
-      branch.branch === defaultBranchName &&
-      branch.remote.name === configuredRemotes.baseRemote
-  );
-  const currentBranch = repoInfo.currentBranch
-    ? { type: 'local' as const, branch: repoInfo.currentBranch }
-    : undefined;
-  const fromBranch: Branch = localDefault ??
-    remoteDefault ??
-    currentBranch ?? { type: 'local' as const, branch: defaultBranchName };
-
-  const git: GitSetup = repoInfo.isUnborn
-    ? { kind: 'none' }
-    : { kind: 'create-branch', branchName: taskName, fromBranch, pushBranch: true };
-
-  let workspace: WorkspaceTarget;
-  if (git.kind === 'none') {
-    const workspaceId = await ensureRepositoryWorkspace(await getProjectData(project.projectId));
-    workspace = { kind: 'repository-instance', workspaceId };
-  } else {
-    workspace = { kind: 'new-worktree' };
-  }
-
-  return { version: '2', git, workspace };
-}
-
-async function getProjectData(projectId: string): Promise<LocalProject | SshProject> {
-  const [row] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
-  if (!row) throw new Error(`Project ${projectId} not found`);
-  if (row.workspaceProvider === 'ssh') {
-    return {
-      type: 'ssh',
-      id: row.id,
-      name: row.name,
-      path: row.path,
-      baseRef: row.baseRef ?? 'main',
-      connectionId: row.sshConnectionId!,
-      repositoryWorkspaceId: row.repositoryWorkspaceId ?? null,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt,
-    };
-  }
-  return {
-    type: 'local',
-    id: row.id,
-    name: row.name,
-    path: row.path,
-    baseRef: row.baseRef ?? 'main',
-    repositoryWorkspaceId: row.repositoryWorkspaceId ?? null,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-  };
 }
 
 function makeRunBranchName(baseBranch: string, runId: string) {
@@ -150,14 +77,12 @@ export async function executeTaskCreate(
       await markRunFailed(run.id, { step: 'create_task', code: 'project_not_found' });
       return err(projectResult.error);
     }
-    const project = projectResult.data;
 
-    let workspaceConfig: WorkspaceConfig;
-    if (taskConfig?.workspaceConfig) {
-      workspaceConfig = scopeWorkspaceConfigToRun(taskConfig.workspaceConfig, run.id);
-    } else {
-      workspaceConfig = await resolveProjectDefaults(project, taskName);
+    if (!taskConfig?.workspaceConfig) {
+      await markRunFailed(run.id, { step: 'create_task', code: 'no_workspace_config' });
+      return err('no_workspace_config');
     }
+    const workspaceConfig = scopeWorkspaceConfigToRun(taskConfig.workspaceConfig, run.id);
 
     const provider =
       (automation.conversationConfig?.provider ||
