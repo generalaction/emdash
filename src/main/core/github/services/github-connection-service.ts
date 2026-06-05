@@ -15,6 +15,7 @@ import {
 } from '@shared/events/githubEvents';
 import type { GitHubConnectResponse, GitHubStatusOptions, GitHubUser } from '@shared/github';
 import { extractGhCliToken } from './gh-cli-token';
+import { githubApiBaseUrlForHost } from './github-api-base-url';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -39,6 +40,10 @@ export interface DeviceCodeResult {
 export type TokenSource = 'secure_storage' | 'cli' | 'emdash_oauth' | 'device_flow' | null;
 
 export interface GitHubConnectionService {
+  getStoredTokenRecord(): Promise<{
+    token: string;
+    source: Exclude<TokenSource, null> | null;
+  } | null>;
   getToken(): Promise<string | null>;
   getTokenSource(): Promise<TokenSource>;
   getStatus(options?: GitHubStatusOptions): Promise<{
@@ -48,7 +53,7 @@ export interface GitHubConnectionService {
   }>;
   isAuthenticated(): Promise<boolean>;
   getCurrentUser(): Promise<GitHubUser | null>;
-  getUserInfo(token: string): Promise<GitHubUser | null>;
+  getUserInfo(token: string, host?: string): Promise<GitHubUser | null>;
   startOAuthFlow(authServerBaseUrl: string): Promise<AuthResult>;
   startDeviceFlowAuth(): Promise<DeviceCodeResult>;
   storeToken(token: string, source?: Exclude<TokenSource, null>): Promise<void>;
@@ -102,16 +107,17 @@ export class GitHubConnectionServiceImpl implements GitHubConnectionService {
     await githubKV.del('tokenSource');
   }
 
-  private async getStoredTokenRecord(): Promise<{
-    token: string | null;
+  async getStoredTokenRecord(): Promise<{
+    token: string;
     source: Exclude<TokenSource, null> | null;
-  }> {
+  } | null> {
     try {
       const token = (await encryptedAppSecretsStore.getSecret(GITHUB_TOKEN_SECRET_KEY)) ?? null;
+      if (!token) return null;
       const source = await this.getStoredTokenSource();
       return { token, source };
     } catch {
-      return { token: null, source: null };
+      return null;
     }
   }
 
@@ -137,7 +143,9 @@ export class GitHubConnectionServiceImpl implements GitHubConnectionService {
   }
 
   private async _doResolveTokenRecord(): Promise<{ token: string | null; source: TokenSource }> {
-    const { token: storedToken, source } = await this.getStoredTokenRecord();
+    const storedRecord = await this.getStoredTokenRecord();
+    const storedToken = storedRecord?.token ?? null;
+    const source = storedRecord?.source ?? null;
     const ctx = new LocalExecutionContext();
 
     if (storedToken && source === 'cli') {
@@ -218,9 +226,9 @@ export class GitHubConnectionServiceImpl implements GitHubConnectionService {
     return this.getUserInfo(token);
   }
 
-  async getUserInfo(token: string): Promise<GitHubUser | null> {
+  async getUserInfo(token: string, host = 'github.com'): Promise<GitHubUser | null> {
     try {
-      const octokit = new Octokit({ auth: token });
+      const octokit = new Octokit({ auth: token, baseUrl: githubApiBaseUrlForHost(host) });
       const { data } = await octokit.rest.users.getAuthenticated();
       return {
         id: data.id,

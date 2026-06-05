@@ -88,6 +88,28 @@ describe('GitHubConnectionServiceImpl token caching', () => {
     expect(mockGetSecret).toHaveBeenCalledTimes(1);
   });
 
+  it('reads stored token records without probing GitHub CLI', async () => {
+    mockGetSecret.mockResolvedValue('gho_stored');
+    mockKvGet.mockResolvedValue('cli');
+    mockExtractGhCliToken.mockResolvedValue('gho_cli');
+
+    await expect(service.getStoredTokenRecord()).resolves.toEqual({
+      token: 'gho_stored',
+      source: 'cli',
+    });
+
+    expect(mockExtractGhCliToken).not.toHaveBeenCalled();
+  });
+
+  it('returns null for stored token records when only GitHub CLI is available', async () => {
+    mockGetSecret.mockResolvedValue(null);
+    mockExtractGhCliToken.mockResolvedValue('gho_cli');
+
+    await expect(service.getStoredTokenRecord()).resolves.toBeNull();
+
+    expect(mockExtractGhCliToken).not.toHaveBeenCalled();
+  });
+
   it('concurrent getToken() calls share one in-flight resolution', async () => {
     let resolve!: (v: string) => void;
     const pending = new Promise<string>((res) => {
