@@ -1,0 +1,33 @@
+{
+  "name": "emdash-server",
+  "version": "0.1.0",
+  "description": "Always-on webhook relay server for Emdash",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "emdash-server": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/cli.ts start",
+    "test": "vitest run",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/db/migrate.ts"
+  },
+  "dependencies": {
+    "@fastify/rate-limit": "^9.0.0",
+    "better-sqlite3": "^11.0.0",
+    "drizzle-orm": "^0.36.0",
+    "drizzle-kit": "^0.28.0",
+    "fastify": "^5.0.0",
+    "nanoid": "^5.0.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.0",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  }
+}
