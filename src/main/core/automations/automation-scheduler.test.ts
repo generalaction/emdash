@@ -130,6 +130,7 @@ describe('AutomationScheduler drain serialization', () => {
           autoApprove: false,
         },
         taskConfigSnapshot: null,
+        generatedTaskName: null,
       },
       automation: {
         id: automationId,

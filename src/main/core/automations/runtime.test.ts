@@ -3,6 +3,7 @@ import type { Automation } from '@shared/automations/automation';
 import type { AutomationRun } from '@shared/automations/automation-run';
 import { executeTaskCreate } from './actions/taskCreate';
 import { updateRun } from './repo';
+import type { OnStepCompleted } from './run-transitions';
 import { runQueuedAutomation } from './runtime';
 
 vi.mock('@main/lib/logger', () => ({ log: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
@@ -36,14 +37,15 @@ const run: AutomationRun = {
   triggerConfigSnapshot: { expr: '0 9 * * *', tz: 'UTC' },
   conversationConfigSnapshot: { prompt: 'Check things', provider: 'claude', autoApprove: false },
   taskConfigSnapshot: null,
+  generatedTaskName: null,
 };
 
 describe('runQueuedAutomation', () => {
-  let onStepCompleted: ReturnType<typeof vi.fn>;
+  let onStepCompleted: OnStepCompleted;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    onStepCompleted = vi.fn();
+    onStepCompleted = vi.fn() as unknown as OnStepCompleted;
     vi.mocked(updateRun).mockImplementation(async (_, values) => ({ ...run, ...values }));
   });
 

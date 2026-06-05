@@ -13,6 +13,7 @@ import { taskService } from '@main/core/tasks/task-service';
 import type { Automation } from '@shared/automations/automation';
 import type { AutomationRun } from '@shared/automations/automation-run';
 import { updateRun } from '../repo';
+import type { OnStepCompleted } from '../run-transitions';
 import {
   markRunCreatingConversation,
   markRunFailed,
@@ -114,11 +115,14 @@ const run: AutomationRun = {
   triggerConfigSnapshot: { expr: '0 9 * * *', tz: 'UTC' },
   conversationConfigSnapshot: { prompt: 'Check things', provider: 'claude', autoApprove: false },
   taskConfigSnapshot: null,
+  generatedTaskName: null,
 };
 
 const mockTaskRow = { id: 'task-generated-uuid', name: 'random-task-name' } as never;
 const mockConvRow = { id: 'conv-1' } as never;
 const preparedData = {} as never;
+
+const noopStep: OnStepCompleted = vi.fn() as unknown as OnStepCompleted;
 
 describe('executeTaskCreate', () => {
   beforeEach(() => {
@@ -151,13 +155,13 @@ describe('executeTaskCreate', () => {
       ...automation,
       conversationConfig: { prompt: '   ', provider: 'claude', autoApprove: false },
     };
-    const result = await executeTaskCreate(emptyPromptAutomation, run);
+    const result = await executeTaskCreate(emptyPromptAutomation, run, noopStep);
     expect(result).toEqual({ success: false, error: 'task_create_prompt_empty' });
     expect(prepareCreateTask).not.toHaveBeenCalled();
   });
 
   it('returns err when automation has no projectId', async () => {
-    const result = await executeTaskCreate({ ...automation, projectId: undefined }, run);
+    const result = await executeTaskCreate({ ...automation, projectId: undefined }, run, noopStep);
     expect(result).toEqual({ success: false, error: 'no_project_attached' });
     expect(prepareCreateTask).not.toHaveBeenCalled();
   });
@@ -166,7 +170,7 @@ describe('executeTaskCreate', () => {
     vi.mocked(projectManager.getProject).mockReturnValue(undefined);
     vi.mocked(openProject).mockResolvedValue({ success: false, error: 'not_found' as never });
 
-    const result = await executeTaskCreate(automation, run);
+    const result = await executeTaskCreate(automation, run, noopStep);
 
     expect(result.success).toBe(false);
     expect(markRunFailed).toHaveBeenCalledWith(run.id, {
@@ -182,7 +186,7 @@ describe('executeTaskCreate', () => {
       error: { type: 'branch-not-found', branch: 'my-branch' },
     });
 
-    const result = await executeTaskCreate(automation, run);
+    const result = await executeTaskCreate(automation, run, noopStep);
 
     expect(result.success).toBe(false);
     expect(markRunFailed).toHaveBeenCalledWith(run.id, {
@@ -194,7 +198,7 @@ describe('executeTaskCreate', () => {
   });
 
   it('calls markRunLaunchingTask after committing task to DB', async () => {
-    const result = await executeTaskCreate(automation, run);
+    const result = await executeTaskCreate(automation, run, noopStep);
 
     expect(result.success).toBe(true);
     expect(commitCreateTask).toHaveBeenCalledWith(preparedData, mockTx);
@@ -217,7 +221,7 @@ describe('executeTaskCreate', () => {
       },
     });
 
-    const result = await executeTaskCreate(automation, run);
+    const result = await executeTaskCreate(automation, run, noopStep);
 
     expect(result.success).toBe(false);
     expect(markRunFailed).toHaveBeenCalledWith(run.id, {
@@ -229,7 +233,7 @@ describe('executeTaskCreate', () => {
   });
 
   it('calls markRunCreatingConversation after successful launch', async () => {
-    const result = await executeTaskCreate(automation, run);
+    const result = await executeTaskCreate(automation, run, noopStep);
 
     expect(result.success).toBe(true);
     expect(markRunCreatingConversation).toHaveBeenCalledWith(run.id, expect.any(Number));
@@ -239,7 +243,7 @@ describe('executeTaskCreate', () => {
   it('marks run failed when conversation creation throws', async () => {
     vi.mocked(createConversation).mockRejectedValue(new Error('conv_failed'));
 
-    const result = await executeTaskCreate(automation, run);
+    const result = await executeTaskCreate(automation, run, noopStep);
 
     expect(result.success).toBe(false);
     expect(markRunFailed).toHaveBeenCalledWith(run.id, {
@@ -250,14 +254,14 @@ describe('executeTaskCreate', () => {
   });
 
   it('returns ok with taskId on full success', async () => {
-    const result = await executeTaskCreate(automation, run);
+    const result = await executeTaskCreate(automation, run, noopStep);
 
     expect(result).toEqual({ success: true, data: { taskId: expect.any(String) } });
     expect(markRunFailed).not.toHaveBeenCalled();
   });
 
   it('uses generateRandom for the task name', async () => {
-    await executeTaskCreate(automation, run);
+    await executeTaskCreate(automation, run, noopStep);
 
     expect(generateRandom).toHaveBeenCalled();
     expect(prepareCreateTask).toHaveBeenCalledWith(
@@ -270,7 +274,7 @@ describe('executeTaskCreate', () => {
   it('uses the random task name as the branch name in the workspace config', async () => {
     vi.mocked(generateRandom).mockReturnValue('jolly-tiger-runs-fast');
 
-    await executeTaskCreate(automation, run);
+    await executeTaskCreate(automation, run, noopStep);
 
     expect(prepareCreateTask).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -287,7 +291,8 @@ describe('executeTaskCreate', () => {
         ...automation,
         conversationConfig: { prompt: 'Check things', provider: 'cursor', autoApprove: false },
       },
-      run
+      run,
+      noopStep
     );
 
     expect(createConversation).toHaveBeenCalledWith(
@@ -296,7 +301,7 @@ describe('executeTaskCreate', () => {
   });
 
   it('creates the conversation with config from automation, not run snapshot', async () => {
-    await executeTaskCreate(automation, run);
+    await executeTaskCreate(automation, run, noopStep);
 
     expect(createConversation).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -313,7 +318,7 @@ describe('executeTaskCreate', () => {
       .mockReturnValue({} as never);
     vi.mocked(openProject).mockResolvedValue({ success: true, data: undefined });
 
-    const result = await executeTaskCreate(automation, run);
+    const result = await executeTaskCreate(automation, run, noopStep);
 
     expect(result.success).toBe(true);
     expect(openProject).toHaveBeenCalledWith('project-1');

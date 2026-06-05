@@ -40,6 +40,7 @@ export function mapAutomationRunRowToAutomationRun(row: AutomationRunRow): Autom
     launchedAt: row.launchedAt,
     finishedAt: row.finishedAt,
     taskId: row.taskId,
+    generatedTaskName: row.generatedTaskName ?? null,
     error: row.error,
   };
 }
