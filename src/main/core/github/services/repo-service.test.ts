@@ -22,7 +22,6 @@ function makeOctokit(
     reposCreateForAuthenticatedUser: ReturnType<typeof vi.fn>;
     reposCreateInOrg: ReturnType<typeof vi.fn>;
     reposDelete: ReturnType<typeof vi.fn>;
-    reposGet: ReturnType<typeof vi.fn>;
   }> = {}
 ): Octokit {
   return {
@@ -33,7 +32,6 @@ function makeOctokit(
         createForAuthenticatedUser: overrides.reposCreateForAuthenticatedUser ?? vi.fn(),
         createInOrg: overrides.reposCreateInOrg ?? vi.fn(),
         delete: overrides.reposDelete ?? vi.fn().mockResolvedValue({}),
-        get: overrides.reposGet ?? vi.fn(),
       },
       users: {
         getAuthenticated:
@@ -125,6 +123,15 @@ describe('GitHubRepositoryServiceImpl', () => {
 
       expect(owners).toEqual([{ login: 'testuser', type: 'User' }]);
     });
+
+    it('uses the requested GitHub account for owner lookup', async () => {
+      const octokit = makeOctokit();
+      mockGetOctokit.mockResolvedValue(ok(octokit));
+
+      await repoService.getOwners({ accountId: 'github.com:42' });
+
+      expect(mockGetOctokit).toHaveBeenCalledWith('github.com', { accountId: 'github.com:42' });
+    });
   });
 
   describe('createRepository', () => {
@@ -172,6 +179,28 @@ describe('GitHubRepositoryServiceImpl', () => {
         expect.objectContaining({ org: 'acme', name: 'new', private: true })
       );
     });
+
+    it('uses the requested GitHub account for repository creation', async () => {
+      const octokit = makeOctokit({
+        reposCreateForAuthenticatedUser: vi.fn().mockResolvedValue({
+          data: {
+            html_url: 'https://github.com/testuser/new',
+            default_branch: 'main',
+            full_name: 'testuser/new',
+          },
+        }),
+      });
+      mockGetOctokit.mockResolvedValue(ok(octokit));
+
+      await repoService.createRepository({
+        name: 'new',
+        owner: 'testuser',
+        isPrivate: false,
+        authContext: { accountId: 'github.com:42' },
+      });
+
+      expect(mockGetOctokit).toHaveBeenCalledWith('github.com', { accountId: 'github.com:42' });
+    });
   });
 
   describe('deleteRepository', () => {
@@ -186,76 +215,18 @@ describe('GitHubRepositoryServiceImpl', () => {
         repo: 'old-repo',
       });
     });
-  });
 
-  describe('checkRepositoryExists', () => {
-    it('returns true when found', async () => {
-      const octokit = makeOctokit({
-        reposGet: vi.fn().mockResolvedValue({ data: {} }),
-      });
+    it('uses the requested GitHub account for repository deletion', async () => {
+      const octokit = makeOctokit();
       mockGetOctokit.mockResolvedValue(ok(octokit));
 
-      expect(await repoService.checkRepositoryExists('testuser', 'repo')).toBe(true);
-    });
+      await repoService.deleteRepository('testuser', 'old-repo', { accountId: 'github.com:42' });
 
-    it('returns false on 404', async () => {
-      const octokit = makeOctokit({
-        reposGet: vi.fn().mockRejectedValue({ status: 404 }),
+      expect(mockGetOctokit).toHaveBeenCalledWith('github.com', { accountId: 'github.com:42' });
+      expect(octokit.rest.repos.delete).toHaveBeenCalledWith({
+        owner: 'testuser',
+        repo: 'old-repo',
       });
-      mockGetOctokit.mockResolvedValue(ok(octokit));
-
-      expect(await repoService.checkRepositoryExists('testuser', 'missing')).toBe(false);
-    });
-
-    it('throws on non-404 errors', async () => {
-      const octokit = makeOctokit({
-        reposGet: vi.fn().mockRejectedValue({ status: 500 }),
-      });
-      mockGetOctokit.mockResolvedValue(ok(octokit));
-
-      await expect(repoService.checkRepositoryExists('testuser', 'repo')).rejects.toEqual({
-        status: 500,
-      });
-    });
-  });
-
-  describe('validateRepositoryName', () => {
-    it('accepts valid names', () => {
-      expect(repoService.validateRepositoryName('my-repo')).toEqual({ valid: true });
-      expect(repoService.validateRepositoryName('repo.js')).toEqual({ valid: true });
-      expect(repoService.validateRepositoryName('my_repo_123')).toEqual({ valid: true });
-    });
-
-    it('rejects empty names', () => {
-      expect(repoService.validateRepositoryName('')).toEqual({
-        valid: false,
-        error: 'Repository name is required',
-      });
-    });
-
-    it('rejects names over 100 chars', () => {
-      expect(repoService.validateRepositoryName('a'.repeat(101)).valid).toBe(false);
-    });
-
-    it('rejects invalid characters', () => {
-      expect(repoService.validateRepositoryName('my repo').valid).toBe(false);
-      expect(repoService.validateRepositoryName('repo@name').valid).toBe(false);
-    });
-
-    it('rejects names starting/ending with special chars', () => {
-      expect(repoService.validateRepositoryName('-repo').valid).toBe(false);
-      expect(repoService.validateRepositoryName('repo-').valid).toBe(false);
-      expect(repoService.validateRepositoryName('.repo').valid).toBe(false);
-    });
-
-    it('rejects all-dots names', () => {
-      expect(repoService.validateRepositoryName('...').valid).toBe(false);
-    });
-
-    it('rejects reserved names', () => {
-      expect(repoService.validateRepositoryName('CON').valid).toBe(false);
-      expect(repoService.validateRepositoryName('nul').valid).toBe(false);
-      expect(repoService.validateRepositoryName('COM1').valid).toBe(false);
     });
   });
 });

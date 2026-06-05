@@ -1,4 +1,3 @@
-import { homedir } from 'node:os';
 import * as path from 'node:path';
 import { ACCOUNT_CONFIG } from '@main/core/account/config';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
@@ -7,14 +6,20 @@ import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { cloneRepository, initializeNewProject } from '@main/core/git/impl/git-repo-utils';
+import { githubAccountBackfillService } from '@main/core/github/services/github-account-backfill-instance';
+import { githubAccountService } from '@main/core/github/services/github-account-service-instance';
 import { githubConnectionService } from '@main/core/github/services/github-connection-service';
 import { repoService } from '@main/core/github/services/repo-service';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import type {
+  GitHubAccountSummary,
   GitHubAuthResponse,
   GitHubConnectResponse,
+  GitHubImportCliAccountsResponse,
+  GitHubRemoveAccountResponse,
+  GitHubSetDefaultAccountResponse,
   GitHubStatusOptions,
   GitHubStatusResponse,
 } from '@shared/github';
@@ -34,6 +39,7 @@ export const githubController = createRPCController({
     try {
       const result = await githubConnectionService.startDeviceFlowAuth();
       if (result.success) {
+        await githubAccountBackfillService.backfillLegacyToken();
         telemetryService.capture('integration_connected', { provider: 'github' });
       }
       return result;
@@ -48,12 +54,58 @@ export const githubController = createRPCController({
       const { baseUrl } = ACCOUNT_CONFIG.authServer;
       const result = await githubConnectionService.startOAuthFlow(baseUrl);
       if (result.success) {
+        await githubAccountBackfillService.backfillLegacyToken();
         telemetryService.capture('integration_connected', { provider: 'github' });
       }
       return result;
     } catch (error) {
       log.error('GitHub OAuth connect failed:', error);
       return { success: false, error: 'OAuth connection failed' };
+    }
+  },
+
+  listAccounts: async (): Promise<GitHubAccountSummary[]> => {
+    try {
+      return await githubAccountService.listAccounts();
+    } catch (error) {
+      log.error('Failed to list GitHub accounts:', error);
+      return [];
+    }
+  },
+
+  importCliAccounts: async (): Promise<GitHubImportCliAccountsResponse> => {
+    try {
+      const result = await githubAccountService.importCliAccounts();
+      if (result.importedAccountIds.length > 0) {
+        telemetryService.capture('integration_connected', { provider: 'github', source: 'cli' });
+      }
+      return result;
+    } catch (error) {
+      log.error('Failed to import GitHub CLI accounts:', error);
+      return { success: false, error: 'Failed to import GitHub CLI accounts' };
+    }
+  },
+
+  setDefaultAccount: async (accountId: string): Promise<GitHubSetDefaultAccountResponse> => {
+    try {
+      const account = await githubAccountService.setDefaultAccount(accountId);
+      if (!account) return { success: false, error: 'GitHub account not found' };
+      return { success: true, account };
+    } catch (error) {
+      log.error('Failed to set default GitHub account:', error);
+      return { success: false, error: 'Failed to set default GitHub account' };
+    }
+  },
+
+  removeAccount: async (accountId: string): Promise<GitHubRemoveAccountResponse> => {
+    try {
+      const accounts = await githubAccountService.removeAccount(accountId);
+      if (!accounts) return { success: false, error: 'GitHub account not found' };
+      telemetryService.capture('integration_disconnected', { provider: 'github' });
+      return { success: true, accounts };
+    } catch (error) {
+      log.error('Failed to remove GitHub account:', error);
+      return { success: false, error: 'Failed to remove GitHub account' };
     }
   },
 
@@ -108,18 +160,18 @@ export const githubController = createRPCController({
 
   // -- Repositories --------------------------------------------------------
 
-  getRepositories: async () => {
+  getRepositories: async (accountId?: string) => {
     try {
-      return await repoService.listRepositories();
+      return await repoService.listRepositories({ accountId });
     } catch (error) {
       log.error('Failed to get repositories:', error);
       return [];
     }
   },
 
-  getOwners: async () => {
+  getOwners: async (accountId?: string) => {
     try {
-      const owners = await repoService.getOwners();
+      const owners = await repoService.getOwners({ accountId });
       return { success: true, owners };
     } catch (error) {
       log.error('Failed to get owners:', error);
@@ -136,6 +188,7 @@ export const githubController = createRPCController({
     description?: string;
     isPrivate?: boolean;
     visibility?: 'public' | 'private';
+    accountId?: string | null;
   }) => {
     try {
       const isPrivate = params.isPrivate ?? params.visibility === 'private';
@@ -144,6 +197,7 @@ export const githubController = createRPCController({
         owner: params.owner,
         description: params.description,
         isPrivate,
+        authContext: { accountId: params.accountId ?? undefined },
       });
       return {
         success: true,
@@ -160,66 +214,17 @@ export const githubController = createRPCController({
     }
   },
 
-  deleteRepository: async (owner: string, name: string) => {
+  deleteRepository: async (params: { owner: string; name: string; accountId?: string | null }) => {
     try {
-      await repoService.deleteRepository(owner, name);
+      await repoService.deleteRepository(params.owner, params.name, {
+        accountId: params.accountId ?? undefined,
+      });
       return { success: true };
     } catch (error) {
       log.error('Failed to delete repository:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to delete repository',
-      };
-    }
-  },
-
-  validateRepoName: async (name: string, owner?: string) => {
-    try {
-      const formatValidation = repoService.validateRepositoryName(name);
-      if (!formatValidation.valid) {
-        return {
-          success: true,
-          valid: false,
-          exists: false,
-          error: formatValidation.error,
-        };
-      }
-
-      if (owner) {
-        const exists = await repoService.checkRepositoryExists(owner, name);
-        if (exists) {
-          return {
-            success: true,
-            valid: true,
-            exists: true,
-            error: `Repository ${owner}/${name} already exists`,
-          };
-        }
-      }
-
-      return {
-        success: true,
-        valid: true,
-        exists: false,
-      };
-    } catch (error) {
-      log.error('Failed to validate repo name:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Validation failed',
-      };
-    }
-  },
-
-  checkRepositoryExists: async (owner: string, name: string) => {
-    try {
-      const exists = await repoService.checkRepositoryExists(owner, name);
-      return { success: true, exists };
-    } catch (error) {
-      log.error('Failed to check repository existence:', error);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to check repository',
       };
     }
   },
@@ -285,77 +290,6 @@ export const githubController = createRPCController({
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Initialize failed',
-      };
-    }
-  },
-
-  createNewProject: async (params: {
-    name: string;
-    owner: string;
-    isPrivate: boolean;
-    description?: string;
-  }) => {
-    const { name, owner, isPrivate, description } = params;
-
-    let repoUrl: string | undefined;
-    let nameWithOwner: string | undefined;
-    let defaultBranch: string | undefined;
-    let githubRepoCreated = false;
-
-    try {
-      const repoInfo = await repoService.createRepository({ name, owner, isPrivate, description });
-      repoUrl = repoInfo.url;
-      nameWithOwner = repoInfo.nameWithOwner;
-      defaultBranch = repoInfo.defaultBranch;
-      githubRepoCreated = true;
-
-      const cloneUrl = `https://github.com/${nameWithOwner}.git`;
-      const settings = {};
-      const projectDir =
-        (settings as { projects?: { defaultDirectory?: string } }).projects?.defaultDirectory ??
-        path.join(homedir(), 'emdash-projects');
-      const localPath = path.join(projectDir, name);
-      const cloneCtx = new LocalExecutionContext({ root: path.dirname(localPath) });
-      const parentFs = new LocalFileSystem(path.dirname(localPath));
-      await parentFs.mkdir('.', { recursive: true });
-      const cloneResult = await cloneRepository(cloneUrl, localPath, cloneCtx);
-      if (!cloneResult.success) {
-        throw new Error(cloneResult.error ?? 'Clone failed');
-      }
-
-      const initCtx = new LocalExecutionContext({ root: localPath });
-      const projectFs = new LocalFileSystem(localPath);
-      await initializeNewProject(
-        { repoUrl: cloneUrl, localPath, name, description },
-        initCtx,
-        projectFs
-      );
-
-      return {
-        success: true,
-        projectPath: localPath,
-        repoUrl,
-        nameWithOwner,
-        defaultBranch,
-        githubRepoCreated,
-      };
-    } catch (error) {
-      log.error('Failed to create new project:', error);
-
-      if (githubRepoCreated && nameWithOwner) {
-        try {
-          const [repoOwner, repoName] = nameWithOwner.split('/');
-          await repoService.deleteRepository(repoOwner, repoName);
-        } catch (cleanupError) {
-          log.error('Failed to clean up GitHub repo after project creation failure:', cleanupError);
-        }
-      }
-
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to create project',
-        repoUrl,
-        githubRepoCreated,
       };
     }
   },
