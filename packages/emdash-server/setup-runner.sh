@@ -91,10 +91,15 @@ echo "   image:   ${IMAGE}"
 echo "   push:    ${PUSH}"
 echo "════════════════════════════════════════════════════════════"
 
-# ── 0. Tooling: jq ────────────────────────────────────────────────────────────
-if ! command -v jq &>/dev/null; then
-  info "Installing jq (needed to edit config.json)..."
-  sudo apt-get update -q && sudo apt-get install -y -q jq
+# ── 0. Host tooling: jq + git ─────────────────────────────────────────────────
+# git is needed on the HOST to clone the repo (the container has its own git for
+# pull/commit/push inside the run). jq is needed to edit config.json.
+MISSING_PKGS=()
+command -v jq &>/dev/null || MISSING_PKGS+=(jq)
+command -v git &>/dev/null || MISSING_PKGS+=(git)
+if [[ ${#MISSING_PKGS[@]} -gt 0 ]]; then
+  info "Installing host packages: ${MISSING_PKGS[*]}..."
+  sudo apt-get update -q && sudo apt-get install -y -q "${MISSING_PKGS[@]}"
 fi
 
 # ── 1. Docker ─────────────────────────────────────────────────────────────────
