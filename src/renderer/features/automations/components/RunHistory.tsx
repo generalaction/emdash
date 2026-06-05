@@ -52,7 +52,7 @@ export function RunHistory({ automation }: RunHistoryProps) {
       ) : historyRuns.length > 0 ? (
         <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-border/70 rounded-md border border-border">
           {historyRuns.map((run) => (
-            <AutomationRunRow key={run.id} runId={run.id} automationId={automation.id} />
+            <AutomationRunRow key={run.id} runId={run.id} automationId={automation.id} run={run} />
           ))}
         </div>
       ) : (

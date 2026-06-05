@@ -14,6 +14,7 @@ import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { AbsoluteTime } from '@renderer/lib/ui/absolute-time';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
+import type { AutomationRun } from '@shared/automations/automation-run';
 import { formatRunTriggerKindLabel, parseRunError } from '@shared/automations/format';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { useAutomationRun } from '../use-automations';
@@ -21,14 +22,17 @@ import { useAutomationRun } from '../use-automations';
 interface AutomationRunRowProps {
   runId: string;
   automationId: string;
+  run?: AutomationRun;
 }
 
 export const AutomationRunRow = observer(function AutomationRunRow({
   runId,
   automationId,
+  run: runProp,
 }: AutomationRunRowProps) {
   const { navigate } = useNavigate();
-  const run = useAutomationRun(automationId, runId);
+  const fetchedRun = useAutomationRun(automationId, runId);
+  const run = runProp ?? fetchedRun;
   const { stopRun, projectId } = useAutomationRunActions(automationId);
 
   const taskId = run ? run.taskId : null;
