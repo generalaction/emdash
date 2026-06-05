@@ -25,6 +25,7 @@ import { usePromptFileDrop } from './use-prompt-file-drop';
 export type InitialConversationState = {
   provider: AgentProviderId | null;
   setProvider: (provider: AgentProviderId | null) => void;
+  projectId?: string;
   prompt: string;
   setPrompt: Dispatch<SetStateAction<string>>;
   issueContext: string | null;
@@ -49,6 +50,7 @@ export function useInitialConversationState(projectId?: string): InitialConversa
   return {
     provider: providerId,
     setProvider: setProviderOverride,
+    projectId,
     prompt,
     setPrompt,
     issueContext,
@@ -97,6 +99,7 @@ export function InitialConversationField({
   const { isDragOver, dropHandlers } = usePromptFileDrop({
     // Local paths would not exist on the remote host of an SSH project.
     disableLocalFiles: Boolean(state.connectionId),
+    workspaceId: state.projectId,
     onDropText: (text) =>
       state.setPrompt((current) => appendInitialConversationText(current, text)),
   });

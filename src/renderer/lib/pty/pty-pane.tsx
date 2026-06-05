@@ -26,6 +26,7 @@ type Props = {
   mapShiftEnterToCtrlJ?: boolean;
   /** SSH connection ID — used for remote file drag-and-drop and image paste. */
   remoteConnectionId?: string;
+  workspaceId: string;
   themeOverride?: SessionTheme['override'];
   onActivity?: () => void;
   onExit?: (info: { exitCode: number | undefined; signal?: number }) => void;
@@ -123,6 +124,7 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
       contentFilter,
       mapShiftEnterToCtrlJ,
       remoteConnectionId,
+      workspaceId,
       themeOverride,
       onActivity,
       onExit,
@@ -261,6 +263,8 @@ const PtyPaneComponent = forwardRef<{ focus: () => void }, Props>(
         // carries the path in the workspace environment where this agent runs.
         const draggedWorkspaceFile = getDraggedWorkspaceFile(dt);
         if (draggedWorkspaceFile) {
+          if (draggedWorkspaceFile.workspaceId !== workspaceId) return;
+
           void (async () => {
             try {
               const platform =

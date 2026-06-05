@@ -17,19 +17,26 @@ import { log } from '@renderer/utils/logger';
 export function usePromptFileDrop({
   disableLocalFiles = false,
   onDropText,
+  workspaceId,
 }: {
   /** Reject OS file drops, e.g. for SSH projects where local paths would not exist remotely. */
   disableLocalFiles?: boolean;
   onDropText: (text: string) => void;
+  workspaceId?: string;
 }) {
   const [isDragOver, setIsDragOver] = useState(false);
   const dragCounter = useRef(0);
 
   const accepts = useCallback(
-    (dataTransfer: DataTransfer) =>
-      hasDraggedWorkspaceFile(dataTransfer) ||
-      (!disableLocalFiles && hasDraggedFiles(dataTransfer)),
-    [disableLocalFiles]
+    (dataTransfer: DataTransfer) => {
+      if (hasDraggedWorkspaceFile(dataTransfer)) {
+        const workspaceFile = getDraggedWorkspaceFile(dataTransfer);
+        return Boolean(workspaceId && workspaceFile?.workspaceId === workspaceId);
+      }
+
+      return !disableLocalFiles && hasDraggedFiles(dataTransfer);
+    },
+    [disableLocalFiles, workspaceId]
   );
 
   const onDragOver = useCallback(
@@ -72,6 +79,8 @@ export function usePromptFileDrop({
       setIsDragOver(false);
 
       const workspaceFile = getDraggedWorkspaceFile(e.dataTransfer);
+      if (workspaceFile && workspaceFile.workspaceId !== workspaceId) return;
+
       const files = workspaceFile ? [] : Array.from(e.dataTransfer.files);
       if (!workspaceFile && files.length === 0) return;
 
@@ -92,7 +101,7 @@ export function usePromptFileDrop({
         }
       })();
     },
-    [accepts, onDropText]
+    [accepts, onDropText, workspaceId]
   );
 
   return { isDragOver, dropHandlers: { onDragOver, onDragEnter, onDragLeave, onDrop } };

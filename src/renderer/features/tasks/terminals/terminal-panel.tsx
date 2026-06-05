@@ -150,6 +150,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
           autoFocus={autoFocus}
           emptyState={emptyState}
           remoteConnectionId={remoteConnectionId}
+          workspaceId={workspaceId}
         />
       </ResizablePanel>
       <ResizableHandle
