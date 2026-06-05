@@ -47,6 +47,7 @@ export const terminalSettingsSchema = z.object({
   fontFamily: z.string().optional(),
   fontSize: z.number().min(TERMINAL_FONT_SIZE_MIN).max(TERMINAL_FONT_SIZE_MAX).optional(),
   autoCopyOnSelection: z.boolean(),
+  macOptionIsMeta: z.boolean(),
   defaultShell: z.enum(TERMINAL_SHELL_IDS),
 });
 

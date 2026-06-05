@@ -84,7 +84,12 @@ vi.mock('@main/core/settings/settings-service', () => ({
   appSettingsService: {
     get: vi.fn(async (key: string) =>
       key === 'terminal'
-        ? { autoCopyOnSelection: false, defaultShell: 'system', fontSize: 13 }
+        ? {
+            autoCopyOnSelection: false,
+            macOptionIsMeta: false,
+            defaultShell: 'system',
+            fontSize: 13,
+          }
         : {
             defaultProjectsDirectory: '',
             defaultWorktreeDirectory: '',

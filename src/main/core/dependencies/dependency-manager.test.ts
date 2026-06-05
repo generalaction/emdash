@@ -7,6 +7,7 @@ vi.mock('@main/core/settings/settings-service', () => ({
   appSettingsService: {
     get: vi.fn(async () => ({
       autoCopyOnSelection: false,
+      macOptionIsMeta: false,
       defaultShell: 'system',
       fontSize: 13,
     })),

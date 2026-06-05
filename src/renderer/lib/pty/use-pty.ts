@@ -391,6 +391,7 @@ export function usePty(
             terminalSettings?.fontSize ?? TERMINAL_FONT_SIZE_DEFAULT;
           measureAndResize();
           autoCopyOnSelectionRef.current = terminalSettings?.autoCopyOnSelection ?? false;
+          frontendPty.terminal.options.macOptionIsMeta = terminalSettings?.macOptionIsMeta ?? false;
         }
       );
 
@@ -597,11 +598,21 @@ export function usePty(
         const detail = (e as CustomEvent<{ autoCopyOnSelection?: boolean }>).detail;
         autoCopyOnSelectionRef.current = detail?.autoCopyOnSelection ?? false;
       };
+      const handleMacOptionIsMetaChange = (e: Event) => {
+        const detail = (e as CustomEvent<{ macOptionIsMeta?: boolean }>).detail;
+        terminal.options.macOptionIsMeta = detail?.macOptionIsMeta ?? false;
+      };
       window.addEventListener('terminal-font-changed', handleFontChange);
       window.addEventListener('terminal-auto-copy-changed', handleAutoCopyChange);
+      window.addEventListener('terminal-mac-option-is-meta-changed', handleMacOptionIsMetaChange);
       cleanups.push(
         () => window.removeEventListener('terminal-font-changed', handleFontChange),
-        () => window.removeEventListener('terminal-auto-copy-changed', handleAutoCopyChange)
+        () => window.removeEventListener('terminal-auto-copy-changed', handleAutoCopyChange),
+        () =>
+          window.removeEventListener(
+            'terminal-mac-option-is-meta-changed',
+            handleMacOptionIsMetaChange
+          )
       );
 
       // ── ResizeObserver (observes the mount-target, not the owned container) ─
