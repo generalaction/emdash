@@ -6,6 +6,7 @@ interface BaseModeData {
 export interface PickModeData extends BaseModeData {
   mode: 'pick';
   initGitRepository?: boolean;
+  githubAccountId?: string;
 }
 
 export interface CloneModeData extends BaseModeData {

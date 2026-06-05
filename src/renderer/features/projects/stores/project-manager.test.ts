@@ -277,6 +277,49 @@ describe('ProjectManagerStore project creation', () => {
     expect(mocks.updateProjectSettings).not.toHaveBeenCalled();
   });
 
+  it('persists the default GitHub account after initializing a picked folder', async () => {
+    mocks.createProject.mockResolvedValueOnce(localProject({ id: 'optimistic-project' }));
+    const store = new ProjectManagerStore();
+
+    const result = await store.startProjectCreation(
+      { type: 'local' },
+      {
+        mode: 'pick',
+        name: 'Project',
+        path: '/project',
+        initGitRepository: true,
+        githubAccountId: 'github.com:42',
+      },
+      { id: 'optimistic-project' }
+    );
+
+    if (result.kind === 'creating') await result.completion;
+
+    expect(mocks.updateProjectSettings).toHaveBeenCalledWith('optimistic-project', {
+      githubAccountId: 'github.com:42',
+    });
+  });
+
+  it('does not persist a GitHub account for picked repositories that were already git repos', async () => {
+    mocks.createProject.mockResolvedValueOnce(localProject({ id: 'optimistic-project' }));
+    const store = new ProjectManagerStore();
+
+    const result = await store.startProjectCreation(
+      { type: 'local' },
+      {
+        mode: 'pick',
+        name: 'Project',
+        path: '/project',
+        githubAccountId: 'github.com:42',
+      },
+      { id: 'optimistic-project' }
+    );
+
+    if (result.kind === 'creating') await result.completion;
+
+    expect(mocks.updateProjectSettings).not.toHaveBeenCalled();
+  });
+
   it('uses the selected GitHub account when creating a repository for a new project', async () => {
     const store = new ProjectManagerStore();
 

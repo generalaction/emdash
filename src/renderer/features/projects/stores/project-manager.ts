@@ -144,6 +144,9 @@ export class ProjectManagerStore {
                 name: data.name,
                 initGitRepository: data.initGitRepository,
               });
+          if (data.initGitRepository) {
+            await this._saveInitialGitHubAccountSetting(project.id, data.githubAccountId);
+          }
           this._setAndOpenProject(projectId, project);
           captureTelemetry('project_added', {
             type: projectTelemetryType,

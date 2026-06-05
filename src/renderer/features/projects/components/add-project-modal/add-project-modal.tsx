@@ -219,7 +219,12 @@ export const AddProjectModal = observer(function AddProjectModal({
     () => createRequiredGitHubAccountSelectState(githubAccountOverride, githubAccounts ?? []),
     [githubAccountOverride, githubAccounts]
   );
+  const defaultGitHubAccountSelect = useMemo(
+    () => createRequiredGitHubAccountSelectState(undefined, githubAccounts ?? []),
+    [githubAccounts]
+  );
   const selectedGitHubAccountId = githubAccountSelect.selectedAccountId;
+  const defaultGitHubAccountId = defaultGitHubAccountSelect.selectedAccountId;
   const showGitHubAccountSelector = mode === 'new' && githubAccountSelect.accounts.length > 0;
 
   const pickState = usePickMode();
@@ -256,6 +261,7 @@ export const AddProjectModal = observer(function AddProjectModal({
     (strategy === 'local' || !!selectedConnectionId) &&
     !isCheckingPickPathStatus &&
     (mode !== 'new' || !githubAccountsQuery.isPending) &&
+    (mode !== 'pick' || !requiresGitInitialization || !githubAccountsQuery.isPending) &&
     (!requiresGitInitialization || pickState.initGitRepository) &&
     submitState === 'idle';
 
@@ -278,6 +284,9 @@ export const AddProjectModal = observer(function AddProjectModal({
           name: pickState.name,
           path: pickState.path,
           initGitRepository: pickState.initGitRepository,
+          githubAccountId: pickState.initGitRepository
+            ? (defaultGitHubAccountId ?? undefined)
+            : undefined,
         };
         break;
       case 'new':
