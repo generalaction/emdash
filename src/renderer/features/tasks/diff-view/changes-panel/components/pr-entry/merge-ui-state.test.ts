@@ -67,6 +67,12 @@ describe('deriveMergeCheckState', () => {
     );
   });
 
+  it('classifies completed checks without failures as passing', () => {
+    expect(deriveMergeCheckState([makeCheck({ status: 'COMPLETED', conclusion: 'SUCCESS' })])).toBe(
+      'passing'
+    );
+  });
+
   it('classifies missing checks as unknown', () => {
     expect(deriveMergeCheckState([])).toBe('unknown');
   });
@@ -139,6 +145,23 @@ describe('computeMergeUiState', () => {
       kind: 'unstable',
       title: 'Checks not passing',
       detail: 'Review failing checks before merging.',
+      canMerge: false,
+      canBypassRequirements: true,
+    });
+  });
+
+  it('shows passing checks separately when an unstable pull request has no failing checks', () => {
+    expect(
+      computeMergeUiState(
+        makePr({
+          mergeStateStatus: 'UNSTABLE',
+          checks: [makeCheck({ status: 'COMPLETED', conclusion: 'SUCCESS' })],
+        })
+      )
+    ).toMatchObject({
+      kind: 'unstable',
+      title: 'Checks passing, but PR is unstable',
+      detail: 'GitHub still reports the branch as unstable. Review branch rules before merging.',
       canMerge: false,
       canBypassRequirements: true,
     });
