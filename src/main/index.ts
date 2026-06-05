@@ -14,6 +14,7 @@ import { agentHookService } from './core/agent-hooks/agent-hook-service';
 import { appService } from './core/app/service';
 import { automationEvents } from './core/automations/automation-events';
 import { automationScheduler } from './core/automations/automation-scheduler';
+import { webhookWatcher } from './core/automations/webhook-watcher';
 import { localDependencyManager } from './core/dependencies/dependency-manager';
 import { editorBufferService } from './core/editor/editor-buffer-service';
 import { gitWatcherRegistry } from './core/git/git-watcher-registry';
@@ -133,6 +134,7 @@ void app.whenReady().then(async () => {
     events.emit(automationsChangedChannel, undefined);
   });
   automationScheduler.start();
+  webhookWatcher.start();
   appService.initialize();
   await appSettingsService.initialize();
   await promptLibraryService.initialize();
@@ -175,6 +177,7 @@ app.on('before-quit', (event) => {
   telemetryService.capture('app_closed');
   void telemetryService.dispose().finally(() => {
     automationScheduler.stop();
+    webhookWatcher.stop();
     agentHookService.dispose();
     stopResourceSampler();
     updateService.dispose();

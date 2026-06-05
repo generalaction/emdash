@@ -127,6 +127,16 @@ export const openInSettingsSchema = z.object({
   hidden: z.array(openInAppIdSchema),
 });
 
+export const emdashServerConnectionSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  url: z.string().url(),
+  apiKey: z.string(),
+});
+
+export const emdashServersSchema = z.array(emdashServerConnectionSchema).default([]);
+export type EmdashServerConnection = z.infer<typeof emdashServerConnectionSchema>;
+
 export const APP_SETTINGS_SCHEMA_MAP = {
   localProject: localProjectSettingsSchema,
   project: projectSettingsSchema,
@@ -142,6 +152,7 @@ export const APP_SETTINGS_SCHEMA_MAP = {
   browserPreview: browserPreviewSettingsSchema,
   resourceMonitor: resourceMonitorSettingsSchema,
   changesViewMode: changesViewModeSchema,
+  emdashServers: emdashServersSchema,
 } as const;
 
 export const appSettingsSchema = z.object({
@@ -159,4 +170,5 @@ export const appSettingsSchema = z.object({
   browserPreview: browserPreviewSettingsSchema,
   resourceMonitor: resourceMonitorSettingsSchema,
   changesViewMode: changesViewModeSchema,
+  emdashServers: emdashServersSchema,
 });

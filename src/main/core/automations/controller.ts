@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { isValidAction } from '@shared/automations/actions';
 import {
   AUTOMATION_NAME_MAX_LENGTH,
@@ -174,5 +175,9 @@ export const automationsController = createRPCController({
     limit = 50
   ): Promise<Result<AutomationRunWithContext[], string>> {
     return safe(async () => ok(await listRecentRuns(projectId, limit)));
+  },
+
+  generateWebhookToken(): Result<string, string> {
+    return ok(`wh_${randomBytes(24).toString('hex')}`);
   },
 });
