@@ -167,6 +167,18 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
     return result ?? { all: 0, done: 0, failed: 0, skipped: 0 };
   }
 
+  async getLatestRun(automationId: string): Promise<AutomationRun | null> {
+    const rows = await db
+      .select()
+      .from(automationRuns)
+      .where(
+        and(eq(automationRuns.automationId, automationId), ne(automationRuns.status, 'scheduled'))
+      )
+      .orderBy(desc(automationRuns.startedAt))
+      .limit(1);
+    return rows[0] ? mapAutomationRunRowToAutomationRun(rows[0]) : null;
+  }
+
   async getNextScheduledRun(automationId: string): Promise<AutomationRun | null> {
     const rows = await db
       .select()

@@ -134,9 +134,9 @@ export function formatAutomationError(error: unknown): string {
 export function formatRunTriggerKindLabel(kind: AutomationRunTriggerKind): string {
   switch (kind) {
     case 'cron':
-      return 'Scheduled';
+      return 'Triggered by schedule';
     case 'manual':
-      return 'Manually triggered';
+      return 'Triggered manually';
   }
 }
 

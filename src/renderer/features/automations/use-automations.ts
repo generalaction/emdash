@@ -133,6 +133,25 @@ export function useAutomationRunCounts(automationId: string) {
   });
 }
 
+export function useLatestAutomationRun(automationId: string) {
+  const queryClient = useQueryClient();
+  const key = ['automations', 'runs', automationId, 'latest'];
+
+  useEffect(() => {
+    return events.on(automationRunChangedChannel, ({ automationId: id, run }) => {
+      if (id !== automationId) return;
+      queryClient.setQueryData(key, run);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [automationId, queryClient]);
+
+  return useQuery({
+    queryKey: key,
+    queryFn: () => rpc.automations.getLatestRun(automationId),
+    enabled: !!automationId,
+  });
+}
+
 export function useAutomationRun(automationId: string, runId: string) {
   const runs = useAutomationRuns(automationId);
   return runs.data?.find((r) => r.id === runId);

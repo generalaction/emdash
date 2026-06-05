@@ -11,6 +11,7 @@ export const automationsController = createRPCController({
   listAutomationRuns: automationsService.listAutomationRuns.bind(automationsService),
   countAutomationRunsByStatus:
     automationsService.countAutomationRunsByStatus.bind(automationsService),
+  getLatestRun: automationsService.getLatestRun.bind(automationsService),
   getNextScheduledRun: automationsService.getNextScheduledRun.bind(automationsService),
   runAutomation: automationsService.runAutomation.bind(automationsService),
   stopRun: automationsService.stopRun.bind(automationsService),

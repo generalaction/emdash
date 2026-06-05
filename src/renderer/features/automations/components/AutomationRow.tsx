@@ -1,12 +1,21 @@
 import { Clock, Folder } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
+import { statusIndicatorConfig } from '@renderer/features/automations/run-status-styles';
+import {
+  useLatestAutomationRun,
+  useScheduledAutomationRun,
+} from '@renderer/features/automations/use-automations';
 import {
   getProjectStore,
   projectDisplayName,
 } from '@renderer/features/projects/stores/project-selectors';
+import { AgentStatusIndicator } from '@renderer/features/tasks/components/agent-status-indicator';
+import { getTaskStore, taskAgentStatus } from '@renderer/features/tasks/stores/task-selectors';
+import { AbsoluteTime } from '@renderer/lib/ui/absolute-time';
 import { Switch } from '@renderer/lib/ui/switch';
 import { cn } from '@renderer/utils/utils';
 import type { Automation } from '@shared/automations/automation';
+import { formatCronLabel, formatRunTriggerKindLabel } from '@shared/automations/format';
 
 interface AutomationRowProps {
   automation: Automation;
@@ -19,6 +28,21 @@ export const AutomationRow = observer(function AutomationRow({
   onToggleEnabled,
   onClick,
 }: AutomationRowProps) {
+  const latestRunQuery = useLatestAutomationRun(automation.id);
+  const scheduledRunQuery = useScheduledAutomationRun(automation.id);
+
+  const run = latestRunQuery.data ?? null;
+  const scheduledAt = scheduledRunQuery.data?.scheduledAt ?? null;
+
+  const taskId = run?.taskId ?? null;
+  const projectId = automation.projectId ?? null;
+  const taskStore = taskId && projectId ? getTaskStore(projectId, taskId) : undefined;
+  const agentStatus = taskStore ? taskAgentStatus(taskStore) : null;
+
+  const cronLabel = automation.triggerConfig?.expr
+    ? formatCronLabel(automation.triggerConfig.expr)
+    : null;
+
   return (
     <div
       role="button"
@@ -36,31 +60,77 @@ export const AutomationRow = observer(function AutomationRow({
           onCheckedChange={(checked) => onToggleEnabled?.(checked)}
         />
       </div>
-      <div className="flex min-w-0 flex-1 flex-col gap-2">
+
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        {/* Row 1: name + agent indicator left, cron + project right */}
         <div className="flex min-w-0 items-center justify-between gap-2">
-          <span className="min-w-0 truncate text-sm text-foreground">{automation.name}</span>
-          <div className="flex flex-row items-center gap-2 text-xs">
-            <span className="inline-flex items-center gap-1.5">
-              <Clock className="size-3 shrink-0" />
-              {automation.triggerConfig?.expr}
+          <div className="flex min-w-0 items-center gap-1">
+            <span
+              className={cn(
+                'min-w-0 truncate text-sm',
+                automation.enabled ? 'text-foreground' : 'text-foreground-muted'
+              )}
+            >
+              {automation.name}
             </span>
+            <AgentStatusIndicator status={agentStatus} />
+          </div>
+          <div className="flex shrink-0 flex-row items-center gap-1 text-xs text-foreground-muted">
+            {cronLabel && (
+              <span className="flex items-center gap-1 rounded-md bg-background-1 px-2 py-1 text-foreground-muted group-hover:bg-background-2">
+                <Clock className="size-3 shrink-0" />
+                <span className="shrink-0">{cronLabel}</span>
+              </span>
+            )}
             <div className="flex max-w-32 flex-row items-center gap-1.5 rounded-md bg-background-1 px-2 py-1 text-foreground-muted group-hover:bg-background-2">
               <Folder className="size-3 shrink-0" />
               <span
                 className={cn(
-                  'truncate text-xs font-normal min-w-0',
-                  automation.projectId == null && 'text-destructive/80'
+                  'min-w-0 truncate text-xs font-normal',
+                  projectId == null && 'text-destructive/80'
                 )}
               >
-                {automation.projectId
-                  ? projectDisplayName(getProjectStore(automation.projectId))
-                  : null}
+                {projectId ? projectDisplayName(getProjectStore(projectId)) : 'No project'}
               </span>
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-3 text-xs text-foreground-muted">
-          <span className="inline-flex items-center gap-1.5">Last run at TODO</span>
+
+        {/* Row 2: latest run sentence left, next run / disabled right */}
+        <div className="flex min-w-0 items-center justify-between gap-2">
+          {run ? (() => {
+            const cfg = statusIndicatorConfig(run.status);
+            const time = run.startedAt ?? run.finishedAt;
+            return (
+              <span className="flex items-center gap-1.5 text-sm text-foreground-muted">
+                <cfg.Icon
+                  className={cn('size-3.5 shrink-0', cfg.textClass, cfg.spin && 'animate-spin')}
+                />
+                Latest run on
+                {time && (
+                  <AbsoluteTime value={time} className="text-foreground-muted" />
+                )}
+                · {formatRunTriggerKindLabel(run.triggerKind)}
+              </span>
+            );
+          })() : (
+            <span className="text-sm text-foreground-passive">
+              No runs
+            </span>
+          )}
+
+          <div className="shrink-0 text-xs text-foreground-muted">
+            {automation.enabled ? (
+              scheduledAt ? (
+                <span className="flex items-center gap-1">
+                  Next run scheduled
+                  <AbsoluteTime value={scheduledAt} />
+                </span>
+              ) : null
+            ) : (
+              <span className="text-foreground-passive">Disabled</span>
+            )}
+          </div>
         </div>
       </div>
     </div>

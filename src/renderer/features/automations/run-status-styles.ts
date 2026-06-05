@@ -16,60 +16,60 @@ export function statusIndicatorConfig(status: AutomationRunStatus): StatusIndica
       return {
         Icon: Clock,
         label: 'Scheduled',
-        dotClass: 'bg-amber-400',
-        textClass: 'text-amber-600 dark:text-amber-400',
+        dotClass: 'bg-background-info',
+        textClass: 'text-foreground-info',
       };
     case 'queued':
       return {
         Icon: Clock,
         label: 'Queued',
-        dotClass: 'bg-amber-500',
-        textClass: 'text-amber-700 dark:text-amber-300',
+        dotClass: 'bg-background-info',
+        textClass: 'text-foreground-info',
       };
     case 'creating_task':
       return {
         Icon: Loader2,
         label: 'Creating task',
-        dotClass: 'bg-blue-500',
-        textClass: 'text-blue-700 dark:text-blue-300',
+        dotClass: 'bg-background-info',
+        textClass: 'text-foreground-info',
         spin: true,
       };
     case 'launching_task':
       return {
         Icon: Loader2,
         label: 'Launching task',
-        dotClass: 'bg-blue-500',
-        textClass: 'text-blue-700 dark:text-blue-300',
+        dotClass: 'bg-background-info',
+        textClass: 'text-foreground-info',
         spin: true,
       };
     case 'creating_conversation':
       return {
         Icon: Loader2,
         label: 'Starting agent',
-        dotClass: 'bg-blue-500',
-        textClass: 'text-blue-700 dark:text-blue-300',
+        dotClass: 'bg-background-info',
+        textClass: 'text-foreground-info',
         spin: true,
       };
     case 'done':
       return {
         Icon: CheckCircle2,
         label: 'Done',
-        dotClass: 'bg-emerald-500',
-        textClass: 'text-emerald-700 dark:text-emerald-300',
+        dotClass: 'bg-background-success',
+        textClass: 'text-foreground-success',
       };
     case 'failed':
       return {
         Icon: XCircle,
         label: 'Failed',
-        dotClass: 'bg-destructive',
-        textClass: 'text-destructive',
+        dotClass: 'bg-background-error',
+        textClass: 'text-foreground-error',
       };
     case 'skipped':
       return {
         Icon: MinusCircle,
         label: 'Skipped',
-        dotClass: 'bg-muted-foreground/50',
-        textClass: 'text-muted-foreground',
+        dotClass: 'bg-background-3',
+        textClass: 'text-foreground-muted',
       };
   }
 }
