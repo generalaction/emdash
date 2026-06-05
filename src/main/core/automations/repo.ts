@@ -13,7 +13,7 @@ import { log } from '@main/lib/logger';
 import type {
   Automation,
   CreateAutomationParams,
-  UpdateAutomationPatch,
+  UpdateAutomationSettingsPatch,
 } from '@shared/automations/automation';
 import type {
   AutomationRun,
@@ -293,9 +293,9 @@ export async function createAutomation(input: CreateAutomationParams): Promise<A
   return automation;
 }
 
-export async function updateAutomation(
+export async function updateAutomationSettings(
   id: string,
-  patch: UpdateAutomationPatch
+  patch: UpdateAutomationSettingsPatch
 ): Promise<Automation | null> {
   if (patch.projectId !== undefined && !(await projectExists(patch.projectId))) {
     throw new Error('project_not_found');
@@ -325,7 +325,6 @@ export async function updateAutomation(
     if (finalEnabled && finalProjectId == null) throw new Error('no_project_attached');
 
     const values: Partial<typeof automations.$inferInsert> = { updatedAt: Date.now() };
-    if (patch.name !== undefined) values.name = patch.name.trim();
     if (patch.projectId !== undefined) values.projectId = patch.projectId;
     if (patch.enabled !== undefined) values.enabled = patch.enabled ? 1 : 0;
     if (patch.triggerConfig !== undefined) {
@@ -346,6 +345,15 @@ export async function updateAutomation(
       .all();
     return row ? mapAutomationRow(row) : null;
   });
+}
+
+export async function renameAutomation(id: string, name: string): Promise<Automation | null> {
+  const [row] = await db
+    .update(automations)
+    .set({ name: name.trim(), updatedAt: Date.now() })
+    .where(eq(automations.id, id))
+    .returning();
+  return row ? mapAutomationRow(row) : null;
 }
 
 export async function detachProjectAutomations(projectId: string): Promise<Array<{ id: string }>> {

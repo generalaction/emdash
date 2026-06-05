@@ -6,7 +6,7 @@ import { log } from '@main/lib/logger';
 import type {
   Automation,
   CreateAutomationParams,
-  UpdateAutomationPatch,
+  UpdateAutomationSettingsPatch,
 } from '@shared/automations/automation';
 import type { AutomationRun } from '@shared/automations/automation-run';
 import {
@@ -17,9 +17,10 @@ import {
   insertRun,
   listAutomations as repoListAutomations,
   removeAutomation,
+  renameAutomation as renameInRepo,
   setAutomationEnabled as repoSetAutomationEnabled,
   skipQueuedCronRuns,
-  updateAutomation as updateInRepo,
+  updateAutomationSettings as updateSettingsInRepo,
 } from './repo';
 import { markRunSkipped } from './run-transitions';
 import { mapAutomationRunRowToAutomationRun } from './utils';
@@ -52,13 +53,20 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
     return automation;
   }
 
-  async updateAutomation(id: string, patch: UpdateAutomationPatch): Promise<Automation> {
-    const automation = await updateInRepo(id, patch);
+  async updateAutomationSettings(id: string, patch: UpdateAutomationSettingsPatch): Promise<Automation> {
+    const automation = await updateSettingsInRepo(id, patch);
     if (!automation) throw new Error('automation_not_found');
     if (patch.triggerConfig !== undefined) {
       await skipQueuedCronRuns(id, 'trigger_changed');
       if (automation.enabled) await ensureNextCronRun(automation);
     }
+    this._hooks.callHookBackground('automation:updated', automation);
+    return automation;
+  }
+
+  async renameAutomation(id: string, name: string): Promise<Automation> {
+    const automation = await renameInRepo(id, name);
+    if (!automation) throw new Error('automation_not_found');
     this._hooks.callHookBackground('automation:updated', automation);
     return automation;
   }

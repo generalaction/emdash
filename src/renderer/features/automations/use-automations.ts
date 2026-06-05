@@ -1,6 +1,9 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { rpc } from '@renderer/lib/ipc';
-import type { CreateAutomationParams, UpdateAutomationPatch } from '@shared/automations/automation';
+import type {
+  CreateAutomationParams,
+  UpdateAutomationSettingsPatch,
+} from '@shared/automations/automation';
 
 export function useAutomations(projectId?: string) {
   const queryClient = useQueryClient();
@@ -26,9 +29,15 @@ export function useAutomations(projectId?: string) {
     onSuccess: invalidateAutomations,
   });
 
-  const update = useMutation({
-    mutationFn: ({ id, patch }: { id: string; patch: UpdateAutomationPatch }) =>
-      rpc.automations.updateAutomation(id, patch),
+  const updateSettings = useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: UpdateAutomationSettingsPatch }) =>
+      rpc.automations.updateAutomationSettings(id, patch),
+    onSuccess: invalidateAutomations,
+  });
+
+  const rename = useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) =>
+      rpc.automations.renameAutomation(id, name),
     onSuccess: invalidateAutomations,
   });
 
@@ -53,7 +62,7 @@ export function useAutomations(projectId?: string) {
     onSuccess: invalidateAutomations,
   });
 
-  return { automations, create, update, setEnabled, runNow, stop, destroy };
+  return { automations, create, updateSettings, rename, setEnabled, runNow, stop, destroy };
 }
 
 export function useAutomationRuns(automationId: string, limit = 20) {

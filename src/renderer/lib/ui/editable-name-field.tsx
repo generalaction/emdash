@@ -4,6 +4,7 @@ import { cn } from '@renderer/utils/utils';
 interface EditableNameFieldProps {
   value: string;
   onChange: (value: string) => void;
+  onBlur?: React.FocusEventHandler<HTMLInputElement>;
   placeholder?: string;
   maxLength?: number;
   autoFocus?: boolean;
@@ -14,6 +15,7 @@ interface EditableNameFieldProps {
 export function EditableNameField({
   value,
   onChange,
+  onBlur,
   placeholder,
   maxLength,
   autoFocus,
@@ -28,6 +30,7 @@ export function EditableNameField({
       maxLength={maxLength}
       className={cn('border-none px-0 text-lg! focus-visible:ring-0', className)}
       onChange={(e) => onChange(e.target.value)}
+      onBlur={onBlur}
       onKeyDown={onKeyDown}
     />
   );

@@ -4,7 +4,8 @@ import { automationsService } from './automations-service';
 export const automationsController = createRPCController({
   listAutomations: automationsService.listAutomations.bind(automationsService),
   createAutomation: automationsService.createAutomation.bind(automationsService),
-  updateAutomation: automationsService.updateAutomation.bind(automationsService),
+  updateAutomationSettings: automationsService.updateAutomationSettings.bind(automationsService),
+  renameAutomation: automationsService.renameAutomation.bind(automationsService),
   setAutomationEnabled: automationsService.setAutomationEnabled.bind(automationsService),
   listAutomationRuns: automationsService.listAutomationRuns.bind(automationsService),
   getNextScheduledRun: automationsService.getNextScheduledRun.bind(automationsService),

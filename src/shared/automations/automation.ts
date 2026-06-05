@@ -21,8 +21,7 @@ export type CreateAutomationParams = {
   enabled?: boolean;
 };
 
-export type UpdateAutomationPatch = {
-  name?: string;
+export type UpdateAutomationSettingsPatch = {
   projectId?: string;
   enabled?: boolean;
   triggerConfig?: TriggerConfig;

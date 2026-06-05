@@ -1,11 +1,9 @@
-import { CheckCircle2, Ellipsis, Play, Square, Trash2, X } from 'lucide-react';
+import { Ellipsis, Play, Square, Trash2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
-import { useToast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
-import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,17 +12,13 @@ import {
 } from '@renderer/lib/ui/dropdown-menu';
 import { EditableNameField } from '@renderer/lib/ui/editable-name-field';
 import { PanelTabs } from '@renderer/lib/ui/panel-tabs';
-import { SheetFooter } from '@renderer/lib/ui/sheet';
 import { Switch } from '@renderer/lib/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import type { Automation } from '@shared/automations/automation';
-import type { ConversationConfig } from '@shared/automations/config';
-import { formatAutomationError } from '@shared/automations/format';
-import { assertValidCronTrigger } from '@shared/automations/validation';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { isActiveStatus } from '../run-status-styles';
 import { useAutomationRuns, useAutomations } from '../use-automations';
-import { useAutomationFormState } from '../useAutomationFormState';
+import { useAutomationSettingsAutoSave } from '../useAutomationSettingsAutoSave';
 import { AutomationSettingsFields } from './AutomationSettingsFields';
 import { RunHistory } from './RunHistory';
 
@@ -52,24 +46,19 @@ export const AutomationDetailView = observer(function AutomationDetailView({
   runNowPending: _runNowPending,
 }: AutomationDetailViewProps) {
   const [activeTab, setActiveTab] = useState<AutomationTab>('runs');
-  const [error, setError] = useState<string | null>(null);
   const [cronError, setCronError] = useState<string | null>(null);
 
-  const formState = useAutomationFormState(automation);
   const {
-    name,
-    setName,
-    effectiveProjectId,
-    prompt,
-    provider,
-    canSave,
-    triggerConfig,
-    buildTaskConfig,
-  } = formState;
+    formState,
+    setCronExpr,
+    setUseBYOI,
+    handlePromptBlur,
+    handleNameBlur,
+    saveError,
+  } = useAutomationSettingsAutoSave(automation);
+  const { name, setName } = formState;
 
-  const { update, runNow } = useAutomations();
-  const { toast } = useToast();
-  const isPending = update.isPending;
+  const { runNow } = useAutomations();
 
   const recentRuns = useAutomationRuns(automation.id, 10);
   const hasActiveRuns = recentRuns.data?.some((r) => isActiveStatus(r.status)) ?? false;
@@ -92,44 +81,6 @@ export const AutomationDetailView = observer(function AutomationDetailView({
     }
   }
 
-  async function handleSave() {
-    if (!effectiveProjectId || !canSave) return;
-    setError(null);
-    const taskConfig = buildTaskConfig(effectiveProjectId);
-    if (!taskConfig) return;
-    try {
-      assertValidCronTrigger(triggerConfig);
-    } catch (validationError) {
-      setCronError(formatAutomationError(validationError));
-      return;
-    }
-    setCronError(null);
-    const conversationConfig: ConversationConfig = {
-      prompt: prompt.trim(),
-      provider,
-      autoApprove: false,
-    };
-    try {
-      const saved = await update.mutateAsync({
-        id: automation.id,
-        patch: {
-          name: name.trim(),
-          triggerConfig,
-          conversationConfig,
-          taskConfig,
-          projectId: effectiveProjectId,
-        },
-      });
-      toast({
-        title: 'Automation saved',
-        description: `"${saved.name}" updated.`,
-        icon: <CheckCircle2 className="size-4 text-emerald-500" aria-hidden="true" />,
-      });
-    } catch (saveError) {
-      setError(formatAutomationError(saveError));
-    }
-  }
-
   return (
     <div className="flex h-full flex-col">
       <div className="flex-1 overflow-y-auto">
@@ -145,6 +96,7 @@ export const AutomationDetailView = observer(function AutomationDetailView({
                 autoFocus={false}
                 value={name}
                 onChange={setName}
+                onBlur={handleNameBlur}
                 placeholder="Name this automation"
                 className="flex-1"
               />
@@ -225,27 +177,18 @@ export const AutomationDetailView = observer(function AutomationDetailView({
             <AutomationSettingsFields
               state={formState}
               cronError={cronError}
-              onCronExprChange={(expr) => formState.setCronExpr(expr)}
+              onCronExprChange={(expr) => {
+                setCronExpr(expr);
+                setCronError(null);
+              }}
               onCronErrorClear={() => setCronError(null)}
-              error={error}
+              onPromptBlur={handlePromptBlur}
+              onUseBYOIChange={setUseBYOI}
+              error={saveError}
             />
           )}
         </div>
       </div>
-      <SheetFooter className="flex flex-row items-center justify-end gap-2">
-        <Button variant="outline" size="sm" onClick={onClose}>
-          Cancel
-        </Button>
-        <ConfirmButton
-          size="sm"
-          onClick={() => {
-            void handleSave();
-          }}
-          disabled={!canSave || isPending}
-        >
-          {isPending ? 'Saving…' : 'Save'}
-        </ConfirmButton>
-      </SheetFooter>
     </div>
   );
 });

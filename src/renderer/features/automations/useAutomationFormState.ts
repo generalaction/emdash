@@ -133,9 +133,13 @@ export function useAutomationFormState(seed?: Automation) {
     !!effectiveProjectId &&
     fromBranch.isValid;
 
-  function buildTaskConfig(targetProjectId: string): StoredAutomationTaskConfig | null {
+  function buildTaskConfig(
+    targetProjectId: string,
+    useBYOIOverride?: boolean
+  ): StoredAutomationTaskConfig | null {
+    const effectiveBYOI = useBYOIOverride ?? useBYOI;
     if (!fromBranch.selectedBranch) return null;
-    const noWorktree = isUnborn || !fromBranch.createBranchAndWorktree || useBYOI;
+    const noWorktree = isUnborn || !fromBranch.createBranchAndWorktree || effectiveBYOI;
     const git = noWorktree
       ? { kind: 'none' as const }
       : {
@@ -145,7 +149,7 @@ export function useAutomationFormState(seed?: Automation) {
           pushBranch: fromBranch.pushBranch,
         };
     let workspace: WorkspaceTarget;
-    if (useBYOI) {
+    if (effectiveBYOI) {
       workspace = { kind: 'byoi' };
     } else if (git.kind === 'none') {
       const repositoryWorkspaceId = asMounted(getProjectStore(targetProjectId))?.data

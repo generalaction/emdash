@@ -15,6 +15,8 @@ interface AutomationSettingsFieldsProps {
   cronError: string | null;
   onCronExprChange: (expr: string) => void;
   onCronErrorClear: () => void;
+  onPromptBlur?: () => void;
+  onUseBYOIChange?: (value: boolean) => void;
   error?: string | null;
 }
 
@@ -23,6 +25,8 @@ export function AutomationSettingsFields({
   cronError,
   onCronExprChange,
   onCronErrorClear,
+  onPromptBlur,
+  onUseBYOIChange,
   error,
 }: AutomationSettingsFieldsProps) {
   const {
@@ -38,6 +42,8 @@ export function AutomationSettingsFields({
     setProjectId,
   } = state;
 
+  const effectiveSetUseBYOI = onUseBYOIChange ?? setUseBYOI;
+
   const isWorkspaceProviderEnabled = useFeatureFlag('workspace-provider');
   const workspaceSettingsKey = `${effectiveProjectId ?? 'none'}`;
 
@@ -48,6 +54,7 @@ export function AutomationSettingsFields({
         <InitialConversationField
           state={initialConversation}
           includeIssueContextByDefault={false}
+          onPromptBlur={onPromptBlur}
         />
       </section>
 
@@ -96,7 +103,7 @@ export function AutomationSettingsFields({
         </div>
         {isWorkspaceProviderEnabled ? (
           <div className="flex items-center gap-2 pt-1">
-            <Switch size="sm" checked={useBYOI} onCheckedChange={setUseBYOI} />
+            <Switch size="sm" checked={useBYOI} onCheckedChange={effectiveSetUseBYOI} />
             <span className="text-muted-foreground text-sm">Use BYOI infrastructure</span>
           </div>
         ) : null}

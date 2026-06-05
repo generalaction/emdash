@@ -60,12 +60,14 @@ interface InitialConversationFieldProps {
   state: InitialConversationState;
   linkedIssue?: Issue;
   includeIssueContextByDefault: boolean;
+  onPromptBlur?: () => void;
 }
 
 export function InitialConversationField({
   state,
   linkedIssue,
   includeIssueContextByDefault,
+  onPromptBlur,
 }: InitialConversationFieldProps) {
   const { value: promptLibrary } = usePromptLibrary();
   const autoApproveDefaults = useAgentAutoApproveDefaults();
@@ -177,6 +179,7 @@ export function InitialConversationField({
           placeholder="Add an optional initial message..."
           value={state.prompt}
           onChange={(e) => state.setPrompt(e.target.value)}
+          onBlur={onPromptBlur}
           className="max-h-64 min-h-8 resize-none rounded-none border-0 focus-visible:border-0 focus-visible:ring-0"
         />
       </div>
