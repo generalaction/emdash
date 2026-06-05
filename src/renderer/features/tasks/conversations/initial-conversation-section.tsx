@@ -17,10 +17,12 @@ import { appendInitialConversationText } from '../create-task-modal/initial-conv
 import { AddContextPopover } from './add-context-popover';
 import { buildIssueContextText, buildTaskContextActions } from './context-actions';
 import { useEffectiveProvider } from './use-effective-provider';
+import { usePromptFileDrop } from '../create-task-modal/use-prompt-file-drop';
 
 export type InitialConversationState = {
   provider: AgentProviderId | null;
   setProvider: (provider: AgentProviderId | null) => void;
+  projectId?: string;
   prompt: string;
   setPrompt: Dispatch<SetStateAction<string>>;
   issueContext: string | null;
@@ -48,6 +50,7 @@ export function useInitialConversationState(
   return {
     provider: providerId,
     setProvider: setProviderOverride,
+    projectId,
     prompt,
     setPrompt,
     issueContext,
@@ -95,9 +98,23 @@ export function InitialConversationField({
     state.setPrompt((current) => appendInitialConversationText(current, text));
   };
 
+  const { isDragOver, dropHandlers } = usePromptFileDrop({
+    // Local paths would not exist on the remote host of an SSH project.
+    disableLocalFiles: Boolean(state.connectionId),
+    workspaceId: state.projectId,
+    onDropText: (text) =>
+      state.setPrompt((current) => appendInitialConversationText(current, text)),
+  });
+
   return (
     <Field>
-      <div className="flex flex-col rounded-md border border-border">
+      <div
+        className={cn(
+          'flex flex-col rounded-md border border-border transition-colors',
+          isDragOver && 'bg-accent/10 ring-2 ring-accent/50 ring-inset'
+        )}
+        {...dropHandlers}
+      >
         <div className="flex w-full items-center justify-between gap-2 px-2 pt-1">
           <AgentSelector
             value={state.provider}

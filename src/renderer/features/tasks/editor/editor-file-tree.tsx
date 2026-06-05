@@ -16,7 +16,12 @@ import {
   useWorkspaceId,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
-import { getDraggedFilePaths, hasDraggedFiles } from '@renderer/lib/drag-files';
+import {
+  clearDraggedWorkspaceFile,
+  getDraggedFilePaths,
+  hasDraggedFiles,
+  setDraggedWorkspaceFile,
+} from '@renderer/lib/drag-files';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { toast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
@@ -241,6 +246,17 @@ const FileTreeRow = observer(function FileTreeRow({
 
   const [isDropTarget, setIsDropTarget] = useState(false);
 
+  const handleDragStart = (event: React.DragEvent) => {
+    // Carry the path in the workspace environment so drop targets can inject it
+    // without knowing which workspace rendered the file tree.
+    setDraggedWorkspaceFile(event.dataTransfer, {
+      workspaceId,
+      workspaceRootPath: workspace.path,
+      relPath: node.path,
+      targetPlatform: workspace.sshConnectionId ? 'linux' : undefined,
+    });
+  };
+
   const handleDragOver = (event: React.DragEvent) => {
     if (!hasDraggedFiles(event.dataTransfer)) return;
     event.preventDefault();
@@ -295,9 +311,12 @@ const FileTreeRow = observer(function FileTreeRow({
           isHidden && 'opacity-60'
         )}
         tabIndex={0}
+        draggable
         onClick={handleClick}
         onDoubleClick={handleDoubleClick}
         onKeyDown={handleKeyDown}
+        onDragStart={handleDragStart}
+        onDragEnd={clearDraggedWorkspaceFile}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
