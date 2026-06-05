@@ -32,4 +32,23 @@ describe('migrateProviderConfigOverrides', () => {
       initialPromptFlag: '',
     });
   });
+
+  it('migrates old stored Kilocode defaults to the current primary CLI', () => {
+    expect(
+      migrateProviderConfigOverrides({
+        kilocode: {
+          cli: 'kilocode',
+          initialPromptFlag: '',
+          resumeFlag: '--continue',
+          autoApproveFlag: '--auto',
+        },
+      }).kilocode
+    ).toMatchObject({ cli: 'kilo' });
+  });
+
+  it('preserves explicit Kilocode fallback CLI overrides', () => {
+    expect(migrateProviderConfigOverrides({ kilocode: { cli: 'kilocode' } }).kilocode).toEqual({
+      cli: 'kilocode',
+    });
+  });
 });
