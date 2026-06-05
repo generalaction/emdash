@@ -1,6 +1,7 @@
 import { PencilIcon, ServerIcon, Trash2Icon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import type { EmdashServerConnection } from '@main/core/settings/schema';
+import { rpc } from '@renderer/lib/ipc';
 import { Badge } from '@renderer/lib/ui/badge';
 import { Button } from '@renderer/lib/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
@@ -16,13 +17,9 @@ function useServerStatus(server: EmdashServerConnection): Status {
 
     async function check() {
       try {
-        const res = await fetch(`${server.url}/api/health`, {
-          headers: { Authorization: `Bearer ${server.apiKey}` },
-          signal: AbortSignal.timeout(5_000),
-        });
+        const result = await rpc.automations.checkServerHealth(server.url, server.apiKey);
         if (cancelled) return;
-        if (res.ok) setStatus('online');
-        else if (res.status === 401) setStatus('auth_error');
+        if (result.success) setStatus(result.data);
         else setStatus('offline');
       } catch {
         if (!cancelled) setStatus('offline');

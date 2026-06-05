@@ -180,4 +180,18 @@ export const automationsController = createRPCController({
   generateWebhookToken(): Result<string, string> {
     return ok(`wh_${randomBytes(24).toString('hex')}`);
   },
+
+  async checkServerHealth(url: string, apiKey: string): Promise<Result<'online' | 'auth_error', string>> {
+    try {
+      const res = await fetch(`${url}/api/health`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(5_000),
+      });
+      if (res.ok) return ok('online');
+      if (res.status === 401) return ok('auth_error');
+      return err(`http_${res.status}`);
+    } catch (e) {
+      return err(String(e));
+    }
+  },
 });
