@@ -1,4 +1,5 @@
 import type { GitHubAccountSummary } from '@shared/github';
+import { sortGitHubAccountsByDefault } from '../../github-account-select-model';
 
 export const NO_GITHUB_ACCOUNT = '__no_github_account__';
 export const UNCONFIGURED_GITHUB_ACCOUNT = '__unconfigured_github_account__';
@@ -17,7 +18,7 @@ export function createProjectGitHubAccountSelectState(
 ): ProjectGitHubAccountSelectState {
   const selectedAccountId =
     typeof githubAccountId === 'string' && githubAccountId.trim() ? githubAccountId : null;
-  const sortedAccounts = [...accounts].sort((a, b) => Number(b.isDefault) - Number(a.isDefault));
+  const sortedAccounts = sortGitHubAccountsByDefault(accounts);
   const selectedAccount = accounts.find((account) => account.accountId === selectedAccountId);
   const missingAccountId = selectedAccountId && !selectedAccount ? selectedAccountId : null;
   const selectValue =

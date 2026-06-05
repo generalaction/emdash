@@ -18,6 +18,7 @@ export interface NewModeData extends BaseModeData {
   repositoryName: string;
   repositoryOwner: string;
   repositoryVisibility: 'public' | 'private';
+  githubAccountId?: string;
 }
 
 export type ModeData = PickModeData | CloneModeData | NewModeData;

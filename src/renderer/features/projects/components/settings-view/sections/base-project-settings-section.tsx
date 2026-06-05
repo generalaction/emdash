@@ -1,5 +1,9 @@
 import { Folder, Github } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import {
+  GitHubAccountSelectItem,
+  GitHubAccountSelectLabel,
+} from '@renderer/features/projects/components/github-account-select';
 import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
 import {
   RemoteSelectContent,
@@ -7,7 +11,6 @@ import {
 } from '@renderer/lib/components/remote-select-content';
 import { useGitHubAccounts } from '@renderer/lib/hooks/useGithubAccounts';
 import { rpc } from '@renderer/lib/ipc';
-import { Badge } from '@renderer/lib/ui/badge';
 import { Button } from '@renderer/lib/ui/button';
 import { Field, FieldDescription, FieldTitle } from '@renderer/lib/ui/field';
 import { Input } from '@renderer/lib/ui/input';
@@ -16,7 +19,6 @@ import { Separator } from '@renderer/lib/ui/separator';
 import { Switch } from '@renderer/lib/ui/switch';
 import { cn } from '@renderer/utils/utils';
 import type { Branch, Remote } from '@shared/git';
-import type { GitHubAccountSummary } from '@shared/github';
 import type { Project } from '@shared/projects';
 import type { FormState, FormUpdate } from '../project-settings-form-model';
 import {
@@ -220,9 +222,7 @@ export function BaseProjectSettingsSection({
               </div>
             </SelectItem>
             {githubAccountSelect.accounts.map((account) => (
-              <SelectItem key={account.accountId} value={account.accountId} className="py-2">
-                <GitHubAccountSelectLabel account={account} />
-              </SelectItem>
+              <GitHubAccountSelectItem key={account.accountId} account={account} />
             ))}
           </SelectContent>
         </Select>
@@ -240,24 +240,5 @@ export function BaseProjectSettingsSection({
         <Switch checked={form.tmux} onCheckedChange={(checked) => update('tmux', checked)} />
       </Field>
     </>
-  );
-}
-
-function GitHubAccountSelectLabel({ account }: { account: GitHubAccountSummary }) {
-  return (
-    <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
-      {account.avatarUrl ? (
-        <img
-          src={account.avatarUrl}
-          alt={account.login}
-          className="h-4 w-4 shrink-0 rounded-full"
-        />
-      ) : (
-        <Github className="text-muted-foreground h-4 w-4 shrink-0" />
-      )}
-      <span className="min-w-0 truncate">@{account.login}</span>
-      <span className="text-muted-foreground shrink-0 text-xs">{account.host}</span>
-      {account.isDefault ? <Badge variant="secondary">Default</Badge> : null}
-    </div>
   );
 }

@@ -2,9 +2,11 @@ import { makeObservable, observable, runInAction } from 'mobx';
 import { events, rpc } from '@renderer/lib/ipc';
 import { appState } from '@renderer/lib/stores/app-state';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
+import { log } from '@renderer/utils/logger';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
 import { sshConnectionEventChannel } from '@shared/events/sshEvents';
 import { type LocalProject, type SshProject } from '@shared/projects';
+import { splitNameWithOwner } from '@shared/repository-ref';
 import type { ProjectViewSnapshot } from '@shared/view-state';
 import {
   createUnmountedProject,
@@ -203,14 +205,19 @@ export class ProjectManagerStore {
       }
 
       case 'new': {
+        let createdRepositoryNameWithOwner: string | null = null;
         try {
           const connectionId = isSsh ? projectType.connectionId : undefined;
           const repoResult = await rpc.github.createRepository({
             name: data.repositoryName,
             owner: data.repositoryOwner,
             isPrivate: data.repositoryVisibility === 'private',
+            accountId: data.githubAccountId ?? undefined,
           });
-          if (!repoResult.success || !repoResult.repoUrl) throw new Error(repoResult.error);
+          if (!repoResult.success || !repoResult.nameWithOwner) {
+            throw new Error(repoResult.error);
+          }
+          createdRepositoryNameWithOwner = repoResult.nameWithOwner;
 
           this._updatePhase(projectId, 'cloning');
           const cloneUrl = `https://github.com/${repoResult.nameWithOwner}.git`;
@@ -239,6 +246,8 @@ export class ProjectManagerStore {
                 path: targetPath,
                 name: data.name,
               });
+          createdRepositoryNameWithOwner = null;
+          await this._saveInitialGitHubAccountSetting(project.id, data.githubAccountId);
           this._setAndOpenProject(projectId, project);
           captureTelemetry('project_added', {
             type: projectTelemetryType,
@@ -246,6 +255,12 @@ export class ProjectManagerStore {
             success: true,
           });
         } catch (err) {
+          if (createdRepositoryNameWithOwner) {
+            await this._rollbackCreatedGitHubRepository(
+              createdRepositoryNameWithOwner,
+              data.githubAccountId
+            );
+          }
           this._markError(projectId, err);
           captureTelemetry('project_added', {
             type: projectTelemetryType,
@@ -404,6 +419,46 @@ export class ProjectManagerStore {
       }
     });
     void this.mountProject(id);
+  }
+
+  private async _saveInitialGitHubAccountSetting(
+    projectId: string,
+    githubAccountId?: string
+  ): Promise<void> {
+    if (githubAccountId === undefined) return;
+
+    const result = await rpc.projects.updateProjectSettings(projectId, { githubAccountId });
+    if (!result.success) {
+      log.error('Failed to save initial GitHub account for project', {
+        projectId,
+        error: result.error,
+      });
+    }
+  }
+
+  private async _rollbackCreatedGitHubRepository(
+    nameWithOwner: string,
+    githubAccountId?: string
+  ): Promise<void> {
+    try {
+      const { owner, repo } = splitNameWithOwner(nameWithOwner);
+      const result = await rpc.github.deleteRepository({
+        owner,
+        name: repo,
+        accountId: githubAccountId ?? undefined,
+      });
+      if (!result.success) {
+        log.error('Failed to delete GitHub repository after project creation failure', {
+          nameWithOwner,
+          error: result.error,
+        });
+      }
+    } catch (error) {
+      log.error('Failed to delete GitHub repository after project creation failure', {
+        nameWithOwner,
+        error,
+      });
+    }
   }
 
   private _updatePhase(id: string, phase: UnregisteredProjectPhase): void {
