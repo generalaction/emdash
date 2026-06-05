@@ -25,7 +25,7 @@ async function fetchPendingEvents(
     headers: { Authorization: `Bearer ${server.apiKey}` },
     signal: AbortSignal.timeout(10_000),
   });
-  if (!res.ok) throw new Error(`emdash-server returned ${res.status}`);
+  if (!res.ok) throw new Error(`rundash-server returned ${res.status}`);
   const data = (await res.json()) as { events: PendingEvent[] };
   return data.events;
 }
@@ -138,7 +138,7 @@ class WebhookWatcherService {
   private pollers = new Map<string, ServerPoller>();
 
   start(): void {
-    void appSettingsService.get('emdashServers').then((settings) => {
+    void appSettingsService.get('rundashServers').then((settings) => {
       if (!settings || settings.length === 0) return;
       for (const server of settings) {
       if (this.pollers.has(server.id)) continue;

@@ -52,7 +52,7 @@ const RepositorySettingsCard: React.FC = () => {
           />
           <ResetToDefaultButton
             visible={isProjectFieldOverridden('branchPrefix')}
-            defaultLabel="emdash"
+            defaultLabel="rundash"
             onReset={() => resetProjectField('branchPrefix')}
             disabled={projectBusy}
           />

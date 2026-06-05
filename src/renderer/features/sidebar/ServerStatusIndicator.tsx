@@ -38,7 +38,7 @@ function ServerDot({ server }: { server: EmdashServerConnection }) {
 }
 
 export function ServerStatusIndicator() {
-  const { value: servers } = useAppSettingsKey('emdashServers');
+  const { value: servers } = useAppSettingsKey('rundashServers');
 
   if (!servers || !Array.isArray(servers) || servers.length === 0) return null;
 

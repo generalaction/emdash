@@ -136,7 +136,7 @@ export const AutomationPanel = observer(function AutomationPanel({
   const seedConfig = automation?.taskConfig;
 
   const { value: defaultAgentValue } = useAppSettingsKey('defaultAgent');
-  const { value: emdashServers } = useAppSettingsKey('emdashServers');
+  const { value: rundashServers } = useAppSettingsKey('rundashServers');
   const fallbackProvider: AgentProviderId = isValidProviderId(defaultAgentValue)
     ? defaultAgentValue
     : 'claude';
@@ -527,8 +527,8 @@ export const AutomationPanel = observer(function AutomationPanel({
                 {webhookToken && (
                   <div className="flex flex-col gap-1.5">
                     <span className="text-xs text-foreground-muted">Endpoint</span>
-                    {emdashServers && Array.isArray(emdashServers) && emdashServers.length > 0 ? (
-                      emdashServers.map((server: { id: string; label: string; url: string }) => (
+                    {rundashServers && Array.isArray(rundashServers) && rundashServers.length > 0 ? (
+                      rundashServers.map((server: { id: string; label: string; url: string }) => (
                         <div key={server.id} className="flex items-center gap-1.5">
                           <Webhook className="size-3 shrink-0 text-foreground-muted" />
                           <code className="min-w-0 truncate rounded bg-muted px-1.5 py-1 font-mono text-xs text-foreground">

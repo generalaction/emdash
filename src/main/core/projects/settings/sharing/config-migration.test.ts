@@ -439,7 +439,7 @@ describe('config migration', () => {
     const fs = createFs({
       '.codex/environments/environment.toml': `
         version = 1
-        name = "emdash"
+        name = "rundash"
 
         [setup]
         script = """

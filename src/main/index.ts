@@ -9,7 +9,7 @@ import { setupApplicationMenu } from './app/menu';
 import { registerAppScheme, setupAppProtocol } from './app/protocol';
 import { createMainWindow } from './app/window';
 import { providerTokenRegistry } from './core/account/provider-token-registry';
-import { emdashAccountService } from './core/account/services/emdash-account-service';
+import { rundashAccountService } from './core/account/services/rundash-account-service';
 import { agentHookService } from './core/agent-hooks/agent-hook-service';
 import { appService } from './core/app/service';
 import { automationEvents } from './core/automations/automation-events';
@@ -55,7 +55,7 @@ if (process.platform === 'linux') {
 registerAppScheme();
 
 app.setName(PRODUCT_NAME);
-app.setPath('userData', join(app.getPath('appData'), 'emdash'));
+app.setPath('userData', join(app.getPath('appData'), 'rundash'));
 initializeFileLogger();
 registerProcessErrorLogging(log);
 registerRendererLogHandler(ipcMain);
@@ -120,10 +120,10 @@ void app.whenReady().then(async () => {
     log.warn('telemetry init failed:', e);
   }
 
-  emdashAccountService.on('accountChanged', (username, userId, email) => {
+  rundashAccountService.on('accountChanged', (username, userId, email) => {
     void telemetryService.identify(username, userId, email);
   });
-  emdashAccountService.on('accountCleared', () => {
+  rundashAccountService.on('accountCleared', () => {
     telemetryService.clearIdentity();
   });
 
@@ -143,12 +143,12 @@ void app.whenReady().then(async () => {
     log.error('Failed to start agent event service:', e);
   });
 
-  emdashAccountService.loadSessionToken().catch((e) => {
+  rundashAccountService.loadSessionToken().catch((e) => {
     log.warn('Failed to load account session token:', e);
   });
 
   providerTokenRegistry.register('github', (token) =>
-    githubConnectionService.storeToken(token, 'emdash_oauth')
+    githubConnectionService.storeToken(token, 'rundash_oauth')
   );
 
   registerRPCRouter(rpcRouter, ipcMain);

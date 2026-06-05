@@ -1,12 +1,12 @@
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { createRPCController } from '@shared/ipc/rpc';
-import { emdashAccountService } from './services/emdash-account-service';
+import { rundashAccountService } from './services/rundash-account-service';
 
 export const accountController = createRPCController({
   getSession: async () => {
     try {
-      return await emdashAccountService.getSession();
+      return await rundashAccountService.getSession();
     } catch (error) {
       log.error('Failed to get account session:', error);
       return { user: null, isSignedIn: false, hasAccount: false };
@@ -15,7 +15,7 @@ export const accountController = createRPCController({
 
   signIn: async (provider?: string) => {
     try {
-      const result = await emdashAccountService.signIn(provider);
+      const result = await rundashAccountService.signIn(provider);
       telemetryService.capture('user_signed_in');
       return { success: true, user: result.user };
     } catch (error) {
@@ -29,7 +29,7 @@ export const accountController = createRPCController({
 
   signOut: async () => {
     try {
-      await emdashAccountService.signOut();
+      await rundashAccountService.signOut();
       telemetryService.capture('user_signed_out');
       return { success: true };
     } catch (error) {
@@ -40,7 +40,7 @@ export const accountController = createRPCController({
 
   checkHealth: async () => {
     try {
-      return await emdashAccountService.checkServerHealth();
+      return await rundashAccountService.checkServerHealth();
     } catch {
       return false;
     }
@@ -48,7 +48,7 @@ export const accountController = createRPCController({
 
   validateSession: async () => {
     try {
-      return await emdashAccountService.validateSession();
+      return await rundashAccountService.validateSession();
     } catch {
       return false;
     }

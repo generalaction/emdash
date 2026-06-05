@@ -1,5 +1,3 @@
-<div align="center">
-
 # Rundash
 
 **Run AI coding agents in parallel — locally, over SSH, or triggered by webhooks on your own server.**

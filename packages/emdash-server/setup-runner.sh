@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 # setup-runner.sh — set up the Dockerized agent runner ON the server.
 #
-# Run this ON THE SERVER (after emdash-server is deployed via deploy.sh). It is
+# Run this ON THE SERVER (after rundash-server is deployed via deploy.sh). It is
 # idempotent — safe to re-run. It:
 #   1. checks/installs Docker and adds you to the docker group
-#   2. builds the emdash-runner image
+#   2. builds the rundash-runner image
 #   3. clones (or updates) the target repo
 #   4. prompts for the Claude OAuth token (claude setup-token) and stores it
-#   5. adds/updates an automation in ~/.emdash-server/config.json
-#   6. enables the runner and restarts emdash-server (pm2)
+#   5. adds/updates an automation in ~/.rundash-server/config.json
+#   6. enables the runner and restarts rundash-server (pm2)
 #
 # Usage (on the server):
-#   cd /opt/emdash-server            # where deploy.sh synced the package
+#   cd /opt/rundash-server           # where deploy.sh synced the package
 #   ./setup-runner.sh \
 #       --token   wh_810f6d8cfca484d05543d034c678c22a520724b2d0813e41 \
 #       --repo    https://github.com/you/doc-engine.git \
@@ -25,13 +25,14 @@
 #   --repo  URL       git URL to clone if --path doesn't exist yet.
 #   --path  DIR       host checkout path (default /opt/projects/<repo-name>).
 #   --prompt TEXT     the agent prompt (default: a security-scan prompt).
-#   --image NAME      runner image tag (default emdash-runner:latest).
+#   --image NAME      runner image tag (default rundash-runner:latest).
 #   --push            enable `git push` after the run (default off).
 #   --oauth-token TOK provide the Claude OAuth token non-interactively
 #                     (default: prompted, hidden — preferred so it isn't in
 #                     shell history).
-#   --config PATH     config.json path (default ~/.emdash-server/config.json).
-#   --pm2-name NAME   pm2 app name (default emdash-server).
+#   --config PATH     config.json path (default: ~/.rundash-server/config.json,
+#                     falling back to ~/.emdash-server/config.json if it exists).
+#   --pm2-name NAME   pm2 app name (default rundash-server).
 #   --skip-image      don't (re)build the Docker image.
 set -euo pipefail
 
@@ -40,11 +41,16 @@ TOKEN=""
 REPO_URL=""
 REPO_PATH=""
 PROMPT="Review the repository for validated high-impact security vulnerabilities. Focus on authentication, authorization, injection, secret handling, unsafe filesystem or shell usage, SSRF, deserialization, and privilege boundaries. Only report or fix exploitable issues."
-IMAGE="emdash-runner:latest"
+IMAGE="rundash-runner:latest"
 PUSH=false
 OAUTH_TOKEN=""
-CONFIG_PATH="${HOME}/.emdash-server/config.json"
-PM2_NAME="emdash-server"
+# Prefer ~/.rundash-server; fall back to legacy ~/.emdash-server if it exists.
+if [[ -f "${HOME}/.emdash-server/config.json" ]] && [[ ! -f "${HOME}/.rundash-server/config.json" ]]; then
+  CONFIG_PATH="${HOME}/.emdash-server/config.json"
+else
+  CONFIG_PATH="${HOME}/.rundash-server/config.json"
+fi
+PM2_NAME="rundash-server"
 SKIP_IMAGE=false
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -83,7 +89,7 @@ if [[ -z "$REPO_PATH" ]]; then
 fi
 
 echo "════════════════════════════════════════════════════════════"
-echo " emdash-server agent runner setup"
+echo " rundash-server agent runner setup"
 echo "   config:  ${CONFIG_PATH}"
 echo "   token:   ${TOKEN}"
 echo "   repo:    ${REPO_PATH}${REPO_URL:+  (clone ${REPO_URL})}"
@@ -152,7 +158,7 @@ if [[ -z "$OAUTH_TOKEN" ]]; then
 fi
 
 # ── 5. Update config.json (idempotent) ────────────────────────────────────────
-[[ -f "$CONFIG_PATH" ]] || err "Config not found at ${CONFIG_PATH}. Run 'emdash-server init' (deploy.sh does this)."
+[[ -f "$CONFIG_PATH" ]] || err "Config not found at ${CONFIG_PATH}. Run deploy.sh first to initialise it."
 
 info "Updating ${CONFIG_PATH}..."
 TMP="$(mktemp)"
@@ -186,7 +192,7 @@ mv "$TMP" "$CONFIG_PATH"
 chmod 600 "$CONFIG_PATH"
 info "Config updated (runner enabled; automation for token ${TOKEN} upserted)."
 
-# ── 6. Restart emdash-server ──────────────────────────────────────────────────
+# ── 6. Restart rundash-server ────────────────────────────────────────────────
 if command -v pm2 &>/dev/null && pm2 describe "${PM2_NAME}" &>/dev/null; then
   info "Restarting pm2 process '${PM2_NAME}'..."
   pm2 restart "${PM2_NAME}"

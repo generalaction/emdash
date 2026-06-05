@@ -1,5 +1,5 @@
 {
-  "name": "emdash",
+  "name": "rundash",
   "version": "1.1.28",
   "description": "A cross-platform Electron app that orchestrates multiple coding agents in parallel",
   "keywords": [

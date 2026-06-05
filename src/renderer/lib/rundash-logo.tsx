@@ -11,7 +11,7 @@ export const EMDASH_PATHS = [
   'M23.235 23.2454H103.519L80.2841 51.1252H0L23.235 23.2454Z',
 ];
 
-export function EmdashLogo({
+export function RundashLogo({
   className,
   height = NATURAL_HEIGHT,
   color = 'currentColor',

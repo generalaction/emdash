@@ -48,7 +48,7 @@ export function EmdashServerModal({ initialServer, onSuccess, onClose }: EmdashS
     <ModalLayout
       header={
         <DialogHeader>
-          <DialogTitle>{isEditing ? 'Edit server' : 'Add emdash-server'}</DialogTitle>
+          <DialogTitle>{isEditing ? 'Edit server' : 'Add rundash-server'}</DialogTitle>
         </DialogHeader>
       }
       footer={
@@ -124,7 +124,7 @@ export function EmdashServerModal({ initialServer, onSuccess, onClose }: EmdashS
                     onBlur={field.handleBlur}
                   />
                 </FieldGroup>
-                <FieldDescription>Base URL of your emdash-server instance.</FieldDescription>
+                <FieldDescription>Base URL of your rundash-server instance.</FieldDescription>
                 {field.state.meta.errors.length > 0 && (
                   <FieldError>{field.state.meta.errors[0]}</FieldError>
                 )}
@@ -150,7 +150,7 @@ export function EmdashServerModal({ initialServer, onSuccess, onClose }: EmdashS
                   />
                 </FieldGroup>
                 <FieldDescription>
-                  The API key printed when you ran <code>emdash-server init</code>.
+                  The API key printed when you ran <code>rundash-server init</code>.
                 </FieldDescription>
                 {field.state.meta.errors.length > 0 && (
                   <FieldError>{field.state.meta.errors[0]}</FieldError>

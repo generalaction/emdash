@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync as fsExistsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
@@ -21,7 +21,7 @@ const automationSchema = z.object({
   token: z.string(), // matches webhook_events.token
   repoPath: z.string(), // host path, mounted into the container at /work
   prompt: z.string(),
-  image: z.string().default('emdash-runner:latest'),
+  image: z.string().default('rundash-runner:latest'),
   push: z.boolean().default(false), // git push after the run
   branch: z.string().optional(), // create/checkout before running, if set
   timeoutMs: z
@@ -60,7 +60,11 @@ export type Automation = z.infer<typeof automationSchema>;
 export type RunnerConfig = z.infer<typeof runnerSchema>;
 
 export function defaultConfigDir(): string {
-  return join(homedir(), '.emdash-server');
+  // Prefer .rundash-server; fall back to the legacy .emdash-server path so
+  // existing deployments keep working without a manual migration.
+  const legacy = join(homedir(), '.emdash-server');
+  const preferred = join(homedir(), '.rundash-server');
+  return fsExistsSync(legacy) && !fsExistsSync(preferred) ? legacy : preferred;
 }
 
 export function defaultConfigPath(): string {
@@ -72,8 +76,8 @@ export function defaultDbPath(): string {
 }
 
 export function loadConfig(configPath = defaultConfigPath()): Config {
-  if (!existsSync(configPath)) {
-    throw new Error(`Config not found at ${configPath}. Run: emdash-server init`);
+  if (!fsExistsSync(configPath)) {
+    throw new Error(`Config not found at ${configPath}. Run: rundash-server init`);
   }
   const raw = JSON.parse(readFileSync(configPath, 'utf-8')) as unknown;
   return configSchema.parse(raw);

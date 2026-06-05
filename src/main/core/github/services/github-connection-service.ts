@@ -36,7 +36,7 @@ export interface DeviceCodeResult {
  * Manages GitHub authentication tokens regardless of how they were obtained
  * (Emdash Account OAuth, Device Flow, or extracted from gh CLI).
  */
-export type TokenSource = 'secure_storage' | 'cli' | 'emdash_oauth' | 'device_flow' | null;
+export type TokenSource = 'secure_storage' | 'cli' | 'rundash_oauth' | 'device_flow' | null;
 
 export interface GitHubConnectionService {
   getToken(): Promise<string | null>;
@@ -80,7 +80,7 @@ export class GitHubConnectionServiceImpl implements GitHubConnectionService {
   private parseTokenSource(raw: unknown): Exclude<TokenSource, null> | null {
     return raw === 'cli' ||
       raw === 'secure_storage' ||
-      raw === 'emdash_oauth' ||
+      raw === 'rundash_oauth' ||
       raw === 'device_flow'
       ? raw
       : null;
@@ -248,7 +248,7 @@ export class GitHubConnectionServiceImpl implements GitHubConnectionService {
         return { success: false, error: 'No access token in response' };
       }
 
-      await this.storeToken(accessToken, 'emdash_oauth');
+      await this.storeToken(accessToken, 'rundash_oauth');
       const user = await this.getUserInfo(accessToken);
       return { success: true, token: accessToken, user: user || undefined };
     } catch (error) {

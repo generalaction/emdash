@@ -5,7 +5,7 @@ describe('resolveTaskBranchName', () => {
   it('uses Linear branchName as-is when available', () => {
     const branchName = resolveTaskBranchName({
       rawBranch: 'linear-issue-branch-name-creation',
-      branchPrefix: 'emdash',
+      branchPrefix: 'rundash',
       suffix: 'abc12',
       appendRandomSuffix: true,
       linkedIssue: {
@@ -23,7 +23,7 @@ describe('resolveTaskBranchName', () => {
   it('keeps Linear branch names unsuffixed when Linear branchName is absent', () => {
     const branchName = resolveTaskBranchName({
       rawBranch: 'linear-issue-branch-name-creation',
-      branchPrefix: 'emdash',
+      branchPrefix: 'rundash',
       suffix: 'abc12',
       appendRandomSuffix: true,
       linkedIssue: {
@@ -40,7 +40,7 @@ describe('resolveTaskBranchName', () => {
   it('keeps the existing format for non-Linear issues', () => {
     const branchName = resolveTaskBranchName({
       rawBranch: 'bugfix-login',
-      branchPrefix: 'emdash',
+      branchPrefix: 'rundash',
       suffix: 'xyz99',
       appendRandomSuffix: true,
       linkedIssue: {
@@ -58,7 +58,7 @@ describe('resolveTaskBranchName', () => {
   it('omits only the random suffix when disabled', () => {
     const branchName = resolveTaskBranchName({
       rawBranch: 'bugfix-login',
-      branchPrefix: 'emdash',
+      branchPrefix: 'rundash',
       suffix: 'xyz99',
       appendRandomSuffix: false,
     });
@@ -69,7 +69,7 @@ describe('resolveTaskBranchName', () => {
   it('omits the random suffix when explicitly disabled for a provider flow', () => {
     const branchName = resolveTaskBranchName({
       rawBranch: 'bugfix-login',
-      branchPrefix: 'emdash',
+      branchPrefix: 'rundash',
       suffix: 'xyz99',
       appendRandomSuffix: true,
       disableRandomSuffix: true,

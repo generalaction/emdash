@@ -61,7 +61,7 @@ export const modalRegistry = {
   projectConfigImportModal: createModal(ProjectConfigImportModal, { size: 'md' }),
   integrationSetupModal: createModal(IntegrationSetupModal, { size: 'md' }),
   githubConnectModal: createModal(GithubConnectModal, { size: 'md' }),
-  emdashServerModal: createModal(EmdashServerModal, { size: 'sm' }),
+  rundashServerModal: createModal(EmdashServerModal, { size: 'sm' }),
   addRemoteModal: createModal(AddRemoteModal),
   deleteTaskModal: createModal(DeleteTaskModal, { size: 'sm' }),
   // oxlint-disable-next-line typescript/no-explicit-any

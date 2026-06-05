@@ -1,4 +1,4 @@
-# emdash-server agent runner — runbook
+# rundash-server agent runner — runbook
 
 Runs webhook-triggered agents on the server, each in an isolated Docker
 container. No Electron, no Xvfb. Design:
@@ -6,13 +6,13 @@ container. No Electron, no Xvfb. Design:
 
 ## Quick path: `setup-runner.sh` (recommended)
 
-After `emdash-server` is deployed (via `deploy.sh`), SSH to the server and run
+After `rundash-server` is deployed (via `deploy.sh`), SSH to the server and run
 the one-shot setup script. It is idempotent — re-run it to change the prompt,
 rotate the token, or add another automation.
 
 ```bash
-# on the server, from where deploy.sh synced the package (e.g. /opt/emdash-server)
-cd /opt/emdash-server
+# on the server, from where deploy.sh synced the package (e.g. /opt/rundash-server)
+cd /opt/rundash-server
 ./setup-runner.sh \
   --token  wh_810f6d8cfca484d05543d034c678c22a520724b2d0813e41 \
   --repo   https://github.com/you/doc-engine.git \
@@ -20,9 +20,9 @@ cd /opt/emdash-server
   --prompt "Review the repo for exploitable security vulnerabilities."
 ```
 
-It will: install Docker + jq if missing, build the `emdash-runner` image, clone
+It will: install Docker + jq if missing, build the `rundash-runner` image, clone
 the repo, **prompt you (hidden) for the Claude OAuth token** from
-`claude setup-token`, upsert the automation into `~/.emdash-server/config.json`,
+`claude setup-token`, upsert the automation into `~/.rundash-server/config.json`,
 enable the runner, and restart pm2. Then it prints the test-webhook command.
 
 Pass `--oauth-token TOKEN` to supply the token non-interactively (it won't be
@@ -59,8 +59,8 @@ Copy the printed token. It is NOT saved anywhere by that command.
 ### 3. Build the runner image
 
 ```bash
-# from the deployed emdash-server dir (where deploy.sh syncs to, e.g. /opt/emdash-server)
-docker build -t emdash-runner:latest runner/
+# from the deployed rundash-server dir (where deploy.sh syncs to, e.g. /opt/rundash-server)
+docker build -t rundash-runner:latest runner/
 # add language toolchains your repos need by editing runner/Dockerfile
 ```
 
@@ -73,7 +73,7 @@ git clone <repo-url> /opt/projects/doc-engine
 
 ### 5. Configure the runner
 
-Edit `~/.emdash-server/config.json` and add the OAuth token, enable the runner,
+Edit `~/.rundash-server/config.json` and add the OAuth token, enable the runner,
 and define one automation. The `token` must match the webhook token your
 automation uses (the same one your webhook URL ends with).
 
@@ -93,7 +93,7 @@ automation uses (the same one your webhook URL ends with).
       "token": "wh_810f6d8cfca484d05543d034c678c22a520724b2d0813e41",
       "repoPath": "/opt/projects/doc-engine",
       "prompt": "Review the repository for validated high-impact security vulnerabilities. Only report or fix exploitable issues.",
-      "image": "emdash-runner:latest",
+      "image": "rundash-runner:latest",
       "push": false
     }
   ]
@@ -106,8 +106,8 @@ once git push auth is set up on the checkout.
 ### 6. Restart the server
 
 ```bash
-pm2 restart emdash-server
-pm2 logs emdash-server      # expect: "runner started: 1 automation(s), poll 5000ms…"
+pm2 restart rundash-server
+pm2 logs rundash-server     # expect: "runner started: 1 automation(s), poll 5000ms…"
 ```
 
 ## Fire a test run
@@ -117,7 +117,7 @@ curl -X POST http://localhost:8080/webhook/wh_810f6d8cfca484d05543d034c678c22a52
   -H 'Content-Type: application/json' -d '{}'
 
 # within ~5s the worker picks it up and runs the container. Watch:
-pm2 logs emdash-server
+pm2 logs rundash-server
 # success criterion — a new commit in the repo:
 git -C /opt/projects/doc-engine log --oneline -3
 ```
@@ -127,7 +127,7 @@ git -C /opt/projects/doc-engine log --oneline -3
 1. `POST /webhook/:token` stores a `pending` row (unchanged).
 2. The worker polls the queue every `pollIntervalMs`, maps token → automation.
 3. Runs: `docker run --rm -u <uid:gid> -v <repo>:/work -w /work
-   -e CLAUDE_CODE_OAUTH_TOKEN=… -e PROMPT=… -e HOME=/tmp emdash-runner
+   -e CLAUDE_CODE_OAUTH_TOKEN=… -e PROMPT=… -e HOME=/tmp rundash-runner
    bash -lc "git pull && claude -p \"$PROMPT\" --dangerously-skip-permissions"`.
 4. Exit 0 → event `processed`; non-zero/timeout → `failed` (error stored).
 

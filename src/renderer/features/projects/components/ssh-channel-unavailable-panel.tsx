@@ -7,7 +7,7 @@ export function SshChannelUnavailablePanel() {
         <Unplug className="h-6 w-6 text-foreground-passive" />
         <p className="font-mono text-sm font-medium text-foreground">SSH channel unavailable</p>
         <p className="text-xs text-foreground-passive">
-          The remote server hit its SSH session limit and refused to open another channel. emdash
+          The remote server hit its SSH session limit and refused to open another channel. Rundash
           opens several channels per task, so the default{' '}
           <span className="font-mono">MaxSessions</span> of 10 is usually too low.
         </p>

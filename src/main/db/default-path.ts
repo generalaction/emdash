@@ -3,7 +3,7 @@ import { join } from 'node:path';
 
 export const PREVIOUS_DB_FILENAME = 'emdash3.db';
 export const CURRENT_DB_FILENAME = 'emdash4.db';
-const USER_DATA_DIR_NAME = 'emdash';
+const USER_DATA_DIR_NAME = 'rundash';
 
 /**
  * Returns the platform-specific default userData directory without requiring

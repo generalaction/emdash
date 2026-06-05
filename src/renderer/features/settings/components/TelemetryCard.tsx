@@ -23,7 +23,7 @@ const TelemetryCard: React.FC = () => {
               variant="link"
               size="sm"
               className="group text-muted-foreground inline-flex h-auto items-center gap-1 px-0 text-sm font-normal hover:text-foreground hover:no-underline focus-visible:ring-0 focus-visible:outline-none"
-              onClick={() => rpc.app.openExternal('https://docs.emdash.sh/telemetry')}
+              onClick={() => rpc.app.openExternal('https://docs.rundash.dev/telemetry')}
             >
               <span className="transition-colors group-hover:text-foreground">
                 Telemetry information

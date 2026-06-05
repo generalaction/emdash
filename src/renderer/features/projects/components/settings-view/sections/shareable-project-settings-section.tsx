@@ -140,7 +140,7 @@ export function ShareableSettingsSection({
               variant="link"
               size="sm"
               className="group text-muted-foreground inline-flex h-auto cursor-pointer items-center gap-1 px-0 text-sm font-normal hover:text-foreground hover:no-underline focus-visible:ring-0 focus-visible:outline-none"
-              onClick={() => rpc.app.openExternal('https://www.emdash.sh/docs/project-config')}
+              onClick={() => rpc.app.openExternal('https://www.rundash.dev/docs/project-config')}
             >
               <span className="font-mono text-xs transition-colors group-hover:text-foreground">
                 docs

@@ -315,7 +315,7 @@ export const automations = sqliteTable(
   })
 );
 
-export const emdashServerConnections = sqliteTable('emdash_server_connections', {
+export const rundashServerConnections = sqliteTable('emdash_server_connections', {
   id: text('id').primaryKey(),
   label: text('label').notNull(),
   url: text('url').notNull(),

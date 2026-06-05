@@ -59,7 +59,7 @@ export const APP_COMMAND_DEFS = defineCommandDefs([
   {
     id: 'app.giveFeedback',
     label: 'Give Feedback',
-    description: 'Send feedback to the emdash team',
+    description: 'Send feedback to the Rundash team',
     scope: 'app',
     group: 'App',
     iconKey: 'message-square-share',

@@ -1,5 +1,5 @@
 {
-  "name": "emdash-server",
+  "name": "rundash-server",
   "version": "0.1.0",
   "description": "Always-on webhook relay server for Emdash",
   "type": "module",

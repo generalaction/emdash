@@ -37,7 +37,7 @@ export type SettingsPageTab =
   | 'connections'
   | 'repository'
   | 'interface'
-  | 'emdash-server'
+  | 'rundash-server'
   | 'docs';
 
 interface SectionConfig {
@@ -54,7 +54,7 @@ export function SettingsPage({
   onTabChange: (tab: SettingsPageTab) => void;
 }) {
   const handleDocsClick = useCallback(() => {
-    void rpc.app.openExternal('https://docs.emdash.sh');
+    void rpc.app.openExternal('https://docs.rundash.dev');
   }, []);
 
   const tabs: Array<{
@@ -69,7 +69,7 @@ export function SettingsPage({
     { id: 'connections', label: 'Connections' },
     { id: 'repository', label: 'Repository' },
     { id: 'interface', label: 'Interface' },
-    { id: 'emdash-server', label: 'Server' },
+    { id: 'rundash-server', label: 'Server' },
     { id: 'docs', label: 'Docs', isExternal: true },
   ];
 
@@ -145,9 +145,9 @@ export function SettingsPage({
       description: 'Configure repository and branch settings.',
       sections: [{ title: 'Branch prefix', component: <RepositorySettingsCard /> }],
     },
-    'emdash-server': {
+    'rundash-server': {
       title: 'Server',
-      description: 'Connect to self-hosted emdash-server instances for webhook-triggered automations.',
+      description: 'Connect to self-hosted rundash-server instances for webhook-triggered automations.',
       sections: [{ component: <EmdashServerSettingsCard /> }],
     },
     interface: {

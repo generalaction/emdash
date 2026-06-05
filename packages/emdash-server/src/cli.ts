@@ -27,12 +27,12 @@ async function init(): Promise<void> {
     routes: [],
   });
   saveConfig(config);
-  console.log(`✓ Initialized emdash-server`);
+  console.log(`✓ Initialized rundash-server`);
   console.log(`  Config: ${configPath}`);
   console.log(`  API key: ${config.apiKey}`);
   console.log(`  DB: ${config.dbPath}`);
-  console.log(`\nAdd this server in Emdash Settings → emdash-server.`);
-  console.log(`Run 'emdash-server start' to start the server.`);
+  console.log(`\nAdd this server in Rundash Settings → rundash-server.`);
+  console.log(`Run 'rundash-server start' to start the server.`);
 }
 
 async function migrate(): Promise<void> {
@@ -48,7 +48,7 @@ async function start(): Promise<void> {
   runMigrations();
   const app = buildServer(config);
   await app.listen({ port: config.port, host: config.host });
-  console.log(`emdash-server listening on ${config.host}:${config.port}`);
+  console.log(`rundash-server listening on ${config.host}:${config.port}`);
 
   // Start the agent runner (no-op unless config.runner.enabled).
   const runner = new RunnerWorker({ config });

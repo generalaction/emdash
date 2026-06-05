@@ -1,7 +1,7 @@
 import { useId } from 'react';
-import { EMDASH_PATHS, NATURAL_HEIGHT, NATURAL_WIDTH } from '@renderer/lib/emdash-logo';
+import { EMDASH_PATHS, NATURAL_HEIGHT, NATURAL_WIDTH } from '@renderer/lib/rundash-logo';
 
-export function EmdashShimmerLogo({
+export function RundashShimmerLogo({
   className,
   height = NATURAL_HEIGHT,
   color = 'currentColor',

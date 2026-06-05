@@ -45,9 +45,9 @@ type AccountServiceHooks = {
 
 const accountKV = new KV<AccountKVSchema>('account');
 
-export class EmdashAccountService implements Hookable<AccountServiceHooks> {
+export class RundashAccountService implements Hookable<AccountServiceHooks> {
   private readonly _hooks = new HookCore<AccountServiceHooks>((name, e) =>
-    log.error(`EmdashAccountService: ${String(name)} hook error`, e)
+    log.error(`RundashAccountService: ${String(name)} hook error`, e)
   );
   private cachedProfile: CachedProfile | null = null;
   private sessionToken: string | null = null;
@@ -199,4 +199,4 @@ export class EmdashAccountService implements Hookable<AccountServiceHooks> {
   }
 }
 
-export const emdashAccountService = new EmdashAccountService();
+export const rundashAccountService = new RundashAccountService();

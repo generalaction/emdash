@@ -7,8 +7,8 @@ import { useAppSettingsKey } from '../use-app-settings-key';
 import { EmdashServerRow } from './EmdashServerRow';
 
 export function EmdashServerSettingsCard() {
-  const { value: servers = [], update, isLoading } = useAppSettingsKey('emdashServers');
-  const showModal = useShowModal('emdashServerModal');
+  const { value: servers = [], update, isLoading } = useAppSettingsKey('rundashServers');
+  const showModal = useShowModal('rundashServerModal');
   const showConfirm = useShowModal('confirmActionModal');
 
   const openAdd = useCallback(() => {
@@ -66,7 +66,7 @@ export function EmdashServerSettingsCard() {
           <ServerIcon className="mb-3 size-8 text-foreground-passive" />
           <div className="text-sm text-foreground">No servers configured</div>
           <p className="mt-1 max-w-sm text-xs text-foreground-passive">
-            Add an emdash-server connection to enable webhook-triggered automations.
+            Add an rundash-server connection to enable webhook-triggered automations.
           </p>
         </div>
       ) : (

@@ -17,7 +17,7 @@ type TelemetryKVSchema = {
   lastHeartbeatTs: string;
 };
 
-const LIB_NAME = 'emdash';
+const LIB_NAME = 'rundash';
 const isViteDevBuild = import.meta.env.DEV;
 
 class TelemetryService implements IInitializable, IDisposable {
