@@ -12,10 +12,48 @@ export interface StatusIndicatorConfig {
 
 export function statusIndicatorConfig(status: AutomationRunStatus): StatusIndicatorConfig {
   switch (status) {
-    case 'success':
+    case 'scheduled':
+      return {
+        Icon: Clock,
+        label: 'Scheduled',
+        dotClass: 'bg-amber-400',
+        textClass: 'text-amber-600 dark:text-amber-400',
+      };
+    case 'queued':
+      return {
+        Icon: Clock,
+        label: 'Queued',
+        dotClass: 'bg-amber-500',
+        textClass: 'text-amber-700 dark:text-amber-300',
+      };
+    case 'creating_task':
+      return {
+        Icon: Loader2,
+        label: 'Creating task',
+        dotClass: 'bg-blue-500',
+        textClass: 'text-blue-700 dark:text-blue-300',
+        spin: true,
+      };
+    case 'launching_task':
+      return {
+        Icon: Loader2,
+        label: 'Launching task',
+        dotClass: 'bg-blue-500',
+        textClass: 'text-blue-700 dark:text-blue-300',
+        spin: true,
+      };
+    case 'creating_conversation':
+      return {
+        Icon: Loader2,
+        label: 'Starting agent',
+        dotClass: 'bg-blue-500',
+        textClass: 'text-blue-700 dark:text-blue-300',
+        spin: true,
+      };
+    case 'done':
       return {
         Icon: CheckCircle2,
-        label: 'Success',
+        label: 'Done',
         dotClass: 'bg-emerald-500',
         textClass: 'text-emerald-700 dark:text-emerald-300',
       };
@@ -25,21 +63,6 @@ export function statusIndicatorConfig(status: AutomationRunStatus): StatusIndica
         label: 'Failed',
         dotClass: 'bg-destructive',
         textClass: 'text-destructive',
-      };
-    case 'running':
-      return {
-        Icon: Loader2,
-        label: 'Running',
-        dotClass: 'bg-blue-500',
-        textClass: 'text-blue-700 dark:text-blue-300',
-        spin: true,
-      };
-    case 'queued':
-      return {
-        Icon: Clock,
-        label: 'Queued',
-        dotClass: 'bg-amber-500',
-        textClass: 'text-amber-700 dark:text-amber-300',
       };
     case 'skipped':
       return {
@@ -52,7 +75,12 @@ export function statusIndicatorConfig(status: AutomationRunStatus): StatusIndica
 }
 
 export function isActiveStatus(status: AutomationRunStatus): boolean {
-  return status === 'running' || status === 'queued';
+  return (
+    status === 'queued' ||
+    status === 'creating_task' ||
+    status === 'launching_task' ||
+    status === 'creating_conversation'
+  );
 }
 
 export function agentActivityIndicatorConfig(

@@ -1,21 +1,18 @@
-import { randomUUID } from 'node:crypto';
 import { log } from '@main/lib/logger';
 import type { Automation } from '@shared/automations/automation';
 import type { AutomationRun } from '@shared/automations/automation-run';
-import { QUEUE_DEADLINE_EXCEEDED_ERROR } from '@shared/automations/format';
 import {
   automationRunDeadline,
-  claimQueuedRun,
-  dueQueuedCronRuns,
   enabledAutomationsWithoutQueuedRun,
   ensureNextCronRun,
-  hasRunningRuns,
+  findRunsStuckInCreatingConversation,
+  findRunsStuckInCreatingTask,
+  findRunsStuckInLaunchingTask,
   listQueuedRuns,
-  listRunningRunsForRecovery,
-  recoverQueuedRuns,
-  taskExists,
+  markDueCronRunsQueued,
+  startCreatingTask,
 } from './repo';
-import { emitClaimedRunStarted, markRunFailed, markRunSkipped } from './run-transitions';
+import { emitRunUpdated, markRunFailed, markRunSkipped } from './run-transitions';
 import { runQueuedAutomation } from './runtime';
 
 export { automationRunDeadline };
@@ -25,12 +22,12 @@ const MAX_DUE_ENQUEUE = 100;
 // Each run may allocate a worktree, PTY and agent process; keep local fan-out conservative.
 const MAX_CONCURRENT_RUNS = 4;
 
-class AutomationWorkerPool {
+class SlotPool {
   private activeCount = 0;
 
   constructor(
     private readonly limit: number,
-    private readonly onWorkerSettled: () => void
+    private readonly onSlotFreed: () => void
   ) {}
 
   get availableSlots(): number {
@@ -42,7 +39,7 @@ class AutomationWorkerPool {
     this.activeCount += 1;
     void task().finally(() => {
       this.activeCount -= 1;
-      this.onWorkerSettled();
+      this.onSlotFreed();
     });
     return true;
   }
@@ -53,18 +50,26 @@ export class AutomationScheduler {
   private ticking = false;
   private drainTail: Promise<void> = Promise.resolve();
   private bootstrapTail: Promise<void> = Promise.resolve();
-  private unsubscribeAutomationChanged: (() => void) | null = null;
-  private readonly workerId = `automation-scheduler-${randomUUID()}`;
-  private readonly workerPool = new AutomationWorkerPool(MAX_CONCURRENT_RUNS, () => {
+  private readonly inFlight = new Set<string>(); // automation IDs currently executing
+  private readonly slotPool = new SlotPool(MAX_CONCURRENT_RUNS, () => {
     void this.drainQueue();
   });
 
   start(): void {
     if (this.timer) return;
-    // this.unsubscribeAutomationChanged = automationEvents.on('automation:changed', () => {
-    //   void this.reload();
-    // });
-    this.recoverAndBootstrap().catch((error) => {
+
+    // Lazy import to avoid circular dependency at module load time.
+    // automationsService → scheduler, so scheduler must not import automationsService at top level.
+    void import('./automations-service').then(({ automationsService }) => {
+      automationsService.on('automation:created', () => void this.reload());
+      automationsService.on('automation:enabled', () => void this.reload());
+      automationsService.on('automation:updated', () => void this.reload());
+    });
+
+    this.recoverInterruptedRuns().catch((error) => {
+      log.error('AutomationScheduler recovery failed', { error: String(error) });
+    });
+    this.reload().catch((error) => {
       log.error('AutomationScheduler bootstrap failed', { error: String(error) });
     });
     this.timer = setInterval(() => {
@@ -77,8 +82,6 @@ export class AutomationScheduler {
     if (!this.timer) return;
     clearInterval(this.timer);
     this.timer = null;
-    this.unsubscribeAutomationChanged?.();
-    this.unsubscribeAutomationChanged = null;
   }
 
   async reload(): Promise<void> {
@@ -89,40 +92,48 @@ export class AutomationScheduler {
     await this.bootstrapTail;
   }
 
-  private async recoverAndBootstrap(): Promise<void> {
-    const [recoveredQueued, recovered] = await Promise.all([
-      recoverQueuedRuns(),
-      this.markRunningRunsInterrupted(),
-    ]);
-    if (recoveredQueued > 0) {
-      log.info('AutomationScheduler recovered queued runs', { recovered: recoveredQueued });
-    }
-    if (recovered > 0) {
-      log.warn('AutomationScheduler recovered interrupted runs', { recovered });
-    }
-    await this.reload();
-  }
+  /** Mark all stuck in-progress runs as interrupted so they don't get stuck forever. */
+  private async recoverInterruptedRuns(): Promise<void> {
+    const now = Date.now();
 
-  private async markRunningRunsInterrupted(now = Date.now()): Promise<number> {
-    const runningRuns = await listRunningRunsForRecovery();
-    for (const run of runningRuns) {
-      const error = run.taskId
-        ? (await taskExists(run.taskId))
-          ? 'interrupted_by_restart_task_preserved'
-          : 'interrupted_by_restart_task_missing'
-        : 'interrupted_by_restart';
-      await markRunFailed(run.id, { error, finishedAt: now });
+    const stuckCreating = await findRunsStuckInCreatingTask();
+    for (const { id } of stuckCreating) {
+      await markRunFailed(id, { step: 'create_task', code: 'interrupted_by_restart' }, now);
     }
-    return runningRuns.length;
+    if (stuckCreating.length > 0) {
+      log.warn('AutomationScheduler recovered stuck creating_task runs', {
+        count: stuckCreating.length,
+      });
+    }
+
+    const stuckLaunching = await findRunsStuckInLaunchingTask();
+    for (const { id } of stuckLaunching) {
+      await markRunFailed(id, { step: 'launch_task', code: 'interrupted_by_restart' }, now);
+    }
+    if (stuckLaunching.length > 0) {
+      log.warn('AutomationScheduler recovered stuck launching_task runs', {
+        count: stuckLaunching.length,
+      });
+    }
+
+    const stuckConversation = await findRunsStuckInCreatingConversation();
+    for (const { id } of stuckConversation) {
+      await markRunFailed(id, { step: 'create_conversation', code: 'interrupted_by_restart' }, now);
+    }
+    if (stuckConversation.length > 0) {
+      log.warn('AutomationScheduler recovered stuck creating_conversation runs', {
+        count: stuckConversation.length,
+      });
+    }
   }
 
   private async bootstrapDueRuns(): Promise<void> {
     const now = Date.now();
 
-    // Ensure every enabled automation has a queued cron run (self-healing).
-    const needsQueued = await enabledAutomationsWithoutQueuedRun();
+    // Ensure every enabled automation has a scheduled cron run (self-healing).
+    const needsScheduled = await enabledAutomationsWithoutQueuedRun();
     await Promise.allSettled(
-      needsQueued.map(async (automation) => {
+      needsScheduled.map(async (automation) => {
         try {
           await ensureNextCronRun(automation, now);
         } catch (error) {
@@ -134,10 +145,15 @@ export class AutomationScheduler {
       })
     );
 
-    // Dispatch any queued cron runs that are now past their scheduled time.
-    const due = await dueQueuedCronRuns(now);
-    for (const { run, automation } of due.slice(0, MAX_DUE_ENQUEUE)) {
-      await this.dispatchDueRun(run, automation, now);
+    // Transition any due scheduled cron runs to queued.
+    const transitioned = await markDueCronRunsQueued(now);
+    for (const { automation } of transitioned.slice(0, MAX_DUE_ENQUEUE)) {
+      await ensureNextCronRun(automation, now).catch((error) => {
+        log.error('AutomationScheduler failed to schedule next cron run after transition', {
+          automationId: automation.id,
+          error: String(error),
+        });
+      });
     }
 
     await this.drainQueue();
@@ -148,29 +164,25 @@ export class AutomationScheduler {
     this.ticking = true;
     try {
       const now = Date.now();
-      const due = await dueQueuedCronRuns(now);
-      for (const { run, automation } of due.slice(0, MAX_DUE_ENQUEUE)) {
-        await this.dispatchDueRun(run, automation, now);
+
+      // Phase 1: transition due scheduled runs → queued and pre-schedule next occurrences.
+      const transitioned = await markDueCronRunsQueued(now);
+      for (const { automation } of transitioned.slice(0, MAX_DUE_ENQUEUE)) {
+        await ensureNextCronRun(automation, now).catch((error) => {
+          log.error('AutomationScheduler failed to schedule next cron run', {
+            automationId: automation.id,
+            error: String(error),
+          });
+        });
       }
+
+      // Phase 2: drain the queue.
       await this.drainQueue();
     } catch (error) {
       log.error('AutomationScheduler tick failed', { error: String(error) });
     } finally {
       this.ticking = false;
     }
-  }
-
-  /**
-   * When a queued cron run is past due, ensure the next occurrence is already
-   * pre-materialized before we dispatch this one, so the schedule stays live.
-   */
-  private async dispatchDueRun(
-    run: AutomationRun,
-    automation: Automation,
-    now: number
-  ): Promise<void> {
-    await ensureNextCronRun(automation, now);
-    // The run is already queued — nothing to enqueue; pumpQueue will claim it.
   }
 
   async drainQueue(): Promise<void> {
@@ -182,43 +194,65 @@ export class AutomationScheduler {
   }
 
   private async pumpQueue(): Promise<void> {
-    while (this.workerPool.availableSlots > 0) {
-      const capacity = this.workerPool.availableSlots;
+    while (this.slotPool.availableSlots > 0) {
+      const capacity = this.slotPool.availableSlots;
       const batch = await listQueuedRuns(capacity);
       if (batch.length === 0) return;
 
       let madeProgress = false;
       for (const entry of batch) {
-        if (this.workerPool.availableSlots <= 0) return;
+        if (this.slotPool.availableSlots <= 0) return;
 
         if (entry.run.deadlineAt != null && entry.run.deadlineAt <= Date.now()) {
-          await markRunSkipped(entry.run.id, QUEUE_DEADLINE_EXCEEDED_ERROR);
+          await markRunSkipped(entry.run.id, { step: 'queue', code: 'deadline_exceeded' });
           madeProgress = true;
           continue;
         }
 
         if (entry.automation.projectId == null) {
-          await markRunSkipped(entry.run.id, 'no_project_attached');
+          await markRunSkipped(entry.run.id, { step: 'queue', code: 'no_project' });
           madeProgress = true;
           continue;
         }
 
-        if (await hasRunningRuns(entry.automation.id)) {
-          await markRunSkipped(entry.run.id, 'previous_still_running');
+        if (this.inFlight.has(entry.automation.id)) {
+          await markRunSkipped(entry.run.id, { step: 'queue', code: 'previous_running' });
           madeProgress = true;
           continue;
         }
 
-        const run = await claimQueuedRun(entry.run.id, this.workerId);
+        const run = await startCreatingTask(entry.run.id);
         if (!run) continue;
 
         madeProgress = true;
-        emitClaimedRunStarted(run);
-        this.workerPool.start(() => this.runWorker(entry.automation, run));
+        emitRunUpdated(run);
+        this.inFlight.add(entry.automation.id);
+        this.slotPool.start(() => this.runWorker(entry.automation, run));
       }
 
       if (!madeProgress) return;
     }
+  }
+
+  /**
+   * Execute a manual run immediately, bypassing the cron queue.
+   * The run should already be in `creating_task` status when this is called.
+   */
+  executeNow(automation: Automation, run: AutomationRun): void {
+    if (this.inFlight.has(automation.id)) {
+      log.warn('AutomationScheduler.executeNow: automation already in flight', {
+        automationId: automation.id,
+        runId: run.id,
+      });
+    }
+    this.inFlight.add(automation.id);
+    void this.runWorker(automation, run).catch((error) => {
+      log.error('AutomationScheduler.executeNow worker failed', {
+        automationId: automation.id,
+        runId: run.id,
+        error: String(error),
+      });
+    });
   }
 
   private async runWorker(automation: Automation, run: AutomationRun): Promise<void> {
@@ -226,13 +260,13 @@ export class AutomationScheduler {
       await runQueuedAutomation(automation, run);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      log.error('AutomationScheduler worker failed', {
+      log.error('AutomationScheduler worker failed unexpectedly', {
         automationId: automation.id,
         runId: run.id,
         error: message,
       });
       try {
-        await markRunFailed(run.id, { error: message });
+        await markRunFailed(run.id, { step: 'create_task', code: 'unknown', message });
       } catch (markError) {
         log.error('AutomationScheduler failed to mark worker failed', {
           automationId: automation.id,
@@ -241,6 +275,7 @@ export class AutomationScheduler {
         });
       }
     } finally {
+      this.inFlight.delete(automation.id);
       if (run.triggerKind === 'cron' && automation.enabled) {
         try {
           await ensureNextCronRun(automation, Date.now());

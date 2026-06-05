@@ -29,11 +29,11 @@ export async function getTasks(projectId?: string): Promise<Task[]> {
       .groupBy(conversations.taskId, conversations.provider),
     db
       .select({
-        taskId: automationRuns.createdTaskId,
+        taskId: automationRuns.taskId,
         runId: automationRuns.id,
       })
       .from(automationRuns)
-      .where(inArray(automationRuns.createdTaskId, taskIds)),
+      .where(inArray(automationRuns.taskId, taskIds)),
   ]);
 
   const convByTask = new Map<string, Record<string, number>>();

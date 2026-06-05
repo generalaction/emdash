@@ -3,10 +3,21 @@ import { createConversation } from '@main/core/conversations/createConversation'
 import { openProject } from '@main/core/projects/operations/openProject';
 import { projectManager } from '@main/core/projects/project-manager';
 import { appSettingsService } from '@main/core/settings/settings-service';
-import { generateTaskName } from '@main/core/tasks/name-generation/generateTaskName';
+import { generateRandom } from '@main/core/tasks/name-generation/generateTaskName';
+import {
+  commitCreateTask,
+  finalizeCreateTask,
+  prepareCreateTask,
+} from '@main/core/tasks/operations/createTask';
 import { taskService } from '@main/core/tasks/task-service';
-import type { Automation, AutomationRun } from '@shared/automations/automation';
+import type { Automation } from '@shared/automations/automation';
+import type { AutomationRun } from '@shared/automations/automation-run';
 import { updateRun } from '../repo';
+import {
+  markRunCreatingConversation,
+  markRunFailed,
+  markRunLaunchingTask,
+} from '../run-transitions';
 import { executeTaskCreate } from './taskCreate';
 
 vi.mock('@main/core/conversations/createConversation', () => ({ createConversation: vi.fn() }));
@@ -14,7 +25,17 @@ vi.mock('@main/core/projects/operations/ensure-repository-workspace', () => ({
   ensureRepositoryWorkspace: vi.fn().mockResolvedValue('ws-repo-1'),
 }));
 vi.mock('@main/core/projects/operations/openProject', () => ({ openProject: vi.fn() }));
-vi.mock('@main/db/client', () => ({ db: { select: vi.fn(), insert: vi.fn(), update: vi.fn() } }));
+vi.mock('@main/db/client', () => ({
+  db: {
+    select: vi.fn().mockReturnValue({
+      from: vi.fn().mockReturnValue({
+        where: vi.fn().mockReturnValue({ limit: vi.fn().mockResolvedValue([]) }),
+      }),
+    }),
+    transaction: vi.fn((fn: (tx: unknown) => unknown) => fn(mockTx)),
+    update: vi.fn().mockReturnValue({ set: vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue({ run: vi.fn() }) }) }),
+  },
+}));
 vi.mock('@main/core/projects/project-manager', () => ({
   projectManager: { getProject: vi.fn() },
 }));
@@ -22,27 +43,39 @@ vi.mock('@main/core/settings/settings-service', () => ({
   appSettingsService: { get: vi.fn() },
 }));
 vi.mock('@main/core/tasks/name-generation/generateTaskName', () => ({
-  generateTaskName: vi.fn(() => 'generated-task'),
+  generateRandom: vi.fn(() => 'random-task-name'),
+  generateTaskName: vi.fn(({ title }: { title: string; description?: string }) => `${title}-scoped`),
+}));
+vi.mock('@main/core/tasks/operations/createTask', () => ({
+  prepareCreateTask: vi.fn(),
+  commitCreateTask: vi.fn(),
+  finalizeCreateTask: vi.fn(),
 }));
 vi.mock('@main/core/tasks/task-service', () => ({
-  taskService: { createTask: vi.fn(), launch: vi.fn() },
-}));
-vi.mock('@main/core/workspaces/workspace-bootstrap-service', () => ({
-  workspaceBootstrapService: { ensureWorkspaceSetupForTask: vi.fn() },
+  taskService: { notifyTaskCreated: vi.fn(), launch: vi.fn() },
 }));
 vi.mock('@main/lib/events', () => ({ events: { emit: vi.fn() } }));
 vi.mock('@main/lib/logger', () => ({ log: { error: vi.fn(), warn: vi.fn(), info: vi.fn() } }));
-vi.mock('../automation-events', () => ({ automationEvents: { _emit: vi.fn() } }));
 vi.mock('../repo', () => ({ updateRun: vi.fn() }));
+vi.mock('../run-transitions', () => ({
+  markRunLaunchingTask: vi.fn(),
+  markRunCreatingConversation: vi.fn(),
+  markRunFailed: vi.fn(),
+}));
+
+const mockTx = {
+  update: vi.fn().mockReturnValue({
+    set: vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue({ run: vi.fn() }) }),
+  }),
+};
 
 const automation: Automation = {
   id: 'automation-1',
   name: 'Daily follow-up',
-  description: null,
-  category: 'custom',
   triggerConfig: { expr: '0 9 * * *', tz: 'UTC' },
-  conversationConfig: { initialPrompt: 'Check things' },
+  conversationConfig: { prompt: 'Check things', provider: 'claude', autoApprove: false },
   taskConfig: {
+    version: '1' as const,
     taskConfig: {
       version: '1',
       name: 'Stored task',
@@ -60,8 +93,6 @@ const automation: Automation = {
   },
   projectId: 'project-1',
   enabled: true,
-  deadlinePolicy: 'next-interval',
-  deadlineMs: null,
   createdAt: 0,
   updatedAt: 0,
 };
@@ -72,291 +103,97 @@ const run: AutomationRun = {
   scheduledAt: null,
   deadlineAt: null,
   startedAt: 1,
+  taskCreatedAt: null,
+  launchedAt: null,
   finishedAt: null,
-  status: 'running',
+  status: 'creating_task',
   taskId: null,
-  createdTaskId: null,
   error: null,
   triggerKind: 'manual',
-  workerId: 'worker-1',
+  triggerConfigSnapshot: { expr: '0 9 * * *', tz: 'UTC' },
+  conversationConfigSnapshot: { prompt: 'Check things', provider: 'claude', autoApprove: false },
+  taskConfigSnapshot: null,
 };
+
+const mockTaskRow = { id: 'task-generated-uuid', name: 'random-task-name' } as never;
+const mockConvRow = { id: 'conv-1' } as never;
+const preparedData = {} as never;
 
 describe('executeTaskCreate', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(generateTaskName).mockReturnValue('generated-task');
+    vi.mocked(generateRandom).mockReturnValue('random-task-name');
     vi.mocked(appSettingsService.get).mockResolvedValue(null as never);
+    vi.mocked(projectManager.getProject).mockReturnValue({} as never);
+    vi.mocked(prepareCreateTask).mockResolvedValue({ success: true, data: preparedData });
+    vi.mocked(commitCreateTask).mockReturnValue({ taskRow: mockTaskRow, convRow: mockConvRow });
+    vi.mocked(finalizeCreateTask).mockReturnValue({ task: { id: 'task-generated-uuid' } } as never);
     vi.mocked(taskService.launch).mockResolvedValue({
       success: true,
       data: { path: '/tmp/task', workspaceId: 'workspace-1' },
     });
     vi.mocked(createConversation).mockResolvedValue({} as never);
     vi.mocked(updateRun).mockImplementation(async (_, values) => ({ ...run, ...values }));
+    vi.mocked(markRunLaunchingTask).mockResolvedValue({ ...run, status: 'launching_task' } as never);
+    vi.mocked(markRunCreatingConversation).mockResolvedValue({ ...run, status: 'creating_conversation' } as never);
+    vi.mocked(markRunFailed).mockResolvedValue({ ...run, status: 'failed' } as never);
   });
 
-  it('opens the project before creating a task from stored config', async () => {
-    vi.mocked(projectManager.getProject)
-      .mockReturnValueOnce(undefined)
-      .mockReturnValueOnce({} as never);
-    vi.mocked(openProject).mockResolvedValueOnce({ success: true, data: undefined });
-    vi.mocked(taskService.createTask).mockResolvedValueOnce({
-      success: true,
-      data: { task: {} as never },
+  it('returns err when the prompt is empty', async () => {
+    const emptyPromptAutomation = {
+      ...automation,
+      conversationConfig: { prompt: '   ', provider: 'claude', autoApprove: false },
+    };
+    const result = await executeTaskCreate(emptyPromptAutomation, run);
+    expect(result).toEqual({ success: false, error: 'task_create_prompt_empty' });
+    expect(prepareCreateTask).not.toHaveBeenCalled();
+  });
+
+  it('returns err when automation has no projectId', async () => {
+    const result = await executeTaskCreate({ ...automation, projectId: undefined }, run);
+    expect(result).toEqual({ success: false, error: 'no_project_attached' });
+    expect(prepareCreateTask).not.toHaveBeenCalled();
+  });
+
+  it('marks run failed and returns err when project cannot be opened', async () => {
+    vi.mocked(projectManager.getProject).mockReturnValue(undefined);
+    vi.mocked(openProject).mockResolvedValue({ success: false, error: 'not_found' as never });
+
+    const result = await executeTaskCreate(automation, run);
+
+    expect(result.success).toBe(false);
+    expect(markRunFailed).toHaveBeenCalledWith(run.id, { step: 'create_task', code: 'project_not_found' });
+    expect(prepareCreateTask).not.toHaveBeenCalled();
+  });
+
+  it('marks run failed when prepareCreateTask fails', async () => {
+    vi.mocked(prepareCreateTask).mockResolvedValue({
+      success: false,
+      error: { type: 'branch-not-found', branch: 'my-branch' },
     });
 
-    const result = await executeTaskCreate({ automation, run });
+    const result = await executeTaskCreate(automation, run);
+
+    expect(result.success).toBe(false);
+    expect(markRunFailed).toHaveBeenCalledWith(run.id, {
+      step: 'create_task',
+      code: 'branch_not_found',
+      message: 'my-branch',
+    });
+    expect(commitCreateTask).not.toHaveBeenCalled();
+  });
+
+  it('calls markRunLaunchingTask after committing task to DB', async () => {
+    const result = await executeTaskCreate(automation, run);
 
     expect(result.success).toBe(true);
-    expect(openProject).toHaveBeenCalledWith('project-1');
-    expect(taskService.createTask).toHaveBeenCalledOnce();
+    expect(commitCreateTask).toHaveBeenCalledWith(preparedData, mockTx);
+    expect(markRunLaunchingTask).toHaveBeenCalledWith(run.id, expect.any(String), expect.any(Number));
+    expect(taskService.launch).toHaveBeenCalled();
   });
 
-  it('enables auto-approval for automation-created Cursor conversations', async () => {
-    vi.mocked(projectManager.getProject).mockReturnValue({} as never);
-    vi.mocked(taskService.createTask).mockResolvedValueOnce({
-      success: true,
-      data: { task: {} as never },
-    });
-
-    await executeTaskCreate({
-      automation: {
-        ...automation,
-        conversationConfig: {
-          initialPrompt: 'Check things',
-          provider: 'cursor',
-          autoApprove: false,
-        },
-      },
-      run,
-    });
-
-    const createArg = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
-    expect(createArg?.taskConfig.initialConversation?.autoApprove).toBe(true);
-  });
-
-  it.each(['claude', 'codex'] as const)(
-    'enables auto-approval for automation-created %s conversations when the provider supports it',
-    async (provider) => {
-      vi.mocked(projectManager.getProject).mockReturnValue({} as never);
-      vi.mocked(taskService.createTask).mockResolvedValueOnce({
-        success: true,
-        data: { task: {} as never },
-      });
-
-      await executeTaskCreate({
-        automation: {
-          ...automation,
-          conversationConfig: { initialPrompt: 'Check things', provider, autoApprove: false },
-        },
-        run,
-      });
-
-      const createArg = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
-      expect(createArg?.taskConfig.initialConversation?.autoApprove).toBe(true);
-    }
-  );
-
-  it('enables auto-approval for automation-created OpenCode conversations via provider env', async () => {
-    vi.mocked(projectManager.getProject).mockReturnValue({} as never);
-    vi.mocked(taskService.createTask).mockResolvedValueOnce({
-      success: true,
-      data: { task: {} as never },
-    });
-
-    await executeTaskCreate({
-      automation: {
-        ...automation,
-        conversationConfig: {
-          initialPrompt: 'Check things',
-          provider: 'opencode',
-          autoApprove: false,
-        },
-      },
-      run,
-    });
-
-    const createArg = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
-    expect(createArg?.taskConfig.initialConversation?.autoApprove).toBe(true);
-  });
-
-  it('creates a task even when a previous action already created one for the run', async () => {
-    vi.mocked(projectManager.getProject).mockReturnValue({} as never);
-    vi.mocked(taskService.createTask).mockResolvedValueOnce({
-      success: true,
-      data: { task: {} as never },
-    });
-
-    await executeTaskCreate({
-      automation,
-      run: { ...run, taskId: 'task-existing', createdTaskId: 'task-existing' },
-    });
-
-    expect(taskService.createTask).toHaveBeenCalledOnce();
-  });
-
-  it('scopes stored task names and branches to each automation run', async () => {
-    vi.mocked(projectManager.getProject).mockReturnValue({} as never);
-    vi.mocked(generateTaskName).mockImplementation(({ title }) =>
-      title === 'stored-task-branch' ? 'stored-task-branch-run' : 'stored-task-run'
-    );
-    vi.mocked(taskService.createTask).mockResolvedValueOnce({
-      success: true,
-      data: { task: {} as never },
-    });
-
-    const result = await executeTaskCreate({ automation, run });
-
-    expect(result.success).toBe(true);
-    const createArg = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
-    expect(createArg?.taskConfig.name).toBe('stored-task-run');
-    expect(createArg?.workspaceConfig.git).toEqual({
-      kind: 'create-branch',
-      branchName: 'stored-task-branch-run',
-      fromBranch: { type: 'local', branch: 'main' },
-      pushBranch: false,
-    });
-    expect(generateTaskName).toHaveBeenCalledWith({ title: 'Stored task', description: run.id });
-    expect(generateTaskName).toHaveBeenCalledWith({
-      title: 'stored-task-branch',
-      description: run.id,
-    });
-  });
-
-  it('preserves none git and byoi workspace for BYOI automation tasks', async () => {
-    vi.mocked(projectManager.getProject).mockReturnValue({} as never);
-    vi.mocked(taskService.createTask).mockResolvedValueOnce({
-      success: true,
-      data: { task: {} as never },
-    });
-
-    const result = await executeTaskCreate({
-      automation: {
-        ...automation,
-        taskConfig: {
-          ...automation.taskConfig!,
-          workspaceConfig: {
-            version: '2' as const,
-            git: { kind: 'none' as const },
-            workspace: { kind: 'byoi' as const },
-          },
-        },
-      },
-      run,
-    });
-
-    expect(result.success).toBe(true);
-    const taskConfig = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
-    expect(taskConfig?.workspaceConfig.git).toEqual({ kind: 'none' });
-    expect(taskConfig?.workspaceConfig.workspace).toEqual({ kind: 'byoi' });
-  });
-
-  it('uses the run id when generating default task names', async () => {
-    vi.mocked(projectManager.getProject).mockReturnValue({
-      defaultWorkspaceType: { kind: 'local' },
-      repository: {
-        getBranchesPayload: vi.fn().mockResolvedValue({
-          gitDefaultBranch: 'main',
-          branches: [{ type: 'local', branch: 'main' }],
-        }),
-        getRepositoryInfo: vi.fn().mockResolvedValue({ isUnborn: false, currentBranch: 'main' }),
-        getConfiguredRemotes: vi.fn().mockResolvedValue({ baseRemote: 'origin' }),
-      },
-    } as never);
-    vi.mocked(taskService.createTask).mockResolvedValueOnce({
-      success: true,
-      data: { task: {} as never },
-    });
-
-    await executeTaskCreate({
-      automation: { ...automation, taskConfig: null },
-      run,
-    });
-
-    expect(generateTaskName).toHaveBeenCalledWith({
-      title: 'Daily follow-up',
-      description: 'run-1',
-    });
-  });
-
-  it('enables auto-approval for Cursor when building automation task config from defaults', async () => {
-    vi.mocked(appSettingsService.get).mockImplementation(async (key) =>
-      key === 'defaultAgent' ? 'cursor' : (null as never)
-    );
-    vi.mocked(projectManager.getProject).mockReturnValue({
-      defaultWorkspaceType: { kind: 'local' },
-      repository: {
-        getBranchesPayload: vi.fn().mockResolvedValue({
-          gitDefaultBranch: 'main',
-          branches: [{ type: 'local', branch: 'main' }],
-        }),
-        getRepositoryInfo: vi.fn().mockResolvedValue({ isUnborn: false, currentBranch: 'main' }),
-        getConfiguredRemotes: vi.fn().mockResolvedValue({ baseRemote: 'origin' }),
-      },
-    } as never);
-    vi.mocked(taskService.createTask).mockResolvedValueOnce({
-      success: true,
-      data: { task: {} as never },
-    });
-
-    await executeTaskCreate({
-      automation: { ...automation, taskConfig: null },
-      run,
-    });
-
-    const createArg = vi.mocked(taskService.createTask).mock.calls[0]?.[0];
-    expect(createArg?.taskConfig.initialConversation?.provider).toBe('cursor');
-    expect(createArg?.taskConfig.initialConversation?.autoApprove).toBe(true);
-  });
-
-  it('persists the run task link immediately after task creation', async () => {
-    vi.mocked(projectManager.getProject).mockReturnValue({} as never);
-    vi.mocked(taskService.createTask).mockResolvedValueOnce({
-      success: true,
-      data: { task: {} as never },
-    });
-
-    const result = await executeTaskCreate({ automation, run });
-
-    expect(result.success).toBe(true);
-    if (!result.success) return;
-    expect(updateRun).toHaveBeenCalledWith(run.id, {
-      taskId: result.data.taskId,
-      createdTaskId: result.data.taskId,
-    });
-  });
-
-  it('provisions the task and starts its initial conversation', async () => {
-    vi.mocked(projectManager.getProject).mockReturnValue({} as never);
-    vi.mocked(taskService.createTask).mockResolvedValueOnce({
-      success: true,
-      data: { task: {} as never },
-    });
-
-    const result = await executeTaskCreate({ automation, run });
-
-    expect(result.success).toBe(true);
-    if (!result.success) return;
-    expect(taskService.launch).toHaveBeenCalledWith(result.data.taskId);
-    expect(createConversation).toHaveBeenCalledWith(
-      expect.objectContaining({
-        projectId: 'project-1',
-        taskId: result.data.taskId,
-        initialPrompt: 'Check things',
-        isInitialConversation: true,
-      })
-    );
-    expect(vi.mocked(taskService.launch).mock.invocationCallOrder[0]).toBeLessThan(
-      vi.mocked(createConversation).mock.invocationCallOrder[0]
-    );
-  });
-
-  it('returns the task id when provisioning fails after task creation', async () => {
-    vi.mocked(projectManager.getProject).mockReturnValue({} as never);
-    vi.mocked(taskService.createTask).mockResolvedValueOnce({
-      success: true,
-      data: { task: {} as never },
-    });
-    vi.mocked(taskService.launch).mockResolvedValueOnce({
+  it('marks run failed when launch fails', async () => {
+    vi.mocked(taskService.launch).mockResolvedValue({
       success: false,
       error: {
         type: 'setup-failed',
@@ -366,49 +203,101 @@ describe('executeTaskCreate', () => {
       },
     });
 
-    const result = await executeTaskCreate({ automation, run });
+    const result = await executeTaskCreate(automation, run);
 
-    expect(result).toEqual({
-      success: false,
-      error: {
-        message: "Setup step 'workspace-acquire' failed (error): provisioning failed.",
-        taskId: expect.any(String),
+    expect(result.success).toBe(false);
+    expect(markRunFailed).toHaveBeenCalledWith(run.id, {
+      step: 'launch_task',
+      code: 'provision_failed',
+      message: 'provisioning failed',
+    });
+    expect(createConversation).not.toHaveBeenCalled();
+  });
+
+  it('calls markRunCreatingConversation after successful launch', async () => {
+    const result = await executeTaskCreate(automation, run);
+
+    expect(result.success).toBe(true);
+    expect(markRunCreatingConversation).toHaveBeenCalledWith(run.id, expect.any(Number));
+    expect(createConversation).toHaveBeenCalled();
+  });
+
+  it('marks run failed when conversation creation throws', async () => {
+    vi.mocked(createConversation).mockRejectedValue(new Error('conv_failed'));
+
+    const result = await executeTaskCreate(automation, run);
+
+    expect(result.success).toBe(false);
+    expect(markRunFailed).toHaveBeenCalledWith(run.id, {
+      step: 'create_conversation',
+      code: 'failed',
+      message: 'conv_failed',
+    });
+  });
+
+  it('returns ok with taskId on full success', async () => {
+    const result = await executeTaskCreate(automation, run);
+
+    expect(result).toEqual({ success: true, data: { taskId: expect.any(String) } });
+    expect(markRunFailed).not.toHaveBeenCalled();
+  });
+
+  it('uses generateRandom for the task name', async () => {
+    await executeTaskCreate(automation, run);
+
+    expect(generateRandom).toHaveBeenCalled();
+    expect(prepareCreateTask).toHaveBeenCalledWith(
+      expect.objectContaining({
+        taskConfig: expect.objectContaining({ name: 'random-task-name' }),
+      })
+    );
+  });
+
+  it('scopes branch name from automation.taskConfig with run.id', async () => {
+    const { generateTaskName } = await import('@main/core/tasks/name-generation/generateTaskName');
+    await executeTaskCreate(automation, run);
+
+    expect(generateTaskName).toHaveBeenCalledWith({
+      title: 'stored-task-branch',
+      description: run.id,
+    });
+  });
+
+  it('enables auto-approval for Cursor conversations', async () => {
+    await executeTaskCreate(
+      {
+        ...automation,
+        conversationConfig: { prompt: 'Check things', provider: 'cursor', autoApprove: false },
       },
-    });
-    expect(createConversation).not.toHaveBeenCalled();
+      run
+    );
+
+    expect(createConversation).toHaveBeenCalledWith(
+      expect.objectContaining({ autoApprove: true, provider: 'cursor' })
+    );
   });
 
-  it('returns the task id when persisting the run task link fails', async () => {
-    vi.mocked(projectManager.getProject).mockReturnValue({} as never);
-    vi.mocked(taskService.createTask).mockResolvedValueOnce({
-      success: true,
-      data: { task: {} as never },
-    });
-    vi.mocked(updateRun).mockResolvedValueOnce(null);
+  it('creates the conversation with config from automation, not run snapshot', async () => {
+    await executeTaskCreate(automation, run);
 
-    const result = await executeTaskCreate({ automation, run });
-
-    expect(result).toEqual({
-      success: false,
-      error: { message: 'run_update_failed', taskId: expect.any(String) },
-    });
-    expect(taskService.launch).not.toHaveBeenCalled();
-    expect(createConversation).not.toHaveBeenCalled();
+    expect(createConversation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'claude',
+        initialPrompt: 'Check things',
+        isInitialConversation: true,
+      })
+    );
   });
 
-  it('does not persist run/task mapping when task config construction throws after UUID generation', async () => {
-    vi.mocked(generateTaskName).mockImplementationOnce(() => {
-      throw new Error('after_uuid');
-    });
+  it('opens the project when it is not loaded', async () => {
+    vi.mocked(projectManager.getProject)
+      .mockReturnValueOnce(undefined)
+      .mockReturnValue({} as never);
+    vi.mocked(openProject).mockResolvedValue({ success: true, data: undefined });
 
-    const result = await executeTaskCreate({
-      automation: { ...automation, taskConfig: null },
-      run,
-    });
+    const result = await executeTaskCreate(automation, run);
 
-    expect(result).toEqual({ success: false, error: { message: 'after_uuid' } });
-    expect(taskService.createTask).not.toHaveBeenCalled();
-    expect(taskService.launch).not.toHaveBeenCalled();
-    expect(createConversation).not.toHaveBeenCalled();
+    expect(result.success).toBe(true);
+    expect(openProject).toHaveBeenCalledWith('project-1');
   });
 });

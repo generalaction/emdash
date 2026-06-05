@@ -11,7 +11,6 @@ import {
   Terminal,
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { AutomationTaskTitlebar } from '@renderer/features/automations/components/AutomationTaskTitlebar';
 import {
   asMounted,
   getProjectStore,

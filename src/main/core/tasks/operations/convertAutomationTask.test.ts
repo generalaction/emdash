@@ -59,8 +59,7 @@ describe('convertAutomationTask', () => {
     await convertAutomationTask('task-1');
 
     expect(dbMock.transaction).toHaveBeenCalledOnce();
-    expect(dbMock.update).toHaveBeenCalledTimes(3);
-    expect(set).toHaveBeenCalledWith({ createdTaskId: null });
+    expect(dbMock.update).toHaveBeenCalledTimes(2);
     expect(set).toHaveBeenCalledWith({ taskId: null });
   });
 });

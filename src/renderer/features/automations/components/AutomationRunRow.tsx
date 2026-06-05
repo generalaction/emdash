@@ -15,7 +15,7 @@ import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { AbsoluteTime } from '@renderer/lib/ui/absolute-time';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
-import { formatRunTriggerKindLabel, isQueueDeadlineExceededRun } from '@shared/automations/format';
+import { formatRunTriggerKindLabel, parseRunError } from '@shared/automations/format';
 import { makePtySessionId } from '@shared/ptySessionId';
 import { useAutomationAgentActivity } from '../automation-run-status-store';
 
@@ -44,7 +44,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
   const displayTime = run ? (run.startedAt ?? run.scheduledAt ?? run.finishedAt) : null;
   const triggerLabel = run ? formatRunTriggerKindLabel(run.triggerKind) : null;
   const isRunActive = run ? isActiveStatus(run.status) : false;
-  const missedDeadline = run ? isQueueDeadlineExceededRun(run) : false;
+  const missedDeadline = run ? parseRunError(run.error)?.code === 'deadline_exceeded' : false;
 
   const displayName = task?.name ?? null;
 
@@ -56,7 +56,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
   function handleStop() {
     if (!run) return;
     stopRun(run.id);
-    if (run.status === 'running' && taskId && projectId) {
+    if (run.status === 'creating_conversation' && taskId && projectId) {
       for (const conv of conversationRegistry.get(taskId)?.conversations.values() ?? []) {
         if (conv.status === 'working' || conv.status === 'awaiting-input') {
           void rpc.pty.stopSession(makePtySessionId(projectId, taskId, conv.data.id));

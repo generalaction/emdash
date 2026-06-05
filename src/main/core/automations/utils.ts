@@ -36,9 +36,10 @@ export function mapAutomationRunRowToAutomationRun(row: AutomationRunRow): Autom
     scheduledAt: row.scheduledAt,
     deadlineAt: row.deadlineAt,
     startedAt: row.startedAt,
+    taskCreatedAt: row.taskCreatedAt,
+    launchedAt: row.launchedAt,
     finishedAt: row.finishedAt,
     taskId: row.taskId,
     error: row.error,
-    workerId: row.workerId,
   };
 }

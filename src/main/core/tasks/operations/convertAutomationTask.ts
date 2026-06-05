@@ -14,18 +14,18 @@ export async function convertAutomationTask(taskId: string): Promise<Task | null
       .from(automationRuns)
       .where(
         and(
-          or(eq(automationRuns.createdTaskId, taskId), eq(automationRuns.taskId, taskId)),
-          or(eq(automationRuns.status, 'queued'), eq(automationRuns.status, 'running'))
+          eq(automationRuns.taskId, taskId),
+          or(
+            eq(automationRuns.status, 'queued'),
+            eq(automationRuns.status, 'creating_task'),
+            eq(automationRuns.status, 'launching_task'),
+            eq(automationRuns.status, 'creating_conversation')
+          )
         )
       )
       .limit(1)
       .all();
     if (activeRun) throw new Error('automation_run_in_flight');
-
-    tx.update(automationRuns)
-      .set({ createdTaskId: null })
-      .where(eq(automationRuns.createdTaskId, taskId))
-      .run();
 
     tx.update(automationRuns).set({ taskId: null }).where(eq(automationRuns.taskId, taskId)).run();
 

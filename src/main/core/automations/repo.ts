@@ -6,7 +6,6 @@ import {
   automationRuns,
   automations,
   projects,
-  tasks,
   type AutomationRow,
   type AutomationRunRow,
 } from '@main/db/schema';
@@ -86,9 +85,12 @@ function assertValidAutomationInput(input: {
 }
 
 const RUN_STATUSES: ReadonlySet<AutomationRunStatus> = new Set([
+  'scheduled',
   'queued',
-  'running',
-  'success',
+  'creating_task',
+  'launching_task',
+  'creating_conversation',
+  'done',
   'failed',
   'skipped',
 ]);
@@ -182,12 +184,13 @@ function mapAutomationRunRow(row: AutomationRunRow): AutomationRun {
     scheduledAt: row.scheduledAt,
     deadlineAt: row.deadlineAt,
     startedAt: row.startedAt,
+    taskCreatedAt: row.taskCreatedAt,
+    launchedAt: row.launchedAt,
     finishedAt: row.finishedAt,
     status: asRunStatus(row.status, row.id),
     taskId: row.taskId,
     error: row.error,
     triggerKind: asRunTriggerKind(row.triggerKind, row.id),
-    workerId: row.workerId,
     triggerConfigSnapshot: parseSnapshotTriggerConfig(row.triggerConfigSnapshot, row.id),
     conversationConfigSnapshot: parseSnapshotConversationConfig(
       row.conversationConfigSnapshot,
@@ -233,15 +236,16 @@ export async function getAutomation(id: string): Promise<Automation | null> {
 
 export async function skipQueuedCronRuns(
   automationId: string,
-  reason: string
+  code: string
 ): Promise<AutomationRun[]> {
+  const error = JSON.stringify({ step: 'queue', code });
   const rows = await db
     .update(automationRuns)
-    .set({ status: 'skipped', finishedAt: Date.now(), error: reason, workerId: null })
+    .set({ status: 'skipped', finishedAt: Date.now(), error })
     .where(
       and(
         eq(automationRuns.automationId, automationId),
-        eq(automationRuns.status, 'queued'),
+        inArray(automationRuns.status, ['scheduled', 'queued']),
         eq(automationRuns.triggerKind, 'cron')
       )
     )
@@ -386,7 +390,7 @@ export async function ensureNextCronRun(
   if (!automation.triggerConfig || !automation.conversationConfig) return null;
   const scheduledAt = getNextRunAt(automation.triggerConfig, from);
   if (scheduledAt == null) return null;
-  return enqueueAutomationRun({
+  return scheduleAutomationRun({
     automationId: automation.id,
     triggerConfigSnapshot: automation.triggerConfig,
     conversationConfigSnapshot: automation.conversationConfig,
@@ -397,7 +401,7 @@ export async function ensureNextCronRun(
   });
 }
 
-export async function dueQueuedCronRuns(
+export async function markDueCronRunsQueued(
   now = Date.now()
 ): Promise<Array<{ run: AutomationRun; automation: Automation }>> {
   const rows = await db
@@ -406,7 +410,7 @@ export async function dueQueuedCronRuns(
     .innerJoin(automations, eq(automationRuns.automationId, automations.id))
     .where(
       and(
-        eq(automationRuns.status, 'queued'),
+        eq(automationRuns.status, 'scheduled'),
         eq(automationRuns.triggerKind, 'cron'),
         sql`${automationRuns.scheduledAt} <= ${now}`,
         eq(automations.enabled, 1),
@@ -414,10 +418,21 @@ export async function dueQueuedCronRuns(
       )
     )
     .orderBy(asc(automationRuns.scheduledAt));
+
+  if (rows.length === 0) return [];
+
+  const ids = rows.map((r) => r.run.id);
+  await db.update(automationRuns).set({ status: 'queued' }).where(inArray(automationRuns.id, ids));
+
   return rows.flatMap(({ run, automation }) => {
     const mappedAutomation = mapAutomationRowSafely(automation);
     return mappedAutomation
-      ? [{ run: mapAutomationRunRow(run), automation: mappedAutomation }]
+      ? [
+          {
+            run: { ...mapAutomationRunRow(run), status: 'queued' as const },
+            automation: mappedAutomation,
+          },
+        ]
       : [];
   });
 }
@@ -430,7 +445,7 @@ export async function enabledAutomationsWithoutQueuedRun(): Promise<Automation[]
       automationRuns,
       and(
         eq(automationRuns.automationId, automations.id),
-        eq(automationRuns.status, 'queued'),
+        inArray(automationRuns.status, ['scheduled', 'queued']),
         eq(automationRuns.triggerKind, 'cron')
       )
     )
@@ -447,16 +462,7 @@ export async function enabledAutomationsWithoutQueuedRun(): Promise<Automation[]
   });
 }
 
-export async function hasRunningRuns(automationId: string): Promise<boolean> {
-  const rows = await db
-    .select({ id: automationRuns.id })
-    .from(automationRuns)
-    .where(and(eq(automationRuns.automationId, automationId), eq(automationRuns.status, 'running')))
-    .limit(1);
-  return rows.length > 0;
-}
-
-export async function enqueueAutomationRun(input: {
+export async function scheduleAutomationRun(input: {
   automationId: string;
   triggerConfigSnapshot: TriggerConfig;
   conversationConfigSnapshot: ConversationConfig;
@@ -476,38 +482,29 @@ export async function enqueueAutomationRun(input: {
     )
     SELECT
       ${runId}, ${input.automationId}, ${input.scheduledAt}, ${input.deadlineAt},
-      'queued', ${input.triggerKind},
+      'scheduled', ${input.triggerKind},
       ${triggerSnap}, ${convSnap}, ${taskSnap}
     WHERE NOT EXISTS (
       SELECT 1
       FROM automation_runs
       WHERE automation_id = ${input.automationId}
-        AND status IN ('queued', 'running')
-        ${input.triggerKind === 'cron' ? sql`AND scheduled_at = ${input.scheduledAt}` : sql``}
+        AND scheduled_at = ${input.scheduledAt}
+        AND trigger_kind = 'cron'
+        AND status IN ('scheduled', 'queued')
     )
-    ${
-      input.triggerKind === 'cron'
-        ? sql`AND NOT EXISTS (
-            SELECT 1
-            FROM automation_runs
-            WHERE automation_id = ${input.automationId}
-              AND status = 'queued'
-              AND trigger_kind = 'manual'
-          )`
-        : sql``
-    }
     RETURNING
       id,
       automation_id AS automationId,
       scheduled_at AS scheduledAt,
       deadline_at AS deadlineAt,
       started_at AS startedAt,
+      task_created_at AS taskCreatedAt,
+      launched_at AS launchedAt,
       finished_at AS finishedAt,
       status,
       task_id AS taskId,
       error,
       trigger_kind AS triggerKind,
-      worker_id AS workerId,
       trigger_config_snapshot AS triggerConfigSnapshot,
       conversation_config_snapshot AS conversationConfigSnapshot,
       task_config_snapshot AS taskConfigSnapshot
@@ -525,12 +522,7 @@ export async function listQueuedRuns(limit = 100): Promise<
     .select({ run: automationRuns, automation: automations })
     .from(automationRuns)
     .innerJoin(automations, eq(automationRuns.automationId, automations.id))
-    .where(
-      and(
-        eq(automationRuns.status, 'queued'),
-        sql`(${automationRuns.triggerKind} = 'manual' OR (${automationRuns.triggerKind} = 'cron' AND ${automations.enabled} = 1))`
-      )
-    )
+    .where(and(eq(automationRuns.status, 'queued'), eq(automations.enabled, 1)))
     .orderBy(asc(automationRuns.scheduledAt), asc(automationRuns.startedAt))
     .limit(limit);
   return rows.flatMap(({ run, automation }) => {
@@ -541,35 +533,28 @@ export async function listQueuedRuns(limit = 100): Promise<
   });
 }
 
-export async function claimQueuedRun(
+export async function startCreatingTask(
   id: string,
-  workerId: string,
   now = Date.now()
 ): Promise<AutomationRun | null> {
   const rows = db.all<AutomationRunRow>(sql`
     UPDATE automation_runs
-    SET status = 'running', started_at = ${now}, worker_id = ${workerId}
+    SET status = 'creating_task', started_at = ${now}
     WHERE id = ${id}
       AND status = 'queued'
-      AND NOT EXISTS (
-        SELECT 1
-        FROM automation_runs AS running
-        WHERE running.automation_id = automation_runs.automation_id
-          AND running.status = 'running'
-          AND running.id <> automation_runs.id
-      )
     RETURNING
       id,
       automation_id AS automationId,
       scheduled_at AS scheduledAt,
       deadline_at AS deadlineAt,
       started_at AS startedAt,
+      task_created_at AS taskCreatedAt,
+      launched_at AS launchedAt,
       finished_at AS finishedAt,
       status,
       task_id AS taskId,
       error,
       trigger_kind AS triggerKind,
-      worker_id AS workerId,
       trigger_config_snapshot AS triggerConfigSnapshot,
       conversation_config_snapshot AS conversationConfigSnapshot,
       task_config_snapshot AS taskConfigSnapshot
@@ -578,41 +563,22 @@ export async function claimQueuedRun(
   return row ? mapAutomationRunRow(row) : null;
 }
 
-export async function listRunningRunsForRecovery(): Promise<
-  Array<Pick<AutomationRun, 'id' | 'taskId'>>
-> {
-  return db
-    .select({ id: automationRuns.id, taskId: automationRuns.taskId })
-    .from(automationRuns)
-    .where(eq(automationRuns.status, 'running'));
-}
-
-export async function taskExists(taskId: string): Promise<boolean> {
-  const rows = await db.select({ id: tasks.id }).from(tasks).where(eq(tasks.id, taskId)).limit(1);
-  return rows.length > 0;
-}
-
 export async function taskWasCreatedByAutomationRun(taskIdValue: string): Promise<boolean> {
   const rows = await db
     .select({ id: automationRuns.id })
     .from(automationRuns)
     .where(
       and(
-        inArray(automationRuns.status, ['queued', 'running']),
+        inArray(automationRuns.status, [
+          'creating_task',
+          'launching_task',
+          'creating_conversation',
+        ]),
         eq(automationRuns.taskId, taskIdValue)
       )
     )
     .limit(1);
   return rows.length > 0;
-}
-
-export async function recoverQueuedRuns(): Promise<number> {
-  const rows = await db
-    .update(automationRuns)
-    .set({ workerId: null })
-    .where(eq(automationRuns.status, 'queued'))
-    .returning({ id: automationRuns.id });
-  return rows.length;
 }
 
 export async function insertRun(input: {
@@ -625,6 +591,8 @@ export async function insertRun(input: {
   status: AutomationRunStatus;
   triggerKind: AutomationRunTriggerKind;
   startedAt?: number | null;
+  taskCreatedAt?: number | null;
+  launchedAt?: number | null;
   finishedAt?: number | null;
   taskId?: string | null;
   error?: string | null;
@@ -637,12 +605,13 @@ export async function insertRun(input: {
       scheduledAt: input.scheduledAt ?? null,
       deadlineAt: input.deadlineAt ?? null,
       startedAt: input.startedAt ?? null,
+      taskCreatedAt: input.taskCreatedAt ?? null,
+      launchedAt: input.launchedAt ?? null,
       finishedAt: input.finishedAt ?? null,
       status: input.status,
       taskId: input.taskId ?? null,
       error: input.error ?? null,
       triggerKind: input.triggerKind,
-      workerId: null,
       triggerConfigSnapshot: JSON.stringify(input.triggerConfigSnapshot),
       conversationConfigSnapshot: JSON.stringify(input.conversationConfigSnapshot),
       taskConfigSnapshot: input.taskConfigSnapshot
@@ -661,11 +630,12 @@ export async function updateRun(
       | 'scheduledAt'
       | 'deadlineAt'
       | 'startedAt'
+      | 'taskCreatedAt'
+      | 'launchedAt'
       | 'finishedAt'
       | 'status'
       | 'taskId'
       | 'error'
-      | 'workerId'
     >
   >
 ): Promise<AutomationRun | null> {
@@ -675,6 +645,33 @@ export async function updateRun(
     .where(eq(automationRuns.id, id))
     .returning();
   return row ? mapAutomationRunRow(row) : null;
+}
+
+export async function findRunsStuckInCreatingTask(): Promise<Array<{ id: string }>> {
+  return db
+    .select({ id: automationRuns.id })
+    .from(automationRuns)
+    .where(and(eq(automationRuns.status, 'creating_task'), isNull(automationRuns.taskId)));
+}
+
+export async function findRunsStuckInLaunchingTask(): Promise<
+  Array<{ id: string; taskId: string }>
+> {
+  const rows = await db
+    .select({ id: automationRuns.id, taskId: automationRuns.taskId })
+    .from(automationRuns)
+    .where(eq(automationRuns.status, 'launching_task'));
+  return rows.filter((r): r is { id: string; taskId: string } => r.taskId !== null);
+}
+
+export async function findRunsStuckInCreatingConversation(): Promise<
+  Array<{ id: string; taskId: string }>
+> {
+  const rows = await db
+    .select({ id: automationRuns.id, taskId: automationRuns.taskId })
+    .from(automationRuns)
+    .where(eq(automationRuns.status, 'creating_conversation'));
+  return rows.filter((r): r is { id: string; taskId: string } => r.taskId !== null);
 }
 
 export async function getRun(id: string): Promise<AutomationRun | null> {

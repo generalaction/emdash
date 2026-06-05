@@ -3,8 +3,7 @@ import type { Automation } from '@shared/automations/automation';
 import type { AutomationRun } from '@shared/automations/automation-run';
 import { err, ok, type Result } from '@shared/result';
 import { executeTaskCreate } from './actions/taskCreate';
-import type { ActionError, ActionOutcome } from './actions/types';
-import { markRunFailed, markRunSkipped, markRunSucceeded } from './run-transitions';
+import { markRunDone, markRunSkipped } from './run-transitions';
 
 export async function runQueuedAutomation(
   automation: Automation,
@@ -13,47 +12,37 @@ export async function runQueuedAutomation(
   let run = initialRun;
 
   if (automation.projectId == null) {
-    const message = 'no_project_attached';
-    run = await markRunSkipped(run.id, message, { finishedAt: Date.now() });
-    return err(message);
+    run = await markRunSkipped(run.id, { step: 'queue', code: 'no_project' });
+    return err('no_project');
   }
 
-  const prompt = run.conversationConfigSnapshot.prompt?.trim();
+  const prompt = automation.conversationConfig?.prompt?.trim();
   if (!prompt) {
-    const message = 'no_actions_configured';
     log.warn('Automation run has no prompt in conversationConfigSnapshot', {
       automationId: automation.id,
       runId: run.id,
     });
-    run = await markRunSkipped(run.id, message, { finishedAt: Date.now() });
+    run = await markRunSkipped(run.id, { step: 'queue', code: 'no_actions_configured' });
     return ok(run);
   }
 
-  const result = await executeTaskCreate({ automation, run }).catch(
-    (error): Result<ActionOutcome, ActionError> => ({
+  const result = await executeTaskCreate(automation, run).catch(
+    (error): Result<string, string> => ({
       success: false,
-      error: { message: error instanceof Error ? error.message : String(error) },
+      error: error instanceof Error ? error.message : String(error),
     })
   );
 
   if (!result.success) {
-    const message = result.error.message;
     log.error('Automation task create failed', {
       automationId: automation.id,
       runId: run.id,
-      error: message,
+      error: result.error,
     });
-    run = await markRunFailed(run.id, {
-      error: message,
-      finishedAt: Date.now(),
-      taskId: result.error.taskId ?? null,
-    });
-    return err(message);
+    // markRunFailed was already called inside executeTaskCreate
+    return err(result.error);
   }
 
-  run = await markRunSucceeded(run.id, {
-    finishedAt: Date.now(),
-    taskId: result.data.taskId ?? null,
-  });
+  run = await markRunDone(run.id, Date.now());
   return ok(run);
 }

@@ -1,25 +1,27 @@
 import { desc, eq } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { automationRuns } from '@main/db/schema';
-import { events } from '@main/lib/events';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
-import type { Automation, CreateAutomationParams, UpdateAutomationPatch } from '@shared/automations/automation';
+import type {
+  Automation,
+  CreateAutomationParams,
+  UpdateAutomationPatch,
+} from '@shared/automations/automation';
 import type { AutomationRun } from '@shared/automations/automation-run';
-import { automationsChangedChannel } from '@shared/events/automationEvents';
 import {
   createAutomation as repoCreateAutomation,
-  enqueueAutomationRun,
   ensureNextCronRun,
   getAutomation,
   getRun,
+  insertRun,
   listAutomations as repoListAutomations,
   removeAutomation,
   setAutomationEnabled as repoSetAutomationEnabled,
   skipQueuedCronRuns,
   updateAutomation as updateInRepo,
 } from './repo';
-import { markRunFailed, markRunSkipped } from './run-transitions';
+import { markRunSkipped } from './run-transitions';
 import { mapAutomationRunRowToAutomationRun } from './utils';
 
 export type AutomationsServiceHooks = {
@@ -93,18 +95,26 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
     if (!automation.projectId) throw new Error('no_project_attached');
     if (!automation.conversationConfig || !automation.triggerConfig)
       throw new Error('automation_not_configured');
-    const run = await enqueueAutomationRun({
+
+    const now = Date.now();
+    const run = await insertRun({
       automationId: id,
       triggerConfigSnapshot: automation.triggerConfig,
       conversationConfigSnapshot: automation.conversationConfig,
       taskConfigSnapshot: automation.taskConfig ?? null,
-      scheduledAt: Date.now(),
+      scheduledAt: now,
       deadlineAt: null,
+      status: 'creating_task',
       triggerKind: 'manual',
+      startedAt: now,
     });
-    if (!run) throw new Error('run_already_queued');
+
+    // Lazy import to avoid circular dep: service is imported by scheduler.
+    void import('./automation-scheduler').then(({ automationScheduler }) => {
+      automationScheduler.executeNow(automation, run);
+    });
+
     this._hooks.callHookBackground('run:started', run);
-    events.emit(automationsChangedChannel, undefined);
     return run;
   }
 
@@ -113,9 +123,14 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
     if (!run) throw new Error('run_not_found');
     let stopped: AutomationRun;
     if (run.status === 'queued') {
-      stopped = await markRunSkipped(runId, 'manually_stopped');
-    } else if (run.status === 'running') {
-      stopped = await markRunFailed(runId, { error: 'manually_stopped' });
+      stopped = await markRunSkipped(runId, { step: 'queue', code: 'manually_stopped' });
+    } else if (
+      run.status === 'creating_task' ||
+      run.status === 'launching_task' ||
+      run.status === 'creating_conversation'
+    ) {
+      // In-progress steps — mark as failed (PTY stop is handled by renderer via run.taskId)
+      stopped = await markRunSkipped(runId, { step: 'queue', code: 'manually_stopped' });
     } else {
       throw new Error('run_not_stoppable');
     }

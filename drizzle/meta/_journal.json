@@ -127,6 +127,13 @@
       "when": 1780800000000,
       "tag": "0017_automation_snapshot_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1780617280857,
+      "tag": "0018_vengeful_harrier",
+      "breakpoints": true
     }
   ]
 }
