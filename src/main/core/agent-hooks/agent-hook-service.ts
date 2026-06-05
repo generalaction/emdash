@@ -9,7 +9,6 @@ import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import {
-  agentEventChannel,
   isAttentionNotification,
   type AgentEvent,
   type AgentStatus,
@@ -73,7 +72,6 @@ class AgentHookService implements IInitializable, IDisposable, Hookable<AgentHoo
   }
 
   emitAgentEvent(event: AgentEvent, appFocused: boolean): void {
-    events.emit(agentEventChannel, { event, appFocused });
     this._hooks.callHookBackground('agent:event', event, appFocused);
   }
 

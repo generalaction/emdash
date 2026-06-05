@@ -37,14 +37,7 @@ export interface AgentEvent {
   };
 }
 
-export interface AgentEventEnvelope {
-  event: AgentEvent;
-  appFocused: boolean;
-}
-
 export type SoundEvent = 'needs_attention' | 'task_complete';
-
-export const agentEventChannel = defineEvent<AgentEventEnvelope>('agent:event');
 
 export interface AgentSessionExited {
   conversationId: string;

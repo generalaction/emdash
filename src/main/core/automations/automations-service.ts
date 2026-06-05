@@ -14,6 +14,7 @@ import {
   automationChangedChannel,
   automationRunChangedChannel,
 } from '@shared/events/automationEvents';
+import { AutomationScheduler } from './automation-scheduler';
 import {
   createAutomation as repoCreateAutomation,
   ensureNextCronRun,
@@ -28,7 +29,6 @@ import {
   updateAutomationSettings as updateSettingsInRepo,
 } from './repo';
 import { markRunSkipped } from './run-transitions';
-import { AutomationScheduler } from './automation-scheduler';
 import { mapAutomationRunRowToAutomationRun } from './utils';
 
 export type AutomationsServiceHooks = {
