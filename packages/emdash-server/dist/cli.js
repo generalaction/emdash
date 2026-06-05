@@ -30,6 +30,12 @@ async function init() {
     console.log(`\nAdd this server in Emdash Settings → emdash-server.`);
     console.log(`Run 'emdash-server start' to start the server.`);
 }
+async function migrate() {
+    const config = loadConfig();
+    initDb(config.dbPath);
+    runMigrations();
+    console.log('✓ Migrations applied');
+}
 async function start() {
     const config = loadConfig();
     initDb(config.dbPath);
@@ -41,10 +47,13 @@ async function start() {
 if (command === 'init') {
     await init();
 }
+else if (command === 'migrate') {
+    await migrate();
+}
 else if (command === 'start') {
     await start();
 }
 else {
-    console.error(`Unknown command: ${command}. Use: init | start`);
+    console.error(`Unknown command: ${command}. Use: init | migrate | start`);
     process.exit(1);
 }
