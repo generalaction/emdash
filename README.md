@@ -1,31 +1,28 @@
-<img alt="Emdash" src="https://github.com/user-attachments/assets/a2ecaf3c-9d84-40ca-9a8e-d4f612cc1c6f" />
-
 <div align="center">
 
-[Download](https://emdash.sh/download) · [Docs](https://emdash.sh/docs) · [Releases](https://github.com/generalaction/emdash/releases/latest) · [Discord](https://discord.gg/f2fv7YxuR2) · [Contributing](CONTRIBUTING.md)
+# Rundash
 
-<br />
+**Run AI coding agents in parallel — locally, over SSH, or triggered by webhooks on your own server.**
 
 [![Apache 2.0 License](https://img.shields.io/badge/License-Apache_2.0-555555.svg?labelColor=333333&color=666666)](./LICENSE.md)
-[![Downloads](https://img.shields.io/github/downloads/generalaction/emdash/total?labelColor=333333&color=666666)](https://github.com/generalaction/emdash/releases)
-[![GitHub Stars](https://img.shields.io/github/stars/generalaction/emdash?labelColor=333333&color=666666&logo=github)](https://github.com/generalaction/emdash)
-[![Last Commit](https://img.shields.io/github/last-commit/generalaction/emdash?labelColor=333333&color=666666)](https://github.com/generalaction/emdash/commits/main)
-[![Commit Activity](https://img.shields.io/github/commit-activity/m/generalaction/emdash?labelColor=333333&color=666666)](https://github.com/generalaction/emdash/graphs/commit-activity)
-
-[![Discord](https://img.shields.io/badge/Discord-join-%235462eb?labelColor=%235462eb&logo=discord&logoColor=%23f5f5f5)](https://discord.gg/f2fv7YxuR2)
-<a href="https://www.ycombinator.com"><img src="https://img.shields.io/badge/Y%20Combinator-W26-orange" alt="Y Combinator W26"></a>
-[![Follow @emdashsh on X](https://img.shields.io/twitter/follow/emdashsh?logo=X&color=%23f5f5f5)](https://twitter.com/intent/follow?screen_name=emdashsh)
 
 </div>
 
-Emdash is a desktop app for running AI coding agents in parallel. Each task runs in its
+Rundash is a desktop app for running AI coding agents in parallel. Each task runs in its
 own Git worktree, so you can explore multiple fixes or features at once, review the
 diffs, and merge what works.
 
 It works with local projects and remote machines over SSH. Bring the CLI agents you
 already use: Claude Code, Codex, OpenCode, Gemini, Amp, and more.
 
-<img alt="Emdash product screenshot" src="https://emdash.sh/media/blog/public-v1-beta/v1beta.jpg" />
+Rundash also adds **webhook-triggered automations**: a lightweight server
+(`emdash-server`) receives webhooks (GitHub, Linear, or any generic POST), and an
+agent runs in response — either on your desktop, or fully headless on your own server
+in an isolated Docker container.
+
+> Rundash is a fork of [Emdash](https://github.com/generalaction/emdash) by General
+> Action. The webhook trigger system, the `emdash-server` package, and the Dockerized
+> server-side runner are additions in this fork.
 
 ## What You Can Do
 
@@ -33,43 +30,95 @@ already use: Claude Code, Codex, OpenCode, Gemini, Amp, and more.
 - Keep every agent isolated in its own Git worktree and branch.
 - Send issues and tickets from Linear, GitHub, Jira, GitLab, Asana, Featurebase,
   Monday.com, Forgejo, or Plain into an agent.
+- **Trigger automations from webhooks** — fire an agent when a GitHub/Linear event (or
+  any HTTP POST) arrives.
+- **Run agents headless on your own server**, each in a throwaway Docker container.
 - Review diffs, create pull requests, inspect CI checks, and merge from one place.
 - Work locally or on your own remote machines over SSH/SFTP.
 
-## Installation
+## Build & Run (from source)
 
-| Platform | Install |
-| --- | --- |
-| macOS | `brew install --cask emdash` · [Apple Silicon](https://releases.emdash.sh/emdash-arm64.dmg) · [Intel](https://releases.emdash.sh/emdash-x64.dmg) |
-| Windows | [Installer](https://releases.emdash.sh/emdash-x64.msi) · [Portable](https://releases.emdash.sh/emdash-x64.exe) |
-| Linux | [AppImage](https://releases.emdash.sh/emdash-x86_64.AppImage) · [Debian package](https://releases.emdash.sh/emdash-amd64.deb) |
+This fork is built from source rather than distributed as packaged downloads.
 
-See the [latest release](https://github.com/generalaction/emdash/releases/latest) for
-all desktop builds.
+```bash
+pnpm install        # postinstall rebuilds native modules (better-sqlite3, node-pty)
+                    # against the bundled Electron version
+pnpm dev            # run the desktop app in development
+```
+
+To produce platform builds:
+
+```bash
+pnpm package:mac    # macOS .dmg
+pnpm package:linux  # Linux AppImage / .deb / .rpm (x64)
+pnpm package:win    # Windows .msi / .exe
+```
+
+> Native modules (`better-sqlite3`, `node-pty`) are compiled for Electron's ABI on
+> install. If you hit a `Napi::Error` at runtime after switching Node/Electron
+> versions, run `pnpm rebuild` to recompile them.
 
 ## Agents
 
-Emdash detects installed provider CLIs automatically. It supports agents like Claude
+Rundash detects installed provider CLIs automatically. It supports agents like Claude
 Code, Codex, Cursor, OpenCode, Gemini, Amp, Devin, Qwen Code, Droid, and GitHub
 Copilot.
 
-See [Providers](https://emdash.sh/docs/providers) for the full list, setup commands,
-and provider-specific behavior.
+Provider behavior (flags, auto-approve, headless modes) is defined in
+[`src/shared/agent-provider-registry.ts`](src/shared/agent-provider-registry.ts).
+
+## Webhook Automations
+
+Create an automation with a **webhook trigger** in the app. Each automation gets a
+unique token; POST to the server's `/webhook/<token>` endpoint to fire it. Events from
+GitHub and Linear are detected automatically; any other POST is treated as a generic
+event.
+
+The receiver is a small Fastify + SQLite service in
+[`packages/emdash-server`](packages/emdash-server). Deploy it to a home server or VPS:
+
+```bash
+cd packages/emdash-server
+EMDASH_SERVER_USER=<user> EMDASH_SERVER_HOST=<host> ./deploy.sh
+# optionally: ./deploy.sh --tunnel   # set up a Cloudflare Tunnel for public access
+```
+
+By default the desktop app polls the server and runs the agent locally. See the server
+package for the connection setup.
+
+## Server-Side Agent Runner (Docker)
+
+To run agents **on the server itself** — headless, isolated, no desktop app — use the
+Dockerized runner built into `emdash-server`. Each webhook runs `claude` in a throwaway
+container mounted against a checkout of your repo.
+
+```bash
+# on the server, after deploy.sh:
+cd /opt/emdash-server
+./setup-runner.sh \
+  --token  <webhook-token> \
+  --repo   <git-clone-url> \
+  --path   /opt/projects/<repo> \
+  --prompt "What the agent should do on each event."
+```
+
+Authentication uses a long-lived OAuth token from `claude setup-token` (subscription-
+backed, no per-call API key). The container env carries only that token — never an
+`ANTHROPIC_API_KEY`, which would override it.
+
+Full runbook: [`packages/emdash-server/runner/README.md`](packages/emdash-server/runner/README.md).
+Design notes: [`docs/superpowers/specs/2026-06-05-dockerized-agent-runner-design.md`](docs/superpowers/specs/2026-06-05-dockerized-agent-runner-design.md).
 
 ## Remote Projects
 
 Connect to remote machines with SSH/SFTP and run the same parallel workflow on remote
-codebases. Emdash supports SSH agent, key, and password authentication, with credentials
-stored in your OS keychain.
-
-See [Remote Projects](https://emdash.sh/docs/remote-projects) and
-[Bring Your Own Infrastructure](https://emdash.sh/docs/bring-your-own-infrastructure)
-for setup details.
+codebases. Rundash supports SSH agent, key, and password authentication, with
+credentials stored in your OS keychain.
 
 ## Privacy
 
-Emdash is local-first. App state is stored in a local SQLite database, and Emdash does
-not send your code or chats to Emdash servers.
+Rundash is local-first. App state is stored in a local SQLite database, and the app
+does not send your code or chats to any Rundash server.
 
 Agent CLIs may send code, prompts, and context to their own providers. Their data
 handling depends on the provider you choose.
@@ -80,12 +129,11 @@ Telemetry is optional and can be disabled in Settings or by launching with:
 TELEMETRY_ENABLED=false
 ```
 
-See [Telemetry](https://emdash.sh/docs/telemetry) for details.
+## Credits
 
-## Contributing
-
-Contributions are welcome. Read the [Contributing Guide](CONTRIBUTING.md), open an
-issue, or join the [Discord](https://discord.gg/f2fv7YxuR2).
+Rundash builds on [Emdash](https://github.com/generalaction/emdash) by General Action,
+licensed under Apache-2.0. Upstream docs for the core desktop features live at
+[emdash.sh/docs](https://emdash.sh/docs).
 
 ## License
 
