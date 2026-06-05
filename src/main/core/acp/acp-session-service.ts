@@ -20,6 +20,7 @@ import { isJsonObject, safeJsonStringify, type JsonRpcId, type JsonRpcRequest } 
 const START_TIMEOUT_MS = 15_000;
 const PROMPT_TIMEOUT_MS = 24 * 60 * 60 * 1000;
 const PERMISSION_DETAIL_LIMIT = 2_000;
+const EVENT_HISTORY_LIMIT = 200;
 
 type ActiveAcpSession = {
   conversation: Conversation;
@@ -50,6 +51,8 @@ export type StartLocalAcpSessionParams = {
 
 export class AcpSessionService {
   private sessions = new Map<string, ActiveAcpSession>();
+  private eventHistory = new Map<string, AcpSessionEvent[]>();
+  private eventSequences = new Map<string, number>();
 
   async startLocalSession({
     conversation,
@@ -183,11 +186,7 @@ export class AcpSessionService {
   async cancel(conversationId: string): Promise<void> {
     const session = this.requireSession(conversationId);
     this.cancelPendingPermissions(session);
-    await session.transport.request(
-      'session/cancel',
-      { sessionId: session.acpSessionId },
-      { timeoutMs: START_TIMEOUT_MS }
-    );
+    session.transport.notify('session/cancel', { sessionId: session.acpSessionId });
     this.emit(session.conversation, { type: 'status', status: 'cancelled' });
   }
 
@@ -211,6 +210,10 @@ export class AcpSessionService {
 
   getDiagnostics(conversationId: string): string {
     return this.sessions.get(conversationId)?.transport.diagnostics.summary() ?? '';
+  }
+
+  getEvents(conversationId: string): AcpSessionEvent[] {
+    return [...(this.eventHistory.get(conversationId) ?? [])];
   }
 
   stop(conversationId: string): void {
@@ -350,12 +353,18 @@ export class AcpSessionService {
   }
 
   private emit(conversation: Conversation, event: AcpSessionEventPayload): void {
-    events.emit(acpSessionEventChannel, {
+    const sequence = (this.eventSequences.get(conversation.id) ?? 0) + 1;
+    this.eventSequences.set(conversation.id, sequence);
+    const fullEvent = {
       projectId: conversation.projectId,
       taskId: conversation.taskId,
       conversationId: conversation.id,
+      sequence,
       ...event,
-    } as AcpSessionEvent);
+    } as AcpSessionEvent;
+    const history = [...(this.eventHistory.get(conversation.id) ?? []), fullEvent];
+    this.eventHistory.set(conversation.id, history.slice(-EVENT_HISTORY_LIMIT));
+    events.emit(acpSessionEventChannel, fullEvent);
   }
 }
 

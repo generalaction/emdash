@@ -55,6 +55,7 @@ export type AcpSessionEvent = {
   projectId: string;
   taskId: string;
   conversationId: string;
+  sequence?: number;
 } & (
   | { type: 'status'; status: AcpSessionStatus; message?: string }
   | {
@@ -68,3 +69,7 @@ export type AcpSessionEvent = {
   | { type: 'permission_resolved'; requestId: string; outcome: 'selected' | 'cancelled' }
   | { type: 'diagnostic'; message: string }
 );
+
+export type AcpSessionEventReplay = {
+  events: AcpSessionEvent[];
+};

@@ -23,6 +23,7 @@ export type AcpChatState = {
 
 export type AcpChatAction =
   | { type: 'event'; event: AcpSessionEvent }
+  | { type: 'replay'; events: AcpSessionEvent[] }
   | { type: 'user_submitted'; text: string }
   | { type: 'local_error'; message: string };
 
@@ -34,6 +35,13 @@ export function createInitialAcpChatState(): AcpChatState {
 }
 
 export function acpChatReducer(state: AcpChatState, action: AcpChatAction): AcpChatState {
+  if (action.type === 'replay') {
+    return action.events.reduce(
+      (current, event) => applyAcpEvent(current, event),
+      createInitialAcpChatState()
+    );
+  }
+
   if (action.type === 'user_submitted') {
     return appendItem(state, {
       id: `user-${Date.now()}-${state.items.length}`,
@@ -50,7 +58,10 @@ export function acpChatReducer(state: AcpChatState, action: AcpChatAction): AcpC
     });
   }
 
-  const { event } = action;
+  return applyAcpEvent(state, action.event);
+}
+
+function applyAcpEvent(state: AcpChatState, event: AcpSessionEvent): AcpChatState {
   if (event.type === 'status') {
     return {
       ...state,
@@ -101,6 +112,11 @@ export function acpChatReducer(state: AcpChatState, action: AcpChatAction): AcpC
   if (event.type !== 'update') return state;
 
   const update = event.update;
+  if (update.sessionUpdate === 'user_message_chunk') {
+    const text = readTextContent(update.content);
+    if (!text) return state;
+    return appendUserText(state, text);
+  }
   if (update.sessionUpdate === 'agent_message_chunk') {
     const text = readTextContent(update.content);
     if (!text) return state;
@@ -141,6 +157,21 @@ export function acpChatReducer(state: AcpChatState, action: AcpChatAction): AcpC
   }
 
   return state;
+}
+
+function appendUserText(state: AcpChatState, text: string): AcpChatState {
+  const last = state.items[state.items.length - 1];
+  if (last?.kind === 'user') {
+    return {
+      ...state,
+      items: [...state.items.slice(0, -1), { ...last, text: `${last.text}${text}` }],
+    };
+  }
+  return appendItem(state, {
+    id: `user-${state.items.length}`,
+    kind: 'user',
+    text,
+  });
 }
 
 function appendAssistantText(state: AcpChatState, text: string): AcpChatState {

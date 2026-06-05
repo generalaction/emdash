@@ -1,7 +1,10 @@
+import type { AcpSessionEventReplay } from '@shared/acp';
 import { createRPCController } from '@shared/ipc/rpc';
 import { acpSessionService } from './acp-session-service';
 
 export const acpController = createRPCController({
+  getEvents: (conversationId: string): Promise<AcpSessionEventReplay> =>
+    Promise.resolve({ events: acpSessionService.getEvents(conversationId) }),
   sendPrompt: (conversationId: string, prompt: string): Promise<void> =>
     acpSessionService.sendPrompt(conversationId, prompt),
   cancel: (conversationId: string): Promise<void> => acpSessionService.cancel(conversationId),

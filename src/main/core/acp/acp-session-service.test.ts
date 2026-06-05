@@ -152,7 +152,7 @@ rl.on('line', (line) => {
   } else if (msg.id === 99) {
     send({ jsonrpc: '2.0', id: 2, result: { stopReason: 'cancelled' } });
   } else if (msg.method === 'session/cancel') {
-    send({ jsonrpc: '2.0', id: msg.id, result: null });
+    if ('id' in msg) process.stderr.write('cancel was sent as request');
   }
 });
 `;
@@ -200,6 +200,9 @@ describe('AcpSessionService', () => {
           (event.update.content as { text?: string }).text === 'hello'
       )
     ).toBe(true);
+    expect(service.getEvents(conv.id).map((event) => event.type)).toEqual(
+      emitted.map((event) => event.type)
+    );
     service.stop(conv.id);
   });
 
@@ -229,6 +232,7 @@ describe('AcpSessionService', () => {
           event.outcome === 'cancelled'
       )
     ).toBe(true);
+    expect(service.getDiagnostics(conv.id)).not.toContain('cancel was sent as request');
     service.stop(conv.id);
   });
 
