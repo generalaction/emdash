@@ -71,7 +71,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
   return (
     <div
       className={cn(
-        'group relative flex cursor-pointer flex-col gap-1 px-3 py-2.5 transition-colors',
+        'group relative flex cursor-pointer flex-col px-2 py-2 transition-colors',
         interactive ? 'hover:bg-background-2' : 'cursor-default opacity-70'
       )}
       role="button"
@@ -105,7 +105,12 @@ export const AutomationRunRow = observer(function AutomationRunRow({
       ) : (
         <TaskPlaceholder name={displayName} />
       )}
-      <RunMetaLine displayTime={displayTime} triggerKind={run.triggerKind} runStatus={run.status} />
+      <RunMetaLine
+        displayTime={displayTime}
+        triggerKind={run.triggerKind}
+        runStatus={run.status}
+        error={run.error}
+      />
 
       {/* Hover action overlay */}
       {isRunActive && (

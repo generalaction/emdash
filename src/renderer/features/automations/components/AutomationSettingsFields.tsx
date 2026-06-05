@@ -6,7 +6,7 @@ import { ProjectSelector } from '@renderer/features/tasks/create-task-modal/proj
 import { CronPicker } from '@renderer/lib/CronPicker';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
-import { Field, FieldError } from '@renderer/lib/ui/field';
+import { Field, FieldError, FieldGroup } from '@renderer/lib/ui/field';
 import { Label } from '@renderer/lib/ui/label';
 import { Switch } from '@renderer/lib/ui/switch';
 import type { AutomationFormState } from '../useAutomationFormState';
@@ -50,7 +50,7 @@ export function AutomationSettingsFields({
 
   return (
     <>
-      <section className="flex flex-col gap-2">
+      <FieldGroup>
         <Field>
           <Label>Schedule</Label>
           <CronPicker
@@ -62,18 +62,16 @@ export function AutomationSettingsFields({
           />
           {cronError && <FieldError>{cronError}</FieldError>}
         </Field>
-      </section>
-      <section className="flex flex-col gap-2">
-        <Label className="text-muted-foreground text-xs font-medium">Prompt</Label>
-        <InitialConversationField
-          state={initialConversation}
-          includeIssueContextByDefault={false}
-          onPromptBlur={onPromptBlur}
-        />
-      </section>
-
-      <section className="flex flex-col gap-2">
-        <h3 className="text-muted-foreground text-xs font-medium">Execution</h3>
+        <Field>
+          <Label>Prompt</Label>
+          <InitialConversationField
+            state={initialConversation}
+            includeIssueContextByDefault={false}
+            onPromptBlur={onPromptBlur}
+          />
+        </Field>
+        <Field>
+          <Label>Execution</Label>
         <BranchPickerField
           key={workspaceSettingsKey}
           state={branchSelection}
@@ -82,8 +80,9 @@ export function AutomationSettingsFields({
           currentBranch={currentBranch}
           isUnborn={isUnborn}
         />
-        <div className="bg-muted/10 rounded-md border border-border">
-          <RowField label="Project">
+        </Field>
+        <Field>
+          <Label>Project</Label>
             <ProjectSelector
               value={effectiveProjectId}
               onChange={(nextProjectId) => setProjectId(nextProjectId)}
@@ -97,26 +96,16 @@ export function AutomationSettingsFields({
                 </ComboboxTrigger>
               }
             />
-          </RowField>
-        </div>
+        </Field>
         {isWorkspaceProviderEnabled ? (
           <div className="flex items-center gap-2 pt-1">
             <Switch size="sm" checked={useBYOI} onCheckedChange={effectiveSetUseBYOI} />
             <span className="text-muted-foreground text-sm">Use BYOI infrastructure</span>
           </div>
         ) : null}
-      </section>
+      </FieldGroup>
 
       {error && <p className="text-destructive text-xs">{error}</p>}
     </>
-  );
-}
-
-function RowField({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className="flex min-h-11 items-center gap-3 border-b border-border px-3 py-2 last:border-b-0">
-      <span className="w-20 shrink-0 text-xs font-medium text-foreground">{label}</span>
-      <div className="min-w-0 flex-1">{children}</div>
-    </div>
   );
 }

@@ -6,6 +6,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from '@renderer/lib/components/pagination';
+import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { Spinner } from '@renderer/lib/ui/spinner';
 import { cn } from '@renderer/utils/utils';
 import type { Automation } from '@shared/automations/automation';
@@ -92,7 +93,7 @@ export function RunHistory({ automation }: RunHistoryProps) {
             ))}
           </>
         ) : (
-          <div>No runs yet.</div>
+          <EmptyState label="No runs yet." className="h-full bg-transparent" />
         )}
       </div>
       <Pagination className="border-t py-1">

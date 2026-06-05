@@ -59,7 +59,7 @@ export const AutomationDetailView = observer(function AutomationDetailView({
   return (
     <div className="flex h-full flex-col">
       <SheetHeader title="Automation details" onClose={onClose} />
-      <div className="flex flex-col gap-4 px-4">
+      <div className="flex flex-col gap-2 px-4">
         <div className="flex w-full items-center justify-between gap-2">
           <div className="flex flex-row items-center gap-3">
             <EditableNameField
@@ -90,26 +90,19 @@ export const AutomationDetailView = observer(function AutomationDetailView({
             />
           </div>
         </div>
-
         <NextRunBanner automationId={automation.id} />
-
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 py-2">
           <PanelTabs compact value={activeTab} onChange={setActiveTab} tabs={AUTOMATION_TABS} />
           {activeTab === 'runs' && (
             <div className="ml-auto flex items-center gap-1">
               <Tooltip>
                 <TooltipTrigger
                   render={
-                    <button
-                      type="button"
-                      aria-label="Run now"
+                    <Button
+                      variant="ghost"
+                      size="icon-md"
                       disabled={!canRunNow}
                       onClick={() => void runNow.mutateAsync(automation.id)}
-                      className={
-                        canRunNow
-                          ? 'flex h-6 w-6 items-center justify-center rounded-md text-foreground-muted transition-colors hover:bg-background-1 hover:text-foreground'
-                          : 'flex h-6 w-6 cursor-not-allowed items-center justify-center rounded-md text-foreground-passive opacity-40'
-                      }
                     />
                   }
                 >
@@ -127,7 +120,7 @@ export const AutomationDetailView = observer(function AutomationDetailView({
           )}
         </div>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-4">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
         {activeTab === 'runs' && <RunHistory automation={automation} />}
         {activeTab === 'settings' && (
           <AutomationSettingsFields
