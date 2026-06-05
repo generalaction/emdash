@@ -585,8 +585,8 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     name: 'Pi',
     description:
       'Minimal terminal coding agent with multi-provider model support and extensible custom tools.',
-    docUrl: 'https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent',
-    installCommand: 'npm install -g @mariozechner/pi-coding-agent',
+    docUrl: 'https://github.com/earendil-works/pi/tree/main/packages/coding-agent',
+    installCommand: 'npm install -g --ignore-scripts @earendil-works/pi-coding-agent',
     commands: ['pi'],
     versionArgs: ['--version'],
     cli: 'pi',
