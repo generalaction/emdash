@@ -35,8 +35,14 @@ ssh "${SSH_USER}@${SSH_HOST}" bash <<REMOTE
 set -euo pipefail
 cd "${REMOTE_DIR}"
 
+# Ensure build tools are present (needed to compile better-sqlite3)
+if ! command -v make &>/dev/null; then
+  echo "  → Installing build tools (make, g++, python3)..."
+  sudo apt-get install -y -q build-essential python3
+fi
+
 # Install production deps
-npm install --omit=dev --prefer-offline
+npm install --omit=dev
 
 # Ensure emdash-server config exists (skips if already initialised)
 if [ ! -f "\${HOME}/.emdash-server/config.json" ]; then
