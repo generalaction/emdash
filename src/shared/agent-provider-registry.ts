@@ -318,8 +318,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     description:
       'Nous Research terminal agent with interactive chat, model-provider routing, skills, and session workflows.',
     docUrl: 'https://hermes-agent.nousresearch.com/docs/',
-    installCommand:
-      'curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash',
+    installCommand: 'curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash',
     commands: ['hermes'],
     versionArgs: ['--version'],
     cli: 'hermes',
