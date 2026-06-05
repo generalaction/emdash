@@ -52,7 +52,12 @@ function InlineSelect({
   renderValue?: (v: string) => string;
 }) {
   return (
-    <Select value={value} onValueChange={(v) => { if (v !== null) onValueChange(v); }}>
+    <Select
+      value={value}
+      onValueChange={(v) => {
+        if (v !== null) onValueChange(v);
+      }}
+    >
       <SelectTrigger
         size="sm"
         className={cn(
@@ -60,11 +65,7 @@ function InlineSelect({
           className
         )}
       >
-        {renderValue ? (
-          <SelectValue>{renderValue}</SelectValue>
-        ) : (
-          <SelectValue />
-        )}
+        {renderValue ? <SelectValue>{renderValue}</SelectValue> : <SelectValue />}
       </SelectTrigger>
       <SelectContent alignItemWithTrigger={false} side="bottom" align="start">
         {children}
@@ -222,7 +223,7 @@ export function CronPicker({ value, onChange, className }: CronPickerProps) {
       </div>
 
       {parseError && (
-        <p className="text-xs text-destructive">
+        <p className="text-destructive text-xs">
           Could not parse the cron expression. Showing defaults — saving will overwrite it.
         </p>
       )}

@@ -3,13 +3,13 @@ import type { ReactNode } from 'react';
 import { InitialConversationField } from '@renderer/features/tasks/conversations/initial-conversation-section';
 import { BranchPickerField } from '@renderer/features/tasks/create-task-modal/branch-picker-field';
 import { ProjectSelector } from '@renderer/features/tasks/create-task-modal/project-selector';
+import { CronPicker } from '@renderer/lib/CronPicker';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
+import { Field, FieldError } from '@renderer/lib/ui/field';
 import { Label } from '@renderer/lib/ui/label';
 import { Switch } from '@renderer/lib/ui/switch';
 import type { AutomationFormState } from '../useAutomationFormState';
-import { CronPicker } from '@renderer/lib/CronPicker';
-import { Field, FieldError } from '@renderer/lib/ui/field';
 
 interface AutomationSettingsFieldsProps {
   state: AutomationFormState;
@@ -52,15 +52,15 @@ export function AutomationSettingsFields({
     <>
       <section className="flex flex-col gap-2">
         <Field>
-        <Label>Schedule</Label>
-            <CronPicker
-              value={cronExpr}
-              onChange={(nextCronExpr) => {
-                onCronExprChange(nextCronExpr);
-                onCronErrorClear();
-              }}
-            />
-        {cronError && <FieldError>{cronError}</FieldError>}
+          <Label>Schedule</Label>
+          <CronPicker
+            value={cronExpr}
+            onChange={(nextCronExpr) => {
+              onCronExprChange(nextCronExpr);
+              onCronErrorClear();
+            }}
+          />
+          {cronError && <FieldError>{cronError}</FieldError>}
         </Field>
       </section>
       <section className="flex flex-col gap-2">
@@ -71,7 +71,6 @@ export function AutomationSettingsFields({
           onPromptBlur={onPromptBlur}
         />
       </section>
-
 
       <section className="flex flex-col gap-2">
         <h3 className="text-muted-foreground text-xs font-medium">Execution</h3>

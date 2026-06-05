@@ -1,4 +1,4 @@
-import { Ellipsis, Play, Trash2, X } from 'lucide-react';
+import { Ellipsis, Play, Trash2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import { Button } from '@renderer/lib/ui/button';
@@ -16,6 +16,7 @@ import type { Automation } from '@shared/automations/automation';
 import { useAutomationEventBridge, useAutomations } from '../use-automations';
 import { useAutomationSettingsAutoSave } from '../useAutomationSettingsAutoSave';
 import { AutomationSettingsFields } from './AutomationSettingsFields';
+import { NextRunBanner } from './NextRunBanner';
 import { RunHistory } from './RunHistory';
 import { SheetHeader } from './sheet-header';
 
@@ -89,6 +90,8 @@ export const AutomationDetailView = observer(function AutomationDetailView({
             />
           </div>
         </div>
+
+        <NextRunBanner automationId={automation.id} />
 
         <div className="flex items-center gap-2">
           <PanelTabs compact value={activeTab} onChange={setActiveTab} tabs={AUTOMATION_TABS} />

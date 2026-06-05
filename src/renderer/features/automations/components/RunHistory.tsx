@@ -1,4 +1,3 @@
-import { Clock } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import {
   Pagination,
@@ -7,15 +6,10 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from '@renderer/lib/components/pagination';
-import { AbsoluteTime } from '@renderer/lib/ui/absolute-time';
 import { Spinner } from '@renderer/lib/ui/spinner';
 import { cn } from '@renderer/utils/utils';
 import type { Automation } from '@shared/automations/automation';
-import {
-  useAutomationRunCounts,
-  useAutomationRunsPaginated,
-  useScheduledAutomationRun,
-} from '../use-automations';
+import { useAutomationRunCounts, useAutomationRunsPaginated } from '../use-automations';
 import { AutomationRunRow } from './AutomationRunRow';
 
 const PAGE_SIZE = 25;
@@ -42,26 +36,18 @@ export function RunHistory({ automation }: RunHistoryProps) {
   }, [automation.id, filter]);
 
   const statusFilter = filter === 'all' ? undefined : filter;
-  const scheduledRunQuery = useScheduledAutomationRun(automation.id);
   const runsQuery = useAutomationRunsPaginated(automation.id, page, statusFilter);
   const countsQuery = useAutomationRunCounts(automation.id);
 
   const counts = countsQuery.data;
-  const scheduledRun = scheduledRunQuery.data ?? null;
   const allRuns = runsQuery.data ?? [];
   const historyRuns = allRuns.slice(0, PAGE_SIZE);
   const hasNextPage = !runsQuery.isPlaceholderData && allRuns.length > PAGE_SIZE;
   const hasPrevPage = page > 0;
 
   return (
-    <section className="flex h-full flex-col gap-2">
-      {scheduledRun?.scheduledAt && (
-        <div className="flex items-center gap-1.5 rounded-lg border border-border-info bg-background-info p-2 text-foreground-info">
-          <Clock className="size-3 shrink-0" aria-hidden />
-          Next run scheduled <AbsoluteTime value={scheduledRun.scheduledAt} />
-        </div>
-      )}
-      <div className="flex w-full gap-1.5">
+    <section className="flex h-full flex-col rounded-lg border">
+      <div className="flex w-full gap-1.5 border-b p-2">
         {FILTERS.map(({ value, label }) => {
           const count = counts ? counts[value] : undefined;
           return (
@@ -91,44 +77,45 @@ export function RunHistory({ automation }: RunHistoryProps) {
           );
         })}
       </div>
-      {runsQuery.isPending ? (
-        <div className="flex flex-1 items-center justify-center">
+      <div className="min-h-0 flex-1 divide-y divide-border/70 overflow-y-auto">
+        {runsQuery.isPending ? (
           <Spinner />
-        </div>
-      ) : historyRuns.length > 0 ? (
-        <div className="min-h-0 flex-1 divide-y divide-border/70 overflow-y-auto rounded-md border border-border">
-          {historyRuns.map((run) => (
-            <AutomationRunRow key={run.id} runId={run.id} automationId={automation.id} run={run} />
-          ))}
-        </div>
-      ) : (
-        <div className="text-muted-foreground rounded-md border border-dashed border-border px-3 py-6 text-center text-xs">
-          No runs yet.
-        </div>
-      )}
-      {(hasPrevPage || hasNextPage) && (
-        <Pagination className="py-1">
-          <PaginationContent>
-            <PaginationItem>
-              <PaginationPrevious
-                onClick={hasPrevPage ? () => setPage((p) => p - 1) : undefined}
-                aria-disabled={!hasPrevPage}
-                className={!hasPrevPage ? 'pointer-events-none opacity-50' : ''}
+        ) : historyRuns.length > 0 ? (
+          <>
+            {historyRuns.map((run) => (
+              <AutomationRunRow
+                key={run.id}
+                runId={run.id}
+                automationId={automation.id}
+                run={run}
               />
-            </PaginationItem>
-            <PaginationItem>
-              <span className="px-2 text-xs text-foreground-muted">Page {page + 1}</span>
-            </PaginationItem>
-            <PaginationItem>
-              <PaginationNext
-                onClick={hasNextPage ? () => setPage((p) => p + 1) : undefined}
-                aria-disabled={!hasNextPage}
-                className={!hasNextPage ? 'pointer-events-none opacity-50' : ''}
-              />
-            </PaginationItem>
-          </PaginationContent>
-        </Pagination>
-      )}
+            ))}
+          </>
+        ) : (
+          <div>No runs yet.</div>
+        )}
+      </div>
+      <Pagination className="border-t py-1">
+        <PaginationContent>
+          <PaginationItem>
+            <PaginationPrevious
+              onClick={hasPrevPage ? () => setPage((p) => p - 1) : undefined}
+              aria-disabled={!hasPrevPage}
+              className={!hasPrevPage ? 'pointer-events-none opacity-50' : ''}
+            />
+          </PaginationItem>
+          <PaginationItem>
+            <span className="px-2 text-xs text-foreground-muted">Page {page + 1}</span>
+          </PaginationItem>
+          <PaginationItem>
+            <PaginationNext
+              onClick={hasNextPage ? () => setPage((p) => p + 1) : undefined}
+              aria-disabled={!hasNextPage}
+              className={!hasNextPage ? 'pointer-events-none opacity-50' : ''}
+            />
+          </PaginationItem>
+        </PaginationContent>
+      </Pagination>
     </section>
   );
 }

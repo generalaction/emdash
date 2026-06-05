@@ -4,8 +4,9 @@ import { useState } from 'react';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
-import { Input } from '@renderer/lib/ui/input';
-import { Label, MicroLabel } from '@renderer/lib/ui/label';
+import { EditableNameField } from '@renderer/lib/ui/editable-name-field';
+import { Field } from '@renderer/lib/ui/field';
+import { Label } from '@renderer/lib/ui/label';
 import { SheetFooter } from '@renderer/lib/ui/sheet';
 import type { Automation } from '@shared/automations/automation';
 import type { ConversationConfig } from '@shared/automations/config';
@@ -15,8 +16,6 @@ import { useAutomations } from '../use-automations';
 import { useAutomationFormState } from '../useAutomationFormState';
 import { AutomationSettingsFields } from './AutomationSettingsFields';
 import { SheetHeader } from './sheet-header';
-import { EditableNameField } from '@renderer/lib/ui/editable-name-field';
-import { Field } from '@renderer/lib/ui/field';
 
 export interface CreateAutomationViewProps {
   onClose: () => void;
