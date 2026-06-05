@@ -477,7 +477,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     docUrl: 'https://docs.cline.bot/cline-cli/overview',
     installCommand: 'npm install -g cline',
     commands: ['cline'],
-    versionArgs: ['help'],
+    versionArgs: ['--version'],
     cli: 'cline',
     autoApproveFlag: '--yolo',
     initialPromptFlag: '',
