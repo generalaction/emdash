@@ -157,6 +157,40 @@ describe('PrSyncScheduler', () => {
     expect(prSyncEngine.sync).not.toHaveBeenCalled();
   });
 
+  it('passes selected GitHub Enterprise account context to mounted project syncs', async () => {
+    const project = {
+      settings: {},
+      ctx: {},
+      repository: {
+        getRemotes: vi
+          .fn()
+          .mockResolvedValue([{ name: 'origin', url: 'https://ghe.example.com/acme/repo.git' }]),
+      },
+    };
+    mocks.getProject.mockReturnValue(project);
+    mocks.resolveRepository.mockResolvedValue(
+      ok({
+        host: 'ghe.example.com',
+        repositoryUrl: 'https://ghe.example.com/acme/repo',
+        nameWithOwner: 'acme/repo',
+        owner: 'acme',
+        repo: 'repo',
+      })
+    );
+    mocks.resolveProjectGitHubAuthContext.mockResolvedValue(
+      ok({ accountId: 'ghe.example.com:168' })
+    );
+
+    const scheduler = new PrSyncScheduler();
+
+    await scheduler.onProjectMounted('project-1');
+
+    expect(resolveProjectGitHubAuthContext).toHaveBeenCalledWith('project-1');
+    expect(prSyncEngine.sync).toHaveBeenCalledWith('https://ghe.example.com/acme/repo', {
+      accountId: 'ghe.example.com:168',
+    });
+  });
+
   it('re-resolves project account context for each scheduled sync tick', async () => {
     vi.useFakeTimers();
     try {

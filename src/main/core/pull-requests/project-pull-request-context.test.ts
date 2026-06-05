@@ -85,6 +85,30 @@ describe('project GitHub pull request context', () => {
     );
   });
 
+  it('resolves selected account context for GitHub Enterprise project repositories', async () => {
+    mockProviderRepositoryService.resolveProject.mockResolvedValue(
+      ok({
+        provider: 'github',
+        host: 'ghe.example.com',
+        repositoryUrl: 'https://ghe.example.com/acme/repo',
+        nameWithOwner: 'acme/repo',
+        capabilities: { pullRequests: true, issues: true },
+      })
+    );
+    mockResolveProjectGitHubAuthContext.mockResolvedValue(ok({ accountId: 'ghe.example.com:168' }));
+
+    await expect(resolveProjectPullRequestContext('project-1')).resolves.toEqual(
+      ok({
+        projectId: 'project-1',
+        repositoryUrl: 'https://ghe.example.com/acme/repo',
+        host: 'ghe.example.com',
+        nameWithOwner: 'acme/repo',
+        authContext: { accountId: 'ghe.example.com:168' },
+      })
+    );
+    expect(mockResolveProjectGitHubAuthContext).toHaveBeenCalledWith('project-1');
+  });
+
   it('resolves auth-only context without resolving the project repository', async () => {
     mockResolveProjectGitHubAuthContext.mockResolvedValue(ok({ accountId: 'github.com:42' }));
 
@@ -93,6 +117,16 @@ describe('project GitHub pull request context', () => {
     );
 
     expect(mockProviderRepositoryService.resolveProject).not.toHaveBeenCalled();
+    expect(mockResolveProjectGitHubAuthContext).toHaveBeenCalledWith('project-1');
+  });
+
+  it('resolves auth-only context for GitHub Enterprise project accounts', async () => {
+    mockResolveProjectGitHubAuthContext.mockResolvedValue(ok({ accountId: 'ghe.example.com:168' }));
+
+    await expect(resolveProjectPullRequestAuthContext('project-1')).resolves.toEqual(
+      ok({ accountId: 'ghe.example.com:168' })
+    );
+
     expect(mockResolveProjectGitHubAuthContext).toHaveBeenCalledWith('project-1');
   });
 

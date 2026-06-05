@@ -67,7 +67,7 @@ function mockProjectGithubContext(
     repositoryUrl: string;
     host: string;
     nameWithOwner: string;
-    authContext: { accountId?: string | null };
+    authContext: { accountId?: string };
   }> = {}
 ) {
   mockResolveProjectPullRequestContext.mockResolvedValue(
@@ -383,6 +383,7 @@ describe('pullRequestController', () => {
     );
     expect(mockResolveProjectPullRequestContext).not.toHaveBeenCalled();
     expect(mockResolveProjectPullRequestAuthContext).toHaveBeenCalledTimes(4);
+    expect(mockResolveProjectPullRequestAuthContext).toHaveBeenCalledWith('project-1');
   });
 
   it('maps create API errors to create_failed', async () => {

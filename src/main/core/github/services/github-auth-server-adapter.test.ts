@@ -8,14 +8,23 @@ import {
 import { GitHubAuthServerAdapter } from './github-auth-server-adapter';
 
 class InMemoryMetadataStore implements GitHubAccountMetadataStore {
-  accounts = null as Awaited<ReturnType<GitHubAccountMetadataStore['get']>>;
+  accounts = null as Awaited<ReturnType<GitHubAccountMetadataStore['getAccounts']>>;
+  defaultAccountId: string | null = null;
 
-  async get() {
+  async getAccounts() {
     return this.accounts;
   }
 
-  async set(accounts: NonNullable<typeof this.accounts>) {
+  async setAccounts(accounts: NonNullable<typeof this.accounts>) {
     this.accounts = accounts;
+  }
+
+  async getDefaultAccountId() {
+    return this.defaultAccountId;
+  }
+
+  async setDefaultAccountId(accountId: string | null) {
+    this.defaultAccountId = accountId;
   }
 }
 
