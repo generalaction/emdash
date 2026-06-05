@@ -94,10 +94,7 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
       .select()
       .from(automationRuns)
       .where(
-        and(
-          eq(automationRuns.automationId, automationId),
-          eq(automationRuns.status, 'scheduled')
-        )
+        and(eq(automationRuns.automationId, automationId), eq(automationRuns.status, 'scheduled'))
       )
       .orderBy(asc(automationRuns.scheduledAt))
       .limit(1);
