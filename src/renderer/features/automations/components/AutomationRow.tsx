@@ -10,11 +10,13 @@ import { Automation } from '@shared/automations/automation';
 
 interface AutomationRowProps {
   automation: Automation;
+  onToggleEnabled?: (enabled: boolean) => void;
   onClick?: () => void;
 }
 
 export const AutomationRow = observer(function AutomationRow({
   automation,
+  onToggleEnabled,
   onClick,
 }: AutomationRowProps) {
   return (
@@ -29,7 +31,7 @@ export const AutomationRow = observer(function AutomationRow({
         onPointerDown={(e) => e.stopPropagation()}
         className="flex flex-row items-center justify-end gap-3"
       >
-        <Switch checked={automation.enabled} onCheckedChange={() => {}} />
+        <Switch checked={automation.enabled} onCheckedChange={(checked) => onToggleEnabled?.(checked)} />
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <div className="flex min-w-0 items-center justify-between gap-2">

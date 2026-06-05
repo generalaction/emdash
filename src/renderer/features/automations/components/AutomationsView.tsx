@@ -39,7 +39,11 @@ export function AutomationsView() {
               createPending={false}
               onNewAutomation={panel.openCreate}
             />
-            <AutomationsList automations={automations ?? []} onEdit={panel.openEdit} />
+            <AutomationsList
+              automations={automations ?? []}
+              onEdit={panel.openEdit}
+              onToggleEnabled={handleToggleEnabled}
+            />
           </div>
         </div>
       </div>
