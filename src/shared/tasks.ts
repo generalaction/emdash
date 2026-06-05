@@ -1,9 +1,9 @@
+import z from 'zod';
 import type { Conversation } from '@shared/conversations';
 import type { Branch, CreateBranchError, FetchPrForReviewError, PushError } from '@shared/git';
 import type { PullRequest } from '@shared/pull-requests';
 import type { TaskConfig } from '@shared/task-config';
 import type { WorkspaceConfig } from '@shared/workspace-config';
-import z from 'zod';
 
 // ---------------------------------------------------------------------------
 // Workspace intent types — stored on the task row as JSON in `workspace_intent`
@@ -38,8 +38,16 @@ export type WorkspaceLocation =
   | { host: 'project-ssh'; path?: string }
   | { host: 'byoi'; remoteWorkspaceId?: string };
 
-
-export const taskLifecycleStatuses = z.enum(['todo', 'in_progress', 'review', 'done', 'cancelled', 'backlog', 'duplicate', 'triage']);
+export const taskLifecycleStatuses = z.enum([
+  'todo',
+  'in_progress',
+  'review',
+  'done',
+  'cancelled',
+  'backlog',
+  'duplicate',
+  'triage',
+]);
 
 export type TaskLifecycleStatus = z.infer<typeof taskLifecycleStatuses>;
 

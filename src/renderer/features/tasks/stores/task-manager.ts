@@ -6,8 +6,8 @@ import type { RepositoryStore } from '@renderer/features/projects/stores/reposit
 import { getTaskGitStore } from '@renderer/features/tasks/stores/task-selectors';
 import { events, rpc } from '@renderer/lib/ipc';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
-import type { Conversation } from '@shared/conversations';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
+import type { Conversation } from '@shared/conversations';
 import { prSyncProgressChannel, prUpdatedChannel } from '@shared/events/prEvents';
 import {
   lifecycleScriptStatusChannel,

@@ -17,7 +17,6 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/toolti
 import { cn } from '@renderer/utils/utils';
 import { formatRunTriggerKindLabel, parseRunError } from '@shared/automations/format';
 import { makePtySessionId } from '@shared/ptySessionId';
-import { useAutomationAgentActivity } from '../automation-run-status-store';
 
 interface AutomationRunRowProps {
   runId: string;
@@ -33,13 +32,11 @@ export const AutomationRunRow = observer(function AutomationRunRow({
   const { stopRun, projectId } = useAutomationRunActions(automationId);
 
   const taskId = run ? run.taskId : null;
-  const agentActivity = useAutomationAgentActivity(taskId);
   const taskStore = taskId && projectId ? getTaskStore(projectId, taskId) : undefined;
   const task = taskId && projectId ? getRegisteredTaskData(projectId, taskId) : undefined;
 
   const interactive = Boolean(taskId && task && !task.archivedAt);
-  const taskAgentActivityStatus = taskStore ? taskAgentStatus(taskStore) : null;
-  const agentStatus = taskStore ? taskAgentActivityStatus : (agentActivity?.status ?? null);
+  const agentStatus = taskStore ? taskAgentStatus(taskStore) : null;
 
   const displayTime = run ? (run.startedAt ?? run.scheduledAt ?? run.finishedAt) : null;
   const triggerLabel = run ? formatRunTriggerKindLabel(run.triggerKind) : null;
