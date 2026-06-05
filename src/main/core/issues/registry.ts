@@ -7,6 +7,7 @@ import { jiraIssueProvider } from '@main/core/jira/jira-issue-provider';
 import { linearIssueProvider } from '@main/core/linear/linear-issue-provider';
 import { mondayIssueProvider } from '@main/core/monday/monday-issue-provider';
 import { plainIssueProvider } from '@main/core/plain/plain-issue-provider';
+import { trelloIssueProvider } from '@main/core/trello/trello-issue-provider';
 import type { IssueProviderType } from '@shared/issue-providers';
 import type { IssueProvider } from './issue-provider';
 
@@ -25,6 +26,7 @@ register(featurebaseIssueProvider);
 register(plainIssueProvider);
 register(asanaIssueProvider);
 register(mondayIssueProvider);
+register(trelloIssueProvider);
 
 export function getIssueProvider(type: IssueProviderType): IssueProvider | undefined {
   return providers.get(type);

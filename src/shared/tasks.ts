@@ -56,7 +56,8 @@ export type Issue = {
     | 'forgejo'
     | 'featurebase'
     | 'asana'
-    | 'monday';
+    | 'monday'
+    | 'trello';
   url: string;
   title: string;
   identifier: string;
