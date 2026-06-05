@@ -1,0 +1,2 @@
+# Allow dist/ for this package — CLI needs compiled output committed
+!dist/
