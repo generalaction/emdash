@@ -11,7 +11,6 @@ import {
   githubAuthCancelledChannel,
   githubAuthDeviceCodeChannel,
   githubAuthErrorChannel,
-  githubAuthSuccessChannel,
 } from '@shared/events/githubEvents';
 import type { GitHubConnectResponse, GitHubStatusOptions, GitHubUser } from '@shared/github';
 import { extractGhCliToken } from './gh-cli-token';
@@ -23,15 +22,9 @@ import { githubApiBaseUrlForHost } from './github-api-base-url';
 
 export type AuthResult = GitHubConnectResponse;
 
-export interface DeviceCodeResult {
-  success: boolean;
-  device_code?: string;
-  user_code?: string;
-  verification_uri?: string;
-  expires_in?: number;
-  interval?: number;
-  error?: string;
-}
+export type DeviceCodeResult =
+  | { success: true; token: string; user: GitHubUser }
+  | { success: false; error: string };
 
 /**
  * Manages GitHub authentication tokens regardless of how they were obtained
@@ -297,20 +290,16 @@ export class GitHubConnectionServiceImpl implements GitHubConnectionService {
       const result = await Promise.race([authPromise, cancelPromise]);
       const token = result.token;
 
-      await this.storeToken(token, 'device_flow');
-
       const user = await this.getUserInfo(token);
-
-      if (user) {
-        events.emit(githubAuthSuccessChannel, { token, user });
+      if (!user) {
+        const message = 'Failed to read authenticated GitHub user';
+        events.emit(githubAuthErrorChannel, { error: 'device_flow_error', message });
+        return { success: false, error: message };
       }
 
-      return {
-        success: true,
-        device_code: undefined,
-        user_code: undefined,
-        verification_uri: undefined,
-      };
+      await this.storeToken(token, 'device_flow');
+
+      return { success: true, token, user };
     } catch (error) {
       if (signal.aborted) {
         events.emit(githubAuthCancelledChannel, undefined);

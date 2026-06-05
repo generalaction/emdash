@@ -41,15 +41,9 @@ export interface GitHubStatusOptions {
   refresh?: boolean;
 }
 
-export interface GitHubAuthResponse {
-  success: boolean;
-  device_code?: string;
-  user_code?: string;
-  verification_uri?: string;
-  expires_in?: number;
-  interval?: number;
-  error?: string;
-}
+export type GitHubAuthResponse =
+  | { success: true; account: GitHubAccountSummary }
+  | { success: false; error: string };
 
 export interface GitHubConnectResponse {
   success: boolean;

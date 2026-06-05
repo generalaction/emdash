@@ -6,10 +6,12 @@ import {
   useAccountSession,
   useAccountSignIn,
 } from '@renderer/lib/hooks/useAccount';
-import { useImportGitHubCliAccounts } from '@renderer/lib/hooks/useGithubAccounts';
+import {
+  useGitHubDeviceFlowAuth,
+  useImportGitHubCliAccounts,
+} from '@renderer/lib/hooks/useGithubAccounts';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
-import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
 import { Button } from '@renderer/lib/ui/button';
 import {
   DialogContentArea,
@@ -25,9 +27,9 @@ export function GithubConnectModal({ onSuccess, onClose }: BaseModalProps<void>)
   const { data: session } = useAccountSession();
   const signInMutation = useAccountSignIn();
   const linkProviderMutation = useAccountLinkProvider();
+  const deviceFlowMutation = useGitHubDeviceFlowAuth();
   const importCliAccountsMutation = useImportGitHubCliAccounts();
   const showDeviceFlow = useShowModal('githubDeviceFlowModal');
-  const { login } = useGithubContext();
   const [oauthLoading, setOauthLoading] = useState(false);
   const [cliLoading, setCliLoading] = useState(false);
   const [error, setError] = useState<MethodError>(null);
@@ -101,7 +103,7 @@ export function GithubConnectModal({ onSuccess, onClose }: BaseModalProps<void>)
   const connectDeviceFlow = () => {
     setError(null);
     showDeviceFlow({});
-    void login();
+    void deviceFlowMutation.mutateAsync();
   };
 
   return (

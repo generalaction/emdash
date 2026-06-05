@@ -28,6 +28,14 @@ export function useImportGitHubCliAccounts() {
   });
 }
 
+export function useGitHubDeviceFlowAuth() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => rpc.github.auth(),
+    onSettled: () => invalidateGitHubAccountState(queryClient),
+  });
+}
+
 export function useSetDefaultGitHubAccount() {
   const queryClient = useQueryClient();
   return useMutation({

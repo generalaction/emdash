@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { githubAuthErrorChannel } from '@shared/events/githubEvents';
 import { GitHubConnectionServiceImpl } from './github-connection-service';
 
 // ---------------------------------------------------------------------------
@@ -8,6 +9,19 @@ import { GitHubConnectionServiceImpl } from './github-connection-service';
 const mockGetSecret = vi.fn();
 const mockSetSecret = vi.fn();
 const mockDeleteSecret = vi.fn();
+const mockCreateOAuthDeviceAuth = vi.fn();
+const mockEventEmit = vi.fn();
+
+vi.mock('@octokit/auth-oauth-device', () => ({
+  createOAuthDeviceAuth: (...args: unknown[]) => mockCreateOAuthDeviceAuth(...args),
+}));
+
+vi.mock('@main/lib/events', () => ({
+  events: {
+    emit: (...args: unknown[]) => mockEventEmit(...args),
+  },
+}));
+
 vi.mock('@main/core/secrets/encrypted-app-secrets-store', () => ({
   encryptedAppSecretsStore: {
     getSecret: (...args: unknown[]) => mockGetSecret(...args),
@@ -70,6 +84,9 @@ describe('GitHubConnectionServiceImpl token caching', () => {
     mockSetSecret.mockResolvedValue(undefined);
     mockDeleteSecret.mockResolvedValue(undefined);
     mockExtractGhCliToken.mockResolvedValue(null);
+    mockCreateOAuthDeviceAuth.mockReset();
+    mockCreateOAuthDeviceAuth.mockReturnValue(() => Promise.resolve({ token: 'gho_device' }));
+    mockEventEmit.mockReset();
   });
 
   afterEach(() => {
@@ -219,5 +236,22 @@ describe('GitHubConnectionServiceImpl token caching', () => {
     expect(status).toEqual({ authenticated: true, user, tokenSource: 'cli' });
     expect(mockSetSecret).toHaveBeenCalledWith('emdash-github-token', 'gho_cli');
     expect(mockKvSet).toHaveBeenCalledWith('tokenSource', 'cli');
+  });
+
+  it('fails device flow auth when the returned token cannot identify a GitHub user', async () => {
+    vi.spyOn(service, 'getUserInfo').mockResolvedValue(null);
+
+    const result = await service.startDeviceFlowAuth();
+
+    expect(result).toEqual({
+      success: false,
+      error: 'Failed to read authenticated GitHub user',
+    });
+    expect(mockEventEmit).toHaveBeenCalledWith(githubAuthErrorChannel, {
+      error: 'device_flow_error',
+      message: 'Failed to read authenticated GitHub user',
+    });
+    expect(mockSetSecret).not.toHaveBeenCalled();
+    expect(mockKvSet).not.toHaveBeenCalled();
   });
 });

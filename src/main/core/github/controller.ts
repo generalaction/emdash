@@ -11,8 +11,10 @@ import { githubAccountService } from '@main/core/github/accounts/github-account-
 import { githubConnectionService } from '@main/core/github/services/github-connection-service';
 import { repoService } from '@main/core/github/services/repo-service';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
+import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
+import { githubAuthErrorChannel, githubAuthSuccessChannel } from '@shared/events/githubEvents';
 import type {
   GitHubAccountSummary,
   GitHubAuthResponse,
@@ -36,16 +38,44 @@ export const githubController = createRPCController({
   },
 
   auth: async (): Promise<GitHubAuthResponse> => {
+    let result: Awaited<ReturnType<typeof githubConnectionService.startDeviceFlowAuth>>;
     try {
-      const result = await githubConnectionService.startDeviceFlowAuth();
-      if (result.success) {
-        await githubAccountBackfillService.backfillLegacyToken();
-        telemetryService.capture('integration_connected', { provider: 'github' });
-      }
-      return result;
+      result = await githubConnectionService.startDeviceFlowAuth();
     } catch (error) {
       log.error('GitHub authentication failed:', error);
+      events.emit(githubAuthErrorChannel, {
+        error: 'device_flow_error',
+        message: 'Authentication failed',
+      });
       return { success: false, error: 'Authentication failed' };
+    }
+
+    if (!result.success) return result;
+
+    try {
+      const account = await githubAccountBackfillService.backfillLegacyToken();
+      const accountSummary = account
+        ? (await githubAccountService.listAccounts()).find(
+            (candidate) => candidate.accountId === account.id
+          )
+        : undefined;
+      if (!accountSummary) {
+        const message = 'Failed to register GitHub account';
+        events.emit(githubAuthErrorChannel, { error: 'account_registration_failed', message });
+        return { success: false, error: message };
+      }
+
+      telemetryService.capture('integration_connected', { provider: 'github' });
+      events.emit(githubAuthSuccessChannel, { token: result.token, user: result.user });
+      return { success: true, account: accountSummary };
+    } catch (error) {
+      log.error('Failed to register GitHub account after device flow:', error);
+      const message = 'Failed to register GitHub account';
+      events.emit(githubAuthErrorChannel, {
+        error: 'account_registration_failed',
+        message,
+      });
+      return { success: false, error: message };
     }
   },
 
