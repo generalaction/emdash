@@ -33,7 +33,11 @@ vi.mock('@main/db/client', () => ({
       }),
     }),
     transaction: vi.fn((fn: (tx: unknown) => unknown) => fn(mockTx)),
-    update: vi.fn().mockReturnValue({ set: vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue({ run: vi.fn() }) }) }),
+    update: vi
+      .fn()
+      .mockReturnValue({
+        set: vi.fn().mockReturnValue({ where: vi.fn().mockReturnValue({ run: vi.fn() }) }),
+      }),
   },
 }));
 vi.mock('@main/core/projects/project-manager', () => ({
@@ -133,8 +137,14 @@ describe('executeTaskCreate', () => {
     });
     vi.mocked(createConversation).mockResolvedValue({} as never);
     vi.mocked(updateRun).mockImplementation(async (_, values) => ({ ...run, ...values }));
-    vi.mocked(markRunLaunchingTask).mockResolvedValue({ ...run, status: 'launching_task' } as never);
-    vi.mocked(markRunCreatingConversation).mockResolvedValue({ ...run, status: 'creating_conversation' } as never);
+    vi.mocked(markRunLaunchingTask).mockResolvedValue({
+      ...run,
+      status: 'launching_task',
+    } as never);
+    vi.mocked(markRunCreatingConversation).mockResolvedValue({
+      ...run,
+      status: 'creating_conversation',
+    } as never);
     vi.mocked(markRunFailed).mockResolvedValue({ ...run, status: 'failed' } as never);
   });
 
@@ -161,7 +171,10 @@ describe('executeTaskCreate', () => {
     const result = await executeTaskCreate(automation, run);
 
     expect(result.success).toBe(false);
-    expect(markRunFailed).toHaveBeenCalledWith(run.id, { step: 'create_task', code: 'project_not_found' });
+    expect(markRunFailed).toHaveBeenCalledWith(run.id, {
+      step: 'create_task',
+      code: 'project_not_found',
+    });
     expect(prepareCreateTask).not.toHaveBeenCalled();
   });
 
@@ -187,7 +200,11 @@ describe('executeTaskCreate', () => {
 
     expect(result.success).toBe(true);
     expect(commitCreateTask).toHaveBeenCalledWith(preparedData, mockTx);
-    expect(markRunLaunchingTask).toHaveBeenCalledWith(run.id, expect.any(String), expect.any(Number));
+    expect(markRunLaunchingTask).toHaveBeenCalledWith(
+      run.id,
+      expect.any(String),
+      expect.any(Number)
+    );
     expect(taskService.launch).toHaveBeenCalled();
   });
 

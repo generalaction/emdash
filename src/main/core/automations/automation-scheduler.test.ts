@@ -248,7 +248,9 @@ describe('AutomationScheduler bootstrap', () => {
       finishedAt: Date.now(),
       error: JSON.stringify({ step: 'create_task', code: 'unknown', message: 'boom' }),
     });
-    vi.mocked(listQueuedRuns).mockResolvedValueOnce([{ run: queuedRun, automation: baseAutomation }]);
+    vi.mocked(listQueuedRuns).mockResolvedValueOnce([
+      { run: queuedRun, automation: baseAutomation },
+    ]);
     vi.mocked(startCreatingTask).mockResolvedValue(creatingTaskRun);
     vi.mocked(runQueuedAutomation).mockRejectedValue(new Error('boom'));
     vi.mocked(updateRun).mockResolvedValue(failedRun);
@@ -327,7 +329,12 @@ describe('AutomationScheduler concurrency', () => {
     vi.mocked(startCreatingTask).mockImplementation(async (runId) => {
       const entry = entries.find((candidate) => candidate.run.id === runId);
       if (!entry) return null;
-      return makeRun({ id: runId, automationId: entry.automation.id, status: 'creating_task', startedAt: Date.now() });
+      return makeRun({
+        id: runId,
+        automationId: entry.automation.id,
+        status: 'creating_task',
+        startedAt: Date.now(),
+      });
     });
     vi.mocked(runQueuedAutomation).mockImplementation((_, run) => {
       inFlight += 1;
@@ -335,7 +342,10 @@ describe('AutomationScheduler concurrency', () => {
       return new Promise((resolve) => {
         releaseByRunId.set(run.id, () => {
           inFlight -= 1;
-          resolve({ success: true, data: makeRun({ id: run.id, status: 'done', finishedAt: Date.now() }) });
+          resolve({
+            success: true,
+            data: makeRun({ id: run.id, status: 'done', finishedAt: Date.now() }),
+          });
         });
       });
     });
@@ -387,7 +397,10 @@ describe('AutomationScheduler concurrency', () => {
       () =>
         new Promise((resolve) => {
           releaseWorker = () =>
-            resolve({ success: true, data: makeRun({ id: entry.run.id, status: 'done', finishedAt: Date.now() }) });
+            resolve({
+              success: true,
+              data: makeRun({ id: entry.run.id, status: 'done', finishedAt: Date.now() }),
+            });
         })
     );
 

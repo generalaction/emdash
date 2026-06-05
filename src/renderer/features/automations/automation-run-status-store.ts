@@ -34,7 +34,13 @@ function scheduleClear(automationId: string) {
     setTimeout(() => {
       clearTimers.delete(automationId);
       const current = statuses.get(automationId);
-      if (current?.status === 'queued' || current?.status === 'creating_task' || current?.status === 'launching_task' || current?.status === 'creating_conversation') return;
+      if (
+        current?.status === 'queued' ||
+        current?.status === 'creating_task' ||
+        current?.status === 'launching_task' ||
+        current?.status === 'creating_conversation'
+      )
+        return;
       statuses.delete(automationId);
       notify();
     }, 8000)
@@ -69,7 +75,12 @@ export function updateAutomationRunStatus(
 ) {
   statuses.set(automationId, { ...snapshot, updatedAt: Date.now() });
 
-  if (snapshot.status === 'queued' || snapshot.status === 'creating_task' || snapshot.status === 'launching_task' || snapshot.status === 'creating_conversation') {
+  if (
+    snapshot.status === 'queued' ||
+    snapshot.status === 'creating_task' ||
+    snapshot.status === 'launching_task' ||
+    snapshot.status === 'creating_conversation'
+  ) {
     const existing = clearTimers.get(automationId);
     if (existing) {
       clearTimeout(existing);

@@ -1,6 +1,6 @@
-import { AutomationRow, AutomationRunRow } from '@main/db/schema';
-import { Automation } from '@shared/automations/automation';
-import {
+import { type AutomationRow, type AutomationRunRow } from '@main/db/schema';
+import type { Automation } from '@shared/automations/automation';
+import type {
   AutomationRun,
   AutomationRunStatus,
   AutomationRunTriggerKind,

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Cron } from 'croner';
-import { and, asc, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import {
   automationRuns,
@@ -19,7 +19,6 @@ import type {
   AutomationRun,
   AutomationRunStatus,
   AutomationRunTriggerKind,
-  AutomationRunWithContext,
 } from '@shared/automations/automation-run';
 import type {
   ConversationConfig,

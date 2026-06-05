@@ -4,7 +4,6 @@ import { createConversation } from '@main/core/conversations/createConversation'
 import { openProject } from '@main/core/projects/operations/openProject';
 import { projectManager } from '@main/core/projects/project-manager';
 import { DEFAULT_AGENT_ID } from '@main/core/settings/settings-registry';
-import type { AgentProviderId } from '@shared/agent-provider-registry';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { generateRandom } from '@main/core/tasks/name-generation/generateTaskName';
 import {
@@ -17,6 +16,7 @@ import { db } from '@main/db/client';
 import type { ConversationRow, TaskRow } from '@main/db/schema';
 import { automationRuns } from '@main/db/schema';
 import { resolveAutomationAgentAutoApprove } from '@shared/agent-auto-approve-defaults';
+import type { AgentProviderId } from '@shared/agent-provider-registry';
 import type { Automation } from '@shared/automations/automation';
 import type { AutomationRun } from '@shared/automations/automation-run';
 import { err, ok, type Result } from '@shared/result';
@@ -42,8 +42,7 @@ async function ensureProjectOpen(projectId: string) {
 
 function scopeWorkspaceConfigToRun(config: WorkspaceConfig, taskName: string): WorkspaceConfig {
   const git = config.git;
-  if (git.kind === 'create-branch')
-    return { ...config, git: { ...git, branchName: taskName } };
+  if (git.kind === 'create-branch') return { ...config, git: { ...git, branchName: taskName } };
   if (git.kind === 'pr-branch' && git.taskBranch)
     return { ...config, git: { ...git, taskBranch: taskName } };
   return config;
@@ -77,10 +76,9 @@ export async function executeTaskCreate(
     }
     const workspaceConfig = scopeWorkspaceConfigToRun(taskConfig.workspaceConfig, taskName);
 
-    const provider =
-      (automation.conversationConfig?.provider ||
-        (await appSettingsService.get('defaultAgent')) ||
-        DEFAULT_AGENT_ID) as AgentProviderId;
+    const provider = (automation.conversationConfig?.provider ||
+      (await appSettingsService.get('defaultAgent')) ||
+      DEFAULT_AGENT_ID) as AgentProviderId;
 
     const createTaskParams: CreateTaskParams = {
       id: taskId,

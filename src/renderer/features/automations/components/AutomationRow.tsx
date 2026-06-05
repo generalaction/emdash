@@ -6,7 +6,7 @@ import {
 } from '@renderer/features/projects/stores/project-selectors';
 import { Switch } from '@renderer/lib/ui/switch';
 import { cn } from '@renderer/utils/utils';
-import { Automation } from '@shared/automations/automation';
+import type { Automation } from '@shared/automations/automation';
 
 interface AutomationRowProps {
   automation: Automation;
@@ -31,7 +31,10 @@ export const AutomationRow = observer(function AutomationRow({
         onPointerDown={(e) => e.stopPropagation()}
         className="flex flex-row items-center justify-end gap-3"
       >
-        <Switch checked={automation.enabled} onCheckedChange={(checked) => onToggleEnabled?.(checked)} />
+        <Switch
+          checked={automation.enabled}
+          onCheckedChange={(checked) => onToggleEnabled?.(checked)}
+        />
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <div className="flex min-w-0 items-center justify-between gap-2">

@@ -63,4 +63,3 @@ export function useAutomationRuns(automationId: string, limit = 20) {
     enabled: !!automationId,
   });
 }
-
