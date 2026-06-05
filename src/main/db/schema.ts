@@ -307,12 +307,22 @@ export const automations = sqliteTable(
     deadlineMs: integer('deadline_ms'),
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
+    webhookToken: text('webhook_token'),
   },
   (table) => ({
     enabledNextRunIdx: index('idx_automations_enabled_next_run').on(table.enabled, table.nextRunAt),
     projectIdIdx: index('idx_automations_project_id').on(table.projectId),
   })
 );
+
+export const emdashServerConnections = sqliteTable('emdash_server_connections', {
+  id: text('id').primaryKey(),
+  label: text('label').notNull(),
+  url: text('url').notNull(),
+  apiKey: text('api_key').notNull(),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
 
 export const automationRuns = sqliteTable(
   'automation_runs',
