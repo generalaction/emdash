@@ -20,6 +20,7 @@ export type FormState = {
   defaultBranch: Branch | null;
   baseRemote: string;
   pushRemote: string;
+  githubAccountId: string | null | undefined;
   provisionCommand: string;
   terminateCommand: string;
 };
@@ -38,6 +39,12 @@ function normalizeScript(val: string | string[] | undefined): string {
 function blankToUndefined(value: string): string | undefined {
   const trimmed = value.trim();
   return trimmed || undefined;
+}
+
+function githubAccountIdToSettings(value: string | null | undefined): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  return value.trim() || null;
 }
 
 export function settingsToForm(
@@ -63,6 +70,7 @@ export function settingsToForm(
     defaultBranch: projectDefaultBranchToBranch(s.defaultBranch, baseRemoteMeta, remotes) ?? null,
     baseRemote: s.baseRemote ?? '',
     pushRemote: s.pushRemote ?? '',
+    githubAccountId: Object.hasOwn(s, 'githubAccountId') ? (s.githubAccountId ?? null) : undefined,
     provisionCommand: s.workspaceProvider?.provisionCommand ?? '',
     terminateCommand: s.workspaceProvider?.terminateCommand ?? '',
   };
@@ -87,6 +95,7 @@ export function formToSettings(f: FormState): ProjectSettings {
   };
   const provisionCommand = blankToUndefined(f.provisionCommand);
   const terminateCommand = blankToUndefined(f.terminateCommand);
+  const githubAccountId = githubAccountIdToSettings(f.githubAccountId);
   const hasScripts = Object.values(scripts).some((value) => value !== undefined);
   return {
     preservePatterns: preservePatterns.length > 0 ? preservePatterns : undefined,
@@ -102,6 +111,7 @@ export function formToSettings(f: FormState): ProjectSettings {
       f.pushRemote.trim() && f.pushRemote.trim() !== f.baseRemote.trim()
         ? f.pushRemote.trim()
         : undefined,
+    ...(githubAccountId !== undefined ? { githubAccountId } : {}),
     workspaceProvider:
       provisionCommand && terminateCommand
         ? {
