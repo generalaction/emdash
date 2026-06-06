@@ -27,7 +27,7 @@ export async function deleteConversation(
   conversationEvents._emit('conversation:deleted', conversationId);
 
   // No-op for terminal-mode conversations; kills any running native turn.
-  codexChatService.dispose(conversationId);
+  await codexChatService.dispose(conversationId);
 
   const task = resolveTask(projectId, taskId);
   if (task) {

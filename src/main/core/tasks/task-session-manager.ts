@@ -1,3 +1,4 @@
+import { codexChatService } from '@main/core/codex-chat/codex-chat-service';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
@@ -49,10 +50,13 @@ export type TaskManagerHooks = {
 };
 
 async function executeTeardown(
+  projectId: string,
+  taskId: string,
   task: TaskProvider,
   workspaceId: string,
   mode: TeardownMode
 ): Promise<void> {
+  await codexChatService.disposeTask(projectId, taskId);
   if (mode === 'detach') {
     await task.conversations.detachAll();
     await task.terminals.detachAll();
@@ -145,7 +149,7 @@ class TaskSessionManager {
       async ({ taskProvider, persistData, projectId, ctx }) => {
         try {
           await withTimeout(
-            executeTeardown(taskProvider, persistData.workspaceId, mode),
+            executeTeardown(projectId, taskId, taskProvider, persistData.workspaceId, mode),
             TASK_TIMEOUT_MS
           );
           return ok();

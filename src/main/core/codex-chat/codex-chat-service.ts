@@ -64,6 +64,7 @@ type ChatSession = {
   threadId?: string;
   child: ChildProcess | null;
   interruptRequested: boolean;
+  disposed: boolean;
 };
 
 export type StartCodexTurnParams = {
@@ -84,7 +85,7 @@ export type StartCodexTurnParams = {
  * Deliberately separate from the PTY path — terminal-mode conversations never
  * touch this service.
  */
-class CodexChatService {
+export class CodexChatService {
   private sessions = new Map<string, ChatSession>();
 
   getState(conversationId: string): CodexChatState {
@@ -228,6 +229,7 @@ class CodexChatService {
 
     child.once('close', (code) => {
       if (session.child === child) session.child = null;
+      if (session.disposed) return;
       const durationMs = Date.now() - turnStartedAt;
       if (session.interruptRequested) {
         this.upsertItem(session, {
@@ -276,24 +278,57 @@ class CodexChatService {
     child.once('close', () => clearTimeout(killTimer));
   }
 
-  /** Kill any running turn and drop in-memory transcript state. */
-  dispose(conversationId: string): void {
+  /** Kill any running turn, wait for exit, and drop in-memory transcript state. */
+  async dispose(conversationId: string): Promise<void> {
     const session = this.sessions.get(conversationId);
     if (!session) return;
-    this.sessions.delete(conversationId);
-    const child = session.child;
-    if (child) {
-      session.interruptRequested = true;
-      try {
-        child.kill('SIGTERM');
-      } catch {}
-    }
+    await this.disposeSession(session);
   }
 
-  disposeAll(): void {
-    for (const conversationId of [...this.sessions.keys()]) {
-      this.dispose(conversationId);
-    }
+  async disposeTask(projectId: string, taskId: string): Promise<void> {
+    const sessions = [...this.sessions.values()].filter(
+      (session) => session.projectId === projectId && session.taskId === taskId
+    );
+    await Promise.all(sessions.map((session) => this.disposeSession(session)));
+  }
+
+  async disposeAll(): Promise<void> {
+    await Promise.all([...this.sessions.values()].map((session) => this.disposeSession(session)));
+  }
+
+  private async disposeSession(session: ChatSession): Promise<void> {
+    this.sessions.delete(session.conversationId);
+    session.disposed = true;
+    const child = session.child;
+    if (!child) return;
+    session.interruptRequested = true;
+    await this.terminateChild(child);
+    if (session.child === child) session.child = null;
+  }
+
+  private terminateChild(child: ChildProcess): Promise<void> {
+    if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
+
+    return new Promise((resolve) => {
+      let settled = false;
+      const killTimer = setTimeout(() => {
+        try {
+          child.kill('SIGKILL');
+        } catch {}
+      }, INTERRUPT_KILL_TIMEOUT_MS);
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(killTimer);
+        resolve();
+      };
+      child.once('close', finish);
+      try {
+        child.kill('SIGTERM');
+      } catch {
+        finish();
+      }
+    });
   }
 
   private getOrCreateSession(conversation: Conversation): ChatSession {
@@ -315,6 +350,7 @@ class CodexChatService {
       turnDurationsMs: {},
       child: null,
       interruptRequested: false,
+      disposed: false,
     };
     this.sessions.set(conversation.id, session);
     return session;

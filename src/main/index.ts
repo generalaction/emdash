@@ -175,16 +175,18 @@ app.on('before-quit', (event) => {
   event.preventDefault();
   telemetryService.capture('app_closed');
   void telemetryService.dispose().finally(() => {
-    automationScheduler.stop();
-    codexChatService.disposeAll();
-    agentHookService.dispose();
-    stopResourceSampler();
-    updateService.dispose();
-    prSyncScheduler.dispose();
-    void gitWatcherRegistry.dispose();
-    void projectManager.dispose().catch((e) => {
-      log.error('Failed to shutdown project manager:', e);
-    });
-    app.exit(0);
+    void (async () => {
+      automationScheduler.stop();
+      await codexChatService.disposeAll();
+      agentHookService.dispose();
+      stopResourceSampler();
+      updateService.dispose();
+      prSyncScheduler.dispose();
+      void gitWatcherRegistry.dispose();
+      void projectManager.dispose().catch((e) => {
+        log.error('Failed to shutdown project manager:', e);
+      });
+      app.exit(0);
+    })();
   });
 });

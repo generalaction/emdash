@@ -17,7 +17,7 @@ export async function switchCodexChatToTerminal(
   taskId: string,
   conversationId: string
 ): Promise<void> {
-  codexChatService.dispose(conversationId);
+  await codexChatService.dispose(conversationId);
 
   const [row] = await db
     .select({ config: conversations.config })

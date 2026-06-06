@@ -26,16 +26,13 @@ export async function archiveTask(projectId: string, taskId: string): Promise<vo
 
   if (!project) return;
 
-  void taskSessionManager
-    .teardownTask(taskId, 'terminate')
-    .then((teardownResult) => {
-      if (!teardownResult.success) {
-        log.warn('archiveTask: teardown failed', { taskId, error: teardownResult.error.message });
-      }
-    })
-    .catch((e: unknown) => {
-      log.warn('archiveTask: teardown failed', { taskId, error: String(e) });
-    });
+  const teardownResult = await taskSessionManager.teardownTask(taskId, 'terminate').catch((e) => {
+    log.warn('archiveTask: teardown failed', { taskId, error: String(e) });
+    return null;
+  });
+  if (teardownResult && !teardownResult.success) {
+    log.warn('archiveTask: teardown failed', { taskId, error: teardownResult.error.message });
+  }
 
   let wsRow: { id: string; branchName: string | null } | undefined;
   if (task.workspaceId) {
