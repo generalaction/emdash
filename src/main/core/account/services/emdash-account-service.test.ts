@@ -66,6 +66,7 @@ describe('EmdashAccountService', () => {
       mockKvGet.mockResolvedValue({
         hasAccount: true,
         userId: 'u1',
+        name: 'Test User',
         username: 'test',
         avatarUrl: '',
         email: 'test@test.com',
@@ -75,6 +76,30 @@ describe('EmdashAccountService', () => {
       expect(session.hasAccount).toBe(true);
       expect(session.isSignedIn).toBe(false);
       expect(session.user).toBeNull();
+    });
+
+    it('returns the cached user name when signed in', async () => {
+      mockCredGet.mockResolvedValue('token-123');
+      mockKvGet.mockResolvedValue({
+        hasAccount: true,
+        userId: 'u1',
+        name: 'Test User',
+        username: 'test',
+        avatarUrl: '',
+        email: 'test@test.com',
+        lastValidated: '2026-01-01',
+      });
+
+      await service.loadSessionToken();
+      const session = await service.getSession();
+
+      expect(session.user).toEqual({
+        userId: 'u1',
+        name: 'Test User',
+        username: 'test',
+        avatarUrl: '',
+        email: 'test@test.com',
+      });
     });
   });
 
@@ -94,6 +119,7 @@ describe('EmdashAccountService', () => {
         providerId: 'github',
         user: {
           userId: 'u1',
+          name: 'Test User',
           username: 'testuser',
           avatarUrl: 'https://img.com/a',
           email: 'a@b.com',
@@ -107,7 +133,7 @@ describe('EmdashAccountService', () => {
       expect(mockCredSet).toHaveBeenCalledWith('session-abc');
       expect(mockKvSet).toHaveBeenCalledWith(
         'profile',
-        expect.objectContaining({ hasAccount: true, username: 'testuser' })
+        expect.objectContaining({ hasAccount: true, name: 'Test User', username: 'testuser' })
       );
       expect(result).toEqual({
         providerToken: 'ghp_123',

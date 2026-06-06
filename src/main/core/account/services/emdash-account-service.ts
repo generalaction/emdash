@@ -8,6 +8,7 @@ import { accountCredentialStore } from './credential-store';
 
 export interface AccountUser {
   userId: string;
+  name?: string;
   username: string;
   avatarUrl: string;
   email: string;
@@ -16,6 +17,7 @@ export interface AccountUser {
 export interface CachedProfile {
   hasAccount: boolean;
   userId: string;
+  name?: string;
   username: string;
   avatarUrl: string;
   email: string;
@@ -106,6 +108,7 @@ export class EmdashAccountService implements Hookable<AccountServiceHooks> {
         isSignedIn && this.cachedProfile
           ? {
               userId: this.cachedProfile.userId,
+              name: this.cachedProfile.name,
               username: this.cachedProfile.username,
               avatarUrl: this.cachedProfile.avatarUrl,
               email: this.cachedProfile.email,
@@ -162,6 +165,7 @@ export class EmdashAccountService implements Hookable<AccountServiceHooks> {
     const profile: CachedProfile = {
       hasAccount: true,
       userId: user.userId,
+      name: user.name,
       username: user.username,
       avatarUrl: user.avatarUrl,
       email: user.email,

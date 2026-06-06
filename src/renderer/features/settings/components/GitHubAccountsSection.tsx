@@ -1,61 +1,44 @@
-import {
-  Circle,
-  CircleCheck,
-  Github,
-  Loader2,
-  Plus,
-  Trash2,
-} from "lucide-react";
-import { useToast } from "@renderer/lib/hooks/use-toast";
+import { Circle, CircleCheck, Github, Loader2, Plus, Trash2 } from 'lucide-react';
+import { useToast } from '@renderer/lib/hooks/use-toast';
 import {
   useGitHubAccounts,
   useRemoveGitHubAccount,
   useSetDefaultGitHubAccount,
-} from "@renderer/lib/hooks/useGithubAccounts";
-import { useShowModal } from "@renderer/lib/modal/modal-provider";
-import { Badge } from "@renderer/lib/ui/badge";
-import { Button } from "@renderer/lib/ui/button";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@renderer/lib/ui/tooltip";
-import type {
-  GitHubAccountSummary,
-  GitHubCredentialSource,
-} from "@shared/github";
+} from '@renderer/lib/hooks/useGithubAccounts';
+import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { Badge } from '@renderer/lib/ui/badge';
+import { Button } from '@renderer/lib/ui/button';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+import type { GitHubAccountSummary, GitHubCredentialSource } from '@shared/github';
 
 const GITHUB_SOURCE_LABELS: Record<GitHubCredentialSource, string> = {
-  cli: "GitHub CLI",
-  emdash_oauth: "OAuth",
-  device_flow: "Device flow",
-  secure_storage: "Saved token",
+  cli: 'GitHub CLI',
+  emdash_oauth: 'OAuth',
+  device_flow: 'Device flow',
+  secure_storage: 'Saved token',
 };
 
 export function GitHubAccountsSection() {
   const { data: accounts = [], isLoading } = useGitHubAccounts();
-  const sortedAccounts = [...accounts].sort(
-    (a, b) => Number(b.isDefault) - Number(a.isDefault),
-  );
+  const sortedAccounts = [...accounts].sort((a, b) => Number(b.isDefault) - Number(a.isDefault));
   const setDefaultMutation = useSetDefaultGitHubAccount();
   const removeMutation = useRemoveGitHubAccount();
-  const showConnectGitHub = useShowModal("githubConnectModal");
-  const showConfirmRemove = useShowModal("confirmActionModal");
+  const showConnectGitHub = useShowModal('githubConnectModal');
+  const showConfirmRemove = useShowModal('confirmActionModal');
   const { toast } = useToast();
 
   const setDefaultAccount = async (account: GitHubAccountSummary) => {
     const result = await setDefaultMutation.mutateAsync(account.accountId);
     if (!result.success) {
       toast({
-        title: "Unable to update default account",
+        title: 'Unable to update default account',
         description: result.error,
-        variant: "destructive",
+        variant: 'destructive',
       });
       return;
     }
     toast({
-      title: "Default GitHub account updated",
+      title: 'Default GitHub account updated',
       description: `New projects will use @${account.login} by default.`,
     });
   };
@@ -64,14 +47,14 @@ export function GitHubAccountsSection() {
     const result = await removeMutation.mutateAsync(account.accountId);
     if (!result.success) {
       toast({
-        title: "Unable to remove GitHub account",
+        title: 'Unable to remove GitHub account',
         description: result.error,
-        variant: "destructive",
+        variant: 'destructive',
       });
       return;
     }
     toast({
-      title: "GitHub account removed",
+      title: 'GitHub account removed',
       description: `Removed @${account.login}.`,
     });
   };
@@ -79,8 +62,8 @@ export function GitHubAccountsSection() {
   const confirmRemove = (account: GitHubAccountSummary) => {
     showConfirmRemove({
       title: `Remove @${account.login}?`,
-      description: "This removes the saved GitHub token from Emdash.",
-      confirmLabel: "Remove",
+      description: 'This removes the saved GitHub token from Emdash.',
+      confirmLabel: 'Remove',
       onSuccess: () => void removeAccount(account),
     });
   };
@@ -169,15 +152,9 @@ function GitHubAccountRow({
       )}
       <div className="min-w-0 flex-1">
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-          <p className="truncate text-sm font-medium text-foreground">
-            @{account.login}
-          </p>
-          {account.isDefault && (
-            <DefaultGitHubAccountBadge login={account.login} />
-          )}
-          <Badge variant="outline">
-            {GITHUB_SOURCE_LABELS[account.credentialSource]}
-          </Badge>
+          <p className="truncate text-sm font-medium text-foreground">@{account.login}</p>
+          {account.isDefault && <DefaultGitHubAccountBadge login={account.login} />}
+          <Badge variant="outline">{GITHUB_SOURCE_LABELS[account.credentialSource]}</Badge>
         </div>
         <p className="text-muted-foreground truncate text-xs">{account.host}</p>
       </div>
@@ -204,7 +181,7 @@ function GitHubAccountRow({
             </Button>
           </TooltipTrigger>
           <TooltipContent side="top">
-            {account.isDefault ? "Default account" : "Set as default"}
+            {account.isDefault ? 'Default account' : 'Set as default'}
           </TooltipContent>
         </Tooltip>
         <Tooltip>
@@ -234,9 +211,7 @@ function DefaultGitHubAccountBadge({ login }: { login: string }) {
         <TooltipTrigger className="inline-flex h-4.5 items-center leading-none">
           <Badge variant="secondary">Default</Badge>
         </TooltipTrigger>
-        <TooltipContent side="top">
-          New projects will use @{login} by default.
-        </TooltipContent>
+        <TooltipContent side="top">New projects will use @{login} by default.</TooltipContent>
       </Tooltip>
     </TooltipProvider>
   );

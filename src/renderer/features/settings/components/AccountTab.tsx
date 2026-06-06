@@ -23,6 +23,7 @@ export function AccountTab() {
   const user = session?.user ?? null;
   const isSignedIn = session?.isSignedIn ?? false;
   const hasAccount = session?.hasAccount ?? false;
+  const displayName = user?.name?.trim() || user?.username || '';
 
   const handleSignIn = async () => {
     setError(null);
@@ -40,7 +41,9 @@ export function AccountTab() {
       }
       toast({
         title: 'Signed in to Emdash',
-        description: result.user ? `Connected as ${result.user.username}` : 'Signed in',
+        description: result.user
+          ? `Connected as ${result.user.name?.trim() || result.user.username}`
+          : 'Signed in',
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Sign in failed';
@@ -94,7 +97,7 @@ export function AccountTab() {
           {user.avatarUrl ? (
             <img
               src={user.avatarUrl}
-              alt={user.username}
+              alt={displayName}
               className="h-12 w-12 rounded-full border border-border/60"
             />
           ) : (
@@ -103,7 +106,7 @@ export function AccountTab() {
             </div>
           )}
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-foreground">{user.username}</p>
+            <p className="text-sm font-semibold text-foreground">{displayName}</p>
             {user.email && <p className="text-muted-foreground text-xs">{user.email}</p>}
           </div>
           <Button

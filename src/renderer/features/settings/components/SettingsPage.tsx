@@ -1,21 +1,21 @@
-import { ExternalLink } from "lucide-react";
-import React, { useCallback } from "react";
-import { PageHeader } from "@renderer/lib/components/page-header";
-import { rpc } from "@renderer/lib/ipc";
-import { cn } from "@renderer/utils/utils";
-import { AccountTab } from "./AccountTab";
-import { CliAgentsList } from "./CliAgentsList";
-import DefaultAgentSettingsCard from "./DefaultAgentSettingsCard";
-import { GitHubAccountsSection } from "./GitHubAccountsSection";
-import HiddenToolsSettingsCard from "./HiddenToolsSettingsCard";
-import IntegrationsCard from "./IntegrationsCard";
-import InterfaceSettingsCard from "./InterfaceSettingsCard";
-import KeyboardSettingsCard from "./KeyboardSettingsCard";
-import NotificationSettingsCard from "./NotificationSettingsCard";
-import RepositorySettingsCard from "./RepositorySettingsCard";
-import ResourceMonitorSettingsCard from "./ResourceMonitorSettingsCard";
-import SidebarMetadataSettingsCard from "./SidebarMetadataSettingsCard";
-import { SshConnectionsSettingsCard } from "./SshConnectionsSettingsCard";
+import { ExternalLink } from 'lucide-react';
+import React, { useCallback } from 'react';
+import { PageHeader } from '@renderer/lib/components/page-header';
+import { rpc } from '@renderer/lib/ipc';
+import { cn } from '@renderer/utils/utils';
+import { AccountTab } from './AccountTab';
+import { CliAgentsList } from './CliAgentsList';
+import DefaultAgentSettingsCard from './DefaultAgentSettingsCard';
+import { GitHubAccountsSection } from './GitHubAccountsSection';
+import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
+import IntegrationsCard from './IntegrationsCard';
+import InterfaceSettingsCard from './InterfaceSettingsCard';
+import KeyboardSettingsCard from './KeyboardSettingsCard';
+import NotificationSettingsCard from './NotificationSettingsCard';
+import RepositorySettingsCard from './RepositorySettingsCard';
+import ResourceMonitorSettingsCard from './ResourceMonitorSettingsCard';
+import SidebarMetadataSettingsCard from './SidebarMetadataSettingsCard';
+import { SshConnectionsSettingsCard } from './SshConnectionsSettingsCard';
 import {
   AutoGenerateTaskNamesRow,
   AutoTrustWorktreesRow,
@@ -23,21 +23,21 @@ import {
   EnableTmuxRow,
   IncludeIssueContextByDefaultRow,
   PreserveTaskNameCapitalizationRow,
-} from "./TaskSettingsRows";
-import TelemetryCard from "./TelemetryCard";
-import TerminalSettingsCard from "./TerminalSettingsCard";
-import ThemeCard from "./ThemeCard";
-import { UpdateCard } from "./UpdateCard";
+} from './TaskSettingsRows';
+import TelemetryCard from './TelemetryCard';
+import TerminalSettingsCard from './TerminalSettingsCard';
+import ThemeCard from './ThemeCard';
+import { UpdateCard } from './UpdateCard';
 
 export type SettingsPageTab =
-  | "general"
-  | "account"
-  | "clis-models"
-  | "integrations"
-  | "connections"
-  | "repository"
-  | "interface"
-  | "docs";
+  | 'general'
+  | 'account'
+  | 'clis-models'
+  | 'integrations'
+  | 'connections'
+  | 'repository'
+  | 'interface'
+  | 'docs';
 
 interface SectionConfig {
   title?: string;
@@ -53,7 +53,7 @@ export function SettingsPage({
   onTabChange: (tab: SettingsPageTab) => void;
 }) {
   const handleDocsClick = useCallback(() => {
-    void rpc.app.openExternal("https://docs.emdash.sh");
+    void rpc.app.openExternal('https://docs.emdash.sh');
   }, []);
 
   const tabs: Array<{
@@ -61,14 +61,14 @@ export function SettingsPage({
     label: string;
     isExternal?: boolean;
   }> = [
-    { id: "general", label: "General" },
-    { id: "account", label: "Account" },
-    { id: "clis-models", label: "Agents" },
-    { id: "integrations", label: "Integrations" },
-    { id: "connections", label: "Connections" },
-    { id: "repository", label: "Repository" },
-    { id: "interface", label: "Interface" },
-    { id: "docs", label: "Docs", isExternal: true },
+    { id: 'general', label: 'General' },
+    { id: 'account', label: 'Account' },
+    { id: 'clis-models', label: 'Agents' },
+    { id: 'integrations', label: 'Integrations' },
+    { id: 'connections', label: 'Connections' },
+    { id: 'repository', label: 'Repository' },
+    { id: 'interface', label: 'Interface' },
+    { id: 'docs', label: 'Docs', isExternal: true },
   ];
 
   const tabContent: Record<
@@ -76,9 +76,8 @@ export function SettingsPage({
     { title: string; description: string; sections: SectionConfig[] }
   > = {
     general: {
-      title: "General",
-      description:
-        "Manage your account, privacy settings, notifications, and app updates.",
+      title: 'General',
+      description: 'Manage your account, privacy settings, notifications, and app updates.',
       sections: [
         {
           component: <TelemetryCard />,
@@ -110,17 +109,17 @@ export function SettingsPage({
       ],
     },
     account: {
-      title: "Account",
-      description: "Manage your Emdash account.",
+      title: 'Account',
+      description: 'Manage your Emdash account.',
       sections: [{ component: <AccountTab /> }],
     },
-    "clis-models": {
-      title: "Agents",
-      description: "Manage CLI agents and model configurations.",
+    'clis-models': {
+      title: 'Agents',
+      description: 'Manage CLI agents and model configurations.',
       sections: [
         { component: <DefaultAgentSettingsCard /> },
         {
-          title: "CLI agents",
+          title: 'CLI agents',
           component: (
             <div className="bg-muted/10 rounded-xl border border-border/60 p-2">
               <CliAgentsList />
@@ -130,37 +129,35 @@ export function SettingsPage({
       ],
     },
     integrations: {
-      title: "Integrations",
-      description: "Connect external services and tools.",
+      title: 'Integrations',
+      description: 'Connect external services and tools.',
       sections: [
         { component: <GitHubAccountsSection /> },
-        { title: "Issue providers", component: <IntegrationsCard /> },
+        { title: 'Issue providers', component: <IntegrationsCard /> },
       ],
     },
     connections: {
-      title: "Connections",
-      description: "Manage reusable SSH connections for remote projects.",
+      title: 'Connections',
+      description: 'Manage reusable SSH connections for remote projects.',
       sections: [{ component: <SshConnectionsSettingsCard /> }],
     },
     repository: {
-      title: "Repository",
-      description: "Configure repository and branch settings.",
-      sections: [
-        { title: "Branch prefix", component: <RepositorySettingsCard /> },
-      ],
+      title: 'Repository',
+      description: 'Configure repository and branch settings.',
+      sections: [{ title: 'Branch prefix', component: <RepositorySettingsCard /> }],
     },
     interface: {
-      title: "Interface",
-      description: "Customize the appearance and behavior of the app.",
+      title: 'Interface',
+      description: 'Customize the appearance and behavior of the app.',
       sections: [
         { component: <ThemeCard /> },
         { component: <TerminalSettingsCard /> },
         { component: <SidebarMetadataSettingsCard /> },
         { component: <ResourceMonitorSettingsCard /> },
         { component: <InterfaceSettingsCard /> },
-        { title: "Keyboard shortcuts", component: <KeyboardSettingsCard /> },
+        { title: 'Keyboard shortcuts', component: <KeyboardSettingsCard /> },
         {
-          title: "Tools",
+          title: 'Tools',
           component: <HiddenToolsSettingsCard />,
         },
       ],
@@ -189,9 +186,9 @@ export function SettingsPage({
                       }
                     }}
                     className={cn(
-                      "flex w-full items-center gap-2 hover:bg-background-1 text-foreground-muted hover:text-foreground rounded-md px-3 py-2 text-sm font-normal transition-colors",
+                      'flex w-full items-center gap-2 hover:bg-background-1 text-foreground-muted hover:text-foreground rounded-md px-3 py-2 text-sm font-normal transition-colors',
                       isActive &&
-                        "bg-background-2 text-foreground hover:bg-background-2 hover:text-foreground",
+                        'bg-background-2 text-foreground hover:bg-background-2 hover:text-foreground'
                     )}
                   >
                     <span className="text-left">{tab.label}</span>
@@ -205,17 +202,12 @@ export function SettingsPage({
           {currentContent && (
             <div className="min-h-0 min-w-0 flex-1 justify-center overflow-x-hidden overflow-y-auto [scrollbar-gutter:stable]">
               <div className="mx-auto w-full max-w-4xl space-y-8 px-4 py-10">
-                <PageHeader
-                  title={currentContent.title}
-                  description={currentContent.description}
-                />
+                <PageHeader title={currentContent.title} description={currentContent.description} />
                 {currentContent.sections.map((section) => (
                   <div key={section.title} className="flex flex-col gap-3">
                     {section.title && (
                       <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-normal text-foreground">
-                          {section.title}
-                        </h3>
+                        <h3 className="text-sm font-normal text-foreground">{section.title}</h3>
                         {section.action && <div>{section.action}</div>}
                       </div>
                     )}
