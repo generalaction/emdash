@@ -4,7 +4,7 @@ import { PassThrough } from 'node:stream';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NativeChatProviderId } from '@shared/conversation-ui';
 import type { Conversation } from '@shared/conversations';
-import type { CodexChatItem } from '@shared/native-chat';
+import type { NativeChatItem } from '@shared/native-chat';
 
 const mocks = vi.hoisted(() => ({
   emit: vi.fn(),
@@ -49,14 +49,14 @@ vi.mock('@main/core/pty/pty-env', () => ({
   buildAgentEnv: () => ({}),
 }));
 
-import { CodexChatService } from './codex-chat-service';
+import { NativeChatService } from './native-chat-service';
 
 type TestSession = {
   conversationId: string;
   projectId: string;
   taskId: string;
   providerId: NativeChatProviderId;
-  items: CodexChatItem[];
+  items: NativeChatItem[];
   itemIndexByKey: Map<string, number>;
   turnStatus: 'idle' | 'running';
   lastError: string | null;
@@ -94,11 +94,11 @@ function session(overrides: Partial<TestSession> = {}): TestSession {
   };
 }
 
-function sessionsOf(service: CodexChatService): Map<string, TestSession> {
+function sessionsOf(service: NativeChatService): Map<string, TestSession> {
   return (service as unknown as { sessions: Map<string, TestSession> }).sessions;
 }
 
-describe('CodexChatService disposal', () => {
+describe('NativeChatService disposal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.touchConversation.mockResolvedValue(undefined);
@@ -108,7 +108,7 @@ describe('CodexChatService disposal', () => {
   });
 
   it('prepares workspace trust before spawning a native turn', async () => {
-    const service = new CodexChatService();
+    const service = new NativeChatService();
     const child = new FakeChild();
     mocks.spawn.mockReturnValue(child);
 
@@ -138,7 +138,7 @@ describe('CodexChatService disposal', () => {
   });
 
   it('reserves the conversation before async turn setup completes', async () => {
-    const service = new CodexChatService();
+    const service = new NativeChatService();
     const child = new FakeChild();
     let releaseTrust!: () => void;
     mocks.spawn.mockReturnValue(child);
@@ -177,7 +177,7 @@ describe('CodexChatService disposal', () => {
   });
 
   it('waits for a running child to close before resolving disposal', async () => {
-    const service = new CodexChatService();
+    const service = new NativeChatService();
     const child = new FakeChild();
     sessionsOf(service).set('conv-1', session({ child: child as unknown as ChildProcess }));
 
@@ -198,7 +198,7 @@ describe('CodexChatService disposal', () => {
   });
 
   it('disposes every session for a task without touching other tasks', async () => {
-    const service = new CodexChatService();
+    const service = new NativeChatService();
     const first = new FakeChild();
     const second = new FakeChild();
     const other = new FakeChild();

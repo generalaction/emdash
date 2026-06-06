@@ -1,5 +1,5 @@
-import { codexChatService } from '@main/core/codex-chat/codex-chat-service';
 import type { IExecutionContext } from '@main/core/execution-context/types';
+import { nativeChatService } from '@main/core/native-chat/native-chat-service';
 import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-session-name';
 import { getTaskSessionLeafIds } from '@main/core/tasks/session-targets';
 import type { WorkspaceBootstrapResult } from '@main/core/workspaces/workspace-bootstrap-service';
@@ -56,7 +56,7 @@ async function executeTeardown(
   workspaceId: string,
   mode: TeardownMode
 ): Promise<void> {
-  await codexChatService.disposeTask(projectId, taskId);
+  await nativeChatService.disposeTask(projectId, taskId);
   if (mode === 'detach') {
     await task.conversations.detachAll();
     await task.terminals.detachAll();
@@ -172,7 +172,7 @@ class TaskSessionManager {
   async teardownAllForProject(projectId: string, mode: TeardownMode): Promise<void> {
     const taskIds = Array.from(this._tasksByProject.get(projectId) ?? []);
     if (mode === 'detach') {
-      await Promise.all(taskIds.map((id) => codexChatService.disposeTask(projectId, id)));
+      await Promise.all(taskIds.map((id) => nativeChatService.disposeTask(projectId, id)));
       // Detach sessions but leave workspaces alive; provider.cleanup() will call
       // workspaceRegistry.releaseAllForProject to handle workspace teardown.
       await Promise.all(

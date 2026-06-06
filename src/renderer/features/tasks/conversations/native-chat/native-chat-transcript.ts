@@ -1,23 +1,23 @@
-import type { CodexChatEvent } from '@shared/events/codexChatEvents';
-import type { CodexChatItem, CodexChatState, CodexChatTurnStatus } from '@shared/native-chat';
+import type { NativeChatEvent } from '@shared/events/nativeChatEvents';
+import type { NativeChatItem, NativeChatState, NativeChatTurnStatus } from '@shared/native-chat';
 
 /**
- * Pure transcript reduction for the native Codex chat surface — kept free of
+ * Pure transcript reduction for the native chat surface — kept free of
  * IPC imports so it can be unit-tested directly.
  */
-export type CodexChatTranscript = {
-  items: CodexChatItem[];
-  turnStatus: CodexChatTurnStatus;
+export type NativeChatTranscript = {
+  items: NativeChatItem[];
+  turnStatus: NativeChatTurnStatus;
   lastError: string | null;
   /** Wall-clock duration of finished turns, keyed by turn key (e.g. "t3"). */
   turnDurationsMs: Record<string, number>;
 };
 
-export function emptyTranscript(): CodexChatTranscript {
+export function emptyTranscript(): NativeChatTranscript {
   return { items: [], turnStatus: 'idle', lastError: null, turnDurationsMs: {} };
 }
 
-export function transcriptFromState(state: CodexChatState): CodexChatTranscript {
+export function transcriptFromState(state: NativeChatState): NativeChatTranscript {
   return {
     items: state.items,
     turnStatus: state.turnStatus,
@@ -40,7 +40,7 @@ export function formatTurnDuration(ms: number): string {
   return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
 }
 
-export function upsertChatItem(items: CodexChatItem[], item: CodexChatItem): CodexChatItem[] {
+export function upsertChatItem(items: NativeChatItem[], item: NativeChatItem): NativeChatItem[] {
   const index = items.findIndex((existing) => existing.key === item.key);
   if (index === -1) return [...items, item];
   const next = [...items];
@@ -48,10 +48,10 @@ export function upsertChatItem(items: CodexChatItem[], item: CodexChatItem): Cod
   return next;
 }
 
-export function applyCodexChatEvent(
-  transcript: CodexChatTranscript,
-  event: CodexChatEvent
-): CodexChatTranscript {
+export function applyNativeChatEvent(
+  transcript: NativeChatTranscript,
+  event: NativeChatEvent
+): NativeChatTranscript {
   switch (event.type) {
     case 'turn-started':
       return { ...transcript, turnStatus: 'running', lastError: null };
@@ -84,23 +84,23 @@ function withTurnDuration(
 /**
  * Transcript segmentation for rendering: messages and system notes stand
  * alone; consecutive work items (commands, file edits, reasoning, tool calls)
- * fold into one activity group, Codex-desktop style.
+ * fold into one activity group.
  */
 export type ActivityChatItem = Exclude<
-  CodexChatItem,
+  NativeChatItem,
   { kind: 'user_message' } | { kind: 'agent_message' } | { kind: 'system' }
 >;
 
-export type CodexChatSegment =
-  | { type: 'item'; item: CodexChatItem }
+export type NativeChatSegment =
+  | { type: 'item'; item: NativeChatItem }
   | { type: 'activity'; key: string; items: ActivityChatItem[] };
 
-export function isActivityItem(item: CodexChatItem): item is ActivityChatItem {
+export function isActivityItem(item: NativeChatItem): item is ActivityChatItem {
   return item.kind !== 'user_message' && item.kind !== 'agent_message' && item.kind !== 'system';
 }
 
-export function groupChatItems(items: CodexChatItem[]): CodexChatSegment[] {
-  const segments: CodexChatSegment[] = [];
+export function groupChatItems(items: NativeChatItem[]): NativeChatSegment[] {
+  const segments: NativeChatSegment[] = [];
   for (const item of items) {
     if (!isActivityItem(item)) {
       segments.push({ type: 'item', item });

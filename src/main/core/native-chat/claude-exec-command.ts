@@ -6,7 +6,7 @@ import {
 import type { ProviderCustomConfig } from '@shared/app-settings';
 import {
   isNativeChatReasoningEffort,
-  isValidCodexModelId,
+  isValidNativeChatModelId,
   type NativeChatReasoningEffort,
 } from '@shared/native-chat';
 
@@ -52,7 +52,7 @@ export function buildClaudeExecCommand({
 
   if (model) {
     // Alias ('opus') or full id ('claude-opus-4-8'); argv-safety check only.
-    if (!isValidCodexModelId(model)) {
+    if (!isValidNativeChatModelId(model)) {
       throw new Error(`Invalid model id: ${model}`);
     }
     args.push('--model', model);

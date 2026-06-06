@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  applyCodexChatEvent,
+  applyNativeChatEvent,
   emptyTranscript,
   formatTurnDuration,
   groupChatItems,
@@ -9,50 +9,50 @@ import {
   turnKeyOf,
   upsertChatItem,
   type ActivityChatItem,
-} from '@renderer/features/tasks/conversations/codex-chat/codex-chat-transcript';
-import type { CodexChatItem } from '@shared/native-chat';
+} from '@renderer/features/tasks/conversations/native-chat/native-chat-transcript';
+import type { NativeChatItem } from '@shared/native-chat';
 
-const userItem: CodexChatItem = { kind: 'user_message', key: 't1:user', text: 'hi' };
-const agentItem: CodexChatItem = { kind: 'agent_message', key: 't1:item_0', text: 'hello' };
+const userItem: NativeChatItem = { kind: 'user_message', key: 't1:user', text: 'hi' };
+const agentItem: NativeChatItem = { kind: 'agent_message', key: 't1:item_0', text: 'hello' };
 
-describe('codex chat transcript', () => {
+describe('native chat transcript', () => {
   it('starts a turn by clearing the previous error', () => {
-    const failed = applyCodexChatEvent(emptyTranscript(), {
+    const failed = applyNativeChatEvent(emptyTranscript(), {
       type: 'turn-failed',
       message: 'boom',
     });
     expect(failed).toMatchObject({ turnStatus: 'idle', lastError: 'boom' });
 
-    const restarted = applyCodexChatEvent(failed, { type: 'turn-started' });
+    const restarted = applyNativeChatEvent(failed, { type: 'turn-started' });
     expect(restarted).toMatchObject({ turnStatus: 'running', lastError: null });
   });
 
   it('appends new items and replaces items with the same key', () => {
-    let transcript = applyCodexChatEvent(emptyTranscript(), {
+    let transcript = applyNativeChatEvent(emptyTranscript(), {
       type: 'item-upsert',
       item: userItem,
     });
-    transcript = applyCodexChatEvent(transcript, { type: 'item-upsert', item: agentItem });
+    transcript = applyNativeChatEvent(transcript, { type: 'item-upsert', item: agentItem });
     expect(transcript.items).toEqual([userItem, agentItem]);
 
-    const updatedAgent: CodexChatItem = { ...agentItem, text: 'hello world' };
-    transcript = applyCodexChatEvent(transcript, { type: 'item-upsert', item: updatedAgent });
+    const updatedAgent: NativeChatItem = { ...agentItem, text: 'hello world' };
+    transcript = applyNativeChatEvent(transcript, { type: 'item-upsert', item: updatedAgent });
     expect(transcript.items).toEqual([userItem, updatedAgent]);
   });
 
   it('completes a turn back to idle', () => {
-    const running = applyCodexChatEvent(emptyTranscript(), { type: 'turn-started' });
-    expect(applyCodexChatEvent(running, { type: 'turn-completed' }).turnStatus).toBe('idle');
+    const running = applyNativeChatEvent(emptyTranscript(), { type: 'turn-started' });
+    expect(applyNativeChatEvent(running, { type: 'turn-completed' }).turnStatus).toBe('idle');
   });
 
   it('records turn durations on completion and failure', () => {
-    let transcript = applyCodexChatEvent(emptyTranscript(), { type: 'turn-started' });
-    transcript = applyCodexChatEvent(transcript, {
+    let transcript = applyNativeChatEvent(emptyTranscript(), { type: 'turn-started' });
+    transcript = applyNativeChatEvent(transcript, {
       type: 'turn-completed',
       turnKey: 't1',
       durationMs: 3200,
     });
-    transcript = applyCodexChatEvent(transcript, {
+    transcript = applyNativeChatEvent(transcript, {
       type: 'turn-failed',
       message: 'boom',
       turnKey: 't2',
@@ -70,7 +70,7 @@ describe('codex chat transcript', () => {
       turnDurationsMs: {},
     });
     // The same item arriving again as an event must not duplicate.
-    const replayed = applyCodexChatEvent(seeded, { type: 'item-upsert', item: agentItem });
+    const replayed = applyNativeChatEvent(seeded, { type: 'item-upsert', item: agentItem });
     expect(replayed.items).toHaveLength(2);
   });
 
@@ -82,7 +82,7 @@ describe('codex chat transcript', () => {
   });
 });
 
-const command = (key: string): CodexChatItem => ({
+const command = (key: string): NativeChatItem => ({
   kind: 'command_execution',
   key,
   command: 'ls',
@@ -93,7 +93,7 @@ const command = (key: string): CodexChatItem => ({
 
 describe('groupChatItems', () => {
   it('folds consecutive work items into one activity segment', () => {
-    const reasoning: CodexChatItem = { kind: 'reasoning', key: 't1:item_0', text: 'thinking' };
+    const reasoning: NativeChatItem = { kind: 'reasoning', key: 't1:item_0', text: 'thinking' };
     const segments = groupChatItems([
       userItem,
       reasoning,
@@ -109,7 +109,7 @@ describe('groupChatItems', () => {
   });
 
   it('splits activity groups around messages and system notes', () => {
-    const note: CodexChatItem = { kind: 'system', key: 't1:interrupted', text: 'Interrupted' };
+    const note: NativeChatItem = { kind: 'system', key: 't1:interrupted', text: 'Interrupted' };
     const segments = groupChatItems([command('t1:item_0'), note, command('t2:item_0')]);
     expect(segments.map((s) => s.type)).toEqual(['activity', 'item', 'activity']);
   });

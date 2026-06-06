@@ -5,10 +5,10 @@ import { conversations } from '@main/db/schema';
 import { isNativeChatProvider } from '@shared/conversation-ui';
 import type { NativeChatAttachment } from '@shared/native-chat';
 import { validateAttachments } from './attachments';
-import { codexChatService } from './codex-chat-service';
+import { nativeChatService } from './native-chat-service';
 import { resolveNativeChatTarget } from './resolve-native-chat-target';
 
-export async function sendCodexChatMessage(
+export async function sendNativeChatMessage(
   projectId: string,
   taskId: string,
   conversationId: string,
@@ -37,7 +37,7 @@ export async function sendCodexChatMessage(
   }
 
   const target = resolveNativeChatTarget(taskId);
-  await codexChatService.startTurn({
+  await nativeChatService.startTurn({
     conversation,
     cwd: target.cwd,
     taskEnvVars: target.taskEnvVars,

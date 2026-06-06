@@ -11,12 +11,12 @@ import React, { useEffect, useRef, useState } from 'react';
 import { MarkdownRenderer } from '@renderer/lib/ui/markdown-renderer';
 import { Spinner } from '@renderer/lib/ui/spinner';
 import { cn } from '@renderer/utils/utils';
-import type { CodexChatItem } from '@shared/native-chat';
+import type { NativeChatItem } from '@shared/native-chat';
 import {
   formatTurnDuration,
   summarizeActivity,
   type ActivityChatItem,
-} from './codex-chat-transcript';
+} from './native-chat-transcript';
 
 export function UserMessageView({ text }: { text: string }) {
   return (
@@ -247,7 +247,7 @@ export function ActivityGroupView({
   );
 }
 
-export function ChatItemView({ item }: { item: CodexChatItem }) {
+export function ChatItemView({ item }: { item: NativeChatItem }) {
   switch (item.kind) {
     case 'user_message':
       return <UserMessageView text={item.text} />;

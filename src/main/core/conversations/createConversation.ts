@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
-import { codexChatService } from '@main/core/codex-chat/codex-chat-service';
-import { resolveNativeChatTarget } from '@main/core/codex-chat/resolve-native-chat-target';
+import { nativeChatService } from '@main/core/native-chat/native-chat-service';
+import { resolveNativeChatTarget } from '@main/core/native-chat/resolve-native-chat-target';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { taskSessionManager } from '@main/core/tasks/task-session-manager';
 import { withCompensation } from '@main/core/utils/compensation';
@@ -95,7 +95,7 @@ export async function createConversation(
         // through `codex exec` and follow-ups arrive via the chat composer.
         if (params.initialPrompt?.trim()) {
           const target = resolveNativeChatTarget(params.taskId);
-          await codexChatService.startTurn({
+          await nativeChatService.startTurn({
             conversation,
             cwd: target.cwd,
             taskEnvVars: target.taskEnvVars,

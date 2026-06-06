@@ -2,22 +2,22 @@ import { action, makeObservable, observable, runInAction } from 'mobx';
 import { events, rpc } from '@renderer/lib/ipc';
 import type { IDisposable } from '@renderer/lib/stores/lifecycle';
 import { log } from '@renderer/utils/logger';
-import { codexChatEventChannel, type CodexChatEvent } from '@shared/events/codexChatEvents';
-import type { CodexChatOptions, NativeChatAttachment } from '@shared/native-chat';
+import { nativeChatEventChannel, type NativeChatEvent } from '@shared/events/nativeChatEvents';
+import type { NativeChatOptions, NativeChatAttachment } from '@shared/native-chat';
 import {
-  applyCodexChatEvent,
+  applyNativeChatEvent,
   emptyTranscript,
   transcriptFromState,
-  type CodexChatTranscript,
-} from './codex-chat-transcript';
+  type NativeChatTranscript,
+} from './native-chat-transcript';
 
 /**
- * Renderer-side state for one native Codex chat conversation: the transcript
- * snapshot (seeded over RPC, kept live via codex-chat events) plus composer
+ * Renderer-side state for one native chat conversation: the transcript
+ * snapshot (seeded over RPC, kept live via native-chat events) plus composer
  * status.
  */
-export class CodexChatStore implements IDisposable {
-  transcript: CodexChatTranscript = emptyTranscript();
+export class NativeChatStore implements IDisposable {
+  transcript: NativeChatTranscript = emptyTranscript();
   isLoading = true;
   isSending = false;
   isSwitching = false;
@@ -25,7 +25,7 @@ export class CodexChatStore implements IDisposable {
 
   private offEvents: (() => void) | null = null;
   /** Events received while the initial getState load is in flight. */
-  private pendingEvents: CodexChatEvent[] | null = [];
+  private pendingEvents: NativeChatEvent[] | null = [];
 
   constructor(
     private readonly projectId: string,
@@ -42,7 +42,7 @@ export class CodexChatStore implements IDisposable {
       clearSendError: action,
     });
 
-    this.offEvents = events.on(codexChatEventChannel, (envelope) => {
+    this.offEvents = events.on(nativeChatEventChannel, (envelope) => {
       if (envelope.conversationId !== this.conversationId) return;
       if (this.pendingEvents) {
         this.pendingEvents.push(envelope.event);
@@ -53,8 +53,8 @@ export class CodexChatStore implements IDisposable {
     void this.load();
   }
 
-  applyEvent(event: CodexChatEvent): void {
-    this.transcript = applyCodexChatEvent(this.transcript, event);
+  applyEvent(event: NativeChatEvent): void {
+    this.transcript = applyNativeChatEvent(this.transcript, event);
   }
 
   clearSendError(): void {
@@ -75,7 +75,7 @@ export class CodexChatStore implements IDisposable {
       this.sendError = null;
     });
     try {
-      await rpc.codexChat.sendMessage(
+      await rpc.nativeChat.sendMessage(
         this.projectId,
         this.taskId,
         this.conversationId,
@@ -95,17 +95,17 @@ export class CodexChatStore implements IDisposable {
 
   async interrupt(): Promise<void> {
     try {
-      await rpc.codexChat.interrupt(this.conversationId);
+      await rpc.nativeChat.interrupt(this.conversationId);
     } catch (error) {
-      log.warn('CodexChatStore: interrupt failed', { error });
+      log.warn('NativeChatStore: interrupt failed', { error });
     }
   }
 
-  async setOptions(options: CodexChatOptions): Promise<void> {
+  async setOptions(options: NativeChatOptions): Promise<void> {
     try {
-      await rpc.codexChat.setOptions(this.projectId, this.taskId, this.conversationId, options);
+      await rpc.nativeChat.setOptions(this.projectId, this.taskId, this.conversationId, options);
     } catch (error) {
-      log.warn('CodexChatStore: failed to set chat options', { error });
+      log.warn('NativeChatStore: failed to set chat options', { error });
     }
   }
 
@@ -115,7 +115,7 @@ export class CodexChatStore implements IDisposable {
       this.isSwitching = true;
     });
     try {
-      await rpc.codexChat.switchToTerminal(this.projectId, this.taskId, this.conversationId);
+      await rpc.nativeChat.switchToTerminal(this.projectId, this.taskId, this.conversationId);
     } catch (error) {
       runInAction(() => {
         this.isSwitching = false;
@@ -128,18 +128,18 @@ export class CodexChatStore implements IDisposable {
 
   private async load(): Promise<void> {
     try {
-      const state = await rpc.codexChat.getState(this.conversationId);
+      const state = await rpc.nativeChat.getState(this.conversationId);
       runInAction(() => {
         let transcript = transcriptFromState(state);
         for (const event of this.pendingEvents ?? []) {
-          transcript = applyCodexChatEvent(transcript, event);
+          transcript = applyNativeChatEvent(transcript, event);
         }
         this.pendingEvents = null;
         this.transcript = transcript;
         this.isLoading = false;
       });
     } catch (error) {
-      log.warn('CodexChatStore: failed to load chat state', { error });
+      log.warn('NativeChatStore: failed to load chat state', { error });
       runInAction(() => {
         this.pendingEvents = null;
         this.isLoading = false;

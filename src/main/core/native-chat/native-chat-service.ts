@@ -16,12 +16,12 @@ import type { ProviderCustomConfig } from '@shared/app-settings';
 import { isNativeChatProvider, type NativeChatProviderId } from '@shared/conversation-ui';
 import type { Conversation } from '@shared/conversations';
 import { agentEventChannel, agentSessionExitedChannel } from '@shared/events/agentEvents';
-import { codexChatEventChannel, type CodexChatEvent } from '@shared/events/codexChatEvents';
 import { conversationChangedChannel } from '@shared/events/conversationEvents';
+import { nativeChatEventChannel, type NativeChatEvent } from '@shared/events/nativeChatEvents';
 import {
-  emptyCodexChatState,
-  type CodexChatItem,
-  type CodexChatState,
+  emptyNativeChatState,
+  type NativeChatItem,
+  type NativeChatState,
   type NativeChatAttachment,
 } from '@shared/native-chat';
 import { makePtyId } from '@shared/ptyId';
@@ -29,11 +29,8 @@ import { attachmentDisplayName, buildPromptWithAttachments } from './attachments
 import { buildClaudeExecCommand, isClaudeSessionId } from './claude-exec-command';
 import { createClaudeStreamParser } from './claude-exec-events';
 import { buildCodexExecCommand, isCodexThreadId } from './codex-exec-command';
-import {
-  isIgnorableCodexNotice,
-  parseCodexExecLine,
-  type CodexExecEvent,
-} from './codex-exec-events';
+import { isIgnorableCodexNotice, parseCodexExecLine } from './codex-exec-events';
+import type { NativeChatTurnEvent } from './native-exec-events';
 import { buildPiExecCommand } from './pi-exec-command';
 import { createPiStreamParser } from './pi-exec-events';
 
@@ -44,7 +41,7 @@ const INTERRUPT_KILL_TIMEOUT_MS = 5_000;
 function createTurnParser(
   providerId: NativeChatProviderId,
   itemKeyPrefix: string
-): { parseLine(line: string): CodexExecEvent[] } {
+): { parseLine(line: string): NativeChatTurnEvent[] } {
   if (providerId === 'claude') return createClaudeStreamParser(itemKeyPrefix);
   if (providerId === 'pi') return createPiStreamParser(itemKeyPrefix);
   return {
@@ -57,7 +54,7 @@ type ChatSession = {
   projectId: string;
   taskId: string;
   providerId: NativeChatProviderId;
-  items: CodexChatItem[];
+  items: NativeChatItem[];
   itemIndexByKey: Map<string, number>;
   turnStatus: 'idle' | 'running';
   lastError: string | null;
@@ -69,7 +66,7 @@ type ChatSession = {
   disposed: boolean;
 };
 
-export type StartCodexTurnParams = {
+export type StartNativeChatTurnParams = {
   conversation: Conversation;
   cwd: string;
   taskEnvVars: Record<string, string>;
@@ -87,12 +84,12 @@ export type StartCodexTurnParams = {
  * Deliberately separate from the PTY path — terminal-mode conversations never
  * touch this service.
  */
-export class CodexChatService {
+export class NativeChatService {
   private sessions = new Map<string, ChatSession>();
 
-  getState(conversationId: string): CodexChatState {
+  getState(conversationId: string): NativeChatState {
     const session = this.sessions.get(conversationId);
-    if (!session) return emptyCodexChatState(conversationId);
+    if (!session) return emptyNativeChatState(conversationId);
     return {
       conversationId,
       items: [...session.items],
@@ -112,7 +109,7 @@ export class CodexChatService {
     taskEnvVars,
     prompt,
     attachments,
-  }: StartCodexTurnParams): Promise<void> {
+  }: StartNativeChatTurnParams): Promise<void> {
     const trimmed = prompt.trim();
     const attached = attachments ?? [];
     if (!trimmed && attached.length === 0) return;
@@ -242,7 +239,7 @@ export class CodexChatService {
     }
 
     child.once('error', (error) => {
-      log.warn('CodexChatService: failed to spawn native chat turn', {
+      log.warn('NativeChatService: failed to spawn native chat turn', {
         conversationId: session.conversationId,
         error: String(error),
       });
@@ -437,7 +434,7 @@ export class CodexChatService {
     });
   }
 
-  private handleTurnEvent(session: ChatSession, event: CodexExecEvent): void {
+  private handleTurnEvent(session: ChatSession, event: NativeChatTurnEvent): void {
     switch (event.type) {
       case 'thread-started':
         this.recordThreadId(session, event.threadId);
@@ -472,14 +469,14 @@ export class CodexChatService {
         });
       })
       .catch((error) => {
-        log.warn('CodexChatService: failed to persist thread id', {
+        log.warn('NativeChatService: failed to persist thread id', {
           conversationId: session.conversationId,
           error: String(error),
         });
       });
   }
 
-  private upsertItem(session: ChatSession, item: CodexChatItem): void {
+  private upsertItem(session: ChatSession, item: NativeChatItem): void {
     const existingIndex = session.itemIndexByKey.get(item.key);
     if (existingIndex === undefined) {
       session.itemIndexByKey.set(item.key, session.items.length);
@@ -507,7 +504,7 @@ export class CodexChatService {
       session.turnDurationsMs[turnKey] = outcome.durationMs;
     }
     if (outcome.failed) {
-      session.lastError = outcome.message ?? 'Codex turn failed';
+      session.lastError = outcome.message ?? 'Native chat turn failed';
       this.emitChatEvent(session, {
         type: 'turn-failed',
         message: session.lastError,
@@ -535,8 +532,8 @@ export class CodexChatService {
     this.emitAgentEvent(session, 'stop');
   }
 
-  private emitChatEvent(session: ChatSession, event: CodexChatEvent): void {
-    events.emit(codexChatEventChannel, {
+  private emitChatEvent(session: ChatSession, event: NativeChatEvent): void {
+    events.emit(nativeChatEventChannel, {
       conversationId: session.conversationId,
       taskId: session.taskId,
       projectId: session.projectId,
@@ -561,4 +558,4 @@ export class CodexChatService {
   }
 }
 
-export const codexChatService = new CodexChatService();
+export const nativeChatService = new NativeChatService();

@@ -5,14 +5,14 @@ import { conversations } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { parseConversationConfig, serializeConversationConfig } from '@shared/conversation-config';
 import { conversationChangedChannel } from '@shared/events/conversationEvents';
-import { codexChatService } from './codex-chat-service';
+import { nativeChatService } from './native-chat-service';
 
 /**
  * Fallback path: flip a native-chat conversation back to the CLI terminal and
- * spawn its PTY session. The Codex thread id captured during native turns is
- * reused, so the terminal resumes the same Codex session.
+ * spawn its PTY session. The provider session id captured during native turns
+ * is reused, so the terminal resumes the same provider session.
  */
-export async function switchCodexChatToTerminal(
+export async function switchNativeChatToTerminalMode(
   projectId: string,
   taskId: string,
   conversationId: string
@@ -30,7 +30,7 @@ export async function switchCodexChatToTerminal(
     .limit(1);
   if (!row) throw new Error('Conversation not found');
 
-  await codexChatService.dispose(conversationId);
+  await nativeChatService.dispose(conversationId);
 
   const [freshRow] = await db
     .select({ config: conversations.config })

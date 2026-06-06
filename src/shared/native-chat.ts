@@ -5,13 +5,13 @@
  * structured streams and consumed by the renderer chat UI.
  */
 
-export type CodexChatItemStatus = 'in_progress' | 'completed' | 'failed';
+export type NativeChatItemStatus = 'in_progress' | 'completed' | 'failed';
 
-export type CodexChatFileChange = { path: string; kind: string };
+export type NativeChatFileChange = { path: string; kind: string };
 
-export type CodexChatTodoItem = { text: string; completed: boolean };
+export type NativeChatTodoItem = { text: string; completed: boolean };
 
-export type CodexChatItem =
+export type NativeChatItem =
   | { kind: 'user_message'; key: string; text: string }
   | { kind: 'agent_message'; key: string; text: string }
   | { kind: 'reasoning'; key: string; text: string }
@@ -21,27 +21,27 @@ export type CodexChatItem =
       command: string;
       aggregatedOutput: string;
       exitCode: number | null;
-      status: CodexChatItemStatus;
+      status: NativeChatItemStatus;
     }
   | {
       kind: 'file_change';
       key: string;
-      changes: CodexChatFileChange[];
-      status: CodexChatItemStatus;
+      changes: NativeChatFileChange[];
+      status: NativeChatItemStatus;
     }
   | {
       kind: 'mcp_tool_call';
       key: string;
       server: string;
       tool: string;
-      status: CodexChatItemStatus;
+      status: NativeChatItemStatus;
     }
   | { kind: 'web_search'; key: string; query: string }
-  | { kind: 'todo_list'; key: string; items: CodexChatTodoItem[] }
+  | { kind: 'todo_list'; key: string; items: NativeChatTodoItem[] }
   | { kind: 'error'; key: string; message: string }
   | { kind: 'system'; key: string; text: string };
 
-export type CodexChatTurnStatus = 'idle' | 'running';
+export type NativeChatTurnStatus = 'idle' | 'running';
 
 /**
  * Union of reasoning levels across native chat providers; what each provider
@@ -194,7 +194,7 @@ export function isCodexServiceTier(value: unknown): value is CodexServiceTier {
 }
 
 /** Per-conversation options settable from the native chat composer. */
-export type CodexChatOptions = {
+export type NativeChatOptions = {
   /** Model id/alias; null clears back to the provider's default. */
   model?: string | null;
   /** Reasoning effort; null clears back to the model default. */
@@ -214,16 +214,16 @@ export type NativeChatAttachment = {
   name?: string;
 };
 
-export type CodexChatState = {
+export type NativeChatState = {
   conversationId: string;
-  items: CodexChatItem[];
-  turnStatus: CodexChatTurnStatus;
+  items: NativeChatItem[];
+  turnStatus: NativeChatTurnStatus;
   /** Message of the most recent failed turn; cleared when a new turn starts. */
   lastError: string | null;
   /** Wall-clock duration of finished turns, keyed by turn key (e.g. "t3"). */
   turnDurationsMs: Record<string, number>;
 };
 
-export function emptyCodexChatState(conversationId: string): CodexChatState {
+export function emptyNativeChatState(conversationId: string): NativeChatState {
   return { conversationId, items: [], turnStatus: 'idle', lastError: null, turnDurationsMs: {} };
 }

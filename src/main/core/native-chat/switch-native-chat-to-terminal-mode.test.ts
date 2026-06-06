@@ -13,8 +13,8 @@ const mocks = vi.hoisted(() => ({
   updateWhere: vi.fn(),
 }));
 
-vi.mock('./codex-chat-service', () => ({
-  codexChatService: { dispose: mocks.dispose },
+vi.mock('./native-chat-service', () => ({
+  nativeChatService: { dispose: mocks.dispose },
 }));
 
 vi.mock('@main/core/conversations/hydrateConversation', () => ({
@@ -32,7 +32,7 @@ vi.mock('@main/db/client', () => ({
   },
 }));
 
-import { switchCodexChatToTerminal } from './switch-codex-chat-to-terminal';
+import { switchNativeChatToTerminalMode } from './switch-native-chat-to-terminal-mode';
 
 function setupDb(config = JSON.stringify({ uiMode: 'native-chat' })) {
   mocks.selectLimit.mockResolvedValue([{ config }]);
@@ -45,7 +45,7 @@ function setupDb(config = JSON.stringify({ uiMode: 'native-chat' })) {
   mocks.update.mockReturnValue({ set: mocks.updateSet });
 }
 
-describe('switchCodexChatToTerminal', () => {
+describe('switchNativeChatToTerminalMode', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setupDb();
@@ -74,7 +74,7 @@ describe('switchCodexChatToTerminal', () => {
       })
     );
 
-    const switching = switchCodexChatToTerminal('project-1', 'task-1', 'conv-1');
+    const switching = switchNativeChatToTerminalMode('project-1', 'task-1', 'conv-1');
     await Promise.resolve();
 
     expect(mocks.select).toHaveBeenCalled();

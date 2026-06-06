@@ -53,7 +53,7 @@ describe('native-chat-slash-menu', () => {
     });
   });
 
-  it('adds installed skills as provider-specific prompt insertions', () => {
+  it('adds installed skills as provider-neutral prompt insertions', () => {
     const entries = buildNativeChatSlashEntries({
       providerId: 'claude',
       currentModel: undefined,
@@ -63,7 +63,7 @@ describe('native-chat-slash-menu', () => {
     expect(skillEntry).toMatchObject({
       group: 'skill-shared',
       label: 'Impeccable',
-      action: { type: 'insert', text: 'Use the Impeccable skill for this Claude Code task.' },
+      action: { type: 'insert', text: 'Use the Impeccable skill for this task.' },
     });
   });
 

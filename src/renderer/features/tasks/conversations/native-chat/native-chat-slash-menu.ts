@@ -5,7 +5,7 @@ import {
   CODEX_CHAT_MODEL_OPTIONS,
   CODEX_EFFORT_OPTIONS,
   PI_CHAT_MODEL_OPTIONS,
-  type CodexChatOptions,
+  type NativeChatOptions,
 } from '@shared/native-chat';
 import type { CatalogSkill } from '@shared/skills/types';
 
@@ -28,7 +28,7 @@ export type NativeChatSlashEntry =
       label: string;
       detail?: string;
       keywords?: string[];
-      action: { type: 'set-options'; options: CodexChatOptions };
+      action: { type: 'set-options'; options: NativeChatOptions };
     }
   | {
       id: string;
@@ -95,14 +95,12 @@ export function filterNativeChatSlashEntries(
   });
 }
 
-function skillPrompt(skill: CatalogSkill, providerId: NativeChatProviderId): string {
+function skillPrompt(skill: CatalogSkill): string {
   const defaultPrompt = skill.defaultPrompt?.trim();
   if (defaultPrompt) return defaultPrompt;
 
   const name = skill.displayName || skill.installId || skill.id;
-  if (providerId === 'claude') return `Use the ${name} skill for this Claude Code task.`;
-  if (providerId === 'pi') return `Use the ${name} skill for this Pi run.`;
-  return `Use the ${name} skill for this Codex task.`;
+  return `Use the ${name} skill for this task.`;
 }
 
 function skillCompatibilityText(skill: CatalogSkill): string {
@@ -261,7 +259,7 @@ export function buildNativeChatSlashEntries({
         label: skill.displayName,
         detail: skillDetail(skill, group),
         keywords: ['skill', skill.id, skill.installId ?? '', ...affinities],
-        action: { type: 'insert', text: skillPrompt(skill, providerId) },
+        action: { type: 'insert', text: skillPrompt(skill) },
       };
     })
     .sort((a, b) => {

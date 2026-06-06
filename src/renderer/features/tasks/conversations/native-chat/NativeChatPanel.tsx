@@ -40,7 +40,7 @@ import {
   CODEX_CHAT_MODEL_OPTIONS,
   CODEX_EFFORT_OPTIONS,
   PI_CHAT_MODEL_OPTIONS,
-  type CodexChatOptions,
+  type NativeChatOptions,
   type CodexServiceTier,
   type NativeChatAttachment,
   type NativeChatEffortOption,
@@ -48,9 +48,6 @@ import {
   type NativeChatReasoningEffort,
 } from '@shared/native-chat';
 import type { CatalogSkill } from '@shared/skills/types';
-import { CodexChatStore } from './codex-chat-store';
-import { groupChatItems, turnKeyOf } from './codex-chat-transcript';
-import { ActivityGroupView, ChatItemView } from './CodexChatItemView';
 import {
   buildNativeChatSlashEntries,
   filterNativeChatSlashEntries,
@@ -58,6 +55,9 @@ import {
   replaceSlashTrigger,
   type NativeChatSlashEntry,
 } from './native-chat-slash-menu';
+import { NativeChatStore } from './native-chat-store';
+import { groupChatItems, turnKeyOf } from './native-chat-transcript';
+import { ActivityGroupView, ChatItemView } from './NativeChatItemView';
 
 const SCROLL_STICK_THRESHOLD_PX = 48;
 const COLUMN = 'mx-auto w-full max-w-[44rem]';
@@ -108,6 +108,12 @@ const PROVIDER_MENU_OPTIONS: Record<
     },
   },
 };
+
+function assertNativeChatProvider(providerId: string): asserts providerId is NativeChatProviderId {
+  if (!isNativeChatProvider(providerId)) {
+    throw new Error(`Native chat is not supported for provider: ${providerId}`);
+  }
+}
 
 function OptionItemContent({ label, description }: { label: string; description?: string }) {
   return (
@@ -161,7 +167,7 @@ function ModelOptionsMenu({
   reasoningEffort: NativeChatReasoningEffort | undefined;
   serviceTier: CodexServiceTier | undefined;
   autoApprove: boolean | undefined;
-  onChange: (options: CodexChatOptions) => void;
+  onChange: (options: NativeChatOptions) => void;
 }) {
   const menu = PROVIDER_MENU_OPTIONS[providerId];
   // Fall back to the raw id for values persisted before the curated lists changed.
@@ -292,31 +298,9 @@ function WorkingIndicator() {
   );
 }
 
-const EMPTY_STATE_CONTENT: Record<
-  NativeChatProviderId,
-  { heading: string; body: string; logoClass: string }
-> = {
-  codex: {
-    heading: 'Ask Codex for a precise change',
-    body: 'Good for focused edits, code review, and quick follow-ups in this worktree.',
-    logoClass: 'h-8 w-8 opacity-90',
-  },
-  claude: {
-    heading: 'Hand Claude Code a focused task',
-    body: 'Good for broad refactors, careful explanations, and multi-step implementation.',
-    logoClass: 'h-8 w-8 opacity-95',
-  },
-  pi: {
-    heading: 'Start a lightweight Pi run',
-    body: 'Good for routed model work and tool-based changes without extra terminal chrome.',
-    logoClass: 'h-8 w-8 opacity-95',
-  },
-};
-
 function ChatEmptyState({ providerId }: { providerId: NativeChatProviderId }) {
   const meta = agentMeta[providerId];
   const label = meta.label;
-  const content = EMPTY_STATE_CONTENT[providerId];
   return (
     <div className="flex h-full min-h-0 flex-col items-center justify-center px-6">
       {meta.icon && (
@@ -326,12 +310,14 @@ function ChatEmptyState({ providerId }: { providerId: NativeChatProviderId }) {
           alt={meta.alt ?? label}
           isSvg={meta.isSvg}
           invertInDark={meta.invertInDark}
-          className={content.logoClass}
+          className="h-8 w-8 opacity-95"
         />
       )}
       <div className="mt-4 flex max-w-xs flex-col items-center gap-1.5 text-center">
-        <div className="text-sm font-medium text-foreground">{content.heading}</div>
-        <p className="text-xs leading-relaxed text-foreground-passive">{content.body}</p>
+        <div className="text-sm font-medium text-foreground">Start a focused task</div>
+        <p className="text-xs leading-relaxed text-foreground-passive">
+          {label} will run in this worktree and stream progress here.
+        </p>
       </div>
     </div>
   );
@@ -403,18 +389,17 @@ function SlashMenu({
   );
 }
 
-export const CodexChatPanel = observer(function CodexChatPanel({
+export const NativeChatPanel = observer(function NativeChatPanel({
   conversation,
 }: {
   conversation: ConversationStore;
 }) {
   const { id: conversationId, projectId, taskId, providerId } = conversation.data;
-  const nativeProviderId: NativeChatProviderId = isNativeChatProvider(providerId)
-    ? providerId
-    : 'codex';
+  assertNativeChatProvider(providerId);
+  const nativeProviderId: NativeChatProviderId = providerId;
   const providerLabel = agentMeta[nativeProviderId].label;
   const store = useMemo(
-    () => new CodexChatStore(projectId, taskId, conversationId),
+    () => new NativeChatStore(projectId, taskId, conversationId),
     [projectId, taskId, conversationId]
   );
   useEffect(() => () => store.dispose(), [store]);

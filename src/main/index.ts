@@ -14,11 +14,11 @@ import { agentHookService } from './core/agent-hooks/agent-hook-service';
 import { appService } from './core/app/service';
 import { automationEvents } from './core/automations/automation-events';
 import { automationScheduler } from './core/automations/automation-scheduler';
-import { codexChatService } from './core/codex-chat/codex-chat-service';
 import { localDependencyManager } from './core/dependencies/dependency-manager';
 import { editorBufferService } from './core/editor/editor-buffer-service';
 import { gitWatcherRegistry } from './core/git/git-watcher-registry';
 import { githubConnectionService } from './core/github/services/github-connection-service';
+import { nativeChatService } from './core/native-chat/native-chat-service';
 import { projectManager } from './core/projects/project-manager';
 import { projectSettingsService } from './core/projects/settings/project-settings-service';
 import { promptLibraryService } from './core/prompt-library/service';
@@ -177,7 +177,7 @@ app.on('before-quit', (event) => {
   void telemetryService.dispose().finally(() => {
     void (async () => {
       automationScheduler.stop();
-      await codexChatService.disposeAll();
+      await nativeChatService.disposeAll();
       agentHookService.dispose();
       stopResourceSampler();
       updateService.dispose();

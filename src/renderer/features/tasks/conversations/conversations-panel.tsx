@@ -19,10 +19,10 @@ import { Button } from '@renderer/lib/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { log } from '@renderer/utils/logger';
 import { isNativeChatProvider } from '@shared/conversation-ui';
-import { CodexChatPanel } from './codex-chat/CodexChatPanel';
 import { ContextBar } from './context-bar';
 import type { ConversationStore } from './conversation-manager';
 import { resolveConversationSurface } from './conversation-surface';
+import { NativeChatPanel } from './native-chat/NativeChatPanel';
 
 export const ConversationsPanel = observer(function ConversationsPanel() {
   const { tabManager: tm } = useTabGroupContext();
@@ -30,7 +30,7 @@ export const ConversationsPanel = observer(function ConversationsPanel() {
   const surface = resolveConversationSurface(activeConversation?.data);
 
   if (surface === 'native-chat' && activeConversation) {
-    return <CodexChatPanel conversation={activeConversation} />;
+    return <NativeChatPanel conversation={activeConversation} />;
   }
   return <TerminalConversationsPanel />;
 });
@@ -50,7 +50,7 @@ function SwitchToNativeChatButton({
   const handleSwitch = async () => {
     setIsSwitching(true);
     try {
-      await rpc.codexChat.switchToNativeChat(projectId, taskId, conversationId);
+      await rpc.nativeChat.switchToNativeChat(projectId, taskId, conversationId);
     } catch (error) {
       log.warn('SwitchToNativeChatButton: failed to switch to native chat', { error });
       setIsSwitching(false);

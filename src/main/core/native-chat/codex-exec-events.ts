@@ -1,4 +1,5 @@
-import type { CodexChatItem } from '@shared/native-chat';
+import type { NativeChatItem } from '@shared/native-chat';
+import { IGNORED_NATIVE_CHAT_TURN_EVENT, type NativeChatTurnEvent } from './native-exec-events';
 
 /**
  * Parsed event from one JSONL line of `codex exec --json`.
@@ -14,16 +15,7 @@ import type { CodexChatItem } from '@shared/native-chat';
  * Unknown event and item types are ignored so newer Codex versions degrade
  * gracefully instead of breaking the transcript.
  */
-export type CodexExecEvent =
-  | { type: 'thread-started'; threadId: string }
-  | { type: 'turn-started' }
-  | { type: 'item'; item: CodexChatItem }
-  | { type: 'turn-completed' }
-  | { type: 'turn-failed'; message: string }
-  | { type: 'error'; message: string }
-  | { type: 'ignored' };
-
-const IGNORED: CodexExecEvent = { type: 'ignored' };
+const IGNORED = IGNORED_NATIVE_CHAT_TURN_EVENT;
 
 function asString(value: unknown): string | undefined {
   return typeof value === 'string' ? value : undefined;
@@ -55,7 +47,7 @@ export function isIgnorableCodexNotice(message: string): boolean {
  * the whole conversation; Codex item ids restart at `item_0` every turn, so
  * callers pass a turn-scoped prefix.
  */
-export function mapCodexExecItem(raw: Record<string, unknown>, key: string): CodexChatItem | null {
+export function mapCodexExecItem(raw: Record<string, unknown>, key: string): NativeChatItem | null {
   const type = asString(raw.type);
   switch (type) {
     case 'agent_message':
@@ -111,7 +103,7 @@ export function mapCodexExecItem(raw: Record<string, unknown>, key: string): Cod
 }
 
 /** Parse one JSONL line from `codex exec --json`. Never throws. */
-export function parseCodexExecLine(line: string, itemKeyPrefix: string): CodexExecEvent {
+export function parseCodexExecLine(line: string, itemKeyPrefix: string): NativeChatTurnEvent {
   const trimmed = line.trim();
   if (!trimmed) return IGNORED;
 

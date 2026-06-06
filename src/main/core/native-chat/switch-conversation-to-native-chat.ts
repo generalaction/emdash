@@ -9,12 +9,12 @@ import { conversationChangedChannel } from '@shared/events/conversationEvents';
 import { resolveNativeChatTarget } from './resolve-native-chat-target';
 
 /**
- * Flip a terminal-mode Codex conversation to the native chat surface: stop the
+ * Flip a terminal-mode conversation to the native chat surface: stop the
  * PTY session, persist the mode, and let the renderer re-route. If the TUI
- * session id was captured via hooks, native turns resume the same Codex
+ * session id was captured via hooks, native turns resume the same provider
  * session; the terminal transcript itself is not imported.
  */
-export async function switchCodexChatToNative(
+export async function switchConversationToNativeChat(
   projectId: string,
   taskId: string,
   conversationId: string

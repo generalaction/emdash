@@ -1,5 +1,5 @@
-import type { CodexChatItem } from '@shared/native-chat';
-import type { CodexExecEvent } from './codex-exec-events';
+import type { NativeChatItem } from '@shared/native-chat';
+import type { NativeChatTurnEvent } from './native-exec-events';
 
 /**
  * Stateful parser for one `claude -p --output-format stream-json --verbose`
@@ -15,10 +15,10 @@ import type { CodexExecEvent } from './codex-exec-events';
  * item key. Unknown events (hooks, rate limits) are ignored.
  */
 export type ClaudeStreamParser = {
-  parseLine(line: string): CodexExecEvent[];
+  parseLine(line: string): NativeChatTurnEvent[];
 };
 
-type PendingTool = { item: CodexChatItem };
+type PendingTool = { item: NativeChatItem };
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
   return typeof value === 'object' && value !== null
@@ -56,7 +56,7 @@ export function createClaudeStreamParser(itemKeyPrefix: string): ClaudeStreamPar
 
   const nextKey = () => `${itemKeyPrefix}:b${blockSeq++}`;
 
-  function mapToolUse(block: Record<string, unknown>): CodexChatItem | null {
+  function mapToolUse(block: Record<string, unknown>): NativeChatItem | null {
     const name = asString(block.name) ?? '';
     const input = asRecord(block.input) ?? {};
     const key = nextKey();
@@ -110,7 +110,7 @@ export function createClaudeStreamParser(itemKeyPrefix: string): ClaudeStreamPar
     return { kind: 'mcp_tool_call', key, server: '', tool: name, status: 'in_progress' };
   }
 
-  function completeTool(block: Record<string, unknown>): CodexExecEvent[] {
+  function completeTool(block: Record<string, unknown>): NativeChatTurnEvent[] {
     const toolUseId = asString(block.tool_use_id);
     const pending = toolUseId ? pendingTools.get(toolUseId) : undefined;
     if (!toolUseId || !pending) return [];
@@ -137,9 +137,9 @@ export function createClaudeStreamParser(itemKeyPrefix: string): ClaudeStreamPar
     return [];
   }
 
-  function mapAssistantBlocks(content: unknown): CodexExecEvent[] {
+  function mapAssistantBlocks(content: unknown): NativeChatTurnEvent[] {
     if (!Array.isArray(content)) return [];
-    const events: CodexExecEvent[] = [];
+    const events: NativeChatTurnEvent[] = [];
     for (const rawBlock of content) {
       const block = asRecord(rawBlock);
       if (!block) continue;
@@ -175,7 +175,7 @@ export function createClaudeStreamParser(itemKeyPrefix: string): ClaudeStreamPar
   }
 
   return {
-    parseLine(line: string): CodexExecEvent[] {
+    parseLine(line: string): NativeChatTurnEvent[] {
       const trimmed = line.trim();
       if (!trimmed) return [];
 

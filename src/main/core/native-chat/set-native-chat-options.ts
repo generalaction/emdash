@@ -8,19 +8,19 @@ import {
   isCodexServiceTier,
   isNativeChatReasoningEffort,
   isValidNativeChatModelId,
-  type CodexChatOptions,
+  type NativeChatOptions,
 } from '@shared/native-chat';
 
 /**
- * Persist per-conversation Codex options (model, reasoning effort) used by
+ * Persist per-conversation options (model, reasoning effort) used by
  * native chat turns. A null field clears back to the default; an absent field
  * is left untouched.
  */
-export async function setCodexChatOptions(
+export async function setNativeChatOptions(
   projectId: string,
   taskId: string,
   conversationId: string,
-  options: CodexChatOptions
+  options: NativeChatOptions
 ): Promise<void> {
   if (options.model != null && !isValidNativeChatModelId(options.model)) {
     throw new Error(`Invalid model id: ${String(options.model)}`);

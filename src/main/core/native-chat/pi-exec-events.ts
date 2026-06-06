@@ -1,5 +1,5 @@
-import type { CodexChatItem } from '@shared/native-chat';
-import type { CodexExecEvent } from './codex-exec-events';
+import type { NativeChatItem } from '@shared/native-chat';
+import type { NativeChatTurnEvent } from './native-exec-events';
 
 /**
  * Stateful parser for one `pi --mode json --print` turn.
@@ -13,10 +13,10 @@ import type { CodexExecEvent } from './codex-exec-events';
  *   {"type":"agent_end",...}
  */
 export type PiStreamParser = {
-  parseLine(line: string): CodexExecEvent[];
+  parseLine(line: string): NativeChatTurnEvent[];
 };
 
-type PendingTool = { item: CodexChatItem };
+type PendingTool = { item: NativeChatItem };
 type StreamBlockKind = 'agent_message' | 'reasoning';
 type StreamBlock = { key: string; kind: StreamBlockKind; text: string };
 
@@ -60,7 +60,11 @@ function filePathFromArgs(args: Record<string, unknown>): string | undefined {
   );
 }
 
-function mapToolStart(key: string, toolName: string, args: Record<string, unknown>): CodexChatItem {
+function mapToolStart(
+  key: string,
+  toolName: string,
+  args: Record<string, unknown>
+): NativeChatItem {
   const path = filePathFromArgs(args);
   switch (toolName) {
     case 'bash':
@@ -92,10 +96,10 @@ function mapToolStart(key: string, toolName: string, args: Record<string, unknow
 }
 
 function completeToolItem(
-  item: CodexChatItem,
+  item: NativeChatItem,
   result: unknown,
   failed: boolean
-): CodexChatItem | null {
+): NativeChatItem | null {
   if (item.kind === 'command_execution') {
     const record = asRecord(result);
     const exitCode =
@@ -135,7 +139,7 @@ export function createPiStreamParser(itemKeyPrefix: string): PiStreamParser {
     return block;
   }
 
-  function mapMessageUpdate(event: Record<string, unknown>): CodexExecEvent[] {
+  function mapMessageUpdate(event: Record<string, unknown>): NativeChatTurnEvent[] {
     const update = asRecord(event.assistantMessageEvent);
     if (!update) return [];
     const updateType = asString(update.type);
@@ -170,7 +174,7 @@ export function createPiStreamParser(itemKeyPrefix: string): PiStreamParser {
   }
 
   return {
-    parseLine(line: string): CodexExecEvent[] {
+    parseLine(line: string): NativeChatTurnEvent[] {
       const trimmed = line.trim();
       if (!trimmed) return [];
 
