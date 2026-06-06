@@ -32,7 +32,7 @@ a serialized non-JSON value), a versioned schema is not necessary.
 
 | File | Purpose |
 |------|---------|
-| `src/shared/lib/versioned-schema.ts` | Core utility: `VersionedSchema`, `defineVersionedSchema`, `ParseResult` |
+| `src/shared/lib/versioned-schema/versioned-schema.ts` | Core utility: `VersionedSchema`, `defineVersionedSchema`, `ParseResult` |
 | `src/main/db/versioned-column.ts` | Drizzle integration: `versionedJsonColumn`, `parseVersionedColumn`, `serializeVersionedColumn` |
 
 ## Defining a versioned schema

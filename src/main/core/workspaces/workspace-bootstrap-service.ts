@@ -13,8 +13,6 @@ import { err, ok, type Result } from '@shared/result';
 import type { Task, ProvisionWorkspaceError } from '@shared/tasks';
 import type { WorkspaceConfig } from '@shared/workspace-config';
 import type { WorkspaceProviderData } from '@shared/workspace-provider-data';
-
-export type { WorkspaceProviderData };
 import { compileSetupSpec } from '@shared/workspace-setup-spec';
 import type { WorkspaceType } from '@shared/workspaces';
 import { deriveBranchName, resolveWorkspaceIntent } from '../tasks/resolve-workspace-intent';
