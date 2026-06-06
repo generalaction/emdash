@@ -106,7 +106,7 @@ export const AutomationRow = observer(function AutomationRow({
                 <cfg.Icon
                   className={cn('size-3.5 shrink-0', cfg.textClass, cfg.spin && 'animate-spin')}
                 />
-                Latest run on
+                Last run on
                 {time && (
                   <AbsoluteTime value={time} className="text-foreground-muted" />
                 )}

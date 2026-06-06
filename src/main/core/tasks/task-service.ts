@@ -70,10 +70,12 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
   }
 
   /** Fires the task:created hook and event. Call this after committing a task insert
-   *  that was performed outside of `createTask` (e.g. inside an external transaction). */
-  notifyTaskCreated(task: Task, params: CreateTaskParams): void {
+   *  that was performed outside of `createTask` (e.g. inside an external transaction).
+   *  Pass `runId` when the task was created by an automation run so the renderer can
+   *  suppress it from the sidebar immediately without waiting for a full task refresh. */
+  notifyTaskCreated(task: Task, params: CreateTaskParams, runId?: string): void {
     this._hooks.callHookBackground('task:created', task, params);
-    events.emit(taskCreatedChannel, { task });
+    events.emit(taskCreatedChannel, { task, runId });
   }
 
   /**

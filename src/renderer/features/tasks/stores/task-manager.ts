@@ -143,10 +143,10 @@ export class TaskManagerStore {
     this._baseRef = baseRef;
     makeObservable(this, { tasks: observable });
 
-    this._unsubTaskCreated = events.on(taskCreatedChannel, ({ task }) => {
+    this._unsubTaskCreated = events.on(taskCreatedChannel, ({ task, runId }) => {
       if (task.projectId !== this.projectId || this.tasks.has(task.id)) return;
       runInAction(() => {
-        this.tasks.set(task.id, createUnprovisionedTask(task));
+        this.tasks.set(task.id, createUnprovisionedTask({ ...task, runId }));
         // Acquire conversation/terminal managers inside the same action so the
         // WorkspaceViewModel's reaction on `conversations.size` registers the
         // manager's observable map as a dependency on its first evaluation.

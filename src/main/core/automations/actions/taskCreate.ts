@@ -159,7 +159,7 @@ export async function executeTaskCreate(
     });
 
     const createSuccess = finalizeCreateTask(prepared.data, taskRow, convRow);
-    taskService.notifyTaskCreated(createSuccess.task, createTaskParams);
+    taskService.notifyTaskCreated(createSuccess.task, createTaskParams, run.id);
 
     const launching = await markRunLaunchingTask(run.id, taskId, Date.now());
     onStepCompleted(launching);

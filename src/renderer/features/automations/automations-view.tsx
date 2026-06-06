@@ -3,7 +3,13 @@ import { Titlebar } from '@renderer/lib/components/titlebar/Titlebar';
 import { AutomationsBreadcrumb } from './components/AutomationsBreadcrumb';
 import { AutomationsView } from './components/AutomationsView';
 
-export function AutomationsViewWrapper({ children }: { children: ReactNode }) {
+export function AutomationsViewWrapper({
+  children,
+  automationId: _automationId,
+}: {
+  children: ReactNode;
+  automationId?: string;
+}) {
   return <>{children}</>;
 }
 

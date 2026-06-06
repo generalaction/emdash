@@ -1,28 +1,30 @@
 import { useState } from 'react';
+import { useNavigate, useParams } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Sheet, SheetContent } from '@renderer/lib/ui/sheet';
-import type { Automation, BuiltinAutomationTemplate } from '@shared/automations/automation';
+import type { Automation } from '@shared/automations/automation';
 import { useAutomations } from '../use-automations';
 import { AutomationDetailView } from './AutomationDetailView';
 import { AutomationsHeader } from './AutomationsHeader';
 import { AutomationsList } from './AutomationsList';
 import { CreateAutomationView } from './CreateAutomationView';
 
-type PanelState =
-  | { kind: 'create'; template?: BuiltinAutomationTemplate }
-  | { kind: 'edit'; automation: Automation }
-  | null;
-
 export function AutomationsView() {
   const { automations, toggleEnabled, destroy } = useAutomations();
   const [search, setSearch] = useState('');
-  const [panel, setPanel] = useState<PanelState>(null);
+  const [creating, setCreating] = useState(false);
   const showConfirm = useShowModal('confirmActionModal');
+  const { navigate } = useNavigate();
+  const { params, setParams } = useParams('automations');
 
-  const liveAutomation =
-    panel?.kind === 'edit'
-      ? (automations.data?.find((a) => a.id === panel.automation.id) ?? panel.automation)
-      : null;
+  const liveAutomation = params.automationId
+    ? (automations.data?.find((a) => a.id === params.automationId) ?? null)
+    : null;
+
+  function closeSheet() {
+    setParams({ automationId: undefined });
+    setCreating(false);
+  }
 
   function handleToggleEnabled(automation: Automation, enabled: boolean) {
     void toggleEnabled.mutateAsync({ id: automation.id, enabled });
@@ -34,7 +36,7 @@ export function AutomationsView() {
       description: `"${automation.name}" will be permanently deleted. Run history will be preserved.`,
       confirmLabel: 'Delete',
       onSuccess: () => {
-        void destroy.mutateAsync(automation.id).then(() => setPanel(null));
+        void destroy.mutateAsync(automation.id).then(() => closeSheet());
       },
     });
   }
@@ -48,25 +50,25 @@ export function AutomationsView() {
               search={search}
               onSearchChange={setSearch}
               createPending={false}
-              onNewAutomation={() => setPanel({ kind: 'create' })}
+              onNewAutomation={() => setCreating(true)}
             />
             <AutomationsList
               automations={automations.data ?? []}
-              onEdit={(automation) => setPanel({ kind: 'edit', automation })}
+              onEdit={(automation) => navigate('automations', { automationId: automation.id })}
               onToggleEnabled={handleToggleEnabled}
             />
           </div>
         </div>
       </div>
-      <Sheet open={panel !== null} onOpenChange={(open) => !open && setPanel(null)}>
+      <Sheet open={liveAutomation !== null || creating} onOpenChange={(open) => !open && closeSheet()}>
         <SheetContent showCloseButton={false}>
-          {panel?.kind === 'create' && (
-            <CreateAutomationView onClose={() => setPanel(null)} onSaved={() => setPanel(null)} />
+          {creating && (
+            <CreateAutomationView onClose={closeSheet} onSaved={closeSheet} />
           )}
-          {panel?.kind === 'edit' && liveAutomation && (
+          {liveAutomation && (
             <AutomationDetailView
               automation={liveAutomation}
-              onClose={() => setPanel(null)}
+              onClose={closeSheet}
               onDelete={handleDelete}
               onToggleEnabled={handleToggleEnabled}
             />

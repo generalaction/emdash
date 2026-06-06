@@ -61,7 +61,7 @@ export const AutomationDetailView = observer(function AutomationDetailView({
       <SheetHeader title="Automation details" onClose={onClose} />
       <div className="flex flex-col gap-2 px-4">
         <div className="flex w-full items-center justify-between gap-2">
-          <div className="flex flex-row items-center gap-3">
+          <div className="flex flex-1 flex-row items-center gap-3">
             <EditableNameField
               autoFocus={false}
               value={name}
@@ -71,7 +71,7 @@ export const AutomationDetailView = observer(function AutomationDetailView({
               className="flex-1"
             />
           </div>
-          <div>
+          <div className="flex items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger render={<Button variant="ghost" size="sm" />}>
                 <Ellipsis className="size-4" />
