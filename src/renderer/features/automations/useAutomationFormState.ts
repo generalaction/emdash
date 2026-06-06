@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { isValidProviderId } from '@shared/agent-provider-registry';
-import type { Automation } from '@shared/automations/automation';
+import type { Automation, BuiltinAutomationTemplate } from '@shared/automations/automation';
 import type { StoredAutomationTaskConfig, TriggerConfig } from '@shared/automations/config';
 import { DEFAULT_SCHEDULE, scheduleToCron } from '@shared/automations/schedule';
 import { getLocalTimeZone } from '@shared/automations/timezone';
@@ -56,16 +56,18 @@ export function plainBranch(branch: Branch): Branch {
 
 export type AutomationFormState = ReturnType<typeof useAutomationFormState>;
 
-export function useAutomationFormState(seed?: Automation) {
+export function useAutomationFormState(seed?: Automation, template?: BuiltinAutomationTemplate) {
   const seedTrigger = seed?.triggerConfig;
   const seedConversationConfig = seed?.conversationConfig;
   const seedConfig = seed?.taskConfig;
 
-  const [name, setName] = useState(seed?.name ?? '');
+  const [name, setName] = useState(seed?.name ?? template?.name ?? '');
   const [projectId, setProjectId] = useState<string | undefined>(
     seed?.projectId ?? firstMountedProjectId()
   );
-  const [cronExpr, setCronExpr] = useState<string>(seedTrigger?.expr ?? DEFAULT_CRON);
+  const [cronExpr, setCronExpr] = useState<string>(
+    seedTrigger?.expr ?? template?.defaultTrigger.expr ?? DEFAULT_CRON
+  );
   const [cronTz] = useState<string>(seedTrigger?.tz ?? getLocalTimeZone());
   const [useBYOI, setUseBYOI] = useState(() => {
     const ws = seedConfig?.workspaceConfig.workspace;
@@ -79,13 +81,13 @@ export function useAutomationFormState(seed?: Automation) {
     ? seedConversationConfig?.provider
     : undefined;
 
-  const initialConversation = useInitialConversationState(effectiveProjectId, seedProvider);
-
-  const [promptSeeded, setPromptSeeded] = useState(false);
-  if (!promptSeeded && seedConversationConfig?.prompt) {
-    setPromptSeeded(true);
-    initialConversation.setPrompt(seedConversationConfig.prompt);
-  }
+  const seedPrompt =
+    seedConversationConfig?.prompt ?? template?.defaultConversationConfig.initialPrompt ?? '';
+  const initialConversation = useInitialConversationState(
+    effectiveProjectId,
+    seedProvider,
+    seedPrompt
+  );
 
   const repo = effectiveProjectId ? getRepositoryStore(effectiveProjectId) : undefined;
   const defaultBranch = repo?.defaultBranch;

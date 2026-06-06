@@ -1,18 +1,25 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { Sheet, SheetContent } from '@renderer/lib/ui/sheet';
-import type { Automation } from '@shared/automations/automation';
+import type { Automation, BuiltinAutomationTemplate } from '@shared/automations/automation';
 import { useAutomations } from '../use-automations';
 import { AutomationDetailView } from './AutomationDetailView';
 import { AutomationsHeader } from './AutomationsHeader';
 import { AutomationsList } from './AutomationsList';
+import { AutomationTemplateGallery } from './AutomationTemplateGallery';
 import { CreateAutomationView } from './CreateAutomationView';
+
+type SheetState =
+  | { kind: 'create'; template: BuiltinAutomationTemplate | null }
+  | { kind: 'edit'; automationId: string }
+  | null;
 
 export function AutomationsView() {
   const { automations, toggleEnabled, destroy } = useAutomations();
   const [search, setSearch] = useState('');
-  const [creating, setCreating] = useState(false);
+  const [sheetState, setSheetState] = useState<SheetState>(null);
   const showConfirm = useShowModal('confirmActionModal');
   const { navigate } = useNavigate();
   const { params, setParams } = useParams('automations');
@@ -23,13 +30,30 @@ export function AutomationsView() {
     [automations.data, search]
   );
 
-  const liveAutomation = params.automationId
-    ? (automations.data?.find((a) => a.id === params.automationId) ?? null)
-    : null;
+  const hasAutomations = (automations.data?.length ?? 0) > 0;
+
+  const sheetAutomationId =
+    sheetState?.kind === 'edit' ? sheetState.automationId : params.automationId;
+  const liveAutomation =
+    sheetState?.kind === 'create'
+      ? null
+      : sheetAutomationId
+        ? (automations.data?.find((a) => a.id === sheetAutomationId) ?? null)
+        : null;
+
+  function openCreate(template: BuiltinAutomationTemplate | null) {
+    setParams({ automationId: undefined });
+    setSheetState({ kind: 'create', template });
+  }
+
+  function openEdit(automation: Automation) {
+    setSheetState({ kind: 'edit', automationId: automation.id });
+    navigate('automations', { automationId: automation.id });
+  }
 
   function closeSheet() {
     setParams({ automationId: undefined });
-    setCreating(false);
+    setSheetState(null);
   }
 
   function handleToggleEnabled(automation: Automation, enabled: boolean) {
@@ -56,22 +80,47 @@ export function AutomationsView() {
               search={search}
               onSearchChange={setSearch}
               createPending={false}
-              onNewAutomation={() => setCreating(true)}
+              onNewAutomation={() => openCreate(null)}
             />
-            <AutomationsList
-              automations={effectiveAutomations}
-              onEdit={(automation) => navigate('automations', { automationId: automation.id })}
-              onToggleEnabled={handleToggleEnabled}
-            />
+            {hasAutomations && effectiveAutomations.length === 0 ? (
+              <EmptyState
+                label="No matches"
+                description="No automations match your search."
+                className="min-h-32 py-8"
+              />
+            ) : (
+              <AutomationsList
+                automations={effectiveAutomations}
+                onEdit={openEdit}
+                onToggleEnabled={handleToggleEnabled}
+              />
+            )}
+            {!hasAutomations && automations.isSuccess && (
+              <EmptyState
+                label="No automations yet"
+                description="Run agents on a schedule. Start from a template below or create your own."
+                className="min-h-32 py-8"
+              />
+            )}
+            <div className="mt-8">
+              <AutomationTemplateGallery onSelectTemplate={(template) => openCreate(template)} />
+            </div>
           </div>
         </div>
       </div>
       <Sheet
-        open={liveAutomation !== null || creating}
+        open={liveAutomation !== null || sheetState?.kind === 'create'}
         onOpenChange={(open) => !open && closeSheet()}
       >
         <SheetContent showCloseButton={false}>
-          {creating && <CreateAutomationView onClose={closeSheet} onSaved={closeSheet} />}
+          {sheetState?.kind === 'create' && (
+            <CreateAutomationView
+              key={sheetState.template?.id ?? 'scratch'}
+              template={sheetState.template ?? undefined}
+              onClose={closeSheet}
+              onSaved={closeSheet}
+            />
+          )}
           {liveAutomation && (
             <AutomationDetailView
               automation={liveAutomation}

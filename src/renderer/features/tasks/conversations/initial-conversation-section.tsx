@@ -32,18 +32,19 @@ export type InitialConversationState = {
 
 export function useInitialConversationState(
   projectId?: string,
-  initialProvider?: AgentProviderId
+  initialProvider?: AgentProviderId,
+  initialPrompt = ''
 ): InitialConversationState {
   const connectionId = projectId ? getProjectSshConnectionId(projectId) : undefined;
   const { providerId, setProviderOverride } = useEffectiveProvider(connectionId, initialProvider);
-  const [prompt, setPrompt] = useState('');
+  const [prompt, setPrompt] = useState(initialPrompt);
   const [issueContext, setIssueContext] = useState<string | null>(null);
 
   const [prevProjectId, setPrevProjectId] = useState(projectId);
   if (projectId !== prevProjectId) {
     setPrevProjectId(projectId);
     setProviderOverride(null);
-    setPrompt('');
+    setPrompt(initialPrompt);
     setIssueContext(null);
   }
 

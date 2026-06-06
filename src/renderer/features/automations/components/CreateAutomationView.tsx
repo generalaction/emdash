@@ -8,7 +8,7 @@ import { EditableNameField } from '@renderer/lib/ui/editable-name-field';
 import { Field } from '@renderer/lib/ui/field';
 import { Label } from '@renderer/lib/ui/label';
 import { SheetFooter } from '@renderer/lib/ui/sheet';
-import type { Automation } from '@shared/automations/automation';
+import type { Automation, BuiltinAutomationTemplate } from '@shared/automations/automation';
 import type { ConversationConfig } from '@shared/automations/config';
 import { formatAutomationError } from '@shared/automations/format';
 import { assertValidCronTrigger } from '@shared/automations/validation';
@@ -18,15 +18,17 @@ import { AutomationSettingsFields } from './AutomationSettingsFields';
 import { SheetHeader } from './sheet-header';
 
 export interface CreateAutomationViewProps {
+  template?: BuiltinAutomationTemplate;
   onClose: () => void;
   onSaved?: (automation: Automation) => void;
 }
 
 export const CreateAutomationView = observer(function CreateAutomationView({
+  template,
   onClose,
   onSaved,
 }: CreateAutomationViewProps) {
-  const formState = useAutomationFormState();
+  const formState = useAutomationFormState(undefined, template);
   const {
     name,
     setName,
