@@ -1,4 +1,8 @@
 import { Circle, CircleCheck, Github, Loader2, Plus, Trash2 } from 'lucide-react';
+import {
+  GitHubCredentialSourceBadge,
+  GitHubDefaultAccountBadge,
+} from '@renderer/features/projects/components/github-account-select';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import {
   useGitHubAccounts,
@@ -6,17 +10,9 @@ import {
   useSetDefaultGitHubAccount,
 } from '@renderer/lib/hooks/useGithubAccounts';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
-import { Badge } from '@renderer/lib/ui/badge';
 import { Button } from '@renderer/lib/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import type { GitHubAccountSummary, GitHubCredentialSource } from '@shared/github';
-
-const GITHUB_SOURCE_LABELS: Record<GitHubCredentialSource, string> = {
-  cli: 'GitHub CLI',
-  emdash_oauth: 'OAuth',
-  device_flow: 'Device flow',
-  secure_storage: 'Saved token',
-};
+import type { GitHubAccountSummary } from '@shared/github';
 
 export function GitHubAccountsSection() {
   const { data: accounts = [], isLoading } = useGitHubAccounts();
@@ -154,7 +150,7 @@ function GitHubAccountRow({
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
           <p className="truncate text-sm font-medium text-foreground">@{account.login}</p>
           {account.isDefault && <DefaultGitHubAccountBadge login={account.login} />}
-          <Badge variant="outline">{GITHUB_SOURCE_LABELS[account.credentialSource]}</Badge>
+          <GitHubCredentialSourceBadge source={account.credentialSource} />
         </div>
         <p className="text-muted-foreground truncate text-xs">{account.host}</p>
       </div>
@@ -209,7 +205,7 @@ function DefaultGitHubAccountBadge({ login }: { login: string }) {
     <TooltipProvider delay={150}>
       <Tooltip>
         <TooltipTrigger className="inline-flex h-4.5 items-center leading-none">
-          <Badge variant="secondary">Default</Badge>
+          <GitHubDefaultAccountBadge />
         </TooltipTrigger>
         <TooltipContent side="top">New projects will use @{login} by default.</TooltipContent>
       </Tooltip>
