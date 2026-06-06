@@ -19,9 +19,7 @@ export function AutomationsView() {
 
   const effectiveAutomations = useMemo(
     () =>
-      (automations.data ?? []).filter((a) =>
-        a.name.toLowerCase().includes(search.toLowerCase())
-      ),
+      (automations.data ?? []).filter((a) => a.name.toLowerCase().includes(search.toLowerCase())),
     [automations.data, search]
   );
 
