@@ -1,7 +1,9 @@
 import { spawn, type ChildProcess } from 'node:child_process';
+import { homedir } from 'node:os';
 import { createInterface } from 'node:readline';
 import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
 import { isAppFocused } from '@main/core/agent-hooks/notification';
+import { workspaceTrustService } from '@main/core/agent-hooks/workspace-trust-service';
 import { resolveProviderEnv } from '@main/core/conversations/impl/provider-env';
 import { setProviderSessionId } from '@main/core/conversations/set-provider-session-id';
 import { touchConversation } from '@main/core/conversations/touchConversation';
@@ -121,6 +123,13 @@ export class CodexChatService {
     }
 
     const providerId = session.providerId;
+    await workspaceTrustService.maybeAutoTrustLocal({
+      providerId,
+      cwd,
+      homedir: homedir(),
+      force: conversation.autoApprove === true,
+    });
+
     // Codex takes images natively via `-i`; every other attachment (and all
     // attachments for the other providers) is referenced by path in the
     // prompt for the agent to read from disk.

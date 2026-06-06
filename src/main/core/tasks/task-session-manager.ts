@@ -172,6 +172,7 @@ class TaskSessionManager {
   async teardownAllForProject(projectId: string, mode: TeardownMode): Promise<void> {
     const taskIds = Array.from(this._tasksByProject.get(projectId) ?? []);
     if (mode === 'detach') {
+      await Promise.all(taskIds.map((id) => codexChatService.disposeTask(projectId, id)));
       // Detach sessions but leave workspaces alive; provider.cleanup() will call
       // workspaceRegistry.releaseAllForProject to handle workspace teardown.
       await Promise.all(

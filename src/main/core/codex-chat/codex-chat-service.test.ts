@@ -1,7 +1,9 @@
 import type { ChildProcess } from 'node:child_process';
 import { EventEmitter } from 'node:events';
-import { describe, expect, it, vi } from 'vitest';
+import { PassThrough } from 'node:stream';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NativeChatProviderId } from '@shared/conversation-ui';
+import type { Conversation } from '@shared/conversations';
 import type { CodexChatItem } from '@shared/native-chat';
 
 const mocks = vi.hoisted(() => ({
@@ -12,8 +14,11 @@ const mocks = vi.hoisted(() => ({
   getHookPort: vi.fn(),
   getHookToken: vi.fn(),
   captureTelemetry: vi.fn(),
+  maybeAutoTrustLocal: vi.fn(),
+  spawn: vi.fn(),
 }));
 
+vi.mock('node:child_process', () => ({ spawn: mocks.spawn }));
 vi.mock('@main/lib/events', () => ({ events: { emit: mocks.emit } }));
 vi.mock('@main/lib/telemetry', () => ({
   telemetryService: { capture: mocks.captureTelemetry },
@@ -34,6 +39,9 @@ vi.mock('@main/core/agent-hooks/agent-hook-service', () => ({
   },
 }));
 vi.mock('@main/core/agent-hooks/notification', () => ({ isAppFocused: () => false }));
+vi.mock('@main/core/agent-hooks/workspace-trust-service', () => ({
+  workspaceTrustService: { maybeAutoTrustLocal: mocks.maybeAutoTrustLocal },
+}));
 vi.mock('@main/core/conversations/impl/provider-env', () => ({
   resolveProviderEnv: () => ({}),
 }));
@@ -62,6 +70,8 @@ type TestSession = {
 class FakeChild extends EventEmitter {
   exitCode: number | null = null;
   signalCode: NodeJS.Signals | null = null;
+  stdout = new PassThrough();
+  stderr = new PassThrough();
   kill = vi.fn();
 }
 
@@ -89,6 +99,44 @@ function sessionsOf(service: CodexChatService): Map<string, TestSession> {
 }
 
 describe('CodexChatService disposal', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.touchConversation.mockResolvedValue(undefined);
+    mocks.getProviderSettings.mockResolvedValue(undefined);
+    mocks.maybeAutoTrustLocal.mockResolvedValue(undefined);
+    mocks.getHookPort.mockReturnValue(0);
+  });
+
+  it('prepares workspace trust before spawning a native turn', async () => {
+    const service = new CodexChatService();
+    const child = new FakeChild();
+    mocks.spawn.mockReturnValue(child);
+
+    await service.startTurn({
+      conversation: {
+        id: 'conv-1',
+        projectId: 'project-1',
+        taskId: 'task-1',
+        providerId: 'claude',
+        autoApprove: true,
+      } as Conversation,
+      cwd: '/tmp/worktree',
+      taskEnvVars: {},
+      prompt: 'hello',
+    });
+
+    expect(mocks.maybeAutoTrustLocal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerId: 'claude',
+        cwd: '/tmp/worktree',
+        force: true,
+      })
+    );
+    expect(mocks.spawn).toHaveBeenCalled();
+
+    child.emit('close', 0);
+  });
+
   it('waits for a running child to close before resolving disposal', async () => {
     const service = new CodexChatService();
     const child = new FakeChild();
