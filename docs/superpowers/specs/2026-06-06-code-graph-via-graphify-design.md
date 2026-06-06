@@ -119,11 +119,25 @@ MCP server entry into each worktree's agent MCP config, reusing the existing
 config-writing in `McpService` (which already manages MCP server configs across
 providers). The agent then spawns the graph MCP server itself on session start.
 
-### 4. Surface status (optional UI affordance)
+### 4. Surface status in the UI (pill + detail popover)
 
-Expose `building | ready | unavailable | last-indexed` per worktree to the
-renderer over RPC, for a small status indicator. No new view/modal required in
-v1; a status pill is sufficient.
+Expose per-worktree graph status to the renderer over RPC and show it in the
+worktree/task header:
+
+- **Status pill** reflecting `building | ready | unavailable` (with a
+  `last-indexed` timestamp underneath `ready`). The pill is always visible while
+  a worktree is open.
+- **Click-through detail popover** with: symbol/file counts, last-index time,
+  the engine line (`graphify <version>, code-only`), confirmation that the MCP
+  server is registered for the active agent, and a manual **Re-index** button
+  (invokes job #2's `extract --update` on demand).
+
+The `unavailable` state surfaces the install hint from job #1 (e.g. "install
+graphify to enable") rather than an error. No new top-level view is required —
+the pill lives in the existing worktree header and the popover is a standard
+detail panel. The status RPC is shaped so a future global activity surface
+(all worktrees/hosts at once) could consume it without rework, but that
+cross-worktree view is explicitly out of scope for v1.
 
 ## v1 scope: code-only
 
@@ -141,7 +155,10 @@ per-extract token cost) is **deferred** to a later iteration.
 - No Rundash-hosted network MCP service — stdio, co-located, per worktree.
 - No auto-install of Python — detect and degrade.
 - No docs/PDF/diagram semantic extraction in v1.
-- No new renderer view/modal — at most a status pill over RPC.
+- No new top-level renderer view/modal — status is a pill + detail popover in
+  the existing worktree header.
+- No global cross-worktree activity surface in v1 (the status RPC is shaped to
+  allow it later, but it is not built now).
 
 ## Integration points (existing code to reuse)
 
@@ -178,5 +195,6 @@ per-extract token cost) is **deferred** to a later iteration.
 2. **CodeGraphService v1:** provision-probe + per-worktree `extract --update` on
    create/change + commit-hook install.
 3. **MCP wiring:** register the graph MCP server in agent config via `McpService`.
-4. **Status RPC + pill.**
+4. **Status UI:** status RPC + header pill (`building/ready/unavailable`) +
+   detail popover (counts, last-indexed, MCP-wired confirmation, Re-index button).
 5. **Runner image:** bake Python + graphify into the Docker runner Dockerfile.
