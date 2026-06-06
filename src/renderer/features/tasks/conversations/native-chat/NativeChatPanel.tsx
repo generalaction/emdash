@@ -62,6 +62,9 @@ import { ActivityGroupView, ChatItemView } from './NativeChatItemView';
 const SCROLL_STICK_THRESHOLD_PX = 48;
 const COLUMN = 'mx-auto w-full max-w-[44rem]';
 
+/** Composer-local attachment: shared shape plus a preview object URL for images. */
+type ComposerAttachment = NativeChatAttachment & { previewUrl?: string };
+
 /** Per-provider option menu contents; Speed (service tier) is Codex-only. */
 const PROVIDER_MENU_OPTIONS: Record<
   NativeChatProviderId,
@@ -405,7 +408,7 @@ export const NativeChatPanel = observer(function NativeChatPanel({
   useEffect(() => () => store.dispose(), [store]);
 
   const [draft, setDraft] = useState('');
-  const [attachments, setAttachments] = useState<NativeChatAttachment[]>([]);
+  const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
   const [installedSkills, setInstalledSkills] = useState<CatalogSkill[]>([]);
   const [selectionStart, setSelectionStart] = useState(0);
   const [slashActiveIndex, setSlashActiveIndex] = useState(0);
@@ -419,16 +422,39 @@ export const NativeChatPanel = observer(function NativeChatPanel({
     for (const file of files) {
       const path = await resolveDroppedFile(file);
       if (!path) continue;
-      const attachment: NativeChatAttachment = {
+      const isImage = file.type.startsWith('image/');
+      const attachment: ComposerAttachment = {
         path,
-        kind: file.type.startsWith('image/') ? 'image' : 'file',
+        kind: isImage ? 'image' : 'file',
         name: file.name || undefined,
+        previewUrl: isImage ? URL.createObjectURL(file) : undefined,
       };
-      setAttachments((current) =>
-        current.some((existing) => existing.path === path) ? current : [...current, attachment]
-      );
+      setAttachments((current) => {
+        if (current.some((existing) => existing.path === path)) {
+          if (attachment.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
+          return current;
+        }
+        return [...current, attachment];
+      });
     }
   };
+
+  const removeAttachment = (attachment: ComposerAttachment) => {
+    if (attachment.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
+    setAttachments((current) => current.filter((existing) => existing.path !== attachment.path));
+  };
+
+  // Revoke any outstanding preview object URLs when the panel unmounts.
+  const attachmentsRef = useRef(attachments);
+  attachmentsRef.current = attachments;
+  useEffect(
+    () => () => {
+      for (const attachment of attachmentsRef.current) {
+        if (attachment.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
+      }
+    },
+    []
+  );
 
   const handlePaste = (event: React.ClipboardEvent) => {
     const files = Array.from(event.clipboardData?.files ?? []);
@@ -569,7 +595,10 @@ export const NativeChatPanel = observer(function NativeChatPanel({
   const submit = () => {
     if (!canSend) return;
     const text = draft.trim();
-    const sentAttachments = attachments;
+    const sentAttachments = attachments.map(({ previewUrl, ...attachment }) => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      return attachment;
+    });
     setDraft('');
     setAttachments([]);
     void store.send(text, sentAttachments);
@@ -650,35 +679,53 @@ export const NativeChatPanel = observer(function NativeChatPanel({
             />
           )}
           {attachments.length > 0 && (
-            <div className="flex flex-wrap gap-1 px-2 pt-2">
-              {attachments.map((attachment) => (
-                <span
-                  key={attachment.path}
-                  className="flex h-6 max-w-56 items-center gap-1 rounded-md border border-border/60 bg-background-1 pr-0.5 pl-1.5 text-xs text-foreground-muted"
-                >
-                  {attachment.kind === 'image' ? (
-                    <ImageIcon className="h-3 w-3 shrink-0 text-foreground-passive" />
-                  ) : (
-                    <FileIcon className="h-3 w-3 shrink-0 text-foreground-passive" />
-                  )}
-                  <span className="min-w-0 truncate">
-                    {attachment.name || attachment.path.split('/').pop()}
-                  </span>
-                  <Button
-                    size="icon-xs"
-                    variant="ghost"
-                    aria-label={`Remove ${attachment.name ?? 'attachment'}`}
-                    onClick={() =>
-                      setAttachments((current) =>
-                        current.filter((existing) => existing.path !== attachment.path)
-                      )
-                    }
-                    className="size-4"
+            <div className="flex flex-wrap items-end gap-1.5 px-2 pt-2">
+              {attachments.map((attachment) =>
+                attachment.previewUrl ? (
+                  <span
+                    key={attachment.path}
+                    className="group relative h-14 w-14 overflow-hidden rounded-md border border-border/60"
                   >
-                    <XIcon className="h-2.5 w-2.5" />
-                  </Button>
-                </span>
-              ))}
+                    <img
+                      src={attachment.previewUrl}
+                      alt={attachment.name || 'Attached image'}
+                      className="h-full w-full object-cover"
+                    />
+                    <Button
+                      size="icon-xs"
+                      variant="ghost"
+                      aria-label={`Remove ${attachment.name ?? 'attachment'}`}
+                      onClick={() => removeAttachment(attachment)}
+                      className="absolute top-0.5 right-0.5 size-4 bg-background/80 opacity-0 transition-opacity group-hover:opacity-100"
+                    >
+                      <XIcon className="h-2.5 w-2.5" />
+                    </Button>
+                  </span>
+                ) : (
+                  <span
+                    key={attachment.path}
+                    className="flex h-6 max-w-56 items-center gap-1 rounded-md border border-border/60 bg-background-1 pr-0.5 pl-1.5 text-xs text-foreground-muted"
+                  >
+                    {attachment.kind === 'image' ? (
+                      <ImageIcon className="h-3 w-3 shrink-0 text-foreground-passive" />
+                    ) : (
+                      <FileIcon className="h-3 w-3 shrink-0 text-foreground-passive" />
+                    )}
+                    <span className="min-w-0 truncate">
+                      {attachment.name || attachment.path.split('/').pop()}
+                    </span>
+                    <Button
+                      size="icon-xs"
+                      variant="ghost"
+                      aria-label={`Remove ${attachment.name ?? 'attachment'}`}
+                      onClick={() => removeAttachment(attachment)}
+                      className="size-4"
+                    >
+                      <XIcon className="h-2.5 w-2.5" />
+                    </Button>
+                  </span>
+                )
+              )}
             </div>
           )}
           <Textarea

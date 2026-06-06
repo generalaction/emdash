@@ -25,7 +25,7 @@ import {
   type NativeChatAttachment,
 } from '@shared/native-chat';
 import { makePtyId } from '@shared/ptyId';
-import { attachmentDisplayName, buildPromptWithAttachments } from './attachments';
+import { buildPromptWithAttachments } from './attachments';
 import {
   buildClaudeExecCommand,
   buildCodexExecCommand,
@@ -178,12 +178,8 @@ export class NativeChatService {
     this.upsertItem(session, {
       kind: 'user_message',
       key: `t${turnSeq}:user`,
-      text:
-        attached.length > 0
-          ? `${trimmed || 'Look at the attached files.'}\n\n[Attached: ${attached
-              .map(attachmentDisplayName)
-              .join(', ')}]`
-          : trimmed,
+      text: attached.length > 0 ? trimmed || 'Look at the attached files.' : trimmed,
+      ...(attached.length > 0 ? { attachments: attached } : {}),
     });
     this.emitChatEvent(session, { type: 'turn-started' });
     this.emitAgentEvent(session, 'start');

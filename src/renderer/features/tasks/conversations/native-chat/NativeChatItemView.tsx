@@ -2,27 +2,112 @@ import {
   CheckIcon,
   ChevronRightIcon,
   CircleSlashIcon,
+  FileIcon,
   FilePenLineIcon,
   GlobeIcon,
   TerminalIcon,
   WrenchIcon,
 } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
+import { rpc } from '@renderer/lib/ipc';
+import { ExpandableImage } from '@renderer/lib/ui/expandable-image';
 import { MarkdownRenderer } from '@renderer/lib/ui/markdown-renderer';
 import { Spinner } from '@renderer/lib/ui/spinner';
 import { cn } from '@renderer/utils/utils';
-import type { NativeChatItem } from '@shared/native-chat';
+import type { NativeChatAttachment, NativeChatItem } from '@shared/native-chat';
 import {
   formatTurnDuration,
   summarizeActivity,
   type ActivityChatItem,
 } from './native-chat-transcript';
 
-export function UserMessageView({ text }: { text: string }) {
+/** Data URIs cached per path so re-renders and remounts don't re-read disk. */
+const attachmentImageCache = new Map<string, Promise<string | null>>();
+
+function loadAttachmentImage(path: string): Promise<string | null> {
+  const cached = attachmentImageCache.get(path);
+  if (cached) return cached;
+  const loading = rpc.nativeChat.readAttachmentImage(path).catch(() => null);
+  attachmentImageCache.set(path, loading);
+  return loading;
+}
+
+function attachmentLabel(attachment: NativeChatAttachment): string {
+  return attachment.name || attachment.path.split('/').pop() || attachment.path;
+}
+
+function AttachmentFileChip({ attachment }: { attachment: NativeChatAttachment }) {
+  return (
+    <span className="flex h-6 max-w-56 items-center gap-1 rounded-md border border-border/60 bg-background-1 px-1.5 text-xs text-foreground-muted">
+      <FileIcon className="h-3 w-3 shrink-0 text-foreground-passive" />
+      <span className="min-w-0 truncate">{attachmentLabel(attachment)}</span>
+    </span>
+  );
+}
+
+function AttachmentImageThumb({ attachment }: { attachment: NativeChatAttachment }) {
+  const [dataUri, setDataUri] = useState<string | null | undefined>(undefined);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadAttachmentImage(attachment.path).then((uri) => {
+      if (!cancelled) setDataUri(uri);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [attachment.path]);
+
+  // Missing/oversized/moved file: fall back to a plain chip.
+  if (dataUri === null) return <AttachmentFileChip attachment={attachment} />;
+
+  if (dataUri === undefined) {
+    return (
+      <div className="h-20 w-28 animate-pulse rounded-md border border-border/60 bg-background-1" />
+    );
+  }
+
+  return (
+    <ExpandableImage
+      src={dataUri}
+      alt={attachmentLabel(attachment)}
+      className="h-20 max-w-40 rounded-md border border-border/60 object-cover"
+    />
+  );
+}
+
+export function UserMessageView({
+  text,
+  attachments,
+}: {
+  text: string;
+  attachments?: NativeChatAttachment[];
+}) {
+  const images = attachments?.filter((attachment) => attachment.kind === 'image') ?? [];
+  const files = attachments?.filter((attachment) => attachment.kind === 'file') ?? [];
+
   return (
     <div className="flex justify-end">
-      <div className="max-w-[85%] rounded-lg bg-background-2 px-3 py-1.5 text-sm whitespace-pre-wrap text-foreground">
-        {text}
+      <div className="flex max-w-[85%] flex-col items-end gap-1.5">
+        {images.length > 0 && (
+          <div className="flex flex-wrap justify-end gap-1.5">
+            {images.map((attachment) => (
+              <AttachmentImageThumb key={attachment.path} attachment={attachment} />
+            ))}
+          </div>
+        )}
+        {files.length > 0 && (
+          <div className="flex flex-wrap justify-end gap-1">
+            {files.map((attachment) => (
+              <AttachmentFileChip key={attachment.path} attachment={attachment} />
+            ))}
+          </div>
+        )}
+        {text && (
+          <div className="rounded-lg bg-background-2 px-3 py-1.5 text-sm whitespace-pre-wrap text-foreground">
+            {text}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -250,7 +335,7 @@ export function ActivityGroupView({
 export function ChatItemView({ item }: { item: NativeChatItem }) {
   switch (item.kind) {
     case 'user_message':
-      return <UserMessageView text={item.text} />;
+      return <UserMessageView text={item.text} attachments={item.attachments} />;
     case 'agent_message':
       return <AgentMessageView text={item.text} />;
     case 'system':

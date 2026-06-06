@@ -12,7 +12,7 @@ export type NativeChatFileChange = { path: string; kind: string };
 export type NativeChatTodoItem = { text: string; completed: boolean };
 
 export type NativeChatItem =
-  | { kind: 'user_message'; key: string; text: string }
+  | { kind: 'user_message'; key: string; text: string; attachments?: NativeChatAttachment[] }
   | { kind: 'agent_message'; key: string; text: string }
   | { kind: 'reasoning'; key: string; text: string }
   | {
