@@ -47,6 +47,8 @@ export function buildCodexExecCommand({
 }): AgentCommand {
   const [command, ...args] = parseCliPrefix(providerConfig?.cli ?? 'codex', 'codex');
 
+  args.push(...(providerConfig?.defaultArgs ?? []));
+  args.push(...parseArgField(providerConfig?.extraArgs));
   args.push('exec');
   if (resumeThreadId) {
     if (!isCodexThreadId(resumeThreadId)) {

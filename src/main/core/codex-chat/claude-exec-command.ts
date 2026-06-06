@@ -39,6 +39,8 @@ export function buildClaudeExecCommand({
 }): AgentCommand {
   const [command, ...args] = parseCliPrefix(providerConfig?.cli ?? 'claude', 'claude');
 
+  args.push(...(providerConfig?.defaultArgs ?? []));
+  args.push(...parseArgField(providerConfig?.extraArgs));
   args.push('-p', '--output-format', 'stream-json', '--verbose');
 
   if (resumeSessionId) {

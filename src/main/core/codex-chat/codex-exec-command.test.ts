@@ -56,6 +56,28 @@ describe('buildCodexExecCommand', () => {
     ]);
   });
 
+  it('preserves configured provider arguments before the exec subcommand', () => {
+    const { command, args } = buildCodexExecCommand({
+      providerConfig: {
+        ...CODEX_CONFIG,
+        cli: 'env CODEX_PROFILE=work codex',
+        defaultArgs: ['--config-profile', 'team'],
+        extraArgs: '--experimental-flag "quoted value"',
+      },
+      prompt: 'go',
+    });
+    expect(command).toBe('env');
+    expect(args.slice(0, 6)).toEqual([
+      'CODEX_PROFILE=work',
+      'codex',
+      '--config-profile',
+      'team',
+      '--experimental-flag',
+      'quoted value',
+    ]);
+    expect(args[6]).toBe('exec');
+  });
+
   it('passes the reasoning effort as a config override before the prompt', () => {
     const { args } = buildCodexExecCommand({
       providerConfig: CODEX_CONFIG,

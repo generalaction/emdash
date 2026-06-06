@@ -41,6 +41,27 @@ describe('buildClaudeExecCommand', () => {
     expect(args[args.length - 1]).toBe('continue');
   });
 
+  it('preserves configured provider arguments before print-mode flags', () => {
+    const { command, args } = buildClaudeExecCommand({
+      providerConfig: {
+        ...CLAUDE_CONFIG,
+        cli: 'env CLAUDE_CONFIG_DIR=/tmp/claude claude',
+        defaultArgs: ['--settings', 'team'],
+        extraArgs: '--debug',
+      },
+      prompt: 'go',
+    });
+    expect(command).toBe('env');
+    expect(args.slice(0, 5)).toEqual([
+      'CLAUDE_CONFIG_DIR=/tmp/claude',
+      'claude',
+      '--settings',
+      'team',
+      '--debug',
+    ]);
+    expect(args[5]).toBe('-p');
+  });
+
   it('passes the model and effort as flags before the prompt', () => {
     const { args } = buildClaudeExecCommand({
       providerConfig: CLAUDE_CONFIG,
