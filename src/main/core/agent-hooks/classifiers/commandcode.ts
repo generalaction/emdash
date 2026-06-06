@@ -4,7 +4,7 @@ export function createCommandCodeClassifier() {
   return createProviderClassifier((text: string): ClassificationResult => {
     const tail = text.slice(-500);
 
-    if (/approve|reject|permission|allow|confirm|trust.*project|proceed/i.test(tail)) {
+    if (/approve|reject|permission|\ballow\b|confirm|trust.*project|proceed/i.test(tail)) {
       return {
         type: 'notification',
         notificationType: 'permission_prompt',
@@ -41,7 +41,7 @@ export function createCommandCodeClassifier() {
       };
     }
 
-    if (/error:|fatal:|exception|failed/i.test(text)) {
+    if (/error:|fatal:|exception|failed/i.test(tail)) {
       return {
         type: 'error',
       };
