@@ -70,6 +70,9 @@ export const SETTINGS_DEFAULTS = {
     staged: 'flat' as const,
     pr: 'flat' as const,
   },
+  conversationUi: {
+    mode: 'terminal' as const,
+  },
 } satisfies SettingsDefaultsMap;
 
 export function getDefaultForKey<K extends AppSettingsKey>(key: K): AppSettings[K] {

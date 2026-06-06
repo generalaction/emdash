@@ -1,6 +1,7 @@
 import z from 'zod';
 import { AGENT_PROVIDER_IDS, AGENT_PROVIDERS } from '@shared/agent-provider-registry';
 import { normalizeBranchPrefix } from '@shared/branch-prefix';
+import { CONVERSATION_UI_MODES } from '@shared/conversation-ui';
 import { openInAppIdSchema } from '@shared/openInApps';
 import { APP_SHORTCUTS } from '@shared/shortcuts';
 import {
@@ -122,6 +123,15 @@ export const browserPreviewSettingsSchema = z.object({ enabled: z.boolean() });
 
 export const resourceMonitorSettingsSchema = z.object({ enabled: z.boolean() });
 
+export const conversationUiSettingsSchema = z.object({
+  /**
+   * Conversation surface for all agents with native chat support;
+   * 'native-chat' is experimental. Providers without an adapter always use
+   * the terminal regardless of this value.
+   */
+  mode: z.enum(CONVERSATION_UI_MODES),
+});
+
 export const openInSettingsSchema = z.object({
   default: openInAppIdSchema,
   hidden: z.array(openInAppIdSchema),
@@ -142,6 +152,7 @@ export const APP_SETTINGS_SCHEMA_MAP = {
   browserPreview: browserPreviewSettingsSchema,
   resourceMonitor: resourceMonitorSettingsSchema,
   changesViewMode: changesViewModeSchema,
+  conversationUi: conversationUiSettingsSchema,
 } as const;
 
 export const appSettingsSchema = z.object({
@@ -159,4 +170,5 @@ export const appSettingsSchema = z.object({
   browserPreview: browserPreviewSettingsSchema,
   resourceMonitor: resourceMonitorSettingsSchema,
   changesViewMode: changesViewModeSchema,
+  conversationUi: conversationUiSettingsSchema,
 });

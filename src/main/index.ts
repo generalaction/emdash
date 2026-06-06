@@ -18,6 +18,7 @@ import { localDependencyManager } from './core/dependencies/dependency-manager';
 import { editorBufferService } from './core/editor/editor-buffer-service';
 import { gitWatcherRegistry } from './core/git/git-watcher-registry';
 import { githubConnectionService } from './core/github/services/github-connection-service';
+import { nativeChatService } from './core/native-chat/native-chat-service';
 import { projectManager } from './core/projects/project-manager';
 import { projectSettingsService } from './core/projects/settings/project-settings-service';
 import { promptLibraryService } from './core/prompt-library/service';
@@ -174,15 +175,18 @@ app.on('before-quit', (event) => {
   event.preventDefault();
   telemetryService.capture('app_closed');
   void telemetryService.dispose().finally(() => {
-    automationScheduler.stop();
-    agentHookService.dispose();
-    stopResourceSampler();
-    updateService.dispose();
-    prSyncScheduler.dispose();
-    void gitWatcherRegistry.dispose();
-    void projectManager.dispose().catch((e) => {
-      log.error('Failed to shutdown project manager:', e);
-    });
-    app.exit(0);
+    void (async () => {
+      automationScheduler.stop();
+      await nativeChatService.disposeAll();
+      agentHookService.dispose();
+      stopResourceSampler();
+      updateService.dispose();
+      prSyncScheduler.dispose();
+      void gitWatcherRegistry.dispose();
+      void projectManager.dispose().catch((e) => {
+        log.error('Failed to shutdown project manager:', e);
+      });
+      app.exit(0);
+    })();
   });
 });

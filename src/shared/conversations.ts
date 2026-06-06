@@ -1,4 +1,6 @@
 import type { AgentProviderId } from '@shared/agent-provider-registry';
+import type { ConversationUiMode } from '@shared/conversation-ui';
+import type { CodexServiceTier, NativeChatReasoningEffort } from '@shared/native-chat';
 
 export const MAX_CONVERSATION_TITLE_LENGTH = 100;
 
@@ -13,6 +15,14 @@ export type Conversation = {
   autoApprove?: boolean;
   /** Provider-native session id captured at runtime for per-chat resume. */
   providerSessionId?: string;
+  /** Rendering surface for this conversation; absent means 'terminal'. */
+  uiMode?: ConversationUiMode;
+  /** Native chat: reasoning effort override; absent means model default. */
+  reasoningEffort?: NativeChatReasoningEffort;
+  /** Native chat: model override; absent means the provider's default. */
+  model?: string;
+  /** Codex native chat: speed (service tier) override; absent means standard. */
+  serviceTier?: CodexServiceTier;
   isInitialConversation: boolean | null;
 };
 
