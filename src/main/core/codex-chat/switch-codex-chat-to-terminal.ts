@@ -32,7 +32,20 @@ export async function switchCodexChatToTerminal(
 
   await codexChatService.dispose(conversationId);
 
-  const config = parseConversationConfig(row.config);
+  const [freshRow] = await db
+    .select({ config: conversations.config })
+    .from(conversations)
+    .where(
+      and(
+        eq(conversations.id, conversationId),
+        eq(conversations.projectId, projectId),
+        eq(conversations.taskId, taskId)
+      )
+    )
+    .limit(1);
+  if (!freshRow) throw new Error('Conversation not found');
+
+  const config = parseConversationConfig(freshRow.config);
   if (config.uiMode) {
     delete config.uiMode;
     await db

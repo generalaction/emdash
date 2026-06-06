@@ -54,11 +54,20 @@ describe('switchCodexChatToTerminal', () => {
   it('validates scope before disposal and waits for disposal before hydrating the terminal PTY', async () => {
     let releaseSelect!: () => void;
     let releaseDispose!: () => void;
-    mocks.selectLimit.mockReturnValue(
-      new Promise((resolve) => {
-        releaseSelect = () => resolve([{ config: JSON.stringify({ uiMode: 'native-chat' }) }]);
-      })
-    );
+    mocks.selectLimit
+      .mockReturnValueOnce(
+        new Promise((resolve) => {
+          releaseSelect = () => resolve([{ config: JSON.stringify({ uiMode: 'native-chat' }) }]);
+        })
+      )
+      .mockResolvedValueOnce([
+        {
+          config: JSON.stringify({
+            uiMode: 'native-chat',
+            providerSessionId: '31477a03-961a-4451-82d4-efded56947fc',
+          }),
+        },
+      ]);
     mocks.dispose.mockReturnValue(
       new Promise<void>((resolve) => {
         releaseDispose = resolve;
@@ -82,5 +91,10 @@ describe('switchCodexChatToTerminal', () => {
     await switching;
 
     expect(mocks.hydrateConversation).toHaveBeenCalledWith('project-1', 'task-1', 'conv-1');
+    expect(mocks.updateSet).toHaveBeenCalledWith({
+      config: JSON.stringify({
+        providerSessionId: '31477a03-961a-4451-82d4-efded56947fc',
+      }),
+    });
   });
 });
