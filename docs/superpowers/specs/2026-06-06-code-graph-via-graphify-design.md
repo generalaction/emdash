@@ -185,13 +185,21 @@ per-extract token cost) is **deferred** to a later iteration.
   the normal flow).
 - **MCP config collisions.** Writing into agent configs must not clobber the
   user's existing MCP servers; reuse `McpService`'s merge semantics, scoped per
-  worktree.
+  worktree. This is treated as a **gating prerequisite** — milestone 1 verifies
+  it against the actual `McpService` code before any wiring is built.
 
 ## Milestones
 
-1. **Spike (prove the win):** wire Graphify into one local worktree by hand,
-   point Claude Code at its MCP server, measure token/quality delta on this
-   codebase. (Validates the premise before integration.)
+No spike — we go straight to full implementation. The implementation plan must,
+however, **begin by verifying the `McpService` merge semantics** (see "MCP
+config collisions" risk): confirm against the actual code that we can write a
+per-worktree graph MCP entry without clobbering the user's existing MCP servers,
+and pin down the exact merge/scope API before any wiring work. If that
+assumption proves false, surface it before proceeding to milestone 3.
+
+1. **Verify `McpService` merge semantics** (gating prerequisite): read the
+   actual config-writing/merge code, confirm per-worktree non-destructive
+   registration is possible, document the API the plan will use.
 2. **CodeGraphService v1:** provision-probe + per-worktree `extract --update` on
    create/change + commit-hook install.
 3. **MCP wiring:** register the graph MCP server in agent config via `McpService`.
