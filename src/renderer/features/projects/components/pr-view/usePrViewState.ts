@@ -112,6 +112,8 @@ export function usePrViewState(projectId: string, repositoryUrl: string | null) 
   const backgroundSyncing = repositoryUrl
     ? (prSyncStore?.isSyncing(repositoryUrl) ?? false)
     : false;
+  const syncState = repositoryUrl ? prSyncStore?.getState(repositoryUrl) : undefined;
+  const syncError = syncState?.status === 'error' ? (syncState.error ?? 'Sync failed') : null;
   const isSyncing = syncing || backgroundSyncing;
 
   const removeLabel = (name: string) =>
@@ -139,7 +141,7 @@ export function usePrViewState(projectId: string, repositoryUrl: string | null) 
     // data
     prs,
     loading,
-    error,
+    error: error ?? syncError,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,

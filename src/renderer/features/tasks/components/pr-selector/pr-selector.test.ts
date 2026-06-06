@@ -289,4 +289,39 @@ describe('PrSelector', () => {
       })
     );
   });
+
+  it('shows background sync errors instead of the empty pull request message', async () => {
+    mocks.syncPullRequests.mockResolvedValue({
+      success: false,
+      error: {
+        type: 'github_not_found_or_no_access',
+        host: 'github.com',
+        message:
+          'acme/repo on github.com was not found, or the selected GitHub account does not have access.',
+      },
+    });
+    mocks.listPullRequests.mockResolvedValue({ success: true, data: { prs: [] } });
+
+    await act(async () => {
+      root.render(
+        React.createElement(
+          QueryClientProvider,
+          { client: queryClient },
+          React.createElement(PrSelector, {
+            value: null,
+            onValueChange: vi.fn(),
+            projectId: PROJECT_ID,
+            repositoryUrl: REPOSITORY_URL,
+          })
+        )
+      );
+    });
+
+    await vi.waitFor(() => {
+      expect(container.textContent).toContain(
+        'acme/repo on github.com was not found, or the selected GitHub account does not have access.'
+      );
+    });
+    expect(container.textContent).not.toContain('No open pull requests');
+  });
 });
