@@ -1,5 +1,5 @@
 import { telemetryService } from '@main/lib/telemetry';
-import { createRPCController } from '@shared/ipc/rpc';
+import { createRPCController } from '@shared/lib/ipc/rpc';
 import type { TelemetryEvent } from '@shared/telemetry';
 
 export const telemetryController = createRPCController({

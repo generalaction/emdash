@@ -6,10 +6,10 @@ import {
 } from '@main/core/issues/helpers/provider-inputs';
 import type { IssueProvider } from '@main/core/issues/issue-provider';
 import { ISSUE_PROVIDER_CAPABILITIES, type IssueListResult } from '@shared/issue-providers';
-import type { Issue } from '@shared/tasks';
+import type { LinkedIssue } from '@shared/linked-issue';
 import { forgejoConnectionService, toForgejoErrorMessage } from './forgejo-connection-service';
 
-function toIssue(issue: ForgejoIssue, repoName: string): Issue {
+function toIssue(issue: ForgejoIssue, repoName: string): LinkedIssue {
   const assignee = issue.assignee;
   const assigneeName = assignee?.full_name || assignee?.login;
   const assigneeLogin = assignee?.login || assignee?.full_name;

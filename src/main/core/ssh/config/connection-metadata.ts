@@ -1,17 +1,14 @@
-// DB metadata column serialization for SSH connections.
+// DB metadata column helpers for SSH connections.
 import type { SshConnectionRow } from '@main/db/schema';
 import type { SshConfig } from '@shared/ssh';
+import type { SshConnectionMetadata } from '@shared/ssh-connection-metadata';
 
-export interface SshConnectionMetadata {
+export type { SshConnectionMetadata };
+
+type SshConnectionMetadataUpdate = {
   sshConfigAlias?: string;
   forwardAgent?: boolean;
   proxyJump?: string;
-}
-
-type SshConnectionMetadataUpdate = {
-  sshConfigAlias?: string | undefined;
-  forwardAgent?: boolean | undefined;
-  proxyJump?: string | undefined;
 };
 
 const SSH_ALIAS_PATTERN = /^[A-Za-z0-9._@%+:/[\]-]+$/;
@@ -27,31 +24,6 @@ function optionalSshConfigAlias(value: unknown): string | undefined {
     throw new Error(`Invalid SSH config alias: ${alias}`);
   }
   return alias;
-}
-
-export function parseSshConnectionMetadata(metadata: string | null): SshConnectionMetadata {
-  if (!metadata) return {};
-
-  try {
-    const parsed = JSON.parse(metadata) as Record<string, unknown>;
-    const result: SshConnectionMetadata = {};
-    const sshConfigAlias = optionalSshConfigAlias(parsed.sshConfigAlias);
-    const proxyJump = optionalString(parsed.proxyJump);
-    if (sshConfigAlias) result.sshConfigAlias = sshConfigAlias;
-    if (typeof parsed.forwardAgent === 'boolean') result.forwardAgent = parsed.forwardAgent;
-    if (proxyJump) result.proxyJump = proxyJump;
-    return result;
-  } catch {
-    return {};
-  }
-}
-
-export function serializeSshConnectionMetadata(metadata: SshConnectionMetadata): string {
-  return JSON.stringify({
-    sshConfigAlias: optionalSshConfigAlias(metadata.sshConfigAlias),
-    forwardAgent: typeof metadata.forwardAgent === 'boolean' ? metadata.forwardAgent : undefined,
-    proxyJump: optionalString(metadata.proxyJump),
-  });
 }
 
 export function mergeSshConnectionMetadata(
@@ -71,7 +43,7 @@ export function mergeSshConnectionMetadata(
 }
 
 export function sshConfigFromRow(row: SshConnectionRow): SshConfig {
-  const metadata = parseSshConnectionMetadata(row.metadata);
+  const metadata = row.metadata ?? {};
   return {
     id: row.id,
     name: row.name,

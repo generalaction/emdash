@@ -25,7 +25,7 @@ import type {
   GitHubStatusOptions,
   GitHubStatusResponse,
 } from '@shared/github';
-import { createRPCController } from '@shared/ipc/rpc';
+import { createRPCController } from '@shared/lib/ipc/rpc';
 
 export const githubController = createRPCController({
   getStatus: async (options?: GitHubStatusOptions): Promise<GitHubStatusResponse> => {

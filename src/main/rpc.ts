@@ -1,4 +1,4 @@
-import { createRPCNamespace, createRPCRouter } from '../shared/ipc/rpc';
+import { createRPCNamespace, createRPCRouter } from '../shared/lib/ipc/rpc';
 import { accountController } from './core/account/controller';
 import { appController } from './core/app/controller';
 import { asanaController } from './core/asana/controller';

@@ -7,8 +7,8 @@ import { PREVIOUS_DB_FILENAME } from '@main/db/default-path';
 import * as schema from '@main/db/schema';
 import { projects, tasks } from '@main/db/schema';
 import { log } from '@main/lib/logger';
-import { createRPCController } from '@shared/ipc/rpc';
 import type { LegacyImportSource } from '@shared/legacy-port';
+import { createRPCController } from '@shared/lib/ipc/rpc';
 import { openLegacyReadOnly } from './legacy-source/open-readonly';
 import {
   hasBetaDatabaseFile,

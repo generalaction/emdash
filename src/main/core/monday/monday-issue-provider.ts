@@ -10,7 +10,7 @@ import {
   type IssueContextResult,
   type IssueListResult,
 } from '@shared/issue-providers';
-import type { Issue } from '@shared/tasks';
+import type { LinkedIssue } from '@shared/linked-issue';
 import { mondayConnectionService } from './monday-connection-service';
 
 type MondayColumnValue = {
@@ -77,7 +77,7 @@ function toIssue(
   board: { name: string; url: string },
   context?: string,
   descriptionOverride?: string
-): Issue {
+): LinkedIssue {
   const description = descriptionOverride ?? extractDescription(item.column_values);
 
   return {
@@ -102,7 +102,7 @@ function formatContext(updates: MondayItemWithContext['updates']): string | unde
 
 const ORDER_BY_UPDATED_AT_DESC = { column_id: '__last_updated__', direction: 'desc' };
 
-function sortByUpdatedAtDesc(issues: Issue[]): Issue[] {
+function sortByUpdatedAtDesc(issues: LinkedIssue[]): LinkedIssue[] {
   return issues.sort(
     (a, b) => new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime()
   );

@@ -309,6 +309,10 @@ pnpm run test
 - Runtime feature flags are read through telemetry-backed feature flag helpers.
 - Path aliases are defined in `tsconfig.json` and mirrored in `electron.vite.config.ts`:
   `@/*`, `@renderer/*`, `@main/*`, `@shared/*`, and `@root/*`.
+- Versioned JSON column schemas are defined in `src/shared/` using
+  `defineVersionedSchema()` from `src/shared/lib/versioned-schema.ts` and wired to
+  Drizzle via `versionedJsonColumn()` from `src/main/db/versioned-column.ts`.
+  See `agents/conventions/versioned-schemas.md` for the full guide.
 
 ## Further Reading
 
@@ -328,6 +332,7 @@ pnpm run test
 - [Renderer patterns](agents/conventions/renderer-patterns.md)
 - [TypeScript and React conventions](agents/conventions/typescript.md)
 - [Config file rules](agents/conventions/config-files.md)
+- [Versioned schema conventions](agents/conventions/versioned-schemas.md)
 - [Database risk notes](agents/risky-areas/database.md)
 - [PTY risk notes](agents/risky-areas/pty.md)
 - [SSH risk notes](agents/risky-areas/ssh.md)

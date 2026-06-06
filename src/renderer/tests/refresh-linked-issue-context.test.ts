@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { refreshLinkedIssueContext } from '@renderer/features/tasks/issue-context/refresh-linked-issue-context';
-import type { Issue } from '@shared/tasks';
+import type { LinkedIssue } from '@shared/linked-issue';
 
 const mocks = vi.hoisted(() => ({
   getIssueContext: vi.fn(),
@@ -14,7 +14,7 @@ vi.mock('@renderer/lib/ipc', () => ({
   },
 }));
 
-function makeIssue(overrides: Partial<Issue> = {}): Issue {
+function makeIssue(overrides: Partial<LinkedIssue> = {}): LinkedIssue {
   return {
     provider: 'linear',
     identifier: 'ENG-1201',

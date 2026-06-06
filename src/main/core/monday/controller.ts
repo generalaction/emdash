@@ -1,4 +1,4 @@
-import { createRPCController } from '@shared/ipc/rpc';
+import { createRPCController } from '@shared/lib/ipc/rpc';
 import { mondayConnectionService } from './monday-connection-service';
 
 export const mondayController = createRPCController({

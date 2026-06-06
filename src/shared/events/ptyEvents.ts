@@ -1,4 +1,4 @@
-import { defineEvent } from '@shared/ipc/events';
+import { defineEvent } from '@shared/lib/ipc/events';
 
 // 'pty:data' matches the channel name consumed by TerminalSessionManager.
 export const ptyDataChannel = defineEvent<string>('pty:data');

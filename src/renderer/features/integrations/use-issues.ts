@@ -2,7 +2,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { rpc } from '@renderer/lib/ipc';
 import type { IssueProviderType } from '@shared/issue-providers';
-import type { Issue } from '@shared/tasks';
+import type { LinkedIssue } from '@shared/linked-issue';
 
 const INITIAL_FETCH_LIMIT = 50;
 const SEARCH_LIMIT = 20;
@@ -13,7 +13,7 @@ const SEARCH_MIN_LENGTH_BY_PROVIDER: Partial<Record<IssueProviderType, number>> 
 };
 
 export interface UseIssuesResult {
-  issues: Issue[];
+  issues: LinkedIssue[];
   isLoading: boolean;
   error: string | null;
   searchTerm: string;
@@ -70,7 +70,7 @@ export function useIssues(
       initialLimit,
     ],
     queryFn: async () => {
-      if (!provider) return { success: true as const, issues: [] as Issue[] };
+      if (!provider) return { success: true as const, issues: [] as LinkedIssue[] };
 
       const result = await rpc.issues.listIssues(provider, {
         limit: initialLimit,
@@ -103,7 +103,7 @@ export function useIssues(
       searchLimit,
     ],
     queryFn: async () => {
-      if (!provider) return { success: true as const, issues: [] as Issue[] };
+      if (!provider) return { success: true as const, issues: [] as LinkedIssue[] };
 
       const result = await rpc.issues.searchIssues(provider, {
         limit: searchLimit,
@@ -120,7 +120,7 @@ export function useIssues(
     placeholderData: keepPreviousData,
   });
 
-  const issues = useMemo<Issue[]>(() => {
+  const issues = useMemo<LinkedIssue[]>(() => {
     if (isActiveSearch) return searchIssues?.success ? (searchIssues.issues ?? []) : [];
     return initialIssues?.success ? (initialIssues.issues ?? []) : [];
   }, [initialIssues, isActiveSearch, searchIssues]);

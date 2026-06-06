@@ -1,6 +1,6 @@
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
-import { createRPCController } from '@shared/ipc/rpc';
+import { createRPCController } from '@shared/lib/ipc/rpc';
 import { emdashAccountService } from './services/emdash-account-service';
 
 export const accountController = createRPCController({

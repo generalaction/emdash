@@ -1,4 +1,4 @@
-import { createRPCController } from '@shared/ipc/rpc';
+import { createRPCController } from '@shared/lib/ipc/rpc';
 import { trelloConnectionService } from './trello-connection-service';
 
 export const trelloController = createRPCController({

@@ -4,7 +4,6 @@ import { utils } from 'ssh2';
 import { describe, expect, it } from 'vitest';
 import type { SshConnectionRow } from '@main/db/schema';
 import type { SshConfig } from '@shared/ssh';
-import { serializeSshConnectionMetadata } from '../config/connection-metadata';
 import {
   createSshConnectConfigResolver,
   resolveSshConnectConfig,
@@ -739,7 +738,7 @@ describe('resolveSshConnectConfig', () => {
         row: row({
           authType: 'key',
           privateKeyPath: null,
-          metadata: serializeSshConnectionMetadata({ sshConfigAlias: 'corp-dev' }),
+          metadata: { sshConfigAlias: 'corp-dev' },
         }),
       },
       deps({
@@ -781,7 +780,7 @@ describe('resolveSshConnectConfig', () => {
         row: row({
           authType: 'key',
           privateKeyPath: '',
-          metadata: serializeSshConnectionMetadata({ sshConfigAlias: 'corp-dev' }),
+          metadata: { sshConfigAlias: 'corp-dev' },
         }),
       },
       deps({

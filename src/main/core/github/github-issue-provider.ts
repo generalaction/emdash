@@ -5,9 +5,9 @@ import {
   type IssueListError,
   type IssueListResult,
 } from '@shared/issue-providers';
+import type { LinkedIssue } from '@shared/linked-issue';
 import type { RepositoryRef } from '@shared/repository-ref';
 import { err, ok, type Result } from '@shared/result';
-import type { Issue } from '@shared/tasks';
 import { githubAccountRegistry } from './accounts/github-account-registry-instance';
 import type { GitHubApiAuthContext } from './services/github-api-auth-service';
 import { githubConnectionService } from './services/github-connection-service';
@@ -23,7 +23,7 @@ function toIssue(raw: {
   updatedAt: string | null;
   assignees: Array<{ login: string }>;
   body?: string | null;
-}): Issue {
+}): LinkedIssue {
   return {
     provider: 'github',
     identifier: `#${raw.number}`,
@@ -37,7 +37,7 @@ function toIssue(raw: {
   };
 }
 
-function toIssueListResult(result: Result<Issue[], IssueListError>): IssueListResult {
+function toIssueListResult(result: Result<LinkedIssue[], IssueListError>): IssueListResult {
   if (result.success) return { success: true, issues: result.data };
   const host = 'host' in result.error ? result.error.host : undefined;
   const accountId = 'accountId' in result.error ? result.error.accountId : undefined;
@@ -60,7 +60,7 @@ async function listIssues(
   repository: RepositoryRef,
   limit: number,
   authContext?: GitHubApiAuthContext
-): Promise<Result<Issue[], IssueListError>> {
+): Promise<Result<LinkedIssue[], IssueListError>> {
   const issues = await issueService.listIssues(repository, limit, authContext);
   if (!issues.success) return err(issues.error);
   return ok(issues.data.map(toIssue));
@@ -71,7 +71,7 @@ async function searchIssues(
   searchTerm: string,
   limit: number,
   authContext?: GitHubApiAuthContext
-): Promise<Result<Issue[], IssueListError>> {
+): Promise<Result<LinkedIssue[], IssueListError>> {
   if (!normalizeSearchTerm(searchTerm)) {
     return ok([]);
   }

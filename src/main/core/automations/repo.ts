@@ -27,53 +27,11 @@ import type {
   StoredAutomationTaskConfig,
   TriggerConfig,
 } from '@shared/automations/config';
+import { storedAutomationTaskConfig } from '@shared/automations/config';
 import { getLocalTimeZone } from '@shared/automations/timezone';
 import { assertValidCronTrigger } from '@shared/automations/validation';
 
 const DEFAULT_TZ = getLocalTimeZone();
-
-function parseTriggerConfig(raw: string | null): TriggerConfig | null {
-  if (!raw || raw === '{}' || raw === 'null') return null;
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== 'object') return null;
-    const obj = parsed as Record<string, unknown>;
-    if (typeof obj['expr'] !== 'string' || !obj['expr']) return null;
-    return parsed as TriggerConfig;
-  } catch (error) {
-    log.warn('automations.repo: failed to parse triggerConfig JSON', { error: String(error) });
-    return null;
-  }
-}
-
-function parseConversationConfig(raw: string | null): ConversationConfig | null {
-  if (!raw || raw === '{}' || raw === 'null') return null;
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== 'object') return null;
-    const obj = parsed as Record<string, unknown>;
-    if (typeof obj['prompt'] !== 'string' || !(obj['prompt'] as string).trim()) return null;
-    if (typeof obj['provider'] !== 'string' || !obj['provider']) return null;
-    return parsed as ConversationConfig;
-  } catch (error) {
-    log.warn('automations.repo: failed to parse conversationConfig JSON', { error: String(error) });
-    return null;
-  }
-}
-
-function parseTaskConfig(raw: string | null): StoredAutomationTaskConfig | null {
-  if (!raw || raw === 'null') return null;
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== 'object') return null;
-    const obj = parsed as Record<string, unknown>;
-    if (!('taskConfig' in obj) || !('workspaceConfig' in obj)) return null;
-    return parsed as StoredAutomationTaskConfig;
-  } catch (error) {
-    log.warn('automations.repo: failed to parse taskConfig JSON', { error: String(error) });
-    return null;
-  }
-}
 
 function assertValidAutomationInput(input: {
   triggerConfig: TriggerConfig;
@@ -116,9 +74,9 @@ function mapAutomationRow(row: AutomationRow): Automation {
     id: row.id,
     name: row.name,
     projectId: row.projectId ?? undefined,
-    triggerConfig: parseTriggerConfig(row.triggerConfig) ?? undefined,
-    conversationConfig: parseConversationConfig(row.conversationConfig) ?? undefined,
-    taskConfig: parseTaskConfig(row.taskConfig) ?? undefined,
+    triggerConfig: row.triggerConfig ?? undefined,
+    conversationConfig: row.conversationConfig ?? undefined,
+    taskConfig: row.taskConfig ?? undefined,
     enabled: row.enabled === 1,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -198,7 +156,7 @@ function mapAutomationRunRow(row: AutomationRunRow, taskId: string | null = null
       row.conversationConfigSnapshot,
       row.id
     ),
-    taskConfigSnapshot: parseTaskConfig(row.taskConfigSnapshot),
+    taskConfigSnapshot: storedAutomationTaskConfig.parseJson(row.taskConfigSnapshot),
   };
 }
 
@@ -287,9 +245,9 @@ export async function createAutomation(input: CreateAutomationParams): Promise<A
     .values({
       id: randomUUID(),
       name: input.name.trim(),
-      triggerConfig: JSON.stringify(input.triggerConfig),
-      conversationConfig: JSON.stringify(input.conversationConfig),
-      taskConfig: input.taskConfig ? JSON.stringify(input.taskConfig) : null,
+      triggerConfig: input.triggerConfig,
+      conversationConfig: input.conversationConfig,
+      taskConfig: input.taskConfig ?? null,
       projectId: input.projectId,
       enabled: input.enabled === false ? 0 : 1,
       createdAt: now,
@@ -336,13 +294,13 @@ export async function updateAutomationSettings(
     const values: Partial<typeof automations.$inferInsert> = { updatedAt: Date.now() };
     if (patch.projectId !== undefined) values.projectId = patch.projectId;
     if (patch.triggerConfig !== undefined) {
-      values.triggerConfig = JSON.stringify(patch.triggerConfig);
+      values.triggerConfig = patch.triggerConfig;
     }
     if (patch.conversationConfig !== undefined) {
-      values.conversationConfig = JSON.stringify(patch.conversationConfig);
+      values.conversationConfig = patch.conversationConfig;
     }
     if (patch.taskConfig !== undefined) {
-      values.taskConfig = patch.taskConfig ? JSON.stringify(patch.taskConfig) : null;
+      values.taskConfig = patch.taskConfig ?? null;
     }
 
     const [row] = tx

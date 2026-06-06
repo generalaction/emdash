@@ -1,4 +1,4 @@
-import { defineEvent } from '@shared/ipc/events';
+import { defineEvent } from '@shared/lib/ipc/events';
 import type { PullRequest } from '@shared/pull-requests';
 import type { Task } from '@shared/tasks';
 
