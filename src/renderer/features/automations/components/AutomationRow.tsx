@@ -1,6 +1,5 @@
-import { Clock, Folder } from 'lucide-react';
+import { CheckCircle2, Clock, Folder, Loader2, MinusCircle, XCircle, type LucideIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { statusIndicatorConfig } from '@renderer/features/automations/run-status-styles';
 import {
   useLatestAutomationRun,
   useScheduledAutomationRun,
@@ -14,8 +13,20 @@ import { getTaskStore, taskAgentStatus } from '@renderer/features/tasks/stores/t
 import { AbsoluteTime } from '@renderer/lib/ui/absolute-time';
 import { Switch } from '@renderer/lib/ui/switch';
 import { cn } from '@renderer/utils/utils';
+import type { AutomationRunStatus } from '@shared/automations/automation-run';
 import type { Automation } from '@shared/automations/automation';
 import { formatCronLabel, formatRunTriggerKindLabel } from '@shared/automations/format';
+
+const RUN_STATUS_ICON: Record<AutomationRunStatus, { Icon: LucideIcon; textClass: string; spin?: boolean }> = {
+  scheduled: { Icon: Clock, textClass: 'text-foreground-info' },
+  queued: { Icon: Clock, textClass: 'text-foreground-muted' },
+  creating_task: { Icon: Loader2, textClass: 'text-foreground-muted', spin: true },
+  launching_task: { Icon: Loader2, textClass: 'text-foreground-muted', spin: true },
+  creating_conversation: { Icon: Loader2, textClass: 'text-foreground-muted', spin: true },
+  done: { Icon: CheckCircle2, textClass: 'text-foreground-success' },
+  failed: { Icon: XCircle, textClass: 'text-foreground-error' },
+  skipped: { Icon: MinusCircle, textClass: 'text-foreground-muted' },
+};
 
 interface AutomationRowProps {
   automation: Automation;
@@ -67,7 +78,7 @@ export const AutomationRow = observer(function AutomationRow({
           <div className="flex min-w-0 items-center gap-1">
             <span
               className={cn(
-                'min-w-0 truncate text-sm',
+                'min-w-0 truncate text-md',
                 automation.enabled ? 'text-foreground' : 'text-foreground-muted'
               )}
             >
@@ -99,12 +110,12 @@ export const AutomationRow = observer(function AutomationRow({
         {/* Row 2: latest run sentence left, next run / disabled right */}
         <div className="flex min-w-0 items-center justify-between gap-2">
           {run ? (() => {
-            const cfg = statusIndicatorConfig(run.status);
+            const { Icon, textClass, spin } = RUN_STATUS_ICON[run.status];
             const time = run.startedAt ?? run.finishedAt;
             return (
               <span className="flex items-center gap-1.5 text-sm text-foreground-muted">
-                <cfg.Icon
-                  className={cn('size-3.5 shrink-0', cfg.textClass, cfg.spin && 'animate-spin')}
+                <Icon
+                  className={cn('size-3.5 shrink-0', textClass, spin && 'animate-spin')}
                 />
                 Last run on
                 {time && (

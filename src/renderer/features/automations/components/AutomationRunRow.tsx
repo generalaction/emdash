@@ -1,20 +1,14 @@
-import { Square } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { isActiveStatus } from '@renderer/features/automations/run-status-styles';
 import { useAutomationRunActions } from '@renderer/features/automations/use-automation-run-actions';
-import { conversationRegistry } from '@renderer/features/tasks/stores/conversation-registry';
 import {
   getRegisteredTaskData,
   getTaskStore,
   taskAgentStatus,
 } from '@renderer/features/tasks/stores/task-selectors';
-import { rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 import type { AutomationRun } from '@shared/automations/automation-run';
 import { parseRunError } from '@shared/automations/format';
-import { makePtySessionId } from '@shared/ptySessionId';
 import { useAutomationRun } from '../use-automations';
 import { RunMetaLine } from './RunMetaLine';
 import { TaskDataLine } from './TaskDataLine';
@@ -34,7 +28,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
   const { navigate } = useNavigate();
   const fetchedRun = useAutomationRun(automationId, runId);
   const run = runProp ?? fetchedRun;
-  const { stopRun, projectId } = useAutomationRunActions(automationId);
+  const { projectId } = useAutomationRunActions(automationId);
 
   const taskId = run ? run.taskId : null;
   const taskStore = taskId && projectId ? getTaskStore(projectId, taskId) : undefined;
@@ -44,7 +38,6 @@ export const AutomationRunRow = observer(function AutomationRunRow({
   const agentStatus = taskStore ? taskAgentStatus(taskStore) : null;
 
   const displayTime = run ? (run.startedAt ?? run.finishedAt) : null;
-  const isRunActive = run ? isActiveStatus(run.status) : false;
   const missedDeadline = run ? parseRunError(run.error)?.code === 'deadline_exceeded' : false;
 
   const displayName = run?.generatedTaskName ?? null;
@@ -52,18 +45,6 @@ export const AutomationRunRow = observer(function AutomationRunRow({
   function handleOpenTask() {
     if (!taskId || !projectId || !interactive) return;
     navigate('task', { projectId, taskId });
-  }
-
-  function handleStop() {
-    if (!run) return;
-    stopRun(run.id);
-    if (run.status === 'creating_conversation' && taskId && projectId) {
-      for (const conv of conversationRegistry.get(taskId)?.conversations.values() ?? []) {
-        if (conv.status === 'working' || conv.status === 'awaiting-input') {
-          void rpc.pty.stopSession(makePtySessionId(projectId, taskId, conv.data.id));
-        }
-      }
-    }
   }
 
   if (!run) return null;
@@ -99,7 +80,6 @@ export const AutomationRunRow = observer(function AutomationRunRow({
         <TaskDataLine
           task={taskStore}
           agentStatus={agentStatus}
-          isRunActive={isRunActive}
           missedDeadline={missedDeadline}
         />
       ) : (
@@ -111,31 +91,6 @@ export const AutomationRunRow = observer(function AutomationRunRow({
         runStatus={run.status}
         error={run.error}
       />
-
-      {/* Hover action overlay */}
-      {isRunActive && (
-        <div
-          className="absolute inset-y-0 right-3 flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100"
-          onClick={(e) => e.stopPropagation()}
-          onPointerDown={(e) => e.stopPropagation()}
-        >
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <button
-                  type="button"
-                  aria-label="Stop run"
-                  onClick={handleStop}
-                  className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-background text-foreground-muted transition-colors hover:bg-background-1 hover:text-foreground"
-                />
-              }
-            >
-              <Square className="size-3.5" />
-            </TooltipTrigger>
-            <TooltipContent>Stop run</TooltipContent>
-          </Tooltip>
-        </div>
-      )}
     </div>
   );
 });

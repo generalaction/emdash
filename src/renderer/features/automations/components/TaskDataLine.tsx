@@ -8,7 +8,6 @@ import { cn } from '@renderer/utils/utils';
 export interface TaskDataLineProps {
   task: TaskStore;
   agentStatus: AgentStatus | null;
-  isRunActive: boolean;
   missedDeadline: boolean;
 }
 
