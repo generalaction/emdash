@@ -341,7 +341,9 @@ const SLASH_GROUP_LABELS: Record<NativeChatSlashEntry['group'], string> = {
   command: 'Commands',
   model: 'Models',
   reasoning: 'Reasoning',
-  skill: 'Skills',
+  'skill-active': 'Skills',
+  'skill-shared': 'Shared skills',
+  'skill-other': 'Other skills',
 };
 
 function SlashMenu({

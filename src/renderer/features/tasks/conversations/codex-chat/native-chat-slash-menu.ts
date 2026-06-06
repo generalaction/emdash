@@ -9,7 +9,17 @@ import {
 } from '@shared/native-chat';
 import type { CatalogSkill } from '@shared/skills/types';
 
-export type NativeChatSlashGroup = 'command' | 'model' | 'reasoning' | 'skill';
+export type NativeChatSlashGroup =
+  | 'command'
+  | 'model'
+  | 'reasoning'
+  | 'skill-active'
+  | 'skill-shared'
+  | 'skill-other';
+
+type NativeChatSkillSlashGroup = Extract<NativeChatSlashGroup, `skill-${string}`>;
+
+export type NativeChatSkillAffinity = 'codex' | 'claude' | 'pi' | 'shared';
 
 export type NativeChatSlashEntry =
   | {
@@ -95,6 +105,68 @@ function skillPrompt(skill: CatalogSkill, providerId: NativeChatProviderId): str
   return `Use the ${name} skill for this Codex task.`;
 }
 
+function skillCompatibilityText(skill: CatalogSkill): string {
+  return [
+    skill.frontmatter?.compatibility,
+    skill.skillMdContent,
+    skill.description,
+    skill.sourceRef,
+    skill.catalogSkillId,
+    skill.id,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+}
+
+export function inferNativeChatSkillAffinities(skill: CatalogSkill): NativeChatSkillAffinity[] {
+  const affinities = new Set<NativeChatSkillAffinity>();
+  const text = skillCompatibilityText(skill);
+
+  if (skill.source === 'openai') affinities.add('codex');
+  if (skill.source === 'anthropic') affinities.add('claude');
+
+  if (/\b(codex|openai|chatgpt|gpt)\b/.test(text)) affinities.add('codex');
+  if (/\b(claude|anthropic|claude code|claude-code)\b/.test(text)) affinities.add('claude');
+  if (/\b(pi|pi coding agent|mariozechner)\b/.test(text)) affinities.add('pi');
+
+  if (
+    /\b(any|all|cross-agent|multi-agent|agentskills|skill\.md)\b/.test(text) ||
+    text.includes('ai coding assistant')
+  ) {
+    affinities.add('shared');
+  }
+
+  return [...affinities];
+}
+
+function skillGroupForProvider(
+  skill: CatalogSkill,
+  providerId: NativeChatProviderId
+): NativeChatSkillSlashGroup {
+  const affinities = inferNativeChatSkillAffinities(skill);
+  const providerAffinity = providerId === 'claude' ? 'claude' : providerId;
+  if (affinities.includes(providerAffinity)) return 'skill-active';
+  if (affinities.includes('shared') || affinities.length === 0) return 'skill-shared';
+  return 'skill-other';
+}
+
+function skillDetail(skill: CatalogSkill, group: NativeChatSlashGroup): string {
+  if (group === 'skill-other') {
+    return `May target another agent. ${skill.description}`.trim();
+  }
+  if (group === 'skill-shared') {
+    return `Shared prompt skill. ${skill.description}`.trim();
+  }
+  return skill.description;
+}
+
+const SKILL_GROUP_ORDER: Record<NativeChatSkillSlashGroup, number> = {
+  'skill-active': 0,
+  'skill-shared': 1,
+  'skill-other': 2,
+};
+
 function modelEntries(
   providerId: NativeChatProviderId,
   currentModel: string | undefined
@@ -179,14 +251,23 @@ export function buildNativeChatSlashEntries({
   currentModel?: string;
   installedSkills: CatalogSkill[];
 }): NativeChatSlashEntry[] {
-  const skillEntries = installedSkills.map<NativeChatSlashEntry>((skill) => ({
-    id: `${providerId}:skill:${skill.installId ?? skill.id}`,
-    group: 'skill',
-    label: skill.displayName,
-    detail: skill.description,
-    keywords: ['skill', skill.id, skill.installId ?? ''],
-    action: { type: 'insert', text: skillPrompt(skill, providerId) },
-  }));
+  const skillEntries = installedSkills
+    .map<NativeChatSlashEntry & { group: NativeChatSkillSlashGroup }>((skill) => {
+      const affinities = inferNativeChatSkillAffinities(skill);
+      const group = skillGroupForProvider(skill, providerId);
+      return {
+        id: `${providerId}:skill:${skill.installId ?? skill.id}`,
+        group,
+        label: skill.displayName,
+        detail: skillDetail(skill, group),
+        keywords: ['skill', skill.id, skill.installId ?? '', ...affinities],
+        action: { type: 'insert', text: skillPrompt(skill, providerId) },
+      };
+    })
+    .sort((a, b) => {
+      const groupDelta = SKILL_GROUP_ORDER[a.group] - SKILL_GROUP_ORDER[b.group];
+      return groupDelta || a.label.localeCompare(b.label);
+    });
 
   return [
     {
