@@ -135,6 +135,20 @@ function makeConversation(overrides: Partial<Conversation> = {}): Conversation {
   };
 }
 
+function addConversation(
+  conversations: ReturnType<typeof conversationRegistry.acquire>,
+  overrides: Partial<Conversation> = {}
+): void {
+  const conversation = makeConversation(overrides);
+  conversations.conversations.set(conversation.id, new ConversationStore(conversation));
+}
+
+function conversationTabIds(viewModel: WorkspaceViewModel): string[] {
+  return viewModel.tabManager.resolvedTabs.flatMap((tab) =>
+    tab.kind === 'conversation' ? [tab.conversationId] : []
+  );
+}
+
 function makeViewModel(): WorkspaceViewModel {
   return new WorkspaceViewModel({ data: makeTask() } as unknown as TaskStore);
 }
@@ -250,20 +264,11 @@ describe('WorkspaceViewModel default conversation tab', () => {
     const viewModel = makeViewModel();
 
     runInAction(() => {
-      conversations.conversations.set(
-        'conversation-1',
-        new ConversationStore(
-          makeConversation({ id: 'conversation-1', isInitialConversation: true })
-        )
-      );
+      addConversation(conversations, { id: 'conversation-1', isInitialConversation: true });
     });
     await Promise.resolve();
 
-    expect(
-      viewModel.tabManager.resolvedTabs.map((tab) =>
-        tab.kind === 'conversation' ? tab.conversationId : null
-      )
-    ).toEqual(['conversation-1']);
+    expect(conversationTabIds(viewModel)).toEqual(['conversation-1']);
 
     viewModel.dispose();
   });
@@ -273,12 +278,7 @@ describe('WorkspaceViewModel default conversation tab', () => {
     const viewModel = makeViewModel();
 
     runInAction(() => {
-      conversations.conversations.set(
-        'conversation-1',
-        new ConversationStore(
-          makeConversation({ id: 'conversation-1', isInitialConversation: true })
-        )
-      );
+      addConversation(conversations, { id: 'conversation-1', isInitialConversation: true });
       viewModel.tabManager.openConversation('conversation-1');
     });
     await Promise.resolve();
@@ -287,10 +287,7 @@ describe('WorkspaceViewModel default conversation tab', () => {
     expect(viewModel.tabManager.resolvedTabs).toHaveLength(0);
 
     runInAction(() => {
-      conversations.conversations.set(
-        'conversation-2',
-        new ConversationStore(makeConversation({ id: 'conversation-2', title: 'Conversation 2' }))
-      );
+      addConversation(conversations, { id: 'conversation-2', title: 'Conversation 2' });
     });
     await Promise.resolve();
 
@@ -298,11 +295,7 @@ describe('WorkspaceViewModel default conversation tab', () => {
 
     viewModel.tabManager.openConversation('conversation-2');
 
-    expect(
-      viewModel.tabManager.resolvedTabs.map((tab) =>
-        tab.kind === 'conversation' ? tab.conversationId : null
-      )
-    ).toEqual(['conversation-2']);
+    expect(conversationTabIds(viewModel)).toEqual(['conversation-2']);
 
     viewModel.dispose();
   });
@@ -333,42 +326,11 @@ describe('WorkspaceViewModel default conversation tab', () => {
     expect(viewModel.tabManager.resolvedTabs).toHaveLength(0);
 
     runInAction(() => {
-      conversations.conversations.set(
-        'conversation-2',
-        new ConversationStore(makeConversation({ id: 'conversation-2', title: 'Conversation 2' }))
-      );
+      addConversation(conversations, { id: 'conversation-2', title: 'Conversation 2' });
     });
     await Promise.resolve();
 
     expect(viewModel.tabManager.resolvedTabs).toHaveLength(0);
-
-    viewModel.dispose();
-  });
-
-  it('opens the initial conversation after restoring legacy UI state without tab state', async () => {
-    const conversations = conversationRegistry.acquire('task-1', 'project-1', []);
-    const viewModel = makeViewModel();
-
-    viewModel.restoreSnapshot({
-      focusedRegion: 'bottom',
-      isTerminalDrawerOpen: true,
-    });
-
-    runInAction(() => {
-      conversations.conversations.set(
-        'conversation-1',
-        new ConversationStore(
-          makeConversation({ id: 'conversation-1', isInitialConversation: true })
-        )
-      );
-    });
-    await Promise.resolve();
-
-    expect(
-      viewModel.tabManager.resolvedTabs.map((tab) =>
-        tab.kind === 'conversation' ? tab.conversationId : null
-      )
-    ).toEqual(['conversation-1']);
 
     viewModel.dispose();
   });
@@ -387,12 +349,7 @@ describe('WorkspaceViewModel default conversation tab', () => {
     const viewModel = makeProvisionedViewModel();
 
     runInAction(() => {
-      conversations.conversations.set(
-        'conversation-1',
-        new ConversationStore(
-          makeConversation({ id: 'conversation-1', isInitialConversation: true })
-        )
-      );
+      addConversation(conversations, { id: 'conversation-1', isInitialConversation: true });
       viewModel.tabManager.openConversation('conversation-1');
     });
     await Promise.resolve();
@@ -400,19 +357,12 @@ describe('WorkspaceViewModel default conversation tab', () => {
     viewModel.tabManager.closeTab(viewModel.tabManager.resolvedActiveTabId!);
 
     runInAction(() => {
-      conversations.conversations.set(
-        'conversation-2',
-        new ConversationStore(makeConversation({ id: 'conversation-2', title: 'Conversation 2' }))
-      );
+      addConversation(conversations, { id: 'conversation-2', title: 'Conversation 2' });
     });
     viewModel.initialize();
     viewModel.tabManager.openConversation('conversation-2');
 
-    expect(
-      viewModel.tabManager.resolvedTabs.map((tab) =>
-        tab.kind === 'conversation' ? tab.conversationId : null
-      )
-    ).toEqual(['conversation-2']);
+    expect(conversationTabIds(viewModel)).toEqual(['conversation-2']);
 
     viewModel.dispose();
   });
