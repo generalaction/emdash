@@ -11,7 +11,7 @@ export function createCommandCodeClassifier() {
       };
     }
 
-    if (/session ended|✓|✔|Task completed|Finished|Done\./i.test(tail)) {
+    if (/session ended|Task completed|Finished|Done\./i.test(tail)) {
       return {
         type: 'stop',
         message: 'Task completed',
