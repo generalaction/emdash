@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
+import { applyNativeChatDefaults } from '@main/core/conversations/apply-native-chat-defaults';
 import { resolveConversationUiMode } from '@main/core/conversations/resolve-conversation-ui-mode';
 import { mapConversationRowToConversation } from '@main/core/conversations/utils';
 import { projectManager } from '@main/core/projects/project-manager';
@@ -114,7 +115,13 @@ export async function prepareCreateTask(
         conversationUi: await appSettingsService.get('conversationUi'),
         isRemoteTask: wsTarget.kind === 'byoi' || projectRow?.workspaceProvider === 'ssh',
       });
-      if (uiMode === 'native-chat') configObj.uiMode = 'native-chat';
+      if (uiMode === 'native-chat') {
+        configObj.uiMode = 'native-chat';
+        applyNativeChatDefaults(
+          configObj,
+          (await appSettingsService.get('nativeChatDefaults'))[ic.provider]
+        );
+      }
     }
     const config =
       Object.keys(configObj).length > 0 ? serializeConversationConfig(configObj) : undefined;

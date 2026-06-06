@@ -35,9 +35,9 @@ export function isPiThinkingLevel(value: unknown): value is (typeof PI_THINKING_
 }
 
 /**
- * Build the argv for one native chat turn: `codex exec --json` (or
- * `codex exec resume <thread-id> --json` for follow-ups). The command is
- * spawned directly (argv array, no shell), so no shell quoting is involved.
+ * Build the argv for one native chat turn: `codex exec --json -` (or
+ * `codex exec resume <thread-id> --json -` for follow-ups). The prompt is
+ * piped on stdin so Codex never re-parses user text as CLI flags.
  */
 export function buildCodexExecCommand({
   providerConfig,
@@ -111,9 +111,9 @@ export function buildCodexExecCommand({
     args.push('-i', image);
   }
 
-  args.push(prompt);
+  args.push('-');
 
-  return { command, args };
+  return { command, args, stdin: prompt };
 }
 
 /**

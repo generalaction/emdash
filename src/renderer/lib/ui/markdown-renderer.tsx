@@ -13,6 +13,7 @@ import { useTheme } from '@renderer/lib/hooks/useTheme';
 import { confirmOpenExternalLink } from '@renderer/lib/open-external-link';
 import { cn } from '@renderer/utils/utils';
 import { ExpandableImage } from './expandable-image';
+import { extractFilePathFromInlineCode } from './markdown-file-links';
 import { normalizeLatexDelimiters } from './markdown-latex';
 import { MermaidDiagram } from './mermaid-diagram';
 
@@ -29,6 +30,11 @@ interface MarkdownRendererProps {
    * render a "not found" placeholder. When omitted, local images are not resolved.
    */
   resolveImage?: (src: string) => Promise<string | null>;
+  /**
+   * When set, inline code spans that look like workspace file paths become
+   * clickable and call back with the path (line/column suffix stripped).
+   */
+  onOpenFile?: (path: string) => void;
 }
 
 // Sanitize runs before rehype-katex so user input is sanitized but KaTeX's
@@ -140,9 +146,48 @@ function isOnlyMermaidDiagramChild(children: React.ReactNode): boolean {
   return React.isValidElement(child) && child.type === MermaidDiagram;
 }
 
+/**
+ * Inline code as a quiet pill; file-looking spans become clickable when the
+ * surface provides an opener.
+ */
+function InlineCode({
+  children,
+  code,
+  onOpenFile,
+  className,
+}: {
+  children: React.ReactNode;
+  code: string;
+  onOpenFile?: (path: string) => void;
+  className: string;
+}) {
+  const filePath = onOpenFile ? extractFilePathFromInlineCode(code) : null;
+  if (filePath && onOpenFile) {
+    return (
+      <code
+        role="link"
+        tabIndex={0}
+        onClick={() => onOpenFile(filePath)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') onOpenFile(filePath);
+        }}
+        className={cn(
+          className,
+          'cursor-pointer transition-colors hover:border-border-2 hover:text-foreground hover:underline'
+        )}
+        title={`Open ${filePath}`}
+      >
+        {children}
+      </code>
+    );
+  }
+  return <code className={className}>{children}</code>;
+}
+
 function useFullComponents(
   isDark: boolean,
-  resolveImage?: (src: string) => Promise<string | null>
+  resolveImage?: (src: string) => Promise<string | null>,
+  onOpenFile?: (path: string) => void
 ) {
   return useMemo(
     () => ({
@@ -196,7 +241,15 @@ function useFullComponents(
           );
         }
 
-        return <code className="bg-muted rounded px-1.5 py-0.5 text-xs">{children}</code>;
+        return (
+          <InlineCode
+            code={code}
+            onOpenFile={onOpenFile}
+            className="rounded border border-border/60 bg-background-2 px-1.5 py-0.5 font-mono text-xs text-foreground"
+          >
+            {children}
+          </InlineCode>
+        );
       },
       pre: ({ children }: WithChildren) =>
         isOnlyMermaidDiagramChild(children) ? (
@@ -272,11 +325,11 @@ function useFullComponents(
         />
       ),
     }),
-    [isDark, resolveImage]
+    [isDark, resolveImage, onOpenFile]
   );
 }
 
-function useCompactComponents(isDark: boolean) {
+function useCompactComponents(isDark: boolean, onOpenFile?: (path: string) => void) {
   return useMemo(
     () => ({
       h1: ({ children }: WithChildren) => (
@@ -316,9 +369,13 @@ function useCompactComponents(isDark: boolean) {
           );
         }
         return (
-          <code className="bg-muted/60 rounded px-1 py-0.5 font-mono text-[0.92em]">
+          <InlineCode
+            code={code}
+            onOpenFile={onOpenFile}
+            className="rounded border border-border/60 bg-background-2 px-1 py-px font-mono text-[0.9em] text-foreground"
+          >
             {children}
-          </code>
+          </InlineCode>
         );
       },
       pre: ({ children }: WithChildren) =>
@@ -386,7 +443,7 @@ function useCompactComponents(isDark: boolean) {
         />
       ),
     }),
-    [isDark]
+    [isDark, onOpenFile]
   );
 }
 
@@ -396,12 +453,13 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   className,
   allowHtml = variant === 'full',
   resolveImage,
+  onOpenFile,
 }) => {
   const { effectiveTheme } = useTheme();
   const isDark = effectiveTheme === 'emdark';
 
-  const fullComponents = useFullComponents(isDark, resolveImage);
-  const compactComponents = useCompactComponents(isDark);
+  const fullComponents = useFullComponents(isDark, resolveImage, onOpenFile);
+  const compactComponents = useCompactComponents(isDark, onOpenFile);
 
   const components = variant === 'full' ? fullComponents : compactComponents;
   const rehypePlugins = allowHtml ? FULL_REHYPE_PLUGINS : COMPACT_REHYPE_PLUGINS;

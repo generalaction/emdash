@@ -1,6 +1,7 @@
 import { createRPCController } from '@shared/ipc/rpc';
 import type { NativeChatState } from '@shared/native-chat';
 import { nativeChatService } from './native-chat-service';
+import { readAttachmentImage } from './read-attachment-image';
 import { sendNativeChatMessage } from './send-native-chat-message';
 import { setNativeChatOptions } from './set-native-chat-options';
 import { switchConversationToNativeChat } from './switch-conversation-to-native-chat';
@@ -8,7 +9,7 @@ import { switchNativeChatToTerminalMode } from './switch-native-chat-to-terminal
 
 export const nativeChatController = createRPCController({
   getState: (conversationId: string): Promise<NativeChatState> =>
-    Promise.resolve(nativeChatService.getState(conversationId)),
+    nativeChatService.getState(conversationId),
 
   sendMessage: sendNativeChatMessage,
 
@@ -18,6 +19,8 @@ export const nativeChatController = createRPCController({
   },
 
   setOptions: setNativeChatOptions,
+
+  readAttachmentImage,
 
   switchToTerminal: switchNativeChatToTerminalMode,
 

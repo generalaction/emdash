@@ -73,6 +73,7 @@ export const SETTINGS_DEFAULTS = {
   conversationUi: {
     mode: 'terminal' as const,
   },
+  nativeChatDefaults: {},
 } satisfies SettingsDefaultsMap;
 
 export function getDefaultForKey<K extends AppSettingsKey>(key: K): AppSettings[K] {

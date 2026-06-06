@@ -11,12 +11,14 @@ import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { serializeConversationConfig, type ConversationConfig } from '@shared/conversation-config';
+import { isNativeChatProvider } from '@shared/conversation-ui';
 import { type Conversation, type CreateConversationParams } from '@shared/conversations';
 import { type AgentEvent } from '@shared/events/agentEvents';
 import { conversationCreatedChannel } from '@shared/events/conversationEvents';
 import { agentHookService } from '../agent-hooks/agent-hook-service';
 import { isAppFocused } from '../agent-hooks/notification';
 import { resolveTask } from '../projects/utils';
+import { applyNativeChatDefaults } from './apply-native-chat-defaults';
 import { conversationEvents } from './conversation-events';
 import { resolveConversationUiMode } from './resolve-conversation-ui-mode';
 import { mapConversationRowToConversation } from './utils';
@@ -61,7 +63,15 @@ export async function createConversation(
 
   const configObj: ConversationConfig = {};
   if (params.autoApprove !== undefined) configObj.autoApprove = params.autoApprove;
-  if (uiMode === 'native-chat') configObj.uiMode = 'native-chat';
+  if (uiMode === 'native-chat') {
+    configObj.uiMode = 'native-chat';
+    if (isNativeChatProvider(params.provider)) {
+      applyNativeChatDefaults(
+        configObj,
+        (await appSettingsService.get('nativeChatDefaults'))[params.provider]
+      );
+    }
+  }
   const config =
     Object.keys(configObj).length > 0 ? serializeConversationConfig(configObj) : undefined;
 

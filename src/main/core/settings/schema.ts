@@ -1,7 +1,8 @@
 import z from 'zod';
 import { AGENT_PROVIDER_IDS, AGENT_PROVIDERS } from '@shared/agent-provider-registry';
 import { normalizeBranchPrefix } from '@shared/branch-prefix';
-import { CONVERSATION_UI_MODES } from '@shared/conversation-ui';
+import { CONVERSATION_UI_MODES, NATIVE_CHAT_PROVIDER_IDS } from '@shared/conversation-ui';
+import { CODEX_SERVICE_TIERS, NATIVE_CHAT_REASONING_EFFORTS } from '@shared/native-chat';
 import { openInAppIdSchema } from '@shared/openInApps';
 import { APP_SHORTCUTS } from '@shared/shortcuts';
 import {
@@ -132,6 +133,24 @@ export const conversationUiSettingsSchema = z.object({
   mode: z.enum(CONVERSATION_UI_MODES),
 });
 
+/**
+ * Last-used native chat options per provider, applied as defaults when new
+ * native-chat conversations are created. Written whenever the composer's
+ * options menu changes a value.
+ */
+export const nativeChatProviderDefaultsSchema = z.object({
+  model: z
+    .string()
+    .regex(/^[A-Za-z0-9._-]+$/)
+    .optional(),
+  reasoningEffort: z.enum(NATIVE_CHAT_REASONING_EFFORTS).optional(),
+  serviceTier: z.enum(CODEX_SERVICE_TIERS).optional(),
+});
+
+export const nativeChatDefaultsSchema = z
+  .partialRecord(z.enum(NATIVE_CHAT_PROVIDER_IDS), nativeChatProviderDefaultsSchema)
+  .default({});
+
 export const openInSettingsSchema = z.object({
   default: openInAppIdSchema,
   hidden: z.array(openInAppIdSchema),
@@ -153,6 +172,7 @@ export const APP_SETTINGS_SCHEMA_MAP = {
   resourceMonitor: resourceMonitorSettingsSchema,
   changesViewMode: changesViewModeSchema,
   conversationUi: conversationUiSettingsSchema,
+  nativeChatDefaults: nativeChatDefaultsSchema,
 } as const;
 
 export const appSettingsSchema = z.object({
@@ -171,4 +191,5 @@ export const appSettingsSchema = z.object({
   resourceMonitor: resourceMonitorSettingsSchema,
   changesViewMode: changesViewModeSchema,
   conversationUi: conversationUiSettingsSchema,
+  nativeChatDefaults: nativeChatDefaultsSchema,
 });

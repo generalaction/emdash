@@ -31,7 +31,7 @@ const PI_CONFIG: ProviderCustomConfig = {
 
 describe('buildCodexExecCommand', () => {
   it('builds a sandboxed fresh turn by default', () => {
-    const { command, args } = buildCodexExecCommand({
+    const { command, args, stdin } = buildCodexExecCommand({
       providerConfig: CODEX_CONFIG,
       prompt: 'do the thing',
     });
@@ -42,23 +42,34 @@ describe('buildCodexExecCommand', () => {
       '-c',
       'sandbox_mode=workspace-write',
       '--dangerously-bypass-hook-trust',
-      'do the thing',
+      '-',
     ]);
+    expect(stdin).toBe('do the thing');
   });
 
   it('resumes a thread for follow-up turns', () => {
-    const { args } = buildCodexExecCommand({
+    const { args, stdin } = buildCodexExecCommand({
       providerConfig: CODEX_CONFIG,
       resumeThreadId: THREAD_ID,
       prompt: 'continue',
     });
     expect(args.slice(0, 3)).toEqual(['exec', 'resume', THREAD_ID]);
     expect(args).toContain('--json');
-    expect(args[args.length - 1]).toBe('continue');
+    expect(args[args.length - 1]).toBe('-');
+    expect(stdin).toBe('continue');
+  });
+
+  it('pipes dash-prefixed prompts through stdin instead of argv parsing them', () => {
+    const { args, stdin } = buildCodexExecCommand({
+      providerConfig: CODEX_CONFIG,
+      prompt: '- fix tests',
+    });
+    expect(args[args.length - 1]).toBe('-');
+    expect(stdin).toBe('- fix tests');
   });
 
   it('applies the configured auto-approve flags', () => {
-    const { args } = buildCodexExecCommand({
+    const { args, stdin } = buildCodexExecCommand({
       providerConfig: CODEX_CONFIG,
       autoApprove: true,
       prompt: 'go',
@@ -71,8 +82,9 @@ describe('buildCodexExecCommand', () => {
       '-c',
       'sandbox_mode=danger-full-access',
       '--dangerously-bypass-hook-trust',
-      'go',
+      '-',
     ]);
+    expect(stdin).toBe('go');
   });
 
   it('preserves configured provider arguments before the exec subcommand', () => {
@@ -106,7 +118,7 @@ describe('buildCodexExecCommand', () => {
     const index = args.indexOf('model_reasoning_effort=high');
     expect(index).toBeGreaterThan(0);
     expect(args[index - 1]).toBe('-c');
-    expect(args[args.length - 1]).toBe('go');
+    expect(args[args.length - 1]).toBe('-');
   });
 
   it('passes the model via -m and rejects unsafe ids', () => {
@@ -148,8 +160,8 @@ describe('buildCodexExecCommand', () => {
     expect(args[index - 1]).toBe('-c');
   });
 
-  it('passes image attachments via -i before the prompt', () => {
-    const { args } = buildCodexExecCommand({
+  it('passes image attachments via -i before the stdin prompt sentinel', () => {
+    const { args, stdin } = buildCodexExecCommand({
       providerConfig: CODEX_CONFIG,
       images: ['/tmp/a.png', '/tmp/b.png'],
       prompt: 'look',
@@ -157,7 +169,8 @@ describe('buildCodexExecCommand', () => {
     const first = args.indexOf('-i');
     expect(args[first + 1]).toBe('/tmp/a.png');
     expect(args[args.lastIndexOf('-i') + 1]).toBe('/tmp/b.png');
-    expect(args[args.length - 1]).toBe('look');
+    expect(args[args.length - 1]).toBe('-');
+    expect(stdin).toBe('look');
 
     expect(() =>
       buildCodexExecCommand({ providerConfig: CODEX_CONFIG, images: [''], prompt: 'x' })
@@ -175,13 +188,15 @@ describe('buildCodexExecCommand', () => {
   });
 
   it('honors a custom cli prefix', () => {
-    const { command, args } = buildCodexExecCommand({
+    const { command, args, stdin } = buildCodexExecCommand({
       providerConfig: { ...CODEX_CONFIG, cli: 'npx @openai/codex' },
       prompt: 'hi',
     });
     expect(command).toBe('npx');
     expect(args[0]).toBe('@openai/codex');
     expect(args[1]).toBe('exec');
+    expect(args[args.length - 1]).toBe('-');
+    expect(stdin).toBe('hi');
   });
 });
 

@@ -26,8 +26,9 @@ export async function deleteConversation(
 
   conversationEvents._emit('conversation:deleted', conversationId);
 
-  // No-op for terminal-mode conversations; kills any running native turn.
-  await nativeChatService.dispose(conversationId);
+  // No-op for terminal-mode conversations; kills any running native turn and
+  // removes the persisted transcript.
+  await nativeChatService.deleteData(conversationId);
 
   const task = resolveTask(projectId, taskId);
   if (task) {

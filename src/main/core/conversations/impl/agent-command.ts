@@ -10,6 +10,7 @@ import { addKimiHooksToConfigText } from '../../agent-hooks/hook-config';
 export type AgentCommand = {
   command: string;
   args: string[];
+  stdin?: string;
 };
 
 const SHELL_SYNTAX_ERROR = 'Custom CLI commands support executable command prefixes only. ';

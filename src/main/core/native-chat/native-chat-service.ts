@@ -25,7 +25,7 @@ import {
   type NativeChatAttachment,
 } from '@shared/native-chat';
 import { makePtyId } from '@shared/ptyId';
-import { attachmentDisplayName, buildPromptWithAttachments } from './attachments';
+import { buildPromptWithAttachments } from './attachments';
 import {
   buildClaudeExecCommand,
   buildCodexExecCommand,
@@ -40,9 +40,15 @@ import {
   parseCodexExecLine,
   type NativeChatTurnEvent,
 } from './native-exec-events';
+import {
+  deleteNativeChatTranscript,
+  loadNativeChatTranscript,
+  saveNativeChatTranscript,
+} from './transcript-store';
 
 const STDERR_TAIL_MAX_CHARS = 2_000;
 const INTERRUPT_KILL_TIMEOUT_MS = 5_000;
+const PERSIST_DEBOUNCE_MS = 300;
 
 /** One stateful stream parser per turn; Codex's line parser is stateless. */
 function createTurnParser(
@@ -71,6 +77,7 @@ type ChatSession = {
   child: ChildProcess | null;
   interruptRequested: boolean;
   disposed: boolean;
+  persistTimer: ReturnType<typeof setTimeout> | null;
 };
 
 export type StartNativeChatTurnParams = {
@@ -94,15 +101,28 @@ export type StartNativeChatTurnParams = {
 export class NativeChatService {
   private sessions = new Map<string, ChatSession>();
 
-  getState(conversationId: string): NativeChatState {
+  async getState(conversationId: string): Promise<NativeChatState> {
     const session = this.sessions.get(conversationId);
-    if (!session) return emptyNativeChatState(conversationId);
+    if (session) {
+      return {
+        conversationId,
+        items: [...session.items],
+        turnStatus: session.turnStatus,
+        lastError: session.lastError,
+        turnDurationsMs: { ...session.turnDurationsMs },
+      };
+    }
+
+    // No live session (e.g. after an app restart): serve the persisted
+    // transcript without creating one — startTurn seeds the real session.
+    const persisted = await loadNativeChatTranscript(conversationId);
+    if (!persisted) return emptyNativeChatState(conversationId);
     return {
       conversationId,
-      items: [...session.items],
-      turnStatus: session.turnStatus,
-      lastError: session.lastError,
-      turnDurationsMs: { ...session.turnDurationsMs },
+      items: persisted.items,
+      turnStatus: 'idle',
+      lastError: null,
+      turnDurationsMs: persisted.turnDurationsMs,
     };
   }
 
@@ -121,7 +141,7 @@ export class NativeChatService {
     const attached = attachments ?? [];
     if (!trimmed && attached.length === 0) return;
 
-    const session = this.getOrCreateSession(conversation);
+    const session = await this.getOrCreateSession(conversation);
     if (session.turnStatus === 'running') {
       throw new Error('The agent is already working on this conversation.');
     }
@@ -134,6 +154,7 @@ export class NativeChatService {
     let promptAttachments: NativeChatAttachment[];
     let command: string;
     let args: string[];
+    let stdin: string | undefined;
     let providerConfig: ProviderCustomConfig | undefined;
     try {
       await workspaceTrustService.maybeAutoTrustLocal({
@@ -154,7 +175,7 @@ export class NativeChatService {
 
       providerConfig = await providerOverrideSettings.getItem(providerId);
       const resumeThreadId = this.resolveResumeThreadId(session, conversation);
-      ({ command, args } = this.buildTurnCommand({
+      ({ command, args, stdin } = this.buildTurnCommand({
         providerId,
         providerConfig,
         conversation,
@@ -178,12 +199,8 @@ export class NativeChatService {
     this.upsertItem(session, {
       kind: 'user_message',
       key: `t${turnSeq}:user`,
-      text:
-        attached.length > 0
-          ? `${trimmed || 'Look at the attached files.'}\n\n[Attached: ${attached
-              .map(attachmentDisplayName)
-              .join(', ')}]`
-          : trimmed,
+      text: attached.length > 0 ? trimmed || 'Look at the attached files.' : trimmed,
+      ...(attached.length > 0 ? { attachments: attached } : {}),
     });
     this.emitChatEvent(session, { type: 'turn-started' });
     this.emitAgentEvent(session, 'start');
@@ -214,10 +231,16 @@ export class NativeChatService {
 
     let child: ChildProcess;
     try {
-      // Direct argv spawn — no shell involved, so the prompt needs no quoting.
-      // stdin is ignored: these one-shot modes take the prompt as an argv
-      // value and must not block waiting for piped input.
-      child = spawn(command, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] });
+      // Direct argv spawn: Codex receives the prompt via stdin, while other
+      // native adapters currently take it as an argv value.
+      child = spawn(command, args, {
+        cwd,
+        env,
+        stdio: [stdin === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
+      });
+      if (stdin !== undefined) {
+        child.stdin?.end(stdin);
+      }
     } catch (error) {
       this.finalizeTurn(session, {
         failed: true,
@@ -322,14 +345,23 @@ export class NativeChatService {
     await Promise.all([...this.sessions.values()].map((session) => this.disposeSession(session)));
   }
 
+  /** Kill the live turn, flush the transcript to disk, and drop the session. */
   private async disposeSession(session: ChatSession): Promise<void> {
     this.sessions.delete(session.conversationId);
     session.disposed = true;
     const child = session.child;
-    if (!child) return;
-    session.interruptRequested = true;
-    await this.terminateChild(child);
-    if (session.child === child) session.child = null;
+    if (child) {
+      session.interruptRequested = true;
+      await this.terminateChild(child);
+      if (session.child === child) session.child = null;
+    }
+    await this.persistSession(session);
+  }
+
+  /** Dispose and remove the persisted transcript (conversation deletion). */
+  async deleteData(conversationId: string): Promise<void> {
+    await this.dispose(conversationId);
+    await deleteNativeChatTranscript(conversationId);
   }
 
   private terminateChild(child: ChildProcess): Promise<void> {
@@ -357,29 +389,61 @@ export class NativeChatService {
     });
   }
 
-  private getOrCreateSession(conversation: Conversation): ChatSession {
+  private async getOrCreateSession(conversation: Conversation): Promise<ChatSession> {
     const existing = this.sessions.get(conversation.id);
     if (existing) return existing;
     if (!isNativeChatProvider(conversation.providerId)) {
       throw new Error(`Native chat is not supported for provider: ${conversation.providerId}`);
     }
+
+    // Rehydrate the persisted transcript (if any) so history survives
+    // restarts and turn keys continue from the right sequence.
+    const persisted = await loadNativeChatTranscript(conversation.id);
+    const raced = this.sessions.get(conversation.id);
+    if (raced) return raced;
+
     const session: ChatSession = {
       conversationId: conversation.id,
       projectId: conversation.projectId,
       taskId: conversation.taskId,
       providerId: conversation.providerId,
-      items: [],
-      itemIndexByKey: new Map(),
+      items: persisted?.items ?? [],
+      itemIndexByKey: new Map((persisted?.items ?? []).map((item, index) => [item.key, index])),
       turnStatus: 'idle',
       lastError: null,
-      turnSeq: 0,
-      turnDurationsMs: {},
+      turnSeq: persisted?.turnSeq ?? 0,
+      turnDurationsMs: persisted?.turnDurationsMs ?? {},
+      ...(persisted?.threadId ? { threadId: persisted.threadId } : {}),
       child: null,
       interruptRequested: false,
       disposed: false,
+      persistTimer: null,
     };
     this.sessions.set(conversation.id, session);
     return session;
+  }
+
+  private schedulePersist(session: ChatSession): void {
+    if (session.disposed) return;
+    if (session.persistTimer) clearTimeout(session.persistTimer);
+    session.persistTimer = setTimeout(() => {
+      void this.persistSession(session);
+    }, PERSIST_DEBOUNCE_MS);
+  }
+
+  private async persistSession(session: ChatSession): Promise<void> {
+    if (session.persistTimer) {
+      clearTimeout(session.persistTimer);
+      session.persistTimer = null;
+    }
+    await saveNativeChatTranscript(session.conversationId, {
+      version: 1,
+      providerId: session.providerId,
+      items: session.items,
+      turnSeq: session.turnSeq,
+      turnDurationsMs: session.turnDurationsMs,
+      ...(session.threadId ? { threadId: session.threadId } : {}),
+    });
   }
 
   private resolveResumeThreadId(
@@ -409,7 +473,7 @@ export class NativeChatService {
     resumeThreadId?: string;
     prompt: string;
     images?: string[];
-  }): { command: string; args: string[] } {
+  }): { command: string; args: string[]; stdin?: string } {
     if (providerId === 'claude') {
       return buildClaudeExecCommand({
         providerConfig,
@@ -465,6 +529,7 @@ export class NativeChatService {
   private recordThreadId(session: ChatSession, threadId: string): void {
     if (session.threadId === threadId) return;
     session.threadId = threadId;
+    this.schedulePersist(session);
     void setProviderSessionId(session.conversationId, threadId)
       .then((updated) => {
         if (!updated) return;
@@ -492,6 +557,7 @@ export class NativeChatService {
       session.items[existingIndex] = item;
     }
     this.emitChatEvent(session, { type: 'item-upsert', item });
+    this.schedulePersist(session);
   }
 
   private finalizeTurn(
