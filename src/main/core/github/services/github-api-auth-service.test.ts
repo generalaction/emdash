@@ -102,43 +102,49 @@ describe('GitHubApiAuthService', () => {
     ).resolves.toEqual(ok('selected-ghes-account-token'));
   });
 
-  it('returns auth required when the selected account is missing', async () => {
+  it('returns account not found when the selected account is missing', async () => {
     await upsertAccount({ providerAccountId: '84' });
 
     await expect(service.getToken('github.com', { accountId: 'github.com:42' })).resolves.toEqual(
       err({
-        type: 'auth_required',
+        type: 'account_not_found',
         host: 'github.com',
-        message: 'GitHub authentication required.',
+        accountId: 'github.com:42',
+        message: 'Selected GitHub account is no longer connected: github.com:42.',
+        hint: 'Connect GitHub from account settings.',
       })
     );
   });
 
-  it('returns auth required when the selected account host does not match the requested host', async () => {
+  it('returns account host mismatch when the selected account host does not match the requested host', async () => {
     await upsertAccount({ providerAccountId: '42' });
 
     await expect(
       service.getToken('ghe.example.com', { accountId: 'github.com:42' })
     ).resolves.toEqual(
       err({
-        type: 'auth_required',
+        type: 'account_host_mismatch',
         host: 'ghe.example.com',
+        accountId: 'github.com:42',
+        accountHost: 'github.com',
         message:
-          'GitHub Enterprise authentication required for ghe.example.com. Run: gh auth login --hostname ghe.example.com',
+          'Selected GitHub account github.com:42 is for github.com, but this repository uses ghe.example.com.',
         hint: 'Run: gh auth login --hostname ghe.example.com',
       })
     );
   });
 
-  it('returns auth required when the selected account token is missing', async () => {
+  it('returns token missing when the selected account token is missing', async () => {
     const account = await upsertAccount({ providerAccountId: '42' });
     await secretStore.deleteSecret(`github-account-token:${account.id}`);
 
     await expect(service.getToken('github.com', { accountId: 'github.com:42' })).resolves.toEqual(
       err({
-        type: 'auth_required',
+        type: 'token_missing',
         host: 'github.com',
-        message: 'GitHub authentication required.',
+        accountId: 'github.com:42',
+        message: 'Selected GitHub account github.com:42 is missing a saved token.',
+        hint: 'Connect GitHub from account settings.',
       })
     );
   });

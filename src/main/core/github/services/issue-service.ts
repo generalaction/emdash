@@ -1,9 +1,10 @@
 import type { Octokit } from '@octokit/rest';
 import type { IssueListError } from '@shared/issue-providers';
-import { isGitHubDotComHost, type RepositoryRef } from '@shared/repository-ref';
+import type { RepositoryRef } from '@shared/repository-ref';
 import { err, ok, type Result } from '@shared/result';
 import type { GitHubApiAuthError } from './github-api-auth-errors';
 import type { GitHubApiAuthContext } from './github-api-auth-service';
+import { classifyGitHubApiError, type GitHubApiOperationError } from './github-api-errors';
 import { getOctokit } from './octokit-provider';
 
 // ---------------------------------------------------------------------------
@@ -100,7 +101,7 @@ export class GitHubIssueServiceImpl implements GitHubIssueService {
           .map((item) => this.mapIssue(item as unknown as RestIssue))
       );
     } catch (error) {
-      return err(this.mapApiError(error, 'Unable to list GitHub issues', host));
+      return err(this.mapApiError(error, 'Unable to list GitHub issues', repository));
     }
   }
 
@@ -125,7 +126,7 @@ export class GitHubIssueServiceImpl implements GitHubIssueService {
       });
       return ok(data.items.map((item) => this.mapIssue(item as unknown as RestIssue)));
     } catch (error) {
-      return err(this.mapApiError(error, 'Unable to search GitHub issues', host));
+      return err(this.mapApiError(error, 'Unable to search GitHub issues', repository));
     }
   }
 
@@ -146,7 +147,7 @@ export class GitHubIssueServiceImpl implements GitHubIssueService {
       });
       return ok(this.mapIssue(data as unknown as RestIssue));
     } catch (error) {
-      return err(this.mapApiError(error, 'Unable to get GitHub issue', host));
+      return err(this.mapApiError(error, 'Unable to get GitHub issue', repository));
     }
   }
 
@@ -171,30 +172,71 @@ export class GitHubIssueServiceImpl implements GitHubIssueService {
   }
 
   private mapAuthError(error: GitHubApiAuthError): IssueListError {
-    return { type: 'auth_required', host: error.host, message: error.message };
+    switch (error.type) {
+      case 'auth_required':
+        return { type: 'auth_required', host: error.host, message: error.message };
+      case 'account_not_found':
+        return {
+          type: 'account_not_found',
+          host: error.host,
+          accountId: error.accountId,
+          message: error.message,
+        };
+      case 'account_host_mismatch':
+        return {
+          type: 'account_host_mismatch',
+          host: error.host,
+          accountId: error.accountId,
+          accountHost: error.accountHost,
+          message: error.message,
+        };
+      case 'token_missing':
+        return {
+          type: 'token_missing',
+          host: error.host,
+          accountId: error.accountId,
+          message: error.message,
+        };
+    }
   }
 
-  private mapApiError(error: unknown, fallback: string, host: string): IssueListError {
-    if (error && typeof error === 'object' && 'status' in error) {
-      const status = Number((error as { status: unknown }).status);
-      if (status === 401 || status === 403) {
-        const hint = isGitHubDotComHost(host)
-          ? 'Connect GitHub from account settings.'
-          : `Run: gh auth login --hostname ${host}`;
-        return {
-          type: 'auth_required',
-          host,
-          message: isGitHubDotComHost(host)
-            ? `GitHub authentication required. ${hint}`
-            : `GitHub Enterprise authentication required for ${host}. ${hint}`,
-        };
-      }
-    }
+  private mapApiError(error: unknown, fallback: string, repository: RepositoryRef): IssueListError {
+    return this.mapOperationError(
+      classifyGitHubApiError(error, {
+        host: repository.host,
+        nameWithOwner: repository.nameWithOwner,
+        fallback,
+      })
+    );
+  }
 
-    return {
-      type: 'generic',
-      message: error instanceof Error ? error.message : fallback,
-    };
+  private mapOperationError(error: GitHubApiOperationError): IssueListError {
+    switch (error.type) {
+      case 'auth_required':
+        return { type: 'auth_required', host: error.host, message: error.message };
+      case 'not_found_or_no_access':
+        return { type: 'not_found_or_no_access', host: error.host, message: error.message };
+      case 'sso_required':
+        return {
+          type: 'sso_required',
+          host: error.host,
+          message: error.message,
+          ...(error.ssoUrl ? { ssoUrl: error.ssoUrl } : {}),
+        };
+      case 'rate_limited':
+        return {
+          type: 'rate_limited',
+          host: error.host,
+          message: error.message,
+          ...(error.resetAt ? { resetAt: error.resetAt } : {}),
+        };
+      case 'forbidden':
+        return { type: 'forbidden', host: error.host, message: error.message };
+      case 'host_unreachable':
+        return { type: 'host_unreachable', host: error.host, message: error.reason };
+      case 'api_error':
+        return { type: 'generic', message: error.message };
+    }
   }
 }
 

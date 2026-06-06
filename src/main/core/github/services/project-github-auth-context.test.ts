@@ -61,7 +61,7 @@ describe('ProjectGitHubAuthContextResolver', () => {
 
     await expect(resolver.resolve('project-1')).resolves.toEqual(
       err<ProjectGitHubAuthContextError>({
-        type: 'account_selection_failed',
+        type: 'no_account_selected',
         projectId: 'project-1',
         message: 'No GitHub account selected for project.',
       })
@@ -73,7 +73,7 @@ describe('ProjectGitHubAuthContextResolver', () => {
 
     await expect(resolver.resolve('project-1')).resolves.toEqual(
       err<ProjectGitHubAuthContextError>({
-        type: 'account_selection_failed',
+        type: 'no_account_selected',
         projectId: 'project-1',
         message: 'No GitHub account selected for project.',
       })

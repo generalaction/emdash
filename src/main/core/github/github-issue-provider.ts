@@ -39,11 +39,20 @@ function toIssue(raw: {
 
 function toIssueListResult(result: Result<Issue[], IssueListError>): IssueListResult {
   if (result.success) return { success: true, issues: result.data };
+  const host = 'host' in result.error ? result.error.host : undefined;
+  const accountId = 'accountId' in result.error ? result.error.accountId : undefined;
+  const accountHost = 'accountHost' in result.error ? result.error.accountHost : undefined;
+  const resetAt = 'resetAt' in result.error ? result.error.resetAt : undefined;
+  const ssoUrl = 'ssoUrl' in result.error ? result.error.ssoUrl : undefined;
   return {
     success: false,
     error: result.error.message,
     errorType: result.error.type,
-    host: 'host' in result.error ? result.error.host : undefined,
+    ...(host ? { host } : {}),
+    ...(accountId ? { accountId } : {}),
+    ...(accountHost ? { accountHost } : {}),
+    ...(resetAt ? { resetAt } : {}),
+    ...(ssoUrl ? { ssoUrl } : {}),
   };
 }
 
@@ -78,6 +87,12 @@ async function resolveIssueAuthContext(
   if (!projectId) return ok(undefined);
   const authContext = await resolveProjectGitHubAuthContext(projectId);
   if (authContext.success) return ok(authContext.data);
+  if (authContext.error.type === 'no_account_selected') {
+    return err({
+      type: 'no_account_selected',
+      message: authContext.error.message,
+    });
+  }
   return err({
     type: 'generic',
     message: `Unable to resolve GitHub account for project: ${authContext.error.message}`,

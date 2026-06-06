@@ -1,7 +1,13 @@
 import { normalizeRepositoryHost } from '@shared/repository-ref';
 import { err, ok, type Result } from '@shared/result';
 import type { GitHubAccount } from '../accounts/github-account-registry';
-import { githubApiAuthRequired, type GitHubApiAuthError } from './github-api-auth-errors';
+import {
+  githubApiAccountHostMismatch,
+  githubApiAccountNotFound,
+  githubApiAuthRequired,
+  githubApiTokenMissing,
+  type GitHubApiAuthError,
+} from './github-api-auth-errors';
 
 export type GitHubApiAuthContext = {
   accountId?: string;
@@ -21,37 +27,42 @@ export class GitHubApiAuthService {
     context: GitHubApiAuthContext = {}
   ): Promise<Result<string, GitHubApiAuthError>> {
     const normalizedHost = normalizeRepositoryHost(host);
-    const account = await this.resolveAccount(normalizedHost, context.accountId?.trim() || null);
+    const accountId = context.accountId?.trim() || null;
+    const account = await this.resolveAccount(normalizedHost, accountId);
     if (!account) return err(githubApiAuthRequired(normalizedHost));
+    if (!account.success) return err(account.error);
 
-    const token = await this.accountLookup.resolveToken(account.id);
-    if (!token) return err(githubApiAuthRequired(normalizedHost));
+    const token = await this.accountLookup.resolveToken(account.data.id);
+    if (!token) return err(githubApiTokenMissing(normalizedHost, account.data.id));
     return ok(token);
   }
 
   private async resolveAccount(
     normalizedHost: string,
     accountId: string | null
-  ): Promise<GitHubAccount | null> {
+  ): Promise<Result<GitHubAccount, GitHubApiAuthError> | null> {
     const accounts = await this.accountLookup.listAccounts();
     if (accountId) {
-      return (
-        accounts.find(
-          (candidate) =>
-            candidate.id === accountId && normalizeRepositoryHost(candidate.host) === normalizedHost
-        ) ?? null
-      );
+      const account = accounts.find((candidate) => candidate.id === accountId);
+      if (!account) return err(githubApiAccountNotFound(normalizedHost, accountId));
+
+      const accountHost = normalizeRepositoryHost(account.host);
+      if (accountHost !== normalizedHost) {
+        return err(githubApiAccountHostMismatch(normalizedHost, account.id, accountHost));
+      }
+
+      return ok(account);
     }
 
     const defaultAccountId = await this.accountLookup.getDefaultAccountId();
     if (!defaultAccountId) return null;
 
-    return (
+    const defaultAccount =
       accounts.find(
         (candidate) =>
           candidate.id === defaultAccountId &&
           normalizeRepositoryHost(candidate.host) === normalizedHost
-      ) ?? null
-    );
+      ) ?? null;
+    return defaultAccount ? ok(defaultAccount) : null;
   }
 }

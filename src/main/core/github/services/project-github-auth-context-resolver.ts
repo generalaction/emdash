@@ -9,6 +9,11 @@ export type ProjectGitHubAuthContextError =
       message: string;
     }
   | {
+      type: 'no_account_selected';
+      projectId: string;
+      message: string;
+    }
+  | {
       type: 'account_selection_failed';
       projectId: string;
       message: string;
@@ -57,7 +62,7 @@ export class ProjectGitHubAuthContextResolver {
         : null;
       if (!accountId) {
         return err({
-          type: 'account_selection_failed',
+          type: 'no_account_selected',
           projectId,
           message: 'No GitHub account selected for project.',
         });

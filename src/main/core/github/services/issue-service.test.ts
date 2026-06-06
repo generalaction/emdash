@@ -110,17 +110,17 @@ describe('GitHubIssueServiceImpl', () => {
       expect(result).toEqual(ok([expectedIssue]));
     });
 
-    it('propagates API errors', async () => {
+    it('maps network errors to host reachability failures', async () => {
       const listForRepo = vi.fn().mockRejectedValue(new Error('Network error'));
       mockGetOctokit.mockResolvedValue(ok(makeOctokit({ listForRepo })));
 
       await expect(issueService.listIssues(repository)).resolves.toEqual(
-        err({ type: 'generic', message: 'Network error' })
+        err({ type: 'host_unreachable', host: 'github.com', message: 'Network error' })
       );
     });
 
-    it('maps post-token auth errors to typed auth failures', async () => {
-      const listForRepo = vi.fn().mockRejectedValue({ status: 403 });
+    it('maps post-token repository access errors to not-found-or-no-access failures', async () => {
+      const listForRepo = vi.fn().mockRejectedValue({ status: 404 });
       mockGetOctokit.mockResolvedValue(ok(makeOctokit({ listForRepo })));
 
       await expect(
@@ -131,10 +131,10 @@ describe('GitHubIssueServiceImpl', () => {
         })
       ).resolves.toEqual(
         err({
-          type: 'auth_required',
+          type: 'not_found_or_no_access',
           host: 'ghe.example.com',
           message:
-            'GitHub Enterprise authentication required for ghe.example.com. Run: gh auth login --hostname ghe.example.com',
+            'owner/repo on ghe.example.com was not found, or the selected GitHub account does not have access.',
         })
       );
     });

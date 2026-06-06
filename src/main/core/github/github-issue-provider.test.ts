@@ -188,6 +188,31 @@ describe('githubIssueProvider', () => {
     expect(mockIssueService.listIssues).not.toHaveBeenCalled();
   });
 
+  it('returns a typed error when no GitHub account is selected for the project', async () => {
+    mockResolveProjectGitHubAuthContext.mockResolvedValue(
+      err({
+        type: 'no_account_selected',
+        projectId: 'project-1',
+        message: 'No GitHub account selected for project.',
+      })
+    );
+    mockIssueService.listIssues.mockResolvedValue(ok([]));
+
+    await expect(
+      githubIssueProvider.listIssues({
+        projectId: 'project-1',
+        repositoryUrl: 'https://github.com/owner/repo',
+        limit: 7,
+      })
+    ).resolves.toEqual({
+      success: false,
+      error: 'No GitHub account selected for project.',
+      errorType: 'no_account_selected',
+    });
+
+    expect(mockIssueService.listIssues).not.toHaveBeenCalled();
+  });
+
   it('falls back to the resolved remote when repositoryUrl is not provided', async () => {
     mockIssueService.searchIssues.mockResolvedValue(ok([]));
 
