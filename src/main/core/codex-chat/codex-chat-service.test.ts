@@ -137,6 +137,45 @@ describe('CodexChatService disposal', () => {
     child.emit('close', 0);
   });
 
+  it('reserves the conversation before async turn setup completes', async () => {
+    const service = new CodexChatService();
+    const child = new FakeChild();
+    let releaseTrust!: () => void;
+    mocks.spawn.mockReturnValue(child);
+    mocks.maybeAutoTrustLocal.mockReturnValue(
+      new Promise<void>((resolve) => {
+        releaseTrust = resolve;
+      })
+    );
+
+    const conversation = {
+      id: 'conv-1',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      providerId: 'claude',
+      autoApprove: false,
+    } as Conversation;
+    const first = service.startTurn({
+      conversation,
+      cwd: '/tmp/worktree',
+      taskEnvVars: {},
+      prompt: 'first',
+    });
+
+    await expect(
+      service.startTurn({
+        conversation,
+        cwd: '/tmp/worktree',
+        taskEnvVars: {},
+        prompt: 'second',
+      })
+    ).rejects.toThrow('already working');
+
+    releaseTrust();
+    await first;
+    child.emit('close', 0);
+  });
+
   it('waits for a running child to close before resolving disposal', async () => {
     const service = new CodexChatService();
     const child = new FakeChild();

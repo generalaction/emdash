@@ -51,8 +51,14 @@ describe('switchCodexChatToTerminal', () => {
     setupDb();
   });
 
-  it('waits for native chat disposal before hydrating the terminal PTY', async () => {
+  it('validates scope before disposal and waits for disposal before hydrating the terminal PTY', async () => {
+    let releaseSelect!: () => void;
     let releaseDispose!: () => void;
+    mocks.selectLimit.mockReturnValue(
+      new Promise((resolve) => {
+        releaseSelect = () => resolve([{ config: JSON.stringify({ uiMode: 'native-chat' }) }]);
+      })
+    );
     mocks.dispose.mockReturnValue(
       new Promise<void>((resolve) => {
         releaseDispose = resolve;
@@ -62,14 +68,19 @@ describe('switchCodexChatToTerminal', () => {
     const switching = switchCodexChatToTerminal('project-1', 'task-1', 'conv-1');
     await Promise.resolve();
 
+    expect(mocks.select).toHaveBeenCalled();
+    expect(mocks.dispose).not.toHaveBeenCalled();
+    expect(mocks.hydrateConversation).not.toHaveBeenCalled();
+
+    releaseSelect();
+    await Promise.resolve();
+
     expect(mocks.dispose).toHaveBeenCalledWith('conv-1');
-    expect(mocks.select).not.toHaveBeenCalled();
     expect(mocks.hydrateConversation).not.toHaveBeenCalled();
 
     releaseDispose();
     await switching;
 
-    expect(mocks.select).toHaveBeenCalled();
     expect(mocks.hydrateConversation).toHaveBeenCalledWith('project-1', 'task-1', 'conv-1');
   });
 });

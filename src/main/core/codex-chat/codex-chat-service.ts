@@ -121,42 +121,55 @@ export class CodexChatService {
     if (session.turnStatus === 'running') {
       throw new Error('The agent is already working on this conversation.');
     }
-
-    const providerId = session.providerId;
-    await workspaceTrustService.maybeAutoTrustLocal({
-      providerId,
-      cwd,
-      homedir: homedir(),
-      force: conversation.autoApprove === true,
-    });
-
-    // Codex takes images natively via `-i`; every other attachment (and all
-    // attachments for the other providers) is referenced by path in the
-    // prompt for the agent to read from disk.
-    const imageAttachments =
-      providerId === 'codex' ? attached.filter((attachment) => attachment.kind === 'image') : [];
-    const promptAttachments = attached.filter(
-      (attachment) => !imageAttachments.includes(attachment)
-    );
-    const agentPrompt =
-      buildPromptWithAttachments(trimmed, promptAttachments) || 'Look at the attached images.';
-
-    const providerConfig = await providerOverrideSettings.getItem(providerId);
-    const resumeThreadId = this.resolveResumeThreadId(session, conversation);
-    const { command, args } = this.buildTurnCommand({
-      providerId,
-      providerConfig,
-      conversation,
-      resumeThreadId,
-      prompt: agentPrompt,
-      images: imageAttachments.map((attachment) => attachment.path),
-    });
-
-    const turnSeq = ++session.turnSeq;
-    const turnStartedAt = Date.now();
     session.turnStatus = 'running';
     session.lastError = null;
     session.interruptRequested = false;
+
+    const providerId = session.providerId;
+    let imageAttachments: NativeChatAttachment[];
+    let promptAttachments: NativeChatAttachment[];
+    let command: string;
+    let args: string[];
+    let providerConfig: ProviderCustomConfig | undefined;
+    try {
+      await workspaceTrustService.maybeAutoTrustLocal({
+        providerId,
+        cwd,
+        homedir: homedir(),
+        force: conversation.autoApprove === true,
+      });
+
+      // Codex takes images natively via `-i`; every other attachment (and all
+      // attachments for the other providers) is referenced by path in the
+      // prompt for the agent to read from disk.
+      imageAttachments =
+        providerId === 'codex' ? attached.filter((attachment) => attachment.kind === 'image') : [];
+      promptAttachments = attached.filter((attachment) => !imageAttachments.includes(attachment));
+      const agentPrompt =
+        buildPromptWithAttachments(trimmed, promptAttachments) || 'Look at the attached images.';
+
+      providerConfig = await providerOverrideSettings.getItem(providerId);
+      const resumeThreadId = this.resolveResumeThreadId(session, conversation);
+      ({ command, args } = this.buildTurnCommand({
+        providerId,
+        providerConfig,
+        conversation,
+        resumeThreadId,
+        prompt: agentPrompt,
+        images: imageAttachments.map((attachment) => attachment.path),
+      }));
+      if (session.disposed) throw new Error('Native chat session was disposed.');
+    } catch (error) {
+      if (!session.disposed) {
+        session.turnStatus = 'idle';
+        session.interruptRequested = false;
+        session.lastError = error instanceof Error ? error.message : String(error);
+      }
+      throw error;
+    }
+
+    const turnSeq = ++session.turnSeq;
+    const turnStartedAt = Date.now();
 
     this.upsertItem(session, {
       kind: 'user_message',

@@ -17,8 +17,6 @@ export async function switchCodexChatToTerminal(
   taskId: string,
   conversationId: string
 ): Promise<void> {
-  await codexChatService.dispose(conversationId);
-
   const [row] = await db
     .select({ config: conversations.config })
     .from(conversations)
@@ -31,6 +29,8 @@ export async function switchCodexChatToTerminal(
     )
     .limit(1);
   if (!row) throw new Error('Conversation not found');
+
+  await codexChatService.dispose(conversationId);
 
   const config = parseConversationConfig(row.config);
   if (config.uiMode) {
