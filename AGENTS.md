@@ -1,6 +1,6 @@
 # Project Overview
 
-Emdash is a cross-platform Electron app for orchestrating multiple AI coding agents in
+Rundash is a cross-platform Electron app for orchestrating multiple AI coding agents in
 parallel, each isolated in its own Git worktree and able to run locally or over SSH.
 It combines provider-agnostic CLI agent execution, task and conversation management,
 diff review, integrations, terminal sessions, and packaging for desktop releases.
@@ -295,14 +295,14 @@ pnpm run test
   `src/main/core/mcp/utils/`, `src/shared/mcp/`, and `src/renderer/features/mcp/`.
 - Skills types and validation live under `src/shared/skills/`; skills UI and service
   code live in `src/renderer/features/skills/` and `src/main/core/skills/`.
-- Worktree runtime settings can be supplied through `.emdash.json`:
+- Worktree runtime settings can be supplied through `.rundash.json`:
   `preservePatterns`, `scripts.setup`, `scripts.run`, `scripts.teardown`, and
   `shellSetup`.
 - Project settings such as `worktreeDirectory`, `defaultBranch`, `baseRemote`,
-  `pushRemote`, `tmux`, and `workspaceProvider` are DB-backed, not `.emdash.json`.
+  `pushRemote`, `tmux`, and `workspaceProvider` are DB-backed, not `.rundash.json`.
 - Optional environment variables:
-  `TELEMETRY_ENABLED`, `EMDASH_DB_FILE`, `EMDASH_DISABLE_NATIVE_DB`,
-  `EMDASH_DISABLE_CLONE_CACHE`, `EMDASH_DISABLE_PTY`, `CODEX_SANDBOX_MODE`, and
+  `TELEMETRY_ENABLED`, `RUNDASH_DB_FILE`, `RUNDASH_DISABLE_NATIVE_DB`,
+  `RUNDASH_DISABLE_CLONE_CACHE`, `RUNDASH_DISABLE_PTY`, `CODEX_SANDBOX_MODE`, and
   `CODEX_APPROVAL_POLICY`.
 - Build-time telemetry configuration may use `VITE_POSTHOG_KEY` and
   `VITE_POSTHOG_HOST`; release workflows pass PostHog secrets through GitHub Actions.
