@@ -79,6 +79,52 @@ export function BaseProjectSettingsSection({
   return (
     <>
       <Field>
+        <FieldTitle>GitHub account</FieldTitle>
+        <FieldDescription className="text-foreground-muted">
+          Used for pull requests and issues in this project.
+        </FieldDescription>
+        <Select
+          value={githubAccountSelect.selectValue}
+          onValueChange={(value) =>
+            update('githubAccountId', value === NO_GITHUB_ACCOUNT ? null : (value ?? null))
+          }
+        >
+          <SelectTrigger className="w-full min-w-0">
+            {githubAccountSelect.selectedAccount ? (
+              <GitHubAccountSelectLabel account={githubAccountSelect.selectedAccount} />
+            ) : (
+              <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
+                <Github className="text-muted-foreground h-4 w-4 shrink-0" />
+                {githubAccountSelect.missingAccountId ? (
+                  <span className="flex min-w-0 items-center gap-2 truncate">
+                    <span className="min-w-0 truncate">Unavailable GitHub account</span>
+                    <span className="shrink-0 text-sm text-foreground-muted">
+                      No longer connected
+                    </span>
+                  </span>
+                ) : (
+                  <span className="min-w-0 truncate">No GitHub account</span>
+                )}
+              </div>
+            )}
+          </SelectTrigger>
+          <SelectContent align="start" alignItemWithTrigger={false} sideOffset={6}>
+            <SelectItem value={NO_GITHUB_ACCOUNT} className="py-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <Github className="text-muted-foreground h-4 w-4 shrink-0" />
+                <span className="relative -top-px shrink-0">No GitHub account</span>
+              </div>
+            </SelectItem>
+            {githubAccountSelect.accounts.map((account) => (
+              <GitHubAccountSelectItem key={account.accountId} account={account} />
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+
+      <Separator />
+
+      <Field>
         <FieldTitle>Worktree directory</FieldTitle>
         <FieldDescription className="text-foreground-muted">
           Change where worktrees are created.
@@ -177,52 +223,6 @@ export function BaseProjectSettingsSection({
             </SelectItem>
             {remotes.map((remote) => (
               <RemoteSelectItem key={remote.name} remote={remote} />
-            ))}
-          </SelectContent>
-        </Select>
-      </Field>
-
-      <Separator />
-
-      <Field>
-        <FieldTitle>GitHub account</FieldTitle>
-        <FieldDescription className="text-foreground-muted">
-          Used for pull requests and issues in this project.
-        </FieldDescription>
-        <Select
-          value={githubAccountSelect.selectValue}
-          onValueChange={(value) =>
-            update('githubAccountId', value === NO_GITHUB_ACCOUNT ? null : (value ?? null))
-          }
-        >
-          <SelectTrigger className="w-full min-w-0">
-            {githubAccountSelect.selectedAccount ? (
-              <GitHubAccountSelectLabel account={githubAccountSelect.selectedAccount} />
-            ) : (
-              <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
-                <Github className="text-muted-foreground h-4 w-4 shrink-0" />
-                {githubAccountSelect.missingAccountId ? (
-                  <span className="flex min-w-0 items-center gap-2 truncate">
-                    <span className="min-w-0 truncate">Unavailable GitHub account</span>
-                    <span className="shrink-0 text-sm text-foreground-muted">
-                      No longer connected
-                    </span>
-                  </span>
-                ) : (
-                  <span className="min-w-0 truncate">No GitHub account</span>
-                )}
-              </div>
-            )}
-          </SelectTrigger>
-          <SelectContent align="start" alignItemWithTrigger={false} sideOffset={6}>
-            <SelectItem value={NO_GITHUB_ACCOUNT} className="py-2">
-              <div className="flex min-w-0 items-center gap-2">
-                <Github className="text-muted-foreground h-4 w-4 shrink-0" />
-                <span className="relative -top-px shrink-0">No GitHub account</span>
-              </div>
-            </SelectItem>
-            {githubAccountSelect.accounts.map((account) => (
-              <GitHubAccountSelectItem key={account.accountId} account={account} />
             ))}
           </SelectContent>
         </Select>
