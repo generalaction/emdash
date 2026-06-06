@@ -61,6 +61,54 @@ function mapPrSyncEngineError(
             host: error.host,
             hint: error.hint ?? `Run: gh auth login --hostname ${error.host}`,
           };
+    case 'account_not_found':
+      return {
+        type: 'github_account_not_found',
+        host: error.host,
+        accountId: error.accountId,
+        message: error.message,
+      };
+    case 'account_host_mismatch':
+      return {
+        type: 'github_account_host_mismatch',
+        host: error.host,
+        accountId: error.accountId,
+        accountHost: error.accountHost,
+        message: error.message,
+      };
+    case 'token_missing':
+      return {
+        type: 'github_token_missing',
+        host: error.host,
+        accountId: error.accountId,
+        message: error.message,
+      };
+    case 'not_found_or_no_access':
+      return {
+        type: 'github_not_found_or_no_access',
+        host: error.host,
+        message: error.message,
+      };
+    case 'sso_required':
+      return {
+        type: 'github_sso_required',
+        host: error.host,
+        message: error.message,
+        ssoUrl: error.ssoUrl,
+      };
+    case 'rate_limited':
+      return {
+        type: 'github_rate_limited',
+        host: error.host,
+        message: error.message,
+        resetAt: error.resetAt,
+      };
+    case 'forbidden':
+      return {
+        type: 'github_forbidden',
+        host: error.host,
+        message: error.message,
+      };
     case 'host_unreachable':
       return { type: 'host_unreachable', host: error.host, reason: error.reason };
     case 'api_error':

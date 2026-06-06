@@ -132,6 +132,20 @@ export type RemoteNotReadyPullRequestError = { type: 'remote_not_ready'; status:
 export type PullRequestAuthError =
   | { type: 'github_auth_required'; host: string; hint: string }
   | { type: 'ghes_auth_required'; host: string; hint: string }
+  | { type: 'github_no_account_selected'; message: string }
+  | { type: 'github_account_not_found'; message: string; accountId?: string; host?: string }
+  | {
+      type: 'github_account_host_mismatch';
+      message: string;
+      accountId: string;
+      accountHost: string;
+      host: string;
+    }
+  | { type: 'github_token_missing'; message: string; accountId: string; host: string }
+  | { type: 'github_not_found_or_no_access'; host: string; message: string }
+  | { type: 'github_sso_required'; host: string; message: string; ssoUrl?: string }
+  | { type: 'github_rate_limited'; host: string; message: string; resetAt?: string }
+  | { type: 'github_forbidden'; host: string; message: string }
   | { type: 'github_account_resolution_failed'; message: string };
 
 export type PullRequestRepositoryError =
@@ -178,6 +192,14 @@ export function pullRequestErrorMessage(error: PullRequestError): string {
       return `GitHub authentication required. ${error.hint}`;
     case 'ghes_auth_required':
       return `GitHub Enterprise authentication required for ${error.host}. ${error.hint}`;
+    case 'github_no_account_selected':
+    case 'github_account_not_found':
+    case 'github_account_host_mismatch':
+    case 'github_token_missing':
+    case 'github_not_found_or_no_access':
+    case 'github_sso_required':
+    case 'github_rate_limited':
+    case 'github_forbidden':
     case 'github_account_resolution_failed':
       return error.message;
     case 'cross_host_pr':

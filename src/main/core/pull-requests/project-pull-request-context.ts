@@ -56,6 +56,8 @@ function collapseSourceContextErrorForPullRequests(
   error: ProjectPullRequestContextSourceError
 ): PullRequestError {
   switch (error.type) {
+    case 'no_account_selected':
+      return { type: 'github_no_account_selected', message: error.message };
     case 'project_not_found':
     case 'account_selection_failed':
       return collapseAuthContextErrorForPullRequests(error);
@@ -71,6 +73,13 @@ function collapseSourceContextErrorForPullRequests(
 function collapseAuthContextErrorForPullRequests(
   error: ProjectGitHubAuthContextError
 ): PullRequestError {
+  if (error.type === 'no_account_selected') {
+    return {
+      type: 'github_no_account_selected',
+      message: error.message,
+    };
+  }
+
   return {
     type: 'github_account_resolution_failed',
     message: `Unable to resolve GitHub account for project: ${error.message}`,

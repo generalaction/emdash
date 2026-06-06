@@ -208,7 +208,12 @@ export class PrSyncEngine {
       .catch((e: unknown) => {
         if ((e as { name?: string }).name !== 'AbortError') {
           const repository = parseRepositoryRef(repositoryUrl);
-          const error = toPrApiError(e, 'Unable to sync pull requests', repository?.host);
+          const error = toPrApiError(
+            e,
+            'Unable to sync pull requests',
+            repository?.host,
+            repository?.nameWithOwner
+          );
           if (isPrSyncHostUnreachable(error)) {
             log.warn('PrSyncEngine: sync skipped; GitHub host unreachable', {
               repositoryUrl,
@@ -391,7 +396,12 @@ export class PrSyncEngine {
         this._emitProgress({ remoteUrl: repositoryUrl, kind: 'full', status: 'cancelled' });
         return;
       }
-      const error = toPrApiError(e, 'Unable to sync pull requests', repository.data.host);
+      const error = toPrApiError(
+        e,
+        'Unable to sync pull requests',
+        repository.data.host,
+        repository.data.nameWithOwner
+      );
       this._emitProgress({
         remoteUrl: repositoryUrl,
         kind: 'full',
@@ -552,7 +562,12 @@ export class PrSyncEngine {
         this._emitProgress({ remoteUrl: repositoryUrl, kind: 'incremental', status: 'cancelled' });
         return;
       }
-      const error = toPrApiError(e, 'Unable to sync pull requests', repository.data.host);
+      const error = toPrApiError(
+        e,
+        'Unable to sync pull requests',
+        repository.data.host,
+        repository.data.nameWithOwner
+      );
       this._emitProgress({
         remoteUrl: repositoryUrl,
         kind: 'incremental',
@@ -622,7 +637,14 @@ export class PrSyncEngine {
         )
       );
     } catch (error) {
-      return err(toPrApiError(error, 'Unable to refresh pull request', repository.data.host));
+      return err(
+        toPrApiError(
+          error,
+          'Unable to refresh pull request',
+          repository.data.host,
+          repository.data.nameWithOwner
+        )
+      );
     }
 
     const node = response.repository.pullRequest;
@@ -748,7 +770,14 @@ export class PrSyncEngine {
           )
         );
       } catch (error) {
-        return err(toPrApiError(error, 'Unable to sync check runs', repository.data.host));
+        return err(
+          toPrApiError(
+            error,
+            'Unable to sync check runs',
+            repository.data.host,
+            repository.data.nameWithOwner
+          )
+        );
       }
 
       const contexts =
@@ -1126,7 +1155,14 @@ export class PrSyncEngine {
       const { html_url: url, number } = response.data;
       return ok({ url, number });
     } catch (error) {
-      return err(toPrApiError(error, 'Unable to create pull request', repository.data.host));
+      return err(
+        toPrApiError(
+          error,
+          'Unable to create pull request',
+          repository.data.host,
+          repository.data.nameWithOwner
+        )
+      );
     }
   }
 
@@ -1151,7 +1187,14 @@ export class PrSyncEngine {
       });
       return ok({ sha: response.data.sha ?? null, merged: response.data.merged });
     } catch (error) {
-      return err(toPrApiError(error, 'Unable to merge pull request', repository.data.host));
+      return err(
+        toPrApiError(
+          error,
+          'Unable to merge pull request',
+          repository.data.host,
+          repository.data.nameWithOwner
+        )
+      );
     }
   }
 
@@ -1177,7 +1220,14 @@ export class PrSyncEngine {
       );
       return ok();
     } catch (error) {
-      return err(toPrApiError(error, 'Unable to mark PR ready for review', repository.data.host));
+      return err(
+        toPrApiError(
+          error,
+          'Unable to mark PR ready for review',
+          repository.data.host,
+          repository.data.nameWithOwner
+        )
+      );
     }
   }
 
@@ -1275,7 +1325,14 @@ export class PrSyncEngine {
         })),
       ]);
     } catch (error) {
-      return err(toPrApiError(error, 'Unable to get pull request comments', repository.data.host));
+      return err(
+        toPrApiError(
+          error,
+          'Unable to get pull request comments',
+          repository.data.host,
+          repository.data.nameWithOwner
+        )
+      );
     }
   }
 
@@ -1306,7 +1363,14 @@ export class PrSyncEngine {
         }))
       );
     } catch (error) {
-      return err(toPrApiError(error, 'Unable to get pull request files', repository.data.host));
+      return err(
+        toPrApiError(
+          error,
+          'Unable to get pull request files',
+          repository.data.host,
+          repository.data.nameWithOwner
+        )
+      );
     }
   }
 

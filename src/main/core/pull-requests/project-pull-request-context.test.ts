@@ -85,6 +85,32 @@ describe('project GitHub pull request context', () => {
     );
   });
 
+  it('maps missing project GitHub account selection without falling back to the default account', async () => {
+    mockProviderRepositoryService.resolveProject.mockResolvedValue(
+      ok({
+        provider: 'github',
+        host: 'github.com',
+        repositoryUrl: 'https://github.com/acme/repo',
+        nameWithOwner: 'acme/repo',
+        capabilities: { pullRequests: true, issues: true },
+      })
+    );
+    mockResolveProjectGitHubAuthContext.mockResolvedValue(
+      err({
+        type: 'no_account_selected',
+        projectId: 'project-1',
+        message: 'No GitHub account selected for project.',
+      })
+    );
+
+    await expect(resolveProjectPullRequestContext('project-1')).resolves.toEqual(
+      err({
+        type: 'github_no_account_selected',
+        message: 'No GitHub account selected for project.',
+      })
+    );
+  });
+
   it('resolves selected account context for GitHub Enterprise project repositories', async () => {
     mockProviderRepositoryService.resolveProject.mockResolvedValue(
       ok({
@@ -143,6 +169,23 @@ describe('project GitHub pull request context', () => {
       err({
         type: 'github_account_resolution_failed',
         message: 'Unable to resolve GitHub account for project: git config failed',
+      })
+    );
+  });
+
+  it('maps auth-only missing project GitHub account selection', async () => {
+    mockResolveProjectGitHubAuthContext.mockResolvedValue(
+      err({
+        type: 'no_account_selected',
+        projectId: 'project-1',
+        message: 'No GitHub account selected for project.',
+      })
+    );
+
+    await expect(resolveProjectPullRequestAuthContext('project-1')).resolves.toEqual(
+      err({
+        type: 'github_no_account_selected',
+        message: 'No GitHub account selected for project.',
       })
     );
   });

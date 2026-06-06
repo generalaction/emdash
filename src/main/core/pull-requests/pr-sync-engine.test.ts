@@ -97,8 +97,8 @@ describe('PrSyncEngine', () => {
     expect(getOctokit).toHaveBeenCalledWith('github.com', { accountId: 'github.com:42' });
   });
 
-  it('maps post-token PR API auth failures to typed auth errors', async () => {
-    const createPullRequest = vi.fn().mockRejectedValue({ status: 403 });
+  it('maps post-token PR API repository access failures to not-found-or-no-access errors', async () => {
+    const createPullRequest = vi.fn().mockRejectedValue({ status: 404 });
     const getOctokit = vi.fn().mockResolvedValue(ok(makeOctokit({ createPullRequest })));
     const engine = new PrSyncEngine(getOctokit);
 
@@ -112,11 +112,12 @@ describe('PrSyncEngine', () => {
       })
     ).resolves.toEqual(
       err({
-        type: 'auth_required',
+        type: 'not_found_or_no_access',
         host: 'ghe.example.com',
+        nameWithOwner: 'acme/repo',
+        status: 404,
         message:
-          'GitHub Enterprise authentication required for ghe.example.com. Run: gh auth login --hostname ghe.example.com',
-        hint: 'Run: gh auth login --hostname ghe.example.com',
+          'acme/repo on ghe.example.com was not found, or the selected GitHub account does not have access.',
       })
     );
   });
