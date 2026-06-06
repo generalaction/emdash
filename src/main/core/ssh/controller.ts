@@ -96,13 +96,13 @@ export const sshController = createRPCController({
     const existingMetadata: SshConnectionMetadata =
       config.id === undefined
         ? {}
-        : (
+        : ((
             await db
               .select({ metadata: sshConnectionsTable.metadata })
               .from(sshConnectionsTable)
               .where(eq(sshConnectionsTable.id, connectionId))
               .limit(1)
-          )[0]?.metadata ?? {};
+          )[0]?.metadata ?? {});
 
     const metadataUpdate: SshConnectionMetadata = {};
     if (Object.prototype.hasOwnProperty.call(config, 'sshConfigAlias')) {

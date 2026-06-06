@@ -22,9 +22,7 @@ const v0Schema = z.object({
  * in dedicated DB columns live here (sshConfigAlias, forwardAgent, proxyJump).
  * Unknown keys (e.g. legacy `worktreesDir`) are silently stripped on read.
  */
-export const sshConnectionMetadata = defineVersionedSchema()
-  .unversioned(v0Schema)
-  .build();
+export const sshConnectionMetadata = defineVersionedSchema().unversioned(v0Schema).build();
 
 // ---------------------------------------------------------------------------
 // Exports

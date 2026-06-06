@@ -366,7 +366,9 @@ describe('parseJson', () => {
 
   it('returns null for future-version JSON', () => {
     const schema = makeTwoVersionSchema();
-    expect(schema.parseJson(JSON.stringify({ version: '99', name: 'Victor', count: 0 }))).toBeNull();
+    expect(
+      schema.parseJson(JSON.stringify({ version: '99', name: 'Victor', count: 0 }))
+    ).toBeNull();
   });
 });
 

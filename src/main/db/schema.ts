@@ -9,7 +9,6 @@ import {
 } from 'drizzle-orm/sqlite-core';
 import type { StoredBranch } from '@main/core/tasks/stored-branch';
 import { versionedJsonColumn } from '@main/db/versioned-column';
-import type { TerminalShellId } from '@shared/terminal-settings';
 import {
   automationConversationConfig,
   automationTriggerConfig,
@@ -18,6 +17,7 @@ import {
 import { conversationConfig } from '@shared/conversation-config';
 import { linkedIssue } from '@shared/linked-issue';
 import { sshConnectionMetadata } from '@shared/ssh-connection-metadata';
+import type { TerminalShellId } from '@shared/terminal-settings';
 import { workspaceConfig } from '@shared/workspace-config';
 import { workspaceProviderData } from '@shared/workspace-provider-data';
 

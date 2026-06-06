@@ -34,14 +34,16 @@ export function mapAutomationRunRowToAutomationRun(
     automationId: row.automationId,
     status: row.status as AutomationRunStatus,
     triggerKind: row.triggerKind as AutomationRunTriggerKind,
-    triggerConfigSnapshot:
-      automationTriggerConfig.parseJson(row.triggerConfigSnapshot) ?? { expr: '' },
-    conversationConfigSnapshot:
-      automationConversationConfig.parseJson(row.conversationConfigSnapshot) ?? {
-        prompt: '',
-        provider: '',
-        autoApprove: false,
-      },
+    triggerConfigSnapshot: automationTriggerConfig.parseJson(row.triggerConfigSnapshot) ?? {
+      expr: '',
+    },
+    conversationConfigSnapshot: automationConversationConfig.parseJson(
+      row.conversationConfigSnapshot
+    ) ?? {
+      prompt: '',
+      provider: '',
+      autoApprove: false,
+    },
     taskConfigSnapshot: storedAutomationTaskConfig.parseJson(row.taskConfigSnapshot),
     scheduledAt: row.scheduledAt,
     deadlineAt: row.deadlineAt,

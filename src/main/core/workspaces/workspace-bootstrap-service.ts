@@ -370,7 +370,11 @@ export class WorkspaceBootstrapService {
    * Provisions a BYOI workspace by delegating to `provisionBYOITask`.
    */
   private async _provisionBYOI(
-    workspaceRow: { id: string; workspaceProvider?: string | null; data?: WorkspaceProviderData | null },
+    workspaceRow: {
+      id: string;
+      workspaceProvider?: string | null;
+      data?: WorkspaceProviderData | null;
+    },
     task: Task,
     project: ProjectProvider
   ): Promise<Result<WorkspaceBootstrapResult, ProvisionWorkspaceError>> {

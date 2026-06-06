@@ -10,7 +10,10 @@ import type { VersionedSchema } from '@shared/lib/versioned-schema';
  * Exported separately from `versionedJsonColumn` so it can be tested in isolation
  * without accessing Drizzle's protected `ColumnBuilder.config` property.
  */
-export function parseVersionedColumn<T>(schema: VersionedSchema<T>, value: string | null): T | null {
+export function parseVersionedColumn<T>(
+  schema: VersionedSchema<T>,
+  value: string | null
+): T | null {
   if (!value) return null;
 
   let parsed: unknown;
@@ -48,7 +51,10 @@ export function parseVersionedColumn<T>(schema: VersionedSchema<T>, value: strin
  *
  * Exported separately from `versionedJsonColumn` so it can be tested in isolation.
  */
-export function serializeVersionedColumn<T>(schema: VersionedSchema<T>, value: T | null | undefined): string | null {
+export function serializeVersionedColumn<T>(
+  schema: VersionedSchema<T>,
+  value: T | null | undefined
+): string | null {
   if (value === null || value === undefined) return null;
   return schema.serialize(value);
 }

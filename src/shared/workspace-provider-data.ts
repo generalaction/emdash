@@ -23,9 +23,7 @@ const v0Schema = z.object({
  * the connection commands and optional remote workspace ID so the session can
  * be reused on subsequent launches.
  */
-export const workspaceProviderData = defineVersionedSchema()
-  .unversioned(v0Schema)
-  .build();
+export const workspaceProviderData = defineVersionedSchema().unversioned(v0Schema).build();
 
 // ---------------------------------------------------------------------------
 // Exports

@@ -47,8 +47,7 @@ export async function createConversation(
     .where(eq(conversations.taskId, params.taskId))
     .limit(1);
 
-  const config =
-    params.autoApprove === undefined ? undefined : { autoApprove: params.autoApprove };
+  const config = params.autoApprove === undefined ? undefined : { autoApprove: params.autoApprove };
 
   const [row] = await database
     .insert(conversations)

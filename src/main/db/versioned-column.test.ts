@@ -148,7 +148,10 @@ describe('logging', () => {
     const warnSpy = vi.spyOn(loggerModule.log, 'warn').mockImplementation(() => {});
 
     try {
-      parseVersionedColumn(makeTestSchema(), JSON.stringify({ version: '99', name: 'Jake', count: 0 }));
+      parseVersionedColumn(
+        makeTestSchema(),
+        JSON.stringify({ version: '99', name: 'Jake', count: 0 })
+      );
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining('Future schema version'),
         expect.objectContaining({ version: '99' })
