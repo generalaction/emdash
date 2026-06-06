@@ -69,6 +69,7 @@ export class WorkspaceViewModel implements ILifecycle {
   /** Saved whenever suspend() is called, restored in next initialize(). */
   private _savedDiffViewSnapshot: DiffViewSnapshot | undefined;
   private _isCreatingTerminal = false;
+  private _hasConsumedDefaultConversationAutoOpen = false;
   private readonly _conversationHydration: ConversationHydrationReconciler;
 
   readonly taskId: string;
@@ -111,14 +112,15 @@ export class WorkspaceViewModel implements ILifecycle {
       activeRenderer: computed,
     });
 
-    // One-shot: open the initial conversation once conversations first become available.
+    // Fresh tasks get one automatic default conversation tab. Once restored tab
+    // state exists, the restored tab list is authoritative — even when it is empty
+    // because the user closed the tab.
     const initConvDisposer = reaction(
       () => conversationRegistry.get(this.taskId)?.conversations.size ?? 0,
       (size) => {
-        if (size > 0 && this.tabGroupManager.focusedGroup.tabOrder.length === 0) {
-          runInAction(() => this.tabGroupManager.focusedGroup.initializeDefault());
-          initConvDisposer();
-        }
+        if (size === 0) return;
+        this.maybeOpenDefaultConversationForFreshTask();
+        initConvDisposer();
       }
     );
     this._disposers.push(initConvDisposer);
@@ -218,6 +220,12 @@ export class WorkspaceViewModel implements ILifecycle {
    * initialize() so the reaction baseline is correct.
    */
   restoreSnapshot(savedSnapshot: TaskViewSnapshot): void {
+    const hasRestoredTabSnapshot =
+      savedSnapshot.tabGroups !== undefined ||
+      savedSnapshot.tabManager !== undefined ||
+      (savedSnapshot.conversations?.tabOrder?.length ?? 0) > 0;
+    this._hasConsumedDefaultConversationAutoOpen = hasRestoredTabSnapshot;
+
     this.sidebarTab = (savedSnapshot.sidebarTab as SidebarTab) ?? 'conversations';
     this.isSidebarCollapsed = savedSnapshot.isSidebarCollapsed ?? true;
     this.focusedRegion = savedSnapshot.focusedRegion === 'bottom' ? 'bottom' : 'main';
@@ -255,10 +263,6 @@ export class WorkspaceViewModel implements ILifecycle {
         activeGroupId: '',
         paneSizes: [100],
       });
-    }
-
-    if (this.tabGroupManager.focusedGroup.tabOrder.length === 0) {
-      this.tabGroupManager.focusedGroup.initializeDefault();
     }
 
     if (savedSnapshot.terminals) {
@@ -308,12 +312,11 @@ export class WorkspaceViewModel implements ILifecycle {
     // Register snapshot with the persistence layer.
     this._snapshotDisposer = snapshotRegistry.register(`task:${this.taskId}`, () => this.snapshot);
 
-    // Open the initial conversation tab if no tabs were restored from a saved snapshot.
+    // Open the default conversation tab only for fresh task views. If tab state was
+    // restored, even an empty tab list represents the user's persisted choice.
     // This handles the optimistic-conversation case where conversations are already in
     // the manager before provision completes.
-    if (this.tabGroupManager.focusedGroup.tabOrder.length === 0) {
-      runInAction(() => this.tabGroupManager.focusedGroup.initializeDefault());
-    }
+    this.maybeOpenDefaultConversationForFreshTask();
 
     const conversationHydrationDisposer = reaction(
       () => this.openConversationIds,
@@ -450,6 +453,17 @@ export class WorkspaceViewModel implements ILifecycle {
       runInAction(() => {
         this._isCreatingTerminal = false;
       });
+    }
+  }
+
+  private maybeOpenDefaultConversationForFreshTask(): void {
+    if (this._hasConsumedDefaultConversationAutoOpen) return;
+    const conversations = conversationRegistry.get(this.taskId);
+    if (!conversations || conversations.conversations.size === 0) return;
+
+    this._hasConsumedDefaultConversationAutoOpen = true;
+    if (this.tabGroupManager.focusedGroup.tabOrder.length === 0) {
+      runInAction(() => this.tabGroupManager.focusedGroup.initializeDefault());
     }
   }
 

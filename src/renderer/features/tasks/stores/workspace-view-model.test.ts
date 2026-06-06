@@ -4,6 +4,7 @@ import type { Conversation } from '@shared/conversations';
 import type { Task } from '@shared/tasks';
 import type { Terminal } from '@shared/terminals';
 import type { TaskViewSnapshot } from '@shared/view-state';
+import { ConversationStore } from '../conversations/conversation-manager';
 import type { TerminalManagerStore, TerminalStore } from '../terminals/terminal-manager';
 import { conversationRegistry } from './conversation-registry';
 import type { TaskStore } from './task-store';
@@ -238,6 +239,180 @@ describe('WorkspaceViewModel terminal drawer snapshot', () => {
     await Promise.resolve();
 
     expect(terminals.createDefaultTerminal).not.toHaveBeenCalled();
+
+    viewModel.dispose();
+  });
+});
+
+describe('WorkspaceViewModel default conversation tab', () => {
+  it('opens the initial conversation for a new task without restored tab state', async () => {
+    const conversations = conversationRegistry.acquire('task-1', 'project-1', []);
+    const viewModel = makeViewModel();
+
+    runInAction(() => {
+      conversations.conversations.set(
+        'conversation-1',
+        new ConversationStore(
+          makeConversation({ id: 'conversation-1', isInitialConversation: true })
+        )
+      );
+    });
+    await Promise.resolve();
+
+    expect(
+      viewModel.tabManager.resolvedTabs.map((tab) =>
+        tab.kind === 'conversation' ? tab.conversationId : null
+      )
+    ).toEqual(['conversation-1']);
+
+    viewModel.dispose();
+  });
+
+  it('does not reopen a closed initial conversation when a later conversation is created', async () => {
+    const conversations = conversationRegistry.acquire('task-1', 'project-1', []);
+    const viewModel = makeViewModel();
+
+    runInAction(() => {
+      conversations.conversations.set(
+        'conversation-1',
+        new ConversationStore(
+          makeConversation({ id: 'conversation-1', isInitialConversation: true })
+        )
+      );
+      viewModel.tabManager.openConversation('conversation-1');
+    });
+    await Promise.resolve();
+
+    viewModel.tabManager.closeTab(viewModel.tabManager.resolvedActiveTabId!);
+    expect(viewModel.tabManager.resolvedTabs).toHaveLength(0);
+
+    runInAction(() => {
+      conversations.conversations.set(
+        'conversation-2',
+        new ConversationStore(makeConversation({ id: 'conversation-2', title: 'Conversation 2' }))
+      );
+    });
+    await Promise.resolve();
+
+    expect(viewModel.tabManager.resolvedTabs).toHaveLength(0);
+
+    viewModel.tabManager.openConversation('conversation-2');
+
+    expect(
+      viewModel.tabManager.resolvedTabs.map((tab) =>
+        tab.kind === 'conversation' ? tab.conversationId : null
+      )
+    ).toEqual(['conversation-2']);
+
+    viewModel.dispose();
+  });
+
+  it('preserves a restored empty tab state instead of opening the initial conversation', async () => {
+    const conversations = conversationRegistry.acquire('task-1', 'project-1', [
+      makeConversation({ id: 'conversation-1', isInitialConversation: true }),
+    ]);
+    const viewModel = makeViewModel();
+    viewModel.restoreSnapshot({
+      focusedRegion: 'main',
+      tabGroups: {
+        groups: [
+          {
+            groupId: 'group-1',
+            tabManager: {
+              tabs: [],
+              activeTabId: undefined,
+            },
+          },
+        ],
+        activeGroupId: 'group-1',
+        paneSizes: [100],
+      },
+    });
+    await Promise.resolve();
+
+    expect(viewModel.tabManager.resolvedTabs).toHaveLength(0);
+
+    runInAction(() => {
+      conversations.conversations.set(
+        'conversation-2',
+        new ConversationStore(makeConversation({ id: 'conversation-2', title: 'Conversation 2' }))
+      );
+    });
+    await Promise.resolve();
+
+    expect(viewModel.tabManager.resolvedTabs).toHaveLength(0);
+
+    viewModel.dispose();
+  });
+
+  it('opens the initial conversation after restoring legacy UI state without tab state', async () => {
+    const conversations = conversationRegistry.acquire('task-1', 'project-1', []);
+    const viewModel = makeViewModel();
+
+    viewModel.restoreSnapshot({
+      focusedRegion: 'bottom',
+      isTerminalDrawerOpen: true,
+    });
+
+    runInAction(() => {
+      conversations.conversations.set(
+        'conversation-1',
+        new ConversationStore(
+          makeConversation({ id: 'conversation-1', isInitialConversation: true })
+        )
+      );
+    });
+    await Promise.resolve();
+
+    expect(
+      viewModel.tabManager.resolvedTabs.map((tab) =>
+        tab.kind === 'conversation' ? tab.conversationId : null
+      )
+    ).toEqual(['conversation-1']);
+
+    viewModel.dispose();
+  });
+
+  it('does not reopen a closed initial conversation if provision finishes during the next create flow', async () => {
+    workspaceRegistry.acquire(
+      'project-1',
+      'workspace-1',
+      '/tmp/emdash-test-workspace',
+      { settings: {} } as never,
+      'main'
+    );
+    const conversations = conversationRegistry.acquire('task-1', 'project-1', []);
+    vi.spyOn(conversations, 'hydrateConversation').mockResolvedValue();
+    vi.spyOn(conversations, 'dehydrateConversation').mockResolvedValue();
+    const viewModel = makeProvisionedViewModel();
+
+    runInAction(() => {
+      conversations.conversations.set(
+        'conversation-1',
+        new ConversationStore(
+          makeConversation({ id: 'conversation-1', isInitialConversation: true })
+        )
+      );
+      viewModel.tabManager.openConversation('conversation-1');
+    });
+    await Promise.resolve();
+
+    viewModel.tabManager.closeTab(viewModel.tabManager.resolvedActiveTabId!);
+
+    runInAction(() => {
+      conversations.conversations.set(
+        'conversation-2',
+        new ConversationStore(makeConversation({ id: 'conversation-2', title: 'Conversation 2' }))
+      );
+    });
+    viewModel.initialize();
+    viewModel.tabManager.openConversation('conversation-2');
+
+    expect(
+      viewModel.tabManager.resolvedTabs.map((tab) =>
+        tab.kind === 'conversation' ? tab.conversationId : null
+      )
+    ).toEqual(['conversation-2']);
 
     viewModel.dispose();
   });
