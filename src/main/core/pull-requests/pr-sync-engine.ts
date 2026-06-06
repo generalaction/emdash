@@ -1,17 +1,17 @@
-import { randomUUID } from 'node:crypto';
-import type { Octokit } from '@octokit/rest';
-import { and, eq, inArray, lt, ne } from 'drizzle-orm';
-import type { GitHubApiAuthError } from '@main/core/github/services/github-api-auth-errors';
-import type { GitHubApiAuthContext } from '@main/core/github/services/github-api-auth-service';
-import { getOctokit } from '@main/core/github/services/octokit-provider';
+import { randomUUID } from "node:crypto";
+import type { Octokit } from "@octokit/rest";
+import { and, eq, inArray, lt, ne } from "drizzle-orm";
+import type { GitHubApiAuthError } from "@main/core/github/services/github-api-auth-errors";
+import type { GitHubApiAuthContext } from "@main/core/github/services/github-api-auth-service";
+import { getOctokit } from "@main/core/github/services/octokit-provider";
 import {
   GET_PR_BY_NUMBER_QUERY,
   GET_PR_CHECK_RUNS_BY_URL_QUERY,
   INCREMENTAL_SYNC_PRS_QUERY,
   SYNC_PRS_QUERY,
-} from '@main/core/github/services/pr-queries';
-import { db } from '@main/db/client';
-import { KV } from '@main/db/kv';
+} from "@main/core/github/services/pr-queries";
+import { db } from "@main/db/client";
+import { KV } from "@main/db/kv";
 import {
   projectRemotes,
   pullRequestAssignees,
@@ -19,12 +19,15 @@ import {
   pullRequestLabels,
   pullRequests,
   pullRequestUsers,
-} from '@main/db/schema';
-import { events } from '@main/lib/events';
-import { log } from '@main/lib/logger';
-import { githubRateLimiter } from '@main/lib/rate-limiter';
-import { withRetry } from '@main/lib/retry';
-import { prSyncProgressChannel, prUpdatedChannel } from '@shared/events/prEvents';
+} from "@main/db/schema";
+import { events } from "@main/lib/events";
+import { log } from "@main/lib/logger";
+import { githubRateLimiter } from "@main/lib/rate-limiter";
+import { withRetry } from "@main/lib/retry";
+import {
+  prSyncProgressChannel,
+  prUpdatedChannel,
+} from "@shared/events/prEvents";
 import type {
   MergeableState,
   MergeStateStatus,
@@ -32,18 +35,22 @@ import type {
   PullRequest,
   PullRequestComment,
   PullRequestFile,
+  PullRequestMergeOptions,
   PullRequestStatus,
   PullRequestUser,
-} from '@shared/pull-requests';
-import { parseRepositoryRef, parseRepositoryRefResult } from '@shared/repository-ref';
-import { err, ok, type Result } from '@shared/result';
+} from "@shared/pull-requests";
+import {
+  parseRepositoryRef,
+  parseRepositoryRefResult,
+} from "@shared/repository-ref";
+import { err, ok, type Result } from "@shared/result";
 import {
   isPrSyncHostUnreachable,
   prSyncEngineErrorMessage,
   toPrApiError,
   type PrSyncEngineError,
-} from './pr-sync-errors';
-import { assemblePullRequest } from './pr-utils';
+} from "./pr-sync-errors";
+import { assemblePullRequest } from "./pr-utils";
 
 const PR_SYNC_MAX_COUNT = 300;
 const PR_ARCHIVE_AGE_MONTHS = 6;
@@ -69,10 +76,10 @@ type PrKvSchema = {
   [key: string]: FullSyncCursor | IncrementalSyncCursor | string;
 };
 
-type PrSyncAuthContext = Pick<GitHubApiAuthContext, 'accountId'>;
+type PrSyncAuthContext = Pick<GitHubApiAuthContext, "accountId">;
 
 function authContextKey(authContext: PrSyncAuthContext = {}): string {
-  return authContext.accountId?.trim() || 'default';
+  return authContext.accountId?.trim() || "default";
 }
 
 // ---------------------------------------------------------------------------
@@ -89,7 +96,9 @@ interface GqlUser {
 }
 
 function actorUserId(actor: GqlUser): string {
-  return actor.databaseId != null ? String(actor.databaseId) : `login:${actor.login}`;
+  return actor.databaseId != null
+    ? String(actor.databaseId)
+    : `login:${actor.login}`;
 }
 
 function restUserToPullRequestUser(user: {
@@ -113,7 +122,7 @@ interface GqlPrNode {
   number: number;
   title: string;
   url: string;
-  state: 'OPEN' | 'CLOSED' | 'MERGED';
+  state: "OPEN" | "CLOSED" | "MERGED";
   isDraft: boolean;
   createdAt: string;
   updatedAt: string;
@@ -129,7 +138,11 @@ interface GqlPrNode {
   mergeable: MergeableState;
   mergeStateStatus: MergeStateStatus | null;
   author: GqlUser | null;
-  headRepository: { nameWithOwner: string; url: string; owner: { login: string } } | null;
+  headRepository: {
+    nameWithOwner: string;
+    url: string;
+    owner: { login: string };
+  } | null;
   baseRepository: { url: string } | null;
   labels: { nodes: Array<{ name: string; color: string }> };
   assignees: { nodes: GqlUser[] };
@@ -137,7 +150,7 @@ interface GqlPrNode {
 }
 
 interface GqlCheckRunNode {
-  __typename: 'CheckRun';
+  __typename: "CheckRun";
   name: string;
   status: string;
   conclusion: string | null;
@@ -151,7 +164,7 @@ interface GqlCheckRunNode {
 }
 
 interface GqlStatusContextNode {
-  __typename: 'StatusContext';
+  __typename: "StatusContext";
   context: string;
   state: string;
   targetUrl: string | null;
@@ -163,7 +176,7 @@ interface GqlStatusContextNode {
 // ---------------------------------------------------------------------------
 
 export class PrSyncEngine {
-  private readonly kv = new KV<PrKvSchema>('pr');
+  private readonly kv = new KV<PrKvSchema>("pr");
 
   // Per-repository in-flight promise + AbortController
   private readonly _inflight = new Map<string, Promise<void>>();
@@ -173,13 +186,16 @@ export class PrSyncEngine {
     string,
     Promise<Result<PullRequest | null, PrSyncEngineError>>
   >();
-  private readonly _checksInflight = new Map<string, Promise<Result<boolean, PrSyncEngineError>>>();
+  private readonly _checksInflight = new Map<
+    string,
+    Promise<Result<boolean, PrSyncEngineError>>
+  >();
 
   constructor(
     private readonly getOctokit: (
       host: string,
-      context?: PrSyncAuthContext
-    ) => Promise<Result<Octokit, GitHubApiAuthError>>
+      context?: PrSyncAuthContext,
+    ) => Promise<Result<Octokit, GitHubApiAuthError>>,
   ) {}
 
   // ── Public sync API ────────────────────────────────────────────────────────
@@ -191,7 +207,9 @@ export class PrSyncEngine {
   sync(repositoryUrl: string, authContext: PrSyncAuthContext = {}): void {
     const key = `sync:${repositoryUrl}:${authContextKey(authContext)}`;
     if (this._inflight.has(key)) {
-      log.info('PrSyncEngine: sync already in flight, skipping', { repositoryUrl });
+      log.info("PrSyncEngine: sync already in flight, skipping", {
+        repositoryUrl,
+      });
       return;
     }
 
@@ -206,23 +224,26 @@ export class PrSyncEngine {
           : this._runFullSync(repositoryUrl, ctrl.signal, authContext);
       })
       .catch((e: unknown) => {
-        if ((e as { name?: string }).name !== 'AbortError') {
+        if ((e as { name?: string }).name !== "AbortError") {
           const repository = parseRepositoryRef(repositoryUrl);
           const error = toPrApiError(
             e,
-            'Unable to sync pull requests',
+            "Unable to sync pull requests",
             repository?.host,
-            repository?.nameWithOwner
+            repository?.nameWithOwner,
           );
           if (isPrSyncHostUnreachable(error)) {
-            log.warn('PrSyncEngine: sync skipped; GitHub host unreachable', {
+            log.warn("PrSyncEngine: sync skipped; GitHub host unreachable", {
               repositoryUrl,
               host: error.host,
               error: error.reason,
             });
             return;
           }
-          log.error('PrSyncEngine: sync failed', { repositoryUrl, error: String(e) });
+          log.error("PrSyncEngine: sync failed", {
+            repositoryUrl,
+            error: String(e),
+          });
         }
       })
       .finally(() => {
@@ -234,7 +255,10 @@ export class PrSyncEngine {
   }
 
   /** Cancel any in-flight sync, wipe both cursors, and start a fresh full sync. */
-  forceFullSync(repositoryUrl: string, authContext: PrSyncAuthContext = {}): void {
+  forceFullSync(
+    repositoryUrl: string,
+    authContext: PrSyncAuthContext = {},
+  ): void {
     this.cancel(repositoryUrl);
     void Promise.all([
       this.kv.del(`fullsync:${repositoryUrl}`),
@@ -255,7 +279,7 @@ export class PrSyncEngine {
 
   /** Cancel any in-flight syncs for a project and clean up its PR rows and KV cursors. */
   async deleteProjectData(projectId: string): Promise<void> {
-    log.info('PrSyncEngine: deleteProjectData', { projectId });
+    log.info("PrSyncEngine: deleteProjectData", { projectId });
 
     const remoteRows = await db
       .select({ remoteUrl: projectRemotes.remoteUrl })
@@ -270,18 +294,26 @@ export class PrSyncEngine {
       const shared = await db
         .select({ projectId: projectRemotes.projectId })
         .from(projectRemotes)
-        .where(and(eq(projectRemotes.remoteUrl, url), ne(projectRemotes.projectId, projectId)))
+        .where(
+          and(
+            eq(projectRemotes.remoteUrl, url),
+            ne(projectRemotes.projectId, projectId),
+          ),
+        )
         .limit(1);
 
       if (shared.length > 0) {
         log.info(
-          'PrSyncEngine: deleteProjectData — remote shared with other project, skipping data cleanup',
-          { url }
+          "PrSyncEngine: deleteProjectData — remote shared with other project, skipping data cleanup",
+          { url },
         );
         continue;
       }
 
-      log.info('PrSyncEngine: deleteProjectData — deleting PR rows and KV cursors', { url });
+      log.info(
+        "PrSyncEngine: deleteProjectData — deleting PR rows and KV cursors",
+        { url },
+      );
       await db.delete(pullRequests).where(eq(pullRequests.repositoryUrl, url));
       await Promise.all([
         this.kv.del(`fullsync:${url}`),
@@ -301,15 +333,15 @@ export class PrSyncEngine {
   private async _runFullSync(
     repositoryUrl: string,
     signal: AbortSignal,
-    authContext: PrSyncAuthContext
+    authContext: PrSyncAuthContext,
   ): Promise<void> {
-    log.info('PrSyncEngine: runFullSync start', { repositoryUrl });
+    log.info("PrSyncEngine: runFullSync start", { repositoryUrl });
     const repository = parseRepositoryRefResult(repositoryUrl);
     if (!repository.success) {
       this._emitProgress({
         remoteUrl: repositoryUrl,
-        kind: 'full',
-        status: 'error',
+        kind: "full",
+        status: "error",
         error: prSyncEngineErrorMessage(repository.error),
       });
       return;
@@ -317,26 +349,35 @@ export class PrSyncEngine {
     const { owner, repo } = repository.data;
     const octokit = await this.getOctokit(repository.data.host, authContext);
     if (!octokit.success) {
-      log.warn('PrSyncEngine: runFullSync — failed to get Octokit', {
+      log.warn("PrSyncEngine: runFullSync — failed to get Octokit", {
         repositoryUrl,
         error: octokit.error,
       });
       this._emitProgress({
         remoteUrl: repositoryUrl,
-        kind: 'full',
-        status: 'error',
+        kind: "full",
+        status: "error",
         error: prSyncEngineErrorMessage(octokit.error),
       });
       return;
     }
 
     // Resume from an existing cursor if available
-    const existing = (await this.kv.get(`fullsync:${repositoryUrl}`)) as FullSyncCursor | null;
-    let pageCursor: string | undefined = existing?.done ? undefined : existing?.pageCursor;
+    const existing = (await this.kv.get(
+      `fullsync:${repositoryUrl}`,
+    )) as FullSyncCursor | null;
+    let pageCursor: string | undefined = existing?.done
+      ? undefined
+      : existing?.pageCursor;
 
     let synced = 0;
 
-    this._emitProgress({ remoteUrl: repositoryUrl, kind: 'full', status: 'running', synced: 0 });
+    this._emitProgress({
+      remoteUrl: repositoryUrl,
+      kind: "full",
+      status: "running",
+      synced: 0,
+    });
 
     try {
       for (;;) {
@@ -349,16 +390,25 @@ export class PrSyncEngine {
                 repository: {
                   pullRequests: {
                     totalCount: number;
-                    pageInfo: { hasNextPage: boolean; endCursor: string | null };
+                    pageInfo: {
+                      hasNextPage: boolean;
+                      endCursor: string | null;
+                    };
                     nodes: GqlPrNode[];
                   };
                 };
-              }>(SYNC_PRS_QUERY, { owner, repo, cursor: pageCursor ?? null, request: { signal } })
+              }>(SYNC_PRS_QUERY, {
+                owner,
+                repo,
+                cursor: pageCursor ?? null,
+                request: { signal },
+              }),
             ),
-          { signal }
+          { signal },
         );
 
-        const { nodes, pageInfo, totalCount } = response.repository.pullRequests;
+        const { nodes, pageInfo, totalCount } =
+          response.repository.pullRequests;
         const batch: GqlPrNode[] = nodes.slice();
 
         if (batch.length > 0) {
@@ -368,7 +418,9 @@ export class PrSyncEngine {
         }
 
         const lastUpdatedAt =
-          batch[batch.length - 1]?.updatedAt ?? existing?.lastUpdatedAt ?? new Date().toISOString();
+          batch[batch.length - 1]?.updatedAt ??
+          existing?.lastUpdatedAt ??
+          new Date().toISOString();
         const done = !pageInfo.hasNextPage || synced >= PR_SYNC_MAX_COUNT;
 
         await this.kv.set(`fullsync:${repositoryUrl}`, {
@@ -379,8 +431,8 @@ export class PrSyncEngine {
 
         this._emitProgress({
           remoteUrl: repositoryUrl,
-          kind: 'full',
-          status: 'running',
+          kind: "full",
+          status: "running",
           synced,
           total: Math.min(totalCount, PR_SYNC_MAX_COUNT),
         });
@@ -390,22 +442,31 @@ export class PrSyncEngine {
       }
 
       await this._archiveOldPrs(repositoryUrl);
-      this._emitProgress({ remoteUrl: repositoryUrl, kind: 'full', status: 'done', synced });
+      this._emitProgress({
+        remoteUrl: repositoryUrl,
+        kind: "full",
+        status: "done",
+        synced,
+      });
     } catch (e: unknown) {
-      if ((e as { name?: string })?.name === 'AbortError') {
-        this._emitProgress({ remoteUrl: repositoryUrl, kind: 'full', status: 'cancelled' });
+      if ((e as { name?: string })?.name === "AbortError") {
+        this._emitProgress({
+          remoteUrl: repositoryUrl,
+          kind: "full",
+          status: "cancelled",
+        });
         return;
       }
       const error = toPrApiError(
         e,
-        'Unable to sync pull requests',
+        "Unable to sync pull requests",
         repository.data.host,
-        repository.data.nameWithOwner
+        repository.data.nameWithOwner,
       );
       this._emitProgress({
         remoteUrl: repositoryUrl,
-        kind: 'full',
-        status: 'error',
+        kind: "full",
+        status: "error",
         error: prSyncEngineErrorMessage(error),
       });
       throw e;
@@ -422,16 +483,16 @@ export class PrSyncEngine {
   private async _runIncrementalSync(
     repositoryUrl: string,
     signal: AbortSignal,
-    authContext: PrSyncAuthContext
+    authContext: PrSyncAuthContext,
   ): Promise<void> {
-    log.info('PrSyncEngine: runIncrementalSync started', { repositoryUrl });
+    log.info("PrSyncEngine: runIncrementalSync started", { repositoryUrl });
 
     const repository = parseRepositoryRefResult(repositoryUrl);
     if (!repository.success) {
       this._emitProgress({
         remoteUrl: repositoryUrl,
-        kind: 'incremental',
-        status: 'error',
+        kind: "incremental",
+        status: "error",
         error: prSyncEngineErrorMessage(repository.error),
       });
       return;
@@ -439,25 +500,29 @@ export class PrSyncEngine {
     const { owner, repo } = repository.data;
     const octokit = await this.getOctokit(repository.data.host, authContext);
     if (!octokit.success) {
-      log.warn('PrSyncEngine: runIncrementalSync — failed to get Octokit', {
+      log.warn("PrSyncEngine: runIncrementalSync — failed to get Octokit", {
         repositoryUrl,
         error: octokit.error,
       });
       this._emitProgress({
         remoteUrl: repositoryUrl,
-        kind: 'incremental',
-        status: 'error',
+        kind: "incremental",
+        status: "error",
         error: prSyncEngineErrorMessage(octokit.error),
       });
       return;
     }
 
-    const fullCursor = (await this.kv.get(`fullsync:${repositoryUrl}`)) as FullSyncCursor | null;
+    const fullCursor = (await this.kv.get(
+      `fullsync:${repositoryUrl}`,
+    )) as FullSyncCursor | null;
     const incrementalCursor = (await this.kv.get(
-      `incrementalsync:${repositoryUrl}`
+      `incrementalsync:${repositoryUrl}`,
     )) as IncrementalSyncCursor | null;
     const sinceUpdatedAt =
-      incrementalCursor?.lastUpdatedAt ?? fullCursor?.lastUpdatedAt ?? new Date(0).toISOString();
+      incrementalCursor?.lastUpdatedAt ??
+      fullCursor?.lastUpdatedAt ??
+      new Date(0).toISOString();
 
     let pageCursor: string | undefined = incrementalCursor?.done
       ? undefined
@@ -467,8 +532,8 @@ export class PrSyncEngine {
 
     this._emitProgress({
       remoteUrl: repositoryUrl,
-      kind: 'incremental',
-      status: 'running',
+      kind: "incremental",
+      status: "running",
       synced: 0,
     });
 
@@ -482,7 +547,10 @@ export class PrSyncEngine {
               octokit.data.graphql<{
                 repository: {
                   pullRequests: {
-                    pageInfo: { hasNextPage: boolean; endCursor: string | null };
+                    pageInfo: {
+                      hasNextPage: boolean;
+                      endCursor: string | null;
+                    };
                     nodes: GqlPrNode[];
                   };
                 };
@@ -491,9 +559,9 @@ export class PrSyncEngine {
                 repo,
                 cursor: pageCursor ?? null,
                 request: { signal },
-              })
+              }),
             ),
-          { signal }
+          { signal },
         );
 
         const { nodes, pageInfo } = response.repository.pullRequests;
@@ -517,16 +585,19 @@ export class PrSyncEngine {
 
         // If we've processed too many PRs, the cursor is too stale — reset to a full sync.
         if (synced >= PR_SYNC_MAX_COUNT) {
-          log.info('PrSyncEngine: incremental overflow — resetting to full sync', {
-            repositoryUrl,
-            synced,
-          });
+          log.info(
+            "PrSyncEngine: incremental overflow — resetting to full sync",
+            {
+              repositoryUrl,
+              synced,
+            },
+          );
           await this.kv.del(`fullsync:${repositoryUrl}`);
           await this.kv.del(`incrementalsync:${repositoryUrl}`);
           this._emitProgress({
             remoteUrl: repositoryUrl,
-            kind: 'incremental',
-            status: 'done',
+            kind: "incremental",
+            status: "done",
             synced,
           });
           return;
@@ -542,8 +613,8 @@ export class PrSyncEngine {
 
         this._emitProgress({
           remoteUrl: repositoryUrl,
-          kind: 'incremental',
-          status: 'running',
+          kind: "incremental",
+          status: "running",
           synced,
         });
 
@@ -553,25 +624,29 @@ export class PrSyncEngine {
 
       this._emitProgress({
         remoteUrl: repositoryUrl,
-        kind: 'incremental',
-        status: 'done',
+        kind: "incremental",
+        status: "done",
         synced,
       });
     } catch (e: unknown) {
-      if ((e as { name?: string })?.name === 'AbortError') {
-        this._emitProgress({ remoteUrl: repositoryUrl, kind: 'incremental', status: 'cancelled' });
+      if ((e as { name?: string })?.name === "AbortError") {
+        this._emitProgress({
+          remoteUrl: repositoryUrl,
+          kind: "incremental",
+          status: "cancelled",
+        });
         return;
       }
       const error = toPrApiError(
         e,
-        'Unable to sync pull requests',
+        "Unable to sync pull requests",
         repository.data.host,
-        repository.data.nameWithOwner
+        repository.data.nameWithOwner,
       );
       this._emitProgress({
         remoteUrl: repositoryUrl,
-        kind: 'incremental',
-        status: 'error',
+        kind: "incremental",
+        status: "error",
         error: prSyncEngineErrorMessage(error),
       });
       throw e;
@@ -584,7 +659,7 @@ export class PrSyncEngine {
   async syncSingle(
     repositoryUrl: string,
     prNumber: number,
-    authContext: PrSyncAuthContext = {}
+    authContext: PrSyncAuthContext = {},
   ): Promise<Result<PullRequest | null, PrSyncEngineError>> {
     const key = `single:${repositoryUrl}:${prNumber}:${authContextKey(authContext)}`;
     if (this._singleInflight.has(key)) {
@@ -593,15 +668,20 @@ export class PrSyncEngine {
 
     const ctrl = new AbortController();
 
-    const promise = this._runSyncSingle(repositoryUrl, prNumber, ctrl.signal, authContext)
+    const promise = this._runSyncSingle(
+      repositoryUrl,
+      prNumber,
+      ctrl.signal,
+      authContext,
+    )
       .catch((e: unknown) => {
-        if ((e as { name?: string }).name !== 'AbortError') {
-          log.error('PrSyncEngine: syncSingle failed', {
+        if ((e as { name?: string }).name !== "AbortError") {
+          log.error("PrSyncEngine: syncSingle failed", {
             repositoryUrl,
             prNumber,
             error: String(e),
           });
-          return err(toPrApiError(e, 'Unable to refresh pull request'));
+          return err(toPrApiError(e, "Unable to refresh pull request"));
         }
         return ok(null);
       })
@@ -617,7 +697,7 @@ export class PrSyncEngine {
     repositoryUrl: string,
     prNumber: number,
     signal: AbortSignal,
-    authContext: PrSyncAuthContext
+    authContext: PrSyncAuthContext,
   ): Promise<Result<PullRequest | null, PrSyncEngineError>> {
     if (signal.aborted) return ok(null);
 
@@ -633,17 +713,17 @@ export class PrSyncEngine {
         githubRateLimiter.acquire().then(() =>
           octokit.data.graphql<{
             repository: { pullRequest: GqlPrNode | null };
-          }>(GET_PR_BY_NUMBER_QUERY, { owner, repo, number: prNumber })
-        )
+          }>(GET_PR_BY_NUMBER_QUERY, { owner, repo, number: prNumber }),
+        ),
       );
     } catch (error) {
       return err(
         toPrApiError(
           error,
-          'Unable to refresh pull request',
+          "Unable to refresh pull request",
           repository.data.host,
-          repository.data.nameWithOwner
-        )
+          repository.data.nameWithOwner,
+        ),
       );
     }
 
@@ -655,7 +735,12 @@ export class PrSyncEngine {
       this._notifyPrUpdated(pr);
     }
 
-    this._emitProgress({ remoteUrl: repositoryUrl, kind: 'single', status: 'done', synced: 1 });
+    this._emitProgress({
+      remoteUrl: repositoryUrl,
+      kind: "single",
+      status: "done",
+      synced: 1,
+    });
     return ok(pr ?? null);
   }
 
@@ -668,7 +753,7 @@ export class PrSyncEngine {
   async syncChecks(
     pullRequestUrl: string,
     headRefOid: string,
-    authContext: PrSyncAuthContext = {}
+    authContext: PrSyncAuthContext = {},
   ): Promise<Result<boolean, PrSyncEngineError>> {
     const key = `checks:${pullRequestUrl}:${headRefOid}:${authContextKey(authContext)}`;
     if (this._checksInflight.has(key)) {
@@ -677,11 +762,19 @@ export class PrSyncEngine {
 
     const ctrl = new AbortController();
 
-    const promise = this._runSyncChecks(pullRequestUrl, headRefOid, ctrl.signal, authContext)
+    const promise = this._runSyncChecks(
+      pullRequestUrl,
+      headRefOid,
+      ctrl.signal,
+      authContext,
+    )
       .catch((e: unknown) => {
-        if ((e as { name?: string }).name !== 'AbortError') {
-          log.error('PrSyncEngine: syncChecks failed', { pullRequestUrl, error: String(e) });
-          return err(toPrApiError(e, 'Unable to sync check runs'));
+        if ((e as { name?: string }).name !== "AbortError") {
+          log.error("PrSyncEngine: syncChecks failed", {
+            pullRequestUrl,
+            error: String(e),
+          });
+          return err(toPrApiError(e, "Unable to sync check runs"));
         }
         return ok(false);
       })
@@ -697,7 +790,7 @@ export class PrSyncEngine {
     pullRequestUrl: string,
     headRefOid: string,
     signal: AbortSignal,
-    authContext: PrSyncAuthContext
+    authContext: PrSyncAuthContext,
   ): Promise<Result<boolean, PrSyncEngineError>> {
     if (signal.aborted) return ok(false);
 
@@ -716,14 +809,19 @@ export class PrSyncEngine {
 
     // Fetch fresh check runs from GitHub
     const pr = await db
-      .select({ identifier: pullRequests.identifier, repositoryUrl: pullRequests.repositoryUrl })
+      .select({
+        identifier: pullRequests.identifier,
+        repositoryUrl: pullRequests.repositoryUrl,
+      })
       .from(pullRequests)
       .where(eq(pullRequests.url, pullRequestUrl))
       .limit(1);
 
     if (!pr[0]) return ok(false);
 
-    const prNumber = pr[0].identifier ? parseInt(pr[0].identifier.replace('#', ''), 10) : NaN;
+    const prNumber = pr[0].identifier
+      ? parseInt(pr[0].identifier.replace("#", ""), 10)
+      : NaN;
     if (isNaN(prNumber)) return ok(false);
 
     const repository = parseRepositoryRefResult(pr[0].repositoryUrl);
@@ -748,7 +846,10 @@ export class PrSyncEngine {
                   oid: string;
                   statusCheckRollup: {
                     contexts: {
-                      pageInfo: { hasNextPage: boolean; endCursor: string | null };
+                      pageInfo: {
+                        hasNextPage: boolean;
+                        endCursor: string | null;
+                      };
                       nodes: CheckNode[];
                     };
                   } | null;
@@ -766,22 +867,23 @@ export class PrSyncEngine {
               repo,
               number: prNumber,
               cursor: cursor ?? null,
-            })
-          )
+            }),
+          ),
         );
       } catch (error) {
         return err(
           toPrApiError(
             error,
-            'Unable to sync check runs',
+            "Unable to sync check runs",
             repository.data.host,
-            repository.data.nameWithOwner
-          )
+            repository.data.nameWithOwner,
+          ),
         );
       }
 
       const contexts =
-        response.repository.pullRequest?.commits.nodes[0]?.commit?.statusCheckRollup?.contexts;
+        response.repository.pullRequest?.commits.nodes[0]?.commit
+          ?.statusCheckRollup?.contexts;
       if (!contexts) break;
 
       allNodes.push(...contexts.nodes);
@@ -790,23 +892,26 @@ export class PrSyncEngine {
     }
 
     // Delete and re-insert
-    await db.delete(pullRequestChecks).where(eq(pullRequestChecks.pullRequestUrl, pullRequestUrl));
+    await db
+      .delete(pullRequestChecks)
+      .where(eq(pullRequestChecks.pullRequestUrl, pullRequestUrl));
 
     if (allNodes.length > 0) {
       await db.insert(pullRequestChecks).values(
         allNodes.map((node) => {
-          if (node.__typename === 'CheckRun') {
+          if (node.__typename === "CheckRun") {
             return {
               id: randomUUID(),
               pullRequestUrl,
               commitSha: headRefOid,
               name: node.name,
               status: node.status,
-              conclusion: node.conclusion ?? 'NEUTRAL',
+              conclusion: node.conclusion ?? "NEUTRAL",
               detailsUrl: node.detailsUrl ?? null,
               startedAt: node.startedAt ?? null,
               completedAt: node.completedAt ?? null,
-              workflowName: node.checkSuite?.workflowRun?.workflow?.name ?? null,
+              workflowName:
+                node.checkSuite?.workflowRun?.workflow?.name ?? null,
               appName: node.checkSuite?.app?.name ?? null,
               appLogoUrl: node.checkSuite?.app?.logoUrl ?? null,
             };
@@ -817,35 +922,35 @@ export class PrSyncEngine {
             pullRequestUrl,
             commitSha: headRefOid,
             name: node.context,
-            status: node.state === 'PENDING' ? 'IN_PROGRESS' : 'COMPLETED',
+            status: node.state === "PENDING" ? "IN_PROGRESS" : "COMPLETED",
             conclusion:
-              node.state === 'SUCCESS'
-                ? 'SUCCESS'
-                : node.state === 'FAILURE' || node.state === 'ERROR'
-                  ? 'FAILURE'
-                  : 'NEUTRAL',
+              node.state === "SUCCESS"
+                ? "SUCCESS"
+                : node.state === "FAILURE" || node.state === "ERROR"
+                  ? "FAILURE"
+                  : "NEUTRAL",
             detailsUrl: node.targetUrl ?? null,
             startedAt: node.createdAt,
-            completedAt: node.state !== 'PENDING' ? node.createdAt : null,
+            completedAt: node.state !== "PENDING" ? node.createdAt : null,
             workflowName: null,
             appName: null,
             appLogoUrl: null,
           };
-        })
+        }),
       );
     }
 
     // Return true if any check is still in-progress
     const hasRunning = allNodes.some((n) => {
-      if (n.__typename === 'CheckRun') {
+      if (n.__typename === "CheckRun") {
         return (
-          n.status === 'IN_PROGRESS' ||
-          n.status === 'QUEUED' ||
-          n.status === 'WAITING' ||
-          n.status === 'PENDING'
+          n.status === "IN_PROGRESS" ||
+          n.status === "QUEUED" ||
+          n.status === "WAITING" ||
+          n.status === "PENDING"
         );
       }
-      return n.state === 'PENDING';
+      return n.state === "PENDING";
     });
 
     // Notify the renderer with the fully-assembled PR so checks appear reactively.
@@ -875,7 +980,10 @@ export class PrSyncEngine {
       db
         .select({ user: pullRequestUsers })
         .from(pullRequestAssignees)
-        .innerJoin(pullRequestUsers, eq(pullRequestAssignees.userId, pullRequestUsers.userId))
+        .innerJoin(
+          pullRequestUsers,
+          eq(pullRequestAssignees.userId, pullRequestUsers.userId),
+        )
         .where(eq(pullRequestAssignees.pullRequestUrl, pullRequestUrl)),
     ]);
 
@@ -894,7 +1002,7 @@ export class PrSyncEngine {
       authorRow,
       labelRows,
       assigneeJoins.map((j) => j.user),
-      checkRows
+      checkRows,
     );
     this._notifyPrUpdated(assembled);
   }
@@ -916,7 +1024,10 @@ export class PrSyncEngine {
 
   // ── Private helpers ────────────────────────────────────────────────────────
 
-  private async _upsertBatch(repositoryUrl: string, nodes: GqlPrNode[]): Promise<PullRequest[]> {
+  private async _upsertBatch(
+    repositoryUrl: string,
+    nodes: GqlPrNode[],
+  ): Promise<PullRequest[]> {
     const results: PullRequest[] = [];
 
     for (const node of nodes) {
@@ -927,15 +1038,24 @@ export class PrSyncEngine {
     return results;
   }
 
-  private async _upsertOne(repositoryUrl: string, node: GqlPrNode): Promise<PullRequest | null> {
+  private async _upsertOne(
+    repositoryUrl: string,
+    node: GqlPrNode,
+  ): Promise<PullRequest | null> {
     const status: PullRequestStatus =
-      node.state === 'MERGED' ? 'merged' : node.state === 'CLOSED' ? 'closed' : 'open';
+      node.state === "MERGED"
+        ? "merged"
+        : node.state === "CLOSED"
+          ? "closed"
+          : "open";
 
     const headRepositoryUrl =
-      parseRepositoryRef(node.headRepository?.url)?.repositoryUrl ?? repositoryUrl;
+      parseRepositoryRef(node.headRepository?.url)?.repositoryUrl ??
+      repositoryUrl;
 
     const baseRepositoryUrl =
-      parseRepositoryRef(node.baseRepository?.url)?.repositoryUrl ?? repositoryUrl;
+      parseRepositoryRef(node.baseRepository?.url)?.repositoryUrl ??
+      repositoryUrl;
 
     // Upsert author
     let authorUserId: string | null = null;
@@ -967,7 +1087,7 @@ export class PrSyncEngine {
       .insert(pullRequests)
       .values({
         url: node.url,
-        provider: 'github',
+        provider: "github",
         repositoryUrl: baseRepositoryUrl,
         baseRefName: node.baseRefName,
         baseRefOid: node.baseRefOid,
@@ -1018,19 +1138,23 @@ export class PrSyncEngine {
     if (!prRow) return null;
 
     // Sync labels
-    await db.delete(pullRequestLabels).where(eq(pullRequestLabels.pullRequestId, node.url));
+    await db
+      .delete(pullRequestLabels)
+      .where(eq(pullRequestLabels.pullRequestId, node.url));
     if (node.labels.nodes.length > 0) {
       await db.insert(pullRequestLabels).values(
         node.labels.nodes.map((l) => ({
           pullRequestId: node.url,
           name: l.name,
           color: l.color ?? null,
-        }))
+        })),
       );
     }
 
     // Upsert assignee users and links
-    await db.delete(pullRequestAssignees).where(eq(pullRequestAssignees.pullRequestUrl, node.url));
+    await db
+      .delete(pullRequestAssignees)
+      .where(eq(pullRequestAssignees.pullRequestUrl, node.url));
     const assigneeRows: (typeof pullRequestUsers.$inferSelect)[] = [];
     for (const a of node.assignees.nodes) {
       const uid = actorUserId(a);
@@ -1047,7 +1171,11 @@ export class PrSyncEngine {
         })
         .onConflictDoUpdate({
           target: pullRequestUsers.userId,
-          set: { userName: a.login, displayName: a.login, avatarUrl: a.avatarUrl || null },
+          set: {
+            userName: a.login,
+            displayName: a.login,
+            avatarUrl: a.avatarUrl || null,
+          },
         });
 
       await db
@@ -1089,7 +1217,13 @@ export class PrSyncEngine {
       .from(pullRequestChecks)
       .where(eq(pullRequestChecks.pullRequestUrl, node.url));
 
-    return assemblePullRequest(prRow, authorRow, labelRows, assigneeRows, checkRows);
+    return assemblePullRequest(
+      prRow,
+      authorRow,
+      labelRows,
+      assigneeRows,
+      checkRows,
+    );
   }
 
   private async _archiveOldPrs(repositoryUrl: string): Promise<void> {
@@ -1102,12 +1236,12 @@ export class PrSyncEngine {
       .where(
         and(
           eq(pullRequests.repositoryUrl, repositoryUrl),
-          inArray(pullRequests.status, ['closed', 'merged']),
-          lt(pullRequests.pullRequestUpdatedAt, cutoffIso)
-        )
+          inArray(pullRequests.status, ["closed", "merged"]),
+          lt(pullRequests.pullRequestUpdatedAt, cutoffIso),
+        ),
       );
 
-    log.info('PrSyncEngine: archived old PRs', { repositoryUrl, cutoffIso });
+    log.info("PrSyncEngine: archived old PRs", { repositoryUrl, cutoffIso });
   }
 
   private _notifyPrUpdated(pr: PullRequest): void {
@@ -1135,7 +1269,7 @@ export class PrSyncEngine {
       body?: string;
       draft: boolean;
     },
-    authContext: PrSyncAuthContext = {}
+    authContext: PrSyncAuthContext = {},
   ): Promise<Result<{ url: string; number: number }, PrSyncEngineError>> {
     const repository = parseRepositoryRefResult(params.repositoryUrl);
     if (!repository.success) return err(repository.error);
@@ -1158,10 +1292,10 @@ export class PrSyncEngine {
       return err(
         toPrApiError(
           error,
-          'Unable to create pull request',
+          "Unable to create pull request",
           repository.data.host,
-          repository.data.nameWithOwner
-        )
+          repository.data.nameWithOwner,
+        ),
       );
     }
   }
@@ -1169,15 +1303,23 @@ export class PrSyncEngine {
   async mergePullRequest(
     repositoryUrl: string,
     prNumber: number,
-    options: { strategy: 'merge' | 'squash' | 'rebase'; commitHeadOid?: string },
-    authContext: PrSyncAuthContext = {}
-  ): Promise<Result<{ sha: string | null; merged: boolean }, PrSyncEngineError>> {
+    options: {
+      strategy: "merge" | "squash" | "rebase";
+      commitHeadOid?: string;
+    },
+    authContext: PrSyncAuthContext = {},
+  ): Promise<
+    Result<{ sha: string | null; merged: boolean }, PrSyncEngineError>
+  > {
     const repository = parseRepositoryRefResult(repositoryUrl);
     if (!repository.success) return err(repository.error);
     const { owner, repo } = repository.data;
     const octokit = await this.getOctokit(repository.data.host, authContext);
     if (!octokit.success) return err(octokit.error);
     try {
+      // GitHub exposes bypassing branch protection/rulesets through the caller's permissions,
+      // not a REST merge parameter. `bypassRequirements` is captured by the UI/telemetry path;
+      // the merge request itself remains identical and GitHub accepts or rejects it server-side.
       const response = await octokit.data.rest.pulls.merge({
         owner,
         repo,
@@ -1185,15 +1327,18 @@ export class PrSyncEngine {
         merge_method: options.strategy,
         sha: options.commitHeadOid,
       });
-      return ok({ sha: response.data.sha ?? null, merged: response.data.merged });
+      return ok({
+        sha: response.data.sha ?? null,
+        merged: response.data.merged,
+      });
     } catch (error) {
       return err(
         toPrApiError(
           error,
-          'Unable to merge pull request',
+          "Unable to merge pull request",
           repository.data.host,
-          repository.data.nameWithOwner
-        )
+          repository.data.nameWithOwner,
+        ),
       );
     }
   }
@@ -1201,7 +1346,7 @@ export class PrSyncEngine {
   async markReadyForReview(
     repositoryUrl: string,
     prNumber: number,
-    authContext: PrSyncAuthContext = {}
+    authContext: PrSyncAuthContext = {},
   ): Promise<Result<void, PrSyncEngineError>> {
     const repository = parseRepositoryRefResult(repositoryUrl);
     if (!repository.success) return err(repository.error);
@@ -1209,24 +1354,28 @@ export class PrSyncEngine {
     const octokit = await this.getOctokit(repository.data.host, authContext);
     if (!octokit.success) return err(octokit.error);
     try {
-      const { data } = await octokit.data.rest.pulls.get({ owner, repo, pull_number: prNumber });
+      const { data } = await octokit.data.rest.pulls.get({
+        owner,
+        repo,
+        pull_number: prNumber,
+      });
       await octokit.data.graphql(
         `mutation MarkReadyForReview($id: ID!) {
         markPullRequestReadyForReview(input: { pullRequestId: $id }) {
           pullRequest { isDraft }
         }
       }`,
-        { id: data.node_id }
+        { id: data.node_id },
       );
       return ok();
     } catch (error) {
       return err(
         toPrApiError(
           error,
-          'Unable to mark PR ready for review',
+          "Unable to mark PR ready for review",
           repository.data.host,
-          repository.data.nameWithOwner
-        )
+          repository.data.nameWithOwner,
+        ),
       );
     }
   }
@@ -1234,7 +1383,7 @@ export class PrSyncEngine {
   async getPullRequestComments(
     repositoryUrl: string,
     prNumber: number,
-    authContext: PrSyncAuthContext = {}
+    authContext: PrSyncAuthContext = {},
   ): Promise<Result<PullRequestComment[], PrSyncEngineError>> {
     const repository = parseRepositoryRefResult(repositoryUrl);
     if (!repository.success) return err(repository.error);
@@ -1252,8 +1401,8 @@ export class PrSyncEngine {
               repo,
               issue_number: prNumber,
               per_page: 100,
-            })
-          )
+            }),
+          ),
         ),
         withRetry(() =>
           githubRateLimiter.acquire().then(() =>
@@ -1262,8 +1411,8 @@ export class PrSyncEngine {
               repo,
               pull_number: prNumber,
               per_page: 100,
-            })
-          )
+            }),
+          ),
         ),
         withRetry(() =>
           githubRateLimiter.acquire().then(() =>
@@ -1272,8 +1421,8 @@ export class PrSyncEngine {
               repo,
               pull_number: prNumber,
               per_page: 100,
-            })
-          )
+            }),
+          ),
         ),
       ]);
 
@@ -1281,8 +1430,8 @@ export class PrSyncEngine {
         ...issueComments.map((comment) => ({
           id: `issue-comment:${comment.id}`,
           pullRequestUrl,
-          kind: 'issue' as const,
-          body: comment.body ?? '',
+          kind: "issue" as const,
+          body: comment.body ?? "",
           url: comment.html_url,
           author: comment.user ? restUserToPullRequestUser(comment.user) : null,
           path: null,
@@ -1297,7 +1446,7 @@ export class PrSyncEngine {
           return {
             id: `review:${review.id}`,
             pullRequestUrl,
-            kind: 'review' as const,
+            kind: "review" as const,
             body: review.body,
             url: review.html_url,
             author: review.user ? restUserToPullRequestUser(review.user) : null,
@@ -1312,8 +1461,8 @@ export class PrSyncEngine {
         ...reviewComments.map((comment) => ({
           id: `review-comment:${comment.id}`,
           pullRequestUrl,
-          kind: 'review' as const,
-          body: comment.body ?? '',
+          kind: "review" as const,
+          body: comment.body ?? "",
           url: comment.html_url,
           author: comment.user ? restUserToPullRequestUser(comment.user) : null,
           path: comment.path ?? null,
@@ -1328,10 +1477,10 @@ export class PrSyncEngine {
       return err(
         toPrApiError(
           error,
-          'Unable to get pull request comments',
+          "Unable to get pull request comments",
           repository.data.host,
-          repository.data.nameWithOwner
-        )
+          repository.data.nameWithOwner,
+        ),
       );
     }
   }
@@ -1339,7 +1488,7 @@ export class PrSyncEngine {
   async getPullRequestFiles(
     repositoryUrl: string,
     prNumber: number,
-    authContext: PrSyncAuthContext = {}
+    authContext: PrSyncAuthContext = {},
   ): Promise<Result<PullRequestFile[], PrSyncEngineError>> {
     const repository = parseRepositoryRefResult(repositoryUrl);
     if (!repository.success) return err(repository.error);
@@ -1347,12 +1496,15 @@ export class PrSyncEngine {
     const octokit = await this.getOctokit(repository.data.host, authContext);
     if (!octokit.success) return err(octokit.error);
     try {
-      const files = await octokit.data.paginate(octokit.data.rest.pulls.listFiles, {
-        owner,
-        repo,
-        pull_number: prNumber,
-        per_page: 100,
-      });
+      const files = await octokit.data.paginate(
+        octokit.data.rest.pulls.listFiles,
+        {
+          owner,
+          repo,
+          pull_number: prNumber,
+          per_page: 100,
+        },
+      );
       return ok(
         files.map((f) => ({
           filename: f.filename,
@@ -1360,22 +1512,26 @@ export class PrSyncEngine {
           additions: f.additions,
           deletions: f.deletions,
           patch: f.patch,
-        }))
+        })),
       );
     } catch (error) {
       return err(
         toPrApiError(
           error,
-          'Unable to get pull request files',
+          "Unable to get pull request files",
           repository.data.host,
-          repository.data.nameWithOwner
-        )
+          repository.data.nameWithOwner,
+        ),
       );
     }
   }
 
-  private async _getFullSyncCursor(repositoryUrl: string): Promise<{ done: boolean } | null> {
-    return (await this.kv.get(`fullsync:${repositoryUrl}`)) as FullSyncCursor | null;
+  private async _getFullSyncCursor(
+    repositoryUrl: string,
+  ): Promise<{ done: boolean } | null> {
+    return (await this.kv.get(
+      `fullsync:${repositoryUrl}`,
+    )) as FullSyncCursor | null;
   }
 }
 

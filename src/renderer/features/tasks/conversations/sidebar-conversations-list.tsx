@@ -33,6 +33,7 @@ const ConversationRow = observer(function ConversationRow({
   conversationId: string;
 }) {
   const [isEditing, setIsEditing] = useState(false);
+  const committedRef = useRef(false);
   const taskView = useWorkspaceViewModel();
   const conversations = useConversations();
   const { tabManager, tabGroupManager } = taskView;
@@ -44,6 +45,7 @@ const ConversationRow = observer(function ConversationRow({
   }, []);
 
   const handleRename = useCallback(() => {
+    committedRef.current = false;
     window.setTimeout(() => setIsEditing(true), 0);
   }, []);
 
@@ -57,10 +59,25 @@ const ConversationRow = observer(function ConversationRow({
     conversation.data.title
   );
   const rawTitle = conversation.data.title ?? '';
+  const commitRename = (value: string) => {
+    if (committedRef.current) return;
+    committedRef.current = true;
+    const trimmed = value.trim().slice(0, MAX_CONVERSATION_TITLE_LENGTH);
+    if (trimmed && trimmed !== rawTitle) {
+      handleRenameSubmit(trimmed);
+    } else {
+      setIsEditing(false);
+    }
+  };
 
   const handleRenameSubmit = (newTitle: string) => {
     setIsEditing(false);
     void conversations.renameConversation(conversationId, newTitle);
+  };
+
+  const handleDoubleClick = () => {
+    tabGroupManager.openConversation(conversationId);
+    handleRename();
   };
 
   const handleDelete = () => {
@@ -75,63 +92,58 @@ const ConversationRow = observer(function ConversationRow({
     });
   };
 
-  if (isEditing) {
-    return (
-      <div className="flex h-full w-full items-center px-2">
-        <input
-          ref={handleRenameInputRef}
-          className="w-full rounded bg-background-1 px-1.5 py-0.5 text-sm text-foreground ring-1 ring-foreground/20 outline-none focus:ring-foreground/40"
-          defaultValue={rawTitle}
-          maxLength={MAX_CONVERSATION_TITLE_LENGTH}
-          onBlur={(e) => {
-            const value = e.target.value.trim().slice(0, MAX_CONVERSATION_TITLE_LENGTH);
-            if (value && value !== rawTitle) {
-              handleRenameSubmit(value);
-            } else {
-              setIsEditing(false);
-            }
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              const value = e.currentTarget.value.trim().slice(0, MAX_CONVERSATION_TITLE_LENGTH);
-              if (value && value !== rawTitle) {
-                handleRenameSubmit(value);
-              } else {
-                setIsEditing(false);
-              }
-            } else if (e.key === 'Escape') {
-              setIsEditing(false);
-            }
-          }}
-        />
-      </div>
-    );
-  }
-
   return (
     <ContextMenu>
       <ContextMenuTrigger>
-        <button
+        <div
+          role="button"
+          tabIndex={0}
           onClick={() => tabGroupManager.openConversationPreview(conversationId)}
-          onDoubleClick={() => tabGroupManager.openConversation(conversationId)}
+          onDoubleClick={handleDoubleClick}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              tabGroupManager.openConversationPreview(conversationId);
+            }
+          }}
           className={cn(
             'flex w-full items-center gap-2 h-8 rounded-md px-2 text-left text-sm text-foreground-muted transition-colors hover:bg-background-1 hover:text-foreground',
             isActive && 'bg-background-2 text-foreground hover:bg-background-2'
           )}
         >
           {config ? (
-            <span className="shrink-0">
+            <span className="flex size-4 shrink-0 items-center justify-center">
               <AgentLogo
                 logo={config.logo}
                 logoDark={config.logoDark}
                 alt={config.alt}
                 isSvg={config.isSvg}
                 invertInDark={config.invertInDark}
-                className="size-4"
+                className="block size-4"
               />
             </span>
           ) : null}
-          <span className="min-w-0 flex-1 truncate">{displayTitle}</span>
+          {isEditing ? (
+            <input
+              ref={handleRenameInputRef}
+              className="min-w-0 flex-1 rounded bg-background-1 px-1.5 py-0.5 text-sm text-foreground ring-1 ring-foreground/20 outline-none focus:ring-foreground/40"
+              defaultValue={rawTitle}
+              maxLength={MAX_CONVERSATION_TITLE_LENGTH}
+              onClick={(e) => e.stopPropagation()}
+              onDoubleClick={(e) => e.stopPropagation()}
+              onBlur={(e) => commitRename(e.target.value)}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === 'Enter') commitRename(e.currentTarget.value);
+                else if (e.key === 'Escape') {
+                  committedRef.current = true;
+                  setIsEditing(false);
+                }
+              }}
+            />
+          ) : (
+            <span className="min-w-0 flex-1 truncate">{displayTitle}</span>
+          )}
           <span className="shrink-0">
             {conversation.indicatorStatus ? (
               <AgentStatusIndicator status={conversation.indicatorStatus} disableTooltip />
@@ -143,7 +155,7 @@ const ConversationRow = observer(function ConversationRow({
               />
             )}
           </span>
-        </button>
+        </div>
       </ContextMenuTrigger>
       <ContextMenuContent finalFocus={false}>
         <ContextMenuItem onClick={handleRename}>

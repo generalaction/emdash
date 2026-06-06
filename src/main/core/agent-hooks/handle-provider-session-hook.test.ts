@@ -163,6 +163,33 @@ describe('handleProviderSessionHook', () => {
     expect(mockEvents.emit).not.toHaveBeenCalled();
   });
 
+  it('persists Kimi session ids from SessionStart hook payloads', async () => {
+    mockSetProviderSessionId.mockResolvedValue(true);
+    mockEnrichEvent.mockResolvedValue({
+      type: 'start',
+      providerId: 'kimi',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      conversationId: 'conversation-1',
+      timestamp: 0,
+      payload: {},
+    });
+
+    await handleProviderSessionHook({
+      ptyId: 'kimi-conv-conversation-1',
+      type: 'session',
+      body: JSON.stringify({ session_id: 'ses_kimi_1' }),
+    });
+
+    expect(mockSetProviderSessionId).toHaveBeenCalledWith('conversation-1', 'ses_kimi_1');
+    expect(mockEvents.emit).toHaveBeenCalledWith(conversationChangedChannel, {
+      conversationId: 'conversation-1',
+      taskId: 'task-1',
+      projectId: 'project-1',
+      changes: { providerSessionId: 'ses_kimi_1' },
+    });
+  });
+
   it('keeps Droid session ids on the Droid validation path', async () => {
     await handleProviderSessionHook({
       ptyId: 'droid-conv-conversation-1',

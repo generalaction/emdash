@@ -4,12 +4,12 @@ import { getTaskManagerStore } from '@renderer/features/tasks/stores/task-select
 import type { NavigateFnTyped } from '@renderer/lib/layout/navigation-provider';
 import { log } from '@renderer/utils/logger';
 import type { LocalProject, SshProject } from '@shared/projects';
+import type { InitialConversationState } from '../conversations/initial-conversation-section';
 import {
   buildInitialConversation,
   buildWorkspaceConfig,
   deriveInitialStatus,
 } from './build-create-task-params';
-import type { InitialConversationState } from './initial-conversation-section';
 import type { CreateTaskState } from './use-create-task-state';
 
 interface UseCreateTaskCallbackParams {
@@ -46,16 +46,17 @@ export function useCreateTaskCallback({
       .createTask({
         id,
         projectId: selectedProjectId,
-        name: state.taskName.effectiveTaskName,
+        taskConfig: {
+          version: '1',
+          name: state.taskName.effectiveTaskName,
+          linkedIssue: state.linkedType === 'issue' ? (state.linkedIssue ?? undefined) : undefined,
+          initialStatus: deriveInitialStatus(state.linkedType, state.linkedPR),
+          initialConversation: buildInitialConversation(
+            initialConversation,
+            autoApproveDefaults.getDefault
+          ),
+        },
         workspaceConfig: buildWorkspaceConfig(state, isUnborn, projectData, useBYOI),
-        linkedIssue: state.linkedType === 'issue' ? (state.linkedIssue ?? undefined) : undefined,
-        initialStatus: deriveInitialStatus(state.linkedType, state.linkedPR),
-        initialConversation: buildInitialConversation(
-          id,
-          selectedProjectId,
-          initialConversation,
-          autoApproveDefaults.getDefault
-        ),
       })
       .catch((e) => log.error('create task failed', e));
 

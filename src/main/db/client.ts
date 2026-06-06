@@ -4,6 +4,9 @@ import { resolveDatabasePath } from './path';
 import * as schema from './schema';
 
 export type AppDb = ReturnType<typeof drizzle<typeof schema>>;
+export type DrizzleTx = Parameters<AppDb['transaction']>[0] extends (tx: infer T) => unknown
+  ? T
+  : never;
 
 export const sqlite = new Database(resolveDatabasePath());
 sqlite.pragma('journal_mode = WAL');

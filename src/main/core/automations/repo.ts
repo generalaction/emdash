@@ -1,133 +1,105 @@
 import { randomUUID } from 'node:crypto';
 import { Cron } from 'croner';
-import { and, asc, desc, eq, inArray, isNotNull, lte, or, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { generateRandom } from '@main/core/tasks/name-generation/generateTaskName';
 import { db } from '@main/db/client';
 import {
   automationRuns,
   automations,
-  conversations,
   projects,
   tasks,
   type AutomationRow,
   type AutomationRunRow,
 } from '@main/db/schema';
 import { log } from '@main/lib/logger';
-import { isValidProviderId, type AgentProviderId } from '@shared/agent-provider-registry';
-import { isValidAction, type TaskCreateAction } from '@shared/automations/actions';
-import { getLocalTimeZone } from '@shared/automations/timezone';
 import type {
   Automation,
-  AutomationDeadlinePolicy,
+  CreateAutomationParams,
+  UpdateAutomationSettingsPatch,
+} from '@shared/automations/automation';
+import type {
   AutomationRun,
   AutomationRunStatus,
   AutomationRunTriggerKind,
-  AutomationRunWithContext,
-  CreateAutomationInput,
-  CronTrigger,
-  UpdateAutomationPatch,
-} from '@shared/automations/types';
-import { assertValidCronTrigger, assertValidDeadline } from '@shared/automations/validation';
-import type { CreateTaskParams } from '@shared/tasks';
+} from '@shared/automations/automation-run';
+import type {
+  ConversationConfig,
+  StoredAutomationTaskConfig,
+  TriggerConfig,
+} from '@shared/automations/config';
+import { getLocalTimeZone } from '@shared/automations/timezone';
+import { assertValidCronTrigger } from '@shared/automations/validation';
 
 const DEFAULT_TZ = getLocalTimeZone();
 
-function fallbackActions(promptTemplate: string): TaskCreateAction[] {
-  const prompt = promptTemplate.trim();
-  return prompt ? [{ kind: 'task.create', prompt }] : [];
-}
-
-function parseActions(raw: string, promptTemplate: string): TaskCreateAction[] {
-  if (!raw || raw === '[]') return fallbackActions(promptTemplate);
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return fallbackActions(promptTemplate);
-    return parsed.every(isValidAction) ? parsed : fallbackActions(promptTemplate);
-  } catch (error) {
-    log.warn('automations.repo: failed to parse actions JSON', {
-      error: String(error),
-    });
-    return fallbackActions(promptTemplate);
-  }
-}
-
-function firstTaskCreatePrompt(actions: TaskCreateAction[]): string {
-  return actions[0]?.prompt ?? '';
-}
-
-function assertPublishableActions(actions: TaskCreateAction[]): void {
-  if (!Array.isArray(actions) || actions.length === 0) {
-    throw new Error('actions_required');
-  }
-  const invalidIndex = actions.findIndex((action) => !isValidAction(action));
-  if (invalidIndex >= 0) throw new Error(`action_invalid:${invalidIndex}`);
-}
-
-function assertValidAutomationInput(input: {
-  trigger: CronTrigger;
-  deadlinePolicy: AutomationDeadlinePolicy;
-  deadlineMs: number | null;
-  isDraft: boolean;
-  actions: TaskCreateAction[];
-}): void {
-  assertValidCronTrigger(input.trigger);
-  assertValidDeadline(input.deadlinePolicy, input.deadlineMs);
-  if (!input.isDraft) assertPublishableActions(input.actions);
-}
-
-function parseTaskConfig(raw: string | null): CreateTaskParams | null {
-  if (!raw) return null;
+function parseTriggerConfig(raw: string | null): TriggerConfig | null {
+  if (!raw || raw === '{}' || raw === 'null') return null;
   try {
     const parsed = JSON.parse(raw) as unknown;
     if (!parsed || typeof parsed !== 'object') return null;
-    return parsed as CreateTaskParams;
+    const obj = parsed as Record<string, unknown>;
+    if (typeof obj['expr'] !== 'string' || !obj['expr']) return null;
+    return parsed as TriggerConfig;
   } catch (error) {
-    log.warn('automations.repo: failed to parse taskConfig JSON', {
-      error: String(error),
-    });
+    log.warn('automations.repo: failed to parse triggerConfig JSON', { error: String(error) });
     return null;
   }
 }
 
-function asAgentProviderId(
-  value: unknown,
-  context: Record<string, string>
-): AgentProviderId | null {
-  if (value == null) return null;
-  if (isValidProviderId(value)) return value;
-  log.warn('automations.repo: invalid agent provider for run', {
-    ...context,
-    value: String(value),
-  });
-  return null;
+function parseConversationConfig(raw: string | null): ConversationConfig | null {
+  if (!raw || raw === '{}' || raw === 'null') return null;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object') return null;
+    const obj = parsed as Record<string, unknown>;
+    if (typeof obj['prompt'] !== 'string' || !(obj['prompt'] as string).trim()) return null;
+    if (typeof obj['provider'] !== 'string' || !obj['provider']) return null;
+    return parsed as ConversationConfig;
+  } catch (error) {
+    log.warn('automations.repo: failed to parse conversationConfig JSON', { error: String(error) });
+    return null;
+  }
 }
 
-function automationTaskConfigAgentProvider(
-  row: Pick<AutomationRow, 'id' | 'taskConfig'>
-): AgentProviderId | null {
-  const provider = parseTaskConfig(row.taskConfig)?.initialConversation?.provider;
-  return asAgentProviderId(provider, { automationId: row.id });
+function parseTaskConfig(raw: string | null): StoredAutomationTaskConfig | null {
+  if (!raw || raw === 'null') return null;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== 'object') return null;
+    const obj = parsed as Record<string, unknown>;
+    if (!('taskConfig' in obj) || !('workspaceConfig' in obj)) return null;
+    return parsed as StoredAutomationTaskConfig;
+  } catch (error) {
+    log.warn('automations.repo: failed to parse taskConfig JSON', { error: String(error) });
+    return null;
+  }
+}
+
+function assertValidAutomationInput(input: {
+  triggerConfig: TriggerConfig;
+  conversationConfig: ConversationConfig;
+}): void {
+  assertValidCronTrigger(input.triggerConfig);
+  if (!input.conversationConfig.prompt.trim()) {
+    throw new Error('conversation_config_prompt_required');
+  }
 }
 
 const RUN_STATUSES: ReadonlySet<AutomationRunStatus> = new Set([
+  'scheduled',
   'queued',
-  'running',
-  'success',
+  'creating_task',
+  'launching_task',
+  'creating_conversation',
+  'done',
   'failed',
   'skipped',
 ]);
 const RUN_TRIGGER_KINDS: ReadonlySet<AutomationRunTriggerKind> = new Set(['cron', 'manual']);
-const DEADLINE_POLICIES: ReadonlySet<AutomationDeadlinePolicy> = new Set([
-  'next-interval',
-  'fixed',
-  'none',
-]);
 
 function asRunStatus(value: string, runId: string): AutomationRunStatus {
   if (RUN_STATUSES.has(value as AutomationRunStatus)) return value as AutomationRunStatus;
-  log.warn('automations.repo: invalid run status, falling back to failed', {
-    runId,
-    value,
-  });
+  log.warn('automations.repo: invalid run status, falling back to failed', { runId, value });
   return 'failed';
 }
 
@@ -135,51 +107,19 @@ function asRunTriggerKind(value: string, runId: string): AutomationRunTriggerKin
   if (RUN_TRIGGER_KINDS.has(value as AutomationRunTriggerKind)) {
     return value as AutomationRunTriggerKind;
   }
-  log.warn('automations.repo: invalid run trigger_kind, falling back to manual', {
-    runId,
-    value,
-  });
+  log.warn('automations.repo: invalid run trigger_kind, falling back to manual', { runId, value });
   return 'manual';
 }
 
-function asDeadlinePolicy(
-  value: string | null | undefined,
-  automationId: string
-): AutomationDeadlinePolicy {
-  if (value && DEADLINE_POLICIES.has(value as AutomationDeadlinePolicy)) {
-    return value as AutomationDeadlinePolicy;
-  }
-  if (value) {
-    log.warn('automations.repo: invalid deadline_policy, falling back to next-interval', {
-      automationId,
-      value,
-    });
-  }
-  return 'next-interval';
-}
-
 function mapAutomationRow(row: AutomationRow): Automation {
-  if (!row.cronExpr) throw new Error(`automation_row_missing_cron_expr:${row.id}`);
-  const trigger: CronTrigger = {
-    expr: row.cronExpr,
-    tz: row.cronTz ?? DEFAULT_TZ,
-  };
-
   return {
     id: row.id,
     name: row.name,
-    description: row.description,
-    category: row.category,
-    trigger,
-    actions: parseActions(row.actions, row.promptTemplate),
-    taskConfig: parseTaskConfig(row.taskConfig),
-    projectId: row.projectId,
+    projectId: row.projectId ?? undefined,
+    triggerConfig: parseTriggerConfig(row.triggerConfig) ?? undefined,
+    conversationConfig: parseConversationConfig(row.conversationConfig) ?? undefined,
+    taskConfig: parseTaskConfig(row.taskConfig) ?? undefined,
     enabled: row.enabled === 1,
-    isDraft: row.isDraft === 1,
-    lastRunAt: row.lastRunAt,
-    nextRunAt: row.nextRunAt,
-    deadlinePolicy: asDeadlinePolicy(row.deadlinePolicy, row.id),
-    deadlineMs: row.deadlineMs,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -204,100 +144,77 @@ function mapAutomationRows(rows: AutomationRow[]): Automation[] {
   });
 }
 
-function mapAutomationRunRow(row: AutomationRunRow): AutomationRun {
+function parseSnapshotTriggerConfig(raw: string, runId: string): TriggerConfig {
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      typeof (parsed as Record<string, unknown>)['expr'] === 'string'
+    ) {
+      return parsed as TriggerConfig;
+    }
+  } catch {
+    // fall through
+  }
+  log.warn('automations.repo: invalid triggerConfigSnapshot, using empty', { runId });
+  return { expr: '' };
+}
+
+function parseSnapshotConversationConfig(raw: string, runId: string): ConversationConfig {
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (
+      parsed &&
+      typeof parsed === 'object' &&
+      typeof (parsed as Record<string, unknown>)['prompt'] === 'string'
+    ) {
+      return parsed as ConversationConfig;
+    }
+  } catch {
+    // fall through
+  }
+  log.warn('automations.repo: invalid conversationConfigSnapshot, using empty', { runId });
+  return { prompt: '', provider: '', autoApprove: false };
+}
+
+function mapAutomationRunRow(row: AutomationRunRow, taskId: string | null = null): AutomationRun {
   return {
     id: row.id,
     automationId: row.automationId,
     scheduledAt: row.scheduledAt,
     deadlineAt: row.deadlineAt,
     startedAt: row.startedAt,
+    taskCreatedAt: row.taskCreatedAt,
+    launchedAt: row.launchedAt,
     finishedAt: row.finishedAt,
     status: asRunStatus(row.status, row.id),
-    taskId: row.taskId,
-    createdTaskId: row.createdTaskId,
+    taskId,
+    generatedTaskName: row.generatedTaskName ?? null,
     error: row.error,
     triggerKind: asRunTriggerKind(row.triggerKind, row.id),
-    workerId: row.workerId,
+    triggerConfigSnapshot: parseSnapshotTriggerConfig(row.triggerConfigSnapshot, row.id),
+    conversationConfigSnapshot: parseSnapshotConversationConfig(
+      row.conversationConfigSnapshot,
+      row.id
+    ),
+    taskConfigSnapshot: parseTaskConfig(row.taskConfigSnapshot),
   };
 }
 
-function runTaskIdForAgentProvider(run: AutomationRun): string | null {
-  return run.createdTaskId ?? run.taskId;
-}
-
-function shouldUseAutomationProviderFallback(run: AutomationRun): boolean {
-  const taskId = runTaskIdForAgentProvider(run);
-  if (!taskId) return true;
-
-  // For completed runs, falling back to the automation's current provider is misleading
-  // after the automation has been edited. Prefer an unknown icon if the task provider
-  // cannot be resolved from the run's created task.
-  return run.status === 'queued' || run.status === 'running';
-}
-
-async function agentProviderByTaskId(taskIds: string[]): Promise<Map<string, AgentProviderId>> {
-  const uniqueTaskIds = [...new Set(taskIds)];
-  if (uniqueTaskIds.length === 0) return new Map();
-
-  const rows = await db
-    .select({
-      taskId: conversations.taskId,
-      provider: conversations.provider,
-      isInitialConversation: conversations.isInitialConversation,
-      createdAt: conversations.createdAt,
-    })
-    .from(conversations)
-    .where(inArray(conversations.taskId, uniqueTaskIds));
-
-  const bestByTaskId = new Map<
-    string,
-    { provider: AgentProviderId; isInitialConversation: boolean; createdAt: string }
-  >();
-  for (const row of rows) {
-    const provider = asAgentProviderId(row.provider, { taskId: row.taskId });
-    if (!provider) continue;
-
-    const candidate = {
-      provider,
-      isInitialConversation: row.isInitialConversation === true,
-      createdAt: row.createdAt,
-    };
-    const existing = bestByTaskId.get(row.taskId);
-    if (
-      !existing ||
-      (candidate.isInitialConversation && !existing.isInitialConversation) ||
-      (candidate.isInitialConversation === existing.isInitialConversation &&
-        candidate.createdAt < existing.createdAt)
-    ) {
-      bestByTaskId.set(row.taskId, candidate);
-    }
+export function automationRunDeadline(
+  automation: Automation,
+  scheduledAt: number,
+  triggerKind: AutomationRunTriggerKind
+): number | null {
+  if (triggerKind === 'cron' && automation.triggerConfig) {
+    return getNextRunAt(automation.triggerConfig, scheduledAt);
   }
-
-  return new Map(
-    [...bestByTaskId.entries()].map(([taskId, candidate]) => [taskId, candidate.provider])
-  );
-}
-
-async function attachAgentProviders<T extends AutomationRun>(
-  runs: T[],
-  fallbackProvider: (run: T) => AgentProviderId | null
-): Promise<T[]> {
-  const taskIds = runs
-    .map(runTaskIdForAgentProvider)
-    .filter((taskId): taskId is string => taskId != null);
-  const providersByTaskId = await agentProviderByTaskId(taskIds);
-
-  return runs.map((run) => {
-    const taskId = runTaskIdForAgentProvider(run);
-    const provider =
-      (taskId ? providersByTaskId.get(taskId) : undefined) ??
-      (shouldUseAutomationProviderFallback(run) ? fallbackProvider(run) : null);
-    return { ...run, agentProviderId: provider };
-  });
+  return null;
 }
 
 export function getNextRunAt(
-  trigger: CronTrigger,
+  trigger: TriggerConfig,
   from: number | Date = new Date()
 ): number | null {
   const next = new Cron(trigger.expr, { timezone: trigger.tz || DEFAULT_TZ }).nextRun(
@@ -306,44 +223,43 @@ export function getNextRunAt(
   return next?.getTime() ?? null;
 }
 
-function rowValuesFromTrigger(trigger: CronTrigger) {
-  return {
-    cronExpr: trigger.expr.trim(),
-    cronTz: trigger.tz || DEFAULT_TZ,
-    nextRunAt: getNextRunAt(trigger),
-  };
-}
-
 export async function listAutomations(projectId?: string): Promise<Automation[]> {
   const query = projectId
-    ? db.select().from(automations).where(eq(automations.projectId, projectId))
-    : db.select().from(automations);
+    ? db
+        .select()
+        .from(automations)
+        .where(and(eq(automations.projectId, projectId), isNull(automations.deletedAt)))
+    : db.select().from(automations).where(isNull(automations.deletedAt));
   const rows = await query;
   return mapAutomationRows(rows);
 }
 
 export async function getAutomation(id: string): Promise<Automation | null> {
-  const [row] = await db.select().from(automations).where(eq(automations.id, id)).limit(1);
+  const [row] = await db
+    .select()
+    .from(automations)
+    .where(and(eq(automations.id, id), isNull(automations.deletedAt)))
+    .limit(1);
   return row ? mapAutomationRowSafely(row) : null;
 }
 
 export async function skipQueuedCronRuns(
   automationId: string,
-  reason: string
+  code: string
 ): Promise<AutomationRun[]> {
+  const error = JSON.stringify({ step: 'queue', code });
   const rows = await db
     .update(automationRuns)
-    .set({ status: 'skipped', finishedAt: Date.now(), error: reason, workerId: null })
+    .set({ status: 'skipped', finishedAt: Date.now(), error })
     .where(
       and(
         eq(automationRuns.automationId, automationId),
-        eq(automationRuns.status, 'queued'),
+        inArray(automationRuns.status, ['scheduled', 'queued']),
         eq(automationRuns.triggerKind, 'cron')
       )
     )
     .returning();
-
-  return rows.map(mapAutomationRunRow);
+  return rows.map((row) => mapAutomationRunRow(row));
 }
 
 async function projectExists(projectId: string): Promise<boolean> {
@@ -355,17 +271,14 @@ async function projectExists(projectId: string): Promise<boolean> {
   return rows.length > 0;
 }
 
-export async function createAutomation(input: CreateAutomationInput): Promise<Automation> {
+export async function createAutomation(input: CreateAutomationParams): Promise<Automation> {
   if (!(await projectExists(input.projectId))) {
     throw new Error('project_not_found');
   }
 
   assertValidAutomationInput({
-    trigger: input.trigger,
-    deadlinePolicy: input.deadlinePolicy ?? 'next-interval',
-    deadlineMs: input.deadlineMs ?? null,
-    isDraft: input.isDraft ?? false,
-    actions: input.actions,
+    triggerConfig: input.triggerConfig,
+    conversationConfig: input.conversationConfig,
   });
 
   const now = Date.now();
@@ -374,28 +287,25 @@ export async function createAutomation(input: CreateAutomationInput): Promise<Au
     .values({
       id: randomUUID(),
       name: input.name.trim(),
-      description: input.description?.trim() || null,
-      category: input.category,
-      ...rowValuesFromTrigger(input.trigger),
-      promptTemplate: firstTaskCreatePrompt(input.actions),
-      actions: JSON.stringify(input.actions),
+      triggerConfig: JSON.stringify(input.triggerConfig),
+      conversationConfig: JSON.stringify(input.conversationConfig),
       taskConfig: input.taskConfig ? JSON.stringify(input.taskConfig) : null,
       projectId: input.projectId,
-      enabled: input.isDraft ? 0 : input.enabled === false ? 0 : 1,
-      isDraft: input.isDraft ? 1 : 0,
-      lastRunAt: null,
-      deadlinePolicy: input.deadlinePolicy ?? 'next-interval',
-      deadlineMs: input.deadlineMs ?? null,
+      enabled: input.enabled === false ? 0 : 1,
       createdAt: now,
       updatedAt: now,
     })
     .returning();
-  return mapAutomationRow(row);
+  const automation = mapAutomationRow(row);
+  if (automation.enabled) {
+    await ensureNextCronRun(automation);
+  }
+  return automation;
 }
 
-export async function updateAutomation(
+export async function updateAutomationSettings(
   id: string,
-  patch: UpdateAutomationPatch
+  patch: UpdateAutomationSettingsPatch
 ): Promise<Automation | null> {
   if (patch.projectId !== undefined && !(await projectExists(patch.projectId))) {
     throw new Error('project_not_found');
@@ -405,46 +315,31 @@ export async function updateAutomation(
     const [existingRow] = tx
       .select()
       .from(automations)
-      .where(eq(automations.id, id))
+      .where(and(eq(automations.id, id), isNull(automations.deletedAt)))
       .limit(1)
       .all();
     if (!existingRow) return null;
 
     const existing = mapAutomationRow(existingRow);
-    const finalIsDraft = patch.isDraft ?? existing.isDraft;
-    const finalActions = patch.actions ?? existing.actions;
-    const finalProjectId = patch.projectId ?? existing.projectId;
-    const finalEnabled = patch.enabled ?? existing.enabled;
-    assertValidAutomationInput({
-      trigger: patch.trigger ?? existing.trigger,
-      deadlinePolicy: patch.deadlinePolicy ?? existing.deadlinePolicy,
-      deadlineMs: patch.deadlineMs !== undefined ? patch.deadlineMs : existing.deadlineMs,
-      isDraft: finalIsDraft,
-      actions: finalActions,
-    });
-    if (finalEnabled && finalIsDraft) throw new Error('automation_is_draft');
-    if (finalEnabled && finalProjectId == null) throw new Error('no_project_attached');
+    const finalTriggerConfig = patch.triggerConfig ?? existing.triggerConfig;
+    const finalConversationConfig = patch.conversationConfig ?? existing.conversationConfig;
+    const finalProjectId = patch.projectId !== undefined ? patch.projectId : existing.projectId;
+
+    if (finalTriggerConfig && finalConversationConfig) {
+      assertValidAutomationInput({
+        triggerConfig: finalTriggerConfig,
+        conversationConfig: finalConversationConfig,
+      });
+    }
+    if (existing.enabled && finalProjectId == null) throw new Error('no_project_attached');
 
     const values: Partial<typeof automations.$inferInsert> = { updatedAt: Date.now() };
-    if (patch.name !== undefined) values.name = patch.name.trim();
-    if (patch.description !== undefined) values.description = patch.description?.trim() || null;
-    if (patch.category !== undefined) values.category = patch.category;
-    if (patch.projectId !== undefined) {
-      values.projectId = patch.projectId;
+    if (patch.projectId !== undefined) values.projectId = patch.projectId;
+    if (patch.triggerConfig !== undefined) {
+      values.triggerConfig = JSON.stringify(patch.triggerConfig);
     }
-    if (patch.enabled !== undefined) {
-      values.enabled = patch.enabled ? 1 : 0;
-      if (patch.enabled && !existing.enabled && patch.trigger === undefined) {
-        values.nextRunAt = getNextRunAt(existing.trigger);
-      }
-    }
-    if (patch.isDraft !== undefined) values.isDraft = patch.isDraft ? 1 : 0;
-    if (patch.deadlinePolicy !== undefined) values.deadlinePolicy = patch.deadlinePolicy;
-    if (patch.deadlineMs !== undefined) values.deadlineMs = patch.deadlineMs;
-    if (patch.trigger !== undefined) Object.assign(values, rowValuesFromTrigger(patch.trigger));
-    if (patch.actions !== undefined) {
-      values.promptTemplate = firstTaskCreatePrompt(patch.actions);
-      values.actions = JSON.stringify(patch.actions);
+    if (patch.conversationConfig !== undefined) {
+      values.conversationConfig = JSON.stringify(patch.conversationConfig);
     }
     if (patch.taskConfig !== undefined) {
       values.taskConfig = patch.taskConfig ? JSON.stringify(patch.taskConfig) : null;
@@ -460,21 +355,31 @@ export async function updateAutomation(
   });
 }
 
+export async function renameAutomation(id: string, name: string): Promise<Automation | null> {
+  const [row] = await db
+    .update(automations)
+    .set({ name: name.trim(), updatedAt: Date.now() })
+    .where(and(eq(automations.id, id), isNull(automations.deletedAt)))
+    .returning();
+  return row ? mapAutomationRow(row) : null;
+}
+
 export async function detachProjectAutomations(projectId: string): Promise<Array<{ id: string }>> {
   const rows = await db
     .update(automations)
-    .set({ projectId: null, nextRunAt: null, updatedAt: Date.now() })
-    .where(eq(automations.projectId, projectId))
+    .set({ projectId: null, updatedAt: Date.now() })
+    .where(and(eq(automations.projectId, projectId), isNull(automations.deletedAt)))
     .returning({ id: automations.id });
   return rows;
 }
 
-export async function removeAutomation(id: string): Promise<boolean> {
-  const deleted = await db
-    .delete(automations)
-    .where(eq(automations.id, id))
+export async function softDeleteAutomation(id: string): Promise<boolean> {
+  const rows = await db
+    .update(automations)
+    .set({ deletedAt: Date.now() })
+    .where(and(eq(automations.id, id), isNull(automations.deletedAt)))
     .returning({ id: automations.id });
-  return deleted.length > 0;
+  return rows.length > 0;
 }
 
 export async function setAutomationEnabled(
@@ -483,106 +388,147 @@ export async function setAutomationEnabled(
 ): Promise<Automation | null> {
   const existing = await getAutomation(id);
   if (!existing) return null;
-  if (existing.isDraft && enabled) {
-    throw new Error('automation_is_draft');
-  }
   if (existing.projectId == null && enabled) {
     throw new Error('no_project_attached');
   }
-  const nextRunAt = enabled ? getNextRunAt(existing.trigger) : existing.nextRunAt;
   const [row] = await db
     .update(automations)
-    .set({ enabled: enabled ? 1 : 0, nextRunAt, updatedAt: Date.now() })
+    .set({ enabled: enabled ? 1 : 0, updatedAt: Date.now() })
     .where(eq(automations.id, id))
     .returning();
   return row ? mapAutomationRow(row) : null;
 }
 
-export async function updateAutomationSchedule(
-  id: string,
-  values: { lastRunAt?: number | null; nextRunAt?: number | null }
-): Promise<void> {
-  await db
-    .update(automations)
-    .set({ ...values, updatedAt: Date.now() })
-    .where(eq(automations.id, id));
+export async function ensureNextCronRun(
+  automation: Automation,
+  from: number | Date = new Date()
+): Promise<AutomationRun | null> {
+  if (!automation.triggerConfig || !automation.conversationConfig) return null;
+  const scheduledAt = getNextRunAt(automation.triggerConfig, from);
+  if (scheduledAt == null) return null;
+  return scheduleAutomationRun({
+    automationId: automation.id,
+    triggerConfigSnapshot: automation.triggerConfig,
+    conversationConfigSnapshot: automation.conversationConfig,
+    taskConfigSnapshot: automation.taskConfig ?? null,
+    scheduledAt,
+    deadlineAt: getNextRunAt(automation.triggerConfig, scheduledAt),
+    triggerKind: 'cron',
+  });
 }
 
-async function activeCronAutomations(whereNextRunDue?: number): Promise<Automation[]> {
-  const predicates = [
-    eq(automations.enabled, 1),
-    eq(automations.isDraft, 0),
-    isNotNull(automations.projectId),
-  ];
-  if (whereNextRunDue !== undefined) {
-    predicates.push(isNotNull(automations.nextRunAt), lte(automations.nextRunAt, whereNextRunDue));
-  }
-
+export async function markDueCronRunsQueued(
+  now = Date.now()
+): Promise<Array<{ run: AutomationRun; automation: Automation }>> {
   const rows = await db
-    .select()
-    .from(automations)
-    .where(and(...predicates));
-  return mapAutomationRows(rows);
-}
-
-export async function dueCronAutomations(now = Date.now()): Promise<Automation[]> {
-  return activeCronAutomations(now);
-}
-
-export async function enabledCronAutomations(): Promise<Automation[]> {
-  return activeCronAutomations();
-}
-
-export async function hasRunningRuns(automationId: string): Promise<boolean> {
-  const rows = await db
-    .select({ id: automationRuns.id })
+    .select({ run: automationRuns, automation: automations })
     .from(automationRuns)
-    .where(and(eq(automationRuns.automationId, automationId), eq(automationRuns.status, 'running')))
-    .limit(1);
-  return rows.length > 0;
+    .innerJoin(automations, eq(automationRuns.automationId, automations.id))
+    .where(
+      and(
+        eq(automationRuns.status, 'scheduled'),
+        eq(automationRuns.triggerKind, 'cron'),
+        sql`${automationRuns.scheduledAt} <= ${now}`,
+        eq(automations.enabled, 1),
+        sql`${automations.projectId} IS NOT NULL`,
+        isNull(automations.deletedAt)
+      )
+    )
+    .orderBy(asc(automationRuns.scheduledAt));
+
+  if (rows.length === 0) return [];
+
+  const ids = rows.map((r) => r.run.id);
+  await db.update(automationRuns).set({ status: 'queued' }).where(inArray(automationRuns.id, ids));
+
+  return rows.flatMap(({ run, automation }) => {
+    const mappedAutomation = mapAutomationRowSafely(automation);
+    return mappedAutomation
+      ? [
+          {
+            run: { ...mapAutomationRunRow(run), status: 'queued' as const },
+            automation: mappedAutomation,
+          },
+        ]
+      : [];
+  });
 }
 
-export async function enqueueAutomationRun(input: {
+export async function enabledAutomationsWithoutQueuedRun(): Promise<Automation[]> {
+  const rows = await db
+    .select({ automation: automations })
+    .from(automations)
+    .leftJoin(
+      automationRuns,
+      and(
+        eq(automationRuns.automationId, automations.id),
+        inArray(automationRuns.status, ['scheduled', 'queued']),
+        eq(automationRuns.triggerKind, 'cron')
+      )
+    )
+    .where(
+      and(
+        eq(automations.enabled, 1),
+        sql`${automations.projectId} IS NOT NULL`,
+        isNull(automations.deletedAt),
+        isNull(automationRuns.id)
+      )
+    );
+  return rows.flatMap(({ automation }) => {
+    const mapped = mapAutomationRowSafely(automation);
+    return mapped ? [mapped] : [];
+  });
+}
+
+export async function scheduleAutomationRun(input: {
   automationId: string;
+  triggerConfigSnapshot: TriggerConfig;
+  conversationConfigSnapshot: ConversationConfig;
+  taskConfigSnapshot: StoredAutomationTaskConfig | null;
   scheduledAt: number;
   deadlineAt: number | null;
   triggerKind: AutomationRunTriggerKind;
 }): Promise<AutomationRun | null> {
   const runId = randomUUID();
+  const generatedTaskName = generateRandom();
+  const triggerSnap = JSON.stringify(input.triggerConfigSnapshot);
+  const convSnap = JSON.stringify(input.conversationConfigSnapshot);
+  const taskSnap = input.taskConfigSnapshot ? JSON.stringify(input.taskConfigSnapshot) : null;
   const rows = db.all<AutomationRunRow>(sql`
-    INSERT INTO automation_runs (id, automation_id, scheduled_at, deadline_at, status, trigger_kind)
-    SELECT ${runId}, ${input.automationId}, ${input.scheduledAt}, ${input.deadlineAt}, 'queued', ${input.triggerKind}
+    INSERT INTO automation_runs (
+      id, automation_id, scheduled_at, deadline_at, status, trigger_kind,
+      trigger_config_snapshot, conversation_config_snapshot, task_config_snapshot,
+      generated_task_name
+    )
+    SELECT
+      ${runId}, ${input.automationId}, ${input.scheduledAt}, ${input.deadlineAt},
+      'scheduled', ${input.triggerKind},
+      ${triggerSnap}, ${convSnap}, ${taskSnap},
+      ${generatedTaskName}
     WHERE NOT EXISTS (
       SELECT 1
       FROM automation_runs
       WHERE automation_id = ${input.automationId}
-        AND status IN ('queued', 'running')
-        ${input.triggerKind === 'cron' ? sql`AND scheduled_at = ${input.scheduledAt}` : sql``}
+        AND scheduled_at = ${input.scheduledAt}
+        AND trigger_kind = 'cron'
+        AND status IN ('scheduled', 'queued')
     )
-    ${
-      input.triggerKind === 'cron'
-        ? sql`AND NOT EXISTS (
-            SELECT 1
-            FROM automation_runs
-            WHERE automation_id = ${input.automationId}
-              AND status = 'queued'
-              AND trigger_kind = 'manual'
-          )`
-        : sql``
-    }
     RETURNING
       id,
       automation_id AS automationId,
       scheduled_at AS scheduledAt,
       deadline_at AS deadlineAt,
       started_at AS startedAt,
+      task_created_at AS taskCreatedAt,
+      launched_at AS launchedAt,
       finished_at AS finishedAt,
       status,
-      task_id AS taskId,
-      created_task_id AS createdTaskId,
+      generated_task_name AS generatedTaskName,
       error,
       trigger_kind AS triggerKind,
-      worker_id AS workerId
+      trigger_config_snapshot AS triggerConfigSnapshot,
+      conversation_config_snapshot AS conversationConfigSnapshot,
+      task_config_snapshot AS taskConfigSnapshot
   `);
   return rows[0] ? mapAutomationRunRow(rows[0]) : null;
 }
@@ -600,14 +546,8 @@ export async function listQueuedRuns(limit = 100): Promise<
     .where(
       and(
         eq(automationRuns.status, 'queued'),
-        or(
-          eq(automationRuns.triggerKind, 'manual'),
-          and(
-            eq(automationRuns.triggerKind, 'cron'),
-            eq(automations.enabled, 1),
-            eq(automations.isDraft, 0)
-          )
-        )
+        eq(automations.enabled, 1),
+        isNull(automations.deletedAt)
       )
     )
     .orderBy(asc(automationRuns.scheduledAt), asc(automationRuns.startedAt))
@@ -620,88 +560,58 @@ export async function listQueuedRuns(limit = 100): Promise<
   });
 }
 
-export async function claimQueuedRun(
+export async function startCreatingTask(
   id: string,
-  workerId: string,
   now = Date.now()
 ): Promise<AutomationRun | null> {
   const rows = db.all<AutomationRunRow>(sql`
     UPDATE automation_runs
-    SET status = 'running', started_at = ${now}, worker_id = ${workerId}
+    SET status = 'creating_task', started_at = ${now}
     WHERE id = ${id}
       AND status = 'queued'
-      AND NOT EXISTS (
-        SELECT 1
-        FROM automation_runs AS running
-        WHERE running.automation_id = automation_runs.automation_id
-          AND running.status = 'running'
-          AND running.id <> automation_runs.id
-      )
     RETURNING
       id,
       automation_id AS automationId,
       scheduled_at AS scheduledAt,
       deadline_at AS deadlineAt,
       started_at AS startedAt,
+      task_created_at AS taskCreatedAt,
+      launched_at AS launchedAt,
       finished_at AS finishedAt,
       status,
-      task_id AS taskId,
-      created_task_id AS createdTaskId,
       error,
       trigger_kind AS triggerKind,
-      worker_id AS workerId
+      trigger_config_snapshot AS triggerConfigSnapshot,
+      conversation_config_snapshot AS conversationConfigSnapshot,
+      task_config_snapshot AS taskConfigSnapshot
   `);
   const [row] = rows;
   return row ? mapAutomationRunRow(row) : null;
 }
 
-export async function listRunningRunsForRecovery(): Promise<
-  Array<Pick<AutomationRun, 'id' | 'taskId'>>
-> {
-  return db
-    .select({ id: automationRuns.id, taskId: automationRuns.taskId })
-    .from(automationRuns)
-    .where(eq(automationRuns.status, 'running'));
-}
-
-export async function taskExists(taskId: string): Promise<boolean> {
-  const rows = await db.select({ id: tasks.id }).from(tasks).where(eq(tasks.id, taskId)).limit(1);
-  return rows.length > 0;
-}
-
-export async function taskWasCreatedByAutomationRun(taskIdValue: string): Promise<boolean> {
-  const rows = await db
-    .select({ id: automationRuns.id })
-    .from(automationRuns)
-    .where(
-      and(
-        inArray(automationRuns.status, ['queued', 'running']),
-        or(eq(automationRuns.createdTaskId, taskIdValue), eq(automationRuns.taskId, taskIdValue))
-      )
-    )
+export async function isAutomationRunTask(taskId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ type: tasks.type })
+    .from(tasks)
+    .where(eq(tasks.id, taskId))
     .limit(1);
-  return rows.length > 0;
-}
-
-export async function recoverQueuedRuns(): Promise<number> {
-  const rows = await db
-    .update(automationRuns)
-    .set({ workerId: null })
-    .where(eq(automationRuns.status, 'queued'))
-    .returning({ id: automationRuns.id });
-  return rows.length;
+  return row?.type === 'automation-run';
 }
 
 export async function insertRun(input: {
   automationId: string;
+  triggerConfigSnapshot: TriggerConfig;
+  conversationConfigSnapshot: ConversationConfig;
+  taskConfigSnapshot?: StoredAutomationTaskConfig | null;
   scheduledAt?: number | null;
   deadlineAt?: number | null;
   status: AutomationRunStatus;
   triggerKind: AutomationRunTriggerKind;
   startedAt?: number | null;
+  taskCreatedAt?: number | null;
+  launchedAt?: number | null;
   finishedAt?: number | null;
-  taskId?: string | null;
-  createdTaskId?: string | null;
+  generatedTaskName?: string | null;
   error?: string | null;
 }): Promise<AutomationRun> {
   const [row] = await db
@@ -712,13 +622,18 @@ export async function insertRun(input: {
       scheduledAt: input.scheduledAt ?? null,
       deadlineAt: input.deadlineAt ?? null,
       startedAt: input.startedAt ?? null,
+      taskCreatedAt: input.taskCreatedAt ?? null,
+      launchedAt: input.launchedAt ?? null,
       finishedAt: input.finishedAt ?? null,
       status: input.status,
-      taskId: input.taskId ?? null,
-      createdTaskId: input.createdTaskId ?? input.taskId ?? null,
+      generatedTaskName: input.generatedTaskName ?? generateRandom(),
       error: input.error ?? null,
       triggerKind: input.triggerKind,
-      workerId: null,
+      triggerConfigSnapshot: JSON.stringify(input.triggerConfigSnapshot),
+      conversationConfigSnapshot: JSON.stringify(input.conversationConfigSnapshot),
+      taskConfigSnapshot: input.taskConfigSnapshot
+        ? JSON.stringify(input.taskConfigSnapshot)
+        : null,
     })
     .returning();
   return mapAutomationRunRow(row);
@@ -732,12 +647,11 @@ export async function updateRun(
       | 'scheduledAt'
       | 'deadlineAt'
       | 'startedAt'
+      | 'taskCreatedAt'
+      | 'launchedAt'
       | 'finishedAt'
       | 'status'
-      | 'taskId'
-      | 'createdTaskId'
       | 'error'
-      | 'workerId'
     >
   >
 ): Promise<AutomationRun | null> {
@@ -749,9 +663,45 @@ export async function updateRun(
   return row ? mapAutomationRunRow(row) : null;
 }
 
+export async function findRunsStuckInCreatingTask(): Promise<Array<{ id: string }>> {
+  const rows = await db
+    .select({ id: automationRuns.id, taskId: tasks.id })
+    .from(automationRuns)
+    .leftJoin(tasks, eq(tasks.automationRunId, automationRuns.id))
+    .where(and(eq(automationRuns.status, 'creating_task'), isNull(tasks.id)));
+  return rows.map((r) => ({ id: r.id }));
+}
+
+export async function findRunsStuckInLaunchingTask(): Promise<
+  Array<{ id: string; taskId: string }>
+> {
+  const rows = await db
+    .select({ id: automationRuns.id, taskId: tasks.id })
+    .from(automationRuns)
+    .leftJoin(tasks, eq(tasks.automationRunId, automationRuns.id))
+    .where(eq(automationRuns.status, 'launching_task'));
+  return rows.filter((r): r is { id: string; taskId: string } => r.taskId !== null);
+}
+
+export async function findRunsStuckInCreatingConversation(): Promise<
+  Array<{ id: string; taskId: string }>
+> {
+  const rows = await db
+    .select({ id: automationRuns.id, taskId: tasks.id })
+    .from(automationRuns)
+    .leftJoin(tasks, eq(tasks.automationRunId, automationRuns.id))
+    .where(eq(automationRuns.status, 'creating_conversation'));
+  return rows.filter((r): r is { id: string; taskId: string } => r.taskId !== null);
+}
+
 export async function getRun(id: string): Promise<AutomationRun | null> {
-  const [row] = await db.select().from(automationRuns).where(eq(automationRuns.id, id)).limit(1);
-  return row ? mapAutomationRunRow(row) : null;
+  const [row] = await db
+    .select({ run: automationRuns, taskId: tasks.id })
+    .from(automationRuns)
+    .leftJoin(tasks, eq(tasks.automationRunId, automationRuns.id))
+    .where(eq(automationRuns.id, id))
+    .limit(1);
+  return row ? mapAutomationRunRow(row.run, row.taskId) : null;
 }
 
 export async function removeRun(id: string): Promise<boolean> {
@@ -760,47 +710,4 @@ export async function removeRun(id: string): Promise<boolean> {
     .where(eq(automationRuns.id, id))
     .returning({ id: automationRuns.id });
   return deleted.length > 0;
-}
-
-export async function listRuns(automationId: string, limit = 20): Promise<AutomationRun[]> {
-  const rows = await db
-    .select()
-    .from(automationRuns)
-    .where(eq(automationRuns.automationId, automationId))
-    .orderBy(desc(automationRuns.scheduledAt))
-    .limit(limit);
-  const runs = rows.map(mapAutomationRunRow);
-  if (runs.length === 0) return [];
-
-  const [automationRow] = await db
-    .select({ id: automations.id, taskConfig: automations.taskConfig })
-    .from(automations)
-    .where(eq(automations.id, automationId))
-    .limit(1);
-  const fallbackProvider = automationRow ? automationTaskConfigAgentProvider(automationRow) : null;
-  return attachAgentProviders(runs, () => fallbackProvider);
-}
-
-export async function listRecentRuns(
-  projectId: string | undefined,
-  limit = 50
-): Promise<AutomationRunWithContext[]> {
-  const base = db
-    .select({ run: automationRuns, automation: automations })
-    .from(automationRuns)
-    .innerJoin(automations, eq(automationRuns.automationId, automations.id));
-  const rows = await (projectId ? base.where(eq(automations.projectId, projectId)) : base)
-    .orderBy(
-      sql`coalesce(${automationRuns.startedAt}, ${automationRuns.scheduledAt}, ${automationRuns.finishedAt}) desc`
-    )
-    .limit(limit);
-  const fallbackProviderByRunId = new Map(
-    rows.map(({ run, automation }) => [run.id, automationTaskConfigAgentProvider(automation)])
-  );
-  const runs = rows.map(({ run, automation }) => ({
-    ...mapAutomationRunRow(run),
-    automationName: automation.name,
-    projectId: automation.projectId,
-  }));
-  return attachAgentProviders(runs, (run) => fallbackProviderByRunId.get(run.id) ?? null);
 }

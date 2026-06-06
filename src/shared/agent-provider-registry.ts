@@ -42,6 +42,8 @@ export type AgentProviderDefinition = {
   installCommand?: string;
   commands?: string[];
   versionArgs?: string[];
+  /** Skip running the CLI for dependency version detection. */
+  skipVersionProbe?: boolean;
   detectable?: boolean;
   cli?: string;
   autoApproveFlag?: string;
@@ -124,7 +126,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     name: 'Claude Code',
     description:
       'CLI that uses Anthropic Claude for code edits, explanations, and structured refactors in the terminal.',
-    docUrl: 'https://docs.anthropic.com/claude/docs/claude-code',
+    docUrl: 'https://code.claude.com/docs/en/quickstart',
     installCommand: 'curl -fsSL https://claude.ai/install.sh | bash',
     commands: ['claude'],
     versionArgs: ['--version'],
@@ -166,7 +168,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     name: 'Devin',
     description:
       "Cognition's Devin for Terminal agent for local, interactive coding sessions with Devin Cloud integration.",
-    docUrl: 'https://cli.devin.ai/docs',
+    docUrl: 'https://docs.devin.ai/cli',
     installCommand: 'curl -fsSL https://cli.devin.ai/install.sh | bash',
     commands: ['devin'],
     versionArgs: ['--version'],
@@ -185,7 +187,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     name: 'Cursor',
     description:
       "Cursor's agent CLI; provides editor-style, project-aware assistance from the shell.",
-    docUrl: 'https://cursor.sh',
+    docUrl: 'https://cursor.com/docs/cli/overview',
     installCommand: 'curl https://cursor.com/install -fsS | bash',
     commands: ['cursor-agent'],
     versionArgs: ['--version'],
@@ -316,8 +318,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     description:
       'Nous Research terminal agent with interactive chat, model-provider routing, skills, and session workflows.',
     docUrl: 'https://hermes-agent.nousresearch.com/docs/',
-    installCommand:
-      'curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash',
+    installCommand: 'curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash',
     commands: ['hermes'],
     versionArgs: ['--version'],
     cli: 'hermes',
@@ -388,9 +389,9 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     id: 'goose',
     name: 'Goose',
     description: 'Goose CLI that routes tasks to tools and models for coding workflows.',
-    docUrl: 'https://block.github.io/goose/docs/quickstart/',
+    docUrl: 'https://goose-docs.ai/docs/quickstart/',
     installCommand:
-      'curl -fsSL https://github.com/block/goose/releases/download/stable/download_cli.sh | bash',
+      'curl -fsSL https://github.com/aaif-goose/goose/releases/download/stable/download_cli.sh | bash',
     commands: ['goose'],
     versionArgs: ['--version'],
     cli: 'goose',
@@ -407,17 +408,21 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     name: 'Kimi',
     description:
       'Kimi CLI by Moonshot AI, with shell execution, Zsh integration, ACP, and MCP support.',
-    docUrl: 'https://www.kimi.com/code/docs/en/kimi-cli/guides/getting-started.html',
-    installCommand: 'uv tool install kimi-cli',
+    docUrl: 'https://moonshotai.github.io/kimi-cli/en/guides/getting-started.html',
+    installCommand: 'curl -LsSf https://code.kimi.com/install.sh | bash',
     commands: ['kimi'],
     versionArgs: ['--version'],
     cli: 'kimi',
     autoApproveFlag: '--yolo',
-    initialPromptFlag: '-c',
-    resumeFlag: '--continue',
+    useKeystrokeInjection: true,
+    resumeFlag: '-S',
+    sessionIdFlag: '-S',
+    sessionIdOnResumeOnly: true,
+    resumeWithoutSessionFlag: '-C',
     icon: 'kimi.svg',
     alt: 'Kimi CLI',
     terminalOnly: true,
+    supportsHooks: true,
   },
   {
     id: 'kilocode',
@@ -426,9 +431,9 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
       'Kilo AI coding assistant with multiple modes, broad model support, and checkpoint-based workflows.',
     docUrl: 'https://kilo.ai/docs/cli',
     installCommand: 'npm install -g @kilocode/cli',
-    commands: ['kilocode'],
+    commands: ['kilo'],
     versionArgs: ['--version'],
-    cli: 'kilocode',
+    cli: 'kilo',
     autoApproveFlag: '--auto',
     initialPromptFlag: '',
     resumeFlag: '--continue',
@@ -476,7 +481,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     docUrl: 'https://docs.cline.bot/cline-cli/overview',
     installCommand: 'npm install -g cline',
     commands: ['cline'],
-    versionArgs: ['help'],
+    versionArgs: ['--version'],
     cli: 'cline',
     autoApproveFlag: '--yolo',
     initialPromptFlag: '',
@@ -538,9 +543,9 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     docUrl: 'https://github.com/mistralai/mistral-vibe',
     installCommand: 'curl -LsSf https://mistral.ai/vibe/install.sh | bash',
     commands: ['vibe'],
-    versionArgs: ['-h'],
+    versionArgs: ['--version'],
     cli: 'vibe',
-    autoApproveFlag: '--auto-approve',
+    autoApproveFlag: '--agent auto-approve',
     initialPromptFlag: '',
     icon: 'mistral.svg',
     alt: 'Mistral Vibe CLI',
@@ -583,8 +588,8 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     name: 'Pi',
     description:
       'Minimal terminal coding agent with multi-provider model support and extensible custom tools.',
-    docUrl: 'https://github.com/badlogic/pi-mono/tree/main/packages/coding-agent',
-    installCommand: 'npm install -g @mariozechner/pi-coding-agent',
+    docUrl: 'https://github.com/earendil-works/pi/tree/main/packages/coding-agent',
+    installCommand: 'npm install -g --ignore-scripts @earendil-works/pi-coding-agent',
     commands: ['pi'],
     versionArgs: ['--version'],
     cli: 'pi',
@@ -602,7 +607,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     docUrl: 'https://docs.letta.com/letta-code/cli',
     installCommand: 'npm install -g @letta-ai/letta-code',
     commands: ['letta'],
-    versionArgs: ['--version'],
+    skipVersionProbe: true,
     cli: 'letta',
     autoApproveFlag: '--yolo',
     initialPromptFlag: '',

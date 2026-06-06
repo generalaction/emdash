@@ -47,6 +47,9 @@ const IntegrationsCard: React.FC = () => {
     isMondayConnected,
     isMondayLoading,
     disconnectMonday,
+    isTrelloConnected,
+    isTrelloLoading,
+    disconnectTrello,
   } = useIntegrationsContext();
 
   const showIntegrationSetup = useShowModal('integrationSetupModal');
@@ -197,6 +200,23 @@ const IntegrationsCard: React.FC = () => {
           name: 'Monday.com',
           credential: 'API token',
           onDisconnect: disconnectMonday,
+        }),
+    },
+    {
+      id: 'trello',
+      name: 'Trello',
+      description:
+        isTrelloConnected && connectionStatus.trello.displayName
+          ? connectionStatus.trello.displayName
+          : 'Work on Trello cards',
+      connected: !!isTrelloConnected,
+      loading: isTrelloLoading,
+      onConnect: () => showIntegrationSetup({ integration: 'trello' }),
+      onDisconnect: () =>
+        confirmDisconnect({
+          name: 'Trello',
+          credential: 'credentials',
+          onDisconnect: disconnectTrello,
         }),
     },
   ];

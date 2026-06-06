@@ -5,44 +5,59 @@ export type IssueProviderType = Issue['provider'];
 export type IssueProviderCapabilities = {
   requiresProjectPath: boolean;
   requiresRepositoryUrl: boolean;
+  supportsIssueContext: boolean;
 };
 
 export const ISSUE_PROVIDER_CAPABILITIES: Record<IssueProviderType, IssueProviderCapabilities> = {
   linear: {
     requiresProjectPath: false,
     requiresRepositoryUrl: false,
+    supportsIssueContext: true,
   },
   github: {
     requiresProjectPath: false,
     requiresRepositoryUrl: true,
+    supportsIssueContext: false,
   },
   jira: {
     requiresProjectPath: false,
     requiresRepositoryUrl: false,
+    supportsIssueContext: false,
   },
   gitlab: {
     requiresProjectPath: true,
     requiresRepositoryUrl: false,
+    supportsIssueContext: false,
   },
   forgejo: {
     requiresProjectPath: true,
     requiresRepositoryUrl: false,
+    supportsIssueContext: false,
   },
   featurebase: {
     requiresProjectPath: false,
     requiresRepositoryUrl: false,
+    supportsIssueContext: false,
   },
   plain: {
     requiresProjectPath: false,
     requiresRepositoryUrl: false,
+    supportsIssueContext: true,
   },
   asana: {
     requiresProjectPath: false,
     requiresRepositoryUrl: false,
+    supportsIssueContext: false,
   },
   monday: {
     requiresProjectPath: false,
     requiresRepositoryUrl: false,
+    supportsIssueContext: true,
+  },
+  trello: {
+    requiresProjectPath: false,
+    requiresRepositoryUrl: false,
+    supportsIssueContext: true,
   },
 };
 

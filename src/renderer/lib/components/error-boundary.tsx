@@ -1,5 +1,4 @@
 import React from 'react';
-import { captureComponentError } from '../../_legacy/errorTracking';
 import { rpc } from '../ipc';
 import { Button } from '../ui/button';
 
@@ -10,7 +9,6 @@ type ErrorBoundaryState = {
 
 type ErrorBoundaryProps = {
   children?: React.ReactNode;
-  componentName?: string;
 };
 
 function ErrorFallback({ message, onReload }: { message: string; onReload: () => void }) {
@@ -35,17 +33,6 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
-  }
-
-  componentDidCatch(error: Error, info: React.ErrorInfo) {
-    try {
-      // Track error with PostHog
-      captureComponentError(error, this.props.componentName || 'App', {
-        component_stack: info.componentStack,
-        error_boundary: true,
-        severity: 'critical',
-      });
-    } catch {}
   }
 
   handleReload = () => {

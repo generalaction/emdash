@@ -95,10 +95,14 @@ export function IssueRow({ issue, linkedTo }: { issue: Issue; linkedTo?: LinkedI
   return (
     <span className="flex w-full min-w-0 items-center justify-between gap-2">
       <div className="flex min-w-0 items-center gap-2">
-        <Tooltip>
-          <TooltipTrigger render={<IssueStatusIndicator status={toIssueStatus(issue.status)} />} />
-          <TooltipContent>{issue.status}</TooltipContent>
-        </Tooltip>
+        {issue.status ? (
+          <Tooltip>
+            <TooltipTrigger
+              render={<IssueStatusIndicator status={toIssueStatus(issue.status)} />}
+            />
+            <TooltipContent>{issue.status}</TooltipContent>
+          </Tooltip>
+        ) : null}
         <span className="flex min-w-0 items-center gap-2">
           {issue.title ? <span className="truncate text-foreground">{issue.title}</span> : null}
           {linkedTo ? <LinkedIssueIndicator linkedTo={linkedTo} /> : null}
@@ -311,9 +315,11 @@ export function SelectedIssueValue({ issue }: { issue: Issue }) {
     <div className="flex w-full flex-col gap-1">
       <div className="flex w-full items-center">
         <div className="flex w-full min-w-0 gap-2">
-          <span className="mt-1 flex size-3.5 shrink-0 items-center justify-center">
-            <IssueStatusIndicator status={toIssueStatus(issue.status)} />
-          </span>
+          {issue.status ? (
+            <span className="mt-1 flex size-3.5 shrink-0 items-center justify-center">
+              <IssueStatusIndicator status={toIssueStatus(issue.status)} />
+            </span>
+          ) : null}
           <div className="flex w-full min-w-0 flex-col gap-1 pr-1.5">
             <span className="mt-0.5 flex items-center justify-between gap-2">
               <span className="group flex min-w-0 items-center gap-1">

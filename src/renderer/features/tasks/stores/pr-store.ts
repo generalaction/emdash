@@ -10,12 +10,12 @@ import {
   pullRequestErrorMessage,
   selectCurrentPr,
   type PullRequest,
+  type PullRequestMergeOptions,
 } from '@shared/pull-requests';
 import { parseRepositoryRef } from '@shared/repository-ref';
 import type { Task } from '@shared/tasks';
 import { isRegistered, type TaskStore } from './task-store';
 
-type MergeMode = 'merge' | 'squash' | 'rebase';
 export type MergeResult = { success: true } | { success: false; error: string };
 
 /** Extract the numeric PR number from the identifier field (e.g. "#123" → 123). */
@@ -111,14 +111,12 @@ export class PrStore {
     return this._prFiles.get(key)!.resource;
   }
 
-  async mergePr(
-    id: string,
-    options: { strategy: MergeMode; commitHeadOid?: string }
-  ): Promise<MergeResult> {
+  async mergePr(id: string, options: PullRequestMergeOptions): Promise<MergeResult> {
     const pr = this.pullRequests.find((p) => p.url === id);
     if (!pr) {
       captureTelemetry('pr_merged', {
         strategy: options.strategy,
+        bypass_requirements: options.bypassRequirements ?? false,
         success: false,
         error_type: 'pr_not_found',
         project_id: this.projectId,
@@ -139,6 +137,7 @@ export class PrStore {
     if (result.success) {
       captureTelemetry('pr_merged', {
         strategy: options.strategy,
+        bypass_requirements: options.bypassRequirements ?? false,
         success: true,
         project_id: this.projectId,
         task_id: this.workspaceId,
@@ -148,6 +147,7 @@ export class PrStore {
 
     captureTelemetry('pr_merged', {
       strategy: options.strategy,
+      bypass_requirements: options.bypassRequirements ?? false,
       success: false,
       error_type: 'merge_failed',
       project_id: this.projectId,

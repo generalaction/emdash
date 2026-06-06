@@ -1,14 +1,8 @@
 import { Cron } from 'croner';
+import type { TriggerConfig } from '@shared/automations/config';
 import { getLocalTimeZone } from '@shared/automations/timezone';
-import type { AutomationDeadlinePolicy, CronTrigger } from '@shared/automations/types';
 
-const DEADLINE_POLICIES: ReadonlySet<AutomationDeadlinePolicy> = new Set([
-  'next-interval',
-  'fixed',
-  'none',
-]);
-
-export function assertValidCronTrigger(trigger: CronTrigger): void {
+export function assertValidCronTrigger(trigger: TriggerConfig): void {
   const expr = trigger.expr.trim();
   if (!expr) throw new Error('cron_invalid');
   if (expr.split(/\s+/).length !== 5) throw new Error('cron_invalid');
@@ -20,16 +14,5 @@ export function assertValidCronTrigger(trigger: CronTrigger): void {
     if (!nextRun) throw new Error('cron_invalid');
   } catch {
     throw new Error('cron_invalid');
-  }
-}
-
-export function assertValidDeadline(
-  policy: AutomationDeadlinePolicy,
-  deadlineMs: number | null
-): void {
-  if (!DEADLINE_POLICIES.has(policy)) throw new Error('deadline_policy_invalid');
-  if (deadlineMs === null) return;
-  if (!Number.isSafeInteger(deadlineMs) || deadlineMs <= 0) {
-    throw new Error('deadline_ms_invalid');
   }
 }
