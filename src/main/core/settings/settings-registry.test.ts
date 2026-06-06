@@ -8,6 +8,10 @@ describe('settings registry', () => {
     expect(getDefaultForKey('conversationUi')).toEqual({ mode: 'terminal' });
   });
 
+  it('defaults native chat provider options to empty', () => {
+    expect(getDefaultForKey('nativeChatDefaults')).toEqual({});
+  });
+
   it('accepts both conversation UI modes and rejects unknown values', () => {
     expect(conversationUiSettingsSchema.parse({ mode: 'terminal' })).toEqual({ mode: 'terminal' });
     expect(conversationUiSettingsSchema.parse({ mode: 'native-chat' })).toEqual({

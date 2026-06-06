@@ -1,8 +1,11 @@
 import { and, eq } from 'drizzle-orm';
+import { appSettingsService } from '@main/core/settings/settings-service';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
 import { events } from '@main/lib/events';
+import { log } from '@main/lib/logger';
 import { parseConversationConfig, serializeConversationConfig } from '@shared/conversation-config';
+import { isNativeChatProvider } from '@shared/conversation-ui';
 import { conversationChangedChannel } from '@shared/events/conversationEvents';
 import {
   isCodexServiceTier,
@@ -14,7 +17,8 @@ import {
 /**
  * Persist per-conversation options (model, reasoning effort) used by
  * native chat turns. A null field clears back to the default; an absent field
- * is left untouched.
+ * is left untouched. Model/reasoning/speed changes also become the provider's
+ * defaults for new native-chat conversations.
  */
 export async function setNativeChatOptions(
   projectId: string,
@@ -33,7 +37,7 @@ export async function setNativeChatOptions(
   }
 
   const [row] = await db
-    .select({ config: conversations.config })
+    .select({ config: conversations.config, provider: conversations.provider })
     .from(conversations)
     .where(
       and(
@@ -67,6 +71,30 @@ export async function setNativeChatOptions(
     .update(conversations)
     .set({ config: serializeConversationConfig(config) })
     .where(eq(conversations.id, conversationId));
+
+  // Remember the trio as this provider's defaults for future conversations.
+  const touchesDefaults =
+    options.model !== undefined ||
+    options.reasoningEffort !== undefined ||
+    options.serviceTier !== undefined;
+  if (touchesDefaults && row.provider && isNativeChatProvider(row.provider)) {
+    try {
+      const defaults = await appSettingsService.get('nativeChatDefaults');
+      await appSettingsService.update('nativeChatDefaults', {
+        ...defaults,
+        [row.provider]: {
+          ...(config.model ? { model: config.model } : {}),
+          ...(config.reasoningEffort ? { reasoningEffort: config.reasoningEffort } : {}),
+          ...(config.serviceTier ? { serviceTier: config.serviceTier } : {}),
+        },
+      });
+    } catch (error) {
+      log.warn('native-chat: failed to persist provider option defaults', {
+        provider: row.provider,
+        error: String(error),
+      });
+    }
+  }
 
   events.emit(conversationChangedChannel, {
     conversationId,
