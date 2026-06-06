@@ -1,5 +1,5 @@
 import type { DependencyStatusUpdatedEvent } from '@shared/dependencies';
-import { defineEvent } from '@shared/ipc/events';
+import { defineEvent } from '@shared/lib/ipc/events';
 
 // App editing actions (renderer → main, no payload)
 export const appUndoChannel = defineEvent<void>('app:undo');

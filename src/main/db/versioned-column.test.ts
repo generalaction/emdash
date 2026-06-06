@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import z from 'zod';
-import { defineVersionedSchema } from '@shared/lib/versioned-schema';
+import { defineVersionedSchema } from '@shared/lib/versioned-schema/versioned-schema';
 import { parseVersionedColumn, serializeVersionedColumn } from './versioned-column';
 
 // ---------------------------------------------------------------------------

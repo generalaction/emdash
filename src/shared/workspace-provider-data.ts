@@ -1,5 +1,5 @@
 import z from 'zod';
-import { defineVersionedSchema } from '@shared/lib/versioned-schema';
+import { defineVersionedSchema } from '@shared/lib/versioned-schema/versioned-schema';
 
 // ---------------------------------------------------------------------------
 // v0 schema — unversioned legacy format stored in workspaces.data

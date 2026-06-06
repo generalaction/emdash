@@ -1,5 +1,5 @@
 import z from 'zod';
-import { defineVersionedSchema } from '@shared/lib/versioned-schema';
+import { defineVersionedSchema } from '@shared/lib/versioned-schema/versioned-schema';
 import { linkedIssue } from './linked-issue';
 import { taskLifecycleStatuses } from './tasks';
 

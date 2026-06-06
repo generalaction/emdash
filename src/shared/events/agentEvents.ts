@@ -1,4 +1,4 @@
-import { defineEvent } from '@shared/ipc/events';
+import { defineEvent } from '@shared/lib/ipc/events';
 
 export type AgentEventType = 'notification' | 'stop' | 'error' | 'start';
 

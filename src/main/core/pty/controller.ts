@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { basename } from 'node:path';
 import { conversationEvents } from '@main/core/conversations/conversation-events';
 import { log } from '@main/lib/logger';
-import { createRPCController } from '@shared/ipc/rpc';
+import { createRPCController } from '@shared/lib/ipc/rpc';
 import { parsePtySessionId } from '@shared/ptySessionId';
 import { err, ok } from '@shared/result';
 import { taskSessionManager } from '../tasks/task-session-manager';

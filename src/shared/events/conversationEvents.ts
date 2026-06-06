@@ -1,5 +1,5 @@
 import type { Conversation } from '@shared/conversations';
-import { defineEvent } from '@shared/ipc/events';
+import { defineEvent } from '@shared/lib/ipc/events';
 import type { AgentStatus } from './agentEvents';
 
 export const conversationChangedChannel = defineEvent<{

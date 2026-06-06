@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import { eq } from 'drizzle-orm';
-import { createRPCController } from '@/shared/ipc/rpc';
 import { db } from '@main/db/client';
 import {
   projects,
@@ -9,6 +8,7 @@ import {
 } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
+import { createRPCController } from '@shared/lib/ipc/rpc';
 import type {
   ConnectionState,
   ConnectionTestResult,

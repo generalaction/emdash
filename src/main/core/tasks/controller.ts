@@ -1,4 +1,4 @@
-import { createRPCController } from '@shared/ipc/rpc';
+import { createRPCController } from '@shared/lib/ipc/rpc';
 import type { LinkedIssue } from '@shared/linked-issue';
 import type { CreateTaskParams, DeleteTaskOptions, TaskLifecycleStatus } from '@shared/tasks';
 import { generateTaskName } from './name-generation/generateTaskName';

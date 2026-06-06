@@ -1,5 +1,5 @@
 import z from 'zod';
-import { defineVersionedSchema } from '@shared/lib/versioned-schema';
+import { defineVersionedSchema } from '@shared/lib/versioned-schema/versioned-schema';
 
 // ---------------------------------------------------------------------------
 // Supporting schemas (Branch and its dependencies)

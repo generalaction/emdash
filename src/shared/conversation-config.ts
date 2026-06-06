@@ -1,5 +1,5 @@
 import z from 'zod';
-import { defineVersionedSchema } from '@shared/lib/versioned-schema';
+import { defineVersionedSchema } from '@shared/lib/versioned-schema/versioned-schema';
 
 const DROID_SESSION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

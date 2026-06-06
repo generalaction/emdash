@@ -1,4 +1,4 @@
-import { defineEvent } from '@shared/ipc/events';
+import { defineEvent } from '@shared/lib/ipc/events';
 import type { PrSyncProgress, PullRequest } from '@shared/pull-requests';
 
 export const prSyncProgressChannel = defineEvent<PrSyncProgress>('pr:sync-progress');

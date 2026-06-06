@@ -4,7 +4,7 @@ import { fsEvents } from '@main/core/fs/fs-events';
 import { events } from '@main/lib/events';
 import { planEventChannel } from '@shared/events/appEvents';
 import { fsWatchEventChannel } from '@shared/events/fsEvents';
-import { createRPCController } from '@shared/ipc/rpc';
+import { createRPCController } from '@shared/lib/ipc/rpc';
 import { err, ok } from '@shared/result';
 import { resolveWorkspace } from '../projects/utils';
 import {
