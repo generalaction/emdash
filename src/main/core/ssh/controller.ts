@@ -20,8 +20,6 @@ import type {
 } from '@shared/ssh';
 import {
   mergeSshConnectionMetadata,
-  parseSshConnectionMetadata,
-  serializeSshConnectionMetadata,
   type SshConnectionMetadata,
   sshConfigFromRow,
 } from './config/connection-metadata';
@@ -95,18 +93,16 @@ export const sshController = createRPCController({
 
     const { password: _p, passphrase: _pp, ...dbConfig } = config;
 
-    const existingMetadata =
+    const existingMetadata: SshConnectionMetadata =
       config.id === undefined
         ? {}
-        : parseSshConnectionMetadata(
-            (
-              await db
-                .select({ metadata: sshConnectionsTable.metadata })
-                .from(sshConnectionsTable)
-                .where(eq(sshConnectionsTable.id, connectionId))
-                .limit(1)
-            )[0]?.metadata ?? null
-          );
+        : (
+            await db
+              .select({ metadata: sshConnectionsTable.metadata })
+              .from(sshConnectionsTable)
+              .where(eq(sshConnectionsTable.id, connectionId))
+              .limit(1)
+          )[0]?.metadata ?? {};
 
     const metadataUpdate: SshConnectionMetadata = {};
     if (Object.prototype.hasOwnProperty.call(config, 'sshConfigAlias')) {
@@ -125,7 +121,7 @@ export const sshController = createRPCController({
       name: dbConfig.name,
       host: dbConfig.host,
       port: dbConfig.port,
-      metadata: serializeSshConnectionMetadata(metadata),
+      metadata: metadata,
       username: dbConfig.username,
       authType: dbConfig.authType,
       privateKeyPath: dbConfig.privateKeyPath ?? null,

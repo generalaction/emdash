@@ -7,6 +7,7 @@ import type { IDisposable } from '@main/lib/lifecycle';
 import type { Branch, FetchError } from '@shared/git';
 import type { ProjectRemoteState } from '@shared/projects';
 import type { Result } from '@shared/result';
+import type { WorkspaceProviderData } from '@shared/workspace-provider-data';
 import type { ConversationProvider } from '../conversations/types';
 import { taskSessionManager } from '../tasks/task-session-manager';
 import type { TerminalProvider } from '../terminals/terminal-provider';
@@ -15,11 +16,7 @@ import type { ProjectSettingsProvider } from './settings/provider';
 import type { WorktreeHost } from './worktrees/hosts/worktree-host';
 import type { WorktreeService } from './worktrees/worktree-service';
 
-export type WorkspaceProviderData = {
-  provisionCommand: string;
-  terminateCommand: string;
-  remoteWorkspaceId?: string;
-};
+export type { WorkspaceProviderData };
 
 export type ProvisionResult = {
   taskProvider: TaskProvider;

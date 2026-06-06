@@ -12,6 +12,9 @@ import type { Branch } from '@shared/git';
 import { err, ok, type Result } from '@shared/result';
 import type { Task, ProvisionWorkspaceError } from '@shared/tasks';
 import type { WorkspaceConfig } from '@shared/workspace-config';
+import type { WorkspaceProviderData } from '@shared/workspace-provider-data';
+
+export type { WorkspaceProviderData };
 import { compileSetupSpec } from '@shared/workspace-setup-spec';
 import type { WorkspaceType } from '@shared/workspaces';
 import { deriveBranchName, resolveWorkspaceIntent } from '../tasks/resolve-workspace-intent';
@@ -29,7 +32,7 @@ export type WorkspaceBootstrapResult = {
   worktreeGitDir?: string;
   taskProvider: TaskProvider;
   /** BYOI only — workspace provider data to persist in the DB. */
-  workspaceProviderData?: unknown;
+  workspaceProviderData?: WorkspaceProviderData;
 };
 
 export class WorkspaceBootstrapService {
@@ -57,7 +60,7 @@ export class WorkspaceBootstrapService {
       config?: WorkspaceConfig | null;
       branchName?: string | null;
       workspaceProvider?: string | null;
-      data?: string | null;
+      data?: WorkspaceProviderData | null;
     },
     taskRow: {
       workspaceIntent: string | null;
@@ -367,7 +370,7 @@ export class WorkspaceBootstrapService {
    * Provisions a BYOI workspace by delegating to `provisionBYOITask`.
    */
   private async _provisionBYOI(
-    workspaceRow: { id: string; workspaceProvider?: string | null; data?: string | null },
+    workspaceRow: { id: string; workspaceProvider?: string | null; data?: WorkspaceProviderData | null },
     task: Task,
     project: ProjectProvider
   ): Promise<Result<WorkspaceBootstrapResult, ProvisionWorkspaceError>> {

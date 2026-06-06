@@ -147,7 +147,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
       await db
         .update(workspaces)
         .set({
-          data: JSON.stringify(data.workspaceProviderData),
+          data: data.workspaceProviderData,
           updatedAt: sql`CURRENT_TIMESTAMP`,
         })
         .where(eq(workspaces.id, data.workspaceId));

@@ -16,7 +16,10 @@ import {
   storedAutomationTaskConfig,
 } from '@shared/automations/config';
 import { conversationConfig } from '@shared/conversation-config';
+import { linkedIssue } from '@shared/linked-issue';
+import { sshConnectionMetadata } from '@shared/ssh-connection-metadata';
 import { workspaceConfig } from '@shared/workspace-config';
+import { workspaceProviderData } from '@shared/workspace-provider-data';
 
 export const sshConnections = sqliteTable(
   'ssh_connections',
@@ -29,7 +32,7 @@ export const sshConnections = sqliteTable(
     authType: text('auth_type').notNull().default('agent'), // 'password' | 'key' | 'agent'
     privateKeyPath: text('private_key_path'), // optional, for key auth
     useAgent: integer('use_agent').notNull().default(0), // boolean, 0=false, 1=true
-    metadata: text('metadata'), // JSON for additional connection-specific data
+    metadata: versionedJsonColumn(sshConnectionMetadata)('metadata'),
     createdAt: text('created_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
@@ -123,7 +126,7 @@ export const tasks = sqliteTable(
     status: text('status').notNull(),
     sourceBranch: text('source_branch').$type<StoredBranch>(), // @deprecated — moved to workspaces.config (git.fromBranch)
     taskBranch: text('task_branch'), // @deprecated — moved to workspaces.branch_name
-    linkedIssue: text('linked_issue'),
+    linkedIssue: versionedJsonColumn(linkedIssue)('linked_issue'),
     archivedAt: text('archived_at'), // null = active, timestamp = archived
     createdAt: text('created_at')
       .notNull()
@@ -162,7 +165,7 @@ export const workspaces = sqliteTable(
     sshConnectionId: text('ssh_connection_id').references(() => sshConnections.id, {
       onDelete: 'set null',
     }),
-    data: text('data'),
+    data: versionedJsonColumn(workspaceProviderData)('data'),
     path: text('path'),
     config: versionedJsonColumn(workspaceConfig)('config'),
     branchName: text('branch_name'),
