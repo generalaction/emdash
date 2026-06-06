@@ -1,4 +1,4 @@
-import { Circle, CircleCheck, Github, Loader2, Plus, Trash2 } from 'lucide-react';
+import { Circle, CircleCheck, Github, Loader2, Plus, X } from 'lucide-react';
 import {
   GitHubCredentialSourceBadge,
   GitHubDefaultAccountBadge,
@@ -190,7 +190,7 @@ function GitHubAccountRow({
               onClick={onRemove}
               aria-label={`Remove @${account.login}`}
             >
-              <Trash2 />
+              <X />
             </Button>
           </TooltipTrigger>
           <TooltipContent side="top">Remove account</TooltipContent>
