@@ -32,6 +32,7 @@ import type {
   PullRequest,
   PullRequestComment,
   PullRequestFile,
+  PullRequestMergeOptions,
   PullRequestStatus,
   PullRequestUser,
 } from '@shared/pull-requests';
@@ -1225,10 +1226,7 @@ export class PrSyncEngine {
   async mergePullRequest(
     repositoryUrl: string,
     prNumber: number,
-    options: {
-      strategy: 'merge' | 'squash' | 'rebase';
-      commitHeadOid?: string;
-    },
+    options: PullRequestMergeOptions,
     authContext: PrSyncAuthContext = {}
   ): Promise<Result<{ sha: string | null; merged: boolean }, PrSyncEngineError>> {
     const repository = parseRepositoryRefResult(repositoryUrl);

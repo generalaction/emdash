@@ -7,6 +7,7 @@ import type {
   PullRequestComment,
   PullRequestError,
   PullRequestFile,
+  PullRequestMergeOptions,
 } from '@shared/pull-requests';
 import { isGitHubDotComHost, parseRepositoryRef } from '@shared/repository-ref';
 import { err, ok } from '@shared/result';
@@ -35,11 +36,6 @@ type CreatePullRequestParams = {
   title: string;
   body?: string;
   draft: boolean;
-};
-
-type MergePullRequestOptions = {
-  strategy: 'merge' | 'squash' | 'rebase';
-  commitHeadOid?: string;
 };
 
 function mapPrSyncEngineError(
@@ -326,7 +322,7 @@ export const pullRequestController = createRPCController({
     projectId: string,
     repositoryUrl: string,
     prNumber: number,
-    options: MergePullRequestOptions
+    options: PullRequestMergeOptions
   ) => {
     try {
       const authContext = await resolveProjectPullRequestAuthContext(projectId);
