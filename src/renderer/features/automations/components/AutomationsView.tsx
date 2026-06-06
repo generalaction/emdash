@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Sheet, SheetContent } from '@renderer/lib/ui/sheet';
@@ -16,6 +16,14 @@ export function AutomationsView() {
   const showConfirm = useShowModal('confirmActionModal');
   const { navigate } = useNavigate();
   const { params, setParams } = useParams('automations');
+
+  const effectiveAutomations = useMemo(
+    () =>
+      (automations.data ?? []).filter((a) =>
+        a.name.toLowerCase().includes(search.toLowerCase())
+      ),
+    [automations.data, search]
+  );
 
   const liveAutomation = params.automationId
     ? (automations.data?.find((a) => a.id === params.automationId) ?? null)
@@ -53,7 +61,7 @@ export function AutomationsView() {
               onNewAutomation={() => setCreating(true)}
             />
             <AutomationsList
-              automations={automations.data ?? []}
+              automations={effectiveAutomations}
               onEdit={(automation) => navigate('automations', { automationId: automation.id })}
               onToggleEnabled={handleToggleEnabled}
             />

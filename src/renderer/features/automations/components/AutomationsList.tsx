@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import { Separator } from '@renderer/lib/ui/separator';
 import type { Automation } from '@shared/automations/automation';
 import { AutomationRow } from './AutomationRow';
@@ -12,15 +13,14 @@ export function AutomationsList({ automations, onEdit, onToggleEnabled }: Automa
   return (
     <div className="space-y-1 py-1">
       {automations.map((automation) => (
-        <>
+        <Fragment key={automation.id}>
           <AutomationRow
-            key={automation.id}
             automation={automation}
             onToggleEnabled={(enabled) => onToggleEnabled(automation, enabled)}
             onClick={() => onEdit(automation)}
           />
-          <Separator key={automation.id} />
-        </>
+          <Separator />
+        </Fragment>
       ))}
     </div>
   );
