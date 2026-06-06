@@ -44,6 +44,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/toolti
 import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
 import { cn } from '@renderer/utils/utils';
 import type { Issue } from '@shared/tasks';
+import { AutomationRunPill } from './components/automation-run-pill';
 import { DevServerPills } from './components/dev-server-pills';
 import { IssueSelector, ProviderLogo } from './components/issue-selector/issue-selector';
 import { type SidebarTab } from './types';
@@ -284,18 +285,28 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
             </PopoverContent>
           </Popover>
           {taskPayload.linkedIssue ? <LinkedIssueBadge issue={taskPayload.linkedIssue} /> : null}
-          <button
-            className={cn(
-              'text-foreground-muted ml-1',
-              taskPayload.isPinned && 'text-muted-foreground'
-            )}
-            onClick={() => taskStore.setPinned(!taskPayload.isPinned)}
-          >
-            <Pin
-              className={cn('size-3.5', taskPayload.isPinned && 'text-foreground-muted')}
-              fill={taskPayload.isPinned ? 'currentColor' : 'none'}
+          {taskPayload.type === 'task' && (
+            <button
+              className={cn(
+                'text-foreground-muted ml-1',
+                taskPayload.isPinned && 'text-muted-foreground'
+              )}
+              onClick={() => taskStore.setPinned(!taskPayload.isPinned)}
+            >
+              <Pin
+                className={cn('size-3.5', taskPayload.isPinned && 'text-foreground-muted')}
+                fill={taskPayload.isPinned ? 'currentColor' : 'none'}
+              />
+            </button>
+          )}
+          {taskPayload.automationRunId && (
+            <AutomationRunPill
+              runId={taskPayload.automationRunId}
+              projectId={projectId}
+              taskStore={taskStore}
+              isConverted={taskPayload.type === 'task'}
             />
-          </button>
+          )}
         </div>
       }
       rightSlot={

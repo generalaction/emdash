@@ -241,6 +241,10 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
     return stopped;
   }
 
+  async getRun(runId: string): Promise<AutomationRun | null> {
+    return getRun(runId);
+  }
+
   async deleteAutomation(id: string): Promise<void> {
     await skipQueuedCronRuns(id, 'automation_deleted');
     const deleted = await softDeleteAutomation(id);

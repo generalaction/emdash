@@ -444,7 +444,12 @@ export async function markDueCronRunsQueued(
   return rows.flatMap(({ run, automation }) => {
     const mappedAutomation = mapAutomationRowSafely(automation);
     return mappedAutomation
-      ? [{ run: { ...mapAutomationRunRow(run), status: 'queued' as const }, automation: mappedAutomation }]
+      ? [
+          {
+            run: { ...mapAutomationRunRow(run), status: 'queued' as const },
+            automation: mappedAutomation,
+          },
+        ]
       : [];
   });
 }
@@ -549,7 +554,9 @@ export async function listQueuedRuns(limit = 100): Promise<
     .limit(limit);
   return rows.flatMap(({ run, automation }) => {
     const mappedAutomation = mapAutomationRowSafely(automation);
-    return mappedAutomation ? [{ run: mapAutomationRunRow(run), automation: mappedAutomation }] : [];
+    return mappedAutomation
+      ? [{ run: mapAutomationRunRow(run), automation: mappedAutomation }]
+      : [];
   });
 }
 

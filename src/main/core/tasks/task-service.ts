@@ -48,9 +48,6 @@ export type TaskLifecycleHooks = {
   'task:workspace-ready': (taskId: string, result: ProvisionResult) => void | Promise<void>;
 };
 
-/** @deprecated Use TaskLifecycleHooks */
-export type TaskCrudHooks = TaskLifecycleHooks;
-
 export class TaskService implements Hookable<TaskLifecycleHooks> {
   private readonly _hooks = new HookCore<TaskLifecycleHooks>((name, e) =>
     log.error(`TaskService: ${String(name)} hook error`, e)

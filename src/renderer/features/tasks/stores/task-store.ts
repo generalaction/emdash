@@ -261,6 +261,24 @@ export class TaskStore {
       throw e;
     }
   }
+
+  async convertAutomationTask(): Promise<void> {
+    if (this.state === 'unregistered') return;
+    const task = registeredTaskData(this);
+    if (!task || task.type !== 'automation-run') return;
+    runInAction(() => {
+      task.type = 'task';
+    });
+    try {
+      await rpc.tasks.convertAutomationTask(task.id);
+    } catch (e) {
+      runInAction(() => {
+        task.type = 'automation-run';
+      });
+      console.error(e);
+      throw e;
+    }
+  }
 }
 
 export type UnregisteredTask = TaskStore & {

@@ -15,5 +15,6 @@ export const automationsController = createRPCController({
   getNextScheduledRun: automationsService.getNextScheduledRun.bind(automationsService),
   runAutomation: automationsService.runAutomation.bind(automationsService),
   stopRun: automationsService.stopRun.bind(automationsService),
+  getRun: automationsService.getRun.bind(automationsService),
   deleteAutomation: automationsService.deleteAutomation.bind(automationsService),
 });
