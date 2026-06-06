@@ -16,7 +16,7 @@ export function resolveNativeChatTarget(taskId: string): NativeChatTarget {
 
   const persistData = taskSessionManager.getPersistData(taskId);
   if (persistData?.sshConnectionId) {
-    throw new Error('Native native chat is not supported for remote tasks');
+    throw new Error('Native chat is not supported for remote tasks');
   }
 
   const workspace = persistData ? workspaceRegistry.get(persistData.workspaceId) : undefined;
