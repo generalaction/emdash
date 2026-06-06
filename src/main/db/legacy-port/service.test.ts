@@ -58,7 +58,9 @@ function createAppDb(): Database.Database {
       workspace_provider TEXT,
       workspace_id TEXT,
       workspace_provider_data TEXT,
-      workspace_intent TEXT
+      workspace_intent TEXT,
+      type TEXT NOT NULL DEFAULT 'task',
+      automation_run_id TEXT
     );
 
     CREATE TABLE conversations (

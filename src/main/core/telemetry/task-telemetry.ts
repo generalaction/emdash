@@ -4,23 +4,24 @@ import { taskSessionManager } from '../tasks/task-session-manager';
 
 taskService.on('task:created', (task, params) => {
   const { git } = params.workspaceConfig;
+  const { linkedIssue, initialConversation } = params.taskConfig;
   const taskCreatedStrategy = (() => {
     if (git.kind === 'pr-branch') return 'pr';
-    if (params.linkedIssue) return 'issue';
+    if (linkedIssue) return 'issue';
     if (git.kind === 'none') return 'blank';
     return 'branch';
   })();
   telemetryService.capture('task_created', {
     strategy: taskCreatedStrategy,
-    has_initial_prompt: Boolean(params.initialConversation?.initialPrompt?.trim()),
-    has_issue: params.linkedIssue?.provider ?? 'none',
-    provider: params.initialConversation?.provider ?? null,
+    has_initial_prompt: Boolean(initialConversation?.initialPrompt?.trim()),
+    has_issue: linkedIssue?.provider ?? 'none',
+    provider: initialConversation?.provider ?? null,
     project_id: task.projectId,
     task_id: task.id,
   });
-  if (params.linkedIssue) {
+  if (linkedIssue) {
     telemetryService.capture('issue_linked_to_task', {
-      provider: params.linkedIssue.provider,
+      provider: linkedIssue.provider,
       project_id: task.projectId,
       task_id: task.id,
     });

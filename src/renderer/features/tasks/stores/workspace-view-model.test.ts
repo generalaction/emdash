@@ -116,6 +116,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     prs: [],
     conversations: {},
     workspaceId: 'workspace-1',
+    type: 'task',
     ...overrides,
   };
 }

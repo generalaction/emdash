@@ -1,12 +1,9 @@
-import type { AutomationRunStatus } from '@shared/automations/types';
+import type { AutomationRun } from '@shared/automations/automation-run';
 import { defineEvent } from '@shared/ipc/events';
 
-export const automationsChangedChannel = defineEvent<void>('automations:changed');
+export const automationChangedChannel = defineEvent<{ automationId: string }>('automation:changed');
 
-export const automationRunUpdatedChannel = defineEvent<{
+export const automationRunChangedChannel = defineEvent<{
   automationId: string;
-  runId: string;
-  status: AutomationRunStatus;
-  taskId?: string | null;
-  startedAt?: number | null;
-}>('automations:run-updated');
+  run: AutomationRun;
+}>('automation:run-changed');

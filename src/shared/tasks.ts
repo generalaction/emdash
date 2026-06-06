@@ -1,6 +1,8 @@
-import type { Conversation, CreateConversationParams } from '@shared/conversations';
+import z from 'zod';
+import type { Conversation } from '@shared/conversations';
 import type { Branch, CreateBranchError, FetchPrForReviewError, PushError } from '@shared/git';
 import type { PullRequest } from '@shared/pull-requests';
+import type { TaskConfig } from '@shared/task-config';
 import type { WorkspaceConfig } from '@shared/workspace-config';
 
 // ---------------------------------------------------------------------------
@@ -36,15 +38,18 @@ export type WorkspaceLocation =
   | { host: 'project-ssh'; path?: string }
   | { host: 'byoi'; remoteWorkspaceId?: string };
 
-export type TaskLifecycleStatus =
-  | 'todo'
-  | 'in_progress'
-  | 'review'
-  | 'done'
-  | 'cancelled'
-  | 'backlog'
-  | 'duplicate'
-  | 'triage';
+export const taskLifecycleStatuses = z.enum([
+  'todo',
+  'in_progress',
+  'review',
+  'done',
+  'cancelled',
+  'backlog',
+  'duplicate',
+  'triage',
+]);
+
+export type TaskLifecycleStatus = z.infer<typeof taskLifecycleStatuses>;
 
 export type Issue = {
   provider:
@@ -88,8 +93,8 @@ export type Task = {
   conversations: Record<string, number>;
   workspaceGit?: { linesAdded: number; linesDeleted: number };
   workspaceId?: string;
-  workspaceProviderData?: string; // JSON, BYOI only
-  automationId?: string;
+  type: 'task' | 'automation-run';
+  automationRunId?: string;
 };
 
 export type TaskBootstrapStatus =
@@ -101,14 +106,12 @@ export type TaskBootstrapStatus =
 export type CreateTaskParams = {
   id: string;
   projectId: string;
-  name: string;
+  /** Typed, versioned task configuration (name, issue link, conversation, status). */
+  taskConfig: TaskConfig;
   /** Typed, versioned workspace configuration (git setup + workspace location). */
   workspaceConfig: WorkspaceConfig;
-  /** The issue to link to the task */
-  linkedIssue?: Issue;
-  initialConversation?: CreateConversationParams;
-  initialStatus?: TaskLifecycleStatus;
-  automationId?: string;
+  /** Set when the task is created by an automation run; stored on the task row for audit trail. */
+  automationRunId?: string;
 };
 
 export type CreateTaskError =
@@ -167,15 +170,3 @@ export type TaskDeletePreflightItem = {
 export type DeletePreflightResult = {
   tasks: TaskDeletePreflightItem[];
 };
-
-export function formatIssueAsPrompt(issue: Issue, initialPrompt?: string): string {
-  const parts = [
-    `[${issue.identifier}] ${issue.title}`,
-    issue.url,
-    issue.description,
-    issue.context,
-  ].filter(Boolean);
-
-  if (initialPrompt?.trim()) parts.push('', initialPrompt.trim());
-  return parts.join('\n');
-}

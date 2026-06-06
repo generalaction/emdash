@@ -1,78 +1,60 @@
 import { log } from '@main/lib/logger';
-import type { Automation, AutomationRun } from '@shared/automations/types';
+import type { Automation } from '@shared/automations/automation';
+import type { AutomationRun } from '@shared/automations/automation-run';
 import { err, ok, type Result } from '@shared/result';
 import { executeTaskCreate } from './actions/taskCreate';
-import type { ActionError, ActionOutcome } from './actions/types';
-import { updateAutomationSchedule } from './repo';
-import { markRunFailed, markRunSkipped, markRunSucceeded } from './run-transitions';
+import { markRunDone, markRunSkipped, type OnStepCompleted } from './run-transitions';
+
+export type { OnStepCompleted };
+
+export type AutomationRunExecutor = (
+  automation: Automation,
+  run: AutomationRun,
+  onStepCompleted: OnStepCompleted
+) => Promise<Result<AutomationRun, string>>;
 
 export async function runQueuedAutomation(
   automation: Automation,
-  initialRun: AutomationRun
+  initialRun: AutomationRun,
+  onStepCompleted: OnStepCompleted
 ): Promise<Result<AutomationRun, string>> {
   let run = initialRun;
-  let firstTaskId: string | null = null;
-  let latestTaskId: string | null = null;
-  const ctx = { automation, run };
 
   if (automation.projectId == null) {
-    const message = 'no_project_attached';
-    const finishedAt = Date.now();
-    run = await markRunSkipped(run.id, message, { finishedAt });
-    return err(message);
+    run = await markRunSkipped(run.id, { step: 'queue', code: 'no_project' });
+    onStepCompleted(run);
+    return err('no_project');
   }
 
-  if (automation.actions.length === 0) {
-    const message = 'no_actions_configured';
-    log.warn('Automation has no actions', {
+  const prompt = automation.conversationConfig?.prompt?.trim();
+  if (!prompt) {
+    log.warn('Automation run has no prompt in conversationConfigSnapshot', {
       automationId: automation.id,
       runId: run.id,
     });
-    const finishedAt = Date.now();
-    run = await markRunSkipped(run.id, message, { finishedAt });
+    run = await markRunSkipped(run.id, { step: 'queue', code: 'no_actions_configured' });
+    onStepCompleted(run);
     return ok(run);
   }
 
-  for (let i = 0; i < automation.actions.length; i++) {
-    const action = automation.actions[i];
-    const result = await executeTaskCreate(action, { ...ctx, run }).catch(
-      (error): Result<ActionOutcome, ActionError> => ({
-        success: false,
-        error: { message: error instanceof Error ? error.message : String(error) },
-      })
-    );
-    if (!result.success) {
-      const failedTaskId = result.error.taskId ?? latestTaskId ?? firstTaskId ?? null;
-      const createdTaskId = firstTaskId ?? result.error.taskId ?? null;
-      const message = result.error.message;
-      log.error('Automation action failed', {
-        automationId: automation.id,
-        runId: run.id,
-        actionIndex: i,
-        error: message,
-      });
-      const finishedAt = Date.now();
-      run = await markRunFailed(run.id, {
-        error: message,
-        finishedAt,
-        taskId: failedTaskId,
-        createdTaskId,
-      });
-      return err(message);
-    }
-    if (firstTaskId == null && result.data.taskId) {
-      firstTaskId = result.data.taskId;
-      run = { ...run, taskId: firstTaskId, createdTaskId: firstTaskId };
-    }
-    latestTaskId = result.data.taskId ?? latestTaskId;
+  const result = await executeTaskCreate(automation, run, onStepCompleted).catch(
+    (error): Result<string, string> => ({
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    })
+  );
+
+  if (!result.success) {
+    log.error('Automation task create failed', {
+      automationId: automation.id,
+      runId: run.id,
+      error: result.error,
+    });
+    // markRunFailed was already called inside executeTaskCreate
+    return err(result.error);
   }
 
-  const finishedAt = Date.now();
-  run = await markRunSucceeded(run.id, {
-    finishedAt,
-    taskId: latestTaskId,
-    createdTaskId: firstTaskId,
-  });
-  await updateAutomationSchedule(automation.id, { lastRunAt: run.startedAt ?? Date.now() });
+  run = await markRunDone(run.id, Date.now());
+  onStepCompleted(run);
   return ok(run);
 }
