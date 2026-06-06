@@ -9,7 +9,7 @@ import { switchNativeChatToTerminalMode } from './switch-native-chat-to-terminal
 
 export const nativeChatController = createRPCController({
   getState: (conversationId: string): Promise<NativeChatState> =>
-    Promise.resolve(nativeChatService.getState(conversationId)),
+    nativeChatService.getState(conversationId),
 
   sendMessage: sendNativeChatMessage,
 

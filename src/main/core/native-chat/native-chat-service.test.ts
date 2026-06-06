@@ -16,6 +16,9 @@ const mocks = vi.hoisted(() => ({
   captureTelemetry: vi.fn(),
   maybeAutoTrustLocal: vi.fn(),
   spawn: vi.fn(),
+  loadTranscript: vi.fn(),
+  saveTranscript: vi.fn(),
+  deleteTranscript: vi.fn(),
 }));
 
 vi.mock('node:child_process', () => ({ spawn: mocks.spawn }));
@@ -48,6 +51,11 @@ vi.mock('@main/core/conversations/impl/provider-env', () => ({
 vi.mock('@main/core/pty/pty-env', () => ({
   buildAgentEnv: () => ({}),
 }));
+vi.mock('./transcript-store', () => ({
+  loadNativeChatTranscript: mocks.loadTranscript,
+  saveNativeChatTranscript: mocks.saveTranscript,
+  deleteNativeChatTranscript: mocks.deleteTranscript,
+}));
 
 import { NativeChatService } from './native-chat-service';
 
@@ -62,14 +70,17 @@ type TestSession = {
   lastError: string | null;
   turnSeq: number;
   turnDurationsMs: Record<string, number>;
+  threadId?: string;
   child: ChildProcess | null;
   interruptRequested: boolean;
   disposed: boolean;
+  persistTimer: ReturnType<typeof setTimeout> | null;
 };
 
 class FakeChild extends EventEmitter {
   exitCode: number | null = null;
   signalCode: NodeJS.Signals | null = null;
+  stdin = { end: vi.fn() };
   stdout = new PassThrough();
   stderr = new PassThrough();
   kill = vi.fn();
@@ -90,6 +101,7 @@ function session(overrides: Partial<TestSession> = {}): TestSession {
     child: null,
     interruptRequested: false,
     disposed: false,
+    persistTimer: null,
     ...overrides,
   };
 }
@@ -105,6 +117,9 @@ describe('NativeChatService disposal', () => {
     mocks.getProviderSettings.mockResolvedValue(undefined);
     mocks.maybeAutoTrustLocal.mockResolvedValue(undefined);
     mocks.getHookPort.mockReturnValue(0);
+    mocks.loadTranscript.mockResolvedValue(null);
+    mocks.saveTranscript.mockResolvedValue(undefined);
+    mocks.deleteTranscript.mockResolvedValue(undefined);
   });
 
   it('prepares workspace trust before spawning a native turn', async () => {
@@ -133,6 +148,34 @@ describe('NativeChatService disposal', () => {
       })
     );
     expect(mocks.spawn).toHaveBeenCalled();
+
+    child.emit('close', 0);
+  });
+
+  it('pipes Codex native prompts to stdin', async () => {
+    const service = new NativeChatService();
+    const child = new FakeChild();
+    mocks.spawn.mockReturnValue(child);
+
+    await service.startTurn({
+      conversation: {
+        id: 'conv-1',
+        projectId: 'project-1',
+        taskId: 'task-1',
+        providerId: 'codex',
+        autoApprove: false,
+      } as Conversation,
+      cwd: '/tmp/worktree',
+      taskEnvVars: {},
+      prompt: '- fix tests',
+    });
+
+    expect(mocks.spawn).toHaveBeenCalledWith(
+      'codex',
+      expect.arrayContaining(['exec', '--json', '-']),
+      expect.objectContaining({ stdio: ['pipe', 'pipe', 'pipe'] })
+    );
+    expect(child.stdin.end).toHaveBeenCalledWith('- fix tests');
 
     child.emit('close', 0);
   });
@@ -194,7 +237,7 @@ describe('NativeChatService disposal', () => {
     await dispose;
 
     expect(resolved).toBe(true);
-    expect(service.getState('conv-1').turnStatus).toBe('idle');
+    expect((await service.getState('conv-1')).turnStatus).toBe('idle');
   });
 
   it('disposes every session for a task without touching other tasks', async () => {
@@ -224,6 +267,63 @@ describe('NativeChatService disposal', () => {
     expect(first.kill).toHaveBeenCalledWith('SIGTERM');
     expect(second.kill).toHaveBeenCalledWith('SIGTERM');
     expect(other.kill).not.toHaveBeenCalled();
-    expect(service.getState('conv-3').conversationId).toBe('conv-3');
+    expect((await service.getState('conv-3')).conversationId).toBe('conv-3');
+  });
+});
+
+describe('NativeChatService transcript persistence', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.loadTranscript.mockResolvedValue(null);
+    mocks.saveTranscript.mockResolvedValue(undefined);
+    mocks.deleteTranscript.mockResolvedValue(undefined);
+  });
+
+  const persistedItems: NativeChatItem[] = [
+    { kind: 'user_message', key: 't1:user', text: 'hello' },
+    { kind: 'agent_message', key: 't1:b0', text: 'hi there' },
+  ];
+
+  it('serves the persisted transcript when no session is live', async () => {
+    mocks.loadTranscript.mockResolvedValue({
+      version: 1,
+      providerId: 'codex',
+      items: persistedItems,
+      turnSeq: 1,
+      turnDurationsMs: { t1: 1200 },
+    });
+
+    const service = new NativeChatService();
+    const state = await service.getState('conv-1');
+    expect(state.items).toEqual(persistedItems);
+    expect(state.turnStatus).toBe('idle');
+    expect(state.turnDurationsMs).toEqual({ t1: 1200 });
+  });
+
+  it('returns an empty state when nothing was persisted', async () => {
+    const service = new NativeChatService();
+    const state = await service.getState('conv-1');
+    expect(state.items).toEqual([]);
+  });
+
+  it('flushes the transcript to disk when a session is disposed', async () => {
+    const service = new NativeChatService();
+    sessionsOf(service).set(
+      'conv-1',
+      session({ turnStatus: 'idle', items: persistedItems, turnSeq: 1, threadId: 'abc' })
+    );
+
+    await service.dispose('conv-1');
+
+    expect(mocks.saveTranscript).toHaveBeenCalledWith(
+      'conv-1',
+      expect.objectContaining({ version: 1, items: persistedItems, turnSeq: 1, threadId: 'abc' })
+    );
+  });
+
+  it('removes the persisted transcript on deleteData', async () => {
+    const service = new NativeChatService();
+    await service.deleteData('conv-1');
+    expect(mocks.deleteTranscript).toHaveBeenCalledWith('conv-1');
   });
 });
