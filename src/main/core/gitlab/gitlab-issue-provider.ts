@@ -5,7 +5,7 @@ import {
 } from '@main/core/issues/helpers/provider-inputs';
 import type { IssueProvider } from '@main/core/issues/issue-provider';
 import { ISSUE_PROVIDER_CAPABILITIES, type IssueListResult } from '@shared/issue-providers';
-import type { Issue } from '@shared/tasks';
+import type { LinkedIssue } from '@shared/linked-issue';
 import { gitLabConnectionService, toGitLabErrorMessage } from './gitlab-connection-service';
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -27,7 +27,7 @@ function readNumber(value: unknown): number | null {
   return null;
 }
 
-function toIssue(raw: unknown, projectName: string | null): Issue | null {
+function toIssue(raw: unknown, projectName: string | null): LinkedIssue | null {
   const item = asRecord(raw);
   if (!item) return null;
 
@@ -88,7 +88,7 @@ async function listIssues(
       success: true,
       issues: (issues ?? [])
         .map((issue) => toIssue(issue, projectName))
-        .filter((issue): issue is Issue => issue !== null),
+        .filter((issue): issue is LinkedIssue => issue !== null),
     };
   } catch (error) {
     return {
@@ -132,7 +132,7 @@ async function searchIssues(
       success: true,
       issues: (issues ?? [])
         .map((issue) => toIssue(issue, projectName))
-        .filter((issue): issue is Issue => issue !== null),
+        .filter((issue): issue is LinkedIssue => issue !== null),
     };
   } catch (error) {
     return {

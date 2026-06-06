@@ -11,7 +11,7 @@ import {
   type IssueContextResult,
   type IssueListResult,
 } from '@shared/issue-providers';
-import type { Issue } from '@shared/tasks';
+import type { LinkedIssue } from '@shared/linked-issue';
 import { trelloConnectionService, type TrelloAuth } from './trello-connection-service';
 
 type TrelloCard = {
@@ -52,7 +52,7 @@ const CARD_FIELDS = 'name,desc,url,shortLink,dateLastActivity';
 const DEFAULT_BOARD_LIMIT = 20;
 const TRELLO_REQUEST_CONCURRENCY = 5;
 
-function toIssue(card: TrelloCard, boardName?: string, context?: string): Issue {
+function toIssue(card: TrelloCard, boardName?: string, context?: string): LinkedIssue {
   return {
     provider: 'trello',
     identifier: card.shortLink,
@@ -66,7 +66,7 @@ function toIssue(card: TrelloCard, boardName?: string, context?: string): Issue 
   };
 }
 
-function sortByUpdatedAtDesc(issues: Issue[]): Issue[] {
+function sortByUpdatedAtDesc(issues: LinkedIssue[]): LinkedIssue[] {
   return [...issues].sort(
     (a, b) => new Date(b.updatedAt ?? 0).getTime() - new Date(a.updatedAt ?? 0).getTime()
   );

@@ -1,7 +1,7 @@
 import z from 'zod';
 import type { Conversation } from '@shared/conversations';
 import type { Branch, CreateBranchError, FetchPrForReviewError, PushError } from '@shared/git';
-import type { LinkedIssue as Issue } from '@shared/linked-issue';
+import type { LinkedIssue } from '@shared/linked-issue';
 import type { PullRequest } from '@shared/pull-requests';
 import type { TaskConfig } from '@shared/task-config';
 import type { WorkspaceConfig } from '@shared/workspace-config';
@@ -52,9 +52,6 @@ export const taskLifecycleStatuses = z.enum([
 
 export type TaskLifecycleStatus = z.infer<typeof taskLifecycleStatuses>;
 
-/** Re-exported for callers that import Issue from tasks.ts. */
-export type { LinkedIssue as Issue } from '@shared/linked-issue';
-
 export type Task = {
   id: string;
   projectId: string;
@@ -66,7 +63,7 @@ export type Task = {
   statusChangedAt: string;
   archivedAt?: string;
   lastInteractedAt?: string;
-  linkedIssue?: Issue;
+  linkedIssue?: LinkedIssue;
   isPinned: boolean;
   prs: PullRequest[];
   conversations: Record<string, number>;

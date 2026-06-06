@@ -1,6 +1,6 @@
 import { refreshLinkedIssueContext } from '@renderer/features/tasks/issue-context/refresh-linked-issue-context';
 import { ISSUE_PROVIDER_CAPABILITIES } from '@shared/issue-providers';
-import type { Issue } from '@shared/tasks';
+import type { LinkedIssue } from '@shared/linked-issue';
 import {
   buildContextActionText,
   buildLinkedIssueContextAction,
@@ -9,7 +9,7 @@ import {
 
 export async function resolveContextActionText(args: {
   action: ContextAction;
-  linkedIssue?: Issue;
+  linkedIssue?: LinkedIssue;
   projectId?: string;
 }): Promise<string> {
   const { action, linkedIssue, projectId } = args;

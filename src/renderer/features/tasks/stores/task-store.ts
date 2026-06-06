@@ -3,14 +3,9 @@ import type { ProjectSettingsStore } from '@renderer/features/projects/stores/pr
 import { DraftCommentsStore } from '@renderer/features/tasks/diff-view/stores/draft-comments-store';
 import { rpc } from '@renderer/lib/ipc';
 import { log } from '@renderer/utils/logger';
+import type { LinkedIssue } from '@shared/linked-issue';
 import { err, type Result } from '@shared/result';
-import type {
-  Issue,
-  RenameTaskError,
-  RenameTaskSuccess,
-  Task,
-  TaskLifecycleStatus,
-} from '@shared/tasks';
+import type { RenameTaskError, RenameTaskSuccess, Task, TaskLifecycleStatus } from '@shared/tasks';
 import { conversationRegistry } from './conversation-registry';
 import { workspaceRegistry } from './workspace-registry';
 import { WorkspaceViewModel } from './workspace-view-model';
@@ -243,7 +238,7 @@ export class TaskStore {
     }
   }
 
-  async updateLinkedIssue(issue?: Issue): Promise<void> {
+  async updateLinkedIssue(issue?: LinkedIssue): Promise<void> {
     if (this.state === 'unregistered') return;
     const task = registeredTaskData(this);
     if (!task) return;

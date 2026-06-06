@@ -5,9 +5,9 @@ import {
   type IssueListError,
   type IssueListResult,
 } from '@shared/issue-providers';
+import type { LinkedIssue } from '@shared/linked-issue';
 import type { RepositoryRef } from '@shared/repository-ref';
 import { err, ok, type Result } from '@shared/result';
-import type { Issue } from '@shared/tasks';
 import { githubConnectionService } from './services/github-connection-service';
 import { githubRepositoryResolver } from './services/github-repository-resolver';
 import { issueService } from './services/issue-service';
@@ -20,7 +20,7 @@ function toIssue(raw: {
   updatedAt: string | null;
   assignees: Array<{ login: string }>;
   body?: string | null;
-}): Issue {
+}): LinkedIssue {
   return {
     provider: 'github',
     identifier: `#${raw.number}`,
@@ -34,7 +34,7 @@ function toIssue(raw: {
   };
 }
 
-function toIssueListResult(result: Result<Issue[], IssueListError>): IssueListResult {
+function toIssueListResult(result: Result<LinkedIssue[], IssueListError>): IssueListResult {
   if (result.success) return { success: true, issues: result.data };
   return {
     success: false,
@@ -47,7 +47,7 @@ function toIssueListResult(result: Result<Issue[], IssueListError>): IssueListRe
 async function listIssues(
   repository: RepositoryRef,
   limit: number
-): Promise<Result<Issue[], IssueListError>> {
+): Promise<Result<LinkedIssue[], IssueListError>> {
   const issues = await issueService.listIssues(repository, limit);
   if (!issues.success) return err(issues.error);
   return ok(issues.data.map(toIssue));
@@ -57,7 +57,7 @@ async function searchIssues(
   repository: RepositoryRef,
   searchTerm: string,
   limit: number
-): Promise<Result<Issue[], IssueListError>> {
+): Promise<Result<LinkedIssue[], IssueListError>> {
   if (!normalizeSearchTerm(searchTerm)) {
     return ok([]);
   }

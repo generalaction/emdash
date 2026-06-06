@@ -1,6 +1,6 @@
-import type { Issue } from './tasks';
+import type { LinkedIssue } from './linked-issue';
 
-export type IssueProviderType = Issue['provider'];
+export type IssueProviderType = LinkedIssue['provider'];
 
 export type IssueProviderCapabilities = {
   requiresProjectPath: boolean;
@@ -77,7 +77,7 @@ export type IssueListError =
   | { type: 'generic'; message: string };
 
 export type IssueListResult =
-  | { success: true; issues: Issue[] }
+  | { success: true; issues: LinkedIssue[] }
   | {
       success: false;
       error: string;
@@ -86,5 +86,5 @@ export type IssueListResult =
     };
 
 export type IssueContextResult =
-  | { success: true; issue: Issue }
+  | { success: true; issue: LinkedIssue }
   | { success: false; error: string };
