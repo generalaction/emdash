@@ -6,7 +6,7 @@ import {
   type IssueContextResult,
   type IssueListResult,
 } from '@shared/issue-providers';
-import type { Issue } from '@shared/tasks';
+import type { LinkedIssue } from '@shared/linked-issue';
 import { linearConnectionService } from './linear-connection-service';
 import {
   formatLinearContext,
@@ -104,7 +104,7 @@ const ISSUE_CONTEXT_QUERY = `
   }
 `;
 
-function toIssue(raw: LinearIssueSummaryNode, context?: string): Issue {
+function toIssue(raw: LinearIssueSummaryNode, context?: string): LinkedIssue {
   return {
     provider: 'linear',
     identifier: raw.identifier,

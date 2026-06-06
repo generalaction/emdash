@@ -1,8 +1,8 @@
 import { useCallback, useMemo, useState } from 'react';
 import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
+import type { LinkedIssue } from '@shared/linked-issue';
 import { resolveTaskBranchName } from '@shared/resolveTaskBranchName';
-import type { Issue } from '@shared/tasks';
 
 export type BranchNameState = {
   branchName: string;
@@ -13,7 +13,7 @@ export type BranchNameState = {
 
 export function useBranchName(opts: {
   taskName: string;
-  linkedIssue?: Issue | null;
+  linkedIssue?: LinkedIssue | null;
   projectId?: string;
   resetKey?: unknown;
 }): BranchNameState {

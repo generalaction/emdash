@@ -112,5 +112,3 @@ export function useFilterOptions(projectId?: string, repositoryUrl?: string) {
     staleTime: 60_000,
   });
 }
-
-export type { PrFilters, PrSortField } from '@shared/pull-requests';

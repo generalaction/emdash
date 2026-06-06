@@ -2,7 +2,7 @@ import { clampIssueLimit, normalizeSearchTerm } from '@main/core/issues/helpers/
 import type { IssueProvider } from '@main/core/issues/issue-provider';
 import { log } from '@main/lib/logger';
 import { ISSUE_PROVIDER_CAPABILITIES, type IssueListResult } from '@shared/issue-providers';
-import type { Issue } from '@shared/tasks';
+import type { LinkedIssue } from '@shared/linked-issue';
 import type { AsanaClient } from './asana-client';
 import {
   asanaConnectionService,
@@ -32,7 +32,7 @@ type AsanaTasksResponse = {
 const TASK_OPT_FIELDS =
   'name,notes,permalink_url,completed,modified_at,assignee.name,projects.name,memberships.section.name,memberships.project.name';
 
-function toIssue(task: AsanaTask): Issue {
+function toIssue(task: AsanaTask): LinkedIssue {
   const projectName =
     task.projects?.find((p) => !!p?.name)?.name ??
     task.memberships?.find((m) => !!m?.project?.name)?.project?.name;

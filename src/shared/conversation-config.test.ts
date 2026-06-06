@@ -1,32 +1,38 @@
 import { describe, expect, it } from 'vitest';
-import {
-  isDroidProviderSessionId,
-  parseConversationConfig,
-  serializeConversationConfig,
-} from './conversation-config';
+import { conversationConfig, isDroidProviderSessionId } from './conversation-config';
 
 describe('conversation-config', () => {
   it('parses autoApprove and providerSessionId', () => {
-    expect(
-      parseConversationConfig(
-        JSON.stringify({
-          autoApprove: true,
-          providerSessionId: '31477a03-961a-4451-82d4-efded56947fc',
-        })
-      )
-    ).toEqual({
+    const result = conversationConfig.safeParse({
       autoApprove: true,
       providerSessionId: '31477a03-961a-4451-82d4-efded56947fc',
     });
+    expect(result.status).toBe('ok');
+    if (result.status === 'ok') {
+      expect(result.data).toEqual({
+        autoApprove: true,
+        providerSessionId: '31477a03-961a-4451-82d4-efded56947fc',
+      });
+    }
   });
 
-  it('returns empty config for invalid JSON', () => {
-    expect(parseConversationConfig('not-json')).toEqual({});
+  it('returns invalid for non-object input', () => {
+    expect(conversationConfig.safeParse('not-json')).toMatchObject({ status: 'invalid' });
+    expect(conversationConfig.safeParse(null)).toMatchObject({ status: 'invalid' });
   });
 
-  it('round-trips through serialize', () => {
+  it('round-trips through parseJson and serialize', () => {
     const config = { autoApprove: false, providerSessionId: 'abc' };
-    expect(parseConversationConfig(serializeConversationConfig(config))).toEqual(config);
+    const json = conversationConfig.serialize(config);
+    expect(conversationConfig.parseJson(json)).toEqual(config);
+  });
+
+  it('parseJson returns null for invalid JSON', () => {
+    expect(conversationConfig.parseJson('not-json')).toBeNull();
+  });
+
+  it('parseJson returns null for null input', () => {
+    expect(conversationConfig.parseJson(null)).toBeNull();
   });
 
   it('validates Droid session ids as UUIDs', () => {

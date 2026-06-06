@@ -2,7 +2,7 @@ import { clampIssueLimit, normalizeSearchTerm } from '@main/core/issues/helpers/
 import type { IssueProvider } from '@main/core/issues/issue-provider';
 import { log } from '@main/lib/logger';
 import { ISSUE_PROVIDER_CAPABILITIES, type IssueListResult } from '@shared/issue-providers';
-import type { Issue } from '@shared/tasks';
+import type { LinkedIssue } from '@shared/linked-issue';
 import {
   featurebaseConnectionService,
   NOT_CONFIGURED_ERROR,
@@ -44,7 +44,7 @@ function stripHtml(value: string | undefined): string | undefined {
   return stripped || undefined;
 }
 
-function toIssue(post: FeaturebasePost): Issue {
+function toIssue(post: FeaturebasePost): LinkedIssue {
   const tags = post.tags?.map((tag) => tag.name).filter((name): name is string => !!name) ?? [];
 
   return {

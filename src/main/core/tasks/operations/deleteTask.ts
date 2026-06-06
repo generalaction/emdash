@@ -7,7 +7,7 @@ import { tasks, workspaces } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import type { DeleteTaskOptions } from '@shared/tasks';
-import { parseWorkspaceConfig } from '@shared/workspace-config';
+import type { WorkspaceConfig } from '@shared/workspace-config';
 import { deleteWorkspaceIfUnused, removeWorktreeIfUnused } from './task-lifecycle-utils';
 
 export async function deleteTask(
@@ -34,7 +34,7 @@ export async function deleteTask(
   }
 
   // Load workspace row before deleting it (we may need branchName for worktree removal).
-  let wsRow: { id: string; branchName: string | null; config: string | null } | undefined;
+  let wsRow: { id: string; branchName: string | null; config: WorkspaceConfig | null } | undefined;
   if (task.workspaceId) {
     const [ws] = await db
       .select()
@@ -52,9 +52,8 @@ export async function deleteTask(
   if (project && deleteWorktree && wsRow) {
     const worktreeRemoved = await removeWorktreeIfUnused(wsRow, project, false);
     if (worktreeRemoved && deleteBranch && wsRow.branchName) {
-      const wsConfig = parseWorkspaceConfig(wsRow.config);
       const fromBranch =
-        wsConfig?.git.kind === 'create-branch' ? wsConfig.git.fromBranch : undefined;
+        wsRow.config?.git.kind === 'create-branch' ? wsRow.config.git.fromBranch : undefined;
       if (fromBranch && wsRow.branchName !== fromBranch.branch) {
         const branchDelete = await project.repository.deleteBranch(wsRow.branchName).catch((e) => {
           log.warn('deleteTask: branch deletion failed', { taskId, error: String(e) });

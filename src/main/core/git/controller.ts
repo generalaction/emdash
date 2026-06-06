@@ -3,7 +3,7 @@ import { resolveWorkspace } from '@main/core/projects/utils';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import type { DiffMode, GitObjectRef, GitRef, MergeBaseRange } from '@shared/git';
-import { createRPCController } from '@shared/ipc/rpc';
+import { createRPCController } from '@shared/lib/ipc/rpc';
 import { err, ok } from '@shared/result';
 
 export const gitController = createRPCController({

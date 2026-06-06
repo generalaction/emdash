@@ -19,8 +19,6 @@ import {
 } from '@shared/events/conversationEvents';
 import { makePtySessionId } from '@shared/ptySessionId';
 
-export type { AgentStatus } from '@shared/events/agentEvents';
-
 export class ConversationManagerStore implements IDisposable {
   private offAgentStatusChanged: (() => void) | null = null;
   private offSessionExited: (() => void) | null = null;

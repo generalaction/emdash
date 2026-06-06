@@ -1,4 +1,4 @@
-import { createRPCController } from '@shared/ipc/rpc';
+import { createRPCController } from '@shared/lib/ipc/rpc';
 import { editorBufferService } from './editor-buffer-service';
 
 export const editorBufferController = createRPCController({
