@@ -15,7 +15,7 @@ import { telemetryService } from '@main/lib/telemetry';
 import type { ProviderCustomConfig } from '@shared/app-settings';
 import { isNativeChatProvider, type NativeChatProviderId } from '@shared/conversation-ui';
 import type { Conversation } from '@shared/conversations';
-import { agentEventChannel, agentSessionExitedChannel } from '@shared/events/agentEvents';
+import { agentSessionExitedChannel } from '@shared/events/agentEvents';
 import { conversationChangedChannel } from '@shared/events/conversationEvents';
 import { nativeChatEventChannel, type NativeChatEvent } from '@shared/events/nativeChatEvents';
 import {
@@ -549,8 +549,8 @@ export class NativeChatService {
   }
 
   private emitAgentEvent(session: ChatSession, type: 'start' | 'stop' | 'error'): void {
-    events.emit(agentEventChannel, {
-      event: {
+    agentHookService.emitAgentEvent(
+      {
         type,
         source: 'input',
         providerId: session.providerId,
@@ -560,8 +560,8 @@ export class NativeChatService {
         timestamp: Date.now(),
         payload: {},
       },
-      appFocused: isAppFocused(),
-    });
+      isAppFocused()
+    );
   }
 }
 

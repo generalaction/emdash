@@ -2,6 +2,7 @@ import { type ConversationRow } from '@main/db/schema';
 import { type AgentProviderId } from '@shared/agent-provider-registry';
 import { parseConversationConfig } from '@shared/conversation-config';
 import { type Conversation } from '@shared/conversations';
+import { type AgentStatus } from '@shared/events/agentEvents';
 
 export function mapConversationRowToConversation(
   row: ConversationRow,
@@ -23,5 +24,7 @@ export function mapConversationRowToConversation(
     resume: resume,
     lastInteractedAt: row.lastInteractedAt ?? null,
     isInitialConversation: row.isInitialConversation,
+    agentStatus: (row.agentStatus as AgentStatus | null) ?? null,
+    agentStatusSeen: row.agentStatusSeen === 1,
   };
 }

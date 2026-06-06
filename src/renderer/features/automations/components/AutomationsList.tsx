@@ -1,106 +1,27 @@
-import type { Automation, AutomationRun } from '@shared/automations/types';
+import { Fragment } from 'react';
+import { Separator } from '@renderer/lib/ui/separator';
+import type { Automation } from '@shared/automations/automation';
 import { AutomationRow } from './AutomationRow';
 
-interface RowActions {
+interface AutomationsListProps {
+  automations: Automation[];
   onEdit: (automation: Automation) => void;
-  onRunNow?: (automation: Automation) => void;
-  onToggleEnabled?: (automation: Automation, enabled: boolean) => void;
-  onCopy?: (automation: Automation) => void;
-  onDelete?: (automation: Automation) => void;
+  onToggleEnabled: (automation: Automation, enabled: boolean) => void;
 }
 
-interface SelectionProps {
-  isSelected: (id: string) => boolean;
-  onToggleSelect: (id: string) => void;
-}
-
-interface AutomationsListProps extends RowActions, Partial<SelectionProps> {
-  drafts: Automation[];
-  active: Automation[];
-  paused: Automation[];
-  runsByAutomation: Map<string, AutomationRun[]>;
-}
-
-interface SectionProps extends RowActions, Partial<SelectionProps> {
-  title: string;
-  items: Automation[];
-  runsByAutomation: Map<string, AutomationRun[]>;
-}
-
-function Section({
-  title,
-  items,
-  runsByAutomation,
-  onEdit,
-  onRunNow,
-  onToggleEnabled,
-  onCopy,
-  onDelete,
-  isSelected,
-  onToggleSelect,
-}: SectionProps) {
-  if (items.length === 0) return null;
+export function AutomationsList({ automations, onEdit, onToggleEnabled }: AutomationsListProps) {
   return (
-    <section>
-      <h2 className="text-muted-foreground mb-2 text-xs font-medium tracking-wide">{title}</h2>
-      <div>
-        {items.map((automation) => (
+    <div className="space-y-1 py-1">
+      {automations.map((automation) => (
+        <Fragment key={automation.id}>
           <AutomationRow
-            key={automation.id}
             automation={automation}
-            recentRuns={runsByAutomation.get(automation.id)}
-            onEdit={onEdit}
-            onRunNow={onRunNow}
-            onToggleEnabled={onToggleEnabled}
-            onCopy={onCopy}
-            onDelete={onDelete}
-            isSelected={isSelected?.(automation.id) ?? false}
-            onToggleSelect={onToggleSelect ? () => onToggleSelect(automation.id) : undefined}
+            onToggleEnabled={(enabled) => onToggleEnabled(automation, enabled)}
+            onClick={() => onEdit(automation)}
           />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-export function AutomationsList({
-  drafts,
-  active,
-  paused,
-  runsByAutomation,
-  onEdit,
-  onRunNow,
-  onToggleEnabled,
-  onCopy,
-  onDelete,
-  isSelected,
-  onToggleSelect,
-}: AutomationsListProps) {
-  const rowActions: RowActions = { onEdit, onRunNow, onToggleEnabled, onCopy, onDelete };
-  const selectionProps = { isSelected, onToggleSelect };
-  return (
-    <div className="mb-6 space-y-5">
-      <Section
-        title="Drafts"
-        items={drafts}
-        runsByAutomation={runsByAutomation}
-        {...rowActions}
-        {...selectionProps}
-      />
-      <Section
-        title="Active"
-        items={active}
-        runsByAutomation={runsByAutomation}
-        {...rowActions}
-        {...selectionProps}
-      />
-      <Section
-        title="Paused"
-        items={paused}
-        runsByAutomation={runsByAutomation}
-        {...rowActions}
-        {...selectionProps}
-      />
+          <Separator />
+        </Fragment>
+      ))}
     </div>
   );
 }

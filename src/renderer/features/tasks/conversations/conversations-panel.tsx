@@ -8,6 +8,7 @@ import {
   useConversations,
   useTaskViewContext,
   useWorkspace,
+  useWorkspaceId,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
 import { rpc } from '@renderer/lib/ipc';
@@ -85,6 +86,7 @@ const TerminalConversationsPanel = observer(function TerminalConversationsPanel(
   const taskView = useWorkspaceViewModel();
   const conversations = useConversations();
   const workspace = useWorkspace();
+  const workspaceId = useWorkspaceId();
   const { value: interfaceSettings } = useAppSettingsKey('interface');
   const { groupId, tabManager: tm } = useTabGroupContext();
   const isActive = useIsActiveTask(taskId);
@@ -198,6 +200,7 @@ const TerminalConversationsPanel = observer(function TerminalConversationsPanel(
                     onInterruptPress={onInterruptPress}
                     mapShiftEnterToCtrlJ
                     remoteConnectionId={remoteConnectionId}
+                    workspaceId={workspaceId}
                   />
                 </div>
               ) : null}

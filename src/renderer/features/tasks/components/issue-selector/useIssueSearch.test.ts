@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { isProviderUsable } from './issue-provider-usability';
 
+const githubEnterpriseCapabilities = {
+  requiresProjectPath: false,
+  requiresRepositoryUrl: true,
+  supportsIssueContext: false,
+};
+
 describe('isProviderUsable', () => {
   it('allows GitHub issues when repository capabilities support them without GitHub.com OAuth', () => {
     expect(
@@ -8,10 +14,7 @@ describe('isProviderUsable', () => {
         'github',
         {
           connected: false,
-          capabilities: {
-            requiresProjectPath: false,
-            requiresRepositoryUrl: true,
-          },
+          capabilities: githubEnterpriseCapabilities,
         },
         { repositoryUrl: 'https://ghe.example.com/acme/repo' },
         'ghe.example.com'
@@ -25,10 +28,7 @@ describe('isProviderUsable', () => {
         'github',
         {
           connected: false,
-          capabilities: {
-            requiresProjectPath: false,
-            requiresRepositoryUrl: true,
-          },
+          capabilities: githubEnterpriseCapabilities,
         },
         { repositoryUrl: 'https://github.com/acme/repo' },
         'github.com'
@@ -42,10 +42,7 @@ describe('isProviderUsable', () => {
         'github',
         {
           connected: false,
-          capabilities: {
-            requiresProjectPath: false,
-            requiresRepositoryUrl: true,
-          },
+          capabilities: githubEnterpriseCapabilities,
         },
         { repositoryUrl: 'https://gitlab.example.com/acme/repo' },
         null

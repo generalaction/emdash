@@ -1,5 +1,5 @@
+import { EditableNameField } from '@renderer/lib/ui/editable-name-field';
 import { Field, FieldLabel } from '@renderer/lib/ui/field';
-import { Input } from '@renderer/lib/ui/input';
 import { type TaskNameState } from './use-task-name';
 
 interface TaskNameFieldProps {
@@ -12,12 +12,11 @@ export function TaskNameField({ state }: TaskNameFieldProps) {
   return (
     <Field className="flex flex-col gap-1">
       <FieldLabel>Task name</FieldLabel>
-      <Input
-        data-autofocus
+      <EditableNameField
+        autoFocus
         value={taskName}
         placeholder={placeholder || 'Task name...'}
-        className="border-none px-0 text-lg! focus-visible:ring-0"
-        onChange={(e) => handleTaskNameChange(e.target.value)}
+        onChange={handleTaskNameChange}
       />
       {showSlugHint && (
         <p className="text-muted-foreground mt-1 text-xs">

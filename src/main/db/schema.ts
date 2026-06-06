@@ -132,6 +132,8 @@ export const tasks = sqliteTable(
     workspaceId: text('workspace_id'),
     workspaceProviderData: text('workspace_provider_data'), // @deprecated — superseded by workspaces.data
     workspaceIntent: text('workspace_intent'), // JSON: { git: GitSetup; workspace: WorkspaceLocation }
+    type: text('type').notNull().default('task'), // 'task' | 'automation-run'
+    automationRunId: text('automation_run_id'), // set when type = 'automation-run'; FK added after automationRuns is defined
   },
   (table) => ({
     projectIdIdx: index('idx_tasks_project_id').on(table.projectId),
@@ -291,25 +293,16 @@ export const automations = sqliteTable(
   {
     id: text('id').primaryKey(),
     name: text('name').notNull(),
-    description: text('description'),
-    category: text('category').notNull(),
-    cronExpr: text('cron_expr').notNull(),
-    cronTz: text('cron_tz'),
-    promptTemplate: text('prompt_template').notNull().default(''),
-    actions: text('actions').notNull().default('[]'),
-    taskConfig: text('task_config'),
     projectId: text('project_id').references(() => projects.id, { onDelete: 'set null' }),
+    triggerConfig: text('trigger_config'),
+    conversationConfig: text('conversation_config'),
+    taskConfig: text('task_config'),
     enabled: integer('enabled').notNull().default(1),
-    isDraft: integer('is_draft').notNull().default(0),
-    lastRunAt: integer('last_run_at'),
-    nextRunAt: integer('next_run_at'),
-    deadlinePolicy: text('deadline_policy').notNull().default('next-interval'),
-    deadlineMs: integer('deadline_ms'),
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
+    deletedAt: integer('deleted_at'),
   },
   (table) => ({
-    enabledNextRunIdx: index('idx_automations_enabled_next_run').on(table.enabled, table.nextRunAt),
     projectIdIdx: index('idx_automations_project_id').on(table.projectId),
   })
 );
@@ -324,13 +317,16 @@ export const automationRuns = sqliteTable(
     scheduledAt: integer('scheduled_at'),
     deadlineAt: integer('deadline_at'),
     startedAt: integer('started_at'),
+    taskCreatedAt: integer('task_created_at'),
+    launchedAt: integer('launched_at'),
     finishedAt: integer('finished_at'),
     status: text('status').notNull(),
-    taskId: text('task_id').references(() => tasks.id, { onDelete: 'set null' }),
-    createdTaskId: text('created_task_id'),
     error: text('error'),
     triggerKind: text('trigger_kind').notNull(),
-    workerId: text('worker_id'),
+    triggerConfigSnapshot: text('trigger_config_snapshot').notNull().default('{}'),
+    conversationConfigSnapshot: text('conversation_config_snapshot').notNull().default('{}'),
+    taskConfigSnapshot: text('task_config_snapshot'),
+    generatedTaskName: text('generated_task_name'),
   },
   (table) => ({
     automationStartedIdx: index('idx_automation_runs_automation_started').on(
@@ -346,7 +342,10 @@ export const automationRuns = sqliteTable(
       table.status
     ),
     statusIdx: index('idx_automation_runs_status').on(table.status),
-    createdTaskIdIdx: index('idx_automation_runs_created_task_id').on(table.createdTaskId),
+    statusScheduledIdx: index('idx_automation_runs_status_scheduled').on(
+      table.status,
+      table.scheduledAt
+    ),
   })
 );
 
@@ -372,6 +371,8 @@ export const conversations = sqliteTable(
     lastInteractedAt: text('last_interacted_at'),
     isInitialConversation: integer('is_initial_conversation', { mode: 'boolean' }),
     sessionId: text('session_id'),
+    agentStatus: text('agent_status'),
+    agentStatusSeen: integer('agent_status_seen').default(1),
   },
   (table) => ({
     taskIdIdx: index('idx_conversations_task_id').on(table.taskId),
@@ -513,10 +514,6 @@ export const automationRunsRelations = relations(automationRuns, ({ one }) => ({
   automation: one(automations, {
     fields: [automationRuns.automationId],
     references: [automations.id],
-  }),
-  task: one(tasks, {
-    fields: [automationRuns.taskId],
-    references: [tasks.id],
   }),
 }));
 

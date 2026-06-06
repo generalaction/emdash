@@ -12,7 +12,7 @@ function sanitize(raw: string): string {
     .slice(0, MAX_TASK_NAME_LENGTH);
 }
 
-function generateRandom(): string {
+export function generateRandom(): string {
   return sanitize(humanId({ separator: '-', capitalize: false }));
 }
 

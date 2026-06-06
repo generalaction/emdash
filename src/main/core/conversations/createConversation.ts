@@ -12,8 +12,9 @@ import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { serializeConversationConfig, type ConversationConfig } from '@shared/conversation-config';
 import { type Conversation, type CreateConversationParams } from '@shared/conversations';
-import { agentEventChannel, type AgentEvent } from '@shared/events/agentEvents';
+import { type AgentEvent } from '@shared/events/agentEvents';
 import { conversationCreatedChannel } from '@shared/events/conversationEvents';
+import { agentHookService } from '../agent-hooks/agent-hook-service';
 import { isAppFocused } from '../agent-hooks/notification';
 import { resolveTask } from '../projects/utils';
 import { conversationEvents } from './conversation-events';
@@ -38,7 +39,7 @@ function emitInitialPromptStarted(
     timestamp: Date.now(),
     payload: {},
   };
-  events.emit(agentEventChannel, { event: agentEvent, appFocused: isAppFocused() });
+  agentHookService.emitAgentEvent(agentEvent, isAppFocused());
 }
 
 export async function createConversation(

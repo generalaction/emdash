@@ -22,6 +22,8 @@ const CLAUDE_SETTINGS_PATH = '.claude/settings.local.json';
 const DEVIN_HOOKS_PATH = '.devin/hooks.v1.json';
 const CODEX_CONFIG_PATH = '.codex/config.toml';
 const CODEX_HOOKS_PATH = '.codex/hooks.json';
+const KIMI_CONFIG_PATH = '.kimi-code/config.toml';
+const LEGACY_KIMI_CONFIG_PATH = '.kimi/config.toml';
 const GROK_HOOKS_PATH = '.grok/hooks/emdash.json';
 const COPILOT_HOOKS_PATH = '.github/hooks/emdash.json';
 const QWEN_SETTINGS_PATH = '.qwen/settings.json';
@@ -32,6 +34,15 @@ const OPENCODE_PLUGIN_PATH = '.opencode/plugins/emdash-notifications.js';
 const GITIGNORE_PATH = '.gitignore';
 type HookConfigWriteOptions = { writeGitIgnoreEntries?: boolean };
 type CodexHookEvent = 'Stop' | 'PermissionRequest' | 'SessionStart';
+type KimiHookEvent =
+  | 'Notification'
+  | 'PostToolUse'
+  | 'PostToolUseFailure'
+  | 'SessionEnd'
+  | 'SessionStart'
+  | 'Stop'
+  | 'StopFailure'
+  | 'UserPromptSubmit';
 type CopilotHookEvent = 'agentStop' | 'notification' | 'permissionRequest' | 'sessionStart';
 type GrokHookEvent =
   | 'Notification'
@@ -61,6 +72,17 @@ const CODEX_SESSION_HOOK_EVENT_MAP = [{ hookKey: 'SessionStart' as const }] sati
   hookKey: CodexHookEvent;
 }[];
 
+const KIMI_HOOK_EVENT_MAP = [
+  { hookKey: 'SessionStart', eventType: 'session' },
+  { hookKey: 'UserPromptSubmit', eventType: 'start' },
+  { hookKey: 'PostToolUse', eventType: 'start' },
+  { hookKey: 'PostToolUseFailure', eventType: 'start' },
+  { hookKey: 'Notification', eventType: 'notification' },
+  { hookKey: 'Stop', eventType: 'stop' },
+  { hookKey: 'StopFailure', eventType: 'stop' },
+  { hookKey: 'SessionEnd', eventType: 'stop' },
+] satisfies { hookKey: KimiHookEvent; eventType: 'notification' | 'session' | 'start' | 'stop' }[];
+
 const COPILOT_HOOK_EVENT_MAP = [{ hookKey: 'agentStop', eventType: 'stop' }] satisfies {
   hookKey: CopilotHookEvent;
   eventType: 'stop';
@@ -80,6 +102,37 @@ const DEVIN_HOOK_EVENT_MAP = [
   { hookKey: 'Stop', eventType: 'stop' },
   { hookKey: 'SessionEnd', eventType: 'stop' },
 ] satisfies { hookKey: DevinHookEvent; eventType: 'stop' }[];
+
+function buildKimiHookEntries(existing: unknown[], platform: NodeJS.Platform): unknown[] {
+  const userEntries = existing.filter((entry) => !JSON.stringify(entry).includes(EMDASH_MARKER));
+  const emdashEntries = KIMI_HOOK_EVENT_MAP.map(({ hookKey, eventType }) => ({
+    event: hookKey,
+    command: makeClaudeHookCommand(eventType, { platform }),
+  }));
+  return [...userEntries, ...emdashEntries];
+}
+
+export function addKimiHooksToConfigText(
+  content: string,
+  options: { platform?: NodeJS.Platform } = {}
+): string {
+  const platform = options.platform ?? process.platform;
+  try {
+    const config = JSON.parse(content) as Record<string, unknown>;
+    const hooks = Array.isArray(config.hooks) ? config.hooks : [];
+    config.hooks = buildKimiHookEntries(hooks, platform);
+    return JSON.stringify(config);
+  } catch {}
+
+  try {
+    const config = toml.parse(content) as Record<string, unknown>;
+    const hooks = Array.isArray(config.hooks) ? config.hooks : [];
+    config.hooks = buildKimiHookEntries(hooks, platform);
+    return toml.stringify(config);
+  } catch {
+    return content;
+  }
+}
 
 const LEGACY_CODEX_NOTIFY_COMMAND = [
   'bash',
@@ -270,6 +323,34 @@ export class HookConfigWriter {
     return true;
   }
 
+  async writeKimiHooks(): Promise<boolean> {
+    const wroteConfig = await this.writeKimiHookConfig(KIMI_CONFIG_PATH);
+    const wroteLegacyConfig = await this.writeKimiHookConfig(LEGACY_KIMI_CONFIG_PATH);
+    return wroteConfig || wroteLegacyConfig;
+  }
+
+  private async writeKimiHookConfig(path: string): Promise<boolean> {
+    let config: Record<string, unknown> = {};
+    if (await this.userFs.exists(path)) {
+      try {
+        const file = await this.userFs.read(path);
+        config = toml.parse(file.content) as Record<string, unknown>;
+      } catch (error) {
+        log.warn('KimiHooks: failed to parse config; leaving it unchanged', {
+          path,
+          error: String(error),
+        });
+        return false;
+      }
+    }
+
+    const hooks = Array.isArray(config.hooks) ? config.hooks : [];
+    config.hooks = buildKimiHookEntries(hooks, this.platform);
+
+    await this.userFs.write(path, toml.stringify(config));
+    return true;
+  }
+
   async writeQwenHooks(): Promise<boolean> {
     if (!(await resolveCommandPath('qwen', this.exec))) return false;
 
@@ -419,6 +500,10 @@ export class HookConfigWriter {
       return this.writeGrokHooks();
     }
 
+    if (providerId === 'kimi') {
+      return this.writeKimiHooks();
+    }
+
     if (providerId === 'copilot') {
       const wroteConfig = await this.writeCopilotHooks();
       if (wroteConfig && writeGitIgnoreEntries) {
@@ -485,6 +570,7 @@ export class HookConfigWriter {
           'claude',
           'codex',
           'grok',
+          'kimi',
           'copilot',
           'qwen',
           'devin',

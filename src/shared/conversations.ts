@@ -1,5 +1,6 @@
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 import type { ConversationUiMode } from '@shared/conversation-ui';
+import type { AgentStatus } from '@shared/events/agentEvents';
 import type { CodexServiceTier, NativeChatReasoningEffort } from '@shared/native-chat';
 
 export const MAX_CONVERSATION_TITLE_LENGTH = 100;
@@ -24,6 +25,8 @@ export type Conversation = {
   /** Codex native chat: speed (service tier) override; absent means standard. */
   serviceTier?: CodexServiceTier;
   isInitialConversation: boolean | null;
+  agentStatus?: AgentStatus | null;
+  agentStatusSeen?: boolean;
 };
 
 export type RenameConversationParams = {
