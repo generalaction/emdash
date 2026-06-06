@@ -112,12 +112,27 @@ the only downside is N near-identical worktrees each hold a full `graph.json`.
 If first-extract latency or disk ever hurts in practice, baseline-sharing via
 `graphify merge-graphs` is a future optimization — not v1.
 
-### 3. Wire the MCP server into the agent config
+### 3. Wire the MCP server into the agent config (project-local `.mcp.json`)
 
-Write the `python -m graphify.serve <worktree>/graphify-out/graph.json` stdio
-MCP server entry into each worktree's agent MCP config, reusing the existing
-config-writing in `McpService` (which already manages MCP server configs across
-providers). The agent then spawns the graph MCP server itself on session start.
+**Verified constraint:** `McpService` writes MCP configs **globally** to the
+agent's user-level config (`~/.claude.json` etc.) with **no per-worktree
+scoping**. Using it would point every worktree at one `graph.json` — broken.
+
+Instead, CodeGraphService writes a **project-local `.mcp.json`** at each
+worktree root — Claude Code's native project-scoped MCP mechanism. The entry is
+a stdio server: `command: python`, `args: [-m, graphify.serve,
+<worktree>/graphify-out/graph.json]`, pointing at *that* worktree's graph. This
+is naturally per-worktree, travels with the worktree (so it works identically
+for local, SSH, and Docker hosts), and bypasses the global-config model.
+
+Writing must be **non-destructive**: if a `.mcp.json` already exists, merge the
+`graphify` entry into its `mcpServers` map without disturbing the user's other
+servers (dedupe by the `graphify` key). The agent spawns the graph MCP server
+itself on session start.
+
+We reuse `McpService`'s JSONC-merge *utilities* (`config-io.ts` already does
+surgical, comment-preserving merges) but target the worktree path rather than
+the global path — we do not route through `saveServer()`.
 
 ### 4. Surface status in the UI (pill + detail popover)
 
@@ -183,26 +198,26 @@ per-extract token cost) is **deferred** to a later iteration.
 - **Python provisioning over SSH.** Remote hosts may lack Python; the
   degrade-gracefully path must be genuinely silent (status only, no errors in
   the normal flow).
-- **MCP config collisions.** Writing into agent configs must not clobber the
-  user's existing MCP servers; reuse `McpService`'s merge semantics, scoped per
-  worktree. This is treated as a **gating prerequisite** — milestone 1 verifies
-  it against the actual `McpService` code before any wiring is built.
+- **MCP config collisions.** RESOLVED during planning: `McpService` is global
+  only, so we write a project-local `.mcp.json` at the worktree root instead
+  (see job #3). Writing must merge non-destructively into any existing
+  `.mcp.json` (dedupe by the `graphify` key), reusing `config-io.ts` merge
+  utilities against the worktree path rather than `saveServer()`.
 
 ## Milestones
 
-No spike — we go straight to full implementation. The implementation plan must,
-however, **begin by verifying the `McpService` merge semantics** (see "MCP
-config collisions" risk): confirm against the actual code that we can write a
-per-worktree graph MCP entry without clobbering the user's existing MCP servers,
-and pin down the exact merge/scope API before any wiring work. If that
-assumption proves false, surface it before proceeding to milestone 3.
+No spike — straight to full implementation. The `McpService` scoping question
+was resolved during planning (it is global-only; we use a project-local
+`.mcp.json` instead — see job #3), so no gating verification milestone remains.
 
-1. **Verify `McpService` merge semantics** (gating prerequisite): read the
-   actual config-writing/merge code, confirm per-worktree non-destructive
-   registration is possible, document the API the plan will use.
-2. **CodeGraphService v1:** provision-probe + per-worktree `extract --update` on
-   create/change + commit-hook install.
-3. **MCP wiring:** register the graph MCP server in agent config via `McpService`.
-4. **Status UI:** status RPC + header pill (`building/ready/unavailable`) +
-   detail popover (counts, last-indexed, MCP-wired confirmation, Re-index button).
+1. **CodeGraphService skeleton:** singleton + RPC controller + `rpc.ts`
+   registration; provision-probe for `python`/`graphify` with graceful
+   `unavailable`.
+2. **Extraction:** per-worktree `extract --update` on worktree create + git
+   `status:updated` (debounced, serialized) + `graphify hook install` once.
+3. **MCP wiring:** write/merge the graphify stdio entry into the worktree's
+   project-local `.mcp.json` (reusing `config-io.ts` merge utilities).
+4. **Status UI:** status event + RPC + header pill
+   (`building/ready/unavailable`) + detail popover (counts, last-indexed,
+   MCP-wired confirmation, Re-index button).
 5. **Runner image:** bake Python + graphify into the Docker runner Dockerfile.
