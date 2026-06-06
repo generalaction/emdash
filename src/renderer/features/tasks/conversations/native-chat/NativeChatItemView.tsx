@@ -113,10 +113,16 @@ export function UserMessageView({
   );
 }
 
-export function AgentMessageView({ text }: { text: string }) {
+export function AgentMessageView({
+  text,
+  onOpenFile,
+}: {
+  text: string;
+  onOpenFile?: (path: string) => void;
+}) {
   return (
     <div className="text-sm leading-relaxed">
-      <MarkdownRenderer content={text} variant="compact" />
+      <MarkdownRenderer content={text} variant="compact" onOpenFile={onOpenFile} />
     </div>
   );
 }
@@ -332,12 +338,18 @@ export function ActivityGroupView({
   );
 }
 
-export function ChatItemView({ item }: { item: NativeChatItem }) {
+export function ChatItemView({
+  item,
+  onOpenFile,
+}: {
+  item: NativeChatItem;
+  onOpenFile?: (path: string) => void;
+}) {
   switch (item.kind) {
     case 'user_message':
       return <UserMessageView text={item.text} attachments={item.attachments} />;
     case 'agent_message':
-      return <AgentMessageView text={item.text} />;
+      return <AgentMessageView text={item.text} onOpenFile={onOpenFile} />;
     case 'system':
       return <SystemNoteView text={item.text} />;
     default:

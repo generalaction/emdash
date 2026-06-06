@@ -13,6 +13,7 @@ import {
 import { observer } from 'mobx-react-lite';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { ConversationStore } from '@renderer/features/tasks/conversations/conversation-manager';
+import { openFileInTaskEditor } from '@renderer/features/tasks/stores/open-file-in-file-editor';
 import AgentLogo from '@renderer/lib/components/agent-logo';
 import { rpc } from '@renderer/lib/ipc';
 import { agentMeta } from '@renderer/lib/providers/meta';
@@ -547,6 +548,12 @@ export const NativeChatPanel = observer(function NativeChatPanel({
     setStickToBottom(true);
   };
 
+  // Inline code spans that look like workspace files open in the file editor.
+  const handleOpenFile = useMemo(
+    () => (path: string) => void openFileInTaskEditor(projectId, taskId, path),
+    [projectId, taskId]
+  );
+
   const canSend =
     (draft.trim().length > 0 || attachments.length > 0) && !isRunning && !store.isSending;
 
@@ -651,7 +658,11 @@ export const NativeChatPanel = observer(function NativeChatPanel({
                     }
                   />
                 ) : (
-                  <ChatItemView key={segment.item.key} item={segment.item} />
+                  <ChatItemView
+                    key={segment.item.key}
+                    item={segment.item}
+                    onOpenFile={handleOpenFile}
+                  />
                 )
               )}
               {isRunning && <WorkingIndicator />}
