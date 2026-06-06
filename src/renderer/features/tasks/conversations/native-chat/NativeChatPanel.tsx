@@ -463,7 +463,30 @@ export const NativeChatPanel = observer(function NativeChatPanel({
     void addFiles(files);
   };
 
+  // Highlight the composer while a file drag hovers it. dragleave fires on
+  // every child boundary, so track enter/leave depth instead of a boolean.
+  const [isDragOver, setIsDragOver] = useState(false);
+  const dragDepthRef = useRef(0);
+
+  const dragHasFiles = (event: React.DragEvent) =>
+    Array.from(event.dataTransfer?.types ?? []).includes('Files');
+
+  const handleDragEnter = (event: React.DragEvent) => {
+    if (!dragHasFiles(event)) return;
+    event.preventDefault();
+    dragDepthRef.current += 1;
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (event: React.DragEvent) => {
+    if (!dragHasFiles(event)) return;
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) setIsDragOver(false);
+  };
+
   const handleDrop = (event: React.DragEvent) => {
+    dragDepthRef.current = 0;
+    setIsDragOver(false);
     const files = Array.from(event.dataTransfer?.files ?? []);
     if (files.length === 0) return;
     event.preventDefault();
@@ -667,9 +690,14 @@ export const NativeChatPanel = observer(function NativeChatPanel({
         )}
 
         <div
-          className="relative rounded-xl border border-border bg-background transition-colors focus-within:border-border-2"
+          className={cn(
+            'relative rounded-xl border border-border bg-background transition-colors focus-within:border-border-2',
+            isDragOver && 'border-border-primary ring-2 ring-primary/30'
+          )}
           onDrop={handleDrop}
           onDragOver={(e) => e.preventDefault()}
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
         >
           {showSlashMenu && (
             <SlashMenu
