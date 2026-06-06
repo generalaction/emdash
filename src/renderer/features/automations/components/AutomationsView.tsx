@@ -60,11 +60,12 @@ export function AutomationsView() {
           </div>
         </div>
       </div>
-      <Sheet open={liveAutomation !== null || creating} onOpenChange={(open) => !open && closeSheet()}>
+      <Sheet
+        open={liveAutomation !== null || creating}
+        onOpenChange={(open) => !open && closeSheet()}
+      >
         <SheetContent showCloseButton={false}>
-          {creating && (
-            <CreateAutomationView onClose={closeSheet} onSaved={closeSheet} />
-          )}
+          {creating && <CreateAutomationView onClose={closeSheet} onSaved={closeSheet} />}
           {liveAutomation && (
             <AutomationDetailView
               automation={liveAutomation}

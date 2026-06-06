@@ -21,15 +21,10 @@ export function RunMetaLine({ displayTime, triggerKind, runStatus, error }: RunM
       <span className="flex-1">
         {displayTime ? (
           <div className="flex items-center gap-2">
-            <AbsoluteTime
-              className="text-tiny text-foreground-muted"
-              value={displayTime}
-            />
+            <AbsoluteTime className="text-tiny text-foreground-muted" value={displayTime} />
             <span className="text-foreground-passive">•</span>
             {triggerLabel && (
-              <span className="shrink-0 text-tiny text-foreground-passive">
-                {triggerLabel}
-              </span>
+              <span className="shrink-0 text-tiny text-foreground-passive">{triggerLabel}</span>
             )}
           </div>
         ) : (

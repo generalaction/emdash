@@ -77,11 +77,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
       aria-disabled={!interactive}
     >
       {taskStore ? (
-        <TaskDataLine
-          task={taskStore}
-          agentStatus={agentStatus}
-          missedDeadline={missedDeadline}
-        />
+        <TaskDataLine task={taskStore} agentStatus={agentStatus} missedDeadline={missedDeadline} />
       ) : (
         <TaskPlaceholder name={displayName} />
       )}

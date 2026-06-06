@@ -12,6 +12,7 @@ const issueSchema = z.object({
     'featurebase',
     'asana',
     'monday',
+    'trello',
   ]),
   url: z.string(),
   title: z.string(),
