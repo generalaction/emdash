@@ -211,7 +211,7 @@ function DefaultGitHubAccountBadge({ login }: { login: string }) {
   return (
     <TooltipProvider delay={150}>
       <Tooltip>
-        <TooltipTrigger>
+        <TooltipTrigger className="inline-flex h-4.5 items-center leading-none">
           <Badge variant="secondary">Default</Badge>
         </TooltipTrigger>
         <TooltipContent side="top">New projects will use @{login} by default.</TooltipContent>
