@@ -132,6 +132,8 @@ export const tasks = sqliteTable(
     workspaceId: text('workspace_id'),
     workspaceProviderData: text('workspace_provider_data'), // @deprecated — superseded by workspaces.data
     workspaceIntent: text('workspace_intent'), // JSON: { git: GitSetup; workspace: WorkspaceLocation }
+    type: text('type').notNull().default('task'), // 'task' | 'automation-run'
+    automationRunId: text('automation_run_id'), // set when type = 'automation-run'; FK added after automationRuns is defined
   },
   (table) => ({
     projectIdIdx: index('idx_tasks_project_id').on(table.projectId),
@@ -319,7 +321,6 @@ export const automationRuns = sqliteTable(
     launchedAt: integer('launched_at'),
     finishedAt: integer('finished_at'),
     status: text('status').notNull(),
-    taskId: text('task_id').references(() => tasks.id, { onDelete: 'set null' }),
     error: text('error'),
     triggerKind: text('trigger_kind').notNull(),
     triggerConfigSnapshot: text('trigger_config_snapshot').notNull().default('{}'),
@@ -513,10 +514,6 @@ export const automationRunsRelations = relations(automationRuns, ({ one }) => ({
   automation: one(automations, {
     fields: [automationRuns.automationId],
     references: [automations.id],
-  }),
-  task: one(tasks, {
-    fields: [automationRuns.taskId],
-    references: [tasks.id],
   }),
 }));
 

@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
 import { createConversation } from '@main/core/conversations/createConversation';
 import { openProject } from '@main/core/projects/operations/openProject';
 import { projectManager } from '@main/core/projects/project-manager';
@@ -14,7 +13,6 @@ import {
 import { taskService } from '@main/core/tasks/task-service';
 import { db } from '@main/db/client';
 import type { ConversationRow, TaskRow } from '@main/db/schema';
-import { automationRuns } from '@main/db/schema';
 import { resolveAutomationAgentAutoApprove } from '@shared/agent-auto-approve-defaults';
 import type { AgentProviderId } from '@shared/agent-provider-registry';
 import type { Automation } from '@shared/automations/automation';
@@ -100,6 +98,7 @@ export async function executeTaskCreate(
         initialStatus: taskConfig?.taskConfig.initialStatus,
       },
       workspaceConfig,
+      automationRunId: run.id,
     };
 
     const prepared = await prepareCreateTask(createTaskParams);
@@ -155,13 +154,12 @@ export async function executeTaskCreate(
     let convRow: ConversationRow | undefined;
     db.transaction((tx) => {
       ({ taskRow, convRow } = commitCreateTask(prepared.data, tx));
-      tx.update(automationRuns).set({ taskId }).where(eq(automationRuns.id, run.id)).run();
     });
 
     const createSuccess = finalizeCreateTask(prepared.data, taskRow, convRow);
-    taskService.notifyTaskCreated(createSuccess.task, createTaskParams, run.id);
+    taskService.notifyTaskCreated(createSuccess.task, createTaskParams);
 
-    const launching = await markRunLaunchingTask(run.id, taskId, Date.now());
+    const launching = await markRunLaunchingTask(run.id, Date.now());
     onStepCompleted(launching);
 
     try {

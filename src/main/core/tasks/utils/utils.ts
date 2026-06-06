@@ -22,5 +22,7 @@ export function mapTaskRowToTask(
     statusChangedAt: row.statusChangedAt,
     isPinned: row.isPinned === 1,
     workspaceId: row.workspaceId ?? undefined,
+    type: (row.type as 'task' | 'automation-run') ?? 'task',
+    automationRunId: row.automationRunId ?? undefined,
   };
 }

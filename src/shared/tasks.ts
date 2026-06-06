@@ -93,7 +93,8 @@ export type Task = {
   conversations: Record<string, number>;
   workspaceGit?: { linesAdded: number; linesDeleted: number };
   workspaceId?: string;
-  runId?: string;
+  type: 'task' | 'automation-run';
+  automationRunId?: string;
 };
 
 export type TaskBootstrapStatus =
@@ -109,6 +110,8 @@ export type CreateTaskParams = {
   taskConfig: TaskConfig;
   /** Typed, versioned workspace configuration (git setup + workspace location). */
   workspaceConfig: WorkspaceConfig;
+  /** Set when the task is created by an automation run; stored on the task row for audit trail. */
+  automationRunId?: string;
 };
 
 export type CreateTaskError =

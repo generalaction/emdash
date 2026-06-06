@@ -25,7 +25,6 @@ import type {
   Task,
 } from '@shared/tasks';
 import { archiveTask } from './operations/archiveTask';
-import { convertAutomationTask } from './operations/convertAutomationTask';
 import { createTask } from './operations/createTask';
 import { deleteTask } from './operations/deleteTask';
 import { getDeletePreflight } from './operations/getDeletePreflight';
@@ -70,12 +69,10 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
   }
 
   /** Fires the task:created hook and event. Call this after committing a task insert
-   *  that was performed outside of `createTask` (e.g. inside an external transaction).
-   *  Pass `runId` when the task was created by an automation run so the renderer can
-   *  suppress it from the sidebar immediately without waiting for a full task refresh. */
-  notifyTaskCreated(task: Task, params: CreateTaskParams, runId?: string): void {
+   *  that was performed outside of `createTask` (e.g. inside an external transaction). */
+  notifyTaskCreated(task: Task, params: CreateTaskParams): void {
     this._hooks.callHookBackground('task:created', task, params);
-    events.emit(taskCreatedChannel, { task, runId });
+    events.emit(taskCreatedChannel, { task });
   }
 
   /**
@@ -211,8 +208,15 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
   }
 
   async convertAutomationTask(taskId: string): Promise<Task | null> {
-    const task = await convertAutomationTask(taskId);
-    if (task) this._hooks.callHookBackground('task:updated', task);
+    const [row] = await db
+      .update(tasks)
+      .set({ type: 'task', updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(tasks.id, taskId))
+      .returning();
+    if (!row) return null;
+
+    const task: Task = { ...mapTaskRowToTask(row), prs: [], conversations: {} };
+    this._hooks.callHookBackground('task:updated', task);
     return task;
   }
 

@@ -1,6 +1,6 @@
 import { and, asc, count, desc, eq, ne, sql } from 'drizzle-orm';
 import { db } from '@main/db/client';
-import { automationRuns } from '@main/db/schema';
+import { automationRuns, tasks } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
@@ -135,8 +135,9 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
     statusFilter?: 'done' | 'failed' | 'skipped'
   ): Promise<AutomationRun[]> {
     const rows = await db
-      .select()
+      .select({ run: automationRuns, taskId: tasks.id })
       .from(automationRuns)
+      .leftJoin(tasks, eq(tasks.automationRunId, automationRuns.id))
       .where(
         and(
           eq(automationRuns.automationId, automationId),
@@ -147,7 +148,7 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
       .orderBy(desc(automationRuns.startedAt))
       .limit(limit)
       .offset(offset);
-    return rows.map(mapAutomationRunRowToAutomationRun);
+    return rows.map(({ run, taskId }) => mapAutomationRunRowToAutomationRun(run, taskId));
   }
 
   async countAutomationRunsByStatus(
@@ -169,26 +170,28 @@ export class AutomationsService implements Hookable<AutomationsServiceHooks> {
 
   async getLatestRun(automationId: string): Promise<AutomationRun | null> {
     const rows = await db
-      .select()
+      .select({ run: automationRuns, taskId: tasks.id })
       .from(automationRuns)
+      .leftJoin(tasks, eq(tasks.automationRunId, automationRuns.id))
       .where(
         and(eq(automationRuns.automationId, automationId), ne(automationRuns.status, 'scheduled'))
       )
       .orderBy(desc(automationRuns.startedAt))
       .limit(1);
-    return rows[0] ? mapAutomationRunRowToAutomationRun(rows[0]) : null;
+    return rows[0] ? mapAutomationRunRowToAutomationRun(rows[0].run, rows[0].taskId) : null;
   }
 
   async getNextScheduledRun(automationId: string): Promise<AutomationRun | null> {
     const rows = await db
-      .select()
+      .select({ run: automationRuns, taskId: tasks.id })
       .from(automationRuns)
+      .leftJoin(tasks, eq(tasks.automationRunId, automationRuns.id))
       .where(
         and(eq(automationRuns.automationId, automationId), eq(automationRuns.status, 'scheduled'))
       )
       .orderBy(asc(automationRuns.scheduledAt))
       .limit(1);
-    return rows[0] ? mapAutomationRunRowToAutomationRun(rows[0]) : null;
+    return rows[0] ? mapAutomationRunRowToAutomationRun(rows[0].run, rows[0].taskId) : null;
   }
 
   async runAutomation(id: string): Promise<AutomationRun> {

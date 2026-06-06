@@ -190,7 +190,6 @@ describe('AutomationScheduler recovery', () => {
       status: 'launching_task',
       triggerKind: 'cron',
       startedAt: Date.now(),
-      taskId: 'task-placeholder',
     });
 
     const scheduler = new AutomationScheduler(makeCallbacks(), doneExecutor);
@@ -215,7 +214,6 @@ describe('AutomationScheduler recovery', () => {
       status: 'creating_conversation',
       triggerKind: 'cron',
       startedAt: Date.now(),
-      taskId: 'task-placeholder',
     });
 
     const scheduler = new AutomationScheduler(makeCallbacks(), doneExecutor);

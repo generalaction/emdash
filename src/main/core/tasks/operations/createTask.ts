@@ -136,6 +136,8 @@ export function commitCreateTask(
       linkedIssue: params.taskConfig.linkedIssue
         ? JSON.stringify(params.taskConfig.linkedIssue)
         : null,
+      type: params.automationRunId ? 'automation-run' : 'task',
+      automationRunId: params.automationRunId ?? null,
       updatedAt: sql`CURRENT_TIMESTAMP`,
       statusChangedAt: sql`CURRENT_TIMESTAMP`,
       lastInteractedAt: sql`CURRENT_TIMESTAMP`,

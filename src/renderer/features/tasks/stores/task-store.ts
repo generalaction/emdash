@@ -32,7 +32,8 @@ export type UnregisteredTaskData = {
   createdAt: string;
   statusChangedAt: string;
   isPinned: boolean;
-  runId?: string;
+  type: 'task' | 'automation-run';
+  automationRunId?: string;
 };
 
 export class TaskStore {

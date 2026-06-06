@@ -28,13 +28,9 @@ export async function markRunCreatingTask(runId: string, now: number): Promise<A
   return updateRunOrThrow(runId, { status: 'creating_task', startedAt: now });
 }
 
-/** creating_task → launching_task, writes taskId + taskCreatedAt */
-export async function markRunLaunchingTask(
-  runId: string,
-  taskId: string,
-  now: number
-): Promise<AutomationRun> {
-  return updateRunOrThrow(runId, { status: 'launching_task', taskId, taskCreatedAt: now });
+/** creating_task → launching_task, writes taskCreatedAt */
+export async function markRunLaunchingTask(runId: string, now: number): Promise<AutomationRun> {
+  return updateRunOrThrow(runId, { status: 'launching_task', taskCreatedAt: now });
 }
 
 /** launching_task → creating_conversation, writes launchedAt */

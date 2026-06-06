@@ -20,7 +20,10 @@ export function mapAutomationRowToAutomation(row: AutomationRow): Automation {
   };
 }
 
-export function mapAutomationRunRowToAutomationRun(row: AutomationRunRow): AutomationRun {
+export function mapAutomationRunRowToAutomationRun(
+  row: AutomationRunRow,
+  taskId: string | null = null
+): AutomationRun {
   return {
     id: row.id,
     automationId: row.automationId,
@@ -39,7 +42,7 @@ export function mapAutomationRunRowToAutomationRun(row: AutomationRunRow): Autom
     taskCreatedAt: row.taskCreatedAt,
     launchedAt: row.launchedAt,
     finishedAt: row.finishedAt,
-    taskId: row.taskId,
+    taskId,
     generatedTaskName: row.generatedTaskName ?? null,
     error: row.error,
   };

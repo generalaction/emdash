@@ -17,7 +17,6 @@ import {
   conversationAgentStatusChangedChannel,
   conversationChangedChannel,
 } from '@shared/events/conversationEvents';
-import { stopAutomationSessionAfterDone } from './automation-pty-cleanup';
 import { handleCodexSessionStartHook } from './codex-session-start';
 import { enrichEvent } from './event-enricher';
 import { handleProviderSessionHook } from './handle-provider-session-hook';
@@ -92,7 +91,6 @@ class AgentHookService implements IInitializable, IDisposable, Hookable<AgentHoo
       const appFocused = isAppFocused();
       await maybeShowNotification(event, appFocused);
       this.emitAgentEvent(event, appFocused);
-      void stopAutomationSessionAfterDone(event);
     });
 
     conversationEvents.on(

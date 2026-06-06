@@ -7,6 +7,7 @@ import {
   automationRuns,
   automations,
   projects,
+  tasks,
   type AutomationRow,
   type AutomationRunRow,
 } from '@main/db/schema';
@@ -177,7 +178,7 @@ function parseSnapshotConversationConfig(raw: string, runId: string): Conversati
   return { prompt: '', provider: '', autoApprove: false };
 }
 
-function mapAutomationRunRow(row: AutomationRunRow): AutomationRun {
+function mapAutomationRunRow(row: AutomationRunRow, taskId: string | null = null): AutomationRun {
   return {
     id: row.id,
     automationId: row.automationId,
@@ -188,7 +189,7 @@ function mapAutomationRunRow(row: AutomationRunRow): AutomationRun {
     launchedAt: row.launchedAt,
     finishedAt: row.finishedAt,
     status: asRunStatus(row.status, row.id),
-    taskId: row.taskId,
+    taskId,
     generatedTaskName: row.generatedTaskName ?? null,
     error: row.error,
     triggerKind: asRunTriggerKind(row.triggerKind, row.id),
@@ -258,7 +259,7 @@ export async function skipQueuedCronRuns(
       )
     )
     .returning();
-  return rows.map(mapAutomationRunRow);
+  return rows.map((row) => mapAutomationRunRow(row));
 }
 
 async function projectExists(projectId: string): Promise<boolean> {
@@ -443,12 +444,7 @@ export async function markDueCronRunsQueued(
   return rows.flatMap(({ run, automation }) => {
     const mappedAutomation = mapAutomationRowSafely(automation);
     return mappedAutomation
-      ? [
-          {
-            run: { ...mapAutomationRunRow(run), status: 'queued' as const },
-            automation: mappedAutomation,
-          },
-        ]
+      ? [{ run: { ...mapAutomationRunRow(run), status: 'queued' as const }, automation: mappedAutomation }]
       : [];
   });
 }
@@ -522,7 +518,6 @@ export async function scheduleAutomationRun(input: {
       launched_at AS launchedAt,
       finished_at AS finishedAt,
       status,
-      task_id AS taskId,
       generated_task_name AS generatedTaskName,
       error,
       trigger_kind AS triggerKind,
@@ -554,9 +549,7 @@ export async function listQueuedRuns(limit = 100): Promise<
     .limit(limit);
   return rows.flatMap(({ run, automation }) => {
     const mappedAutomation = mapAutomationRowSafely(automation);
-    return mappedAutomation
-      ? [{ run: mapAutomationRunRow(run), automation: mappedAutomation }]
-      : [];
+    return mappedAutomation ? [{ run: mapAutomationRunRow(run), automation: mappedAutomation }] : [];
   });
 }
 
@@ -579,7 +572,6 @@ export async function startCreatingTask(
       launched_at AS launchedAt,
       finished_at AS finishedAt,
       status,
-      task_id AS taskId,
       error,
       trigger_kind AS triggerKind,
       trigger_config_snapshot AS triggerConfigSnapshot,
@@ -590,22 +582,13 @@ export async function startCreatingTask(
   return row ? mapAutomationRunRow(row) : null;
 }
 
-export async function taskWasCreatedByAutomationRun(taskIdValue: string): Promise<boolean> {
-  const rows = await db
-    .select({ id: automationRuns.id })
-    .from(automationRuns)
-    .where(
-      and(
-        inArray(automationRuns.status, [
-          'creating_task',
-          'launching_task',
-          'creating_conversation',
-        ]),
-        eq(automationRuns.taskId, taskIdValue)
-      )
-    )
+export async function isAutomationRunTask(taskId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ type: tasks.type })
+    .from(tasks)
+    .where(eq(tasks.id, taskId))
     .limit(1);
-  return rows.length > 0;
+  return row?.type === 'automation-run';
 }
 
 export async function insertRun(input: {
@@ -621,7 +604,6 @@ export async function insertRun(input: {
   taskCreatedAt?: number | null;
   launchedAt?: number | null;
   finishedAt?: number | null;
-  taskId?: string | null;
   generatedTaskName?: string | null;
   error?: string | null;
 }): Promise<AutomationRun> {
@@ -637,7 +619,6 @@ export async function insertRun(input: {
       launchedAt: input.launchedAt ?? null,
       finishedAt: input.finishedAt ?? null,
       status: input.status,
-      taskId: input.taskId ?? null,
       generatedTaskName: input.generatedTaskName ?? generateRandom(),
       error: input.error ?? null,
       triggerKind: input.triggerKind,
@@ -663,7 +644,6 @@ export async function updateRun(
       | 'launchedAt'
       | 'finishedAt'
       | 'status'
-      | 'taskId'
       | 'error'
     >
   >
@@ -677,18 +657,21 @@ export async function updateRun(
 }
 
 export async function findRunsStuckInCreatingTask(): Promise<Array<{ id: string }>> {
-  return db
-    .select({ id: automationRuns.id })
+  const rows = await db
+    .select({ id: automationRuns.id, taskId: tasks.id })
     .from(automationRuns)
-    .where(and(eq(automationRuns.status, 'creating_task'), isNull(automationRuns.taskId)));
+    .leftJoin(tasks, eq(tasks.automationRunId, automationRuns.id))
+    .where(and(eq(automationRuns.status, 'creating_task'), isNull(tasks.id)));
+  return rows.map((r) => ({ id: r.id }));
 }
 
 export async function findRunsStuckInLaunchingTask(): Promise<
   Array<{ id: string; taskId: string }>
 > {
   const rows = await db
-    .select({ id: automationRuns.id, taskId: automationRuns.taskId })
+    .select({ id: automationRuns.id, taskId: tasks.id })
     .from(automationRuns)
+    .leftJoin(tasks, eq(tasks.automationRunId, automationRuns.id))
     .where(eq(automationRuns.status, 'launching_task'));
   return rows.filter((r): r is { id: string; taskId: string } => r.taskId !== null);
 }
@@ -697,15 +680,21 @@ export async function findRunsStuckInCreatingConversation(): Promise<
   Array<{ id: string; taskId: string }>
 > {
   const rows = await db
-    .select({ id: automationRuns.id, taskId: automationRuns.taskId })
+    .select({ id: automationRuns.id, taskId: tasks.id })
     .from(automationRuns)
+    .leftJoin(tasks, eq(tasks.automationRunId, automationRuns.id))
     .where(eq(automationRuns.status, 'creating_conversation'));
   return rows.filter((r): r is { id: string; taskId: string } => r.taskId !== null);
 }
 
 export async function getRun(id: string): Promise<AutomationRun | null> {
-  const [row] = await db.select().from(automationRuns).where(eq(automationRuns.id, id)).limit(1);
-  return row ? mapAutomationRunRow(row) : null;
+  const [row] = await db
+    .select({ run: automationRuns, taskId: tasks.id })
+    .from(automationRuns)
+    .leftJoin(tasks, eq(tasks.automationRunId, automationRuns.id))
+    .where(eq(automationRuns.id, id))
+    .limit(1);
+  return row ? mapAutomationRunRow(row.run, row.taskId) : null;
 }
 
 export async function removeRun(id: string): Promise<boolean> {

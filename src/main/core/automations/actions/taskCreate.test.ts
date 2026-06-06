@@ -202,11 +202,7 @@ describe('executeTaskCreate', () => {
 
     expect(result.success).toBe(true);
     expect(commitCreateTask).toHaveBeenCalledWith(preparedData, mockTx);
-    expect(markRunLaunchingTask).toHaveBeenCalledWith(
-      run.id,
-      expect.any(String),
-      expect.any(Number)
-    );
+    expect(markRunLaunchingTask).toHaveBeenCalledWith(run.id, expect.any(Number));
     expect(taskService.launch).toHaveBeenCalled();
   });
 
