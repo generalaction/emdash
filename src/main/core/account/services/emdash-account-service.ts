@@ -206,13 +206,13 @@ export class EmdashAccountService implements Hookable<AccountServiceHooks> {
     const accountLinkState = await this.startAccountLink(sessionToken);
 
     const raw = await executeOAuthFlow({
-      authorizeUrl: `${baseUrl}/auth/github`,
+      authorizeUrl: `${baseUrl}/api/v1/auth/electron/account-link/authorize`,
       exchangeUrl: `${baseUrl}/api/v1/auth/electron/exchange`,
       successRedirectUrl: `${baseUrl}/auth/success`,
       errorRedirectUrl: `${baseUrl}/auth/error`,
       extraParams: {
-        intent: 'link',
         account_link_state: accountLinkState,
+        provider_id: provider,
       },
       timeoutMs: ACCOUNT_CONFIG.authServer.authTimeoutMs,
     });

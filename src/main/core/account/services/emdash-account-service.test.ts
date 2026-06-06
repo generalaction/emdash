@@ -275,13 +275,13 @@ describe('EmdashAccountService', () => {
         })
       );
       expect(mockExecuteOAuthFlow).toHaveBeenCalledWith({
-        authorizeUrl: 'https://auth.test.emdash.sh/auth/github',
+        authorizeUrl: 'https://auth.test.emdash.sh/api/v1/auth/electron/account-link/authorize',
         exchangeUrl: 'https://auth.test.emdash.sh/api/v1/auth/electron/exchange',
         successRedirectUrl: 'https://auth.test.emdash.sh/auth/success',
         errorRedirectUrl: 'https://auth.test.emdash.sh/auth/error',
         extraParams: {
-          intent: 'link',
           account_link_state: 'account-link-state',
+          provider_id: 'github',
         },
         timeoutMs: 5000,
       });
