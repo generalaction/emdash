@@ -52,7 +52,7 @@ const builtinAutomationTemplateInputsByCategory = {
       description:
         'Analyze recent commits for high-severity correctness bugs and submit safe fixes',
       icon: 'Bug',
-      defaultTrigger: { expr: '0 10 * * *', tz: 'UTC' },
+      defaultTrigger: { expr: '0 10 * * MON-FRI', tz: 'UTC' },
       defaultConversationConfig: {
         initialPrompt:
           'Inspect recent code changes for high-severity correctness bugs, regressions, race conditions, data loss risks, and broken edge cases. If you find a real issue, implement the smallest safe fix and validate it with targeted tests.',
@@ -147,7 +147,7 @@ const builtinAutomationTemplateInputsByCategory = {
       description:
         'Use error details you provide in the prompt or project docs to identify root causes and propose fixes',
       icon: 'Search',
-      defaultTrigger: { expr: '0 13 * * *', tz: 'UTC' },
+      defaultTrigger: { expr: '0 13 * * MON-FRI', tz: 'UTC' },
       defaultConversationConfig: {
         initialPrompt:
           'Investigate recurring production errors described in the project context, linked issues, logs, or prompt notes. Identify likely root causes in the codebase, determine user impact, propose the smallest safe fix, and call out any missing telemetry needed to confirm the diagnosis. If no error details are available, report what information is needed instead of guessing.',
@@ -159,7 +159,7 @@ const builtinAutomationTemplateInputsByCategory = {
       description:
         'Investigate bug reports you provide in issues, docs, or prompt notes and fix with a PR',
       icon: 'Wrench',
-      defaultTrigger: { expr: '0 10 * * *', tz: 'UTC' },
+      defaultTrigger: { expr: '0 10 * * MON-FRI', tz: 'UTC' },
       defaultConversationConfig: {
         initialPrompt:
           'Review recent bug reports described in linked issues, project docs, or prompt notes. For actionable issues, reproduce or reason through the failure, identify the responsible code path, implement the smallest safe fix, add regression coverage, and prepare a PR summary. If no bug-report details are available, report what information is needed instead of guessing.',
@@ -170,7 +170,7 @@ const builtinAutomationTemplateInputsByCategory = {
       name: 'Investigate incidents',
       description: 'Investigate incidents using provided incident details and code context',
       icon: 'Search',
-      defaultTrigger: { expr: '0 15 * * *', tz: 'UTC' },
+      defaultTrigger: { expr: '0 15 * * MON-FRI', tz: 'UTC' },
       defaultConversationConfig: {
         initialPrompt:
           'Investigate recent incidents described in linked issues, project docs, logs, or prompt notes using the codebase as context. Summarize likely causes, affected systems, contributing code paths, missing safeguards, and concrete follow-up fixes. If no incident details are available, report what information is needed instead of guessing.',
@@ -184,7 +184,7 @@ const builtinAutomationTemplateInputsByCategory = {
       description:
         'Post a daily digest summarizing notable repository changes and risks from the previous day',
       icon: 'Mail',
-      defaultTrigger: { expr: '0 9 * * *', tz: 'UTC' },
+      defaultTrigger: { expr: '0 9 * * MON-FRI', tz: 'UTC' },
       defaultConversationConfig: {
         initialPrompt:
           'Create a concise daily digest of notable repository changes from the previous day. Highlight shipped work, risky changes, migrations, open blockers, and recommended follow-ups.',
