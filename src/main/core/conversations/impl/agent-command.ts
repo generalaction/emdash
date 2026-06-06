@@ -9,6 +9,7 @@ import type { ProviderCustomConfig } from '@shared/app-settings';
 export type AgentCommand = {
   command: string;
   args: string[];
+  stdin?: string;
 };
 
 const SHELL_SYNTAX_ERROR = 'Custom CLI commands support executable command prefixes only. ';

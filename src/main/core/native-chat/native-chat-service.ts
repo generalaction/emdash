@@ -134,6 +134,7 @@ export class NativeChatService {
     let promptAttachments: NativeChatAttachment[];
     let command: string;
     let args: string[];
+    let stdin: string | undefined;
     let providerConfig: ProviderCustomConfig | undefined;
     try {
       await workspaceTrustService.maybeAutoTrustLocal({
@@ -154,7 +155,7 @@ export class NativeChatService {
 
       providerConfig = await providerOverrideSettings.getItem(providerId);
       const resumeThreadId = this.resolveResumeThreadId(session, conversation);
-      ({ command, args } = this.buildTurnCommand({
+      ({ command, args, stdin } = this.buildTurnCommand({
         providerId,
         providerConfig,
         conversation,
@@ -210,10 +211,16 @@ export class NativeChatService {
 
     let child: ChildProcess;
     try {
-      // Direct argv spawn — no shell involved, so the prompt needs no quoting.
-      // stdin is ignored: these one-shot modes take the prompt as an argv
-      // value and must not block waiting for piped input.
-      child = spawn(command, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'] });
+      // Direct argv spawn: Codex receives the prompt via stdin, while other
+      // native adapters currently take it as an argv value.
+      child = spawn(command, args, {
+        cwd,
+        env,
+        stdio: [stdin === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
+      });
+      if (stdin !== undefined) {
+        child.stdin?.end(stdin);
+      }
     } catch (error) {
       this.finalizeTurn(session, {
         failed: true,
@@ -405,7 +412,7 @@ export class NativeChatService {
     resumeThreadId?: string;
     prompt: string;
     images?: string[];
-  }): { command: string; args: string[] } {
+  }): { command: string; args: string[]; stdin?: string } {
     if (providerId === 'claude') {
       return buildClaudeExecCommand({
         providerConfig,
