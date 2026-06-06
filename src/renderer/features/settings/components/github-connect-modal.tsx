@@ -1,4 +1,4 @@
-import { AlertCircle, Github, KeyRound, Loader2, Terminal } from 'lucide-react';
+import { AlertCircle, ArrowRight, Github, KeyRound, Loader2, Terminal } from 'lucide-react';
 import { useState } from 'react';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import {
@@ -20,7 +20,10 @@ import {
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
 
-type MethodError = { method: 'oauth' | 'cli' | 'device_flow'; message: string } | null;
+type MethodError = {
+  method: 'oauth' | 'cli' | 'device_flow';
+  message: string;
+} | null;
 
 export function GithubConnectModal({ onSuccess, onClose }: BaseModalProps<void>) {
   const { toast } = useToast();
@@ -34,8 +37,12 @@ export function GithubConnectModal({ onSuccess, onClose }: BaseModalProps<void>)
   const [cliLoading, setCliLoading] = useState(false);
   const [error, setError] = useState<MethodError>(null);
 
-  const anyLoading = oauthLoading || cliLoading;
   const isSignedIn = session?.isSignedIn === true;
+  const hasAccount = session?.hasAccount === true;
+  const deviceFlowLoading = deviceFlowMutation.isPending;
+  const anyLoading = oauthLoading || cliLoading || deviceFlowLoading;
+  const oauthContent = getOAuthContent({ isSignedIn, hasAccount });
+  const showDeviceFlowMethod = !hasAccount;
 
   const connectOAuth = async () => {
     setError(null);
@@ -111,22 +118,25 @@ export function GithubConnectModal({ onSuccess, onClose }: BaseModalProps<void>)
       <DialogHeader>
         <DialogTitle>Connect GitHub</DialogTitle>
       </DialogHeader>
-      <DialogContentArea className="gap-2">
+      <DialogContentArea className="gap-3">
         <div className="rounded-lg border border-border p-3">
           <div className="flex items-center gap-3">
             <Github className="text-muted-foreground h-4 w-4 shrink-0" />
             <div className="min-w-0 flex-1">
-              <h3 className="text-sm font-medium text-foreground">GitHub OAuth</h3>
-              <p className="text-muted-foreground mt-0.5 text-xs">Sign in with your browser</p>
+              <h3 className="text-sm font-medium text-foreground">{oauthContent.title}</h3>
+              <p className="text-muted-foreground mt-0.5 text-xs">{oauthContent.description}</p>
             </div>
-            <Button onClick={() => void connectOAuth()} disabled={anyLoading}>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => void connectOAuth()}
+              disabled={anyLoading}
+              aria-label={oauthLoading ? oauthContent.loadingLabel : oauthContent.buttonLabel}
+            >
               {oauthLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Connecting…
-                </>
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                'Connect'
+                <ArrowRight className="h-4 w-4" />
               )}
             </Button>
           </div>
@@ -135,44 +145,57 @@ export function GithubConnectModal({ onSuccess, onClose }: BaseModalProps<void>)
 
         <div className="rounded-lg border border-border p-3">
           <div className="flex items-center gap-3">
-            <KeyRound className="text-muted-foreground h-4 w-4 shrink-0" />
-            <div className="min-w-0 flex-1">
-              <h3 className="text-sm font-medium text-foreground">Device Flow</h3>
-              <p className="text-muted-foreground mt-0.5 text-xs">Authorize with a one-time code</p>
-            </div>
-            <Button variant="outline" onClick={connectDeviceFlow} disabled={anyLoading}>
-              Connect
-            </Button>
-          </div>
-          {error?.method === 'device_flow' && <InlineError message={error.message} />}
-        </div>
-
-        <div className="rounded-lg border border-border p-3">
-          <div className="flex items-center gap-3">
             <Terminal className="text-muted-foreground h-4 w-4 shrink-0" />
             <div className="min-w-0 flex-1">
-              <h3 className="text-sm font-medium text-foreground">GitHub CLI</h3>
+              <h3 className="text-sm font-medium text-foreground">Import from GitHub CLI</h3>
               <p className="text-muted-foreground mt-0.5 text-xs">
-                Run{' '}
-                <code className="rounded bg-background-1 px-1 py-0.5 font-mono text-[11px] text-foreground">
-                  gh auth login
-                </code>{' '}
-                in your terminal
+                Use accounts already authenticated with GitHub CLI
               </p>
             </div>
-            <Button variant="outline" onClick={() => void refreshCliAuth()} disabled={anyLoading}>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => void refreshCliAuth()}
+              disabled={anyLoading}
+              aria-label={cliLoading ? 'Checking GitHub CLI accounts' : 'Import from GitHub CLI'}
+            >
               {cliLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Checking…
-                </>
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                'Refresh'
+                <ArrowRight className="h-4 w-4" />
               )}
             </Button>
           </div>
           {error?.method === 'cli' && <InlineError message={error.message} />}
         </div>
+
+        {showDeviceFlowMethod && (
+          <div className="rounded-lg border border-border p-3">
+            <div className="flex items-center gap-3">
+              <KeyRound className="text-muted-foreground h-4 w-4 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <h3 className="text-sm font-medium text-foreground">Use device flow</h3>
+                <p className="text-muted-foreground mt-0.5 text-xs">
+                  Connect GitHub on this device with a one-time code
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={connectDeviceFlow}
+                disabled={anyLoading}
+                aria-label={deviceFlowLoading ? 'Opening device flow' : 'Use device flow'}
+              >
+                {deviceFlowLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ArrowRight className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+            {error?.method === 'device_flow' && <InlineError message={error.message} />}
+          </div>
+        )}
       </DialogContentArea>
       <DialogFooter>
         <Button variant="outline" onClick={onClose} disabled={anyLoading}>
@@ -181,6 +204,33 @@ export function GithubConnectModal({ onSuccess, onClose }: BaseModalProps<void>)
       </DialogFooter>
     </>
   );
+}
+
+function getOAuthContent({ isSignedIn, hasAccount }: { isSignedIn: boolean; hasAccount: boolean }) {
+  if (isSignedIn) {
+    return {
+      title: 'Link GitHub account',
+      description: 'Add another GitHub account to your Emdash account',
+      buttonLabel: 'Link',
+      loadingLabel: 'Linking...',
+    };
+  }
+
+  if (hasAccount) {
+    return {
+      title: 'Sign in with GitHub',
+      description: 'Sign into your Emdash account',
+      buttonLabel: 'Sign In',
+      loadingLabel: 'Signing in...',
+    };
+  }
+
+  return {
+    title: 'Sign in to Emdash',
+    description: 'Create or sign into your Emdash account with GitHub',
+    buttonLabel: 'Continue',
+    loadingLabel: 'Continuing...',
+  };
 }
 
 function InlineError({ message }: { message: string }) {

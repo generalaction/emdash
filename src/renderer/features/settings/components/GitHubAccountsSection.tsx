@@ -79,7 +79,7 @@ export function GitHubAccountsSection() {
             <TooltipTrigger>
               <Button
                 type="button"
-                variant="outline"
+                variant="ghost"
                 size="icon-sm"
                 onClick={() => showConnectGitHub({})}
                 aria-label="Add GitHub account"

@@ -259,7 +259,7 @@ const IntegrationsCard: React.FC = () => {
                 ) : (
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="ghost"
                     size="icon"
                     className="h-8 w-8 shrink-0"
                     onClick={integration.onDisconnect}
@@ -271,7 +271,7 @@ const IntegrationsCard: React.FC = () => {
               ) : (
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="ghost"
                   size="icon"
                   className="h-8 w-8 shrink-0"
                   onClick={
