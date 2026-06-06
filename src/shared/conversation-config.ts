@@ -1,7 +1,7 @@
 import {
   isCodexServiceTier,
   isNativeChatReasoningEffort,
-  isValidCodexModelId,
+  isValidNativeChatModelId,
   type CodexServiceTier,
   type NativeChatReasoningEffort,
 } from '@shared/native-chat';
@@ -44,7 +44,7 @@ export function parseConversationConfig(raw: string | null | undefined): Convers
       ...(isNativeChatReasoningEffort(record.reasoningEffort)
         ? { reasoningEffort: record.reasoningEffort }
         : {}),
-      ...(isValidCodexModelId(record.model) ? { model: record.model } : {}),
+      ...(isValidNativeChatModelId(record.model) ? { model: record.model } : {}),
       ...(isCodexServiceTier(record.serviceTier) ? { serviceTier: record.serviceTier } : {}),
     };
   } catch {

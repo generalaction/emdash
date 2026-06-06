@@ -4,7 +4,7 @@ import {
   type AgentCommand,
 } from '@main/core/conversations/impl/agent-command';
 import type { ProviderCustomConfig } from '@shared/app-settings';
-import { isValidCodexModelId, type NativeChatReasoningEffort } from '@shared/native-chat';
+import { isValidNativeChatModelId, type NativeChatReasoningEffort } from '@shared/native-chat';
 
 const PI_THINKING_LEVELS = ['low', 'medium', 'high', 'xhigh'] as const;
 
@@ -40,7 +40,7 @@ export function buildPiExecCommand({
   args.push('--mode', 'json', '--print', '--session-id', sessionId);
 
   if (model) {
-    if (!isValidCodexModelId(model)) {
+    if (!isValidNativeChatModelId(model)) {
       throw new Error(`Invalid model id: ${model}`);
     }
     args.push('--model', model);

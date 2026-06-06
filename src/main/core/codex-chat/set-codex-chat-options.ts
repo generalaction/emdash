@@ -7,7 +7,7 @@ import { conversationChangedChannel } from '@shared/events/conversationEvents';
 import {
   isCodexServiceTier,
   isNativeChatReasoningEffort,
-  isValidCodexModelId,
+  isValidNativeChatModelId,
   type CodexChatOptions,
 } from '@shared/native-chat';
 
@@ -22,7 +22,7 @@ export async function setCodexChatOptions(
   conversationId: string,
   options: CodexChatOptions
 ): Promise<void> {
-  if (options.model != null && !isValidCodexModelId(options.model)) {
+  if (options.model != null && !isValidNativeChatModelId(options.model)) {
     throw new Error(`Invalid model id: ${String(options.model)}`);
   }
   if (options.reasoningEffort != null && !isNativeChatReasoningEffort(options.reasoningEffort)) {

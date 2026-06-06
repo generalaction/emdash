@@ -139,6 +139,19 @@ export const CODEX_CHAT_MODEL_OPTIONS: NativeChatModelOption[] = [
   },
 ];
 
+/**
+ * Pi model shortcuts from its CLI examples. Pi accepts both short model aliases
+ * and provider-qualified ids through `--model`.
+ */
+export const PI_CHAT_MODEL_OPTIONS: NativeChatModelOption[] = [
+  { id: 'sonnet', label: 'Claude Sonnet', description: 'Default Claude Sonnet route' },
+  { id: 'sonnet:high', label: 'Claude Sonnet High', description: 'Sonnet with high thinking' },
+  { id: 'haiku', label: 'Claude Haiku', description: 'Fast Claude route' },
+  { id: 'gpt-4o', label: 'GPT-4o', description: 'OpenAI model shortcut' },
+  { id: 'openai/gpt-4o', label: 'OpenAI GPT-4o', description: 'Provider-qualified OpenAI route' },
+  { id: 'gpt-4o-mini', label: 'GPT-4o Mini', description: 'Fast OpenAI model shortcut' },
+];
+
 /** Codex reasoning levels with the descriptions from its embedded catalog. */
 export const CODEX_EFFORT_OPTIONS: NativeChatEffortOption[] = [
   { id: 'low', label: 'Low', description: 'Fast responses with lighter reasoning' },
@@ -156,10 +169,16 @@ export const CODEX_EFFORT_OPTIONS: NativeChatEffortOption[] = [
 ];
 
 const CODEX_MODEL_ID_PATTERN = /^[A-Za-z0-9._-]+$/;
+const NATIVE_CHAT_MODEL_ID_PATTERN = /^[A-Za-z0-9._:/-]+$/;
 
 /** Argv-safety check for model ids, not a catalog check. */
 export function isValidCodexModelId(value: unknown): value is string {
   return typeof value === 'string' && CODEX_MODEL_ID_PATTERN.test(value);
+}
+
+/** Argv-safety check for provider-native model ids, including Pi provider routes. */
+export function isValidNativeChatModelId(value: unknown): value is string {
+  return typeof value === 'string' && NATIVE_CHAT_MODEL_ID_PATTERN.test(value);
 }
 
 /**

@@ -14,6 +14,7 @@ import { observer } from 'mobx-react-lite';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { ConversationStore } from '@renderer/features/tasks/conversations/conversation-manager';
 import AgentLogo from '@renderer/lib/components/agent-logo';
+import { rpc } from '@renderer/lib/ipc';
 import { agentMeta } from '@renderer/lib/providers/meta';
 import { resolveDroppedFile } from '@renderer/lib/pty/terminal-image-injection';
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@renderer/lib/ui/alert';
@@ -38,6 +39,7 @@ import {
   CLAUDE_EFFORT_OPTIONS,
   CODEX_CHAT_MODEL_OPTIONS,
   CODEX_EFFORT_OPTIONS,
+  PI_CHAT_MODEL_OPTIONS,
   type CodexChatOptions,
   type CodexServiceTier,
   type NativeChatAttachment,
@@ -45,9 +47,17 @@ import {
   type NativeChatModelOption,
   type NativeChatReasoningEffort,
 } from '@shared/native-chat';
+import type { CatalogSkill } from '@shared/skills/types';
 import { CodexChatStore } from './codex-chat-store';
 import { groupChatItems, turnKeyOf } from './codex-chat-transcript';
 import { ActivityGroupView, ChatItemView } from './CodexChatItemView';
+import {
+  buildNativeChatSlashEntries,
+  filterNativeChatSlashEntries,
+  getNativeChatSlashTrigger,
+  replaceSlashTrigger,
+  type NativeChatSlashEntry,
+} from './native-chat-slash-menu';
 
 const SCROLL_STICK_THRESHOLD_PX = 48;
 const COLUMN = 'mx-auto w-full max-w-[44rem]';
@@ -87,7 +97,7 @@ const PROVIDER_MENU_OPTIONS: Record<
     },
   },
   pi: {
-    models: [],
+    models: PI_CHAT_MODEL_OPTIONS,
     efforts: CODEX_EFFORT_OPTIONS,
     triggerModelLabel: (label) => label,
     hasSpeed: false,
@@ -327,6 +337,70 @@ function ChatEmptyState({ providerId }: { providerId: NativeChatProviderId }) {
   );
 }
 
+const SLASH_GROUP_LABELS: Record<NativeChatSlashEntry['group'], string> = {
+  command: 'Commands',
+  model: 'Models',
+  reasoning: 'Reasoning',
+  skill: 'Skills',
+};
+
+function SlashMenu({
+  entries,
+  activeIndex,
+  onSelect,
+}: {
+  entries: NativeChatSlashEntry[];
+  activeIndex: number;
+  onSelect: (entry: NativeChatSlashEntry) => void;
+}) {
+  let previousGroup: NativeChatSlashEntry['group'] | null = null;
+
+  return (
+    <div
+      className="absolute bottom-full left-2 z-20 mb-2 max-h-80 w-[min(28rem,calc(100%-1rem))] overflow-y-auto rounded-lg border border-border bg-background-quaternary p-1 shadow-2xl"
+      role="listbox"
+      aria-label="Slash commands"
+    >
+      {entries.map((entry, index) => {
+        const showGroup = entry.group !== previousGroup;
+        previousGroup = entry.group;
+
+        return (
+          <React.Fragment key={entry.id}>
+            {showGroup && (
+              <div className="px-2 pt-2 pb-1 text-tiny font-medium tracking-wide text-foreground-passive uppercase first:pt-1">
+                {SLASH_GROUP_LABELS[entry.group]}
+              </div>
+            )}
+            <button
+              type="button"
+              role="option"
+              aria-selected={index === activeIndex}
+              onMouseDown={(event) => {
+                event.preventDefault();
+                onSelect(entry);
+              }}
+              className={cn(
+                'flex w-full min-w-0 flex-col gap-0.5 rounded-md px-2 py-1.5 text-left',
+                index === activeIndex
+                  ? 'bg-background-tertiary text-foreground'
+                  : 'text-foreground-muted hover:bg-background-tertiary hover:text-foreground'
+              )}
+            >
+              <span className="truncate text-sm font-medium">{entry.label}</span>
+              {entry.detail && (
+                <span className="line-clamp-2 text-xs leading-snug text-foreground-passive">
+                  {entry.detail}
+                </span>
+              )}
+            </button>
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
 export const CodexChatPanel = observer(function CodexChatPanel({
   conversation,
 }: {
@@ -345,6 +419,10 @@ export const CodexChatPanel = observer(function CodexChatPanel({
 
   const [draft, setDraft] = useState('');
   const [attachments, setAttachments] = useState<NativeChatAttachment[]>([]);
+  const [installedSkills, setInstalledSkills] = useState<CatalogSkill[]>([]);
+  const [selectionStart, setSelectionStart] = useState(0);
+  const [slashActiveIndex, setSlashActiveIndex] = useState(0);
+  const [dismissedSlashKey, setDismissedSlashKey] = useState<string | null>(null);
   const [stickToBottom, setStickToBottom] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -404,6 +482,22 @@ export const CodexChatPanel = observer(function CodexChatPanel({
     textareaRef.current?.focus();
   }, [conversationId]);
 
+  useEffect(() => {
+    let cancelled = false;
+    void rpc.skills
+      .getCatalog()
+      .then((result) => {
+        if (cancelled || !result.success || !result.data) return;
+        setInstalledSkills(result.data.skills.filter((skill) => skill.installed));
+      })
+      .catch(() => {
+        if (!cancelled) setInstalledSkills([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const handleScroll = () => {
     const el = scrollRef.current;
     if (!el) return;
@@ -419,6 +513,71 @@ export const CodexChatPanel = observer(function CodexChatPanel({
 
   const canSend =
     (draft.trim().length > 0 || attachments.length > 0) && !isRunning && !store.isSending;
+
+  const slashTrigger = useMemo(
+    () => getNativeChatSlashTrigger(draft, selectionStart),
+    [draft, selectionStart]
+  );
+  const slashKey = slashTrigger ? `${slashTrigger.start}:${slashTrigger.end}:${draft}` : null;
+  const slashEntries = useMemo(() => {
+    const entries = buildNativeChatSlashEntries({
+      providerId: nativeProviderId,
+      currentModel: conversation.data.model,
+      installedSkills,
+    });
+    return filterNativeChatSlashEntries(entries, slashTrigger?.query ?? '');
+  }, [conversation.data.model, installedSkills, nativeProviderId, slashTrigger?.query]);
+  const showSlashMenu =
+    !isRunning &&
+    slashTrigger !== null &&
+    slashEntries.length > 0 &&
+    dismissedSlashKey !== slashKey;
+
+  useEffect(() => {
+    setSlashActiveIndex(0);
+  }, [slashTrigger?.query, nativeProviderId]);
+
+  useEffect(() => {
+    if (slashActiveIndex >= slashEntries.length) {
+      setSlashActiveIndex(Math.max(0, slashEntries.length - 1));
+    }
+  }, [slashActiveIndex, slashEntries.length]);
+
+  const updateSelectionStart = (target: HTMLTextAreaElement) => {
+    setSelectionStart(target.selectionStart);
+    const nextTrigger = getNativeChatSlashTrigger(target.value, target.selectionStart);
+    const nextSlashKey = nextTrigger
+      ? `${nextTrigger.start}:${nextTrigger.end}:${target.value}`
+      : null;
+    setDismissedSlashKey((current) => (current === nextSlashKey ? current : null));
+  };
+
+  const placeCaret = (position: number) => {
+    requestAnimationFrame(() => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+      textarea.focus();
+      textarea.setSelectionRange(position, position);
+      setSelectionStart(position);
+    });
+  };
+
+  const selectSlashEntry = (entry: NativeChatSlashEntry) => {
+    if (!slashTrigger) return;
+
+    const replacement = entry.action.type === 'insert' ? entry.action.text : '';
+    const nextDraft = replaceSlashTrigger(draft, slashTrigger, replacement);
+    const nextCaret = slashTrigger.start + replacement.length;
+    setDraft(nextDraft);
+    setDismissedSlashKey(null);
+    placeCaret(nextCaret);
+
+    if (entry.action.type === 'set-options') {
+      void store.setOptions(entry.action.options);
+    } else if (entry.action.type === 'switch-terminal') {
+      void store.switchToTerminal();
+    }
+  };
 
   const submit = () => {
     if (!canSend) return;
@@ -492,10 +651,17 @@ export const CodexChatPanel = observer(function CodexChatPanel({
         )}
 
         <div
-          className="rounded-xl border border-border bg-background transition-colors focus-within:border-border-2"
+          className="relative rounded-xl border border-border bg-background transition-colors focus-within:border-border-2"
           onDrop={handleDrop}
           onDragOver={(e) => e.preventDefault()}
         >
+          {showSlashMenu && (
+            <SlashMenu
+              entries={slashEntries}
+              activeIndex={slashActiveIndex}
+              onSelect={selectSlashEntry}
+            />
+          )}
           {attachments.length > 0 && (
             <div className="flex flex-wrap gap-1 px-2 pt-2">
               {attachments.map((attachment) => (
@@ -531,9 +697,39 @@ export const CodexChatPanel = observer(function CodexChatPanel({
           <Textarea
             ref={textareaRef}
             value={draft}
-            onChange={(e) => setDraft(e.target.value)}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              updateSelectionStart(e.target);
+            }}
             onPaste={handlePaste}
+            onClick={(e) => updateSelectionStart(e.currentTarget)}
+            onSelect={(e) => updateSelectionStart(e.currentTarget)}
+            onKeyUp={(e) => updateSelectionStart(e.currentTarget)}
             onKeyDown={(e) => {
+              if (showSlashMenu) {
+                if (e.key === 'ArrowDown') {
+                  e.preventDefault();
+                  setSlashActiveIndex((index) => (index + 1) % slashEntries.length);
+                  return;
+                }
+                if (e.key === 'ArrowUp') {
+                  e.preventDefault();
+                  setSlashActiveIndex(
+                    (index) => (index - 1 + slashEntries.length) % slashEntries.length
+                  );
+                  return;
+                }
+                if (e.key === 'Enter' || e.key === 'Tab') {
+                  e.preventDefault();
+                  selectSlashEntry(slashEntries[slashActiveIndex]);
+                  return;
+                }
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setDismissedSlashKey(slashKey);
+                  return;
+                }
+              }
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 submit();

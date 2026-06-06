@@ -59,6 +59,22 @@ describe('buildPiExecCommand', () => {
     expect(args[0]).toBe('@mariozechner/pi-coding-agent');
     expect(args).toContain('gpt-5.4-mini');
 
+    const providerQualified = buildPiExecCommand({
+      providerConfig: PI_CONFIG,
+      sessionId: 'session',
+      model: 'openai/gpt-4o',
+      prompt: 'hi',
+    });
+    expect(providerQualified.args).toContain('openai/gpt-4o');
+
+    const thinkingAlias = buildPiExecCommand({
+      providerConfig: PI_CONFIG,
+      sessionId: 'session',
+      model: 'sonnet:high',
+      prompt: 'hi',
+    });
+    expect(thinkingAlias.args).toContain('sonnet:high');
+
     expect(() =>
       buildPiExecCommand({
         providerConfig: PI_CONFIG,

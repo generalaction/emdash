@@ -49,6 +49,12 @@ describe('conversation-config', () => {
     expect(
       parseConversationConfig(JSON.stringify({ model: 'opus', reasoningEffort: 'max' }))
     ).toEqual({ model: 'opus', reasoningEffort: 'max' });
+    expect(parseConversationConfig(JSON.stringify({ model: 'openai/gpt-4o' }))).toEqual({
+      model: 'openai/gpt-4o',
+    });
+    expect(parseConversationConfig(JSON.stringify({ model: 'sonnet:high' }))).toEqual({
+      model: 'sonnet:high',
+    });
     expect(parseConversationConfig(JSON.stringify({ model: 'bad model!' }))).toEqual({});
     expect(parseConversationConfig(JSON.stringify({ reasoningEffort: 'turbo' }))).toEqual({});
   });
