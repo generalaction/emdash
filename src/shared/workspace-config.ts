@@ -1,4 +1,5 @@
 import z from 'zod';
+import { defineVersionedSchema } from '@shared/lib/versioned-schema';
 
 // ---------------------------------------------------------------------------
 // Supporting schemas (Branch and its dependencies)
@@ -39,27 +40,7 @@ const gitSetupSchema = z.discriminatedUnion('kind', [
 ]);
 
 // ---------------------------------------------------------------------------
-// v2 — WorkspaceTarget and WorkspaceConfig
-// ---------------------------------------------------------------------------
-
-const workspaceTargetSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('repository-instance'), workspaceId: z.string() }),
-  z.object({ kind: z.literal('new-worktree') }),
-  z.object({ kind: z.literal('byoi'), remoteWorkspaceId: z.string().optional() }),
-]);
-
-export const workspaceConfigSchema = z.object({
-  version: z.literal('2'),
-  git: gitSetupSchema,
-  workspace: workspaceTargetSchema,
-});
-
-export type WorkspaceTarget = z.infer<typeof workspaceTargetSchema>;
-export type WorkspaceConfig = z.infer<typeof workspaceConfigSchema>;
-
-// ---------------------------------------------------------------------------
-// v1 legacy — stored in workspaces.config and automations.task_config rows
-// created before the v2 schema. Kept internal; callers receive WorkspaceConfig.
+// v1 schema — stored in workspaces.config rows created before v2
 // ---------------------------------------------------------------------------
 
 const workspaceLocationSchema = z.discriminatedUnion('host', [
@@ -68,50 +49,69 @@ const workspaceLocationSchema = z.discriminatedUnion('host', [
   z.object({ host: z.literal('byoi'), remoteWorkspaceId: z.string().optional() }),
 ]);
 
-const workspaceConfigV1Schema = z.object({
+const v1Schema = z.object({
   version: z.literal('1'),
   git: gitSetupSchema,
   workspace: workspaceLocationSchema,
 });
 
-type WorkspaceConfigV1 = z.infer<typeof workspaceConfigV1Schema>;
+// ---------------------------------------------------------------------------
+// v2 schema — current version
+// ---------------------------------------------------------------------------
+
+const workspaceTargetSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('repository-instance'), workspaceId: z.string() }),
+  z.object({ kind: z.literal('new-worktree') }),
+  z.object({ kind: z.literal('byoi'), remoteWorkspaceId: z.string().optional() }),
+]);
+
+const v2Schema = z.object({
+  version: z.literal('2'),
+  git: gitSetupSchema,
+  workspace: workspaceTargetSchema,
+});
+
+// ---------------------------------------------------------------------------
+// Versioned schema
+// ---------------------------------------------------------------------------
 
 /**
- * Upgrades a parsed v1 config to v2 where possible.
- * `git.kind === 'none'` cannot be upgraded without knowing the project's
- * repositoryWorkspaceId — callers that need the full v2 type must handle
- * the null return for that case.
+ * Versioned schema for workspace configuration stored in `workspaces.config`.
+ *
+ * v1 → v2 upgrade: reshapes the `workspace` discriminant from `host`-based to
+ * `kind`-based. Returns `null` (needs-context) when `git.kind === 'none'` and
+ * the workspace host is local/project-ssh, because the `repositoryWorkspaceId`
+ * needed to produce a `repository-instance` target is not available here.
+ * Callers that need a fully resolved config for that case must supply context.
  */
-function upgradeV1(v1: WorkspaceConfigV1): WorkspaceConfig | null {
-  const { git, workspace } = v1;
-  if (workspace.host === 'byoi') {
-    return {
-      version: '2',
-      git,
-      workspace: { kind: 'byoi', remoteWorkspaceId: workspace.remoteWorkspaceId },
-    };
-  }
-  if (git.kind === 'none') {
-    // Cannot determine the repositoryWorkspaceId here — caller must resolve.
-    return null;
-  }
-  return { version: '2', git, workspace: { kind: 'new-worktree' } };
-}
+export const workspaceConfig = defineVersionedSchema()
+  .initial('1', v1Schema)
+  .version('2', v2Schema, (v1) => {
+    const { git, workspace } = v1;
+    if (workspace.host === 'byoi') {
+      return {
+        version: '2' as const,
+        git,
+        workspace: { kind: 'byoi' as const, remoteWorkspaceId: workspace.remoteWorkspaceId },
+      };
+    }
+    if (git.kind === 'none') {
+      // Cannot determine repositoryWorkspaceId here — caller must resolve.
+      return null;
+    }
+    return { version: '2' as const, git, workspace: { kind: 'new-worktree' as const } };
+  })
+  .build();
 
-export function parseWorkspaceConfig(raw: string | null | undefined): WorkspaceConfig | null {
-  if (!raw) return null;
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    const v2 = workspaceConfigSchema.safeParse(parsed);
-    if (v2.success) return v2.data;
-    const v1 = workspaceConfigV1Schema.safeParse(parsed);
-    if (v1.success) return upgradeV1(v1.data);
-    return null;
-  } catch {
-    return null;
-  }
-}
+// ---------------------------------------------------------------------------
+// Exports
+// ---------------------------------------------------------------------------
 
-export function serializeWorkspaceConfig(config: WorkspaceConfig): string {
-  return JSON.stringify(config);
-}
+/** The Zod schema for the latest (v2) workspace config. */
+export const workspaceConfigSchema = workspaceConfig.schema;
+
+/** The TypeScript type for the latest (v2) workspace config. */
+export type WorkspaceConfig = typeof workspaceConfig.Type;
+
+/** The TypeScript type for the `workspace` field of a v2 config. */
+export type WorkspaceTarget = z.infer<typeof workspaceTargetSchema>;

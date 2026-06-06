@@ -16,7 +16,6 @@ import type {
   CreateTaskSuccess,
   TaskLifecycleStatus,
 } from '@shared/tasks';
-import { serializeWorkspaceConfig } from '@shared/workspace-config';
 import { mapTaskRowToTask } from '../utils/utils';
 
 type ConvInsert = typeof conversations.$inferInsert;
@@ -43,7 +42,6 @@ export async function prepareCreateTask(
 
   const { workspaceConfig } = params;
   const initialStatus: TaskLifecycleStatus = params.taskConfig.initialStatus ?? 'in_progress';
-  const configJson = serializeWorkspaceConfig(workspaceConfig);
 
   let workspaceId: string;
   let newWorkspaceValues: typeof workspaces.$inferInsert | null = null;
@@ -61,7 +59,7 @@ export async function prepareCreateTask(
         kind: 'byoi',
         location: 'remote',
         type: 'byoi',
-        config: configJson,
+        config: workspaceConfig,
       };
     } else {
       // 'new-worktree' — derive location from the project.
@@ -85,7 +83,7 @@ export async function prepareCreateTask(
         location,
         sshConnectionId,
         type: legacyType,
-        config: configJson,
+        config: workspaceConfig,
       };
     }
   }

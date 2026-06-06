@@ -1,4 +1,4 @@
-import { isNotNull, relations, sql } from 'drizzle-orm';
+import { isNotNull, sql } from 'drizzle-orm';
 import {
   index,
   integer,
@@ -8,7 +8,9 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
 import type { StoredBranch } from '@main/core/tasks/stored-branch';
+import { versionedJsonColumn } from '@main/db/versioned-column';
 import type { TerminalShellId } from '@shared/terminal-settings';
+import { workspaceConfig } from '@shared/workspace-config';
 
 export const sshConnections = sqliteTable(
   'ssh_connections',
@@ -156,7 +158,7 @@ export const workspaces = sqliteTable(
     }),
     data: text('data'),
     path: text('path'),
-    config: text('config'),
+    config: versionedJsonColumn(workspaceConfig)('config'),
     branchName: text('branch_name'),
     linesAdded: integer('lines_added'),
     linesDeleted: integer('lines_deleted'),
@@ -468,69 +470,6 @@ export const appSecrets = sqliteTable(
     keyIdx: uniqueIndex('idx_app_secrets_key').on(table.key),
   })
 );
-
-export const sshConnectionsRelations = relations(sshConnections, ({ many }) => ({
-  projects: many(projects),
-}));
-
-export const projectsRelations = relations(projects, ({ one, many }) => ({
-  tasks: many(tasks),
-  automations: many(automations),
-  settings: one(projectSettings, {
-    fields: [projects.id],
-    references: [projectSettings.projectId],
-  }),
-  sshConnection: one(sshConnections, {
-    fields: [projects.sshConnectionId],
-    references: [sshConnections.id],
-  }),
-}));
-
-export const projectSettingsRelations = relations(projectSettings, ({ one }) => ({
-  project: one(projects, {
-    fields: [projectSettings.projectId],
-    references: [projects.id],
-  }),
-}));
-
-export const tasksRelations = relations(tasks, ({ one, many }) => ({
-  project: one(projects, {
-    fields: [tasks.projectId],
-    references: [projects.id],
-  }),
-  conversations: many(conversations),
-  automationRuns: many(automationRuns),
-}));
-
-export const automationsRelations = relations(automations, ({ one, many }) => ({
-  project: one(projects, {
-    fields: [automations.projectId],
-    references: [projects.id],
-  }),
-  runs: many(automationRuns),
-}));
-
-export const automationRunsRelations = relations(automationRuns, ({ one }) => ({
-  automation: one(automations, {
-    fields: [automationRuns.automationId],
-    references: [automations.id],
-  }),
-}));
-
-export const conversationsRelations = relations(conversations, ({ one, many }) => ({
-  task: one(tasks, {
-    fields: [conversations.taskId],
-    references: [tasks.id],
-  }),
-  messages: many(messages),
-}));
-
-export const messagesRelations = relations(messages, ({ one }) => ({
-  conversation: one(conversations, {
-    fields: [messages.conversationId],
-    references: [conversations.id],
-  }),
-}));
 
 export type SshConnectionRow = typeof sshConnections.$inferSelect;
 export type SshConnectionInsert = typeof sshConnections.$inferInsert;
