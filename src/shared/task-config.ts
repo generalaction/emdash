@@ -1,4 +1,5 @@
 import z from 'zod';
+import { defineVersionedSchema } from '@shared/lib/versioned-schema';
 import { taskLifecycleStatuses } from './tasks';
 
 const issueSchema = z.object({
@@ -27,7 +28,7 @@ const issueSchema = z.object({
   fetchedAt: z.string().optional(),
 });
 
-export const taskConfigSchema = z.object({
+const v1Schema = z.object({
   version: z.literal('1'),
   name: z.string(),
   linkedIssue: issueSchema.optional(),
@@ -43,4 +44,7 @@ export const taskConfigSchema = z.object({
   initialStatus: taskLifecycleStatuses.optional(),
 });
 
-export type TaskConfig = z.infer<typeof taskConfigSchema>;
+export const taskConfig = defineVersionedSchema().initial('1', v1Schema).build();
+
+export const taskConfigSchema = taskConfig.schema;
+export type TaskConfig = typeof taskConfig.Type;

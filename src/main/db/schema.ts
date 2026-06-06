@@ -10,6 +10,12 @@ import {
 import type { StoredBranch } from '@main/core/tasks/stored-branch';
 import { versionedJsonColumn } from '@main/db/versioned-column';
 import type { TerminalShellId } from '@shared/terminal-settings';
+import {
+  automationConversationConfig,
+  automationTriggerConfig,
+  storedAutomationTaskConfig,
+} from '@shared/automations/config';
+import { conversationConfig } from '@shared/conversation-config';
 import { workspaceConfig } from '@shared/workspace-config';
 
 export const sshConnections = sqliteTable(
@@ -296,9 +302,9 @@ export const automations = sqliteTable(
     id: text('id').primaryKey(),
     name: text('name').notNull(),
     projectId: text('project_id').references(() => projects.id, { onDelete: 'set null' }),
-    triggerConfig: text('trigger_config'),
-    conversationConfig: text('conversation_config'),
-    taskConfig: text('task_config'),
+    triggerConfig: versionedJsonColumn(automationTriggerConfig)('trigger_config'),
+    conversationConfig: versionedJsonColumn(automationConversationConfig)('conversation_config'),
+    taskConfig: versionedJsonColumn(storedAutomationTaskConfig)('task_config'),
     enabled: integer('enabled').notNull().default(1),
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
@@ -363,7 +369,7 @@ export const conversations = sqliteTable(
       .references(() => tasks.id, { onDelete: 'cascade' }),
     title: text('title').notNull(),
     provider: text('provider'),
-    config: text('config'),
+    config: versionedJsonColumn(conversationConfig)('config'),
     createdAt: text('created_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),

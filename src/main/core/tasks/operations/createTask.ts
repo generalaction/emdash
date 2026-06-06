@@ -6,7 +6,7 @@ import { db, type DrizzleTx } from '@main/db/client';
 import { conversations, projects, tasks, workspaces } from '@main/db/schema';
 import type { ConversationRow, TaskRow } from '@main/db/schema';
 import { events } from '@main/lib/events';
-import { type ConversationConfig, serializeConversationConfig } from '@shared/conversation-config';
+import type { ConversationConfig } from '@shared/conversation-config';
 import type { Conversation } from '@shared/conversations';
 import { conversationCreatedChannel } from '@shared/events/conversationEvents';
 import { err, ok, type Result } from '@shared/result';
@@ -94,8 +94,7 @@ export async function prepareCreateTask(
     const configObj: ConversationConfig = {};
     if (ic.autoApprove !== undefined) configObj.autoApprove = ic.autoApprove;
     if (ic.initialPrompt?.trim()) configObj.initialPrompt = ic.initialPrompt.trim();
-    const config =
-      Object.keys(configObj).length > 0 ? serializeConversationConfig(configObj) : undefined;
+    const config = Object.keys(configObj).length > 0 ? configObj : undefined;
     convInsert = {
       id: ic.id,
       projectId: params.projectId,
