@@ -110,36 +110,8 @@
     {
       "idx": 15,
       "version": "6",
-      "when": 1780619336457,
-      "tag": "0015_overjoyed_amphibian",
-      "breakpoints": true
-    },
-    {
-      "idx": 16,
-      "version": "6",
-      "when": 1780681705229,
-      "tag": "0016_narrow_karma",
-      "breakpoints": true
-    },
-    {
-      "idx": 17,
-      "version": "6",
-      "when": 1780682670878,
-      "tag": "0017_petite_monster_badoon",
-      "breakpoints": true
-    },
-    {
-      "idx": 18,
-      "version": "6",
-      "when": 1780690295894,
-      "tag": "0018_material_quasar",
-      "breakpoints": true
-    },
-    {
-      "idx": 19,
-      "version": "6",
-      "when": 1780707273188,
-      "tag": "0019_uneven_grim_reaper",
+      "when": 1780718295895,
+      "tag": "0015_dapper_quasimodo",
       "breakpoints": true
     }
   ]

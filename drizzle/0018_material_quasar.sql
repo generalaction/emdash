@@ -1,1 +1,0 @@
-ALTER TABLE `automations` ADD `deleted_at` integer;

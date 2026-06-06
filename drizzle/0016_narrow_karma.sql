@@ -1,1 +1,0 @@
-ALTER TABLE `automation_runs` ADD `generated_task_name` text;
