@@ -38,8 +38,8 @@ import {
   type RemoteBranch,
   type RenameBranchError,
   type SoftResetError,
-} from '@shared/git';
-import { DEFAULT_REMOTE_NAME } from '@shared/git-utils';
+} from '@shared/core/git/git';
+import { DEFAULT_REMOTE_NAME } from '@shared/core/git/git-utils';
 import { err, ok, type Result } from '@shared/lib/result';
 import { type GitProvider } from '../types';
 import type { WorkspaceGitHooks } from '../workspace-git-provider';

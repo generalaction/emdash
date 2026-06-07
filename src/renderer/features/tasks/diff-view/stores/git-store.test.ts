@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fsWatchEventChannel } from '@shared/core/fs/fsEvents';
+import { localRef, type FullGitStatus } from '@shared/core/git/git';
 import { gitRefChangedChannel, gitWorkspaceChangedChannel } from '@shared/core/git/gitEvents';
-import { localRef, type FullGitStatus } from '@shared/git';
 import type { Result } from '@shared/lib/result';
 import { GitStore } from './git-store';
 

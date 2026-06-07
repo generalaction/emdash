@@ -1,5 +1,5 @@
 import { log } from '@main/lib/logger';
-import type { FetchError } from '@shared/git';
+import type { FetchError } from '@shared/core/git/git';
 import { err, type Result } from '@shared/lib/result';
 import type { GitService } from './impl/git-service';
 

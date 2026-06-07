@@ -8,6 +8,7 @@ import { events, rpc } from '@renderer/lib/ipc';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { Conversation } from '@shared/core/conversations/conversations';
+import type { FetchError } from '@shared/core/git/git';
 import { prSyncProgressChannel, prUpdatedChannel } from '@shared/core/pull-requests/prEvents';
 import {
   lifecycleScriptStatusChannel,
@@ -25,7 +26,6 @@ import type {
   Task,
   TaskLifecycleStatus,
 } from '@shared/core/tasks/tasks';
-import type { FetchError } from '@shared/git';
 import type { TaskViewSnapshot } from '@shared/view-state';
 import { formatPushErrorDetail } from '../utils';
 import { conversationRegistry } from './conversation-registry';

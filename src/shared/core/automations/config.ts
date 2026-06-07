@@ -1,7 +1,7 @@
 import z from 'zod';
+import { taskConfig } from '@shared/core/tasks/task-config';
 import { workspaceConfig } from '@shared/core/workspaces/workspace-config';
 import { defineVersionedSchema } from '@shared/lib/versioned-schema/versioned-schema';
-import { taskConfig } from '@shared/task-config';
 
 export const triggerConfigSchema = z.object({
   expr: z.string(),

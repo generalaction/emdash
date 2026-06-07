@@ -1,7 +1,11 @@
 import { events } from '@main/lib/events';
 import { telemetryService } from '@main/lib/telemetry';
+import type {
+  BranchesPayload,
+  LocalBranchesPayload,
+  RemoteBranchesPayload,
+} from '@shared/core/git/git';
 import { gitRefChangedChannel } from '@shared/core/git/gitEvents';
-import type { BranchesPayload, LocalBranchesPayload, RemoteBranchesPayload } from '@shared/git';
 import { createRPCController } from '@shared/lib/ipc/rpc';
 import { err, ok } from '@shared/lib/result';
 import type { GitRepositoryService } from '../git/repository-service';

@@ -4,8 +4,8 @@ import type { RepositoryStore } from '@renderer/features/projects/stores/reposit
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
 import { fsWatchEventChannel } from '@shared/core/fs/fsEvents';
+import { localRef, refsEqual, type FullGitStatus, type GitChange } from '@shared/core/git/git';
 import { gitRefChangedChannel, gitWorkspaceChangedChannel } from '@shared/core/git/gitEvents';
-import { localRef, refsEqual, type FullGitStatus, type GitChange } from '@shared/git';
 import { err, ok } from '@shared/lib/result';
 import { formatPushErrorDetail } from '../../utils';
 

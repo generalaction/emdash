@@ -1,4 +1,4 @@
-import type { GitRef } from '@shared/git';
+import type { GitRef } from '@shared/core/git/git';
 import { defineEvent } from '@shared/lib/ipc/events';
 
 export type GitRefChange = {

@@ -4,8 +4,8 @@ import { isValidProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { Automation } from '@shared/core/automations/automation';
 import type { StoredAutomationTaskConfig, TriggerConfig } from '@shared/core/automations/config';
 import { getLocalTimeZone } from '@shared/core/automations/timezone';
+import type { Branch } from '@shared/core/git/git';
 import type { WorkspaceConfig, WorkspaceTarget } from '@shared/core/workspaces/workspace-config';
-import type { Branch } from '@shared/git';
 import {
   asMounted,
   firstMountedProjectId,

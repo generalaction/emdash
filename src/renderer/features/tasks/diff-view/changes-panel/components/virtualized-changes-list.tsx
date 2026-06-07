@@ -1,7 +1,7 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useRef } from 'react';
 import { cn } from '@renderer/utils/utils';
-import { type GitChange } from '@shared/git';
+import { type GitChange } from '@shared/core/git/git';
 import { ChangesListItem } from './changes-list-item';
 
 export interface VirtualizedChangesListProps {

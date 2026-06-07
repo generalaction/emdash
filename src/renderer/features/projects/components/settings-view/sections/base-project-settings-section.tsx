@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/
 import { Separator } from '@renderer/lib/ui/separator';
 import { Switch } from '@renderer/lib/ui/switch';
 import { cn } from '@renderer/utils/utils';
-import type { Branch, Remote } from '@shared/git';
+import type { Branch, Remote } from '@shared/core/git/git';
 import type { Project } from '@shared/projects';
 import type { FormState, FormUpdate } from '../project-settings-form-model';
 

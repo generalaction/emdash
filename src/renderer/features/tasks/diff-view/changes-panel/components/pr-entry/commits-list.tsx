@@ -11,7 +11,13 @@ import {
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { cn } from '@renderer/utils/utils';
-import { commitRef, refsEqual, type Commit, type GitChange, type GitObjectRef } from '@shared/git';
+import {
+  commitRef,
+  refsEqual,
+  type Commit,
+  type GitChange,
+  type GitObjectRef,
+} from '@shared/core/git/git';
 import { ChangesListItem } from '../changes-list-item';
 import { useCommitFiles } from './use-commit-files';
 import { usePrCommits } from './use-pr-commits';

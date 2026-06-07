@@ -16,7 +16,7 @@ import type {
   PullError,
   PushError,
   SoftResetError,
-} from '@shared/git';
+} from '@shared/core/git/git';
 import type { Result } from '@shared/lib/result';
 
 export type WorkspaceGitHooks = {

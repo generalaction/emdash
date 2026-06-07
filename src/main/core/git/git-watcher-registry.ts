@@ -4,12 +4,12 @@ import { events } from '@main/lib/events';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
 import { log } from '@main/lib/logger';
+import { branchRef, remoteRef, toRefString, type GitObjectRef } from '@shared/core/git/git';
 import {
   gitRefChangedChannel,
   gitWorkspaceChangedChannel,
   type GitRefChange,
 } from '@shared/core/git/gitEvents';
-import { branchRef, remoteRef, toRefString, type GitObjectRef } from '@shared/git';
 import { projectManager } from '../projects/project-manager';
 import { taskSessionManager } from '../tasks/task-session-manager';
 

@@ -2,9 +2,9 @@ import type { ConversationProvider } from '@main/core/conversations/types';
 import type { TerminalProvider } from '@main/core/terminals/terminal-provider';
 import type { Workspace } from '@main/core/workspaces/workspace';
 import { events } from '@main/lib/events';
+import type { Branch } from '@shared/core/git/git';
 import { taskProvisionProgressChannel, type ProvisionStep } from '@shared/core/tasks/taskEvents';
 import type { Task } from '@shared/core/tasks/tasks';
-import type { Branch } from '@shared/git';
 import type { TaskProvider } from '../projects/project-provider';
 import type { ProjectSettingsProvider } from '../projects/settings/provider';
 import {

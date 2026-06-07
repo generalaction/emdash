@@ -1,7 +1,7 @@
 import { and, eq, notInArray } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { projectRemotes } from '@main/db/schema';
-import type { Remote } from '@shared/git';
+import type { Remote } from '@shared/core/git/git';
 import { parseRepositoryRef } from '@shared/repository-ref';
 
 /**

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { LocalBranchesPayload, RemoteBranchesPayload } from '@shared/core/git/git';
 import { gitRefChangedChannel, type GitRefChange } from '@shared/core/git/gitEvents';
-import type { LocalBranchesPayload, RemoteBranchesPayload } from '@shared/git';
 import { err, ok } from '@shared/lib/result';
 import type { ProjectSettingsStore } from './project-settings-store';
 import { RepositoryStore } from './repository-store';

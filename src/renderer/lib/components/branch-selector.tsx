@@ -15,7 +15,7 @@ import { InputGroupButton } from '@renderer/lib/ui/input-group';
 import { Select, SelectTrigger } from '@renderer/lib/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { cn } from '@renderer/utils/utils';
-import { type Branch, type Remote } from '@shared/git';
+import { type Branch, type Remote } from '@shared/core/git/git';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
 import {
   filterBranchesForPicker,

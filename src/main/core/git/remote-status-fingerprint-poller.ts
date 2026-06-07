@@ -1,7 +1,7 @@
 import type { WorkspaceGitProvider } from '@main/core/git/workspace-git-provider';
 import { events } from '@main/lib/events';
+import type { GitStatusUntrackedMode } from '@shared/core/git/git';
 import { gitWorkspaceChangedChannel } from '@shared/core/git/gitEvents';
-import type { GitStatusUntrackedMode } from '@shared/git';
 
 const TRACKED_POLL_MS = 10_000;
 const UNTRACKED_POLL_MS = 30_000;

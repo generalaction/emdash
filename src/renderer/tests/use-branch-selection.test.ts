@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { Branch } from '@shared/git';
+import type { Branch } from '@shared/core/git/git';
 
 vi.mock('@renderer/features/settings/use-app-settings-key', () => ({
   useAppSettingsKey: () => ({ value: { pushOnCreate: true } }),

@@ -1,7 +1,7 @@
 import z from 'zod';
 import { defineVersionedSchema } from '@shared/lib/versioned-schema/versioned-schema';
-import { linkedIssue } from './core/linked-issue';
-import { taskLifecycleStatuses } from './core/tasks/tasks';
+import { linkedIssue } from '../linked-issue';
+import { taskLifecycleStatuses } from './tasks';
 
 const v1Schema = z.object({
   version: z.literal('1'),

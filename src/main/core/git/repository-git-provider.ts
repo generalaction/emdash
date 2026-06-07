@@ -7,7 +7,7 @@ import type {
   GitHeadState,
   PushError,
   RenameBranchError,
-} from '@shared/git';
+} from '@shared/core/git/git';
 import type { Result } from '@shared/lib/result';
 
 export interface RepositoryGitProvider {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Branch } from '@shared/git';
+import type { Branch } from '@shared/core/git/git';
 import { resolveInitialBaseBranch, toShortBranchName } from './base-branch';
 
 const originRemote = { name: 'origin', url: 'git@github.com:owner/repo.git' };
