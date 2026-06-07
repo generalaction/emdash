@@ -15,6 +15,7 @@ import {
   findRunsStuckInCreatingConversation,
   findRunsStuckInCreatingTask,
   findRunsStuckInLaunchingTask,
+  getAutomation,
   listQueuedRuns,
   markDueCronRunsQueued,
   startCreatingTask,
@@ -30,6 +31,7 @@ vi.mock('./repo', () => ({
   findRunsStuckInCreatingConversation: vi.fn(),
   findRunsStuckInCreatingTask: vi.fn(),
   findRunsStuckInLaunchingTask: vi.fn(),
+  getAutomation: vi.fn(),
   listQueuedRuns: vi.fn(),
   markDueCronRunsQueued: vi.fn(),
   startCreatingTask: vi.fn(),
@@ -49,6 +51,7 @@ beforeEach(() => {
   vi.mocked(findRunsStuckInLaunchingTask).mockResolvedValue([]);
   vi.mocked(findRunsStuckInCreatingConversation).mockResolvedValue([]);
   vi.mocked(enabledAutomationsWithoutQueuedRun).mockResolvedValue([]);
+  vi.mocked(getAutomation).mockResolvedValue(null);
   vi.mocked(markDueCronRunsQueued).mockResolvedValue([]);
   vi.mocked(listQueuedRuns).mockResolvedValue([]);
   vi.mocked(startCreatingTask).mockResolvedValue(null);
@@ -159,6 +162,7 @@ describe('AutomationScheduler drain serialization', () => {
       .mockResolvedValueOnce([entry])
       .mockResolvedValue([]);
     vi.mocked(startCreatingTask).mockResolvedValue(creatingTaskRun);
+    vi.mocked(getAutomation).mockResolvedValue(entry.automation);
     vi.mocked(runQueuedAutomation).mockImplementation(
       () =>
         new Promise((resolve) => {
