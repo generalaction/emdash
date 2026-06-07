@@ -306,7 +306,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     initialPromptFlag: '',
     resumeFlag: '--continue',
     planActivateCommand: '/plan',
-    icon: 'commandcode.png',
+    icon: 'commandcode.svg',
     alt: 'Command Code CLI',
     terminalOnly: true,
   },

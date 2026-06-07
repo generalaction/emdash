@@ -7,7 +7,7 @@ import charmIcon from '@/assets/images/charm.png';
 import claudeIcon from '@/assets/images/claude.svg?raw';
 import clineIcon from '@/assets/images/cline.png';
 import codebuffIcon from '@/assets/images/codebuff.png';
-import commandcodeIcon from '@/assets/images/commandcode.png';
+import commandcodeIcon from '@/assets/images/commandcode.svg?raw';
 import continueIcon from '@/assets/images/continue.png';
 import cursorIcon from '@/assets/images/cursor.svg?raw';
 import devinIcon from '@/assets/images/devin.png';
@@ -60,7 +60,7 @@ const ICONS: Record<string, string> = {
   'cline.png': clineIcon,
   'continue.png': continueIcon,
   'codebuff.png': codebuffIcon,
-  'commandcode.png': commandcodeIcon,
+  'commandcode.svg': commandcodeIcon,
   'mistral.svg': mistralIcon,
   'pi.png': piIcon,
   'autohand.svg': autohandIcon,
