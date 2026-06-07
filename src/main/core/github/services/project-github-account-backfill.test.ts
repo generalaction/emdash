@@ -32,6 +32,10 @@ class FakeProjectSettings {
     this.settings = settings;
     return { success: true as const, data: undefined };
   });
+  patch = vi.fn(async (patch: { githubAccountId?: string | null }) => {
+    this.settings = { ...this.settings, ...patch };
+    return { success: true as const, data: undefined };
+  });
 }
 
 function makeProject({
@@ -73,7 +77,8 @@ describe('ProjectGitHubAccountBackfillService', () => {
       accountId: 'github.com:42',
     });
 
-    expect(settings.update).toHaveBeenCalledWith({ githubAccountId: 'github.com:42' });
+    expect(settings.patch).toHaveBeenCalledWith({ githubAccountId: 'github.com:42' });
+    expect(settings.update).not.toHaveBeenCalled();
   });
 
   it('does not override an existing project GitHub account selection', async () => {
@@ -97,7 +102,8 @@ describe('ProjectGitHubAccountBackfillService', () => {
       accountId: 'ghe.example.com:168',
     });
 
-    expect(settings.update).toHaveBeenCalledWith({ githubAccountId: 'ghe.example.com:168' });
+    expect(settings.patch).toHaveBeenCalledWith({ githubAccountId: 'ghe.example.com:168' });
+    expect(settings.update).not.toHaveBeenCalled();
   });
 
   it('uses the default account when it belongs to the project remote host', async () => {
@@ -116,7 +122,8 @@ describe('ProjectGitHubAccountBackfillService', () => {
       accountId: 'ghe.example.com:252',
     });
 
-    expect(settings.update).toHaveBeenCalledWith({ githubAccountId: 'ghe.example.com:252' });
+    expect(settings.patch).toHaveBeenCalledWith({ githubAccountId: 'ghe.example.com:252' });
+    expect(settings.update).not.toHaveBeenCalled();
   });
 
   it('uses the oldest account for the project remote host when no default is set', async () => {
@@ -132,7 +139,8 @@ describe('ProjectGitHubAccountBackfillService', () => {
       accountId: 'github.com:42',
     });
 
-    expect(settings.update).toHaveBeenCalledWith({ githubAccountId: 'github.com:42' });
+    expect(settings.patch).toHaveBeenCalledWith({ githubAccountId: 'github.com:42' });
+    expect(settings.update).not.toHaveBeenCalled();
   });
 
   it('does not backfill projects when no account exists for the remote host', async () => {

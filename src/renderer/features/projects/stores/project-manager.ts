@@ -217,13 +217,16 @@ export class ProjectManagerStore {
             isPrivate: data.repositoryVisibility === 'private',
             accountId: data.githubAccountId ?? undefined,
           });
-          if (!repoResult.success || !repoResult.nameWithOwner) {
+          if (!repoResult.success) {
             throw new Error(repoResult.error);
+          }
+          if (!repoResult.nameWithOwner || !repoResult.cloneUrl) {
+            throw new Error('Repository creation response was incomplete');
           }
           createdRepositoryNameWithOwner = repoResult.nameWithOwner;
 
           this._updatePhase(projectId, 'cloning');
-          const cloneUrl = `https://github.com/${repoResult.nameWithOwner}.git`;
+          const cloneUrl = repoResult.cloneUrl;
           const cloneResult = await rpc.github.cloneRepository(cloneUrl, targetPath, connectionId);
           if (!cloneResult.success) throw new Error(cloneResult.error);
 
@@ -430,7 +433,7 @@ export class ProjectManagerStore {
   ): Promise<void> {
     if (githubAccountId === undefined) return;
 
-    const result = await rpc.projects.updateProjectSettings(projectId, { githubAccountId });
+    const result = await rpc.projects.patchProjectSettings(projectId, { githubAccountId });
     if (!result.success) {
       log.error('Failed to save initial GitHub account for project', {
         projectId,

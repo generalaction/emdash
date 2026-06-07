@@ -56,26 +56,26 @@ describe('ProjectGitHubAuthContextResolver', () => {
     expect(project.settings.get).toHaveBeenCalled();
   });
 
-  it('fails when the project settings have no selected GitHub account', async () => {
+  it('reports unconfigured when the project settings have no selected GitHub account', async () => {
     projects.setProject('project-1', makeProject({}));
 
     await expect(resolver.resolve('project-1')).resolves.toEqual(
       err<ProjectGitHubAuthContextError>({
-        type: 'no_account_selected',
+        type: 'unconfigured',
         projectId: 'project-1',
-        message: 'No GitHub account selected for project.',
+        message: 'No GitHub account is configured for this project.',
       })
     );
   });
 
-  it('fails when the project settings explicitly clear the selected GitHub account', async () => {
+  it('reports disabled when the project settings explicitly clear the selected GitHub account', async () => {
     projects.setProject('project-1', makeProject({ githubAccountId: null }));
 
     await expect(resolver.resolve('project-1')).resolves.toEqual(
       err<ProjectGitHubAuthContextError>({
-        type: 'no_account_selected',
+        type: 'disabled',
         projectId: 'project-1',
-        message: 'No GitHub account selected for project.',
+        message: 'GitHub API is disabled for this project.',
       })
     );
   });

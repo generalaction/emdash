@@ -78,6 +78,11 @@ export function defaultShareableProjectSettings(): ShareableProjectSettings {
 
 export type ProjectSettings = z.infer<typeof projectSettingsSchema>;
 
+export type ProjectSettingsPatch = {
+  clearShareableFields?: ShareableProjectSettingsWriteField[];
+  githubAccountId?: string | null;
+};
+
 export type ProjectSettingsPage = {
   settings: ProjectSettings;
   defaults: {

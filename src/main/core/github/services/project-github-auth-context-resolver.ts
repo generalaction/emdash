@@ -9,7 +9,12 @@ export type ProjectGitHubAuthContextError =
       message: string;
     }
   | {
-      type: 'no_account_selected';
+      type: 'unconfigured';
+      projectId: string;
+      message: string;
+    }
+  | {
+      type: 'disabled';
       projectId: string;
       message: string;
     }
@@ -57,14 +62,28 @@ export class ProjectGitHubAuthContextResolver {
 
     try {
       const settings = await project.settings.get();
-      const accountId = Object.hasOwn(settings, 'githubAccountId')
-        ? settings.githubAccountId?.trim() || null
-        : null;
+      if (!Object.hasOwn(settings, 'githubAccountId')) {
+        return err({
+          type: 'unconfigured',
+          projectId,
+          message: 'No GitHub account is configured for this project.',
+        });
+      }
+
+      if (settings.githubAccountId === null) {
+        return err({
+          type: 'disabled',
+          projectId,
+          message: 'GitHub API is disabled for this project.',
+        });
+      }
+
+      const accountId = settings.githubAccountId?.trim() || null;
       if (!accountId) {
         return err({
-          type: 'no_account_selected',
+          type: 'unconfigured',
           projectId,
-          message: 'No GitHub account selected for project.',
+          message: 'No GitHub account is configured for this project.',
         });
       }
       return ok({ accountId });

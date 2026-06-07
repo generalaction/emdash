@@ -72,6 +72,7 @@ export type ConnectionStatusMap = Record<IssueProviderType, ConnectionStatus>;
 
 export type IssueListError =
   | { type: 'no_account_selected'; message: string }
+  | { type: 'account_disabled'; message: string }
   | { type: 'account_not_found'; host?: string; accountId?: string; message: string }
   | {
       type: 'account_host_mismatch';

@@ -15,6 +15,8 @@ export const projectController = createRPCController({
     projectSettingsService.getProjectSettingsPage(projectId),
   updateProjectSettings: (projectId, settings) =>
     projectSettingsService.updateProjectSettings(projectId, settings),
+  patchProjectSettings: (projectId, patch) =>
+    projectSettingsService.patchProjectSettings(projectId, patch),
   shareProjectSettingsToConfig: (projectId, request) =>
     projectSettingsService.shareProjectSettingsToConfig(projectId, request),
   migrateProjectConfig: (projectId, request) =>

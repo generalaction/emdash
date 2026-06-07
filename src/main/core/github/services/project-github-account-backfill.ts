@@ -7,7 +7,7 @@ type AccountLookup = Pick<GitHubAccountRegistry, 'getDefaultAccountId' | 'listAc
 
 type ProjectSettingsForBackfill = {
   get(): Promise<ProjectSettings>;
-  update(settings: ProjectSettings): Promise<Result<void, unknown>>;
+  patch(patch: { githubAccountId?: string | null }): Promise<Result<void, unknown>>;
 };
 
 type ProjectForGitHubAccountBackfill = {
@@ -41,7 +41,7 @@ export class ProjectGitHubAccountBackfillService {
     const accountId = await this.selectAccountIdForHost(repository.host);
     if (!accountId) return { status: 'skipped' };
 
-    const result = await project.settings.update({ ...settings, githubAccountId: accountId });
+    const result = await project.settings.patch({ githubAccountId: accountId });
     return result.success ? { status: 'updated', accountId } : { status: 'skipped' };
   }
 
