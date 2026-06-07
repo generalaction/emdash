@@ -4,6 +4,7 @@ import { deleteProject } from './operations/deleteProject';
 import { getProjects } from './operations/getProjects';
 import { openProject } from './operations/openProject';
 import { updateProjectConnection } from './operations/updateProjectConnection';
+import { countProjectsUsingGithubAccount } from './settings/count-projects-using-github-account';
 import { projectSettingsService } from './settings/project-settings-service';
 
 export const projectController = createRPCController({
@@ -21,6 +22,7 @@ export const projectController = createRPCController({
     projectSettingsService.shareProjectSettingsToConfig(projectId, request),
   migrateProjectConfig: (projectId, request) =>
     projectSettingsService.migrateProjectConfig(projectId, request),
+  countProjectsUsingGithubAccount,
   updateProjectConnection,
   openProject,
 });

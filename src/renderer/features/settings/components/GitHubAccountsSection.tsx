@@ -9,6 +9,7 @@ import {
   useRemoveGitHubAccount,
   useSetDefaultGitHubAccount,
 } from '@renderer/lib/hooks/useGithubAccounts';
+import { rpc } from '@renderer/lib/ipc';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
@@ -55,10 +56,18 @@ export function GitHubAccountsSection() {
     });
   };
 
-  const confirmRemove = (account: GitHubAccountSummary) => {
+  const confirmRemove = async (account: GitHubAccountSummary) => {
+    let description = 'This removes the saved GitHub token from Emdash.';
+    try {
+      const count = await rpc.projects.countProjectsUsingGithubAccount(account.accountId);
+      if (count > 0) {
+        const projectLabel = count === 1 ? '1 project' : `${count} projects`;
+        description = `This account is used by ${projectLabel}. Removing it will disable GitHub features for those projects until another GitHub account is assigned.`;
+      }
+    } catch {}
     showConfirmRemove({
       title: `Remove @${account.login}?`,
-      description: 'This removes the saved GitHub token from Emdash.',
+      description,
       confirmLabel: 'Remove',
       onSuccess: () => void removeAccount(account),
     });
@@ -111,7 +120,7 @@ export function GitHubAccountsSection() {
               setDefaultPending={setDefaultMutation.isPending}
               removePending={removeMutation.isPending}
               onSetDefault={() => void setDefaultAccount(account)}
-              onRemove={() => confirmRemove(account)}
+              onRemove={() => void confirmRemove(account)}
             />
           ))}
         </div>
