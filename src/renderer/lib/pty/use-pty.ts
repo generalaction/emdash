@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import { events, rpc } from '@renderer/lib/ipc';
 import { panelDragStore } from '@renderer/lib/layout/panel-drag-store';
 import { log } from '@renderer/utils/logger';
+import { IS_MAC_PLATFORM, IS_WINDOWS_PLATFORM } from '@renderer/utils/platform';
 import type { AppSettings } from '@shared/core/app-settings';
 import { ptyDataChannel, ptyExitChannel } from '@shared/core/pty/ptyEvents';
 import {
@@ -42,9 +43,6 @@ interface XtermInternals {
 const PTY_RESIZE_DEBOUNCE_MS = 120;
 const MIN_TERMINAL_COLS = 2;
 const MIN_TERMINAL_ROWS = 1;
-const IS_MAC_PLATFORM =
-  typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
-const IS_WINDOWS_PLATFORM = typeof navigator !== 'undefined' && /Win/.test(navigator.platform);
 const LAST_SELECTION_COPY_GRACE_MS = 2_000;
 
 function getCellMetrics(terminal: Terminal): { width: number; height: number } | null {

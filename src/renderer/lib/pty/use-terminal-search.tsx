@@ -1,5 +1,6 @@
 import type { Terminal } from '@xterm/xterm';
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import { IS_MAC_PLATFORM } from '@renderer/utils/platform';
 import {
   collectTerminalSearchMatches,
   getNextTerminalSearchIndex,
@@ -18,9 +19,6 @@ const EMPTY_SEARCH_STATUS: TerminalSearchStatus = {
   currentIndex: 0,
   total: 0,
 };
-
-const IS_MAC_PLATFORM =
-  typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 
 interface UseTerminalSearchOptions {
   terminal: Terminal | null | undefined;

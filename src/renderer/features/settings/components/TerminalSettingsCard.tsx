@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from '@renderer/lib/ui/select';
 import { Switch } from '@renderer/lib/ui/switch';
+import { IS_MAC_PLATFORM } from '@renderer/utils/platform';
 import {
   TERMINAL_FONT_SIZE_DEFAULT,
   TERMINAL_FONT_SIZE_MAX,
@@ -66,9 +67,6 @@ const DEFAULT_OPTION: FontOption = {
   value: '',
   label: `Default (${DEFAULT_FONT_FAMILY})`,
 };
-
-const IS_MAC_PLATFORM =
-  typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 
 const OPTION_AS_META_OPTIONS: { value: TerminalOptionAsMetaId; label: string }[] = [
   { value: 'none', label: 'Off' },
