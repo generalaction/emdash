@@ -1,4 +1,3 @@
-import { useQuery } from '@tanstack/react-query';
 import { ChevronsUpDownIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
@@ -6,10 +5,11 @@ import {
   getProjectSettingsStore,
   getRepositoryStore,
 } from '@renderer/features/projects/stores/project-selectors';
+import { useGitHubRepositoryOwnerSelect } from '@renderer/lib/hooks/useGithubRepositoryOwners';
 import { rpc } from '@renderer/lib/ipc';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
-import { ComboboxPopover, type ComboboxSelectOption } from '@renderer/lib/ui/combobox-popover';
+import { ComboboxPopover } from '@renderer/lib/ui/combobox-popover';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
   DialogContentArea,
@@ -52,10 +52,6 @@ export const AddRemoteModal = observer(function AddRemoteModal({
   const [error, setError] = useState<string | null>(null);
 
   const [repositoryName, setRepositoryName] = useState(projectName);
-  const [selectedOwner, setSelectedOwner] = useState<{
-    githubAccountId: string;
-    owner: ComboboxSelectOption;
-  } | null>(null);
   const [visibility, setVisibility] = useState<'public' | 'private'>('private');
   const [url, setUrl] = useState('');
 
@@ -70,28 +66,13 @@ export const AddRemoteModal = observer(function AddRemoteModal({
     !!settingsStore && settingsStore.pageData.data === null && settingsError === null;
 
   const {
-    data,
+    owners,
+    owner,
     isLoading: ownersLoading,
-    error: ownersError,
-  } = useQuery({
-    queryKey: ['owners', githubAccountId],
-    queryFn: () => rpc.github.getOwners(githubAccountId ?? undefined),
-    enabled: githubAccountId !== null,
-  });
+    errorMessage: ownersErrorMessage,
+    handleOwnerChange,
+  } = useGitHubRepositoryOwnerSelect(githubAccountId);
   const selectedRemote = getRepositoryStore(projectId)?.pushRemote.name ?? 'origin';
-
-  const owners =
-    data?.success === true
-      ? (data.owners ?? []).map((owner) => ({ value: owner.login, label: owner.login }))
-      : [];
-  const owner =
-    selectedOwner?.githubAccountId === githubAccountId ? selectedOwner.owner : (owners[0] ?? null);
-  const ownersErrorMessage =
-    data?.success === false
-      ? (data.error ?? 'Failed to load repository owners')
-      : ownersError
-        ? toErrorMessage(ownersError, 'Failed to load repository owners')
-        : null;
   const canSubmitCreateRepository =
     githubAccountId !== null &&
     !settingsLoading &&
@@ -253,11 +234,7 @@ export const AddRemoteModal = observer(function AddRemoteModal({
                 items={owners}
                 defaultValue={owner}
                 value={owner}
-                onValueChange={(nextOwner) => {
-                  if (githubAccountId) {
-                    setSelectedOwner({ githubAccountId, owner: nextOwner });
-                  }
-                }}
+                onValueChange={handleOwnerChange}
               />
               {githubAccountId === null && !settingsLoading && !settingsError && (
                 <p className="text-muted-foreground text-xs">

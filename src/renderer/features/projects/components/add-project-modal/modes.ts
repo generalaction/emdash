@@ -1,7 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
-import { rpc } from '@renderer/lib/ipc';
-import type { ComboboxSelectOption } from '@renderer/lib/ui/combobox-popover';
+import { useState } from 'react';
+import { useGitHubRepositoryOwnerSelect } from '@renderer/lib/hooks/useGithubRepositoryOwners';
 import { basenameFromAnyPath } from '@shared/path-name';
 
 export function usePickMode() {
@@ -46,12 +44,15 @@ export function useNewMode(defaultPath: string, githubAccountId: string | null) 
   const [_, setNameIsTouched] = useState<boolean>(false);
   const [repositoryName, setRepositoryName] = useState('');
   const [repositoryNameIsTouched, setRepositoryNameIsTouched] = useState<boolean>(false);
-  const [repositoryOwnerOverride, setRepositoryOwnerOverride] = useState<
-    { githubAccountId: string; owner: ComboboxSelectOption } | undefined
-  >(undefined);
   const [repositoryVisibility, setRepositoryVisibility] = useState<'public' | 'private'>('private');
   const [pathOverride, setPathOverride] = useState<string | undefined>(undefined);
   const path = pathOverride ?? defaultPath;
+  const {
+    owners,
+    owner: repositoryOwner,
+    errorMessage: repositoryOwnersErrorMessage,
+    handleOwnerChange,
+  } = useGitHubRepositoryOwnerSelect(githubAccountId);
 
   const handleNameChange = (newName: string) => {
     setName(newName);
@@ -66,33 +67,6 @@ export function useNewMode(defaultPath: string, githubAccountId: string | null) 
     setNameIsTouched(false);
   };
 
-  const { data } = useQuery({
-    queryKey: ['owners', githubAccountId],
-    queryFn: () => rpc.github.getOwners(githubAccountId ?? undefined),
-    enabled: githubAccountId !== null,
-  });
-
-  const owners = useMemo(
-    () =>
-      githubAccountId !== null
-        ? (data?.owners?.map((owner) => ({ value: owner.login, label: owner.login })) ?? [])
-        : [],
-    [githubAccountId, data]
-  );
-
-  const repositoryOwner = useMemo(
-    () =>
-      repositoryOwnerOverride?.githubAccountId === githubAccountId
-        ? repositoryOwnerOverride.owner
-        : owners[0],
-    [githubAccountId, owners, repositoryOwnerOverride]
-  );
-
-  const handleOwnerChange = (item: ComboboxSelectOption) => {
-    if (githubAccountId === null) return;
-    setRepositoryOwnerOverride({ githubAccountId, owner: item });
-  };
-
   const isValid =
     name.trim().length > 0 &&
     repositoryName.trim().length > 0 &&
@@ -105,6 +79,7 @@ export function useNewMode(defaultPath: string, githubAccountId: string | null) 
     repositoryOwner,
     repositoryVisibility,
     owners,
+    repositoryOwnersErrorMessage,
     setRepositoryVisibility,
     path,
     setPath: setPathOverride,
