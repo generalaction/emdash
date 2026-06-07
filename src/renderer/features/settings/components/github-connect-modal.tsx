@@ -1,10 +1,17 @@
-import { useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, Github, Loader2, Terminal } from 'lucide-react';
+import { AlertCircle, ArrowRight, Github, KeyRound, Loader2, Terminal } from 'lucide-react';
 import { useState } from 'react';
 import { useToast } from '@renderer/lib/hooks/use-toast';
-import { rpc } from '@renderer/lib/ipc';
+import {
+  useAccountLinkProvider,
+  useAccountSession,
+  useAccountSignIn,
+} from '@renderer/lib/hooks/useAccount';
+import {
+  useGitHubDeviceFlowAuth,
+  useImportGitHubCliAccounts,
+} from '@renderer/lib/hooks/useGithubAccounts';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
-import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
+import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import {
   DialogContentArea,
@@ -13,25 +20,38 @@ import {
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
 
-const ISSUE_CONNECTION_STATUS_QUERY_KEY = ['issues:connection-status'] as const;
-
-type MethodError = { method: 'oauth' | 'cli'; message: string } | null;
+type MethodError = {
+  method: 'oauth' | 'cli' | 'device_flow';
+  message: string;
+} | null;
 
 export function GithubConnectModal({ onSuccess, onClose }: BaseModalProps<void>) {
   const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const { checkStatus } = useGithubContext();
+  const { data: session } = useAccountSession();
+  const signInMutation = useAccountSignIn();
+  const linkProviderMutation = useAccountLinkProvider();
+  const deviceFlowMutation = useGitHubDeviceFlowAuth();
+  const importCliAccountsMutation = useImportGitHubCliAccounts();
+  const showDeviceFlow = useShowModal('githubDeviceFlowModal');
   const [oauthLoading, setOauthLoading] = useState(false);
   const [cliLoading, setCliLoading] = useState(false);
   const [error, setError] = useState<MethodError>(null);
 
-  const anyLoading = oauthLoading || cliLoading;
+  const isSignedIn = session?.isSignedIn === true;
+  const hasAccount = session?.hasAccount === true;
+  const deviceFlowLoading = deviceFlowMutation.isPending;
+  const anyLoading = oauthLoading || cliLoading || deviceFlowLoading;
+  const oauthContent = getOAuthContent({ isSignedIn, hasAccount });
+  const showDeviceFlowMethod = !hasAccount;
 
   const connectOAuth = async () => {
     setError(null);
     setOauthLoading(true);
     try {
-      const result = await rpc.github.connectOAuth();
+      const result = isSignedIn
+        ? await linkProviderMutation.mutateAsync('github')
+        : await signInMutation.mutateAsync('github');
+
       if (!result.success) {
         setError({
           method: 'oauth',
@@ -40,11 +60,12 @@ export function GithubConnectModal({ onSuccess, onClose }: BaseModalProps<void>)
         return;
       }
 
-      await checkStatus();
-      void queryClient.invalidateQueries({ queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY });
       toast({
         title: 'Connected to GitHub',
-        description: result.user ? `Signed in as ${result.user.login}` : undefined,
+        description:
+          'providerAccount' in result && result.providerAccount
+            ? `Linked @${result.providerAccount.login}.`
+            : 'GitHub is connected.',
       });
       onSuccess();
     } finally {
@@ -56,8 +77,16 @@ export function GithubConnectModal({ onSuccess, onClose }: BaseModalProps<void>)
     setError(null);
     setCliLoading(true);
     try {
-      const status = await checkStatus({ refresh: true });
-      if (!status.authenticated || status.tokenSource !== 'cli') {
+      const result = await importCliAccountsMutation.mutateAsync();
+      if (!result.success) {
+        setError({
+          method: 'cli',
+          message: result.error,
+        });
+        return;
+      }
+
+      if (result.importedAccountIds.length === 0) {
         setError({
           method: 'cli',
           message: 'No GitHub CLI session found. Run gh auth login first.',
@@ -65,10 +94,12 @@ export function GithubConnectModal({ onSuccess, onClose }: BaseModalProps<void>)
         return;
       }
 
-      void queryClient.invalidateQueries({ queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY });
       toast({
-        title: 'GitHub CLI detected',
-        description: status.user ? `Using @${status.user.login} via GitHub CLI.` : undefined,
+        title: 'GitHub CLI accounts imported',
+        description:
+          result.importedAccountIds.length === 1
+            ? '1 account is available in Emdash.'
+            : `${result.importedAccountIds.length} accounts are available in Emdash.`,
       });
       onSuccess();
     } finally {
@@ -76,27 +107,36 @@ export function GithubConnectModal({ onSuccess, onClose }: BaseModalProps<void>)
     }
   };
 
+  const connectDeviceFlow = () => {
+    setError(null);
+    showDeviceFlow({});
+    void deviceFlowMutation.mutateAsync();
+  };
+
   return (
     <>
       <DialogHeader>
         <DialogTitle>Connect GitHub</DialogTitle>
       </DialogHeader>
-      <DialogContentArea className="gap-2">
+      <DialogContentArea className="gap-3">
         <div className="rounded-lg border border-border p-3">
           <div className="flex items-center gap-3">
             <Github className="text-muted-foreground h-4 w-4 shrink-0" />
             <div className="min-w-0 flex-1">
-              <h3 className="text-sm font-medium text-foreground">GitHub OAuth</h3>
-              <p className="text-muted-foreground mt-0.5 text-xs">Sign in with your browser</p>
+              <h3 className="text-sm font-medium text-foreground">{oauthContent.title}</h3>
+              <p className="text-muted-foreground mt-0.5 text-xs">{oauthContent.description}</p>
             </div>
-            <Button onClick={() => void connectOAuth()} disabled={anyLoading}>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => void connectOAuth()}
+              disabled={anyLoading}
+              aria-label={oauthLoading ? oauthContent.loadingLabel : oauthContent.buttonLabel}
+            >
               {oauthLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Connecting…
-                </>
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                'Connect'
+                <ArrowRight className="h-4 w-4" />
               )}
             </Button>
           </div>
@@ -107,28 +147,55 @@ export function GithubConnectModal({ onSuccess, onClose }: BaseModalProps<void>)
           <div className="flex items-center gap-3">
             <Terminal className="text-muted-foreground h-4 w-4 shrink-0" />
             <div className="min-w-0 flex-1">
-              <h3 className="text-sm font-medium text-foreground">GitHub CLI</h3>
+              <h3 className="text-sm font-medium text-foreground">Import from GitHub CLI</h3>
               <p className="text-muted-foreground mt-0.5 text-xs">
-                Run{' '}
-                <code className="rounded bg-background-1 px-1 py-0.5 font-mono text-[11px] text-foreground">
-                  gh auth login
-                </code>{' '}
-                in your terminal
+                Use accounts already authenticated with GitHub CLI
               </p>
             </div>
-            <Button variant="outline" onClick={() => void refreshCliAuth()} disabled={anyLoading}>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => void refreshCliAuth()}
+              disabled={anyLoading}
+              aria-label={cliLoading ? 'Checking GitHub CLI accounts' : 'Import from GitHub CLI'}
+            >
               {cliLoading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Checking…
-                </>
+                <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                'Refresh'
+                <ArrowRight className="h-4 w-4" />
               )}
             </Button>
           </div>
           {error?.method === 'cli' && <InlineError message={error.message} />}
         </div>
+
+        {showDeviceFlowMethod && (
+          <div className="rounded-lg border border-border p-3">
+            <div className="flex items-center gap-3">
+              <KeyRound className="text-muted-foreground h-4 w-4 shrink-0" />
+              <div className="min-w-0 flex-1">
+                <h3 className="text-sm font-medium text-foreground">Use device flow</h3>
+                <p className="text-muted-foreground mt-0.5 text-xs">
+                  Connect GitHub on this device with a one-time code
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={connectDeviceFlow}
+                disabled={anyLoading}
+                aria-label={deviceFlowLoading ? 'Opening device flow' : 'Use device flow'}
+              >
+                {deviceFlowLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ArrowRight className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+            {error?.method === 'device_flow' && <InlineError message={error.message} />}
+          </div>
+        )}
       </DialogContentArea>
       <DialogFooter>
         <Button variant="outline" onClick={onClose} disabled={anyLoading}>
@@ -137,6 +204,33 @@ export function GithubConnectModal({ onSuccess, onClose }: BaseModalProps<void>)
       </DialogFooter>
     </>
   );
+}
+
+function getOAuthContent({ isSignedIn, hasAccount }: { isSignedIn: boolean; hasAccount: boolean }) {
+  if (isSignedIn) {
+    return {
+      title: 'Link GitHub account',
+      description: 'Add another GitHub account to your Emdash account',
+      buttonLabel: 'Link',
+      loadingLabel: 'Linking...',
+    };
+  }
+
+  if (hasAccount) {
+    return {
+      title: 'Sign in with GitHub',
+      description: 'Sign into your Emdash account',
+      buttonLabel: 'Sign In',
+      loadingLabel: 'Signing in...',
+    };
+  }
+
+  return {
+    title: 'Sign in to Emdash',
+    description: 'Create or sign into your Emdash account with GitHub',
+    buttonLabel: 'Continue',
+    loadingLabel: 'Continuing...',
+  };
 }
 
 function InlineError({ message }: { message: string }) {

@@ -1,5 +1,5 @@
+import type { Conversation } from '@shared/core/conversations/conversations';
 import { isNativeChatProvider } from '@shared/conversation-ui';
-import type { Conversation } from '@shared/conversations';
 
 export type ConversationSurface = 'terminal' | 'native-chat';
 

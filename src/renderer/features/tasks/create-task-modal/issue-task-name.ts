@@ -1,10 +1,10 @@
 import { normalizeTaskName } from '@renderer/utils/taskNames';
-import type { Issue } from '@shared/tasks';
+import type { LinkedIssue } from '@shared/core/linked-issue';
 
-const PROVIDERS_WITH_BRANCH_NAMES = new Set<Issue['provider']>(['linear', 'plain']);
+const PROVIDERS_WITH_BRANCH_NAMES = new Set<LinkedIssue['provider']>(['linear', 'plain']);
 
 export function getIssueTaskName(
-  issue: Issue | null | undefined,
+  issue: LinkedIssue | null | undefined,
   options?: { preserveCapitalization?: boolean }
 ): string | null {
   if (!issue || !PROVIDERS_WITH_BRANCH_NAMES.has(issue.provider)) {

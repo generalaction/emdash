@@ -3,8 +3,8 @@ import { hydrateConversation } from '@main/core/conversations/hydrateConversatio
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
 import { events } from '@main/lib/events';
-import { parseConversationConfig, serializeConversationConfig } from '@shared/conversation-config';
-import { conversationChangedChannel } from '@shared/events/conversationEvents';
+import type { ConversationConfig } from '@shared/core/conversations/conversation-config';
+import { conversationChangedChannel } from '@shared/core/conversations/conversationEvents';
 import { nativeChatService } from './native-chat-service';
 
 /**
@@ -45,12 +45,12 @@ export async function switchNativeChatToTerminalMode(
     .limit(1);
   if (!freshRow) throw new Error('Conversation not found');
 
-  const config = parseConversationConfig(freshRow.config);
+  const config: ConversationConfig = { ...(freshRow.config ?? {}) };
   if (config.uiMode) {
     delete config.uiMode;
     await db
       .update(conversations)
-      .set({ config: serializeConversationConfig(config) })
+      .set({ config })
       .where(eq(conversations.id, conversationId));
     events.emit(conversationChangedChannel, {
       conversationId,

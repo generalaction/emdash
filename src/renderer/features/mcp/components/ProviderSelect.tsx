@@ -4,8 +4,8 @@ import { Button } from '@renderer/lib/ui/button';
 import { Field, FieldLabel } from '@renderer/lib/ui/field';
 import { agentConfig } from '@renderer/utils/agentConfig';
 import { cn } from '@renderer/utils/utils';
-import { type AgentProviderId } from '@shared/agent-provider-registry';
-import type { McpProvidersResponse } from '@shared/mcp/types';
+import { type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import type { McpProvidersResponse } from '@shared/core/mcp/types';
 
 interface ProviderSelectProps {
   providers: McpProvidersResponse[];

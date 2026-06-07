@@ -2,7 +2,7 @@ import { ExternalLink } from 'lucide-react';
 import { PrMergeLine } from '@renderer/lib/components/pr-merge-line';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
 import { cn } from '@renderer/utils/utils';
-import { getPrNumber, type PullRequest } from '@shared/pull-requests';
+import { getPrNumber, type PullRequest } from '@shared/core/pull-requests/pull-requests';
 import { rpc } from '../ipc';
 import { Button } from '../ui/button';
 import { RelativeTime } from '../ui/relative-time';

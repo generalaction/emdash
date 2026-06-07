@@ -7,7 +7,7 @@ import {
   type PrFilterOptions,
   type PrFilters,
   type PrSortField,
-} from '@shared/pull-requests';
+} from '@shared/core/pull-requests/pull-requests';
 
 const PAGE_SIZE = 50;
 
@@ -112,5 +112,3 @@ export function useFilterOptions(projectId?: string, repositoryUrl?: string) {
     staleTime: 60_000,
   });
 }
-
-export type { PrFilters, PrSortField } from '@shared/pull-requests';

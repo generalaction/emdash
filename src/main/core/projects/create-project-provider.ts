@@ -8,6 +8,7 @@ import type { FileSystemProvider } from '@main/core/fs/types';
 import { GitFetchService } from '@main/core/git/git-fetch-service';
 import { GitService } from '@main/core/git/impl/git-service';
 import { GitRepositoryService } from '@main/core/git/repository-service';
+import { projectGitHubAccountBackfillService } from '@main/core/github/services/project-github-account-backfill-instance';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import type { SshConnectionManagerEvent } from '@main/core/ssh/lifecycle/ssh-connection-manager';
 import { log } from '@main/lib/logger';
@@ -50,7 +51,7 @@ async function createLocalProvider(project: LocalProject): Promise<ProjectProvid
     return path.join(directory, safePathSegment(project.name, project.id));
   };
 
-  return buildProvider(
+  const provider = buildProvider(
     project.id,
     project.path,
     { kind: 'local', defaultWorkspaceType: { kind: 'local' }, ctx },
@@ -61,6 +62,8 @@ async function createLocalProvider(project: LocalProject): Promise<ProjectProvid
     resolveWorktreePoolPath,
     () => {}
   );
+  await backfillGitHubAccount(provider);
+  return provider;
 }
 
 async function createSshProvider(project: SshProject): Promise<ProjectProvider> {
@@ -108,6 +111,7 @@ async function createSshProvider(project: SshProject): Promise<ProjectProvider> 
       resolveWorktreePoolPath,
       dispose
     );
+    await backfillGitHubAccount(provider);
 
     // Wire reconnect handler after provider is built so gitFetchService is available.
     const handler = (evt: SshConnectionManagerEvent) => {
@@ -125,6 +129,17 @@ async function createSshProvider(project: SshProject): Promise<ProjectProvider> 
     });
     sshConnectionManager.reportChannelError(project.connectionId, error);
     throw error;
+  }
+}
+
+async function backfillGitHubAccount(provider: ProjectProvider): Promise<void> {
+  try {
+    await projectGitHubAccountBackfillService.backfillProject(provider);
+  } catch (error) {
+    log.warn('createProvider: failed to backfill project GitHub account', {
+      projectId: provider.projectId,
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 }
 

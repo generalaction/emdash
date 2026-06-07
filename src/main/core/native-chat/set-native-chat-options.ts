@@ -4,9 +4,9 @@ import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
-import { parseConversationConfig, serializeConversationConfig } from '@shared/conversation-config';
+import type { ConversationConfig } from '@shared/core/conversations/conversation-config';
+import { conversationChangedChannel } from '@shared/core/conversations/conversationEvents';
 import { isNativeChatProvider } from '@shared/conversation-ui';
-import { conversationChangedChannel } from '@shared/events/conversationEvents';
 import {
   isCodexServiceTier,
   isNativeChatReasoningEffort,
@@ -49,7 +49,7 @@ export async function setNativeChatOptions(
     .limit(1);
   if (!row) throw new Error('Conversation not found');
 
-  const config = parseConversationConfig(row.config);
+  const config: ConversationConfig = { ...(row.config ?? {}) };
 
   if (options.model !== undefined) {
     if (options.model === null) delete config.model;
@@ -69,7 +69,7 @@ export async function setNativeChatOptions(
 
   await db
     .update(conversations)
-    .set({ config: serializeConversationConfig(config) })
+    .set({ config })
     .where(eq(conversations.id, conversationId));
 
   // Remember the trio as this provider's defaults for future conversations.

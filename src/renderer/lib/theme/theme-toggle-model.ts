@@ -1,4 +1,4 @@
-import type { Theme } from '@shared/app-settings';
+import type { Theme } from '@shared/core/app-settings';
 
 export function getNextTheme(
   current: Theme,

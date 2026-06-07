@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ConversationConfig } from '@shared/conversation-config';
+import type { ConversationConfig } from '@shared/core/conversations/conversation-config';
 import { applyNativeChatDefaults } from './apply-native-chat-defaults';
 
 describe('applyNativeChatDefaults', () => {

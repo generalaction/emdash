@@ -1,5 +1,5 @@
-import type { AgentProviderId } from '@shared/agent-provider-registry';
-import type { AppSettings } from '@shared/app-settings';
+import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import type { AppSettings } from '@shared/core/app-settings';
 import { isNativeChatProvider, type ConversationUiMode } from '@shared/conversation-ui';
 
 /**

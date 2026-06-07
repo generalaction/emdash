@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { githubRepositoryResolver } from '@main/core/github/services/github-repository-resolver';
 import { projectManager } from '@main/core/projects/project-manager';
-import { err, ok } from '@shared/result';
+import { err, ok } from '@shared/lib/result';
 import { ProviderRepositoryService } from './provider-repository-service';
 
 vi.mock('@main/core/github/services/github-repository-resolver', () => ({

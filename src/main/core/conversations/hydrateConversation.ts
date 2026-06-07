@@ -3,7 +3,6 @@ import { nativeChatService } from '@main/core/native-chat/native-chat-service';
 import { resolveNativeChatTarget } from '@main/core/native-chat/resolve-native-chat-target';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
-import { parseConversationConfig } from '@shared/conversation-config';
 import { resolveTask } from '../projects/utils';
 import { mapConversationRowToConversation } from './utils';
 
@@ -38,7 +37,7 @@ export async function hydrateConversation(
       .where(eq(conversations.id, conversationId));
   }
 
-  const config = parseConversationConfig(row.config);
+  const config = row.config ?? {};
   const isResuming = !isFirstSpawn;
 
   if (config.uiMode === 'native-chat') {

@@ -7,7 +7,7 @@ import {
   PI_CHAT_MODEL_OPTIONS,
   type NativeChatOptions,
 } from '@shared/native-chat';
-import type { CatalogSkill } from '@shared/skills/types';
+import type { CatalogSkill } from '@shared/core/skills/types';
 
 export type NativeChatSlashGroup =
   | 'command'

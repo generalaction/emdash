@@ -1,4 +1,4 @@
-import type { ConnectionState, SshConfig } from '@shared/ssh';
+import type { ConnectionState, SshConfig } from '@shared/core/ssh/ssh';
 
 export function authLabel(connection: SshConfig): string {
   switch (connection.authType) {

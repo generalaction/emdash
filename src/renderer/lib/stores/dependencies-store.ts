@@ -6,7 +6,7 @@ import type {
   DependencyState,
   DependencyStatusMap,
   DependencyStatusUpdatedEvent,
-} from '@shared/dependencies';
+} from '@shared/core/dependencies';
 import { dependencyStatusUpdatedChannel } from '@shared/events/appEvents';
 import { events, rpc } from '../../lib/ipc';
 import { Resource } from './resource';

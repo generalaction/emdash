@@ -1,7 +1,7 @@
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { rpc } from '@renderer/lib/ipc';
-import { commitRef } from '@shared/git';
-import type { PullRequest } from '@shared/pull-requests';
+import { commitRef } from '@shared/core/git/git';
+import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
 
 const PAGE_SIZE = 50;
 

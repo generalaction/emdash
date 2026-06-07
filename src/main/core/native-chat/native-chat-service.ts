@@ -12,11 +12,12 @@ import { providerOverrideSettings } from '@main/core/settings/provider-settings-
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
-import type { ProviderCustomConfig } from '@shared/app-settings';
+import type { ProviderCustomConfig } from '@shared/core/app-settings';
+import { agentSessionExitedChannel } from '@shared/core/agents/agentEvents';
+import type { Conversation } from '@shared/core/conversations/conversations';
+import { conversationChangedChannel } from '@shared/core/conversations/conversationEvents';
+import { makePtyId } from '@shared/core/pty/ptyId';
 import { isNativeChatProvider, type NativeChatProviderId } from '@shared/conversation-ui';
-import type { Conversation } from '@shared/conversations';
-import { agentSessionExitedChannel } from '@shared/events/agentEvents';
-import { conversationChangedChannel } from '@shared/events/conversationEvents';
 import { nativeChatEventChannel, type NativeChatEvent } from '@shared/events/nativeChatEvents';
 import {
   emptyNativeChatState,
@@ -24,7 +25,6 @@ import {
   type NativeChatState,
   type NativeChatAttachment,
 } from '@shared/native-chat';
-import { makePtyId } from '@shared/ptyId';
 import { buildPromptWithAttachments } from './attachments';
 import {
   buildClaudeExecCommand,

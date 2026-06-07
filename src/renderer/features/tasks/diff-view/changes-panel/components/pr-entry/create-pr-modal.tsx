@@ -23,8 +23,8 @@ import { Separator } from '@renderer/lib/ui/separator';
 import { SplitButton } from '@renderer/lib/ui/split-button';
 import { Textarea } from '@renderer/lib/ui/textarea';
 import { log } from '@renderer/utils/logger';
-import type { Branch } from '@shared/git';
-import { pullRequestErrorMessage } from '@shared/pull-requests';
+import type { Branch } from '@shared/core/git/git';
+import { pullRequestErrorMessage } from '@shared/core/pull-requests/pull-requests';
 import { parseRepositoryRef } from '@shared/repository-ref';
 import { resolveInitialBaseBranch } from './base-branch';
 import { getTargetRemotes, resolveCreatePrTargetRemote } from './target-remote';
@@ -127,7 +127,7 @@ export const CreatePrModal = observer(function CreatePrModal({
           ? `${headRepository.owner}:${branchName}`
           : branchName;
 
-      const result = await rpc.pullRequests.createPullRequest({
+      const result = await rpc.pullRequests.createPullRequest(projectId, {
         repositoryUrl: targetRepositoryUrl,
         headRepositoryUrl: headRepository?.repositoryUrl,
         head,

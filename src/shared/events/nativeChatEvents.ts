@@ -1,4 +1,4 @@
-import { defineEvent } from '@shared/ipc/events';
+import { defineEvent } from '@shared/lib/ipc/events';
 import type { NativeChatItem } from '@shared/native-chat';
 
 export type NativeChatEvent =

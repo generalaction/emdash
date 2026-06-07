@@ -1,4 +1,4 @@
-import { createRPCController } from '@shared/ipc/rpc';
+import { createRPCController } from '@shared/lib/ipc/rpc';
 import type { NativeChatState } from '@shared/native-chat';
 import { nativeChatService } from './native-chat-service';
 import { readAttachmentImage } from './read-attachment-image';

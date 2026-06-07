@@ -10,8 +10,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popove
 import { Textarea } from '@renderer/lib/ui/textarea';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
-import type { AgentProviderId } from '@shared/agent-provider-registry';
-import type { Issue } from '@shared/tasks';
+import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import type { LinkedIssue } from '@shared/core/linked-issue';
 import { ProviderLogo } from '../components/issue-selector/issue-selector';
 import { appendInitialConversationText } from '../create-task-modal/initial-conversation-text';
 import { usePromptFileDrop } from '../create-task-modal/use-prompt-file-drop';
@@ -61,7 +61,7 @@ export function useInitialConversationState(
 
 interface InitialConversationFieldProps {
   state: InitialConversationState;
-  linkedIssue?: Issue;
+  linkedIssue?: LinkedIssue;
   includeIssueContextByDefault: boolean;
   onPromptBlur?: () => void;
 }

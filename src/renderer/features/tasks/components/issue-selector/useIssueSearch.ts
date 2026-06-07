@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useConnectedIssueProviders } from '@renderer/features/integrations/use-connected-issue-providers';
 import { useIssues } from '@renderer/features/integrations/use-issues';
 import { getProjectViewStore } from '@renderer/features/projects/stores/project-selectors';
-import type { Issue } from '@shared/tasks';
+import type { LinkedIssue } from '@shared/core/linked-issue';
 
 export type UseIssueSearchResult = ReturnType<typeof useIssueSearch>;
 
@@ -14,14 +14,14 @@ export function useIssueSearch(repositoryUrl: string, projectPath = '', projectI
 
   const projectView = projectId ? getProjectViewStore(projectId) : undefined;
 
-  const [localProvider, setLocalProvider] = useState<Issue['provider'] | null>(null);
+  const [localProvider, setLocalProvider] = useState<LinkedIssue['provider'] | null>(null);
 
   // When a project is available, read from the MobX-observable store (auto-tracked in observer
   // components) so the selection persists across modal opens. Fall back to local state otherwise.
   const selectedIssueProvider = projectView?.selectedIssueProvider ?? localProvider;
 
   const setSelectedIssueProvider = useCallback(
-    (provider: Issue['provider'] | null) => {
+    (provider: LinkedIssue['provider'] | null) => {
       if (projectView) {
         projectView.setSelectedIssueProvider(provider);
       } else {
@@ -55,7 +55,7 @@ export function useIssueSearch(repositoryUrl: string, projectPath = '', projectI
   );
 
   const isProviderDisabled = useCallback(
-    (provider: Issue['provider']) => !isProviderUsable(provider),
+    (provider: LinkedIssue['provider']) => !isProviderUsable(provider),
     [isProviderUsable]
   );
 
@@ -64,6 +64,7 @@ export function useIssueSearch(repositoryUrl: string, projectPath = '', projectI
 
   return {
     issues: issuesHook.issues,
+    error: issuesHook.error,
     issueProvider,
     hasAnyIntegration: hasAnyIssueIntegration,
     isProviderLoading,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ProviderCustomConfig } from '@shared/app-settings';
+import type { ProviderCustomConfig } from '@shared/core/app-settings';
 import {
   buildClaudeExecCommand,
   buildCodexExecCommand,

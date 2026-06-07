@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AppSettingsKeys } from '@shared/app-settings';
+import { AppSettingsKeys } from '@shared/core/app-settings';
 import { appSettingsSchema, conversationUiSettingsSchema } from './schema';
 import { getDefaultForKey } from './settings-registry';
 

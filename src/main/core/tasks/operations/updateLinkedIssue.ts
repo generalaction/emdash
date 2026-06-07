@@ -3,9 +3,13 @@ import { mapTaskRowToTask } from '@main/core/tasks/utils/utils';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
 import { telemetryService } from '@main/lib/telemetry';
-import type { Issue, Task } from '@shared/tasks';
+import type { LinkedIssue } from '@shared/core/linked-issue';
+import type { Task } from '@shared/core/tasks/tasks';
 
-export async function updateLinkedIssue(taskId: string, issue?: Issue): Promise<Task | undefined> {
+export async function updateLinkedIssue(
+  taskId: string,
+  issue?: LinkedIssue
+): Promise<Task | undefined> {
   const [existingRow] = await db
     .select({ id: tasks.id, projectId: tasks.projectId })
     .from(tasks)
@@ -16,7 +20,7 @@ export async function updateLinkedIssue(taskId: string, issue?: Issue): Promise<
   const [updatedRow] = await db
     .update(tasks)
     .set({
-      linkedIssue: issue ? JSON.stringify(issue) : null,
+      linkedIssue: issue ?? null,
     })
     .where(eq(tasks.id, taskId))
     .returning();

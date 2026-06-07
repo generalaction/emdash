@@ -3,7 +3,7 @@ import {
   parseCliPrefix,
   type AgentCommand,
 } from '@main/core/conversations/impl/agent-command';
-import type { ProviderCustomConfig } from '@shared/app-settings';
+import type { ProviderCustomConfig } from '@shared/core/app-settings';
 import {
   isCodexReasoningEffort,
   isCodexServiceTier,

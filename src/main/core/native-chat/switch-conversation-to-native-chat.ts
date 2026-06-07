@@ -3,9 +3,9 @@ import { resolveTask } from '@main/core/projects/utils';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
 import { events } from '@main/lib/events';
-import { parseConversationConfig, serializeConversationConfig } from '@shared/conversation-config';
+import type { ConversationConfig } from '@shared/core/conversations/conversation-config';
+import { conversationChangedChannel } from '@shared/core/conversations/conversationEvents';
 import { isNativeChatProvider } from '@shared/conversation-ui';
-import { conversationChangedChannel } from '@shared/events/conversationEvents';
 import { resolveNativeChatTarget } from './resolve-native-chat-target';
 
 /**
@@ -43,12 +43,12 @@ export async function switchConversationToNativeChat(
     await task.conversations.stopSession(conversationId);
   }
 
-  const config = parseConversationConfig(row.config);
+  const config: ConversationConfig = { ...(row.config ?? {}) };
   if (config.uiMode !== 'native-chat') {
     config.uiMode = 'native-chat';
     await db
       .update(conversations)
-      .set({ config: serializeConversationConfig(config) })
+      .set({ config })
       .where(eq(conversations.id, conversationId));
   }
 

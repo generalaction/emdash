@@ -2,8 +2,8 @@ import type { ChildProcess } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Conversation } from '@shared/core/conversations/conversations';
 import type { NativeChatProviderId } from '@shared/conversation-ui';
-import type { Conversation } from '@shared/conversations';
 import type { NativeChatItem } from '@shared/native-chat';
 
 const mocks = vi.hoisted(() => ({

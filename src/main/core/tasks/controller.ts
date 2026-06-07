@@ -1,10 +1,10 @@
-import { createRPCController } from '@shared/ipc/rpc';
+import type { LinkedIssue } from '@shared/core/linked-issue';
 import type {
   CreateTaskParams,
   DeleteTaskOptions,
-  Issue,
   TaskLifecycleStatus,
-} from '@shared/tasks';
+} from '@shared/core/tasks/tasks';
+import { createRPCController } from '@shared/lib/ipc/rpc';
 import { generateTaskName } from './name-generation/generateTaskName';
 import { taskService } from './task-service';
 
@@ -33,7 +33,7 @@ export const taskController = createRPCController({
   async renameTask(projectId: string, taskId: string, newName: string) {
     return taskService.renameTask(projectId, taskId, newName);
   },
-  async updateLinkedIssue(taskId: string, issue?: Issue) {
+  async updateLinkedIssue(taskId: string, issue?: LinkedIssue) {
     return taskService.updateLinkedIssue(taskId, issue);
   },
   async updateTaskStatus(taskId: string, status: TaskLifecycleStatus) {

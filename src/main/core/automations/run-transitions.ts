@@ -1,5 +1,5 @@
 import { log } from '@main/lib/logger';
-import type { AutomationRun, RunError } from '@shared/automations/automation-run';
+import type { AutomationRun, RunError } from '@shared/core/automations/automation-run';
 import { updateRun } from './repo';
 
 export type OnStepCompleted = (run: AutomationRun) => void;
@@ -54,7 +54,7 @@ export async function markRunFailed(
 ): Promise<AutomationRun> {
   return updateRunOrThrow(runId, {
     status: 'failed',
-    error: JSON.stringify(error),
+    error,
     finishedAt: finishedAt ?? Date.now(),
   });
 }
@@ -63,7 +63,7 @@ export async function markRunFailed(
 export async function markRunSkipped(runId: string, error: RunError): Promise<AutomationRun> {
   return updateRunOrThrow(runId, {
     status: 'skipped',
-    error: JSON.stringify(error),
+    error,
     finishedAt: Date.now(),
   });
 }

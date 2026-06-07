@@ -2,7 +2,7 @@ import type { FileSystemProvider } from '@main/core/fs/types';
 import type { RepositoryGitProvider } from '@main/core/git/repository-git-provider';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { log } from '@main/lib/logger';
-import { remoteNameFromQualifiedRef } from '@shared/git-utils';
+import { remoteNameFromQualifiedRef } from '@shared/core/git/git-utils';
 import {
   baseProjectSettingsSchema,
   DEFAULT_PRESERVE_PATTERNS,
@@ -12,10 +12,10 @@ import {
   type BaseProjectSettings,
   type ProjectSettings,
   type ShareableProjectSettings,
-} from '@shared/project-settings';
-import { SHAREABLE_FIELD_ACCESSORS } from '@shared/project-settings-fields';
+} from '@shared/core/project-settings/project-settings';
+import { SHAREABLE_FIELD_ACCESSORS } from '@shared/core/project-settings/project-settings-fields';
+import { err, ok, type Result } from '@shared/lib/result';
 import type { UpdateProjectSettingsError } from '@shared/projects';
-import { err, ok, type Result } from '@shared/result';
 import { migrateLegacyProjectSettingsIfNeeded } from '../legacy-project-settings-migration';
 import { serializeShareableProjectSettings } from '../legacy-shareable-migration-marker';
 import { compactUndefined, parseJsonObject, readJson } from '../project-settings-json';
@@ -202,6 +202,13 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
     try {
       await this.ensure();
       const row = await this.storage.get(this.projectId);
+      const base = row
+        ? readJson(
+            row.baseProjectSettingsJson,
+            legacyBaseProjectSettingsSchema,
+            'base project settings'
+          )
+        : await this.initialBaseProjectSettings();
       const shareable = row
         ? readJson(
             row.shareableProjectSettingsJson,
@@ -214,7 +221,15 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
         SHAREABLE_FIELD_ACCESSORS[field].clear(shareable);
       }
 
+      const nextBase = baseProjectSettingsSchema.parse({
+        ...base,
+        ...(Object.hasOwn(patch, 'githubAccountId')
+          ? { githubAccountId: patch.githubAccountId }
+          : {}),
+      });
+
       await this.storage.update(this.projectId, {
+        baseProjectSettingsJson: JSON.stringify(compactUndefined(nextBase)),
         shareableProjectSettingsJson: serializeShareableProjectSettings(shareable, {
           previousRaw: row?.shareableProjectSettingsJson,
         }),

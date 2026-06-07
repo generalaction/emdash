@@ -1,8 +1,11 @@
 import React from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { AgentSelector } from '@renderer/lib/components/agent-selector/agent-selector';
-import { isValidProviderId, type AgentProviderId } from '@shared/agent-provider-registry';
-import type { AppSettings } from '@shared/app-settings';
+import {
+  isValidProviderId,
+  type AgentProviderId,
+} from '@shared/core/agents/agent-provider-registry';
+import type { AppSettings } from '@shared/core/app-settings';
 import { SettingRow } from './SettingRow';
 
 const DEFAULT_AGENT: AgentProviderId = 'claude';

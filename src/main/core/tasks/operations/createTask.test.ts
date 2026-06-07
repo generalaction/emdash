@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TaskRow } from '@main/db/schema';
-import { serializeWorkspaceConfig } from '@shared/workspace-config';
 import { createTask } from './createTask';
 
 const mocks = vi.hoisted(() => ({
@@ -227,7 +226,7 @@ describe('createTask', () => {
       const wsInsert = captured[1] as Record<string, unknown>;
       expect(wsInsert.kind).toBe('worktree');
       expect(wsInsert.location).toBe('local');
-      expect(wsInsert.config).toBe(serializeWorkspaceConfig(workspaceConfig));
+      expect(wsInsert.config).toEqual(workspaceConfig);
     });
 
     it('sets location=remote and type=project-ssh for SSH projects', async () => {

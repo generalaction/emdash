@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AgentProviderId } from '@shared/agent-provider-registry';
-import type { DependencyState, DependencyStatusUpdatedEvent } from '@shared/dependencies';
-import { err, ok } from '@shared/result';
+import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import type { DependencyState, DependencyStatusUpdatedEvent } from '@shared/core/dependencies';
+import { err, ok } from '@shared/lib/result';
 import { DependenciesStore } from './dependencies-store';
 
 let dependencyEventHandler: ((event: DependencyStatusUpdatedEvent) => void) | null = null;

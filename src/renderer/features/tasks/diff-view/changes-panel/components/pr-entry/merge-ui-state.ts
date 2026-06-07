@@ -1,5 +1,5 @@
 import { computeCheckRunsSummary } from '@renderer/utils/github';
-import type { PullRequest, PullRequestCheck } from '@shared/pull-requests';
+import type { PullRequest, PullRequestCheck } from '@shared/core/pull-requests/pull-requests';
 
 export type MergeSeverity = 'success' | 'warning' | 'error' | 'neutral';
 export type MergeCheckState = 'pending' | 'failed' | 'passing' | 'unknown';

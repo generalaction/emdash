@@ -1,5 +1,5 @@
-import type { AppSettings } from '@shared/app-settings';
-import type { ConversationConfig } from '@shared/conversation-config';
+import type { AppSettings } from '@shared/core/app-settings';
+import type { ConversationConfig } from '@shared/core/conversations/conversation-config';
 import type { NativeChatProviderId } from '@shared/conversation-ui';
 
 type NativeChatProviderDefaults = NonNullable<

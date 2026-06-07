@@ -48,7 +48,7 @@ import {
   type NativeChatModelOption,
   type NativeChatReasoningEffort,
 } from '@shared/native-chat';
-import type { CatalogSkill } from '@shared/skills/types';
+import type { CatalogSkill } from '@shared/core/skills/types';
 import {
   buildNativeChatSlashEntries,
   filterNativeChatSlashEntries,

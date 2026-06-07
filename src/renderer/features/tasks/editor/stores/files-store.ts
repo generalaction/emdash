@@ -6,8 +6,8 @@ import {
 } from '@renderer/features/tasks/editor/stores/files-store-utils';
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
-import { fsWatchEventChannel } from '@shared/events/fsEvents';
-import { type FileNode, type FileWatchEvent } from '@shared/fs';
+import { type FileNode, type FileWatchEvent } from '@shared/core/fs/fs';
+import { fsWatchEventChannel } from '@shared/core/fs/fsEvents';
 
 // ---------------------------------------------------------------------------
 // Types

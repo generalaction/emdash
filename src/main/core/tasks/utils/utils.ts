@@ -1,6 +1,6 @@
 import type { TaskRow } from '@main/db/schema';
-import type { PullRequest } from '@shared/pull-requests';
-import type { Issue, Task, TaskLifecycleStatus } from '@shared/tasks';
+import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
+import type { Task, TaskLifecycleStatus } from '@shared/core/tasks/tasks';
 
 export function mapTaskRowToTask(
   row: TaskRow,
@@ -12,7 +12,7 @@ export function mapTaskRowToTask(
     projectId: row.projectId,
     name: row.name,
     status: row.status as TaskLifecycleStatus,
-    linkedIssue: row.linkedIssue ? (JSON.parse(row.linkedIssue) as Issue) : undefined,
+    linkedIssue: row.linkedIssue ?? undefined,
     archivedAt: row.archivedAt ?? undefined,
     lastInteractedAt: row.lastInteractedAt ?? undefined,
     createdAt: row.createdAt,

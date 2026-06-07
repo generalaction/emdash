@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { GitStatusFingerprint, GitStatusUntrackedMode } from '@shared/git';
+import type { GitStatusFingerprint, GitStatusUntrackedMode } from '@shared/core/git/git';
 import type { WorkspaceGitProvider } from './workspace-git-provider';
 
 vi.mock('@main/lib/events', () => ({

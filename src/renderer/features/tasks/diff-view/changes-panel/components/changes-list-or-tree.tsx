@@ -1,4 +1,4 @@
-import { type ChangesListViewMode } from '@shared/app-settings';
+import { type ChangesListViewMode } from '@shared/core/app-settings';
 import {
   VirtualizedChangesList,
   type VirtualizedChangesListProps,
