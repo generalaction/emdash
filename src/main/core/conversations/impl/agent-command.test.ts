@@ -172,6 +172,10 @@ describe('buildAgentCommand', () => {
       expectedArgs: ['--allow-all-tools', '-i', 'Fix the issue'],
     },
     {
+      providerId: 'continue',
+      expectedArgs: ['--auto', 'Fix the issue'],
+    },
+    {
       providerId: 'mistral',
       expectedArgs: ['--agent', 'auto-approve', 'Fix the issue'],
     },
@@ -442,6 +446,7 @@ describe('buildAgentCommand', () => {
       resumeArgs: ['run', '-s', '--resume'],
     },
     { providerId: 'kimi', freshArgs: [], resumeArgs: ['-C'] },
+    { providerId: 'continue', freshArgs: ['Fix the bug'], resumeArgs: ['--resume'] },
     { providerId: 'codebuff', freshArgs: ['Fix the bug'], resumeArgs: [] },
     { providerId: 'freebuff', freshArgs: ['Fix the bug'], resumeArgs: [] },
     { providerId: 'mistral', freshArgs: ['Fix the bug'], resumeArgs: [] },
