@@ -170,6 +170,10 @@ describe('buildAgentCommand', () => {
       providerId: 'copilot',
       expectedArgs: ['--allow-all-tools', '-i', 'Fix the issue'],
     },
+    {
+      providerId: 'continue',
+      expectedArgs: ['--auto', 'Fix the issue'],
+    },
   ])('uses automation-safe auto-approve args for $providerId', ({ providerId, expectedArgs }) => {
     const command = buildAgentCommand({
       providerId,
@@ -340,6 +344,7 @@ describe('buildAgentCommand', () => {
       resumeArgs: ['run', '-s', '--resume'],
     },
     { providerId: 'kimi', freshArgs: ['-c', 'Fix the bug'], resumeArgs: ['--continue'] },
+    { providerId: 'continue', freshArgs: ['Fix the bug'], resumeArgs: ['--resume'] },
     { providerId: 'codebuff', freshArgs: ['Fix the bug'], resumeArgs: [] },
     { providerId: 'freebuff', freshArgs: ['Fix the bug'], resumeArgs: [] },
     { providerId: 'mistral', freshArgs: ['Fix the bug'], resumeArgs: [] },
