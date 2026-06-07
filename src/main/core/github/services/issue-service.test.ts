@@ -79,7 +79,7 @@ describe('GitHubIssueServiceImpl', () => {
 
       const result = await issueService.listIssues(repository, 30);
 
-      expect(mockGetOctokit).toHaveBeenCalledWith('github.com');
+      expect(mockGetOctokit).toHaveBeenCalledWith('github.com', {});
       expect(listForRepo).toHaveBeenCalledWith({
         owner: 'owner',
         repo: 'repo',
@@ -89,6 +89,15 @@ describe('GitHubIssueServiceImpl', () => {
         direction: 'desc',
       });
       expect(result).toEqual(ok([expectedIssue]));
+    });
+
+    it('passes selected GitHub account context to Octokit resolution', async () => {
+      const listForRepo = vi.fn().mockResolvedValue({ data: [] });
+      mockGetOctokit.mockResolvedValue(ok(makeOctokit({ listForRepo })));
+
+      await issueService.listIssues(repository, 30, { accountId: 'github.com:42' });
+
+      expect(mockGetOctokit).toHaveBeenCalledWith('github.com', { accountId: 'github.com:42' });
     });
 
     it('filters out pull requests', async () => {
@@ -101,17 +110,17 @@ describe('GitHubIssueServiceImpl', () => {
       expect(result).toEqual(ok([expectedIssue]));
     });
 
-    it('propagates API errors', async () => {
+    it('maps network errors to host reachability failures', async () => {
       const listForRepo = vi.fn().mockRejectedValue(new Error('Network error'));
       mockGetOctokit.mockResolvedValue(ok(makeOctokit({ listForRepo })));
 
       await expect(issueService.listIssues(repository)).resolves.toEqual(
-        err({ type: 'generic', message: 'Network error' })
+        err({ type: 'host_unreachable', host: 'github.com', message: 'Network error' })
       );
     });
 
-    it('maps post-token auth errors to typed auth failures', async () => {
-      const listForRepo = vi.fn().mockRejectedValue({ status: 403 });
+    it('maps post-token repository access errors to not-found-or-no-access failures', async () => {
+      const listForRepo = vi.fn().mockRejectedValue({ status: 404 });
       mockGetOctokit.mockResolvedValue(ok(makeOctokit({ listForRepo })));
 
       await expect(
@@ -122,10 +131,10 @@ describe('GitHubIssueServiceImpl', () => {
         })
       ).resolves.toEqual(
         err({
-          type: 'auth_required',
+          type: 'not_found_or_no_access',
           host: 'ghe.example.com',
           message:
-            'GitHub Enterprise authentication required for ghe.example.com. Run: gh auth login --hostname ghe.example.com',
+            'owner/repo on ghe.example.com was not found, or the selected GitHub account does not have access.',
         })
       );
     });
@@ -157,6 +166,15 @@ describe('GitHubIssueServiceImpl', () => {
         order: 'desc',
       });
       expect(result).toEqual(ok([expectedIssue]));
+    });
+
+    it('passes selected GitHub account context to search Octokit resolution', async () => {
+      const issuesAndPullRequests = vi.fn().mockResolvedValue({ data: { items: [] } });
+      mockGetOctokit.mockResolvedValue(ok(makeOctokit({ issuesAndPullRequests })));
+
+      await issueService.searchIssues(repository, 'bug', 15, { accountId: 'github.com:42' });
+
+      expect(mockGetOctokit).toHaveBeenCalledWith('github.com', { accountId: 'github.com:42' });
     });
 
     it('returns empty for blank search term', async () => {

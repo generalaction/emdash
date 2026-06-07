@@ -80,35 +80,35 @@ export function PrSelector({
   const searchQuery = query.trim() ? debouncedQuery : '';
 
   // Trigger a background incremental sync when the selector mounts, at most once per 60 s.
-  useQuery({
+  const syncQuery = useQuery({
     queryKey: ['pr-sync', projectId],
     queryFn: () => rpc.pullRequests.syncPullRequests(projectId!),
     enabled: !!projectId && !!repositoryUrl,
     staleTime: 60_000,
   });
 
-  const { data } = useQuery({
+  const { data: listResult } = useQuery({
     queryKey: ['pull-requests-selector', projectId, repositoryUrl, statusFilter, searchQuery],
-    queryFn: async () => {
-      const response = await rpc.pullRequests.listPullRequests(projectId!, {
+    queryFn: () =>
+      rpc.pullRequests.listPullRequests(projectId!, {
         limit: 50,
         offset: 0,
         filters: { status: statusFilter },
         searchQuery: searchQuery || undefined,
         repositoryUrl,
-      });
-      if (!response?.success) {
-        throw new Error(
-          response ? pullRequestErrorMessage(response.error) : 'Failed to load pull requests'
-        );
-      }
-      return response.data.prs;
-    },
+      }),
     enabled: !!projectId && !!repositoryUrl,
     staleTime: 30_000,
   });
 
-  const prs = data ?? [];
+  const prs = listResult?.success ? listResult.data.prs : [];
+  const syncError =
+    syncQuery.data && !syncQuery.data.success
+      ? pullRequestErrorMessage(syncQuery.data.error)
+      : null;
+  const listError =
+    listResult && !listResult.success ? pullRequestErrorMessage(listResult.error) : null;
+  const errorMessage = syncError ?? listError;
 
   const selectedContent = renderSelectedValue ? (
     renderSelectedValue(value!)
@@ -191,8 +191,9 @@ export function PrSelector({
             disabled={disabled}
           />
           <ComboboxEmpty>
-            <span className="text-muted-foreground">
-              {statusFilter === 'open' ? 'No open pull requests' : 'No closed pull requests'}
+            <span className={cn(errorMessage && 'text-foreground-error')}>
+              {errorMessage ??
+                (statusFilter === 'open' ? 'No open pull requests' : 'No closed pull requests')}
             </span>
           </ComboboxEmpty>
           <ComboboxList>

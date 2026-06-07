@@ -202,6 +202,13 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
     try {
       await this.ensure();
       const row = await this.storage.get(this.projectId);
+      const base = row
+        ? readJson(
+            row.baseProjectSettingsJson,
+            legacyBaseProjectSettingsSchema,
+            'base project settings'
+          )
+        : await this.initialBaseProjectSettings();
       const shareable = row
         ? readJson(
             row.shareableProjectSettingsJson,
@@ -214,7 +221,15 @@ export abstract class DbProjectSettingsProvider implements ProjectSettingsProvid
         SHAREABLE_FIELD_ACCESSORS[field].clear(shareable);
       }
 
+      const nextBase = baseProjectSettingsSchema.parse({
+        ...base,
+        ...(Object.hasOwn(patch, 'githubAccountId')
+          ? { githubAccountId: patch.githubAccountId }
+          : {}),
+      });
+
       await this.storage.update(this.projectId, {
+        baseProjectSettingsJson: JSON.stringify(compactUndefined(nextBase)),
         shareableProjectSettingsJson: serializeShareableProjectSettings(shareable, {
           previousRaw: row?.shareableProjectSettingsJson,
         }),

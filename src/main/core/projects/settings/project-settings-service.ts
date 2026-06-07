@@ -5,6 +5,7 @@ import { log } from '@main/lib/logger';
 import {
   type MigrateProjectConfigRequest,
   type MigrateProjectConfigResult,
+  type ProjectSettingsPatch,
   type ProjectSettings,
   type ProjectSettingsPage,
   type WriteProjectConfigRequest,
@@ -66,6 +67,21 @@ export class ProjectSettingsService implements Hookable<ProjectSettingsHooks>, I
     if (!project.success) return project;
 
     const result = await project.data.settings.update(settings);
+    if (!result.success) return result;
+
+    const updatedSettings = await project.data.settings.get();
+    this.emitSettingsChanged(projectId, updatedSettings);
+    return ok(updatedSettings);
+  }
+
+  async patchProjectSettings(
+    projectId: string,
+    patch: ProjectSettingsPatch
+  ): Promise<Result<ProjectSettings, UpdateProjectSettingsError>> {
+    const project = this.requireProject(projectId);
+    if (!project.success) return project;
+
+    const result = await project.data.settings.patch(patch);
     if (!result.success) return result;
 
     const updatedSettings = await project.data.settings.get();

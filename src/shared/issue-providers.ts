@@ -71,7 +71,22 @@ export type ConnectionStatus = {
 export type ConnectionStatusMap = Record<IssueProviderType, ConnectionStatus>;
 
 export type IssueListError =
+  | { type: 'no_account_selected'; message: string }
+  | { type: 'account_disabled'; message: string }
+  | { type: 'account_not_found'; host?: string; accountId?: string; message: string }
+  | {
+      type: 'account_host_mismatch';
+      host: string;
+      accountId: string;
+      accountHost: string;
+      message: string;
+    }
+  | { type: 'token_missing'; host: string; accountId: string; message: string }
   | { type: 'auth_required'; host: string; message: string }
+  | { type: 'not_found_or_no_access'; host: string; message: string }
+  | { type: 'sso_required'; host: string; message: string; ssoUrl?: string }
+  | { type: 'rate_limited'; host: string; message: string; resetAt?: string }
+  | { type: 'forbidden'; host: string; message: string }
   | { type: 'host_unreachable'; host: string; message: string }
   | { type: 'unsupported_host'; host: string; message: string }
   | { type: 'generic'; message: string };
@@ -83,6 +98,10 @@ export type IssueListResult =
       error: string;
       errorType?: IssueListError['type'];
       host?: string;
+      accountId?: string;
+      accountHost?: string;
+      resetAt?: string;
+      ssoUrl?: string;
     };
 
 export type IssueContextResult =

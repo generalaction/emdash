@@ -147,6 +147,7 @@ export const IssueSelector = observer(function IssueSelector({
   const linkedIssueMap = getLinkedIssueMap(projectId, excludeTaskId);
   const {
     issues,
+    error,
     issueProvider,
     hasAnyIntegration,
     isProviderLoading,
@@ -281,7 +282,9 @@ export const IssueSelector = observer(function IssueSelector({
               disabled={!hasAnyIntegration}
             />
             <ComboboxEmpty>
-              <span className="text-muted-foreground">No issues found</span>
+              <span className={cn(error && 'text-foreground-error')}>
+                {error ?? 'No issues found'}
+              </span>
             </ComboboxEmpty>
             <ComboboxList>
               {(issue: LinkedIssue) => {

@@ -1,13 +1,10 @@
 import type {
   ProjectSettings,
-  ShareableProjectSettingsWriteField,
+  ProjectSettingsPatch,
 } from '@shared/core/project-settings/project-settings';
 import type { Result } from '@shared/lib/result';
 import type { UpdateProjectSettingsError } from '@shared/projects';
-
-export type ProjectSettingsPatch = {
-  clearShareableFields?: ShareableProjectSettingsWriteField[];
-};
+export type { ProjectSettingsPatch };
 
 export interface ProjectSettingsProvider {
   getDefaultBranch(): Promise<string>;

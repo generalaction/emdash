@@ -45,6 +45,7 @@ export const baseProjectSettingsSchema = z.object({
   defaultBranch: defaultBranchSettingSchema.optional(),
   baseRemote: z.string().optional(),
   pushRemote: z.string().optional(),
+  githubAccountId: z.string().trim().min(1).nullable().optional(),
   tmux: z.boolean().optional(),
   autoRunSetupScriptOnTaskCreation: z.boolean().optional(),
   autoRunRunScriptOnTaskCreation: z.boolean().optional(),
@@ -76,6 +77,11 @@ export function defaultShareableProjectSettings(): ShareableProjectSettings {
 }
 
 export type ProjectSettings = z.infer<typeof projectSettingsSchema>;
+
+export type ProjectSettingsPatch = {
+  clearShareableFields?: ShareableProjectSettingsWriteField[];
+  githubAccountId?: string | null;
+};
 
 export type ProjectSettingsPage = {
   settings: ProjectSettings;

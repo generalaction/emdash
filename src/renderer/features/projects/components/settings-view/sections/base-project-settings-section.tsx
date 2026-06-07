@@ -1,10 +1,15 @@
-import { Folder } from 'lucide-react';
-import { useState } from 'react';
+import { Folder, Github } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import {
+  GitHubAccountSelectItem,
+  GitHubAccountSelectLabel,
+} from '@renderer/features/projects/components/github-account-select';
 import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
 import {
   RemoteSelectContent,
   RemoteSelectItem,
 } from '@renderer/lib/components/remote-select-content';
+import { useGitHubAccounts } from '@renderer/lib/hooks/useGithubAccounts';
 import { rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
 import { Field, FieldDescription, FieldTitle } from '@renderer/lib/ui/field';
@@ -16,6 +21,10 @@ import { cn } from '@renderer/utils/utils';
 import type { Branch, Remote } from '@shared/core/git/git';
 import type { Project } from '@shared/projects';
 import type { FormState, FormUpdate } from '../project-settings-form-model';
+import {
+  createProjectGitHubAccountSelectState,
+  NO_GITHUB_ACCOUNT,
+} from './project-github-account-select-state';
 
 const SAME_AS_BASE_REMOTE = '__same_as_base_remote__';
 
@@ -42,6 +51,11 @@ export function BaseProjectSettingsSection({
   const pushRemoteValue = form.pushRemote || SAME_AS_BASE_REMOTE;
   const selectedBaseRemote = remotes.find((remote) => remote.name === baseRemoteValue);
   const selectedPushRemote = remotes.find((remote) => remote.name === pushRemoteValue);
+  const { data: githubAccounts = [] } = useGitHubAccounts();
+  const githubAccountSelect = useMemo(
+    () => createProjectGitHubAccountSelectState(form.githubAccountId, githubAccounts),
+    [form.githubAccountId, githubAccounts]
+  );
   const [isBrowsingWorktreeDirectory, setIsBrowsingWorktreeDirectory] = useState(false);
 
   const handleBrowseWorktreeDirectory = async () => {
@@ -64,6 +78,52 @@ export function BaseProjectSettingsSection({
 
   return (
     <>
+      <Field>
+        <FieldTitle>GitHub account</FieldTitle>
+        <FieldDescription className="text-foreground-muted">
+          Used for pull requests and issues in this project.
+        </FieldDescription>
+        <Select
+          value={githubAccountSelect.selectValue}
+          onValueChange={(value) =>
+            update('githubAccountId', value === NO_GITHUB_ACCOUNT ? null : (value ?? null))
+          }
+        >
+          <SelectTrigger className="w-full min-w-0">
+            {githubAccountSelect.selectedAccount ? (
+              <GitHubAccountSelectLabel account={githubAccountSelect.selectedAccount} />
+            ) : (
+              <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
+                <Github className="text-muted-foreground h-4 w-4 shrink-0" />
+                {githubAccountSelect.missingAccountId ? (
+                  <span className="flex min-w-0 items-center gap-2 truncate">
+                    <span className="min-w-0 truncate">Unavailable GitHub account</span>
+                    <span className="shrink-0 text-sm text-foreground-muted">
+                      No longer connected
+                    </span>
+                  </span>
+                ) : (
+                  <span className="min-w-0 truncate">No GitHub account</span>
+                )}
+              </div>
+            )}
+          </SelectTrigger>
+          <SelectContent align="start" alignItemWithTrigger={false} sideOffset={6}>
+            <SelectItem value={NO_GITHUB_ACCOUNT} className="py-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <Github className="text-muted-foreground h-4 w-4 shrink-0" />
+                <span className="relative -top-px shrink-0">No GitHub account</span>
+              </div>
+            </SelectItem>
+            {githubAccountSelect.accounts.map((account) => (
+              <GitHubAccountSelectItem key={account.accountId} account={account} />
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+
+      <Separator />
+
       <Field>
         <FieldTitle>Worktree directory</FieldTitle>
         <FieldDescription className="text-foreground-muted">

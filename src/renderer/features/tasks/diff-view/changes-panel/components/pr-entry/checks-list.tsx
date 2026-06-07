@@ -106,9 +106,15 @@ export function ChecksList({ checks }: { checks: CheckRun[] }) {
   );
 }
 
-export const PrChecksList = observer(function PrChecksList({ pr }: { pr: PullRequest }) {
-  const { checks } = useSyncCheckRuns(pr);
-  const commentsQuery = usePullRequestComments(pr);
+export const PrChecksList = observer(function PrChecksList({
+  projectId,
+  pr,
+}: {
+  projectId: string;
+  pr: PullRequest;
+}) {
+  const { checks } = useSyncCheckRuns(projectId, pr);
+  const commentsQuery = usePullRequestComments(projectId, pr);
   const comments = commentsQuery.data ?? EMPTY_COMMENTS;
   const conversationItems = useMemo(
     () => buildPullRequestConversationItems(pr, comments),
