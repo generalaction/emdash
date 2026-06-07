@@ -56,8 +56,10 @@ function collapseSourceContextErrorForPullRequests(
   error: ProjectPullRequestContextSourceError
 ): PullRequestError {
   switch (error.type) {
-    case 'no_account_selected':
+    case 'unconfigured':
       return { type: 'github_no_account_selected', message: error.message };
+    case 'disabled':
+      return { type: 'github_account_disabled', message: error.message };
     case 'project_not_found':
     case 'account_selection_failed':
       return collapseAuthContextErrorForPullRequests(error);
@@ -73,9 +75,15 @@ function collapseSourceContextErrorForPullRequests(
 function collapseAuthContextErrorForPullRequests(
   error: ProjectGitHubAuthContextError
 ): PullRequestError {
-  if (error.type === 'no_account_selected') {
+  if (error.type === 'unconfigured') {
     return {
       type: 'github_no_account_selected',
+      message: error.message,
+    };
+  }
+  if (error.type === 'disabled') {
+    return {
+      type: 'github_account_disabled',
       message: error.message,
     };
   }

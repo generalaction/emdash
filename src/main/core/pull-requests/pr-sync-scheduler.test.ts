@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveProjectGitHubAuthContext } from '@main/core/github/services/project-github-auth-context';
+import { prSyncProgressChannel } from '@shared/events/prEvents';
 import { err, ok } from '@shared/result';
 import { prSyncEngine } from './pr-sync-engine';
 import { PrSyncScheduler } from './pr-sync-scheduler';
@@ -17,6 +18,7 @@ const mocks = vi.hoisted(() => {
     getProject: vi.fn(),
     projectOn: vi.fn(),
     resolveProjectGitHubAuthContext: vi.fn(),
+    emit: vi.fn(),
   };
 });
 
@@ -67,6 +69,12 @@ vi.mock('./pr-sync-engine', () => ({
 
 vi.mock('@main/core/github/services/project-github-auth-context', () => ({
   resolveProjectGitHubAuthContext: mocks.resolveProjectGitHubAuthContext,
+}));
+
+vi.mock('@main/lib/events', () => ({
+  events: {
+    emit: mocks.emit,
+  },
 }));
 
 vi.mock('./project-remotes-service', () => ({
@@ -155,6 +163,83 @@ describe('PrSyncScheduler', () => {
 
     expect(resolveProjectGitHubAuthContext).toHaveBeenCalledWith('project-1');
     expect(prSyncEngine.sync).not.toHaveBeenCalled();
+  });
+
+  it('emits a sync error for unconfigured project GitHub account selection', async () => {
+    const project = {
+      settings: {},
+      ctx: {},
+      repository: {
+        getRemotes: vi
+          .fn()
+          .mockResolvedValue([{ name: 'origin', url: 'https://github.com/acme/repo.git' }]),
+      },
+    };
+    mocks.getProject.mockReturnValue(project);
+    mocks.resolveRepository.mockResolvedValue(
+      ok({
+        host: 'github.com',
+        repositoryUrl: 'https://github.com/acme/repo',
+        nameWithOwner: 'acme/repo',
+        owner: 'acme',
+        repo: 'repo',
+      })
+    );
+    mocks.resolveProjectGitHubAuthContext.mockResolvedValue(
+      err({
+        type: 'unconfigured',
+        projectId: 'project-1',
+        message: 'No GitHub account is configured for this project.',
+      })
+    );
+
+    const scheduler = new PrSyncScheduler();
+
+    await scheduler.onProjectMounted('project-1');
+
+    expect(prSyncEngine.sync).not.toHaveBeenCalled();
+    expect(mocks.emit).toHaveBeenCalledWith(prSyncProgressChannel, {
+      remoteUrl: 'https://github.com/acme/repo',
+      kind: 'incremental',
+      status: 'error',
+      error: 'No GitHub account is configured for this project.',
+    });
+  });
+
+  it('stays silent when project GitHub API is explicitly disabled', async () => {
+    const project = {
+      settings: {},
+      ctx: {},
+      repository: {
+        getRemotes: vi
+          .fn()
+          .mockResolvedValue([{ name: 'origin', url: 'https://github.com/acme/repo.git' }]),
+      },
+    };
+    mocks.getProject.mockReturnValue(project);
+    mocks.resolveRepository.mockResolvedValue(
+      ok({
+        host: 'github.com',
+        repositoryUrl: 'https://github.com/acme/repo',
+        nameWithOwner: 'acme/repo',
+        owner: 'acme',
+        repo: 'repo',
+      })
+    );
+    mocks.resolveProjectGitHubAuthContext.mockResolvedValue(
+      err({
+        type: 'disabled',
+        projectId: 'project-1',
+        message: 'GitHub API is disabled for this project.',
+      })
+    );
+
+    const scheduler = new PrSyncScheduler();
+
+    await scheduler.onProjectMounted('project-1');
+
+    expect(prSyncEngine.sync).not.toHaveBeenCalled();
+    expect(mocks.emit).not.toHaveBeenCalled();
   });
 
   it('passes selected GitHub Enterprise account context to mounted project syncs', async () => {

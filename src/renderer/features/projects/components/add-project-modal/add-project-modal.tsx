@@ -439,7 +439,7 @@ export const AddProjectModal = observer(function AddProjectModal({
             connectionId={selectedConnectionId}
             state={newState}
             showGithubAuthDisclaimer={showGithubAuthDisclaimer}
-            onOpenAccountSettings={() => navigate('settings', { tab: 'account' })}
+            onOpenAccountSettings={() => navigate('settings', { tab: 'integrations' })}
           />
         )}
         {mode === 'clone' && (

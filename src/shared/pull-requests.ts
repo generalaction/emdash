@@ -141,6 +141,7 @@ export type PullRequestAuthError =
   | { type: 'github_auth_required'; host: string; hint: string }
   | { type: 'ghes_auth_required'; host: string; hint: string }
   | { type: 'github_no_account_selected'; message: string }
+  | { type: 'github_account_disabled'; message: string }
   | { type: 'github_account_not_found'; message: string; accountId?: string; host?: string }
   | {
       type: 'github_account_host_mismatch';
@@ -201,6 +202,7 @@ export function pullRequestErrorMessage(error: PullRequestError): string {
     case 'ghes_auth_required':
       return `GitHub Enterprise authentication required for ${error.host}. ${error.hint}`;
     case 'github_no_account_selected':
+    case 'github_account_disabled':
     case 'github_account_not_found':
     case 'github_account_host_mismatch':
     case 'github_token_missing':

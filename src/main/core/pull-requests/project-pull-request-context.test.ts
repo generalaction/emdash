@@ -97,16 +97,42 @@ describe('project GitHub pull request context', () => {
     );
     mockResolveProjectGitHubAuthContext.mockResolvedValue(
       err({
-        type: 'no_account_selected',
+        type: 'unconfigured',
         projectId: 'project-1',
-        message: 'No GitHub account selected for project.',
+        message: 'No GitHub account is configured for this project.',
       })
     );
 
     await expect(resolveProjectPullRequestContext('project-1')).resolves.toEqual(
       err({
         type: 'github_no_account_selected',
-        message: 'No GitHub account selected for project.',
+        message: 'No GitHub account is configured for this project.',
+      })
+    );
+  });
+
+  it('maps disabled project GitHub API settings without falling back to the default account', async () => {
+    mockProviderRepositoryService.resolveProject.mockResolvedValue(
+      ok({
+        provider: 'github',
+        host: 'github.com',
+        repositoryUrl: 'https://github.com/acme/repo',
+        nameWithOwner: 'acme/repo',
+        capabilities: { pullRequests: true, issues: true },
+      })
+    );
+    mockResolveProjectGitHubAuthContext.mockResolvedValue(
+      err({
+        type: 'disabled',
+        projectId: 'project-1',
+        message: 'GitHub API is disabled for this project.',
+      })
+    );
+
+    await expect(resolveProjectPullRequestContext('project-1')).resolves.toEqual(
+      err({
+        type: 'github_account_disabled',
+        message: 'GitHub API is disabled for this project.',
       })
     );
   });
@@ -176,16 +202,33 @@ describe('project GitHub pull request context', () => {
   it('maps auth-only missing project GitHub account selection', async () => {
     mockResolveProjectGitHubAuthContext.mockResolvedValue(
       err({
-        type: 'no_account_selected',
+        type: 'unconfigured',
         projectId: 'project-1',
-        message: 'No GitHub account selected for project.',
+        message: 'No GitHub account is configured for this project.',
       })
     );
 
     await expect(resolveProjectPullRequestAuthContext('project-1')).resolves.toEqual(
       err({
         type: 'github_no_account_selected',
-        message: 'No GitHub account selected for project.',
+        message: 'No GitHub account is configured for this project.',
+      })
+    );
+  });
+
+  it('maps auth-only disabled project GitHub API settings', async () => {
+    mockResolveProjectGitHubAuthContext.mockResolvedValue(
+      err({
+        type: 'disabled',
+        projectId: 'project-1',
+        message: 'GitHub API is disabled for this project.',
+      })
+    );
+
+    await expect(resolveProjectPullRequestAuthContext('project-1')).resolves.toEqual(
+      err({
+        type: 'github_account_disabled',
+        message: 'GitHub API is disabled for this project.',
       })
     );
   });
