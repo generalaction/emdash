@@ -136,8 +136,6 @@ describe('EmdashAccountService', () => {
         expect.objectContaining({ hasAccount: true, name: 'Test User', username: 'testuser' })
       );
       expect(result).toEqual({
-        providerToken: 'ghp_123',
-        provider: 'github',
         user: oauthResponse.user,
       });
     });
@@ -172,7 +170,7 @@ describe('EmdashAccountService', () => {
       };
       mockExecuteOAuthFlow.mockResolvedValue(oauthResponse);
 
-      const result = await service.signIn();
+      await service.signIn();
 
       expect(mockDispatch).toHaveBeenCalledWith('github', {
         accessToken: 'ghp_123',
@@ -183,13 +181,6 @@ describe('EmdashAccountService', () => {
           login: 'monalisa',
           avatarUrl: 'https://avatars.githubusercontent.com/u/42',
         },
-      });
-      expect(result.providerAccount).toEqual({
-        providerId: 'github',
-        providerAccountId: '42',
-        host: 'github.com',
-        login: 'monalisa',
-        avatarUrl: 'https://avatars.githubusercontent.com/u/42',
       });
     });
 
@@ -207,13 +198,12 @@ describe('EmdashAccountService', () => {
       };
       mockExecuteOAuthFlow.mockResolvedValue(oauthResponse);
 
-      const result = await service.signIn();
+      await service.signIn();
 
       expect(mockDispatch).toHaveBeenCalledWith('github', {
         accessToken: 'ghp_123',
         providerAccount: undefined,
       });
-      expect(result.providerAccount).toBeUndefined();
     });
 
     it('throws when provider token persistence fails', async () => {

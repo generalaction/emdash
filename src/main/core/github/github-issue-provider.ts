@@ -38,21 +38,58 @@ function toIssue(raw: {
 
 function toIssueListResult(result: Result<LinkedIssue[], IssueListError>): IssueListResult {
   if (result.success) return { success: true, issues: result.data };
-  const host = 'host' in result.error ? result.error.host : undefined;
-  const accountId = 'accountId' in result.error ? result.error.accountId : undefined;
-  const accountHost = 'accountHost' in result.error ? result.error.accountHost : undefined;
-  const resetAt = 'resetAt' in result.error ? result.error.resetAt : undefined;
-  const ssoUrl = 'ssoUrl' in result.error ? result.error.ssoUrl : undefined;
   return {
     success: false,
     error: result.error.message,
     errorType: result.error.type,
-    ...(host ? { host } : {}),
-    ...(accountId ? { accountId } : {}),
-    ...(accountHost ? { accountHost } : {}),
-    ...(resetAt ? { resetAt } : {}),
-    ...(ssoUrl ? { ssoUrl } : {}),
+    ...issueListErrorMetadata(result.error),
   };
+}
+
+type IssueListErrorMetadata = Omit<
+  Extract<IssueListResult, { success: false }>,
+  'success' | 'error' | 'errorType'
+>;
+
+function issueListErrorMetadata(error: IssueListError): IssueListErrorMetadata {
+  switch (error.type) {
+    case 'no_account_selected':
+    case 'account_disabled':
+    case 'generic':
+      return {};
+    case 'account_not_found':
+      return {
+        ...(error.host ? { host: error.host } : {}),
+        ...(error.accountId ? { accountId: error.accountId } : {}),
+      };
+    case 'account_host_mismatch':
+      return {
+        host: error.host,
+        accountId: error.accountId,
+        accountHost: error.accountHost,
+      };
+    case 'token_missing':
+      return {
+        host: error.host,
+        accountId: error.accountId,
+      };
+    case 'auth_required':
+    case 'not_found_or_no_access':
+    case 'forbidden':
+    case 'host_unreachable':
+    case 'unsupported_host':
+      return { host: error.host };
+    case 'sso_required':
+      return {
+        host: error.host,
+        ...(error.ssoUrl ? { ssoUrl: error.ssoUrl } : {}),
+      };
+    case 'rate_limited':
+      return {
+        host: error.host,
+        ...(error.resetAt ? { resetAt: error.resetAt } : {}),
+      };
+  }
 }
 
 async function listIssues(

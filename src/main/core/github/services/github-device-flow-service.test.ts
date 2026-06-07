@@ -84,7 +84,6 @@ describe('GitHubDeviceFlowService', () => {
 
     await expect(service.start()).resolves.toMatchObject({
       success: true,
-      token: 'gho_device',
       user,
       account: {
         id: 'github.com:42',

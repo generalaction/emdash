@@ -64,7 +64,7 @@ export const githubController = createRPCController({
       }
 
       telemetryService.capture('integration_connected', { provider: 'github' });
-      events.emit(githubAuthSuccessChannel, { token: result.token, user: result.user });
+      events.emit(githubAuthSuccessChannel, { user: result.user });
       return { success: true, account: accountSummary };
     } catch (error) {
       log.error('Failed to register GitHub account after device flow:', error);

@@ -1,9 +1,5 @@
 import { createOAuthDeviceAuth } from '@octokit/auth-oauth-device';
-import {
-  githubAuthCancelledChannel,
-  githubAuthDeviceCodeChannel,
-  githubAuthErrorChannel,
-} from '@shared/events/githubEvents';
+import { githubAuthDeviceCodeChannel, githubAuthErrorChannel } from '@shared/events/githubEvents';
 import type { GitHubUser } from '@shared/github';
 import type { GitHubAccount, GitHubAccountRegistry } from '../accounts/github-account-registry';
 import type { GitHubIdentityClient } from './github-identity-client';
@@ -31,7 +27,7 @@ type DeviceFlowEvents = {
 };
 
 export type GitHubDeviceFlowResult =
-  | { success: true; token: string; user: GitHubUser; account: GitHubAccount }
+  | { success: true; user: GitHubUser; account: GitHubAccount }
   | { success: false; error: string };
 
 export class GitHubDeviceFlowService {
@@ -93,10 +89,9 @@ export class GitHubDeviceFlowService {
         },
       });
 
-      return { success: true, token, user, account };
+      return { success: true, user, account };
     } catch (error) {
       if (signal.aborted) {
-        this.deps.events.emit(githubAuthCancelledChannel, undefined);
         return { success: false, error: 'Auth cancelled' };
       }
 

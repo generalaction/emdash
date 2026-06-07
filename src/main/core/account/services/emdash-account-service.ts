@@ -25,9 +25,6 @@ export interface CachedProfile {
 }
 
 export interface SignInResult {
-  providerToken?: string;
-  provider?: string;
-  providerAccount?: ProviderAccountPayload;
   user: AccountUser;
 }
 
@@ -184,15 +181,7 @@ export class EmdashAccountService implements Hookable<AccountServiceHooks> {
 
     this._hooks.callHookBackground('accountChanged', user.username, user.userId, user.email);
 
-    const result: SignInResult = {
-      providerToken: accessToken || undefined,
-      provider: providerId || undefined,
-      user,
-    };
-    if (providerAccount) {
-      result.providerAccount = providerAccount;
-    }
-    return result;
+    return { user };
   }
 
   async linkProviderAccount(provider: string = 'github'): Promise<LinkProviderAccountResult> {

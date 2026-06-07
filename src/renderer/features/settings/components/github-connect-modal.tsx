@@ -7,7 +7,6 @@ import {
   useAccountSignIn,
 } from '@renderer/lib/hooks/useAccount';
 import {
-  useGitHubAccounts,
   useGitHubDeviceFlowAuth,
   useImportGitHubCliAccounts,
 } from '@renderer/lib/hooks/useGithubAccounts';
@@ -20,7 +19,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
-import { normalizeRepositoryHost } from '@shared/repository-ref';
 
 type MethodError = {
   method: 'oauth' | 'cli' | 'device_flow';
@@ -30,7 +28,6 @@ type MethodError = {
 export function GithubConnectModal({ onSuccess, onClose }: BaseModalProps<void>) {
   const { toast } = useToast();
   const { data: session } = useAccountSession();
-  const { data: githubAccounts = [] } = useGitHubAccounts();
   const signInMutation = useAccountSignIn();
   const linkProviderMutation = useAccountLinkProvider();
   const deviceFlowMutation = useGitHubDeviceFlowAuth();
@@ -61,20 +58,6 @@ export function GithubConnectModal({ onSuccess, onClose }: BaseModalProps<void>)
           message: result.error ?? 'Connection failed. Please try again.',
         });
         return;
-      }
-
-      if (isSignedIn && 'providerAccount' in result && result.providerAccount) {
-        const accountId = `${normalizeRepositoryHost(result.providerAccount.host)}:${
-          result.providerAccount.providerAccountId
-        }`;
-        const existingAccount = githubAccounts.find((account) => account.accountId === accountId);
-        if (existingAccount) {
-          setError({
-            method: 'oauth',
-            message: `@${existingAccount.login} is already connected.`,
-          });
-          return;
-        }
       }
 
       toast({

@@ -102,7 +102,6 @@ describe('githubController auth', () => {
       },
     });
     expect(mocks.emit).toHaveBeenCalledWith(githubAuthSuccessChannel, {
-      token: 'gho_device',
       user,
     });
     expect(mocks.telemetryCapture).toHaveBeenCalledWith('integration_connected', {

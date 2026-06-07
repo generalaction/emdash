@@ -208,9 +208,7 @@ export class ProjectManagerStore {
       }
 
       case 'new': {
-        let createdRepositoryNameWithOwner: string | null = null;
         try {
-          const connectionId = isSsh ? projectType.connectionId : undefined;
           const repoResult = await rpc.github.createRepository({
             name: data.repositoryName,
             owner: data.repositoryOwner,
@@ -223,36 +221,16 @@ export class ProjectManagerStore {
           if (!repoResult.nameWithOwner || !repoResult.cloneUrl) {
             throw new Error('Repository creation response was incomplete');
           }
-          createdRepositoryNameWithOwner = repoResult.nameWithOwner;
 
-          this._updatePhase(projectId, 'cloning');
-          const cloneUrl = repoResult.cloneUrl;
-          const cloneResult = await rpc.github.cloneRepository(cloneUrl, targetPath, connectionId);
-          if (!cloneResult.success) throw new Error(cloneResult.error);
-
-          const initResult = await rpc.github.initializeProject({
+          const project = await this._cloneInitializeAndCreateGitHubProject({
+            projectType,
+            projectId,
             targetPath,
             name: data.name,
-            connectionId,
+            cloneUrl: repoResult.cloneUrl,
+            repositoryNameWithOwner: repoResult.nameWithOwner,
+            githubAccountId: data.githubAccountId,
           });
-          if (!initResult.success) throw new Error(initResult.error);
-
-          this._updatePhase(projectId, 'registering');
-          const project = isSsh
-            ? await rpc.projects.createProject({
-                type: 'ssh',
-                id: projectId,
-                path: targetPath,
-                name: data.name,
-                connectionId: projectType.connectionId,
-              })
-            : await rpc.projects.createProject({
-                type: 'local',
-                id: projectId,
-                path: targetPath,
-                name: data.name,
-              });
-          createdRepositoryNameWithOwner = null;
           await this._saveInitialGitHubAccountSetting(project.id, data.githubAccountId);
           this._setAndOpenProject(projectId, project);
           captureTelemetry('project_added', {
@@ -261,12 +239,6 @@ export class ProjectManagerStore {
             success: true,
           });
         } catch (err) {
-          if (createdRepositoryNameWithOwner) {
-            await this._rollbackCreatedGitHubRepository(
-              createdRepositoryNameWithOwner,
-              data.githubAccountId
-            );
-          }
           this._markError(projectId, err);
           captureTelemetry('project_added', {
             type: projectTelemetryType,
@@ -464,6 +436,58 @@ export class ProjectManagerStore {
         nameWithOwner,
         error,
       });
+    }
+  }
+
+  private async _cloneInitializeAndCreateGitHubProject(opts: {
+    projectType: ProjectType;
+    projectId: string;
+    targetPath: string;
+    name: string;
+    cloneUrl: string;
+    repositoryNameWithOwner: string;
+    githubAccountId?: string;
+  }): Promise<LocalProject | SshProject> {
+    const connectionId =
+      opts.projectType.type === 'ssh' ? opts.projectType.connectionId : undefined;
+
+    try {
+      this._updatePhase(opts.projectId, 'cloning');
+      const cloneResult = await rpc.github.cloneRepository(
+        opts.cloneUrl,
+        opts.targetPath,
+        connectionId
+      );
+      if (!cloneResult.success) throw new Error(cloneResult.error);
+
+      const initResult = await rpc.github.initializeProject({
+        targetPath: opts.targetPath,
+        name: opts.name,
+        connectionId,
+      });
+      if (!initResult.success) throw new Error(initResult.error);
+
+      this._updatePhase(opts.projectId, 'registering');
+      return opts.projectType.type === 'ssh'
+        ? await rpc.projects.createProject({
+            type: 'ssh',
+            id: opts.projectId,
+            path: opts.targetPath,
+            name: opts.name,
+            connectionId: opts.projectType.connectionId,
+          })
+        : await rpc.projects.createProject({
+            type: 'local',
+            id: opts.projectId,
+            path: opts.targetPath,
+            name: opts.name,
+          });
+    } catch (err) {
+      await this._rollbackCreatedGitHubRepository(
+        opts.repositoryNameWithOwner,
+        opts.githubAccountId
+      );
+      throw err;
     }
   }
 

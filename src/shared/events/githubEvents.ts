@@ -17,7 +17,6 @@ export const githubAuthSlowDownChannel = defineEvent<{
 }>('github:auth:slow-down');
 
 export const githubAuthSuccessChannel = defineEvent<{
-  token: string;
   user: GitHubUser;
 }>('github:auth:success');
 
@@ -25,12 +24,6 @@ export const githubAuthErrorChannel = defineEvent<{
   error: string;
   message: string;
 }>('github:auth:error');
-
-export const githubAuthCancelledChannel = defineEvent<void>('github:auth:cancelled');
-
-export const githubAuthUserUpdatedChannel = defineEvent<{
-  user: GitHubUser;
-}>('github:auth:user-updated');
 
 export const githubAccountsChangedChannel = defineEvent<{
   reason: 'startup-reconciliation' | 'account-updated';

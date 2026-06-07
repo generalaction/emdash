@@ -3,6 +3,7 @@ import {
   GitHubCredentialSourceBadge,
   GitHubDefaultAccountBadge,
 } from '@renderer/features/projects/components/github-account-select';
+import { sortGitHubAccountsByDefault } from '@renderer/features/projects/components/github-account-select-model';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import {
   useGitHubAccounts,
@@ -17,7 +18,7 @@ import type { GitHubAccountSummary } from '@shared/github';
 
 export function GitHubAccountsSection() {
   const { data: accounts = [], isLoading } = useGitHubAccounts();
-  const sortedAccounts = [...accounts].sort((a, b) => Number(b.isDefault) - Number(a.isDefault));
+  const sortedAccounts = sortGitHubAccountsByDefault(accounts);
   const setDefaultMutation = useSetDefaultGitHubAccount();
   const removeMutation = useRemoveGitHubAccount();
   const showConnectGitHub = useShowModal('githubConnectModal');
