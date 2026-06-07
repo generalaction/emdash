@@ -8,14 +8,6 @@ export const githubAuthDeviceCodeChannel = defineEvent<{
   interval: number;
 }>('github:auth:device-code');
 
-export const githubAuthPollingChannel = defineEvent<{
-  status: string;
-}>('github:auth:polling');
-
-export const githubAuthSlowDownChannel = defineEvent<{
-  newInterval: number;
-}>('github:auth:slow-down');
-
 export const githubAuthSuccessChannel = defineEvent<{
   user: GitHubUser;
 }>('github:auth:success');
