@@ -1,8 +1,8 @@
 import {
   type ProjectSettings,
   type ShareableProjectSettingsWriteField,
-} from '@shared/project-settings';
-import { SHAREABLE_FIELD_ACCESSORS } from '@shared/project-settings-fields';
+} from '@shared/core/project-settings/project-settings';
+import { SHAREABLE_FIELD_ACCESSORS } from '@shared/core/project-settings/project-settings-fields';
 import { parseJsonObject } from '../project-settings-json';
 
 export const CONFIG_FILE = '.emdash.json';

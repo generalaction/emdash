@@ -5,11 +5,11 @@ import {
   requireProjectPath,
 } from '@main/core/issues/helpers/provider-inputs';
 import type { IssueProvider } from '@main/core/issues/issue-provider';
+import type { LinkedIssue } from '@shared/core/linked-issue';
 import { ISSUE_PROVIDER_CAPABILITIES, type IssueListResult } from '@shared/issue-providers';
-import type { Issue } from '@shared/tasks';
 import { forgejoConnectionService, toForgejoErrorMessage } from './forgejo-connection-service';
 
-function toIssue(issue: ForgejoIssue, repoName: string): Issue {
+function toIssue(issue: ForgejoIssue, repoName: string): LinkedIssue {
   const assignee = issue.assignee;
   const assigneeName = assignee?.full_name || assignee?.login;
   const assigneeLogin = assignee?.login || assignee?.full_name;

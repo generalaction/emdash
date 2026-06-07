@@ -18,8 +18,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
-import type { PullRequest } from '@shared/pull-requests';
-import { useInitialConversationState } from './initial-conversation-section';
+import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
+import { useInitialConversationState } from '../conversations/initial-conversation-section';
 import { LinkedEntitySection } from './linked-entity-section';
 import { SectionTabsPanel } from './section-tabs-panel';
 import { TaskNameField } from './task-name-field';

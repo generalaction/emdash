@@ -18,7 +18,7 @@ import {
   type RuntimeTerminalShellId,
   type TerminalShellAvailability,
   type TerminalShellId,
-} from '@shared/terminal-settings';
+} from '@shared/core/terminals/terminal-settings';
 import type { ResolvedShellProfile } from './types';
 
 export type ShellTarget =

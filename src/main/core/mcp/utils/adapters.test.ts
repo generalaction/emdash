@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ServerMap } from '@shared/mcp/types';
+import type { ServerMap } from '@shared/core/mcp/types';
 import { adaptForward, adaptReverse } from './adapters';
 
 describe('adaptForward (canonical → agent)', () => {

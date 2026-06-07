@@ -3,7 +3,7 @@ import { db } from '@main/db/client';
 import { sshConnections } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
-import { sshConnectionEventChannel } from '@shared/events/sshEvents';
+import { sshConnectionEventChannel } from '@shared/core/ssh/sshEvents';
 import { resolveProductionSshConnectConfig } from '../connect/production-connect-config';
 import { SshConnectionManager } from './ssh-connection-manager';
 

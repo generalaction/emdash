@@ -1,4 +1,4 @@
-import { isNotNull, relations, sql } from 'drizzle-orm';
+import { isNotNull, sql } from 'drizzle-orm';
 import {
   index,
   integer,
@@ -8,7 +8,18 @@ import {
   uniqueIndex,
 } from 'drizzle-orm/sqlite-core';
 import type { StoredBranch } from '@main/core/tasks/stored-branch';
-import type { TerminalShellId } from '@shared/terminal-settings';
+import { versionedJsonColumn } from '@main/db/versioned-column';
+import {
+  automationConversationConfig,
+  automationTriggerConfig,
+  storedAutomationTaskConfig,
+} from '@shared/core/automations/config';
+import { conversationConfig } from '@shared/core/conversations/conversation-config';
+import { linkedIssue } from '@shared/core/linked-issue';
+import { sshConnectionMetadata } from '@shared/core/ssh/ssh-connection-metadata';
+import type { TerminalShellId } from '@shared/core/terminals/terminal-settings';
+import { workspaceConfig } from '@shared/core/workspaces/workspace-config';
+import { workspaceProviderData } from '@shared/core/workspaces/workspace-provider-data';
 
 export const sshConnections = sqliteTable(
   'ssh_connections',
@@ -21,7 +32,7 @@ export const sshConnections = sqliteTable(
     authType: text('auth_type').notNull().default('agent'), // 'password' | 'key' | 'agent'
     privateKeyPath: text('private_key_path'), // optional, for key auth
     useAgent: integer('use_agent').notNull().default(0), // boolean, 0=false, 1=true
-    metadata: text('metadata'), // JSON for additional connection-specific data
+    metadata: versionedJsonColumn(sshConnectionMetadata)('metadata'),
     createdAt: text('created_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
@@ -115,7 +126,7 @@ export const tasks = sqliteTable(
     status: text('status').notNull(),
     sourceBranch: text('source_branch').$type<StoredBranch>(), // @deprecated — moved to workspaces.config (git.fromBranch)
     taskBranch: text('task_branch'), // @deprecated — moved to workspaces.branch_name
-    linkedIssue: text('linked_issue'),
+    linkedIssue: versionedJsonColumn(linkedIssue)('linked_issue'),
     archivedAt: text('archived_at'), // null = active, timestamp = archived
     createdAt: text('created_at')
       .notNull()
@@ -132,6 +143,8 @@ export const tasks = sqliteTable(
     workspaceId: text('workspace_id'),
     workspaceProviderData: text('workspace_provider_data'), // @deprecated — superseded by workspaces.data
     workspaceIntent: text('workspace_intent'), // JSON: { git: GitSetup; workspace: WorkspaceLocation }
+    type: text('type').notNull().default('task'), // 'task' | 'automation-run'
+    automationRunId: text('automation_run_id'), // set when type = 'automation-run'; FK added after automationRuns is defined
   },
   (table) => ({
     projectIdIdx: index('idx_tasks_project_id').on(table.projectId),
@@ -152,9 +165,9 @@ export const workspaces = sqliteTable(
     sshConnectionId: text('ssh_connection_id').references(() => sshConnections.id, {
       onDelete: 'set null',
     }),
-    data: text('data'),
+    data: versionedJsonColumn(workspaceProviderData)('data'),
     path: text('path'),
-    config: text('config'),
+    config: versionedJsonColumn(workspaceConfig)('config'),
     branchName: text('branch_name'),
     linesAdded: integer('lines_added'),
     linesDeleted: integer('lines_deleted'),
@@ -291,25 +304,16 @@ export const automations = sqliteTable(
   {
     id: text('id').primaryKey(),
     name: text('name').notNull(),
-    description: text('description'),
-    category: text('category').notNull(),
-    cronExpr: text('cron_expr').notNull(),
-    cronTz: text('cron_tz'),
-    promptTemplate: text('prompt_template').notNull().default(''),
-    actions: text('actions').notNull().default('[]'),
-    taskConfig: text('task_config'),
     projectId: text('project_id').references(() => projects.id, { onDelete: 'set null' }),
+    triggerConfig: versionedJsonColumn(automationTriggerConfig)('trigger_config'),
+    conversationConfig: versionedJsonColumn(automationConversationConfig)('conversation_config'),
+    taskConfig: versionedJsonColumn(storedAutomationTaskConfig)('task_config'),
     enabled: integer('enabled').notNull().default(1),
-    isDraft: integer('is_draft').notNull().default(0),
-    lastRunAt: integer('last_run_at'),
-    nextRunAt: integer('next_run_at'),
-    deadlinePolicy: text('deadline_policy').notNull().default('next-interval'),
-    deadlineMs: integer('deadline_ms'),
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
+    deletedAt: integer('deleted_at'),
   },
   (table) => ({
-    enabledNextRunIdx: index('idx_automations_enabled_next_run').on(table.enabled, table.nextRunAt),
     projectIdIdx: index('idx_automations_project_id').on(table.projectId),
   })
 );
@@ -324,13 +328,16 @@ export const automationRuns = sqliteTable(
     scheduledAt: integer('scheduled_at'),
     deadlineAt: integer('deadline_at'),
     startedAt: integer('started_at'),
+    taskCreatedAt: integer('task_created_at'),
+    launchedAt: integer('launched_at'),
     finishedAt: integer('finished_at'),
     status: text('status').notNull(),
-    taskId: text('task_id').references(() => tasks.id, { onDelete: 'set null' }),
-    createdTaskId: text('created_task_id'),
     error: text('error'),
     triggerKind: text('trigger_kind').notNull(),
-    workerId: text('worker_id'),
+    triggerConfigSnapshot: text('trigger_config_snapshot').notNull().default('{}'),
+    conversationConfigSnapshot: text('conversation_config_snapshot').notNull().default('{}'),
+    taskConfigSnapshot: text('task_config_snapshot'),
+    generatedTaskName: text('generated_task_name'),
   },
   (table) => ({
     automationStartedIdx: index('idx_automation_runs_automation_started').on(
@@ -346,7 +353,10 @@ export const automationRuns = sqliteTable(
       table.status
     ),
     statusIdx: index('idx_automation_runs_status').on(table.status),
-    createdTaskIdIdx: index('idx_automation_runs_created_task_id').on(table.createdTaskId),
+    statusScheduledIdx: index('idx_automation_runs_status_scheduled').on(
+      table.status,
+      table.scheduledAt
+    ),
   })
 );
 
@@ -362,7 +372,7 @@ export const conversations = sqliteTable(
       .references(() => tasks.id, { onDelete: 'cascade' }),
     title: text('title').notNull(),
     provider: text('provider'),
-    config: text('config'),
+    config: versionedJsonColumn(conversationConfig)('config'),
     createdAt: text('created_at')
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
@@ -372,6 +382,8 @@ export const conversations = sqliteTable(
     lastInteractedAt: text('last_interacted_at'),
     isInitialConversation: integer('is_initial_conversation', { mode: 'boolean' }),
     sessionId: text('session_id'),
+    agentStatus: text('agent_status'),
+    agentStatusSeen: integer('agent_status_seen').default(1),
   },
   (table) => ({
     taskIdIdx: index('idx_conversations_task_id').on(table.taskId),
@@ -467,73 +479,6 @@ export const appSecrets = sqliteTable(
     keyIdx: uniqueIndex('idx_app_secrets_key').on(table.key),
   })
 );
-
-export const sshConnectionsRelations = relations(sshConnections, ({ many }) => ({
-  projects: many(projects),
-}));
-
-export const projectsRelations = relations(projects, ({ one, many }) => ({
-  tasks: many(tasks),
-  automations: many(automations),
-  settings: one(projectSettings, {
-    fields: [projects.id],
-    references: [projectSettings.projectId],
-  }),
-  sshConnection: one(sshConnections, {
-    fields: [projects.sshConnectionId],
-    references: [sshConnections.id],
-  }),
-}));
-
-export const projectSettingsRelations = relations(projectSettings, ({ one }) => ({
-  project: one(projects, {
-    fields: [projectSettings.projectId],
-    references: [projects.id],
-  }),
-}));
-
-export const tasksRelations = relations(tasks, ({ one, many }) => ({
-  project: one(projects, {
-    fields: [tasks.projectId],
-    references: [projects.id],
-  }),
-  conversations: many(conversations),
-  automationRuns: many(automationRuns),
-}));
-
-export const automationsRelations = relations(automations, ({ one, many }) => ({
-  project: one(projects, {
-    fields: [automations.projectId],
-    references: [projects.id],
-  }),
-  runs: many(automationRuns),
-}));
-
-export const automationRunsRelations = relations(automationRuns, ({ one }) => ({
-  automation: one(automations, {
-    fields: [automationRuns.automationId],
-    references: [automations.id],
-  }),
-  task: one(tasks, {
-    fields: [automationRuns.taskId],
-    references: [tasks.id],
-  }),
-}));
-
-export const conversationsRelations = relations(conversations, ({ one, many }) => ({
-  task: one(tasks, {
-    fields: [conversations.taskId],
-    references: [tasks.id],
-  }),
-  messages: many(messages),
-}));
-
-export const messagesRelations = relations(messages, ({ one }) => ({
-  conversation: one(conversations, {
-    fields: [messages.conversationId],
-    references: [conversations.id],
-  }),
-}));
 
 export type SshConnectionRow = typeof sshConnections.$inferSelect;
 export type SshConnectionInsert = typeof sshConnections.$inferInsert;

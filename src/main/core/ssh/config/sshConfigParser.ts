@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { glob } from 'glob';
-import type { SshConfigHost } from '@shared/ssh';
+import type { SshConfigHost } from '@shared/core/ssh/ssh';
 
 /**
  * Strips surrounding quotes (single or double) from a value string.

@@ -1,8 +1,8 @@
 import type { Octokit } from '@octokit/rest';
 import { describe, expect, it, vi } from 'vitest';
 import type { GitHubApiAuthError } from '@main/core/github/services/github-api-auth-errors';
-import { err, ok } from '@shared/result';
-import type { Result } from '@shared/result';
+import { err, ok } from '@shared/lib/result';
+import type { Result } from '@shared/lib/result';
 import { PrSyncEngine } from './pr-sync-engine';
 import { toPrApiError } from './pr-sync-errors';
 
@@ -48,6 +48,10 @@ function makeOctokit(overrides: {
   } as unknown as Octokit;
 }
 
+function flushPromises(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 describe('PrSyncEngine', () => {
   it('creates pull requests with a host-aware Octokit client', async () => {
     const createPullRequest = vi.fn().mockResolvedValue({
@@ -64,7 +68,7 @@ describe('PrSyncEngine', () => {
       draft: false,
     });
 
-    expect(getOctokit).toHaveBeenCalledWith('ghe.example.com');
+    expect(getOctokit).toHaveBeenCalledWith('ghe.example.com', {});
     expect(createPullRequest).toHaveBeenCalledWith({
       owner: 'acme',
       repo: 'repo',
@@ -77,8 +81,24 @@ describe('PrSyncEngine', () => {
     expect(result).toEqual(ok({ url: 'https://ghe.example.com/acme/repo/pull/12', number: 12 }));
   });
 
-  it('maps post-token PR API auth failures to typed auth errors', async () => {
-    const createPullRequest = vi.fn().mockRejectedValue({ status: 403 });
+  it('passes account context to repository sync Octokit resolution', async () => {
+    const getOctokit = vi.fn().mockResolvedValue(
+      err({
+        type: 'auth_required',
+        host: 'github.com',
+        message: 'GitHub authentication required.',
+      })
+    );
+    const engine = new PrSyncEngine(getOctokit);
+
+    engine.sync('https://github.com/acme/repo', { accountId: 'github.com:42' });
+    await flushPromises();
+
+    expect(getOctokit).toHaveBeenCalledWith('github.com', { accountId: 'github.com:42' });
+  });
+
+  it('maps post-token PR API repository access failures to not-found-or-no-access errors', async () => {
+    const createPullRequest = vi.fn().mockRejectedValue({ status: 404 });
     const getOctokit = vi.fn().mockResolvedValue(ok(makeOctokit({ createPullRequest })));
     const engine = new PrSyncEngine(getOctokit);
 
@@ -92,11 +112,12 @@ describe('PrSyncEngine', () => {
       })
     ).resolves.toEqual(
       err({
-        type: 'auth_required',
+        type: 'not_found_or_no_access',
         host: 'ghe.example.com',
+        nameWithOwner: 'acme/repo',
+        status: 404,
         message:
-          'GitHub Enterprise authentication required for ghe.example.com. Run: gh auth login --hostname ghe.example.com',
-        hint: 'Run: gh auth login --hostname ghe.example.com',
+          'acme/repo on ghe.example.com was not found, or the selected GitHub account does not have access.',
       })
     );
   });

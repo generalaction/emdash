@@ -2,7 +2,7 @@ import React from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { Input } from '@renderer/lib/ui/input';
 import { Switch } from '@renderer/lib/ui/switch';
-import { normalizeBranchPrefix } from '@shared/branch-prefix';
+import { normalizeBranchPrefix } from '@shared/util/branch-prefix';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
 import { SettingRow } from './SettingRow';
 

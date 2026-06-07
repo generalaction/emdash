@@ -143,7 +143,7 @@ export const TaskList = observer(function TaskList() {
 
   const allTasks = taskManager
     ? Array.from(taskManager.tasks.values()).filter(
-        (t): t is ReadyTask => t.state !== 'unregistered' && !t.data.automationId
+        (t): t is ReadyTask => t.state !== 'unregistered' && t.data.type !== 'automation-run'
       )
     : [];
   const activeTasks = allTasks.filter((t) => !t.data.archivedAt);

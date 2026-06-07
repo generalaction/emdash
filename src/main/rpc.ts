@@ -1,4 +1,4 @@
-import { createRPCNamespace, createRPCRouter } from '../shared/ipc/rpc';
+import { createRPCNamespace, createRPCRouter } from '../shared/lib/ipc/rpc';
 import { accountController } from './core/account/controller';
 import { appController } from './core/app/controller';
 import { asanaController } from './core/asana/controller';
@@ -32,6 +32,7 @@ import { sshController } from './core/ssh/controller';
 import { taskController } from './core/tasks/controller';
 import { telemetryController } from './core/telemetry/controller';
 import { terminalsController } from './core/terminals/controller';
+import { trelloController } from './core/trello/controller';
 import { updateController } from './core/updates/controller';
 import { viewStateController } from './core/view-state/controller';
 import { projectSettingsController } from './core/workspaces/project-settings-controller';
@@ -58,6 +59,7 @@ export const rpcRouter = createRPCRouter({
   linear: linearController,
   monday: mondayController,
   plain: plainController,
+  trello: trelloController,
   promptLibrary: promptLibraryController,
   skills: skillsController,
   ssh: sshController,

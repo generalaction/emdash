@@ -1,4 +1,4 @@
-import type { NotificationType } from '@shared/events/agentEvents';
+import type { NotificationType } from '@shared/core/agents/agentEvents';
 
 export type ClassificationResult =
   | {

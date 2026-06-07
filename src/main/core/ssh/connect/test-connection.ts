@@ -1,5 +1,5 @@
 import ssh2, { type Client, type ConnectConfig } from 'ssh2';
-import type { ConnectionTestResult, SshConfig } from '@shared/ssh';
+import type { ConnectionTestResult, SshConfig } from '@shared/core/ssh/ssh';
 import type { SshConnectResult, TransientConnectInput } from './resolve-ssh-connect-config';
 
 const { Client: Ssh2Client } = ssh2;

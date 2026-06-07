@@ -1,6 +1,6 @@
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { FileSystemProvider } from '@main/core/fs/types';
-import type { AgentProviderId } from '@shared/agent-provider-registry';
+import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { claudeTrustService } from './claude-trust-service';
 import { cursorTrustService } from './cursor-trust-service';
 

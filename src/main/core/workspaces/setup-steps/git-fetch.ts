@@ -1,5 +1,5 @@
-import { err, ok, type Result } from '@shared/result';
-import type * as Step from '@shared/workspace-setup-steps/git-fetch';
+import type * as Step from '@shared/core/workspaces/workspace-setup-steps/git-fetch';
+import { err, ok, type Result } from '@shared/lib/result';
 import type { StepContext } from './step-context';
 
 export async function execute(

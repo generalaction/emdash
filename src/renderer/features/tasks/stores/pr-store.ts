@@ -3,17 +3,23 @@ import type { RepositoryStore } from '@renderer/features/projects/stores/reposit
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
-import { gitRefChangedChannel, gitWorkspaceChangedChannel } from '@shared/events/gitEvents';
-import { commitRef, mergeBaseRange, refsEqual, remoteRef, type GitChange } from '@shared/git';
+import {
+  commitRef,
+  mergeBaseRange,
+  refsEqual,
+  remoteRef,
+  type GitChange,
+} from '@shared/core/git/git';
+import { gitRefChangedChannel, gitWorkspaceChangedChannel } from '@shared/core/git/gitEvents';
 import {
   isForkPr,
   pullRequestErrorMessage,
   selectCurrentPr,
   type PullRequest,
   type PullRequestMergeOptions,
-} from '@shared/pull-requests';
+} from '@shared/core/pull-requests/pull-requests';
+import type { Task } from '@shared/core/tasks/tasks';
 import { parseRepositoryRef } from '@shared/repository-ref';
-import type { Task } from '@shared/tasks';
 import { isRegistered, type TaskStore } from './task-store';
 
 export type MergeResult = { success: true } | { success: false; error: string };
@@ -128,7 +134,12 @@ export class PrStore {
     const prNumber = prNumberFromIdentifier(pr.identifier);
     if (!prNumber) return { success: false, error: 'Could not determine PR number' };
 
-    const result = await rpc.pullRequests.mergePullRequest(pr.repositoryUrl, prNumber, options);
+    const result = await rpc.pullRequests.mergePullRequest(
+      this.projectId,
+      pr.repositoryUrl,
+      prNumber,
+      options
+    );
     if (result.success) {
       captureTelemetry('pr_merged', {
         strategy: options.strategy,
@@ -156,7 +167,7 @@ export class PrStore {
     if (!pr) return;
     const prNumber = prNumberFromIdentifier(pr.identifier);
     if (!prNumber) return;
-    await rpc.pullRequests.markReadyForReview(pr.repositoryUrl, prNumber);
+    await rpc.pullRequests.markReadyForReview(this.projectId, pr.repositoryUrl, prNumber);
   }
 
   /**
@@ -169,12 +180,12 @@ export class PrStore {
 
     const prNumber = prNumberFromIdentifier(pr.identifier);
     if (prNumber) {
-      void rpc.pullRequests.refreshPullRequest(pr.repositoryUrl, prNumber);
+      void rpc.pullRequests.refreshPullRequest(this.projectId, pr.repositoryUrl, prNumber);
     }
 
     // Also trigger a check-run sync — the result arrives embedded in the
     // next prUpdatedChannel event emitted by syncChecks.
-    void rpc.pullRequests.syncChecks(pr.url, pr.headRefOid);
+    void rpc.pullRequests.syncChecks(this.projectId, pr.url, pr.headRefOid);
   }
 
   dispose(): void {

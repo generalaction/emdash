@@ -10,22 +10,21 @@ import { tasks, workspaces } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
-import { taskCreatedChannel, taskProvisionedChannel } from '@shared/events/taskEvents';
-import { err, ok, type Result } from '@shared/result';
+import type { LinkedIssue } from '@shared/core/linked-issue';
+import { taskCreatedChannel, taskProvisionedChannel } from '@shared/core/tasks/taskEvents';
 import type {
   CreateTaskError,
   CreateTaskParams,
   CreateTaskSuccess,
   DeleteTaskOptions,
-  Issue,
   ProvisionTaskResult,
   ProvisionWorkspaceError,
   RenameTaskError,
   RenameTaskSuccess,
   Task,
-} from '@shared/tasks';
+} from '@shared/core/tasks/tasks';
+import { err, ok, type Result } from '@shared/lib/result';
 import { archiveTask } from './operations/archiveTask';
-import { convertAutomationTask } from './operations/convertAutomationTask';
 import { createTask } from './operations/createTask';
 import { deleteTask } from './operations/deleteTask';
 import { getDeletePreflight } from './operations/getDeletePreflight';
@@ -49,9 +48,6 @@ export type TaskLifecycleHooks = {
   'task:workspace-ready': (taskId: string, result: ProvisionResult) => void | Promise<void>;
 };
 
-/** @deprecated Use TaskLifecycleHooks */
-export type TaskCrudHooks = TaskLifecycleHooks;
-
 export class TaskService implements Hookable<TaskLifecycleHooks> {
   private readonly _hooks = new HookCore<TaskLifecycleHooks>((name, e) =>
     log.error(`TaskService: ${String(name)} hook error`, e)
@@ -64,10 +60,16 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
   async createTask(params: CreateTaskParams): Promise<Result<CreateTaskSuccess, CreateTaskError>> {
     const result = await createTask(params);
     if (result.success) {
-      this._hooks.callHookBackground('task:created', result.data.task, params);
-      events.emit(taskCreatedChannel, { task: result.data.task });
+      this.notifyTaskCreated(result.data.task, params);
     }
     return result;
+  }
+
+  /** Fires the task:created hook and event. Call this after committing a task insert
+   *  that was performed outside of `createTask` (e.g. inside an external transaction). */
+  notifyTaskCreated(task: Task, params: CreateTaskParams): void {
+    this._hooks.callHookBackground('task:created', task, params);
+    events.emit(taskCreatedChannel, { task });
   }
 
   /**
@@ -145,7 +147,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
       await db
         .update(workspaces)
         .set({
-          data: JSON.stringify(data.workspaceProviderData),
+          data: data.workspaceProviderData,
           updatedAt: sql`CURRENT_TIMESTAMP`,
         })
         .where(eq(workspaces.id, data.workspaceId));
@@ -197,14 +199,21 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     return result;
   }
 
-  async updateLinkedIssue(taskId: string, issue?: Issue): Promise<void> {
+  async updateLinkedIssue(taskId: string, issue?: LinkedIssue): Promise<void> {
     const task = await updateLinkedIssue(taskId, issue);
     if (task) this._hooks.callHookBackground('task:updated', task);
   }
 
   async convertAutomationTask(taskId: string): Promise<Task | null> {
-    const task = await convertAutomationTask(taskId);
-    if (task) this._hooks.callHookBackground('task:updated', task);
+    const [row] = await db
+      .update(tasks)
+      .set({ type: 'task', updatedAt: sql`CURRENT_TIMESTAMP` })
+      .where(eq(tasks.id, taskId))
+      .returning();
+    if (!row) return null;
+
+    const task: Task = { ...mapTaskRowToTask(row), prs: [], conversations: {} };
+    this._hooks.callHookBackground('task:updated', task);
     return task;
   }
 

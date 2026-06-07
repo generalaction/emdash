@@ -1,6 +1,6 @@
 import os from 'os';
 import path from 'path';
-import type { AdapterType, AgentMcpMeta } from '@shared/mcp/types';
+import type { AdapterType, AgentMcpMeta } from '@shared/core/mcp/types';
 
 interface AgentConfigDef {
   pathSegments: string[];

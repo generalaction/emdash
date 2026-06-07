@@ -1,4 +1,4 @@
-import { createRPCController } from '@shared/ipc/rpc';
+import { createRPCController } from '@shared/lib/ipc/rpc';
 import { linearConnectionService } from './linear-connection-service';
 
 export const linearController = createRPCController({

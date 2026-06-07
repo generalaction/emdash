@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { rpc } from '@renderer/lib/ipc';
-import type { GitChange } from '@shared/git';
+import type { GitChange } from '@shared/core/git/git';
 
 export const commitFilesQueryKey = (projectId: string, workspaceId: string, commitHash: string) =>
   [projectId, workspaceId, 'commit-files', commitHash] as const;

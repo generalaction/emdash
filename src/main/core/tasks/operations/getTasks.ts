@@ -1,7 +1,7 @@
 import { and, count, desc, eq, inArray } from 'drizzle-orm';
 import { db } from '@main/db/client';
-import { automationRuns, conversations, tasks, workspaces } from '@main/db/schema';
-import { type Task } from '@shared/tasks';
+import { conversations, tasks, workspaces } from '@main/db/schema';
+import { type Task } from '@shared/core/tasks/tasks';
 import { mapTaskRowToTask } from '../utils/utils';
 
 export async function getTasks(projectId?: string): Promise<Task[]> {
@@ -17,35 +17,21 @@ export async function getTasks(projectId?: string): Promise<Task[]> {
 
   const taskIds = rows.map((r) => r.id);
 
-  const [convRows, automationRunRows] = await Promise.all([
-    db
-      .select({
-        taskId: conversations.taskId,
-        provider: conversations.provider,
-        count: count(),
-      })
-      .from(conversations)
-      .where(inArray(conversations.taskId, taskIds))
-      .groupBy(conversations.taskId, conversations.provider),
-    db
-      .select({
-        taskId: automationRuns.createdTaskId,
-        automationId: automationRuns.automationId,
-      })
-      .from(automationRuns)
-      .where(inArray(automationRuns.createdTaskId, taskIds)),
-  ]);
+  const convRows = await db
+    .select({
+      taskId: conversations.taskId,
+      provider: conversations.provider,
+      count: count(),
+    })
+    .from(conversations)
+    .where(inArray(conversations.taskId, taskIds))
+    .groupBy(conversations.taskId, conversations.provider);
 
   const convByTask = new Map<string, Record<string, number>>();
   for (const { taskId, provider, count: c } of convRows) {
     const rec = convByTask.get(taskId) ?? {};
     rec[provider ?? 'unknown'] = c;
     convByTask.set(taskId, rec);
-  }
-
-  const automationByTask = new Map<string, string>();
-  for (const { taskId, automationId } of automationRunRows) {
-    if (taskId) automationByTask.set(taskId, automationId);
   }
 
   const wsIds = rows.map((r) => r.workspaceId).filter((id): id is string => id != null);
@@ -67,7 +53,6 @@ export async function getTasks(projectId?: string): Promise<Task[]> {
       ...mapTaskRowToTask(row),
       prs: [],
       conversations: convByTask.get(row.id) ?? {},
-      automationId: automationByTask.get(row.id),
       workspaceGit:
         ws?.linesAdded != null
           ? { linesAdded: ws.linesAdded, linesDeleted: ws.linesDeleted ?? 0 }

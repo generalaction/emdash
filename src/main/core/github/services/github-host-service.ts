@@ -1,7 +1,7 @@
 import { Octokit } from '@octokit/rest';
 import { log } from '@main/lib/logger';
+import { err, ok, type Result } from '@shared/lib/result';
 import { isGitHubDotComHost, normalizeRepositoryHost } from '@shared/repository-ref';
-import { err, ok, type Result } from '@shared/result';
 
 const POSITIVE_TTL_MS = 15 * 60 * 1000;
 const NEGATIVE_TTL_MS = 2 * 60 * 1000;

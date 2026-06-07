@@ -35,6 +35,9 @@ importers:
       croner:
         specifier: ^10.0.1
         version: 10.0.1
+      cronstrue:
+        specifier: ^3.14.0
+        version: 3.14.0
       drizzle-orm:
         specifier: ^0.32.1
         version: 0.32.2(@opentelemetry/api@1.9.0)(@types/better-sqlite3@7.6.13)(@types/react@19.2.14)(better-sqlite3@12.6.2)(react@19.2.4)(sqlite3@5.1.7)
@@ -2857,6 +2860,10 @@ packages:
   croner@10.0.1:
     resolution: {integrity: sha512-ixNtAJndqh173VQ4KodSdJEI6nuioBWI0V1ITNKhZZsO0pEMoDxz539T4FTTbSZ/xIOSuDnzxLVRqBVSvPNE2g==}
     engines: {node: '>=18.0'}
+
+  cronstrue@3.14.0:
+    resolution: {integrity: sha512-XnW4vuK/jPJjmTyDWiej1Zq36Od7ITwxaV2O1pzHZuyMVvdy7NAvyvIBzybt+idqSpfqYuoDG7uf/ocGtJVWxA==}
+    hasBin: true
 
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
@@ -8156,6 +8163,8 @@ snapshots:
     optional: true
 
   croner@10.0.1: {}
+
+  cronstrue@3.14.0: {}
 
   cross-spawn@7.0.6:
     dependencies:

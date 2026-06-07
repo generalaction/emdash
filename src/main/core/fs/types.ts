@@ -3,7 +3,7 @@
  * Provides unified interface for local and remote (SSH/SFTP) filesystem operations
  */
 
-import type { FileWatchEvent } from '@shared/fs';
+import type { FileWatchEvent } from '@shared/core/fs/fs';
 
 /**
  * Handle returned by FileSystemProvider.watch().

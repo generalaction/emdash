@@ -9,15 +9,15 @@ import {
   setTabActive,
   setTabActiveIndex,
 } from '@renderer/lib/stores/tab-utils';
-import { fsWatchEventChannel } from '@shared/events/fsEvents';
-import { projectSettingsChangedChannel } from '@shared/events/projectEvents';
+import { fsWatchEventChannel } from '@shared/core/fs/fsEvents';
+import { PROJECT_CONFIG_FILE } from '@shared/core/project-settings/project-settings';
+import { projectSettingsChangedChannel } from '@shared/core/projects/projectEvents';
+import { makePtySessionId } from '@shared/core/pty/ptySessionId';
 import {
   lifecycleScriptStatusChannel,
   type LifecycleScriptStatusEvent,
-} from '@shared/events/taskEvents';
-import { PROJECT_CONFIG_FILE } from '@shared/project-settings';
-import { makePtySessionId } from '@shared/ptySessionId';
-import { createLifecycleScriptTerminalId } from '@shared/terminals';
+} from '@shared/core/tasks/taskEvents';
+import { createLifecycleScriptTerminalId } from '@shared/core/terminals/terminals';
 
 export type ScriptType = 'setup' | 'run' | 'teardown';
 

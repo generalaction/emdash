@@ -1,5 +1,5 @@
 import { log } from '@main/lib/logger';
-import type { McpLoadAllResponse, McpServer, ServerMap } from '@shared/mcp/types';
+import type { McpLoadAllResponse, McpServer, ServerMap } from '@shared/core/mcp/types';
 import { adaptForward, adaptReverse } from '../utils/adapters';
 import { loadCatalog } from '../utils/catalog';
 import { readServers, writeServers } from '../utils/config-io';

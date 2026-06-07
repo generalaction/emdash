@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Branch } from '@shared/git';
+import type { Branch } from '@shared/core/git/git';
 import { fromStoredBranch, toStoredBranch } from './stored-branch';
 
 describe('stored-branch', () => {

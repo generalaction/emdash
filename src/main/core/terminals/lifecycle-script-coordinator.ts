@@ -3,13 +3,13 @@ import type { Workspace } from '@main/core/workspaces/workspace';
 import { events } from '@main/lib/events';
 import { redactDiagnosticLog } from '@main/lib/file-logger';
 import { log } from '@main/lib/logger';
+import { makePtySessionId } from '@shared/core/pty/ptySessionId';
 import {
   lifecycleScriptStatusChannel,
   type LifecycleScriptOrigin,
   type LifecycleScriptType,
-} from '@shared/events/taskEvents';
-import { makePtySessionId } from '@shared/ptySessionId';
-import { createLifecycleScriptTerminalId } from '@shared/terminals';
+} from '@shared/core/tasks/taskEvents';
+import { createLifecycleScriptTerminalId } from '@shared/core/terminals/terminals';
 import type { LifecycleScriptExecutionResult } from '../workspaces/workspace-lifecycle-service';
 
 export type LifecycleScriptPolicy = {

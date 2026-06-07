@@ -14,9 +14,9 @@ import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-sessio
 import { resolveTerminalShellWithSystemFallback } from '@main/core/terminal-shell/resolver';
 import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
 import { log } from '@main/lib/logger';
-import { makePtySessionId } from '@shared/ptySessionId';
-import type { TerminalShellId } from '@shared/terminal-settings';
-import type { Terminal } from '@shared/terminals';
+import { makePtySessionId } from '@shared/core/pty/ptySessionId';
+import type { TerminalShellId } from '@shared/core/terminals/terminal-settings';
+import type { Terminal } from '@shared/core/terminals/terminals';
 import { wireTerminalDevServerWatcher } from '../dev-server-watcher';
 import {
   type LifecycleScriptSpawnRequest,

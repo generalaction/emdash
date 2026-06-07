@@ -11,7 +11,6 @@ import {
   Terminal,
 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
-import { AutomationTaskTitlebar } from '@renderer/features/automations/components/AutomationTaskTitlebar';
 import {
   asMounted,
   getProjectStore,
@@ -44,7 +43,8 @@ import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
 import { cn } from '@renderer/utils/utils';
-import type { Issue } from '@shared/tasks';
+import type { LinkedIssue } from '@shared/core/linked-issue';
+import { AutomationRunPill } from './components/automation-run-pill';
 import { DevServerPills } from './components/dev-server-pills';
 import { IssueSelector, ProviderLogo } from './components/issue-selector/issue-selector';
 import { type SidebarTab } from './types';
@@ -54,10 +54,6 @@ export const TaskTitlebar = observer(function TaskTitlebar() {
   const { projectId, taskId } = useTaskViewContext();
   const taskStore = getTaskStore(projectId, taskId);
   const kind = taskViewKind(taskStore, projectId);
-
-  if (taskStore?.data.automationId) {
-    return <AutomationTaskTitlebar />;
-  }
 
   if (kind !== 'ready') {
     return <PendingTaskTitlebar taskId={taskId} projectId={projectId} />;
@@ -289,18 +285,28 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
             </PopoverContent>
           </Popover>
           {taskPayload.linkedIssue ? <LinkedIssueBadge issue={taskPayload.linkedIssue} /> : null}
-          <button
-            className={cn(
-              'text-foreground-muted ml-1',
-              taskPayload.isPinned && 'text-muted-foreground'
-            )}
-            onClick={() => taskStore.setPinned(!taskPayload.isPinned)}
-          >
-            <Pin
-              className={cn('size-3.5', taskPayload.isPinned && 'text-foreground-muted')}
-              fill={taskPayload.isPinned ? 'currentColor' : 'none'}
+          {taskPayload.type === 'task' && (
+            <button
+              className={cn(
+                'text-foreground-muted ml-1',
+                taskPayload.isPinned && 'text-muted-foreground'
+              )}
+              onClick={() => taskStore.setPinned(!taskPayload.isPinned)}
+            >
+              <Pin
+                className={cn('size-3.5', taskPayload.isPinned && 'text-foreground-muted')}
+                fill={taskPayload.isPinned ? 'currentColor' : 'none'}
+              />
+            </button>
+          )}
+          {taskPayload.automationRunId && (
+            <AutomationRunPill
+              runId={taskPayload.automationRunId}
+              projectId={projectId}
+              taskStore={taskStore}
+              isConverted={taskPayload.type === 'task'}
             />
-          </button>
+          )}
         </div>
       }
       rightSlot={
@@ -409,7 +415,7 @@ const ActiveTaskTitlebar = observer(function ActiveTaskTitlebar({
   );
 });
 
-function LinkedIssueBadge({ issue }: { issue: Issue }) {
+function LinkedIssueBadge({ issue }: { issue: LinkedIssue }) {
   return (
     <Tooltip>
       <TooltipTrigger

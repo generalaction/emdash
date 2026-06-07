@@ -19,7 +19,7 @@ import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@renderer/lib/ui/resizable';
 import { BoundShortcut } from '@renderer/lib/ui/shortcut';
-import type { TerminalShellId } from '@shared/terminal-settings';
+import type { TerminalShellId } from '@shared/core/terminals/terminal-settings';
 import { useIsActiveTask } from '../hooks/use-is-active-task';
 import { TerminalDrawerSidebar } from './terminal-drawer-sidebar';
 import { resolveTerminalPanelActiveItem } from './terminal-panel-selection';
@@ -150,6 +150,7 @@ export const TerminalsPanel = observer(function TerminalsPanel() {
           autoFocus={autoFocus}
           emptyState={emptyState}
           remoteConnectionId={remoteConnectionId}
+          workspaceId={workspaceId}
         />
       </ResizablePanel>
       <ResizableHandle

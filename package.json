@@ -1,6 +1,6 @@
 {
   "name": "emdash",
-  "version": "1.1.28",
+  "version": "1.1.29",
   "description": "A cross-platform Electron app that orchestrates multiple coding agents in parallel",
   "keywords": [
     "claude",
@@ -62,6 +62,7 @@
     "@team-plain/graphql": "^1.0.1",
     "better-sqlite3": "^12.6.0",
     "croner": "^10.0.1",
+    "cronstrue": "^3.14.0",
     "drizzle-orm": "^0.32.1",
     "electron-updater": "^6.3.9",
     "glob": "^13.0.6",

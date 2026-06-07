@@ -6,7 +6,7 @@ import { rpc } from '@renderer/lib/ipc';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 import { Button } from '@renderer/lib/ui/button';
-import type { SshConfig, SshConnectionUsage } from '@shared/ssh';
+import type { SshConfig, SshConnectionUsage } from '@shared/core/ssh/ssh';
 import { SshConnectionRow } from './SshConnectionRow';
 
 export const SshConnectionsSettingsCard = observer(function SshConnectionsSettingsCard() {

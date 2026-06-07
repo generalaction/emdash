@@ -1,8 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
-import { rpc } from '@renderer/lib/ipc';
-import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
-import type { ComboboxSelectOption } from '@renderer/lib/ui/combobox-popover';
+import { useState } from 'react';
+import { useGitHubRepositoryOwnerSelect } from '@renderer/lib/hooks/useGithubRepositoryOwners';
 import { basenameFromAnyPath } from '@shared/path-name';
 
 export function usePickMode() {
@@ -42,20 +39,20 @@ export type PickModeState = ReturnType<typeof usePickMode>;
 export type NewModeState = ReturnType<typeof useNewMode>;
 export type CloneModeState = ReturnType<typeof useCloneMode>;
 
-export function useNewMode(defaultPath: string) {
-  const { authenticated } = useGithubContext();
+export function useNewMode(defaultPath: string, githubAccountId: string | null) {
   const [name, setName] = useState('');
   const [_, setNameIsTouched] = useState<boolean>(false);
   const [repositoryName, setRepositoryName] = useState('');
   const [repositoryNameIsTouched, setRepositoryNameIsTouched] = useState<boolean>(false);
-  const [repositoryOwnerOverride, setRepositoryOwnerOverride] = useState<
-    ComboboxSelectOption | undefined
-  >(undefined);
   const [repositoryVisibility, setRepositoryVisibility] = useState<'public' | 'private'>('private');
   const [pathOverride, setPathOverride] = useState<string | undefined>(undefined);
   const path = pathOverride ?? defaultPath;
-
-  const [ownerIsTouched, setOwnerIsTouched] = useState<boolean>(false);
+  const {
+    owners,
+    owner: repositoryOwner,
+    errorMessage: repositoryOwnersErrorMessage,
+    handleOwnerChange,
+  } = useGitHubRepositoryOwnerSelect(githubAccountId);
 
   const handleNameChange = (newName: string) => {
     setName(newName);
@@ -70,30 +67,6 @@ export function useNewMode(defaultPath: string) {
     setNameIsTouched(false);
   };
 
-  const { data } = useQuery({
-    queryKey: ['owners'],
-    queryFn: () => rpc.github.getOwners(),
-    enabled: authenticated,
-  });
-
-  const owners = useMemo(
-    () =>
-      authenticated
-        ? (data?.owners?.map((owner) => ({ value: owner.login, label: owner.login })) ?? [])
-        : [],
-    [authenticated, data]
-  );
-
-  const repositoryOwner = useMemo(
-    () => (ownerIsTouched ? repositoryOwnerOverride : owners[0]),
-    [owners, ownerIsTouched, repositoryOwnerOverride]
-  );
-
-  const handleOwnerChange = (item: ComboboxSelectOption) => {
-    setRepositoryOwnerOverride(item);
-    setOwnerIsTouched(true);
-  };
-
   const isValid =
     name.trim().length > 0 &&
     repositoryName.trim().length > 0 &&
@@ -106,6 +79,7 @@ export function useNewMode(defaultPath: string) {
     repositoryOwner,
     repositoryVisibility,
     owners,
+    repositoryOwnersErrorMessage,
     setRepositoryVisibility,
     path,
     setPath: setPathOverride,

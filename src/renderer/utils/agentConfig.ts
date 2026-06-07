@@ -1,4 +1,4 @@
-import { type AgentProviderId } from '@shared/agent-provider-registry';
+import { type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import ampLogo from '../../assets/images/ampcode.svg';
 import antigravityLogo from '../../assets/images/antigravity.svg';
 import atlassianLogo from '../../assets/images/atlassian.png';

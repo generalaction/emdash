@@ -1,6 +1,6 @@
 import { log } from '@main/lib/logger';
-import { ok, type Result } from '@shared/result';
-import type * as Step from '@shared/workspace-setup-steps/set-branch-tracking';
+import type * as Step from '@shared/core/workspaces/workspace-setup-steps/set-branch-tracking';
+import { ok, type Result } from '@shared/lib/result';
 import type { StepContext } from './step-context';
 
 export async function execute(

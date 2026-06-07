@@ -1,69 +1,46 @@
+import type { GitHubApiAuthError } from '@main/core/github/services/github-api-auth-errors';
 import {
-  githubApiAuthRequired,
-  type GitHubApiAuthError,
-} from '@main/core/github/services/github-api-auth-errors';
+  classifyGitHubApiError,
+  type GitHubApiOperationError,
+} from '@main/core/github/services/github-api-errors';
 import type { RepositoryRefParseError } from '@shared/repository-ref';
+
+export type PrSyncHostUnreachableError = {
+  type: 'host_unreachable';
+  host: string;
+  reason: string;
+};
+
+export type PrSyncApiError = {
+  type: 'api_error';
+  message: string;
+};
+
+export type PrSyncNotFoundOrNoAccessError = {
+  type: 'not_found_or_no_access';
+  host: string;
+  message: string;
+};
 
 export type PrSyncEngineError =
   | RepositoryRefParseError
   | GitHubApiAuthError
-  | { type: 'host_unreachable'; host: string; reason: string }
-  | { type: 'api_error'; message: string };
-
-function isAuthStatus(error: unknown): boolean {
-  if (!error || typeof error !== 'object' || !('status' in error)) return false;
-  const status = Number((error as { status: unknown }).status);
-  return status === 401 || status === 403;
-}
-
-function errorText(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  return String(error);
-}
-
-function errorCode(error: unknown): string | undefined {
-  if (!error || typeof error !== 'object' || !('code' in error)) return undefined;
-  const code = (error as { code: unknown }).code;
-  return typeof code === 'string' ? code : undefined;
-}
-
-function isNetworkConnectivityError(error: unknown): boolean {
-  const text = errorText(error);
-  const code = errorCode(error);
-  return Boolean(
-    code?.startsWith('ECONN') ||
-    code === 'ETIMEDOUT' ||
-    code === 'ENOTFOUND' ||
-    code === 'EAI_AGAIN' ||
-    /connect timeout|network error|fetch failed|socket hang up|dns|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|ECONNRESET|ECONNREFUSED/i.test(
-      text
-    )
-  );
-}
+  | GitHubApiOperationError
+  | PrSyncApiError;
 
 export function isPrSyncHostUnreachable(
   error: PrSyncEngineError
-): error is Extract<PrSyncEngineError, { type: 'host_unreachable' }> {
+): error is PrSyncHostUnreachableError {
   return error.type === 'host_unreachable';
 }
 
-export function toPrApiError(error: unknown, fallback: string, host?: string): PrSyncEngineError {
-  if (host && isAuthStatus(error)) return githubApiAuthRequired(host);
-  if (host && isNetworkConnectivityError(error)) {
-    return { type: 'host_unreachable', host, reason: errorText(error) };
-  }
-
-  const ghErrors =
-    error &&
-    typeof error === 'object' &&
-    'response' in error &&
-    Array.isArray((error.response as { data?: { errors?: unknown[] } } | undefined)?.data?.errors)
-      ? (error.response as { data: { errors: { message?: string }[] } }).data.errors
-      : undefined;
-  return {
-    type: 'api_error',
-    message: ghErrors?.[0]?.message ?? (error instanceof Error ? error.message : fallback),
-  };
+export function toPrApiError(
+  error: unknown,
+  fallback: string,
+  host?: string,
+  nameWithOwner?: string
+): PrSyncEngineError {
+  return classifyGitHubApiError(error, { host, nameWithOwner, fallback });
 }
 
 export function prSyncEngineErrorMessage(error: PrSyncEngineError): string {
@@ -71,6 +48,14 @@ export function prSyncEngineErrorMessage(error: PrSyncEngineError): string {
     case 'invalid-repository-ref':
       return `Invalid GitHub repository URL: "${error.input}"`;
     case 'auth_required':
+    case 'account_not_found':
+    case 'account_host_mismatch':
+    case 'token_missing':
+      return error.message;
+    case 'not_found_or_no_access':
+    case 'sso_required':
+    case 'rate_limited':
+    case 'forbidden':
       return error.message;
     case 'host_unreachable':
       return `Unable to reach ${error.host}: ${error.reason}`;

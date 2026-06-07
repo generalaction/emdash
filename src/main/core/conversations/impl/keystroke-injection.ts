@@ -1,7 +1,7 @@
 import type { Pty } from '@main/core/pty/pty';
 import { log } from '@main/lib/logger';
-import { getProvider } from '@shared/agent-provider-registry';
-import type { Conversation } from '@shared/conversations';
+import { getProvider } from '@shared/core/agents/agent-provider-registry';
+import type { Conversation } from '@shared/core/conversations/conversations';
 import { buildPromptInjectionPayload } from '@shared/prompt-injection';
 
 // Inject only after the TUI has produced output and stayed idle for a beat;
