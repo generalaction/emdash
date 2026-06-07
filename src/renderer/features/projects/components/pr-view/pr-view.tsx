@@ -29,7 +29,6 @@ import {
 } from '@renderer/lib/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import type { PrSortField } from '@shared/core/pull-requests/pull-requests';
-import { isGitHubDotComHost } from '@shared/repository-ref';
 import { PrSyncStatusCard } from './pr-sync-status-card';
 import { PrVirtualList } from './pr-virtual-list';
 
