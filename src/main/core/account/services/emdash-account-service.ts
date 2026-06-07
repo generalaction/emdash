@@ -178,7 +178,6 @@ export class EmdashAccountService implements Hookable<AccountServiceHooks> {
     if (accessToken && providerId) {
       await providerTokenRegistry.dispatch(providerId, {
         accessToken,
-        intent: 'sign-in',
         providerAccount,
       });
     }
@@ -224,7 +223,6 @@ export class EmdashAccountService implements Hookable<AccountServiceHooks> {
 
     await providerTokenRegistry.dispatch(providerId, {
       accessToken,
-      intent: 'account-link',
       providerAccount,
     });
 

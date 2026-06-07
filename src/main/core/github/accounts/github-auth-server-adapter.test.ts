@@ -67,7 +67,6 @@ describe('GitHubAuthServerAdapter', () => {
   it('stores auth-server tokens with provider account metadata in the account registry only', async () => {
     const payload: ProviderTokenPayload = {
       accessToken: 'gho_monalisa',
-      intent: 'sign-in',
       providerAccount: {
         providerId: 'github',
         providerAccountId: '42',
@@ -90,9 +89,8 @@ describe('GitHubAuthServerAdapter', () => {
   });
 
   it('stores linked provider accounts in the account registry', async () => {
-    const payload = {
+    const payload: ProviderTokenPayload = {
       accessToken: 'gho_octocat',
-      intent: 'account-link',
       providerAccount: {
         providerId: 'github',
         providerAccountId: '84',
@@ -100,7 +98,7 @@ describe('GitHubAuthServerAdapter', () => {
         login: 'octocat',
         avatarUrl: 'https://avatars.githubusercontent.com/u/84',
       },
-    } as ProviderTokenPayload & { intent: 'account-link' };
+    };
 
     await adapter.storeOAuthToken(payload);
 
@@ -115,7 +113,7 @@ describe('GitHubAuthServerAdapter', () => {
   });
 
   it('does not store tokens when auth-server metadata is absent', async () => {
-    await adapter.storeOAuthToken({ accessToken: 'gho_legacy', intent: 'sign-in' });
+    await adapter.storeOAuthToken({ accessToken: 'gho_legacy' });
 
     await expect(registry.listAccounts()).resolves.toEqual([]);
   });

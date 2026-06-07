@@ -8,7 +8,6 @@ export type ProviderAccountPayload = {
 
 export type ProviderTokenPayload = {
   accessToken: string;
-  intent?: 'sign-in' | 'account-link';
   providerAccount?: ProviderAccountPayload;
 };
 
