@@ -13,8 +13,6 @@ interface SectionTabsPanelProps {
   projectId?: string;
   currentBranch: string | null;
   isUnborn: boolean;
-  useBYOI: boolean;
-  setUseBYOI: (value: boolean) => void;
   isWorkspaceProviderEnabled: boolean;
   includeIssueContextByDefault: boolean;
 }
@@ -25,8 +23,6 @@ export function SectionTabsPanel({
   projectId,
   currentBranch,
   isUnborn,
-  useBYOI,
-  setUseBYOI,
   isWorkspaceProviderEnabled,
   includeIssueContextByDefault,
 }: SectionTabsPanelProps) {
@@ -58,8 +54,6 @@ export function SectionTabsPanel({
             projectId={projectId}
             currentBranch={currentBranch}
             isUnborn={isUnborn}
-            useBYOI={useBYOI}
-            setUseBYOI={setUseBYOI}
             isWorkspaceProviderEnabled={isWorkspaceProviderEnabled}
           />
         )}

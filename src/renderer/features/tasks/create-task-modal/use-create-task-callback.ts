@@ -3,22 +3,14 @@ import { useAgentAutoApproveDefaults } from '@renderer/features/tasks/hooks/useA
 import { getTaskManagerStore } from '@renderer/features/tasks/stores/task-selectors';
 import type { NavigateFnTyped } from '@renderer/lib/layout/navigation-provider';
 import { log } from '@renderer/utils/logger';
-import type { LocalProject, SshProject } from '@shared/projects';
 import type { InitialConversationState } from '../conversations/initial-conversation-section';
-import {
-  buildInitialConversation,
-  buildWorkspaceConfig,
-  deriveInitialStatus,
-} from './build-create-task-params';
+import { buildInitialConversation, deriveInitialStatus } from './build-create-task-params';
 import type { CreateTaskState } from './use-create-task-state';
 
 interface UseCreateTaskCallbackParams {
   selectedProjectId: string | undefined;
   state: CreateTaskState;
   initialConversation: InitialConversationState;
-  isUnborn: boolean;
-  projectData: LocalProject | SshProject | null;
-  useBYOI: boolean;
   navigate: NavigateFnTyped;
   onClose: () => void;
 }
@@ -27,9 +19,6 @@ export function useCreateTaskCallback({
   selectedProjectId,
   state,
   initialConversation,
-  isUnborn,
-  projectData,
-  useBYOI,
   navigate,
   onClose,
 }: UseCreateTaskCallbackParams): { handleCreateTask: () => void; canCreate: boolean } {
@@ -56,7 +45,7 @@ export function useCreateTaskCallback({
             autoApproveDefaults.getDefault
           ),
         },
-        workspaceConfig: buildWorkspaceConfig(state, isUnborn, projectData, useBYOI),
+        workspaceConfig: state.workspaceConfig.resolvedConfig,
       })
       .catch((e) => log.error('create task failed', e));
 
@@ -65,9 +54,6 @@ export function useCreateTaskCallback({
   }, [
     selectedProjectId,
     state,
-    isUnborn,
-    projectData,
-    useBYOI,
     initialConversation,
     autoApproveDefaults.getDefault,
     navigate,

@@ -1,13 +1,18 @@
 import { ChevronDown, FolderOpen } from 'lucide-react';
 import { InitialConversationField } from '@renderer/features/tasks/conversations/initial-conversation-section';
 import { BranchPickerField } from '@renderer/features/tasks/create-task-modal/branch-picker-field';
+import {
+  ExistingWorkspacePicker,
+  useProjectWorkspaces,
+} from '@renderer/features/tasks/create-task-modal/existing-workspace-picker';
 import { ProjectSelector } from '@renderer/features/tasks/create-task-modal/project-selector';
+import { SetupStepPreview } from '@renderer/features/tasks/create-task-modal/setup-step-preview';
+import { WorkspaceModePicker } from '@renderer/features/tasks/create-task-modal/workspace-mode-picker';
 import { CronPicker } from '@renderer/lib/CronPicker';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
 import { Field, FieldError, FieldGroup } from '@renderer/lib/ui/field';
 import { Label } from '@renderer/lib/ui/label';
-import { Switch } from '@renderer/lib/ui/switch';
 import type { AutomationFormState } from '../useAutomationFormState';
 
 interface AutomationSettingsFieldsProps {
@@ -16,7 +21,6 @@ interface AutomationSettingsFieldsProps {
   onCronExprChange: (expr: string) => void;
   onCronErrorClear: () => void;
   onPromptBlur?: () => void;
-  onUseBYOIChange?: (value: boolean) => void;
   error?: string | null;
 }
 
@@ -26,25 +30,20 @@ export function AutomationSettingsFields({
   onCronExprChange,
   onCronErrorClear,
   onPromptBlur,
-  onUseBYOIChange,
   error,
 }: AutomationSettingsFieldsProps) {
   const {
     initialConversation,
     cronExpr,
-    branchSelection,
-    branchNameState,
+    workspaceConfig,
     effectiveProjectId,
     currentBranch,
     isUnborn,
-    useBYOI,
-    setUseBYOI,
     setProjectId,
   } = state;
 
-  const effectiveSetUseBYOI = onUseBYOIChange ?? setUseBYOI;
-
   const isWorkspaceProviderEnabled = useFeatureFlag('workspace-provider');
+  const { data: existingWorkspaces = [] } = useProjectWorkspaces(effectiveProjectId);
   const workspaceSettingsKey = `${effectiveProjectId ?? 'none'}`;
 
   return (
@@ -70,15 +69,41 @@ export function AutomationSettingsFields({
           />
         </Field>
         <Field>
-          <Label>Execution</Label>
-          <BranchPickerField
-            key={workspaceSettingsKey}
-            state={branchSelection}
-            branchNameState={branchNameState}
-            projectId={effectiveProjectId}
-            currentBranch={currentBranch}
-            isUnborn={isUnborn}
-          />
+          <Label>Workspace</Label>
+          <div key={workspaceSettingsKey} className="flex flex-col gap-3">
+            <WorkspaceModePicker
+              value={workspaceConfig.mode}
+              onValueChange={workspaceConfig.setMode}
+              hasExistingWorkspaces={existingWorkspaces.length > 0}
+              isWorkspaceProviderEnabled={isWorkspaceProviderEnabled}
+              isUnborn={isUnborn}
+            />
+            {workspaceConfig.mode === 'existing' && (
+              <ExistingWorkspacePicker
+                projectId={effectiveProjectId}
+                selectedWorkspaceId={workspaceConfig.selectedWorkspaceId}
+                onSelect={workspaceConfig.setSelectedWorkspaceId}
+              />
+            )}
+            {workspaceConfig.mode === 'new-worktree' && (
+              <>
+                <BranchPickerField
+                  state={workspaceConfig.branchSelection}
+                  branchNameState={workspaceConfig.branchNameState}
+                  projectId={effectiveProjectId}
+                  currentBranch={currentBranch}
+                  isUnborn={isUnborn}
+                />
+                <SetupStepPreview steps={workspaceConfig.setupSteps} />
+              </>
+            )}
+            {workspaceConfig.mode === 'sandbox' && (
+              <p className="text-xs text-foreground-muted">
+                A remote sandbox will be provisioned using your workspace provider script when this
+                automation runs.
+              </p>
+            )}
+          </div>
         </Field>
         <Field>
           <Label>Project</Label>
@@ -96,12 +121,6 @@ export function AutomationSettingsFields({
             }
           />
         </Field>
-        {isWorkspaceProviderEnabled ? (
-          <div className="flex items-center gap-2 pt-1">
-            <Switch size="sm" checked={useBYOI} onCheckedChange={effectiveSetUseBYOI} />
-            <span className="text-muted-foreground text-sm">Use BYOI infrastructure</span>
-          </div>
-        ) : null}
       </FieldGroup>
 
       {error && <p className="text-destructive text-xs">{error}</p>}

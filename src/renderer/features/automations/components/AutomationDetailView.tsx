@@ -48,7 +48,7 @@ export const AutomationDetailView = observer(function AutomationDetailView({
 
   useAutomationEventBridge(automation.id);
 
-  const { formState, setCronExpr, setUseBYOI, handlePromptBlur, handleNameBlur, saveError } =
+  const { formState, setCronExpr, handlePromptBlur, handleNameBlur, saveError } =
     useAutomationSettingsAutoSave(automation);
   const { name, setName } = formState;
 
@@ -132,7 +132,6 @@ export const AutomationDetailView = observer(function AutomationDetailView({
             }}
             onCronErrorClear={() => setCronError(null)}
             onPromptBlur={handlePromptBlur}
-            onUseBYOIChange={setUseBYOI}
             error={saveError}
           />
         )}

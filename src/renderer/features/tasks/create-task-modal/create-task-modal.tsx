@@ -25,7 +25,6 @@ import { SectionTabsPanel } from './section-tabs-panel';
 import { TaskNameField } from './task-name-field';
 import { useCreateTaskCallback } from './use-create-task-callback';
 import { type LinkedType, useCreateTaskState } from './use-create-task-state';
-import { useWorkspaceProviderState } from './use-workspace-provider-state';
 
 function useDefaultProjectId(propProjectId?: string): string | undefined {
   return useMemo(() => {
@@ -92,6 +91,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     defaultBranch,
     isUnborn,
     currentBranch,
+    projectData?.repositoryWorkspaceId ?? null,
     resolvedInitialPR,
     defaultLinkedType
   );
@@ -101,18 +101,10 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const isWorkspaceProviderEnabled = useFeatureFlag('workspace-provider');
   const { navigate } = useNavigate();
 
-  const { useBYOI, setUseBYOI } = useWorkspaceProviderState(
-    selectedProjectId,
-    isWorkspaceProviderEnabled
-  );
-
   const { handleCreateTask, canCreate } = useCreateTaskCallback({
     selectedProjectId,
     state,
     initialConversation,
-    isUnborn,
-    projectData,
-    useBYOI,
     navigate,
     onClose,
   });
@@ -139,8 +131,6 @@ export const CreateTaskModal = observer(function CreateTaskModal({
             projectId={selectedProjectId}
             currentBranch={currentBranch}
             isUnborn={isUnborn}
-            useBYOI={useBYOI}
-            setUseBYOI={setUseBYOI}
             isWorkspaceProviderEnabled={isWorkspaceProviderEnabled}
             includeIssueContextByDefault={includeIssueContextByDefault}
           />

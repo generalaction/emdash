@@ -27,10 +27,10 @@ export function useAutomationSettingsAutoSave(automation: Automation) {
     return { prompt: prompt.trim(), provider, autoApprove: false };
   }
 
-  function savePatch(overrideTrigger?: TriggerConfig, useBYOIOverride?: boolean) {
+  function savePatch(overrideTrigger?: TriggerConfig) {
     if (!effectiveProjectId) return;
     const activeTrigger = overrideTrigger ?? triggerConfig;
-    const taskConfig = buildTaskConfig(effectiveProjectId, useBYOIOverride);
+    const taskConfig = buildTaskConfig(effectiveProjectId);
     if (!taskConfig) return;
     try {
       assertValidCronTrigger(activeTrigger);
@@ -52,11 +52,6 @@ export function useAutomationSettingsAutoSave(automation: Automation) {
   function setCronExpr(expr: string) {
     formState.setCronExpr(expr);
     savePatch({ expr, tz: cronTz });
-  }
-
-  function setUseBYOI(value: boolean) {
-    formState.setUseBYOI(value);
-    savePatch(undefined, value);
   }
 
   // Provider lives inside the initialConversation sub-hook and is not directly
@@ -91,7 +86,6 @@ export function useAutomationSettingsAutoSave(automation: Automation) {
   return {
     formState,
     setCronExpr,
-    setUseBYOI,
     handlePromptBlur,
     handleNameBlur,
     isSaving: updateSettings.isPending || rename.isPending,

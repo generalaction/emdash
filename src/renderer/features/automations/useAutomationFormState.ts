@@ -5,7 +5,6 @@ import type { Automation } from '@shared/core/automations/automation';
 import type { StoredAutomationTaskConfig, TriggerConfig } from '@shared/core/automations/config';
 import { getLocalTimeZone } from '@shared/core/automations/timezone';
 import type { Branch } from '@shared/core/git/git';
-import type { WorkspaceConfig, WorkspaceTarget } from '@shared/core/workspaces/workspace-config';
 import {
   asMounted,
   firstMountedProjectId,
@@ -13,45 +12,49 @@ import {
   getRepositoryStore,
 } from '../projects/stores/project-selectors';
 import { useInitialConversationState } from '../tasks/conversations/initial-conversation-section';
-import { useBranchName } from '../tasks/create-task-modal/use-branch-name';
-import { useBranchSelection } from '../tasks/create-task-modal/use-branch-selection';
 import { useTaskName } from '../tasks/create-task-modal/use-task-name';
+import {
+  useWorkspaceConfig,
+  type WorkspaceConfigInitial,
+} from '../tasks/create-task-modal/use-workspace-config';
 
 const DEFAULT_CRON = toCron(DEFAULT_CRON_STATE);
 
-export function branchInitialFromConfig(config: StoredAutomationTaskConfig | null | undefined): {
-  createBranchAndWorktree: boolean;
-  pushBranch?: boolean;
-  branchOverride?: Branch;
-} {
-  if (!config) return { createBranchAndWorktree: true };
-  const git = config.workspaceConfig.git;
+/**
+ * Derives the initial workspace config state for seeding the form from a stored automation.
+ */
+function workspaceInitialFromConfig(
+  config: StoredAutomationTaskConfig | null | undefined
+): WorkspaceConfigInitial & { fromBranch?: Branch; pushBranch?: boolean } {
+  if (!config) return { mode: 'new-worktree', presetId: 'new-branch' };
+  const { git, workspace } = config.workspaceConfig;
+
+  if (workspace.kind === 'byoi' || (workspace as { host?: string }).host === 'byoi') {
+    return { mode: 'sandbox', presetId: 'sandbox' };
+  }
+
   if (git.kind === 'create-branch') {
     return {
-      createBranchAndWorktree: true,
+      mode: 'new-worktree',
+      presetId: 'new-branch',
+      fromBranch: git.fromBranch,
       pushBranch: git.pushBranch,
-      branchOverride: git.fromBranch,
     };
   }
-  if (git.kind === 'none') return { createBranchAndWorktree: false };
-  return { createBranchAndWorktree: true };
-}
 
-export function plainBranch(branch: Branch): Branch {
-  if (branch.type === 'remote') {
-    return {
-      type: 'remote',
-      branch: branch.branch,
-      remote: { name: branch.remote.name, url: branch.remote.url },
-    };
+  if (git.kind === 'none') {
+    if (workspace.kind === 'repository-instance') {
+      return {
+        mode: 'existing',
+        presetId: 'use-existing',
+        selectedWorkspaceId: workspace.workspaceId,
+      };
+    }
+    // repo-root or unknown
+    return { mode: 'existing', presetId: 'repo-root' };
   }
-  return branch.remote
-    ? {
-        type: 'local',
-        branch: branch.branch,
-        remote: { name: branch.remote.name, url: branch.remote.url },
-      }
-    : { type: 'local', branch: branch.branch };
+
+  return { mode: 'new-worktree', presetId: 'new-branch' };
 }
 
 export type AutomationFormState = ReturnType<typeof useAutomationFormState>;
@@ -67,10 +70,6 @@ export function useAutomationFormState(seed?: Automation) {
   );
   const [cronExpr, setCronExpr] = useState<string>(seedTrigger?.expr ?? DEFAULT_CRON);
   const [cronTz] = useState<string>(seedTrigger?.tz ?? getLocalTimeZone());
-  const [useBYOI, setUseBYOI] = useState(() => {
-    const ws = seedConfig?.workspaceConfig.workspace;
-    return ws?.kind === 'byoi' || (ws as { host?: string } | undefined)?.host === 'byoi';
-  });
 
   const effectiveProjectId =
     projectId && asMounted(getProjectStore(projectId)) ? projectId : firstMountedProjectId();
@@ -92,37 +91,30 @@ export function useAutomationFormState(seed?: Automation) {
   const isUnborn = repo?.isUnborn ?? false;
   const currentBranch = repo?.currentBranch ?? null;
 
-  const branchInitial = useMemo(() => branchInitialFromConfig(seedConfig), [seedConfig]);
+  const repositoryWorkspaceId =
+    asMounted(getProjectStore(effectiveProjectId ?? ''))?.data?.repositoryWorkspaceId ?? null;
+
+  // Derive initial workspace config state from stored automation (for edit mode).
+  const wsInitial = useMemo(() => workspaceInitialFromConfig(seedConfig), [seedConfig]);
+
   const taskName = useTaskName({
     generatedName: seedConfig?.taskConfig.name,
     resetKey: effectiveProjectId,
   });
-  const branchSelection = useBranchSelection(
-    effectiveProjectId,
+
+  const workspaceConfig = useWorkspaceConfig({
+    projectId: effectiveProjectId,
     defaultBranch,
     isUnborn,
     currentBranch,
-    branchInitial
-  );
-  const branchNameState = useBranchName({
+    repositoryWorkspaceId,
+    pr: null, // automations don't link PRs
     taskName: taskName.effectiveTaskName || name,
-    projectId: effectiveProjectId,
+    linkedIssue: null,
+    createBranchAndWorktreeDefault: wsInitial.mode === 'new-worktree',
     resetKey: effectiveProjectId,
+    initial: wsInitial,
   });
-
-  const isBranchValid =
-    !branchSelection.createBranchAndWorktree ||
-    (branchNameState.branchName.trim().length > 0 && !branchNameState.branchAlreadyExists);
-  const isTaskConfigValid = !!branchSelection.selectedBranch && isBranchValid;
-
-  const fromBranch = {
-    selectedBranch: branchSelection.selectedBranch,
-    createBranchAndWorktree: branchSelection.createBranchAndWorktree,
-    pushBranch: branchSelection.pushBranch,
-    branchName: branchNameState.branchName,
-    taskName: taskName.effectiveTaskName,
-    isValid: isTaskConfigValid,
-  };
 
   const prompt = initialConversation.prompt;
   const provider = initialConversation.provider ?? 'claude';
@@ -131,45 +123,35 @@ export function useAutomationFormState(seed?: Automation) {
     name.trim().length > 0 &&
     prompt.trim().length > 0 &&
     !!effectiveProjectId &&
-    fromBranch.isValid;
+    workspaceConfig.isValid;
 
-  function buildTaskConfig(
-    targetProjectId: string,
-    useBYOIOverride?: boolean
-  ): StoredAutomationTaskConfig | null {
-    const effectiveBYOI = useBYOIOverride ?? useBYOI;
-    if (!fromBranch.selectedBranch) return null;
-    const noWorktree = isUnborn || !fromBranch.createBranchAndWorktree || effectiveBYOI;
-    const git = noWorktree
-      ? { kind: 'none' as const }
-      : {
-          kind: 'create-branch' as const,
-          branchName: fromBranch.branchName,
-          fromBranch: plainBranch(fromBranch.selectedBranch),
-          pushBranch: fromBranch.pushBranch,
-        };
-    let workspace: WorkspaceTarget;
-    if (effectiveBYOI) {
-      workspace = { kind: 'byoi' };
-    } else if (git.kind === 'none') {
-      const repositoryWorkspaceId = asMounted(getProjectStore(targetProjectId))?.data
-        ?.repositoryWorkspaceId;
-      workspace = repositoryWorkspaceId
-        ? { kind: 'repository-instance', workspaceId: repositoryWorkspaceId }
-        : { kind: 'new-worktree' };
-    } else {
-      workspace = { kind: 'new-worktree' };
-    }
-    const workspaceConfig: WorkspaceConfig = { version: '2', git, workspace };
+  function buildTaskConfig(targetProjectId: string): StoredAutomationTaskConfig | null {
+    const effectiveRepoWsId =
+      asMounted(getProjectStore(targetProjectId))?.data?.repositoryWorkspaceId ?? null;
+
+    // Re-resolve with the target project's repositoryWorkspaceId in case it differs.
+    // For most cases effectiveProjectId === targetProjectId so workspaceConfig.resolvedConfig is correct.
+    // We only need to patch if mode=existing/repo-root and the workspace ID is project-specific.
+    const wsConfig = workspaceConfig.resolvedConfig;
+
+    // Patch repository-instance workspace if target project differs.
+    const patchedConfig =
+      wsConfig.workspace.kind === 'repository-instance' && effectiveRepoWsId
+        ? {
+            ...wsConfig,
+            workspace: { kind: 'repository-instance' as const, workspaceId: effectiveRepoWsId },
+          }
+        : wsConfig;
+
     return {
       version: '1',
       taskConfig: {
         version: '1',
-        name: fromBranch.taskName?.trim() || name.trim(),
+        name: taskName.effectiveTaskName?.trim() || name.trim(),
         linkedIssue: seedConfig?.taskConfig.linkedIssue,
         initialStatus: seedConfig?.taskConfig.initialStatus,
       },
-      workspaceConfig,
+      workspaceConfig: patchedConfig,
     };
   }
 
@@ -184,12 +166,8 @@ export function useAutomationFormState(seed?: Automation) {
     cronExpr,
     setCronExpr,
     cronTz,
-    useBYOI,
-    setUseBYOI,
     initialConversation,
-    branchSelection,
-    branchNameState,
-    fromBranch,
+    workspaceConfig,
     isUnborn,
     currentBranch,
     prompt,
