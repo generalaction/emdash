@@ -8,12 +8,12 @@ import type {
   Automation,
   CreateAutomationParams,
   UpdateAutomationSettingsPatch,
-} from '@shared/automations/automation';
-import type { AutomationRun } from '@shared/automations/automation-run';
+} from '@shared/core/automations/automation';
+import type { AutomationRun } from '@shared/core/automations/automation-run';
 import {
   automationChangedChannel,
   automationRunChangedChannel,
-} from '@shared/events/automationEvents';
+} from '@shared/core/automations/automationEvents';
 import { AutomationScheduler } from './automation-scheduler';
 import {
   createAutomation as repoCreateAutomation,

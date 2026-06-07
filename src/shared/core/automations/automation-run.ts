@@ -1,7 +1,5 @@
 import type { ConversationConfig, StoredAutomationTaskConfig, TriggerConfig } from './config';
 
-export const AUTOMATION_NAME_MAX_LENGTH = 100;
-
 export type AutomationRunStatus =
   | 'scheduled' // future cron slot, not yet due
   | 'queued' // due, awaiting a free slot
@@ -36,10 +34,5 @@ export type AutomationRun = {
   finishedAt: number | null;
   taskId: string | null;
   generatedTaskName: string | null;
-  error: string | null; // stores JSON.stringify(RunError)
-};
-
-export type AutomationRunWithContext = AutomationRun & {
-  automationName: string;
-  projectId: string | null;
+  error: RunError | null;
 };

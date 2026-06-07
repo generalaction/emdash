@@ -1,15 +1,36 @@
 import { type AutomationRow, type AutomationRunRow } from '@main/db/schema';
-import type { Automation } from '@shared/automations/automation';
+import type { Automation } from '@shared/core/automations/automation';
 import type {
   AutomationRun,
   AutomationRunStatus,
   AutomationRunTriggerKind,
-} from '@shared/automations/automation-run';
+  RunError,
+} from '@shared/core/automations/automation-run';
 import {
   automationConversationConfig,
   automationTriggerConfig,
   storedAutomationTaskConfig,
-} from '@shared/automations/config';
+} from '@shared/core/automations/config';
+
+function parseRunError(raw: string | null | undefined): RunError | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (
+      parsed !== null &&
+      typeof parsed === 'object' &&
+      'step' in parsed &&
+      'code' in parsed &&
+      typeof (parsed as RunError).step === 'string' &&
+      typeof (parsed as RunError).code === 'string'
+    ) {
+      return parsed as RunError;
+    }
+  } catch {
+    // fall through
+  }
+  return null;
+}
 
 export function mapAutomationRowToAutomation(row: AutomationRow): Automation {
   return {
@@ -53,6 +74,6 @@ export function mapAutomationRunRowToAutomationRun(
     finishedAt: row.finishedAt,
     taskId,
     generatedTaskName: row.generatedTaskName ?? null,
-    error: row.error,
+    error: parseRunError(row.error),
   };
 }

@@ -1,4 +1,4 @@
-import type { BuiltinAutomationTemplate } from '@shared/automations/automation';
+import type { BuiltinAutomationTemplate } from './automation';
 
 const TEST_COVERAGE_PROMPT =
   'Inspect recent merged code for meaningful regression risk and add the smallest deterministic tests for weakly covered behavior. Prioritize new code paths, bug fixes without tests, edge-case parsing, concurrency, permissions, validation, shared utilities, and core flows. Avoid low-signal snapshots and cosmetic-only changes. Follow existing test conventions, run relevant validation, and summarize what risky behavior is now covered.';

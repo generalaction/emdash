@@ -1,64 +1,4 @@
-import cronstrue from 'cronstrue';
-import type {
-  AutomationRun,
-  AutomationRunStatus,
-  AutomationRunTriggerKind,
-  RunError,
-} from '@shared/automations/automation-run';
-import type { TriggerConfig } from '@shared/automations/config';
-
-export function formatCronLabel(expr: string): string {
-  try {
-    return cronstrue.toString(expr.trim());
-  } catch {
-    return expr;
-  }
-}
-
-export function formatTriggerLabel(trigger: TriggerConfig): string {
-  return formatCronLabel(trigger.expr);
-}
-
-export function formatRunStatusLabel(status: AutomationRunStatus): string | null {
-  switch (status) {
-    case 'scheduled':
-      return 'Scheduled';
-    case 'queued':
-      return 'Queued';
-    case 'creating_task':
-      return 'Creating task';
-    case 'launching_task':
-      return 'Launching task';
-    case 'creating_conversation':
-      return 'Starting agent';
-    case 'done':
-      return null;
-    case 'failed':
-      return 'Failed';
-    case 'skipped':
-      return 'Skipped';
-  }
-}
-
-export function parseRunError(raw: string | null): RunError | null {
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (
-      parsed !== null &&
-      typeof parsed === 'object' &&
-      'step' in parsed &&
-      'code' in parsed &&
-      typeof (parsed as RunError).step === 'string' &&
-      typeof (parsed as RunError).code === 'string'
-    ) {
-      return parsed as RunError;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
+import type { AutomationRunTriggerKind, RunError } from '@shared/core/automations/automation-run';
 
 type ErrorFormatter = (msg?: string) => string;
 
@@ -97,17 +37,22 @@ const RUN_ERROR_DISPLAY: Record<RunError['step'], Record<string, ErrorFormatter>
   },
 };
 
-export function formatRunError(raw: string | null): string {
-  const err = parseRunError(raw);
-  if (!err) return raw ?? 'Unknown error';
+export function formatRunError(error: RunError | null): string {
+  if (!error) return 'Unknown error';
+  const stepMap = RUN_ERROR_DISPLAY[error.step];
+  if (!stepMap) return error.message ?? `${error.step}:${error.code}`;
+  const formatter = stepMap[error.code];
+  if (formatter) return formatter(error.message);
+  return error.message ?? `${error.step}:${error.code}`;
+}
 
-  const stepMap = RUN_ERROR_DISPLAY[err.step];
-  if (!stepMap) return raw ?? 'Unknown error';
-
-  const formatter = stepMap[err.code];
-  if (formatter) return formatter(err.message);
-
-  return err.message ?? `${err.step}:${err.code}`;
+export function formatRunTriggerKindLabel(kind: AutomationRunTriggerKind): string {
+  switch (kind) {
+    case 'cron':
+      return 'Triggered by schedule';
+    case 'manual':
+      return 'Triggered manually';
+  }
 }
 
 const FORM_ERROR_MESSAGES: Record<string, string> = {
@@ -129,17 +74,4 @@ export function formatAutomationError(error: unknown): string {
   const msg = error instanceof Error ? error.message : typeof error === 'string' ? error : null;
   if (!msg) return 'Something went wrong';
   return FORM_ERROR_MESSAGES[msg] ?? msg;
-}
-
-export function formatRunTriggerKindLabel(kind: AutomationRunTriggerKind): string {
-  switch (kind) {
-    case 'cron':
-      return 'Triggered by schedule';
-    case 'manual':
-      return 'Triggered manually';
-  }
-}
-
-export function isQueueDeadlineExceededRun(run: Pick<AutomationRun, 'error'>): boolean {
-  return parseRunError(run.error)?.code === 'deadline_exceeded';
 }

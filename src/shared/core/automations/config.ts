@@ -3,10 +3,6 @@ import { defineVersionedSchema } from '@shared/lib/versioned-schema/versioned-sc
 import { taskConfig } from '@shared/task-config';
 import { workspaceConfig } from '@shared/workspace-config';
 
-// ---------------------------------------------------------------------------
-// Trigger config
-// ---------------------------------------------------------------------------
-
 export const triggerConfigSchema = z.object({
   expr: z.string(),
   tz: z.string().optional(),
@@ -17,10 +13,6 @@ export type TriggerConfig = z.infer<typeof triggerConfigSchema>;
 export const automationTriggerConfig = defineVersionedSchema()
   .unversioned(triggerConfigSchema)
   .build();
-
-// ---------------------------------------------------------------------------
-// Automation conversation config (distinct from the conversation-config module)
-// ---------------------------------------------------------------------------
 
 export const conversationConfigSchema = z.object({
   prompt: z.string(),
@@ -34,10 +26,6 @@ export type ConversationConfig = z.infer<typeof conversationConfigSchema>;
 export const automationConversationConfig = defineVersionedSchema()
   .unversioned(conversationConfigSchema)
   .build();
-
-// ---------------------------------------------------------------------------
-// Stored automation task config — nests task config and workspace config
-// ---------------------------------------------------------------------------
 
 const storedAutomationTaskConfigV1Schema = z.object({
   version: z.literal('1'),

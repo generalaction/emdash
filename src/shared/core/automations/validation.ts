@@ -1,6 +1,6 @@
 import { Cron } from 'croner';
-import type { TriggerConfig } from '@shared/automations/config';
-import { getLocalTimeZone } from '@shared/automations/timezone';
+import type { TriggerConfig } from './config';
+import { getLocalTimeZone } from './timezone';
 
 export function assertValidCronTrigger(trigger: TriggerConfig): void {
   const expr = trigger.expr.trim();

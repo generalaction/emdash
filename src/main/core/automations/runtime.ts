@@ -1,6 +1,6 @@
 import { log } from '@main/lib/logger';
-import type { Automation } from '@shared/automations/automation';
-import type { AutomationRun } from '@shared/automations/automation-run';
+import type { Automation } from '@shared/core/automations/automation';
+import type { AutomationRun } from '@shared/core/automations/automation-run';
 import { err, ok, type Result } from '@shared/result';
 import { executeTaskCreate } from './actions/taskCreate';
 import { markRunDone, markRunSkipped, type OnStepCompleted } from './run-transitions';
