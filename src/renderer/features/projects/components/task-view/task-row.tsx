@@ -16,8 +16,8 @@ import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Checkbox } from '@renderer/lib/ui/checkbox';
 import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { cn } from '@renderer/utils/utils';
-import { selectCurrentPr } from '@shared/pull-requests';
-import { type Task } from '@shared/tasks';
+import { selectCurrentPr } from '@shared/core/pull-requests/pull-requests';
+import { type Task } from '@shared/core/tasks/tasks';
 
 export type ReadyTask = TaskStore & { data: Task };
 

@@ -1,9 +1,9 @@
+import { err, ok, type Result } from '@shared/lib/result';
 import {
   parseRepositoryRef,
   type RepositoryRef,
   type RepositoryRefParseError,
 } from '@shared/repository-ref';
-import { err, ok, type Result } from '@shared/result';
 import {
   githubHostService,
   type GitHubHostProbeError,

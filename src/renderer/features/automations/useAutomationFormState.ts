@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
 import { DEFAULT_CRON_STATE, toCron } from '@renderer/lib/CronPicker/cron-utils';
-import { isValidProviderId } from '@shared/agent-provider-registry';
+import { isValidProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { Automation } from '@shared/core/automations/automation';
 import type { StoredAutomationTaskConfig, TriggerConfig } from '@shared/core/automations/config';
 import { getLocalTimeZone } from '@shared/core/automations/timezone';
+import type { WorkspaceConfig, WorkspaceTarget } from '@shared/core/workspaces/workspace-config';
 import type { Branch } from '@shared/git';
-import type { WorkspaceConfig, WorkspaceTarget } from '@shared/workspace-config';
 import {
   asMounted,
   firstMountedProjectId,

@@ -3,8 +3,8 @@ import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { PtyExitInfo } from '@main/core/pty/pty';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
-import { makePtySessionId } from '@shared/ptySessionId';
-import type { Terminal } from '@shared/terminals';
+import { makePtySessionId } from '@shared/core/pty/ptySessionId';
+import type { Terminal } from '@shared/core/terminals/terminals';
 import { SshTerminalProvider } from './ssh-terminal-provider';
 
 const ptyMock = vi.hoisted(() => ({

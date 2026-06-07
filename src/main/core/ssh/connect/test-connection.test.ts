@@ -2,7 +2,7 @@ import { generateKeyPairSync } from 'node:crypto';
 import { EventEmitter, once } from 'node:events';
 import { Client, Server } from 'ssh2';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { SshConfig } from '@shared/ssh';
+import type { SshConfig } from '@shared/core/ssh/ssh';
 import { testSshConnection } from './test-connection';
 
 const { privateKey: hostKey } = generateKeyPairSync('rsa', {

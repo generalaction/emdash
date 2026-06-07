@@ -1,6 +1,6 @@
+import type { GitSetup, WorkspaceLocation } from '@shared/core/tasks/tasks';
+import type { WorkspaceSetupStep } from '@shared/core/workspaces/workspace-setup-steps';
 import { parseRepositoryRef } from '@shared/repository-ref';
-import type { GitSetup, WorkspaceLocation } from '@shared/tasks';
-import type { WorkspaceSetupStep } from '@shared/workspace-setup-steps';
 
 export type WorkspaceSetupSpec = WorkspaceSetupStep[];
 

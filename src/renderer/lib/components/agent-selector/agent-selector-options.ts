@@ -1,5 +1,5 @@
 import { agentConfig } from '@renderer/utils/agentConfig';
-import type { AgentProviderId } from '@shared/agent-provider-registry';
+import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { getAgentInstallActionState } from './agent-install';
 
 export interface AgentOption {

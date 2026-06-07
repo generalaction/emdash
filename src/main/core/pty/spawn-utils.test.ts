@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { RemoteShellProfile } from '@main/core/ssh/lifecycle/remote-shell-profile';
 import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
-import type { AgentSessionConfig } from '@shared/agent-session';
-import type { GeneralSessionConfig } from '@shared/general-session';
+import type { AgentSessionConfig } from '@shared/core/agents/agent-session';
+import type { GeneralSessionConfig } from '@shared/core/terminals/general-session';
 import { resolveSshCommand } from './spawn-utils';
 
 function makeAgentConfig(overrides: Partial<AgentSessionConfig> = {}): AgentSessionConfig {

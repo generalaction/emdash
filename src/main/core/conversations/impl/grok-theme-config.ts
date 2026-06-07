@@ -4,7 +4,7 @@ import path from 'node:path';
 import { nativeTheme } from 'electron';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { log } from '@main/lib/logger';
-import type { Theme } from '@shared/app-settings';
+import type { Theme } from '@shared/core/app-settings';
 
 type EffectiveTheme = 'emlight' | 'emdark';
 type GrokTheme = 'grokday' | 'groknight';

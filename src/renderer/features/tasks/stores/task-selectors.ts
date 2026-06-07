@@ -2,8 +2,8 @@ import { isUnmountedProject } from '@renderer/features/projects/stores/project';
 import { getProjectManagerStore } from '@renderer/features/projects/stores/project-selectors';
 import type { DiffViewStore } from '@renderer/features/tasks/diff-view/stores/diff-view-store';
 import type { FileModelLifecycleStore } from '@renderer/features/tasks/editor/stores/file-model-lifecycle-store';
-import type { AgentStatus } from '@shared/events/agentEvents';
-import type { Task } from '@shared/tasks';
+import type { AgentStatus } from '@shared/core/agents/agentEvents';
+import type { Task } from '@shared/core/tasks/tasks';
 import { conversationRegistry } from './conversation-registry';
 import type { TaskManagerStore } from './task-manager';
 import {

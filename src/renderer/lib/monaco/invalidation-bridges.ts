@@ -1,7 +1,7 @@
 import { events } from '@renderer/lib/ipc';
-import { fsWatchEventChannel } from '@shared/events/fsEvents';
-import { gitRefChangedChannel, gitWorkspaceChangedChannel } from '@shared/events/gitEvents';
-import type { FileWatchEvent } from '@shared/fs';
+import type { FileWatchEvent } from '@shared/core/fs/fs';
+import { fsWatchEventChannel } from '@shared/core/fs/fsEvents';
+import { gitRefChangedChannel, gitWorkspaceChangedChannel } from '@shared/core/git/gitEvents';
 import { HEAD_REF, STAGED_REF } from '@shared/git';
 import type { MonacoModelRegistry } from './monaco-model-registry';
 

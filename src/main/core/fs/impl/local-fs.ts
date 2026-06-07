@@ -5,7 +5,7 @@ import parcelWatcher from '@parcel/watcher';
 import { glob } from 'glob';
 import ignore from 'ignore';
 import { log } from '@main/lib/logger';
-import type { FileWatchEvent } from '@shared/fs';
+import type { FileWatchEvent } from '@shared/core/fs/fs';
 import {
   FileSystemError,
   FileSystemErrorCodes,

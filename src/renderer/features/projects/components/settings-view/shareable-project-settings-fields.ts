@@ -1,4 +1,4 @@
-import type { ShareableProjectSettingsWriteField } from '@shared/project-settings';
+import type { ShareableProjectSettingsWriteField } from '@shared/core/project-settings/project-settings';
 
 export type ShareableFieldFormKey =
   | 'preservePatterns'

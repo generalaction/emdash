@@ -1,4 +1,4 @@
-import type { ShareableProjectSettings } from '@shared/project-settings';
+import type { ShareableProjectSettings } from '@shared/core/project-settings/project-settings';
 import { compactUndefined, parseJsonObject } from './project-settings-json';
 
 const LEGACY_SHAREABLE_CONFIG_MIGRATED_AT = '__legacyShareableConfigMigratedAt';

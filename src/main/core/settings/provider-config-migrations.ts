@@ -1,4 +1,4 @@
-import type { ProviderCustomConfig } from '@shared/app-settings';
+import type { ProviderCustomConfig } from '@shared/core/app-settings';
 
 export function migrateProviderConfigOverrides(
   overrides: Record<string, Partial<ProviderCustomConfig>>

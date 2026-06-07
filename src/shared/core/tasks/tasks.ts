@@ -1,10 +1,10 @@
 import z from 'zod';
-import type { Conversation } from '@shared/conversations';
+import type { Conversation } from '@shared/core/conversations/conversations';
+import type { LinkedIssue } from '@shared/core/linked-issue';
+import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
+import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
 import type { Branch, CreateBranchError, FetchPrForReviewError, PushError } from '@shared/git';
-import type { LinkedIssue } from '@shared/linked-issue';
-import type { PullRequest } from '@shared/pull-requests';
 import type { TaskConfig } from '@shared/task-config';
-import type { WorkspaceConfig } from '@shared/workspace-config';
 
 // ---------------------------------------------------------------------------
 // Workspace intent types — stored on the task row as JSON in `workspace_intent`

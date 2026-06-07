@@ -1,6 +1,6 @@
 import { log } from '@main/lib/logger';
 import type { FetchError } from '@shared/git';
-import { err, type Result } from '@shared/result';
+import { err, type Result } from '@shared/lib/result';
 import type { GitService } from './impl/git-service';
 
 const DEFAULT_INTERVAL_MS = 2 * 60 * 1000;

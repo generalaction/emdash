@@ -10,7 +10,7 @@ import {
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { resolveRemoteHome } from '@main/core/ssh/lifecycle/remote-shell-profile';
 import { log } from '@main/lib/logger';
-import type { AgentProviderId } from '@shared/agent-provider-registry';
+import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 
 const CLAUDE_PROVIDER_ID: AgentProviderId = 'claude';
 const COPILOT_PROVIDER_ID: AgentProviderId = 'copilot';

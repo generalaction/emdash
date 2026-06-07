@@ -6,17 +6,16 @@ import type { RepositoryStore } from '@renderer/features/projects/stores/reposit
 import { getTaskGitStore } from '@renderer/features/tasks/stores/task-selectors';
 import { events, rpc } from '@renderer/lib/ipc';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
-import type { AgentProviderId } from '@shared/agent-provider-registry';
-import type { Conversation } from '@shared/conversations';
-import { prSyncProgressChannel, prUpdatedChannel } from '@shared/events/prEvents';
+import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import type { Conversation } from '@shared/core/conversations/conversations';
+import { prSyncProgressChannel, prUpdatedChannel } from '@shared/core/pull-requests/prEvents';
 import {
   lifecycleScriptStatusChannel,
   taskCreatedChannel,
   taskProvisionProgressChannel,
   taskProvisionedChannel,
   taskStatusUpdatedChannel,
-} from '@shared/events/taskEvents';
-import type { FetchError } from '@shared/git';
+} from '@shared/core/tasks/taskEvents';
 import type {
   CreateTaskError,
   CreateTaskParams,
@@ -25,7 +24,8 @@ import type {
   ProvisionWorkspaceError,
   Task,
   TaskLifecycleStatus,
-} from '@shared/tasks';
+} from '@shared/core/tasks/tasks';
+import type { FetchError } from '@shared/git';
 import type { TaskViewSnapshot } from '@shared/view-state';
 import { formatPushErrorDetail } from '../utils';
 import { conversationRegistry } from './conversation-registry';

@@ -1,4 +1,4 @@
-import type { FileWatchEvent } from '@shared/fs';
+import type { FileWatchEvent } from '@shared/core/fs/fs';
 import { defineEvent } from '@shared/lib/ipc/events';
 
 export const fsWatchEventChannel = defineEvent<{

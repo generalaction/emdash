@@ -14,8 +14,8 @@ import type {
   RenameBranchError,
 } from '@shared/git';
 import { resolveConfiguredRemotes } from '@shared/git-utils';
+import type { Result } from '@shared/lib/result';
 import type { ProjectRemoteState } from '@shared/projects';
-import type { Result } from '@shared/result';
 import type { RepositoryGitProvider } from './repository-git-provider';
 
 export class GitRepositoryService {

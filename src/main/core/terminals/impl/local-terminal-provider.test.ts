@@ -2,8 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { PtyExitInfo } from '@main/core/pty/pty';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
-import { makePtySessionId } from '@shared/ptySessionId';
-import type { Terminal } from '@shared/terminals';
+import { makePtySessionId } from '@shared/core/pty/ptySessionId';
+import type { Terminal } from '@shared/core/terminals/terminals';
 import { LocalTerminalProvider } from './local-terminal-provider';
 
 const ptyMock = vi.hoisted(() => ({

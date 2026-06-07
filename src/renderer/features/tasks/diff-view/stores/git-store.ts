@@ -3,10 +3,10 @@ import { toast } from 'sonner';
 import type { RepositoryStore } from '@renderer/features/projects/stores/repository-store';
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
-import { fsWatchEventChannel } from '@shared/events/fsEvents';
-import { gitRefChangedChannel, gitWorkspaceChangedChannel } from '@shared/events/gitEvents';
+import { fsWatchEventChannel } from '@shared/core/fs/fsEvents';
+import { gitRefChangedChannel, gitWorkspaceChangedChannel } from '@shared/core/git/gitEvents';
 import { localRef, refsEqual, type FullGitStatus, type GitChange } from '@shared/git';
-import { err, ok } from '@shared/result';
+import { err, ok } from '@shared/lib/result';
 import { formatPushErrorDetail } from '../../utils';
 
 const TOO_MANY_FILES_MSG = 'Too many files changed to display';

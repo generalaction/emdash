@@ -8,8 +8,8 @@ import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
 import { log } from '@main/lib/logger';
 import { ensureUserBinDirsInPath } from '@main/utils/userEnv';
-import type { InstallCommandError } from '@shared/dependencies';
-import { err, ok, type Result } from '@shared/result';
+import type { InstallCommandError } from '@shared/core/dependencies';
+import { err, ok, type Result } from '@shared/lib/result';
 
 export type InstallCommandRunner<TData = void, TError = InstallCommandError> = (
   command: string

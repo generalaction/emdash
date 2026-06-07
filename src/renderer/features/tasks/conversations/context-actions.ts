@@ -1,5 +1,5 @@
+import type { LinkedIssue } from '@shared/core/linked-issue';
 import { formatCommentsForAgent } from '@shared/lineComments';
-import type { LinkedIssue } from '@shared/linked-issue';
 import type { PromptLibraryPrompt } from '@shared/prompt-library';
 import type { DraftComment } from '../diff-view/stores/draft-comments-store';
 

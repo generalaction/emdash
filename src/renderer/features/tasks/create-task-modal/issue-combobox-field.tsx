@@ -6,7 +6,7 @@ import {
   SelectedIssueValue,
 } from '@renderer/features/tasks/components/issue-selector/issue-selector';
 import { cn } from '@renderer/utils/utils';
-import type { LinkedIssue } from '@shared/linked-issue';
+import type { LinkedIssue } from '@shared/core/linked-issue';
 
 interface IssueComboboxFieldProps {
   value: LinkedIssue | null;

@@ -1,7 +1,7 @@
 import { and, count, desc, eq, inArray } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { conversations, tasks, workspaces } from '@main/db/schema';
-import { type Task } from '@shared/tasks';
+import { type Task } from '@shared/core/tasks/tasks';
 import { mapTaskRowToTask } from '../utils/utils';
 
 export async function getTasks(projectId?: string): Promise<Task[]> {

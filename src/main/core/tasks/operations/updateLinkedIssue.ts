@@ -3,8 +3,8 @@ import { mapTaskRowToTask } from '@main/core/tasks/utils/utils';
 import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
 import { telemetryService } from '@main/lib/telemetry';
-import type { LinkedIssue } from '@shared/linked-issue';
-import type { Task } from '@shared/tasks';
+import type { LinkedIssue } from '@shared/core/linked-issue';
+import type { Task } from '@shared/core/tasks/tasks';
 
 export async function updateLinkedIssue(
   taskId: string,

@@ -1,10 +1,10 @@
-import type { AgentProviderId } from '@shared/agent-provider-registry';
+import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
+import { getPrNumber, isForkPr } from '@shared/core/pull-requests/pull-requests';
+import type { GitSetup, TaskLifecycleStatus } from '@shared/core/tasks/tasks';
+import type { WorkspaceConfig, WorkspaceTarget } from '@shared/core/workspaces/workspace-config';
 import type { LocalProject, SshProject } from '@shared/projects';
-import type { PullRequest } from '@shared/pull-requests';
-import { getPrNumber, isForkPr } from '@shared/pull-requests';
 import type { TaskConfig } from '@shared/task-config';
-import type { GitSetup, TaskLifecycleStatus } from '@shared/tasks';
-import type { WorkspaceConfig, WorkspaceTarget } from '@shared/workspace-config';
 import { nextDefaultConversationTitle } from '../conversations/conversation-title-utils';
 import type { InitialConversationState } from '../conversations/initial-conversation-section';
 import { buildFinalPrompt } from './initial-conversation-text';

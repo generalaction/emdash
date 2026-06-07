@@ -2,7 +2,6 @@ import { observer } from 'mobx-react-lite';
 import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { FieldGroup } from '@renderer/lib/ui/field';
-import type { Remote } from '@shared/git';
 import type {
   MigrateProjectConfigRequest,
   MigrateProjectConfigResult,
@@ -12,9 +11,10 @@ import type {
   ProjectSettingsPage,
   ProjectSettingsWriteTargetOption,
   WriteProjectConfigRequest,
-} from '@shared/project-settings';
+} from '@shared/core/project-settings/project-settings';
+import type { Remote } from '@shared/git';
+import type { Result } from '@shared/lib/result';
 import type { Project, UpdateProjectSettingsError } from '@shared/projects';
-import type { Result } from '@shared/result';
 import { ProjectSettingsFooter } from './project-settings-footer';
 import { BaseProjectSettingsSection } from './sections/base-project-settings-section';
 import { ShareableSettingsSection } from './sections/shareable-project-settings-section';

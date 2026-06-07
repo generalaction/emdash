@@ -1,7 +1,7 @@
 import { computed, makeObservable, reaction } from 'mobx';
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
-import { gitRefChangedChannel, type GitRefChange } from '@shared/events/gitEvents';
+import { gitRefChangedChannel, type GitRefChange } from '@shared/core/git/gitEvents';
 import type {
   Branch,
   LocalBranch,

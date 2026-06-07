@@ -14,7 +14,7 @@ import type {
   PullRequestCheck,
   PullRequestStatus,
   PullRequestUser,
-} from '@shared/pull-requests';
+} from '@shared/core/pull-requests/pull-requests';
 
 export type PrRow = typeof pullRequests.$inferSelect;
 

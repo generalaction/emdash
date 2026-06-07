@@ -3,7 +3,7 @@ import { JSDOM } from 'jsdom';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { PullRequest } from '@shared/pull-requests';
+import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
 import { PrSelector } from './pr-selector';
 
 (

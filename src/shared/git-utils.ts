@@ -1,5 +1,5 @@
+import type { ProjectSettings } from './core/project-settings/project-settings';
 import type { Branch, Remote } from './git';
-import type { ProjectSettings } from './project-settings';
 
 export const DEFAULT_REMOTE_NAME = 'origin';
 

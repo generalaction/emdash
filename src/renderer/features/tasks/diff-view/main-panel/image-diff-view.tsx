@@ -11,7 +11,7 @@ import {
   type ImageReadResult,
   type ImageUnavailableReason,
 } from '@shared/git';
-import type { Result } from '@shared/result';
+import type { Result } from '@shared/lib/result';
 import type { ActiveFile } from '@shared/view-state';
 
 interface ImageDiffViewProps {

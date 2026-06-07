@@ -1,7 +1,7 @@
 // DB metadata column helpers for SSH connections.
 import type { SshConnectionRow } from '@main/db/schema';
-import type { SshConfig } from '@shared/ssh';
-import type { SshConnectionMetadata } from '@shared/ssh-connection-metadata';
+import type { SshConfig } from '@shared/core/ssh/ssh';
+import type { SshConnectionMetadata } from '@shared/core/ssh/ssh-connection-metadata';
 
 export type { SshConnectionMetadata };
 

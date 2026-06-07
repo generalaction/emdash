@@ -4,7 +4,7 @@ import type { FileSystemProvider } from '@main/core/fs/types';
 import { log } from '@main/lib/logger';
 import type { Branch } from '@shared/git';
 import { DEFAULT_REMOTE_NAME } from '@shared/git-utils';
-import { err, ok, type Result } from '@shared/result';
+import { err, ok, type Result } from '@shared/lib/result';
 import { getEffectiveTaskSettings } from '../settings/effective-task-settings';
 import type { ProjectSettingsProvider } from '../settings/provider';
 import type { WorktreeHost } from './hosts/worktree-host';

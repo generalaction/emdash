@@ -8,7 +8,7 @@ import {
   gitRefChangedChannel,
   gitWorkspaceChangedChannel,
   type GitRefChange,
-} from '@shared/events/gitEvents';
+} from '@shared/core/git/gitEvents';
 import { branchRef, remoteRef, toRefString, type GitObjectRef } from '@shared/git';
 import { projectManager } from '../projects/project-manager';
 import { taskSessionManager } from '../tasks/task-session-manager';

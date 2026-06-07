@@ -1,5 +1,5 @@
+import type { LinkedIssue } from '@shared/core/linked-issue';
 import type { ConnectionStatus } from '@shared/issue-providers';
-import type { LinkedIssue } from '@shared/linked-issue';
 import { isGitHubDotComHost } from '@shared/repository-ref';
 
 export function isProviderUsable(

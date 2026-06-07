@@ -4,7 +4,7 @@ import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import type { DiffMode, GitObjectRef, GitRef, MergeBaseRange } from '@shared/git';
 import { createRPCController } from '@shared/lib/ipc/rpc';
-import { err, ok } from '@shared/result';
+import { err, ok } from '@shared/lib/result';
 
 export const gitController = createRPCController({
   getFullStatus: async (projectId: string, workspaceId: string) => {

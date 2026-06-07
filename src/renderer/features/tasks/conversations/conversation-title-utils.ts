@@ -1,4 +1,4 @@
-import { type AgentProviderId } from '@shared/agent-provider-registry';
+import { type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 
 type ConversationTitleInput = {
   providerId: AgentProviderId;

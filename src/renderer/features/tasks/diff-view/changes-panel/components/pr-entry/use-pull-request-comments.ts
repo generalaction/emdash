@@ -1,6 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { rpc } from '@renderer/lib/ipc';
-import { getPrNumber, pullRequestErrorMessage, type PullRequest } from '@shared/pull-requests';
+import {
+  getPrNumber,
+  pullRequestErrorMessage,
+  type PullRequest,
+} from '@shared/core/pull-requests/pull-requests';
 
 export function usePullRequestComments(pr: PullRequest) {
   const prNumber = getPrNumber(pr);

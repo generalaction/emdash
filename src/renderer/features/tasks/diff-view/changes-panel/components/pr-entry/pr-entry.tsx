@@ -10,7 +10,7 @@ import { rpc } from '@renderer/lib/ipc';
 import { type SplitButtonAction } from '@renderer/lib/ui/split-button';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { cn } from '@renderer/utils/utils';
-import { getPrNumber, type PullRequest } from '@shared/pull-requests';
+import { getPrNumber, type PullRequest } from '@shared/core/pull-requests/pull-requests';
 import { PrChecksList } from './checks-list';
 import { PrCommitsList } from './commits-list';
 import { PrFilesList } from './files-list';

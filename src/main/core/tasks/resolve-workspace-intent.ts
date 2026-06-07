@@ -1,6 +1,6 @@
-import type { GitSetup, WorkspaceLocation } from '@shared/tasks';
-import type { WorkspaceConfig, WorkspaceTarget } from '@shared/workspace-config';
-import type { WorkspaceType } from '@shared/workspaces';
+import type { GitSetup, WorkspaceLocation } from '@shared/core/tasks/tasks';
+import type { WorkspaceConfig, WorkspaceTarget } from '@shared/core/workspaces/workspace-config';
+import type { WorkspaceType } from '@shared/core/workspaces/workspaces';
 
 /**
  * Derives the effective branch name from a `GitSetup` intent — no git I/O.

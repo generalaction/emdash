@@ -1,5 +1,5 @@
-import type { NotificationSettings } from '@shared/app-settings';
-import type { SoundEvent } from '@shared/events/agentEvents';
+import type { SoundEvent } from '@shared/core/agents/agentEvents';
+import type { NotificationSettings } from '@shared/core/app-settings';
 import { rpc } from '../lib/ipc';
 import { queryClient } from '../lib/query-client';
 

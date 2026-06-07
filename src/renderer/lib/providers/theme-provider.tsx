@@ -3,7 +3,7 @@ import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-
 import { useLocalStorage } from '@renderer/lib/hooks/useLocalStorage';
 import { applyThemeToAll } from '@renderer/lib/pty/pty';
 import { getNextTheme } from '@renderer/lib/theme/theme-toggle-model';
-import type { Theme } from '@shared/app-settings';
+import type { Theme } from '@shared/core/app-settings';
 
 type EffectiveTheme = 'emlight' | 'emdark';
 

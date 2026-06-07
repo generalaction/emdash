@@ -1,5 +1,5 @@
-import { listDetectableProviders } from '@shared/agent-provider-registry';
-import type { DependencyStatus } from '@shared/dependencies';
+import { listDetectableProviders } from '@shared/core/agents/agent-provider-registry';
+import type { DependencyStatus } from '@shared/core/dependencies';
 import type { DependencyDescriptor, ProbeResult } from './types';
 
 const CORE_DEPENDENCIES: DependencyDescriptor[] = [

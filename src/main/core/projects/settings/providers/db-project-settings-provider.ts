@@ -2,7 +2,6 @@ import type { FileSystemProvider } from '@main/core/fs/types';
 import type { RepositoryGitProvider } from '@main/core/git/repository-git-provider';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { log } from '@main/lib/logger';
-import { remoteNameFromQualifiedRef } from '@shared/git-utils';
 import {
   baseProjectSettingsSchema,
   DEFAULT_PRESERVE_PATTERNS,
@@ -12,10 +11,11 @@ import {
   type BaseProjectSettings,
   type ProjectSettings,
   type ShareableProjectSettings,
-} from '@shared/project-settings';
-import { SHAREABLE_FIELD_ACCESSORS } from '@shared/project-settings-fields';
+} from '@shared/core/project-settings/project-settings';
+import { SHAREABLE_FIELD_ACCESSORS } from '@shared/core/project-settings/project-settings-fields';
+import { remoteNameFromQualifiedRef } from '@shared/git-utils';
+import { err, ok, type Result } from '@shared/lib/result';
 import type { UpdateProjectSettingsError } from '@shared/projects';
-import { err, ok, type Result } from '@shared/result';
 import { migrateLegacyProjectSettingsIfNeeded } from '../legacy-project-settings-migration';
 import { serializeShareableProjectSettings } from '../legacy-shareable-migration-marker';
 import { compactUndefined, parseJsonObject, readJson } from '../project-settings-json';

@@ -1,5 +1,5 @@
 import { makeNode, sortFileNodes } from '@renderer/features/tasks/editor/stores/files-store-utils';
-import { type FileNode } from '@shared/fs';
+import { type FileNode } from '@shared/core/fs/fs';
 import { type GitChange } from '@shared/git';
 
 export interface ChangesTree {

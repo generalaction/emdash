@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import type { ProjectSettings } from '@shared/core/project-settings/project-settings';
 import type { Remote } from '@shared/git';
-import type { ProjectSettings } from '@shared/project-settings';
 import {
   areFormStatesEqual,
   formToSettings,

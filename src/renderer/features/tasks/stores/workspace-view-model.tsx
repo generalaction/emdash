@@ -12,8 +12,8 @@ import type { ILifecycle } from '@renderer/lib/stores/lifecycle';
 import { snapshotRegistry } from '@renderer/lib/stores/snapshot-registry';
 import { focusTracker } from '@renderer/utils/focus-tracker';
 import { log } from '@renderer/utils/logger';
-import type { Task } from '@shared/tasks';
-import type { TerminalShellId } from '@shared/terminal-settings';
+import type { Task } from '@shared/core/tasks/tasks';
+import type { TerminalShellId } from '@shared/core/terminals/terminal-settings';
 import type {
   DiffViewSnapshot,
   TaskViewSnapshot,

@@ -10,7 +10,7 @@ import {
   type CheckRun,
   type CheckRunBucket,
 } from '@renderer/utils/github';
-import type { PullRequest, PullRequestComment } from '@shared/pull-requests';
+import type { PullRequest, PullRequestComment } from '@shared/core/pull-requests/pull-requests';
 import { CommentsList } from './comments-list';
 import { buildPullRequestConversationItems } from './pull-request-conversation';
 import { usePullRequestComments } from './use-pull-request-comments';

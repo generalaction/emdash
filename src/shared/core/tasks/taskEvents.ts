@@ -1,6 +1,6 @@
+import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
+import type { Task } from '@shared/core/tasks/tasks';
 import { defineEvent } from '@shared/lib/ipc/events';
-import type { PullRequest } from '@shared/pull-requests';
-import type { Task } from '@shared/tasks';
 
 export const taskCreatedChannel = defineEvent<{ task: Task }>('task:created');
 

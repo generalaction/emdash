@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { err, ok } from '@shared/result';
+import { err, ok } from '@shared/lib/result';
 import { ghCliGitHubEnterpriseAuthSource } from './ghes-auth-source';
 import { GitHubApiAuthService } from './github-api-auth-service';
 import { githubConnectionService } from './github-connection-service';

@@ -1,5 +1,5 @@
+import type { SshHealthState } from '@shared/core/ssh/ssh';
 import { defineEvent } from '@shared/lib/ipc/events';
-import type { SshHealthState } from '@shared/ssh';
 
 export type SshConnectionEvent =
   | { type: 'connecting'; connectionId: string }

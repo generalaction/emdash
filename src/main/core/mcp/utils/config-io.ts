@@ -3,7 +3,7 @@ import path from 'path';
 import * as jsoncParser from 'jsonc-parser';
 import * as toml from 'smol-toml';
 import { log } from '@main/lib/logger';
-import type { AgentMcpMeta, RawServerEntry, ServerMap } from '@shared/mcp/types';
+import type { AgentMcpMeta, RawServerEntry, ServerMap } from '@shared/core/mcp/types';
 
 // ── Read ───────────────────────────────────────────────────────────────────
 

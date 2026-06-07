@@ -4,8 +4,8 @@ import type { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { getDefaultSshWorktreeDirectory } from '@main/core/settings/worktree-defaults';
 import { resolveRemoteHome } from '@main/core/ssh/lifecycle/remote-shell-profile';
+import { err, ok, type Result } from '@shared/lib/result';
 import type { UpdateProjectSettingsError } from '@shared/projects';
-import { err, ok, type Result } from '@shared/result';
 import {
   canonicalizeWorktreeDirectory,
   normalizeWorktreeDirectory,

@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import { useModalContext } from '@renderer/lib/modal/modal-provider';
-import type { Remote } from '@shared/git';
 import {
   emptyProjectSettingsOverrideState,
   type MigrateProjectConfigRequest,
@@ -13,9 +12,10 @@ import {
   type ProjectSettingsWriteTargetOption,
   type ShareableProjectSettingsWriteField,
   type WriteProjectConfigRequest,
-} from '@shared/project-settings';
+} from '@shared/core/project-settings/project-settings';
+import type { Remote } from '@shared/git';
+import { err, type Result } from '@shared/lib/result';
 import type { UpdateProjectSettingsError } from '@shared/projects';
-import { err, type Result } from '@shared/result';
 import type { ProjectSettingsSaveStatus } from './project-settings-footer';
 import {
   areFormStatesEqual,

@@ -1,13 +1,13 @@
 import z from 'zod';
-import { AGENT_PROVIDER_IDS, AGENT_PROVIDERS } from '@shared/agent-provider-registry';
-import { normalizeBranchPrefix } from '@shared/branch-prefix';
-import { openInAppIdSchema } from '@shared/openInApps';
-import { APP_SHORTCUTS } from '@shared/shortcuts';
+import { AGENT_PROVIDER_IDS, AGENT_PROVIDERS } from '@shared/core/agents/agent-provider-registry';
 import {
   TERMINAL_FONT_SIZE_MAX,
   TERMINAL_FONT_SIZE_MIN,
   TERMINAL_SHELL_IDS,
-} from '@shared/terminal-settings';
+} from '@shared/core/terminals/terminal-settings';
+import { openInAppIdSchema } from '@shared/openInApps';
+import { APP_SHORTCUTS } from '@shared/shortcuts';
+import { normalizeBranchPrefix } from '@shared/util/branch-prefix';
 import { DEFAULT_AGENT_ID } from './settings-registry';
 
 export const projectSettingsSchema = z.object({

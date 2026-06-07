@@ -9,17 +9,17 @@ import {
 } from 'drizzle-orm/sqlite-core';
 import type { StoredBranch } from '@main/core/tasks/stored-branch';
 import { versionedJsonColumn } from '@main/db/versioned-column';
-import { conversationConfig } from '@shared/conversation-config';
 import {
   automationConversationConfig,
   automationTriggerConfig,
   storedAutomationTaskConfig,
 } from '@shared/core/automations/config';
-import { linkedIssue } from '@shared/linked-issue';
-import { sshConnectionMetadata } from '@shared/ssh-connection-metadata';
-import type { TerminalShellId } from '@shared/terminal-settings';
-import { workspaceConfig } from '@shared/workspace-config';
-import { workspaceProviderData } from '@shared/workspace-provider-data';
+import { conversationConfig } from '@shared/core/conversations/conversation-config';
+import { linkedIssue } from '@shared/core/linked-issue';
+import { sshConnectionMetadata } from '@shared/core/ssh/ssh-connection-metadata';
+import type { TerminalShellId } from '@shared/core/terminals/terminal-settings';
+import { workspaceConfig } from '@shared/core/workspaces/workspace-config';
+import { workspaceProviderData } from '@shared/core/workspaces/workspace-provider-data';
 
 export const sshConnections = sqliteTable(
   'ssh_connections',
