@@ -3,20 +3,24 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { events, rpc } from '@renderer/lib/ipc';
 import { log } from '@renderer/utils/logger';
 import {
+  githubAccountsChangedChannel,
   githubAuthErrorChannel,
   githubAuthSuccessChannel,
   githubAuthUserUpdatedChannel,
 } from '@shared/events/githubEvents';
 import type {
+  GitHubAccountState,
+  GitHubAccountSummary,
   GitHubAuthResponse,
-  GitHubStatusOptions,
-  GitHubStatusResponse,
   GitHubTokenSource,
   GitHubUser,
 } from '@shared/github';
 import { useToast } from '../hooks/use-toast';
-import { useAccountSession, useFetchAccountHealth } from '../hooks/useAccount';
-import { GITHUB_ACCOUNTS_QUERY_KEY } from '../hooks/useGithubAccounts';
+import {
+  GITHUB_ACCOUNTS_QUERY_KEY,
+  GITHUB_ACCOUNT_STATE_QUERY_KEY,
+  ISSUE_CONNECTION_STATUS_QUERY_KEY,
+} from '../hooks/useGithubAccounts';
 import { useModalContext } from '../modal/modal-provider';
 
 type GithubContextValue = {
@@ -31,43 +35,50 @@ type GithubContextValue = {
   handleGithubConnect: () => Promise<void>;
   cancelGithubConnect: () => void;
   login: () => Promise<GitHubAuthResponse>;
-  logout: () => Promise<void>;
-  checkStatus: (options?: GitHubStatusOptions) => Promise<GitHubStatusResponse>;
+  checkAccountState: () => Promise<GitHubAccountState>;
 };
 
-const GITHUB_STATUS_KEY = ['github:status'] as const;
-const GITHUB_STATUS_REFRESH_KEY = [...GITHUB_STATUS_KEY, 'refresh'] as const;
-const ISSUE_CONNECTION_STATUS_QUERY_KEY = ['issues:connection-status'] as const;
-
 const GithubContext = createContext<GithubContextValue | null>(null);
+
+function accountSummaryToUser(account: GitHubAccountSummary | undefined): GitHubUser | null {
+  if (!account) return null;
+  const providerAccountId = account.accountId.slice(`${account.host}:`.length);
+  const numericId = Number(providerAccountId);
+  return {
+    id: Number.isFinite(numericId) ? numericId : 0,
+    login: account.login,
+    name: '',
+    email: '',
+    avatar_url: account.avatarUrl,
+  };
+}
 
 export function GithubContextProvider({ children }: { children: React.ReactNode }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { showModal } = useModalContext();
-  const { data: accountSession } = useAccountSession();
-  const hasAccount = accountSession?.hasAccount === true;
-  const fetchAccountHealth = useFetchAccountHealth();
 
   const [githubLoading, setGithubLoading] = useState(false);
   const [githubStatusMessage, setGithubStatusMessage] = useState<string | undefined>();
 
   const {
-    data: statusData,
+    data: accountState,
     isFetching,
     isSuccess,
-  } = useQuery<GitHubStatusResponse>({
-    queryKey: GITHUB_STATUS_KEY,
-    queryFn: () => rpc.github.getStatus(),
+  } = useQuery<GitHubAccountState>({
+    queryKey: GITHUB_ACCOUNT_STATE_QUERY_KEY,
+    queryFn: () => rpc.github.getAccountState(),
     staleTime: 30_000,
     refetchOnWindowFocus: true,
   });
 
-  const authenticated = statusData?.authenticated ?? false;
-  const user: GitHubUser | null = statusData?.user ?? null;
-  const tokenSource: GitHubTokenSource = statusData?.tokenSource ?? null;
+  const authenticated = accountState?.connected ?? false;
+  const defaultAccount = accountState?.accounts.find(
+    (account) => account.accountId === accountState.defaultAccountId
+  );
+  const user = accountSummaryToUser(defaultAccount);
+  const tokenSource: GitHubTokenSource = defaultAccount?.credentialSource ?? null;
   const isInitialized = isSuccess;
-
   const needsGhAuth = isInitialized && !authenticated;
 
   const prevAuthenticatedRef = useRef<boolean | undefined>(undefined);
@@ -82,65 +93,43 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
     });
   }, [authenticated, isInitialized, tokenSource, user]);
 
+  const invalidateGitHubState = useCallback(() => {
+    void queryClient.invalidateQueries({ queryKey: GITHUB_ACCOUNTS_QUERY_KEY });
+    void queryClient.invalidateQueries({ queryKey: GITHUB_ACCOUNT_STATE_QUERY_KEY });
+    void queryClient.invalidateQueries({ queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY });
+  }, [queryClient]);
+
   const loginMutation = useMutation({
     mutationFn: () => rpc.github.auth(),
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: GITHUB_ACCOUNTS_QUERY_KEY });
-      void queryClient.invalidateQueries({ queryKey: GITHUB_STATUS_KEY });
-      void queryClient.invalidateQueries({ queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY });
-    },
+    onSettled: invalidateGitHubState,
   });
 
-  const logoutMutation = useMutation({
-    mutationFn: () => rpc.github.logout(),
-    onSettled: () => {
-      void queryClient.invalidateQueries({ queryKey: GITHUB_STATUS_KEY });
-      void queryClient.invalidateQueries({ queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY });
-    },
-  });
+  const isLoading = isFetching || loginMutation.isPending;
 
-  const isLoading = isFetching || loginMutation.isPending || logoutMutation.isPending;
-
-  const checkStatus = useCallback(
-    async (options?: GitHubStatusOptions) => {
-      if (options?.refresh) {
-        const result = await queryClient.fetchQuery<GitHubStatusResponse>({
-          queryKey: GITHUB_STATUS_REFRESH_KEY,
-          queryFn: () => rpc.github.getStatus(options),
-          staleTime: 0,
-        });
-        queryClient.setQueryData(GITHUB_STATUS_KEY, result);
-        return result;
-      }
-
-      return queryClient.fetchQuery<GitHubStatusResponse>({
-        queryKey: GITHUB_STATUS_KEY,
-        queryFn: () => rpc.github.getStatus(),
+  const checkAccountState = useCallback(
+    () =>
+      queryClient.fetchQuery<GitHubAccountState>({
+        queryKey: GITHUB_ACCOUNT_STATE_QUERY_KEY,
+        queryFn: () => rpc.github.getAccountState(),
         staleTime: 0,
-      });
-    },
+      }),
     [queryClient]
   );
 
   const login = useCallback(() => loginMutation.mutateAsync(), [loginMutation]);
 
-  const logout = useCallback(async () => {
-    await logoutMutation.mutateAsync();
-  }, [logoutMutation]);
-
   const handleDeviceFlowSuccess = useCallback(
     async (flowUser: GitHubUser) => {
       log.info('[GithubContext] auth success via device flow', { user: flowUser?.login });
-      void checkStatus();
-      setTimeout(() => void checkStatus(), 500);
-      void queryClient.invalidateQueries({ queryKey: GITHUB_ACCOUNTS_QUERY_KEY });
-      void queryClient.invalidateQueries({ queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY });
+      void checkAccountState();
+      setTimeout(() => void checkAccountState(), 500);
+      invalidateGitHubState();
       toast({
         title: 'Connected to GitHub',
         description: `Signed in as ${flowUser?.login || flowUser?.name || 'user'}`,
       });
     },
-    [checkStatus, queryClient, toast]
+    [checkAccountState, invalidateGitHubState, toast]
   );
 
   const handleDeviceFlowError = useCallback(
@@ -154,7 +143,6 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
     [toast]
   );
 
-  // Subscribe to GitHub auth IPC events from the main process
   useEffect(() => {
     const cleanupSuccess = events.on(githubAuthSuccessChannel, (data) => {
       log.info('[GithubContext] received githubAuthSuccessChannel event', {
@@ -170,51 +158,33 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
     });
     const cleanupUserUpdated = events.on(githubAuthUserUpdatedChannel, () => {
       log.info('[GithubContext] received githubAuthUserUpdatedChannel event');
-      void checkStatus();
+      void checkAccountState();
+    });
+    const cleanupAccountsChanged = events.on(githubAccountsChangedChannel, () => {
+      log.info('[GithubContext] received githubAccountsChangedChannel event');
+      invalidateGitHubState();
     });
 
     return () => {
       cleanupSuccess();
       cleanupError();
       cleanupUserUpdated();
+      cleanupAccountsChanged();
     };
-  }, [handleDeviceFlowSuccess, handleDeviceFlowError, checkStatus]);
+  }, [handleDeviceFlowSuccess, handleDeviceFlowError, checkAccountState, invalidateGitHubState]);
 
   const handleGithubConnect = useCallback(async () => {
     setGithubLoading(true);
     setGithubStatusMessage(undefined);
 
     try {
-      const freshStatus = await checkStatus();
-      if (freshStatus?.authenticated) {
+      const freshState = await checkAccountState();
+      if (freshState.connected) {
         setGithubLoading(false);
-        setGithubStatusMessage(undefined);
         return;
       }
 
-      const isServerUp = hasAccount && (await fetchAccountHealth());
-      if (hasAccount && isServerUp) {
-        setGithubStatusMessage('Connecting via Emdash account...');
-        const oauthResult = await rpc.github.connectOAuth();
-        if (oauthResult?.success) {
-          await checkStatus();
-          void queryClient.invalidateQueries({ queryKey: GITHUB_ACCOUNTS_QUERY_KEY });
-          void queryClient.invalidateQueries({ queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY });
-          if (oauthResult.user) {
-            toast({
-              title: 'Connected to GitHub',
-              description: `Signed in as ${oauthResult.user.login || oauthResult.user.name || 'user'}`,
-            });
-          }
-          setGithubLoading(false);
-          setGithubStatusMessage(undefined);
-          return;
-        }
-      }
-
       setGithubLoading(false);
-      setGithubStatusMessage(undefined);
-
       showModal('githubDeviceFlowModal', {
         onError: handleDeviceFlowError,
       });
@@ -229,27 +199,17 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
         variant: 'destructive',
       });
     }
-  }, [
-    toast,
-    checkStatus,
-    login,
-    showModal,
-    handleDeviceFlowError,
-    hasAccount,
-    fetchAccountHealth,
-    queryClient,
-  ]);
+  }, [toast, checkAccountState, login, showModal, handleDeviceFlowError]);
 
   const cancelGithubConnect = useCallback(() => {
-    const flowLabel = githubStatusMessage ? 'OAuth flow' : 'Device flow';
     setGithubLoading(false);
     setGithubStatusMessage(undefined);
     void rpc.github.authCancel();
     toast({
       title: 'GitHub connection unsuccessful',
-      description: `${flowLabel} was canceled`,
+      description: 'Device flow was canceled',
     });
-  }, [githubStatusMessage, toast]);
+  }, [toast]);
 
   const value: GithubContextValue = {
     authenticated,
@@ -263,8 +223,7 @@ export function GithubContextProvider({ children }: { children: React.ReactNode 
     handleGithubConnect,
     cancelGithubConnect,
     login,
-    logout,
-    checkStatus,
+    checkAccountState,
   };
 
   return <GithubContext.Provider value={value}>{children}</GithubContext.Provider>;

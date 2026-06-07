@@ -1,14 +1,12 @@
 import * as path from 'node:path';
-import { ACCOUNT_CONFIG } from '@main/core/account/config';
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { cloneRepository, initializeNewProject } from '@main/core/git/impl/git-repo-utils';
-import { githubAccountBackfillService } from '@main/core/github/accounts/github-account-backfill-instance';
 import { githubAccountService } from '@main/core/github/accounts/github-account-service-instance';
-import { githubConnectionService } from '@main/core/github/services/github-connection-service';
+import { githubDeviceFlowService } from '@main/core/github/services/github-device-flow-service-instance';
 import { repoService } from '@main/core/github/services/repo-service';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import { events } from '@main/lib/events';
@@ -16,31 +14,34 @@ import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { githubAuthErrorChannel, githubAuthSuccessChannel } from '@shared/events/githubEvents';
 import type {
+  GitHubAccountState,
   GitHubAccountSummary,
   GitHubAuthResponse,
-  GitHubConnectResponse,
   GitHubImportCliAccountsResponse,
   GitHubRemoveAccountResponse,
   GitHubSetDefaultAccountResponse,
-  GitHubStatusOptions,
-  GitHubStatusResponse,
 } from '@shared/github';
 import { createRPCController } from '@shared/lib/ipc/rpc';
 
 export const githubController = createRPCController({
-  getStatus: async (options?: GitHubStatusOptions): Promise<GitHubStatusResponse> => {
+  getAccountState: async (): Promise<GitHubAccountState> => {
     try {
-      return await githubConnectionService.getStatus(options);
+      const accounts = await githubAccountService.listAccounts();
+      return {
+        connected: accounts.length > 0,
+        accounts,
+        defaultAccountId: accounts.find((account) => account.isDefault)?.accountId ?? null,
+      };
     } catch (error) {
-      log.error('GitHub status check failed:', error);
-      return { authenticated: false, user: null, tokenSource: null };
+      log.error('Failed to get GitHub account state:', error);
+      return { connected: false, accounts: [], defaultAccountId: null };
     }
   },
 
   auth: async (): Promise<GitHubAuthResponse> => {
-    let result: Awaited<ReturnType<typeof githubConnectionService.startDeviceFlowAuth>>;
+    let result: Awaited<ReturnType<typeof githubDeviceFlowService.start>>;
     try {
-      result = await githubConnectionService.startDeviceFlowAuth();
+      result = await githubDeviceFlowService.start();
     } catch (error) {
       log.error('GitHub authentication failed:', error);
       events.emit(githubAuthErrorChannel, {
@@ -53,12 +54,9 @@ export const githubController = createRPCController({
     if (!result.success) return result;
 
     try {
-      const account = await githubAccountBackfillService.backfillLegacyToken();
-      const accountSummary = account
-        ? (await githubAccountService.listAccounts()).find(
-            (candidate) => candidate.accountId === account.id
-          )
-        : undefined;
+      const accountSummary = (await githubAccountService.listAccounts()).find(
+        (candidate) => candidate.accountId === result.account.id
+      );
       if (!accountSummary) {
         const message = 'Failed to register GitHub account';
         events.emit(githubAuthErrorChannel, { error: 'account_registration_failed', message });
@@ -76,21 +74,6 @@ export const githubController = createRPCController({
         message,
       });
       return { success: false, error: message };
-    }
-  },
-
-  connectOAuth: async (): Promise<GitHubConnectResponse> => {
-    try {
-      const { baseUrl } = ACCOUNT_CONFIG.authServer;
-      const result = await githubConnectionService.startOAuthFlow(baseUrl);
-      if (result.success) {
-        await githubAccountBackfillService.backfillLegacyToken();
-        telemetryService.capture('integration_connected', { provider: 'github' });
-      }
-      return result;
-    } catch (error) {
-      log.error('GitHub OAuth connect failed:', error);
-      return { success: false, error: 'OAuth connection failed' };
     }
   },
 
@@ -141,50 +124,11 @@ export const githubController = createRPCController({
 
   authCancel: async () => {
     try {
-      githubConnectionService.cancelAuth();
+      githubDeviceFlowService.cancel();
       return { success: true };
     } catch (error) {
       log.error('Failed to cancel GitHub auth:', error);
       return { success: false, error: 'Failed to cancel' };
-    }
-  },
-
-  isAuthenticated: async () => {
-    try {
-      return await githubConnectionService.isAuthenticated();
-    } catch (error) {
-      log.error('GitHub authentication check failed:', error);
-      return false;
-    }
-  },
-
-  logout: async () => {
-    try {
-      await githubConnectionService.logout();
-      telemetryService.capture('integration_disconnected', { provider: 'github' });
-      return { success: true };
-    } catch (error) {
-      log.error('GitHub logout failed:', error);
-      return { success: false, error: 'Logout failed' };
-    }
-  },
-
-  getUser: async () => {
-    try {
-      return await githubConnectionService.getCurrentUser();
-    } catch (error) {
-      log.error('Failed to get user info:', error);
-      return null;
-    }
-  },
-
-  storeToken: async (token: string) => {
-    try {
-      await githubConnectionService.storeToken(token);
-      return { success: true };
-    } catch (error) {
-      log.error('Failed to store token:', error);
-      return { success: false, error: 'Failed to store token' };
     }
   },
 
@@ -232,6 +176,7 @@ export const githubController = createRPCController({
       return {
         success: true,
         repoUrl: repoInfo.url,
+        cloneUrl: repoInfo.cloneUrl,
         nameWithOwner: repoInfo.nameWithOwner,
         defaultBranch: repoInfo.defaultBranch,
       };

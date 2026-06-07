@@ -10,6 +10,9 @@ import { GitHubApiAuthService } from './github-api-auth-service';
 class InMemoryMetadataStore implements GitHubAccountMetadataStore {
   accounts = null as Awaited<ReturnType<GitHubAccountMetadataStore['getAccounts']>>;
   defaultAccountId: string | null = null;
+  removedCliAccounts = null as Awaited<
+    ReturnType<GitHubAccountMetadataStore['getRemovedCliAccounts']>
+  >;
 
   async getAccounts() {
     return this.accounts;
@@ -25,6 +28,14 @@ class InMemoryMetadataStore implements GitHubAccountMetadataStore {
 
   async setDefaultAccountId(accountId: string | null) {
     this.defaultAccountId = accountId;
+  }
+
+  async getRemovedCliAccounts() {
+    return this.removedCliAccounts;
+  }
+
+  async setRemovedCliAccounts(accounts: NonNullable<typeof this.removedCliAccounts>) {
+    this.removedCliAccounts = accounts;
   }
 }
 

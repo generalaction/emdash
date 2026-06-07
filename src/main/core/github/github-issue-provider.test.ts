@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { err, ok } from '@shared/result';
 import { githubAccountRegistry } from './accounts/github-account-registry-instance';
 import { githubIssueProvider } from './github-issue-provider';
-import { githubConnectionService } from './services/github-connection-service';
 import { githubRepositoryResolver } from './services/github-repository-resolver';
 import { issueService } from './services/issue-service';
 import { resolveProjectGitHubAuthContext } from './services/project-github-auth-context';
@@ -11,12 +10,6 @@ vi.mock('./services/issue-service', () => ({
   issueService: {
     listIssues: vi.fn(),
     searchIssues: vi.fn(),
-  },
-}));
-
-vi.mock('./services/github-connection-service', () => ({
-  githubConnectionService: {
-    getStatus: vi.fn(),
   },
 }));
 
@@ -42,7 +35,6 @@ const mockIssueService = vi.mocked(issueService);
 const mockRepositoryResolver = vi.mocked(githubRepositoryResolver);
 const mockResolveProjectGitHubAuthContext = vi.mocked(resolveProjectGitHubAuthContext);
 const mockGithubAccountRegistry = vi.mocked(githubAccountRegistry);
-const mockGithubConnectionService = vi.mocked(githubConnectionService);
 
 const githubRepository = {
   host: 'github.com',
@@ -68,11 +60,6 @@ describe('githubIssueProvider', () => {
     mockGithubAccountRegistry.getDefaultAccountId.mockResolvedValue(null);
     mockGithubAccountRegistry.listAccounts.mockResolvedValue([]);
     mockGithubAccountRegistry.resolveToken.mockResolvedValue(null);
-    mockGithubConnectionService.getStatus.mockResolvedValue({
-      authenticated: false,
-      user: null,
-      tokenSource: null,
-    });
   });
 
   it('reports GitHub connected when a default linked account exists', async () => {
@@ -96,10 +83,9 @@ describe('githubIssueProvider', () => {
       displayName: 'monalisa',
       capabilities: githubIssueProvider.capabilities,
     });
-    expect(mockGithubConnectionService.getStatus).not.toHaveBeenCalled();
   });
 
-  it('falls back to legacy GitHub status when the default linked account token is missing', async () => {
+  it('reports disconnected when the default linked account token is missing', async () => {
     mockGithubAccountRegistry.getDefaultAccountId.mockResolvedValue('github.com:42');
     mockGithubAccountRegistry.listAccounts.mockResolvedValue([
       {
@@ -114,24 +100,12 @@ describe('githubIssueProvider', () => {
       },
     ]);
     mockGithubAccountRegistry.resolveToken.mockResolvedValue(null);
-    mockGithubConnectionService.getStatus.mockResolvedValue({
-      authenticated: true,
-      user: {
-        id: 84,
-        login: 'octocat',
-        name: 'Octocat',
-        email: '',
-        avatar_url: '',
-      },
-      tokenSource: 'secure_storage',
-    });
 
     await expect(githubIssueProvider.checkConnection()).resolves.toEqual({
-      connected: true,
-      displayName: 'octocat',
+      connected: false,
+      displayName: undefined,
       capabilities: githubIssueProvider.capabilities,
     });
-    expect(mockGithubConnectionService.getStatus).toHaveBeenCalled();
   });
 
   it('uses repositoryUrl to resolve the GitHub repository before listing issues', async () => {
@@ -191,9 +165,9 @@ describe('githubIssueProvider', () => {
   it('returns a typed error when no GitHub account is selected for the project', async () => {
     mockResolveProjectGitHubAuthContext.mockResolvedValue(
       err({
-        type: 'no_account_selected',
+        type: 'unconfigured',
         projectId: 'project-1',
-        message: 'No GitHub account selected for project.',
+        message: 'No GitHub account is configured for this project.',
       })
     );
     mockIssueService.listIssues.mockResolvedValue(ok([]));
@@ -206,8 +180,33 @@ describe('githubIssueProvider', () => {
       })
     ).resolves.toEqual({
       success: false,
-      error: 'No GitHub account selected for project.',
+      error: 'No GitHub account is configured for this project.',
       errorType: 'no_account_selected',
+    });
+
+    expect(mockIssueService.listIssues).not.toHaveBeenCalled();
+  });
+
+  it('returns a typed error when GitHub API is disabled for the project', async () => {
+    mockResolveProjectGitHubAuthContext.mockResolvedValue(
+      err({
+        type: 'disabled',
+        projectId: 'project-1',
+        message: 'GitHub API is disabled for this project.',
+      })
+    );
+    mockIssueService.listIssues.mockResolvedValue(ok([]));
+
+    await expect(
+      githubIssueProvider.listIssues({
+        projectId: 'project-1',
+        repositoryUrl: 'https://github.com/owner/repo',
+        limit: 7,
+      })
+    ).resolves.toEqual({
+      success: false,
+      error: 'GitHub API is disabled for this project.',
+      errorType: 'account_disabled',
     });
 
     expect(mockIssueService.listIssues).not.toHaveBeenCalled();

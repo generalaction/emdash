@@ -2,12 +2,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { rpc } from '@renderer/lib/ipc';
 
 export const GITHUB_ACCOUNTS_QUERY_KEY = ['github:accounts'] as const;
-export const GITHUB_STATUS_QUERY_KEY = ['github:status'] as const;
+export const GITHUB_ACCOUNT_STATE_QUERY_KEY = ['github:account-state'] as const;
 export const ISSUE_CONNECTION_STATUS_QUERY_KEY = ['issues:connection-status'] as const;
 
 function invalidateGitHubAccountState(queryClient: ReturnType<typeof useQueryClient>) {
   void queryClient.invalidateQueries({ queryKey: GITHUB_ACCOUNTS_QUERY_KEY });
-  void queryClient.invalidateQueries({ queryKey: GITHUB_STATUS_QUERY_KEY });
+  void queryClient.invalidateQueries({ queryKey: GITHUB_ACCOUNT_STATE_QUERY_KEY });
   void queryClient.invalidateQueries({ queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY });
 }
 

@@ -19,6 +19,12 @@ export interface GitHubAccountSummary {
   isDefault: boolean;
 }
 
+export type GitHubAccountState = {
+  connected: boolean;
+  accounts: GitHubAccountSummary[];
+  defaultAccountId: string | null;
+};
+
 export type GitHubSetDefaultAccountResponse =
   | { success: true; account: GitHubAccountSummary }
   | { success: false; error: string };
@@ -31,23 +37,6 @@ export type GitHubRemoveAccountResponse =
   | { success: true; accounts: GitHubAccountSummary[] }
   | { success: false; error: string };
 
-export interface GitHubStatusResponse {
-  authenticated: boolean;
-  user: GitHubUser | null;
-  tokenSource: GitHubTokenSource;
-}
-
-export interface GitHubStatusOptions {
-  refresh?: boolean;
-}
-
 export type GitHubAuthResponse =
   | { success: true; account: GitHubAccountSummary }
   | { success: false; error: string };
-
-export interface GitHubConnectResponse {
-  success: boolean;
-  token?: string;
-  user?: GitHubUser;
-  error?: string;
-}

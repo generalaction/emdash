@@ -1,8 +1,17 @@
 import type { GitHubTokenSource, GitHubUser } from '@shared/github';
-import type { GitHubConnectionService } from '../services/github-connection-service';
 import type { GitHubAccount, GitHubAccountRegistry } from './github-account-registry';
 
-type LegacyGitHubConnection = Pick<GitHubConnectionService, 'getStoredTokenRecord' | 'getUserInfo'>;
+type LegacyGitHubTokenMigrationStore = {
+  getStoredTokenRecord(): Promise<{
+    token: string;
+    source: Exclude<GitHubTokenSource, null> | null;
+  } | null>;
+  clearStoredToken(): Promise<void>;
+};
+
+type GitHubIdentityClient = {
+  getAuthenticatedUser(token: string, host?: string): Promise<GitHubUser | null>;
+};
 
 function credentialSource(source: GitHubTokenSource) {
   return source ?? 'secure_storage';
@@ -21,20 +30,23 @@ function providerAccountFromUser(user: GitHubUser) {
 export class GitHubAccountBackfillService {
   constructor(
     private readonly accountRegistry: GitHubAccountRegistry,
-    private readonly legacyConnection: LegacyGitHubConnection
+    private readonly legacyTokenStore: LegacyGitHubTokenMigrationStore,
+    private readonly identityClient: GitHubIdentityClient
   ) {}
 
   async backfillLegacyToken(): Promise<GitHubAccount | null> {
-    const tokenRecord = await this.legacyConnection.getStoredTokenRecord();
+    const tokenRecord = await this.legacyTokenStore.getStoredTokenRecord();
     if (!tokenRecord) return null;
 
-    const user = await this.legacyConnection.getUserInfo(tokenRecord.token, 'github.com');
+    const user = await this.identityClient.getAuthenticatedUser(tokenRecord.token, 'github.com');
     if (!user) return null;
 
-    return this.accountRegistry.upsertAccount({
+    const account = await this.accountRegistry.upsertAccount({
       accessToken: tokenRecord.token,
       credentialSource: credentialSource(tokenRecord.source),
       providerAccount: providerAccountFromUser(user),
     });
+    await this.legacyTokenStore.clearStoredToken();
+    return account;
   }
 }

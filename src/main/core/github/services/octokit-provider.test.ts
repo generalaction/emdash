@@ -67,6 +67,22 @@ describe('getOctokit', () => {
     expect(mockOctokit).toHaveBeenCalledTimes(2);
   });
 
+  it('clears cached clients for one selected account without evicting other accounts', async () => {
+    mockGetToken
+      .mockResolvedValueOnce(ok('token-a'))
+      .mockResolvedValueOnce(ok('token-b'))
+      .mockResolvedValueOnce(ok('token-a'))
+      .mockResolvedValueOnce(ok('token-b'));
+
+    await getOctokit('github.com', { accountId: 'github.com:42' });
+    await getOctokit('github.com', { accountId: 'github.com:84' });
+    clearOctokitCache('github.com', 'github.com:42');
+    await getOctokit('github.com', { accountId: 'github.com:42' });
+    await getOctokit('github.com', { accountId: 'github.com:84' });
+
+    expect(mockOctokit).toHaveBeenCalledTimes(3);
+  });
+
   it('uses the enterprise API base URL for GHES hosts', async () => {
     mockGetToken.mockResolvedValue(ok('ghes-token'));
 

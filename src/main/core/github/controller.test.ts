@@ -2,22 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { githubAuthErrorChannel, githubAuthSuccessChannel } from '@shared/events/githubEvents';
 
 const mocks = vi.hoisted(() => ({
-  backfillLegacyToken: vi.fn(),
   emit: vi.fn(),
   listAccounts: vi.fn(),
   logError: vi.fn(),
-  startDeviceFlowAuth: vi.fn(),
+  startDeviceFlow: vi.fn(),
   telemetryCapture: vi.fn(),
-}));
-
-vi.mock('@main/core/account/config', () => ({
-  ACCOUNT_CONFIG: { authServer: { baseUrl: 'http://localhost:3000' } },
-}));
-
-vi.mock('@main/core/github/accounts/github-account-backfill-instance', () => ({
-  githubAccountBackfillService: {
-    backfillLegacyToken: mocks.backfillLegacyToken,
-  },
 }));
 
 vi.mock('@main/core/github/accounts/github-account-service-instance', () => ({
@@ -29,14 +18,11 @@ vi.mock('@main/core/github/accounts/github-account-service-instance', () => ({
   },
 }));
 
-vi.mock('@main/core/github/services/github-connection-service', () => ({
-  githubConnectionService: {
-    startDeviceFlowAuth: mocks.startDeviceFlowAuth,
-    getStatus: vi.fn(),
-    startOAuthFlow: vi.fn(),
+vi.mock('@main/core/github/services/github-device-flow-service-instance', () => ({
+  githubDeviceFlowService: {
+    start: mocks.startDeviceFlow,
     cancelAuth: vi.fn(),
-    isAuthenticated: vi.fn(),
-    logout: vi.fn(),
+    cancel: vi.fn(),
   },
 }));
 
@@ -85,12 +71,12 @@ describe('githubController auth', () => {
       email: '',
       avatar_url: 'https://github.com/octocat.png',
     };
-    mocks.startDeviceFlowAuth.mockResolvedValue({
+    mocks.startDeviceFlow.mockResolvedValue({
       success: true,
       token: 'gho_device',
       user,
+      account: { id: 'github.com:42' },
     });
-    mocks.backfillLegacyToken.mockResolvedValue({ id: 'github.com:42' });
     mocks.listAccounts.mockResolvedValue([
       {
         accountId: 'github.com:42',
@@ -125,7 +111,7 @@ describe('githubController auth', () => {
   });
 
   it('returns failure and does not emit success when device flow cannot register an account', async () => {
-    mocks.startDeviceFlowAuth.mockResolvedValue({
+    mocks.startDeviceFlow.mockResolvedValue({
       success: true,
       token: 'gho_device',
       user: {
@@ -135,8 +121,9 @@ describe('githubController auth', () => {
         email: '',
         avatar_url: 'https://github.com/octocat.png',
       },
+      account: { id: 'github.com:42' },
     });
-    mocks.backfillLegacyToken.mockResolvedValue(null);
+    mocks.listAccounts.mockResolvedValue([]);
 
     const { githubController } = await import('./controller');
 
@@ -152,7 +139,7 @@ describe('githubController auth', () => {
   });
 
   it('reports account registration failure when registration throws after device flow succeeds', async () => {
-    mocks.startDeviceFlowAuth.mockResolvedValue({
+    mocks.startDeviceFlow.mockResolvedValue({
       success: true,
       token: 'gho_device',
       user: {
@@ -162,8 +149,9 @@ describe('githubController auth', () => {
         email: '',
         avatar_url: 'https://github.com/octocat.png',
       },
+      account: { id: 'github.com:42' },
     });
-    mocks.backfillLegacyToken.mockRejectedValue(new Error('secure storage failed'));
+    mocks.listAccounts.mockRejectedValue(new Error('secure storage failed'));
 
     const { githubController } = await import('./controller');
 

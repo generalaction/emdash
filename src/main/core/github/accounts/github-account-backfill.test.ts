@@ -10,6 +10,9 @@ import {
 class InMemoryMetadataStore implements GitHubAccountMetadataStore {
   accounts = null as Awaited<ReturnType<GitHubAccountMetadataStore['getAccounts']>>;
   defaultAccountId: string | null = null;
+  removedCliAccounts = null as Awaited<
+    ReturnType<GitHubAccountMetadataStore['getRemovedCliAccounts']>
+  >;
 
   async getAccounts() {
     return this.accounts;
@@ -25,6 +28,14 @@ class InMemoryMetadataStore implements GitHubAccountMetadataStore {
 
   async setDefaultAccountId(accountId: string | null) {
     this.defaultAccountId = accountId;
+  }
+
+  async getRemovedCliAccounts() {
+    return this.removedCliAccounts;
+  }
+
+  async setRemovedCliAccounts(accounts: NonNullable<typeof this.removedCliAccounts>) {
+    this.removedCliAccounts = accounts;
   }
 }
 
@@ -47,6 +58,15 @@ class InMemorySecretStore implements GitHubAccountSecretStore {
 class LegacyGitHubConnection {
   token: string | null = 'gho_monalisa';
   source: Exclude<GitHubTokenSource, null> | null = 'secure_storage';
+  getStoredTokenRecord = vi.fn(async () =>
+    this.token === null ? null : { token: this.token, source: this.source }
+  );
+  clearStoredToken = vi.fn(async () => {
+    this.token = null;
+  });
+}
+
+class GitHubIdentityClient {
   user: GitHubUser | null = {
     id: 42,
     login: 'monalisa',
@@ -55,21 +75,20 @@ class LegacyGitHubConnection {
     avatar_url: 'https://avatars.githubusercontent.com/u/42',
   };
 
-  getStoredTokenRecord = vi.fn(async () =>
-    this.token === null ? null : { token: this.token, source: this.source }
-  );
-  getUserInfo = vi.fn(async () => this.user);
+  getAuthenticatedUser = vi.fn(async () => this.user);
 }
 
 describe('GitHubAccountBackfillService', () => {
   let registry: GitHubAccountRegistry;
   let legacyConnection: LegacyGitHubConnection;
+  let identityClient: GitHubIdentityClient;
   let service: GitHubAccountBackfillService;
 
   beforeEach(() => {
     registry = new GitHubAccountRegistry(new InMemoryMetadataStore(), new InMemorySecretStore());
     legacyConnection = new LegacyGitHubConnection();
-    service = new GitHubAccountBackfillService(registry, legacyConnection);
+    identityClient = new GitHubIdentityClient();
+    service = new GitHubAccountBackfillService(registry, legacyConnection, identityClient);
   });
 
   it('backfills the legacy GitHub token into linked accounts and sets the default', async () => {
@@ -82,7 +101,8 @@ describe('GitHubAccountBackfillService', () => {
     });
     await expect(registry.resolveToken('github.com:42')).resolves.toBe('gho_monalisa');
     await expect(registry.getDefaultAccountId()).resolves.toBe('github.com:42');
-    expect(legacyConnection.getUserInfo).toHaveBeenCalledWith('gho_monalisa', 'github.com');
+    expect(identityClient.getAuthenticatedUser).toHaveBeenCalledWith('gho_monalisa', 'github.com');
+    expect(legacyConnection.clearStoredToken).toHaveBeenCalled();
   });
 
   it('does not replace an existing default account', async () => {
@@ -104,12 +124,13 @@ describe('GitHubAccountBackfillService', () => {
   });
 
   it('does not backfill when the legacy token cannot identify a GitHub user', async () => {
-    legacyConnection.user = null;
+    identityClient.user = null;
 
     await expect(service.backfillLegacyToken()).resolves.toBeNull();
 
     await expect(registry.listAccounts()).resolves.toEqual([]);
     await expect(registry.getDefaultAccountId()).resolves.toBeNull();
+    expect(legacyConnection.clearStoredToken).not.toHaveBeenCalled();
   });
 
   it('does not backfill when no stored legacy token exists', async () => {
@@ -117,7 +138,7 @@ describe('GitHubAccountBackfillService', () => {
 
     await expect(service.backfillLegacyToken()).resolves.toBeNull();
 
-    expect(legacyConnection.getUserInfo).not.toHaveBeenCalled();
+    expect(identityClient.getAuthenticatedUser).not.toHaveBeenCalled();
     await expect(registry.listAccounts()).resolves.toEqual([]);
   });
 

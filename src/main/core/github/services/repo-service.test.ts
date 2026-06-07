@@ -132,6 +132,17 @@ describe('GitHubRepositoryServiceImpl', () => {
 
       expect(mockGetOctokit).toHaveBeenCalledWith('github.com', { accountId: 'github.com:42' });
     });
+
+    it('uses the selected GitHub Enterprise account host for owner lookup', async () => {
+      const octokit = makeOctokit();
+      mockGetOctokit.mockResolvedValue(ok(octokit));
+
+      await repoService.getOwners({ accountId: 'ghe.example.com:168' });
+
+      expect(mockGetOctokit).toHaveBeenCalledWith('ghe.example.com', {
+        accountId: 'ghe.example.com:168',
+      });
+    });
   });
 
   describe('createRepository', () => {
@@ -140,6 +151,7 @@ describe('GitHubRepositoryServiceImpl', () => {
         reposCreateForAuthenticatedUser: vi.fn().mockResolvedValue({
           data: {
             html_url: 'https://github.com/testuser/new',
+            clone_url: 'https://github.com/testuser/new.git',
             default_branch: 'main',
             full_name: 'testuser/new',
           },
@@ -156,6 +168,7 @@ describe('GitHubRepositoryServiceImpl', () => {
       expect(octokit.rest.repos.createForAuthenticatedUser).toHaveBeenCalled();
       expect(result).toEqual({
         url: 'https://github.com/testuser/new',
+        cloneUrl: 'https://github.com/testuser/new.git',
         defaultBranch: 'main',
         nameWithOwner: 'testuser/new',
       });
@@ -166,6 +179,7 @@ describe('GitHubRepositoryServiceImpl', () => {
         reposCreateInOrg: vi.fn().mockResolvedValue({
           data: {
             html_url: 'https://github.com/acme/new',
+            clone_url: 'https://github.com/acme/new.git',
             default_branch: 'main',
             full_name: 'acme/new',
           },
@@ -185,6 +199,7 @@ describe('GitHubRepositoryServiceImpl', () => {
         reposCreateForAuthenticatedUser: vi.fn().mockResolvedValue({
           data: {
             html_url: 'https://github.com/testuser/new',
+            clone_url: 'https://github.com/testuser/new.git',
             default_branch: 'main',
             full_name: 'testuser/new',
           },
@@ -200,6 +215,32 @@ describe('GitHubRepositoryServiceImpl', () => {
       });
 
       expect(mockGetOctokit).toHaveBeenCalledWith('github.com', { accountId: 'github.com:42' });
+    });
+
+    it('uses the selected GitHub Enterprise account host for repository creation', async () => {
+      const octokit = makeOctokit({
+        reposCreateForAuthenticatedUser: vi.fn().mockResolvedValue({
+          data: {
+            html_url: 'https://ghe.example.com/testuser/new',
+            clone_url: 'https://ghe.example.com/testuser/new.git',
+            default_branch: 'main',
+            full_name: 'testuser/new',
+          },
+        }),
+      });
+      mockGetOctokit.mockResolvedValue(ok(octokit));
+
+      const result = await repoService.createRepository({
+        name: 'new',
+        owner: 'testuser',
+        isPrivate: false,
+        authContext: { accountId: 'ghe.example.com:168' },
+      });
+
+      expect(mockGetOctokit).toHaveBeenCalledWith('ghe.example.com', {
+        accountId: 'ghe.example.com:168',
+      });
+      expect(result.cloneUrl).toBe('https://ghe.example.com/testuser/new.git');
     });
   });
 
@@ -226,6 +267,19 @@ describe('GitHubRepositoryServiceImpl', () => {
       expect(octokit.rest.repos.delete).toHaveBeenCalledWith({
         owner: 'testuser',
         repo: 'old-repo',
+      });
+    });
+
+    it('uses the selected GitHub Enterprise account host for repository deletion', async () => {
+      const octokit = makeOctokit();
+      mockGetOctokit.mockResolvedValue(ok(octokit));
+
+      await repoService.deleteRepository('testuser', 'old-repo', {
+        accountId: 'ghe.example.com:168',
+      });
+
+      expect(mockGetOctokit).toHaveBeenCalledWith('ghe.example.com', {
+        accountId: 'ghe.example.com:168',
       });
     });
   });

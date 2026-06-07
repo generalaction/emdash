@@ -31,3 +31,7 @@ export const githubAuthCancelledChannel = defineEvent<void>('github:auth:cancell
 export const githubAuthUserUpdatedChannel = defineEvent<{
   user: GitHubUser;
 }>('github:auth:user-updated');
+
+export const githubAccountsChangedChannel = defineEvent<{
+  reason: 'startup-reconciliation' | 'account-updated';
+}>('github:accounts-changed');

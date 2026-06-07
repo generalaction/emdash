@@ -6,8 +6,9 @@ import type { GitHubApiAuthError } from './github-api-auth-errors';
 import type { GitHubApiAuthContext } from './github-api-auth-service';
 import { githubApiAuthService } from './github-api-auth-service-instance';
 import { githubApiBaseUrlForHost } from './github-api-base-url';
+import { getCachedOctokit, setCachedOctokit } from './octokit-cache';
 
-const cachedOctokits = new Map<string, { octokit: Octokit; token: string }>();
+export { clearOctokitCache } from './octokit-cache';
 
 const octokitLog = {
   debug: (...input: unknown[]) => log.debug('Octokit:', ...input),
@@ -23,11 +24,6 @@ export class GitHubApiAuthErrorException extends Error {
   }
 }
 
-function cacheKeyFor(host: string, context: GitHubApiAuthContext): string {
-  const accountId = context.accountId?.trim() || 'default';
-  return `${host}:${accountId}`;
-}
-
 export async function getOctokit(
   host: string,
   context: GitHubApiAuthContext = {}
@@ -36,8 +32,7 @@ export async function getOctokit(
   const token = await githubApiAuthService.getToken(normalizedHost, context);
   if (!token.success) return err(token.error);
 
-  const cacheKey = cacheKeyFor(normalizedHost, context);
-  const cached = cachedOctokits.get(cacheKey);
+  const cached = getCachedOctokit(normalizedHost, context);
   if (cached?.token === token.data) return ok(cached.octokit);
 
   const octokit = new Octokit({
@@ -46,17 +41,6 @@ export async function getOctokit(
     log: octokitLog,
   });
 
-  cachedOctokits.set(cacheKey, { octokit, token: token.data });
+  setCachedOctokit(normalizedHost, context, { octokit, token: token.data });
   return ok(octokit);
-}
-
-export function clearOctokitCache(host?: string): void {
-  if (host) {
-    const normalizedHost = normalizeRepositoryHost(host);
-    for (const key of cachedOctokits.keys()) {
-      if (key.startsWith(`${normalizedHost}:`)) cachedOctokits.delete(key);
-    }
-    return;
-  }
-  cachedOctokits.clear();
 }

@@ -8,6 +8,7 @@ import {
 class InMemoryMetadataStore implements GitHubAccountMetadataStore {
   accounts: unknown = null;
   defaultAccountId: string | null = null;
+  removedCliAccounts: unknown = null;
 
   async getAccounts() {
     return this.accounts as never;
@@ -23,6 +24,14 @@ class InMemoryMetadataStore implements GitHubAccountMetadataStore {
 
   async setDefaultAccountId(accountId: string | null) {
     this.defaultAccountId = accountId;
+  }
+
+  async getRemovedCliAccounts() {
+    return this.removedCliAccounts as never;
+  }
+
+  async setRemovedCliAccounts(value: unknown) {
+    this.removedCliAccounts = value;
   }
 }
 
@@ -147,6 +156,57 @@ describe('GitHubAccountRegistry', () => {
 
     await expect(registry.listAccounts()).resolves.toEqual([]);
     await expect(registry.resolveToken(account.id)).resolves.toBeNull();
+  });
+
+  it('records a durable tombstone when a CLI-sourced account is removed', async () => {
+    const account = await registry.upsertAccount({
+      accessToken: 'gho_monalisa',
+      credentialSource: 'cli',
+      providerAccount: {
+        providerId: 'github',
+        providerAccountId: '42',
+        host: 'github.com',
+        login: 'monalisa',
+        avatarUrl: '',
+      },
+    });
+
+    await registry.removeAccount(account.id);
+
+    await expect(registry.listRemovedCliAccounts()).resolves.toEqual([
+      {
+        accountId: 'github.com:42',
+        host: 'github.com',
+        removedAt: expect.any(Number),
+      },
+    ]);
+  });
+
+  it('does not tombstone accounts removed from non-CLI credential sources', async () => {
+    const account = await upsertAccount('monalisa', '42');
+
+    await registry.removeAccount(account.id);
+
+    await expect(registry.listRemovedCliAccounts()).resolves.toEqual([]);
+  });
+
+  it('clears a matching CLI tombstone when the account is reconnected', async () => {
+    const account = await registry.upsertAccount({
+      accessToken: 'gho_monalisa',
+      credentialSource: 'cli',
+      providerAccount: {
+        providerId: 'github',
+        providerAccountId: '42',
+        host: 'github.com',
+        login: 'monalisa',
+        avatarUrl: '',
+      },
+    });
+    await registry.removeAccount(account.id);
+
+    await upsertAccount('monalisa', '42');
+
+    await expect(registry.listRemovedCliAccounts()).resolves.toEqual([]);
   });
 
   it('sets the first linked account as the default account', async () => {

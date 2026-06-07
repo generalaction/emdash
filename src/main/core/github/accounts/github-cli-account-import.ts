@@ -3,8 +3,12 @@ import type { GitHubUser } from '@shared/github';
 import { normalizeRepositoryHost } from '@shared/repository-ref';
 import type { GitHubAccount, GitHubAccountRegistry } from './github-account-registry';
 
-type GitHubUserInfoClient = {
-  getUserInfo(token: string, host?: string): Promise<GitHubUser | null>;
+export type GitHubCliAccountImportOptions = {
+  skipRemovedAccounts?: boolean;
+};
+
+type GitHubIdentityClient = {
+  getAuthenticatedUser(token: string, host?: string): Promise<GitHubUser | null>;
 };
 
 type GitHubCliAuthStatusEntry = {
@@ -46,13 +50,18 @@ export class GitHubCliAccountImportService {
   constructor(
     private readonly accountRegistry: GitHubAccountRegistry,
     private readonly ctx: Pick<IExecutionContext, 'exec'>,
-    private readonly userInfoClient: GitHubUserInfoClient
+    private readonly identityClient: GitHubIdentityClient
   ) {}
 
-  async importAccounts(): Promise<GitHubAccount[]> {
+  async importAccounts(options: GitHubCliAccountImportOptions = {}): Promise<GitHubAccount[]> {
     const stdout = await this.readCliStatus();
     if (!stdout) return [];
 
+    const removedAccountIds = options.skipRemovedAccounts
+      ? new Set(
+          (await this.accountRegistry.listRemovedCliAccounts()).map((account) => account.accountId)
+        )
+      : new Set<string>();
     const imported: GitHubAccount[] = [];
     for (const entry of cliEntries(parseCliStatus(stdout))) {
       if (entry.state !== 'success') continue;
@@ -61,8 +70,10 @@ export class GitHubCliAccountImportService {
       if (!host) continue;
 
       const token = entry.token.trim();
-      const user = await this.userInfoClient.getUserInfo(token, host);
+      const user = await this.identityClient.getAuthenticatedUser(token, host);
       if (!user) continue;
+      const accountId = `${host}:${String(user.id)}`;
+      if (removedAccountIds.has(accountId)) continue;
 
       imported.push(
         await this.accountRegistry.upsertAccount({

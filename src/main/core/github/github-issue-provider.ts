@@ -10,7 +10,6 @@ import type { RepositoryRef } from '@shared/repository-ref';
 import { err, ok, type Result } from '@shared/result';
 import { githubAccountRegistry } from './accounts/github-account-registry-instance';
 import type { GitHubApiAuthContext } from './services/github-api-auth-service';
-import { githubConnectionService } from './services/github-connection-service';
 import { githubRepositoryResolver } from './services/github-repository-resolver';
 import { issueService } from './services/issue-service';
 import { resolveProjectGitHubAuthContext } from './services/project-github-auth-context';
@@ -87,9 +86,15 @@ async function resolveIssueAuthContext(
   if (!projectId) return ok(undefined);
   const authContext = await resolveProjectGitHubAuthContext(projectId);
   if (authContext.success) return ok(authContext.data);
-  if (authContext.error.type === 'no_account_selected') {
+  if (authContext.error.type === 'unconfigured') {
     return err({
       type: 'no_account_selected',
+      message: authContext.error.message,
+    });
+  }
+  if (authContext.error.type === 'disabled') {
+    return err({
+      type: 'account_disabled',
       message: authContext.error.message,
     });
   }
@@ -152,10 +157,9 @@ export const githubIssueProvider: IssueProvider = {
     const linkedAccountConnection = await getDefaultLinkedAccountConnection();
     if (linkedAccountConnection) return linkedAccountConnection;
 
-    const status = await githubConnectionService.getStatus();
     return {
-      connected: status.authenticated,
-      displayName: status.user?.login || status.user?.name || undefined,
+      connected: false,
+      displayName: undefined,
       capabilities: ISSUE_PROVIDER_CAPABILITIES.github,
     };
   },

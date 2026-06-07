@@ -10,6 +10,9 @@ import { GitHubAuthServerAdapter } from './github-auth-server-adapter';
 class InMemoryMetadataStore implements GitHubAccountMetadataStore {
   accounts = null as Awaited<ReturnType<GitHubAccountMetadataStore['getAccounts']>>;
   defaultAccountId: string | null = null;
+  removedCliAccounts = null as Awaited<
+    ReturnType<GitHubAccountMetadataStore['getRemovedCliAccounts']>
+  >;
 
   async getAccounts() {
     return this.accounts;
@@ -25,6 +28,14 @@ class InMemoryMetadataStore implements GitHubAccountMetadataStore {
 
   async setDefaultAccountId(accountId: string | null) {
     this.defaultAccountId = accountId;
+  }
+
+  async getRemovedCliAccounts() {
+    return this.removedCliAccounts;
+  }
+
+  async setRemovedCliAccounts(accounts: NonNullable<typeof this.removedCliAccounts>) {
+    this.removedCliAccounts = accounts;
   }
 }
 
@@ -44,26 +55,16 @@ class InMemorySecretStore implements GitHubAccountSecretStore {
   }
 }
 
-class LegacyGitHubTokenStore {
-  stored: Array<{ token: string; source: 'emdash_oauth' }> = [];
-
-  async storeToken(token: string, source: 'emdash_oauth') {
-    this.stored.push({ token, source });
-  }
-}
-
 describe('GitHubAuthServerAdapter', () => {
   let registry: GitHubAccountRegistry;
-  let legacyStore: LegacyGitHubTokenStore;
   let adapter: GitHubAuthServerAdapter;
 
   beforeEach(() => {
     registry = new GitHubAccountRegistry(new InMemoryMetadataStore(), new InMemorySecretStore());
-    legacyStore = new LegacyGitHubTokenStore();
-    adapter = new GitHubAuthServerAdapter(registry, legacyStore);
+    adapter = new GitHubAuthServerAdapter(registry);
   });
 
-  it('stores auth-server tokens with provider account metadata in the account registry and legacy token store', async () => {
+  it('stores auth-server tokens with provider account metadata in the account registry only', async () => {
     const payload: ProviderTokenPayload = {
       accessToken: 'gho_monalisa',
       intent: 'sign-in',
@@ -86,10 +87,9 @@ describe('GitHubAuthServerAdapter', () => {
       credentialSource: 'emdash_oauth',
     });
     await expect(registry.resolveToken('github.com:42')).resolves.toBe('gho_monalisa');
-    expect(legacyStore.stored).toEqual([{ token: 'gho_monalisa', source: 'emdash_oauth' }]);
   });
 
-  it('stores linked provider accounts without replacing the default legacy GitHub token', async () => {
+  it('stores linked provider accounts in the account registry', async () => {
     const payload = {
       accessToken: 'gho_octocat',
       intent: 'account-link',
@@ -112,13 +112,11 @@ describe('GitHubAuthServerAdapter', () => {
       credentialSource: 'emdash_oauth',
     });
     await expect(registry.resolveToken('github.com:84')).resolves.toBe('gho_octocat');
-    expect(legacyStore.stored).toEqual([]);
   });
 
-  it('falls back to legacy token storage when auth-server metadata is absent', async () => {
+  it('does not store tokens when auth-server metadata is absent', async () => {
     await adapter.storeOAuthToken({ accessToken: 'gho_legacy', intent: 'sign-in' });
 
     await expect(registry.listAccounts()).resolves.toEqual([]);
-    expect(legacyStore.stored).toEqual([{ token: 'gho_legacy', source: 'emdash_oauth' }]);
   });
 });

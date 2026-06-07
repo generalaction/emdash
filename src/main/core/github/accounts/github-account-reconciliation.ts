@@ -5,7 +5,7 @@ type LegacyAccountBackfill = {
 };
 
 type CliAccountImporter = {
-  importAccounts(): Promise<GitHubAccount[]>;
+  importAccounts(options?: { skipRemovedAccounts?: boolean }): Promise<GitHubAccount[]>;
 };
 
 type WarningLogger = {
@@ -53,7 +53,7 @@ export class GitHubAccountReconciliationService {
 
   private async importCliAccounts(): Promise<GitHubAccount[]> {
     try {
-      return await this.deps.cliImporter.importAccounts();
+      return await this.deps.cliImporter.importAccounts({ skipRemovedAccounts: true });
     } catch (error) {
       this.deps.logger.warn('Failed to import GitHub CLI accounts during startup', {
         error: errorMessage(error),

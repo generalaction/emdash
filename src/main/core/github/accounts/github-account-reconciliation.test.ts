@@ -31,11 +31,13 @@ class LegacyBackfill {
 class CliImporter {
   result: GitHubAccount[] = [account('github.com:42', 'cli'), account('github.com:84', 'cli')];
   error: Error | null = null;
+  options: unknown[] = [];
 
   constructor(private readonly calls: string[]) {}
 
-  async importAccounts() {
+  async importAccounts(options?: unknown) {
     this.calls.push('cli');
+    this.options.push(options);
     if (this.error) throw this.error;
     return this.result;
   }
@@ -76,6 +78,7 @@ describe('GitHubAccountReconciliationService', () => {
       legacyAccountId: 'github.com:42',
       importedCliAccountIds: ['github.com:42', 'github.com:84'],
     });
+    expect(cliImporter.options).toEqual([{ skipRemovedAccounts: true }]);
     expect(logger.warnings).toEqual([]);
   });
 
