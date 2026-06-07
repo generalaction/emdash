@@ -133,12 +133,21 @@ describe('buildAgentEnv provider env forwarding', () => {
       GOOSE_PROVIDER__HOST: 'https://goose.example.test',
       OPENCODE_MODEL: 'anthropic/claude-sonnet-4-5',
       AMP_TOOLBOX: '/tmp/amp-toolbox',
+      JUNIE_API_KEY: 'junie-token',
+      JUNIE_MODEL: 'sonnet',
+      JUNIE_LLM_PROVIDER: 'anthropic',
+      JUNIE_ANTHROPIC_API_KEY: 'junie-anthropic-key',
+      JUNIE_CONFIG_LOCATION: '/tmp/junie-config.json',
+      JUNIE_EFFORT: 'high',
+      JUNIE_LITELLM_URL: 'http://localhost:4000',
       ALL_PROXY: 'socks5://127.0.0.1:9000',
     };
     Object.assign(process.env, providerEnv, {
       CLAUDE_PROJECT_DIR: '/tmp/hook-owned',
       CODEX_ACCESS_TOKEN: 'do-not-pass',
       GOOSE_TERMINAL: 'do-not-pass',
+      JUNIE_PROJECT: '/tmp/wrong-project',
+      JUNIE_TASK: 'do not run this task',
       TOOLBOX_ACTION: 'do-not-pass',
     });
 
@@ -151,6 +160,8 @@ describe('buildAgentEnv provider env forwarding', () => {
     expect(env.CLAUDE_PROJECT_DIR).toBeUndefined();
     expect(env.CODEX_ACCESS_TOKEN).toBeUndefined();
     expect(env.GOOSE_TERMINAL).toBeUndefined();
+    expect(env.JUNIE_PROJECT).toBeUndefined();
+    expect(env.JUNIE_TASK).toBeUndefined();
     expect(env.TOOLBOX_ACTION).toBeUndefined();
   });
 

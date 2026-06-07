@@ -578,6 +578,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     versionArgs: ['--version'],
     cli: 'junie',
     initialPromptFlag: '--task',
+    resumeFlag: '--resume',
     sessionIdFlag: '--session-id',
     icon: 'junie-color.png',
     alt: 'Junie CLI',

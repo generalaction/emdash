@@ -51,6 +51,7 @@ vi.mock('@main/core/pty/ssh2-pty', () => ({
 
 vi.mock('./agent-command', () => ({
   buildAgentSessionCommand: vi.fn(() => ({ command: 'agent', args: [] })),
+  parseArgField: vi.fn((value: string | undefined) => (value ? [value] : [])),
 }));
 
 vi.mock('./keystroke-injection', () => ({
