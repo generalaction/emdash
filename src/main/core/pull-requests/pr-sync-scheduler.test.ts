@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveProjectGitHubAuthContext } from '@main/core/github/services/project-github-auth-context';
-import { prSyncProgressChannel } from '@shared/events/prEvents';
-import { err, ok } from '@shared/result';
+import { prSyncProgressChannel } from '@shared/core/pull-requests/prEvents';
+import { err, ok } from '@shared/lib/result';
 import { prSyncEngine } from './pr-sync-engine';
 import { PrSyncScheduler } from './pr-sync-scheduler';
 

@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fsWatchEventChannel } from '@shared/events/fsEvents';
-import { projectSettingsChangedChannel } from '@shared/events/projectEvents';
-import { lifecycleScriptStatusChannel } from '@shared/events/taskEvents';
-import { createLifecycleScriptTerminalId } from '@shared/terminals';
+import { fsWatchEventChannel } from '@shared/core/fs/fsEvents';
+import { projectSettingsChangedChannel } from '@shared/core/projects/projectEvents';
+import { lifecycleScriptStatusChannel } from '@shared/core/tasks/taskEvents';
+import { createLifecycleScriptTerminalId } from '@shared/core/terminals/terminals';
 import { LifecycleScriptsStore, LifecycleScriptStore } from './lifecycle-scripts';
 
 const eventHandlers = new Map<string, (data: unknown) => void>();

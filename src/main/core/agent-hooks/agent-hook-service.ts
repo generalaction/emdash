@@ -12,11 +12,11 @@ import {
   isAttentionNotification,
   type AgentEvent,
   type AgentStatus,
-} from '@shared/events/agentEvents';
+} from '@shared/core/agents/agentEvents';
 import {
   conversationAgentStatusChangedChannel,
   conversationChangedChannel,
-} from '@shared/events/conversationEvents';
+} from '@shared/core/conversations/conversationEvents';
 import { handleCodexSessionStartHook } from './codex-session-start';
 import { enrichEvent } from './event-enricher';
 import { handleProviderSessionHook } from './handle-provider-session-hook';

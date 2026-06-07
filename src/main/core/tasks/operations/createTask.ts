@@ -6,16 +6,16 @@ import { db, type DrizzleTx } from '@main/db/client';
 import { conversations, projects, tasks, workspaces } from '@main/db/schema';
 import type { ConversationRow, TaskRow } from '@main/db/schema';
 import { events } from '@main/lib/events';
-import type { ConversationConfig } from '@shared/conversation-config';
-import type { Conversation } from '@shared/conversations';
-import { conversationCreatedChannel } from '@shared/events/conversationEvents';
-import { err, ok, type Result } from '@shared/result';
+import type { ConversationConfig } from '@shared/core/conversations/conversation-config';
+import { conversationCreatedChannel } from '@shared/core/conversations/conversationEvents';
+import type { Conversation } from '@shared/core/conversations/conversations';
 import type {
   CreateTaskError,
   CreateTaskParams,
   CreateTaskSuccess,
   TaskLifecycleStatus,
-} from '@shared/tasks';
+} from '@shared/core/tasks/tasks';
+import { err, ok, type Result } from '@shared/lib/result';
 import { mapTaskRowToTask } from '../utils/utils';
 
 type ConvInsert = typeof conversations.$inferInsert;

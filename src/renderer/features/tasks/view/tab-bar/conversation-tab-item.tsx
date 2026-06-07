@@ -9,7 +9,7 @@ import {
   ContextMenuTrigger,
 } from '@renderer/lib/ui/context-menu';
 import { agentConfig } from '@renderer/utils/agentConfig';
-import { MAX_CONVERSATION_TITLE_LENGTH } from '@shared/conversations';
+import { MAX_CONVERSATION_TITLE_LENGTH } from '@shared/core/conversations/conversations';
 import { AgentStatusIndicator } from '../../components/agent-status-indicator';
 import { formatConversationTitleForDisplay } from '../../conversations/conversation-title-utils';
 import type { ResolvedConversationTab } from '../../tabs/tab-manager-store';

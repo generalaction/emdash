@@ -17,7 +17,10 @@ import { MicroLabel } from '@renderer/lib/ui/label';
 import { BoundShortcut } from '@renderer/lib/ui/shortcut';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
-import type { TerminalShellAvailability, TerminalShellId } from '@shared/terminal-settings';
+import type {
+  TerminalShellAvailability,
+  TerminalShellId,
+} from '@shared/core/terminals/terminal-settings';
 import { scriptIcon } from './terminal-tabs';
 
 interface TerminalDrawerSidebarProps {

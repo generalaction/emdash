@@ -1,7 +1,6 @@
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
-import { fsWatchEventChannel } from '@shared/events/fsEvents';
-import { projectSettingsChangedChannel } from '@shared/events/projectEvents';
+import { fsWatchEventChannel } from '@shared/core/fs/fsEvents';
 import {
   PROJECT_CONFIG_FILE,
   type MigrateProjectConfigRequest,
@@ -12,9 +11,10 @@ import {
   type ProjectSettingsPage,
   type ProjectSettingsWriteTargetOption,
   type WriteProjectConfigRequest,
-} from '@shared/project-settings';
+} from '@shared/core/project-settings/project-settings';
+import { projectSettingsChangedChannel } from '@shared/core/projects/projectEvents';
+import type { Result } from '@shared/lib/result';
 import type { UpdateProjectSettingsError } from '@shared/projects';
-import type { Result } from '@shared/result';
 
 export class ProjectSettingsStore {
   readonly pageData: Resource<ProjectSettingsPage>;

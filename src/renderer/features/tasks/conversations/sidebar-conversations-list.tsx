@@ -22,7 +22,7 @@ import { MicroLabel } from '@renderer/lib/ui/label';
 import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { agentConfig } from '@renderer/utils/agentConfig';
 import { cn } from '@renderer/utils/utils';
-import { MAX_CONVERSATION_TITLE_LENGTH } from '@shared/conversations';
+import { MAX_CONVERSATION_TITLE_LENGTH } from '@shared/core/conversations/conversations';
 import { AgentStatusIndicator } from '../components/agent-status-indicator';
 
 const ROW_HEIGHT = 32;

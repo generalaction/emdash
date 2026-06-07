@@ -1,7 +1,7 @@
 import type { GitHubApiAuthContext } from '@main/core/github/services/github-api-auth-service';
 import { projectManager } from '@main/core/projects/project-manager';
 import { log } from '@main/lib/logger';
-import type { Result } from '@shared/result';
+import type { Result } from '@shared/lib/result';
 import {
   ProjectGitHubAuthContextResolver,
   type ProjectGitHubAuthContextError,

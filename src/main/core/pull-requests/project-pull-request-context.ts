@@ -4,9 +4,9 @@ import {
   type ProjectGitHubAuthContextError,
 } from '@main/core/github/services/project-github-auth-context';
 import { providerRepositoryService } from '@main/core/repository/provider-repository-service';
+import type { PullRequestError } from '@shared/core/pull-requests/pull-requests';
+import { err, ok, type Result } from '@shared/lib/result';
 import type { ProviderRepositoryError } from '@shared/provider-repository';
-import type { PullRequestError } from '@shared/pull-requests';
-import { err, ok, type Result } from '@shared/result';
 
 export type ProjectPullRequestContext = {
   projectId: string;

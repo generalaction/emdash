@@ -5,7 +5,7 @@ import { useDebounce } from '@renderer/lib/hooks/useDebounce';
 import { rpc } from '@renderer/lib/ipc';
 import { log } from '@renderer/utils/logger';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
-import type { CatalogIndex, CatalogSkill } from '@shared/skills/types';
+import type { CatalogIndex, CatalogSkill } from '@shared/core/skills/types';
 
 const CATALOG_QUERY_KEY = ['skills', 'catalog'] as const;
 

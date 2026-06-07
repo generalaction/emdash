@@ -1,7 +1,7 @@
 import { observable, runInAction } from 'mobx';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { terminalRegistry } from '@renderer/features/tasks/stores/terminal-registry';
-import type { Terminal } from '@shared/terminals';
+import type { Terminal } from '@shared/core/terminals/terminals';
 import type { TerminalManagerStore, TerminalStore } from './terminal-manager';
 import { TerminalTabViewStore } from './terminal-tab-view-store';
 

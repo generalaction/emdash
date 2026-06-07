@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useConnectedIssueProviders } from '@renderer/features/integrations/use-connected-issue-providers';
 import { useIssues } from '@renderer/features/integrations/use-issues';
 import { getProjectViewStore } from '@renderer/features/projects/stores/project-selectors';
-import type { LinkedIssue } from '@shared/linked-issue';
+import type { LinkedIssue } from '@shared/core/linked-issue';
 
 export type UseIssueSearchResult = ReturnType<typeof useIssueSearch>;
 

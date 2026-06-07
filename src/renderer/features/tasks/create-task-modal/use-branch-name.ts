@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
-import type { LinkedIssue } from '@shared/linked-issue';
+import type { LinkedIssue } from '@shared/core/linked-issue';
 import { resolveTaskBranchName } from '@shared/resolveTaskBranchName';
 
 export type BranchNameState = {

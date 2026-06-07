@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Remote } from '@shared/git';
+import type { Remote } from '@shared/core/git/git';
 import { getTargetRemotes, resolveCreatePrTargetRemote } from './target-remote';
 
 const remotes: Remote[] = [

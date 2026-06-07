@@ -3,7 +3,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { useEffect, useRef } from 'react';
 import { MultiLineListItem } from '@renderer/lib/components/multi-line-list-item';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
-import type { PullRequest } from '@shared/pull-requests';
+import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
 import { PrRow } from './pr-row';
 
 interface PrVirtualListProps {

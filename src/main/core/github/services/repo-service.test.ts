@@ -1,6 +1,6 @@
 import type { Octokit } from '@octokit/rest';
 import { describe, expect, it, vi } from 'vitest';
-import { ok } from '@shared/result';
+import { ok } from '@shared/lib/result';
 import { getOctokit } from './octokit-provider';
 import { repoService } from './repo-service';
 

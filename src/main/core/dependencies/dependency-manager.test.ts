@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import { err, ok } from '@shared/result';
+import { err, ok } from '@shared/lib/result';
 import { DependencyManager } from './dependency-manager';
 
 vi.mock('@main/core/settings/settings-service', () => ({

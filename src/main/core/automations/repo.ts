@@ -16,20 +16,21 @@ import type {
   Automation,
   CreateAutomationParams,
   UpdateAutomationSettingsPatch,
-} from '@shared/automations/automation';
+} from '@shared/core/automations/automation';
 import type {
   AutomationRun,
   AutomationRunStatus,
   AutomationRunTriggerKind,
-} from '@shared/automations/automation-run';
+  RunError,
+} from '@shared/core/automations/automation-run';
 import type {
   ConversationConfig,
   StoredAutomationTaskConfig,
   TriggerConfig,
-} from '@shared/automations/config';
-import { storedAutomationTaskConfig } from '@shared/automations/config';
-import { getLocalTimeZone } from '@shared/automations/timezone';
-import { assertValidCronTrigger } from '@shared/automations/validation';
+} from '@shared/core/automations/config';
+import { storedAutomationTaskConfig } from '@shared/core/automations/config';
+import { getLocalTimeZone } from '@shared/core/automations/timezone';
+import { assertValidCronTrigger } from '@shared/core/automations/validation';
 
 const DEFAULT_TZ = getLocalTimeZone();
 
@@ -102,6 +103,26 @@ function mapAutomationRows(rows: AutomationRow[]): Automation[] {
   });
 }
 
+function parseRunError(raw: string | null | undefined): RunError | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (
+      parsed !== null &&
+      typeof parsed === 'object' &&
+      'step' in parsed &&
+      'code' in parsed &&
+      typeof (parsed as RunError).step === 'string' &&
+      typeof (parsed as RunError).code === 'string'
+    ) {
+      return parsed as RunError;
+    }
+  } catch {
+    // fall through
+  }
+  return null;
+}
+
 function parseSnapshotTriggerConfig(raw: string, runId: string): TriggerConfig {
   try {
     const parsed = JSON.parse(raw) as unknown;
@@ -149,7 +170,7 @@ function mapAutomationRunRow(row: AutomationRunRow, taskId: string | null = null
     status: asRunStatus(row.status, row.id),
     taskId,
     generatedTaskName: row.generatedTaskName ?? null,
-    error: row.error,
+    error: parseRunError(row.error),
     triggerKind: asRunTriggerKind(row.triggerKind, row.id),
     triggerConfigSnapshot: parseSnapshotTriggerConfig(row.triggerConfigSnapshot, row.id),
     conversationConfigSnapshot: parseSnapshotConversationConfig(
@@ -570,7 +591,7 @@ export async function insertRun(input: {
   launchedAt?: number | null;
   finishedAt?: number | null;
   generatedTaskName?: string | null;
-  error?: string | null;
+  error?: RunError | null;
 }): Promise<AutomationRun> {
   const [row] = await db
     .insert(automationRuns)
@@ -585,7 +606,7 @@ export async function insertRun(input: {
       finishedAt: input.finishedAt ?? null,
       status: input.status,
       generatedTaskName: input.generatedTaskName ?? generateRandom(),
-      error: input.error ?? null,
+      error: input.error ? JSON.stringify(input.error) : null,
       triggerKind: input.triggerKind,
       triggerConfigSnapshot: JSON.stringify(input.triggerConfigSnapshot),
       conversationConfigSnapshot: JSON.stringify(input.conversationConfigSnapshot),
@@ -613,9 +634,14 @@ export async function updateRun(
     >
   >
 ): Promise<AutomationRun | null> {
+  const { error, ...rest } = values;
+  const dbValues = {
+    ...rest,
+    ...(error !== undefined ? { error: error ? JSON.stringify(error) : null } : {}),
+  };
   const [row] = await db
     .update(automationRuns)
-    .set(values)
+    .set(dbValues)
     .where(eq(automationRuns.id, id))
     .returning();
   return row ? mapAutomationRunRow(row) : null;

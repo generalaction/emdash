@@ -1,6 +1,6 @@
 import type { GitHubApiAuthContext } from '@main/core/github/services/github-api-auth-service';
 import type { ProjectSettingsProvider } from '@main/core/projects/settings/provider';
-import { err, ok, type Result } from '@shared/result';
+import { err, ok, type Result } from '@shared/lib/result';
 
 export type ProjectGitHubAuthContextError =
   | {

@@ -1,5 +1,5 @@
 import type { Workspace } from '@main/core/workspaces/workspace';
-import type { LifecycleScriptType } from '@shared/events/taskEvents';
+import type { LifecycleScriptType } from '@shared/core/tasks/taskEvents';
 import { getEffectiveTaskSettings } from '../projects/settings/effective-task-settings';
 import { resolveWorkspace } from '../projects/utils';
 

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveProjectGitHubAuthContext } from '@main/core/github/services/project-github-auth-context';
 import { providerRepositoryService } from '@main/core/repository/provider-repository-service';
-import { err, ok } from '@shared/result';
+import { err, ok } from '@shared/lib/result';
 import {
   resolveProjectPullRequestAuthContext,
   resolveProjectPullRequestContext,

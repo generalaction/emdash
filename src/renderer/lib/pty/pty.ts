@@ -4,7 +4,7 @@ import { events, rpc } from '@renderer/lib/ipc';
 import { confirmOpenExternalLink } from '@renderer/lib/open-external-link';
 import { cssColorToHex, cssVar } from '@renderer/utils/cssVars';
 import { log } from '@renderer/utils/logger';
-import { ptyDataChannel } from '@shared/events/ptyEvents';
+import { ptyDataChannel } from '@shared/core/pty/ptyEvents';
 import { FileLinkProvider } from './file-link-provider';
 import { decodeOsc52ClipboardData } from './pty-clipboard';
 import { buildTerminalFontFamily } from './terminal-font';

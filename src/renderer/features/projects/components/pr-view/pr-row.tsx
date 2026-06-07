@@ -9,7 +9,7 @@ import { Button } from '@renderer/lib/ui/button';
 import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { formatDiffLineCount } from '@renderer/utils/format-diff-line-count';
-import { getPrNumber, type PullRequest } from '@shared/pull-requests';
+import { getPrNumber, type PullRequest } from '@shared/core/pull-requests/pull-requests';
 
 export const PrRow = memo(function PrRow({
   pr,

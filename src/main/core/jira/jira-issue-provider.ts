@@ -1,8 +1,8 @@
 import { URL } from 'node:url';
 import { clampIssueLimit, normalizeSearchTerm } from '@main/core/issues/helpers/provider-inputs';
 import type { IssueProvider } from '@main/core/issues/issue-provider';
+import type { LinkedIssue } from '@shared/core/linked-issue';
 import { ISSUE_PROVIDER_CAPABILITIES, type IssueListResult } from '@shared/issue-providers';
-import type { LinkedIssue } from '@shared/linked-issue';
 import { jiraConnectionService } from './jira-connection-service';
 import { doJiraGet, doJiraPost } from './jira-http-client';
 

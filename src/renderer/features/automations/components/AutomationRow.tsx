@@ -1,3 +1,4 @@
+import cronstrue from 'cronstrue';
 import {
   CheckCircle2,
   Clock,
@@ -21,9 +22,9 @@ import { getTaskStore, taskAgentStatus } from '@renderer/features/tasks/stores/t
 import { AbsoluteTime } from '@renderer/lib/ui/absolute-time';
 import { Switch } from '@renderer/lib/ui/switch';
 import { cn } from '@renderer/utils/utils';
-import type { Automation } from '@shared/automations/automation';
-import type { AutomationRunStatus } from '@shared/automations/automation-run';
-import { formatCronLabel, formatRunTriggerKindLabel } from '@shared/automations/format';
+import type { Automation } from '@shared/core/automations/automation';
+import type { AutomationRunStatus } from '@shared/core/automations/automation-run';
+import { formatRunTriggerKindLabel } from '../automation-run-format';
 
 const RUN_STATUS_ICON: Record<
   AutomationRunStatus,
@@ -61,8 +62,15 @@ export const AutomationRow = observer(function AutomationRow({
   const taskStore = taskId && projectId ? getTaskStore(projectId, taskId) : undefined;
   const agentStatus = taskStore ? taskAgentStatus(taskStore) : null;
 
-  const cronLabel = automation.triggerConfig?.expr
-    ? formatCronLabel(automation.triggerConfig.expr)
+  const expr = automation.triggerConfig?.expr ?? null;
+  const cronLabel = expr
+    ? (() => {
+        try {
+          return cronstrue.toString(expr.trim());
+        } catch {
+          return expr;
+        }
+      })()
     : null;
 
   return (

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Automation } from '@shared/automations/automation';
-import type { AutomationRun } from '@shared/automations/automation-run';
+import type { Automation } from '@shared/core/automations/automation';
+import type { AutomationRun } from '@shared/core/automations/automation-run';
 import { executeTaskCreate } from './actions/taskCreate';
 import { updateRun } from './repo';
 import type { OnStepCompleted } from './run-transitions';
@@ -84,7 +84,7 @@ describe('runQueuedAutomation', () => {
       ...run,
       status: 'skipped' as const,
       finishedAt: Date.now(),
-      error: JSON.stringify({ step: 'queue', code: 'no_project' }),
+      error: { step: 'queue' as const, code: 'no_project' },
     };
     vi.mocked(updateRun).mockResolvedValue(skippedRun);
 
@@ -98,7 +98,7 @@ describe('runQueuedAutomation', () => {
     expect(executeTaskCreate).not.toHaveBeenCalled();
     expect(updateRun).toHaveBeenCalledWith(run.id, {
       status: 'skipped',
-      error: JSON.stringify({ step: 'queue', code: 'no_project' }),
+      error: { step: 'queue', code: 'no_project' },
       finishedAt: expect.any(Number),
     });
     expect(onStepCompleted).toHaveBeenCalledWith(expect.objectContaining({ status: 'skipped' }));
@@ -113,7 +113,7 @@ describe('runQueuedAutomation', () => {
       ...run,
       status: 'skipped' as const,
       finishedAt: Date.now(),
-      error: JSON.stringify({ step: 'queue', code: 'no_actions_configured' }),
+      error: { step: 'queue' as const, code: 'no_actions_configured' },
     };
     vi.mocked(updateRun).mockResolvedValue(skippedRun);
 
@@ -123,7 +123,7 @@ describe('runQueuedAutomation', () => {
     expect(executeTaskCreate).not.toHaveBeenCalled();
     expect(updateRun).toHaveBeenCalledWith(run.id, {
       status: 'skipped',
-      error: JSON.stringify({ step: 'queue', code: 'no_actions_configured' }),
+      error: { step: 'queue', code: 'no_actions_configured' },
       finishedAt: expect.any(Number),
     });
     expect(onStepCompleted).toHaveBeenCalledWith(expect.objectContaining({ status: 'skipped' }));

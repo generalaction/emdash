@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useTheme } from '@renderer/lib/hooks/useTheme';
-import type { CatalogSkill } from '@shared/skills/types';
+import type { CatalogSkill } from '@shared/core/skills/types';
 import { resolveSkillIcon } from './skillIcons';
 
 function processSvg(raw: string, fillColor: string): string {

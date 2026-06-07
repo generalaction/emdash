@@ -16,10 +16,10 @@ import {
   type TerminalSpawnOptions,
 } from '@main/core/terminals/terminal-provider';
 import { log } from '@main/lib/logger';
-import type { GeneralSessionConfig } from '@shared/general-session';
-import { makePtySessionId } from '@shared/ptySessionId';
-import type { TerminalShellId } from '@shared/terminal-settings';
-import type { Terminal } from '@shared/terminals';
+import { makePtySessionId } from '@shared/core/pty/ptySessionId';
+import type { GeneralSessionConfig } from '@shared/core/terminals/general-session';
+import type { TerminalShellId } from '@shared/core/terminals/terminal-settings';
+import type { Terminal } from '@shared/core/terminals/terminals';
 import { wireTerminalDevServerWatcher } from '../dev-server-watcher';
 
 const DEFAULT_COLS = 80;

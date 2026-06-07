@@ -10,9 +10,8 @@ import { tasks, workspaces } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
-import { taskCreatedChannel, taskProvisionedChannel } from '@shared/events/taskEvents';
-import type { LinkedIssue } from '@shared/linked-issue';
-import { err, ok, type Result } from '@shared/result';
+import type { LinkedIssue } from '@shared/core/linked-issue';
+import { taskCreatedChannel, taskProvisionedChannel } from '@shared/core/tasks/taskEvents';
 import type {
   CreateTaskError,
   CreateTaskParams,
@@ -23,7 +22,8 @@ import type {
   RenameTaskError,
   RenameTaskSuccess,
   Task,
-} from '@shared/tasks';
+} from '@shared/core/tasks/tasks';
+import { err, ok, type Result } from '@shared/lib/result';
 import { archiveTask } from './operations/archiveTask';
 import { createTask } from './operations/createTask';
 import { deleteTask } from './operations/deleteTask';

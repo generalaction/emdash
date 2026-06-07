@@ -13,13 +13,13 @@ import {
 import { taskService } from '@main/core/tasks/task-service';
 import { db } from '@main/db/client';
 import type { ConversationRow, TaskRow } from '@main/db/schema';
-import { resolveAutomationAgentAutoApprove } from '@shared/agent-auto-approve-defaults';
-import type { AgentProviderId } from '@shared/agent-provider-registry';
-import type { Automation } from '@shared/automations/automation';
-import type { AutomationRun } from '@shared/automations/automation-run';
-import { err, ok, type Result } from '@shared/result';
-import type { CreateTaskParams } from '@shared/tasks';
-import type { WorkspaceConfig } from '@shared/workspace-config';
+import { resolveAutomationAgentAutoApprove } from '@shared/core/agents/agent-auto-approve-defaults';
+import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import type { Automation } from '@shared/core/automations/automation';
+import type { AutomationRun } from '@shared/core/automations/automation-run';
+import type { CreateTaskParams } from '@shared/core/tasks/tasks';
+import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
+import { err, ok, type Result } from '@shared/lib/result';
 import {
   markRunCreatingConversation,
   markRunFailed,

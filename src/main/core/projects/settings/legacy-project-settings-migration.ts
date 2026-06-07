@@ -1,7 +1,7 @@
 import type { FileSystemProvider } from '@main/core/fs/types';
 import type { RepositoryGitProvider } from '@main/core/git/repository-git-provider';
 import { log } from '@main/lib/logger';
-import { remoteNameFromQualifiedRef } from '@shared/git-utils';
+import { remoteNameFromQualifiedRef } from '@shared/core/git/git-utils';
 import {
   baseProjectSettingsSchema,
   legacyBaseProjectSettingsSchema,
@@ -9,10 +9,10 @@ import {
   shareableProjectSettingsSchema,
   type BaseProjectSettings,
   type ShareableProjectSettings,
-} from '@shared/project-settings';
-import { mergeShareableProjectSettings } from '@shared/project-settings-fields';
+} from '@shared/core/project-settings/project-settings';
+import { mergeShareableProjectSettings } from '@shared/core/project-settings/project-settings-fields';
+import type { Result } from '@shared/lib/result';
 import type { UpdateProjectSettingsError } from '@shared/projects';
-import type { Result } from '@shared/result';
 import {
   hasLegacyShareableConfigMigrated,
   serializeShareableProjectSettings,

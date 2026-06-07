@@ -3,7 +3,7 @@ import type { BaseAgent, ParsedKey, SignCallback } from 'ssh2';
 import { utils } from 'ssh2';
 import { describe, expect, it } from 'vitest';
 import type { SshConnectionRow } from '@main/db/schema';
-import type { SshConfig } from '@shared/ssh';
+import type { SshConfig } from '@shared/core/ssh/ssh';
 import {
   createSshConnectConfigResolver,
   resolveSshConnectConfig,

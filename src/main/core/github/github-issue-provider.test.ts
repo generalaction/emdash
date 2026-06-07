@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { err, ok } from '@shared/result';
+import { err, ok } from '@shared/lib/result';
 import { githubAccountRegistry } from './accounts/github-account-registry-instance';
 import { githubIssueProvider } from './github-issue-provider';
 import { githubRepositoryResolver } from './services/github-repository-resolver';

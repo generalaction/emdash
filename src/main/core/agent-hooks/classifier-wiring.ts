@@ -1,9 +1,9 @@
 import { BrowserWindow } from 'electron';
 import { type Pty } from '@main/core/pty/pty';
 import { log } from '@main/lib/logger';
-import { type AgentProviderId } from '@shared/agent-provider-registry';
-import { type AgentEvent } from '@shared/events/agentEvents';
-import { makePtyId } from '@shared/ptyId';
+import { type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import { type AgentEvent } from '@shared/core/agents/agentEvents';
+import { makePtyId } from '@shared/core/pty/ptyId';
 import { agentHookService } from './agent-hook-service';
 import { createClassifier } from './classifiers';
 import { stripAnsi, type ClassificationResult } from './classifiers/base';

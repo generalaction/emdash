@@ -1,7 +1,7 @@
 import { setProviderSessionId } from '@main/core/conversations/set-provider-session-id';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
-import { conversationChangedChannel } from '@shared/events/conversationEvents';
+import { conversationChangedChannel } from '@shared/core/conversations/conversationEvents';
 import { enrichEvent } from './event-enricher';
 import type { RawHookRequest } from './hook-server';
 

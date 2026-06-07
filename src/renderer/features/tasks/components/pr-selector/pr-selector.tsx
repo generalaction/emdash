@@ -15,7 +15,10 @@ import {
 } from '@renderer/lib/ui/combobox';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/ui/select';
 import { cn } from '@renderer/utils/utils';
-import { pullRequestErrorMessage, type PullRequest } from '@shared/pull-requests';
+import {
+  pullRequestErrorMessage,
+  type PullRequest,
+} from '@shared/core/pull-requests/pull-requests';
 
 type StatusFilter = 'open' | 'not-open';
 

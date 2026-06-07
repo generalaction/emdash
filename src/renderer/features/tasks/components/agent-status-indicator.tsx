@@ -1,7 +1,7 @@
 import { CLISpinner } from '@renderer/features/tasks/components/cliSpinner';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
-import type { AgentStatus } from '@shared/events/agentEvents';
+import type { AgentStatus } from '@shared/core/agents/agentEvents';
 
 export type AgentIndicatorStatus = AgentStatus | null;
 

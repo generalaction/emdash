@@ -1,5 +1,5 @@
+import { err, ok, type Result } from '@shared/lib/result';
 import { normalizeRepositoryHost } from '@shared/repository-ref';
-import { err, ok, type Result } from '@shared/result';
 import type { GitHubAccount } from '../accounts/github-account-registry';
 import {
   githubApiAccountHostMismatch,

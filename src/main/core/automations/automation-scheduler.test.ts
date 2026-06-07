@@ -7,7 +7,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { log } from '@main/lib/logger';
-import type { Automation } from '@shared/automations/automation';
+import type { Automation } from '@shared/core/automations/automation';
 import { AutomationScheduler, type SchedulerCallbacks } from './automation-scheduler';
 import {
   enabledAutomationsWithoutQueuedRun,

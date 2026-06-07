@@ -3,7 +3,7 @@ import {
   DEFAULT_REMOTE_NAME,
   resolveConfiguredRemotes,
   selectPreferredRemote,
-} from '@shared/git-utils';
+} from '@shared/core/git/git-utils';
 
 const r = (name: string, url = '') => ({ name, url });
 

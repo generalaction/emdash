@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { rpc } from '@renderer/lib/ipc';
-import type { TerminalShellAvailability } from '@shared/terminal-settings';
+import type { TerminalShellAvailability } from '@shared/core/terminals/terminal-settings';
 
 export const DEFAULT_TERMINAL_SHELL_AVAILABILITY: TerminalShellAvailability[] = [];
 

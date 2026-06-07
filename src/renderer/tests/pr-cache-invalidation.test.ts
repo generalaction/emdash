@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { shouldInvalidatePrListQuery } from '@renderer/lib/should-invalidate-pr-list-query';
-import type { PrSyncProgress } from '@shared/pull-requests';
+import type { PrSyncProgress } from '@shared/core/pull-requests/pull-requests';
 
 function progress(overrides: Partial<PrSyncProgress> = {}): PrSyncProgress {
   return {

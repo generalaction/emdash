@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
-import { lifecycleScriptStatusChannel } from '@shared/events/taskEvents';
+import { lifecycleScriptStatusChannel } from '@shared/core/tasks/taskEvents';
 import type { Pty, PtyExitInfo } from '../pty/pty';
 import type { LifecycleScriptSpawnRequest, TerminalProvider } from '../terminals/terminal-provider';
 import {

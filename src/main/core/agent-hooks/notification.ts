@@ -6,8 +6,8 @@ import { db } from '@main/db/client';
 import { tasks } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
-import { getProvider, type AgentProviderId } from '@shared/agent-provider-registry';
-import { isAttentionNotification, type AgentEvent } from '@shared/events/agentEvents';
+import { getProvider, type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import { isAttentionNotification, type AgentEvent } from '@shared/core/agents/agentEvents';
 import { notificationFocusTaskChannel } from '@shared/events/appEvents';
 
 function getNotificationBody(event: AgentEvent): string | null {

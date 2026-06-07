@@ -1,7 +1,7 @@
 import type { Pty } from '@main/core/pty/pty';
 import { log } from '@main/lib/logger';
-import { getProvider, type AgentProviderId } from '@shared/agent-provider-registry';
-import type { ProviderCustomConfig } from '@shared/app-settings';
+import { getProvider, type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import type { ProviderCustomConfig } from '@shared/core/app-settings';
 import { buildPromptInjectionPayload } from '@shared/prompt-injection';
 import { parseArgField } from './agent-command';
 

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { err, ok } from '@shared/result';
+import { err, ok } from '@shared/lib/result';
 import {
   GitHubAccountRegistry,
   type GitHubAccountMetadataStore,

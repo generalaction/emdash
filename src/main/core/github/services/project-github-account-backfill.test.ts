@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ProjectSettings } from '@shared/project-settings';
+import type { ProjectSettings } from '@shared/core/project-settings/project-settings';
 import type { GitHubAccount } from '../accounts/github-account-registry';
 import { ProjectGitHubAccountBackfillService } from './project-github-account-backfill';
 

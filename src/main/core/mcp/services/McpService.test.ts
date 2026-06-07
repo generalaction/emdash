@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AgentMcpMeta, ServerMap } from '@shared/mcp/types';
+import type { AgentMcpMeta, ServerMap } from '@shared/core/mcp/types';
 import * as configIO from '../utils/config-io';
 import * as configPaths from '../utils/config-paths';
 import { McpService } from './McpService';

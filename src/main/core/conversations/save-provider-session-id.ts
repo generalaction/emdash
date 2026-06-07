@@ -3,8 +3,8 @@ import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
-import { isDroidProviderSessionId } from '@shared/conversation-config';
-import { conversationChangedChannel } from '@shared/events/conversationEvents';
+import { isDroidProviderSessionId } from '@shared/core/conversations/conversation-config';
+import { conversationChangedChannel } from '@shared/core/conversations/conversationEvents';
 
 export async function saveProviderSessionId(
   conversationId: string,

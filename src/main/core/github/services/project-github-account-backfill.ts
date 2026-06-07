@@ -1,6 +1,6 @@
-import type { ProjectSettings } from '@shared/project-settings';
+import type { ProjectSettings } from '@shared/core/project-settings/project-settings';
+import type { Result } from '@shared/lib/result';
 import { normalizeRepositoryHost, parseRepositoryRef } from '@shared/repository-ref';
-import type { Result } from '@shared/result';
 import type { GitHubAccount, GitHubAccountRegistry } from '../accounts/github-account-registry';
 
 type AccountLookup = Pick<GitHubAccountRegistry, 'getDefaultAccountId' | 'listAccounts'>;

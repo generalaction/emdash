@@ -13,7 +13,7 @@ import { projectRemotes } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
 import { log } from '@main/lib/logger';
-import { prSyncProgressChannel } from '@shared/events/prEvents';
+import { prSyncProgressChannel } from '@shared/core/pull-requests/prEvents';
 import { parseRepositoryRef } from '@shared/repository-ref';
 import { prSyncEngine } from './pr-sync-engine';
 import { syncProjectRemotes } from './project-remotes-service';

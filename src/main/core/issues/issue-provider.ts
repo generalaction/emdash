@@ -1,10 +1,10 @@
+import type { LinkedIssue } from '@shared/core/linked-issue';
 import type {
   ConnectionStatus,
   IssueContextResult,
   IssueListResult,
   IssueProviderCapabilities,
 } from '@shared/issue-providers';
-import type { LinkedIssue } from '@shared/linked-issue';
 
 export type IssueQueryOpts = {
   limit?: number;

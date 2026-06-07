@@ -1,16 +1,16 @@
 import { providerRepositoryService } from '@main/core/repository/provider-repository-service';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
-import { createRPCController } from '@shared/lib/ipc/rpc';
 import type {
   ListPrOptions,
   PullRequestComment,
   PullRequestError,
   PullRequestFile,
   PullRequestMergeOptions,
-} from '@shared/pull-requests';
+} from '@shared/core/pull-requests/pull-requests';
+import { createRPCController } from '@shared/lib/ipc/rpc';
+import { err, ok } from '@shared/lib/result';
 import { isGitHubDotComHost, parseRepositoryRef } from '@shared/repository-ref';
-import { err, ok } from '@shared/result';
 import { prQueryService } from './pr-query-service';
 import { prSyncEngine } from './pr-sync-engine';
 import { type PrSyncEngineError } from './pr-sync-errors';

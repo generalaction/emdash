@@ -5,8 +5,8 @@ import {
   useWorkspaceId,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
-import { commitRef, refsEqual, type GitChange } from '@shared/git';
-import { getPrNumber, type PullRequest } from '@shared/pull-requests';
+import { commitRef, refsEqual, type GitChange } from '@shared/core/git/git';
+import { getPrNumber, type PullRequest } from '@shared/core/pull-requests/pull-requests';
 import { useChangesViewMode } from '../../hooks/use-changes-view-mode';
 import { ChangesListOrTree } from '../changes-list-or-tree';
 

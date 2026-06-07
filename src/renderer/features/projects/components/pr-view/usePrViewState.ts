@@ -3,8 +3,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { getPrSyncStore } from '@renderer/features/projects/stores/project-selectors';
 import { useDebounce } from '@renderer/lib/hooks/useDebounce';
 import { rpc } from '@renderer/lib/ipc';
-import type { PrFilters, PrSortField } from '@shared/pull-requests';
-import { toUserItem, type UserItem } from './pr-filter-items';
+import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
+import type { PrFilters, PrSortField } from '@shared/core/pull-requests/pull-requests';
+import { toUserItem, usersWithLoginFirst, type UserItem } from './pr-filter-items';
 import { useFilterOptions, usePullRequests } from './usePullRequests';
 
 export type StatusFilter = 'open' | 'not-open';
@@ -13,6 +14,7 @@ export type LabelItem = { value: string; label: string; color?: string };
 
 export function usePrViewState(projectId: string, repositoryUrl: string | null) {
   const queryClient = useQueryClient();
+  const { user } = useGithubContext();
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('open');
   const [sortFilter, setSortFilter] = useState<PrSortField>('newest');
   const [selectedAuthorUserId, setSelectedAuthorUserId] = useState<string | null>(null);
@@ -53,8 +55,11 @@ export function usePrViewState(projectId: string, repositoryUrl: string | null) 
   const { data: filterOptions } = useFilterOptions(projectId, repositoryUrl ?? undefined);
 
   const authorItems: UserItem[] = useMemo(
-    () => (filterOptions?.authors ?? []).map((author) => toUserItem(author)),
-    [filterOptions?.authors]
+    () =>
+      usersWithLoginFirst(filterOptions?.authors ?? [], user?.login).map((author) =>
+        toUserItem(author)
+      ),
+    [filterOptions?.authors, user?.login]
   );
 
   const assigneeItems: UserItem[] = useMemo(

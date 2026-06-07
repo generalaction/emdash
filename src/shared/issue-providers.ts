@@ -1,4 +1,4 @@
-import type { LinkedIssue } from './linked-issue';
+import type { LinkedIssue } from './core/linked-issue';
 
 export type IssueProviderType = LinkedIssue['provider'];
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sshConnectionMetadata } from '@shared/ssh-connection-metadata';
+import { sshConnectionMetadata } from '@shared/core/ssh/ssh-connection-metadata';
 import { mergeSshConnectionMetadata, sshConfigFromRow } from './connection-metadata';
 
 describe('SSH connection metadata', () => {
