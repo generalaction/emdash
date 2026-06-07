@@ -1,5 +1,5 @@
-import { catalogData } from '@shared/mcp/catalog';
-import type { McpCatalogEntry, RawServerEntry } from '@shared/mcp/types';
+import { catalogData } from '@shared/core/mcp/catalog';
+import type { McpCatalogEntry, RawServerEntry } from '@shared/core/mcp/types';
 
 export function loadCatalog(): McpCatalogEntry[] {
   return Object.entries(catalogData).map(([key, entry]) => ({

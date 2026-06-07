@@ -3,12 +3,8 @@ import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
-import {
-  isDroidProviderSessionId,
-  parseConversationConfig,
-  serializeConversationConfig,
-} from '@shared/conversation-config';
-import { conversationChangedChannel } from '@shared/events/conversationEvents';
+import { isDroidProviderSessionId } from '@shared/core/conversations/conversation-config';
+import { conversationChangedChannel } from '@shared/core/conversations/conversationEvents';
 
 export async function saveProviderSessionId(
   conversationId: string,
@@ -34,17 +30,12 @@ export async function saveProviderSessionId(
 
   if (!row) return;
 
-  const config = parseConversationConfig(row.config);
+  const config = row.config ?? {};
   if (config.providerSessionId === providerSessionId) return;
-
-  const nextConfig = serializeConversationConfig({
-    ...config,
-    providerSessionId,
-  });
 
   await db
     .update(conversations)
-    .set({ config: nextConfig, updatedAt: new Date().toISOString() })
+    .set({ config: { ...config, providerSessionId }, updatedAt: new Date().toISOString() })
     .where(eq(conversations.id, conversationId));
 
   events.emit(conversationChangedChannel, {

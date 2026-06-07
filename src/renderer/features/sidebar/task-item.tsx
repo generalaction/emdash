@@ -16,7 +16,7 @@ import {
 } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { cn } from '@renderer/utils/utils';
-import { selectCurrentPr } from '@shared/pull-requests';
+import { selectCurrentPr } from '@shared/core/pull-requests/pull-requests';
 import { PrBadge } from '../../lib/components/pr-badge';
 import { useAppSettingsKey } from '../settings/use-app-settings-key';
 import { SidebarMenuAction, SidebarMenuRow } from './sidebar-primitives';
@@ -70,8 +70,6 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
 
   const handleRename = () => showRename({ projectId, taskId, currentName: taskName });
 
-  const handleConvertAutomation = () => void task.convertAutomationTask();
-
   const handleDelete = () =>
     showDeleteTask({
       projectId,
@@ -104,7 +102,7 @@ export const SidebarTaskItem = observer(function SidebarTaskItem({
       onRename={handleRename}
       onArchive={handleArchive}
       onReconnect={handleReconnect}
-      onConvertAutomation={task.data.automationId ? handleConvertAutomation : undefined}
+      onConvertAutomation={undefined}
       onDelete={handleDelete}
     >
       <SidebarMenuRow

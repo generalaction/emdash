@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { FileNode } from '@shared/fs';
+import type { FileNode } from '@shared/core/fs/fs';
 import { buildVisibleRows, makeNode, sortFileNodes } from './files-store-utils';
 
 function attach(parent: FileNode, child: FileNode): FileNode {

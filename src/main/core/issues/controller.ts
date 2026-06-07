@@ -1,10 +1,10 @@
 import { projectManager } from '@main/core/projects/project-manager';
-import { createRPCController } from '@shared/ipc/rpc';
 import type {
   ConnectionStatus,
   ConnectionStatusMap,
   IssueProviderType,
 } from '@shared/issue-providers';
+import { createRPCController } from '@shared/lib/ipc/rpc';
 import type {
   IssueContextOpts,
   IssueProvider,
@@ -16,6 +16,7 @@ import { getAllIssueProviders, getIssueProvider } from './registry';
 const DEFAULT_CAPABILITIES = {
   requiresProjectPath: false,
   requiresRepositoryUrl: false,
+  supportsIssueContext: false,
 } as const;
 
 const CONNECTION_CHECK_TIMEOUT_MS = 8_000;

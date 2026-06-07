@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
-import type { TaskDeletePreflightItem } from '@shared/tasks';
+import type { TaskDeletePreflightItem } from '@shared/core/tasks/tasks';
 
 export type DeleteTaskModalArgs = {
   projectId: string;

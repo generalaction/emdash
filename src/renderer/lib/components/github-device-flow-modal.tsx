@@ -1,12 +1,16 @@
-import { AlertCircle, Check, Copy, ExternalLink } from 'lucide-react';
+import { AlertCircle, Check, Copy, ExternalLink, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import emdashLogo from '@/assets/images/emdash/emdash_logo_white.svg';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import { events, rpc } from '@renderer/lib/ipc';
 import type { BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
 import { Button } from '@renderer/lib/ui/button';
-import { Spinner } from '@renderer/lib/ui/spinner';
+import {
+  DialogContentArea,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@renderer/lib/ui/dialog';
 import { log } from '@renderer/utils/logger';
 import {
   githubAuthDeviceCodeChannel,
@@ -16,31 +20,13 @@ import {
 import type { GitHubUser } from '@shared/github';
 import { EMDASH_ISSUES_URL } from '@shared/urls';
 
-interface GithubDeviceFlowModalProps {
-  onClose: () => void;
-  onError?: (error: string) => void;
-}
-
-type GithubDeviceFlowOverlayExtraProps = {
+export type GithubDeviceFlowModalArgs = {
   onError?: (error: string) => void;
 };
 
-export function GithubDeviceFlowModalOverlay({
-  onClose,
-  onError,
-}: GithubDeviceFlowOverlayExtraProps & BaseModalProps<unknown>) {
-  return (
-    <GithubDeviceFlowModal
-      onClose={onClose}
-      onError={(error) => {
-        onError?.(error);
-        onClose();
-      }}
-    />
-  );
-}
+type GithubDeviceFlowModalProps = BaseModalProps<void> & GithubDeviceFlowModalArgs;
 
-export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModalProps) {
+export function GithubDeviceFlowModal({ onSuccess, onClose, onError }: GithubDeviceFlowModalProps) {
   const { toast } = useToast();
   const { cancelGithubConnect } = useGithubContext();
 
@@ -190,7 +176,7 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
 
       // Auto-close after showing success animation
       setTimeout(() => {
-        onClose();
+        onSuccess();
       }, 1000); // 1 second is enough to see success
     });
 
@@ -215,7 +201,7 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
       cleanupSuccess();
       cleanupError();
     };
-  }, [copyToClipboard, onError, onClose, toast]);
+  }, [copyToClipboard, onError, onSuccess, toast]);
 
   const handleClose = () => {
     onClose();
@@ -245,153 +231,141 @@ export function GithubDeviceFlowModal({ onClose, onError }: GithubDeviceFlowModa
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [copyToClipboard, openGitHub, userCode]);
 
+  const title = success ? 'GitHub connected' : error ? 'Authentication failed' : 'Authorize GitHub';
+
   return (
     <>
-      <div className="flex flex-col items-center px-8 py-12">
-        <img src={emdashLogo} alt="Emdash" className="mb-8 h-8 opacity-90" />
-
+      <DialogHeader>
+        <DialogTitle>{title}</DialogTitle>
+      </DialogHeader>
+      <DialogContentArea className="gap-4">
         {success ? (
-          // Success State
-          <div className="flex animate-in flex-col items-center space-y-6 duration-300 fade-in zoom-in">
-            <div className="flex h-16 w-16 animate-in items-center justify-center rounded-full bg-foreground-success duration-500 zoom-in">
-              <Check className="h-8 w-8 text-white" strokeWidth={3} />
-            </div>
-            <div className="space-y-2 text-center">
-              <h2 className="text-2xl font-semibold">Success!</h2>
-              <p className="text-muted-foreground text-sm">You're connected to GitHub</p>
-              {user && (
-                <div className="mt-4 flex items-center justify-center gap-2">
-                  {user.avatar_url && (
-                    <img src={user.avatar_url} alt={user.name} className="h-10 w-10 rounded-full" />
-                  )}
-                  <div className="text-left">
-                    <p className="text-sm font-medium">{user.name || user.login}</p>
-                    <p className="text-muted-foreground text-xs">@{user.login}</p>
+          <div className="rounded-lg border border-border/60 bg-background/60 p-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-background-success">
+                <Check className="h-4 w-4 text-foreground-success" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium text-foreground">You're connected to GitHub</p>
+                {user ? (
+                  <div className="mt-1 flex min-w-0 items-center gap-2">
+                    {user.avatar_url ? (
+                      <img
+                        src={user.avatar_url}
+                        alt={user.name || user.login}
+                        className="h-5 w-5 shrink-0 rounded-full"
+                      />
+                    ) : null}
+                    <p className="text-muted-foreground truncate text-xs">@{user.login}</p>
                   </div>
-                </div>
-              )}
+                ) : null}
+              </div>
             </div>
           </div>
         ) : error ? (
-          // Error State
-          <div className="flex w-full flex-col items-center space-y-6">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-background-error">
-              <AlertCircle className="h-8 w-8 text-foreground-error" />
+          <div className="rounded-lg border border-border-destructive bg-background-destructive p-3">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-foreground-destructive" />
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-foreground-destructive">
+                  GitHub authorization failed
+                </p>
+                <p className="mt-1 text-xs text-foreground-destructive/80">{error}</p>
+              </div>
             </div>
-            <div className="space-y-2 text-center">
-              <h2 className="text-xl font-semibold">Authentication Failed</h2>
-              <p className="text-muted-foreground text-sm">{error}</p>
-            </div>
-            <Button onClick={handleClose} variant="outline" className="w-full">
-              Close
-            </Button>
           </div>
         ) : (
-          // Waiting State
-          <div className="flex w-full flex-col items-center space-y-6">
-            <div className="space-y-2 text-center">
-              <h2 className="text-2xl font-semibold">Connect to GitHub</h2>
-              <p className="text-muted-foreground text-sm">
-                Follow these steps to authorize Emdash
-              </p>
-            </div>
+          <>
+            <p className="text-sm text-foreground-muted">
+              Enter this one-time code in GitHub to authorize Emdash.
+            </p>
 
-            {userCode && (
-              <>
-                <div className="bg-muted/30 w-full space-y-3 rounded-lg p-6">
-                  <p className="text-muted-foreground text-center text-xs font-medium">Your code</p>
-                  <p className="text-center font-mono text-4xl font-bold tracking-wider select-all">
-                    {userCode}
-                  </p>
-                </div>
-
-                <Button
-                  onClick={() => copyToClipboard(userCode)}
-                  variant="outline"
-                  className="w-full"
-                  disabled={copied}
-                >
-                  {copied ? (
-                    <>
-                      <Check className="mr-2 h-4 w-4" />
-                      Copied!
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="mr-2 h-4 w-4" />
-                      Copy Code
-                    </>
-                  )}
-                </Button>
-              </>
-            )}
-
-            <div className="w-full space-y-3 text-sm">
-              <div className="flex items-start gap-3">
-                <div className="bg-primary/10 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold">
-                  1
-                </div>
-                <p className="text-muted-foreground">
-                  Paste the code in GitHub{' '}
-                  <span className="font-medium text-foreground">(already copied!)</span>
+            <button
+              type="button"
+              onClick={() => copyToClipboard(userCode)}
+              disabled={!userCode}
+              className="focus-visible:border-ring focus-visible:ring-ring/50 rounded-lg border border-border bg-background/60 p-4 text-left transition-colors hover:border-border-1 hover:bg-background-1 focus-visible:ring-3 focus-visible:outline-none disabled:pointer-events-none"
+              aria-label={copied ? 'Code copied' : 'Copy authorization code'}
+            >
+              {userCode ? (
+                <p className="text-center font-mono text-3xl font-semibold tracking-wider text-foreground select-all">
+                  {userCode}
                 </p>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="bg-primary/10 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold">
-                  2
+              ) : (
+                <div className="flex items-center justify-center gap-2 text-sm text-foreground-muted">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Waiting for GitHub...
                 </div>
-                <p className="text-muted-foreground">Click Authorize</p>
-              </div>
-            </div>
-
-            {browserOpening && (
-              <div className="w-full rounded-lg border border-border-info bg-background-info p-4">
-                <p className="text-center text-sm text-foreground-info">
-                  Opening GitHub in {browserOpenCountdown}s...
-                </p>
-              </div>
-            )}
-
-            <div className="flex flex-col items-center gap-2 text-center">
-              <Spinner className="text-muted-foreground h-5 w-5" />
-              <p className="text-muted-foreground text-sm">Waiting for authorization...</p>
-              {timeRemaining > 0 && (
-                <p className="text-muted-foreground text-xs">
-                  Code expires in {formatTime(timeRemaining)}
-                </p>
               )}
+            </button>
+
+            <div className="space-y-2 text-sm">
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-background-2 text-xs text-foreground-muted">
+                  1
+                </span>
+                <p className="text-foreground-muted">
+                  Paste the code in GitHub. The code has already been copied.
+                </p>
+              </div>
+              <div className="flex items-start gap-3">
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md bg-background-2 text-xs text-foreground-muted">
+                  2
+                </span>
+                <p className="text-foreground-muted">Authorize Emdash.</p>
+              </div>
             </div>
 
-            {verificationUri && !browserOpening && (
-              <Button onClick={openGitHub} className="w-full" size="lg">
-                <ExternalLink className="mr-2 h-4 w-4" />
-                Open GitHub
-              </Button>
-            )}
+            {browserOpening ? (
+              <div className="rounded-lg border border-border-info bg-background-info p-3 text-sm text-foreground-info">
+                Opening GitHub in {browserOpenCountdown}s...
+              </div>
+            ) : null}
 
-            <div className="w-full border-t pt-4">
-              <p className="text-muted-foreground text-center text-xs">
-                Having{' '}
-                <button
-                  onClick={() => rpc.app.openExternal(EMDASH_ISSUES_URL)}
-                  className="text-primary hover:underline focus:underline focus:outline-none"
-                >
-                  trouble
-                </button>
-                ?
-              </p>
+            <div className="flex items-center justify-between gap-3 text-xs text-foreground-muted">
+              <div className="flex min-w-0 items-center gap-2">
+                <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" />
+                <span>Waiting for authorization</span>
+                {timeRemaining > 0 ? (
+                  <span>Code expires in {formatTime(timeRemaining)}</span>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                onClick={() => rpc.app.openExternal(EMDASH_ISSUES_URL)}
+                className="shrink-0 underline-offset-3 hover:text-foreground hover:underline focus:text-foreground focus:underline focus:outline-none"
+              >
+                Having trouble?
+              </button>
             </div>
-
-            <div className="text-muted-foreground space-x-3 text-center text-xs">
-              <span>⌘C to copy</span>
-              <span>•</span>
-              <span>⌘R to reopen</span>
-              <span>•</span>
-              <span>Esc to cancel</span>
-            </div>
-          </div>
+          </>
         )}
-      </div>
+      </DialogContentArea>
+      <DialogFooter>
+        {error || success ? (
+          <Button variant="outline" onClick={handleClose}>
+            Close
+          </Button>
+        ) : (
+          <>
+            <Button variant="outline" onClick={handleClose}>
+              Cancel
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => copyToClipboard(userCode)}
+              disabled={!userCode || copied}
+            >
+              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              {copied ? 'Copied' : 'Copy code'}
+            </Button>
+            <Button onClick={openGitHub} disabled={!verificationUri || browserOpening}>
+              <ExternalLink className="h-4 w-4" />
+              Open GitHub
+            </Button>
+          </>
+        )}
+      </DialogFooter>
     </>
   );
 }

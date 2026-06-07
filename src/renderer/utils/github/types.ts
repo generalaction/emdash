@@ -1,4 +1,4 @@
-import type { PullRequestCheck } from '@shared/pull-requests';
+import type { PullRequestCheck } from '@shared/core/pull-requests/pull-requests';
 
 export type CheckRun = PullRequestCheck;
 

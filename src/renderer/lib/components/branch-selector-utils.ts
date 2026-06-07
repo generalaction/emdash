@@ -1,4 +1,4 @@
-import type { Branch } from '@shared/git';
+import type { Branch } from '@shared/core/git/git';
 
 export type BranchLabelRemoteMode = 'full' | 'short';
 

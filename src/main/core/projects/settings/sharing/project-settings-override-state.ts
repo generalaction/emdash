@@ -4,8 +4,8 @@ import {
   SHAREABLE_PROJECT_SETTINGS_WRITE_FIELDS,
   shareableProjectSettingsSchema,
   type ProjectSettingsOverrideState,
-} from '@shared/project-settings';
-import { SHAREABLE_FIELD_ACCESSORS } from '@shared/project-settings-fields';
+} from '@shared/core/project-settings/project-settings';
+import { SHAREABLE_FIELD_ACCESSORS } from '@shared/core/project-settings/project-settings-fields';
 import type { ProjectSettingsResolvedTarget } from './project-settings-target-resolver';
 import { CONFIG_FILE } from './workspace-config-file';
 

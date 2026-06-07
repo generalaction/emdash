@@ -5,7 +5,7 @@ import {
   AGENT_PROVIDER_IDS,
   isValidProviderId,
   type AgentProviderId,
-} from '@shared/agent-provider-registry';
+} from '@shared/core/agents/agent-provider-registry';
 import { resolveConversationProviderSelection } from './provider-selection';
 
 export type EffectiveProvider = {
@@ -14,8 +14,13 @@ export type EffectiveProvider = {
   createDisabled: boolean;
 };
 
-export function useEffectiveProvider(connectionId?: string): EffectiveProvider {
-  const [providerOverride, setProviderOverride] = useState<AgentProviderId | null>(null);
+export function useEffectiveProvider(
+  connectionId?: string,
+  initialOverride?: AgentProviderId
+): EffectiveProvider {
+  const [providerOverride, setProviderOverride] = useState<AgentProviderId | null>(
+    initialOverride ?? null
+  );
 
   const { value: defaultAgentValue } = useAppSettingsKey('defaultAgent');
   const defaultProviderId: AgentProviderId = isValidProviderId(defaultAgentValue)

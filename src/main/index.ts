@@ -3,8 +3,8 @@ import { config as dotenvConfig } from 'dotenv';
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 import dockIcon from '@/assets/images/emdash/icon-dock.png?asset';
 import { PRODUCT_NAME } from '@shared/app-identity';
-import { automationsChangedChannel } from '@shared/events/automationEvents';
-import { registerRPCRouter } from '@shared/ipc/rpc';
+import { githubAccountsChangedChannel } from '@shared/events/githubEvents';
+import { registerRPCRouter } from '@shared/lib/ipc/rpc';
 import { setupApplicationMenu } from './app/menu';
 import { registerAppScheme, setupAppProtocol } from './app/protocol';
 import { createMainWindow } from './app/window';
@@ -12,12 +12,13 @@ import { providerTokenRegistry } from './core/account/provider-token-registry';
 import { emdashAccountService } from './core/account/services/emdash-account-service';
 import { agentHookService } from './core/agent-hooks/agent-hook-service';
 import { appService } from './core/app/service';
-import { automationEvents } from './core/automations/automation-events';
-import { automationScheduler } from './core/automations/automation-scheduler';
+import { automationsService } from './core/automations/automations-service';
 import { localDependencyManager } from './core/dependencies/dependency-manager';
 import { editorBufferService } from './core/editor/editor-buffer-service';
 import { gitWatcherRegistry } from './core/git/git-watcher-registry';
-import { githubConnectionService } from './core/github/services/github-connection-service';
+import { githubAccountReconciliationService } from './core/github/accounts/github-account-reconciliation-instance';
+import { githubAccountRegistry } from './core/github/accounts/github-account-registry-instance';
+import { GitHubAuthServerAdapter } from './core/github/accounts/github-auth-server-adapter';
 import { projectManager } from './core/projects/project-manager';
 import { projectSettingsService } from './core/projects/settings/project-settings-service';
 import { promptLibraryService } from './core/prompt-library/service';
@@ -129,10 +130,7 @@ void app.whenReady().then(async () => {
   gitWatcherRegistry.initialize();
   projectSettingsService.initialize();
   prSyncScheduler.initialize();
-  automationEvents.on('automation:changed', () => {
-    events.emit(automationsChangedChannel, undefined);
-  });
-  automationScheduler.start();
+  automationsService.start();
   appService.initialize();
   await appSettingsService.initialize();
   await promptLibraryService.initialize();
@@ -145,8 +143,9 @@ void app.whenReady().then(async () => {
     log.warn('Failed to load account session token:', e);
   });
 
-  providerTokenRegistry.register('github', (token) =>
-    githubConnectionService.storeToken(token, 'emdash_oauth')
+  const githubAuthServerAdapter = new GitHubAuthServerAdapter(githubAccountRegistry);
+  providerTokenRegistry.register('github', (payload) =>
+    githubAuthServerAdapter.storeOAuthToken(payload)
   );
 
   registerRPCRouter(rpcRouter, ipcMain);
@@ -161,6 +160,15 @@ void app.whenReady().then(async () => {
   setupApplicationMenu();
   createMainWindow();
 
+  githubAccountReconciliationService
+    .reconcileAtStartup()
+    .then(() => {
+      events.emit(githubAccountsChangedChannel, { reason: 'startup-reconciliation' });
+    })
+    .catch((e) => {
+      log.warn('Failed to reconcile GitHub accounts at startup:', e);
+    });
+
   try {
     await updateService.initialize();
   } catch (error) {
@@ -174,7 +182,7 @@ app.on('before-quit', (event) => {
   event.preventDefault();
   telemetryService.capture('app_closed');
   void telemetryService.dispose().finally(() => {
-    automationScheduler.stop();
+    automationsService.stop();
     agentHookService.dispose();
     stopResourceSampler();
     updateService.dispose();

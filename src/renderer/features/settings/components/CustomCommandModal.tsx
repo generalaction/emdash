@@ -9,8 +9,11 @@ import { Input } from '@renderer/lib/ui/input';
 import { Label } from '@renderer/lib/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { log } from '@renderer/utils/logger';
-import { AGENT_PROVIDERS, type AgentProviderDefinition } from '@shared/agent-provider-registry';
-import type { ProviderCustomConfig } from '@shared/app-settings';
+import {
+  AGENT_PROVIDERS,
+  type AgentProviderDefinition,
+} from '@shared/core/agents/agent-provider-registry';
+import type { ProviderCustomConfig } from '@shared/core/app-settings';
 
 interface CustomCommandModalProps {
   isOpen: boolean;

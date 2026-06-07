@@ -1,11 +1,11 @@
-import type { Issue } from '@shared/tasks';
+import type { LinkedIssue } from '@shared/core/linked-issue';
 
 type ResolveTaskBranchNameInput = {
   rawBranch: string;
   branchPrefix: string;
   suffix: string;
   appendRandomSuffix: boolean;
-  linkedIssue?: Issue;
+  linkedIssue?: LinkedIssue;
   disableRandomSuffix?: boolean;
 };
 

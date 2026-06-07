@@ -3,14 +3,14 @@ import type { ProjectSettingsStore } from '@renderer/features/projects/stores/pr
 import { DraftCommentsStore } from '@renderer/features/tasks/diff-view/stores/draft-comments-store';
 import { rpc } from '@renderer/lib/ipc';
 import { log } from '@renderer/utils/logger';
-import { err, type Result } from '@shared/result';
+import type { LinkedIssue } from '@shared/core/linked-issue';
 import type {
-  Issue,
   RenameTaskError,
   RenameTaskSuccess,
   Task,
   TaskLifecycleStatus,
-} from '@shared/tasks';
+} from '@shared/core/tasks/tasks';
+import { err, type Result } from '@shared/lib/result';
 import { conversationRegistry } from './conversation-registry';
 import { workspaceRegistry } from './workspace-registry';
 import { WorkspaceViewModel } from './workspace-view-model';
@@ -32,7 +32,8 @@ export type UnregisteredTaskData = {
   createdAt: string;
   statusChangedAt: string;
   isPinned: boolean;
-  automationId?: string;
+  type: 'task' | 'automation-run';
+  automationRunId?: string;
 };
 
 export class TaskStore {
@@ -242,32 +243,7 @@ export class TaskStore {
     }
   }
 
-  async convertAutomationTask(): Promise<void> {
-    if (this.state === 'unregistered') return;
-    const task = registeredTaskData(this);
-    if (!task?.automationId) return;
-    const previousAutomationId = task.automationId;
-    runInAction(() => {
-      delete task.automationId;
-    });
-    try {
-      const updatedTask = await rpc.tasks.convertAutomationTask(task.id);
-      if (!updatedTask) {
-        throw new Error(`Task not found: ${task.id}`);
-      }
-      runInAction(() => {
-        this.data = updatedTask;
-      });
-    } catch (e) {
-      runInAction(() => {
-        task.automationId = previousAutomationId;
-      });
-      log.error(e);
-      throw e;
-    }
-  }
-
-  async updateLinkedIssue(issue?: Issue): Promise<void> {
+  async updateLinkedIssue(issue?: LinkedIssue): Promise<void> {
     if (this.state === 'unregistered') return;
     const task = registeredTaskData(this);
     if (!task) return;
@@ -280,6 +256,24 @@ export class TaskStore {
     } catch (e) {
       runInAction(() => {
         task.linkedIssue = previousIssue;
+      });
+      console.error(e);
+      throw e;
+    }
+  }
+
+  async convertAutomationTask(): Promise<void> {
+    if (this.state === 'unregistered') return;
+    const task = registeredTaskData(this);
+    if (!task || task.type !== 'automation-run') return;
+    runInAction(() => {
+      task.type = 'task';
+    });
+    try {
+      await rpc.tasks.convertAutomationTask(task.id);
+    } catch (e) {
+      runInAction(() => {
+        task.type = 'automation-run';
       });
       console.error(e);
       throw e;

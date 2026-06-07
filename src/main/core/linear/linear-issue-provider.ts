@@ -1,12 +1,12 @@
 import { clampIssueLimit, normalizeSearchTerm } from '@main/core/issues/helpers/provider-inputs';
 import type { IssueProvider } from '@main/core/issues/issue-provider';
 import { log } from '@main/lib/logger';
+import type { LinkedIssue } from '@shared/core/linked-issue';
 import {
   ISSUE_PROVIDER_CAPABILITIES,
   type IssueContextResult,
   type IssueListResult,
 } from '@shared/issue-providers';
-import type { Issue } from '@shared/tasks';
 import { linearConnectionService } from './linear-connection-service';
 import {
   formatLinearContext,
@@ -104,7 +104,7 @@ const ISSUE_CONTEXT_QUERY = `
   }
 `;
 
-function toIssue(raw: LinearIssueSummaryNode, context?: string): Issue {
+function toIssue(raw: LinearIssueSummaryNode, context?: string): LinkedIssue {
   return {
     provider: 'linear',
     identifier: raw.identifier,

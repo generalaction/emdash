@@ -1,5 +1,5 @@
 import type { UpdateInfo } from 'electron-updater';
-import { defineEvent } from '@shared/ipc/events';
+import { defineEvent } from '@shared/lib/ipc/events';
 
 export const updateCheckingEvent = defineEvent<void>('update:checking');
 

@@ -6,8 +6,8 @@ import { Button } from '@renderer/lib/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { agentConfig } from '@renderer/utils/agentConfig';
 import { McpServerIcon } from '@renderer/utils/mcpIcons';
-import { type AgentProviderId } from '@shared/agent-provider-registry';
-import type { McpCatalogEntry, McpServer } from '@shared/mcp/types';
+import { type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import type { McpCatalogEntry, McpServer } from '@shared/core/mcp/types';
 
 interface McpCardProps {
   server?: McpServer;

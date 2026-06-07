@@ -4,9 +4,10 @@ import type { GitFetchService } from '@main/core/git/git-fetch-service';
 import type { GitRepositoryService } from '@main/core/git/repository-service';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import type { IDisposable } from '@main/lib/lifecycle';
-import type { Branch, FetchError } from '@shared/git';
+import type { Branch, FetchError } from '@shared/core/git/git';
+import type { WorkspaceProviderData } from '@shared/core/workspaces/workspace-provider-data';
+import type { Result } from '@shared/lib/result';
 import type { ProjectRemoteState } from '@shared/projects';
-import type { Result } from '@shared/result';
 import type { ConversationProvider } from '../conversations/types';
 import { taskSessionManager } from '../tasks/task-session-manager';
 import type { TerminalProvider } from '../terminals/terminal-provider';
@@ -15,11 +16,7 @@ import type { ProjectSettingsProvider } from './settings/provider';
 import type { WorktreeHost } from './worktrees/hosts/worktree-host';
 import type { WorktreeService } from './worktrees/worktree-service';
 
-export type WorkspaceProviderData = {
-  provisionCommand: string;
-  terminateCommand: string;
-  remoteWorkspaceId?: string;
-};
+export type { WorkspaceProviderData };
 
 export type ProvisionResult = {
   taskProvider: TaskProvider;

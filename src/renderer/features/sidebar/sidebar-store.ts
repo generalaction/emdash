@@ -108,7 +108,7 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
       if (this.expandedProjectIds.has(projectId) && project.mountedProject) {
         const tasks = Array.from(project.mountedProject.taskManager.tasks.values()).filter(
           (t) =>
-            !t.data.automationId &&
+            t.data.type !== 'automation-run' &&
             (t.state === 'unregistered' || !('archivedAt' in t.data && t.data.archivedAt))
         );
         const manualOrder = this.taskOrderByProject[projectId];
@@ -152,7 +152,7 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
     if (!project?.mountedProject) return [];
     const tasks = Array.from(project.mountedProject.taskManager.tasks.values()).filter(
       (t) =>
-        !t.data.automationId &&
+        t.data.type !== 'automation-run' &&
         !t.data.isPinned &&
         (t.state === 'unregistered' || !('archivedAt' in t.data && t.data.archivedAt))
     );

@@ -20,11 +20,11 @@ import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
-import { getProvider } from '@shared/agent-provider-registry';
-import type { Conversation } from '@shared/conversations';
-import { agentSessionExitedChannel } from '@shared/events/agentEvents';
-import { makePtyId } from '@shared/ptyId';
-import { makePtySessionId } from '@shared/ptySessionId';
+import { getProvider } from '@shared/core/agents/agent-provider-registry';
+import { agentSessionExitedChannel } from '@shared/core/agents/agentEvents';
+import type { Conversation } from '@shared/core/conversations/conversations';
+import { makePtyId } from '@shared/core/pty/ptyId';
+import { makePtySessionId } from '@shared/core/pty/ptySessionId';
 import { buildAgentSessionCommand } from './agent-command';
 import { syncGrokThemeWithAppTheme } from './grok-theme-config';
 import { createInitialPromptDelivery } from './initial-prompt-delivery';
@@ -203,8 +203,9 @@ export class LocalConversationProvider implements ConversationProvider {
       /*
        * Codex hooks can be skipped by the CLI in some live-session edge cases.
        * Amp hooks only cover lifecycle events today, and Grok hook emission is
-       * still early-beta. Keep the output classifier active as a fallback so
-       * the UI can leave "working" and catch prompts.
+       * still early-beta. Kimi hooks include the needed lifecycle events, but
+       * the new CLI/docs are still changing. Keep the output classifier active
+       * as a fallback so the UI can leave "working" and catch prompts.
        */
       const useHooksOnly =
         hookActive &&
@@ -212,6 +213,7 @@ export class LocalConversationProvider implements ConversationProvider {
         hooksAvailable &&
         conversation.providerId !== 'codex' &&
         conversation.providerId !== 'grok' &&
+        conversation.providerId !== 'kimi' &&
         conversation.providerId !== 'amp';
 
       if (!useHooksOnly) {

@@ -4,7 +4,7 @@ import { killTmuxSession, makeTmuxSessionName } from '@main/core/pty/tmux-sessio
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
 import { telemetryService } from '@main/lib/telemetry';
-import { makePtySessionId } from '@shared/ptySessionId';
+import { makePtySessionId } from '@shared/core/pty/ptySessionId';
 import { resolveTask } from '../projects/utils';
 import { conversationEvents } from './conversation-events';
 

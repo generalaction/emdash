@@ -1,13 +1,21 @@
+import { cn } from '@renderer/utils/utils';
+
 interface EmptyStateProps {
   label: string;
   description?: string;
   icon?: React.ReactNode;
   action?: React.ReactNode;
+  className?: string;
 }
 
-export function EmptyState({ label, description, action }: EmptyStateProps) {
+export function EmptyState({ label, description, action, className }: EmptyStateProps) {
   return (
-    <div className="flex h-full min-h-0 w-full flex-col items-center justify-center bg-background p-8">
+    <div
+      className={cn(
+        'flex h-full min-h-0 w-full flex-col items-center justify-center bg-background p-8',
+        className
+      )}
+    >
       <div className="flex max-w-xs flex-col items-center text-center">
         <h2 className="font-mono text-sm font-medium text-foreground-muted">{label}</h2>
         {description && (

@@ -1,4 +1,4 @@
-import type { PushError } from '@shared/git';
+import type { PushError } from '@shared/core/git/git';
 
 type PushLikeError = PushError | { type: string; message?: string };
 

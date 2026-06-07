@@ -1,8 +1,8 @@
 import { makeObservable, observable, runInAction } from 'mobx';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { Conversation } from '@shared/conversations';
-import type { Task } from '@shared/tasks';
-import type { Terminal } from '@shared/terminals';
+import type { Conversation } from '@shared/core/conversations/conversations';
+import type { Task } from '@shared/core/tasks/tasks';
+import type { Terminal } from '@shared/core/terminals/terminals';
 import type { TaskViewSnapshot } from '@shared/view-state';
 import type { TerminalManagerStore, TerminalStore } from '../terminals/terminal-manager';
 import { conversationRegistry } from './conversation-registry';
@@ -116,6 +116,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     prs: [],
     conversations: {},
     workspaceId: 'workspace-1',
+    type: 'task',
     ...overrides,
   };
 }

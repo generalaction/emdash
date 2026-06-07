@@ -1,7 +1,7 @@
 import { projectManager } from '@main/core/projects/project-manager';
 import { log } from '@main/lib/logger';
+import { err, ok, type Result } from '@shared/lib/result';
 import type { OpenProjectError } from '@shared/projects';
-import { err, ok, type Result } from '@shared/result';
 import { checkIsValidDirectory } from '../path-utils';
 import { ensureRepositoryWorkspace } from './ensure-repository-workspace';
 import { getProjectById } from './getProjects';

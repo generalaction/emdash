@@ -1,7 +1,7 @@
 import { ArrowRight, GitBranch } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
-import type { PullRequest } from '@shared/pull-requests';
+import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
 import { parseRepositoryRef } from '@shared/repository-ref';
 
 export function PrMergeLine({ pr, className }: { pr: PullRequest; className?: string }) {

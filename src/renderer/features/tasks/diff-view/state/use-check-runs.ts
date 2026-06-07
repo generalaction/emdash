@@ -1,15 +1,15 @@
 import { useEffect, useMemo } from 'react';
 import { rpc } from '@renderer/lib/ipc';
 import { computeCheckRunsSummary, type CheckRun } from '@renderer/utils/github';
-import type { PullRequest } from '@shared/pull-requests';
+import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
 
-export function useSyncCheckRuns(pr: PullRequest) {
+export function useSyncCheckRuns(projectId: string, pr: PullRequest) {
   const checks = useMemo(() => pr.checks as CheckRun[], [pr.checks]);
   const summary = useMemo(() => computeCheckRunsSummary(checks), [checks]);
 
   useEffect(() => {
-    void rpc.pullRequests.syncChecks(pr.url, pr.headRefOid);
-  }, [pr.url, pr.headRefOid]);
+    void rpc.pullRequests.syncChecks(projectId, pr.url, pr.headRefOid);
+  }, [projectId, pr.url, pr.headRefOid]);
 
   return {
     checks,

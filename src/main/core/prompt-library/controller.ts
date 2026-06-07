@@ -1,4 +1,4 @@
-import { createRPCController } from '@shared/ipc/rpc';
+import { createRPCController } from '@shared/lib/ipc/rpc';
 import { type PromptLibraryPrompt } from '@shared/prompt-library';
 import { promptLibraryService } from './service';
 

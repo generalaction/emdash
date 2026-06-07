@@ -1,5 +1,5 @@
 import { cn } from '@renderer/utils/utils';
-import type { ConnectionState } from '@shared/ssh';
+import type { ConnectionState } from '@shared/core/ssh/ssh';
 
 export function ConnectionStatusDot({ state }: { state: ConnectionState | null }) {
   if (!state) return null;

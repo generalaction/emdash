@@ -1,7 +1,7 @@
 import { toStoredBranch } from '@main/core/tasks/stored-branch';
 import type { AppDb } from '@main/db/client';
 import { conversations, projectRemotes, projects, projectSettings, tasks } from '@main/db/schema';
-import type { Branch } from '@shared/git';
+import type { Branch } from '@shared/core/git/git';
 
 const mainBranch: Branch = { type: 'local', branch: 'main' };
 

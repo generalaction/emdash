@@ -1,6 +1,6 @@
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
-import { createRPCController } from '@shared/ipc/rpc';
+import { createRPCController } from '@shared/lib/ipc/rpc';
 import { emdashAccountService } from './services/emdash-account-service';
 
 export const accountController = createRPCController({
@@ -23,6 +23,24 @@ export const accountController = createRPCController({
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Sign-in failed',
+      };
+    }
+  },
+
+  linkProviderAccount: async (provider?: string) => {
+    try {
+      const result = await emdashAccountService.linkProviderAccount(provider);
+      telemetryService.capture('integration_connected', { provider: result.provider });
+      return {
+        success: true,
+        provider: result.provider,
+        providerAccount: result.providerAccount,
+      };
+    } catch (error) {
+      log.error('Provider account link failed:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Account link failed',
       };
     }
   },

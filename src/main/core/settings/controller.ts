@@ -1,5 +1,5 @@
-import { createRPCController } from '@/shared/ipc/rpc';
 import { reconcileResourceSampler } from '@main/core/resource-monitor/resource-sampler';
+import { createRPCController } from '@shared/lib/ipc/rpc';
 import { appSettingsService, type AppSettings, type AppSettingsKey } from './settings-service';
 
 export const appSettingsController = createRPCController({

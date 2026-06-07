@@ -7,7 +7,7 @@ import {
 import { type ReactNode } from 'react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
-import { type PullRequest } from '@shared/pull-requests';
+import { type PullRequest } from '@shared/core/pull-requests/pull-requests';
 
 type PrStatusIconInput = Pick<PullRequest, 'status' | 'isDraft'>;
 

@@ -43,7 +43,7 @@ import { RadioGroup, RadioGroupItem } from '@renderer/lib/ui/radio-group';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/ui/select';
 import { Switch } from '@renderer/lib/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import type { ConnectionTestResult, SshConfig, SshConfigHost } from '@shared/ssh';
+import type { ConnectionTestResult, SshConfig, SshConfigHost } from '@shared/core/ssh/ssh';
 import { suggestedAuthTypeForSshConfigHost, type AuthType } from './ssh-connection-form-model';
 import { sshConnectionFormSchema } from './ssh-connection-form-schema';
 

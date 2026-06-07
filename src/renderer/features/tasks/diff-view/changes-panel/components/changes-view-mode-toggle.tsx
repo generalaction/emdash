@@ -2,7 +2,7 @@ import { AlignJustify, ListTree } from 'lucide-react';
 import { useState } from 'react';
 import { Button } from '@renderer/lib/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import type { ChangesListViewMode } from '@shared/app-settings';
+import type { ChangesListViewMode } from '@shared/core/app-settings';
 
 interface ChangesViewModeToggleProps {
   value: ChangesListViewMode;

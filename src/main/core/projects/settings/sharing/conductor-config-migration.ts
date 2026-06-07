@@ -6,10 +6,10 @@ import {
   type ProjectConfigMigration,
   type ShareableProjectSettings,
   type ShareableProjectSettingsWriteField,
-} from '@shared/project-settings';
-import { mergeShareableProjectSettings } from '@shared/project-settings-fields';
+} from '@shared/core/project-settings/project-settings';
+import { mergeShareableProjectSettings } from '@shared/core/project-settings/project-settings-fields';
+import { err, ok, type Result } from '@shared/lib/result';
 import type { UpdateProjectSettingsError } from '@shared/projects';
-import { err, ok, type Result } from '@shared/result';
 import type { ProjectProvider } from '../../project-provider';
 import { parseJsonObject } from '../project-settings-json';
 import type { ProjectConfigMigrator } from './config-migration';

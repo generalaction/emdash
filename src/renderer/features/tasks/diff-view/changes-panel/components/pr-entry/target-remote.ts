@@ -1,4 +1,4 @@
-import type { Remote } from '@shared/git';
+import type { Remote } from '@shared/core/git/git';
 import { parseRepositoryRef, type RepositoryRef } from '@shared/repository-ref';
 
 export type TargetRemote = {

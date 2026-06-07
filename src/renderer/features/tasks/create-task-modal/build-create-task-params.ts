@@ -1,12 +1,12 @@
-import type { AgentProviderId } from '@shared/agent-provider-registry';
-import type { CreateConversationParams } from '@shared/conversations';
+import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
+import { getPrNumber, isForkPr } from '@shared/core/pull-requests/pull-requests';
+import type { TaskConfig } from '@shared/core/tasks/task-config';
+import type { GitSetup, TaskLifecycleStatus } from '@shared/core/tasks/tasks';
+import type { WorkspaceConfig, WorkspaceTarget } from '@shared/core/workspaces/workspace-config';
 import type { LocalProject, SshProject } from '@shared/projects';
-import type { PullRequest } from '@shared/pull-requests';
-import { getPrNumber, isForkPr } from '@shared/pull-requests';
-import type { GitSetup, TaskLifecycleStatus } from '@shared/tasks';
-import type { WorkspaceConfig, WorkspaceTarget } from '@shared/workspace-config';
 import { nextDefaultConversationTitle } from '../conversations/conversation-title-utils';
-import type { InitialConversationState } from './initial-conversation-section';
+import type { InitialConversationState } from '../conversations/initial-conversation-section';
 import { buildFinalPrompt } from './initial-conversation-text';
 import type { CreateTaskState, LinkedType } from './use-create-task-state';
 
@@ -77,18 +77,14 @@ function buildGitSetupFromBranch(state: CreateTaskState, isUnborn: boolean): Git
 }
 
 export function buildInitialConversation(
-  taskId: string,
-  projectId: string,
   state: InitialConversationState,
   getAutoApproveDefault: (provider: AgentProviderId) => boolean
-): CreateConversationParams | undefined {
+): NonNullable<TaskConfig['initialConversation']> | undefined {
   const { provider } = state;
   if (!provider) return undefined;
 
   return {
     id: crypto.randomUUID(),
-    projectId,
-    taskId,
     provider,
     title: nextDefaultConversationTitle(provider, []),
     initialPrompt: buildFinalPrompt(state.issueContext, state.prompt),

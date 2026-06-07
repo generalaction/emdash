@@ -25,11 +25,11 @@ import { type WorkspaceFactoryResult } from '@main/core/workspaces/workspace-reg
 import { db } from '@main/db/client';
 import { workspaces as workspacesTable } from '@main/db/schema';
 import { log } from '@main/lib/logger';
-import { getTaskEnvVars } from '@shared/task/envVars';
-import type { Task } from '@shared/tasks';
+import type { Task } from '@shared/core/tasks/tasks';
 import { getEffectiveTaskSettings } from '../projects/settings/effective-task-settings';
 import type { ProjectSettingsProvider } from '../projects/settings/provider';
 import { TEARDOWN_SCRIPT_WAIT_MS } from '../tasks/provision-task-error';
+import { getTaskEnvVars } from './workspace-env';
 
 export type WorkspaceType =
   | { kind: 'local' }

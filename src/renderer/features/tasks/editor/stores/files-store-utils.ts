@@ -2,7 +2,7 @@
 // Excluded directory/file names for the task editor file tree.
 // ---------------------------------------------------------------------------
 
-import { type FileNode } from '@shared/fs';
+import { type FileNode } from '@shared/core/fs/fs';
 
 const EXCLUDED_NAMES = new Set([
   '.git',

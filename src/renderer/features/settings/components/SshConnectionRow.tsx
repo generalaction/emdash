@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { appState } from '@renderer/lib/stores/app-state';
 import { Button } from '@renderer/lib/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import type { SshConfig } from '@shared/ssh';
+import type { SshConfig } from '@shared/core/ssh/ssh';
 import { authLabel, projectUsageNamesText, projectUsageText } from './ssh-connection-formatters';
 import { SshStateBadge } from './SshStateBadge';
 

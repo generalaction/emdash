@@ -1,4 +1,17 @@
-type ProviderTokenHandler = (token: string) => Promise<void>;
+export type ProviderAccountPayload = {
+  providerId: string;
+  providerAccountId: string;
+  host: string;
+  login: string;
+  avatarUrl: string;
+};
+
+export type ProviderTokenPayload = {
+  accessToken: string;
+  providerAccount?: ProviderAccountPayload;
+};
+
+type ProviderTokenHandler = (payload: ProviderTokenPayload) => Promise<void>;
 
 const handlers = new Map<string, ProviderTokenHandler>();
 
@@ -7,10 +20,10 @@ export const providerTokenRegistry = {
     handlers.set(provider, handler);
   },
 
-  async dispatch(provider: string, token: string): Promise<void> {
+  async dispatch(provider: string, payload: ProviderTokenPayload): Promise<void> {
     const handler = handlers.get(provider);
     if (!handler) return;
-    await handler(token);
+    await handler(payload);
   },
 
   /** For testing only — removes all registered handlers. */

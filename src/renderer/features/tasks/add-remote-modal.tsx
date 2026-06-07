@@ -1,11 +1,15 @@
-import { useQuery } from '@tanstack/react-query';
 import { ChevronsUpDownIcon } from 'lucide-react';
+import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
-import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
+import {
+  getProjectSettingsStore,
+  getRepositoryStore,
+} from '@renderer/features/projects/stores/project-selectors';
+import { useGitHubRepositoryOwnerSelect } from '@renderer/lib/hooks/useGithubRepositoryOwners';
 import { rpc } from '@renderer/lib/ipc';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
-import { ComboboxPopover, type ComboboxSelectOption } from '@renderer/lib/ui/combobox-popover';
+import { ComboboxPopover } from '@renderer/lib/ui/combobox-popover';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
   DialogContentArea,
@@ -36,7 +40,7 @@ function toErrorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
-export function AddRemoteModal({
+export const AddRemoteModal = observer(function AddRemoteModal({
   projectId,
   projectName,
   workspaceId,
@@ -48,21 +52,36 @@ export function AddRemoteModal({
   const [error, setError] = useState<string | null>(null);
 
   const [repositoryName, setRepositoryName] = useState(projectName);
-  const [selectedOwner, setSelectedOwner] = useState<ComboboxSelectOption | null>(null);
   const [visibility, setVisibility] = useState<'public' | 'private'>('private');
   const [url, setUrl] = useState('');
 
-  const { data } = useQuery({
-    queryKey: ['owners'],
-    queryFn: () => rpc.github.getOwners(),
-  });
+  const settingsStore = getProjectSettingsStore(projectId);
+  const rawGitHubAccountId = settingsStore?.settings?.githubAccountId ?? null;
+  const githubAccountId =
+    typeof rawGitHubAccountId === 'string' && rawGitHubAccountId.trim().length > 0
+      ? rawGitHubAccountId.trim()
+      : null;
+  const settingsError = settingsStore?.pageData.error ?? null;
+  const settingsLoading =
+    !!settingsStore && settingsStore.pageData.data === null && settingsError === null;
+
+  const {
+    owners,
+    owner,
+    isLoading: ownersLoading,
+    errorMessage: ownersErrorMessage,
+    handleOwnerChange,
+  } = useGitHubRepositoryOwnerSelect(githubAccountId);
   const selectedRemote = getRepositoryStore(projectId)?.pushRemote.name ?? 'origin';
-
-  const owners = data?.owners?.map((o) => ({ value: o.login, label: o.login })) ?? [];
-  const owner = selectedOwner ?? owners[0] ?? null;
-
-  const isValid =
-    tab === 'create' ? repositoryName.trim().length > 0 && !!owner : url.trim().length > 0;
+  const canSubmitCreateRepository =
+    githubAccountId !== null &&
+    !settingsLoading &&
+    !ownersLoading &&
+    !settingsError &&
+    !ownersErrorMessage &&
+    repositoryName.trim().length > 0 &&
+    !!owner;
+  const isValid = tab === 'create' ? canSubmitCreateRepository : url.trim().length > 0;
 
   const handleSubmit = async () => {
     setIsSubmitting(true);
@@ -70,8 +89,14 @@ export function AddRemoteModal({
 
     try {
       if (tab === 'create') {
+        if (!githubAccountId) {
+          setError(
+            'Select a GitHub account in project settings before creating a GitHub repository'
+          );
+          return;
+        }
         if (!owner) {
-          setError('No repository owner available');
+          setError(ownersErrorMessage ?? 'No repository owner available');
           return;
         }
 
@@ -79,6 +104,7 @@ export function AddRemoteModal({
           name: repositoryName.trim(),
           owner: owner.value,
           isPrivate: visibility === 'private',
+          accountId: githubAccountId,
         });
 
         if (!result.success) {
@@ -86,8 +112,16 @@ export function AddRemoteModal({
           return;
         }
 
-        const cloneUrl = `https://github.com/${result.nameWithOwner}.git`;
-        const addRemoteResult = await rpc.repository.addRemote(projectId, selectedRemote, cloneUrl);
+        if (!result.repoUrl) {
+          setError('Created repository did not include a remote URL');
+          return;
+        }
+
+        const addRemoteResult = await rpc.repository.addRemote(
+          projectId,
+          selectedRemote,
+          result.repoUrl
+        );
 
         if (!addRemoteResult.success) {
           setError(toErrorMessage(addRemoteResult.error, 'Failed to add remote'));
@@ -200,8 +234,17 @@ export function AddRemoteModal({
                 items={owners}
                 defaultValue={owner}
                 value={owner}
-                onValueChange={setSelectedOwner}
+                onValueChange={handleOwnerChange}
               />
+              {githubAccountId === null && !settingsLoading && !settingsError && (
+                <p className="text-muted-foreground text-xs">
+                  Select a GitHub account in project settings before creating a GitHub repository.
+                </p>
+              )}
+              {settingsError && <p className="text-destructive text-xs">{settingsError}</p>}
+              {ownersErrorMessage && (
+                <p className="text-destructive text-xs">{ownersErrorMessage}</p>
+              )}
             </Field>
             <Field>
               <FieldLabel>Visibility</FieldLabel>
@@ -240,4 +283,4 @@ export function AddRemoteModal({
       </DialogContentArea>
     </ModalLayout>
   );
-}
+});

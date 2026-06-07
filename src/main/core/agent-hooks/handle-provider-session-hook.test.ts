@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { saveProviderSessionId } from '@main/core/conversations/save-provider-session-id';
 import { setProviderSessionId } from '@main/core/conversations/set-provider-session-id';
 import { events } from '@main/lib/events';
-import { conversationChangedChannel } from '@shared/events/conversationEvents';
+import { conversationChangedChannel } from '@shared/core/conversations/conversationEvents';
 import { enrichEvent } from './event-enricher';
 import {
   extractProviderSessionId,
@@ -161,6 +161,33 @@ describe('handleProviderSessionHook', () => {
     expect(mockSetProviderSessionId).toHaveBeenCalledWith('conversation-1', 'grok-session-1');
     expect(mockEnrichEvent).not.toHaveBeenCalled();
     expect(mockEvents.emit).not.toHaveBeenCalled();
+  });
+
+  it('persists Kimi session ids from SessionStart hook payloads', async () => {
+    mockSetProviderSessionId.mockResolvedValue(true);
+    mockEnrichEvent.mockResolvedValue({
+      type: 'start',
+      providerId: 'kimi',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      conversationId: 'conversation-1',
+      timestamp: 0,
+      payload: {},
+    });
+
+    await handleProviderSessionHook({
+      ptyId: 'kimi-conv-conversation-1',
+      type: 'session',
+      body: JSON.stringify({ session_id: 'ses_kimi_1' }),
+    });
+
+    expect(mockSetProviderSessionId).toHaveBeenCalledWith('conversation-1', 'ses_kimi_1');
+    expect(mockEvents.emit).toHaveBeenCalledWith(conversationChangedChannel, {
+      conversationId: 'conversation-1',
+      taskId: 'task-1',
+      projectId: 'project-1',
+      changes: { providerSessionId: 'ses_kimi_1' },
+    });
   });
 
   it('keeps Droid session ids on the Droid validation path', async () => {
