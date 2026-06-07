@@ -7,8 +7,8 @@ import {
   buildTaskContextActions,
 } from '@renderer/features/tasks/conversations/context-actions';
 import type { DraftComment } from '@renderer/features/tasks/diff-view/stores/draft-comments-store';
+import type { LinkedIssue } from '@shared/core/linked-issue';
 import { getDraftCommentTargetKey, type DraftCommentTarget } from '@shared/lineComments';
-import type { LinkedIssue } from '@shared/linked-issue';
 
 function makeIssue(overrides: Partial<LinkedIssue> = {}): LinkedIssue {
   return {

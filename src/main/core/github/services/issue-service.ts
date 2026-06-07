@@ -1,7 +1,7 @@
 import type { Octokit } from '@octokit/rest';
 import type { IssueListError } from '@shared/issue-providers';
+import { err, ok, type Result } from '@shared/lib/result';
 import { isGitHubDotComHost, type RepositoryRef } from '@shared/repository-ref';
-import { err, ok, type Result } from '@shared/result';
 import type { GitHubApiAuthError } from './github-api-auth-errors';
 import { getOctokit } from './octokit-provider';
 

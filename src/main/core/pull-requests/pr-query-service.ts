@@ -8,7 +8,12 @@ import {
   pullRequests,
   pullRequestUsers,
 } from '@main/db/schema';
-import type { Label, ListPrOptions, PrFilterOptions, PullRequest } from '@shared/pull-requests';
+import type {
+  Label,
+  ListPrOptions,
+  PrFilterOptions,
+  PullRequest,
+} from '@shared/core/pull-requests/pull-requests';
 import { assemblePullRequest, pullRequestRepositoryScope, type PrRow } from './pr-utils';
 
 async function fetchRelated(rows: PrRow[]): Promise<PullRequest[]> {

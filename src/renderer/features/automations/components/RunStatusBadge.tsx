@@ -1,12 +1,12 @@
 import { CheckCircle2, Clock, Loader2, MinusCircle, XCircle } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
-import type { AutomationRunStatus } from '@shared/automations/automation-run';
-import { formatRunError } from '@shared/automations/format';
+import type { AutomationRun, AutomationRunStatus } from '@shared/core/automations/automation-run';
+import { formatRunError } from '../automation-run-format';
 
 interface RunStatusBadgeProps {
-  status: AutomationRunStatus | null;
-  error: string | null;
+  status: AutomationRun['status'] | null;
+  error: AutomationRun['error'];
 }
 
 const BASE = 'flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-xs';

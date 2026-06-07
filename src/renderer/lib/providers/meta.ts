@@ -28,7 +28,7 @@ import opencodeIcon from '@/assets/images/opencode.svg?raw';
 import piIcon from '@/assets/images/pi.png';
 import qwenIcon from '@/assets/images/qwen.svg?raw';
 import xaiIcon from '@/assets/images/xai.svg?raw';
-import { AGENT_PROVIDERS, type AgentProviderId } from '@shared/agent-provider-registry';
+import { AGENT_PROVIDERS, type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 
 export type UiAgent = AgentProviderId;
 

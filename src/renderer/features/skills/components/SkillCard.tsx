@@ -3,7 +3,7 @@ import React from 'react';
 import { CardGridItem } from '@renderer/lib/components/card-grid';
 import { Button } from '@renderer/lib/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import type { CatalogSkill } from '@shared/skills/types';
+import type { CatalogSkill } from '@shared/core/skills/types';
 import { SkillIconRenderer } from './SkillIconRenderer';
 
 interface SkillCardProps {

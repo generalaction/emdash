@@ -8,7 +8,7 @@ import { buildRemoteShellCommand } from '@main/core/ssh/lifecycle/remote-shell-p
 import type { SshClientProxy } from '@main/core/ssh/lifecycle/ssh-client-proxy';
 import { log } from '@main/lib/logger';
 import { quoteShellArg } from '@main/utils/shellEscape';
-import type { FileWatchEvent } from '@shared/fs';
+import type { FileWatchEvent } from '@shared/core/fs/fs';
 import {
   FileSystemError,
   FileSystemErrorCodes,

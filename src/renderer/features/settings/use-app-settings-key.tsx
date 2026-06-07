@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { AppSettings, AppSettingsKey } from '@shared/app-settings';
+import type { AppSettings, AppSettingsKey } from '@shared/core/app-settings';
 import {
   APP_SETTINGS_STALE_TIME_MS,
   appSettingsMetaQueryKey,

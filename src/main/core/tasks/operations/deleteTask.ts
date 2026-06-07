@@ -6,8 +6,8 @@ import { db } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
-import type { DeleteTaskOptions } from '@shared/tasks';
-import type { WorkspaceConfig } from '@shared/workspace-config';
+import type { DeleteTaskOptions } from '@shared/core/tasks/tasks';
+import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
 import { deleteWorkspaceIfUnused, removeWorktreeIfUnused } from './task-lifecycle-utils';
 
 export async function deleteTask(

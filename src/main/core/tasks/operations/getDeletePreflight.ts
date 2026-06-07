@@ -3,7 +3,7 @@ import { projectManager } from '@main/core/projects/project-manager';
 import { db } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
 import { log } from '@main/lib/logger';
-import type { DeletePreflightResult, TaskDeletePreflightItem } from '@shared/tasks';
+import type { DeletePreflightResult, TaskDeletePreflightItem } from '@shared/core/tasks/tasks';
 
 async function getTaskPreflight(
   projectId: string,

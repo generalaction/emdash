@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ShareableProjectSettings } from '@shared/project-settings';
+import type { ShareableProjectSettings } from '@shared/core/project-settings/project-settings';
 import { computeProjectSettingsOverrideState } from './project-settings-override-state';
 import {
   getProjectSettingsWriteTargets,

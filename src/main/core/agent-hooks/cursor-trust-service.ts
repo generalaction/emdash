@@ -9,7 +9,7 @@ import {
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { resolveRemoteHome } from '@main/core/ssh/lifecycle/remote-shell-profile';
 import { log } from '@main/lib/logger';
-import type { AgentProviderId } from '@shared/agent-provider-registry';
+import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 
 const CURSOR_PROVIDER_ID: AgentProviderId = 'cursor';
 const CURSOR_DATA_DIR_NAME = '.cursor';

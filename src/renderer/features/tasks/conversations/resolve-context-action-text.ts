@@ -1,6 +1,6 @@
 import { refreshLinkedIssueContext } from '@renderer/features/tasks/issue-context/refresh-linked-issue-context';
+import type { LinkedIssue } from '@shared/core/linked-issue';
 import { ISSUE_PROVIDER_CAPABILITIES } from '@shared/issue-providers';
-import type { LinkedIssue } from '@shared/linked-issue';
 import {
   buildContextActionText,
   buildLinkedIssueContextAction,

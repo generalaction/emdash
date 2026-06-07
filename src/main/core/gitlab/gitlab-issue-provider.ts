@@ -4,8 +4,8 @@ import {
   requireProjectPath,
 } from '@main/core/issues/helpers/provider-inputs';
 import type { IssueProvider } from '@main/core/issues/issue-provider';
+import type { LinkedIssue } from '@shared/core/linked-issue';
 import { ISSUE_PROVIDER_CAPABILITIES, type IssueListResult } from '@shared/issue-providers';
-import type { LinkedIssue } from '@shared/linked-issue';
 import { gitLabConnectionService, toGitLabErrorMessage } from './gitlab-connection-service';
 
 function asRecord(value: unknown): Record<string, unknown> | null {

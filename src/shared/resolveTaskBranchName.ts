@@ -1,4 +1,4 @@
-import type { LinkedIssue } from '@shared/linked-issue';
+import type { LinkedIssue } from '@shared/core/linked-issue';
 
 type ResolveTaskBranchNameInput = {
   rawBranch: string;

@@ -1,4 +1,4 @@
-import type { AdapterType, RawServerEntry, ServerMap } from '@shared/mcp/types';
+import type { AdapterType, RawServerEntry, ServerMap } from '@shared/core/mcp/types';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 

@@ -3,8 +3,8 @@ import {
   getProvider,
   isValidProviderSessionId,
   type AgentProviderId,
-} from '@shared/agent-provider-registry';
-import type { ProviderCustomConfig } from '@shared/app-settings';
+} from '@shared/core/agents/agent-provider-registry';
+import type { ProviderCustomConfig } from '@shared/core/app-settings';
 import { addKimiHooksToConfigText } from '../../agent-hooks/hook-config';
 
 export type AgentCommand = {

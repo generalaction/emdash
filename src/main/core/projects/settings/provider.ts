@@ -1,6 +1,9 @@
-import type { ProjectSettings, ShareableProjectSettingsWriteField } from '@shared/project-settings';
+import type {
+  ProjectSettings,
+  ShareableProjectSettingsWriteField,
+} from '@shared/core/project-settings/project-settings';
+import type { Result } from '@shared/lib/result';
 import type { UpdateProjectSettingsError } from '@shared/projects';
-import type { Result } from '@shared/result';
 
 export type ProjectSettingsPatch = {
   clearShareableFields?: ShareableProjectSettingsWriteField[];

@@ -4,7 +4,7 @@ import { getPrSyncStore } from '@renderer/features/projects/stores/project-selec
 import { useDebounce } from '@renderer/lib/hooks/useDebounce';
 import { rpc } from '@renderer/lib/ipc';
 import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
-import type { PrFilters, PrSortField } from '@shared/pull-requests';
+import type { PrFilters, PrSortField } from '@shared/core/pull-requests/pull-requests';
 import { toUserItem, usersWithLoginFirst, type UserItem } from './pr-filter-items';
 import { useFilterOptions, usePullRequests } from './usePullRequests';
 

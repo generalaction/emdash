@@ -1,7 +1,7 @@
-import type { AgentProviderId } from '@shared/agent-provider-registry';
+import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import type { PullRequestMergeStrategy } from '@shared/core/pull-requests/pull-requests';
+import type { TaskLifecycleStatus } from '@shared/core/tasks/tasks';
 import type { OpenInAppId } from '@shared/openInApps';
-import type { PullRequestMergeStrategy } from '@shared/pull-requests';
-import type { TaskLifecycleStatus } from '@shared/tasks';
 
 type EmptyProps = Record<string, never>;
 

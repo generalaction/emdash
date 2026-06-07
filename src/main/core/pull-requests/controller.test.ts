@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { err, ok } from '@shared/result';
+import { err, ok } from '@shared/lib/result';
 import { pullRequestController } from './controller';
 import { prSyncEngine } from './pr-sync-engine';
 

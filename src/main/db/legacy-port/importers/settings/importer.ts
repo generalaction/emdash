@@ -3,8 +3,8 @@ import { join } from 'node:path';
 import type Database from 'better-sqlite3';
 import { getDefaultForKey } from '@main/core/settings/settings-registry';
 import { isPlainObject, mergeDeep } from '@main/core/settings/utils';
-import { isValidProviderId } from '@shared/agent-provider-registry';
-import type { AppSettings, AppSettingsKey } from '@shared/app-settings';
+import { isValidProviderId } from '@shared/core/agents/agent-provider-registry';
+import type { AppSettings, AppSettingsKey } from '@shared/core/app-settings';
 import { tableExists } from '../../sqlite-utils';
 import type { RelationalImportDb } from '../relational/types';
 

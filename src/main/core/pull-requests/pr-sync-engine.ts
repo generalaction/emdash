@@ -23,7 +23,7 @@ import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { githubRateLimiter } from '@main/lib/rate-limiter';
 import { withRetry } from '@main/lib/retry';
-import { prSyncProgressChannel, prUpdatedChannel } from '@shared/events/prEvents';
+import { prSyncProgressChannel, prUpdatedChannel } from '@shared/core/pull-requests/prEvents';
 import type {
   MergeableState,
   MergeStateStatus,
@@ -34,9 +34,9 @@ import type {
   PullRequestMergeOptions,
   PullRequestStatus,
   PullRequestUser,
-} from '@shared/pull-requests';
+} from '@shared/core/pull-requests/pull-requests';
+import { err, ok, type Result } from '@shared/lib/result';
 import { parseRepositoryRef, parseRepositoryRefResult } from '@shared/repository-ref';
-import { err, ok, type Result } from '@shared/result';
 import {
   isPrSyncHostUnreachable,
   prSyncEngineErrorMessage,

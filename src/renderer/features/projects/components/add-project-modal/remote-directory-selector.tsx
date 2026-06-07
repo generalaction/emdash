@@ -14,7 +14,7 @@ import { Button } from '@renderer/lib/ui/button';
 import { Input } from '@renderer/lib/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
 import { cn } from '@renderer/utils/utils';
-import type { FileEntry } from '@shared/ssh';
+import type { FileEntry } from '@shared/core/ssh/ssh';
 
 interface RemoteDirectorySelectorProps {
   connectionId: string | undefined;

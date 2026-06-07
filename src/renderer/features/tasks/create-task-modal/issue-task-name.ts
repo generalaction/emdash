@@ -1,5 +1,5 @@
 import { normalizeTaskName } from '@renderer/utils/taskNames';
-import type { LinkedIssue } from '@shared/linked-issue';
+import type { LinkedIssue } from '@shared/core/linked-issue';
 
 const PROVIDERS_WITH_BRANCH_NAMES = new Set<LinkedIssue['provider']>(['linear', 'plain']);
 

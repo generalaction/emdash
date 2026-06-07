@@ -1,4 +1,4 @@
-import type { DependencyCategory, DependencyId } from '@shared/dependencies';
+import type { DependencyCategory, DependencyId } from '@shared/core/dependencies';
 import { createRPCController } from '@shared/lib/ipc/rpc';
 import { getDependencyManager } from './dependency-manager';
 import type { DependencyProbeOptions } from './types';

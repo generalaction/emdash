@@ -1,6 +1,10 @@
+import type { LinkedIssue } from '@shared/core/linked-issue';
+import type {
+  CreateTaskParams,
+  DeleteTaskOptions,
+  TaskLifecycleStatus,
+} from '@shared/core/tasks/tasks';
 import { createRPCController } from '@shared/lib/ipc/rpc';
-import type { LinkedIssue } from '@shared/linked-issue';
-import type { CreateTaskParams, DeleteTaskOptions, TaskLifecycleStatus } from '@shared/tasks';
 import { generateTaskName } from './name-generation/generateTaskName';
 import { taskService } from './task-service';
 

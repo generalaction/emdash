@@ -1,5 +1,5 @@
+import { err, ok, type Result } from '@shared/lib/result';
 import { isGitHubDotComHost, normalizeRepositoryHost } from '@shared/repository-ref';
-import { err, ok, type Result } from '@shared/result';
 import { ghCliGitHubEnterpriseAuthSource } from './ghes-auth-source';
 import { githubApiAuthRequired, type GitHubApiAuthError } from './github-api-auth-errors';
 import { githubConnectionService } from './github-connection-service';

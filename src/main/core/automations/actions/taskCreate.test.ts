@@ -10,8 +10,8 @@ import {
   prepareCreateTask,
 } from '@main/core/tasks/operations/createTask';
 import { taskService } from '@main/core/tasks/task-service';
-import type { Automation } from '@shared/automations/automation';
-import type { AutomationRun } from '@shared/automations/automation-run';
+import type { Automation } from '@shared/core/automations/automation';
+import type { AutomationRun } from '@shared/core/automations/automation-run';
 import { updateRun } from '../repo';
 import type { OnStepCompleted } from '../run-transitions';
 import {

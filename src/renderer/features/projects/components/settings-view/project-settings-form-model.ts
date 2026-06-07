@@ -1,6 +1,9 @@
-import type { Branch } from '@shared/git';
-import { projectDefaultBranchToBranch } from '@shared/git-utils';
-import type { ProjectSettings, ShareableProjectSettingsWriteField } from '@shared/project-settings';
+import type { Branch } from '@shared/core/git/git';
+import { projectDefaultBranchToBranch } from '@shared/core/git/git-utils';
+import type {
+  ProjectSettings,
+  ShareableProjectSettingsWriteField,
+} from '@shared/core/project-settings/project-settings';
 import {
   SHAREABLE_FIELD_DESCRIPTOR_BY_ID,
   SHAREABLE_FIELD_DESCRIPTORS,

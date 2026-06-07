@@ -1,6 +1,6 @@
 import { Fragment } from 'react';
 import { Separator } from '@renderer/lib/ui/separator';
-import type { Automation } from '@shared/automations/automation';
+import type { Automation } from '@shared/core/automations/automation';
 import { AutomationRow } from './AutomationRow';
 
 interface AutomationsListProps {

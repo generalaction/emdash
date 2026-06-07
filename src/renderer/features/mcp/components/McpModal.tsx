@@ -19,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@renderer/lib/ui/select';
-import type { McpCatalogEntry, McpProvidersResponse, McpServer } from '@shared/mcp/types';
+import type { McpCatalogEntry, McpProvidersResponse, McpServer } from '@shared/core/mcp/types';
 import { KeyValueSection, type KVEntry } from './KeyValueSection';
 import { ProviderSelect } from './ProviderSelect';
 

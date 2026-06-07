@@ -1,4 +1,4 @@
-import type { Conversation } from '@shared/conversations';
+import type { Conversation } from '@shared/core/conversations/conversations';
 
 /** Droid `--resume` needs the provider-native session UUID, not the Emdash conversation id. */
 export function resolveAgentSessionCommandArgs(

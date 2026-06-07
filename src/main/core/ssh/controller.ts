@@ -8,7 +8,6 @@ import {
 } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
-import { createRPCController } from '@shared/lib/ipc/rpc';
 import type {
   ConnectionState,
   ConnectionTestResult,
@@ -17,7 +16,8 @@ import type {
   SshConfigHost,
   SshConnectionUsage,
   SshHealthState,
-} from '@shared/ssh';
+} from '@shared/core/ssh/ssh';
+import { createRPCController } from '@shared/lib/ipc/rpc';
 import {
   mergeSshConnectionMetadata,
   type SshConnectionMetadata,

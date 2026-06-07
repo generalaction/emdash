@@ -7,7 +7,7 @@ import {
   type PrFilterOptions,
   type PrFilters,
   type PrSortField,
-} from '@shared/pull-requests';
+} from '@shared/core/pull-requests/pull-requests';
 
 const PAGE_SIZE = 50;
 

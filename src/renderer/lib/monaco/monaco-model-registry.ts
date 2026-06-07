@@ -1,7 +1,7 @@
 import { observable, runInAction } from 'mobx';
 import type * as monaco from 'monaco-editor';
 import { rpc } from '@renderer/lib/ipc';
-import { gitRefToString, HEAD_REF, refsEqual, type GitRef } from '@shared/git';
+import { gitRefToString, HEAD_REF, refsEqual, type GitRef } from '@shared/core/git/git';
 import { buildMonacoModelPath } from './monacoModelPath';
 
 const BUFFER_DEBOUNCE_MS = 2000;

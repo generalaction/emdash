@@ -34,7 +34,7 @@ import {
   TERMINAL_FONT_SIZE_MAX,
   TERMINAL_FONT_SIZE_MIN,
   type TerminalShellId,
-} from '@shared/terminal-settings';
+} from '@shared/core/terminals/terminal-settings';
 import { SettingRow } from './SettingRow';
 
 type FontOption = {

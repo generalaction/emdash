@@ -1,7 +1,6 @@
 import { computed, makeObservable, reaction } from 'mobx';
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
-import { gitRefChangedChannel, type GitRefChange } from '@shared/events/gitEvents';
 import type {
   Branch,
   LocalBranch,
@@ -9,13 +8,14 @@ import type {
   Remote,
   RemoteBranch,
   RemoteBranchesPayload,
-} from '@shared/git';
+} from '@shared/core/git/git';
 import {
   projectDefaultBranchToBranch,
   resolveConfiguredRemotes,
   resolveDefaultBranch,
   type ConfiguredRemotes,
-} from '@shared/git-utils';
+} from '@shared/core/git/git-utils';
+import { gitRefChangedChannel, type GitRefChange } from '@shared/core/git/gitEvents';
 import type { ProviderRepository, ProviderRepositoryResult } from '@shared/provider-repository';
 import { parseRepositoryRef } from '@shared/repository-ref';
 import type { ProjectSettingsStore } from './project-settings-store';

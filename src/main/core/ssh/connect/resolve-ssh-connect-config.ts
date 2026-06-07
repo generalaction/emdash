@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import ssh2, { type BaseAgent, type ConnectConfig } from 'ssh2';
 import type { SshConnectionRow } from '@main/db/schema';
-import type { SshConfig } from '@shared/ssh';
+import type { SshConfig } from '@shared/core/ssh/ssh';
 import { sshConfigFromRow } from '../config/connection-metadata';
 import {
   resolveSshConfig as defaultResolveSshConfig,

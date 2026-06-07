@@ -6,12 +6,12 @@ import type {
   IssueQueryOpts,
   IssueSearchOpts,
 } from '@main/core/issues/issue-provider';
+import type { LinkedIssue } from '@shared/core/linked-issue';
 import {
   ISSUE_PROVIDER_CAPABILITIES,
   type IssueContextResult,
   type IssueListResult,
 } from '@shared/issue-providers';
-import type { LinkedIssue } from '@shared/linked-issue';
 import { trelloConnectionService, type TrelloAuth } from './trello-connection-service';
 
 type TrelloCard = {

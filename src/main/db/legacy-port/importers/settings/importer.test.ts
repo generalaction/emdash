@@ -5,7 +5,7 @@ import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
 import { getDefaultForKey } from '@main/core/settings/settings-registry';
 import { computeDelta, isDeepEqual, isPlainObject, mergeDeep } from '@main/core/settings/utils';
-import type { AppSettings, AppSettingsKey } from '@shared/app-settings';
+import type { AppSettings, AppSettingsKey } from '@shared/core/app-settings';
 import type { PromptLibraryPrompt } from '@shared/prompt-library';
 import { createDrizzleClient } from '../../../drizzleClient';
 import { portLegacySettings } from './importer';

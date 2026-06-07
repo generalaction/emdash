@@ -15,7 +15,7 @@ import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import { StickyDiffEditor } from '@renderer/lib/monaco/sticky-diff-editor';
 import { getLanguageFromPath } from '@renderer/utils/languageUtils';
-import { gitRefToString, HEAD_REF, STAGED_REF, type GitObjectRef } from '@shared/git';
+import { gitRefToString, HEAD_REF, STAGED_REF, type GitObjectRef } from '@shared/core/git/git';
 import { getDraftCommentTargetKey, type DraftCommentTarget } from '@shared/lineComments';
 import type { ActiveFile } from '@shared/view-state';
 
