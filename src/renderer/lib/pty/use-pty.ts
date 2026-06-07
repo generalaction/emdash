@@ -6,7 +6,7 @@ import { log } from '@renderer/utils/logger';
 import type { AppSettings } from '@shared/app-settings';
 import { appPasteChannel } from '@shared/events/appEvents';
 import { ptyDataChannel, ptyExitChannel } from '@shared/events/ptyEvents';
-import { TERMINAL_FONT_SIZE_DEFAULT } from '@shared/terminal-settings';
+import { TERMINAL_FONT_SIZE_DEFAULT, type TerminalOptionAsMetaId } from '@shared/terminal-settings';
 import { usePaneSizingContext } from './pane-sizing-context';
 import type { FrontendPty, SessionTheme } from './pty';
 import { measureDimensions } from './pty-dimensions';
@@ -182,6 +182,10 @@ export function usePty(
   // Auto-copy on selection
   const autoCopyOnSelectionRef = useRef(false);
   const lastSelectionRef = useRef<{ text: string; capturedAt: number } | null>(null);
+
+  // macOS Option-as-Meta mode (sends Esc-prefixed Alt sequences instead of
+  // composed characters like ∂ for Option+D).
+  const optionAsMetaRef = useRef<TerminalOptionAsMetaId>('none');
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
 
@@ -391,6 +395,10 @@ export function usePty(
             terminalSettings?.fontSize ?? TERMINAL_FONT_SIZE_DEFAULT;
           measureAndResize();
           autoCopyOnSelectionRef.current = terminalSettings?.autoCopyOnSelection ?? false;
+          optionAsMetaRef.current = terminalSettings?.optionAsMeta ?? 'none';
+          // 'left'/'right' are handled dynamically in the custom key event
+          // handler below; the base option stays false for those modes.
+          frontendPty.terminal.options.macOptionIsMeta = optionAsMetaRef.current === 'both';
         }
       );
 
@@ -431,6 +439,28 @@ export function usePty(
       // ── Keyboard shortcuts ─────────────────────────────────────────────────
       terminal.attachCustomKeyEventHandler((event: KeyboardEvent) => {
         if (document.querySelector('[role="dialog"]')) return false;
+
+        // Option-as-Meta left/right modes: xterm only exposes a boolean
+        // macOptionIsMeta and reads it per key event AFTER this handler runs,
+        // so tracking the physical Option key here lets one side send Esc-
+        // prefixed Alt sequences while the other keeps typing composed
+        // characters (e.g. @, [, ] on German layouts).
+        const optionAsMeta = optionAsMetaRef.current;
+        if (IS_MAC_PLATFORM && (optionAsMeta === 'left' || optionAsMeta === 'right')) {
+          if (!event.altKey) {
+            // Also self-heals a missed Option keyup (e.g. focus loss while held).
+            terminal.options.macOptionIsMeta = false;
+          } else if (
+            event.type === 'keydown' &&
+            event.key === 'Alt' &&
+            event.location ===
+              (optionAsMeta === 'left'
+                ? KeyboardEvent.DOM_KEY_LOCATION_LEFT
+                : KeyboardEvent.DOM_KEY_LOCATION_RIGHT)
+          ) {
+            terminal.options.macOptionIsMeta = true;
+          }
+        }
 
         if (
           shouldCopySelectionFromTerminal(
@@ -597,11 +627,19 @@ export function usePty(
         const detail = (e as CustomEvent<{ autoCopyOnSelection?: boolean }>).detail;
         autoCopyOnSelectionRef.current = detail?.autoCopyOnSelection ?? false;
       };
+      const handleOptionAsMetaChange = (e: Event) => {
+        const detail = (e as CustomEvent<{ optionAsMeta?: TerminalOptionAsMetaId }>).detail;
+        optionAsMetaRef.current = detail?.optionAsMeta ?? 'none';
+        terminal.options.macOptionIsMeta = optionAsMetaRef.current === 'both';
+      };
       window.addEventListener('terminal-font-changed', handleFontChange);
       window.addEventListener('terminal-auto-copy-changed', handleAutoCopyChange);
+      window.addEventListener('terminal-option-as-meta-changed', handleOptionAsMetaChange);
       cleanups.push(
         () => window.removeEventListener('terminal-font-changed', handleFontChange),
-        () => window.removeEventListener('terminal-auto-copy-changed', handleAutoCopyChange)
+        () => window.removeEventListener('terminal-auto-copy-changed', handleAutoCopyChange),
+        () =>
+          window.removeEventListener('terminal-option-as-meta-changed', handleOptionAsMetaChange)
       );
 
       // ── ResizeObserver (observes the mount-target, not the owned container) ─

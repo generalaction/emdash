@@ -42,6 +42,7 @@ export const SETTINGS_DEFAULTS = {
     fontSize: TERMINAL_FONT_SIZE_DEFAULT,
     autoCopyOnSelection: false,
     defaultShell: 'system' as const,
+    optionAsMeta: 'none' as const,
   },
   theme: null,
   defaultAgent: DEFAULT_AGENT_ID,

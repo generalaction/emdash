@@ -6,6 +6,7 @@ import { APP_SHORTCUTS } from '@shared/shortcuts';
 import {
   TERMINAL_FONT_SIZE_MAX,
   TERMINAL_FONT_SIZE_MIN,
+  TERMINAL_OPTION_AS_META_IDS,
   TERMINAL_SHELL_IDS,
 } from '@shared/terminal-settings';
 import { DEFAULT_AGENT_ID } from './settings-registry';
@@ -48,6 +49,7 @@ export const terminalSettingsSchema = z.object({
   fontSize: z.number().min(TERMINAL_FONT_SIZE_MIN).max(TERMINAL_FONT_SIZE_MAX).optional(),
   autoCopyOnSelection: z.boolean(),
   defaultShell: z.enum(TERMINAL_SHELL_IDS),
+  optionAsMeta: z.enum(TERMINAL_OPTION_AS_META_IDS),
 });
 
 export const themeSchema = z

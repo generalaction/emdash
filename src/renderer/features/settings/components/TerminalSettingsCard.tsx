@@ -33,6 +33,7 @@ import {
   TERMINAL_FONT_SIZE_DEFAULT,
   TERMINAL_FONT_SIZE_MAX,
   TERMINAL_FONT_SIZE_MIN,
+  type TerminalOptionAsMetaId,
   type TerminalShellId,
 } from '@shared/terminal-settings';
 import { SettingRow } from './SettingRow';
@@ -66,6 +67,16 @@ const DEFAULT_OPTION: FontOption = {
   label: `Default (${DEFAULT_FONT_FAMILY})`,
 };
 
+const IS_MAC_PLATFORM =
+  typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+
+const OPTION_AS_META_OPTIONS: { value: TerminalOptionAsMetaId; label: string }[] = [
+  { value: 'none', label: 'Off' },
+  { value: 'left', label: 'Left Option key' },
+  { value: 'right', label: 'Right Option key' },
+  { value: 'both', label: 'Both Option keys' },
+];
+
 const clampFontSize = (size: number) =>
   Math.min(TERMINAL_FONT_SIZE_MAX, Math.max(TERMINAL_FONT_SIZE_MIN, size));
 
@@ -86,6 +97,7 @@ const TerminalSettingsCard: React.FC = () => {
   const fontSize = terminal?.fontSize ?? TERMINAL_FONT_SIZE_DEFAULT;
   const autoCopyOnSelection = terminal?.autoCopyOnSelection ?? false;
   const defaultShell = terminal?.defaultShell ?? 'system';
+  const optionAsMeta = terminal?.optionAsMeta ?? 'none';
   const selectedShell = useMemo(
     () =>
       localShellAvailability.find((entry) => entry.id === defaultShell) ?? {
@@ -176,6 +188,16 @@ const TerminalSettingsCard: React.FC = () => {
   const applyDefaultShell = useCallback(
     (next: TerminalShellId) => {
       update({ defaultShell: next });
+    },
+    [update]
+  );
+
+  const applyOptionAsMeta = useCallback(
+    (next: TerminalOptionAsMetaId) => {
+      update({ optionAsMeta: next });
+      window.dispatchEvent(
+        new CustomEvent('terminal-option-as-meta-changed', { detail: { optionAsMeta: next } })
+      );
     },
     [update]
   );
@@ -338,6 +360,34 @@ const TerminalSettingsCard: React.FC = () => {
           />
         }
       />
+      {IS_MAC_PLATFORM ? (
+        <SettingRow
+          title="Option as Meta key"
+          description="Use Option for Alt shortcuts in CLI agents (e.g. Alt+D) instead of typing special characters."
+          control={
+            <Select
+              value={optionAsMeta}
+              onValueChange={(next) => applyOptionAsMeta(next as TerminalOptionAsMetaId)}
+              disabled={loading || saving}
+            >
+              <SelectTrigger className="w-[183px] shrink-0">
+                <SelectValue>
+                  {(value) =>
+                    OPTION_AS_META_OPTIONS.find((option) => option.value === value)?.label ?? ''
+                  }
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent align="end" className="min-w-max">
+                {OPTION_AS_META_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          }
+        />
+      ) : null}
     </div>
   );
 };

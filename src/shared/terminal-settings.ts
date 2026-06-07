@@ -2,6 +2,14 @@ export const TERMINAL_FONT_SIZE_DEFAULT = 13;
 export const TERMINAL_FONT_SIZE_MIN = 8;
 export const TERMINAL_FONT_SIZE_MAX = 32;
 
+/**
+ * macOS-only: which physical Option key acts as Meta (sends Esc-prefixed
+ * sequences, i.e. Alt shortcuts) in the terminal instead of typing composed
+ * characters. 'none' keeps the macOS default behavior.
+ */
+export const TERMINAL_OPTION_AS_META_IDS = ['none', 'left', 'right', 'both'] as const;
+export type TerminalOptionAsMetaId = (typeof TERMINAL_OPTION_AS_META_IDS)[number];
+
 export const TERMINAL_SHELL_IDS = [
   'system',
   'bash',
