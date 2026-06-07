@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Branch } from '@shared/git';
+import type { Branch } from '@shared/core/git/git';
 import { filterBranchesForPicker, prioritizeExactBranchMatches } from './branch-selector-utils';
 
 const origin = { name: 'origin', url: 'git@github.com:example/repo.git' };

@@ -99,6 +99,68 @@ installed under `tooling/node-deps/` (compiled for system Node). The root
 7. **Commit everything together**: migration SQL (`drizzle/`), `drizzle/meta/`,
    `pre-XXXX.db`, updated `tooling/fixtures/*.db`, the migration test.
 
+## Versioned JSON columns
+
+### What they are
+
+Some `text()` columns store structured JSON that may evolve across app versions.
+These columns use `versionedJsonColumn()` — a Drizzle `customType` that
+transparently handles version detection, upgrade chains, and serialization.
+
+```ts
+import { versionedJsonColumn } from '@main/db/versioned-column';
+import { myConfig } from '@shared/my-config';
+
+export const myTable = sqliteTable('my_table', {
+  col: versionedJsonColumn(myConfig)('col'),
+  // inferred type: MyConfig | null
+});
+```
+
+Drizzle's `fromDriver` runs the full upgrade chain on read. `toDriver` always
+serializes the latest version on write. No `JSON.parse` or `JSON.stringify` is
+needed at call sites.
+
+### Schema definitions
+
+Versioned schema definitions live in `src/shared/`. See
+`agents/conventions/versioned-schemas.md` for the full guide including the
+`defineVersionedSchema()` builder API, upgrade function patterns, and testing
+guidance.
+
+### Column inventory
+
+| Column | Schema file |
+|--------|-------------|
+| `workspaces.config` | `src/shared/workspace-config.ts` |
+| `workspaces.data` | `src/shared/workspace-provider-data.ts` |
+| `conversations.config` | `src/shared/conversation-config.ts` |
+| `tasks.workspace_intent` | `src/shared/workspace-config.ts` |
+| `tasks.task_config` | `src/shared/task-config.ts` |
+| `tasks.linked_issue` | `src/shared/linked-issue.ts` |
+| `automations.trigger_config` | `src/shared/automations/config.ts` |
+| `automations.conversation_config` | `src/shared/automations/config.ts` |
+| `automations.task_config` | `src/shared/automations/config.ts` |
+| `ssh_connections.metadata` | `src/shared/ssh-connection-metadata.ts` |
+
+### Snapshot columns and raw SQL
+
+`versionedJsonColumn` only hooks into ORM-level reads and writes. Columns written
+via raw SQL in automation run snapshots bypass `fromDriver`/`toDriver`. Those
+columns remain `text()` — call `schema.parseJson(row.col)` explicitly on read and
+`JSON.stringify` on write.
+
+### Risky operations
+
+- **Removing a field from a schema**: always keep the field as `.optional()` or
+  provide an upgrade function that drops it. Removing it silently breaks old rows
+  that still carry the field.
+- **Renaming a field**: requires a new version with an upgrade function.
+- **Changing a field type in place**: requires a new version. Never change a field
+  type within an existing version.
+- **Adding a required field without a default**: must either be `.optional()` or
+  require an upgrade function that supplies a default value.
+
 ### Testing utilities
 
 - `openFixture(name)` in `tooling/utils/db.ts` — copies a named fixture to a

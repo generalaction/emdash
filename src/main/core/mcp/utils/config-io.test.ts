@@ -1,6 +1,6 @@
 import * as fs from 'fs/promises';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { AgentMcpMeta } from '@shared/mcp/types';
+import type { AgentMcpMeta } from '@shared/core/mcp/types';
 import { readServers, writeServers } from './config-io';
 
 vi.mock('fs/promises', () => ({

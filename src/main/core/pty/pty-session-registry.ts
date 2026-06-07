@@ -1,7 +1,7 @@
 import { events } from '@main/lib/events';
-import type { AgentProviderId } from '@shared/agent-provider-registry';
+import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import { ptyDataChannel, ptyExitChannel, ptyInputChannel } from '@shared/core/pty/ptyEvents';
 import { ptyStartedChannel } from '@shared/events/appEvents';
-import { ptyDataChannel, ptyExitChannel, ptyInputChannel } from '@shared/events/ptyEvents';
 import type { Pty, PtyExitInfo } from './pty';
 
 export interface PtySessionMetadata {

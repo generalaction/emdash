@@ -2,9 +2,9 @@ import { saveProviderSessionId } from '@main/core/conversations/save-provider-se
 import { setProviderSessionId } from '@main/core/conversations/set-provider-session-id';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
-import { isValidProviderSessionId } from '@shared/agent-provider-registry';
-import { conversationChangedChannel } from '@shared/events/conversationEvents';
-import { parsePtyId } from '@shared/ptyId';
+import { isValidProviderSessionId } from '@shared/core/agents/agent-provider-registry';
+import { conversationChangedChannel } from '@shared/core/conversations/conversationEvents';
+import { parsePtyId } from '@shared/core/pty/ptyId';
 import { enrichEvent } from './event-enricher';
 import type { RawHookRequest } from './hook-server';
 

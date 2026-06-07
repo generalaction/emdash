@@ -1,4 +1,4 @@
-import type { ProvisionStep } from '@shared/events/taskEvents';
+import type { ProvisionStep } from '@shared/core/tasks/taskEvents';
 import { TimeoutSignal } from '../projects/utils';
 import type { ServeWorktreeError } from '../projects/worktrees/worktree-service';
 

@@ -6,6 +6,7 @@ import { cn } from '@renderer/utils/utils';
 import { AccountTab } from './AccountTab';
 import { CliAgentsList } from './CliAgentsList';
 import DefaultAgentSettingsCard from './DefaultAgentSettingsCard';
+import { GitHubAccountsSection } from './GitHubAccountsSection';
 import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
 import IntegrationsCard from './IntegrationsCard';
 import InterfaceSettingsCard from './InterfaceSettingsCard';
@@ -130,7 +131,10 @@ export function SettingsPage({
     integrations: {
       title: 'Integrations',
       description: 'Connect external services and tools.',
-      sections: [{ title: 'Integrations', component: <IntegrationsCard /> }],
+      sections: [
+        { component: <GitHubAccountsSection /> },
+        { title: 'Issue providers', component: <IntegrationsCard /> },
+      ],
     },
     connections: {
       title: 'Connections',

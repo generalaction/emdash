@@ -1,8 +1,8 @@
 import { makeAutoObservable, observable, runInAction } from 'mobx';
 import { events, rpc } from '@renderer/lib/ipc';
 import { log } from '@renderer/utils/logger';
-import { prSyncProgressChannel } from '@shared/events/prEvents';
-import type { PrSyncProgress } from '@shared/pull-requests';
+import { prSyncProgressChannel } from '@shared/core/pull-requests/prEvents';
+import type { PrSyncProgress } from '@shared/core/pull-requests/pull-requests';
 
 export class PrSyncStore {
   readonly states = observable.map<string, PrSyncProgress>();

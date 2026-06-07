@@ -1,6 +1,6 @@
 import { appSettingsService } from '@main/core/settings/settings-service';
-import { createRPCController } from '@shared/ipc/rpc';
-import { ok } from '@shared/result';
+import { createRPCController } from '@shared/lib/ipc/rpc';
+import { ok } from '@shared/lib/result';
 import { sampleOnce, setResourceMonitorOpen } from './resource-sampler';
 
 export const resourceMonitorController = createRPCController({

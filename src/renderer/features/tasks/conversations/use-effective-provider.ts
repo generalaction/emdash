@@ -5,7 +5,7 @@ import {
   AGENT_PROVIDER_IDS,
   isValidProviderId,
   type AgentProviderId,
-} from '@shared/agent-provider-registry';
+} from '@shared/core/agents/agent-provider-registry';
 import { resolveConversationProviderSelection } from './provider-selection';
 
 export type EffectiveProvider = {

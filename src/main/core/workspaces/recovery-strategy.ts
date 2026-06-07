@@ -1,5 +1,5 @@
 import { log } from '@main/lib/logger';
-import type { SetupStepError } from '@shared/workspace-setup-steps';
+import type { SetupStepError } from '@shared/core/workspaces/workspace-setup-steps';
 import type { StepContext } from './setup-steps/step-context';
 
 export type RecoveryOutcome =

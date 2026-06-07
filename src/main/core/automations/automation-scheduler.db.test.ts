@@ -1,7 +1,7 @@
 import { openFixture } from '@tooling/utils/db';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppDb } from '@main/db/client';
-import { ok } from '@shared/result';
+import { ok } from '@shared/lib/result';
 import { AutomationScheduler, type SchedulerCallbacks } from './automation-scheduler';
 import { insertRun } from './repo';
 import { markRunDone } from './run-transitions';
@@ -16,6 +16,7 @@ vi.mock('@main/db/client', () => ({
     return mocks.db;
   },
 }));
+vi.mock('./runtime', () => ({ runQueuedAutomation: vi.fn() }));
 
 // ---------------------------------------------------------------------------
 // Seeding helpers

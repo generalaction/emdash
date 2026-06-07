@@ -1,8 +1,8 @@
 import * as toml from 'smol-toml';
 import { describe, expect, it } from 'vitest';
 import { providerConfigDefaults } from '@main/core/settings/schema';
-import type { AgentProviderId } from '@shared/agent-provider-registry';
-import type { ProviderCustomConfig } from '@shared/app-settings';
+import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import type { ProviderCustomConfig } from '@shared/core/app-settings';
 import {
   buildAgentCommand,
   buildAgentSessionCommand,

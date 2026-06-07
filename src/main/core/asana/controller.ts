@@ -1,4 +1,4 @@
-import { createRPCController } from '@shared/ipc/rpc';
+import { createRPCController } from '@shared/lib/ipc/rpc';
 import { asanaConnectionService } from './asana-connection-service';
 
 export const asanaController = createRPCController({

@@ -1,4 +1,4 @@
-import type { McpServer, RawServerEntry } from '@shared/mcp/types';
+import type { McpServer, RawServerEntry } from '@shared/core/mcp/types';
 
 export function rawToMcpServer(
   name: string,

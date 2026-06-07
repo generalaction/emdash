@@ -6,20 +6,21 @@ import type { IDisposable } from '@renderer/lib/stores/lifecycle';
 import { Resource } from '@renderer/lib/stores/resource';
 import { log } from '@renderer/utils/logger';
 import { soundPlayer } from '@renderer/utils/soundPlayer';
-import { type Conversation, type CreateConversationParams } from '@shared/conversations';
 import {
   agentSessionExitedChannel,
   type AgentStatus,
   type NotificationType,
-} from '@shared/events/agentEvents';
+} from '@shared/core/agents/agentEvents';
 import {
   conversationAgentStatusChangedChannel,
   conversationChangedChannel,
   conversationCreatedChannel,
-} from '@shared/events/conversationEvents';
-import { makePtySessionId } from '@shared/ptySessionId';
-
-export type { AgentStatus } from '@shared/events/agentEvents';
+} from '@shared/core/conversations/conversationEvents';
+import {
+  type Conversation,
+  type CreateConversationParams,
+} from '@shared/core/conversations/conversations';
+import { makePtySessionId } from '@shared/core/pty/ptySessionId';
 
 export class ConversationManagerStore implements IDisposable {
   private offAgentStatusChanged: (() => void) | null = null;

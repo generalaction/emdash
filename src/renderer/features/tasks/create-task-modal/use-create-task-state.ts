@@ -2,9 +2,9 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
 import { rpc } from '@renderer/lib/ipc';
-import type { Branch } from '@shared/git';
-import type { PullRequest } from '@shared/pull-requests';
-import type { Issue } from '@shared/tasks';
+import type { Branch } from '@shared/core/git/git';
+import type { LinkedIssue } from '@shared/core/linked-issue';
+import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
 import { getIssueTaskName } from './issue-task-name';
 import { useBranchName } from './use-branch-name';
 import { useBranchSelection } from './use-branch-selection';
@@ -26,7 +26,7 @@ export function useCreateTaskState(
   const { autoGenerateName, createBranchAndWorktree } = useTaskSettings();
 
   const [linkedType, setLinkedTypeRaw] = useState<LinkedType>(initialPR ? 'pr' : initialLinkedType);
-  const [linkedIssue, setLinkedIssueRaw] = useState<Issue | null>(null);
+  const [linkedIssue, setLinkedIssueRaw] = useState<LinkedIssue | null>(null);
   const [linkedPR, setLinkedPRRaw] = useState<PullRequest | null>(initialPR ?? null);
   const [checkoutMode, setCheckoutMode] = useState<CheckoutMode>('checkout');
   const [prevProjectId, setPrevProjectId] = useState(projectId);
@@ -131,7 +131,7 @@ export function useCreateTaskState(
     if (type === 'issue' || type === null) setCheckoutMode('checkout');
   };
 
-  const setLinkedIssue = (issue: Issue | null) => {
+  const setLinkedIssue = (issue: LinkedIssue | null) => {
     setLinkedIssueRaw(issue);
   };
 

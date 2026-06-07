@@ -3,8 +3,7 @@ import { projectManager } from '@main/core/projects/project-manager';
 import { db } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
 import { log } from '@main/lib/logger';
-import type { DeletePreflightResult, TaskDeletePreflightItem } from '@shared/tasks';
-import { parseWorkspaceConfig } from '@shared/workspace-config';
+import type { DeletePreflightResult, TaskDeletePreflightItem } from '@shared/core/tasks/tasks';
 
 async function getTaskPreflight(
   projectId: string,
@@ -36,8 +35,7 @@ async function getTaskPreflight(
   const hasWorktree = siblings.length === 0;
 
   // A branch is deletable when it was created from a source branch (create-branch intent).
-  const wsConfig = parseWorkspaceConfig(ws.config);
-  const fromBranch = wsConfig?.git.kind === 'create-branch' ? wsConfig.git.fromBranch : undefined;
+  const fromBranch = ws.config?.git.kind === 'create-branch' ? ws.config.git.fromBranch : undefined;
   const hasDeletableBranch = hasWorktree && !!fromBranch && ws.branchName !== fromBranch.branch;
 
   let hasUncommittedChanges = false;

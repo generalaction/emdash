@@ -9,8 +9,8 @@ import { createWorkspaceFactory } from '@main/core/workspaces/workspace-factory'
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { log } from '@main/lib/logger';
 import { quoteShellArg } from '@main/utils/shellEscape';
-import type { ProjectSettings } from '@shared/project-settings';
-import type { Task } from '@shared/tasks';
+import type { ProjectSettings } from '@shared/core/project-settings/project-settings';
+import type { Task } from '@shared/core/tasks/tasks';
 
 export type ProvisionBYOITaskParams = {
   task: Task;

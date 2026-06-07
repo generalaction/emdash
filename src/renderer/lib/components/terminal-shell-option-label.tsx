@@ -2,7 +2,7 @@ import { Terminal } from 'lucide-react';
 import fishIcon from '@/assets/images/shells/fish.svg?raw';
 import { Badge } from '@renderer/lib/ui/badge';
 import { cn } from '@renderer/utils/utils';
-import type { TerminalShellAvailability } from '@shared/terminal-settings';
+import type { TerminalShellAvailability } from '@shared/core/terminals/terminal-settings';
 
 const SHELL_DEVICON_CLASS: Partial<Record<string, string>> = {
   bash: 'devicon-bash-plain',

@@ -1,4 +1,4 @@
-import type { PullRequestUser } from '@shared/pull-requests';
+import type { PullRequestUser } from '@shared/core/pull-requests/pull-requests';
 
 export type UserItem = { value: string; label: string; avatarUrl?: string };
 

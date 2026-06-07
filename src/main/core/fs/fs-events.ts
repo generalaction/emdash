@@ -1,6 +1,6 @@
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
-import type { FileWatchEvent } from '@shared/fs';
+import type { FileWatchEvent } from '@shared/core/fs/fs';
 
 export type FsHooks = {
   'watch:event': (event: {

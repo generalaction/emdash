@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { err, ok } from '@shared/result';
+import { err, ok } from '@shared/lib/result';
 import type { HostProbeResult } from './github-host-service';
 import { GitHubRepositoryResolver } from './github-repository-resolver';
 

@@ -37,11 +37,12 @@ export const PullRequestsSection = observer(function PullRequestsSection({
   const pullRequests = prStore?.pullRequests ?? [];
   const currentPr = prStore?.currentPr;
   const showCreatePrModal = useShowModal('createPrModal');
+  const prSyncStore = getPrSyncStore(projectId);
 
   const hasOpenPr = pullRequests.some((p) => p.status === 'open');
-  const isRefreshing = repositoryUrl
-    ? (getPrSyncStore(projectId)?.isSyncing(repositoryUrl) ?? false)
-    : false;
+  const isRefreshing = repositoryUrl ? (prSyncStore?.isSyncing(repositoryUrl) ?? false) : false;
+  const syncState = repositoryUrl ? prSyncStore?.getState(repositoryUrl) : undefined;
+  const syncError = syncState?.status === 'error' ? (syncState.error ?? 'Sync failed') : null;
 
   const onCreatePr =
     taskBranch && repositoryUrl
@@ -130,8 +131,8 @@ export const PullRequestsSection = observer(function PullRequestsSection({
           />
         ) : pullRequests.length === 0 ? (
           <EmptyState
-            label="No pull requests"
-            description="Push your branch and create a PR to start a review."
+            label={syncError ? 'Could not load pull requests' : 'No pull requests'}
+            description={syncError ?? 'Push your branch and create a PR to start a review.'}
           />
         ) : null}
         {repositoryUrl && currentPr && <PullRequestEntry key={currentPr.url} pr={currentPr} />}

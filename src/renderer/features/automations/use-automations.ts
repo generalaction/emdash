@@ -4,11 +4,11 @@ import { events, rpc } from '@renderer/lib/ipc';
 import type {
   CreateAutomationParams,
   UpdateAutomationSettingsPatch,
-} from '@shared/automations/automation';
+} from '@shared/core/automations/automation';
 import {
   automationChangedChannel,
   automationRunChangedChannel,
-} from '@shared/events/automationEvents';
+} from '@shared/core/automations/automationEvents';
 
 export function useAutomations(projectId?: string) {
   const queryClient = useQueryClient();

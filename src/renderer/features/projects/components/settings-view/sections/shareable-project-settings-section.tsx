@@ -10,7 +10,7 @@ import type {
   ProjectConfigMigration,
   ProjectSettingsOverrideState,
   ShareableProjectSettingsWriteField,
-} from '@shared/project-settings';
+} from '@shared/core/project-settings/project-settings';
 import { ConfigMigrationNotice } from '../config-migration-notice';
 import type { FormState, FormUpdate } from '../project-settings-form-model';
 import {

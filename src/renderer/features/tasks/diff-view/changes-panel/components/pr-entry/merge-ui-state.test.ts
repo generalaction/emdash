@@ -2,7 +2,11 @@ import { JSDOM } from 'jsdom';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { MergeStateStatus, PullRequest, PullRequestCheck } from '@shared/pull-requests';
+import type {
+  MergeStateStatus,
+  PullRequest,
+  PullRequestCheck,
+} from '@shared/core/pull-requests/pull-requests';
 import { MergeFooter } from './merge-footer';
 import { computeMergeUiState, deriveMergeCheckState, type MergeUiState } from './merge-ui-state';
 

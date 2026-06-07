@@ -13,9 +13,9 @@ import type {
   DependencyInstallResult,
   DependencyState,
   DependencyStatus,
-} from '@shared/dependencies';
+} from '@shared/core/dependencies';
 import { dependencyStatusUpdatedChannel } from '@shared/events/appEvents';
-import { err, ok } from '@shared/result';
+import { err, ok } from '@shared/lib/result';
 import {
   createLocalInstallCommandRunner,
   createSshInstallCommandRunner,

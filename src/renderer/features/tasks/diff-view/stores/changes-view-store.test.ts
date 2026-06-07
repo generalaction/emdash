@@ -1,7 +1,7 @@
 import { makeAutoObservable, runInAction } from 'mobx';
 import { describe, expect, it } from 'vitest';
 import { type PrStore } from '@renderer/features/tasks/stores/pr-store';
-import { type GitChange } from '@shared/git';
+import { type GitChange } from '@shared/core/git/git';
 import { ChangesViewStore } from './changes-view-store';
 import { type GitStore } from './git-store';
 

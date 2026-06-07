@@ -9,7 +9,7 @@ import {
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { Spinner } from '@renderer/lib/ui/spinner';
 import { cn } from '@renderer/utils/utils';
-import type { Automation } from '@shared/automations/automation';
+import type { Automation } from '@shared/core/automations/automation';
 import { useAutomationRunCounts, useAutomationRunsPaginated } from '../use-automations';
 import { AutomationRunRow } from './AutomationRunRow';
 

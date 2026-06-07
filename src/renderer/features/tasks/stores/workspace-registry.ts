@@ -1,6 +1,6 @@
 import { observable } from 'mobx';
 import type { ProjectSettingsStore } from '@renderer/features/projects/stores/project-settings-store';
-import type { WorkspaceResolution } from '@shared/workspaces';
+import type { WorkspaceResolution } from '@shared/core/workspaces/workspaces';
 import { WorkspaceStore } from './workspace';
 
 export type WorkspaceBootstrapState =

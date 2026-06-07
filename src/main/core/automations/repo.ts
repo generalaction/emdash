@@ -16,64 +16,23 @@ import type {
   Automation,
   CreateAutomationParams,
   UpdateAutomationSettingsPatch,
-} from '@shared/automations/automation';
+} from '@shared/core/automations/automation';
 import type {
   AutomationRun,
   AutomationRunStatus,
   AutomationRunTriggerKind,
-} from '@shared/automations/automation-run';
+  RunError,
+} from '@shared/core/automations/automation-run';
 import type {
   ConversationConfig,
   StoredAutomationTaskConfig,
   TriggerConfig,
-} from '@shared/automations/config';
-import { getLocalTimeZone } from '@shared/automations/timezone';
-import { assertValidCronTrigger } from '@shared/automations/validation';
+} from '@shared/core/automations/config';
+import { storedAutomationTaskConfig } from '@shared/core/automations/config';
+import { getLocalTimeZone } from '@shared/core/automations/timezone';
+import { assertValidCronTrigger } from '@shared/core/automations/validation';
 
 const DEFAULT_TZ = getLocalTimeZone();
-
-function parseTriggerConfig(raw: string | null): TriggerConfig | null {
-  if (!raw || raw === '{}' || raw === 'null') return null;
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== 'object') return null;
-    const obj = parsed as Record<string, unknown>;
-    if (typeof obj['expr'] !== 'string' || !obj['expr']) return null;
-    return parsed as TriggerConfig;
-  } catch (error) {
-    log.warn('automations.repo: failed to parse triggerConfig JSON', { error: String(error) });
-    return null;
-  }
-}
-
-function parseConversationConfig(raw: string | null): ConversationConfig | null {
-  if (!raw || raw === '{}' || raw === 'null') return null;
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== 'object') return null;
-    const obj = parsed as Record<string, unknown>;
-    if (typeof obj['prompt'] !== 'string' || !(obj['prompt'] as string).trim()) return null;
-    if (typeof obj['provider'] !== 'string' || !obj['provider']) return null;
-    return parsed as ConversationConfig;
-  } catch (error) {
-    log.warn('automations.repo: failed to parse conversationConfig JSON', { error: String(error) });
-    return null;
-  }
-}
-
-function parseTaskConfig(raw: string | null): StoredAutomationTaskConfig | null {
-  if (!raw || raw === 'null') return null;
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (!parsed || typeof parsed !== 'object') return null;
-    const obj = parsed as Record<string, unknown>;
-    if (!('taskConfig' in obj) || !('workspaceConfig' in obj)) return null;
-    return parsed as StoredAutomationTaskConfig;
-  } catch (error) {
-    log.warn('automations.repo: failed to parse taskConfig JSON', { error: String(error) });
-    return null;
-  }
-}
 
 function assertValidAutomationInput(input: {
   triggerConfig: TriggerConfig;
@@ -116,9 +75,9 @@ function mapAutomationRow(row: AutomationRow): Automation {
     id: row.id,
     name: row.name,
     projectId: row.projectId ?? undefined,
-    triggerConfig: parseTriggerConfig(row.triggerConfig) ?? undefined,
-    conversationConfig: parseConversationConfig(row.conversationConfig) ?? undefined,
-    taskConfig: parseTaskConfig(row.taskConfig) ?? undefined,
+    triggerConfig: row.triggerConfig ?? undefined,
+    conversationConfig: row.conversationConfig ?? undefined,
+    taskConfig: row.taskConfig ?? undefined,
     enabled: row.enabled === 1,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -142,6 +101,26 @@ function mapAutomationRows(rows: AutomationRow[]): Automation[] {
     const automation = mapAutomationRowSafely(row);
     return automation ? [automation] : [];
   });
+}
+
+function parseRunError(raw: string | null | undefined): RunError | null {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (
+      parsed !== null &&
+      typeof parsed === 'object' &&
+      'step' in parsed &&
+      'code' in parsed &&
+      typeof (parsed as RunError).step === 'string' &&
+      typeof (parsed as RunError).code === 'string'
+    ) {
+      return parsed as RunError;
+    }
+  } catch {
+    // fall through
+  }
+  return null;
 }
 
 function parseSnapshotTriggerConfig(raw: string, runId: string): TriggerConfig {
@@ -191,14 +170,14 @@ function mapAutomationRunRow(row: AutomationRunRow, taskId: string | null = null
     status: asRunStatus(row.status, row.id),
     taskId,
     generatedTaskName: row.generatedTaskName ?? null,
-    error: row.error,
+    error: parseRunError(row.error),
     triggerKind: asRunTriggerKind(row.triggerKind, row.id),
     triggerConfigSnapshot: parseSnapshotTriggerConfig(row.triggerConfigSnapshot, row.id),
     conversationConfigSnapshot: parseSnapshotConversationConfig(
       row.conversationConfigSnapshot,
       row.id
     ),
-    taskConfigSnapshot: parseTaskConfig(row.taskConfigSnapshot),
+    taskConfigSnapshot: storedAutomationTaskConfig.parseJson(row.taskConfigSnapshot),
   };
 }
 
@@ -287,9 +266,9 @@ export async function createAutomation(input: CreateAutomationParams): Promise<A
     .values({
       id: randomUUID(),
       name: input.name.trim(),
-      triggerConfig: JSON.stringify(input.triggerConfig),
-      conversationConfig: JSON.stringify(input.conversationConfig),
-      taskConfig: input.taskConfig ? JSON.stringify(input.taskConfig) : null,
+      triggerConfig: input.triggerConfig,
+      conversationConfig: input.conversationConfig,
+      taskConfig: input.taskConfig ?? null,
       projectId: input.projectId,
       enabled: input.enabled === false ? 0 : 1,
       createdAt: now,
@@ -336,13 +315,13 @@ export async function updateAutomationSettings(
     const values: Partial<typeof automations.$inferInsert> = { updatedAt: Date.now() };
     if (patch.projectId !== undefined) values.projectId = patch.projectId;
     if (patch.triggerConfig !== undefined) {
-      values.triggerConfig = JSON.stringify(patch.triggerConfig);
+      values.triggerConfig = patch.triggerConfig;
     }
     if (patch.conversationConfig !== undefined) {
-      values.conversationConfig = JSON.stringify(patch.conversationConfig);
+      values.conversationConfig = patch.conversationConfig;
     }
     if (patch.taskConfig !== undefined) {
-      values.taskConfig = patch.taskConfig ? JSON.stringify(patch.taskConfig) : null;
+      values.taskConfig = patch.taskConfig ?? null;
     }
 
     const [row] = tx
@@ -612,7 +591,7 @@ export async function insertRun(input: {
   launchedAt?: number | null;
   finishedAt?: number | null;
   generatedTaskName?: string | null;
-  error?: string | null;
+  error?: RunError | null;
 }): Promise<AutomationRun> {
   const [row] = await db
     .insert(automationRuns)
@@ -627,7 +606,7 @@ export async function insertRun(input: {
       finishedAt: input.finishedAt ?? null,
       status: input.status,
       generatedTaskName: input.generatedTaskName ?? generateRandom(),
-      error: input.error ?? null,
+      error: input.error ? JSON.stringify(input.error) : null,
       triggerKind: input.triggerKind,
       triggerConfigSnapshot: JSON.stringify(input.triggerConfigSnapshot),
       conversationConfigSnapshot: JSON.stringify(input.conversationConfigSnapshot),
@@ -655,9 +634,14 @@ export async function updateRun(
     >
   >
 ): Promise<AutomationRun | null> {
+  const { error, ...rest } = values;
+  const dbValues = {
+    ...rest,
+    ...(error !== undefined ? { error: error ? JSON.stringify(error) : null } : {}),
+  };
   const [row] = await db
     .update(automationRuns)
-    .set(values)
+    .set(dbValues)
     .where(eq(automationRuns.id, id))
     .returning();
   return row ? mapAutomationRunRow(row) : null;

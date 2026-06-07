@@ -3,7 +3,7 @@ import { useCallback } from 'react';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
-import type { McpCatalogEntry, McpProvidersResponse, McpServer } from '@shared/mcp/types';
+import type { McpCatalogEntry, McpProvidersResponse, McpServer } from '@shared/core/mcp/types';
 
 const MCP_QUERY_KEY = ['mcp', 'all'] as const;
 const PROVIDERS_QUERY_KEY = ['mcp', 'providers'] as const;

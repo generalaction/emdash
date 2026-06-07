@@ -1,5 +1,5 @@
-import { createRPCController } from '@/shared/ipc/rpc';
-import type { ProviderCustomConfig } from '@shared/app-settings';
+import type { ProviderCustomConfig } from '@shared/core/app-settings';
+import { createRPCController } from '@shared/lib/ipc/rpc';
 import { providerOverrideSettings } from './provider-settings-service';
 
 export const providerSettingsController = createRPCController({

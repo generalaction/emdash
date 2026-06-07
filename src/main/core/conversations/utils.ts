@@ -1,14 +1,13 @@
 import { type ConversationRow } from '@main/db/schema';
-import { type AgentProviderId } from '@shared/agent-provider-registry';
-import { parseConversationConfig } from '@shared/conversation-config';
-import { type Conversation } from '@shared/conversations';
-import { type AgentStatus } from '@shared/events/agentEvents';
+import { type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import { type AgentStatus } from '@shared/core/agents/agentEvents';
+import { type Conversation } from '@shared/core/conversations/conversations';
 
 export function mapConversationRowToConversation(
   row: ConversationRow,
   resume: boolean = false
 ): Conversation {
-  const config = parseConversationConfig(row.config);
+  const config = row.config ?? {};
   return {
     id: row.id,
     title: row.title,

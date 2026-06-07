@@ -1,6 +1,6 @@
 import type { IDisposable } from '@main/lib/lifecycle';
-import { makePtySessionId } from '@shared/ptySessionId';
-import { createLifecycleScriptTerminalId } from '@shared/terminals';
+import { makePtySessionId } from '@shared/core/pty/ptySessionId';
+import { createLifecycleScriptTerminalId } from '@shared/core/terminals/terminals';
 import type { Pty, PtyExitInfo } from '../pty/pty';
 import { ptySessionRegistry } from '../pty/pty-session-registry';
 import type { TerminalProvider } from '../terminals/terminal-provider';

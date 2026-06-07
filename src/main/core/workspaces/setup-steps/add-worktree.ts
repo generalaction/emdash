@@ -1,5 +1,5 @@
-import { err, ok, type Result } from '@shared/result';
-import type * as Step from '@shared/workspace-setup-steps/add-worktree';
+import type * as Step from '@shared/core/workspaces/workspace-setup-steps/add-worktree';
+import { err, ok, type Result } from '@shared/lib/result';
 import type { StepContext } from './step-context';
 
 async function isValidWorktree(worktreePath: string, ctx: StepContext): Promise<boolean> {

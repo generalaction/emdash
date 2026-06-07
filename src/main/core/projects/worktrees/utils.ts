@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import type { FileSystemProvider } from '@main/core/fs/types';
-import type { Branch } from '@shared/git';
+import type { Branch } from '@shared/core/git/git';
 import { mapWorktreeErrorToProvisionError } from '../../tasks/provision-task-error';
 import type { WorktreeService } from './worktree-service';
 

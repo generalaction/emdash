@@ -1,4 +1,4 @@
-import type { ProviderCustomConfig } from '@shared/app-settings';
+import type { ProviderCustomConfig } from '@shared/core/app-settings';
 import { OverrideSettings } from './override-settings';
 import { migrateProviderConfigOverrides } from './provider-config-migrations';
 import { providerConfigDefaults, providerCustomConfigEntrySchema } from './schema';

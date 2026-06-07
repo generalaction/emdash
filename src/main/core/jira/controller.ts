@@ -1,4 +1,4 @@
-import { createRPCController } from '@shared/ipc/rpc';
+import { createRPCController } from '@shared/lib/ipc/rpc';
 import { jiraConnectionService } from './jira-connection-service';
 
 export const jiraController = createRPCController({

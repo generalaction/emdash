@@ -1,6 +1,6 @@
 import { app, shell } from 'electron';
 import { updateService } from '@main/core/updates/update-service';
-import { createRPCController } from '@shared/ipc/rpc';
+import { createRPCController } from '@shared/lib/ipc/rpc';
 import { EMDASH_RELEASES_URL } from '@shared/urls';
 import { formatUpdaterError } from './utils';
 

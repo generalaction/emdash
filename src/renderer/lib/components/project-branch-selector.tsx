@@ -1,7 +1,7 @@
 import { observer } from 'mobx-react-lite';
 import React from 'react';
 import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
-import type { Branch } from '@shared/git';
+import type { Branch } from '@shared/core/git/git';
 import { BranchSelector, type BranchLabelRemoteMode } from './branch-selector';
 
 export interface ProjectBranchSelectorProps {

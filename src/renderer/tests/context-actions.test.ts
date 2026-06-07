@@ -7,10 +7,10 @@ import {
   buildTaskContextActions,
 } from '@renderer/features/tasks/conversations/context-actions';
 import type { DraftComment } from '@renderer/features/tasks/diff-view/stores/draft-comments-store';
+import type { LinkedIssue } from '@shared/core/linked-issue';
 import { getDraftCommentTargetKey, type DraftCommentTarget } from '@shared/lineComments';
-import type { Issue } from '@shared/tasks';
 
-function makeIssue(overrides: Partial<Issue> = {}): Issue {
+function makeIssue(overrides: Partial<LinkedIssue> = {}): LinkedIssue {
   return {
     provider: 'github',
     identifier: 'EMD-123',

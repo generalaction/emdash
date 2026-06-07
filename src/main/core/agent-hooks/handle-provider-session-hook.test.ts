@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { saveProviderSessionId } from '@main/core/conversations/save-provider-session-id';
 import { setProviderSessionId } from '@main/core/conversations/set-provider-session-id';
 import { events } from '@main/lib/events';
-import { conversationChangedChannel } from '@shared/events/conversationEvents';
+import { conversationChangedChannel } from '@shared/core/conversations/conversationEvents';
 import { enrichEvent } from './event-enricher';
 import {
   extractProviderSessionId,

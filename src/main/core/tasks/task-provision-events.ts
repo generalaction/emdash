@@ -1,6 +1,6 @@
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
-import type { ProvisionStep } from '@shared/events/taskEvents';
+import type { ProvisionStep } from '@shared/core/tasks/taskEvents';
 
 type TaskProvisionProgress = {
   taskId: string;

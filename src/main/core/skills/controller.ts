@@ -1,6 +1,6 @@
-import { createRPCController } from '@/shared/ipc/rpc';
 import { skillsService } from '@main/core/skills/SkillsService';
 import { log } from '@main/lib/logger';
+import { createRPCController } from '@shared/lib/ipc/rpc';
 
 export const skillsController = createRPCController({
   getCatalog: async () => {

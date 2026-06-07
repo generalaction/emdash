@@ -1,11 +1,11 @@
 import { rpc } from '@renderer/lib/ipc';
+import type { LinkedIssue } from '@shared/core/linked-issue';
 import { ISSUE_PROVIDER_CAPABILITIES } from '@shared/issue-providers';
-import type { Issue } from '@shared/tasks';
 
 export async function refreshLinkedIssueContext(
-  issue: Issue,
+  issue: LinkedIssue,
   projectId: string | undefined
-): Promise<Issue> {
+): Promise<LinkedIssue> {
   if (!ISSUE_PROVIDER_CAPABILITIES[issue.provider].supportsIssueContext || !projectId) return issue;
 
   const result = await rpc.issues
