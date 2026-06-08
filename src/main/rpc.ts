@@ -34,6 +34,7 @@ import { telemetryController } from './core/telemetry/controller';
 import { terminalsController } from './core/terminals/controller';
 import { trelloController } from './core/trello/controller';
 import { updateController } from './core/updates/controller';
+import { usageStatsController } from './core/usage-stats/controller';
 import { viewStateController } from './core/view-state/controller';
 import { projectSettingsController } from './core/workspaces/project-settings-controller';
 import { legacyPortController } from './db/legacy-port/controller';
@@ -49,6 +50,7 @@ export const rpcRouter = createRPCRouter({
   update: updateController,
   pty: ptyController,
   resourceMonitor: resourceMonitorController,
+  usageStats: usageStatsController,
   asana: asanaController,
   featurebase: featurebaseController,
   forgejo: forgejoController,
