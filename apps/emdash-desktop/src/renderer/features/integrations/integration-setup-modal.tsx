@@ -10,6 +10,7 @@ import JiraSetupForm from './JiraSetupForm';
 import LinearSetupForm from './LinearSetupForm';
 import MondaySetupForm from './MondaySetupForm';
 import PlainSetupForm from './PlainSetupForm';
+import PlaneSetupForm from './PlaneSetupForm';
 import { type SetupFormProps } from './SetupFormShell';
 import TrelloSetupForm from './TrelloSetupForm';
 import type { SetupIntegrationType } from './types';
@@ -24,6 +25,7 @@ const SETUP_FORMS: Record<SetupIntegrationType, ComponentType<SetupFormProps>> =
   linear: LinearSetupForm,
   jira: JiraSetupForm,
   gitlab: GitLabSetupForm,
+  plane: PlaneSetupForm,
   plain: PlainSetupForm,
   forgejo: ForgejoSetupForm,
   featurebase: FeaturebaseSetupForm,

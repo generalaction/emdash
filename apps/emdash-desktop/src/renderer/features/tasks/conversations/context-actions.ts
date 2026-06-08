@@ -37,6 +37,7 @@ const PROVIDER_LABELS: Record<LinkedIssue['provider'], string> = {
   linear: 'Linear',
   jira: 'Jira',
   gitlab: 'GitLab',
+  plane: 'Plane',
   plain: 'Plain',
   forgejo: 'Forgejo',
   featurebase: 'Featurebase',
