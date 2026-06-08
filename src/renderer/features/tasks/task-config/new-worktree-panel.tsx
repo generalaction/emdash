@@ -1,8 +1,8 @@
 import { ChevronDown, GitBranch } from 'lucide-react';
 import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
+import type { WorkspaceConfigState } from '@renderer/features/tasks/create-task-modal/use-workspace-config';
 import { BranchNameField } from './branch-name-field';
-import type { WorkspaceConfigState } from './use-workspace-config';
 
 export type WorkspacePanelProps = {
   workspaceConfig: WorkspaceConfigState;

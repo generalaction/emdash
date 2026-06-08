@@ -2,6 +2,7 @@ import { ChevronRight } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@renderer/lib/ui/collapsible';
 import { PanelTabs } from '@renderer/lib/ui/panel-tabs';
 import { cn } from '@renderer/utils/utils';
+import type { WorkspaceConfigState } from '@renderer/features/tasks/create-task-modal/use-workspace-config';
 import type { WorkspacePresetId } from '@shared/core/workspaces/workspace-presets';
 import { CheckoutPrPanel } from './checkout-pr-panel';
 import { useProjectWorkspaces } from './existing-workspace-picker';
@@ -9,7 +10,6 @@ import { NewWorktreePanel } from './new-worktree-panel';
 import type { WorkspacePanelProps } from './new-worktree-panel';
 import { PrNewBranchPanel } from './pr-new-branch-panel';
 import { SandboxPanel } from './sandbox-panel';
-import type { CreateTaskState } from './use-create-task-state';
 import { UseExistingPanel } from './use-existing-panel';
 import { WorkspacePresetPicker } from './workspace-preset-picker';
 
@@ -28,21 +28,20 @@ const PRESET_PANELS: Record<
 const PRESETS_WITHOUT_SETTINGS = new Set<WorkspacePresetId>(['repo-root', 'sandbox']);
 
 interface WorkspaceSettingsSectionProps {
-  state: CreateTaskState;
+  workspaceConfig: WorkspaceConfigState;
   projectId?: string;
-  currentBranch?: string | null;
   isUnborn?: boolean;
   isWorkspaceProviderEnabled: boolean;
+  hasPR?: boolean;
 }
 
 export function WorkspaceSettingsSection({
-  state,
+  workspaceConfig,
   projectId,
   isUnborn = false,
   isWorkspaceProviderEnabled,
+  hasPR = false,
 }: WorkspaceSettingsSectionProps) {
-  const { workspaceConfig } = state;
-  const hasPR = state.linkedType === 'pr' && state.linkedPR !== null;
   const { data: existingWorkspaces = [] } = useProjectWorkspaces(projectId);
 
   const { presetId, branchSelection } = workspaceConfig;

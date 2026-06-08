@@ -21,6 +21,7 @@ import type {
   WorkspacePresetMeta,
 } from '@shared/core/workspaces/workspace-presets';
 import { WORKSPACE_PRESETS } from '@shared/core/workspaces/workspace-presets';
+import { useTaskConfig } from './task-config-context';
 
 // ---------------------------------------------------------------------------
 // Icons
@@ -58,8 +59,10 @@ export function WorkspacePresetPicker({
   hasExistingWorkspaces,
   disabled,
 }: WorkspacePresetPickerProps) {
+  const { showPrPresets } = useTaskConfig();
+
   const options: PresetOption[] = WORKSPACE_PRESETS.filter(
-    (preset) => !preset.requiresBYOI || isWorkspaceProviderEnabled
+    (preset) => (showPrPresets || !preset.requiresPR) && (!preset.requiresBYOI || isWorkspaceProviderEnabled)
   ).map((preset) => ({
     ...preset,
     disabled:

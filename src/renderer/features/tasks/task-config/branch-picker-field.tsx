@@ -6,9 +6,9 @@ import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
 import { Field, FieldLabel } from '@renderer/lib/ui/field';
 import { Switch } from '@renderer/lib/ui/switch';
 import { cn } from '@renderer/utils/utils';
+import type { BranchNameState } from '@renderer/features/tasks/create-task-modal/use-branch-name';
+import type { BranchSelectionState } from '@renderer/features/tasks/create-task-modal/use-branch-selection';
 import { BranchNameField } from './branch-name-field';
-import { type BranchNameState } from './use-branch-name';
-import { type BranchSelectionState } from './use-branch-selection';
 
 interface BranchPickerFieldProps {
   state: BranchSelectionState;

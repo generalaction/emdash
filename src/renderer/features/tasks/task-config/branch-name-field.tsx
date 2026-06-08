@@ -1,7 +1,7 @@
 import { EditableNameField } from '@renderer/lib/ui/editable-name-field';
 import { FieldLabel } from '@renderer/lib/ui/field';
 import { Switch } from '@renderer/lib/ui/switch';
-import type { BranchNameState } from './use-branch-name';
+import type { BranchNameState } from '@renderer/features/tasks/create-task-modal/use-branch-name';
 
 interface BranchNameFieldProps {
   state: Pick<BranchNameState, 'branchName' | 'setBranchName' | 'branchAlreadyExists'>;

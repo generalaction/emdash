@@ -1,32 +1,39 @@
 import { useState } from 'react';
+import type { InitialConversationState } from '@renderer/features/tasks/conversations/initial-conversation-section';
+import { InitialConversationField } from '@renderer/features/tasks/conversations/initial-conversation-section';
 import { PanelTabs } from '@renderer/lib/ui/panel-tabs';
-import type { InitialConversationState } from '../conversations/initial-conversation-section';
-import { InitialConversationField } from '../conversations/initial-conversation-section';
-import type { CreateTaskState } from './use-create-task-state';
+import type { LinkedIssue } from '@shared/core/linked-issue';
+import type { WorkspaceConfigState } from '@renderer/features/tasks/create-task-modal/use-workspace-config';
+import { useTaskConfig } from './task-config-context';
 import { WorkspaceSettingsSection } from './workspace-settings-section';
 
 type SectionTab = 'conversation' | 'workspace';
 
-interface SectionTabsPanelProps {
-  state: CreateTaskState;
+interface TaskConfigPanelProps {
+  workspaceConfig: WorkspaceConfigState;
+  hasPR?: boolean;
   initialConversation: InitialConversationState;
+  linkedIssue?: LinkedIssue;
   projectId?: string;
-  currentBranch: string | null;
-  isUnborn: boolean;
+  isUnborn?: boolean;
   isWorkspaceProviderEnabled: boolean;
-  includeIssueContextByDefault: boolean;
+  includeIssueContextByDefault?: boolean;
+  onPromptBlur?: () => void;
 }
 
-export function SectionTabsPanel({
-  state,
+export function TaskConfigPanel({
+  workspaceConfig,
+  hasPR = false,
   initialConversation,
+  linkedIssue,
   projectId,
-  currentBranch,
-  isUnborn,
+  isUnborn = false,
   isWorkspaceProviderEnabled,
-  includeIssueContextByDefault,
-}: SectionTabsPanelProps) {
+  includeIssueContextByDefault = false,
+  onPromptBlur,
+}: TaskConfigPanelProps) {
   const [sectionTab, setSectionTab] = useState<SectionTab>('conversation');
+  const { conversationLabel } = useTaskConfig();
 
   return (
     <div className="flex flex-col gap-2">
@@ -34,7 +41,7 @@ export function SectionTabsPanel({
         value={sectionTab}
         onChange={setSectionTab}
         tabs={[
-          { value: 'conversation', label: 'Initial Conversation' },
+          { value: 'conversation', label: conversationLabel },
           { value: 'workspace', label: 'Workspace Settings' },
         ]}
       />
@@ -42,18 +49,18 @@ export function SectionTabsPanel({
         {sectionTab === 'conversation' && (
           <InitialConversationField
             state={initialConversation}
-            linkedIssue={
-              state.linkedType === 'issue' ? (state.linkedIssue ?? undefined) : undefined
-            }
+            linkedIssue={linkedIssue}
             includeIssueContextByDefault={includeIssueContextByDefault}
+            onPromptBlur={onPromptBlur}
           />
         )}
         {sectionTab === 'workspace' && (
           <WorkspaceSettingsSection
-            state={state}
+            workspaceConfig={workspaceConfig}
             projectId={projectId}
             isUnborn={isUnborn}
             isWorkspaceProviderEnabled={isWorkspaceProviderEnabled}
+            hasPR={hasPR}
           />
         )}
       </div>

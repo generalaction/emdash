@@ -19,9 +19,9 @@ import {
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
 import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
+import { TaskConfigPanel } from '@renderer/features/tasks/task-config/task-config-panel';
 import { useInitialConversationState } from '../conversations/initial-conversation-section';
 import { LinkedEntitySection } from './linked-entity-section';
-import { SectionTabsPanel } from './section-tabs-panel';
 import { TaskNameField } from './task-name-field';
 import { useCreateTaskCallback } from './use-create-task-callback';
 import { type LinkedType, useCreateTaskState } from './use-create-task-state';
@@ -125,11 +125,12 @@ export const CreateTaskModal = observer(function CreateTaskModal({
             repositoryUrl={repositoryUrl}
             projectPath={projectPath}
           />
-          <SectionTabsPanel
-            state={state}
+          <TaskConfigPanel
+            workspaceConfig={state.workspaceConfig}
+            hasPR={state.linkedType === 'pr' && state.linkedPR !== null}
             initialConversation={initialConversation}
+            linkedIssue={state.linkedType === 'issue' ? (state.linkedIssue ?? undefined) : undefined}
             projectId={selectedProjectId}
-            currentBranch={currentBranch}
             isUnborn={isUnborn}
             isWorkspaceProviderEnabled={isWorkspaceProviderEnabled}
             includeIssueContextByDefault={includeIssueContextByDefault}
