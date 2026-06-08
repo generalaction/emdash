@@ -1,5 +1,6 @@
 import { basename } from 'node:path';
 import { fsEvents } from '@main/core/fs/fs-events';
+import { WORKSPACE_IGNORED_DIRS } from '@main/core/fs/ignored-dirs';
 import type { Workspace } from '@main/core/workspaces/workspace';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { sqlite } from '@main/db/client';
@@ -9,39 +10,6 @@ const STALE_DAYS = 14;
 const MAX_FILES = 50_000;
 const CRAWL_TIMEOUT_MS = 30_000;
 const REINDEX_DEBOUNCE_MS = 3_000;
-
-const CRAWL_IGNORED_DIRS = new Set([
-  'node_modules',
-  '.git',
-  '.svn',
-  '.hg',
-  'dist',
-  'build',
-  '.next',
-  '.nuxt',
-  'coverage',
-  '.cache',
-  '.parcel-cache',
-  '__pycache__',
-  '.pytest_cache',
-  'venv',
-  '.venv',
-  'target',
-  '.terraform',
-  '.serverless',
-  'worktrees',
-  '.emdash',
-  '.conductor',
-  '.cursor',
-  '.claude',
-  '.devin',
-  '.amp',
-  '.codex',
-  '.aider',
-  '.continue',
-  '.cody',
-  '.windsurf',
-]);
 
 type FileHit = { path: string; filename: string };
 
@@ -128,7 +96,8 @@ class WorkspaceFileIndexService {
       });
 
       const files = result.entries.filter(
-        (e) => e.type === 'file' && !e.path.split('/').some((seg) => CRAWL_IGNORED_DIRS.has(seg))
+        (e) =>
+          e.type === 'file' && !e.path.split('/').some((seg) => WORKSPACE_IGNORED_DIRS.has(seg))
       );
 
       sqlite.transaction(() => {

@@ -4,6 +4,7 @@ import { createInterface } from 'node:readline';
 import parcelWatcher from '@parcel/watcher';
 import { glob } from 'glob';
 import ignore from 'ignore';
+import { WORKSPACE_IGNORED_DIR_NAMES } from '@main/core/fs/ignored-dirs';
 import { log } from '@main/lib/logger';
 import type { FileWatchEvent } from '@shared/core/fs/fs';
 import {
@@ -83,39 +84,8 @@ const SEARCH_IGNORES = new Set([
   '.parcel-cache',
 ]);
 
-const WATCH_IGNORED_NAMES = [
-  '.svn',
-  '.hg',
-  '.git',
-  'node_modules',
-  'dist',
-  'build',
-  '.next',
-  '.nuxt',
-  'coverage',
-  '__pycache__',
-  '.pytest_cache',
-  'venv',
-  '.venv',
-  'target',
-  '.terraform',
-  '.serverless',
-  'worktrees',
-  '.emdash',
-  '.conductor',
-  '.cursor',
-  '.claude',
-  '.devin',
-  '.amp',
-  '.codex',
-  '.aider',
-  '.continue',
-  '.cody',
-  '.windsurf',
-];
-
-// Glob patterns for parcel/watcher ignore option, derived from WATCH_IGNORED_NAMES.
-const WATCH_IGNORE_GLOBS = WATCH_IGNORED_NAMES.map((n) => `**/${n}/**`);
+// Glob patterns for parcel/watcher ignore option.
+const WATCH_IGNORE_GLOBS = WORKSPACE_IGNORED_DIR_NAMES.map((n) => `**/${n}/**`);
 
 // Allowed image extensions for readImage
 const ALLOWED_IMAGE_EXTENSIONS = new Set([
