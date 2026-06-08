@@ -1,8 +1,5 @@
 import { computed, makeAutoObservable, observable, reaction, runInAction } from 'mobx';
-import {
-  type ProjectStore,
-  type UnregisteredProject,
-} from '@renderer/features/projects/stores/project';
+import { type ProjectStore } from '@renderer/features/projects/stores/project';
 import type { ProjectManagerStore } from '@renderer/features/projects/stores/project-manager';
 import {
   registeredTaskData,
@@ -10,7 +7,6 @@ import {
   type TaskStore,
 } from '@renderer/features/tasks/stores/task-store';
 import type { Snapshottable } from '@renderer/lib/stores/snapshottable';
-import { type LocalProject, type SshProject } from '@shared/projects';
 import type { SidebarSnapshot, SidebarTaskSortBy } from '@shared/view-state';
 
 function parseSidebarTaskSortBy(value: unknown): SidebarTaskSortBy | undefined {
@@ -83,27 +79,20 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
   get orderedProjects(): ProjectStore[] {
     const all = Array.from(this.projectManager.projects.values());
 
-    const unregistered = all.filter((p): p is UnregisteredProject => p.state === 'unregistered');
-    const real = all.filter(
-      (p): p is ProjectStore & { data: LocalProject | SshProject } => p.state !== 'unregistered'
-    );
-
-    const sorted = [...real].sort((a, b) => {
-      const ai = this.projectOrder.indexOf(a.data.id);
-      const bi = this.projectOrder.indexOf(b.data.id);
+    return [...all].sort((a, b) => {
+      const ai = this.projectOrder.indexOf(a.id);
+      const bi = this.projectOrder.indexOf(b.id);
       if (ai === -1 && bi === -1) return 0;
       if (ai === -1) return 1;
       if (bi === -1) return -1;
       return ai - bi;
     });
-
-    return [...unregistered, ...sorted];
   }
 
   get sidebarRows(): SidebarRow[] {
     const rows: SidebarRow[] = [];
     for (const project of this.orderedProjects) {
-      const projectId = project.state === 'unregistered' ? project.id : project.data!.id;
+      const projectId = project.id;
       rows.push({ kind: 'project', projectId });
       if (this.expandedProjectIds.has(projectId) && project.mountedProject) {
         const tasks = Array.from(project.mountedProject.taskManager.tasks.values()).filter(
@@ -129,8 +118,7 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
     const pairs: { projectId: string; task: TaskStore }[] = [];
     for (const project of this.projectManager.projects.values()) {
       if (!project.mountedProject) continue;
-      const projectId = project.state === 'unregistered' ? project.id : project.data?.id;
-      if (!projectId) continue;
+      const projectId = project.id;
       for (const task of project.mountedProject.taskManager.tasks.values()) {
         const visible =
           task.state === 'unregistered' || !('archivedAt' in task.data && task.data.archivedAt);
@@ -195,8 +183,7 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
   /** Called on first load when no snapshot exists — expand all known projects. */
   expandAllProjects(): void {
     for (const project of this.orderedProjects) {
-      const projectId = project.state === 'unregistered' ? project.id : project.data!.id;
-      this.expandedProjectIds.add(projectId);
+      this.expandedProjectIds.add(project.id);
     }
   }
 
