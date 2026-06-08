@@ -19,7 +19,7 @@ import {
   setTabActiveIndex as tabUtilsSetTabActiveIndex,
 } from '@renderer/lib/stores/tab-utils';
 import { setTelemetryConversationScope } from '@renderer/utils/telemetry-scope';
-import { refsEqual, type GitChangeStatus, type GitObjectRef } from '@shared/git';
+import { refsEqual, type GitChangeStatus, type GitObjectRef } from '@shared/core/git/git';
 import type { ActiveFile, TabDescriptor, TabManagerSnapshot } from '@shared/view-state';
 
 // ---------------------------------------------------------------------------

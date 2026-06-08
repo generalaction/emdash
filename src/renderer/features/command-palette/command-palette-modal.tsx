@@ -17,7 +17,7 @@ import { appState } from '@renderer/lib/stores/app-state';
 import { Shortcut } from '@renderer/lib/ui/shortcut';
 import { cn } from '@renderer/utils/utils';
 import { ALL_COMMAND_DEFS, type CommandDef } from '@shared/commands';
-import type { SearchItem } from '@shared/search';
+import type { SearchItem } from '@shared/core/search';
 import { getCommandIcon } from './command-icons';
 import { PaletteConversationItem } from './palette-conversation-item';
 import { PALETTE_ITEM_CLASS } from './palette-item-styles';

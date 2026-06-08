@@ -1,12 +1,12 @@
 import { clampIssueLimit, normalizeSearchTerm } from '@main/core/issues/helpers/provider-inputs';
 import type { IssueProvider } from '@main/core/issues/issue-provider';
 import { log } from '@main/lib/logger';
+import type { LinkedIssue } from '@shared/core/linked-issue';
 import {
   ISSUE_PROVIDER_CAPABILITIES,
   type IssueContextResult,
   type IssueListResult,
 } from '@shared/issue-providers';
-import type { Issue } from '@shared/tasks';
 import { plainConnectionService, toPlainErrorMessage } from './plain-connection-service';
 
 type PlainThreadLike = {
@@ -29,7 +29,7 @@ function priorityLabel(priority: number | null | undefined): string | undefined 
   return PRIORITY_LABELS[priority] ?? `P${priority}`;
 }
 
-function toIssue(thread: PlainThreadLike): Issue {
+function toIssue(thread: PlainThreadLike): LinkedIssue {
   const ref = thread.ref ?? null;
   const title = thread.title ?? '';
   // Synthesize a branch-style name so `getIssueTaskName` can prefix the task
@@ -199,7 +199,7 @@ async function getIssueContext(identifier: string): Promise<IssueContextResult> 
       log.warn('[Plain] failed to hydrate customer for thread context:', error);
     }
 
-    const enriched: Issue = {
+    const enriched: LinkedIssue = {
       ...toIssue(threadData),
       context: formatPlainContext(threadData, customerSummary),
     };

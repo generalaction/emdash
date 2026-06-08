@@ -1,7 +1,7 @@
 import { getProjectManagerStore } from '@renderer/features/projects/stores/project-selectors';
 import { rpc } from '@renderer/lib/ipc';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
-import type { Automation } from '@shared/automations/automation';
+import type { Automation } from '@shared/core/automations/automation';
 
 async function listProjectAutomations(projectId: string): Promise<Automation[]> {
   return rpc.automations.listAutomations(projectId).catch(() => []);

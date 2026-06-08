@@ -1,16 +1,17 @@
 import { AbsoluteTime } from '@renderer/lib/ui/absolute-time';
 import type {
+  AutomationRun,
   AutomationRunStatus,
   AutomationRunTriggerKind,
-} from '@shared/automations/automation-run';
-import { formatRunTriggerKindLabel } from '@shared/automations/format';
+} from '@shared/core/automations/automation-run';
+import { formatRunTriggerKindLabel } from '../automation-run-format';
 import { RunStatusBadge } from './RunStatusBadge';
 
 export interface RunMetaLineProps {
   displayTime: number | null;
   triggerKind: AutomationRunTriggerKind | null;
   runStatus: AutomationRunStatus | null;
-  error: string | null;
+  error: AutomationRun['error'];
 }
 
 export function RunMetaLine({ displayTime, triggerKind, runStatus, error }: RunMetaLineProps) {

@@ -5,13 +5,13 @@ import {
 import { agentMeta } from '@renderer/lib/providers/meta';
 import { appState } from '@renderer/lib/stores/app-state';
 import { formatBytes } from '@renderer/utils/formatBytes';
-import type { AgentProviderId } from '@shared/agent-provider-registry';
+import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import { createLifecycleScriptTerminalId } from '@shared/core/terminals/terminals';
 import type {
   ResourceAppProcess,
   ResourcePtyEntry,
   ResourceSnapshot,
 } from '@shared/resource-monitor';
-import { createLifecycleScriptTerminalId } from '@shared/terminals';
 
 export type Entry = ResourcePtyEntry & {
   taskName?: string;

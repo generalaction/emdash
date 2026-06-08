@@ -1,5 +1,5 @@
 import type { GitHubUser } from '@shared/github';
-import { defineEvent } from '@shared/ipc/events';
+import { defineEvent } from '@shared/lib/ipc/events';
 
 export const githubAuthDeviceCodeChannel = defineEvent<{
   userCode: string;
@@ -8,16 +8,7 @@ export const githubAuthDeviceCodeChannel = defineEvent<{
   interval: number;
 }>('github:auth:device-code');
 
-export const githubAuthPollingChannel = defineEvent<{
-  status: string;
-}>('github:auth:polling');
-
-export const githubAuthSlowDownChannel = defineEvent<{
-  newInterval: number;
-}>('github:auth:slow-down');
-
 export const githubAuthSuccessChannel = defineEvent<{
-  token: string;
   user: GitHubUser;
 }>('github:auth:success');
 
@@ -26,8 +17,6 @@ export const githubAuthErrorChannel = defineEvent<{
   message: string;
 }>('github:auth:error');
 
-export const githubAuthCancelledChannel = defineEvent<void>('github:auth:cancelled');
-
-export const githubAuthUserUpdatedChannel = defineEvent<{
-  user: GitHubUser;
-}>('github:auth:user-updated');
+export const githubAccountsChangedChannel = defineEvent<{
+  reason: 'startup-reconciliation' | 'account-updated';
+}>('github:accounts-changed');

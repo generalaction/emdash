@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Sheet, SheetContent } from '@renderer/lib/ui/sheet';
-import type { Automation } from '@shared/automations/automation';
+import type { Automation } from '@shared/core/automations/automation';
 import { useAutomations } from '../use-automations';
 import { AutomationDetailView } from './AutomationDetailView';
 import { AutomationsHeader } from './AutomationsHeader';

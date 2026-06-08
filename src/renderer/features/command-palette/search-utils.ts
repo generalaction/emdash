@@ -1,4 +1,4 @@
-import type { SearchItem } from '@shared/search';
+import type { SearchItem } from '@shared/core/search';
 
 /**
  * Re-ranks FTS5 results by boosting items belonging to the active project.

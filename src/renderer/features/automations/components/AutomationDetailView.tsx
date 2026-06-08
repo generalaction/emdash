@@ -12,7 +12,7 @@ import { EditableNameField } from '@renderer/lib/ui/editable-name-field';
 import { PanelTabs } from '@renderer/lib/ui/panel-tabs';
 import { Switch } from '@renderer/lib/ui/switch';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
-import type { Automation } from '@shared/automations/automation';
+import type { Automation } from '@shared/core/automations/automation';
 import { useAutomationEventBridge, useAutomations } from '../use-automations';
 import { useAutomationSettingsAutoSave } from '../useAutomationSettingsAutoSave';
 import { AutomationSettingsFields } from './AutomationSettingsFields';

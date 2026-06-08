@@ -11,8 +11,8 @@ import {
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
 import { MarkdownRenderer } from '@renderer/lib/ui/markdown-renderer';
-import type { CatalogSkill } from '@shared/skills/types';
-import { parseFrontmatter } from '@shared/skills/validation';
+import type { CatalogSkill } from '@shared/core/skills/types';
+import { parseFrontmatter } from '@shared/core/skills/validation';
 import { SkillIconRenderer } from './SkillIconRenderer';
 
 const sourceMeta = {

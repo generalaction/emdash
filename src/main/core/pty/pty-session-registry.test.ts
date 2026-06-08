@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ptyDataChannel, ptyExitChannel } from '@shared/core/pty/ptyEvents';
 import { ptyStartedChannel } from '@shared/events/appEvents';
-import { ptyDataChannel, ptyExitChannel } from '@shared/events/ptyEvents';
 import type { Pty, PtyExitInfo } from './pty';
 import { PtySessionRegistry } from './pty-session-registry';
 

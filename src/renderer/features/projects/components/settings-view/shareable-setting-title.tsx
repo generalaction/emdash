@@ -6,7 +6,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@rende
 import type {
   ProjectSettingsOverrideState,
   ShareableProjectSettingsWriteField,
-} from '@shared/project-settings';
+} from '@shared/core/project-settings/project-settings';
 
 type Props = {
   children: React.ReactNode;

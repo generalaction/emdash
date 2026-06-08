@@ -1,7 +1,7 @@
 import { action, makeObservable, observable } from 'mobx';
 import type { DiffRendererData } from '@renderer/features/tasks/types';
 import { getFileKind } from '@renderer/lib/editor/fileKind';
-import type { GitChangeStatus, GitObjectRef } from '@shared/git';
+import type { GitChangeStatus, GitObjectRef } from '@shared/core/git/git';
 import type { ActiveFile } from '@shared/view-state';
 
 /**

@@ -7,8 +7,7 @@ import {
 } from '@renderer/features/tasks/stores/task-selectors';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { cn } from '@renderer/utils/utils';
-import type { AutomationRun } from '@shared/automations/automation-run';
-import { parseRunError } from '@shared/automations/format';
+import type { AutomationRun } from '@shared/core/automations/automation-run';
 import { useAutomationRun } from '../use-automations';
 import { RunMetaLine } from './RunMetaLine';
 import { TaskDataLine } from './TaskDataLine';
@@ -38,7 +37,7 @@ export const AutomationRunRow = observer(function AutomationRunRow({
   const agentStatus = taskStore ? taskAgentStatus(taskStore) : null;
 
   const displayTime = run ? (run.startedAt ?? run.finishedAt) : null;
-  const missedDeadline = run ? parseRunError(run.error)?.code === 'deadline_exceeded' : false;
+  const missedDeadline = run?.error?.code === 'deadline_exceeded';
 
   const displayName = run?.generatedTaskName ?? null;
 

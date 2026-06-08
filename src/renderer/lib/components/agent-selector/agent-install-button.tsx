@@ -3,7 +3,7 @@ import type React from 'react';
 import { Button } from '@renderer/lib/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
-import type { AgentProviderId } from '@shared/agent-provider-registry';
+import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { getAgentInstallActionState } from './agent-install';
 
 type TooltipSide = 'top' | 'right' | 'bottom' | 'left';

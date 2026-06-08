@@ -4,7 +4,7 @@ import { events, rpc } from '@renderer/lib/ipc';
 import { confirmOpenExternalLink } from '@renderer/lib/open-external-link';
 import { cssColorToHex, cssVar } from '@renderer/utils/cssVars';
 import { log } from '@renderer/utils/logger';
-import { ptyDataChannel } from '@shared/events/ptyEvents';
+import { ptyDataChannel } from '@shared/core/pty/ptyEvents';
 import { FileLinkProvider } from './file-link-provider';
 import { decodeOsc52ClipboardData } from './pty-clipboard';
 import { buildTerminalFontFamily } from './terminal-font';
@@ -77,6 +77,7 @@ export class FrontendPty {
       width: '100%',
       height: '100%',
     });
+    ensureXtermHost().appendChild(this.ownedContainer);
 
     this.terminal = new Terminal({
       cols: 120,
@@ -136,7 +137,6 @@ export class FrontendPty {
       el.style.backgroundColor = 'transparent';
     }
 
-    ensureXtermHost().appendChild(this.ownedContainer);
     FrontendPty.all.add(this);
   }
 

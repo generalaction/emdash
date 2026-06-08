@@ -1,8 +1,8 @@
 import { reaction } from 'mobx';
 import type { DiffTabStore } from '@renderer/features/tasks/tabs/diff-tab-store';
 import type { TabManagerStore } from '@renderer/features/tasks/tabs/tab-manager-store';
-import { commitRef } from '@shared/git';
-import { getPrNumber } from '@shared/pull-requests';
+import { commitRef } from '@shared/core/git/git';
+import { getPrNumber } from '@shared/core/pull-requests/pull-requests';
 import type { ActiveFile } from '@shared/view-state';
 import type { PrStore } from '../../stores/pr-store';
 import type { DiffViewStore } from './diff-view-store';

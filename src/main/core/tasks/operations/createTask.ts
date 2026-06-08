@@ -6,17 +6,16 @@ import { db, type DrizzleTx } from '@main/db/client';
 import { conversations, projects, tasks, workspaces } from '@main/db/schema';
 import type { ConversationRow, TaskRow } from '@main/db/schema';
 import { events } from '@main/lib/events';
-import { type ConversationConfig, serializeConversationConfig } from '@shared/conversation-config';
-import type { Conversation } from '@shared/conversations';
-import { conversationCreatedChannel } from '@shared/events/conversationEvents';
-import { err, ok, type Result } from '@shared/result';
+import type { ConversationConfig } from '@shared/core/conversations/conversation-config';
+import { conversationCreatedChannel } from '@shared/core/conversations/conversationEvents';
+import type { Conversation } from '@shared/core/conversations/conversations';
 import type {
   CreateTaskError,
   CreateTaskParams,
   CreateTaskSuccess,
   TaskLifecycleStatus,
-} from '@shared/tasks';
-import { serializeWorkspaceConfig } from '@shared/workspace-config';
+} from '@shared/core/tasks/tasks';
+import { err, ok, type Result } from '@shared/lib/result';
 import { mapTaskRowToTask } from '../utils/utils';
 
 type ConvInsert = typeof conversations.$inferInsert;
@@ -43,7 +42,6 @@ export async function prepareCreateTask(
 
   const { workspaceConfig } = params;
   const initialStatus: TaskLifecycleStatus = params.taskConfig.initialStatus ?? 'in_progress';
-  const configJson = serializeWorkspaceConfig(workspaceConfig);
 
   let workspaceId: string;
   let newWorkspaceValues: typeof workspaces.$inferInsert | null = null;
@@ -61,7 +59,7 @@ export async function prepareCreateTask(
         kind: 'byoi',
         location: 'remote',
         type: 'byoi',
-        config: configJson,
+        config: workspaceConfig,
       };
     } else {
       // 'new-worktree' — derive location from the project.
@@ -85,7 +83,7 @@ export async function prepareCreateTask(
         location,
         sshConnectionId,
         type: legacyType,
-        config: configJson,
+        config: workspaceConfig,
       };
     }
   }
@@ -96,8 +94,7 @@ export async function prepareCreateTask(
     const configObj: ConversationConfig = {};
     if (ic.autoApprove !== undefined) configObj.autoApprove = ic.autoApprove;
     if (ic.initialPrompt?.trim()) configObj.initialPrompt = ic.initialPrompt.trim();
-    const config =
-      Object.keys(configObj).length > 0 ? serializeConversationConfig(configObj) : undefined;
+    const config = Object.keys(configObj).length > 0 ? configObj : undefined;
     convInsert = {
       id: ic.id,
       projectId: params.projectId,
@@ -133,9 +130,7 @@ export function commitCreateTask(
       name: params.taskConfig.name,
       status: initialStatus,
       workspaceId,
-      linkedIssue: params.taskConfig.linkedIssue
-        ? JSON.stringify(params.taskConfig.linkedIssue)
-        : null,
+      linkedIssue: params.taskConfig.linkedIssue ?? null,
       type: params.automationRunId ? 'automation-run' : 'task',
       automationRunId: params.automationRunId ?? null,
       updatedAt: sql`CURRENT_TIMESTAMP`,

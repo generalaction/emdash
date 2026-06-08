@@ -8,7 +8,7 @@ import {
 } from '@renderer/features/tasks/editor/stores/files-store-utils';
 import { FileIcon } from '@renderer/lib/editor/file-icon';
 import { cn } from '@renderer/utils/utils';
-import { type GitChange } from '@shared/git';
+import { type GitChange } from '@shared/core/git/git';
 import { ChangeStatusAffordance } from './changes-list-item';
 import { buildChangesTree } from './changes-tree-utils';
 

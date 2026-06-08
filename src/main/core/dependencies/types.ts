@@ -1,4 +1,4 @@
-import type { DependencyCategory, DependencyId, DependencyStatus } from '@shared/dependencies';
+import type { DependencyCategory, DependencyId, DependencyStatus } from '@shared/core/dependencies';
 
 export interface ProbeResult {
   command: string;

@@ -1,4 +1,4 @@
-import { LogIn, LogOut, User } from 'lucide-react';
+import { Loader2, LogIn, LogOut, User } from 'lucide-react';
 import { useState } from 'react';
 import { useToast } from '@renderer/lib/hooks/use-toast';
 import {
@@ -18,12 +18,12 @@ export function AccountTab() {
   const signOutMutation = useAccountSignOut();
   const { toast } = useToast();
   const showConfirmSignOut = useShowModal('confirmActionModal');
-
   const [error, setError] = useState<string | null>(null);
 
   const user = session?.user ?? null;
   const isSignedIn = session?.isSignedIn ?? false;
   const hasAccount = session?.hasAccount ?? false;
+  const displayName = user?.name?.trim() || user?.username || '';
 
   const handleSignIn = async () => {
     setError(null);
@@ -41,7 +41,9 @@ export function AccountTab() {
       }
       toast({
         title: 'Signed in to Emdash',
-        description: result.user ? `Connected as ${result.user.username}` : 'Signed in',
+        description: result.user
+          ? `Connected as ${result.user.name?.trim() || result.user.username}`
+          : 'Signed in',
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Sign in failed';
@@ -79,20 +81,23 @@ export function AccountTab() {
 
   if (isLoading) {
     return (
-      <div className="text-muted-foreground flex items-center justify-center py-12 text-sm">
-        Loading account...
-      </div>
+      <section className="bg-muted/10 rounded-lg border border-border/60 p-4">
+        <div className="text-muted-foreground flex items-center gap-2 text-sm">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Loading account...
+        </div>
+      </section>
     );
   }
 
   if (isSignedIn && user) {
     return (
-      <div className="bg-muted/10 rounded-xl border border-border/60 p-4">
+      <section className="bg-muted/10 rounded-lg border border-border/60 p-4">
         <div className="flex items-center gap-4">
           {user.avatarUrl ? (
             <img
               src={user.avatarUrl}
-              alt={user.username}
+              alt={displayName}
               className="h-12 w-12 rounded-full border border-border/60"
             />
           ) : (
@@ -100,8 +105,8 @@ export function AccountTab() {
               <User className="text-muted-foreground h-6 w-6" />
             </div>
           )}
-          <div className="flex-1">
-            <p className="text-sm font-semibold text-foreground">{user.username}</p>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-foreground">{displayName}</p>
             {user.email && <p className="text-muted-foreground text-xs">{user.email}</p>}
           </div>
           <Button
@@ -114,13 +119,13 @@ export function AccountTab() {
             Sign Out
           </Button>
         </div>
-      </div>
+      </section>
     );
   }
 
   if (hasAccount && !isSignedIn) {
     return (
-      <div className="bg-muted/10 rounded-xl border border-border/60 p-4">
+      <section className="bg-muted/10 rounded-lg border border-border/60 p-4">
         <div className="flex flex-col gap-3">
           <div>
             <p className="text-sm font-medium text-foreground">Session expired</p>
@@ -135,7 +140,7 @@ export function AccountTab() {
             <Button
               type="button"
               className="w-fit"
-              onClick={handleSignIn}
+              onClick={() => void handleSignIn()}
               disabled={signInMutation.isPending}
             >
               <LogIn className="h-3.5 w-3.5" />
@@ -143,12 +148,12 @@ export function AccountTab() {
             </Button>
           )}
         </div>
-      </div>
+      </section>
     );
   }
 
   return (
-    <div className="bg-muted/10 rounded-xl border border-border/60 p-4">
+    <section className="bg-muted/10 rounded-lg border border-border/60 p-4">
       <div className="flex flex-col gap-3">
         <div>
           <p className="text-sm font-medium text-foreground">Emdash Account</p>
@@ -163,7 +168,7 @@ export function AccountTab() {
           <Button
             type="button"
             className="w-fit"
-            onClick={handleSignIn}
+            onClick={() => void handleSignIn()}
             disabled={signInMutation.isPending}
           >
             <LogIn className="h-3.5 w-3.5" />
@@ -171,6 +176,6 @@ export function AccountTab() {
           </Button>
         )}
       </div>
-    </div>
+    </section>
   );
 }

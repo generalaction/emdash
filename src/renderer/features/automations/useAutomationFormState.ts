@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react';
-import { isValidProviderId } from '@shared/agent-provider-registry';
-import type { Automation } from '@shared/automations/automation';
-import type { StoredAutomationTaskConfig, TriggerConfig } from '@shared/automations/config';
-import { DEFAULT_SCHEDULE, scheduleToCron } from '@shared/automations/schedule';
-import { getLocalTimeZone } from '@shared/automations/timezone';
-import type { Branch } from '@shared/git';
-import type { WorkspaceConfig, WorkspaceTarget } from '@shared/workspace-config';
+import { DEFAULT_CRON_STATE, toCron } from '@renderer/lib/CronPicker/cron-utils';
+import { isValidProviderId } from '@shared/core/agents/agent-provider-registry';
+import type { Automation } from '@shared/core/automations/automation';
+import type { StoredAutomationTaskConfig, TriggerConfig } from '@shared/core/automations/config';
+import { getLocalTimeZone } from '@shared/core/automations/timezone';
+import type { Branch } from '@shared/core/git/git';
+import type { WorkspaceConfig, WorkspaceTarget } from '@shared/core/workspaces/workspace-config';
 import {
   asMounted,
   firstMountedProjectId,
@@ -17,7 +17,7 @@ import { useBranchName } from '../tasks/create-task-modal/use-branch-name';
 import { useBranchSelection } from '../tasks/create-task-modal/use-branch-selection';
 import { useTaskName } from '../tasks/create-task-modal/use-task-name';
 
-const DEFAULT_CRON = scheduleToCron(DEFAULT_SCHEDULE);
+const DEFAULT_CRON = toCron(DEFAULT_CRON_STATE);
 
 export function branchInitialFromConfig(config: StoredAutomationTaskConfig | null | undefined): {
   createBranchAndWorktree: boolean;

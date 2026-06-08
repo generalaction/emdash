@@ -1,4 +1,5 @@
 import type { Octokit } from '@octokit/rest';
+import type { GitHubApiAuthContext } from './github-api-auth-service';
 import { GitHubApiAuthErrorException, getOctokit } from './octokit-provider';
 
 // ---------------------------------------------------------------------------
@@ -27,17 +28,16 @@ export interface GitHubOwner {
 }
 
 export interface GitHubRepositoryService {
-  listRepositories(): Promise<GitHubRepo[]>;
-  getOwners(): Promise<GitHubOwner[]>;
+  listRepositories(authContext?: GitHubApiAuthContext): Promise<GitHubRepo[]>;
+  getOwners(authContext?: GitHubApiAuthContext): Promise<GitHubOwner[]>;
   createRepository(params: {
     name: string;
     description?: string;
     owner: string;
     isPrivate: boolean;
-  }): Promise<{ url: string; defaultBranch: string; nameWithOwner: string }>;
-  deleteRepository(owner: string, name: string): Promise<void>;
-  checkRepositoryExists(owner: string, name: string): Promise<boolean>;
-  validateRepositoryName(name: string): { valid: boolean; error?: string };
+    authContext?: GitHubApiAuthContext;
+  }): Promise<{ url: string; cloneUrl: string; defaultBranch: string; nameWithOwner: string }>;
+  deleteRepository(owner: string, name: string, authContext?: GitHubApiAuthContext): Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -64,36 +64,16 @@ interface RestRepo {
 // Implementation
 // ---------------------------------------------------------------------------
 
-const RESERVED_NAMES = new Set([
-  'con',
-  'prn',
-  'aux',
-  'nul',
-  'com1',
-  'com2',
-  'com3',
-  'com4',
-  'com5',
-  'com6',
-  'com7',
-  'com8',
-  'com9',
-  'lpt1',
-  'lpt2',
-  'lpt3',
-  'lpt4',
-  'lpt5',
-  'lpt6',
-  'lpt7',
-  'lpt8',
-  'lpt9',
-]);
-
 export class GitHubRepositoryServiceImpl implements GitHubRepositoryService {
-  constructor(private readonly getOctokit: () => Promise<Octokit>) {}
+  constructor(
+    private readonly getOctokit: (
+      host: string,
+      authContext?: GitHubApiAuthContext
+    ) => Promise<Octokit>
+  ) {}
 
-  async listRepositories(): Promise<GitHubRepo[]> {
-    const octokit = await this.getOctokit();
+  async listRepositories(authContext: GitHubApiAuthContext = {}): Promise<GitHubRepo[]> {
+    const octokit = await this.getOctokit(this.hostForAuthContext(authContext), authContext);
     const { data } = await octokit.rest.repos.listForAuthenticatedUser({
       per_page: 100,
       sort: 'updated',
@@ -102,8 +82,8 @@ export class GitHubRepositoryServiceImpl implements GitHubRepositoryService {
     return data.map((item) => this.mapRepo(item as unknown as RestRepo));
   }
 
-  async getOwners(): Promise<GitHubOwner[]> {
-    const octokit = await this.getOctokit();
+  async getOwners(authContext: GitHubApiAuthContext = {}): Promise<GitHubOwner[]> {
+    const octokit = await this.getOctokit(this.hostForAuthContext(authContext), authContext);
     const { data: user } = await octokit.rest.users.getAuthenticated();
     const owners: GitHubOwner[] = [{ login: user.login, type: 'User' }];
 
@@ -122,8 +102,12 @@ export class GitHubRepositoryServiceImpl implements GitHubRepositoryService {
     description?: string;
     owner: string;
     isPrivate: boolean;
-  }): Promise<{ url: string; defaultBranch: string; nameWithOwner: string }> {
-    const octokit = await this.getOctokit();
+    authContext?: GitHubApiAuthContext;
+  }): Promise<{ url: string; cloneUrl: string; defaultBranch: string; nameWithOwner: string }> {
+    const octokit = await this.getOctokit(
+      this.hostForAuthContext(params.authContext ?? {}),
+      params.authContext
+    );
     const { data: user } = await octokit.rest.users.getAuthenticated();
     const isCurrentUser = params.owner === user.login;
 
@@ -139,61 +123,25 @@ export class GitHubRepositoryServiceImpl implements GitHubRepositoryService {
 
     return {
       url: data.html_url,
+      cloneUrl: data.clone_url,
       defaultBranch: data.default_branch || 'main',
       nameWithOwner: data.full_name,
     };
   }
 
-  async deleteRepository(owner: string, name: string): Promise<void> {
-    const octokit = await this.getOctokit();
+  async deleteRepository(
+    owner: string,
+    name: string,
+    authContext: GitHubApiAuthContext = {}
+  ): Promise<void> {
+    const octokit = await this.getOctokit(this.hostForAuthContext(authContext), authContext);
     await octokit.rest.repos.delete({ owner, repo: name });
   }
 
-  async checkRepositoryExists(owner: string, name: string): Promise<boolean> {
-    const octokit = await this.getOctokit();
-    try {
-      await octokit.rest.repos.get({ owner, repo: name });
-      return true;
-    } catch (err: unknown) {
-      if (err != null && typeof err === 'object' && 'status' in err && err.status === 404) {
-        return false;
-      }
-      throw err;
-    }
-  }
-
-  validateRepositoryName(name: string): { valid: boolean; error?: string } {
-    if (!name || name.length === 0) {
-      return { valid: false, error: 'Repository name is required' };
-    }
-
-    if (name.length > 100) {
-      return { valid: false, error: 'Repository name must be 100 characters or fewer' };
-    }
-
-    if (!/^[a-zA-Z0-9._-]+$/.test(name)) {
-      return {
-        valid: false,
-        error: 'Repository name may only contain letters, numbers, hyphens, underscores, and dots',
-      };
-    }
-
-    if (/^\.+$/.test(name)) {
-      return { valid: false, error: 'Repository name cannot consist entirely of dots' };
-    }
-
-    if (/^[-._]/.test(name) || /[-._]$/.test(name)) {
-      return {
-        valid: false,
-        error: 'Repository name must not start or end with a hyphen, dot, or underscore',
-      };
-    }
-
-    if (RESERVED_NAMES.has(name.toLowerCase())) {
-      return { valid: false, error: `"${name}" is a reserved name and cannot be used` };
-    }
-
-    return { valid: true };
+  private hostForAuthContext(authContext: GitHubApiAuthContext): string {
+    const accountId = authContext.accountId?.trim();
+    if (!accountId) return 'github.com';
+    return accountId.split(':')[0] || 'github.com';
   }
 
   private mapRepo(item: RestRepo): GitHubRepo {
@@ -215,8 +163,8 @@ export class GitHubRepositoryServiceImpl implements GitHubRepositoryService {
   }
 }
 
-export const repoService = new GitHubRepositoryServiceImpl(async () => {
-  const octokit = await getOctokit('github.com');
+export const repoService = new GitHubRepositoryServiceImpl(async (host, authContext = {}) => {
+  const octokit = await getOctokit(host, authContext);
   if (!octokit.success) throw new GitHubApiAuthErrorException(octokit.error);
   return octokit.data;
 });

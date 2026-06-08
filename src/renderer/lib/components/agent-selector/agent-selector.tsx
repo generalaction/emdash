@@ -15,7 +15,7 @@ import {
 } from '@renderer/lib/ui/combobox';
 import { agentConfig } from '@renderer/utils/agentConfig';
 import { cn } from '@renderer/utils/utils';
-import type { AgentProviderId } from '@shared/agent-provider-registry';
+import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { AgentInstallButton } from './agent-install-button';
 import {
   canInstallAgentOption,

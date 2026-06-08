@@ -5,7 +5,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { IExecutionContext } from '@main/core/execution-context/types';
 import type { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
-import { DEFAULT_PRESERVE_PATTERNS } from '@shared/project-settings';
+import { DEFAULT_PRESERVE_PATTERNS } from '@shared/core/project-settings/project-settings';
 import type { ProjectSettingsStorage } from './project-settings-storage';
 import { LocalProjectSettingsProvider } from './providers/local-project-settings-provider';
 import { SshProjectSettingsProvider } from './providers/ssh-project-settings-provider';
@@ -272,6 +272,76 @@ describe('ProjectSettingsProvider worktreeDirectory validation', () => {
     await expect(provider.get()).resolves.toMatchObject({ worktreeDirectory: expectedOverride });
     await expect(provider.getDefaultWorktreeDirectory()).resolves.toBe('/tmp/emdash/worktrees');
     await expect(provider.getWorktreeDirectory()).resolves.toBe(expectedOverride);
+  });
+
+  it('stores the selected GitHub account as base project settings', async () => {
+    const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
+    tempDirs.push(projectPath);
+    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main');
+
+    const result = await provider.update({
+      preservePatterns: [],
+      githubAccountId: 'github.com:42',
+    });
+
+    expect(result.success).toBe(true);
+    await expect(provider.get()).resolves.toMatchObject({ githubAccountId: 'github.com:42' });
+  });
+
+  it('stores null GitHub account selection as an explicit project override', async () => {
+    const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
+    tempDirs.push(projectPath);
+    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main');
+
+    const result = await provider.update({
+      preservePatterns: [],
+      githubAccountId: null,
+    });
+
+    expect(result.success).toBe(true);
+    await expect(provider.get()).resolves.toMatchObject({ githubAccountId: null });
+  });
+
+  it('patches the selected GitHub account without replacing other base settings', async () => {
+    const projectPath = fs.mkdtempSync(path.join(os.tmpdir(), 'emdash-settings-local-'));
+    tempDirs.push(projectPath);
+    const row = {
+      baseProjectSettingsJson: JSON.stringify({
+        defaultBranch: 'develop',
+        baseRemote: 'upstream',
+        tmux: true,
+      }),
+      shareableProjectSettingsJson: JSON.stringify({
+        preservePatterns: ['.env.local'],
+      }),
+      legacyConfigMigratedAt: new Date().toISOString(),
+    };
+    const settingsStorage: ProjectSettingsStorage = {
+      get: async () => row,
+      insertIfMissing: vi.fn(),
+      update: async (_projectId, settings) => {
+        Object.assign(row, settings);
+      },
+    };
+    storageMockState.storage = settingsStorage;
+    const provider = new LocalProjectSettingsProvider(projectId(), projectPath, 'main');
+
+    const result = await provider.patch({ githubAccountId: 'github.com:42' });
+
+    expect(result.success).toBe(true);
+    expect(JSON.parse(row.baseProjectSettingsJson)).toEqual({
+      defaultBranch: 'develop',
+      baseRemote: 'upstream',
+      githubAccountId: 'github.com:42',
+      tmux: true,
+    });
+    await expect(provider.get()).resolves.toMatchObject({
+      defaultBranch: 'develop',
+      baseRemote: 'upstream',
+      githubAccountId: 'github.com:42',
+      preservePatterns: ['.env.local'],
+      tmux: true,
+    });
   });
 
   it('retries legacy config migration after a failed attempt', async () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { getProvider } from '@shared/agent-provider-registry';
-import type { Conversation } from '@shared/conversations';
+import { getProvider } from '@shared/core/agents/agent-provider-registry';
+import type { Conversation } from '@shared/core/conversations/conversations';
 import { buildAgentSessionCommand } from './impl/agent-command';
 import { resolveAgentSessionCommandArgs } from './resolve-agent-session-command';
 

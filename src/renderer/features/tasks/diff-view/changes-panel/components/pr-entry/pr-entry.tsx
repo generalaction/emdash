@@ -1,7 +1,10 @@
 import { ExternalLink } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
-import { useWorkspaceViewModel } from '@renderer/features/tasks/task-view-context';
+import {
+  useTaskViewContext,
+  useWorkspaceViewModel,
+} from '@renderer/features/tasks/task-view-context';
 import { PrMergeLine } from '@renderer/lib/components/pr-merge-line';
 import { PrNumberBadge } from '@renderer/lib/components/pr-number-badge';
 import { StatusIcon } from '@renderer/lib/components/pr-status-icon';
@@ -10,7 +13,7 @@ import { rpc } from '@renderer/lib/ipc';
 import { type SplitButtonAction } from '@renderer/lib/ui/split-button';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { cn } from '@renderer/utils/utils';
-import { getPrNumber, type PullRequest } from '@shared/pull-requests';
+import { getPrNumber, type PullRequest } from '@shared/core/pull-requests/pull-requests';
 import { PrChecksList } from './checks-list';
 import { PrCommitsList } from './commits-list';
 import { PrFilesList } from './files-list';
@@ -44,6 +47,7 @@ const bypassMergeDescriptions: Record<MergeMode, string> = {
 };
 
 export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr: PullRequest }) {
+  const { projectId } = useTaskViewContext();
   const taskView = useWorkspaceViewModel();
   const prStore = taskView.prStore!;
   const diffView = taskView.diffView;
@@ -140,7 +144,7 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
         <div className="min-h-0 flex-1 overflow-y-auto">
           {tab === 'files' && <PrFilesList pr={pr} />}
           {tab === 'commits' && <PrCommitsList />}
-          {tab === 'checks' && <PrChecksList pr={pr} />}
+          {tab === 'checks' && <PrChecksList projectId={projectId} pr={pr} />}
         </div>
       </div>
       {pr.status === 'open' && (

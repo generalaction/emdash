@@ -6,10 +6,12 @@ import { conversations } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
-import { serializeConversationConfig } from '@shared/conversation-config';
-import { type Conversation, type CreateConversationParams } from '@shared/conversations';
-import { type AgentEvent } from '@shared/events/agentEvents';
-import { conversationCreatedChannel } from '@shared/events/conversationEvents';
+import { type AgentEvent } from '@shared/core/agents/agentEvents';
+import { conversationCreatedChannel } from '@shared/core/conversations/conversationEvents';
+import {
+  type Conversation,
+  type CreateConversationParams,
+} from '@shared/core/conversations/conversations';
 import { agentHookService } from '../agent-hooks/agent-hook-service';
 import { isAppFocused } from '../agent-hooks/notification';
 import { resolveTask } from '../projects/utils';
@@ -48,10 +50,7 @@ export async function createConversation(
     .where(eq(conversations.taskId, params.taskId))
     .limit(1);
 
-  const config =
-    params.autoApprove === undefined
-      ? undefined
-      : serializeConversationConfig({ autoApprove: params.autoApprove });
+  const config = params.autoApprove === undefined ? undefined : { autoApprove: params.autoApprove };
 
   const [row] = await database
     .insert(conversations)

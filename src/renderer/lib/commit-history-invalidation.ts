@@ -1,6 +1,6 @@
 import { events } from '@renderer/lib/ipc';
 import { queryClient } from '@renderer/lib/query-client';
-import { gitRefChangedChannel } from '@shared/events/gitEvents';
+import { gitRefChangedChannel } from '@shared/core/git/gitEvents';
 
 export function wireCommitHistoryInvalidation(): void {
   events.on(gitRefChangedChannel, (p) => {

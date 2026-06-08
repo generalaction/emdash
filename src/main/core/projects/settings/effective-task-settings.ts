@@ -4,8 +4,8 @@ import {
   defaultShareableProjectSettings,
   shareableProjectSettingsSchema,
   type ProjectSettings,
-} from '@shared/project-settings';
-import { mergeShareableProjectSettings } from '@shared/project-settings-fields';
+} from '@shared/core/project-settings/project-settings';
+import { mergeShareableProjectSettings } from '@shared/core/project-settings/project-settings-fields';
 import type { ProjectSettingsProvider } from './provider';
 
 export async function getEffectiveTaskSettings(args: {

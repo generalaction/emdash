@@ -1,5 +1,5 @@
-import type { DependencyStatusUpdatedEvent } from '@shared/dependencies';
-import { defineEvent } from '@shared/ipc/events';
+import type { DependencyStatusUpdatedEvent } from '@shared/core/dependencies';
+import { defineEvent } from '@shared/lib/ipc/events';
 
 // App editing actions (renderer → main, no payload)
 export const appUndoChannel = defineEvent<void>('app:undo');
@@ -14,11 +14,6 @@ export const menuRedoChannel = defineEvent<void>('menu:redo');
 export const menuCloseTabChannel = defineEvent<void>('menu:close-tab');
 export const menuQuitRequestedChannel = defineEvent<void>('menu:quit-requested');
 export const menuGiveFeedbackChannel = defineEvent<void>('menu:give-feedback');
-
-export const gitStatusChangedChannel = defineEvent<{
-  taskPath: string;
-  error?: string;
-}>('git:status-changed');
 
 export const notificationFocusTaskChannel = defineEvent<{
   projectId: string;

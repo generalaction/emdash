@@ -14,7 +14,7 @@ import { Switch } from '@renderer/lib/ui/switch';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { configureSoundPlayer, soundPlayer } from '@renderer/utils/soundPlayer';
 import { cn } from '@renderer/utils/utils';
-import type { NotificationSettings } from '@shared/app-settings';
+import type { NotificationSettings } from '@shared/core/app-settings';
 import { ResetToDefaultButton } from './ResetToDefaultButton';
 import { SettingRow } from './SettingRow';
 

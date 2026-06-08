@@ -15,7 +15,7 @@ import { Input } from '@renderer/lib/ui/input';
 import { Label } from '@renderer/lib/ui/label';
 import { Textarea } from '@renderer/lib/ui/textarea';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
-import { isValidSkillName } from '@shared/skills/validation';
+import { isValidSkillName } from '@shared/core/skills/validation';
 
 type Props = BaseModalProps<void>;
 

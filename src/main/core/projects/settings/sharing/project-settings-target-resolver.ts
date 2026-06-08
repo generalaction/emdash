@@ -13,7 +13,7 @@ import type {
   ProjectSettingsWriteTarget,
   ProjectSettingsWriteTargetOption,
   WriteProjectConfigRequest,
-} from '@shared/project-settings';
+} from '@shared/core/project-settings/project-settings';
 import type { ProjectProvider } from '../../project-provider';
 import { resolveWorkspace } from '../../utils';
 

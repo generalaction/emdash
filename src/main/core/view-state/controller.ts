@@ -1,4 +1,4 @@
-import { createRPCController } from '@shared/ipc/rpc';
+import { createRPCController } from '@shared/lib/ipc/rpc';
 import { viewStateService } from './view-state-service';
 
 export const viewStateController = createRPCController({

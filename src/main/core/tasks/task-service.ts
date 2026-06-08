@@ -10,20 +10,20 @@ import { tasks, workspaces } from '@main/db/schema';
 import { events } from '@main/lib/events';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import { log } from '@main/lib/logger';
-import { taskCreatedChannel, taskProvisionedChannel } from '@shared/events/taskEvents';
-import { err, ok, type Result } from '@shared/result';
+import type { LinkedIssue } from '@shared/core/linked-issue';
+import { taskCreatedChannel, taskProvisionedChannel } from '@shared/core/tasks/taskEvents';
 import type {
   CreateTaskError,
   CreateTaskParams,
   CreateTaskSuccess,
   DeleteTaskOptions,
-  Issue,
   ProvisionTaskResult,
   ProvisionWorkspaceError,
   RenameTaskError,
   RenameTaskSuccess,
   Task,
-} from '@shared/tasks';
+} from '@shared/core/tasks/tasks';
+import { err, ok, type Result } from '@shared/lib/result';
 import { archiveTask } from './operations/archiveTask';
 import { createTask } from './operations/createTask';
 import { deleteTask } from './operations/deleteTask';
@@ -147,7 +147,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
       await db
         .update(workspaces)
         .set({
-          data: JSON.stringify(data.workspaceProviderData),
+          data: data.workspaceProviderData,
           updatedAt: sql`CURRENT_TIMESTAMP`,
         })
         .where(eq(workspaces.id, data.workspaceId));
@@ -199,7 +199,7 @@ export class TaskService implements Hookable<TaskLifecycleHooks> {
     return result;
   }
 
-  async updateLinkedIssue(taskId: string, issue?: Issue): Promise<void> {
+  async updateLinkedIssue(taskId: string, issue?: LinkedIssue): Promise<void> {
     const task = await updateLinkedIssue(taskId, issue);
     if (task) this._hooks.callHookBackground('task:updated', task);
   }

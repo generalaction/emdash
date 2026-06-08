@@ -1,8 +1,8 @@
 import * as toml from 'smol-toml';
 import { describe, expect, it } from 'vitest';
 import { providerConfigDefaults } from '@main/core/settings/schema';
-import type { AgentProviderId } from '@shared/agent-provider-registry';
-import type { ProviderCustomConfig } from '@shared/app-settings';
+import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import type { ProviderCustomConfig } from '@shared/core/app-settings';
 import {
   buildAgentCommand,
   buildAgentSessionCommand,
@@ -170,6 +170,10 @@ describe('buildAgentCommand', () => {
     {
       providerId: 'copilot',
       expectedArgs: ['--allow-all-tools', '-i', 'Fix the issue'],
+    },
+    {
+      providerId: 'continue',
+      expectedArgs: ['--auto', 'Fix the issue'],
     },
     {
       providerId: 'mistral',
@@ -446,6 +450,7 @@ describe('buildAgentCommand', () => {
       resumeArgs: ['run', '-s', '--resume'],
     },
     { providerId: 'kimi', freshArgs: [], resumeArgs: ['-C'] },
+    { providerId: 'continue', freshArgs: ['Fix the bug'], resumeArgs: ['--resume'] },
     { providerId: 'codebuff', freshArgs: ['Fix the bug'], resumeArgs: [] },
     { providerId: 'freebuff', freshArgs: ['Fix the bug'], resumeArgs: [] },
     { providerId: 'mistral', freshArgs: ['Fix the bug'], resumeArgs: [] },

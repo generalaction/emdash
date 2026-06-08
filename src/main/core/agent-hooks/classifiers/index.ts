@@ -1,4 +1,4 @@
-import type { AgentProviderId } from '@shared/agent-provider-registry';
+import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import { createAmpClassifier } from './amp';
 import { createAntigravityClassifier } from './antigravity';
 import { createAuggieClassifier } from './auggie';

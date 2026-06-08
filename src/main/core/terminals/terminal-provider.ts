@@ -1,5 +1,5 @@
-import type { TerminalShellId } from '@shared/terminal-settings';
-import type { Terminal } from '@shared/terminals';
+import type { TerminalShellId } from '@shared/core/terminals/terminal-settings';
+import type { Terminal } from '@shared/core/terminals/terminals';
 
 export type LifecycleScriptSpawnRequest = {
   terminal: Terminal;

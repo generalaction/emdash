@@ -18,9 +18,9 @@ import type {
   ProjectSettingsWriteTargetOption,
   ShareableProjectSettingsWriteField,
   WriteProjectConfigRequest,
-} from '@shared/project-settings';
+} from '@shared/core/project-settings/project-settings';
+import { err, type Result } from '@shared/lib/result';
 import type { UpdateProjectSettingsError } from '@shared/projects';
-import { err, type Result } from '@shared/result';
 import { SHAREABLE_FIELD_DESCRIPTOR_BY_ID } from './shareable-project-settings-fields';
 
 type WriteStatus = 'idle' | 'writing' | 'written' | 'error';
