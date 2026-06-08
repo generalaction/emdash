@@ -7,8 +7,8 @@ import type {
   GitHeadState,
   PushError,
   RenameBranchError,
-} from '@shared/git';
-import type { Result } from '@shared/result';
+} from '@shared/core/git/git';
+import type { Result } from '@shared/lib/result';
 
 export interface RepositoryGitProvider {
   isFileCleanlyTracked(filePath: string): Promise<boolean>;

@@ -6,11 +6,11 @@ import {
   SelectedIssueValue,
 } from '@renderer/features/tasks/components/issue-selector/issue-selector';
 import { cn } from '@renderer/utils/utils';
-import type { Issue } from '@shared/tasks';
+import type { LinkedIssue } from '@shared/core/linked-issue';
 
 interface IssueComboboxFieldProps {
-  value: Issue | null;
-  onValueChange: (issue: Issue | null) => void;
+  value: LinkedIssue | null;
+  onValueChange: (issue: LinkedIssue | null) => void;
   projectId?: string;
   repositoryUrl?: string;
   projectPath?: string;
@@ -32,7 +32,7 @@ function ModalPlaceholder({ issueProvider, connectedProviderCount }: IssueSelect
       ) : (
         issueProvider && (
           <span className="flex items-center gap-1">
-            <ProviderLogo provider={issueProvider} className="size-3.5" />
+            <ProviderLogo provider={issueProvider} className="size-3.5 opacity-40" />
             {ISSUE_PROVIDER_META[issueProvider].displayName}
           </span>
         )

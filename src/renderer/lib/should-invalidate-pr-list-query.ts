@@ -1,4 +1,4 @@
-import type { PrSyncProgress } from '@shared/pull-requests';
+import type { PrSyncProgress } from '@shared/core/pull-requests/pull-requests';
 
 export function shouldInvalidatePrListQuery(
   queryKey: readonly unknown[],

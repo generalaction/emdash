@@ -9,7 +9,7 @@ import { appState } from '@renderer/lib/stores/app-state';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { formatBytes } from '@renderer/utils/formatBytes';
 import { cn } from '@renderer/utils/utils';
-import { parsePtySessionId } from '@shared/ptySessionId';
+import { parsePtySessionId } from '@shared/core/pty/ptySessionId';
 import type { ResourceAppProcess, ResourceSnapshot } from '@shared/resource-monitor';
 import {
   appProcessLabel,

@@ -9,7 +9,7 @@ import {
   getDocUrlForProvider,
   getInstallCommandForProvider,
   getProvider,
-} from '@shared/agent-provider-registry';
+} from '@shared/core/agents/agent-provider-registry';
 
 type Props = {
   id: UiAgent;

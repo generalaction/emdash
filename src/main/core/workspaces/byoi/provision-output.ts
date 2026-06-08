@@ -1,5 +1,5 @@
 import z from 'zod';
-import { err, ok, type Result } from '@shared/result';
+import { err, ok, type Result } from '@shared/lib/result';
 
 const provisionOutputSchema = z.object({
   id: z.string(),

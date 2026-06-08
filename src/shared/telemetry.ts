@@ -1,6 +1,7 @@
-import type { AgentProviderId } from '@shared/agent-provider-registry';
+import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import type { PullRequestMergeStrategy } from '@shared/core/pull-requests/pull-requests';
+import type { TaskLifecycleStatus } from '@shared/core/tasks/tasks';
 import type { OpenInAppId } from '@shared/openInApps';
-import type { TaskLifecycleStatus } from '@shared/tasks';
 
 type EmptyProps = Record<string, never>;
 
@@ -90,7 +91,8 @@ export type TelemetryEventProperties = {
   pr_created: { is_draft: boolean };
   pr_creation_failed: { error_type: string };
   pr_merged: {
-    strategy: 'merge' | 'squash' | 'rebase';
+    strategy: PullRequestMergeStrategy;
+    bypass_requirements: boolean;
     success: boolean;
     error_type?: string;
   };

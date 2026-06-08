@@ -16,8 +16,8 @@ import {
   AGENT_PROVIDERS,
   isValidProviderId,
   type AgentProviderId,
-} from '@shared/agent-provider-registry';
-import type { DependencyState } from '@shared/dependencies';
+} from '@shared/core/agents/agent-provider-registry';
+import type { DependencyState } from '@shared/core/dependencies';
 
 export const BASE_CLI_AGENTS: CliAgentStatus[] = AGENT_PROVIDERS.filter(
   (provider) => provider.detectable !== false

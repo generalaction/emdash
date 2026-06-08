@@ -8,9 +8,8 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from '@renderer/lib/ui/context-menu';
-import { Separator } from '@renderer/lib/ui/separator';
 import { agentConfig } from '@renderer/utils/agentConfig';
-import { MAX_CONVERSATION_TITLE_LENGTH } from '@shared/conversations';
+import { MAX_CONVERSATION_TITLE_LENGTH } from '@shared/core/conversations/conversations';
 import { AgentStatusIndicator } from '../../components/agent-status-indicator';
 import { formatConversationTitleForDisplay } from '../../conversations/conversation-title-utils';
 import type { ResolvedConversationTab } from '../../tabs/tab-manager-store';
@@ -37,11 +36,17 @@ export const ConversationTabItem = observer(function ConversationTabItem({
   const config = agentConfig[tab.store.data.providerId];
   const title = formatConversationTitleForDisplay(tab.store.data.providerId, tab.store.data.title);
   const rawTitle = tab.store.data.title ?? '';
+  const renameInputWidth = `${Math.min(Math.max(rawTitle.length || title.length, 8), 24)}ch`;
 
   const handleRename = useCallback(() => {
     committedRef.current = false;
     window.setTimeout(() => setIsEditing(true), 0);
   }, []);
+
+  const handleDoubleClick = useCallback(() => {
+    if (tab.isPreview) onPin();
+    handleRename();
+  }, [handleRename, onPin, tab.isPreview]);
 
   const handleRenameInputRef = useCallback((input: HTMLInputElement | null) => {
     input?.focus();
@@ -58,47 +63,16 @@ export const ConversationTabItem = observer(function ConversationTabItem({
     setIsEditing(false);
   };
 
-  if (isEditing) {
-    return (
-      <div className="flex h-full items-center gap-1.5 bg-background-secondary-1 pr-2 pl-3">
-        {config ? (
-          <AgentLogo
-            logo={config.logo}
-            logoDark={config.logoDark}
-            alt={config.alt}
-            isSvg={config.isSvg}
-            invertInDark={config.invertInDark}
-            className="size-4 shrink-0"
-          />
-        ) : null}
-        <input
-          ref={handleRenameInputRef}
-          className="max-w-24 rounded bg-background-1 px-1 py-0.5 text-sm text-foreground ring-1 ring-foreground/20 outline-none focus:ring-foreground/40"
-          defaultValue={rawTitle}
-          maxLength={MAX_CONVERSATION_TITLE_LENGTH}
-          onBlur={(e) => commitRename(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') commitRename(e.currentTarget.value);
-            else if (e.key === 'Escape') {
-              committedRef.current = true;
-              setIsEditing(false);
-            }
-          }}
-        />
-        <Separator orientation="vertical" />
-      </div>
-    );
-  }
-
   return (
     <ContextMenu>
       <ContextMenuTrigger>
         <TabItemShell
           tabId={tab.tabId}
           isActive={tab.isActive}
-          title={tab.isPreview ? `${title} (preview — double-click to keep)` : title}
+          title={tab.isPreview ? `${title} (preview — double-click to keep and rename)` : title}
           onSelect={onSelect}
           onPin={onPin}
+          onDoubleClick={handleDoubleClick}
           onClose={onClose}
         >
           {config ? (
@@ -111,9 +85,30 @@ export const ConversationTabItem = observer(function ConversationTabItem({
               className="size-4 shrink-0"
             />
           ) : null}
-          <TabTitle isActive={tab.isActive} isPreview={tab.isPreview} maxWidth="max-w-24">
-            {title}
-          </TabTitle>
+          {isEditing ? (
+            <input
+              ref={handleRenameInputRef}
+              className="my-1 min-w-0 rounded bg-background-1 px-1.5 text-sm text-foreground ring-1 ring-foreground/20 outline-none focus:ring-foreground/40"
+              style={{ width: renameInputWidth }}
+              defaultValue={rawTitle}
+              maxLength={MAX_CONVERSATION_TITLE_LENGTH}
+              onClick={(e) => e.stopPropagation()}
+              onDoubleClick={(e) => e.stopPropagation()}
+              onBlur={(e) => commitRename(e.target.value)}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === 'Enter') commitRename(e.currentTarget.value);
+                else if (e.key === 'Escape') {
+                  committedRef.current = true;
+                  setIsEditing(false);
+                }
+              }}
+            />
+          ) : (
+            <TabTitle isActive={tab.isActive} isPreview={tab.isPreview} maxWidth="max-w-24">
+              {title}
+            </TabTitle>
+          )}
           <TabCloseButton
             onClose={onClose}
             ariaLabel={`Close ${title}`}

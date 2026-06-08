@@ -8,8 +8,8 @@ import {
   DropdownMenuTrigger,
 } from '@renderer/lib/ui/dropdown-menu';
 import { cn } from '@renderer/utils/utils';
-import { pinnedAutomationTemplates } from '@shared/automations/builtin-catalog';
-import type { BuiltinAutomationTemplate } from '@shared/automations/types';
+import type { BuiltinAutomationTemplate } from '@shared/core/automations/automation';
+import { pinnedAutomationTemplates } from '@shared/core/automations/builtin-catalog';
 
 interface UseTemplateButtonProps {
   open: boolean;

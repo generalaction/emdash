@@ -1,4 +1,4 @@
-import { type AgentProviderId } from '@shared/agent-provider-registry';
+import { type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import ampLogo from '../../assets/images/ampcode.svg';
 import antigravityLogo from '../../assets/images/antigravity.svg';
 import atlassianLogo from '../../assets/images/atlassian.png';
@@ -8,6 +8,7 @@ import charmLogo from '../../assets/images/charm.png';
 import claudeLogo from '../../assets/images/claude.svg';
 import clineLogo from '../../assets/images/cline.png';
 import codebuffLogo from '../../assets/images/codebuff.png';
+import commandCodeLogoSvg from '../../assets/images/commandcode.svg?raw';
 import continueLogo from '../../assets/images/continue.png';
 import cursorLogoSvg from '../../assets/images/cursor.svg?raw';
 import devinLogo from '../../assets/images/devin.png';
@@ -101,6 +102,12 @@ export const agentConfig: Record<AgentProviderId, AgentInfo> = {
     alt: 'Junie CLI',
   },
   amp: { name: 'Amp', logo: ampLogo, alt: 'Amp Code' },
+  commandcode: {
+    name: 'Command Code',
+    logo: commandCodeLogoSvg,
+    alt: 'Command Code CLI',
+    isSvg: true,
+  },
   // Without initial prompt support
   copilot: {
     name: 'Copilot',

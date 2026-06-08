@@ -8,16 +8,18 @@ import { mapTaskRowToTask } from '@main/core/tasks/utils/utils';
 import { db as appDb, type AppDb } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
 import { log } from '@main/lib/logger';
-import type { Branch } from '@shared/git';
-import { err, ok, type Result } from '@shared/result';
-import type { Task, ProvisionWorkspaceError } from '@shared/tasks';
-import { parseWorkspaceConfig } from '@shared/workspace-config';
-import { compileSetupSpec } from '@shared/workspace-setup-spec';
-import type { WorkspaceType } from '@shared/workspaces';
+import type { Branch } from '@shared/core/git/git';
+import type { Task, ProvisionWorkspaceError } from '@shared/core/tasks/tasks';
+import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
+import type { WorkspaceProviderData } from '@shared/core/workspaces/workspace-provider-data';
+import { compileSetupSpec } from '@shared/core/workspaces/workspace-setup-spec';
+import type { WorkspaceType } from '@shared/core/workspaces/workspaces';
+import { err, ok, type Result } from '@shared/lib/result';
 import { deriveBranchName, resolveWorkspaceIntent } from '../tasks/resolve-workspace-intent';
 import { provisionBYOITask } from './byoi/provision-byoi-task';
 import { LocalWorkspaceSetupExecutor } from './local-workspace-setup-executor';
 import { applyRecovery } from './recovery-strategy';
+import { getProvisionedWorkspaceBranch } from './workspace-branch';
 import { createWorkspaceFactory } from './workspace-factory';
 import { computeWorkspaceKey } from './workspace-key';
 import { workspaceRegistry } from './workspace-registry';
@@ -29,7 +31,7 @@ export type WorkspaceBootstrapResult = {
   worktreeGitDir?: string;
   taskProvider: TaskProvider;
   /** BYOI only — workspace provider data to persist in the DB. */
-  workspaceProviderData?: unknown;
+  workspaceProviderData?: WorkspaceProviderData;
 };
 
 export class WorkspaceBootstrapService {
@@ -54,10 +56,10 @@ export class WorkspaceBootstrapService {
       type: WorkspaceType;
       kind?: string | null;
       path: string | null;
-      config?: string | null;
+      config?: WorkspaceConfig | null;
       branchName?: string | null;
       workspaceProvider?: string | null;
-      data?: string | null;
+      data?: WorkspaceProviderData | null;
     },
     taskRow: {
       workspaceIntent: string | null;
@@ -70,10 +72,8 @@ export class WorkspaceBootstrapService {
     const isByoi = wsKind === 'byoi' || workspaceRow.type === 'byoi';
 
     // Derive branch info from workspace config for passing to task providers.
-    const wsConfig = parseWorkspaceConfig(workspaceRow.config);
-    const workspaceBranchName: string | undefined =
-      workspaceRow.branchName ??
-      (wsConfig ? (deriveBranchName(wsConfig.git) ?? undefined) : undefined);
+    const wsConfig = workspaceRow.config;
+    const workspaceBranchName = getProvisionedWorkspaceBranch(workspaceRow) ?? undefined;
     const workspaceSourceBranch: Branch | undefined =
       wsConfig?.git.kind === 'create-branch' ? wsConfig.git.fromBranch : undefined;
 
@@ -367,7 +367,11 @@ export class WorkspaceBootstrapService {
    * Provisions a BYOI workspace by delegating to `provisionBYOITask`.
    */
   private async _provisionBYOI(
-    workspaceRow: { id: string; workspaceProvider?: string | null; data?: string | null },
+    workspaceRow: {
+      id: string;
+      workspaceProvider?: string | null;
+      data?: WorkspaceProviderData | null;
+    },
     task: Task,
     project: ProjectProvider
   ): Promise<Result<WorkspaceBootstrapResult, ProvisionWorkspaceError>> {

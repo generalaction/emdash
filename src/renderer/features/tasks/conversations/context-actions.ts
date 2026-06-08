@@ -1,6 +1,6 @@
+import type { LinkedIssue } from '@shared/core/linked-issue';
 import { formatCommentsForAgent } from '@shared/lineComments';
 import type { PromptLibraryPrompt } from '@shared/prompt-library';
-import type { Issue } from '@shared/tasks';
 import type { DraftComment } from '../diff-view/stores/draft-comments-store';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -10,8 +10,8 @@ export type ContextActionKind = 'linked-issue' | 'draft-comments' | 'prompt';
 export interface IssueContextAction {
   id: string;
   kind: 'linked-issue';
-  provider: Issue['provider'];
-  issue: Issue;
+  provider: LinkedIssue['provider'];
+  issue: LinkedIssue;
 }
 
 export interface DraftCommentsContextAction {
@@ -32,7 +32,7 @@ export type ContextAction = IssueContextAction | DraftCommentsContextAction | Pr
 
 // ─── Text building ───────────────────────────────────────────────────────────
 
-const PROVIDER_LABELS: Record<Issue['provider'], string> = {
+const PROVIDER_LABELS: Record<LinkedIssue['provider'], string> = {
   github: 'GitHub',
   linear: 'Linear',
   jira: 'Jira',
@@ -42,9 +42,10 @@ const PROVIDER_LABELS: Record<Issue['provider'], string> = {
   featurebase: 'Featurebase',
   asana: 'Asana',
   monday: 'Monday.com',
+  trello: 'Trello',
 };
 
-export function buildIssueContextText(issue: Issue): string {
+export function buildIssueContextText(issue: LinkedIssue): string {
   const normalize = (s: string) => s.replace(/[\r\n]+/g, ' ').trim();
 
   const parts: string[] = [
@@ -81,7 +82,7 @@ export function buildContextActionText(action: ContextAction): string {
 
 // ─── Builders ────────────────────────────────────────────────────────────────
 
-export function buildLinkedIssueContextAction(issue?: Issue): IssueContextAction | null {
+export function buildLinkedIssueContextAction(issue?: LinkedIssue): IssueContextAction | null {
   if (!issue) return null;
   return {
     id: `linked-issue:${issue.provider}:${issue.identifier}`,
@@ -118,7 +119,7 @@ export function buildPromptLibraryContextActions(
 }
 
 export function buildTaskContextActions(
-  issue: Issue | undefined,
+  issue: LinkedIssue | undefined,
   comments: DraftComment[],
   prompts: PromptLibraryPrompt[]
 ): ContextAction[] {

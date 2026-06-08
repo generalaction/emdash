@@ -1,9 +1,9 @@
 import { localDependencyManager } from '@main/core/dependencies/dependency-manager';
 import { log } from '@main/lib/logger';
-import { AGENT_PROVIDERS } from '@shared/agent-provider-registry';
-import type { DependencyId } from '@shared/dependencies';
-import { createRPCController } from '@shared/ipc/rpc';
-import type { McpProvidersResponse, McpServer } from '@shared/mcp/types';
+import { AGENT_PROVIDERS } from '@shared/core/agents/agent-provider-registry';
+import type { DependencyId } from '@shared/core/dependencies';
+import type { McpProvidersResponse, McpServer } from '@shared/core/mcp/types';
+import { createRPCController } from '@shared/lib/ipc/rpc';
 import { mcpService } from './services/McpService';
 import { agentSupportsHttp, getAllMcpAgentIds } from './utils/config-paths';
 

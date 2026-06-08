@@ -23,7 +23,7 @@ import {
 import { setTelemetryConversationScope } from '@renderer/utils/telemetry-scope';
 import type { BrowserSessionSnapshot } from '@shared/browser';
 import { browserOpenInNewTabChannel } from '@shared/events/browserEvents';
-import { refsEqual, type GitChangeStatus, type GitObjectRef } from '@shared/git';
+import { refsEqual, type GitChangeStatus, type GitObjectRef } from '@shared/core/git/git';
 import type { ActiveFile, TabDescriptor, TabManagerSnapshot } from '@shared/view-state';
 
 // ---------------------------------------------------------------------------

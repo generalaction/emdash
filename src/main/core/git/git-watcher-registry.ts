@@ -4,14 +4,16 @@ import { events } from '@main/lib/events';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import type { IDisposable, IInitializable } from '@main/lib/lifecycle';
 import { log } from '@main/lib/logger';
+import { branchRef, remoteRef, toRefString, type GitObjectRef } from '@shared/core/git/git';
 import {
   gitRefChangedChannel,
   gitWorkspaceChangedChannel,
   type GitRefChange,
-} from '@shared/events/gitEvents';
-import { branchRef, remoteRef, toRefString, type GitObjectRef } from '@shared/git';
+} from '@shared/core/git/gitEvents';
 import { projectManager } from '../projects/project-manager';
 import { taskSessionManager } from '../tasks/task-session-manager';
+import { refreshWorkspaceCurrentBranchCache } from '../workspaces/workspace-current-branch-cache';
+import { workspaceRegistry } from '../workspaces/workspace-registry';
 
 export type GitWatcherHooks = {
   'ref:changed': (change: GitRefChange) => void | Promise<void>;
@@ -48,7 +50,7 @@ class GitWatcherRegistry implements Hookable<GitWatcherHooks>, IInitializable, I
     taskSessionManager.hooks.on(
       'task:provisioned',
       ({ projectId, workspaceId, worktreeGitDir }) => {
-        if (!worktreeGitDir) return;
+        if (worktreeGitDir === undefined) return;
         this._worktrees.get(projectId)?.set(workspaceId, worktreeGitDir);
       }
     );
@@ -108,14 +110,18 @@ class GitWatcherRegistry implements Hookable<GitWatcherHooks>, IInitializable, I
           }
           if (rel === 'config') emitConfig = true;
 
-          // Workspace-level index/HEAD changes (renderer-only, direct IPC emit)
+          // Workspace-level index/HEAD changes.
           for (const [workspaceId, relGitDir] of worktrees) {
             const prefix = relGitDir ? `${relGitDir}/` : '';
             if (rel === `${prefix}index`) {
-              events.emit(gitWorkspaceChangedChannel, { projectId, workspaceId, kind: 'index' });
+              events.emit(gitWorkspaceChangedChannel, {
+                projectId,
+                workspaceId,
+                kind: 'index',
+              });
             }
             if (rel === `${prefix}HEAD`) {
-              events.emit(gitWorkspaceChangedChannel, { projectId, workspaceId, kind: 'head' });
+              void this._emitWorkspaceHeadChanged(projectId, workspaceId);
             }
           }
         }
@@ -139,13 +145,30 @@ class GitWatcherRegistry implements Hookable<GitWatcherHooks>, IInitializable, I
           });
         }
         if (emitConfig) {
-          this._hooks.callHookBackground('ref:changed', { projectId, kind: 'config' });
+          this._hooks.callHookBackground('ref:changed', {
+            projectId,
+            kind: 'config',
+          });
         }
       });
       this._subscriptions.set(projectId, sub);
     } catch {
       // Subscription failed (e.g. project path removed or .git directory missing).
     }
+  }
+
+  private async _emitWorkspaceHeadChanged(projectId: string, workspaceId: string): Promise<void> {
+    const workspace = workspaceRegistry.get(workspaceId);
+    if (!workspace) return;
+
+    const result = await refreshWorkspaceCurrentBranchCache(workspaceId, workspace.git);
+    if (!result?.changed) return;
+
+    events.emit(gitWorkspaceChangedChannel, {
+      projectId,
+      workspaceId,
+      kind: 'head',
+    });
   }
 
   private async _stopWatching(projectId: string): Promise<void> {

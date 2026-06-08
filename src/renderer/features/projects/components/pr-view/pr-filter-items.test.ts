@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { PullRequestUser } from '@shared/pull-requests';
+import type { PullRequestUser } from '@shared/core/pull-requests/pull-requests';
 import { usersWithLoginFirst } from './pr-filter-items';
 
 function user(userName: string): PullRequestUser {

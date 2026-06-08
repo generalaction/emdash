@@ -5,7 +5,7 @@ import type { IExecutionContext } from '@main/core/execution-context/types';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { log } from '@main/lib/logger';
-import type { AgentProviderId } from '@shared/agent-provider-registry';
+import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import {
   makeAmpPluginContent,
   makeClaudeHookCommand,
@@ -22,7 +22,10 @@ const CLAUDE_SETTINGS_PATH = '.claude/settings.local.json';
 const DEVIN_HOOKS_PATH = '.devin/hooks.v1.json';
 const CODEX_CONFIG_PATH = '.codex/config.toml';
 const CODEX_HOOKS_PATH = '.codex/hooks.json';
+const KIMI_CONFIG_PATH = '.kimi-code/config.toml';
+const LEGACY_KIMI_CONFIG_PATH = '.kimi/config.toml';
 const GROK_HOOKS_PATH = '.grok/hooks/emdash.json';
+const COPILOT_HOOKS_PATH = '.github/hooks/emdash.json';
 const QWEN_SETTINGS_PATH = '.qwen/settings.json';
 const DROID_SETTINGS_PATH = '.factory/settings.json';
 const AMP_PLUGIN_PATH = '.amp/plugins/emdash-hook.ts';
@@ -31,6 +34,16 @@ const OPENCODE_PLUGIN_PATH = '.opencode/plugins/emdash-notifications.js';
 const GITIGNORE_PATH = '.gitignore';
 type HookConfigWriteOptions = { writeGitIgnoreEntries?: boolean };
 type CodexHookEvent = 'Stop' | 'PermissionRequest' | 'SessionStart';
+type KimiHookEvent =
+  | 'Notification'
+  | 'PostToolUse'
+  | 'PostToolUseFailure'
+  | 'SessionEnd'
+  | 'SessionStart'
+  | 'Stop'
+  | 'StopFailure'
+  | 'UserPromptSubmit';
+type CopilotHookEvent = 'agentStop' | 'notification' | 'permissionRequest' | 'sessionStart';
 type GrokHookEvent =
   | 'Notification'
   | 'PostToolUse'
@@ -59,6 +72,26 @@ const CODEX_SESSION_HOOK_EVENT_MAP = [{ hookKey: 'SessionStart' as const }] sati
   hookKey: CodexHookEvent;
 }[];
 
+const KIMI_HOOK_EVENT_MAP = [
+  { hookKey: 'SessionStart', eventType: 'session' },
+  { hookKey: 'UserPromptSubmit', eventType: 'start' },
+  { hookKey: 'PostToolUse', eventType: 'start' },
+  { hookKey: 'PostToolUseFailure', eventType: 'start' },
+  { hookKey: 'Notification', eventType: 'notification' },
+  { hookKey: 'Stop', eventType: 'stop' },
+  { hookKey: 'StopFailure', eventType: 'stop' },
+  { hookKey: 'SessionEnd', eventType: 'stop' },
+] satisfies { hookKey: KimiHookEvent; eventType: 'notification' | 'session' | 'start' | 'stop' }[];
+
+const COPILOT_HOOK_EVENT_MAP = [{ hookKey: 'agentStop', eventType: 'stop' }] satisfies {
+  hookKey: CopilotHookEvent;
+  eventType: 'stop';
+}[];
+
+const COPILOT_SESSION_HOOK_EVENT_MAP = [{ hookKey: 'sessionStart' as const }] satisfies {
+  hookKey: CopilotHookEvent;
+}[];
+
 const DROID_HOOK_EVENT_MAP = [
   { hookKey: 'Notification', eventType: 'notification' },
   { hookKey: 'Stop', eventType: 'stop' },
@@ -69,6 +102,37 @@ const DEVIN_HOOK_EVENT_MAP = [
   { hookKey: 'Stop', eventType: 'stop' },
   { hookKey: 'SessionEnd', eventType: 'stop' },
 ] satisfies { hookKey: DevinHookEvent; eventType: 'stop' }[];
+
+function buildKimiHookEntries(existing: unknown[], platform: NodeJS.Platform): unknown[] {
+  const userEntries = existing.filter((entry) => !JSON.stringify(entry).includes(EMDASH_MARKER));
+  const emdashEntries = KIMI_HOOK_EVENT_MAP.map(({ hookKey, eventType }) => ({
+    event: hookKey,
+    command: makeClaudeHookCommand(eventType, { platform }),
+  }));
+  return [...userEntries, ...emdashEntries];
+}
+
+export function addKimiHooksToConfigText(
+  content: string,
+  options: { platform?: NodeJS.Platform } = {}
+): string {
+  const platform = options.platform ?? process.platform;
+  try {
+    const config = JSON.parse(content) as Record<string, unknown>;
+    const hooks = Array.isArray(config.hooks) ? config.hooks : [];
+    config.hooks = buildKimiHookEntries(hooks, platform);
+    return JSON.stringify(config);
+  } catch {}
+
+  try {
+    const config = toml.parse(content) as Record<string, unknown>;
+    const hooks = Array.isArray(config.hooks) ? config.hooks : [];
+    config.hooks = buildKimiHookEntries(hooks, platform);
+    return toml.stringify(config);
+  } catch {
+    return content;
+  }
+}
 
 const LEGACY_CODEX_NOTIFY_COMMAND = [
   'bash',
@@ -155,6 +219,54 @@ export class HookConfigWriter {
     return true;
   }
 
+  async writeCopilotHooks(): Promise<boolean> {
+    if (!(await resolveCommandPath('copilot', this.exec))) return false;
+
+    const config: Record<string, unknown> = (await this.fs.exists(COPILOT_HOOKS_PATH))
+      ? await this.fs
+          .read(COPILOT_HOOKS_PATH)
+          .then((r) => JSON.parse(r.content) ?? {})
+          .catch(() => ({}))
+      : {};
+
+    const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
+
+    const existingNotification = Array.isArray(hooks.notification) ? hooks.notification : [];
+    hooks.notification = existingNotification.filter(
+      (entry) => !JSON.stringify(entry).includes(EMDASH_MARKER)
+    );
+
+    for (const { hookKey, eventType } of COPILOT_HOOK_EVENT_MAP) {
+      const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
+      hooks[hookKey] = this.buildCopilotHookEntries(
+        existing,
+        makeClaudeHookCommand(eventType, { platform: this.platform })
+      );
+    }
+
+    for (const { hookKey } of COPILOT_SESSION_HOOK_EVENT_MAP) {
+      const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
+      hooks[hookKey] = this.buildCopilotHookEntries(
+        existing,
+        makeClaudeHookCommand('session', { platform: this.platform })
+      );
+    }
+
+    const existingPermissionRequest = Array.isArray(hooks.permissionRequest)
+      ? hooks.permissionRequest
+      : [];
+    hooks.permissionRequest = this.buildCopilotHookEntries(
+      existingPermissionRequest,
+      makeCodexHookCommand('permission_prompt', { platform: this.platform })
+    );
+
+    await this.fs.write(
+      COPILOT_HOOKS_PATH,
+      JSON.stringify({ ...config, version: 1, hooks }, null, 2) + '\n'
+    );
+    return true;
+  }
+
   async writeGrokHooks(): Promise<boolean> {
     if (!(await resolveCommandPath('grok', this.exec))) return false;
 
@@ -208,6 +320,34 @@ export class HookConfigWriter {
     }
 
     await this.userFs.write(GROK_HOOKS_PATH, JSON.stringify({ ...config, hooks }, null, 2) + '\n');
+    return true;
+  }
+
+  async writeKimiHooks(): Promise<boolean> {
+    const wroteConfig = await this.writeKimiHookConfig(KIMI_CONFIG_PATH);
+    const wroteLegacyConfig = await this.writeKimiHookConfig(LEGACY_KIMI_CONFIG_PATH);
+    return wroteConfig || wroteLegacyConfig;
+  }
+
+  private async writeKimiHookConfig(path: string): Promise<boolean> {
+    let config: Record<string, unknown> = {};
+    if (await this.userFs.exists(path)) {
+      try {
+        const file = await this.userFs.read(path);
+        config = toml.parse(file.content) as Record<string, unknown>;
+      } catch (error) {
+        log.warn('KimiHooks: failed to parse config; leaving it unchanged', {
+          path,
+          error: String(error),
+        });
+        return false;
+      }
+    }
+
+    const hooks = Array.isArray(config.hooks) ? config.hooks : [];
+    config.hooks = buildKimiHookEntries(hooks, this.platform);
+
+    await this.userFs.write(path, toml.stringify(config));
     return true;
   }
 
@@ -360,6 +500,18 @@ export class HookConfigWriter {
       return this.writeGrokHooks();
     }
 
+    if (providerId === 'kimi') {
+      return this.writeKimiHooks();
+    }
+
+    if (providerId === 'copilot') {
+      const wroteConfig = await this.writeCopilotHooks();
+      if (wroteConfig && writeGitIgnoreEntries) {
+        await this.ensureGitIgnoreEntries([COPILOT_HOOKS_PATH]);
+      }
+      return wroteConfig;
+    }
+
     if (providerId === 'qwen') {
       const wroteConfig = await this.writeQwenHooks();
       if (wroteConfig && writeGitIgnoreEntries) {
@@ -413,11 +565,24 @@ export class HookConfigWriter {
 
   async writeAll(options: HookConfigWriteOptions = {}): Promise<void> {
     await Promise.all(
-      (['claude', 'codex', 'grok', 'qwen', 'devin', 'droid', 'pi', 'opencode', 'amp'] as const).map(
-        (providerId) =>
-          this.writeForProvider(providerId, options).catch((err: Error) => {
-            log.warn(`Failed to write ${providerId} hook config`, { error: String(err) });
-          })
+      (
+        [
+          'claude',
+          'codex',
+          'grok',
+          'kimi',
+          'copilot',
+          'qwen',
+          'devin',
+          'droid',
+          'pi',
+          'opencode',
+          'amp',
+        ] as const
+      ).map((providerId) =>
+        this.writeForProvider(providerId, options).catch((err: Error) => {
+          log.warn(`Failed to write ${providerId} hook config`, { error: String(err) });
+        })
       )
     );
   }
@@ -425,6 +590,11 @@ export class HookConfigWriter {
   private buildHookEntries(existing: unknown[], command: string): unknown[] {
     const userEntries = existing.filter((entry) => !JSON.stringify(entry).includes(EMDASH_MARKER));
     return [...userEntries, { hooks: [{ type: 'command', command }] }];
+  }
+
+  private buildCopilotHookEntries(existing: unknown[], command: string): unknown[] {
+    const userEntries = existing.filter((entry) => !JSON.stringify(entry).includes(EMDASH_MARKER));
+    return [...userEntries, { type: 'command', command }];
   }
 
   private async removeLegacyCodexNotify(): Promise<void> {

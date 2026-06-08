@@ -9,7 +9,7 @@ import {
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
-import { commitRef, type GitChange, HEAD_REF } from '@shared/git';
+import { commitRef, type GitChange, HEAD_REF } from '@shared/core/git/git';
 import { ActionCard } from './components/action-card';
 import { ChangesListOrTree } from './components/changes-list-or-tree';
 import { ChangesViewModeToggle } from './components/changes-view-mode-toggle';

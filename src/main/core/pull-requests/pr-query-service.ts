@@ -8,7 +8,12 @@ import {
   pullRequests,
   pullRequestUsers,
 } from '@main/db/schema';
-import type { Label, ListPrOptions, PrFilterOptions, PullRequest } from '@shared/pull-requests';
+import type {
+  Label,
+  ListPrOptions,
+  PrFilterOptions,
+  PullRequest,
+} from '@shared/core/pull-requests/pull-requests';
 import { assemblePullRequest, pullRequestRepositoryScope, type PrRow } from './pr-utils';
 
 async function fetchRelated(rows: PrRow[]): Promise<PullRequest[]> {
@@ -19,7 +24,10 @@ async function fetchRelated(rows: PrRow[]): Promise<PullRequest[]> {
   const [labelRows, assigneeJoins, checkRows] = await Promise.all([
     db.select().from(pullRequestLabels).where(inArray(pullRequestLabels.pullRequestId, urls)),
     db
-      .select({ pullRequestUrl: pullRequestAssignees.pullRequestUrl, user: pullRequestUsers })
+      .select({
+        pullRequestUrl: pullRequestAssignees.pullRequestUrl,
+        user: pullRequestUsers,
+      })
       .from(pullRequestAssignees)
       .innerJoin(pullRequestUsers, eq(pullRequestAssignees.userId, pullRequestUsers.userId))
       .where(inArray(pullRequestAssignees.pullRequestUrl, urls)),
@@ -149,11 +157,7 @@ export class PrQueryService {
     return fetchRelated(rows);
   }
 
-  async getTaskPullRequests(
-    projectId: string,
-    taskBranch: string,
-    repositoryUrl: string
-  ): Promise<PullRequest[]> {
+  async getTaskPullRequests(taskBranch: string, repositoryUrl: string): Promise<PullRequest[]> {
     const rows = await db
       .select()
       .from(pullRequests)
@@ -193,7 +197,10 @@ export class PrQueryService {
     const [authorRows, labelRows, assigneeRows] = await Promise.all([
       db.select().from(pullRequestUsers).where(inArray(pullRequestUsers.userId, authorUserIdsSub)),
       db
-        .selectDistinct({ name: pullRequestLabels.name, color: pullRequestLabels.color })
+        .selectDistinct({
+          name: pullRequestLabels.name,
+          color: pullRequestLabels.color,
+        })
         .from(pullRequestLabels)
         .where(inArray(pullRequestLabels.pullRequestId, prUrlsSub)),
       db

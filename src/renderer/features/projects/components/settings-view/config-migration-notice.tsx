@@ -1,4 +1,4 @@
-import type { ProjectConfigMigration } from '@shared/project-settings';
+import type { ProjectConfigMigration } from '@shared/core/project-settings/project-settings';
 
 export function ConfigMigrationNotice({
   migrations,

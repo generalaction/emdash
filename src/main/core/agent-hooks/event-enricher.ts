@@ -1,8 +1,8 @@
 import { eq } from 'drizzle-orm';
 import { db } from '@main/db/client';
 import { conversations } from '@main/db/schema';
-import type { AgentEvent } from '@shared/events/agentEvents';
-import { parsePtyId } from '@shared/ptyId';
+import type { AgentEvent } from '@shared/core/agents/agentEvents';
+import { parsePtyId } from '@shared/core/pty/ptyId';
 import type { RawHookRequest } from './hook-server';
 
 function normalizePayload(

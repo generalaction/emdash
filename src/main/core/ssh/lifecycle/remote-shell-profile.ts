@@ -7,7 +7,7 @@ import {
   terminalCommandArgs,
   terminalEnvCaptureArgs,
   terminalShellBasename,
-} from '@shared/terminal-settings';
+} from '@shared/core/terminals/terminal-settings';
 
 export type RemoteShellProfile = {
   shell: string;

@@ -3,19 +3,25 @@ import type { RepositoryStore } from '@renderer/features/projects/stores/reposit
 import { events, rpc } from '@renderer/lib/ipc';
 import { Resource } from '@renderer/lib/stores/resource';
 import { captureTelemetry } from '@renderer/utils/telemetryClient';
-import { gitRefChangedChannel, gitWorkspaceChangedChannel } from '@shared/events/gitEvents';
-import { commitRef, mergeBaseRange, refsEqual, remoteRef, type GitChange } from '@shared/git';
+import {
+  commitRef,
+  mergeBaseRange,
+  refsEqual,
+  remoteRef,
+  type GitChange,
+} from '@shared/core/git/git';
+import { gitRefChangedChannel, gitWorkspaceChangedChannel } from '@shared/core/git/gitEvents';
 import {
   isForkPr,
   pullRequestErrorMessage,
   selectCurrentPr,
   type PullRequest,
-} from '@shared/pull-requests';
+  type PullRequestMergeOptions,
+} from '@shared/core/pull-requests/pull-requests';
+import type { Task } from '@shared/core/tasks/tasks';
 import { parseRepositoryRef } from '@shared/repository-ref';
-import type { Task } from '@shared/tasks';
 import { isRegistered, type TaskStore } from './task-store';
 
-type MergeMode = 'merge' | 'squash' | 'rebase';
 export type MergeResult = { success: true } | { success: false; error: string };
 
 /** Extract the numeric PR number from the identifier field (e.g. "#123" → 123). */
@@ -111,14 +117,12 @@ export class PrStore {
     return this._prFiles.get(key)!.resource;
   }
 
-  async mergePr(
-    id: string,
-    options: { strategy: MergeMode; commitHeadOid?: string }
-  ): Promise<MergeResult> {
+  async mergePr(id: string, options: PullRequestMergeOptions): Promise<MergeResult> {
     const pr = this.pullRequests.find((p) => p.url === id);
     if (!pr) {
       captureTelemetry('pr_merged', {
         strategy: options.strategy,
+        bypass_requirements: options.bypassRequirements ?? false,
         success: false,
         error_type: 'pr_not_found',
         project_id: this.projectId,
@@ -130,10 +134,16 @@ export class PrStore {
     const prNumber = prNumberFromIdentifier(pr.identifier);
     if (!prNumber) return { success: false, error: 'Could not determine PR number' };
 
-    const result = await rpc.pullRequests.mergePullRequest(pr.repositoryUrl, prNumber, options);
+    const result = await rpc.pullRequests.mergePullRequest(
+      this.projectId,
+      pr.repositoryUrl,
+      prNumber,
+      options
+    );
     if (result.success) {
       captureTelemetry('pr_merged', {
         strategy: options.strategy,
+        bypass_requirements: options.bypassRequirements ?? false,
         success: true,
         project_id: this.projectId,
         task_id: this.workspaceId,
@@ -143,6 +153,7 @@ export class PrStore {
 
     captureTelemetry('pr_merged', {
       strategy: options.strategy,
+      bypass_requirements: options.bypassRequirements ?? false,
       success: false,
       error_type: 'merge_failed',
       project_id: this.projectId,
@@ -156,7 +167,7 @@ export class PrStore {
     if (!pr) return;
     const prNumber = prNumberFromIdentifier(pr.identifier);
     if (!prNumber) return;
-    await rpc.pullRequests.markReadyForReview(pr.repositoryUrl, prNumber);
+    await rpc.pullRequests.markReadyForReview(this.projectId, pr.repositoryUrl, prNumber);
   }
 
   /**
@@ -169,12 +180,12 @@ export class PrStore {
 
     const prNumber = prNumberFromIdentifier(pr.identifier);
     if (prNumber) {
-      void rpc.pullRequests.refreshPullRequest(pr.repositoryUrl, prNumber);
+      void rpc.pullRequests.refreshPullRequest(this.projectId, pr.repositoryUrl, prNumber);
     }
 
     // Also trigger a check-run sync — the result arrives embedded in the
     // next prUpdatedChannel event emitted by syncChecks.
-    void rpc.pullRequests.syncChecks(pr.url, pr.headRefOid);
+    void rpc.pullRequests.syncChecks(this.projectId, pr.url, pr.headRefOid);
   }
 
   dispose(): void {

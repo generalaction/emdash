@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { SshConnectionEvent } from '@shared/events/sshEvents';
+import type { SshConnectionEvent } from '@shared/core/ssh/sshEvents';
 import { SshConnectionStore } from './ssh-connection-store';
 
 const sshEventHandlers: Array<(event: SshConnectionEvent) => void> = [];

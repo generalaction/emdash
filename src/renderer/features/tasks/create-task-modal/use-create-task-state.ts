@@ -2,16 +2,14 @@ import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
 import { rpc } from '@renderer/lib/ipc';
-import type { Branch } from '@shared/git';
-import type { PullRequest } from '@shared/pull-requests';
-import type { Issue } from '@shared/tasks';
+import type { Branch } from '@shared/core/git/git';
+import type { LinkedIssue } from '@shared/core/linked-issue';
+import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
 import { getIssueTaskName } from './issue-task-name';
-import { useBranchName } from './use-branch-name';
-import { useBranchSelection } from './use-branch-selection';
 import { useTaskName } from './use-task-name';
+import { useWorkspaceConfig } from './use-workspace-config';
 
 export type LinkedType = 'issue' | 'pr' | null;
-export type CheckoutMode = 'checkout' | 'new-branch';
 
 export type CreateTaskState = ReturnType<typeof useCreateTaskState>;
 
@@ -20,15 +18,15 @@ export function useCreateTaskState(
   defaultBranch: Branch | undefined,
   isUnborn: boolean,
   currentBranch: string | null,
+  repositoryWorkspaceId: string | null | undefined,
   initialPR?: PullRequest,
   initialLinkedType: LinkedType = null
 ) {
   const { autoGenerateName, createBranchAndWorktree } = useTaskSettings();
 
   const [linkedType, setLinkedTypeRaw] = useState<LinkedType>(initialPR ? 'pr' : initialLinkedType);
-  const [linkedIssue, setLinkedIssueRaw] = useState<Issue | null>(null);
+  const [linkedIssue, setLinkedIssueRaw] = useState<LinkedIssue | null>(null);
   const [linkedPR, setLinkedPRRaw] = useState<PullRequest | null>(initialPR ?? null);
-  const [checkoutMode, setCheckoutMode] = useState<CheckoutMode>('checkout');
   const [prevProjectId, setPrevProjectId] = useState(projectId);
 
   // Reset linked state when project changes.
@@ -37,7 +35,6 @@ export function useCreateTaskState(
     setLinkedTypeRaw(null);
     setLinkedIssueRaw(null);
     setLinkedPRRaw(null);
-    setCheckoutMode('checkout');
   }
 
   // Stable random key for the "plain task" name generation — one per modal session.
@@ -109,46 +106,35 @@ export function useCreateTaskState(
     resetKey: projectId,
   });
 
-  const branchSelection = useBranchSelection(
+  const workspaceConfig = useWorkspaceConfig({
     projectId,
     defaultBranch,
     isUnborn,
     currentBranch,
-    undefined,
-    createBranchAndWorktree
-  );
-
-  const branchNameState = useBranchName({
+    repositoryWorkspaceId,
+    pr: linkedType === 'pr' ? linkedPR : null,
     taskName: taskName.effectiveTaskName,
     linkedIssue: linkedType === 'issue' ? linkedIssue : null,
-    projectId,
+    createBranchAndWorktreeDefault: createBranchAndWorktree,
     resetKey: projectId,
   });
 
   // Switching linked type clears the selection for the previous type.
   const setLinkedType = (type: LinkedType) => {
     setLinkedTypeRaw(type);
-    if (type === 'issue' || type === null) setCheckoutMode('checkout');
   };
 
-  const setLinkedIssue = (issue: Issue | null) => {
+  const setLinkedIssue = (issue: LinkedIssue | null) => {
     setLinkedIssueRaw(issue);
   };
 
   const setLinkedPR = (pr: PullRequest | null) => {
     setLinkedPRRaw(pr);
-    if (!pr) setCheckoutMode('checkout');
   };
 
   // Issue/PR selection is optional enrichment — not required for creation.
-  // When PR tab is active but no PR is selected, fall back to branch-based creation.
   const isValid =
-    taskName.effectiveTaskName.trim().length > 0 &&
-    !taskName.isPending &&
-    (linkedType === 'pr' && linkedPR !== null
-      ? true
-      : branchNameState.branchName.trim().length > 0 &&
-        branchSelection.selectedBranch !== undefined);
+    taskName.effectiveTaskName.trim().length > 0 && !taskName.isPending && workspaceConfig.isValid;
 
   return {
     linkedType,
@@ -157,11 +143,8 @@ export function useCreateTaskState(
     setLinkedIssue,
     linkedPR,
     setLinkedPR,
-    checkoutMode,
-    setCheckoutMode,
     taskName,
-    branchSelection,
-    branchNameState,
+    workspaceConfig,
     isValid,
   };
 }

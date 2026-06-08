@@ -1,8 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
-import { Home, Server } from 'lucide-react';
+import { Github, Home, Server } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo, useState } from 'react';
 import { SshConnectionSelector } from '@renderer/features/projects/components/add-project-modal/ssh-connection-selector';
+import {
+  GitHubAccountSelectItem,
+  GitHubAccountSelectLabel,
+} from '@renderer/features/projects/components/github-account-select';
+import { createRequiredGitHubAccountSelectState } from '@renderer/features/projects/components/github-account-select-model';
 import type {
   ModeData as ProjectCreationModeData,
   ProjectType,
@@ -13,6 +18,7 @@ import {
 } from '@renderer/features/projects/stores/project-selectors';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
 import { toast } from '@renderer/lib/hooks/use-toast';
+import { useGitHubAccounts } from '@renderer/lib/hooks/useGithubAccounts';
 import { rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import {
@@ -20,7 +26,6 @@ import {
   useShowModal,
   type BaseModalProps,
 } from '@renderer/lib/modal/modal-provider';
-import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
 import { appState } from '@renderer/lib/stores/app-state';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import {
@@ -31,9 +36,11 @@ import {
 } from '@renderer/lib/ui/dialog';
 import { Field, FieldLabel } from '@renderer/lib/ui/field';
 import { ModalLayout } from '@renderer/lib/ui/modal-layout';
+import { Select, SelectContent, SelectTrigger } from '@renderer/lib/ui/select';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { log } from '@renderer/utils/logger';
+import type { GitHubAccountSummary } from '@shared/github';
 import { ClonePanel, CreateNewPanel, PickExistingPanel } from './content';
 import { useCloneMode, useNewMode, usePickMode } from './modes';
 
@@ -68,7 +75,6 @@ export const AddProjectModal = observer(function AddProjectModal({
 
   const { navigate } = useNavigate();
   const { setCloseGuard } = useModalContext();
-  const { isInitialized, needsGhAuth } = useGithubContext();
 
   const showSshConnModal = useShowModal('addSshConnModal');
   const showAddProjectModal = useShowModal('addProjectModal');
@@ -206,10 +212,26 @@ export const AddProjectModal = observer(function AddProjectModal({
   const defaultPath =
     strategy === 'local' ? (localProjectSettings?.defaultProjectsDirectory ?? '') : '';
 
+  const githubAccountsQuery = useGitHubAccounts();
+  const githubAccounts = githubAccountsQuery.data;
+  const [githubAccountOverride, setGithubAccountOverride] = useState<string | undefined>(undefined);
+  const githubAccountSelect = useMemo(
+    () => createRequiredGitHubAccountSelectState(githubAccountOverride, githubAccounts ?? []),
+    [githubAccountOverride, githubAccounts]
+  );
+  const defaultGitHubAccountSelect = useMemo(
+    () => createRequiredGitHubAccountSelectState(undefined, githubAccounts ?? []),
+    [githubAccounts]
+  );
+  const selectedGitHubAccountId = githubAccountSelect.selectedAccountId;
+  const defaultGitHubAccountId = defaultGitHubAccountSelect.selectedAccountId;
+  const showGitHubAccountSelector = mode === 'new' && githubAccountSelect.accounts.length > 0;
+
   const pickState = usePickMode();
-  const newState = useNewMode(defaultPath);
+  const newState = useNewMode(defaultPath, mode === 'new' ? selectedGitHubAccountId : null);
   const cloneState = useCloneMode(defaultPath);
-  const showGithubAuthDisclaimer = mode === 'new' && isInitialized && needsGhAuth;
+  const showGithubAuthDisclaimer =
+    mode === 'new' && !githubAccountsQuery.isPending && selectedGitHubAccountId === null;
 
   const activeMode = { pick: pickState, new: newState, clone: cloneState }[mode];
   const shouldCheckPickPathStatus =
@@ -238,6 +260,8 @@ export const AddProjectModal = observer(function AddProjectModal({
     activeMode.isValid &&
     (strategy === 'local' || !!selectedConnectionId) &&
     !isCheckingPickPathStatus &&
+    (mode !== 'new' || !githubAccountsQuery.isPending) &&
+    (mode !== 'pick' || !requiresGitInitialization || !githubAccountsQuery.isPending) &&
     (!requiresGitInitialization || pickState.initGitRepository) &&
     submitState === 'idle';
 
@@ -260,6 +284,9 @@ export const AddProjectModal = observer(function AddProjectModal({
           name: pickState.name,
           path: pickState.path,
           initGitRepository: pickState.initGitRepository,
+          githubAccountId: pickState.initGitRepository
+            ? (defaultGitHubAccountId ?? undefined)
+            : undefined,
         };
         break;
       case 'new':
@@ -270,6 +297,7 @@ export const AddProjectModal = observer(function AddProjectModal({
           repositoryName: newState.repositoryName,
           repositoryOwner: newState.repositoryOwner?.value ?? '',
           repositoryVisibility: newState.repositoryVisibility,
+          githubAccountId: selectedGitHubAccountId ?? undefined,
         };
         break;
       case 'clone':
@@ -389,6 +417,14 @@ export const AddProjectModal = observer(function AddProjectModal({
             />
           </Field>
         )}
+        {showGitHubAccountSelector ? (
+          <GitHubAccountCreationSelector
+            accounts={githubAccountSelect.accounts}
+            value={selectedGitHubAccountId}
+            selectedAccount={githubAccountSelect.selectedAccount}
+            onChange={setGithubAccountOverride}
+          />
+        ) : null}
         {mode === 'pick' && (
           <PickExistingPanel
             strategy={strategy}
@@ -403,7 +439,7 @@ export const AddProjectModal = observer(function AddProjectModal({
             connectionId={selectedConnectionId}
             state={newState}
             showGithubAuthDisclaimer={showGithubAuthDisclaimer}
-            onOpenAccountSettings={() => navigate('settings', { tab: 'account' })}
+            onOpenAccountSettings={() => navigate('settings', { tab: 'integrations' })}
           />
         )}
         {mode === 'clone' && (
@@ -413,3 +449,43 @@ export const AddProjectModal = observer(function AddProjectModal({
     </ModalLayout>
   );
 });
+
+function GitHubAccountCreationSelector({
+  accounts,
+  value,
+  selectedAccount,
+  onChange,
+}: {
+  accounts: GitHubAccountSummary[];
+  value: string | null;
+  selectedAccount: GitHubAccountSummary | null;
+  onChange: (accountId: string) => void;
+}) {
+  return (
+    <Field>
+      <FieldLabel>GitHub account</FieldLabel>
+      <Select
+        value={value ?? undefined}
+        onValueChange={(nextValue) => {
+          if (nextValue) onChange(nextValue);
+        }}
+      >
+        <SelectTrigger className="w-full min-w-0">
+          {selectedAccount ? (
+            <GitHubAccountSelectLabel account={selectedAccount} />
+          ) : (
+            <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
+              <Github className="text-muted-foreground h-4 w-4 shrink-0" />
+              <span className="min-w-0 truncate">No GitHub account</span>
+            </div>
+          )}
+        </SelectTrigger>
+        <SelectContent align="start" alignItemWithTrigger={false} sideOffset={6}>
+          {accounts.map((account) => (
+            <GitHubAccountSelectItem key={account.accountId} account={account} />
+          ))}
+        </SelectContent>
+      </Select>
+    </Field>
+  );
+}

@@ -1,7 +1,7 @@
 import { getEffectiveTaskSettings } from '@main/core/projects/settings/effective-task-settings';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
-import { createRPCController } from '@shared/ipc/rpc';
-import type { ProjectSettings } from '@shared/project-settings';
+import type { ProjectSettings } from '@shared/core/project-settings/project-settings';
+import { createRPCController } from '@shared/lib/ipc/rpc';
 
 async function getSettings(workspaceId: string): Promise<ProjectSettings> {
   const workspace = workspaceRegistry.get(workspaceId);

@@ -1,5 +1,5 @@
 import { type TerminalRow } from '@main/db/schema';
-import { type Terminal } from '@shared/terminals';
+import { type Terminal } from '@shared/core/terminals/terminals';
 
 export function mapTerminalRowToTerminal(row: TerminalRow): Terminal {
   return {

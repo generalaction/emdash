@@ -2,17 +2,18 @@ import { events } from '@main/lib/events';
 import { HookCore, type Hookable } from '@main/lib/hookable';
 import type { IInitializable } from '@main/lib/lifecycle';
 import { log } from '@main/lib/logger';
-import { projectSettingsChangedChannel } from '@shared/events/projectEvents';
 import {
   type MigrateProjectConfigRequest,
   type MigrateProjectConfigResult,
+  type ProjectSettingsPatch,
   type ProjectSettings,
   type ProjectSettingsPage,
   type WriteProjectConfigRequest,
-} from '@shared/project-settings';
-import { hasConfiguredShareableProjectSettings } from '@shared/project-settings-fields';
+} from '@shared/core/project-settings/project-settings';
+import { hasConfiguredShareableProjectSettings } from '@shared/core/project-settings/project-settings-fields';
+import { projectSettingsChangedChannel } from '@shared/core/projects/projectEvents';
+import { err, ok, type Result } from '@shared/lib/result';
 import type { UpdateProjectSettingsError } from '@shared/projects';
-import { err, ok, type Result } from '@shared/result';
 import { projectManager } from '../project-manager';
 import type { ProjectProvider } from '../project-provider';
 import {
@@ -66,6 +67,21 @@ export class ProjectSettingsService implements Hookable<ProjectSettingsHooks>, I
     if (!project.success) return project;
 
     const result = await project.data.settings.update(settings);
+    if (!result.success) return result;
+
+    const updatedSettings = await project.data.settings.get();
+    this.emitSettingsChanged(projectId, updatedSettings);
+    return ok(updatedSettings);
+  }
+
+  async patchProjectSettings(
+    projectId: string,
+    patch: ProjectSettingsPatch
+  ): Promise<Result<ProjectSettings, UpdateProjectSettingsError>> {
+    const project = this.requireProject(projectId);
+    if (!project.success) return project;
+
+    const result = await project.data.settings.patch(patch);
     if (!result.success) return result;
 
     const updatedSettings = await project.data.settings.get();

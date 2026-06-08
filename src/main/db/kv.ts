@@ -29,16 +29,14 @@ export class KV<TSchema extends Record<string, unknown>> {
 
   async set<K extends keyof TSchema & string>(key: K, value: TSchema[K]): Promise<void> {
     try {
-      const serialised = JSON.stringify(value);
-      const now = Date.now();
-
-      await db
-        .insert(kv)
-        .values({ key: this.prefixed(key), value: serialised, updatedAt: now })
-        .onConflictDoUpdate({ target: kv.key, set: { value: serialised, updatedAt: now } });
+      await this.write(key, value);
     } catch (e) {
       log.error('Failed to set KV', { key, value, error: e });
     }
+  }
+
+  async setOrThrow<K extends keyof TSchema & string>(key: K, value: TSchema[K]): Promise<void> {
+    await this.write(key, value);
   }
 
   async del<K extends keyof TSchema & string>(key: K): Promise<void> {
@@ -72,5 +70,15 @@ export class KV<TSchema extends Record<string, unknown>> {
       }
     }
     return result as Partial<TSchema>;
+  }
+
+  private async write<K extends keyof TSchema & string>(key: K, value: TSchema[K]): Promise<void> {
+    const serialised = JSON.stringify(value);
+    const now = Date.now();
+
+    await db
+      .insert(kv)
+      .values({ key: this.prefixed(key), value: serialised, updatedAt: now })
+      .onConflictDoUpdate({ target: kv.key, set: { value: serialised, updatedAt: now } });
   }
 }

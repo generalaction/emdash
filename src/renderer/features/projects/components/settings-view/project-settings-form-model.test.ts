@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { Remote } from '@shared/git';
-import type { ProjectSettings } from '@shared/project-settings';
+import type { Remote } from '@shared/core/git/git';
+import type { ProjectSettings } from '@shared/core/project-settings/project-settings';
 import {
   areFormStatesEqual,
   formToSettings,
@@ -19,6 +19,8 @@ function makeForm(overrides: Partial<FormState> = {}): FormState {
     preservePatterns: '',
     shellSetup: '',
     tmux: false,
+    autoRunSetupScriptOnTaskCreation: true,
+    autoRunRunScriptOnTaskCreation: false,
     scriptSetup: '',
     scriptRun: '',
     scriptTeardown: '',
@@ -26,6 +28,7 @@ function makeForm(overrides: Partial<FormState> = {}): FormState {
     defaultBranch: null,
     baseRemote: '',
     pushRemote: '',
+    githubAccountId: undefined,
     provisionCommand: '',
     terminateCommand: '',
     ...overrides,
@@ -39,6 +42,8 @@ describe('project settings form model', () => {
         preservePatterns: ['.env', '.env.local'],
         shellSetup: 'source .envrc',
         tmux: true,
+        autoRunSetupScriptOnTaskCreation: false,
+        autoRunRunScriptOnTaskCreation: true,
         scripts: {
           setup: 'pnpm install',
           run: 'pnpm dev',
@@ -62,6 +67,8 @@ describe('project settings form model', () => {
       preservePatterns: '.env\n.env.local',
       shellSetup: 'source .envrc',
       tmux: true,
+      autoRunSetupScriptOnTaskCreation: false,
+      autoRunRunScriptOnTaskCreation: true,
       scriptSetup: 'pnpm install',
       scriptRun: 'pnpm dev',
       scriptTeardown: 'docker compose down',
@@ -69,6 +76,7 @@ describe('project settings form model', () => {
       defaultBranch: { type: 'remote', branch: 'main', remote: upstream },
       baseRemote: 'upstream',
       pushRemote: 'origin',
+      githubAccountId: undefined,
       provisionCommand: './provision.sh',
       terminateCommand: './terminate.sh',
     });
@@ -100,6 +108,8 @@ describe('project settings form model', () => {
           preservePatterns: ' .env \n\n.env.local ',
           shellSetup: 'source .envrc',
           tmux: true,
+          autoRunSetupScriptOnTaskCreation: false,
+          autoRunRunScriptOnTaskCreation: true,
           scriptRun: 'pnpm dev',
           worktreeDirectory: '../worktrees',
           defaultBranch: { type: 'remote', branch: 'main', remote: origin },
@@ -113,6 +123,8 @@ describe('project settings form model', () => {
       preservePatterns: ['.env', '.env.local'],
       shellSetup: 'source .envrc',
       tmux: true,
+      autoRunSetupScriptOnTaskCreation: false,
+      autoRunRunScriptOnTaskCreation: true,
       scripts: {
         setup: undefined,
         run: 'pnpm dev',
@@ -127,6 +139,36 @@ describe('project settings form model', () => {
         terminateCommand: './terminate.sh',
       },
     });
+  });
+
+  it('preserves configured GitHub account ids in form state', () => {
+    expect(
+      settingsToForm({ githubAccountId: 'github.com:42' }, 'origin', [origin]).githubAccountId
+    ).toBe('github.com:42');
+  });
+
+  it('keeps explicit no GitHub account distinct from uninitialized settings', () => {
+    expect(
+      settingsToForm({ githubAccountId: null }, 'origin', [origin]).githubAccountId
+    ).toBeNull();
+    expect(settingsToForm({}, 'origin', [origin]).githubAccountId).toBeUndefined();
+  });
+
+  it('persists explicit GitHub account choices', () => {
+    expect(formToSettings(makeForm({ githubAccountId: ' github.com:42 ' }))).toEqual({
+      tmux: false,
+      githubAccountId: 'github.com:42',
+    });
+    expect(formToSettings(makeForm({ githubAccountId: null }))).toEqual({
+      tmux: false,
+      githubAccountId: null,
+    });
+    expect(formToSettings(makeForm({ githubAccountId: undefined }))).toEqual({ tmux: false });
+  });
+
+  it('omits default auto-run lifecycle settings from persisted form settings', () => {
+    expect(formToSettings(makeForm())).not.toHaveProperty('autoRunSetupScriptOnTaskCreation');
+    expect(formToSettings(makeForm())).not.toHaveProperty('autoRunRunScriptOnTaskCreation');
   });
 
   it('requires workspace provider commands to be filled together', () => {

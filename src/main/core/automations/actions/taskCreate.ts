@@ -1,298 +1,216 @@
 import { randomUUID } from 'node:crypto';
-import { eq } from 'drizzle-orm';
 import { createConversation } from '@main/core/conversations/createConversation';
-import { ensureRepositoryWorkspace } from '@main/core/projects/operations/ensure-repository-workspace';
 import { openProject } from '@main/core/projects/operations/openProject';
 import { projectManager } from '@main/core/projects/project-manager';
 import { DEFAULT_AGENT_ID } from '@main/core/settings/settings-registry';
 import { appSettingsService } from '@main/core/settings/settings-service';
-import { generateTaskName } from '@main/core/tasks/name-generation/generateTaskName';
+import { generateRandom } from '@main/core/tasks/name-generation/generateTaskName';
+import {
+  commitCreateTask,
+  finalizeCreateTask,
+  prepareCreateTask,
+} from '@main/core/tasks/operations/createTask';
 import { taskService } from '@main/core/tasks/task-service';
 import { db } from '@main/db/client';
-import { projects } from '@main/db/schema';
-import { resolveAutomationAgentAutoApprove } from '@shared/agent-auto-approve-defaults';
-import type { TaskCreateAction } from '@shared/automations/actions';
-import type { Branch } from '@shared/git';
-import { bareRefName } from '@shared/git-utils';
-import type { LocalProject, SshProject } from '@shared/projects';
-import { err, ok, type Result } from '@shared/result';
-import type {
-  CreateTaskError,
-  CreateTaskParams,
-  GitSetup,
-  ProvisionWorkspaceError,
-  WorkspaceLocation,
-} from '@shared/tasks';
+import type { ConversationRow, TaskRow } from '@main/db/schema';
+import { resolveAutomationAgentAutoApprove } from '@shared/core/agents/agent-auto-approve-defaults';
+import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import type { Automation } from '@shared/core/automations/automation';
+import type { AutomationRun } from '@shared/core/automations/automation-run';
+import type { CreateTaskParams } from '@shared/core/tasks/tasks';
+import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
+import { err, ok, type Result } from '@shared/lib/result';
 import {
-  parseWorkspaceConfig,
-  type WorkspaceConfig,
-  type WorkspaceTarget,
-} from '@shared/workspace-config';
-import { linkRunTask } from '../run-transitions';
-import type { ActionContext, ActionError, ActionOutcome } from './types';
-
-function createTaskErrorLeavesTask(error: CreateTaskError): boolean {
-  // Provisioning runs after createTask has inserted the task/workspace, so
-  // automation callers can still link to the partially-created task.
-  return error.type === 'provision-failed' || error.type === 'provision-timeout';
-}
-
-function formatCreateTaskActionError(error: CreateTaskError): string {
-  switch (error.type) {
-    case 'project-not-found':
-      return 'project_not_found';
-    case 'initial-commit-required':
-      return `initial_commit_required:${error.branch}`;
-    case 'branch-create-failed':
-      return `branch_create_failed:${error.branch}`;
-    case 'pr-fetch-failed':
-      return `pr_fetch_failed:${error.remote}`;
-    case 'branch-not-found':
-      return `branch_not_found:${error.branch}`;
-    case 'worktree-setup-failed':
-      return error.message ?? `worktree_setup_failed:${error.branch}`;
-    case 'provision-failed':
-      return error.message;
-    case 'provision-timeout':
-      return `provisioning timed out after ${error.timeoutMs}ms at step ${error.step ?? 'unknown'}`;
-  }
-}
-
-function formatProvisionActionError(error: ProvisionWorkspaceError): string {
-  switch (error.type) {
-    case 'no-intent':
-      return 'Workspace has no intent and no resolved path — cannot provision.';
-    case 'setup-failed':
-      return `Setup step '${error.stepKind}' failed (${error.stepErrorType})${error.message ? `: ${error.message}` : ''}.`;
-  }
-}
+  markRunCreatingConversation,
+  markRunFailed,
+  markRunLaunchingTask,
+  type OnStepCompleted,
+} from '../run-transitions';
 
 async function ensureProjectOpen(projectId: string) {
   let project = projectManager.getProject(projectId);
   if (!project) {
     const openResult = await openProject(projectId);
-    if (!openResult.success) return err('project_not_found');
+    if (!openResult.success) return err('project_not_found' as const);
     project = projectManager.getProject(projectId);
-    if (!project) return err('project_not_found');
+    if (!project) return err('project_not_found' as const);
   }
 
   return ok(project);
 }
 
-async function resolveProjectDefaults(
-  project: NonNullable<ReturnType<typeof projectManager.getProject>>,
-  taskName: string
-): Promise<WorkspaceConfig> {
-  const [branchesPayload, repoInfo, configuredRemotes] = await Promise.all([
-    project.repository.getBranchesPayload(),
-    project.repository.getRepositoryInfo(),
-    project.repository.getConfiguredRemotes(),
-  ]);
-  const defaultBranchName = bareRefName(branchesPayload.gitDefaultBranch);
-  const localDefault = branchesPayload.branches.find(
-    (branch: Branch) => branch.type === 'local' && branch.branch === defaultBranchName
-  );
-  const remoteDefault = branchesPayload.branches.find(
-    (branch: Branch) =>
-      branch.type === 'remote' &&
-      branch.branch === defaultBranchName &&
-      branch.remote.name === configuredRemotes.baseRemote
-  );
-  const currentBranch = repoInfo.currentBranch
-    ? { type: 'local' as const, branch: repoInfo.currentBranch }
-    : undefined;
-  const fromBranch: Branch = localDefault ??
-    remoteDefault ??
-    currentBranch ?? { type: 'local' as const, branch: defaultBranchName };
-
-  const git: GitSetup = repoInfo.isUnborn
-    ? { kind: 'none' }
-    : { kind: 'create-branch', branchName: taskName, fromBranch, pushBranch: true };
-
-  let workspace: WorkspaceTarget;
-  if (git.kind === 'none') {
-    // Unborn repo — link to the project's repository-instance workspace.
-    const workspaceId = await ensureRepositoryWorkspace(await getProjectData(project.projectId));
-    workspace = { kind: 'repository-instance', workspaceId };
-  } else {
-    workspace = { kind: 'new-worktree' };
-  }
-
-  return { version: '2', git, workspace };
-}
-
-async function getProjectData(projectId: string): Promise<LocalProject | SshProject> {
-  const [row] = await db.select().from(projects).where(eq(projects.id, projectId)).limit(1);
-  if (!row) throw new Error(`Project ${projectId} not found`);
-  if (row.workspaceProvider === 'ssh') {
-    return {
-      type: 'ssh',
-      id: row.id,
-      name: row.name,
-      path: row.path,
-      baseRef: row.baseRef ?? 'main',
-      connectionId: row.sshConnectionId!,
-      repositoryWorkspaceId: row.repositoryWorkspaceId ?? null,
-      createdAt: row.createdAt,
-      updatedAt: row.updatedAt,
-    };
-  }
-  return {
-    type: 'local',
-    id: row.id,
-    name: row.name,
-    path: row.path,
-    baseRef: row.baseRef ?? 'main',
-    repositoryWorkspaceId: row.repositoryWorkspaceId ?? null,
-    createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-  };
-}
-
-function makeRunTaskName(storedConfig: CreateTaskParams | null | undefined, ctx: ActionContext) {
-  return generateTaskName({
-    title: storedConfig?.name?.trim() || ctx.automation.name,
-    description: ctx.run.id,
-  });
-}
-
-function makeRunBranchName(baseBranch: string, runId: string) {
-  return generateTaskName({ title: baseBranch, description: runId });
-}
-
-function scopeWorkspaceConfigToRun(config: WorkspaceConfig, runId: string): WorkspaceConfig {
+function scopeWorkspaceConfigToRun(config: WorkspaceConfig, taskName: string): WorkspaceConfig {
   const git = config.git;
-  if (git.kind === 'create-branch')
-    return { ...config, git: { ...git, branchName: makeRunBranchName(git.branchName, runId) } };
+  if (git.kind === 'create-branch') return { ...config, git: { ...git, branchName: taskName } };
   if (git.kind === 'pr-branch' && git.taskBranch)
-    return {
-      ...config,
-      git: { ...git, taskBranch: makeRunBranchName(git.taskBranch, runId) },
-    };
+    return { ...config, git: { ...git, taskBranch: taskName } };
   return config;
 }
 
-/**
- * Resolves a WorkspaceConfig from a stored automation task config.
- *
- * Handles backwards compat:
- * - v2 configs are returned as-is.
- * - v1 configs are upgraded via `parseWorkspaceConfig` (git.kind='none' cases return null
- *   and fall back to `resolveProjectDefaults` in the caller).
- * - Very old configs had `gitSetup` + `workspaceLocation` as top-level fields; these are
- *   wrapped into a v1 structure and upgraded.
- */
-function resolveStoredWorkspaceConfig(
-  storedConfig:
-    | (CreateTaskParams & { gitSetup?: GitSetup; workspaceLocation?: WorkspaceLocation })
-    | null
-    | undefined
-): WorkspaceConfig | null {
-  if (!storedConfig) return null;
-
-  if (storedConfig.workspaceConfig) {
-    const config = storedConfig.workspaceConfig;
-    // Already v2 — return directly.
-    if (config.version === '2') return config;
-    // v1 — try to upgrade.
-    return parseWorkspaceConfig(JSON.stringify(config));
-  }
-
-  // Very old stored configs had gitSetup + workspaceLocation as top-level fields.
-  const legacyGit = (storedConfig as { gitSetup?: GitSetup }).gitSetup;
-  const legacyWorkspace = (storedConfig as { workspaceLocation?: WorkspaceLocation })
-    .workspaceLocation;
-  if (legacyGit && legacyWorkspace) {
-    return parseWorkspaceConfig(
-      JSON.stringify({ version: '1', git: legacyGit, workspace: legacyWorkspace })
-    );
-  }
-  return null;
-}
-
 export async function executeTaskCreate(
-  action: TaskCreateAction,
-  ctx: ActionContext
-): Promise<Result<ActionOutcome, ActionError>> {
-  const prompt = action.prompt.trim();
-  if (!prompt) return err({ message: 'task_create_prompt_empty' });
+  automation: Automation,
+  run: AutomationRun,
+  onStepCompleted: OnStepCompleted
+): Promise<Result<{ taskId: string }, string>> {
+  const prompt = automation.conversationConfig?.prompt.trim();
+  if (!prompt) return err('task_create_prompt_empty');
 
-  const projectId = ctx.automation.projectId;
-  if (!projectId) return err({ message: 'no_project_attached' });
+  const projectId = automation.projectId;
+  if (!projectId) return err('no_project_attached');
 
   try {
-    const storedConfig = ctx.automation.taskConfig as CreateTaskParams | null | undefined;
+    const taskConfig = automation.taskConfig;
     const taskId = randomUUID();
     const conversationId = randomUUID();
-    const taskName = makeRunTaskName(storedConfig, ctx);
+    const taskName = run.generatedTaskName ?? generateRandom();
 
     const projectResult = await ensureProjectOpen(projectId);
-    if (!projectResult.success) return err({ message: projectResult.error });
-    const project = projectResult.data;
-
-    // Resolve workspace config from stored config or project defaults.
-    let workspaceConfig: WorkspaceConfig;
-    const storedWorkspaceConfig = resolveStoredWorkspaceConfig(storedConfig);
-    if (storedWorkspaceConfig) {
-      workspaceConfig = scopeWorkspaceConfigToRun(storedWorkspaceConfig, ctx.run.id);
-    } else {
-      workspaceConfig = await resolveProjectDefaults(project, taskName);
+    if (!projectResult.success) {
+      const failed = await markRunFailed(run.id, {
+        step: 'create_task',
+        code: 'project_not_found',
+      });
+      onStepCompleted(failed);
+      return err(projectResult.error);
     }
 
-    const provider =
-      storedConfig?.initialConversation?.provider ??
-      (await appSettingsService.get('defaultAgent')) ??
-      DEFAULT_AGENT_ID;
+    if (!taskConfig?.workspaceConfig) {
+      const failed = await markRunFailed(run.id, {
+        step: 'create_task',
+        code: 'no_workspace_config',
+      });
+      onStepCompleted(failed);
+      return err('no_workspace_config');
+    }
+    const workspaceConfig = scopeWorkspaceConfigToRun(taskConfig.workspaceConfig, taskName);
 
-    const initialConversation = {
-      ...(storedConfig?.initialConversation ?? {}),
-      id: conversationId,
-      projectId,
-      taskId,
-      provider,
-      title: storedConfig?.initialConversation?.title ?? ctx.automation.name,
-      autoApprove: resolveAutomationAgentAutoApprove(
-        provider,
-        storedConfig?.initialConversation?.autoApprove
-      ),
-      initialPrompt: prompt,
-    };
+    const provider = (automation.conversationConfig?.provider ||
+      (await appSettingsService.get('defaultAgent')) ||
+      DEFAULT_AGENT_ID) as AgentProviderId;
 
-    const taskConfig: CreateTaskParams = {
-      ...storedConfig,
+    const createTaskParams: CreateTaskParams = {
       id: taskId,
       projectId,
-      name: taskName,
+      taskConfig: {
+        version: '1',
+        name: taskName,
+        linkedIssue: taskConfig?.taskConfig.linkedIssue,
+        initialStatus: taskConfig?.taskConfig.initialStatus,
+      },
       workspaceConfig,
-      initialConversation,
+      automationRunId: run.id,
     };
 
-    const result = await taskService.createTask(taskConfig);
-    if (!result.success) {
-      return err({
-        message: formatCreateTaskActionError(result.error),
-        taskId: createTaskErrorLeavesTask(result.error) ? taskId : undefined,
-      });
+    const prepared = await prepareCreateTask(createTaskParams);
+    if (!prepared.success) {
+      const error = prepared.error;
+      let runError: Parameters<typeof markRunFailed>[1];
+      switch (error.type) {
+        case 'project-not-found':
+          runError = { step: 'create_task', code: 'project_not_found' };
+          break;
+        case 'initial-commit-required':
+          runError = {
+            step: 'create_task',
+            code: 'initial_commit_required',
+            message: error.branch,
+          };
+          break;
+        case 'branch-create-failed':
+          runError = { step: 'create_task', code: 'branch_create_failed', message: error.branch };
+          break;
+        case 'pr-fetch-failed':
+          runError = { step: 'create_task', code: 'pr_fetch_failed', message: error.remote };
+          break;
+        case 'branch-not-found':
+          runError = { step: 'create_task', code: 'branch_not_found', message: error.branch };
+          break;
+        case 'worktree-setup-failed':
+          runError = {
+            step: 'create_task',
+            code: 'worktree_setup_failed',
+            message: error.branch ?? error.message,
+          };
+          break;
+        case 'provision-failed':
+          runError = { step: 'create_task', code: 'provision_failed', message: error.message };
+          break;
+        case 'provision-timeout':
+          runError = {
+            step: 'create_task',
+            code: 'provision_timeout',
+            message: String(error.timeoutMs),
+          };
+          break;
+        default:
+          runError = { step: 'create_task', code: 'unknown' };
+      }
+      const failed = await markRunFailed(run.id, runError);
+      onStepCompleted(failed);
+      return err(error.type);
     }
-    try {
-      await linkRunTask(ctx.run.id, taskId);
-    } catch (error) {
-      return err({ message: error instanceof Error ? error.message : String(error), taskId });
-    }
+
+    let taskRow!: TaskRow;
+    let convRow: ConversationRow | undefined;
+    db.transaction((tx) => {
+      ({ taskRow, convRow } = commitCreateTask(prepared.data, tx));
+    });
+
+    const createSuccess = finalizeCreateTask(prepared.data, taskRow, convRow);
+    taskService.notifyTaskCreated(createSuccess.task, createTaskParams);
+
+    const launching = await markRunLaunchingTask(run.id, Date.now());
+    onStepCompleted(launching);
 
     try {
       const provision = await taskService.launch(taskId);
       if (!provision.success) {
-        return err({ message: formatProvisionActionError(provision.error), taskId });
+        const msg = provision.error.type === 'setup-failed' ? provision.error.message : undefined;
+        const failed = await markRunFailed(run.id, {
+          step: 'launch_task',
+          code: 'provision_failed',
+          message: msg,
+        });
+        onStepCompleted(failed);
+        return err('provision_failed');
       }
 
-      await createConversation({ ...initialConversation, isInitialConversation: true });
+      const creatingConv = await markRunCreatingConversation(run.id, Date.now());
+      onStepCompleted(creatingConv);
+
+      await createConversation({
+        id: conversationId,
+        projectId,
+        taskId,
+        provider,
+        title: automation.conversationConfig?.title ?? automation.name,
+        autoApprove: resolveAutomationAgentAutoApprove(
+          provider,
+          automation.conversationConfig?.autoApprove
+        ),
+        initialPrompt: prompt,
+        isInitialConversation: true,
+      });
     } catch (error) {
-      return err({ message: error instanceof Error ? error.message : String(error), taskId });
+      const msg = error instanceof Error ? error.message : String(error);
+      const failed = await markRunFailed(run.id, {
+        step: 'create_conversation',
+        code: 'failed',
+        message: msg,
+      });
+      onStepCompleted(failed);
+      return err(msg);
     }
 
     return ok({ taskId });
   } catch (error) {
-    return err({ message: error instanceof Error ? error.message : String(error) });
+    const msg = error instanceof Error ? error.message : String(error);
+    const failed = await markRunFailed(run.id, {
+      step: 'create_task',
+      code: 'unknown',
+      message: msg,
+    });
+    onStepCompleted(failed);
+    return err(msg);
   }
 }

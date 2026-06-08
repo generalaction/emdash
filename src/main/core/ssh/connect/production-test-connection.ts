@@ -1,4 +1,4 @@
-import type { ConnectionTestResult, SshConfig } from '@shared/ssh';
+import type { ConnectionTestResult, SshConfig } from '@shared/core/ssh/ssh';
 import { resolveProductionSshConnectConfig } from './production-connect-config';
 import { testSshConnection } from './test-connection';
 

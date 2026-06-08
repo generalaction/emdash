@@ -7,6 +7,7 @@ import charmIcon from '@/assets/images/charm.png';
 import claudeIcon from '@/assets/images/claude.svg?raw';
 import clineIcon from '@/assets/images/cline.png';
 import codebuffIcon from '@/assets/images/codebuff.png';
+import commandcodeIcon from '@/assets/images/commandcode.svg?raw';
 import continueIcon from '@/assets/images/continue.png';
 import cursorIcon from '@/assets/images/cursor.svg?raw';
 import devinIcon from '@/assets/images/devin.png';
@@ -28,7 +29,7 @@ import opencodeIcon from '@/assets/images/opencode.svg?raw';
 import piIcon from '@/assets/images/pi.png';
 import qwenIcon from '@/assets/images/qwen.svg?raw';
 import xaiIcon from '@/assets/images/xai.svg?raw';
-import { AGENT_PROVIDERS, type AgentProviderId } from '@shared/agent-provider-registry';
+import { AGENT_PROVIDERS, type AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 
 export type UiAgent = AgentProviderId;
 
@@ -59,6 +60,7 @@ const ICONS: Record<string, string> = {
   'cline.png': clineIcon,
   'continue.png': continueIcon,
   'codebuff.png': codebuffIcon,
+  'commandcode.svg': commandcodeIcon,
   'mistral.svg': mistralIcon,
   'pi.png': piIcon,
   'autohand.svg': autohandIcon,

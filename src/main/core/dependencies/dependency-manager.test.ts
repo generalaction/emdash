@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { IExecutionContext } from '@main/core/execution-context/types';
-import { err, ok } from '@shared/result';
+import { err, ok } from '@shared/lib/result';
 import { DependencyManager } from './dependency-manager';
 
 vi.mock('@main/core/settings/settings-service', () => ({
@@ -244,6 +244,32 @@ describe('DependencyManager install', () => {
     await manager.probeAll({ refreshShellEnv: true });
 
     expect(ctx.refreshShellEnv).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips version probes for dependencies configured as path-only', async () => {
+    const ctx = makeCtx(async (command, args = []) => {
+      if (command === 'which' && args[0] === 'letta') {
+        return { stdout: '/bin/letta\n', stderr: '' };
+      }
+      if (command === '/bin/letta') {
+        throw new Error('letta should not be executed during dependency probing');
+      }
+      throw new Error('missing');
+    });
+    const manager = new DependencyManager(ctx, { emitEvents: false });
+
+    const result = await manager.probe('letta');
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        id: 'letta',
+        status: 'available',
+        path: '/bin/letta',
+        version: null,
+      })
+    );
+    expect(ctx.exec).toHaveBeenCalledTimes(1);
+    expect(ctx.exec).toHaveBeenCalledWith('which', ['letta'], { timeout: 5000 });
   });
 
   it('emits dependency updates with the SSH connection id', async () => {

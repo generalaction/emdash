@@ -1,43 +1,35 @@
 import { describe, expect, it } from 'vitest';
-import {
-  mergeSshConnectionMetadata,
-  parseSshConnectionMetadata,
-  serializeSshConnectionMetadata,
-  sshConfigFromRow,
-} from './connection-metadata';
+import { sshConnectionMetadata } from '@shared/core/ssh/ssh-connection-metadata';
+import { mergeSshConnectionMetadata, sshConfigFromRow } from './connection-metadata';
 
 describe('SSH connection metadata', () => {
   it('round-trips alias, forward agent, and proxy jump', () => {
-    const serialized = serializeSshConnectionMetadata({
+    const serialized = sshConnectionMetadata.serialize({
       sshConfigAlias: 'corp-dev',
       forwardAgent: true,
       proxyJump: 'bastion.example.com',
     });
 
-    expect(parseSshConnectionMetadata(serialized)).toEqual({
+    expect(sshConnectionMetadata.parseJson(serialized)).toEqual({
       sshConfigAlias: 'corp-dev',
       forwardAgent: true,
       proxyJump: 'bastion.example.com',
     });
   });
 
-  it('drops blank strings and malformed JSON instead of leaking invalid metadata', () => {
-    expect(
-      parseSshConnectionMetadata(
-        serializeSshConnectionMetadata({
-          sshConfigAlias: '',
-          proxyJump: '\t',
-        })
-      )
-    ).toEqual({});
-    expect(parseSshConnectionMetadata('{bad json')).toEqual({});
+  it('strips unknown legacy fields on parse', () => {
+    const raw = JSON.stringify({ worktreesDir: '/srv/worktrees', sshConfigAlias: 'corp-dev' });
+    expect(sshConnectionMetadata.parseJson(raw)).toEqual({ sshConfigAlias: 'corp-dev' });
   });
 
-  it('rejects invalid SSH config aliases before persistence', () => {
+  it('rejects invalid SSH config aliases before persistence via mergeSshConnectionMetadata', () => {
     expect(() =>
-      serializeSshConnectionMetadata({
-        sshConfigAlias: '-oProxyCommand=evil',
-      })
+      mergeSshConnectionMetadata(
+        {},
+        {
+          sshConfigAlias: '-oProxyCommand=evil',
+        }
+      )
     ).toThrow('Invalid SSH config alias');
 
     expect(() =>
@@ -48,14 +40,6 @@ describe('SSH connection metadata', () => {
         }
       )
     ).toThrow('Invalid SSH config alias');
-  });
-
-  it('preserves explicit forwardAgent false for manual connections', () => {
-    expect(
-      parseSshConnectionMetadata(serializeSshConnectionMetadata({ forwardAgent: false }))
-    ).toEqual({
-      forwardAgent: false,
-    });
   });
 
   it('maps DB rows into shared configs including metadata fields', () => {
@@ -69,11 +53,11 @@ describe('SSH connection metadata', () => {
         authType: 'agent',
         privateKeyPath: null,
         useAgent: 1,
-        metadata: serializeSshConnectionMetadata({
+        metadata: {
           sshConfigAlias: 'corp-dev',
           forwardAgent: true,
           proxyJump: 'bastion',
-        }),
+        },
         createdAt: '2026-05-20T00:00:00.000Z',
         updatedAt: '2026-05-20T00:00:00.000Z',
       })
@@ -127,16 +111,8 @@ describe('SSH connection metadata', () => {
     });
   });
 
-  it('ignores legacy worktreesDir metadata', () => {
-    expect(
-      parseSshConnectionMetadata(
-        JSON.stringify({
-          worktreesDir: '/srv/worktrees',
-          sshConfigAlias: 'corp-dev',
-        })
-      )
-    ).toEqual({
-      sshConfigAlias: 'corp-dev',
-    });
+  it('preserves explicit forwardAgent false for manual connections', () => {
+    const serialized = sshConnectionMetadata.serialize({ forwardAgent: false });
+    expect(sshConnectionMetadata.parseJson(serialized)).toEqual({ forwardAgent: false });
   });
 });

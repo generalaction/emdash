@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { CommentsList } from '@renderer/features/tasks/diff-view/changes-panel/components/pr-entry/comments-list';
 import { buildPullRequestConversationItems } from '@renderer/features/tasks/diff-view/changes-panel/components/pr-entry/pull-request-conversation';
-import type { PullRequest, PullRequestComment } from '@shared/pull-requests';
+import type { PullRequest, PullRequestComment } from '@shared/core/pull-requests/pull-requests';
 
 vi.mock('@renderer/lib/hooks/useTheme', () => ({
   useTheme: () => ({ effectiveTheme: 'emlight' }),

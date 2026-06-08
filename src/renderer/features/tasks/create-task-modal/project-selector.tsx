@@ -1,3 +1,4 @@
+import { ChevronDown, FolderClosed, FolderInput } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useState } from 'react';
 import {
@@ -19,6 +20,12 @@ import {
 interface ProjectOption {
   value: string;
   label: string;
+  isSsh: boolean;
+}
+
+function ProjectIcon({ isSsh }: { isSsh: boolean }) {
+  const Icon = isSsh ? FolderInput : FolderClosed;
+  return <Icon className="text-muted-foreground h-4 w-4 shrink-0" />;
 }
 
 interface ProjectSelectorProps {
@@ -37,7 +44,9 @@ export const ProjectSelector = observer(function ProjectSelector({
   const options: ProjectOption[] = Array.from(getProjectManagerStore().projects.entries()).flatMap(
     ([id, store]) => {
       const mounted = asMounted(store);
-      return mounted ? [{ value: id, label: mounted.data.name }] : [];
+      return mounted
+        ? [{ value: id, label: mounted.data.name, isSsh: mounted.data.type === 'ssh' }]
+        : [];
     }
   );
 
@@ -63,8 +72,10 @@ export const ProjectSelector = observer(function ProjectSelector({
       autoHighlight
     >
       {trigger ?? (
-        <ComboboxTrigger className="flex h-8 w-full min-w-0 items-center gap-2 rounded-md border border-border bg-transparent px-2.5 py-1 text-sm outline-none">
+        <ComboboxTrigger className="flex w-full min-w-0 items-center gap-2 rounded-lg border border-border bg-transparent px-2.5 py-2 text-sm outline-none hover:bg-background-2 data-popup-open:bg-background-2">
+          {selectedOption && <ProjectIcon isSsh={selectedOption.isSsh} />}
           <ComboboxValue placeholder="Select a project" />
+          <ChevronDown className="ml-auto size-4 shrink-0 text-foreground-passive" />
         </ComboboxTrigger>
       )}
       <ComboboxContent className="w-auto min-w-(--anchor-width)">
@@ -74,7 +85,8 @@ export const ProjectSelector = observer(function ProjectSelector({
             <ComboboxGroup key={group.value} items={group.items} className="py-1">
               <ComboboxCollection>
                 {(item: ProjectOption) => (
-                  <ComboboxItem key={item.value} value={item}>
+                  <ComboboxItem key={item.value} value={item} className="flex items-center gap-2">
+                    <ProjectIcon isSsh={item.isSsh} />
                     {item.label}
                   </ComboboxItem>
                 )}

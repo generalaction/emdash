@@ -1,10 +1,10 @@
 import { and, eq, ne } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
+import { getProvisionedWorkspaceBranch } from '@main/core/workspaces/workspace-branch';
 import { db } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
 import { log } from '@main/lib/logger';
-import type { DeletePreflightResult, TaskDeletePreflightItem } from '@shared/tasks';
-import { parseWorkspaceConfig } from '@shared/workspace-config';
+import type { DeletePreflightResult, TaskDeletePreflightItem } from '@shared/core/tasks/tasks';
 
 async function getTaskPreflight(
   projectId: string,
@@ -25,7 +25,10 @@ async function getTaskPreflight(
     .from(workspaces)
     .where(eq(workspaces.id, task.workspaceId))
     .limit(1);
-  if (!ws?.branchName) return noWorktreeResult;
+  if (!ws) return noWorktreeResult;
+
+  const provisionedBranch = getProvisionedWorkspaceBranch(ws);
+  if (!provisionedBranch) return noWorktreeResult;
 
   const siblings = await db
     .select({ id: tasks.id })
@@ -36,16 +39,15 @@ async function getTaskPreflight(
   const hasWorktree = siblings.length === 0;
 
   // A branch is deletable when it was created from a source branch (create-branch intent).
-  const wsConfig = parseWorkspaceConfig(ws.config);
-  const fromBranch = wsConfig?.git.kind === 'create-branch' ? wsConfig.git.fromBranch : undefined;
-  const hasDeletableBranch = hasWorktree && !!fromBranch && ws.branchName !== fromBranch.branch;
+  const fromBranch = ws.config?.git.kind === 'create-branch' ? ws.config.git.fromBranch : undefined;
+  const hasDeletableBranch = hasWorktree && !!fromBranch && provisionedBranch !== fromBranch.branch;
 
   let hasUncommittedChanges = false;
   if (hasWorktree) {
     const project = projectManager.getProject(projectId);
     if (project) {
       try {
-        const worktreePath = await project.worktreeService.getWorktree(ws.branchName);
+        const worktreePath = await project.worktreeService.getWorktree(provisionedBranch);
         if (worktreePath) {
           const { stdout } = await project.ctx.exec('git', [
             '-C',

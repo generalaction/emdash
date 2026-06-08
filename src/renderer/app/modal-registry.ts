@@ -19,7 +19,7 @@ import { ChangeProjectConnectionModal } from '@renderer/lib/components/change-pr
 import { ConfirmActionDialog } from '@renderer/lib/components/confirm-action-dialog';
 import { ExternalLinkChoiceDialog } from '@renderer/lib/components/external-link-choice-dialog';
 import { FeedbackModal } from '@renderer/lib/components/feedback-modal/feedback-modal';
-import { GithubDeviceFlowModalOverlay } from '@renderer/lib/components/github-device-flow-modal';
+import { GithubDeviceFlowModal } from '@renderer/lib/components/github-device-flow-modal';
 import { UnsavedChangesDialog } from '@renderer/lib/components/unsaved-changes-dialog';
 import { type ModalComponent } from '@renderer/lib/modal/modal-provider';
 
@@ -45,7 +45,7 @@ export const modalRegistry = {
   addProjectModal: createModal(AddProjectModal),
   addSshConnModal: createModal(AddSshConnModal),
   changeProjectConnectionModal: createModal(ChangeProjectConnectionModal, { size: 'sm' }),
-  githubDeviceFlowModal: createModal(GithubDeviceFlowModalOverlay, { size: 'md' }),
+  githubDeviceFlowModal: createModal(GithubDeviceFlowModal, { size: 'md' }),
   confirmActionModal: createModal(ConfirmActionDialog, { size: 'xs' }),
   confirmExternalLinkModal: createModal(ExternalLinkChoiceDialog, { size: 'sm' }),
   unsavedChangesModal: createModal(UnsavedChangesDialog, { size: 'xs' }),

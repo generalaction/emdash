@@ -6,16 +6,18 @@ import type { RepositoryStore } from '@renderer/features/projects/stores/reposit
 import { getTaskGitStore } from '@renderer/features/tasks/stores/task-selectors';
 import { events, rpc } from '@renderer/lib/ipc';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
-import type { Conversation } from '@shared/conversations';
-import { prSyncProgressChannel, prUpdatedChannel } from '@shared/events/prEvents';
+import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import type { Conversation } from '@shared/core/conversations/conversations';
+import type { FetchError } from '@shared/core/git/git';
+import { gitWorkspaceChangedChannel } from '@shared/core/git/gitEvents';
+import { prSyncProgressChannel, prUpdatedChannel } from '@shared/core/pull-requests/prEvents';
 import {
   lifecycleScriptStatusChannel,
   taskCreatedChannel,
   taskProvisionProgressChannel,
   taskProvisionedChannel,
   taskStatusUpdatedChannel,
-} from '@shared/events/taskEvents';
-import type { FetchError } from '@shared/git';
+} from '@shared/core/tasks/taskEvents';
 import type {
   CreateTaskError,
   CreateTaskParams,
@@ -24,7 +26,7 @@ import type {
   ProvisionWorkspaceError,
   Task,
   TaskLifecycleStatus,
-} from '@shared/tasks';
+} from '@shared/core/tasks/tasks';
 import type { TaskViewSnapshot } from '@shared/view-state';
 import { formatPushErrorDetail } from '../utils';
 import { conversationRegistry } from './conversation-registry';
@@ -122,6 +124,7 @@ export class TaskManagerStore {
   private _unsubTaskCreated: (() => void) | null = null;
   private _unsubPrUpdated: (() => void) | null = null;
   private _unsubPrSyncProgress: (() => void) | null = null;
+  private _unsubGitWorkspaceChanged: (() => void) | null = null;
   private _unsubProvisionProgress: (() => void) | null = null;
   private _unsubStatusUpdated: (() => void) | null = null;
   private _unsubLifecycleScriptStatus: (() => void) | null = null;
@@ -149,7 +152,7 @@ export class TaskManagerStore {
         // Acquire conversation/terminal managers inside the same action so the
         // WorkspaceViewModel's reaction on `conversations.size` registers the
         // manager's observable map as a dependency on its first evaluation.
-        conversationRegistry.acquire(task.id, this.projectId);
+        conversationRegistry.acquire(task.id, this.projectId, []);
         terminalRegistry.acquire(task.id, this.projectId);
       });
     });
@@ -240,6 +243,15 @@ export class TaskManagerStore {
       }
     });
 
+    this._unsubGitWorkspaceChanged = events.on(gitWorkspaceChangedChannel, (payload) => {
+      if (payload.projectId !== this.projectId || payload.kind !== 'head') return;
+      for (const [, store] of this.tasks) {
+        if (isRegistered(store) && store.workspaceId === payload.workspaceId) {
+          void this._reloadPrsForTask(store);
+        }
+      }
+    });
+
     this._disposeRepositoryReaction = reaction(
       () => this._repository.pullRequestRepositoryUrl,
       () => {
@@ -266,14 +278,26 @@ export class TaskManagerStore {
 
   loadTasks(): Promise<void> {
     if (!this._loadPromise) {
-      this._loadPromise = rpc.tasks
-        .getTasks(this.projectId)
-        .then((tasks) => {
+      this._loadPromise = Promise.all([
+        rpc.tasks.getTasks(this.projectId),
+        rpc.conversations.getConversationsForProject(this.projectId),
+      ])
+        .then(([tasks, allConversations]) => {
+          const conversationsByTask = new Map<string, Conversation[]>();
+          for (const conv of allConversations) {
+            const list = conversationsByTask.get(conv.taskId) ?? [];
+            list.push(conv);
+            conversationsByTask.set(conv.taskId, list);
+          }
           runInAction(() => {
             for (const t of tasks) {
               this.tasks.set(t.id, createUnprovisionedTask(t));
-              // Acquire conversation and terminal managers for each registered task.
-              conversationRegistry.acquire(t.id, this.projectId);
+              // Preload conversations for each task so sidebar badges are available immediately.
+              conversationRegistry.acquire(
+                t.id,
+                this.projectId,
+                conversationsByTask.get(t.id) ?? []
+              );
               terminalRegistry.acquire(t.id, this.projectId);
             }
           });
@@ -292,34 +316,36 @@ export class TaskManagerStore {
 
   async createTask(params: CreateTaskParams) {
     runInAction(() => {
+      const { taskConfig } = params;
       this.tasks.set(
         params.id,
         createUnregisteredTask({
           id: params.id,
           lastInteractedAt: new Date().toISOString(),
           createdAt: new Date().toISOString(),
-          name: params.name,
-          status: params.initialStatus ?? 'in_progress',
+          name: taskConfig.name,
+          status: taskConfig.initialStatus ?? 'in_progress',
           statusChangedAt: new Date().toISOString(),
           isPinned: false,
+          type: 'task',
         })
       );
 
-      if (params.initialConversation) {
-        const ic = params.initialConversation;
+      if (taskConfig.initialConversation) {
+        const ic = taskConfig.initialConversation;
         const optimistic: Conversation = {
           id: ic.id,
-          projectId: ic.projectId,
-          taskId: ic.taskId,
-          providerId: ic.provider,
-          title: ic.title,
+          projectId: this.projectId,
+          taskId: params.id,
+          providerId: ic.provider as AgentProviderId,
+          title: ic.title ?? '',
           lastInteractedAt: null,
           autoApprove: ic.autoApprove ?? false,
           isInitialConversation: true,
         };
         conversationRegistry.acquire(params.id, this.projectId, [optimistic]);
       } else {
-        conversationRegistry.acquire(params.id, this.projectId);
+        conversationRegistry.acquire(params.id, this.projectId, []);
       }
       terminalRegistry.acquire(params.id, this.projectId);
     });
@@ -612,6 +638,8 @@ export class TaskManagerStore {
     this._unsubPrUpdated = null;
     this._unsubPrSyncProgress?.();
     this._unsubPrSyncProgress = null;
+    this._unsubGitWorkspaceChanged?.();
+    this._unsubGitWorkspaceChanged = null;
     this._unsubProvisionProgress?.();
     this._unsubProvisionProgress = null;
     this._unsubStatusUpdated?.();

@@ -27,7 +27,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/ui/select';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
-import type { Issue } from '@shared/tasks';
+import type { LinkedIssue } from '@shared/core/linked-issue';
 import { getLinkedIssueMap, type LinkedIssueInfo } from './use-linked-issue-urls';
 import { useIssueSearch } from './useIssueSearch';
 
@@ -37,7 +37,7 @@ export function IssueIdentifier({
   className,
 }: {
   identifier: string;
-  provider?: Issue['provider'];
+  provider?: LinkedIssue['provider'];
   className?: string;
 }) {
   if (provider === 'asana') return null;
@@ -57,7 +57,7 @@ export function ProviderLogo({
   provider,
   className,
 }: {
-  provider: Issue['provider'];
+  provider: LinkedIssue['provider'];
   className?: string;
 }) {
   const Icon = PROVIDER_ICON_COMPONENTS[provider];
@@ -91,14 +91,18 @@ export function LinkedIssueIndicator({ linkedTo }: { linkedTo: LinkedIssueInfo }
   );
 }
 
-export function IssueRow({ issue, linkedTo }: { issue: Issue; linkedTo?: LinkedIssueInfo }) {
+export function IssueRow({ issue, linkedTo }: { issue: LinkedIssue; linkedTo?: LinkedIssueInfo }) {
   return (
     <span className="flex w-full min-w-0 items-center justify-between gap-2">
       <div className="flex min-w-0 items-center gap-2">
-        <Tooltip>
-          <TooltipTrigger render={<IssueStatusIndicator status={toIssueStatus(issue.status)} />} />
-          <TooltipContent>{issue.status}</TooltipContent>
-        </Tooltip>
+        {issue.status ? (
+          <Tooltip>
+            <TooltipTrigger
+              render={<IssueStatusIndicator status={toIssueStatus(issue.status)} />}
+            />
+            <TooltipContent>{issue.status}</TooltipContent>
+          </Tooltip>
+        ) : null}
         <span className="flex min-w-0 items-center gap-2">
           {issue.title ? <span className="truncate text-foreground">{issue.title}</span> : null}
           {linkedTo ? <LinkedIssueIndicator linkedTo={linkedTo} /> : null}
@@ -110,22 +114,22 @@ export function IssueRow({ issue, linkedTo }: { issue: Issue; linkedTo?: LinkedI
 }
 
 export type IssueSelectorTriggerContext = {
-  issueProvider: Issue['provider'] | null;
+  issueProvider: LinkedIssue['provider'] | null;
   connectedProviderCount: number;
-  isProviderDisabled: (p: Issue['provider']) => boolean;
-  setSelectedIssueProvider: (p: Issue['provider']) => void;
+  isProviderDisabled: (p: LinkedIssue['provider']) => boolean;
+  setSelectedIssueProvider: (p: LinkedIssue['provider']) => void;
 };
 
 export interface IssueSelectorProps {
-  value: Issue | null;
-  onValueChange: (issue: Issue | null) => void;
+  value: LinkedIssue | null;
+  onValueChange: (issue: LinkedIssue | null) => void;
   projectId?: string;
   repositoryUrl: string;
   projectPath?: string;
   /** Skip "already linked" indicator for this task — useful when re-selecting the same task's issue. */
   excludeTaskId?: string;
   disabled?: boolean;
-  renderSelectedValue?: (issue: Issue) => ReactNode;
+  renderSelectedValue?: (issue: LinkedIssue) => ReactNode;
   renderPlaceholder?: (ctx: IssueSelectorTriggerContext) => ReactNode;
 }
 
@@ -143,6 +147,7 @@ export const IssueSelector = observer(function IssueSelector({
   const linkedIssueMap = getLinkedIssueMap(projectId, excludeTaskId);
   const {
     issues,
+    error,
     issueProvider,
     hasAnyIntegration,
     isProviderLoading,
@@ -157,7 +162,7 @@ export const IssueSelector = observer(function IssueSelector({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleSelectIssueProvider = useCallback(
-    (provider: Issue['provider']) => {
+    (provider: LinkedIssue['provider']) => {
       setSelectedIssueProvider(provider);
       if (value?.provider !== provider) {
         onValueChange(null);
@@ -170,7 +175,7 @@ export const IssueSelector = observer(function IssueSelector({
     connectedProviderCount > 1 ? (
       <Select
         value={issueProvider}
-        onValueChange={(v) => v && handleSelectIssueProvider(v as Issue['provider'])}
+        onValueChange={(v) => v && handleSelectIssueProvider(v as LinkedIssue['provider'])}
         onOpenChange={(open) => {
           providerSelectOpenRef.current = open;
           if (open) {
@@ -234,11 +239,11 @@ export const IssueSelector = observer(function IssueSelector({
           autoHighlight
           items={issues}
           filter={null}
-          itemToStringLabel={(issue: Issue | null) =>
+          itemToStringLabel={(issue: LinkedIssue | null) =>
             issue ? `${issue.identifier} ${issue.title}` : ''
           }
           value={value}
-          onValueChange={(next: Issue | null) => onValueChange(next)}
+          onValueChange={(next: LinkedIssue | null) => onValueChange(next)}
           onInputValueChange={(val: string, { reason }: { reason: string }) => {
             if (reason !== 'item-press') handleSetSearchTerm(val);
           }}
@@ -277,10 +282,12 @@ export const IssueSelector = observer(function IssueSelector({
               disabled={!hasAnyIntegration}
             />
             <ComboboxEmpty>
-              <span className="text-muted-foreground">No issues found</span>
+              <span className={cn(error && 'text-foreground-error')}>
+                {error ?? 'No issues found'}
+              </span>
             </ComboboxEmpty>
             <ComboboxList>
-              {(issue: Issue) => {
+              {(issue: LinkedIssue) => {
                 const linkedTo = linkedIssueMap.get(issue.url);
                 return (
                   <ComboboxItem
@@ -303,14 +310,16 @@ export const IssueSelector = observer(function IssueSelector({
   );
 });
 
-export function SelectedIssueValue({ issue }: { issue: Issue }) {
+export function SelectedIssueValue({ issue }: { issue: LinkedIssue }) {
   return (
     <div className="flex w-full flex-col gap-1">
       <div className="flex w-full items-center">
         <div className="flex w-full min-w-0 gap-2">
-          <span className="mt-1 flex size-3.5 shrink-0 items-center justify-center">
-            <IssueStatusIndicator status={toIssueStatus(issue.status)} />
-          </span>
+          {issue.status ? (
+            <span className="mt-1 flex size-3.5 shrink-0 items-center justify-center">
+              <IssueStatusIndicator status={toIssueStatus(issue.status)} />
+            </span>
+          ) : null}
           <div className="flex w-full min-w-0 flex-col gap-1 pr-1.5">
             <span className="mt-0.5 flex items-center justify-between gap-2">
               <span className="group flex min-w-0 items-center gap-1">

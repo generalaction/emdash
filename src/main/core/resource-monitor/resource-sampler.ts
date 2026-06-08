@@ -6,8 +6,8 @@ import { ptySessionRegistry } from '@main/core/pty/pty-session-registry';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { events } from '@main/lib/events';
 import { log } from '@main/lib/logger';
+import { parsePtySessionId } from '@shared/core/pty/ptySessionId';
 import { resourceSnapshotChannel } from '@shared/events/resourceEvents';
-import { parsePtySessionId } from '@shared/ptySessionId';
 import type {
   ResourceAppProcess,
   ResourceAppUsage,

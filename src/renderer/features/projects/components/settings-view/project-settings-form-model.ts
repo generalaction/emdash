@@ -1,6 +1,9 @@
-import type { Branch } from '@shared/git';
-import { projectDefaultBranchToBranch } from '@shared/git-utils';
-import type { ProjectSettings, ShareableProjectSettingsWriteField } from '@shared/project-settings';
+import type { Branch } from '@shared/core/git/git';
+import { projectDefaultBranchToBranch } from '@shared/core/git/git-utils';
+import type {
+  ProjectSettings,
+  ShareableProjectSettingsWriteField,
+} from '@shared/core/project-settings/project-settings';
 import {
   SHAREABLE_FIELD_DESCRIPTOR_BY_ID,
   SHAREABLE_FIELD_DESCRIPTORS,
@@ -11,6 +14,8 @@ export type FormState = {
   preservePatterns: string;
   shellSetup: string;
   tmux: boolean;
+  autoRunSetupScriptOnTaskCreation: boolean;
+  autoRunRunScriptOnTaskCreation: boolean;
   scriptSetup: string;
   scriptRun: string;
   scriptTeardown: string;
@@ -18,6 +23,7 @@ export type FormState = {
   defaultBranch: Branch | null;
   baseRemote: string;
   pushRemote: string;
+  githubAccountId: string | null | undefined;
   provisionCommand: string;
   terminateCommand: string;
 };
@@ -38,6 +44,12 @@ function blankToUndefined(value: string): string | undefined {
   return trimmed || undefined;
 }
 
+function githubAccountIdToSettings(value: string | null | undefined): string | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  return value.trim() || null;
+}
+
 export function settingsToForm(
   s: ProjectSettings,
   baseRemote: string,
@@ -52,6 +64,8 @@ export function settingsToForm(
     preservePatterns: (s.preservePatterns ?? []).join('\n'),
     shellSetup: s.shellSetup ?? '',
     tmux: s.tmux ?? false,
+    autoRunSetupScriptOnTaskCreation: s.autoRunSetupScriptOnTaskCreation ?? true,
+    autoRunRunScriptOnTaskCreation: s.autoRunRunScriptOnTaskCreation ?? false,
     scriptSetup: normalizeScript(s.scripts?.setup),
     scriptRun: normalizeScript(s.scripts?.run),
     scriptTeardown: normalizeScript(s.scripts?.teardown),
@@ -59,6 +73,7 @@ export function settingsToForm(
     defaultBranch: projectDefaultBranchToBranch(s.defaultBranch, baseRemoteMeta, remotes) ?? null,
     baseRemote: s.baseRemote ?? '',
     pushRemote: s.pushRemote ?? '',
+    githubAccountId: Object.hasOwn(s, 'githubAccountId') ? (s.githubAccountId ?? null) : undefined,
     provisionCommand: s.workspaceProvider?.provisionCommand ?? '',
     terminateCommand: s.workspaceProvider?.terminateCommand ?? '',
   };
@@ -83,11 +98,14 @@ export function formToSettings(f: FormState): ProjectSettings {
   };
   const provisionCommand = blankToUndefined(f.provisionCommand);
   const terminateCommand = blankToUndefined(f.terminateCommand);
+  const githubAccountId = githubAccountIdToSettings(f.githubAccountId);
   const hasScripts = Object.values(scripts).some((value) => value !== undefined);
   return {
     preservePatterns: preservePatterns.length > 0 ? preservePatterns : undefined,
     shellSetup: blankToUndefined(f.shellSetup),
     tmux: f.tmux,
+    ...(f.autoRunSetupScriptOnTaskCreation ? {} : { autoRunSetupScriptOnTaskCreation: false }),
+    ...(f.autoRunRunScriptOnTaskCreation ? { autoRunRunScriptOnTaskCreation: true } : {}),
     scripts: hasScripts ? scripts : undefined,
     worktreeDirectory: blankToUndefined(f.worktreeDirectory),
     defaultBranch,
@@ -96,6 +114,7 @@ export function formToSettings(f: FormState): ProjectSettings {
       f.pushRemote.trim() && f.pushRemote.trim() !== f.baseRemote.trim()
         ? f.pushRemote.trim()
         : undefined,
+    ...(githubAccountId !== undefined ? { githubAccountId } : {}),
     workspaceProvider:
       provisionCommand && terminateCommand
         ? {

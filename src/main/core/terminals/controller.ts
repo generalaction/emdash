@@ -1,4 +1,4 @@
-import { createRPCController } from '@shared/ipc/rpc';
+import { createRPCController } from '@shared/lib/ipc/rpc';
 import { createTerminal } from './createTerminal';
 import { deleteTerminal } from './deleteTerminal';
 import { getAllTerminals } from './getAllTerminals';

@@ -1,4 +1,4 @@
-import type { DependencyCategory, DependencyId, DependencyStatus } from '@shared/dependencies';
+import type { DependencyCategory, DependencyId, DependencyStatus } from '@shared/core/dependencies';
 
 export interface ProbeResult {
   command: string;
@@ -17,6 +17,11 @@ export interface DependencyDescriptor {
   commands: string[];
   /** Args passed when probing for a version string. Defaults to ['--version']. */
   versionArgs?: string[];
+  /**
+   * Skip executing the CLI after resolving its path.
+   * Use for CLIs whose version command has project-local side effects.
+   */
+  skipVersionProbe?: boolean;
   docUrl?: string;
   /** Human-readable installation hint shown in UI. */
   installHint?: string;

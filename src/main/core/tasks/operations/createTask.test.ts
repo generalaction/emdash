@@ -1,6 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TaskRow } from '@main/db/schema';
-import { serializeWorkspaceConfig } from '@shared/workspace-config';
 import { createTask } from './createTask';
 
 const mocks = vi.hoisted(() => ({
@@ -41,6 +40,8 @@ function makeTaskRow(values: Partial<TaskRow>): TaskRow {
     workspaceId: values.workspaceId ?? null,
     workspaceProviderData: values.workspaceProviderData ?? null,
     workspaceIntent: values.workspaceIntent ?? null,
+    type: values.type ?? 'task',
+    automationRunId: values.automationRunId ?? null,
   };
 }
 
@@ -94,7 +95,7 @@ describe('createTask', () => {
     const result = await createTask({
       id: 'task-1',
       projectId: 'project-1',
-      name: 'Test Task',
+      taskConfig: { version: '1', name: 'Test Task' },
       workspaceConfig: {
         version: '2',
         git: { kind: 'none' },
@@ -109,7 +110,7 @@ describe('createTask', () => {
     await createTask({
       id: 'task-1',
       projectId: 'project-1',
-      name: 'Test Task',
+      taskConfig: { version: '1', name: 'Test Task' },
       workspaceConfig: {
         version: '2',
         git: { kind: 'none' },
@@ -125,7 +126,7 @@ describe('createTask', () => {
     await createTask({
       id: 'task-1',
       projectId: 'project-1',
-      name: 'Test Task',
+      taskConfig: { version: '1', name: 'Test Task' },
       workspaceConfig: {
         version: '2',
         git: {
@@ -149,7 +150,7 @@ describe('createTask', () => {
     await createTask({
       id: 'task-1',
       projectId: 'project-1',
-      name: 'Test Task',
+      taskConfig: { version: '1', name: 'Test Task' },
       workspaceConfig: {
         version: '2',
         git: { kind: 'none' },
@@ -168,7 +169,7 @@ describe('createTask', () => {
       await createTask({
         id: 'task-1',
         projectId: 'project-1',
-        name: 'Test Task',
+        taskConfig: { version: '1', name: 'Test Task' },
         workspaceConfig: {
           version: '2',
           git: { kind: 'none' },
@@ -186,7 +187,7 @@ describe('createTask', () => {
       await createTask({
         id: 'task-1',
         projectId: 'project-1',
-        name: 'Test Task',
+        taskConfig: { version: '1', name: 'Test Task' },
         workspaceConfig: {
           version: '2',
           git: { kind: 'none' },
@@ -216,7 +217,7 @@ describe('createTask', () => {
       await createTask({
         id: 'task-1',
         projectId: 'project-1',
-        name: 'Test Task',
+        taskConfig: { version: '1', name: 'Test Task' },
         workspaceConfig,
       });
 
@@ -225,7 +226,7 @@ describe('createTask', () => {
       const wsInsert = captured[1] as Record<string, unknown>;
       expect(wsInsert.kind).toBe('worktree');
       expect(wsInsert.location).toBe('local');
-      expect(wsInsert.config).toBe(serializeWorkspaceConfig(workspaceConfig));
+      expect(wsInsert.config).toEqual(workspaceConfig);
     });
 
     it('sets location=remote and type=project-ssh for SSH projects', async () => {
@@ -235,7 +236,7 @@ describe('createTask', () => {
       await createTask({
         id: 'task-1',
         projectId: 'project-1',
-        name: 'Test Task',
+        taskConfig: { version: '1', name: 'Test Task' },
         workspaceConfig: {
           version: '2',
           git: {
@@ -261,7 +262,7 @@ describe('createTask', () => {
       await createTask({
         id: 'task-1',
         projectId: 'project-1',
-        name: 'Test Task',
+        taskConfig: { version: '1', name: 'Test Task' },
         workspaceConfig: {
           version: '2',
           git: { kind: 'none' },

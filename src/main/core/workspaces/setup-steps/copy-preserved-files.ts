@@ -1,8 +1,8 @@
 import type { FileSystemProvider } from '@main/core/fs/types';
 import { getEffectiveTaskSettings } from '@main/core/projects/settings/effective-task-settings';
 import { log } from '@main/lib/logger';
-import { ok, type Result } from '@shared/result';
-import type * as Step from '@shared/workspace-setup-steps/copy-preserved-files';
+import type * as Step from '@shared/core/workspaces/workspace-setup-steps/copy-preserved-files';
+import { ok, type Result } from '@shared/lib/result';
 import type { StepContext } from './step-context';
 
 function makeTaskFs(

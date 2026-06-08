@@ -19,6 +19,7 @@ export const TabItemShell = observer(function TabItemShell({
   title,
   onSelect,
   onPin,
+  onDoubleClick,
   onClose,
   className,
   innerPaddingRight = 'pr-2',
@@ -29,6 +30,7 @@ export const TabItemShell = observer(function TabItemShell({
   title: string;
   onSelect: () => void;
   onPin: () => void;
+  onDoubleClick?: () => void;
   onClose: () => void;
   className?: string;
   activeClassName?: string;
@@ -41,9 +43,17 @@ export const TabItemShell = observer(function TabItemShell({
 
   return (
     <DraggableTab id={tabId}>
-      <button
+      <div
+        role="button"
+        tabIndex={0}
         onClick={onSelect}
-        onDoubleClick={onPin}
+        onDoubleClick={onDoubleClick ?? onPin}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onSelect();
+          }
+        }}
         onMouseDown={(e) => {
           if (e.button === 1) e.preventDefault();
         }}
@@ -65,7 +75,7 @@ export const TabItemShell = observer(function TabItemShell({
         <div className={cn('flex h-full items-center gap-1.5 pl-3', innerPaddingRight)}>
           {children}
         </div>
-      </button>
+      </div>
       <Separator orientation="vertical" />
     </DraggableTab>
   );

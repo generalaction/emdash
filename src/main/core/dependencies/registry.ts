@@ -1,5 +1,5 @@
-import { listDetectableProviders } from '@shared/agent-provider-registry';
-import type { DependencyStatus } from '@shared/dependencies';
+import { listDetectableProviders } from '@shared/core/agents/agent-provider-registry';
+import type { DependencyStatus } from '@shared/core/dependencies';
 import type { DependencyDescriptor, ProbeResult } from './types';
 
 const CORE_DEPENDENCIES: DependencyDescriptor[] = [
@@ -80,6 +80,7 @@ function buildAgentDependencies(): DependencyDescriptor[] {
     category: 'agent' as const,
     commands: provider.commands ?? [provider.cli ?? provider.id],
     versionArgs: provider.versionArgs ?? ['--version'],
+    skipVersionProbe: provider.skipVersionProbe,
     docUrl: provider.docUrl,
     installHint: provider.installCommand ? `Run: ${provider.installCommand}` : undefined,
     installCommand: provider.installCommand,

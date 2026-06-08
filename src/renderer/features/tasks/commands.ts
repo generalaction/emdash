@@ -64,7 +64,6 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
       const gitPullDef = taskDef('task.gitPull');
       const gitPushDef = taskDef('task.gitPush');
       const pinDef = taskDef('task.pin');
-      const convertAutomationDef = taskDef('task.convertAutomation');
       const nextTaskDef = taskDef('task.nextTask');
       const prevTaskDef = taskDef('task.prevTask');
 
@@ -332,18 +331,6 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
             if (taskData) void taskStore?.setPinned(!taskData.isPinned);
           },
         },
-        {
-          id: convertAutomationDef.id,
-          label: convertAutomationDef.label,
-          description: convertAutomationDef.description,
-          group: convertAutomationDef.group,
-          enabled: taskData != null && isAutomationTask,
-          hideFromPalette: !isAutomationTask,
-          execute() {
-            if (taskData?.automationId) void taskStore?.convertAutomationTask();
-          },
-        },
-
         // ── Navigation ─────────────────────────────────────────────────────
         {
           id: nextTaskDef.id,

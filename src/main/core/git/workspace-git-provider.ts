@@ -16,8 +16,8 @@ import type {
   PullError,
   PushError,
   SoftResetError,
-} from '@shared/git';
-import type { Result } from '@shared/result';
+} from '@shared/core/git/git';
+import type { Result } from '@shared/lib/result';
 
 export type WorkspaceGitHooks = {
   'status:updated': (status: FullGitStatus) => void | Promise<void>;

@@ -1,9 +1,14 @@
+import { makeObservable, observable, runInAction } from 'mobx';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { Conversation } from '@shared/conversations';
-import type { Task } from '@shared/tasks';
+import type { Conversation } from '@shared/core/conversations/conversations';
+import type { Task } from '@shared/core/tasks/tasks';
+import type { Terminal } from '@shared/core/terminals/terminals';
 import type { TaskViewSnapshot } from '@shared/view-state';
+import type { TerminalManagerStore, TerminalStore } from '../terminals/terminal-manager';
 import { conversationRegistry } from './conversation-registry';
 import type { TaskStore } from './task-store';
+import { terminalRegistry } from './terminal-registry';
+import { workspaceRegistry } from './workspace-registry';
 import { WorkspaceViewModel } from './workspace-view-model';
 
 vi.mock('@renderer/lib/ipc', () => ({
@@ -14,6 +19,45 @@ vi.mock('@renderer/lib/ipc', () => ({
       getConnectionState: async () => ({}),
       getHealthStates: async () => ({}),
     },
+    viewState: {
+      save: vi.fn(),
+    },
+    repository: {
+      getLocalBranches: vi.fn().mockResolvedValue({
+        isUnborn: false,
+        currentBranch: 'main',
+        localBranches: [],
+      }),
+      getRemoteBranches: vi.fn().mockResolvedValue({
+        remoteBranches: [],
+        remotes: [],
+      }),
+      resolveProviderRepository: vi.fn().mockResolvedValue({ success: false }),
+    },
+    workspace: {
+      fs: {
+        listFiles: vi.fn().mockResolvedValue({ success: true, data: [] }),
+        watchSetPaths: vi.fn().mockResolvedValue(undefined),
+        watchStop: vi.fn().mockResolvedValue(undefined),
+      },
+      git: {
+        getFullStatus: vi.fn().mockResolvedValue({
+          success: true,
+          data: {
+            currentBranch: 'main',
+            headKind: 'branch',
+            unstaged: [],
+            staged: [],
+            untracked: [],
+            conflicts: [],
+            totalAdded: 0,
+            totalDeleted: 0,
+            ahead: 0,
+            behind: 0,
+          },
+        }),
+      },
+    },
   },
 }));
 
@@ -21,6 +65,29 @@ type HydrationHarness = {
   openConversationIds: string[];
   syncConversationHydration(openIds: string[]): void;
 };
+
+type FakeTerminalManager = TerminalManagerStore & {
+  isLoaded: boolean;
+  createDefaultTerminal: ReturnType<typeof vi.fn>;
+};
+
+class FakeTerminalManagerStore {
+  terminals = observable.map<string, TerminalStore>();
+  isLoaded: boolean;
+  createDefaultTerminal = vi.fn().mockResolvedValue(undefined);
+  dispose = vi.fn();
+
+  constructor({ terminalIds, isLoaded }: { terminalIds: string[]; isLoaded: boolean }) {
+    this.isLoaded = isLoaded;
+    for (const id of terminalIds) {
+      this.terminals.set(id, makeTerminal(id));
+    }
+    makeObservable(this, {
+      terminals: observable,
+      isLoaded: observable,
+    });
+  }
+}
 
 function deferred<T = void>(): {
   promise: Promise<T>;
@@ -49,6 +116,7 @@ function makeTask(overrides: Partial<Task> = {}): Task {
     prs: [],
     conversations: {},
     workspaceId: 'workspace-1',
+    type: 'task',
     ...overrides,
   };
 }
@@ -70,12 +138,58 @@ function makeViewModel(): WorkspaceViewModel {
   return new WorkspaceViewModel({ data: makeTask() } as unknown as TaskStore);
 }
 
+function makeProvisionedViewModel(): WorkspaceViewModel {
+  return new WorkspaceViewModel({
+    data: makeTask(),
+    workspaceId: 'workspace-1',
+  } as unknown as TaskStore);
+}
+
+function makeTerminal(id: string, name = 'Terminal 1'): TerminalStore {
+  return {
+    data: {
+      id,
+      projectId: 'project-1',
+      taskId: 'task-1',
+      shellId: 'system',
+      name,
+    } satisfies Terminal,
+  } as TerminalStore;
+}
+
+function makeTerminalManager({
+  terminalIds,
+  isLoaded,
+}: {
+  terminalIds: string[];
+  isLoaded: boolean;
+}): FakeTerminalManager {
+  return new FakeTerminalManagerStore({ terminalIds, isLoaded }) as unknown as FakeTerminalManager;
+}
+
+function terminalRegistryEntries(): {
+  set(taskId: string, manager: TerminalManagerStore): void;
+  delete(taskId: string): boolean;
+} {
+  return (
+    terminalRegistry as unknown as {
+      entries: {
+        set(taskId: string, manager: TerminalManagerStore): void;
+        delete(taskId: string): boolean;
+      };
+    }
+  ).entries;
+}
+
 function asHydrationHarness(viewModel: WorkspaceViewModel): HydrationHarness {
   return viewModel as unknown as HydrationHarness;
 }
 
 afterEach(() => {
   conversationRegistry.release('task-1');
+  terminalRegistry.release('task-1');
+  terminalRegistryEntries().delete('task-1');
+  workspaceRegistry.release('project-1', 'workspace-1');
 });
 
 describe('WorkspaceViewModel terminal drawer snapshot', () => {
@@ -93,6 +207,39 @@ describe('WorkspaceViewModel terminal drawer snapshot', () => {
 
     source.dispose();
     restored.dispose();
+  });
+
+  it('does not auto-create a terminal when stale restored tabs are empty but terminal records load', async () => {
+    const terminals = makeTerminalManager({ terminalIds: ['terminal-1'], isLoaded: false });
+    terminalRegistryEntries().set('task-1', terminals);
+    workspaceRegistry.acquire(
+      'project-1',
+      'workspace-1',
+      '/tmp/emdash-test-workspace',
+      { settings: {} } as never,
+      'main'
+    );
+
+    const viewModel = makeProvisionedViewModel();
+    viewModel.restoreSnapshot({
+      focusedRegion: 'bottom',
+      isTerminalDrawerOpen: true,
+      terminals: {
+        tabOrder: [],
+        activeTabId: undefined,
+      },
+    });
+
+    viewModel.initialize();
+
+    runInAction(() => {
+      terminals.isLoaded = true;
+    });
+    await Promise.resolve();
+
+    expect(terminals.createDefaultTerminal).not.toHaveBeenCalled();
+
+    viewModel.dispose();
   });
 });
 

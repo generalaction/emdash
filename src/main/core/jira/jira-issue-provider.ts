@@ -1,8 +1,8 @@
 import { URL } from 'node:url';
 import { clampIssueLimit, normalizeSearchTerm } from '@main/core/issues/helpers/provider-inputs';
 import type { IssueProvider } from '@main/core/issues/issue-provider';
+import type { LinkedIssue } from '@shared/core/linked-issue';
 import { ISSUE_PROVIDER_CAPABILITIES, type IssueListResult } from '@shared/issue-providers';
-import type { Issue } from '@shared/tasks';
 import { jiraConnectionService } from './jira-connection-service';
 import { doJiraGet, doJiraPost } from './jira-http-client';
 
@@ -344,7 +344,7 @@ function flattenAdf(node: AdfNode | string | null | undefined): string {
   return '';
 }
 
-function normalizeIssues(siteUrl: string, rawIssues: RawJiraIssue[]): Issue[] {
+function normalizeIssues(siteUrl: string, rawIssues: RawJiraIssue[]): LinkedIssue[] {
   const base = siteUrl.replace(/\/$/, '');
 
   return (rawIssues || []).map((item) => {
@@ -363,7 +363,7 @@ function normalizeIssues(siteUrl: string, rawIssues: RawJiraIssue[]): Issue[] {
       project: fields?.project?.name ?? undefined,
       updatedAt: fields?.updated ?? undefined,
       fetchedAt: new Date().toISOString(),
-    } satisfies Issue;
+    } satisfies LinkedIssue;
   });
 }
 
