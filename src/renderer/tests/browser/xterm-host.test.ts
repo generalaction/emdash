@@ -65,4 +65,41 @@ describe('FrontendPty xterm host', () => {
     expect(dims?.css.cell.width).toBeGreaterThan(0);
     expect(dims?.css.cell.height).toBeGreaterThan(0);
   });
+
+  it('subsequent calls recreate host if the previous host was removed from the DOM', async () => {
+    const originalOpen = Terminal.prototype.open;
+    const openCall: { parent?: HTMLElement } = {};
+
+    vi.spyOn(Terminal.prototype, 'open').mockImplementation(function open(this: Terminal, parent) {
+      openCall.parent = parent;
+      return originalOpen.call(this, parent);
+    });
+
+    const { FrontendPty } = await getPtyModule();
+    const frontendPty = new FrontendPty('test-session');
+    const host = document.querySelector('[data-terminal-host="true"]');
+    const dims =
+      (
+        frontendPty.terminal as unknown as {
+          _core?: {
+            _renderService?: { dimensions?: { css: { cell: { width: number; height: number } } } };
+            renderService?: { dimensions?: { css: { cell: { width: number; height: number } } } };
+          };
+        }
+      )._core?._renderService?.dimensions ??
+      (
+        frontendPty.terminal as unknown as {
+          _core?: {
+            renderService?: { dimensions?: { css: { cell: { width: number; height: number } } } };
+          };
+        }
+      )._core?.renderService?.dimensions;
+
+    expect(host).toBeTruthy();
+    expect(openCall.parent).toBe(frontendPty.ownedContainer);
+    expect(openCall.parent?.isConnected).toBe(true);
+    expect(openCall.parent?.parentElement).toBe(host);
+    expect(dims?.css.cell.width).toBeGreaterThan(0);
+    expect(dims?.css.cell.height).toBeGreaterThan(0);
+  });
 });
