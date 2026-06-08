@@ -664,5 +664,36 @@ describe('workspace cli commands', () => {
       expect(res.delivered).toBe(true);
       expect(res.conversationId).toBe('conv-initial');
     });
+
+    it('falls back to a live conversation when the preferred conversation is stale', async () => {
+      const { taskId } = seedAgent('feature/stale-initial', {
+        conversationId: 'conv-stale-initial',
+        initial: true,
+      });
+      fixture.sqlite
+        .prepare(
+          `INSERT INTO conversations (id, project_id, task_id, title, provider, is_initial_conversation, created_at, updated_at, last_interacted_at)
+           VALUES ('conv-live', ?, ?, 'Agent', 'claude', 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+        )
+        .run(projectId, taskId);
+      const liveTmux = makeTmuxSessionName(makePtySessionId(projectId, taskId, 'conv-live'));
+      const { runner, calls } = fakeTmux([liveTmux]);
+
+      const res = await sendToWorkspace(
+        fixture.db,
+        { project: proj(), branch: 'feature/stale-initial', message: 'still there?' },
+        runner
+      );
+
+      expect(res).toMatchObject({
+        delivered: true,
+        conversationId: 'conv-live',
+        tmuxSession: liveTmux,
+      });
+      expect(calls).toEqual([
+        { name: liveTmux, keys: ['-l', '--', 'still there?'] },
+        { name: liveTmux, keys: ['Enter'] },
+      ]);
+    });
   });
 });

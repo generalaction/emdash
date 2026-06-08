@@ -723,16 +723,50 @@ export async function sendToWorkspace(
     return { delivered: false, reason: 'no-task', ...base };
   }
 
-  let conversationId = opts.conversationId;
-  if (!conversationId) {
+  let conversationId: string | undefined;
+  let tmuxSession: string | undefined;
+  let activeSession = false;
+
+  if (opts.conversationId) {
+    conversationId = opts.conversationId;
+    tmuxSession = makeTmuxSessionName(makePtySessionId(opts.project.id, task.id, conversationId));
+    activeSession = tmux.hasSession(tmuxSession);
+  } else {
     const convs = await db
       .select()
       .from(conversations)
       .where(eq(conversations.taskId, task.id))
       .orderBy(desc(conversations.isInitialConversation), desc(conversations.lastInteractedAt));
-    conversationId = convs[0]?.id;
+    if (convs.length === 0) {
+      return {
+        delivered: false,
+        reason: 'no-conversation',
+        taskId: task.id,
+        conversationId: null,
+        tmuxSession: null,
+      };
+    }
+
+    for (const conv of convs) {
+      const candidateSession = makeTmuxSessionName(
+        makePtySessionId(opts.project.id, task.id, conv.id)
+      );
+      if (tmux.hasSession(candidateSession)) {
+        conversationId = conv.id;
+        tmuxSession = candidateSession;
+        activeSession = true;
+        break;
+      }
+    }
+
+    if (!conversationId || !tmuxSession) {
+      const preferred = convs[0]!;
+      conversationId = preferred.id;
+      tmuxSession = makeTmuxSessionName(makePtySessionId(opts.project.id, task.id, preferred.id));
+    }
   }
-  if (!conversationId) {
+
+  if (!conversationId || !tmuxSession) {
     return {
       delivered: false,
       reason: 'no-conversation',
@@ -742,11 +776,7 @@ export async function sendToWorkspace(
     };
   }
 
-  const tmuxSession = makeTmuxSessionName(
-    makePtySessionId(opts.project.id, task.id, conversationId)
-  );
-
-  if (!tmux.hasSession(tmuxSession)) {
+  if (!activeSession) {
     return {
       delivered: false,
       reason: 'no-active-session',
