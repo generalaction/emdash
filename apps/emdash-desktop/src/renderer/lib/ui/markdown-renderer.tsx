@@ -117,7 +117,7 @@ type WithChildrenAndClass = { children?: React.ReactNode; className?: string };
 type AnchorProps = { href?: string; children?: React.ReactNode };
 
 function shouldConfirmExternalLinkClick(event: React.MouseEvent): boolean {
-  return event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
+  return event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey;
 }
 
 type ImgProps = React.ComponentPropsWithoutRef<'img'> & ExtraProps;
