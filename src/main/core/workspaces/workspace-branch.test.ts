@@ -23,6 +23,16 @@ describe('workspace branch metadata', () => {
     expect(getProvisionedWorkspaceBranch(workspace)).toBeNull();
   });
 
+  it('does not derive provisioned branch for project-root workspace config', () => {
+    expect(
+      getProvisionedWorkspaceBranch({
+        kind: 'project-root',
+        branchName: 'feature/current',
+        config: createBranchConfig,
+      })
+    ).toBeNull();
+  });
+
   it('derives provisioned worktree branch from config before branchName cache', () => {
     expect(
       getProvisionedWorkspaceBranch({
