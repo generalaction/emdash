@@ -54,7 +54,13 @@ export async function getProjectWorkspaces(projectId: string): Promise<ProjectWo
     repoWsRow = row;
   }
 
-  // 4. Build the result set, deduplicating by workspace ID.
+  // 4. Count how many non-archived tasks link to each workspace.
+  const wsTaskCount = new Map<string, number>();
+  for (const row of taskWsRows) {
+    wsTaskCount.set(row.wsId, (wsTaskCount.get(row.wsId) ?? 0) + 1);
+  }
+
+  // 5. Build the result set, deduplicating by workspace ID.
   const seen = new Set<string>();
   const result: ProjectWorkspace[] = [];
 
@@ -72,6 +78,7 @@ export async function getProjectWorkspaces(projectId: string): Promise<ProjectWo
       taskId: null,
       taskName: null,
       isLive: !!workspaceRegistry.get(repoWsRow.id),
+      linkedTaskCount: wsTaskCount.get(repoWsRow.id) ?? 0,
     });
   }
 
@@ -89,6 +96,7 @@ export async function getProjectWorkspaces(projectId: string): Promise<ProjectWo
       taskId: row.taskId,
       taskName: row.taskName,
       isLive: !!workspaceRegistry.get(row.wsId),
+      linkedTaskCount: wsTaskCount.get(row.wsId) ?? 0,
     });
   }
 

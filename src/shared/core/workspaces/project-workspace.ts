@@ -18,4 +18,6 @@ export type ProjectWorkspace = {
   taskName: string | null;
   /** Whether the workspace is currently acquired in the in-memory registry. */
   isLive: boolean;
+  /** Number of non-archived tasks currently linked to this workspace. */
+  linkedTaskCount: number;
 };

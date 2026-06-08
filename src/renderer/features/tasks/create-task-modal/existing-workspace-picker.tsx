@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { ChevronDown, ChevronsUpDown, FolderGit2, GitBranch } from 'lucide-react';
+import { ChevronsUpDown, FolderGit2, GitBranch, Link } from 'lucide-react';
 import { useState } from 'react';
 import { rpc } from '@renderer/lib/ipc';
 import {
@@ -11,6 +11,7 @@ import {
   ComboboxTrigger,
 } from '@renderer/lib/ui/combobox';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
 import type { ProjectWorkspace } from '@shared/core/workspaces/project-workspace';
 
@@ -29,7 +30,7 @@ function WorkspaceItemContent({ ws }: { ws: ProjectWorkspace }) {
         {isRoot ? <FolderGit2 className="size-3.5" /> : <GitBranch className="size-3.5" />}
         <span className="truncate text-sm leading-none">{label}</span>
         {hasDiff && (
-          <span className="ml-2 text-xs text-foreground-muted">
+          <span className="ml-1 text-xs text-foreground-muted">
             {ws.linesAdded != null && (
               <span className="text-foreground-diff-added">+{ws.linesAdded}</span>
             )}
@@ -38,9 +39,19 @@ function WorkspaceItemContent({ ws }: { ws: ProjectWorkspace }) {
             )}
           </span>
         )}
-        {/**
-         * Linked tasks count show a Link icon and the number of linked tasks also add a tooltip saying 'Linked tasks'
-         */}
+        {ws.linkedTaskCount > 0 && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger className="flex items-center gap-0.5 text-xs ml-1 text-foreground-info">
+                <Link className="size-3" />
+                {ws.linkedTaskCount}
+              </TooltipTrigger>
+              <TooltipContent>
+                {ws.linkedTaskCount === 1 ? '1 associated task' : `${ws.linkedTaskCount} associated tasks`}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
       </span>
       <span className="truncate text-left text-xs leading-snug text-foreground-muted">
         {ws.path}
