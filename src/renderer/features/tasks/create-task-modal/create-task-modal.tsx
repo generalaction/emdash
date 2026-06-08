@@ -150,7 +150,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
                 {
                   value: 'workspace',
                   label: 'Workspace Settings',
-                  content: <WorkspaceSettingsSection />,
+                  content: <WorkspaceSettingsSection defaultOpen={false} />,
                 },
               ]}
             />
