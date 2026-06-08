@@ -16,7 +16,12 @@ import { cn } from '@renderer/utils/utils';
 import type { ProjectWorkspace } from '@shared/core/workspaces/project-workspace';
 
 function workspaceLabel(ws: ProjectWorkspace): string {
-  return ws.kind === 'project-root' ? 'Repository root' : (ws.branchName ?? ws.path ?? ws.id);
+  if (ws.kind === 'project-root') return 'Repository root';
+  if (ws.path) {
+    const lastSegment = ws.path.split('/').at(-1);
+    return lastSegment || (ws.branchName ?? ws.id);
+  }
+  return ws.branchName ?? ws.id;
 }
 
 function WorkspaceItemContent({ ws }: { ws: ProjectWorkspace }) {
@@ -42,12 +47,14 @@ function WorkspaceItemContent({ ws }: { ws: ProjectWorkspace }) {
         {ws.linkedTaskCount > 0 && (
           <TooltipProvider>
             <Tooltip>
-              <TooltipTrigger className="flex items-center gap-0.5 text-xs ml-1 text-foreground-info">
+              <TooltipTrigger className="ml-1 flex items-center gap-0.5 text-xs text-foreground-info">
                 <Link className="size-3" />
                 {ws.linkedTaskCount}
               </TooltipTrigger>
               <TooltipContent>
-                {ws.linkedTaskCount === 1 ? '1 associated task' : `${ws.linkedTaskCount} associated tasks`}
+                {ws.linkedTaskCount === 1
+                  ? '1 associated task'
+                  : `${ws.linkedTaskCount} associated tasks`}
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -79,14 +86,16 @@ export function ExistingWorkspacePicker({
 
   const [query, setQuery] = useState('');
 
-  const selected = workspaces.find((ws) => ws.id === selectedWorkspaceId) ?? null;
+  const withPath = workspaces.filter((ws) => ws.path != null);
+
+  const selected = withPath.find((ws) => ws.id === selectedWorkspaceId) ?? null;
 
   const filtered = query
-    ? workspaces.filter((ws) => {
+    ? withPath.filter((ws) => {
         const q = query.toLowerCase();
         return workspaceLabel(ws).toLowerCase().includes(q) || ws.path?.toLowerCase().includes(q);
       })
-    : workspaces;
+    : withPath;
 
   if (isLoading) {
     return (
@@ -96,7 +105,7 @@ export function ExistingWorkspacePicker({
     );
   }
 
-  if (workspaces.length === 0) {
+  if (withPath.length === 0) {
     return (
       <p className="text-xs text-foreground-muted">
         No existing workspaces found for this project.

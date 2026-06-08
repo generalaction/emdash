@@ -1,7 +1,7 @@
+import type { BranchNameState } from '@renderer/features/tasks/create-task-modal/use-branch-name';
 import { EditableNameField } from '@renderer/lib/ui/editable-name-field';
 import { FieldLabel } from '@renderer/lib/ui/field';
 import { Switch } from '@renderer/lib/ui/switch';
-import type { BranchNameState } from '@renderer/features/tasks/create-task-modal/use-branch-name';
 import { useTaskConfig } from './task-config-context';
 
 interface BranchNameFieldProps {
@@ -19,7 +19,7 @@ export function BranchNameField({ state, pushBranch, onPushBranchChange }: Branc
     <div className="flex flex-col rounded-lg border border-border px-2.5 py-2">
       <span className="flex items-center gap-1.5 text-xs text-foreground-passive">Branch name</span>
       {autoBranchName ? (
-        <span className="py-1 text-sm italic text-foreground-muted">
+        <span className="py-1 text-sm text-foreground-muted italic">
           Branch name will be auto-generated
         </span>
       ) : (

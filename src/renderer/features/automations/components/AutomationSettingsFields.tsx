@@ -1,10 +1,10 @@
 import { ChevronDown, FolderOpen } from 'lucide-react';
+import { ProjectSelector } from '@renderer/features/tasks/create-task-modal/project-selector';
+import { ConversationField } from '@renderer/features/tasks/task-config/conversation-field';
 import { TaskConfigProvider } from '@renderer/features/tasks/task-config/task-config-context';
 import { TaskConfigPanel } from '@renderer/features/tasks/task-config/task-config-panel';
-import { ConversationField } from '@renderer/features/tasks/task-config/conversation-field';
-import { WorkspaceSettingsSection } from '@renderer/features/tasks/task-config/workspace-settings-section';
 import { TaskStateProvider } from '@renderer/features/tasks/task-config/task-state-context';
-import { ProjectSelector } from '@renderer/features/tasks/create-task-modal/project-selector';
+import { WorkspaceSettingsSection } from '@renderer/features/tasks/task-config/workspace-settings-section';
 import { CronPicker } from '@renderer/lib/CronPicker';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
@@ -85,12 +85,12 @@ export function AutomationSettingsFields({
                 {
                   value: 'prompt',
                   label: 'Prompt',
-                  content: <ConversationField onPromptBlur={onPromptBlur} />,
+                  content: <ConversationField onPromptBlur={onPromptBlur} textareaClassName='min-h-40' placeholder='Add a prompt to the automation...'  />,
                 },
                 {
                   value: 'workspace',
                   label: 'Workspace Settings',
-                  content: <WorkspaceSettingsSection defaultOpen={false} />,
+                  content: <WorkspaceSettingsSection defaultOpen={true} />,
                 },
               ]}
             />

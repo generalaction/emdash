@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
 import { getRepositoryStore } from '@renderer/features/projects/stores/project-selectors';
+import { useProjectWorkspaces } from '@renderer/features/tasks/task-config/existing-workspace-picker';
 import type { Branch } from '@shared/core/git/git';
 import type { LinkedIssue } from '@shared/core/linked-issue';
 import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
 import { buildWorkspaceConfigFromPreset } from '@shared/core/workspaces/build-workspace-config-from-preset';
 import { describeSetupSteps } from '@shared/core/workspaces/describe-setup-steps';
+import type { ProjectWorkspace } from '@shared/core/workspaces/project-workspace';
 import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
 import type { WorkspacePresetId } from '@shared/core/workspaces/workspace-presets';
 import { compileSetupSpec } from '@shared/core/workspaces/workspace-setup-spec';
@@ -41,11 +43,39 @@ export type WorkspaceConfigState = {
   setupSteps: string[];
   /** Whether enough information is present to submit the form. */
   isValid: boolean;
+  /**
+   * When the user picks "Checkout branch" in the new-worktree preset and the
+   * chosen branch is already checked out in another worktree, this holds the
+   * conflicting workspace so the UI can warn and offer a CTA.
+   */
+  branchConflict: ProjectWorkspace | null;
 };
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Derives the effective branch name from a workspace's stored config, mirroring
+ * `deriveBranchName` from the main process. Used when the `branchName` DB column
+ * is null (i.e. the workspace has not been provisioned yet).
+ */
+function getConfigBranchName(config: WorkspaceConfig | null): string | null {
+  if (!config) return null;
+  const { git } = config;
+  if (git.kind === 'use-branch' || git.kind === 'create-branch') return git.branchName;
+  if (git.kind === 'pr-branch') return git.taskBranch ?? git.headBranch;
+  return null;
+}
+
+/**
+ * Strips a leading "remote/" prefix from a branch name, normalizing legacy rows
+ * where the remote name was included (e.g. "origin/main" → "main").
+ */
+function stripRemotePrefix(name: string): string {
+  const slash = name.indexOf('/');
+  return slash !== -1 ? name.slice(slash + 1) : name;
+}
 
 function defaultPresetForMode(mode: WorkspaceMode, hasPR: boolean): WorkspacePresetId {
   switch (mode) {
@@ -210,6 +240,7 @@ export function useWorkspaceConfig(opts: {
     pr,
     repositoryWorkspaceId,
     selectedWorkspaceId,
+    branchSelection.createBranchAndWorktree,
     branchNameState.branchName,
     branchSelection.selectedBranch,
     branchSelection.pushBranch,
@@ -232,6 +263,34 @@ export function useWorkspaceConfig(opts: {
     return describeSetupSteps(spec);
   }, [resolvedConfig, projectId]);
 
+  // ── Branch conflict ───────────────────────────────────────────────────────
+
+  const { data: projectWorkspaces = [] } = useProjectWorkspaces(projectId);
+
+  const branchConflict = useMemo((): ProjectWorkspace | null => {
+    if (presetId !== 'new-worktree' || branchSelection.createBranchAndWorktree) return null;
+    const selectedName = branchSelection.selectedBranch?.branch;
+    if (!selectedName) return null;
+
+    return (
+      projectWorkspaces.find((ws) => {
+        if (ws.kind === 'project-root') return false;
+        // branchName column is null until the workspace is first provisioned; fall
+        // back to deriving it from the stored WorkspaceConfig.
+        const effective = ws.branchName ?? getConfigBranchName(ws.config);
+        if (!effective) return false;
+        // Normalize away a possible "remote/" prefix (e.g. "origin/main" → "main")
+        // that may appear in legacy workspace rows.
+        return effective === selectedName || stripRemotePrefix(effective) === selectedName;
+      }) ?? null
+    );
+  }, [
+    presetId,
+    branchSelection.createBranchAndWorktree,
+    branchSelection.selectedBranch,
+    projectWorkspaces,
+  ]);
+
   // ── Validity ─────────────────────────────────────────────────────────────
 
   const isValid = useMemo((): boolean => {
@@ -252,7 +311,7 @@ export function useWorkspaceConfig(opts: {
 
     // new-worktree — checkout existing branch
     if (!branchSelection.createBranchAndWorktree) {
-      return branchSelection.selectedBranch !== undefined;
+      return branchSelection.selectedBranch !== undefined && !branchConflict;
     }
 
     // new-worktree — create new branch
@@ -273,6 +332,7 @@ export function useWorkspaceConfig(opts: {
     branchNameState.branchAlreadyExists,
     branchSelection.selectedBranch,
     branchSelection.createBranchAndWorktree,
+    branchConflict,
   ]);
 
   return {
@@ -287,5 +347,6 @@ export function useWorkspaceConfig(opts: {
     resolvedConfig,
     setupSteps,
     isValid,
+    branchConflict,
   };
 }

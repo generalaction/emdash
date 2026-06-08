@@ -1,4 +1,6 @@
 import { ChevronDown, GitBranch } from 'lucide-react';
+import type { BranchNameState } from '@renderer/features/tasks/create-task-modal/use-branch-name';
+import type { BranchSelectionState } from '@renderer/features/tasks/create-task-modal/use-branch-selection';
 import { BranchDisplay } from '@renderer/lib/components/branch-display';
 import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@renderer/lib/ui/collapsible';
@@ -6,8 +8,6 @@ import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
 import { Field, FieldLabel } from '@renderer/lib/ui/field';
 import { Switch } from '@renderer/lib/ui/switch';
 import { cn } from '@renderer/utils/utils';
-import type { BranchNameState } from '@renderer/features/tasks/create-task-modal/use-branch-name';
-import type { BranchSelectionState } from '@renderer/features/tasks/create-task-modal/use-branch-selection';
 import { BranchNameField } from './branch-name-field';
 
 interface BranchPickerFieldProps {

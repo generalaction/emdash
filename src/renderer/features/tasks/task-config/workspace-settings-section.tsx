@@ -32,7 +32,8 @@ interface WorkspaceSettingsSectionProps {
 }
 
 export function WorkspaceSettingsSection({ defaultOpen = true }: WorkspaceSettingsSectionProps) {
-  const { workspaceConfig, projectId, isUnborn, hasPR, isWorkspaceProviderEnabled } = useTaskState();
+  const { workspaceConfig, projectId, isUnborn, hasPR, isWorkspaceProviderEnabled } =
+    useTaskState();
   const { data: existingWorkspaces = [] } = useProjectWorkspaces(projectId);
 
   const { presetId, branchSelection } = workspaceConfig;

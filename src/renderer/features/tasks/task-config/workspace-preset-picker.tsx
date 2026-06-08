@@ -62,7 +62,8 @@ export function WorkspacePresetPicker({
   const { showPrPresets } = useTaskConfig();
 
   const options: PresetOption[] = WORKSPACE_PRESETS.filter(
-    (preset) => (showPrPresets || !preset.requiresPR) && (!preset.requiresBYOI || isWorkspaceProviderEnabled)
+    (preset) =>
+      (showPrPresets || !preset.requiresPR) && (!preset.requiresBYOI || isWorkspaceProviderEnabled)
   ).map((preset) => ({
     ...preset,
     disabled:

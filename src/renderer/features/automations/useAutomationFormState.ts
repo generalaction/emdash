@@ -143,7 +143,7 @@ export function useAutomationFormState(seed?: Automation) {
           }
         : wsConfig;
 
-    return {
+    const result: StoredAutomationTaskConfig = {
       version: '1',
       taskConfig: {
         version: '1',
@@ -153,6 +153,11 @@ export function useAutomationFormState(seed?: Automation) {
       },
       workspaceConfig: patchedConfig,
     };
+
+    // Strip MobX Proxy wrappers (e.g. fromBranch coming from getRepositoryStore)
+    // before the value crosses the Electron contextBridge. The structured clone
+    // algorithm rejects Proxy objects with a DataCloneError.
+    return JSON.parse(JSON.stringify(result)) as StoredAutomationTaskConfig;
   }
 
   const triggerConfig: TriggerConfig = { expr: cronExpr.trim(), tz: cronTz };

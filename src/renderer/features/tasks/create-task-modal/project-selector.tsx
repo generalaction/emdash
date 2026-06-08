@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronsUpDown, FolderClosed, FolderInput } from 'lucide-react';
+import { ChevronDown, FolderClosed, FolderInput } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useState } from 'react';
 import {
@@ -25,7 +25,7 @@ interface ProjectOption {
 
 function ProjectIcon({ isSsh }: { isSsh: boolean }) {
   const Icon = isSsh ? FolderInput : FolderClosed;
-  return <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />;
+  return <Icon className="text-muted-foreground h-4 w-4 shrink-0" />;
 }
 
 interface ProjectSelectorProps {
@@ -72,10 +72,10 @@ export const ProjectSelector = observer(function ProjectSelector({
       autoHighlight
     >
       {trigger ?? (
-        <ComboboxTrigger className="flex w-full min-w-0 items-center gap-2 rounded-lg hover:bg-background-2 data-popup-open:bg-background-2 border border-border bg-transparent px-2.5 py-2 text-sm outline-none">
+        <ComboboxTrigger className="flex w-full min-w-0 items-center gap-2 rounded-lg border border-border bg-transparent px-2.5 py-2 text-sm outline-none hover:bg-background-2 data-popup-open:bg-background-2">
           {selectedOption && <ProjectIcon isSsh={selectedOption.isSsh} />}
           <ComboboxValue placeholder="Select a project" />
-          <ChevronDown className="size-4 shrink-0 text-foreground-passive ml-auto" />
+          <ChevronDown className="ml-auto size-4 shrink-0 text-foreground-passive" />
         </ComboboxTrigger>
       )}
       <ComboboxContent className="w-auto min-w-(--anchor-width)">

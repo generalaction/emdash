@@ -1,7 +1,8 @@
-import { ChevronDown, GitBranch } from 'lucide-react';
-import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
-import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
+import { ChevronDown, GitBranch, Layers } from 'lucide-react';
 import type { WorkspaceConfigState } from '@renderer/features/tasks/create-task-modal/use-workspace-config';
+import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
+import { Button } from '@renderer/lib/ui/button';
+import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
 import { BranchNameField } from './branch-name-field';
 
 export type WorkspacePanelProps = {
@@ -15,8 +16,15 @@ export function NewWorktreePanel({
   projectId,
   isUnborn = false,
 }: WorkspacePanelProps) {
-  const { branchSelection, branchNameState } = workspaceConfig;
+  const { branchSelection, branchNameState, branchConflict } = workspaceConfig;
   const { createBranchAndWorktree } = branchSelection;
+
+  function handleReuseExisting() {
+    workspaceConfig.setPresetId('use-existing');
+    if (branchConflict) {
+      workspaceConfig.setSelectedWorkspaceId(branchConflict.id);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-3">
@@ -45,6 +53,32 @@ export function NewWorktreePanel({
             </ComboboxTrigger>
           }
         />
+      )}
+
+      {!createBranchAndWorktree && branchConflict && (
+        <div className="flex flex-col gap-2 rounded-md border border-border-warning bg-background-warning px-3 py-2.5 text-xs text-foreground-warning">
+          <p>
+            <strong className="font-medium">{branchConflict.branchName}</strong> is already checked
+            out in{' '}
+            {branchConflict.taskName ? (
+              <>
+                task <strong className="font-medium">{branchConflict.taskName}</strong>
+              </>
+            ) : (
+              'an existing workspace'
+            )}
+            . A new isolated worktree cannot be created for a branch that is already in use.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleReuseExisting}
+            className="gap-1.5 self-start border-border-warning bg-transparent text-foreground-warning hover:bg-background-warning-hover hover:text-foreground-warning"
+          >
+            <Layers className="size-3.5" />
+            Reuse existing workspace
+          </Button>
+        </div>
       )}
 
       {createBranchAndWorktree && !isUnborn && (

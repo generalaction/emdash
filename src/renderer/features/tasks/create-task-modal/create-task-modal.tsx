@@ -7,6 +7,10 @@ import {
   mountedProjectData,
 } from '@renderer/features/projects/stores/project-selectors';
 import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
+import { ConversationField } from '@renderer/features/tasks/task-config/conversation-field';
+import { TaskConfigPanel } from '@renderer/features/tasks/task-config/task-config-panel';
+import { TaskStateProvider } from '@renderer/features/tasks/task-config/task-state-context';
+import { WorkspaceSettingsSection } from '@renderer/features/tasks/task-config/workspace-settings-section';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
@@ -19,10 +23,6 @@ import {
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
 import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
-import { ConversationField } from '@renderer/features/tasks/task-config/conversation-field';
-import { TaskConfigPanel } from '@renderer/features/tasks/task-config/task-config-panel';
-import { TaskStateProvider } from '@renderer/features/tasks/task-config/task-state-context';
-import { WorkspaceSettingsSection } from '@renderer/features/tasks/task-config/workspace-settings-section';
 import { useInitialConversationState } from '../conversations/initial-conversation-section';
 import { LinkedEntitySection } from './linked-entity-section';
 import { TaskNameField } from './task-name-field';
@@ -135,7 +135,9 @@ export const CreateTaskModal = observer(function CreateTaskModal({
             isUnborn={isUnborn}
             hasPR={state.linkedType === 'pr' && state.linkedPR !== null}
             isWorkspaceProviderEnabled={isWorkspaceProviderEnabled}
-            linkedIssue={state.linkedType === 'issue' ? (state.linkedIssue ?? undefined) : undefined}
+            linkedIssue={
+              state.linkedType === 'issue' ? (state.linkedIssue ?? undefined) : undefined
+            }
             includeIssueContextByDefault={includeIssueContextByDefault}
           >
             <TaskConfigPanel
