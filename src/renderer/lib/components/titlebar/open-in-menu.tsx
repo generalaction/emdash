@@ -97,7 +97,7 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
   }, [defaultApp, installedApps, isRemote, platform]);
 
   const menuApps = useMemo(
-    () => sortedApps.filter((app) => !app.hideIfUnavailable || availability[app.id]),
+    () => sortedApps.filter((app) => !app.hideIfUnavailable || availability[app.id] !== false),
     [availability, sortedApps]
   );
 
@@ -147,7 +147,7 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
                 <img
                   src={icons[buttonAppId]}
                   alt={labels[buttonAppId] || buttonAppId}
-                  className={`size-3.5 rounded ${
+                  className={`size-4 rounded ${
                     getAppById(buttonAppId)?.invertInDark ? 'emdark:invert' : ''
                   }`}
                 />
@@ -184,7 +184,12 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
           ></TooltipTrigger>
           <TooltipContent side="bottom">Select open in app</TooltipContent>
         </Tooltip>
-        <SelectContent align="end" alignItemWithTrigger={false} sideOffset={6}>
+        <SelectContent
+          align="end"
+          alignItemWithTrigger={false}
+          className="w-44 min-w-44"
+          sideOffset={6}
+        >
           {menuApps.map((app) => {
             const isAvailable = loading
               ? availability[app.id] === true
@@ -195,7 +200,7 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
                   <img
                     src={icons[app.id]}
                     alt={labels[app.id] || app.label}
-                    className={`h-4 w-4 rounded ${app.invertInDark ? 'emdark:invert' : ''}`}
+                    className={`h-4 w-4 self-center rounded ${app.invertInDark ? 'emdark:invert' : ''}`}
                   />
                 )}
                 {labels[app.id] || app.label}

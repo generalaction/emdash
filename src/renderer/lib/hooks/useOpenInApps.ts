@@ -81,7 +81,9 @@ export function useOpenInApps(): UseOpenInAppsResult {
       (app) => supportsPlatform(app, platform) && !hiddenApps.includes(app.id)
     );
     if (loading) return platformApps;
-    return platformApps.filter((app) => availability[app.id] && !hiddenApps.includes(app.id));
+    return platformApps.filter(
+      (app) => availability[app.id] !== false && !hiddenApps.includes(app.id)
+    );
   }, [availability, loading, openIn?.hidden, platform]);
 
   return { icons, labels, availability, installedApps, platform, loading };
