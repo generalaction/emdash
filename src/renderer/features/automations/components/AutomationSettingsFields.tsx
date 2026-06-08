@@ -1,6 +1,9 @@
 import { ChevronDown, FolderOpen } from 'lucide-react';
-import { TaskConfigPanel } from '@renderer/features/tasks/task-config/task-config-panel';
 import { TaskConfigProvider } from '@renderer/features/tasks/task-config/task-config-context';
+import { TaskConfigPanel } from '@renderer/features/tasks/task-config/task-config-panel';
+import { ConversationField } from '@renderer/features/tasks/task-config/conversation-field';
+import { WorkspaceSettingsSection } from '@renderer/features/tasks/task-config/workspace-settings-section';
+import { TaskStateProvider } from '@renderer/features/tasks/task-config/task-state-context';
 import { ProjectSelector } from '@renderer/features/tasks/create-task-modal/project-selector';
 import { CronPicker } from '@renderer/lib/CronPicker';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
@@ -38,27 +41,8 @@ export function AutomationSettingsFields({
   const isWorkspaceProviderEnabled = useFeatureFlag('workspace-provider');
 
   return (
-    <TaskConfigProvider conversationLabel="Prompt" showPrPresets={false}>
+    <>
       <FieldGroup>
-        <Field>
-          <Label>Schedule</Label>
-          <CronPicker
-            value={cronExpr}
-            onChange={(nextCronExpr) => {
-              onCronExprChange(nextCronExpr);
-              onCronErrorClear();
-            }}
-          />
-          {cronError && <FieldError>{cronError}</FieldError>}
-        </Field>
-        <TaskConfigPanel
-          workspaceConfig={workspaceConfig}
-          initialConversation={initialConversation}
-          onPromptBlur={onPromptBlur}
-          projectId={effectiveProjectId}
-          isUnborn={isUnborn}
-          isWorkspaceProviderEnabled={isWorkspaceProviderEnabled}
-        />
         <Field>
           <Label>Project</Label>
           <ProjectSelector
@@ -75,9 +59,46 @@ export function AutomationSettingsFields({
             }
           />
         </Field>
+        <Field>
+          <Label>Schedule</Label>
+          <CronPicker
+            value={cronExpr}
+            onChange={(nextCronExpr) => {
+              onCronExprChange(nextCronExpr);
+              onCronErrorClear();
+            }}
+          />
+          {cronError && <FieldError>{cronError}</FieldError>}
+        </Field>
+        <TaskStateProvider
+          workspaceConfig={workspaceConfig}
+          initialConversation={initialConversation}
+          projectId={effectiveProjectId}
+          isUnborn={isUnborn}
+          hasPR={false}
+          isWorkspaceProviderEnabled={isWorkspaceProviderEnabled}
+          includeIssueContextByDefault={false}
+        >
+          <TaskConfigProvider showPrPresets={false} autoBranchName={true}>
+            <TaskConfigPanel
+              tabs={[
+                {
+                  value: 'prompt',
+                  label: 'Prompt',
+                  content: <ConversationField onPromptBlur={onPromptBlur} />,
+                },
+                {
+                  value: 'workspace',
+                  label: 'Workspace Settings',
+                  content: <WorkspaceSettingsSection defaultOpen={false} />,
+                },
+              ]}
+            />
+          </TaskConfigProvider>
+        </TaskStateProvider>
       </FieldGroup>
 
       {error && <p className="text-destructive text-xs">{error}</p>}
-    </TaskConfigProvider>
+    </>
   );
 }

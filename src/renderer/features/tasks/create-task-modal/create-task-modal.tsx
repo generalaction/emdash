@@ -19,7 +19,10 @@ import {
   DialogTitle,
 } from '@renderer/lib/ui/dialog';
 import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
+import { ConversationField } from '@renderer/features/tasks/task-config/conversation-field';
 import { TaskConfigPanel } from '@renderer/features/tasks/task-config/task-config-panel';
+import { TaskStateProvider } from '@renderer/features/tasks/task-config/task-state-context';
+import { WorkspaceSettingsSection } from '@renderer/features/tasks/task-config/workspace-settings-section';
 import { useInitialConversationState } from '../conversations/initial-conversation-section';
 import { LinkedEntitySection } from './linked-entity-section';
 import { TaskNameField } from './task-name-field';
@@ -125,16 +128,31 @@ export const CreateTaskModal = observer(function CreateTaskModal({
             repositoryUrl={repositoryUrl}
             projectPath={projectPath}
           />
-          <TaskConfigPanel
+          <TaskStateProvider
             workspaceConfig={state.workspaceConfig}
-            hasPR={state.linkedType === 'pr' && state.linkedPR !== null}
             initialConversation={initialConversation}
-            linkedIssue={state.linkedType === 'issue' ? (state.linkedIssue ?? undefined) : undefined}
             projectId={selectedProjectId}
             isUnborn={isUnborn}
+            hasPR={state.linkedType === 'pr' && state.linkedPR !== null}
             isWorkspaceProviderEnabled={isWorkspaceProviderEnabled}
+            linkedIssue={state.linkedType === 'issue' ? (state.linkedIssue ?? undefined) : undefined}
             includeIssueContextByDefault={includeIssueContextByDefault}
-          />
+          >
+            <TaskConfigPanel
+              tabs={[
+                {
+                  value: 'conversation',
+                  label: 'Initial Conversation',
+                  content: <ConversationField />,
+                },
+                {
+                  value: 'workspace',
+                  label: 'Workspace Settings',
+                  content: <WorkspaceSettingsSection />,
+                },
+              ]}
+            />
+          </TaskStateProvider>
         </div>
       </DialogContentArea>
       <DialogFooter>

@@ -1,4 +1,4 @@
-import { FolderClosed, FolderInput } from 'lucide-react';
+import { ChevronDown, ChevronsUpDown, FolderClosed, FolderInput } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import React, { useState } from 'react';
 import {
@@ -72,9 +72,10 @@ export const ProjectSelector = observer(function ProjectSelector({
       autoHighlight
     >
       {trigger ?? (
-        <ComboboxTrigger className="flex h-8 w-full min-w-0 items-center gap-2 rounded-md border border-border bg-transparent px-2.5 py-1 text-sm outline-none">
+        <ComboboxTrigger className="flex w-full min-w-0 items-center gap-2 rounded-lg hover:bg-background-2 data-popup-open:bg-background-2 border border-border bg-transparent px-2.5 py-2 text-sm outline-none">
           {selectedOption && <ProjectIcon isSsh={selectedOption.isSsh} />}
           <ComboboxValue placeholder="Select a project" />
+          <ChevronDown className="size-4 shrink-0 text-foreground-passive ml-auto" />
         </ComboboxTrigger>
       )}
       <ComboboxContent className="w-auto min-w-(--anchor-width)">

@@ -2,7 +2,6 @@ import { ChevronRight } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@renderer/lib/ui/collapsible';
 import { PanelTabs } from '@renderer/lib/ui/panel-tabs';
 import { cn } from '@renderer/utils/utils';
-import type { WorkspaceConfigState } from '@renderer/features/tasks/create-task-modal/use-workspace-config';
 import type { WorkspacePresetId } from '@shared/core/workspaces/workspace-presets';
 import { CheckoutPrPanel } from './checkout-pr-panel';
 import { useProjectWorkspaces } from './existing-workspace-picker';
@@ -10,6 +9,7 @@ import { NewWorktreePanel } from './new-worktree-panel';
 import type { WorkspacePanelProps } from './new-worktree-panel';
 import { PrNewBranchPanel } from './pr-new-branch-panel';
 import { SandboxPanel } from './sandbox-panel';
+import { useTaskState } from './task-state-context';
 import { UseExistingPanel } from './use-existing-panel';
 import { WorkspacePresetPicker } from './workspace-preset-picker';
 
@@ -28,20 +28,11 @@ const PRESET_PANELS: Record<
 const PRESETS_WITHOUT_SETTINGS = new Set<WorkspacePresetId>(['repo-root', 'sandbox']);
 
 interface WorkspaceSettingsSectionProps {
-  workspaceConfig: WorkspaceConfigState;
-  projectId?: string;
-  isUnborn?: boolean;
-  isWorkspaceProviderEnabled: boolean;
-  hasPR?: boolean;
+  defaultOpen?: boolean;
 }
 
-export function WorkspaceSettingsSection({
-  workspaceConfig,
-  projectId,
-  isUnborn = false,
-  isWorkspaceProviderEnabled,
-  hasPR = false,
-}: WorkspaceSettingsSectionProps) {
+export function WorkspaceSettingsSection({ defaultOpen = true }: WorkspaceSettingsSectionProps) {
+  const { workspaceConfig, projectId, isUnborn, hasPR, isWorkspaceProviderEnabled } = useTaskState();
   const { data: existingWorkspaces = [] } = useProjectWorkspaces(projectId);
 
   const { presetId, branchSelection } = workspaceConfig;
@@ -59,7 +50,12 @@ export function WorkspaceSettingsSection({
         isWorkspaceProviderEnabled={isWorkspaceProviderEnabled}
         hasExistingWorkspaces={existingWorkspaces.length > 0}
       />
-      <Collapsible key={presetId} disabled={!hasSettings} className="group flex flex-col gap-1.5">
+      <Collapsible
+        key={presetId}
+        defaultOpen={hasSettings && defaultOpen}
+        disabled={!hasSettings}
+        className="group flex flex-col gap-1.5"
+      >
         <div className="flex h-9 items-center justify-between">
           <CollapsibleTrigger
             className={cn(

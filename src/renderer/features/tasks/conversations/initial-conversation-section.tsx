@@ -64,6 +64,8 @@ interface InitialConversationFieldProps {
   linkedIssue?: LinkedIssue;
   includeIssueContextByDefault: boolean;
   onPromptBlur?: () => void;
+  placeholder?: string;
+  textareaClassName?: string;
 }
 
 export function InitialConversationField({
@@ -71,6 +73,8 @@ export function InitialConversationField({
   linkedIssue,
   includeIssueContextByDefault,
   onPromptBlur,
+  placeholder,
+  textareaClassName,
 }: InitialConversationFieldProps) {
   const { value: promptLibrary } = usePromptLibrary();
   const autoApproveDefaults = useAgentAutoApproveDefaults();
@@ -193,11 +197,14 @@ export function InitialConversationField({
         )}
 
         <Textarea
-          placeholder="Add an optional initial message..."
+          placeholder={placeholder ?? 'Add an optional initial message...'}
           value={state.prompt}
           onChange={(e) => state.setPrompt(e.target.value)}
           onBlur={onPromptBlur}
-          className="max-h-64 min-h-8 resize-none rounded-none border-0 focus-visible:border-0 focus-visible:ring-0"
+          className={cn(
+            'max-h-64 min-h-8 resize-none rounded-none border-0 focus-visible:border-0 focus-visible:ring-0',
+            textareaClassName
+          )}
         />
       </div>
     </Field>
