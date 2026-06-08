@@ -1,75 +1,53 @@
 import { useQuery } from '@tanstack/react-query';
-import { ChevronDown, FolderGit2, GitBranch } from 'lucide-react';
+import { ChevronDown, ChevronsUpDown, FolderGit2, GitBranch } from 'lucide-react';
 import { useState } from 'react';
 import { rpc } from '@renderer/lib/ipc';
 import {
   Combobox,
   ComboboxContent,
-  ComboboxEmpty,
   ComboboxInput,
   ComboboxItem,
   ComboboxList,
   ComboboxTrigger,
 } from '@renderer/lib/ui/combobox';
+import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { cn } from '@renderer/utils/utils';
 import type { ProjectWorkspace } from '@shared/core/workspaces/project-workspace';
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 function workspaceLabel(ws: ProjectWorkspace): string {
   return ws.kind === 'project-root' ? 'Repository root' : (ws.branchName ?? ws.path ?? ws.id);
 }
 
-function workspaceSub(ws: ProjectWorkspace): string {
-  return ws.kind === 'project-root' ? (ws.path ?? '') : (ws.taskName ?? ws.path ?? '');
-}
-
-// ---------------------------------------------------------------------------
-// Item content shared between trigger and list
-// ---------------------------------------------------------------------------
-
-function WorkspaceItemContent({ ws, muted = false }: { ws: ProjectWorkspace; muted?: boolean }) {
+function WorkspaceItemContent({ ws }: { ws: ProjectWorkspace }) {
   const isRoot = ws.kind === 'project-root';
   const label = workspaceLabel(ws);
-  const sub = workspaceSub(ws);
   const hasDiff = ws.linesAdded != null || ws.linesDeleted != null;
 
   return (
-    <span className="flex min-w-0 flex-1 items-center gap-2">
-      <span className={cn('shrink-0', muted ? 'text-foreground-passive' : 'text-foreground-muted')}>
-        {isRoot ? <FolderGit2 className="size-4" /> : <GitBranch className="size-4" />}
-      </span>
-      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="truncate text-sm font-medium leading-none">{label}</span>
-        {sub && <span className="truncate text-xs leading-snug text-foreground-muted">{sub}</span>}
-      </span>
-      <span className="flex shrink-0 items-center gap-1.5">
-        {ws.isLive && (
-          <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-xs text-emerald-600 dark:text-emerald-400">
-            live
-          </span>
-        )}
+    <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+      <span className={cn('shrink-0 flex items-center gap-1.5')}>
+        {isRoot ? <FolderGit2 className="size-3.5" /> : <GitBranch className="size-3.5" />}
+        <span className="truncate text-sm leading-none">{label}</span>
         {hasDiff && (
-          <span className="text-xs text-foreground-muted">
+          <span className="ml-2 text-xs text-foreground-muted">
             {ws.linesAdded != null && (
-              <span className="text-emerald-500">+{ws.linesAdded}</span>
+              <span className="text-foreground-diff-added">+{ws.linesAdded}</span>
             )}
             {ws.linesDeleted != null && (
-              <span className="ml-1 text-red-500">−{ws.linesDeleted}</span>
+              <span className="ml-1 text-foreground-diff-deleted">−{ws.linesDeleted}</span>
             )}
           </span>
         )}
+        {/**
+         * Linked tasks count show a Link icon and the number of linked tasks also add a tooltip saying 'Linked tasks'
+         */}
+      </span>
+      <span className="truncate text-left text-xs leading-snug text-foreground-muted">
+        {ws.path}
       </span>
     </span>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
-
 interface ExistingWorkspacePickerProps {
   projectId: string | undefined;
   selectedWorkspaceId: string | null;
@@ -95,10 +73,7 @@ export function ExistingWorkspacePicker({
   const filtered = query
     ? workspaces.filter((ws) => {
         const q = query.toLowerCase();
-        return (
-          workspaceLabel(ws).toLowerCase().includes(q) ||
-          workspaceSub(ws).toLowerCase().includes(q)
-        );
+        return workspaceLabel(ws).toLowerCase().includes(q) || ws.path?.toLowerCase().includes(q);
       })
     : workspaces;
 
@@ -112,7 +87,9 @@ export function ExistingWorkspacePicker({
 
   if (workspaces.length === 0) {
     return (
-      <p className="text-xs text-foreground-muted">No existing workspaces found for this project.</p>
+      <p className="text-xs text-foreground-muted">
+        No existing workspaces found for this project.
+      </p>
     );
   }
 
@@ -127,15 +104,14 @@ export function ExistingWorkspacePicker({
       }}
       isItemEqualToValue={(a: ProjectWorkspace, b: ProjectWorkspace) => a.id === b.id}
     >
-      <ComboboxTrigger className="data-popup-open:border-ring flex h-9 w-full items-center justify-between gap-2 rounded-md border border-border bg-background px-2.5 text-sm outline-none transition-colors hover:bg-background-1">
+      <ComboboxTrigger className="data-popup-open:border-ring flex w-full items-center justify-between gap-2 rounded-lg border border-border px-2.5 py-2 text-sm transition-colors outline-none hover:bg-background-2">
         {selected ? (
           <WorkspaceItemContent ws={selected} />
         ) : (
           <span className="text-foreground-muted">Select a workspace…</span>
         )}
-        <ChevronDown className="size-3.5 shrink-0 text-foreground-passive" />
+        <ChevronsUpDown className="size-4 shrink-0 text-foreground-passive" />
       </ComboboxTrigger>
-
       <ComboboxContent>
         <ComboboxInput
           value={query}
@@ -143,7 +119,7 @@ export function ExistingWorkspacePicker({
           placeholder="Search workspaces…"
           showTrigger={false}
         />
-        <ComboboxList>
+        <ComboboxList className="max-h-52 overflow-y-auto p-1!">
           {filtered.map((ws) => (
             <ComboboxItem
               key={ws.id}
@@ -154,21 +130,15 @@ export function ExistingWorkspacePicker({
               <WorkspaceItemContent ws={ws} />
             </ComboboxItem>
           ))}
-          <ComboboxEmpty>No matching workspaces</ComboboxEmpty>
+          {filtered.length === 0 && (
+            <EmptyState label="No workspaces found" className="border-none bg-transparent" />
+          )}
         </ComboboxList>
       </ComboboxContent>
     </Combobox>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Standalone query hook used by parent components
-// ---------------------------------------------------------------------------
-
-/**
- * Returns a list of existing workspaces for a project.
- * Used by parent components to know whether the "existing" preset should be available.
- */
 export function useProjectWorkspaces(projectId: string | undefined) {
   return useQuery({
     queryKey: ['projectWorkspaces', projectId],

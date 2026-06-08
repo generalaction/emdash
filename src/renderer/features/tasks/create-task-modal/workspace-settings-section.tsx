@@ -1,15 +1,31 @@
-import { ChevronDown, GitBranch } from 'lucide-react';
-import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
-import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
-import { Field, FieldLabel } from '@renderer/lib/ui/field';
-import { Label } from '@renderer/lib/ui/label';
-import { RadioGroup, RadioGroupItem } from '@renderer/lib/ui/radio-group';
-import { Switch } from '@renderer/lib/ui/switch';
-import { BranchNameField } from './branch-name-field';
-import { ExistingWorkspacePicker, useProjectWorkspaces } from './existing-workspace-picker';
-import { SetupStepPreview } from './setup-step-preview';
+import { ChevronRight } from 'lucide-react';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@renderer/lib/ui/collapsible';
+import { PanelTabs } from '@renderer/lib/ui/panel-tabs';
+import { cn } from '@renderer/utils/utils';
+import type { WorkspacePresetId } from '@shared/core/workspaces/workspace-presets';
+import { CheckoutPrPanel } from './checkout-pr-panel';
+import { useProjectWorkspaces } from './existing-workspace-picker';
+import { NewWorktreePanel } from './new-worktree-panel';
+import type { WorkspacePanelProps } from './new-worktree-panel';
+import { PrNewBranchPanel } from './pr-new-branch-panel';
+import { SandboxPanel } from './sandbox-panel';
 import type { CreateTaskState } from './use-create-task-state';
+import { UseExistingPanel } from './use-existing-panel';
 import { WorkspacePresetPicker } from './workspace-preset-picker';
+
+const PRESET_PANELS: Record<
+  Exclude<WorkspacePresetId, 'repo-root'>,
+  React.ComponentType<WorkspacePanelProps>
+> = {
+  'new-worktree': NewWorktreePanel,
+  'use-existing': UseExistingPanel,
+  'checkout-pr': CheckoutPrPanel,
+  'pr-new-branch': PrNewBranchPanel,
+  sandbox: SandboxPanel,
+};
+
+/** Presets with no configurable settings — the collapsible is disabled for these. */
+const PRESETS_WITHOUT_SETTINGS = new Set<WorkspacePresetId>(['repo-root', 'sandbox']);
 
 interface WorkspaceSettingsSectionProps {
   state: CreateTaskState;
@@ -29,8 +45,11 @@ export function WorkspaceSettingsSection({
   const hasPR = state.linkedType === 'pr' && state.linkedPR !== null;
   const { data: existingWorkspaces = [] } = useProjectWorkspaces(projectId);
 
-  const { presetId, branchSelection, branchNameState, setupSteps } = workspaceConfig;
+  const { presetId, branchSelection } = workspaceConfig;
   const { createBranchAndWorktree, setCreateBranchAndWorktree } = branchSelection;
+
+  const hasSettings = !PRESETS_WITHOUT_SETTINGS.has(presetId);
+  const Panel = PRESET_PANELS[presetId as Exclude<WorkspacePresetId, 'repo-root'>];
 
   return (
     <div className="flex flex-col gap-4">
@@ -41,121 +60,39 @@ export function WorkspaceSettingsSection({
         isWorkspaceProviderEnabled={isWorkspaceProviderEnabled}
         hasExistingWorkspaces={existingWorkspaces.length > 0}
       />
-
-      {/* ── Detail panel — varies per preset ─────────────────────────────── */}
-
-      {presetId === 'new-worktree' && (
-        <div className="flex flex-col gap-3">
-          {/* Sub-choice: checkout vs create */}
-          <RadioGroup
-            value={createBranchAndWorktree ? 'create' : 'checkout'}
-            onValueChange={(v) => setCreateBranchAndWorktree(v === 'create')}
-            className="grid-cols-2 gap-2"
+      <Collapsible key={presetId} disabled={!hasSettings} className="group flex flex-col gap-1.5">
+        <div className="flex h-9 items-center justify-between">
+          <CollapsibleTrigger
+            className={cn(
+              'flex w-full items-center gap-2 text-sm outline-none',
+              !hasSettings && 'cursor-not-allowed opacity-40'
+            )}
           >
-            <Label className="flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2 text-sm has-data-checked:border-primary has-data-checked:bg-primary/5">
-              <RadioGroupItem value="checkout" />
-              Checkout branch
-            </Label>
-            <Label className="flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2 text-sm has-data-checked:border-primary has-data-checked:bg-primary/5">
-              <RadioGroupItem value="create" />
-              Create new branch
-            </Label>
-          </RadioGroup>
-
-          {/* Branch selector — always visible */}
-          {projectId && (
-            <ProjectBranchSelector
-              projectId={projectId}
-              value={branchSelection.selectedBranch}
-              onValueChange={branchSelection.setSelectedBranch}
-              showRemoteSelectorFooter
-              trigger={
-                <ComboboxTrigger className="flex w-full items-center justify-between gap-2 rounded-md border border-border px-2.5 py-2 outline-none hover:bg-background-1 data-popup-open:bg-background-1">
-                  <div className="flex flex-col gap-0.5 text-left text-sm">
-                    <span className="text-xs text-foreground-passive">
-                      {createBranchAndWorktree ? 'From branch' : 'Branch'}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <GitBranch
-                        absoluteStrokeWidth
-                        strokeWidth={2}
-                        className="size-3.5 shrink-0 text-foreground-muted"
-                      />
-                      <ComboboxValue placeholder="Select a branch" />
-                    </span>
-                  </div>
-                  <ChevronDown className="size-4 shrink-0 text-foreground-muted" />
-                </ComboboxTrigger>
-              }
+            <span className="flex items-center gap-2">
+              <span className="text-foreground-muted">Settings</span>
+              <ChevronRight className="ml-auto size-3.5 shrink-0 text-foreground-passive transition-transform duration-150 group-data-open:rotate-90" />
+            </span>
+          </CollapsibleTrigger>
+          {presetId === 'new-worktree' && (
+            <PanelTabs
+              compact
+              className="ml-auto"
+              value={createBranchAndWorktree ? 'create' : 'checkout'}
+              onChange={(v: 'checkout' | 'create') => setCreateBranchAndWorktree(v === 'create')}
+              tabs={[
+                { value: 'checkout', label: 'Checkout branch' },
+                { value: 'create', label: 'Create new branch' },
+              ]}
             />
           )}
-
-          {/* Create-only fields */}
-          {createBranchAndWorktree && !isUnborn && (
-            <>
-              <BranchNameField state={branchNameState} />
-              <Field orientation="horizontal">
-                <Switch
-                  checked={branchSelection.pushBranch}
-                  onCheckedChange={branchSelection.setPushBranch}
-                />
-                <FieldLabel>Push branch to remote</FieldLabel>
-              </Field>
-            </>
-          )}
-
-          <SetupStepPreview steps={setupSteps} />
         </div>
-      )}
 
-      {presetId === 'repo-root' && (
-        <div className="flex flex-col gap-3">
-          <p className="text-xs text-foreground-muted">
-            The agent will run directly in the project's repository directory without a dedicated
-            worktree. Any changes will be made in the shared repository root.
-          </p>
-          <SetupStepPreview steps={setupSteps} />
-        </div>
-      )}
-
-      {presetId === 'use-existing' && (
-        <ExistingWorkspacePicker
-          projectId={projectId}
-          selectedWorkspaceId={workspaceConfig.selectedWorkspaceId}
-          onSelect={workspaceConfig.setSelectedWorkspaceId}
-        />
-      )}
-
-      {presetId === 'checkout-pr' && (
-        <div className="flex flex-col gap-3">
-          <p className="text-xs text-foreground-muted">
-            The PR branch will be fetched and checked out in a dedicated worktree. No new branch
-            will be created.
-          </p>
-          <SetupStepPreview steps={setupSteps} />
-        </div>
-      )}
-
-      {presetId === 'pr-new-branch' && (
-        <div className="flex flex-col gap-3">
-          <BranchNameField state={branchNameState} />
-          <Field orientation="horizontal">
-            <Switch
-              checked={branchSelection.pushBranch}
-              onCheckedChange={branchSelection.setPushBranch}
-            />
-            <FieldLabel>Push branch to remote</FieldLabel>
-          </Field>
-          <SetupStepPreview steps={setupSteps} />
-        </div>
-      )}
-
-      {presetId === 'sandbox' && (
-        <p className="text-xs text-foreground-muted">
-          A remote sandbox will be provisioned using your workspace provider script when this task
-          starts.
-        </p>
-      )}
+        {hasSettings && (
+          <CollapsibleContent className="flex flex-col gap-3">
+            <Panel workspaceConfig={workspaceConfig} projectId={projectId} isUnborn={isUnborn} />
+          </CollapsibleContent>
+        )}
+      </Collapsible>
     </div>
   );
 }

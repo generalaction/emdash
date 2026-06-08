@@ -8,8 +8,8 @@ import {
 import { ProjectSelector } from '@renderer/features/tasks/create-task-modal/project-selector';
 import { SetupStepPreview } from '@renderer/features/tasks/create-task-modal/setup-step-preview';
 import { WorkspacePresetPicker } from '@renderer/features/tasks/create-task-modal/workspace-preset-picker';
-import { CronPicker } from '@renderer/lib/CronPicker';
 import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
+import { CronPicker } from '@renderer/lib/CronPicker';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
 import { Field, FieldError, FieldGroup, FieldLabel } from '@renderer/lib/ui/field';
@@ -83,17 +83,19 @@ export function AutomationSettingsFields({
             {workspaceConfig.presetId === 'new-worktree' && (
               <>
                 <RadioGroup
-                  value={workspaceConfig.branchSelection.createBranchAndWorktree ? 'create' : 'checkout'}
+                  value={
+                    workspaceConfig.branchSelection.createBranchAndWorktree ? 'create' : 'checkout'
+                  }
                   onValueChange={(v) =>
                     workspaceConfig.branchSelection.setCreateBranchAndWorktree(v === 'create')
                   }
                   className="grid-cols-2 gap-2"
                 >
-                  <Label className="flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2 text-sm has-data-checked:border-primary has-data-checked:bg-primary/5">
+                  <Label className="has-data-checked:border-primary has-data-checked:bg-primary/5 flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
                     <RadioGroupItem value="checkout" />
                     Checkout branch
                   </Label>
-                  <Label className="flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2 text-sm has-data-checked:border-primary has-data-checked:bg-primary/5">
+                  <Label className="has-data-checked:border-primary has-data-checked:bg-primary/5 flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2 text-sm">
                     <RadioGroupItem value="create" />
                     Create new branch
                   </Label>

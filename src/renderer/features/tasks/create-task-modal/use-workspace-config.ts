@@ -128,12 +128,16 @@ export function useWorkspaceConfig(opts: {
     setSelectedWorkspaceId(null);
   }
 
-  // When a PR becomes available or is removed, update the preset if still on default.
+  // When a PR becomes available or is removed, always update the preset.
   const [prevHasPR, setPrevHasPR] = useState(hasPR);
   if (hasPR !== prevHasPR) {
     setPrevHasPR(hasPR);
-    if (mode === 'new-worktree') {
-      setPresetIdRaw(defaultPresetForMode('new-worktree', hasPR));
+    if (hasPR) {
+      setModeRaw('new-worktree');
+      setPresetIdRaw('checkout-pr');
+    } else if (presetId === 'checkout-pr' || presetId === 'pr-new-branch') {
+      setModeRaw('new-worktree');
+      setPresetIdRaw('new-worktree');
     }
   }
 

@@ -52,7 +52,6 @@ export function SectionTabsPanel({
           <WorkspaceSettingsSection
             state={state}
             projectId={projectId}
-            currentBranch={currentBranch}
             isUnborn={isUnborn}
             isWorkspaceProviderEnabled={isWorkspaceProviderEnabled}
           />
