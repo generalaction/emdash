@@ -77,6 +77,7 @@ export class FrontendPty {
       width: '100%',
       height: '100%',
     });
+    ensureXtermHost().appendChild(this.ownedContainer);
 
     this.terminal = new Terminal({
       cols: 120,
@@ -136,7 +137,6 @@ export class FrontendPty {
       el.style.backgroundColor = 'transparent';
     }
 
-    ensureXtermHost().appendChild(this.ownedContainer);
     FrontendPty.all.add(this);
   }
 
