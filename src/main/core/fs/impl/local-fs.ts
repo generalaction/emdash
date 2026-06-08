@@ -105,6 +105,7 @@ const WATCH_IGNORED_NAMES = [
   '.conductor',
   '.cursor',
   '.claude',
+  '.devin',
   '.amp',
   '.codex',
   '.aider',
