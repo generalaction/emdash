@@ -34,6 +34,13 @@ function supportsPlatform(app: OpenInAppConfig, platform: PlatformKey): boolean 
   return app.alwaysAvailable === true || Boolean(app.platforms[platform]);
 }
 
+export function isOpenInAppAvailable(
+  app: OpenInAppConfig,
+  availability: Record<string, boolean>
+): boolean {
+  return app.alwaysAvailable === true || availability[app.id] === true;
+}
+
 export function useOpenInApps(): UseOpenInAppsResult {
   const { value: openIn, isLoading: settingsLoading } = useAppSettingsKey('openIn');
 
@@ -82,7 +89,7 @@ export function useOpenInApps(): UseOpenInAppsResult {
     );
     if (loading) return platformApps;
     return platformApps.filter(
-      (app) => availability[app.id] !== false && !hiddenApps.includes(app.id)
+      (app) => isOpenInAppAvailable(app, availability) && !hiddenApps.includes(app.id)
     );
   }, [availability, loading, openIn?.hidden, platform]);
 

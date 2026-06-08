@@ -99,10 +99,9 @@ describe('useOpenInApps', () => {
     expect(latest?.labels.finder).toBeUndefined();
   });
 
-  it('uses resolved Windows labels and filters out macOS-only apps', async () => {
+  it('uses resolved Windows labels and filters out unavailable or unknown apps', async () => {
     mocks.getPlatform.mockResolvedValue('win32');
     mocks.checkInstalledApps.mockResolvedValue({
-      cursor: true,
       finder: true,
       terminal: true,
       xcode: false,
@@ -125,8 +124,9 @@ describe('useOpenInApps', () => {
     expect(latest?.platform).toBe('win32');
     expect(latest?.labels.finder).toBe('Explorer');
     expect(latest?.installedApps.map((app) => app.id)).toEqual(
-      expect.arrayContaining(['finder', 'terminal', 'cursor'])
+      expect.arrayContaining(['finder', 'terminal'])
     );
+    expect(latest?.installedApps.map((app) => app.id)).not.toContain('cursor');
     expect(latest?.installedApps.map((app) => app.id)).not.toContain('xcode');
   });
 });

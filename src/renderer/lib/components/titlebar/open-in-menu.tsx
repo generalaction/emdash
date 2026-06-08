@@ -7,7 +7,7 @@ import {
   getEffectiveHotkey,
   getHotkeyRegistration,
 } from '@renderer/lib/hooks/useKeyboardShortcuts';
-import { useOpenInApps } from '@renderer/lib/hooks/useOpenInApps';
+import { isOpenInAppAvailable, useOpenInApps } from '@renderer/lib/hooks/useOpenInApps';
 import { rpc } from '@renderer/lib/ipc';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@renderer/lib/ui/select';
 import { BoundShortcut } from '@renderer/lib/ui/shortcut';
@@ -97,8 +97,11 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
   }, [defaultApp, installedApps, isRemote, platform]);
 
   const menuApps = useMemo(
-    () => sortedApps.filter((app) => !app.hideIfUnavailable || availability[app.id] !== false),
-    [availability, sortedApps]
+    () =>
+      sortedApps.filter(
+        (app) => !app.hideIfUnavailable || loading || isOpenInAppAvailable(app, availability)
+      ),
+    [availability, loading, sortedApps]
   );
 
   const buttonAppId = useMemo(() => {
@@ -191,9 +194,7 @@ export const OpenInMenu: React.FC<OpenInMenuProps> = ({
           sideOffset={6}
         >
           {menuApps.map((app) => {
-            const isAvailable = loading
-              ? availability[app.id] === true
-              : availability[app.id] !== false;
+            const isAvailable = isOpenInAppAvailable(app, availability);
             return (
               <SelectItem key={app.id} value={app.id} disabled={!isAvailable}>
                 {icons[app.id] && (
