@@ -175,7 +175,10 @@ export const pullRequestController = createRPCController({
         return ok({ prs: [], branchName: null });
       }
 
-      const prs = await prQueryService.getTaskPullRequests(projectId, wsRow.branchName);
+      const prs = await prQueryService.getTaskPullRequests(
+        wsRow.branchName,
+        capability.data.repositoryUrl
+      );
       return ok({ prs, branchName: wsRow.branchName });
     } catch (error) {
       log.error('Failed to get pull requests for task:', error);

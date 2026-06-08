@@ -1,15 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { providerRepositoryService } from '@main/core/repository/provider-repository-service';
 import { err, ok } from '@shared/lib/result';
 import { pullRequestController } from './controller';
+import { prQueryService } from './pr-query-service';
 import { prSyncEngine } from './pr-sync-engine';
 import {
   resolveProjectPullRequestAuthContext,
   resolveProjectPullRequestContext,
 } from './project-pull-request-context';
 
+const dbMocks = vi.hoisted(() => ({
+  select: vi.fn(),
+}));
+
 vi.mock('@main/core/repository/provider-repository-service', () => ({
   providerRepositoryService: {
     resolveProject: vi.fn(),
+  },
+}));
+
+vi.mock('@main/db/client', () => ({
+  db: {
+    select: dbMocks.select,
   },
 }));
 
@@ -56,6 +68,8 @@ vi.mock('./project-pull-request-context', () => ({
 }));
 
 const mockPrSyncEngine = vi.mocked(prSyncEngine);
+const mockPrQueryService = vi.mocked(prQueryService);
+const mockProviderRepositoryService = vi.mocked(providerRepositoryService);
 const mockResolveProjectPullRequestContext = vi.mocked(resolveProjectPullRequestContext);
 const mockResolveProjectPullRequestAuthContext = vi.mocked(resolveProjectPullRequestAuthContext);
 
@@ -84,9 +98,37 @@ function mockProjectGithubContext(
   );
 }
 
+function queueDbSelectResult<T>(rows: T[]): void {
+  const query = {
+    from: vi.fn(),
+    where: vi.fn(),
+    limit: vi.fn(),
+  };
+  query.from.mockReturnValue(query);
+  query.where.mockReturnValue(query);
+  query.limit.mockResolvedValue(rows);
+  dbMocks.select.mockReturnValueOnce(query);
+}
+
+function mockProviderRepositoryUrl(repositoryUrl = 'https://github.com/acme/repo'): void {
+  mockProviderRepositoryService.resolveProject.mockResolvedValue(
+    ok({
+      provider: 'github',
+      host: 'github.com',
+      repositoryUrl,
+      nameWithOwner: 'acme/repo',
+      capabilities: {
+        pullRequests: true,
+        issues: true,
+      },
+    })
+  );
+}
+
 describe('pullRequestController', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    dbMocks.select.mockReset();
   });
 
   it('rejects cross-host pull request creation before calling GitHub', async () => {
@@ -249,6 +291,34 @@ describe('pullRequestController', () => {
       'https://github.com/acme/repo',
       selectedAuthContext
     );
+  });
+
+  it('looks up task pull requests from the cached current workspace branch', async () => {
+    mockProviderRepositoryUrl('https://github.com/acme/repo');
+    queueDbSelectResult([{ workspaceId: 'workspace-1' }]);
+    queueDbSelectResult([{ branchName: 'feature/current' }]);
+    mockPrQueryService.getTaskPullRequests.mockResolvedValue([]);
+
+    await expect(
+      pullRequestController.getPullRequestsForTask('project-1', 'task-1')
+    ).resolves.toEqual(ok({ prs: [], branchName: 'feature/current' }));
+
+    expect(mockPrQueryService.getTaskPullRequests).toHaveBeenCalledWith(
+      'feature/current',
+      'https://github.com/acme/repo'
+    );
+  });
+
+  it('does not fall back to provisioned workspace config for task pull request lookup', async () => {
+    mockProviderRepositoryUrl('https://github.com/acme/repo');
+    queueDbSelectResult([{ workspaceId: 'workspace-1' }]);
+    queueDbSelectResult([{ branchName: null }]);
+
+    await expect(
+      pullRequestController.getPullRequestsForTask('project-1', 'task-1')
+    ).resolves.toEqual(ok({ prs: [], branchName: null }));
+
+    expect(mockPrQueryService.getTaskPullRequests).not.toHaveBeenCalled();
   });
 
   it('passes the project GitHub account context to pull request creation and follow-up sync', async () => {

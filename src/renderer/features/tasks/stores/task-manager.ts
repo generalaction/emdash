@@ -9,6 +9,7 @@ import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import type { FetchError } from '@shared/core/git/git';
+import { gitWorkspaceChangedChannel } from '@shared/core/git/gitEvents';
 import { prSyncProgressChannel, prUpdatedChannel } from '@shared/core/pull-requests/prEvents';
 import {
   lifecycleScriptStatusChannel,
@@ -123,6 +124,7 @@ export class TaskManagerStore {
   private _unsubTaskCreated: (() => void) | null = null;
   private _unsubPrUpdated: (() => void) | null = null;
   private _unsubPrSyncProgress: (() => void) | null = null;
+  private _unsubGitWorkspaceChanged: (() => void) | null = null;
   private _unsubProvisionProgress: (() => void) | null = null;
   private _unsubStatusUpdated: (() => void) | null = null;
   private _unsubLifecycleScriptStatus: (() => void) | null = null;
@@ -236,6 +238,15 @@ export class TaskManagerStore {
       if (!repoUrl || progress.remoteUrl !== repoUrl) return;
       for (const [, store] of this.tasks) {
         if (isRegistered(store)) {
+          void this._reloadPrsForTask(store);
+        }
+      }
+    });
+
+    this._unsubGitWorkspaceChanged = events.on(gitWorkspaceChangedChannel, (payload) => {
+      if (payload.projectId !== this.projectId || payload.kind !== 'head') return;
+      for (const [, store] of this.tasks) {
+        if (isRegistered(store) && store.workspaceId === payload.workspaceId) {
           void this._reloadPrsForTask(store);
         }
       }
@@ -627,6 +638,8 @@ export class TaskManagerStore {
     this._unsubPrUpdated = null;
     this._unsubPrSyncProgress?.();
     this._unsubPrSyncProgress = null;
+    this._unsubGitWorkspaceChanged?.();
+    this._unsubGitWorkspaceChanged = null;
     this._unsubProvisionProgress?.();
     this._unsubProvisionProgress = null;
     this._unsubStatusUpdated?.();
