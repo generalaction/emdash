@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GitStatusFingerprint, GitStatusUntrackedMode } from '@shared/core/git/git';
 import type { WorkspaceGitProvider } from './workspace-git-provider';
 
@@ -8,7 +8,13 @@ vi.mock('@main/lib/events', () => ({
   },
 }));
 
+vi.mock('@main/core/workspaces/workspace-current-branch-cache', () => ({
+  refreshWorkspaceCurrentBranchCache: vi.fn(),
+}));
+
 const { events } = await import('@main/lib/events');
+const { refreshWorkspaceCurrentBranchCache } =
+  await import('@main/core/workspaces/workspace-current-branch-cache');
 const { RemoteStatusFingerprintPoller } = await import('./remote-status-fingerprint-poller');
 
 function deferred<T>(): {
@@ -31,12 +37,25 @@ function makeGitProvider(
 ): WorkspaceGitProvider {
   return {
     getStatusFingerprint,
-  } as WorkspaceGitProvider;
+    getCurrentBranch: vi.fn().mockResolvedValue('main'),
+  } as unknown as WorkspaceGitProvider;
 }
 
 describe('RemoteStatusFingerprintPoller', () => {
+  let cachedBranchName: string | null | undefined;
+
   afterEach(() => {
     vi.clearAllMocks();
+  });
+
+  beforeEach(() => {
+    cachedBranchName = undefined;
+    vi.mocked(refreshWorkspaceCurrentBranchCache).mockImplementation(async (_workspaceId, git) => {
+      const branchName = await git.getCurrentBranch();
+      const changed = cachedBranchName !== branchName;
+      cachedBranchName = branchName;
+      return { branchName, changed };
+    });
   });
 
   it('can restart while a stale poll is still in flight', async () => {
@@ -99,6 +118,33 @@ describe('RemoteStatusFingerprintPoller', () => {
     untracked.resolve(fingerprint('untracked'));
     await vi.waitFor(() => expect(events.emit).toHaveBeenCalledTimes(1));
 
+    poller.stop();
+  });
+
+  it('emits a head event when the branch cache changes without status changes', async () => {
+    let branchName = 'main';
+    const git = makeGitProvider(() => Promise.resolve(fingerprint('unchanged')));
+    vi.mocked(git.getCurrentBranch).mockImplementation(() => Promise.resolve(branchName));
+
+    const poller = new RemoteStatusFingerprintPoller('project-id', 'workspace-id', git);
+
+    poller.start();
+    await vi.waitFor(() => expect(events.emit).toHaveBeenCalledTimes(1));
+    vi.clearAllMocks();
+
+    branchName = 'feature/current';
+    const testPoller = poller as unknown as {
+      generation: number;
+      pollOne(generation: number, untracked: GitStatusUntrackedMode): Promise<void>;
+    };
+    await testPoller.pollOne(testPoller.generation, 'no');
+
+    expect(events.emit).toHaveBeenCalledWith(expect.anything(), {
+      projectId: 'project-id',
+      workspaceId: 'workspace-id',
+      kind: 'head',
+    });
+    expect(events.emit).toHaveBeenCalledTimes(1);
     poller.stop();
   });
 });

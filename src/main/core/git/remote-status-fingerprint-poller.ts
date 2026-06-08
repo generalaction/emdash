@@ -1,4 +1,5 @@
 import type { WorkspaceGitProvider } from '@main/core/git/workspace-git-provider';
+import { refreshWorkspaceCurrentBranchCache } from '@main/core/workspaces/workspace-current-branch-cache';
 import { events } from '@main/lib/events';
 import type { GitStatusUntrackedMode } from '@shared/core/git/git';
 import { gitWorkspaceChangedChannel } from '@shared/core/git/gitEvents';
@@ -12,6 +13,7 @@ export class RemoteStatusFingerprintPoller {
   private timers: ReturnType<typeof setInterval>[] = [];
   private inFlight = false;
   private fingerprints: Partial<Record<GitStatusUntrackedMode, string>> = {};
+  private branchName: string | null | undefined;
 
   constructor(
     private readonly projectId: string,
@@ -52,11 +54,14 @@ export class RemoteStatusFingerprintPoller {
     this.inFlight = true;
 
     try {
-      const [trackedChanged, untrackedChanged] = await Promise.all([
+      const [trackedChanged, untrackedChanged, branchChanged] = await Promise.all([
         this.updateFingerprint(generation, 'no', options),
         this.updateFingerprint(generation, 'normal', options),
+        this.updateBranch(generation),
       ]);
-      if (this.isCurrent(generation) && (trackedChanged || untrackedChanged)) this.emitChanged();
+      if (!this.isCurrent(generation)) return;
+      if (trackedChanged || untrackedChanged) this.emitIndexChanged();
+      if (branchChanged) this.emitHeadChanged();
     } finally {
       if (this.generation === generation) this.inFlight = false;
     }
@@ -67,8 +72,13 @@ export class RemoteStatusFingerprintPoller {
     this.inFlight = true;
 
     try {
-      if (this.isCurrent(generation) && (await this.updateFingerprint(generation, untracked)))
-        this.emitChanged();
+      const [fingerprintChanged, branchChanged] = await Promise.all([
+        this.updateFingerprint(generation, untracked),
+        untracked === 'no' ? this.updateBranch(generation) : Promise.resolve(false),
+      ]);
+      if (!this.isCurrent(generation)) return;
+      if (fingerprintChanged) this.emitIndexChanged();
+      if (branchChanged) this.emitHeadChanged();
     } finally {
       if (this.generation === generation) this.inFlight = false;
     }
@@ -89,15 +99,32 @@ export class RemoteStatusFingerprintPoller {
       : previous !== fingerprint.hash;
   }
 
+  private async updateBranch(generation: number): Promise<boolean> {
+    const result = await refreshWorkspaceCurrentBranchCache(this.workspaceId, this.git);
+    if (!result || !this.isCurrent(generation)) return false;
+
+    const previous = this.branchName;
+    this.branchName = result.branchName;
+    return previous === undefined ? false : result.changed;
+  }
+
   private isCurrent(generation: number): boolean {
     return this.active && this.generation === generation;
   }
 
-  private emitChanged(): void {
+  private emitIndexChanged(): void {
     events.emit(gitWorkspaceChangedChannel, {
       projectId: this.projectId,
       workspaceId: this.workspaceId,
       kind: 'index',
+    });
+  }
+
+  private emitHeadChanged(): void {
+    events.emit(gitWorkspaceChangedChannel, {
+      projectId: this.projectId,
+      workspaceId: this.workspaceId,
+      kind: 'head',
     });
   }
 }
