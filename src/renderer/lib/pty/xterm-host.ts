@@ -1,7 +1,7 @@
 let hostElement: HTMLDivElement | null = null;
 
 export function ensureXtermHost(): HTMLDivElement {
-  if (hostElement) return hostElement;
+  if (hostElement && hostElement.isConnected) return hostElement;
   const el = document.createElement('div');
   el.setAttribute('data-terminal-host', 'true');
   Object.assign(el.style, {
