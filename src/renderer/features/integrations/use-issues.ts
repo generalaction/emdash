@@ -70,7 +70,7 @@ export function useIssues(
       initialLimit,
     ],
     queryFn: async () => {
-      if (!provider) return [] as LinkedIssue[];
+      if (!provider) return { success: true as const, issues: [] as LinkedIssue[] };
 
       const result = await rpc.issues.listIssues(provider, {
         limit: initialLimit,
@@ -79,11 +79,7 @@ export function useIssues(
         repositoryUrl,
       });
 
-      if (!result?.success) {
-        throw new Error(result?.error ?? 'Failed to load issues.');
-      }
-
-      return result.issues ?? [];
+      return result;
     },
     staleTime: 60_000,
     enabled: isReady,
@@ -92,7 +88,11 @@ export function useIssues(
   const minSearchLength = getSearchMinLength(provider);
   const isActiveSearch = debouncedTerm.trim().length >= minSearchLength;
 
-  const { data: searchIssues, isFetching: isSearching } = useQuery({
+  const {
+    data: searchIssues,
+    isFetching: isSearching,
+    error: searchError,
+  } = useQuery({
     queryKey: [
       'issues:search',
       provider,
@@ -103,7 +103,7 @@ export function useIssues(
       searchLimit,
     ],
     queryFn: async () => {
-      if (!provider) return [] as LinkedIssue[];
+      if (!provider) return { success: true as const, issues: [] as LinkedIssue[] };
 
       const result = await rpc.issues.searchIssues(provider, {
         limit: searchLimit,
@@ -113,11 +113,7 @@ export function useIssues(
         repositoryUrl,
       });
 
-      if (result?.success) {
-        return result.issues ?? [];
-      }
-
-      return [] as LinkedIssue[];
+      return result;
     },
     staleTime: 30_000,
     enabled: isReady && isActiveSearch,
@@ -125,11 +121,18 @@ export function useIssues(
   });
 
   const issues = useMemo<LinkedIssue[]>(() => {
-    if (isActiveSearch) return searchIssues ?? [];
-    return initialIssues ?? [];
+    if (isActiveSearch) return searchIssues?.success ? (searchIssues.issues ?? []) : [];
+    return initialIssues?.success ? (initialIssues.issues ?? []) : [];
   }, [initialIssues, isActiveSearch, searchIssues]);
 
-  const error = initialError instanceof Error ? initialError.message : null;
+  const activeResult = isActiveSearch ? searchIssues : initialIssues;
+  const activeQueryError = isActiveSearch ? searchError : initialError;
+  const error =
+    activeResult && !activeResult.success
+      ? activeResult.error
+      : activeQueryError instanceof Error
+        ? activeQueryError.message
+        : null;
 
   return {
     issues,

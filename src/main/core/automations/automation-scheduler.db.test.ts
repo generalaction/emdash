@@ -16,6 +16,7 @@ vi.mock('@main/db/client', () => ({
     return mocks.db;
   },
 }));
+vi.mock('./runtime', () => ({ runQueuedAutomation: vi.fn() }));
 
 // ---------------------------------------------------------------------------
 // Seeding helpers

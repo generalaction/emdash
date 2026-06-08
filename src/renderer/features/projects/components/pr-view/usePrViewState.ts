@@ -31,12 +31,20 @@ export function usePrViewState(projectId: string, repositoryUrl: string | null) 
     ...(selectedAssigneeUserId ? { assigneeUserIds: [selectedAssigneeUserId] } : {}),
   };
 
-  const { prs, refresh, loading, dataUpdatedAt, fetchNextPage, hasNextPage, isFetchingNextPage } =
-    usePullRequests(projectId, repositoryUrl ?? undefined, {
-      filters,
-      sort: sortFilter,
-      searchQuery: debouncedQuery || undefined,
-    });
+  const {
+    prs,
+    refresh,
+    loading,
+    dataUpdatedAt,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    error,
+  } = usePullRequests(projectId, repositoryUrl ?? undefined, {
+    filters,
+    sort: sortFilter,
+    searchQuery: debouncedQuery || undefined,
+  });
 
   useEffect(() => {
     if (dataUpdatedAt > 0 && repositoryUrl) {
@@ -109,6 +117,8 @@ export function usePrViewState(projectId: string, repositoryUrl: string | null) 
   const backgroundSyncing = repositoryUrl
     ? (prSyncStore?.isSyncing(repositoryUrl) ?? false)
     : false;
+  const syncState = repositoryUrl ? prSyncStore?.getState(repositoryUrl) : undefined;
+  const syncError = syncState?.status === 'error' ? (syncState.error ?? 'Sync failed') : null;
   const isSyncing = syncing || backgroundSyncing;
 
   const removeLabel = (name: string) =>
@@ -136,6 +146,7 @@ export function usePrViewState(projectId: string, repositoryUrl: string | null) 
     // data
     prs,
     loading,
+    error: error ?? syncError,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,

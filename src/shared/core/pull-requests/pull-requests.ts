@@ -135,13 +135,35 @@ export type PrFilterOptions = {
   assignees: PullRequestUser[];
 };
 
-export type PullRequestError =
-  | { type: 'invalid_repository'; input: string }
-  | { type: 'remote_not_ready'; status: string }
+export type RemoteNotReadyPullRequestError = { type: 'remote_not_ready'; status: string };
+
+export type PullRequestAuthError =
   | { type: 'github_auth_required'; host: string; hint: string }
   | { type: 'ghes_auth_required'; host: string; hint: string }
+  | { type: 'github_no_account_selected'; message: string }
+  | { type: 'github_account_disabled'; message: string }
+  | { type: 'github_account_not_found'; message: string; accountId?: string; host?: string }
+  | {
+      type: 'github_account_host_mismatch';
+      message: string;
+      accountId: string;
+      accountHost: string;
+      host: string;
+    }
+  | { type: 'github_token_missing'; message: string; accountId: string; host: string }
+  | { type: 'github_not_found_or_no_access'; host: string; message: string }
+  | { type: 'github_sso_required'; host: string; message: string; ssoUrl?: string }
+  | { type: 'github_rate_limited'; host: string; message: string; resetAt?: string }
+  | { type: 'github_forbidden'; host: string; message: string }
+  | { type: 'github_account_resolution_failed'; message: string };
+
+export type PullRequestRepositoryError =
+  | { type: 'invalid_repository'; input: string }
+  | RemoteNotReadyPullRequestError
   | { type: 'cross_host_pr'; baseHost: string; headHost: string }
-  | { type: 'host_unreachable'; host: string; reason: string }
+  | { type: 'host_unreachable'; host: string; reason: string };
+
+export type PullRequestOperationError =
   | { type: 'list_failed'; message: string }
   | { type: 'filter_options_failed'; message: string }
   | { type: 'task_pull_requests_failed'; message: string }
@@ -153,6 +175,11 @@ export type PullRequestError =
   | { type: 'merge_failed'; message: string }
   | { type: 'mark_ready_failed'; message: string }
   | { type: 'files_failed'; message: string };
+
+export type PullRequestError =
+  | PullRequestRepositoryError
+  | PullRequestAuthError
+  | PullRequestOperationError;
 
 // ── Pass-through types ────────────────────────────────────────────────────────
 
@@ -174,6 +201,17 @@ export function pullRequestErrorMessage(error: PullRequestError): string {
       return `GitHub authentication required. ${error.hint}`;
     case 'ghes_auth_required':
       return `GitHub Enterprise authentication required for ${error.host}. ${error.hint}`;
+    case 'github_no_account_selected':
+    case 'github_account_disabled':
+    case 'github_account_not_found':
+    case 'github_account_host_mismatch':
+    case 'github_token_missing':
+    case 'github_not_found_or_no_access':
+    case 'github_sso_required':
+    case 'github_rate_limited':
+    case 'github_forbidden':
+    case 'github_account_resolution_failed':
+      return error.message;
     case 'cross_host_pr':
       return `Cannot create a pull request across different GitHub hosts (${error.headHost} -> ${error.baseHost}). Push and base remotes must use the same GitHub or GitHub Enterprise host.`;
     case 'host_unreachable':

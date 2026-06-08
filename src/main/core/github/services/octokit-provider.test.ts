@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { err, ok } from '@shared/lib/result';
-import { githubApiAuthService } from './github-api-auth-service';
+import { githubApiAuthService } from './github-api-auth-service-instance';
 import { clearOctokitCache, getOctokit } from './octokit-provider';
 
 const mockOctokit = vi.hoisted(() => vi.fn());
@@ -9,7 +9,7 @@ vi.mock('@octokit/rest', () => ({
   Octokit: mockOctokit,
 }));
 
-vi.mock('./github-api-auth-service', () => ({
+vi.mock('./github-api-auth-service-instance', () => ({
   githubApiAuthService: {
     getToken: vi.fn(),
   },
@@ -37,6 +37,50 @@ describe('getOctokit', () => {
         log: expect.objectContaining({ error: expect.any(Function) }),
       })
     );
+  });
+
+  it('passes the selected account context to token resolution', async () => {
+    mockGetToken.mockResolvedValue(ok('selected-account-token'));
+
+    await expect(getOctokit('github.com', { accountId: 'github.com:42' })).resolves.toMatchObject({
+      success: true,
+    });
+
+    expect(mockGetToken).toHaveBeenCalledWith('github.com', { accountId: 'github.com:42' });
+    expect(mockOctokit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        auth: 'selected-account-token',
+      })
+    );
+  });
+
+  it('caches separate GitHub.com clients for separate selected accounts', async () => {
+    mockGetToken
+      .mockResolvedValueOnce(ok('token-a'))
+      .mockResolvedValueOnce(ok('token-b'))
+      .mockResolvedValueOnce(ok('token-a'));
+
+    await getOctokit('github.com', { accountId: 'github.com:42' });
+    await getOctokit('github.com', { accountId: 'github.com:84' });
+    await getOctokit('github.com', { accountId: 'github.com:42' });
+
+    expect(mockOctokit).toHaveBeenCalledTimes(2);
+  });
+
+  it('clears cached clients for one selected account without evicting other accounts', async () => {
+    mockGetToken
+      .mockResolvedValueOnce(ok('token-a'))
+      .mockResolvedValueOnce(ok('token-b'))
+      .mockResolvedValueOnce(ok('token-a'))
+      .mockResolvedValueOnce(ok('token-b'));
+
+    await getOctokit('github.com', { accountId: 'github.com:42' });
+    await getOctokit('github.com', { accountId: 'github.com:84' });
+    clearOctokitCache('github.com', 'github.com:42');
+    await getOctokit('github.com', { accountId: 'github.com:42' });
+    await getOctokit('github.com', { accountId: 'github.com:84' });
+
+    expect(mockOctokit).toHaveBeenCalledTimes(3);
   });
 
   it('uses the enterprise API base URL for GHES hosts', async () => {

@@ -10,6 +10,7 @@ interface PrVirtualListProps {
   prs: PullRequest[];
   projectId: string;
   loading: boolean;
+  error: string | null;
   hasNextPage: boolean;
   isFetchingNextPage: boolean;
   fetchNextPage: (options?: FetchNextPageOptions) => Promise<InfiniteQueryObserverResult>;
@@ -19,6 +20,7 @@ export function PrVirtualList({
   prs,
   projectId,
   loading,
+  error,
   hasNextPage,
   isFetchingNextPage,
   fetchNextPage,
@@ -46,6 +48,10 @@ export function PrVirtualList({
 
   if (loading && prs.length === 0) {
     return <p className="text-muted-foreground py-4 text-center text-sm">Loading…</p>;
+  }
+
+  if (error && prs.length === 0) {
+    return <EmptyState label="Could not load pull requests" description={error} />;
   }
 
   if (prs.length === 0) {
