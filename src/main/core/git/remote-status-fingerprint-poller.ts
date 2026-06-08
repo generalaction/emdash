@@ -13,7 +13,7 @@ export class RemoteStatusFingerprintPoller {
   private timers: ReturnType<typeof setInterval>[] = [];
   private inFlight = false;
   private fingerprints: Partial<Record<GitStatusUntrackedMode, string>> = {};
-  private branchName: string | null | undefined;
+  private branchBaselineLoaded = false;
 
   constructor(
     private readonly projectId: string,
@@ -103,9 +103,12 @@ export class RemoteStatusFingerprintPoller {
     const result = await refreshWorkspaceCurrentBranchCache(this.workspaceId, this.git);
     if (!result || !this.isCurrent(generation)) return false;
 
-    const previous = this.branchName;
-    this.branchName = result.branchName;
-    return previous === undefined ? false : result.changed;
+    if (!this.branchBaselineLoaded) {
+      this.branchBaselineLoaded = true;
+      return false;
+    }
+
+    return result.changed;
   }
 
   private isCurrent(generation: number): boolean {
