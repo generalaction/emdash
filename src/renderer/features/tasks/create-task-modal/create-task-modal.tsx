@@ -7,6 +7,10 @@ import {
   mountedProjectData,
 } from '@renderer/features/projects/stores/project-selectors';
 import { useTaskSettings } from '@renderer/features/tasks/hooks/useTaskSettings';
+import { ConversationField } from '@renderer/features/tasks/task-config/conversation-field';
+import { TaskConfigPanel } from '@renderer/features/tasks/task-config/task-config-panel';
+import { TaskStateProvider } from '@renderer/features/tasks/task-config/task-state-context';
+import { WorkspaceSettingsSection } from '@renderer/features/tasks/task-config/workspace-settings-section';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
@@ -21,11 +25,9 @@ import {
 import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
 import { useInitialConversationState } from '../conversations/initial-conversation-section';
 import { LinkedEntitySection } from './linked-entity-section';
-import { SectionTabsPanel } from './section-tabs-panel';
 import { TaskNameField } from './task-name-field';
 import { useCreateTaskCallback } from './use-create-task-callback';
 import { type LinkedType, useCreateTaskState } from './use-create-task-state';
-import { useWorkspaceProviderState } from './use-workspace-provider-state';
 
 function useDefaultProjectId(propProjectId?: string): string | undefined {
   return useMemo(() => {
@@ -92,6 +94,7 @@ export const CreateTaskModal = observer(function CreateTaskModal({
     defaultBranch,
     isUnborn,
     currentBranch,
+    projectData?.repositoryWorkspaceId ?? null,
     resolvedInitialPR,
     defaultLinkedType
   );
@@ -101,18 +104,10 @@ export const CreateTaskModal = observer(function CreateTaskModal({
   const isWorkspaceProviderEnabled = useFeatureFlag('workspace-provider');
   const { navigate } = useNavigate();
 
-  const { useBYOI, setUseBYOI } = useWorkspaceProviderState(
-    selectedProjectId,
-    isWorkspaceProviderEnabled
-  );
-
   const { handleCreateTask, canCreate } = useCreateTaskCallback({
     selectedProjectId,
     state,
     initialConversation,
-    isUnborn,
-    projectData,
-    useBYOI,
     navigate,
     onClose,
   });
@@ -133,17 +128,33 @@ export const CreateTaskModal = observer(function CreateTaskModal({
             repositoryUrl={repositoryUrl}
             projectPath={projectPath}
           />
-          <SectionTabsPanel
-            state={state}
+          <TaskStateProvider
+            workspaceConfig={state.workspaceConfig}
             initialConversation={initialConversation}
             projectId={selectedProjectId}
-            currentBranch={currentBranch}
             isUnborn={isUnborn}
-            useBYOI={useBYOI}
-            setUseBYOI={setUseBYOI}
+            hasPR={state.linkedType === 'pr' && state.linkedPR !== null}
             isWorkspaceProviderEnabled={isWorkspaceProviderEnabled}
+            linkedIssue={
+              state.linkedType === 'issue' ? (state.linkedIssue ?? undefined) : undefined
+            }
             includeIssueContextByDefault={includeIssueContextByDefault}
-          />
+          >
+            <TaskConfigPanel
+              tabs={[
+                {
+                  value: 'conversation',
+                  label: 'Initial Conversation',
+                  content: <ConversationField />,
+                },
+                {
+                  value: 'workspace',
+                  label: 'Workspace Settings',
+                  content: <WorkspaceSettingsSection defaultOpen={false} />,
+                },
+              ]}
+            />
+          </TaskStateProvider>
         </div>
       </DialogContentArea>
       <DialogFooter>

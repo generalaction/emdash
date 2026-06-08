@@ -21,16 +21,17 @@ export function useAutomationSettingsAutoSave(automation: Automation) {
     canSave,
     buildTaskConfig,
     name,
+    workspaceConfig,
   } = formState;
 
   function buildConversationConfig(): ConversationConfig {
     return { prompt: prompt.trim(), provider, autoApprove: false };
   }
 
-  function savePatch(overrideTrigger?: TriggerConfig, useBYOIOverride?: boolean) {
+  function savePatch(overrideTrigger?: TriggerConfig) {
     if (!effectiveProjectId) return;
     const activeTrigger = overrideTrigger ?? triggerConfig;
-    const taskConfig = buildTaskConfig(effectiveProjectId, useBYOIOverride);
+    const taskConfig = buildTaskConfig(effectiveProjectId);
     if (!taskConfig) return;
     try {
       assertValidCronTrigger(activeTrigger);
@@ -54,11 +55,6 @@ export function useAutomationSettingsAutoSave(automation: Automation) {
     savePatch({ expr, tz: cronTz });
   }
 
-  function setUseBYOI(value: boolean) {
-    formState.setUseBYOI(value);
-    savePatch(undefined, value);
-  }
-
   // Provider lives inside the initialConversation sub-hook and is not directly
   // interceptable at the setter level, so watch it with a narrow effect.
   const isFirstRender = useRef(true);
@@ -71,6 +67,21 @@ export function useAutomationSettingsAutoSave(automation: Automation) {
     // We intentionally only track provider here; other fields use action-at-change-site.
     // oxlint-disable-next-line react/exhaustive-deps
   }, [provider]);
+
+  // Workspace config changes (preset, branch name, sandbox toggle, etc.) are not
+  // interceptable at the setter level because they go through useWorkspaceConfig
+  // internals. Serialize the resolved config to a stable primitive key and auto-save
+  // whenever it changes, mirroring the provider effect above.
+  const resolvedConfigKey = JSON.stringify(workspaceConfig.resolvedConfig);
+  const isFirstWorkspaceRender = useRef(true);
+  useEffect(() => {
+    if (isFirstWorkspaceRender.current) {
+      isFirstWorkspaceRender.current = false;
+      return;
+    }
+    if (canSave) savePatch();
+    // oxlint-disable-next-line react/exhaustive-deps
+  }, [resolvedConfigKey]);
 
   function handlePromptBlur() {
     if (canSave) savePatch();
@@ -91,7 +102,6 @@ export function useAutomationSettingsAutoSave(automation: Automation) {
   return {
     formState,
     setCronExpr,
-    setUseBYOI,
     handlePromptBlur,
     handleNameBlur,
     isSaving: updateSettings.isPending || rename.isPending,

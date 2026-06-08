@@ -1,13 +1,15 @@
 import { ChevronDown, FolderOpen } from 'lucide-react';
-import { InitialConversationField } from '@renderer/features/tasks/conversations/initial-conversation-section';
-import { BranchPickerField } from '@renderer/features/tasks/create-task-modal/branch-picker-field';
 import { ProjectSelector } from '@renderer/features/tasks/create-task-modal/project-selector';
+import { ConversationField } from '@renderer/features/tasks/task-config/conversation-field';
+import { TaskConfigProvider } from '@renderer/features/tasks/task-config/task-config-context';
+import { TaskConfigPanel } from '@renderer/features/tasks/task-config/task-config-panel';
+import { TaskStateProvider } from '@renderer/features/tasks/task-config/task-state-context';
+import { WorkspaceSettingsSection } from '@renderer/features/tasks/task-config/workspace-settings-section';
 import { CronPicker } from '@renderer/lib/CronPicker';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
 import { Field, FieldError, FieldGroup } from '@renderer/lib/ui/field';
 import { Label } from '@renderer/lib/ui/label';
-import { Switch } from '@renderer/lib/ui/switch';
 import type { AutomationFormState } from '../useAutomationFormState';
 
 interface AutomationSettingsFieldsProps {
@@ -16,7 +18,6 @@ interface AutomationSettingsFieldsProps {
   onCronExprChange: (expr: string) => void;
   onCronErrorClear: () => void;
   onPromptBlur?: () => void;
-  onUseBYOIChange?: (value: boolean) => void;
   error?: string | null;
 }
 
@@ -26,60 +27,22 @@ export function AutomationSettingsFields({
   onCronExprChange,
   onCronErrorClear,
   onPromptBlur,
-  onUseBYOIChange,
   error,
 }: AutomationSettingsFieldsProps) {
   const {
     initialConversation,
     cronExpr,
-    branchSelection,
-    branchNameState,
+    workspaceConfig,
     effectiveProjectId,
-    currentBranch,
     isUnborn,
-    useBYOI,
-    setUseBYOI,
     setProjectId,
   } = state;
 
-  const effectiveSetUseBYOI = onUseBYOIChange ?? setUseBYOI;
-
   const isWorkspaceProviderEnabled = useFeatureFlag('workspace-provider');
-  const workspaceSettingsKey = `${effectiveProjectId ?? 'none'}`;
 
   return (
     <>
       <FieldGroup>
-        <Field>
-          <Label>Schedule</Label>
-          <CronPicker
-            value={cronExpr}
-            onChange={(nextCronExpr) => {
-              onCronExprChange(nextCronExpr);
-              onCronErrorClear();
-            }}
-          />
-          {cronError && <FieldError>{cronError}</FieldError>}
-        </Field>
-        <Field>
-          <Label>Prompt</Label>
-          <InitialConversationField
-            state={initialConversation}
-            includeIssueContextByDefault={false}
-            onPromptBlur={onPromptBlur}
-          />
-        </Field>
-        <Field>
-          <Label>Execution</Label>
-          <BranchPickerField
-            key={workspaceSettingsKey}
-            state={branchSelection}
-            branchNameState={branchNameState}
-            projectId={effectiveProjectId}
-            currentBranch={currentBranch}
-            isUnborn={isUnborn}
-          />
-        </Field>
         <Field>
           <Label>Project</Label>
           <ProjectSelector
@@ -96,12 +59,49 @@ export function AutomationSettingsFields({
             }
           />
         </Field>
-        {isWorkspaceProviderEnabled ? (
-          <div className="flex items-center gap-2 pt-1">
-            <Switch size="sm" checked={useBYOI} onCheckedChange={effectiveSetUseBYOI} />
-            <span className="text-muted-foreground text-sm">Use BYOI infrastructure</span>
-          </div>
-        ) : null}
+        <Field>
+          <Label>Schedule</Label>
+          <CronPicker
+            value={cronExpr}
+            onChange={(nextCronExpr) => {
+              onCronExprChange(nextCronExpr);
+              onCronErrorClear();
+            }}
+          />
+          {cronError && <FieldError>{cronError}</FieldError>}
+        </Field>
+        <TaskStateProvider
+          workspaceConfig={workspaceConfig}
+          initialConversation={initialConversation}
+          projectId={effectiveProjectId}
+          isUnborn={isUnborn}
+          hasPR={false}
+          isWorkspaceProviderEnabled={isWorkspaceProviderEnabled}
+          includeIssueContextByDefault={false}
+        >
+          <TaskConfigProvider showPrPresets={false} autoBranchName={true}>
+            <TaskConfigPanel
+              tabs={[
+                {
+                  value: 'prompt',
+                  label: 'Prompt',
+                  content: (
+                    <ConversationField
+                      onPromptBlur={onPromptBlur}
+                      textareaClassName="min-h-40"
+                      placeholder="Add a prompt to the automation..."
+                    />
+                  ),
+                },
+                {
+                  value: 'workspace',
+                  label: 'Workspace Settings',
+                  content: <WorkspaceSettingsSection defaultOpen={true} />,
+                },
+              ]}
+            />
+          </TaskConfigProvider>
+        </TaskStateProvider>
       </FieldGroup>
 
       {error && <p className="text-destructive text-xs">{error}</p>}

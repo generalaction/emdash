@@ -6,6 +6,7 @@ import type {
 } from '@shared/core/tasks/tasks';
 import { createRPCController } from '@shared/lib/ipc/rpc';
 import { generateTaskName } from './name-generation/generateTaskName';
+import { getProjectWorkspaces } from './operations/getProjectWorkspaces';
 import { taskService } from './task-service';
 
 export const taskController = createRPCController({
@@ -44,6 +45,9 @@ export const taskController = createRPCController({
   },
   async convertAutomationTask(taskId: string) {
     return taskService.convertAutomationTask(taskId);
+  },
+  async getProjectWorkspaces(projectId: string) {
+    return getProjectWorkspaces(projectId);
   },
   async teardownTask(_projectId: string, taskId: string) {
     return taskService.teardown(taskId, 'terminate');

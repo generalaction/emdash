@@ -32,7 +32,7 @@ function ModalPlaceholder({ issueProvider, connectedProviderCount }: IssueSelect
       ) : (
         issueProvider && (
           <span className="flex items-center gap-1">
-            <ProviderLogo provider={issueProvider} className="size-3.5" />
+            <ProviderLogo provider={issueProvider} className="size-3.5 opacity-40" />
             {ISSUE_PROVIDER_META[issueProvider].displayName}
           </span>
         )
