@@ -23,6 +23,42 @@ describe('OPEN_IN_APPS', () => {
     expect(OPEN_IN_APPS.kaku.platforms.linux?.openCommands).toEqual(['kaku start --cwd {{path}}']);
   });
 
+  it('shows Devin Desktop while preserving the legacy Windsurf app id', () => {
+    expect(isValidOpenInAppId('windsurf')).toBe(true);
+    expect(OPEN_IN_APPS.windsurf).toMatchObject({
+      id: 'windsurf',
+      iconPath: 'devin.png',
+      label: 'Devin Desktop',
+    });
+    expect(OPEN_IN_APPS.windsurf.platforms.darwin?.appNames).toEqual(['Devin', 'Windsurf']);
+    expect(OPEN_IN_APPS.windsurf.platforms.darwin?.openCommands).toEqual([
+      'open -n -a "Devin" {{path}}',
+      'open -n -a "Windsurf" {{path}}',
+    ]);
+    expect(OPEN_IN_APPS.windsurf.platforms.linux?.checkCommands).toEqual([
+      'devin-desktop',
+      'devin',
+      'windsurf',
+      'surf',
+    ]);
+  });
+
+  it('registers GitHub Desktop as an open-in app', () => {
+    expect(isValidOpenInAppId('github-desktop')).toBe(true);
+    expect(OPEN_IN_APPS['github-desktop']).toMatchObject({
+      id: 'github-desktop',
+      iconPath: 'github-desktop.svg',
+      label: 'GitHub Desktop',
+    });
+    expect(OPEN_IN_APPS['github-desktop'].platforms.darwin?.bundleIds).toContain(
+      'com.github.GitHubClient'
+    );
+    expect(OPEN_IN_APPS['github-desktop'].platforms.darwin?.openCommands).toContain(
+      'open -n -a "GitHub Desktop" {{path}}'
+    );
+    expect(OPEN_IN_APPS['github-desktop'].platforms.win32?.checkCommands).toEqual(['github']);
+  });
+
   it('registers Alacritty as an open-in terminal option', () => {
     expect(isValidOpenInAppId('alacritty')).toBe(true);
     expect(OPEN_IN_APPS.alacritty).toMatchObject({
