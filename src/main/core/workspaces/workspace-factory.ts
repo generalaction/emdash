@@ -173,7 +173,7 @@ export function createWorkspaceFactory(
               })
               .where(eq(workspacesTable.id, workspaceId));
           } catch (e) {
-            log.warn('Failed to cache workspace git stats', { workspaceId, error: String(e) });
+            log.warn('Failed to cache workspace git status', { workspaceId, error: String(e) });
           }
         });
 

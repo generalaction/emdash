@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { deleteWorkspaceIfUnused } from './task-lifecycle-utils';
+import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
+import { removeWorktreeIfUnused } from './task-lifecycle-utils';
 
 const mocks = vi.hoisted(() => ({
-  limit: vi.fn(),
-  deleteWhere: vi.fn(),
-  del: vi.fn(),
+  selectLimit: vi.fn(),
+  deleteIndex: vi.fn(),
 }));
 
 vi.mock('@main/db/client', () => ({
@@ -12,40 +12,72 @@ vi.mock('@main/db/client', () => ({
     select: () => ({
       from: () => ({
         where: () => ({
-          limit: mocks.limit,
+          limit: mocks.selectLimit,
         }),
       }),
     }),
-    delete: (...args: unknown[]) => {
-      mocks.del(...args);
-      return { where: mocks.deleteWhere };
-    },
   },
 }));
 
 vi.mock('@main/core/search/workspace-file-index-service', () => ({
-  workspaceFileIndexService: { deleteIndex: vi.fn() },
+  workspaceFileIndexService: {
+    deleteIndex: mocks.deleteIndex,
+  },
 }));
 
-describe('deleteWorkspaceIfUnused', () => {
+describe('task lifecycle workspace cleanup', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.deleteWhere.mockResolvedValue(undefined);
   });
 
-  it('deletes the workspace row when no other task references it', async () => {
-    mocks.limit.mockResolvedValue([]);
+  it('does not remove a project-root workspace when branchName is a current-branch cache', async () => {
+    const project = { removeTaskWorktree: vi.fn() };
 
-    await deleteWorkspaceIfUnused('ws-1', 'task-1');
+    await expect(
+      removeWorktreeIfUnused(
+        {
+          id: 'ws-root',
+          kind: 'project-root',
+          branchName: 'feature/current',
+          config: null,
+        },
+        project as never,
+        false
+      )
+    ).resolves.toBe(false);
 
-    expect(mocks.del).toHaveBeenCalledTimes(1);
+    expect(project.removeTaskWorktree).not.toHaveBeenCalled();
+    expect(mocks.selectLimit).not.toHaveBeenCalled();
   });
 
-  it('keeps the workspace row when a sibling task still references it', async () => {
-    mocks.limit.mockResolvedValue([{ id: 'task-2' }]);
+  it('removes worktrees by provisioned branch, not current-branch cache', async () => {
+    const config: WorkspaceConfig = {
+      version: '2',
+      git: {
+        kind: 'create-branch',
+        branchName: 'task/provisioned',
+        fromBranch: { type: 'local', branch: 'main' },
+      },
+      workspace: { kind: 'new-worktree' },
+    };
+    const project = {
+      removeTaskWorktree: vi.fn().mockResolvedValue(undefined),
+    };
+    mocks.selectLimit.mockResolvedValue([]);
 
-    await deleteWorkspaceIfUnused('ws-1', 'task-1');
+    await expect(
+      removeWorktreeIfUnused(
+        {
+          id: 'ws-task',
+          kind: 'worktree',
+          branchName: 'feature/current',
+          config,
+        },
+        project as never,
+        false
+      )
+    ).resolves.toBe(true);
 
-    expect(mocks.del).not.toHaveBeenCalled();
+    expect(project.removeTaskWorktree).toHaveBeenCalledWith('task/provisioned');
   });
 });

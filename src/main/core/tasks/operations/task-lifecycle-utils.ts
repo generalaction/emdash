@@ -1,8 +1,10 @@
 import { and, eq, isNull, ne } from 'drizzle-orm';
 import { workspaceFileIndexService } from '@main/core/search/workspace-file-index-service';
+import { getProvisionedWorkspaceBranch } from '@main/core/workspaces/workspace-branch';
 import { db } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
 import { log } from '@main/lib/logger';
+import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
 import type { ProjectProvider } from '../../projects/project-provider';
 
 /**
@@ -14,11 +16,17 @@ import type { ProjectProvider } from '../../projects/project-provider';
  * Returns `true` if the worktree was removed (no siblings found), `false` otherwise.
  */
 export async function removeWorktreeIfUnused(
-  workspace: { id: string; branchName: string | null },
+  workspace: {
+    id: string;
+    kind: 'worktree' | 'project-root' | 'byoi' | null;
+    branchName: string | null;
+    config: WorkspaceConfig | null;
+  },
   project: ProjectProvider,
   excludeArchived: boolean
 ): Promise<boolean> {
-  if (!workspace.branchName) return false;
+  const branchName = getProvisionedWorkspaceBranch(workspace);
+  if (!branchName) return false;
 
   const where = excludeArchived
     ? and(eq(tasks.workspaceId, workspace.id), isNull(tasks.archivedAt))
@@ -28,10 +36,10 @@ export async function removeWorktreeIfUnused(
   if (siblings.length > 0) return false;
 
   try {
-    await project.removeTaskWorktree(workspace.branchName);
+    await project.removeTaskWorktree(branchName);
   } catch (e) {
     log.warn('removeWorktreeIfUnused: worktree removal failed', {
-      branchName: workspace.branchName,
+      branchName,
       error: String(e),
     });
     return false;

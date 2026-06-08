@@ -19,6 +19,7 @@ import { deriveBranchName, resolveWorkspaceIntent } from '../tasks/resolve-works
 import { provisionBYOITask } from './byoi/provision-byoi-task';
 import { LocalWorkspaceSetupExecutor } from './local-workspace-setup-executor';
 import { applyRecovery } from './recovery-strategy';
+import { getProvisionedWorkspaceBranch } from './workspace-branch';
 import { createWorkspaceFactory } from './workspace-factory';
 import { computeWorkspaceKey } from './workspace-key';
 import { workspaceRegistry } from './workspace-registry';
@@ -72,9 +73,7 @@ export class WorkspaceBootstrapService {
 
     // Derive branch info from workspace config for passing to task providers.
     const wsConfig = workspaceRow.config;
-    const workspaceBranchName: string | undefined =
-      workspaceRow.branchName ??
-      (wsConfig ? (deriveBranchName(wsConfig.git) ?? undefined) : undefined);
+    const workspaceBranchName = getProvisionedWorkspaceBranch(workspaceRow) ?? undefined;
     const workspaceSourceBranch: Branch | undefined =
       wsConfig?.git.kind === 'create-branch' ? wsConfig.git.fromBranch : undefined;
 

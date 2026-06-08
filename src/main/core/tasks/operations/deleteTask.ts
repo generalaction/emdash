@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 import { projectManager } from '@main/core/projects/project-manager';
 import { taskSessionManager } from '@main/core/tasks/task-session-manager';
 import { viewStateService } from '@main/core/view-state/view-state-service';
+import { getProvisionedWorkspaceBranch } from '@main/core/workspaces/workspace-branch';
 import { db } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
 import { log } from '@main/lib/logger';
@@ -33,8 +34,15 @@ export async function deleteTask(
     }
   }
 
-  // Load workspace row before deleting it (we may need branchName for worktree removal).
-  let wsRow: { id: string; branchName: string | null; config: WorkspaceConfig | null } | undefined;
+  // Load workspace row before deleting it (we may need workspace metadata for cleanup).
+  let wsRow:
+    | {
+        id: string;
+        kind: 'worktree' | 'project-root' | 'byoi' | null;
+        branchName: string | null;
+        config: WorkspaceConfig | null;
+      }
+    | undefined;
   if (task.workspaceId) {
     const [ws] = await db
       .select()
@@ -51,11 +59,12 @@ export async function deleteTask(
 
   if (project && deleteWorktree && wsRow) {
     const worktreeRemoved = await removeWorktreeIfUnused(wsRow, project, false);
-    if (worktreeRemoved && deleteBranch && wsRow.branchName) {
+    const provisionedBranch = getProvisionedWorkspaceBranch(wsRow);
+    if (worktreeRemoved && deleteBranch && provisionedBranch) {
       const fromBranch =
         wsRow.config?.git.kind === 'create-branch' ? wsRow.config.git.fromBranch : undefined;
-      if (fromBranch && wsRow.branchName !== fromBranch.branch) {
-        const branchDelete = await project.repository.deleteBranch(wsRow.branchName).catch((e) => {
+      if (fromBranch && provisionedBranch !== fromBranch.branch) {
+        const branchDelete = await project.repository.deleteBranch(provisionedBranch).catch((e) => {
           log.warn('deleteTask: branch deletion failed', { taskId, error: String(e) });
           return null;
         });

@@ -2,6 +2,7 @@ import { eq } from 'drizzle-orm';
 import { LocalFileSystem } from '@main/core/fs/impl/local-fs';
 import { SshFileSystem } from '@main/core/fs/impl/ssh-fs';
 import type { FileSystemProvider } from '@main/core/fs/types';
+import { getProvisionedWorkspaceBranch } from '@main/core/workspaces/workspace-branch';
 import { workspaceRegistry } from '@main/core/workspaces/workspace-registry';
 import { db } from '@main/db/client';
 import {
@@ -14,6 +15,7 @@ import type {
   ProjectSettingsWriteTargetOption,
   WriteProjectConfigRequest,
 } from '@shared/core/project-settings/project-settings';
+import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
 import type { ProjectProvider } from '../../project-provider';
 import { resolveWorkspace } from '../../utils';
 
@@ -44,7 +46,9 @@ type TaskTargetRow = {
   id: string;
   name: string;
   workspaceId: string | null;
+  workspaceKind: 'worktree' | 'project-root' | 'byoi' | null;
   workspaceBranchName: string | null;
+  workspaceConfig: WorkspaceConfig | null;
 };
 
 async function resolveTaskTarget(
@@ -62,9 +66,13 @@ async function resolveTaskTarget(
     }
   }
 
-  if (!targetPath && task.workspaceBranchName) {
-    targetPath =
-      (await project.worktreeService.findBranchAnywhere(task.workspaceBranchName)) ?? null;
+  const provisionedBranch = getProvisionedWorkspaceBranch({
+    kind: task.workspaceKind,
+    branchName: task.workspaceBranchName,
+    config: task.workspaceConfig,
+  });
+  if (!targetPath && provisionedBranch) {
+    targetPath = (await project.worktreeService.findBranchAnywhere(provisionedBranch)) ?? null;
   }
   if (!targetPath) return null;
   if (targetPath === project.repoPath) return null;
@@ -104,7 +112,9 @@ export async function resolveAllProjectSettingsTargets(
       id: tasksTable.id,
       name: tasksTable.name,
       workspaceId: tasksTable.workspaceId,
+      workspaceKind: workspacesTable.kind,
       workspaceBranchName: workspacesTable.branchName,
+      workspaceConfig: workspacesTable.config,
     })
     .from(tasksTable)
     .leftJoin(workspacesTable, eq(tasksTable.workspaceId, workspacesTable.id))

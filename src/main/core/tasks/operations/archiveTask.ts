@@ -5,6 +5,7 @@ import { db } from '@main/db/client';
 import { tasks, workspaces } from '@main/db/schema';
 import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
+import type { WorkspaceConfig } from '@shared/core/workspaces/workspace-config';
 import { deleteIndexIfUnused, removeWorktreeIfUnused } from './task-lifecycle-utils';
 
 export async function archiveTask(projectId: string, taskId: string): Promise<void> {
@@ -35,10 +36,22 @@ export async function archiveTask(projectId: string, taskId: string): Promise<vo
     log.warn('archiveTask: teardown failed', { taskId, error: teardownResult.error.message });
   }
 
-  let wsRow: { id: string; branchName: string | null } | undefined;
+  let wsRow:
+    | {
+        id: string;
+        kind: 'worktree' | 'project-root' | 'byoi' | null;
+        branchName: string | null;
+        config: WorkspaceConfig | null;
+      }
+    | undefined;
   if (task.workspaceId) {
     const [ws] = await db
-      .select({ id: workspaces.id, branchName: workspaces.branchName })
+      .select({
+        id: workspaces.id,
+        kind: workspaces.kind,
+        branchName: workspaces.branchName,
+        config: workspaces.config,
+      })
       .from(workspaces)
       .where(eq(workspaces.id, task.workspaceId))
       .limit(1);
