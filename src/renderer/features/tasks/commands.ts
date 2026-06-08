@@ -42,7 +42,6 @@ export function createTaskCommandProvider(projectId: string, taskId: string): Co
 
       const git = getTaskGitStore(projectId, taskId);
       const taskData = getRegisteredTaskData(projectId, taskId);
-      const isAutomationTask = Boolean(taskData?.automationId);
       const activeBrowserTab = tabManager?.resolvedTabs.find(
         (tab) => tab.isActive && tab.kind === 'browser'
       );

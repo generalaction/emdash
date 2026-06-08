@@ -22,8 +22,8 @@ import {
 } from '@renderer/lib/stores/tab-utils';
 import { setTelemetryConversationScope } from '@renderer/utils/telemetry-scope';
 import type { BrowserSessionSnapshot } from '@shared/browser';
-import { browserOpenInNewTabChannel } from '@shared/events/browserEvents';
 import { refsEqual, type GitChangeStatus, type GitObjectRef } from '@shared/core/git/git';
+import { browserOpenInNewTabChannel } from '@shared/events/browserEvents';
 import type { ActiveFile, TabDescriptor, TabManagerSnapshot } from '@shared/view-state';
 
 // ---------------------------------------------------------------------------

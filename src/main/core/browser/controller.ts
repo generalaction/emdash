@@ -1,6 +1,6 @@
 import { browserWebContentsRegistry } from '@main/core/browser/browser-webcontents-registry';
 import { isBrowserPartition } from '@main/core/browser/webview-security';
-import { createRPCController } from '@shared/ipc/rpc';
+import { createRPCController } from '@shared/lib/ipc/rpc';
 
 export const browserController = createRPCController({
   registerSession: (args: { browserId: string; partition: string }) => {

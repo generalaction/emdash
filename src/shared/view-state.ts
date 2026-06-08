@@ -1,5 +1,5 @@
 import type { BrowserSessionSnapshot } from '@shared/browser';
-import type { GitChangeStatus, GitObjectRef } from '@shared/git';
+import type { GitChangeStatus, GitObjectRef } from '@shared/core/git/git';
 
 export type TabViewSnapshot = {
   tabOrder: string[];

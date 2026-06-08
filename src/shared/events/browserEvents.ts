@@ -1,4 +1,4 @@
-import { defineEvent } from '@shared/ipc/events';
+import { defineEvent } from '@shared/lib/ipc/events';
 
 export const browserOpenInNewTabChannel = defineEvent<{
   sourceBrowserId: string;

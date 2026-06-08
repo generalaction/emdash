@@ -23,6 +23,9 @@ export function bindBrowserWebviewEvents(
   };
 
   const scheduleHistoryStateSync = () => {
+    for (const timer of historySyncTimers) clearTimeout(timer);
+    historySyncTimers.clear();
+
     for (const delay of [0, 50, 200]) {
       const timer = setTimeout(() => {
         historySyncTimers.delete(timer);
