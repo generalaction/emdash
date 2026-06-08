@@ -17,6 +17,7 @@ import ResourceMonitorSettingsCard from './ResourceMonitorSettingsCard';
 import SidebarMetadataSettingsCard from './SidebarMetadataSettingsCard';
 import { SshConnectionsSettingsCard } from './SshConnectionsSettingsCard';
 import {
+  ArchiveOnMergeRow,
   AutoGenerateTaskNamesRow,
   AutoTrustWorktreesRow,
   CreateBranchAndWorktreeRow,
@@ -96,6 +97,9 @@ export function SettingsPage({
         },
         {
           component: <IncludeIssueContextByDefaultRow />,
+        },
+        {
+          component: <ArchiveOnMergeRow />,
         },
         {
           component: <EnableTmuxRow />,

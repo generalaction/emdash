@@ -166,6 +166,32 @@ export const IncludeIssueContextByDefaultRow: React.FC = () => {
   );
 };
 
+export const ArchiveOnMergeRow: React.FC = () => {
+  const taskSettings = useTaskSettings();
+
+  return (
+    <SettingRow
+      title="Archive on merge"
+      description="Automatically archive a task when Emdash detects its branch's pull request was merged."
+      control={
+        <>
+          <ResetToDefaultButton
+            visible={taskSettings.isFieldOverridden('archiveOnMerge')}
+            defaultLabel="off"
+            onReset={taskSettings.resetArchiveOnMerge}
+            disabled={taskSettings.loading || taskSettings.saving}
+          />
+          <Switch
+            checked={taskSettings.archiveOnMerge}
+            disabled={taskSettings.loading || taskSettings.saving}
+            onCheckedChange={taskSettings.updateArchiveOnMerge}
+          />
+        </>
+      }
+    />
+  );
+};
+
 export const EnableTmuxRow: React.FC = () => {
   const {
     value: projects,

@@ -7,9 +7,11 @@ import { getTaskGitStore } from '@renderer/features/tasks/stores/task-selectors'
 import { events, rpc } from '@renderer/lib/ipc';
 import { viewStateCache } from '@renderer/lib/stores/view-state-cache';
 import type { AgentProviderId } from '@shared/core/agents/agent-provider-registry';
+import type { AppSettings } from '@shared/core/app-settings';
 import type { Conversation } from '@shared/core/conversations/conversations';
 import type { FetchError } from '@shared/core/git/git';
 import { prSyncProgressChannel, prUpdatedChannel } from '@shared/core/pull-requests/prEvents';
+import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
 import {
   lifecycleScriptStatusChannel,
   taskCreatedChannel,
@@ -226,6 +228,9 @@ export class TaskManagerStore {
               task.prs.push(pr);
             }
           });
+          void this._archiveTaskIfMerged(task, [pr]).catch((error: unknown) => {
+            console.error('Failed to auto-archive merged task', error);
+          });
         }
       }
     });
@@ -263,6 +268,16 @@ export class TaskManagerStore {
         (store.data as Task).prs = prs;
       }
     });
+    if (isRegistered(store)) {
+      await this._archiveTaskIfMerged(store.data as Task, prs);
+    }
+  }
+
+  private async _archiveTaskIfMerged(task: Task, prs: PullRequest[]): Promise<void> {
+    if (task.archivedAt || !prs.some((pr) => pr.status === 'merged')) return;
+    const settings = (await rpc.appSettings.get('tasks')) as AppSettings['tasks'];
+    if (!settings.archiveOnMerge) return;
+    await this.archiveTask(task.id);
   }
 
   loadTasks(): Promise<void> {
