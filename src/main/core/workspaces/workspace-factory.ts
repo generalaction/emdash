@@ -165,14 +165,9 @@ export function createWorkspaceFactory(
             unstagedDeleted += c.deletions;
           }
           try {
-            const branchPatch =
-              status.currentBranch !== null || status.headKind === 'detached'
-                ? { branchName: status.currentBranch }
-                : {};
             await db
               .update(workspacesTable)
               .set({
-                ...branchPatch,
                 linesAdded: status.totalAdded + unstagedAdded,
                 linesDeleted: status.totalDeleted + unstagedDeleted,
               })
