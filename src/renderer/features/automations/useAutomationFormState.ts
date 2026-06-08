@@ -26,7 +26,7 @@ const DEFAULT_CRON = toCron(DEFAULT_CRON_STATE);
 function workspaceInitialFromConfig(
   config: StoredAutomationTaskConfig | null | undefined
 ): WorkspaceConfigInitial & { fromBranch?: Branch; pushBranch?: boolean } {
-  if (!config) return { mode: 'new-worktree', presetId: 'new-branch' };
+  if (!config) return { mode: 'new-worktree', presetId: 'new-worktree' };
   const { git, workspace } = config.workspaceConfig;
 
   if (workspace.kind === 'byoi' || (workspace as { host?: string }).host === 'byoi') {
@@ -36,7 +36,7 @@ function workspaceInitialFromConfig(
   if (git.kind === 'create-branch') {
     return {
       mode: 'new-worktree',
-      presetId: 'new-branch',
+      presetId: 'new-worktree',
       fromBranch: git.fromBranch,
       pushBranch: git.pushBranch,
     };
@@ -54,7 +54,7 @@ function workspaceInitialFromConfig(
     return { mode: 'existing', presetId: 'repo-root' };
   }
 
-  return { mode: 'new-worktree', presetId: 'new-branch' };
+  return { mode: 'new-worktree', presetId: 'new-worktree' };
 }
 
 export type AutomationFormState = ReturnType<typeof useAutomationFormState>;

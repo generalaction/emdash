@@ -17,19 +17,27 @@ export function buildWorkspaceConfigFromPreset(
   overrides: PresetOverrides = {}
 ): WorkspaceConfig {
   switch (presetId) {
-    case 'new-branch': {
+    case 'new-worktree': {
       const fromBranch = overrides.fromBranch ?? context.defaultBranch;
       if (!fromBranch) {
-        throw new Error('new-branch preset requires a fromBranch or defaultBranch in context');
+        throw new Error('new-worktree preset requires a fromBranch or defaultBranch in context');
+      }
+      const createBranch = overrides.createBranch ?? true;
+      if (createBranch) {
+        return {
+          version: '2',
+          git: {
+            kind: 'create-branch',
+            branchName: overrides.branchName ?? '',
+            fromBranch,
+            pushBranch: overrides.pushBranch ?? true,
+          },
+          workspace: { kind: 'new-worktree' },
+        };
       }
       return {
         version: '2',
-        git: {
-          kind: 'create-branch',
-          branchName: overrides.branchName ?? '',
-          fromBranch,
-          pushBranch: overrides.pushBranch ?? true,
-        },
+        git: { kind: 'use-branch', branchName: fromBranch.branch },
         workspace: { kind: 'new-worktree' },
       };
     }

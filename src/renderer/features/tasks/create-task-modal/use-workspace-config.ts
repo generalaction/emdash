@@ -54,7 +54,22 @@ function defaultPresetForMode(mode: WorkspaceMode, hasPR: boolean): WorkspacePre
     case 'sandbox':
       return 'sandbox';
     case 'new-worktree':
-      return hasPR ? 'checkout-pr' : 'new-branch';
+      return hasPR ? 'checkout-pr' : 'new-worktree';
+  }
+}
+
+/** Derives the WorkspaceMode that owns a given preset. */
+export function modeForPreset(id: WorkspacePresetId): WorkspaceMode {
+  switch (id) {
+    case 'new-worktree':
+    case 'checkout-pr':
+    case 'pr-new-branch':
+      return 'new-worktree';
+    case 'repo-root':
+    case 'use-existing':
+      return 'existing';
+    case 'sandbox':
+      return 'sandbox';
   }
 }
 
@@ -130,6 +145,9 @@ export function useWorkspaceConfig(opts: {
 
   const setPresetId = (id: WorkspacePresetId) => {
     setPresetIdRaw(id);
+    setModeRaw(modeForPreset(id));
+    // Clear selected workspace when leaving 'existing' presets.
+    if (modeForPreset(id) !== 'existing') setSelectedWorkspaceId(null);
   };
 
   // ── Inner hooks ──────────────────────────────────────────────────────────
@@ -167,6 +185,7 @@ export function useWorkspaceConfig(opts: {
           branchName: branchNameState.branchName,
           fromBranch: branchSelection.selectedBranch,
           pushBranch: branchSelection.pushBranch,
+          createBranch: branchSelection.createBranchAndWorktree,
           taskBranch: branchNameState.branchName,
         }
       );
@@ -227,7 +246,12 @@ export function useWorkspaceConfig(opts: {
       return true;
     }
 
-    // new-branch
+    // new-worktree — checkout existing branch
+    if (!branchSelection.createBranchAndWorktree) {
+      return branchSelection.selectedBranch !== undefined;
+    }
+
+    // new-worktree — create new branch
     if (isUnborn) return true;
     return (
       branchNameState.branchName.trim().length > 0 &&
@@ -244,6 +268,7 @@ export function useWorkspaceConfig(opts: {
     branchNameState.branchName,
     branchNameState.branchAlreadyExists,
     branchSelection.selectedBranch,
+    branchSelection.createBranchAndWorktree,
   ]);
 
   return {

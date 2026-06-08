@@ -48,11 +48,11 @@ const baseCtx: PresetContext = {
   repositoryWorkspaceId: 'ws-repo',
 };
 
-// ─── new-branch ───────────────────────────────────────────────────────────────
+// ─── new-worktree ─────────────────────────────────────────────────────────────
 
-describe('new-branch preset', () => {
+describe('new-worktree preset', () => {
   it('produces create-branch git setup with defaultBranch as fromBranch', () => {
-    const cfg = buildWorkspaceConfigFromPreset('new-branch', baseCtx, { branchName: 'feat/x' });
+    const cfg = buildWorkspaceConfigFromPreset('new-worktree', baseCtx, { branchName: 'feat/x' });
     expect(cfg.version).toBe('2');
     expect(cfg.git).toMatchObject({
       kind: 'create-branch',
@@ -69,7 +69,7 @@ describe('new-branch preset', () => {
       branch: 'develop',
       remote: { name: 'origin', url: 'u' },
     };
-    const cfg = buildWorkspaceConfigFromPreset('new-branch', baseCtx, {
+    const cfg = buildWorkspaceConfigFromPreset('new-worktree', baseCtx, {
       fromBranch: remote,
       branchName: 'feat/y',
     });
@@ -77,13 +77,19 @@ describe('new-branch preset', () => {
   });
 
   it('allows pushBranch=false via overrides', () => {
-    const cfg = buildWorkspaceConfigFromPreset('new-branch', baseCtx, { pushBranch: false });
+    const cfg = buildWorkspaceConfigFromPreset('new-worktree', baseCtx, { pushBranch: false });
     expect(cfg.git).toMatchObject({ pushBranch: false });
+  });
+
+  it('produces use-branch git setup when createBranch=false', () => {
+    const cfg = buildWorkspaceConfigFromPreset('new-worktree', baseCtx, { createBranch: false });
+    expect(cfg.git).toMatchObject({ kind: 'use-branch', branchName: 'main' });
+    expect(cfg.workspace).toEqual({ kind: 'new-worktree' });
   });
 
   it('throws when neither defaultBranch nor fromBranch override is available', () => {
     expect(() =>
-      buildWorkspaceConfigFromPreset('new-branch', { repositoryWorkspaceId: 'ws-repo' })
+      buildWorkspaceConfigFromPreset('new-worktree', { repositoryWorkspaceId: 'ws-repo' })
     ).toThrow('fromBranch');
   });
 });

@@ -6,7 +6,7 @@ import type { PullRequest } from '@shared/core/pull-requests/pull-requests';
 // ---------------------------------------------------------------------------
 
 export type WorkspacePresetId =
-  | 'new-branch'
+  | 'new-worktree'
   | 'checkout-pr'
   | 'pr-new-branch'
   | 'use-existing'
@@ -29,9 +29,9 @@ export type WorkspacePresetMeta = {
 
 export const WORKSPACE_PRESETS: WorkspacePresetMeta[] = [
   {
-    id: 'new-branch',
-    label: 'New branch',
-    description: 'Create a feature branch and isolated worktree',
+    id: 'new-worktree',
+    label: 'New worktree',
+    description: 'Create an isolated worktree on a branch',
     requiresPR: false,
     requiresBYOI: false,
   },
@@ -100,12 +100,14 @@ export type PresetContext = {
 // ---------------------------------------------------------------------------
 
 export type PresetOverrides = {
-  /** New branch name (new-branch, pr-new-branch). */
+  /** New branch name (new-worktree, pr-new-branch). */
   branchName?: string;
-  /** Source branch to branch from (new-branch). */
+  /** Source branch to branch from or check out (new-worktree). */
   fromBranch?: Branch;
   /** Whether to push the branch to remote after creation. */
   pushBranch?: boolean;
   /** Task-specific branch created on top of the PR head (pr-new-branch). */
   taskBranch?: string;
+  /** When false, checkout fromBranch in a new worktree instead of creating a new branch (new-worktree preset). Defaults to true. */
+  createBranch?: boolean;
 };

@@ -1,18 +1,21 @@
-import { ChevronDown, FolderOpen } from 'lucide-react';
+import { ChevronDown, FolderOpen, GitBranch } from 'lucide-react';
 import { InitialConversationField } from '@renderer/features/tasks/conversations/initial-conversation-section';
-import { BranchPickerField } from '@renderer/features/tasks/create-task-modal/branch-picker-field';
+import { BranchNameField } from '@renderer/features/tasks/create-task-modal/branch-name-field';
 import {
   ExistingWorkspacePicker,
   useProjectWorkspaces,
 } from '@renderer/features/tasks/create-task-modal/existing-workspace-picker';
 import { ProjectSelector } from '@renderer/features/tasks/create-task-modal/project-selector';
 import { SetupStepPreview } from '@renderer/features/tasks/create-task-modal/setup-step-preview';
-import { WorkspaceModePicker } from '@renderer/features/tasks/create-task-modal/workspace-mode-picker';
+import { WorkspacePresetPicker } from '@renderer/features/tasks/create-task-modal/workspace-preset-picker';
 import { CronPicker } from '@renderer/lib/CronPicker';
+import { ProjectBranchSelector } from '@renderer/lib/components/project-branch-selector';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
 import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
-import { Field, FieldError, FieldGroup } from '@renderer/lib/ui/field';
+import { Field, FieldError, FieldGroup, FieldLabel } from '@renderer/lib/ui/field';
 import { Label } from '@renderer/lib/ui/label';
+import { RadioGroup, RadioGroupItem } from '@renderer/lib/ui/radio-group';
+import { Switch } from '@renderer/lib/ui/switch';
 import type { AutomationFormState } from '../useAutomationFormState';
 
 interface AutomationSettingsFieldsProps {
@@ -37,7 +40,6 @@ export function AutomationSettingsFields({
     cronExpr,
     workspaceConfig,
     effectiveProjectId,
-    currentBranch,
     isUnborn,
     setProjectId,
   } = state;
@@ -71,33 +73,88 @@ export function AutomationSettingsFields({
         <Field>
           <Label>Workspace</Label>
           <div key={workspaceSettingsKey} className="flex flex-col gap-3">
-            <WorkspaceModePicker
-              value={workspaceConfig.mode}
-              onValueChange={workspaceConfig.setMode}
-              hasExistingWorkspaces={existingWorkspaces.length > 0}
+            <WorkspacePresetPicker
+              value={workspaceConfig.presetId}
+              onValueChange={workspaceConfig.setPresetId}
+              hasPR={false}
               isWorkspaceProviderEnabled={isWorkspaceProviderEnabled}
-              isUnborn={isUnborn}
+              hasExistingWorkspaces={existingWorkspaces.length > 0}
             />
-            {workspaceConfig.mode === 'existing' && (
+            {workspaceConfig.presetId === 'new-worktree' && (
+              <>
+                <RadioGroup
+                  value={workspaceConfig.branchSelection.createBranchAndWorktree ? 'create' : 'checkout'}
+                  onValueChange={(v) =>
+                    workspaceConfig.branchSelection.setCreateBranchAndWorktree(v === 'create')
+                  }
+                  className="grid-cols-2 gap-2"
+                >
+                  <Label className="flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2 text-sm has-data-checked:border-primary has-data-checked:bg-primary/5">
+                    <RadioGroupItem value="checkout" />
+                    Checkout branch
+                  </Label>
+                  <Label className="flex cursor-pointer items-center gap-2 rounded-md border border-border px-3 py-2 text-sm has-data-checked:border-primary has-data-checked:bg-primary/5">
+                    <RadioGroupItem value="create" />
+                    Create new branch
+                  </Label>
+                </RadioGroup>
+                {effectiveProjectId && (
+                  <ProjectBranchSelector
+                    projectId={effectiveProjectId}
+                    value={workspaceConfig.branchSelection.selectedBranch}
+                    onValueChange={workspaceConfig.branchSelection.setSelectedBranch}
+                    showRemoteSelectorFooter
+                    trigger={
+                      <ComboboxTrigger className="flex w-full items-center justify-between gap-2 rounded-md border border-border px-2.5 py-2 outline-none hover:bg-background-1 data-popup-open:bg-background-1">
+                        <div className="flex flex-col gap-0.5 text-left text-sm">
+                          <span className="text-xs text-foreground-passive">
+                            {workspaceConfig.branchSelection.createBranchAndWorktree
+                              ? 'From branch'
+                              : 'Branch'}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <GitBranch
+                              absoluteStrokeWidth
+                              strokeWidth={2}
+                              className="size-3.5 shrink-0 text-foreground-muted"
+                            />
+                            <ComboboxValue placeholder="Select a branch" />
+                          </span>
+                        </div>
+                        <ChevronDown className="size-4 shrink-0 text-foreground-muted" />
+                      </ComboboxTrigger>
+                    }
+                  />
+                )}
+                {workspaceConfig.branchSelection.createBranchAndWorktree && !isUnborn && (
+                  <>
+                    <BranchNameField state={workspaceConfig.branchNameState} />
+                    <Field orientation="horizontal">
+                      <Switch
+                        checked={workspaceConfig.branchSelection.pushBranch}
+                        onCheckedChange={workspaceConfig.branchSelection.setPushBranch}
+                      />
+                      <FieldLabel>Push branch to remote</FieldLabel>
+                    </Field>
+                  </>
+                )}
+                <SetupStepPreview steps={workspaceConfig.setupSteps} />
+              </>
+            )}
+            {workspaceConfig.presetId === 'repo-root' && (
+              <p className="text-xs text-foreground-muted">
+                The agent will run directly in the project's repository directory without a
+                dedicated worktree.
+              </p>
+            )}
+            {workspaceConfig.presetId === 'use-existing' && (
               <ExistingWorkspacePicker
                 projectId={effectiveProjectId}
                 selectedWorkspaceId={workspaceConfig.selectedWorkspaceId}
                 onSelect={workspaceConfig.setSelectedWorkspaceId}
               />
             )}
-            {workspaceConfig.mode === 'new-worktree' && (
-              <>
-                <BranchPickerField
-                  state={workspaceConfig.branchSelection}
-                  branchNameState={workspaceConfig.branchNameState}
-                  projectId={effectiveProjectId}
-                  currentBranch={currentBranch}
-                  isUnborn={isUnborn}
-                />
-                <SetupStepPreview steps={workspaceConfig.setupSteps} />
-              </>
-            )}
-            {workspaceConfig.mode === 'sandbox' && (
+            {workspaceConfig.presetId === 'sandbox' && (
               <p className="text-xs text-foreground-muted">
                 A remote sandbox will be provisioned using your workspace provider script when this
                 automation runs.
