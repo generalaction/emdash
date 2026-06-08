@@ -115,6 +115,11 @@ const ResolvedImage: React.FC<{
 type WithChildren = { children?: React.ReactNode };
 type WithChildrenAndClass = { children?: React.ReactNode; className?: string };
 type AnchorProps = { href?: string; children?: React.ReactNode };
+
+function shouldConfirmExternalLinkClick(event: React.MouseEvent): boolean {
+  return event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
+}
+
 type ImgProps = React.ComponentPropsWithoutRef<'img'> & ExtraProps;
 
 function getCodeBlock(children: React.ReactNode, className?: string) {
@@ -207,7 +212,7 @@ function useFullComponents(
       a: ({ href, children }: AnchorProps) => {
         const isHttp = typeof href === 'string' && /^https?:\/\//i.test(href);
         const handleClick = (e: React.MouseEvent) => {
-          if (isHttp) {
+          if (isHttp && shouldConfirmExternalLinkClick(e)) {
             e.preventDefault();
             confirmOpenExternalLink(href);
           }
@@ -354,7 +359,7 @@ function useCompactComponents(isDark: boolean) {
       a: ({ href, children }: AnchorProps) => {
         const isHttp = typeof href === 'string' && /^https?:\/\//i.test(href);
         const handleClick = (e: React.MouseEvent) => {
-          if (isHttp) {
+          if (isHttp && shouldConfirmExternalLinkClick(e)) {
             e.preventDefault();
             confirmOpenExternalLink(href);
           }
