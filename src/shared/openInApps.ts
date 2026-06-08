@@ -36,7 +36,7 @@ const ICON_PATHS = {
   cursor: 'cursor.svg',
   vscode: 'vscode.png',
   vscodium: 'vscodium.png',
-  devin: 'devin.png',
+  devin: 'devin.svg',
   githubDesktop: 'github-desktop.svg',
   xcode: 'xcode.png',
   terminal: 'terminal.png',

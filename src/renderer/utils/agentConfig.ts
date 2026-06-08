@@ -10,7 +10,7 @@ import clineLogo from '../../assets/images/cline.png';
 import codebuffLogo from '../../assets/images/codebuff.png';
 import continueLogo from '../../assets/images/continue.png';
 import cursorLogoSvg from '../../assets/images/cursor.svg?raw';
-import devinLogo from '../../assets/images/devin.png';
+import devinLogoSvg from '../../assets/images/devin.svg?raw';
 import factoryLogoSvg from '../../assets/images/droid.svg?raw';
 import geminiLogo from '../../assets/images/gemini.svg';
 import copilotLogoSvg from '../../assets/images/gh-copilot.svg?raw';
@@ -44,7 +44,7 @@ export const agentConfig: Record<AgentProviderId, AgentInfo> = {
   claude: { name: 'Claude Code', logo: claudeLogo, alt: 'Claude Code' },
   codex: { name: 'Codex', logo: openaiLogoSvg, alt: 'Codex', isSvg: true },
   grok: { name: 'Grok', logo: xaiLogoSvg, alt: 'Grok CLI', isSvg: true, invertInDark: true },
-  devin: { name: 'Devin', logo: devinLogo, alt: 'Devin' },
+  devin: { name: 'Devin', logo: devinLogoSvg, alt: 'Devin', isSvg: true },
   cursor: {
     name: 'Cursor',
     logo: cursorLogoSvg,

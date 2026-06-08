@@ -27,7 +27,7 @@ describe('OPEN_IN_APPS', () => {
     expect(isValidOpenInAppId('windsurf')).toBe(true);
     expect(OPEN_IN_APPS.windsurf).toMatchObject({
       id: 'windsurf',
-      iconPath: 'devin.png',
+      iconPath: 'devin.svg',
       label: 'Devin Desktop',
     });
     expect(OPEN_IN_APPS.windsurf.platforms.darwin?.appNames).toEqual(['Devin', 'Windsurf']);

@@ -177,7 +177,7 @@ export const AGENT_PROVIDERS: AgentProviderDefinition[] = [
     initialPromptFlag: '--',
     resumeFlag: '--continue',
     planActivateCommand: '/plan',
-    icon: 'devin.png',
+    icon: 'devin.svg',
     alt: 'Devin',
     terminalOnly: true,
     supportsHooks: true,

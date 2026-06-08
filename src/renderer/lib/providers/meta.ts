@@ -9,7 +9,7 @@ import clineIcon from '@/assets/images/cline.png';
 import codebuffIcon from '@/assets/images/codebuff.png';
 import continueIcon from '@/assets/images/continue.png';
 import cursorIcon from '@/assets/images/cursor.svg?raw';
-import devinIcon from '@/assets/images/devin.png';
+import devinIcon from '@/assets/images/devin.svg?raw';
 import factorydroidIcon from '@/assets/images/droid.svg?raw';
 import geminiIcon from '@/assets/images/gemini.svg?raw';
 import ghcopilotIcon from '@/assets/images/gh-copilot.svg?raw';
@@ -45,7 +45,7 @@ const ICONS: Record<string, string> = {
   'droid.svg': factorydroidIcon,
   'gemini.svg': geminiIcon,
   'cursor.svg': cursorIcon,
-  'devin.png': devinIcon,
+  'devin.svg': devinIcon,
   'gh-copilot.svg': ghcopilotIcon,
   'goose.png': gooseIcon,
   'hermesagent.jpg': hermesIcon,
