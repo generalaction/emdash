@@ -85,7 +85,13 @@ export function AutomationSettingsFields({
                 {
                   value: 'prompt',
                   label: 'Prompt',
-                  content: <ConversationField onPromptBlur={onPromptBlur} textareaClassName='min-h-40' placeholder='Add a prompt to the automation...'  />,
+                  content: (
+                    <ConversationField
+                      onPromptBlur={onPromptBlur}
+                      textareaClassName="min-h-40"
+                      placeholder="Add a prompt to the automation..."
+                    />
+                  ),
                 },
                 {
                   value: 'workspace',
