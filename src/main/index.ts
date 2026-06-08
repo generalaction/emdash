@@ -1,3 +1,4 @@
+import './app/configure-app-identity';
 import { join } from 'node:path';
 import { config as dotenvConfig } from 'dotenv';
 import { app, BrowserWindow, dialog, ipcMain } from 'electron';
@@ -54,8 +55,6 @@ if (process.platform === 'linux') {
 
 registerAppScheme();
 
-app.setName(PRODUCT_NAME);
-app.setPath('userData', join(app.getPath('appData'), 'emdash'));
 initializeFileLogger();
 registerProcessErrorLogging(log);
 registerRendererLogHandler(ipcMain);
