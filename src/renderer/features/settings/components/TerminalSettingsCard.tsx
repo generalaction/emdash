@@ -1,3 +1,4 @@
+import { detectPlatform } from '@tanstack/react-hotkeys';
 import { ChevronsUpDownIcon, LoaderCircle, Minus, Plus } from 'lucide-react';
 import React, { useCallback, useMemo, useState } from 'react';
 import { useAppSettingsKey } from '@renderer/features/settings/use-app-settings-key';
@@ -69,6 +70,8 @@ const DEFAULT_OPTION: FontOption = {
 const clampFontSize = (size: number) =>
   Math.min(TERMINAL_FONT_SIZE_MAX, Math.max(TERMINAL_FONT_SIZE_MIN, size));
 
+const isMac = detectPlatform() === 'mac';
+
 const TerminalSettingsCard: React.FC = () => {
   const {
     value: terminal,
@@ -85,6 +88,7 @@ const TerminalSettingsCard: React.FC = () => {
   const fontFamily = terminal?.fontFamily ?? '';
   const fontSize = terminal?.fontSize ?? TERMINAL_FONT_SIZE_DEFAULT;
   const autoCopyOnSelection = terminal?.autoCopyOnSelection ?? false;
+  const macOptionIsMeta = terminal?.macOptionIsMeta ?? false;
   const defaultShell = terminal?.defaultShell ?? 'system';
   const selectedShell = useMemo(
     () =>
@@ -168,6 +172,18 @@ const TerminalSettingsCard: React.FC = () => {
       update({ autoCopyOnSelection: next });
       window.dispatchEvent(
         new CustomEvent('terminal-auto-copy-changed', { detail: { autoCopyOnSelection: next } })
+      );
+    },
+    [update]
+  );
+
+  const toggleMacOptionIsMeta = useCallback(
+    (next: boolean) => {
+      update({ macOptionIsMeta: next });
+      window.dispatchEvent(
+        new CustomEvent('terminal-mac-option-is-meta-changed', {
+          detail: { macOptionIsMeta: next },
+        })
       );
     },
     [update]
@@ -338,6 +354,19 @@ const TerminalSettingsCard: React.FC = () => {
           />
         }
       />
+      {isMac ? (
+        <SettingRow
+          title="Use Option as Meta key"
+          description="Treat the Option key as the Meta key in the terminal."
+          control={
+            <Switch
+              checked={macOptionIsMeta}
+              disabled={loading || saving}
+              onCheckedChange={toggleMacOptionIsMeta}
+            />
+          }
+        />
+      ) : null}
     </div>
   );
 };

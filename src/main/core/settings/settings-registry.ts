@@ -41,6 +41,7 @@ export const SETTINGS_DEFAULTS = {
   terminal: {
     fontSize: TERMINAL_FONT_SIZE_DEFAULT,
     autoCopyOnSelection: false,
+    macOptionIsMeta: false,
     defaultShell: 'system' as const,
   },
   theme: null,
