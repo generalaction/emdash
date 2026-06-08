@@ -21,6 +21,7 @@ export function useAutomationSettingsAutoSave(automation: Automation) {
     canSave,
     buildTaskConfig,
     name,
+    workspaceConfig,
   } = formState;
 
   function buildConversationConfig(): ConversationConfig {
@@ -66,6 +67,21 @@ export function useAutomationSettingsAutoSave(automation: Automation) {
     // We intentionally only track provider here; other fields use action-at-change-site.
     // oxlint-disable-next-line react/exhaustive-deps
   }, [provider]);
+
+  // Workspace config changes (preset, branch name, sandbox toggle, etc.) are not
+  // interceptable at the setter level because they go through useWorkspaceConfig
+  // internals. Serialize the resolved config to a stable primitive key and auto-save
+  // whenever it changes, mirroring the provider effect above.
+  const resolvedConfigKey = JSON.stringify(workspaceConfig.resolvedConfig);
+  const isFirstWorkspaceRender = useRef(true);
+  useEffect(() => {
+    if (isFirstWorkspaceRender.current) {
+      isFirstWorkspaceRender.current = false;
+      return;
+    }
+    if (canSave) savePatch();
+    // oxlint-disable-next-line react/exhaustive-deps
+  }, [resolvedConfigKey]);
 
   function handlePromptBlur() {
     if (canSave) savePatch();
