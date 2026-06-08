@@ -125,7 +125,7 @@ export const tasks = sqliteTable(
     name: text('name').notNull(),
     status: text('status').notNull(),
     sourceBranch: text('source_branch').$type<StoredBranch>(), // @deprecated — moved to workspaces.config (git.fromBranch)
-    taskBranch: text('task_branch'), // @deprecated — moved to workspaces.branch_name
+    taskBranch: text('task_branch'), // @deprecated — use workspaces.config for provisioned branch identity
     linkedIssue: versionedJsonColumn(linkedIssue)('linked_issue'),
     archivedAt: text('archived_at'), // null = active, timestamp = archived
     createdAt: text('created_at')
@@ -304,7 +304,9 @@ export const automations = sqliteTable(
   {
     id: text('id').primaryKey(),
     name: text('name').notNull(),
-    projectId: text('project_id').references(() => projects.id, { onDelete: 'set null' }),
+    projectId: text('project_id').references(() => projects.id, {
+      onDelete: 'set null',
+    }),
     triggerConfig: versionedJsonColumn(automationTriggerConfig)('trigger_config'),
     conversationConfig: versionedJsonColumn(automationConversationConfig)('conversation_config'),
     taskConfig: versionedJsonColumn(storedAutomationTaskConfig)('task_config'),
@@ -380,7 +382,9 @@ export const conversations = sqliteTable(
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
     lastInteractedAt: text('last_interacted_at'),
-    isInitialConversation: integer('is_initial_conversation', { mode: 'boolean' }),
+    isInitialConversation: integer('is_initial_conversation', {
+      mode: 'boolean',
+    }),
     sessionId: text('session_id'),
     agentStatus: text('agent_status'),
     agentStatusSeen: integer('agent_status_seen').default(1),
