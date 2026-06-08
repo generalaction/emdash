@@ -30,6 +30,7 @@ import {
   checkMacApp,
   checkMacAppByName,
   checkMacMdfindQuery,
+  checkPath,
   escapeAppleScriptString,
   execFileCommand,
   listInstalledFontsAll,
@@ -175,6 +176,9 @@ class AppService implements IInitializable, IDisposable {
               break;
             }
           }
+        }
+        if (!isAvailable && platformConfig?.checkPaths) {
+          isAvailable = platformConfig.checkPaths.some((path) => checkPath(path));
         }
         if (!isAvailable && platformConfig?.mdfindQuery && platform === 'darwin') {
           isAvailable = await checkMacMdfindQuery(platformConfig.mdfindQuery);

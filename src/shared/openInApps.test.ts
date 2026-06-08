@@ -32,8 +32,9 @@ describe('OPEN_IN_APPS', () => {
     });
     expect(OPEN_IN_APPS.windsurf.platforms.darwin?.appNames).toEqual(['Devin', 'Windsurf']);
     expect(OPEN_IN_APPS.windsurf.platforms.darwin?.openCommands).toEqual([
-      'open -n -a "Devin" {{path}}',
-      'open -n -a "Windsurf" {{path}}',
+      'open -b com.exafunction.windsurf {{path}}',
+      'open -a "Devin" {{path}}',
+      'open -a "Windsurf" {{path}}',
     ]);
     expect(OPEN_IN_APPS.windsurf.platforms.linux?.checkCommands).toEqual([
       'devin-desktop',

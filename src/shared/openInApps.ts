@@ -6,6 +6,7 @@ export type PlatformConfig = {
   openCommands?: string[];
   openUrls?: string[];
   checkCommands?: string[];
+  checkPaths?: string[];
   bundleIds?: string[];
   appNames?: string[];
   // Free-form mdfind query (darwin only). App is considered installed if the
@@ -170,8 +171,12 @@ const _OPEN_IN_APPS = {
         appNames: ['GitHub Desktop'],
       },
       win32: {
-        openCommands: ['github {{path}}'],
+        openCommands: [
+          'github {{path}}',
+          'if exist "%LOCALAPPDATA%\\GitHubDesktop\\bin\\github.bat" "%LOCALAPPDATA%\\GitHubDesktop\\bin\\github.bat" {{path}}',
+        ],
         checkCommands: ['github'],
+        checkPaths: ['%LOCALAPPDATA%\\GitHubDesktop\\bin\\github.bat'],
       },
     },
   },
@@ -182,7 +187,11 @@ const _OPEN_IN_APPS = {
     autoInstall: true,
     platforms: {
       darwin: {
-        openCommands: ['open -n -a "Devin" {{path}}', 'open -n -a "Windsurf" {{path}}'],
+        openCommands: [
+          'open -b com.exafunction.windsurf {{path}}',
+          'open -a "Devin" {{path}}',
+          'open -a "Windsurf" {{path}}',
+        ],
         checkCommands: ['devin-desktop', 'devin', 'windsurf', 'surf'],
         bundleIds: ['com.exafunction.windsurf'],
         appNames: ['Devin', 'Windsurf'],

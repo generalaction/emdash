@@ -1,4 +1,5 @@
 import { exec, execFile } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { app } from 'electron';
@@ -182,6 +183,11 @@ export const checkCommand = (cmd: string): Promise<boolean> =>
       resolve(!error);
     });
   });
+
+const expandEnvironmentVariables = (value: string): string =>
+  value.replace(/%([^%]+)%/g, (_, name: string) => process.env[name] ?? '');
+
+export const checkPath = (path: string): boolean => existsSync(expandEnvironmentVariables(path));
 
 export const checkMacApp = (bundleId: string): Promise<boolean> =>
   new Promise((resolve) => {
