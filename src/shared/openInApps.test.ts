@@ -30,6 +30,10 @@ describe('OPEN_IN_APPS', () => {
       iconPath: 'devin.svg',
       label: 'Devin Desktop',
     });
+    expect(OPEN_IN_APPS.windsurf.platforms.darwin?.bundleIds).toEqual([
+      'com.exafunction.windsurf',
+      'ai.cognition.devin',
+    ]);
     expect(OPEN_IN_APPS.windsurf.platforms.darwin?.appNames).toEqual(['Devin', 'Windsurf']);
     expect(OPEN_IN_APPS.windsurf.platforms.darwin?.openCommands).toEqual([
       'open -b com.exafunction.windsurf {{path}}',
@@ -55,7 +59,7 @@ describe('OPEN_IN_APPS', () => {
       'com.github.GitHubClient'
     );
     expect(OPEN_IN_APPS['github-desktop'].platforms.darwin?.openCommands).toContain(
-      'open -n -a "GitHub Desktop" {{path}}'
+      'open -n -a "GitHub Desktop" --args {{path}}'
     );
     expect(OPEN_IN_APPS['github-desktop'].platforms.win32?.checkCommands).toEqual(['github']);
   });

@@ -164,7 +164,7 @@ const _OPEN_IN_APPS = {
         openCommands: [
           'command -v github >/dev/null 2>&1 && github {{path}}',
           'open -n -b com.github.GitHubClient --args {{path}}',
-          'open -n -a "GitHub Desktop" {{path}}',
+          'open -n -a "GitHub Desktop" --args {{path}}',
         ],
         checkCommands: ['github'],
         bundleIds: ['com.github.GitHubClient'],
@@ -193,7 +193,7 @@ const _OPEN_IN_APPS = {
           'open -a "Windsurf" {{path}}',
         ],
         checkCommands: ['devin-desktop', 'devin', 'windsurf', 'surf'],
-        bundleIds: ['com.exafunction.windsurf'],
+        bundleIds: ['com.exafunction.windsurf', 'ai.cognition.devin'],
         appNames: ['Devin', 'Windsurf'],
       },
       win32: {
