@@ -18,6 +18,9 @@ import {
   resolveProjectPullRequestAuthContext,
   resolveProjectPullRequestContext,
 } from './project-pull-request-context';
+const { tasks, workspaces } = await import('@main/db/schema');
+const { eq } = await import('drizzle-orm');
+const { db } = await import('@main/db/client');
 
 type PrControllerFailureType =
   | 'create_failed'
@@ -152,9 +155,6 @@ export const pullRequestController = createRPCController({
         return ok({ prs: [], branchName: null });
       }
 
-      const { tasks, workspaces } = await import('@main/db/schema');
-      const { eq } = await import('drizzle-orm');
-      const { db } = await import('@main/db/client');
       const [taskRow] = await db
         .select({ workspaceId: tasks.workspaceId })
         .from(tasks)
@@ -175,11 +175,7 @@ export const pullRequestController = createRPCController({
         return ok({ prs: [], branchName: null });
       }
 
-      const prs = await prQueryService.getTaskPullRequests(
-        projectId,
-        wsRow.branchName,
-        capability.data.repositoryUrl
-      );
+      const prs = await prQueryService.getTaskPullRequests(projectId, wsRow.branchName);
       return ok({ prs, branchName: wsRow.branchName });
     } catch (error) {
       log.error('Failed to get pull requests for task:', error);
