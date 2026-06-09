@@ -44,6 +44,8 @@ step('Copying built assets into deployment directory');
 cpSync('out', join(deployDir, 'out'), { recursive: true });
 cpSync('drizzle', join(deployDir, 'drizzle'), { recursive: true });
 
+const electronVersion = exec(`node -p "require('electron/package.json').version"`);
+
 try {
   for (const arch of archs) {
     step(`Building ${platform} ${targets} for ${arch}`);
@@ -63,6 +65,7 @@ try {
       '--publish always',
       `--config ${values.config}`,
       `--projectDir ${deployDir}`,
+      `--config.electronVersion=${electronVersion}`,
       '--config.npmRebuild=false',
     ].join(' ');
 
