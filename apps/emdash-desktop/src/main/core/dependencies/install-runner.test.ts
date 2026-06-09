@@ -3,6 +3,8 @@ import type { LocalSpawnOptions } from '@main/core/pty/local-pty';
 import type { Pty } from '@main/core/pty/pty';
 import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
 import {
+  INSTALL_COMMAND_OUTPUT_LIMIT,
+  INSTALL_COMMAND_TIMEOUT_MS,
   classifyInstallCommandFailure,
   createLocalInstallCommandRunner,
   createSshInstallCommandRunner,
@@ -44,6 +46,16 @@ function createSuccessfulPty(): Pty {
     kill: vi.fn(),
     onData: vi.fn(),
     onExit: vi.fn((handler) => handler({ exitCode: 0 })),
+  };
+}
+
+function createHangingPty(chunks: string[] = []): Pty {
+  return {
+    write: vi.fn(),
+    resize: vi.fn(),
+    kill: vi.fn(),
+    onData: vi.fn((handler) => chunks.forEach((chunk) => handler(chunk))),
+    onExit: vi.fn(),
   };
 }
 
@@ -161,6 +173,27 @@ describe('runLocalInstallCommand', () => {
         command: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
       })
     );
+  });
+
+  it('kills hung install PTYs and returns bounded timeout output', async () => {
+    setPlatform('win32');
+    vi.useFakeTimers();
+    const pty = createHangingPty(['a'.repeat(INSTALL_COMMAND_OUTPUT_LIMIT + 100)]);
+    mocks.spawnLocalPty.mockReturnValueOnce(pty);
+
+    const resultPromise = runLocalInstallCommand('npm install -g @openai/codex', pwshProfile);
+    await vi.advanceTimersByTimeAsync(INSTALL_COMMAND_TIMEOUT_MS);
+    const result = await resultPromise;
+
+    expect(pty.kill).toHaveBeenCalledWith();
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.type).toBe('install-timed-out');
+      if (result.error.type === 'install-timed-out') {
+        expect(result.error.output).toHaveLength(INSTALL_COMMAND_OUTPUT_LIMIT);
+      }
+    }
+    vi.useRealTimers();
   });
 });
 

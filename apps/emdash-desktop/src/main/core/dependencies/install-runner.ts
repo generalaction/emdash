@@ -18,6 +18,18 @@ export type InstallCommandRunner<TData = void, TError = InstallCommandError> = (
 type ShellProfileResolver = () => Promise<ResolvedShellProfile>;
 
 const ANSI_RE = /\u001b\[[0-?]*[ -/]*[@-~]/g;
+export const INSTALL_COMMAND_TIMEOUT_MS = 5 * 60 * 1000;
+export const INSTALL_COMMAND_OUTPUT_LIMIT = 8_000;
+
+function appendBoundedOutput(output: string, chunk: string): string {
+  const next = output + chunk;
+  if (next.length <= INSTALL_COMMAND_OUTPUT_LIMIT) return next;
+  return next.slice(next.length - INSTALL_COMMAND_OUTPUT_LIMIT);
+}
+
+function cleanInstallOutput(output: string): string {
+  return output.replace(ANSI_RE, '').trim();
+}
 
 export function classifyInstallCommandFailure({
   exitCode,
@@ -26,7 +38,7 @@ export function classifyInstallCommandFailure({
   exitCode: number | undefined;
   output: string;
 }): InstallCommandError {
-  const cleanOutput = output.replace(ANSI_RE, '').trim();
+  const cleanOutput = cleanInstallOutput(output);
   if (/\bEACCES\b|permission denied|not have the permissions/i.test(cleanOutput)) {
     return {
       type: 'permission-denied',
@@ -46,18 +58,47 @@ export function classifyInstallCommandFailure({
 
 function waitForInstallPty(pty: Pty): Promise<Result<void, InstallCommandError>> {
   return new Promise((resolve) => {
-    const chunks: string[] = [];
-    pty.onData((chunk: string) => chunks.push(chunk));
+    let output = '';
+    let settled = false;
+    const timeout = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      const cleanOutput = cleanInstallOutput(output);
+      log.error(`[DependencyManager] Install timed out`, {
+        timeoutMs: INSTALL_COMMAND_TIMEOUT_MS,
+        output: cleanOutput,
+      });
+      try {
+        pty.kill();
+      } catch (error) {
+        log.warn(`[DependencyManager] Failed to kill timed out install PTY`, { error });
+      }
+      resolve(
+        err({
+          type: 'install-timed-out',
+          message: 'Install command timed out.',
+          output: cleanOutput,
+          timeoutMs: INSTALL_COMMAND_TIMEOUT_MS,
+        })
+      );
+    }, INSTALL_COMMAND_TIMEOUT_MS);
+
+    pty.onData((chunk: string) => {
+      output = appendBoundedOutput(output, chunk);
+    });
     pty.onExit(({ exitCode }) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
       if (exitCode === 0) {
         log.info(`[DependencyManager] Install succeeded`);
         resolve(ok());
         return;
       }
 
-      const output = chunks.join('').trim();
-      log.error(`[DependencyManager] Install failed`, { exitCode, output });
-      resolve(err(classifyInstallCommandFailure({ exitCode, output })));
+      const cleanOutput = cleanInstallOutput(output);
+      log.error(`[DependencyManager] Install failed`, { exitCode, output: cleanOutput });
+      resolve(err(classifyInstallCommandFailure({ exitCode, output: cleanOutput })));
     });
   });
 }

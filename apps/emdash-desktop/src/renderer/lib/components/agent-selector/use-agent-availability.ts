@@ -44,17 +44,26 @@ export function useAgentAvailability({
 
   async function installAgent(agentId: AgentProviderId): Promise<void> {
     if (appState.dependencies.isInstalling(agentId, connectionId)) return;
-    const result = await appState.dependencies.install(agentId, connectionId);
-    if (!result.success) {
+    try {
+      const result = await appState.dependencies.install(agentId, connectionId);
+      if (!result.success) {
+        toast({
+          title: 'Install failed',
+          description: getAgentInstallErrorMessage(result.error),
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      toast({ title: 'Agent installed', description: `${agentConfig[agentId].name} is ready.` });
+    } catch (error) {
+      const description = error instanceof Error ? error.message : 'The install request failed.';
       toast({
         title: 'Install failed',
-        description: getAgentInstallErrorMessage(result.error),
+        description,
         variant: 'destructive',
       });
-      return;
     }
-
-    toast({ title: 'Agent installed', description: `${agentConfig[agentId].name} is ready.` });
   }
 
   return {

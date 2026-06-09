@@ -30,6 +30,7 @@ export type DependencyStatusUpdatedEvent = {
 export type InstallCommandError =
   | { type: 'permission-denied'; message: string; output: string; exitCode?: number }
   | { type: 'command-failed'; message: string; output: string; exitCode?: number }
+  | { type: 'install-timed-out'; message: string; output: string; timeoutMs: number }
   | { type: 'pty-open-failed'; message: string };
 
 export type DependencyInstallError =
