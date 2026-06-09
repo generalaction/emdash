@@ -1,0 +1,23 @@
+apps/emdash-desktop/src/renderer/lib/components/agent-selector/agent-install.ts
+  s_14bb75716ab7d8::t_ab57489bc4ec99 19
+apps/emdash-desktop/src/main/core/dependencies/install-runner.ts
+  s_14bb75716ab7d8::t_58aeeaca7bb851 87
+apps/emdash-desktop/src/main/core/dependencies/install-runner.test.ts
+  s_14bb75716ab7d8::t_00878912836628 90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "b67618d473d765e8699840217f028926ca3b9507",
+  "prompts": {},
+  "sessions": {
+    "s_14bb75716ab7d8": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019eaca4-bb04-7850-a386-53c115bafd34",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
