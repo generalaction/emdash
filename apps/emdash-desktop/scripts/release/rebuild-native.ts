@@ -22,7 +22,7 @@ const electronVersion = exec('node -p "require(\'electron/package.json\').versio
 step(`Rebuilding native modules for ${arch} (Electron ${electronVersion})`);
 
 const modules = NATIVE_MODULES.join(',');
-const moduleDirFlag = deployDir ? `-d ${deployDir}` : '';
+const moduleDirFlag = deployDir ? `-m ${deployDir}` : '';
 exec(
   `pnpm exec electron-rebuild -f -a ${arch} -v ${electronVersion} -o ${modules} ${moduleDirFlag}`.trim(),
   { echo: true, env: { npm_config_build_from_source: 'true' } }
