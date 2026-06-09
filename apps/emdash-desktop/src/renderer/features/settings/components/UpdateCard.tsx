@@ -34,18 +34,6 @@ export const UpdateCard = observer(function UpdateCard(): React.JSX.Element {
         description={renderStatusMessage()}
         control={
           <div className="flex items-center gap-2">
-            {import.meta.env.DEV && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-7 text-xs"
-                onClick={() => update.devSimulateAvailable()}
-                aria-label="Simulate an available update (dev only)"
-              >
-                Simulate update
-              </Button>
-            )}
             {update.state.status !== 'downloaded' && update.state.status !== 'installing' && (
               <Button
                 type="button"

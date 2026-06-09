@@ -221,27 +221,6 @@ export class UpdateStore {
     }
   }
 
-  /** Dev-only: simulate an available update so the toast + upgrade flow can be tested. */
-  devSimulateAvailable(): void {
-    const version = this._bumpVersion(this.currentVersion);
-    runInAction(() => {
-      this.availableVersion = version;
-      this.state = { status: 'available', info: { version } };
-    });
-    this._showAvailableToast(version);
-  }
-
-  private _bumpVersion(version: string): string {
-    const parts = version.split('.');
-    const last = parts.length - 1;
-    const n = Number(parts[last]);
-    if (parts.length > 0 && Number.isFinite(n)) {
-      parts[last] = String(n + 1);
-      return parts.join('.');
-    }
-    return version ? `${version}-next` : '9.9.9';
-  }
-
   private _maybeToastAvailable(version: string): void {
     if (!this._shouldNotify(version)) return;
     this._showAvailableToast(version);
