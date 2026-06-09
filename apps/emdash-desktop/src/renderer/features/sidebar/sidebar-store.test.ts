@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { SidebarStore } from './sidebar-store';
 
-type TestProject = { id: string; createdAt: string; mountedProject: null };
 type SidebarProjectManager = ConstructorParameters<typeof SidebarStore>[0];
 
 vi.mock('@renderer/lib/ipc', () => ({
