@@ -1,5 +1,4 @@
 import { cpSync, mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { exec } from './lib/exec.ts';
@@ -33,8 +32,8 @@ const defaultTargets: Record<string, string> = {
 const targets = values.targets ? values.targets.split(',').join(' ') : defaultTargets[platform];
 
 step('Creating deployment directory with production dependencies');
-const deployDir = mkdtempSync(join(tmpdir(), 'emdash-deploy-'));
 const workspaceRoot = resolve(process.cwd(), '../..');
+const deployDir = mkdtempSync(join(workspaceRoot, '.emdash-deploy-'));
 exec(`pnpm --filter @emdash/emdash-desktop deploy --legacy --prod ${deployDir}`, {
   cwd: workspaceRoot,
   echo: true,
