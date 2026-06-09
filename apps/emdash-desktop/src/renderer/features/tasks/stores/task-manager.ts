@@ -275,27 +275,38 @@ export class TaskManagerStore {
     const result = await rpc.pullRequests.getPullRequestsForTask(this.projectId, store.data.id);
     if (!result.success) return;
     const prs = result.data.prs;
+    const previousPrStatuses = new Map(
+      isRegistered(store) ? (store.data as Task).prs.map((pr) => [pr.url, pr.status]) : []
+    );
     runInAction(() => {
       if (isRegistered(store)) {
         (store.data as Task).prs = prs;
       }
     });
+    const newlyMergedPrs = prs.filter(
+      (pr) =>
+        pr.status === 'merged' &&
+        previousPrStatuses.get(pr.url) !== undefined &&
+        previousPrStatuses.get(pr.url) !== 'merged'
+    );
     if (isRegistered(store)) {
-      await this._archiveTaskIfMerged(store.data as Task, prs);
+      await this._archiveTaskIfMerged(store.data as Task, newlyMergedPrs);
     }
   }
 
   private async _archiveTaskIfMerged(task: Task, prs: PullRequest[]): Promise<void> {
     if (task.archivedAt || !prs.some((pr) => pr.status === 'merged')) return;
     const settings = (await rpc.appSettings.get('tasks')) as AppSettings['tasks'];
-    if (!settings.archiveOnMerge) return;
-    this._leaveTaskViewBeforeArchive(task.id);
+    if (task.archivedAt || !settings.archiveOnMerge) return;
     await this.archiveTask(task.id);
+    this._leaveTaskViewAfterArchive(task.id);
   }
 
-  private _leaveTaskViewBeforeArchive(taskId: string): void {
+  private _leaveTaskViewAfterArchive(taskId: string): void {
     const navigation = appState.navigation;
-    const params = navigation.viewParamsStore.task as { projectId?: string; taskId?: string } | undefined;
+    const params = navigation.viewParamsStore.task as
+      | { projectId?: string; taskId?: string }
+      | undefined;
     if (
       navigation.currentViewId === 'task' &&
       params?.projectId === this.projectId &&
