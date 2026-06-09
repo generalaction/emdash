@@ -81,7 +81,7 @@ export function BrowserToolbar({
   const canOpenExternal = canOpenBrowserUrlExternally(session.currentUrl);
 
   return (
-    <div className="flex h-10 shrink-0 items-center gap-1 border-b border-border bg-background-secondary px-2">
+    <div className="flex h-10 shrink-0 items-center gap-1 border-b border-border bg-background-secondary-1 px-2">
       <ToolbarIconButton label={session.isLoading ? 'Stop' : 'Reload'} onClick={() => onReload?.()}>
         {session.isLoading ? <Square className="size-3.5" /> : <RefreshCw className="size-4" />}
       </ToolbarIconButton>
