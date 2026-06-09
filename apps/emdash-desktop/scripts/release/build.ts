@@ -35,7 +35,7 @@ const targets = values.targets ? values.targets.split(',').join(' ') : defaultTa
 step('Creating deployment directory with production dependencies');
 const deployDir = mkdtempSync(join(tmpdir(), 'emdash-deploy-'));
 const workspaceRoot = resolve(process.cwd(), '../..');
-exec(`pnpm --filter @emdash/emdash-desktop deploy --prod ${deployDir}`, {
+exec(`pnpm --filter @emdash/emdash-desktop deploy --legacy --prod ${deployDir}`, {
   cwd: workspaceRoot,
   echo: true,
 });
