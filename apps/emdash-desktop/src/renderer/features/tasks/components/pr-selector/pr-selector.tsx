@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
+import { AlertCircle } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
+import { ListPopoverCard } from '@renderer/lib/components/list-popover-card';
 import { StatusIcon } from '@renderer/lib/components/pr-status-icon';
 import { useDebounce } from '@renderer/lib/hooks/useDebounce';
 import { rpc } from '@renderer/lib/ipc';
@@ -203,6 +205,22 @@ export function PrSelector({
               </ComboboxItem>
             )}
           </ComboboxList>
+          {errorMessage && prs.length > 0 && (
+            <ListPopoverCard
+              className={
+                'border-border-destructive bg-background-destructive text-foreground-destructive'
+              }
+            >
+              <AlertCircle className="size-3.5 shrink-0 text-foreground-destructive" />
+              <span className="shrink-0 font-medium text-foreground-destructive">Sync failed</span>
+              <span
+                className="min-w-0 grow truncate text-foreground-destructive/80"
+                title={errorMessage}
+              >
+                {errorMessage}
+              </span>
+            </ListPopoverCard>
+          )}
         </ComboboxContent>
       </Combobox>
     </div>

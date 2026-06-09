@@ -74,6 +74,7 @@ vi.mock('@renderer/lib/ui/combobox', async () => {
   const React = await import('react');
 
   type ComboboxContextValue = {
+    items?: PullRequest[];
     inputValue?: string;
     onInputValueChange?: (value: string, details: { reason: string }) => void;
   };
@@ -103,26 +104,41 @@ vi.mock('@renderer/lib/ui/combobox', async () => {
   return {
     Combobox: ({
       children,
+      items,
       inputValue,
       onInputValueChange,
     }: {
       children: React.ReactNode;
+      items?: PullRequest[];
       inputValue?: string;
       onInputValueChange?: (value: string, details: { reason: string }) => void;
     }) =>
       React.createElement(
         ComboboxContext.Provider,
-        { value: { inputValue, onInputValueChange } },
+        { value: { items, inputValue, onInputValueChange } },
         children
       ),
     ComboboxContent: ({ children }: { children: React.ReactNode }) =>
       React.createElement('div', {}, children),
-    ComboboxEmpty: ({ children }: { children: React.ReactNode }) =>
-      React.createElement('div', {}, children),
+    ComboboxEmpty: ({ children }: { children: React.ReactNode }) => {
+      const { items } = React.useContext(ComboboxContext);
+      return items?.length ? null : React.createElement('div', {}, children);
+    },
     ComboboxInput: MockComboboxInput,
     ComboboxItem: ({ children }: { children: React.ReactNode }) =>
       React.createElement('div', {}, children),
-    ComboboxList: () => React.createElement('div', {}),
+    ComboboxList: ({ children }: { children: React.ReactNode }) => {
+      const { items } = React.useContext(ComboboxContext);
+      return React.createElement(
+        'div',
+        {},
+        items?.map((item) =>
+          typeof children === 'function'
+            ? (children as (item: PullRequest) => React.ReactNode)(item)
+            : children
+        )
+      );
+    },
     ComboboxTrigger: ({ render }: { render: React.ReactElement }) => render,
     ComboboxValue: ({
       children,
@@ -322,6 +338,41 @@ describe('PrSelector', () => {
         'acme/repo on github.com was not found, or the selected GitHub account does not have access.'
       );
     });
+    expect(container.textContent).not.toContain('No open pull requests');
+  });
+
+  it('shows background sync errors above cached pull request results', async () => {
+    mocks.syncPullRequests.mockResolvedValue({
+      success: false,
+      error: {
+        type: 'github_account_disabled',
+        message: 'GitHub API is disabled for this project.',
+      },
+    });
+    mocks.listPullRequests.mockResolvedValue({ success: true, data: { prs: [makePr()] } });
+
+    await act(async () => {
+      root.render(
+        React.createElement(
+          QueryClientProvider,
+          { client: queryClient },
+          React.createElement(PrSelector, {
+            value: null,
+            onValueChange: vi.fn(),
+            projectId: PROJECT_ID,
+            repositoryUrl: REPOSITORY_URL,
+          })
+        )
+      );
+    });
+
+    await vi.waitFor(() => {
+      expect(container.textContent).toContain('GitHub API is disabled for this project.');
+    });
+    expect(container.textContent).toContain('Sync failed');
+    expect(container.textContent).toContain('Search PR');
+    expect(container.querySelector('.absolute.right-6.bottom-4.left-6')).not.toBeNull();
+    expect(container.querySelector('.border-border-destructive')).not.toBeNull();
     expect(container.textContent).not.toContain('No open pull requests');
   });
 });
