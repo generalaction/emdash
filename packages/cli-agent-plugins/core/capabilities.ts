@@ -1,4 +1,5 @@
-import { CLIAgentPluginFs } from './plugin';
+import type { CLIAgentPluginFs } from './plugin';
+import type { SettingsDescriptor } from './settings';
 
 export type PluginCapabilities = {
   install: InstallationDescriptor;
@@ -10,6 +11,7 @@ export type PluginCapabilities = {
   hooks: HooksDescriptor;
   mcp: McpDescriptor;
   plugin: PluginDescriptor;
+  settings: SettingsDescriptor;
 };
 
 // Installation
@@ -91,27 +93,27 @@ export type AutoApproveDescriptor = { kind: 'supported' } | { kind: 'none' };
 
 export type HookEvent = 'notification' | 'stop' | 'session' | 'start' | 'tool-use' | 'tool-use-failure';
 
-export type HooksDescriptor =
-  | {
-      kind: 'config';
-      supportedEvents: HookEvent[];
-      readHooks: (rootPath: string) => Promise<HookRegistration[]>; // hierarchical config merge should be handled by the plugin implementation
-      writeHooks: (rootPath: string, hooks: HookRegistration[]) => Promise<void>; // hierarchical config merge should be handled by the plugin implementation
-      deleteHooks: (rootPath: string) => Promise<void>;
-      getHooksInstalled: (rootPath: string) => Promise<boolean>;
-    }
-  | { kind: 'plugin'; supportedEvents: HookEvent[] }
-  | {
-      kind: 'none';
-    };
-
 export type HookRegistration = {
   event: HookEvent;
   command: string;
   isEmdashHook: boolean;
 };
 
-// Plugins
+export type HooksDescriptor =
+  | {
+      kind: 'config';
+      supportedEvents: HookEvent[];
+      // The app creates a CLIAgentPluginFs scoped to the appropriate root (global or workspace)
+      // and passes it here; the plugin handles all path logic internally.
+      readHooks(fs: CLIAgentPluginFs): Promise<HookRegistration[]>;
+      writeHooks(fs: CLIAgentPluginFs, hooks: HookRegistration[]): Promise<void>;
+      deleteHooks(fs: CLIAgentPluginFs): Promise<void>;
+      getHooksInstalled(fs: CLIAgentPluginFs): Promise<boolean>;
+    }
+  | { kind: 'plugin'; supportedEvents: HookEvent[] }
+  | { kind: 'none' };
+
+// Plugins (emdash's own agent-side plugin management)
 
 export type PluginScope = { kind: 'global' } | { kind: 'workspace'; path: string };
 
@@ -119,22 +121,20 @@ export type PluginDescriptor =
   | {
       kind: 'file-drop';
       scopes: PluginScope[];
-      installPlugin: (fs: CLIAgentPluginFs, scope: PluginScope) => Promise<void>;
-      uninstallPlugin: (fs: CLIAgentPluginFs, scope: PluginScope) => Promise<void>;
-      isPluginInstalled: (fs: CLIAgentPluginFs, scope: PluginScope) => Promise<boolean>;
-      getPluginVersion: (fs: CLIAgentPluginFs, scope: PluginScope) => Promise<string>;
-      getPluginPath: (fs: CLIAgentPluginFs, scope: PluginScope) => Promise<string>;
+      installPlugin(fs: CLIAgentPluginFs, scope: PluginScope): Promise<void>;
+      uninstallPlugin(fs: CLIAgentPluginFs, scope: PluginScope): Promise<void>;
+      isPluginInstalled(fs: CLIAgentPluginFs, scope: PluginScope): Promise<boolean>;
+      getPluginVersion(fs: CLIAgentPluginFs, scope: PluginScope): Promise<string>;
+      getPluginPath(fs: CLIAgentPluginFs, scope: PluginScope): Promise<string>;
     }
   | {
       kind: 'cli';
-      buildInstallCommand: (binaryPath: string) => string;
-      buildUninstallCommand: (binaryPath: string) => string;
-      buildCheckCommand: (binaryPath: string) => string;
-      parseCheckOutput: (output: string) => boolean;
+      buildInstallCommand(binaryPath: string): string;
+      buildUninstallCommand(binaryPath: string): string;
+      buildCheckCommand(binaryPath: string): string;
+      parseCheckOutput(output: string): boolean;
     }
-  | {
-      kind: 'none';
-    };
+  | { kind: 'none' };
 
 // MCPs
 
@@ -154,10 +154,9 @@ export type McpDescriptor =
   | {
       kind: 'supported';
       supportedTransports: McpTransport[];
-      readServers(rootPath: string): Promise<McpServerRegistration[]>;
-      writeServers(rootPath: string, servers: McpServerRegistration[]): Promise<void>;
-      removeServer(rootPath: string, name: string): Promise<void>;
+      // The app creates a CLIAgentPluginFs scoped to the appropriate root and passes it here.
+      readServers(fs: CLIAgentPluginFs): Promise<McpServerRegistration[]>;
+      writeServers(fs: CLIAgentPluginFs, servers: McpServerRegistration[]): Promise<void>;
+      removeServer(fs: CLIAgentPluginFs, name: string): Promise<void>;
     }
-  | {
-      kind: 'none';
-    };
+  | { kind: 'none' };

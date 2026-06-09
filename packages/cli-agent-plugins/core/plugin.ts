@@ -18,7 +18,7 @@ export interface CLIAgentPlugin {
 }
 
 export interface CLIAgentPluginFs {
-  read(path: string): Promise<string>;
+  read(path: string): Promise<string | null>;
   write(path: string, content: string): Promise<void>;
   delete(path: string): Promise<void>;
   exists(path: string): Promise<boolean>;

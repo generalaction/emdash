@@ -1,4 +1,4 @@
-import z from 'zod';
+import { z } from 'zod';
 
 export const agentUserSettingsSchema = z.object({
   customBinaryPath: z.string().optional(),
@@ -6,4 +6,21 @@ export const agentUserSettingsSchema = z.object({
   env: z.record(z.string(), z.string()).optional(),
 });
 
-type AgentUserSettings = z.infer<typeof agentUserSettingsSchema>;
+export type AgentUserSettings = z.infer<typeof agentUserSettingsSchema>;
+
+export type SettingsFieldType =
+  | { kind: 'string' }
+  | { kind: 'boolean' }
+  | { kind: 'number'; min?: number; max?: number }
+  | { kind: 'select'; options: { value: string; label: string }[] }
+  | { kind: 'string-array' };
+
+export type CustomSettingField = {
+  key: string;
+  label: string;
+  description?: string;
+  type: SettingsFieldType;
+  default?: unknown;
+};
+
+export type SettingsDescriptor = { custom?: CustomSettingField[] } | { kind: 'none' };
