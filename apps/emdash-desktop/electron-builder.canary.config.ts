@@ -47,12 +47,17 @@ const config: Configuration = {
   linux: {
     category: 'Development',
     executableName: APP_NAME_LOWER,
-    packageName: APP_NAME_LOWER,
     target: [
       { target: 'AppImage', arch: ['x64'] },
       { target: 'deb', arch: ['x64'] },
       { target: 'rpm', arch: ['x64'] },
     ],
+  },
+  deb: {
+    packageName: APP_NAME_LOWER,
+  },
+  rpm: {
+    packageName: APP_NAME_LOWER,
   },
   win: {
     icon: 'src/assets/images/emdash/app-icon-canary.png',
