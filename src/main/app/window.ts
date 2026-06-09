@@ -1,6 +1,13 @@
 import { join } from 'node:path';
 import { BrowserWindow } from 'electron';
 import appIcon from '@/assets/images/emdash/emdash_logo.png?asset';
+import { browserWebContentsRegistry } from '@main/core/browser/browser-webcontents-registry';
+import {
+  hardenBrowserWebviewPreferences,
+  stripBrowserWebviewParams,
+  validateBrowserWebviewAttach,
+} from '@main/core/browser/webview-security';
+import { log } from '@main/lib/logger';
 import { telemetryService } from '@main/lib/telemetry';
 import { registerExternalLinkHandlers } from '@main/utils/externalLinks';
 import { PRODUCT_NAME } from '@shared/app-identity';
@@ -46,6 +53,7 @@ export function createMainWindow(): BrowserWindow {
 
   // Route external links to the user’s default browser
   registerExternalLinkHandlers(mainWindow, import.meta.env.DEV);
+  registerBrowserWebviewHandlers(mainWindow);
 
   // Show when ready
   mainWindow.once('ready-to-show', () => {
@@ -75,4 +83,30 @@ export function createMainWindow(): BrowserWindow {
 
 export function getMainWindow(): BrowserWindow | null {
   return mainWindow;
+}
+
+function registerBrowserWebviewHandlers(win: BrowserWindow): void {
+  win.webContents.on('will-attach-webview', (event, webPreferences, params) => {
+    const validation = validateBrowserWebviewAttach(
+      params,
+      browserWebContentsRegistry.registeredPartitions
+    );
+    if (!validation.ok) {
+      event.preventDefault();
+      log.warn('Denied browser webview attachment', { reason: validation.reason });
+      return;
+    }
+
+    hardenBrowserWebviewPreferences(webPreferences);
+    stripBrowserWebviewParams(params);
+  });
+
+  win.webContents.on('did-attach-webview', (_event, webContents) => {
+    const browserId = browserWebContentsRegistry.getBrowserIdForWebContents(webContents);
+    if (!browserId) {
+      webContents.close();
+      return;
+    }
+    browserWebContentsRegistry.attachWebContents(browserId, webContents);
+  });
 }

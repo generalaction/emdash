@@ -28,13 +28,22 @@ export class TabGroupManagerStore {
 
   private readonly _getConversations: () => ConversationManagerStore | null;
   private readonly _workspaceId: string;
+  private readonly _projectId: string;
+  private readonly _taskId: string;
   private _closeHandler?: (tabId: string) => Promise<void>;
   /** Disposers for the per-group auto-close reactions. Not observable. */
   private readonly _autoCloseDisposers = new Map<string, () => void>();
 
-  constructor(getConversations: () => ConversationManagerStore | null, workspaceId: string) {
+  constructor(
+    getConversations: () => ConversationManagerStore | null,
+    workspaceId: string,
+    projectId: string,
+    taskId: string
+  ) {
     this._getConversations = getConversations;
     this._workspaceId = workspaceId;
+    this._projectId = projectId;
+    this._taskId = taskId;
 
     const initial = this._createGroup();
     this.groups.push(initial);
@@ -58,6 +67,7 @@ export class TabGroupManagerStore {
       restoreSnapshot: action,
       openConversation: action,
       openConversationPreview: action,
+      openBrowser: action,
     });
   }
 
@@ -155,11 +165,8 @@ export class TabGroupManagerStore {
     const fromGroup = this.groups.find((g) => g.groupId === fromGroupId);
     const toGroup = this.groups.find((g) => g.groupId === toGroupId);
     if (!fromGroup || !toGroup) return;
-    const entry = fromGroup.tabManager.entries.get(tabId);
+    const entry = fromGroup.tabManager.detachTab(tabId);
     if (!entry) return;
-
-    // Force-remove from source without triggering the close guard.
-    fromGroup.tabManager.closeTab(tabId);
 
     // Insert into target, reusing the same entry object and tabId.
     toGroup.tabManager.entries.set(tabId, entry);
@@ -241,6 +248,10 @@ export class TabGroupManagerStore {
     this.focusedGroup.openConversationPreview(conversationId);
   }
 
+  openBrowser(initialUrl?: string): void {
+    this.focusedGroup.openBrowser(initialUrl);
+  }
+
   get snapshot(): TabGroupsSnapshot {
     return {
       groups: this.groups.map((g) => ({
@@ -294,7 +305,12 @@ export class TabGroupManagerStore {
   }
 
   private _createTabManager(_groupId: string): TabManagerStore {
-    const store = new TabManagerStore(this._getConversations, this._workspaceId);
+    const store = new TabManagerStore(
+      this._getConversations,
+      this._workspaceId,
+      this._projectId,
+      this._taskId
+    );
     if (this._closeHandler) {
       store.registerCloseHandler(this._closeHandler);
     }

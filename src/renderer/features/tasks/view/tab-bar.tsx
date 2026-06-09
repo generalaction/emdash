@@ -12,11 +12,13 @@ import {
 import { useTabShortcuts } from '@renderer/lib/hooks/useTabShortcuts';
 import type { ConversationManagerStore } from '../conversations/conversation-manager';
 import type {
+  ResolvedBrowserTab,
   ResolvedConversationTab,
   ResolvedDiffTab,
   ResolvedFileTab,
   ResolvedTab,
 } from '../tabs/tab-manager-store';
+import { BrowserTabItem } from './tab-bar/browser-tab-item';
 import { ConversationTabItem } from './tab-bar/conversation-tab-item';
 import { DiffTabItem } from './tab-bar/diff-tab-item';
 import { PaneDropZone } from './tab-bar/draggable-tab';
@@ -49,6 +51,15 @@ function makeTabRenderers(
     ),
     file: (tab: ResolvedFileTab): ReactNode => (
       <FileTabItem
+        key={tab.tabId}
+        tab={tab}
+        onSelect={() => tabManager.setActiveTab(tab.tabId)}
+        onPin={() => tabManager.pinTab(tab.tabId)}
+        onClose={() => closeTabWithConfirm(tabManager, tab.tabId)}
+      />
+    ),
+    browser: (tab: ResolvedBrowserTab): ReactNode => (
+      <BrowserTabItem
         key={tab.tabId}
         tab={tab}
         onSelect={() => tabManager.setActiveTab(tab.tabId)}

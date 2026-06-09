@@ -7,7 +7,23 @@ vi.mock('@renderer/lib/hooks/useTheme', () => ({
   useTheme: () => ({ effectiveTheme: 'emlight' }),
 }));
 
+vi.mock('@renderer/features/tasks/stores/task-selectors', () => ({
+  getTaskView: vi.fn(),
+}));
+
+vi.mock('@renderer/lib/stores/app-state', () => ({
+  appState: {
+    navigation: {
+      currentViewId: 'home',
+      viewParamsStore: {},
+    },
+  },
+}));
+
 vi.mock('@renderer/lib/ipc', () => ({
+  events: {
+    on: vi.fn(() => () => {}),
+  },
   rpc: {
     app: {
       openExternal: vi.fn(),
