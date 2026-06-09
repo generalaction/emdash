@@ -10,6 +10,7 @@ import {
 } from '@renderer/features/tasks/task-view-context';
 import AgentLogo from '@renderer/lib/components/agent-logo';
 import { ListPopoverCard } from '@renderer/lib/components/list-popover-card';
+import { useMultiSelect } from '@renderer/lib/hooks/use-multi-select';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { Checkbox } from '@renderer/lib/ui/checkbox';
@@ -28,6 +29,7 @@ import { MAX_CONVERSATION_TITLE_LENGTH } from '@shared/core/conversations/conver
 import { AgentStatusIndicator } from '../components/agent-status-indicator';
 
 const ROW_HEIGHT = 32;
+const getConversationId = (id: string) => id;
 
 const ConversationRow = observer(function ConversationRow({
   conversationId,
@@ -232,48 +234,6 @@ function SelectionBar({
   );
 }
 
-function useConversationSelection(conversationIds: string[]) {
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
-  const selectedConversationIds = conversationIds.filter((id) => selectedIds.has(id));
-  const selectedCount = selectedConversationIds.length;
-
-  const clearSelection = () => {
-    setSelectedIds(new Set());
-    setLastSelectedId(null);
-  };
-
-  const toggleSelect = (id: string, shiftKey: boolean) => {
-    if (shiftKey && lastSelectedId && lastSelectedId !== id) {
-      const fromIndex = conversationIds.indexOf(lastSelectedId);
-      const toIndex = conversationIds.indexOf(id);
-      if (fromIndex !== -1 && toIndex !== -1) {
-        const [start, end] = fromIndex < toIndex ? [fromIndex, toIndex] : [toIndex, fromIndex];
-        setSelectedIds(new Set(conversationIds.slice(start, end + 1)));
-        return;
-      }
-    }
-
-    const next = new Set(selectedIds);
-    if (next.has(id)) {
-      next.delete(id);
-      setLastSelectedId(next.size === 0 ? null : (Array.from(next).at(-1) ?? null));
-    } else {
-      next.add(id);
-      setLastSelectedId(id);
-    }
-    setSelectedIds(next);
-  };
-
-  return {
-    selectedIds,
-    selectedConversationIds,
-    selectedCount,
-    clearSelection,
-    toggleSelect,
-  };
-}
-
 export const SidebarConversationsList = observer(function SidebarConversationsList() {
   const { projectId, taskId } = useTaskViewContext();
   const taskView = useWorkspaceViewModel();
@@ -288,8 +248,13 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
       return bTime - aTime;
     })
     .map((c) => c.data.id);
-  const { selectedIds, selectedConversationIds, selectedCount, clearSelection, toggleSelect } =
-    useConversationSelection(conversationIds);
+  const {
+    selectedIds,
+    selectedCount,
+    selectedOrderedIds: selectedConversationIds,
+    clear: clearSelection,
+    toggle: toggleSelect,
+  } = useMultiSelect({ items: conversationIds, getId: getConversationId });
 
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -366,7 +331,7 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
                   conversationId={conversationId}
                   isSelected={selectedIds.has(conversationId)}
                   hasSelection={selectedCount > 0}
-                  onToggleSelect={(shiftKey) => toggleSelect(conversationId, shiftKey)}
+                  onToggleSelect={(shiftKey) => toggleSelect(conversationId, { range: shiftKey })}
                 />
               </div>
             );
