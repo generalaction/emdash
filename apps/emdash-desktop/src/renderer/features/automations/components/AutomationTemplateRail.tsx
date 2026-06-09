@@ -1,5 +1,5 @@
 import { cn } from '@renderer/utils/utils';
-import type { BuiltinAutomationTemplate } from '@shared/core/automations/automation';
+import type { BuiltinAutomationTemplate } from '../automation-template';
 import { AutomationTemplateCard } from './AutomationTemplateCard';
 
 interface AutomationTemplateRailProps {
@@ -16,14 +16,9 @@ export function AutomationTemplateRail({
   className,
 }: AutomationTemplateRailProps) {
   return (
-    <div
-      className={cn(
-        'flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain pb-1',
-        className
-      )}
-    >
+    <div className={cn('flex gap-2 overflow-x-auto p-4 pt-0', className)}>
       {templates.map((template) => (
-        <div key={template.id} className={compact ? 'h-28 w-56 shrink-0' : 'h-32 w-64 shrink-0'}>
+        <div key={template.id} className={cn('w-56 shrink-0')}>
           <AutomationTemplateCard template={template} onSelect={onSelect} compact={compact} />
         </div>
       ))}

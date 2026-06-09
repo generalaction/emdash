@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { DEFAULT_CRON_STATE, toCron } from '@renderer/lib/CronPicker/cron-utils';
 import { isValidProviderId } from '@shared/core/agents/agent-provider-registry';
-import type { Automation, BuiltinAutomationTemplate } from '@shared/core/automations/automation';
+import type { Automation } from '@shared/core/automations/automation';
 import type { StoredAutomationTaskConfig, TriggerConfig } from '@shared/core/automations/config';
 import { getLocalTimeZone } from '@shared/core/automations/timezone';
 import type { Branch } from '@shared/core/git/git';
@@ -17,6 +17,7 @@ import {
   useWorkspaceConfig,
   type WorkspaceConfigInitial,
 } from '../tasks/create-task-modal/use-workspace-config';
+import type { BuiltinAutomationTemplate } from './automation-template';
 
 const DEFAULT_CRON = toCron(DEFAULT_CRON_STATE);
 

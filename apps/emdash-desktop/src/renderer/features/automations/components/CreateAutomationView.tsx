@@ -10,11 +10,12 @@ import { EditableNameField } from '@renderer/lib/ui/editable-name-field';
 import { Field } from '@renderer/lib/ui/field';
 import { Label } from '@renderer/lib/ui/label';
 import { SheetFooter } from '@renderer/lib/ui/sheet';
-import type { Automation, BuiltinAutomationTemplate } from '@shared/core/automations/automation';
-import { emptyStateAutomationTemplates } from '@shared/core/automations/builtin-catalog';
+import type { Automation } from '@shared/core/automations/automation';
 import type { ConversationConfig } from '@shared/core/automations/config';
 import { assertValidCronTrigger } from '@shared/core/automations/validation';
 import { formatAutomationError } from '../automation-run-format';
+import type { BuiltinAutomationTemplate } from '../automation-template';
+import { emptyStateAutomationTemplates } from '../builtin-catalog';
 import { useAutomations } from '../use-automations';
 import { useAutomationFormState } from '../useAutomationFormState';
 import { AutomationSettingsFields } from './AutomationSettingsFields';
@@ -128,23 +129,28 @@ export const CreateAutomationView = observer(function CreateAutomationView({
       <Collapsible
         open={!templatesCollapsed}
         onOpenChange={(open) => setTemplatesCollapsed(!open)}
-        className="group border-t border-border bg-background-quaternary-1"
+        className="group border-t border-border bg-background"
       >
-        <CollapsibleTrigger className="flex h-9 w-full items-center justify-between gap-3 px-4 text-left text-xs font-medium text-foreground transition-colors outline-none hover:bg-background-1 focus-visible:bg-background-1">
-          <span>Use a template</span>
-          <ChevronDown className="size-3.5 shrink-0 text-foreground-passive transition-transform duration-150 group-data-open:rotate-180" />
-        </CollapsibleTrigger>
+        <div className="flex w-full items-center justify-between gap-3 p-4 py-3">
+          <Label>Use a template</Label>
+
+          <CollapsibleTrigger
+            render={
+              <Button variant="ghost" size="icon-xs">
+                <ChevronDown className="size-3.5 shrink-0 text-foreground-passive transition-transform duration-150 group-data-open:rotate-180" />
+              </Button>
+            }
+          ></CollapsibleTrigger>
+        </div>
         <CollapsibleContent className="h-(--collapsible-panel-height) overflow-hidden transition-[height] duration-200 ease-out">
-          <div className="px-4 pb-3">
-            <AutomationTemplateRail
-              templates={emptyStateAutomationTemplates}
-              onSelect={handleTemplateSelect}
-              compact
-            />
-          </div>
+          <AutomationTemplateRail
+            templates={emptyStateAutomationTemplates}
+            onSelect={handleTemplateSelect}
+            compact
+          />
         </CollapsibleContent>
       </Collapsible>
-      <SheetFooter className="flex flex-row items-center justify-end gap-2 border-t-0">
+      <SheetFooter className="flex flex-row items-center justify-end gap-2">
         <Button variant="outline" size="sm" onClick={onClose}>
           Cancel
         </Button>

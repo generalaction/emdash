@@ -1,4 +1,3 @@
-import { ChevronDown, FolderOpen } from 'lucide-react';
 import { ProjectSelector } from '@renderer/features/tasks/create-task-modal/project-selector';
 import { ConversationField } from '@renderer/features/tasks/task-config/conversation-field';
 import { TaskConfigProvider } from '@renderer/features/tasks/task-config/task-config-context';
@@ -7,7 +6,6 @@ import { TaskStateProvider } from '@renderer/features/tasks/task-config/task-sta
 import { WorkspaceSettingsSection } from '@renderer/features/tasks/task-config/workspace-settings-section';
 import { CronPicker } from '@renderer/lib/CronPicker';
 import { useFeatureFlag } from '@renderer/lib/hooks/useFeatureFlag';
-import { ComboboxTrigger, ComboboxValue } from '@renderer/lib/ui/combobox';
 import { Field, FieldError, FieldGroup } from '@renderer/lib/ui/field';
 import { Label } from '@renderer/lib/ui/label';
 import type { AutomationFormState } from '../useAutomationFormState';
@@ -48,15 +46,6 @@ export function AutomationSettingsFields({
           <ProjectSelector
             value={effectiveProjectId}
             onChange={(nextProjectId) => setProjectId(nextProjectId)}
-            trigger={
-              <ComboboxTrigger className="hover:bg-muted/40 data-popup-open:bg-muted/40 flex h-8 w-full items-center justify-between gap-2 rounded-md border border-border bg-background px-2.5 text-xs outline-none">
-                <span className="inline-flex min-w-0 items-center gap-2">
-                  <FolderOpen className="text-muted-foreground size-3.5 shrink-0" />
-                  <ComboboxValue placeholder="Select a project" />
-                </span>
-                <ChevronDown className="size-3 shrink-0 text-foreground-passive" />
-              </ComboboxTrigger>
-            }
           />
         </Field>
         <Field>
