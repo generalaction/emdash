@@ -1,12 +1,14 @@
 import { projectManager } from '@main/core/projects/project-manager';
 import { log } from '@main/lib/logger';
 import { err, ok, type Result } from '@shared/lib/result';
-import type { OpenProjectError } from '@shared/projects';
+import type { OpenProjectError, OpenProjectSuccess } from '@shared/projects';
 import { checkIsValidDirectory } from '../path-utils';
 import { ensureRepositoryWorkspace } from './ensure-repository-workspace';
 import { getProjectById } from './getProjects';
 
-export async function openProject(projectId: string): Promise<Result<void, OpenProjectError>> {
+export async function openProject(
+  projectId: string
+): Promise<Result<OpenProjectSuccess, OpenProjectError>> {
   const project = await getProjectById(projectId);
   if (!project) return err({ type: 'error', message: `Project not found: ${projectId}` });
   if (project.type === 'local' && !checkIsValidDirectory(project.path)) {
@@ -22,8 +24,9 @@ export async function openProject(projectId: string): Promise<Result<void, OpenP
 
   // Ensure the project has a shared repository-root workspace row.
   // This is idempotent and handles both new projects and pre-migration rows.
+  let repositoryWorkspaceId: string | null = null;
   try {
-    await ensureRepositoryWorkspace(project);
+    repositoryWorkspaceId = ensureRepositoryWorkspace(project);
   } catch (error) {
     log.warn('openProject: ensureRepositoryWorkspace failed (non-fatal)', {
       projectId,
@@ -31,5 +34,5 @@ export async function openProject(projectId: string): Promise<Result<void, OpenP
     });
   }
 
-  return ok();
+  return ok({ repositoryWorkspaceId });
 }
