@@ -15,6 +15,12 @@ export class DiffTabStore {
   path: string;
   isPreview: boolean;
   renderer: DiffRendererData;
+  /**
+   * For markdown diff tabs: whether to show the rendered markdown preview
+   * (Eye) instead of the source diff (Pencil). Defaults to the source diff.
+   * Ignored for non-markdown files.
+   */
+  showRendered = false;
   diffGroup: 'disk' | 'staged' | 'git' | 'pr';
   originalRef: GitObjectRef;
   modifiedRef: GitObjectRef | undefined;
@@ -57,8 +63,10 @@ export class DiffTabStore {
       commitOriginalSha: observable,
       commitModifiedSha: observable,
       status: observable,
+      showRendered: observable,
       transition: action,
       pin: action,
+      setShowRendered: action,
     });
   }
 
@@ -85,6 +93,10 @@ export class DiffTabStore {
 
   pin(): void {
     this.isPreview = false;
+  }
+
+  setShowRendered(showRendered: boolean): void {
+    this.showRendered = showRendered;
   }
 }
 

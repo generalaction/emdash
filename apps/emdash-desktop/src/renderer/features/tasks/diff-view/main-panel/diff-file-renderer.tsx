@@ -11,9 +11,14 @@ import {
   useWorkspaceId,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
+import { getFileKind } from '@renderer/lib/editor/fileKind';
+import { PreviewSourceToggle } from '@renderer/lib/editor/preview-source-toggle';
+import { rpc } from '@renderer/lib/ipc';
 import { modelRegistry } from '@renderer/lib/monaco/monaco-model-registry';
 import { buildMonacoModelPath } from '@renderer/lib/monaco/monacoModelPath';
 import { StickyDiffEditor } from '@renderer/lib/monaco/sticky-diff-editor';
+import { MarkdownRenderer } from '@renderer/lib/ui/markdown-renderer';
+import { ShowHide } from '@renderer/lib/ui/show-hide';
 import { getLanguageFromPath } from '@renderer/utils/languageUtils';
 import { gitRefToString, HEAD_REF, STAGED_REF, type GitObjectRef } from '@shared/core/git/git';
 import { getDraftCommentTargetKey, type DraftCommentTarget } from '@shared/lineComments';
@@ -32,8 +37,15 @@ export const DiffFileRenderer = observer(function DiffFileRenderer({ tab }: Diff
   const workspaceId = useWorkspaceId();
 
   switch (tab.renderer.kind) {
-    case 'text':
+    case 'text': {
+      // Markdown files get a rendered-preview toggle (Eye) alongside the source
+      // diff (Pencil), mirroring the file-tab markdown renderer. Deleted files
+      // have no "after" content to render, so they stay diff-only.
+      if (getFileKind(tab.path) === 'markdown' && tab.status !== 'deleted') {
+        return <MarkdownDiffRenderer tab={tab} />;
+      }
       return <MonacoDiffRenderer tab={tab} />;
+    }
     case 'image': {
       const activeFile = tabToActiveFile(tab);
       return (
@@ -105,30 +117,8 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
     onDeleteComment: handleDeleteComment,
   });
 
-  const root = `workspace:${workspaceId}`;
-  const uri = buildMonacoModelPath(root, tab.path);
   const language = getLanguageFromPath(tab.path);
-
-  const originalUri = (() => {
-    if (tab.diffGroup === 'disk') {
-      return modelRegistry.toGitUri(uri, STAGED_REF);
-    }
-    if (tab.diffGroup === 'git' || tab.diffGroup === 'pr') {
-      return modelRegistry.toGitUri(uri, tab.originalRef);
-    }
-    return modelRegistry.toGitUri(uri, HEAD_REF);
-  })();
-
-  const modifiedUri = (() => {
-    if (tab.diffGroup === 'staged') return modelRegistry.toGitUri(uri, STAGED_REF);
-    if (tab.diffGroup === 'pr') {
-      return modelRegistry.toGitUri(uri, tab.modifiedRef ?? HEAD_REF);
-    }
-    if (tab.diffGroup === 'git') {
-      return modelRegistry.toGitUri(uri, tab.modifiedRef ?? HEAD_REF);
-    }
-    return uri;
-  })();
+  const { root, uri, originalUri, modifiedUri } = computeDiffUris(tab, workspaceId);
 
   useEffect(() => {
     let disposed = false;
@@ -229,6 +219,125 @@ const MonacoDiffRenderer = observer(function MonacoDiffRenderer({ tab }: DiffFil
           onEditorChange={setEditor}
         />
       </div>
+    </div>
+  );
+});
+
+/**
+ * Computes the original/modified Monaco model URIs for a diff tab. Shared by the
+ * Monaco diff editor and the markdown preview so both read identical content.
+ */
+function computeDiffUris(
+  tab: DiffTabStore,
+  workspaceId: string
+): { root: string; uri: string; originalUri: string; modifiedUri: string } {
+  const root = `workspace:${workspaceId}`;
+  const uri = buildMonacoModelPath(root, tab.path);
+
+  const originalUri = (() => {
+    if (tab.diffGroup === 'disk') return modelRegistry.toGitUri(uri, STAGED_REF);
+    if (tab.diffGroup === 'git' || tab.diffGroup === 'pr') {
+      return modelRegistry.toGitUri(uri, tab.originalRef);
+    }
+    return modelRegistry.toGitUri(uri, HEAD_REF);
+  })();
+
+  const modifiedUri = (() => {
+    if (tab.diffGroup === 'staged') return modelRegistry.toGitUri(uri, STAGED_REF);
+    if (tab.diffGroup === 'pr') return modelRegistry.toGitUri(uri, tab.modifiedRef ?? HEAD_REF);
+    if (tab.diffGroup === 'git') return modelRegistry.toGitUri(uri, tab.modifiedRef ?? HEAD_REF);
+    return uri;
+  })();
+
+  return { root, uri, originalUri, modifiedUri };
+}
+
+/**
+ * Renders a markdown diff tab with a toggle between the source diff (Pencil) and
+ * a rendered markdown preview (Eye), mirroring the file-tab MarkdownEditorRenderer.
+ *
+ * The Monaco diff editor is kept mounted via ShowHide while the preview is shown,
+ * so its models stay registered and the preview can read their content.
+ */
+const MarkdownDiffRenderer = observer(function MarkdownDiffRenderer({
+  tab,
+}: DiffFileRendererProps) {
+  return (
+    <div className="relative h-full w-full overflow-hidden">
+      <ShowHide visible={!tab.showRendered}>
+        <MonacoDiffRenderer tab={tab} />
+      </ShowHide>
+      {tab.showRendered && <MarkdownDiffPreview tab={tab} />}
+      <PreviewSourceToggle
+        activeMode={tab.showRendered ? 'preview' : 'source'}
+        onSwitch={(mode) => tab.setShowRendered(mode === 'preview')}
+        sourceLabel="View diff"
+      />
+    </div>
+  );
+});
+
+/**
+ * Renders the modified ("after") markdown content as a formatted preview. In
+ * split mode it shows the original (left) and modified (right) side by side,
+ * reusing the diff toolbar's unified/split toggle for consistency.
+ */
+const MarkdownDiffPreview = observer(function MarkdownDiffPreview({ tab }: DiffFileRendererProps) {
+  const { projectId } = useTaskViewContext();
+  const workspaceId = useWorkspaceId();
+  const diffStyle = useWorkspaceViewModel().diffView?.diffStyle ?? 'unified';
+  const { uri, originalUri, modifiedUri } = computeDiffUris(tab, workspaceId);
+
+  // Reading the model status / buffer version registers MobX dependencies so this
+  // observer re-renders once the underlying models load or their content changes.
+  const _origStatus = modelRegistry.modelStatus.get(originalUri);
+  const _modStatus = modelRegistry.modelStatus.get(modifiedUri);
+  const _bufferVersion = modelRegistry.bufferVersions.get(uri);
+
+  const newContent = modelRegistry.getModelByUri(modifiedUri)?.getValue() ?? '';
+  const oldContent = modelRegistry.getModelByUri(originalUri)?.getValue() ?? '';
+
+  const fileDir = tab.path.includes('/') ? tab.path.substring(0, tab.path.lastIndexOf('/')) : '';
+  const resolveImage = useCallback(
+    async (src: string): Promise<string | null> => {
+      const imagePath = fileDir ? `${fileDir}/${src}` : src;
+      const result = await rpc.workspace.fs.readImage(projectId, workspaceId, imagePath);
+      return result.success ? (result.data?.dataUrl ?? null) : null;
+    },
+    [projectId, workspaceId, fileDir]
+  );
+
+  if (diffStyle === 'split') {
+    return (
+      <div className="flex h-full w-full">
+        <div className="h-full flex-1 overflow-y-auto border-r border-border bg-background-secondary-1">
+          <MarkdownRenderer
+            content={oldContent}
+            variant="full"
+            className="w-full max-w-3xl px-8 py-8"
+            resolveImage={resolveImage}
+          />
+        </div>
+        <div className="h-full flex-1 overflow-y-auto bg-background-secondary-1">
+          <MarkdownRenderer
+            content={newContent}
+            variant="full"
+            className="w-full max-w-3xl px-8 py-8"
+            resolveImage={resolveImage}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-full w-full overflow-y-auto bg-background-secondary-1">
+      <MarkdownRenderer
+        content={newContent}
+        variant="full"
+        className="w-full max-w-3xl px-8 py-8"
+        resolveImage={resolveImage}
+      />
     </div>
   );
 });
