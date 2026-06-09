@@ -320,7 +320,7 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
       >
         <div
           style={{
-            height: virtualizer.getTotalSize() + (selectedCount > 0 ? 80 : 0),
+            height: virtualizer.getTotalSize(),
             position: 'relative',
           }}
         >
