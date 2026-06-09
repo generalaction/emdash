@@ -43,6 +43,7 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const initialPointerYRef = useRef<number | null>(null);
   const dragPointerYRef = useRef<number | null>(null);
+  const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [dragPointerY, setDragPointerY] = useState<number | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
@@ -128,6 +129,7 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
   function handleDragStart(event: DragStartEvent) {
     const pointerY = getEventClientY(event.activatorEvent);
     initialPointerYRef.current = pointerY;
+    setActiveDragId(String(event.active.id));
     setCurrentDragPointerY(pointerY);
   }
 
@@ -139,6 +141,7 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
 
   function clearDragPointerY() {
     initialPointerYRef.current = null;
+    setActiveDragId(null);
     setCurrentDragPointerY(null);
   }
 
@@ -228,8 +231,8 @@ export const SidebarVirtualList = observer(function SidebarVirtualList() {
           </div>
         </div>
       </SortableContext>
-      <DragOverlay>
-        <DragOverlayContent />
+      <DragOverlay dropAnimation={null}>
+        {activeDragId ? <DragOverlayContent dndId={activeDragId} /> : null}
       </DragOverlay>
       <InsertionIndicator pointerY={dragPointerY} />
     </DndContext>
@@ -299,10 +302,8 @@ function isCursorAbove(
   return cursorY < overCenterY;
 }
 
-function DragOverlayContent() {
-  const { active } = useDndContext();
-  if (!active) return null;
-  const parsed = parseDndId(String(active.id));
+function DragOverlayContent({ dndId }: { dndId: string }) {
+  const parsed = parseDndId(dndId);
   if (!parsed) return null;
   return (
     <div className="px-3">
