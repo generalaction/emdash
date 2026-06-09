@@ -14,13 +14,13 @@ export type ConfigLayer<T> = {
 export async function readHierarchical(
   fs: CLIAgentPluginFs,
   relativePath: string,
-  roots: string[],
+  roots: string[]
 ): Promise<Array<{ root: string; content: string | null }>> {
   return Promise.all(
     roots.map(async (root) => ({
       root,
       content: await fs.read(`${root}/${relativePath}`),
-    })),
+    }))
   );
 }
 
@@ -35,7 +35,7 @@ export function readMergedConfig<T>(
   layers: Array<{ root: string; content: string | null }>,
   parse: (content: string) => T,
   merge: (base: T, override: T) => T,
-  defaultValue: T,
+  defaultValue: T
 ): T {
   // Reverse so we fold from least-specific (last) to most-specific (first)
   const reversed = [...layers].reverse();

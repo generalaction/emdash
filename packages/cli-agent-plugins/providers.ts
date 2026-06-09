@@ -1,6 +1,5 @@
 // Main process only: imports full provider implementations (buildCommand, hooks, mcp, plugin).
 import { CLIAgentPluginProviderRegistry } from './core';
-
 import { provider as amp } from './impl/amp';
 import { provider as antigravity } from './impl/antigravity';
 import { provider as auggie } from './impl/auggie';
@@ -21,8 +20,8 @@ import { provider as gemini } from './impl/gemini';
 import { provider as goose } from './impl/goose';
 import { provider as grok } from './impl/grok';
 import { provider as hermes } from './impl/hermes';
-import { provider as junie } from './impl/junie';
 import { provider as jules } from './impl/jules';
+import { provider as junie } from './impl/junie';
 import { provider as kilocode } from './impl/kilocode';
 import { provider as kimi } from './impl/kimi';
 import { provider as kiro } from './impl/kiro';
@@ -36,10 +35,37 @@ import { provider as rovo } from './impl/rovo';
 export const providerRegistry = new CLIAgentPluginProviderRegistry();
 
 for (const p of [
-  amp, antigravity, auggie, autohand, charm, claude, cline, codebuff, codex,
-  commandcode, continueCli, copilot, cursor, devin, droid, freebuff, gemini,
-  goose, grok, hermes, junie, jules, kilocode, kimi, kiro, letta, mistral,
-  opencode, pi, qwen, rovo,
+  amp,
+  antigravity,
+  auggie,
+  autohand,
+  charm,
+  claude,
+  cline,
+  codebuff,
+  codex,
+  commandcode,
+  continueCli,
+  copilot,
+  cursor,
+  devin,
+  droid,
+  freebuff,
+  gemini,
+  goose,
+  grok,
+  hermes,
+  junie,
+  jules,
+  kilocode,
+  kimi,
+  kiro,
+  letta,
+  mistral,
+  opencode,
+  pi,
+  qwen,
+  rovo,
 ]) {
   providerRegistry.register(p);
 }

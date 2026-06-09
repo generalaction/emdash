@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { createMcpAdapter, passthroughMcpAdapter } from './mcp';
-import type { CLIAgentPluginFs } from '../core/plugin';
 import type { McpServerRegistration } from '../core/capabilities';
+import type { CLIAgentPluginFs } from '../core/plugin';
+import { createMcpAdapter, passthroughMcpAdapter } from './mcp';
 
 function makeMockFs(files: Record<string, string> = {}): CLIAgentPluginFs & {
   store: Record<string, string>;
@@ -41,7 +41,7 @@ describe('createMcpAdapter (JSON)', () => {
     format: 'json',
     serversKey: 'mcpServers',
     toNative: ({ name: _name, ...rest }) => rest,
-    fromNative: (name, raw) => ({ name, ...raw } as McpServerRegistration),
+    fromNative: (name, raw) => ({ name, ...raw }) as McpServerRegistration,
   });
 
   it('reads empty array when file does not exist', async () => {
@@ -102,7 +102,7 @@ describe('createMcpAdapter (TOML)', () => {
     format: 'toml',
     serversKey: 'mcpServers',
     toNative: ({ name: _name, ...rest }) => rest,
-    fromNative: (name, raw) => ({ name, ...raw } as McpServerRegistration),
+    fromNative: (name, raw) => ({ name, ...raw }) as McpServerRegistration,
   });
 
   it('reads from TOML file', async () => {

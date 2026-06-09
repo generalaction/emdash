@@ -1,7 +1,7 @@
 import React from 'react';
 import type { ComponentType } from 'react';
 
-export type IconProps = { size?: number; mode?: 'light' | 'dark', alt?: string };
+export type IconProps = { size?: number; mode?: 'light' | 'dark'; alt?: string };
 export type PluginIcon = ComponentType<IconProps>;
 
 /** Create a plugin Icon from inline SVG markup strings. */

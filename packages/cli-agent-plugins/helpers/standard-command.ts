@@ -127,8 +127,7 @@ export function buildStandardCommand(ctx: CommandContext, spec: StandardCommandS
     }
   }
 
-  let finalArgs =
-    spec.deduplicateFlags?.length ? dedupeFlags(args, spec.deduplicateFlags) : args;
+  let finalArgs = spec.deduplicateFlags?.length ? dedupeFlags(args, spec.deduplicateFlags) : args;
 
   const command: AgentCommand = { command: ctx.cli, args: finalArgs, env };
 

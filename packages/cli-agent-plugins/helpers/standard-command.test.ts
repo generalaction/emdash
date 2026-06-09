@@ -156,10 +156,7 @@ describe('buildStandardCommand', () => {
   });
 
   it('extraEnv is merged into the command env', () => {
-    const cmd = buildStandardCommand(
-      { ...BASE_CTX },
-      { extraEnv: { PLUGINS: 'all' } }
-    );
+    const cmd = buildStandardCommand({ ...BASE_CTX }, { extraEnv: { PLUGINS: 'all' } });
     expect(cmd.env).toEqual({ PLUGINS: 'all' });
   });
 

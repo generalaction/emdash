@@ -5,8 +5,7 @@ export function createFileDropPlugin(opts: {
   relativePath: string;
   content: string | ((ctx: { platform: NodeJS.Platform }) => string);
 }) {
-  const getContent =
-    typeof opts.content === 'string' ? () => opts.content as string : opts.content;
+  const getContent = typeof opts.content === 'string' ? () => opts.content as string : opts.content;
 
   return {
     async installPlugin(fs: CLIAgentPluginFs, _scope: PluginScope): Promise<void> {

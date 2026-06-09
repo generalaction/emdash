@@ -23,7 +23,11 @@ export const metadata = defineMetadata({
     promptDelivery: { kind: 'argv', flag: '' },
     sessions: { kind: 'resumable' },
     autoApprove: { kind: 'supported' },
-    hooks: { kind: 'config', scope: 'global', supportedEvents: ['notification', 'stop', 'session'] },
+    hooks: {
+      kind: 'config',
+      scope: 'global',
+      supportedEvents: ['notification', 'stop', 'session'],
+    },
     mcp: { kind: 'supported', scope: 'global', supportedTransports: ['stdio'] },
     plugin: { kind: 'none' },
   },

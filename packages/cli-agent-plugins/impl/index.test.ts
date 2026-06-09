@@ -1,13 +1,40 @@
 import { describe, expect, it } from 'vitest';
-import { metadataRegistry } from '../metadata';
 import { iconRegistry } from '../icons';
+import { metadataRegistry } from '../metadata';
 import { providerRegistry } from '../providers';
 
 const EXPECTED_IDS = [
-  'codex', 'claude', 'grok', 'devin', 'qwen', 'droid', 'gemini', 'antigravity',
-  'cursor', 'copilot', 'amp', 'commandcode', 'opencode', 'hermes', 'charm',
-  'auggie', 'goose', 'kimi', 'kilocode', 'kiro', 'rovo', 'cline', 'continue',
-  'codebuff', 'freebuff', 'mistral', 'jules', 'junie', 'pi', 'letta', 'autohand',
+  'codex',
+  'claude',
+  'grok',
+  'devin',
+  'qwen',
+  'droid',
+  'gemini',
+  'antigravity',
+  'cursor',
+  'copilot',
+  'amp',
+  'commandcode',
+  'opencode',
+  'hermes',
+  'charm',
+  'auggie',
+  'goose',
+  'kimi',
+  'kilocode',
+  'kiro',
+  'rovo',
+  'cline',
+  'continue',
+  'codebuff',
+  'freebuff',
+  'mistral',
+  'jules',
+  'junie',
+  'pi',
+  'letta',
+  'autohand',
 ] as const;
 
 // ── metadataRegistry ──────────────────────────────────────────────────────────

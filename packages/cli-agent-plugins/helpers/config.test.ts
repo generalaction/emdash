@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { jsonConfig, tomlConfig } from './config';
 import type { CLIAgentPluginFs } from '../core/plugin';
+import { jsonConfig, tomlConfig } from './config';
 
 function makeMockFs(files: Record<string, string> = {}): CLIAgentPluginFs & {
   store: Record<string, string>;
@@ -60,7 +60,7 @@ describe('jsonConfig', () => {
   it('throws on write with invalid data', async () => {
     const fs = makeMockFs();
     await expect(
-      cfg.write(fs, 'config.json', { name: 123 as unknown as string, count: 0 }),
+      cfg.write(fs, 'config.json', { name: 123 as unknown as string, count: 0 })
     ).rejects.toThrow();
   });
 

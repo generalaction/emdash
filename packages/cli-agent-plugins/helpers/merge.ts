@@ -24,7 +24,7 @@ export function mergeDeep<T extends Record<string, unknown>>(base: T, override: 
     ) {
       result[key as string] = mergeDeep(
         baseVal as Record<string, unknown>,
-        overrideVal as Partial<Record<string, unknown>>,
+        overrideVal as Partial<Record<string, unknown>>
       );
     } else if (overrideVal !== undefined) {
       result[key as string] = overrideVal;
@@ -59,7 +59,7 @@ export function mergeConcatArrays<T extends Record<string, unknown>>(
     ) {
       result[key as string] = mergeConcatArrays(
         baseVal as Record<string, unknown>,
-        overrideVal as Partial<Record<string, unknown>>,
+        overrideVal as Partial<Record<string, unknown>>
       );
     } else {
       result[key as string] = overrideVal;

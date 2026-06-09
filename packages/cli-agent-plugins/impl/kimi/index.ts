@@ -1,10 +1,6 @@
-import type { AgentCommand, CommandContext } from '../../core/command';
 import { defineMetadata, defineProvider } from '../../core';
-import {
-  addKimiHooksToConfigText,
-  buildKimiHookConfig,
-  buildStandardCommand,
-} from '../../helpers';
+import type { AgentCommand, CommandContext } from '../../core/command';
+import { addKimiHooksToConfigText, buildKimiHookConfig, buildStandardCommand } from '../../helpers';
 
 function injectKimiHooksIntoInlineConfig(args: string[]): string[] {
   return args.map((arg, index) => {

@@ -133,6 +133,9 @@ export function makeGrokSessionStartHookCommand(opts: HookCommandOptions = {}): 
 }
 
 /** Standard emdash hook command (stdin-piped, POSIX). Legacy export name. */
-export function buildEmdashHookCommand(opts: { platform: NodeJS.Platform; eventType: string }): string {
+export function buildEmdashHookCommand(opts: {
+  platform: NodeJS.Platform;
+  eventType: string;
+}): string {
   return makeClaudeHookCommand(opts.eventType, { platform: opts.platform });
 }

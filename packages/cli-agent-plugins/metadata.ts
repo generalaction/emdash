@@ -1,6 +1,5 @@
 // Renderer-safe: imports only declarative metadata — no Node.js deps, no functions.
 import { CLIAgentPluginMetadataRegistry } from './core';
-
 import { metadata as amp } from './impl/amp';
 import { metadata as antigravity } from './impl/antigravity';
 import { metadata as auggie } from './impl/auggie';
@@ -21,8 +20,8 @@ import { metadata as gemini } from './impl/gemini';
 import { metadata as goose } from './impl/goose';
 import { metadata as grok } from './impl/grok';
 import { metadata as hermes } from './impl/hermes';
-import { metadata as junie } from './impl/junie';
 import { metadata as jules } from './impl/jules';
+import { metadata as junie } from './impl/junie';
 import { metadata as kilocode } from './impl/kilocode';
 import { metadata as kimi } from './impl/kimi';
 import { metadata as kiro } from './impl/kiro';
@@ -36,10 +35,37 @@ import { metadata as rovo } from './impl/rovo';
 export const metadataRegistry = new CLIAgentPluginMetadataRegistry();
 
 for (const m of [
-  amp, antigravity, auggie, autohand, charm, claude, cline, codebuff, codex,
-  commandcode, continueCli, copilot, cursor, devin, droid, freebuff, gemini,
-  goose, grok, hermes, junie, jules, kilocode, kimi, kiro, letta, mistral,
-  opencode, pi, qwen, rovo,
+  amp,
+  antigravity,
+  auggie,
+  autohand,
+  charm,
+  claude,
+  cline,
+  codebuff,
+  codex,
+  commandcode,
+  continueCli,
+  copilot,
+  cursor,
+  devin,
+  droid,
+  freebuff,
+  gemini,
+  goose,
+  grok,
+  hermes,
+  junie,
+  jules,
+  kilocode,
+  kimi,
+  kiro,
+  letta,
+  mistral,
+  opencode,
+  pi,
+  qwen,
+  rovo,
 ]) {
   metadataRegistry.register(m);
 }

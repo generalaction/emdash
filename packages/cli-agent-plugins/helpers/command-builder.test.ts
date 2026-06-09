@@ -18,7 +18,11 @@ describe('CommandBuilder', () => {
   });
 
   it('argIf skips args when condition is falsy', () => {
-    const result = cmd('agent').argIf(false, '--no').argIf(0, '--zero').argIf('', '--empty').build();
+    const result = cmd('agent')
+      .argIf(false, '--no')
+      .argIf(0, '--zero')
+      .argIf('', '--empty')
+      .build();
     expect(result.args).toEqual([]);
   });
 

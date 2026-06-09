@@ -38,14 +38,14 @@
     "smol-toml": "^1.6.0",
     "zod": "^4.4.3"
   },
-  "peerDependencies": {
-    "react": ">=18"
-  },
   "devDependencies": {
     "oxfmt": "^0.51.0",
     "react": "^19.2.7",
     "tsdown": "^0.22.2",
     "vitest": "^3.1.4"
+  },
+  "peerDependencies": {
+    "react": ">=18"
   },
   "packageManager": "pnpm@10.28.2"
 }

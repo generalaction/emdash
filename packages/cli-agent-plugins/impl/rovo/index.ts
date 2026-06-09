@@ -8,7 +8,8 @@ export const metadata = defineMetadata({
   name: 'Rovo Dev',
   description:
     'Atlassian Rovo Dev CLI integrates terminal assistance with Jira, Confluence, and Bitbucket workflows.',
-  websiteUrl: 'https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/',
+  websiteUrl:
+    'https://support.atlassian.com/rovo/docs/install-and-run-rovo-dev-cli-on-your-device/',
   capabilities: {
     install: {
       binaryNames: ['rovodev', 'acli'],

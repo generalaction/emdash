@@ -1,5 +1,4 @@
 import { parse as parseTOML, stringify as stringifyTOML } from 'smol-toml';
-
 import type { HookRegistration } from '../core/capabilities';
 import type { CLIAgentPluginFs } from '../core/plugin';
 import {
@@ -45,7 +44,10 @@ function mergeKiroEntries(existing: unknown[], command: string): unknown[] {
 
 // ── Helper: read/write JSON config ─────────────────────────────────────────
 
-async function readJsonConfig(fs: CLIAgentPluginFs, path: string): Promise<Record<string, unknown>> {
+async function readJsonConfig(
+  fs: CLIAgentPluginFs,
+  path: string
+): Promise<Record<string, unknown>> {
   const content = await fs.read(path);
   if (!content) return {};
   try {
@@ -94,9 +96,7 @@ export function buildClaudeStyleHookConfig(
       const config = await readJsonConfig(fs, configPath);
       const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
       for (const { hookKey, eventType, commandFn } of hookSpecs) {
-        const cmd = commandFn
-          ? commandFn(eventType, opts)
-          : makeClaudeHookCommand(eventType, opts);
+        const cmd = commandFn ? commandFn(eventType, opts) : makeClaudeHookCommand(eventType, opts);
         const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
         hooks[hookKey] = mergeClaudeEntries(existing, cmd);
       }
@@ -147,17 +147,11 @@ export function buildCodexHookConfig(opts: HookCommandOptions = {}) {
       ];
       for (const { hookKey, notificationType } of notifySpecs) {
         const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
-        hooks[hookKey] = mergeClaudeEntries(
-          existing,
-          makeCodexHookCommand(notificationType, opts)
-        );
+        hooks[hookKey] = mergeClaudeEntries(existing, makeCodexHookCommand(notificationType, opts));
       }
       // SessionStart
       const existing = Array.isArray(hooks.SessionStart) ? hooks.SessionStart : [];
-      hooks.SessionStart = mergeClaudeEntries(
-        existing,
-        makeCodexSessionStartHookCommand(opts)
-      );
+      hooks.SessionStart = mergeClaudeEntries(existing, makeCodexSessionStartHookCommand(opts));
 
       await writeJsonConfig(fs, CODEX_HOOKS_PATH, { ...config, hooks });
     },
@@ -266,10 +260,7 @@ function buildKimiHookEntries(existing: unknown[], opts: HookCommandOptions): un
  * Inject kimi hooks into an inline --config JSON/TOML text string.
  * Used by the kimi buildCommand to patch the --config= flag value on the fly.
  */
-export function addKimiHooksToConfigText(
-  content: string,
-  opts: HookCommandOptions = {}
-): string {
+export function addKimiHooksToConfigText(content: string, opts: HookCommandOptions = {}): string {
   try {
     const config = JSON.parse(content) as Record<string, unknown>;
     const hooks = Array.isArray(config.hooks) ? config.hooks : [];
@@ -320,7 +311,9 @@ export function buildKimiHookConfig(opts: HookCommandOptions = {}) {
           if (hooks.some((e) => JSON.stringify(e).includes(EMDASH_MARKER))) {
             return [{ event: 'emdash', command: EMDASH_MARKER }];
           }
-        } catch { /* skip */ }
+        } catch {
+          /* skip */
+        }
       }
       return [];
     },
@@ -338,7 +331,9 @@ export function buildKimiHookConfig(opts: HookCommandOptions = {}) {
             config.hooks = filterUserHooks(config.hooks as Record<string, unknown>[]);
           }
           await fs.write(path, stringifyTOML(config));
-        } catch { /* skip */ }
+        } catch {
+          /* skip */
+        }
       }
     },
     async getHooksInstalled(fs: CLIAgentPluginFs): Promise<boolean> {
@@ -349,7 +344,9 @@ export function buildKimiHookConfig(opts: HookCommandOptions = {}) {
           const config = parseTOML(content) as Record<string, unknown>;
           const hooks = Array.isArray(config.hooks) ? config.hooks : [];
           if (hooks.some((e) => JSON.stringify(e).includes(EMDASH_MARKER))) return true;
-        } catch { /* skip */ }
+        } catch {
+          /* skip */
+        }
       }
       return false;
     },
@@ -377,10 +374,7 @@ export function buildCopilotHookConfig(opts: HookCommandOptions = {}) {
 
       // agentStop -> stop
       const stopExisting = Array.isArray(hooks.agentStop) ? hooks.agentStop : [];
-      hooks.agentStop = mergeCopilotEntries(
-        stopExisting,
-        makeClaudeHookCommand('stop', opts)
-      );
+      hooks.agentStop = mergeCopilotEntries(stopExisting, makeClaudeHookCommand('stop', opts));
       // sessionStart -> session
       const sessionExisting = Array.isArray(hooks.sessionStart) ? hooks.sessionStart : [];
       hooks.sessionStart = mergeCopilotEntries(
@@ -395,9 +389,7 @@ export function buildCopilotHookConfig(opts: HookCommandOptions = {}) {
       );
       // Clear any stale notification entries
       if (Array.isArray(hooks.notification)) {
-        hooks.notification = filterUserHooks(
-          hooks.notification as Record<string, unknown>[]
-        );
+        hooks.notification = filterUserHooks(hooks.notification as Record<string, unknown>[]);
       }
 
       await writeJsonConfig(fs, COPILOT_HOOKS_PATH, { ...config, version: 1, hooks });
@@ -487,7 +479,11 @@ export function buildDevinHookConfig(opts: HookCommandOptions = {}) {
     [
       { hookKey: 'Stop', eventType: 'stop' },
       { hookKey: 'SessionEnd', eventType: 'stop' },
-      { hookKey: 'PermissionRequest', eventType: 'permission_prompt', commandFn: (_, o) => makeCodexHookCommand('permission_prompt', o) },
+      {
+        hookKey: 'PermissionRequest',
+        eventType: 'permission_prompt',
+        commandFn: (_, o) => makeCodexHookCommand('permission_prompt', o),
+      },
     ],
     opts
   );

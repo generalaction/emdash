@@ -1,5 +1,4 @@
 import { parse as parseTOML, stringify as stringifyTOML } from 'smol-toml';
-
 import type { McpServerRegistration } from '../core/capabilities';
 import type { CLIAgentPluginFs } from '../core/plugin';
 
@@ -10,9 +9,7 @@ function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
     .split('.')
     .reduce<unknown>(
       (cur, key) =>
-        cur != null && typeof cur === 'object'
-          ? (cur as Record<string, unknown>)[key]
-          : undefined,
+        cur != null && typeof cur === 'object' ? (cur as Record<string, unknown>)[key] : undefined,
       obj
     );
 }
@@ -80,9 +77,7 @@ export function createMcpAdapter(shape: McpConfigShape) {
       const native = Object.fromEntries(servers.map((s) => [s.name, shape.toNative(s)]));
       setNestedValue(parsed, shape.serversKey, native);
       const output =
-        shape.format === 'json'
-          ? JSON.stringify(parsed, null, 2) + '\n'
-          : stringifyTOML(parsed);
+        shape.format === 'json' ? JSON.stringify(parsed, null, 2) + '\n' : stringifyTOML(parsed);
       await fs.write(shape.configPath, output);
     },
     async removeServer(fs: CLIAgentPluginFs, name: string): Promise<void> {

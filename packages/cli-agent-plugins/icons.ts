@@ -1,6 +1,5 @@
 // Renderer-safe: imports only React icon components — no Node.js deps, no functions.
 import { CLIAgentPluginIconRegistry } from './core';
-
 import { Icon as AmpIcon } from './impl/amp';
 import { Icon as AntigravityIcon } from './impl/antigravity';
 import { Icon as AuggieIcon } from './impl/auggie';
@@ -21,8 +20,8 @@ import { Icon as GeminiIcon } from './impl/gemini';
 import { Icon as GooseIcon } from './impl/goose';
 import { Icon as GrokIcon } from './impl/grok';
 import { Icon as HermesIcon } from './impl/hermes';
-import { Icon as JunieIcon } from './impl/junie';
 import { Icon as JulesIcon } from './impl/jules';
+import { Icon as JunieIcon } from './impl/junie';
 import { Icon as KilocodeIcon } from './impl/kilocode';
 import { Icon as KimiIcon } from './impl/kimi';
 import { Icon as KiroIcon } from './impl/kiro';

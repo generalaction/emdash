@@ -61,10 +61,7 @@ const PROVIDERS: ProviderIconSpec[] = [
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-const ASSETS_DIR = resolve(
-  __dirname,
-  '../../../apps/emdash-desktop/src/assets/images'
-);
+const ASSETS_DIR = resolve(__dirname, '../../../apps/emdash-desktop/src/assets/images');
 const IMPL_DIR = resolve(__dirname, '../impl');
 
 function readAsset(filename: string): { content: string; isSvg: boolean } {
@@ -79,7 +76,12 @@ function readAsset(filename: string): { content: string; isSvg: boolean } {
   }
   // Binary: base64 data URI
   const buf = readFileSync(filePath);
-  const mime = ext === '.png' ? 'image/png' : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : 'application/octet-stream';
+  const mime =
+    ext === '.png'
+      ? 'image/png'
+      : ext === '.jpg' || ext === '.jpeg'
+        ? 'image/jpeg'
+        : 'application/octet-stream';
   return { content: `data:${mime};base64,${buf.toString('base64')}`, isSvg: false };
 }
 

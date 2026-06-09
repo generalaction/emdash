@@ -6,7 +6,8 @@ export { default as Icon } from './icon';
 export const metadata = defineMetadata({
   id: 'cursor',
   name: 'Cursor',
-  description: "Cursor's agent CLI; provides editor-style, project-aware assistance from the shell.",
+  description:
+    "Cursor's agent CLI; provides editor-style, project-aware assistance from the shell.",
   websiteUrl: 'https://cursor.com/docs/cli/overview',
   capabilities: {
     install: {
