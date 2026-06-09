@@ -272,7 +272,7 @@ pnpm run lint
 - Task selectors live in `src/renderer/features/tasks/stores/task-selectors.ts`.
 - Project selectors live in `src/renderer/features/projects/stores/project-selectors.ts`.
 - For provider changes, update shared provider metadata, PTY env passthrough if needed,
-  agent-hook classifiers, renderer assumptions, and tests for non-standard behavior.
+  hook/plugin integrations, renderer assumptions, and tests for non-standard behavior.
 - For MCP changes, keep canonical data in shared types and adapt provider formats at edges.
 - Run the local merge gate before merging:
 
@@ -288,7 +288,7 @@ pnpm run test
 - Agent providers are defined in `src/shared/agent-provider-registry.ts`.
 - Provider detection lives in `src/main/core/dependencies/dependency-manager.ts`.
 - Provider PTY behavior and env passthrough live under `src/main/core/pty/`.
-- Provider event classifiers live in `src/main/core/agent-hooks/classifiers/`.
+- Provider event hooks and plugins live under `src/main/core/agent-hooks/`.
 - Modal definitions are centralized in `src/renderer/app/modal-registry.ts`.
 - View definitions and navigation guards are centralized in `src/renderer/app/view-registry.ts`.
 - MCP server config handling lives in `src/main/core/mcp/services/McpService.ts`,

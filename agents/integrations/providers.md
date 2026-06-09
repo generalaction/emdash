@@ -6,9 +6,9 @@
 - `src/main/core/dependencies/dependency-manager.ts`
 - `src/main/core/pty/`
 
-## Current Providers (30)
+## Current Providers (31)
 
-codex, claude, grok, devin, qwen, droid, gemini, antigravity, cursor, copilot, amp, opencode, hermes, charm, auggie, goose, kimi, kilocode, kiro, rovo, cline, continue, codebuff, freebuff, mistral, jules, junie, pi, autohand, letta
+codex, claude, grok, devin, qwen, droid, gemini, antigravity, cursor, copilot, amp, commandcode, opencode, hermes, charm, auggie, goose, kimi, kilocode, kiro, rovo, cline, continue, codebuff, freebuff, mistral, jules, junie, pi, autohand, letta
 
 ## Provider Metadata Includes
 
@@ -21,9 +21,12 @@ codex, claude, grok, devin, qwen, droid, gemini, antigravity, cursor, copilot, a
 - resume and session flags
 - optional plan activation and auto-start commands
 
-## Agent Event Classifiers
+## Agent Hooks And Notifications
 
-Each provider has a terminal output classifier in `src/main/core/conversations/impl/agent-event-classifiers/`. These parse agent terminal output to detect events (task completion, errors, etc.) and forward them to the renderer via the agent hooks module (`src/main/core/agent-hooks/`).
+Agent activity, completion, and attention notifications come from explicit hooks or plugins
+installed by `src/main/core/agent-hooks/`. Emdash does not infer agent status from terminal
+output. If a provider has no hook/plugin integration for an event, the renderer should not show
+or notify an inferred status for that event.
 
 ## Provider Runtime Notes
 
@@ -36,6 +39,7 @@ Each provider has a terminal output classifier in `src/main/core/conversations/i
 
 1. update `src/shared/agent-provider-registry.ts`
 2. update allowlisted agent env vars in `src/main/core/pty/pty-env.ts` if needed
-3. add an agent event classifier in `src/main/core/conversations/impl/agent-event-classifiers/`
+3. add or update hook/plugin installation in `src/main/core/agent-hooks/` if the provider
+   supports explicit events
 4. validate detection behavior in `src/main/core/dependencies/`
 5. add or update tests for any non-standard behavior

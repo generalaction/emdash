@@ -41,10 +41,10 @@ jobs:
           done
 
       - name: Check formatting
-        run: pnpm run format:check
+        run: pnpm --filter @emdash/emdash-desktop run format:check
 
       - name: Type check
-        run: pnpm run typecheck
+        run: pnpm --filter @emdash/emdash-desktop run typecheck
 
       - name: Check linting
-        run: pnpm run lint
+        run: pnpm --filter @emdash/emdash-desktop run lint
