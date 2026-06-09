@@ -79,6 +79,7 @@ export class ProjectStore {
   id: string;
   name: string | null;
   data: LocalProject | SshProject | null;
+  createdAt: string;
   phase: UnregisteredProjectPhase | UnmountedProjectPhase | null;
   error: string | undefined = undefined;
   errorCode: 'path-not-found' | 'ssh-disconnected' | undefined = undefined;
@@ -97,6 +98,7 @@ export class ProjectStore {
     this.id = id;
     this.name = name;
     this.data = data;
+    this.createdAt = data?.createdAt ?? new Date().toISOString();
     this.phase = phase;
     this.mode = mode;
     makeAutoObservable(this, { mountedProject: observable.ref });
@@ -107,6 +109,7 @@ export class ProjectStore {
     this.data = data;
     this.id = data.id;
     this.name = data.name;
+    this.createdAt = data.createdAt;
     this.state = 'mounted';
     this.phase = null;
     this.error = undefined;
@@ -122,6 +125,7 @@ export class ProjectStore {
     this.data = data;
     this.id = data.id;
     this.name = data.name;
+    this.createdAt = data.createdAt;
     this.state = 'unmounted';
     this.phase = phase;
     this.error = undefined;
