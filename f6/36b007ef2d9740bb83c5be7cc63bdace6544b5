@@ -1,0 +1,32 @@
+apps/emdash-desktop/src/main/core/agent-hooks/handle-provider-session-hook.ts
+  s_cdfdbb1b30449a::t_4324f45d35dfc3 30
+apps/emdash-desktop/src/main/core/agent-hooks/hook-config.test.ts
+  s_cdfdbb1b30449a::t_552e95dd2e257c 360-371,374-376,379-405,407-419
+  s_cdfdbb1b30449a::t_76bf1fa21b0b87 372-373,377-378,406
+apps/emdash-desktop/src/main/core/agent-hooks/agent-notify-command.ts
+  s_cdfdbb1b30449a::t_467731d24106bc 66-78,80-89
+  s_cdfdbb1b30449a::t_76bf1fa21b0b87 79
+apps/emdash-desktop/src/main/core/agent-hooks/hook-config.ts
+  s_cdfdbb1b30449a::t_d0df9a9c678fc0 14,31,404-420,425-437,611-618,680,711-726
+  s_cdfdbb1b30449a::t_76bf1fa21b0b87 61-66,421-424
+apps/emdash-desktop/src/shared/core/agents/agent-provider-registry.ts
+  s_cdfdbb1b30449a::t_0a4c929ebbafef 220
+apps/emdash-desktop/src/main/core/agent-hooks/event-enricher.ts
+  s_cdfdbb1b30449a::t_eb3a8a5e5e2447 40,42-48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "f636b007ef2d9740bb83c5be7cc63bdace6544b5",
+  "prompts": {},
+  "sessions": {
+    "s_cdfdbb1b30449a": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019eac71-3887-744b-bcb1-0c8884302315",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}

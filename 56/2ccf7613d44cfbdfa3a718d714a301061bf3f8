@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/main/core/agent-hooks/event-enricher.ts
+  s_cdfdbb1b30449a::t_eb3a8a5e5e2447 40-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "562ccf7613d44cfbdfa3a718d714a301061bf3f8",
+  "prompts": {},
+  "sessions": {
+    "s_cdfdbb1b30449a": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019eac71-3887-744b-bcb1-0c8884302315",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
