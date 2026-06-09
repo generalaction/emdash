@@ -1,16 +1,21 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { getPrSyncStore } from '@renderer/features/projects/stores/project-selectors';
 import { useDebounce } from '@renderer/lib/hooks/useDebounce';
 import { rpc } from '@renderer/lib/ipc';
 import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
-import type { PrFilters, PrSortField } from '@shared/core/pull-requests/pull-requests';
+import {
+  pullRequestErrorMessage,
+  type PrFilters,
+  type PrSortField,
+} from '@shared/core/pull-requests/pull-requests';
 import { toUserItem, usersWithLoginFirst, type UserItem } from './pr-filter-items';
 import { useFilterOptions, usePullRequests } from './usePullRequests';
 
 export type StatusFilter = 'open' | 'not-open';
 
 export type LabelItem = { value: string; label: string; color?: string };
+type RefreshError = { message: string; syncStatus?: string };
 
 export function usePrViewState(projectId: string, repositoryUrl: string | null) {
   const queryClient = useQueryClient();
@@ -23,6 +28,7 @@ export function usePrViewState(projectId: string, repositoryUrl: string | null) 
   const [query, setQuery] = useState('');
   const debouncedQuery = useDebounce(query, 200);
   const [syncing, setSyncing] = useState(false);
+  const [refreshError, setRefreshError] = useState<RefreshError | null>(null);
 
   const filters: PrFilters = {
     status: statusFilter,
@@ -48,6 +54,7 @@ export function usePrViewState(projectId: string, repositoryUrl: string | null) 
 
   useEffect(() => {
     if (dataUpdatedAt > 0 && repositoryUrl) {
+      setRefreshError(null);
       void queryClient.invalidateQueries({ queryKey: ['pr-filter-options', repositoryUrl] });
     }
   }, [dataUpdatedAt, repositoryUrl, queryClient]);
@@ -94,10 +101,28 @@ export function usePrViewState(projectId: string, repositoryUrl: string | null) 
     if (value) setSortFilter(value as PrSortField);
   };
 
+  const prSyncStore = getPrSyncStore(projectId);
+  const backgroundSyncing = repositoryUrl
+    ? (prSyncStore?.isSyncing(repositoryUrl) ?? false)
+    : false;
+  const syncState = repositoryUrl ? prSyncStore?.getState(repositoryUrl) : undefined;
+  const syncStateRef = useRef(syncState);
+  syncStateRef.current = syncState;
+
+  function captureRefreshError(error: unknown): void {
+    setRefreshError({
+      message: error instanceof Error ? error.message : String(error),
+      syncStatus: syncStateRef.current?.status,
+    });
+  }
+
   const handleRefresh = async () => {
     setSyncing(true);
+    setRefreshError(null);
     try {
       await refresh();
+    } catch (error) {
+      captureRefreshError(error);
     } finally {
       setSyncing(false);
     }
@@ -105,21 +130,27 @@ export function usePrViewState(projectId: string, repositoryUrl: string | null) 
 
   const handleForceFullSync = async () => {
     setSyncing(true);
+    setRefreshError(null);
     try {
-      await rpc.pullRequests.forceFullSyncPullRequests(projectId);
+      const result = await rpc.pullRequests.forceFullSyncPullRequests(projectId);
+      if (!result.success) {
+        captureRefreshError(pullRequestErrorMessage(result.error));
+        return;
+      }
       await queryClient.invalidateQueries({ queryKey: ['pull-requests', projectId] });
+    } catch (error) {
+      captureRefreshError(error);
     } finally {
       setSyncing(false);
     }
   };
 
-  const prSyncStore = getPrSyncStore(projectId);
-  const backgroundSyncing = repositoryUrl
-    ? (prSyncStore?.isSyncing(repositoryUrl) ?? false)
-    : false;
-  const syncState = repositoryUrl ? prSyncStore?.getState(repositoryUrl) : undefined;
   const syncError = syncState?.status === 'error' ? (syncState.error ?? 'Sync failed') : null;
   const isSyncing = syncing || backgroundSyncing;
+  const visibleRefreshError =
+    refreshError && !(syncState?.status === 'done' && refreshError.syncStatus !== 'done')
+      ? refreshError.message
+      : null;
 
   const removeLabel = (name: string) =>
     setSelectedLabelNames((prev) => prev.filter((n) => n !== name));
@@ -146,7 +177,7 @@ export function usePrViewState(projectId: string, repositoryUrl: string | null) 
     // data
     prs,
     loading,
-    error: error ?? syncError,
+    error: visibleRefreshError ?? error ?? syncError,
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
