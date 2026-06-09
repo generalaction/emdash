@@ -135,6 +135,10 @@ export class MondayConnectionService {
     }
   }
 
+  async isConfigured(): Promise<boolean> {
+    return !!(await this.getStoredCredentials());
+  }
+
   async getStoredCredentials(): Promise<MondayCredentials | null> {
     if (this.cachedCredentials !== undefined) {
       return this.cachedCredentials;

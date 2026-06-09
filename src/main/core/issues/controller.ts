@@ -38,6 +38,18 @@ function failureStatus(provider: IssueProvider, error: unknown): ConnectionStatu
   };
 }
 
+async function checkProviderConfigured(provider: IssueProvider): Promise<boolean> {
+  if (!provider.isConfigured) {
+    return (await checkProviderConnection(provider)).connected;
+  }
+
+  try {
+    return await provider.isConfigured();
+  } catch {
+    return false;
+  }
+}
+
 async function checkProviderConnection(provider: IssueProvider): Promise<ConnectionStatus> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
@@ -92,6 +104,19 @@ export const issueController = createRPCController({
     );
 
     return Object.fromEntries(settled) as ConnectionStatusMap;
+  },
+
+  checkConfiguredConnections: async (): Promise<Record<IssueProviderType, boolean>> => {
+    const providers = getAllIssueProviders();
+
+    const settled = await Promise.all(
+      providers.map(async (provider) => {
+        const configured = await checkProviderConfigured(provider);
+        return [provider.type, configured] as const;
+      })
+    );
+
+    return Object.fromEntries(settled) as Record<IssueProviderType, boolean>;
   },
 
   listIssues: async (provider: IssueProviderType, opts: IssueQueryOpts) => {

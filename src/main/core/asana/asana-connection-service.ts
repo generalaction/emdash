@@ -128,6 +128,10 @@ export class AsanaConnectionService {
     }
   }
 
+  async isConfigured(): Promise<boolean> {
+    return !!(await this.getStoredToken());
+  }
+
   async getClient(): Promise<AsanaClient | null> {
     const token = await this.getStoredToken();
     if (!token) {

@@ -277,6 +277,7 @@ async function getIssueContext(opts: IssueContextOpts): Promise<IssueContextResu
 export const mondayIssueProvider: IssueProvider = {
   type: 'monday',
   capabilities: ISSUE_PROVIDER_CAPABILITIES.monday,
+  isConfigured: () => mondayConnectionService.isConfigured(),
   checkConnection: () => mondayConnectionService.checkConnection(),
   listIssues: async (opts: IssueQueryOpts) => listIssues(opts.limit ?? 50),
   searchIssues: async (opts: IssueSearchOpts) => searchIssues(opts.searchTerm, opts.limit ?? 20),

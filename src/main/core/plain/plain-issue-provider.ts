@@ -218,6 +218,8 @@ export const plainIssueProvider: IssueProvider = {
   type: 'plain',
   capabilities: ISSUE_PROVIDER_CAPABILITIES.plain,
 
+  isConfigured: () => plainConnectionService.isConfigured(),
+
   checkConnection: () => plainConnectionService.checkConnection(),
 
   listIssues: async (opts) => listIssues(opts.limit ?? 50),

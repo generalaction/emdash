@@ -157,6 +157,12 @@ export class GitLabConnectionService {
     }
   }
 
+  async isConfigured(): Promise<boolean> {
+    const connection = await this.readConnection();
+    if (!connection) return false;
+    return !!(await encryptedAppSecretsStore.getSecret(this.GITLAB_TOKEN_SECRET_KEY));
+  }
+
   async getClient(): Promise<Gitlab | null> {
     try {
       const { client } = await this.requireAuth();

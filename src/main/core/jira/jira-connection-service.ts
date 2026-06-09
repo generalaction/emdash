@@ -104,6 +104,12 @@ export class JiraConnectionService {
     }
   }
 
+  async isConfigured(): Promise<boolean> {
+    const creds = await this.readCreds();
+    if (!creds) return false;
+    return !!(await encryptedAppSecretsStore.getSecret(this.JIRA_TOKEN_SECRET_KEY));
+  }
+
   async requireAuth(): Promise<{ siteUrl: string; email: string; token: string }> {
     const creds = await this.readCreds();
     if (!creds) throw new Error('Jira credentials not set.');

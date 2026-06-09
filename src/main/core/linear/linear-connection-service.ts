@@ -91,6 +91,10 @@ export class LinearConnectionService {
     }
   }
 
+  async isConfigured(): Promise<boolean> {
+    return !!(await this.getStoredToken());
+  }
+
   async getClient(): Promise<LinearClient | null> {
     const token = await this.getStoredToken();
     if (!token) {

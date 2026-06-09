@@ -232,6 +232,8 @@ export const linearIssueProvider: IssueProvider = {
   type: 'linear',
   capabilities: ISSUE_PROVIDER_CAPABILITIES.linear,
 
+  isConfigured: () => linearConnectionService.isConfigured(),
+
   checkConnection: () => linearConnectionService.checkConnection(),
 
   listIssues: async (opts) => listIssues(opts.limit ?? 50),

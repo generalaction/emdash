@@ -123,6 +123,8 @@ const PROVIDER_CONNECTION_CONFIG = {
 
 type IntegrationsContextValue = {
   connectionStatus: ConnectionStatusMap;
+  configuredConnections: Partial<Record<IssueProviderType, boolean>>;
+  isCheckingConfiguredConnections: boolean;
   isCheckingConnections: boolean;
 
   // Legacy-friendly fields consumed around settings/issue selector.
@@ -197,6 +199,14 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
     refetchOnWindowFocus: true,
   });
 
+  const { data: configuredConnections = {}, isFetching: isCheckingConfiguredConnections } =
+    useQuery({
+      queryKey: [...ISSUE_CONNECTION_STATUS_QUERY_KEY, 'configured'],
+      queryFn: () => rpc.issues.checkConfiguredConnections(),
+      staleTime: Infinity,
+      refetchOnWindowFocus: false,
+    });
+
   const invalidateStatuses = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ISSUE_CONNECTION_STATUS_QUERY_KEY });
   }, [queryClient]);
@@ -244,6 +254,8 @@ export function IntegrationsProvider({ children }: { children: React.ReactNode }
     <IntegrationsContext.Provider
       value={{
         connectionStatus,
+        configuredConnections,
+        isCheckingConfiguredConnections,
         isCheckingConnections,
         isLinearConnected: isConnected(statusData, 'linear'),
         isJiraConnected: isConnected(statusData, 'jira'),

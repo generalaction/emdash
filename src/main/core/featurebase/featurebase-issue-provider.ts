@@ -110,6 +110,8 @@ export const featurebaseIssueProvider: IssueProvider = {
   type: 'featurebase',
   capabilities: ISSUE_PROVIDER_CAPABILITIES.featurebase,
 
+  isConfigured: () => featurebaseConnectionService.isConfigured(),
+
   checkConnection: () => featurebaseConnectionService.checkConnection(),
 
   listIssues: async (opts) => fetchPosts({ limit: opts.limit ?? 50 }),

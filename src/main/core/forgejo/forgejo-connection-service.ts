@@ -158,6 +158,12 @@ export class ForgejoConnectionService {
     }
   }
 
+  async isConfigured(): Promise<boolean> {
+    const connection = await this.readConnection();
+    if (!connection) return false;
+    return !!(await encryptedAppSecretsStore.getSecret(this.FORGEJO_TOKEN_SECRET_KEY));
+  }
+
   async getClient(): Promise<Client | null> {
     try {
       const { client } = await this.requireAuth();

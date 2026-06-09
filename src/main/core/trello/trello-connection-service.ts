@@ -152,6 +152,10 @@ export class TrelloConnectionService {
     }
   }
 
+  async isConfigured(): Promise<boolean> {
+    return !!(await this.getStoredCredentials());
+  }
+
   async getStoredCredentials(): Promise<TrelloCredentials | null> {
     if (this.cachedCredentials !== undefined) {
       return this.cachedCredentials;

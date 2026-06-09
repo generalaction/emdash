@@ -146,6 +146,8 @@ export const gitlabIssueProvider: IssueProvider = {
   type: 'gitlab',
   capabilities: ISSUE_PROVIDER_CAPABILITIES.gitlab,
 
+  isConfigured: () => gitLabConnectionService.isConfigured(),
+
   checkConnection: () => gitLabConnectionService.checkConnection(),
 
   listIssues: async (opts) => {

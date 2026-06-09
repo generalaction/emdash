@@ -1,4 +1,4 @@
-import { Circle, CircleCheck, Loader2, Plus, Trash2, X } from 'lucide-react';
+import { Circle, CircleAlert, CircleCheck, Loader2, Plus, Trash2, X } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 import { useIntegrationsContext } from '@renderer/features/integrations/integrations-provider';
 import { ISSUE_PROVIDER_META } from '@renderer/features/integrations/issue-provider-meta';
@@ -33,7 +33,9 @@ type IntegrationItem = {
   cardDescription: string;
   features: string[];
   connected: boolean;
+  connectionKnown: boolean;
   loading: boolean;
+  connectionError?: string;
   displayName?: string;
   displayDetail?: string;
   onConnect: () => void;
@@ -150,7 +152,12 @@ const PROVIDER_LOADING_FIELD: Record<
 
 const IntegrationsCard: React.FC = () => {
   const integrationsContext = useIntegrationsContext();
-  const { connectionStatus, isCheckingConnections } = integrationsContext;
+  const {
+    connectionStatus,
+    isCheckingConnections,
+    configuredConnections,
+    isCheckingConfiguredConnections,
+  } = integrationsContext;
   const { data: githubAccounts = [], isLoading: isLoadingGithubAccounts } = useGitHubAccounts();
   const sortedGithubAccounts = useMemo(
     () => sortGitHubAccountsByDefault(githubAccounts),
@@ -187,28 +194,36 @@ const IntegrationsCard: React.FC = () => {
     const status = connectionStatus[provider];
 
     if (provider === 'github') {
+      const connected = sortedGithubAccounts.length > 0;
+
       return {
         id: provider,
         name: meta.displayName,
         description: INTEGRATION_CARD_DESCRIPTIONS[provider],
         cardDescription: INTEGRATION_CARD_DESCRIPTIONS[provider],
         features: PROVIDER_FEATURES[provider],
-        connected: sortedGithubAccounts.length > 0,
+        connected,
+        connectionKnown: !isLoadingGithubAccounts,
         loading: isLoadingGithubAccounts || isCheckingConnections,
+        connectionError: connected ? status.error : undefined,
         displayName: sortedGithubAccounts[0]?.login ?? status.displayName,
         displayDetail: status.displayDetail,
         onConnect: () => showConnectGitHub({}),
       };
     }
 
+    const connected = configuredConnections[provider] ?? false;
+
     return {
+      connectionKnown: provider in configuredConnections || !isCheckingConfiguredConnections,
       id: provider,
       name: meta.displayName,
       description: INTEGRATION_CARD_DESCRIPTIONS[provider],
       cardDescription: INTEGRATION_CARD_DESCRIPTIONS[provider],
       features: PROVIDER_FEATURES[provider],
-      connected: !!status.connected,
+      connected,
       loading: !!integrationsContext[PROVIDER_LOADING_FIELD[provider]],
+      connectionError: connected ? status.error : undefined,
       displayName: status.displayName,
       displayDetail: status.displayDetail,
       onConnect: () => showIntegrationSetup({ integration: provider }),
@@ -222,7 +237,9 @@ const IntegrationsCard: React.FC = () => {
   });
 
   const connectedIntegrations = integrations.filter((integration) => integration.connected);
-  const availableIntegrations = integrations.filter((integration) => !integration.connected);
+  const availableIntegrations = integrations.filter(
+    (integration) => integration.connectionKnown && !integration.connected
+  );
   const selectedIntegration = selectedProvider
     ? (integrations.find((integration) => integration.id === selectedProvider) ?? null)
     : null;
@@ -305,28 +322,56 @@ function IntegrationGridCard({
         type="button"
         onClick={onSelect}
         className={cn(
-          'group flex w-full items-center gap-4 rounded-lg border border-border bg-background-1 p-4 text-left text-card-foreground transition-all hover:bg-background-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
+          'group relative flex w-full items-center gap-4 rounded-lg border border-border bg-background-1 p-4 text-left text-card-foreground transition-all hover:bg-background-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background',
           selected && 'bg-background-2'
         )}
       >
         <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-background-2 transition-colors group-hover:bg-background-3">
           <Icon size={32} />
         </span>
-        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span
+          className={cn(
+            'flex min-w-0 flex-1 flex-col gap-0.5',
+            integration.connectionError && 'pr-6'
+          )}
+        >
           <span className="text-sm font-medium text-foreground">{integration.name}</span>
           <span className="truncate text-sm text-foreground-muted">
             {integration.cardDescription}
           </span>
         </span>
-        <span className="ml-auto flex h-6 shrink-0 self-start">
-          {integration.loading ? (
-            <Loader2 className="h-4 w-4 animate-spin text-foreground-muted" />
-          ) : (
-            <span className="h-6 w-6" aria-hidden="true" />
-          )}
-        </span>
+        {integration.connectionError && (
+          <ConnectionIssueIndicator
+            providerName={integration.name}
+            error={integration.connectionError}
+          />
+        )}
       </button>
     </div>
+  );
+}
+
+function ConnectionIssueIndicator({
+  providerName,
+  error,
+}: {
+  providerName: string;
+  error: string;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <span
+            className="text-destructive absolute top-3 right-3 inline-flex h-5 w-5 items-center justify-center rounded-full"
+            aria-label={`${providerName} connection issue`}
+          >
+            <CircleAlert className="h-4 w-4" />
+          </span>
+        }
+      />
+      <TooltipContent side="top">{error || 'Connection issue'}</TooltipContent>
+    </Tooltip>
   );
 }
 
