@@ -1,0 +1,32 @@
+apps/emdash-desktop/src/main/core/conversations/impl/agent-command.test.ts
+  s_9f88f88f9fd93b::t_f4faeb33aae75d 322,326,334
+  s_9f88f88f9fd93b::t_5348a92aa61a34 323-325,327-333,335-337
+apps/emdash-desktop/src/main/core/dependencies/dependency-manager.ts
+  s_9f88f88f9fd93b::t_6ce6542cb9f1fe 236
+  s_9f88f88f9fd93b::t_c2cd377f87fcb4 11
+apps/emdash-desktop/src/main/core/settings/schema.ts
+  s_9f88f88f9fd93b::t_9aa77b66899085 75
+apps/emdash-desktop/src/renderer/features/settings/components/CliAgentsList.tsx
+  s_9f88f88f9fd93b::t_da3d6b58b0e3c6 105-134
+  s_9f88f88f9fd93b::t_d9137c22eac057 179-183,203
+apps/emdash-desktop/src/main/core/conversations/impl/agent-command.ts
+  s_9f88f88f9fd93b::t_636f06df7cf7f8 160-161
+apps/emdash-desktop/src/renderer/features/settings/components/CustomCommandModal.tsx
+  s_9f88f88f9fd93b::t_945eb313165731 28,39,50,136,151,173-174,189,241-253
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "f45ccb55b450f69963c83ddc38ba90c624a75917",
+  "prompts": {},
+  "sessions": {
+    "s_9f88f88f9fd93b": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019eaca0-cb1a-75f4-b84f-1643b057a9b2",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
