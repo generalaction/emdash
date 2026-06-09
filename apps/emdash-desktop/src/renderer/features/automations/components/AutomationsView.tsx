@@ -2,26 +2,32 @@ import { useMemo, useState } from 'react';
 import { useNavigate, useParams } from '@renderer/lib/layout/navigation-provider';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Sheet, SheetContent } from '@renderer/lib/ui/sheet';
-import type { Automation } from '@shared/core/automations/automation';
+import type { Automation, BuiltinAutomationTemplate } from '@shared/core/automations/automation';
+import { emptyStateAutomationTemplates } from '@shared/core/automations/builtin-catalog';
 import { useAutomations } from '../use-automations';
 import { AutomationDetailView } from './AutomationDetailView';
 import { AutomationsHeader } from './AutomationsHeader';
 import { AutomationsList } from './AutomationsList';
+import { AutomationTemplatesEmptyState } from './AutomationTemplatesEmptyState';
 import { CreateAutomationView } from './CreateAutomationView';
 
 export function AutomationsView() {
   const { automations, toggleEnabled, destroy } = useAutomations();
   const [search, setSearch] = useState('');
   const [creating, setCreating] = useState(false);
+  const [initialTemplate, setInitialTemplate] = useState<BuiltinAutomationTemplate | undefined>();
   const showConfirm = useShowModal('confirmActionModal');
   const { navigate } = useNavigate();
   const { params, setParams } = useParams('automations');
 
+  const automationData = automations.data;
   const effectiveAutomations = useMemo(
-    () =>
-      (automations.data ?? []).filter((a) => a.name.toLowerCase().includes(search.toLowerCase())),
-    [automations.data, search]
+    () => (automationData ?? []).filter((a) => a.name.toLowerCase().includes(search.toLowerCase())),
+    [automationData, search]
   );
+  const hasLoadedAutomations = automationData !== undefined;
+  const isEmpty = automationData !== undefined && automationData.length === 0;
+  const hasSearchResults = effectiveAutomations.length > 0;
 
   const liveAutomation = params.automationId
     ? (automations.data?.find((a) => a.id === params.automationId) ?? null)
@@ -30,6 +36,12 @@ export function AutomationsView() {
   function closeSheet() {
     setParams({ automationId: undefined });
     setCreating(false);
+    setInitialTemplate(undefined);
+  }
+
+  function openCreateSheet(template?: BuiltinAutomationTemplate) {
+    setInitialTemplate(template);
+    setCreating(true);
   }
 
   function handleToggleEnabled(automation: Automation, enabled: boolean) {
@@ -56,13 +68,24 @@ export function AutomationsView() {
               search={search}
               onSearchChange={setSearch}
               createPending={false}
-              onNewAutomation={() => setCreating(true)}
+              onNewAutomation={() => openCreateSheet()}
             />
-            <AutomationsList
-              automations={effectiveAutomations}
-              onEdit={(automation) => navigate('automations', { automationId: automation.id })}
-              onToggleEnabled={handleToggleEnabled}
-            />
+            {isEmpty ? (
+              <AutomationTemplatesEmptyState
+                templates={emptyStateAutomationTemplates}
+                onSelectTemplate={openCreateSheet}
+              />
+            ) : hasSearchResults ? (
+              <AutomationsList
+                automations={effectiveAutomations}
+                onEdit={(automation) => navigate('automations', { automationId: automation.id })}
+                onToggleEnabled={handleToggleEnabled}
+              />
+            ) : hasLoadedAutomations ? (
+              <div className="py-8 text-sm text-foreground-muted">
+                No automations match your search.
+              </div>
+            ) : null}
           </div>
         </div>
       </div>
@@ -71,7 +94,13 @@ export function AutomationsView() {
         onOpenChange={(open) => !open && closeSheet()}
       >
         <SheetContent showCloseButton={false}>
-          {creating && <CreateAutomationView onClose={closeSheet} onSaved={closeSheet} />}
+          {creating && (
+            <CreateAutomationView
+              onClose={closeSheet}
+              onSaved={closeSheet}
+              initialTemplate={initialTemplate}
+            />
+          )}
           {liveAutomation && (
             <AutomationDetailView
               automation={liveAutomation}

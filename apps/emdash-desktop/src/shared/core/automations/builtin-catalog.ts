@@ -119,7 +119,24 @@ export const builtinAutomationCatalog: BuiltinAutomationTemplate[] = [
 
 export const pinnedAutomationTemplates = builtinAutomationCatalog.slice(0, 5);
 
-export const emptyStateAutomationTemplates = builtinAutomationCatalog.slice(0, 3);
+const emptyStateAutomationTemplateIds = [
+  'critical-bug-finder',
+  'docs-generator',
+  'test-coverage',
+  'codebase-vulnerability-scan',
+  'daily-change-summary',
+  'reported-bugs',
+] as const;
+
+function getBuiltinAutomationTemplate(id: string): BuiltinAutomationTemplate {
+  const template = builtinAutomationCatalog.find((candidate) => candidate.id === id);
+  if (!template) throw new Error(`Missing builtin automation template: ${id}`);
+  return template;
+}
+
+export const emptyStateAutomationTemplates = emptyStateAutomationTemplateIds.map(
+  getBuiltinAutomationTemplate
+);
 
 export const automationCatalogCategories = [
   'Status reports',
