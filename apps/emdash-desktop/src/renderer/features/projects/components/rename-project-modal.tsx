@@ -42,9 +42,7 @@ export const RenameProjectModal = observer(function RenameProjectModal({
     ? 'Project name cannot be empty.'
     : isTooLong
       ? `Project name must be ${MAX_PROJECT_NAME_LENGTH} characters or fewer.`
-      : isUnchanged
-        ? 'Enter a different name to rename the project.'
-        : undefined;
+      : undefined;
 
   const handleSubmit = useCallback(async () => {
     if (!project || !isValid || isSubmitting) return;
