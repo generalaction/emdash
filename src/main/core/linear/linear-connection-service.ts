@@ -70,10 +70,14 @@ export class LinearConnectionService {
       const client = this.getClientForToken(token);
       const viewer = await client.viewer;
       const org = await viewer.organization;
+      const displayName = viewer.displayName ?? org?.name ?? undefined;
+      const displayDetail =
+        org?.name && viewer.displayName && org.name !== viewer.displayName ? org.name : undefined;
 
       return {
         connected: true,
-        displayName: org?.name ?? viewer.displayName ?? undefined,
+        displayName,
+        displayDetail,
         capabilities: ISSUE_PROVIDER_CAPABILITIES.linear,
       };
     } catch (error) {

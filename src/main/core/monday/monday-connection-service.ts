@@ -118,9 +118,14 @@ export class MondayConnectionService {
       }
 
       const me = await this.fetchMe(credentials.token);
+      const displayName = me.accountName ?? me.name;
+      const displayDetail =
+        me.accountName && me.name && me.accountName !== me.name ? me.name : undefined;
+
       return {
         connected: true,
-        displayName: me.accountName ?? me.name,
+        displayName,
+        displayDetail,
         capabilities: ISSUE_PROVIDER_CAPABILITIES.monday,
       };
     } catch (error) {
