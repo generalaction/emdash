@@ -1,0 +1,21 @@
+apps/emdash-desktop/src/renderer/features/tasks/conversations/sidebar-conversations-list.tsx
+  s_f1573ead36abf3::t_bceedde194f4f8 291-292
+  s_f1573ead36abf3::t_64f06010116b4c 143-146,208-274
+  s_f1573ead36abf3::t_9cd4177052024f 369
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "0d35334046b4ac090776d869e2d06a847dcc81c4",
+  "prompts": {},
+  "sessions": {
+    "s_f1573ead36abf3": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019eac8c-5769-7e0e-941c-33647e322956",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
