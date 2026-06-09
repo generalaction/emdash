@@ -31,6 +31,10 @@ jobs:
           git
           libsecret-1-dev
           pkg-config
+          python-is-python3
+          python3
+          python3-setuptools
+          python3-wheel
           rpm
           xz-utils
       - uses: actions/checkout@v4
@@ -39,18 +43,21 @@ jobs:
           posthog-key: ${{ secrets.POSTHOG_PROJECT_API_KEY }}
           posthog-host: ${{ secrets.POSTHOG_HOST }}
           build-variant: canary
+          setup-python: 'false'
 
       - run: pnpm run build
 
       - run: echo "NODE_OPTIONS=${NODE_OPTIONS:-not set}" && node --version
 
       - name: Build Linux packages
+        working-directory: apps/emdash-desktop
         run: >
           node --experimental-strip-types scripts/release/build.ts
           --platform linux --arch x64
           --config electron-builder.canary.config.ts
 
       - name: Verify Linux native modules
+        working-directory: apps/emdash-desktop
         run: node --experimental-strip-types scripts/release/verify-linux.ts
 
       - uses: ./.github/actions/upload-r2
@@ -103,6 +110,7 @@ jobs:
 
       - name: Build Windows packages
         shell: bash
+        working-directory: apps/emdash-desktop
         env:
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
@@ -115,6 +123,7 @@ jobs:
       - name: Verify Windows code signature
         if: ${{ steps.signing.outputs.has_signing == 'true' }}
         shell: bash
+        working-directory: apps/emdash-desktop
         run: node --experimental-strip-types scripts/release/verify-win.ts
 
       - name: Upload to R2
@@ -151,6 +160,7 @@ jobs:
       - run: echo "NODE_OPTIONS=${NODE_OPTIONS:-not set}" && node --version
 
       - name: Build signed DMGs + ZIPs
+        working-directory: apps/emdash-desktop
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'true'
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -162,11 +172,13 @@ jobs:
           --config electron-builder.canary.config.ts
 
       - name: Verify macOS bundle
+        working-directory: apps/emdash-desktop
         run: >
           node --experimental-strip-types scripts/release/verify-mac.ts
           --expected-team-id ${{ secrets.APPLE_TEAM_ID }}
 
       - name: Notarize and staple
+        working-directory: apps/emdash-desktop
         env:
           APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY }}
           APPLE_API_KEY_ID: ${{ secrets.APPLE_API_KEY_ID }}

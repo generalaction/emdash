@@ -1,0 +1,281 @@
+import {
+  CableIcon,
+  ChevronRight,
+  FolderClosed,
+  FolderInput,
+  Loader2,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Trash2,
+  TriangleAlert,
+} from 'lucide-react';
+import { observer } from 'mobx-react-lite';
+import React, { useCallback, useEffect } from 'react';
+import { useConfirmDeleteProject } from '@renderer/features/projects/hooks/use-confirm-delete-project';
+import {
+  isUnregisteredProject,
+  type UnregisteredProject,
+} from '@renderer/features/projects/stores/project';
+import {
+  getProjectStore,
+  getRepositoryStore,
+  projectViewKind,
+} from '@renderer/features/projects/stores/project-selectors';
+import { ConnectionStatusDot } from '@renderer/lib/components/connection-status-dot';
+import {
+  useNavigate,
+  useParams,
+  useWorkspaceSlots,
+} from '@renderer/lib/layout/navigation-provider';
+import { useShowModal } from '@renderer/lib/modal/modal-provider';
+import { appState, sidebarStore } from '@renderer/lib/stores/app-state';
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from '@renderer/lib/ui/context-menu';
+import { BoundShortcut } from '@renderer/lib/ui/shortcut';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+import { cn } from '@renderer/utils/utils';
+import {
+  SidebarItemMiniButton,
+  SidebarMenuAction,
+  SidebarMenuButton,
+  SidebarMenuRow,
+} from './sidebar-primitives';
+
+const UNREGISTERED_PHASE_LABEL: Record<UnregisteredProject['phase'], string> = {
+  'creating-repo': 'Creating repository…',
+  cloning: 'Cloning…',
+  registering: 'Registering…',
+  error: 'Failed',
+};
+
+export const SidebarProjectItem = observer(function SidebarProjectItem({
+  projectId,
+}: {
+  projectId: string;
+}) {
+  const { navigate } = useNavigate();
+  const { currentView } = useWorkspaceSlots();
+  const { params: projectParams } = useParams('project');
+  const { params: taskParams } = useParams('task');
+  const showCreateTaskModal = useShowModal('taskModal');
+  const showChangeConnectionModal = useShowModal('changeProjectConnectionModal');
+  const showRenameProjectModal = useShowModal('renameProjectModal');
+  const confirmDeleteProject = useConfirmDeleteProject();
+
+  const project = getProjectStore(projectId);
+
+  const prefetchRepository = useCallback(() => {
+    const repo = getRepositoryStore(projectId);
+    void repo?.localData.load();
+    void repo?.remoteData.load();
+  }, [projectId]);
+
+  const currentProjectId =
+    currentView === 'task'
+      ? taskParams.projectId
+      : currentView === 'project'
+        ? projectParams.projectId
+        : null;
+  const currentTaskId = currentView === 'task' ? taskParams.taskId : null;
+
+  const isProjectActive = currentProjectId === projectId && !currentTaskId;
+
+  useEffect(() => {
+    if (isProjectActive) prefetchRepository();
+  }, [isProjectActive, prefetchRepository]);
+
+  const isExpanded = sidebarStore.expandedProjectIds.has(projectId);
+
+  if (!project) return null;
+
+  const sshConnectionId = project.data?.type === 'ssh' ? project.data.connectionId : null;
+  const isSshProject = sshConnectionId !== null;
+  const sshConnectionState = sshConnectionId
+    ? appState.sshConnections.stateFor(sshConnectionId)
+    : null;
+  const canReconnect = sshConnectionState !== 'connected';
+  const ProjectIcon = isSshProject ? FolderInput : FolderClosed;
+  const projectLabel = project.name ?? 'project';
+  const openProject = () => navigate('project', { projectId });
+
+  const renderSpinnerWithTooltip = () => {
+    if (!isUnregisteredProject(project)) return null;
+    const label = UNREGISTERED_PHASE_LABEL[project.phase] ?? 'Loading…';
+    return (
+      <Tooltip>
+        <TooltipTrigger>
+          <SidebarItemMiniButton type="button" disabled aria-label="Loading">
+            <Loader2 className="h-4 w-4 animate-spin text-foreground/60" />
+          </SidebarItemMiniButton>
+        </TooltipTrigger>
+        <TooltipContent>{label}</TooltipContent>
+      </Tooltip>
+    );
+  };
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger>
+        <SidebarMenuRow
+          className={cn('group/row h-8 justify-between flex px-1')}
+          data-active={isProjectActive || undefined}
+          isActive={isProjectActive}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={openProject}
+        >
+          <div className="flex min-w-0 flex-1 items-center gap-1">
+            {project.state === 'unregistered' ? (
+              renderSpinnerWithTooltip()
+            ) : (
+              <SidebarItemMiniButton
+                type="button"
+                aria-label={`${isExpanded ? 'Collapse' : 'Expand'} ${projectLabel}`}
+                className="relative"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  sidebarStore.toggleProjectExpanded(projectId);
+                }}
+              >
+                <ProjectIcon className="absolute h-4 w-4 opacity-100 transition-opacity duration-150 group-hover/row:opacity-0" />
+                <ChevronRight
+                  className={cn(
+                    'absolute h-4 w-4 transition-all duration-150 opacity-0 group-hover/row:opacity-100',
+                    isExpanded && 'rotate-90'
+                  )}
+                />
+              </SidebarItemMiniButton>
+            )}
+            <SidebarMenuAction
+              aria-label={`Open project ${projectLabel}`}
+              className={cn(
+                'truncate transition-colors select-none',
+                projectViewKind(getProjectStore(projectId)) === 'bootstrapping' &&
+                  'text-foreground-tertiary-passive'
+              )}
+            >
+              {isSshProject ? (
+                <span className="flex min-w-0 items-center gap-2">
+                  <span className="truncate">{project.name}</span>
+                  <ConnectionStatusDot state={sshConnectionState} />
+                </span>
+              ) : (
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <span className="truncate">{project.name}</span>
+                  {projectViewKind(project) === 'path_not_found' && (
+                    <Tooltip>
+                      <TooltipTrigger>
+                        <TriangleAlert className="h-3.5 w-3.5 shrink-0 text-foreground-destructive" />
+                      </TooltipTrigger>
+                      <TooltipContent>Project not found at path</TooltipContent>
+                    </Tooltip>
+                  )}
+                </span>
+              )}
+            </SidebarMenuAction>
+          </div>
+          <Tooltip>
+            <TooltipTrigger
+              className="h-6"
+              render={
+                <SidebarItemMiniButton
+                  type="button"
+                  aria-label={`New task for ${projectLabel}`}
+                  className={
+                    'opacity-0 transition-opacity duration-150 group-hover/row:opacity-100'
+                  }
+                  onPointerEnter={() => prefetchRepository()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    showCreateTaskModal({ projectId });
+                  }}
+                  disabled={project.state === 'unregistered'}
+                >
+                  <Plus className="h-4 w-4" />
+                </SidebarItemMiniButton>
+              }
+            />
+            <TooltipContent>
+              New Task
+              <BoundShortcut settingsKey="newTask" variant="badge" />
+            </TooltipContent>
+          </Tooltip>
+        </SidebarMenuRow>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem
+          disabled={project.state === 'unregistered'}
+          onClick={() => {
+            showRenameProjectModal({
+              projectId,
+              currentName: project.name ?? '',
+            });
+          }}
+        >
+          <Pencil className="size-4" />
+          Rename Project
+        </ContextMenuItem>
+        {sshConnectionId && (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem
+              disabled={!canReconnect}
+              onClick={() => {
+                void appState.sshConnections.connect(sshConnectionId).catch(() => {});
+              }}
+            >
+              <RotateCcw className="size-4" />
+              Reconnect
+            </ContextMenuItem>
+            <ContextMenuItem
+              onClick={() => {
+                showChangeConnectionModal({
+                  projectId,
+                  currentConnectionId: sshConnectionId,
+                });
+              }}
+            >
+              <CableIcon className="size-4" />
+              Change SSH Connection
+            </ContextMenuItem>
+            <ContextMenuSeparator />
+          </>
+        )}
+        <ContextMenuItem
+          variant="destructive"
+          onClick={() => {
+            void confirmDeleteProject({
+              projectId,
+              projectLabel: project.name ?? 'this project',
+              onDeleted: () => {
+                if (isProjectActive) navigate('home');
+              },
+            });
+          }}
+        >
+          <Trash2 className="size-4" />
+          Remove Project
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+});
+
+interface BaseProjectItemProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  isActive: boolean;
+}
+
+export function BaseProjectItem({ isActive, className, ...props }: BaseProjectItemProps) {
+  return (
+    <SidebarMenuButton
+      className={cn('justify-between flex item px-1 py-1', className)}
+      isActive={isActive}
+      {...props}
+    />
+  );
+}

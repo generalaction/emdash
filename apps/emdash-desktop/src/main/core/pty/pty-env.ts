@@ -1,0 +1,293 @@
+import os from 'node:os';
+import type { ResolvedShellProfile } from '@main/core/terminal-shell/types';
+import { detectSshAuthSock } from '@main/utils/shellEnv';
+import { getWindowsEnvValue } from '@main/utils/windows-env';
+
+export const AGENT_ENV_VARS = [
+  'ALL_PROXY',
+  'AMP_API_KEY',
+  'AMP_TOOLBOX',
+  'ANTHROPIC_API_KEY',
+  'ANTHROPIC_AUTH_TOKEN',
+  'ANTHROPIC_BASE_URL',
+  'ANTHROPIC_DEFAULT_HAIKU_MODEL',
+  'ANTHROPIC_DEFAULT_OPUS_MODEL',
+  'ANTHROPIC_DEFAULT_SONNET_MODEL',
+  'ANTHROPIC_MODEL',
+  'ANTHROPIC_SMALL_FAST_MODEL',
+  'AUTOHAND_API_KEY',
+  'AUGMENT_SESSION_AUTH',
+  'AWS_ACCESS_KEY_ID',
+  'AWS_DEFAULT_REGION',
+  'AWS_PROFILE',
+  'AWS_REGION',
+  'AWS_SECRET_ACCESS_KEY',
+  'AWS_SESSION_TOKEN',
+  'AZURE_OPENAI_API_ENDPOINT',
+  'AZURE_OPENAI_API_KEY',
+  'AZURE_OPENAI_KEY',
+  'BAILIAN_CODING_PLAN_API_KEY',
+  'CLAUDE_CODE_DISABLE_BACKGROUND_TASKS',
+  'CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS',
+  'CLAUDE_CODE_SUBAGENT_MODEL',
+  'CLAUDE_CODE_USE_BEDROCK',
+  'CLAUDE_CODE_USE_VERTEX',
+  'CLAUDE_CONFIG_DIR',
+  'CODEBUFF_API_KEY',
+  'CODEX_HOME',
+  'COPILOT_CLI_TOKEN',
+  'CURSOR_API_KEY',
+  'DASHSCOPE_API_KEY',
+  'FACTORY_API_KEY',
+  'GEMINI_API_KEY',
+  'GEMINI_MODEL',
+  'GH_TOKEN',
+  'GITHUB_TOKEN',
+  'GOOGLE_API_KEY',
+  'GOOGLE_APPLICATION_CREDENTIALS',
+  'GOOGLE_CLOUD_LOCATION',
+  'GOOGLE_CLOUD_PROJECT',
+  'GOOGLE_GEMINI_BASE_URL',
+  'GOOGLE_GENAI_API_VERSION',
+  'GOOGLE_VERTEX_BASE_URL',
+  'GOOSE_CONTEXT_LIMIT',
+  'GOOSE_LEAD_MODEL',
+  'GOOSE_LEAD_PROVIDER',
+  'GOOSE_MODE',
+  'GOOSE_MODEL',
+  'GOOSE_PLANNER_MODEL',
+  'GOOSE_PLANNER_PROVIDER',
+  'GOOSE_PROVIDER',
+  'GOOSE_PROVIDER__API_KEY',
+  'GOOSE_PROVIDER__HOST',
+  'GOOSE_PROVIDER__TYPE',
+  'GROK_CODE_XAI_API_KEY',
+  'GROK_DEPLOYMENT_KEY',
+  'GROK_HOME',
+  'GROK_PROXY_URL',
+  'GROK_SANDBOX',
+  'HTTP_PROXY',
+  'HTTPS_PROXY',
+  'KIMI_API_KEY',
+  'MISTRAL_API_KEY',
+  'MOONSHOT_API_KEY',
+  'NO_PROXY',
+  'OPENAI_API_KEY',
+  'OPENAI_BASE_URL',
+  'OPENAI_MODEL',
+  'OPENAI_ORGANIZATION',
+  'OPENAI_PROJECT',
+  'OPENCODE_MODEL',
+  'OPENROUTER_API_KEY',
+  'OPENROUTER_BASE_URL',
+  'XAI_API_KEY',
+] as const;
+
+const DISPLAY_ENV_VARS = [
+  'DISPLAY', // X11 display server
+  'XAUTHORITY', // X11 auth cookie (often non-standard path on Wayland+GNOME)
+  'WAYLAND_DISPLAY', // Wayland compositor socket
+  'XDG_RUNTIME_DIR', // Contains Wayland/D-Bus sockets (e.g. /run/user/1000)
+  'XDG_CURRENT_DESKTOP', // Used by xdg-open for DE detection
+  'XDG_SESSION_TYPE', // Used by browsers/toolkits to select X11 vs Wayland
+  'DBUS_SESSION_BUS_ADDRESS', // Needed by gio open and desktop portals
+] as const;
+
+const GLOBAL_AGENT_ENV_VARS = ['EDITOR', 'VISUAL', 'GIT_EDITOR', 'HOSTNAME', 'LANG', 'TZ'] as const;
+
+function getAllowlistedEnv(keys: readonly string[]): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const key of keys) {
+    const val = process.env[key];
+    if (val) env[key] = val;
+  }
+  return env;
+}
+
+function getWindowsEssentialEnv(resolvedPath: string): Record<string, string> {
+  const home = os.homedir();
+  return {
+    PATH: resolvedPath,
+    PATHEXT:
+      getWindowsEnvValue(process.env, 'PATHEXT') ||
+      '.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC',
+    SystemRoot: getWindowsEnvValue(process.env, 'SystemRoot') || 'C:\\Windows',
+    ComSpec: getWindowsEnvValue(process.env, 'ComSpec') || 'C:\\Windows\\System32\\cmd.exe',
+    TEMP: getWindowsEnvValue(process.env, 'TEMP') || getWindowsEnvValue(process.env, 'TMP') || '',
+    TMP: getWindowsEnvValue(process.env, 'TMP') || getWindowsEnvValue(process.env, 'TEMP') || '',
+    USERPROFILE: getWindowsEnvValue(process.env, 'USERPROFILE') || home,
+    APPDATA: getWindowsEnvValue(process.env, 'APPDATA') || '',
+    LOCALAPPDATA: getWindowsEnvValue(process.env, 'LOCALAPPDATA') || '',
+    HOMEDRIVE: getWindowsEnvValue(process.env, 'HOMEDRIVE') || '',
+    HOMEPATH: getWindowsEnvValue(process.env, 'HOMEPATH') || '',
+    USERNAME: getWindowsEnvValue(process.env, 'USERNAME') || os.userInfo().username,
+    ProgramFiles: getWindowsEnvValue(process.env, 'ProgramFiles') || 'C:\\Program Files',
+    'ProgramFiles(x86)':
+      getWindowsEnvValue(process.env, 'ProgramFiles(x86)') || 'C:\\Program Files (x86)',
+    ProgramData: getWindowsEnvValue(process.env, 'ProgramData') || 'C:\\ProgramData',
+    CommonProgramFiles:
+      getWindowsEnvValue(process.env, 'CommonProgramFiles') || 'C:\\Program Files\\Common Files',
+    'CommonProgramFiles(x86)':
+      getWindowsEnvValue(process.env, 'CommonProgramFiles(x86)') ||
+      'C:\\Program Files (x86)\\Common Files',
+    ProgramW6432: getWindowsEnvValue(process.env, 'ProgramW6432') || 'C:\\Program Files',
+    CommonProgramW6432:
+      getWindowsEnvValue(process.env, 'CommonProgramW6432') || 'C:\\Program Files\\Common Files',
+  };
+}
+
+export interface AgentEnvOptions {
+  /**
+   * Pass through AGENT_ENV_VARS from process.env.
+   * Defaults to true — set false only for tests or sandboxed environments.
+   */
+  agentApiVars?: boolean;
+
+  /**
+   * Include SHELL in the env (needed for shell-wrapper spawns so the shell
+   * can reconstruct login env via -il flags).
+   */
+  includeShellVar?: boolean;
+
+  /**
+   * Resolved shell used to launch the agent command. POSIX login shells can
+   * synthesize SHELL from the user's account default, so pass the configured
+   * shell explicitly when the command is shell-wrapped.
+   */
+  shellProfile?: ResolvedShellProfile;
+
+  /**
+   * Emdash hook server connection details.  When set, injects
+   * EMDASH_HOOK_PORT, EMDASH_PTY_ID, and EMDASH_HOOK_TOKEN so agent CLIs
+   * can call back on lifecycle events.
+   */
+  hook?: {
+    port: number;
+    ptyId: string;
+    token: string;
+  };
+
+  /**
+   * Per-provider variables configured in custom execution settings.
+   */
+  providerVars?: Record<string, string>;
+}
+
+/**
+ * Build an environment for a user-facing interactive terminal session.
+ *
+ * Unlike buildAgentEnv, this inherits process.env wholesale so the terminal
+ * feels identical to one opened in Ghostty or Terminal.app — the user's
+ * EDITOR, MANPATH, JAVA_HOME, custom vars, etc. are all present.
+ *
+ * TERM, COLORTERM, and TERM_PROGRAM are always set or overridden so programs
+ * inside the terminal report the correct terminal identity. SHELL is only
+ * synthesized on POSIX platforms.
+ * SSH_AUTH_SOCK is injected via the same cached detector used for agents,
+ * since GUI-launched apps often don't inherit it from the user's login shell.
+ */
+export function buildTerminalEnv(
+  options: { shellProfile?: ResolvedShellProfile } = {}
+): Record<string, string> {
+  // Inherit the full process environment, stripping undefined values.
+  const env: Record<string, string> = {};
+  for (const [key, val] of Object.entries(process.env)) {
+    if (val !== undefined) env[key] = val;
+  }
+
+  // Terminal identity — always override so xterm capabilities are correct.
+  env.TERM = 'xterm-256color';
+  env.COLORTERM = 'truecolor';
+  env.TERM_PROGRAM = 'emdash';
+
+  // Ensure SHELL reflects the user's configured shell on POSIX. Native Windows
+  // shells are selected via ComSpec by the spawn resolver, not SHELL.
+  if (process.platform !== 'win32') {
+    env.SHELL =
+      options.shellProfile?.family === 'posix' || options.shellProfile?.family === 'csh'
+        ? options.shellProfile.executable
+        : (process.env.SHELL ?? (process.platform === 'darwin' ? '/bin/zsh' : '/bin/bash'));
+  } else if (process.env.SHELL) {
+    env.SHELL = process.env.SHELL;
+  }
+
+  // SSH_AUTH_SOCK is normally set by resolveUserEnv() at startup. The
+  // detectSshAuthSock() fallback covers cases where that failed (timeout,
+  // AppImage, CI) by trying launchctl and common socket locations.
+  if (!env.SSH_AUTH_SOCK) {
+    const sshAuthSock = detectSshAuthSock();
+    if (sshAuthSock) env.SSH_AUTH_SOCK = sshAuthSock;
+  }
+
+  return env;
+}
+
+/**
+ * Build a clean, minimal PTY environment from scratch.
+ *
+ * Does NOT inherit process.env wholesale — only well-known variables are
+ * forwarded.  Login shells (-il) will rebuild PATH, NVM, etc. from the user's
+ * shell config files.  Direct spawns (no shell) receive PATH so the CLI can
+ * find its own dependencies.
+ */
+export function buildAgentEnv(options: AgentEnvOptions = {}): Record<string, string> {
+  const {
+    agentApiVars = true,
+    includeShellVar = false,
+    hook,
+    providerVars,
+    shellProfile,
+  } = options;
+
+  // process.env.PATH is enriched at startup by resolveUserEnv() so it already
+  // contains the full login-shell PATH (Homebrew, nvm, npm globals, etc.).
+  const resolvedPath =
+    process.platform === 'win32'
+      ? (getWindowsEnvValue(process.env, 'PATH') ?? '')
+      : (process.env.PATH ?? '');
+  const env: Record<string, string> = {
+    TERM: 'xterm-256color',
+    COLORTERM: 'truecolor',
+    TERM_PROGRAM: 'emdash',
+    HOME: process.env.HOME || os.homedir(),
+    USER: process.env.USER || os.userInfo().username,
+    PATH: resolvedPath,
+    ...(process.env.TMPDIR && { TMPDIR: process.env.TMPDIR }),
+    ...getAllowlistedEnv(GLOBAL_AGENT_ENV_VARS),
+    ...getAllowlistedEnv(DISPLAY_ENV_VARS),
+    ...(process.platform === 'win32' ? getWindowsEssentialEnv(resolvedPath) : {}),
+  };
+
+  const sshAuthSock = process.env.SSH_AUTH_SOCK ?? detectSshAuthSock();
+  if (sshAuthSock) env.SSH_AUTH_SOCK = sshAuthSock;
+
+  if (
+    process.platform !== 'win32' &&
+    (shellProfile?.family === 'posix' || shellProfile?.family === 'csh')
+  ) {
+    env.SHELL = shellProfile.executable;
+  } else if (includeShellVar && process.platform !== 'win32') {
+    env.SHELL = process.env.SHELL || '/bin/bash';
+  } else if (includeShellVar && process.env.SHELL) {
+    env.SHELL = process.env.SHELL;
+  }
+
+  if (agentApiVars) {
+    for (const key of AGENT_ENV_VARS) {
+      const val = process.env[key];
+      if (val) env[key] = val;
+    }
+  }
+
+  if (providerVars) {
+    Object.assign(env, providerVars);
+  }
+
+  if (hook && hook.port > 0) {
+    env.EMDASH_HOOK_PORT = String(hook.port);
+    env.EMDASH_PTY_ID = hook.ptyId;
+    env.EMDASH_HOOK_TOKEN = hook.token;
+  }
+
+  return env;
+}

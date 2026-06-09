@@ -1,0 +1,283 @@
+import { ImageIcon, Info, Paperclip, XIcon } from 'lucide-react';
+import React, { useCallback, useState } from 'react';
+import { useAttachments } from '@renderer/lib/hooks/use-attachments';
+import { rpc } from '@renderer/lib/ipc';
+import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
+import { useGithubContext } from '@renderer/lib/providers/github-context-provider';
+import { appState } from '@renderer/lib/stores/app-state';
+import { Button } from '@renderer/lib/ui/button';
+import { Checkbox } from '@renderer/lib/ui/checkbox';
+import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
+import {
+  DialogContentArea,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@renderer/lib/ui/dialog';
+import { Input } from '@renderer/lib/ui/input';
+import { Spinner } from '@renderer/lib/ui/spinner';
+import { Textarea } from '@renderer/lib/ui/textarea';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@renderer/lib/ui/tooltip';
+import { cn } from '@renderer/utils/utils';
+import { useFeedbackSubmit } from './use-feedback-submit';
+
+type FeedbackModalArgs = {
+  blurb?: string;
+};
+
+type Props = BaseModalProps<void> & FeedbackModalArgs;
+
+function AttachmentThumbnail({
+  name,
+  previewUrl,
+  onRemove,
+  disabled,
+}: {
+  name: string;
+  previewUrl: string;
+  onRemove: () => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="group relative size-14 shrink-0 overflow-hidden rounded-md border border-border bg-background">
+      <img src={previewUrl} alt={name} className="size-full object-cover" />
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={`Remove ${name}`}
+        disabled={disabled}
+        className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:enabled:opacity-100 disabled:cursor-not-allowed"
+      >
+        <XIcon className="size-3.5 text-white" />
+      </button>
+    </div>
+  );
+}
+
+export function FeedbackModal({ onSuccess, blurb }: Props) {
+  const [includeDiagnosticLogs, setIncludeDiagnosticLogs] = useState(false);
+  const { user: githubUser } = useGithubContext();
+  const appVersion = appState.update.currentVersion;
+  const {
+    attachments,
+    isDraggingOver,
+    fileInputRef,
+    removeAttachment,
+    openFilePicker,
+    handleFileInputChange,
+    handlePaste,
+    handleDrop,
+    handleDragOver,
+    handleDragEnter,
+    handleDragLeave,
+    reset: resetAttachments,
+  } = useAttachments();
+
+  const {
+    feedbackDetails,
+    setFeedbackDetails,
+    contactEmail,
+    setContactEmail,
+    submitting,
+    errorMessage,
+    contactEmailError,
+    clearError,
+    clearContactEmailError,
+    handleSubmit,
+    canSubmit,
+  } = useFeedbackSubmit({
+    githubUser,
+    appVersion,
+    onSuccess: () => {
+      resetAttachments();
+      setIncludeDiagnosticLogs(false);
+      onSuccess();
+    },
+  });
+
+  const handleFormSubmit = useCallback(
+    async (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      const loadDiagnosticLog = includeDiagnosticLogs
+        ? async () => {
+            const attachment = await rpc.app.getDiagnosticLogAttachment();
+            return new File([attachment.content], attachment.filename, {
+              type: attachment.mimeType,
+            });
+          }
+        : undefined;
+      await handleSubmit(
+        attachments.map((attachment) => attachment.file),
+        loadDiagnosticLog
+      );
+    },
+    [handleSubmit, attachments, includeDiagnosticLogs]
+  );
+
+  return (
+    <div
+      className="relative flex min-h-0 flex-1 flex-col"
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+    >
+      {isDraggingOver && (
+        <div className="border-primary bg-primary/5 absolute inset-0 z-10 flex items-center justify-center rounded-xl border-2 border-dashed">
+          <div className="text-primary flex flex-col items-center gap-1">
+            <ImageIcon className="size-6" />
+            <span className="text-xs font-medium">Drop image here</span>
+          </div>
+        </div>
+      )}
+      <DialogHeader>
+        <div className="flex flex-col gap-1">
+          <DialogTitle>Feedback</DialogTitle>
+          {blurb ? <DialogDescription className="text-xs">{blurb}</DialogDescription> : null}
+        </div>
+      </DialogHeader>
+      <DialogContentArea>
+        <form id="feedback-form" className="space-y-4 pt-0.5" onSubmit={handleFormSubmit}>
+          <div className="space-y-1.5">
+            <label htmlFor="feedback-details" className="sr-only">
+              Feedback details
+            </label>
+            <Textarea
+              id="feedback-details"
+              autoFocus
+              rows={5}
+              placeholder="What do you like? How can we improve?"
+              className="resize-none"
+              value={feedbackDetails}
+              onChange={(event) => {
+                setFeedbackDetails(event.target.value);
+                if (errorMessage) clearError();
+              }}
+              onPaste={handlePaste}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label htmlFor="feedback-contact" className="sr-only">
+              Contact email
+            </label>
+            <Input
+              id="feedback-contact"
+              type="text"
+              placeholder="productive@example.com (optional)"
+              value={contactEmail}
+              aria-invalid={contactEmailError ? 'true' : undefined}
+              aria-describedby={contactEmailError ? 'feedback-contact-error' : undefined}
+              onChange={(event) => {
+                setContactEmail(event.target.value);
+                if (errorMessage) clearError();
+                if (contactEmailError) clearContactEmailError();
+              }}
+            />
+            {contactEmailError ? (
+              <p
+                id="feedback-contact-error"
+                className="text-xs text-foreground-destructive"
+                role="alert"
+              >
+                {contactEmailError}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center gap-1.5">
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={includeDiagnosticLogs}
+                  onCheckedChange={(checked) => setIncludeDiagnosticLogs(Boolean(checked))}
+                  disabled={submitting}
+                />
+                <span className="min-w-0">Include diagnostic logs</span>
+              </label>
+              <TooltipProvider delay={150}>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <button
+                      type="button"
+                      className="text-muted-foreground mt-1 inline-flex size-4 items-center justify-center hover:text-foreground"
+                      aria-label="More information about diagnostic logs"
+                    >
+                      <Info className="size-3.5" aria-hidden="true" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs text-xs">
+                    Attaches recent app logs with sensitive details redacted.
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              multiple
+              onChange={handleFileInputChange}
+              disabled={submitting}
+            />
+            {attachments.length > 0 ? (
+              <div
+                className={cn(
+                  'flex flex-wrap gap-2 rounded-md border border-dashed border-border p-2',
+                  submitting && 'opacity-50'
+                )}
+              >
+                {attachments.map((attachment, index) => (
+                  <AttachmentThumbnail
+                    key={attachment.id}
+                    name={attachment.file.name}
+                    previewUrl={attachment.previewUrl}
+                    onRemove={() => removeAttachment(index)}
+                    disabled={submitting}
+                  />
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          {errorMessage ? (
+            <p className="text-destructive text-sm" role="alert">
+              {errorMessage}
+            </p>
+          ) : null}
+        </form>
+      </DialogContentArea>
+      <DialogFooter className="sm:justify-between">
+        <Button
+          type="button"
+          variant="outline"
+          onClick={openFilePicker}
+          className="gap-2"
+          disabled={submitting}
+        >
+          <Paperclip className="h-4 w-4" aria-hidden="true" />
+          <span>Attach image</span>
+        </Button>
+        <ConfirmButton
+          type="submit"
+          form="feedback-form"
+          className="gap-2 px-4"
+          disabled={!canSubmit}
+          aria-busy={submitting}
+        >
+          {submitting ? (
+            <>
+              <Spinner size="sm" />
+              <span>Sending...</span>
+            </>
+          ) : (
+            <span>Send Feedback</span>
+          )}
+        </ConfirmButton>
+      </DialogFooter>
+    </div>
+  );
+}
