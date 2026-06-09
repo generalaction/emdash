@@ -701,6 +701,17 @@ describe('HookConfigWriter', () => {
     expect(fs.files.get('.gitignore')).toBe('.kiro/agents/emdash.json\n');
   });
 
+  it('does not duplicate the Kiro gitignore entry', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/kiro-cli');
+    const fs = new MemoryFs();
+    fs.files.set('.gitignore', '.kiro/agents/emdash.json\n');
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('kiro');
+
+    expect(fs.files.get('.gitignore')).toBe('.kiro/agents/emdash.json\n');
+  });
+
   it('preserves unrelated Kiro hooks while replacing Emdash-managed entries', async () => {
     mockResolveCommandPath.mockResolvedValue('/usr/local/bin/kiro-cli');
     const fs = new MemoryFs();
