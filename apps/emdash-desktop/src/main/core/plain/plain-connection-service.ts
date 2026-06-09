@@ -108,6 +108,10 @@ export class PlainConnectionService {
     }
   }
 
+  async isConfigured(): Promise<boolean> {
+    return !!(await this.getStoredToken());
+  }
+
   async getClient(): Promise<PlainClient | null> {
     const token = await this.getStoredToken();
     if (!token) {

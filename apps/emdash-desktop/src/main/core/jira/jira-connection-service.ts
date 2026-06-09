@@ -20,6 +20,18 @@ interface JiraUser {
 
 const jiraKV = new KV<JiraKVSchema>('jira');
 
+function siteHost(siteUrl: string): string {
+  try {
+    return new URL(siteUrl).host;
+  } catch {
+    return siteUrl;
+  }
+}
+
+function formatDisplayDetail(email: string, siteUrl: string): string {
+  return `${email} · ${siteHost(siteUrl)}`;
+}
+
 function encodeBasic(email: string, token: string): string {
   return Buffer.from(`${email}:${token}`).toString('base64');
 }
@@ -80,6 +92,7 @@ export class JiraConnectionService {
       return {
         connected: true,
         displayName: me?.displayName,
+        displayDetail: formatDisplayDetail(creds.email, creds.siteUrl),
         capabilities: ISSUE_PROVIDER_CAPABILITIES.jira,
       };
     } catch (error) {
@@ -89,6 +102,12 @@ export class JiraConnectionService {
         capabilities: ISSUE_PROVIDER_CAPABILITIES.jira,
       };
     }
+  }
+
+  async isConfigured(): Promise<boolean> {
+    const creds = await this.readCreds();
+    if (!creds) return false;
+    return !!(await encryptedAppSecretsStore.getSecret(this.JIRA_TOKEN_SECRET_KEY));
   }
 
   async requireAuth(): Promise<{ siteUrl: string; email: string; token: string }> {

@@ -151,6 +151,8 @@ export const asanaIssueProvider: IssueProvider = {
   type: 'asana',
   capabilities: ISSUE_PROVIDER_CAPABILITIES.asana,
 
+  isConfigured: () => asanaConnectionService.isConfigured(),
+
   checkConnection: () => asanaConnectionService.checkConnection(),
 
   listIssues: async (opts) => listIssues(opts.limit ?? 50),

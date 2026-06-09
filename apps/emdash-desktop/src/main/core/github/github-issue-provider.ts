@@ -190,6 +190,8 @@ export const githubIssueProvider: IssueProvider = {
   type: 'github',
   capabilities: ISSUE_PROVIDER_CAPABILITIES.github,
 
+  isConfigured: async () => (await githubAccountRegistry.listAccounts()).length > 0,
+
   checkConnection: async () => {
     const linkedAccountConnection = await getDefaultLinkedAccountConnection();
     if (linkedAccountConnection) return linkedAccountConnection;

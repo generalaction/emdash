@@ -7,7 +7,7 @@ type UseProviderConnectionOptions<TInput> = {
   connectMutationFn: (input: TInput) => Promise<ConnectionMutationResult>;
   disconnectMutationFn: () => Promise<unknown>;
   invalidate: () => void;
-  fallbackError: string;
+  fallbackError?: string;
   validateInput?: (input: TInput) => string | null;
 };
 
@@ -15,7 +15,7 @@ export function useProviderConnection<TInput>({
   connectMutationFn,
   disconnectMutationFn,
   invalidate,
-  fallbackError,
+  fallbackError = 'Failed to connect.',
   validateInput,
 }: UseProviderConnectionOptions<TInput>) {
   const connectMutation = useMutation({
@@ -50,6 +50,6 @@ export function useProviderConnection<TInput>({
   return {
     connect,
     disconnect,
-    isLoading: connectMutation.isPending || disconnectMutation.isPending,
+    isMutating: connectMutation.isPending || disconnectMutation.isPending,
   };
 }

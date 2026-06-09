@@ -54,6 +54,23 @@ function isNotConfigured(error: unknown): boolean {
   return error instanceof Error && error.message === NOT_CONFIGURED_ERROR;
 }
 
+function hostFromInstanceUrl(instanceUrl: string): string {
+  try {
+    return new URL(instanceUrl).host;
+  } catch {
+    return instanceUrl;
+  }
+}
+
+function formatDisplayDetail(
+  username: string | undefined,
+  displayName: string | undefined,
+  instanceUrl: string
+): string {
+  const host = hostFromInstanceUrl(instanceUrl);
+  return username && displayName && username !== displayName ? `@${username} · ${host}` : host;
+}
+
 export class GitLabConnectionService {
   private readonly GITLAB_TOKEN_SECRET_KEY = 'emdash-gitlab-token';
 
@@ -112,7 +129,7 @@ export class GitLabConnectionService {
 
   async checkConnection(): Promise<ConnectionStatus> {
     try {
-      const { client } = await this.requireAuth();
+      const { client, instanceUrl } = await this.requireAuth();
       const user = (await client.Users.showCurrentUser()) as Record<string, unknown>;
 
       const username = this.readString(user.username) ?? undefined;
@@ -121,6 +138,7 @@ export class GitLabConnectionService {
       return {
         connected: true,
         displayName,
+        displayDetail: formatDisplayDetail(username, displayName, instanceUrl),
         capabilities: ISSUE_PROVIDER_CAPABILITIES.gitlab,
       };
     } catch (error) {
@@ -137,6 +155,12 @@ export class GitLabConnectionService {
         capabilities: ISSUE_PROVIDER_CAPABILITIES.gitlab,
       };
     }
+  }
+
+  async isConfigured(): Promise<boolean> {
+    const connection = await this.readConnection();
+    if (!connection) return false;
+    return !!(await encryptedAppSecretsStore.getSecret(this.GITLAB_TOKEN_SECRET_KEY));
   }
 
   async getClient(): Promise<Gitlab | null> {

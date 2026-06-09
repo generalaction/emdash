@@ -108,6 +108,8 @@ export const forgejoIssueProvider: IssueProvider = {
   type: 'forgejo',
   capabilities: ISSUE_PROVIDER_CAPABILITIES.forgejo,
 
+  isConfigured: () => forgejoConnectionService.isConfigured(),
+
   checkConnection: () => forgejoConnectionService.checkConnection(),
 
   listIssues: async (opts) => {
