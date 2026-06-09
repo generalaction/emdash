@@ -487,6 +487,21 @@ class AppService implements IInitializable, IDisposable {
     return result.filePaths[0];
   }
 
+  async openSelectFileDialog(args: {
+    title: string;
+    message: string;
+    defaultPath?: string;
+  }): Promise<string | undefined> {
+    const result = await dialog.showOpenDialog(getMainWindow()!, {
+      title: args.title,
+      properties: ['openFile'],
+      message: args.message,
+      defaultPath: args.defaultPath,
+    });
+    if (result.canceled) return undefined;
+    return result.filePaths[0];
+  }
+
   async openSelectAudioFileDialog(args: {
     title: string;
     message: string;

@@ -1,7 +1,8 @@
-import { Info, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { FolderOpen, Info, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useProviderSettings } from '@renderer/features/settings/use-provider-settings';
 import { parseEnvAssignmentPaste, replaceEnvEntryWithPaste } from '@renderer/lib/env-paste';
+import { rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@renderer/lib/ui/dialog';
@@ -72,6 +73,7 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
 
   const [form, setForm] = useState<FormState>(registryDefaults);
   const [saving, setSaving] = useState(false);
+  const [browsingInstallPath, setBrowsingInstallPath] = useState(false);
 
   useEffect(() => {
     if (!isOpen || isLoading) return;
@@ -119,6 +121,24 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
   const handleResetToDefaults = useCallback(() => {
     setForm(registryDefaults);
   }, [registryDefaults]);
+
+  const handleBrowseInstallPath = useCallback(async () => {
+    if (browsingInstallPath) return;
+
+    setBrowsingInstallPath(true);
+    try {
+      const result = await rpc.app.openSelectFileDialog({
+        title: `Select ${provider?.name ?? 'agent'} executable`,
+        message: 'Choose the agent executable to run.',
+        defaultPath: form.installPath || undefined,
+      });
+      if (result) {
+        handleChange('installPath', result);
+      }
+    } finally {
+      setBrowsingInstallPath(false);
+    }
+  }, [browsingInstallPath, form.installPath, handleChange, provider?.name]);
 
   const handleSave = useCallback(async () => {
     setSaving(true);
@@ -246,13 +266,25 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
                   </Label>
                   <FieldTooltip content="Optional absolute path to this agent executable. Leave empty to use PATH lookup." />
                 </div>
-                <Input
-                  id="installPath"
-                  value={form.installPath}
-                  onChange={(e) => handleChange('installPath', e.target.value)}
-                  placeholder="e.g. /opt/claude-code/bin/claude"
-                  className="font-mono text-sm"
-                />
+                <div className="flex items-center gap-2">
+                  <Input
+                    id="installPath"
+                    value={form.installPath}
+                    onChange={(e) => handleChange('installPath', e.target.value)}
+                    placeholder="e.g. /opt/claude-code/bin/claude"
+                    className="font-mono text-sm"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => void handleBrowseInstallPath()}
+                    disabled={browsingInstallPath || isLoading || saving}
+                    className="shrink-0 gap-1.5"
+                  >
+                    <FolderOpen className="h-3.5 w-3.5" />
+                    Browse
+                  </Button>
+                </div>
               </div>
 
               {/* Resume Flag */}
