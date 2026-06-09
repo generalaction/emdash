@@ -1,6 +1,6 @@
 import { observer } from 'mobx-react-lite';
 import { useCallback, useState } from 'react';
-import { getProjectManagerStore } from '@renderer/features/projects/stores/project-selectors';
+import { getProjectStore } from '@renderer/features/projects/stores/project-selectors';
 import { type BaseModalProps } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
 import { ConfirmButton } from '@renderer/lib/ui/confirm-button';
@@ -30,7 +30,7 @@ export const RenameProjectModal = observer(function RenameProjectModal({
   const [name, setName] = useState(currentName);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const projectManager = getProjectManagerStore();
+  const project = getProjectStore(projectId);
 
   const normalizedName = name.trim();
   const isEmpty = normalizedName.length === 0;
@@ -47,17 +47,17 @@ export const RenameProjectModal = observer(function RenameProjectModal({
         : undefined;
 
   const handleSubmit = useCallback(async () => {
-    if (!isValid) return;
+    if (!project || !isValid || isSubmitting) return;
     setIsSubmitting(true);
     setError(null);
     try {
-      await projectManager.renameProject(projectId, normalizedName);
+      await project.rename(normalizedName);
       onSuccess();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to rename project');
       setIsSubmitting(false);
     }
-  }, [isValid, normalizedName, onSuccess, projectId, projectManager]);
+  }, [isSubmitting, isValid, normalizedName, onSuccess, project]);
 
   return (
     <>
@@ -91,7 +91,10 @@ export const RenameProjectModal = observer(function RenameProjectModal({
         <Button variant="outline" onClick={onClose}>
           Cancel
         </Button>
-        <ConfirmButton onClick={() => void handleSubmit()} disabled={!isValid || isSubmitting}>
+        <ConfirmButton
+          onClick={() => void handleSubmit()}
+          disabled={!project || !isValid || isSubmitting}
+        >
           {isSubmitting ? 'Renaming...' : 'Rename'}
         </ConfirmButton>
       </DialogFooter>

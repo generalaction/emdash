@@ -51,11 +51,6 @@ export type CreateSshProjectParams = {
 
 export type CreateProjectParams = CreateLocalProjectParams | CreateSshProjectParams;
 
-export type RenameProjectError =
-  | { type: 'project-not-found' }
-  | { type: 'invalid-name' }
-  | { type: 'error'; message: string };
-
 export type InspectLocalProjectPathParams = {
   type: 'local';
   path: string;

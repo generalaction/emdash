@@ -350,24 +350,6 @@ export class ProjectManagerStore {
     }
   }
 
-  async renameProject(projectId: string, name: string): Promise<void> {
-    const result = await rpc.projects.renameProject(projectId, name);
-    if (!result.success) {
-      switch (result.error.type) {
-        case 'project-not-found':
-          throw new Error('Project not found.');
-        case 'invalid-name':
-          throw new Error('Project name is invalid.');
-        case 'error':
-          throw new Error(result.error.message);
-      }
-    }
-
-    runInAction(() => {
-      this.projects.get(projectId)?.rename(result.data);
-    });
-  }
-
   async updateProjectConnection(projectId: string, newConnectionId: string): Promise<void> {
     await rpc.projects.updateProjectConnection(projectId, newConnectionId);
 

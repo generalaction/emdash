@@ -1,5 +1,6 @@
-import { makeAutoObservable, observable } from 'mobx';
+import { makeAutoObservable, observable, runInAction } from 'mobx';
 import { TaskManagerStore } from '@renderer/features/tasks/stores/task-manager';
+import { rpc } from '@renderer/lib/ipc';
 import { snapshotRegistry } from '@renderer/lib/stores/snapshot-registry';
 import type { LocalProject, SshProject } from '@shared/projects';
 import type { ProjectViewSnapshot } from '@shared/view-state';
@@ -67,10 +68,6 @@ export class MountedProject {
     this._snapshotDisposer?.();
     this._snapshotDisposer = null;
   }
-
-  updateData(data: LocalProject | SshProject): void {
-    this.data = data;
-  }
 }
 
 /**
@@ -132,11 +129,18 @@ export class ProjectStore {
     this.errorCode = undefined;
   }
 
-  rename(data: LocalProject | SshProject): void {
-    if (this.state === 'unregistered') return;
-    this.name = data.name;
-    this.data = data;
-    this.mountedProject?.updateData(data);
+  async rename(name: string): Promise<void> {
+    if (this.state === 'unregistered' || !this.data) return;
+    const trimmedName = name.trim();
+    await rpc.projects.renameProject(this.id, trimmedName);
+
+    runInAction(() => {
+      if (!this.data) return;
+      const data = { ...this.data, name: trimmedName };
+      this.name = trimmedName;
+      this.data = data;
+      if (this.mountedProject) this.mountedProject.data = data;
+    });
   }
 
   transitionToUnregistered(
