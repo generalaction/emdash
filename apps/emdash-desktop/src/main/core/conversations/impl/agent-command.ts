@@ -157,7 +157,8 @@ export function buildAgentCommand({
   isResuming?: boolean;
 }): AgentCommand {
   const providerDef = getProvider(providerId);
-  const [command, ...args] = parseCliPrefix(providerConfig?.cli, providerId);
+  const [cliCommand, ...args] = parseCliPrefix(providerConfig?.cli, providerId);
+  const command = providerConfig?.installPath?.trim() || cliCommand;
   const initialPromptFlag = providerConfig?.initialPromptFlag;
 
   args.push(...(providerConfig?.defaultArgs ?? []));

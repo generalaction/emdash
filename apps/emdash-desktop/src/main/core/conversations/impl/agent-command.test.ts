@@ -319,6 +319,22 @@ describe('buildAgentCommand', () => {
     });
   });
 
+  it('uses custom install path while preserving CLI args', () => {
+    const result = buildAgentCommand({
+      providerId: 'claude',
+      providerConfig: makeConfig({
+        cli: 'claude --verbose',
+        installPath: '/opt/claude-code/bin/claude',
+      }),
+      sessionId: 'conv-1',
+    });
+
+    expect(result).toEqual({
+      command: '/opt/claude-code/bin/claude',
+      args: ['--verbose', '--session-id', 'conv-1'],
+    });
+  });
+
   it('preserves quoted custom CLI and flag arguments', () => {
     const result = buildAgentCommand({
       providerId: 'claude',

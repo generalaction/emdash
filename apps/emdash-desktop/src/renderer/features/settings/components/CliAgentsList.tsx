@@ -102,33 +102,36 @@ const renderAgentRow = (agent: CliAgentStatus, actions: AgentRowActions) => {
         </span>
       }
       rightExtra={
-        isDetected ? (
-          <TooltipProvider delay={150}>
-            <Tooltip>
-              <TooltipTrigger>
-                <button
-                  type="button"
-                  onClick={() => actions.onSettingsClick(agent.id)}
-                  className={ICON_BUTTON}
-                  aria-label={`${agent.name} execution settings`}
-                >
-                  <Settings2 className="h-4 w-4" aria-hidden="true" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="text-xs">
-                Execution settings
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        ) : providerId ? (
-          <AgentInstallButton
-            agentId={providerId}
-            canInstall={!!agent.installCommand}
-            isInstalled={isDetected}
-            isInstalling={actions.isInstalling(providerId)}
-            tooltipSide="top"
-            onInstall={() => actions.onInstallClick(agent)}
-          />
+        providerId ? (
+          <div className="flex items-center gap-1">
+            {!isDetected && (
+              <AgentInstallButton
+                agentId={providerId}
+                canInstall={!!agent.installCommand}
+                isInstalled={isDetected}
+                isInstalling={actions.isInstalling(providerId)}
+                tooltipSide="top"
+                onInstall={() => actions.onInstallClick(agent)}
+              />
+            )}
+            <TooltipProvider delay={150}>
+              <Tooltip>
+                <TooltipTrigger>
+                  <button
+                    type="button"
+                    onClick={() => actions.onSettingsClick(agent.id)}
+                    className={ICON_BUTTON}
+                    aria-label={`${agent.name} execution settings`}
+                  >
+                    <Settings2 className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="text-xs">
+                  Execution settings
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
         ) : null
       }
     />
@@ -173,6 +176,11 @@ export const CliAgentsList: React.FC = observer(() => {
     [toast]
   );
 
+  const handleModalClose = useCallback(() => {
+    setCustomModalAgentId(null);
+    void appState.dependencies.refreshAgents(undefined, { refreshShellEnv: true });
+  }, []);
+
   const rowActions = useMemo<AgentRowActions>(
     () => ({
       isInstalling: (id) => appState.dependencies.isInstalling(id),
@@ -192,7 +200,7 @@ export const CliAgentsList: React.FC = observer(() => {
 
       <CustomCommandModal
         isOpen={customModalAgentId !== null}
-        onClose={() => setCustomModalAgentId(null)}
+        onClose={handleModalClose}
         providerId={customModalAgentId ?? ''}
       />
     </div>

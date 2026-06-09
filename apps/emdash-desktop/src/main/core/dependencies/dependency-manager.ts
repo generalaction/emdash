@@ -1,12 +1,14 @@
 import { LocalExecutionContext } from '@main/core/execution-context/local-execution-context';
 import { SshExecutionContext } from '@main/core/execution-context/ssh-execution-context';
 import type { IExecutionContext } from '@main/core/execution-context/types';
+import { providerOverrideSettings } from '@main/core/settings/provider-settings-service';
 import { appSettingsService } from '@main/core/settings/settings-service';
 import { sshConnectionManager } from '@main/core/ssh/lifecycle/production-ssh-connection-manager';
 import { resolveLocalAutomationShellWithSystemFallback } from '@main/core/terminal-shell/resolver';
 import { events } from '@main/lib/events';
 import type { IInitializable } from '@main/lib/lifecycle';
 import { log } from '@main/lib/logger';
+import { isValidProviderId } from '@shared/core/agents/agent-provider-registry';
 import type {
   DependencyCategory,
   DependencyId,
@@ -219,11 +221,21 @@ export class DependencyManager implements IInitializable {
   }
 
   private async resolveFirstPath(descriptor: DependencyDescriptor): Promise<string | null> {
-    for (const command of descriptor.commands) {
+    for (const command of await this.getProbeCommands(descriptor)) {
       const path = await resolveCommandPath(command, this.ctx);
       if (path) return path;
     }
     return null;
+  }
+
+  private async getProbeCommands(descriptor: DependencyDescriptor): Promise<string[]> {
+    if (descriptor.category !== 'agent' || !isValidProviderId(descriptor.id)) {
+      return descriptor.commands;
+    }
+
+    const customConfig = await providerOverrideSettings.getItem(descriptor.id);
+    const installPath = customConfig?.installPath?.trim();
+    return installPath ? [installPath, ...descriptor.commands] : descriptor.commands;
   }
 
   private async refreshShellEnvIfRequested(options: DependencyProbeOptions = {}): Promise<void> {

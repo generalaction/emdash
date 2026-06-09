@@ -25,6 +25,7 @@ type EnvEntry = { key: string; value: string };
 
 type FormState = {
   cli: string;
+  installPath: string;
   resumeFlag: string;
   defaultArgs: string;
   extraArgs: string;
@@ -35,6 +36,7 @@ type FormState = {
 
 const getDefaultFromProvider = (provider: AgentProviderDefinition | undefined): FormState => ({
   cli: provider?.cli ?? '',
+  installPath: '',
   resumeFlag: provider?.resumeFlag ?? '',
   defaultArgs: provider?.defaultArgs?.join(' ') ?? '',
   extraArgs: '',
@@ -45,6 +47,7 @@ const getDefaultFromProvider = (provider: AgentProviderDefinition | undefined): 
 
 const configToFormState = (config: ProviderCustomConfig, fallback: FormState): FormState => ({
   cli: config.cli ?? fallback.cli,
+  installPath: config.installPath ?? fallback.installPath,
   resumeFlag: config.resumeFlag ?? fallback.resumeFlag,
   defaultArgs: Array.isArray(config.defaultArgs)
     ? config.defaultArgs.join(' ')
@@ -130,6 +133,7 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
 
       const isAtDefaults =
         form.cli === registryDefaults.cli &&
+        form.installPath === registryDefaults.installPath &&
         form.resumeFlag === registryDefaults.resumeFlag &&
         form.defaultArgs === registryDefaults.defaultArgs &&
         form.extraArgs === '' &&
@@ -144,6 +148,7 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
       } else {
         const config: ProviderCustomConfig = {
           cli: form.cli,
+          installPath: form.installPath.trim() || undefined,
           resumeFlag: form.resumeFlag,
           defaultArgs: form.defaultArgs.trim() ? form.defaultArgs.trim().split(/\s+/) : undefined,
           extraArgs: form.extraArgs.trim() || undefined,
@@ -165,7 +170,8 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
 
   const previewCommand = useMemo(() => {
     const parts: string[] = [];
-    if (form.cli) parts.push(form.cli);
+    if (form.installPath) parts.push(form.installPath);
+    else if (form.cli) parts.push(form.cli);
     if (form.resumeFlag) parts.push(form.resumeFlag);
     if (form.defaultArgs) parts.push(form.defaultArgs);
     if (form.extraArgs) parts.push(form.extraArgs);
@@ -180,6 +186,7 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
     const hasEnv = form.envEntries.some((e) => e.key.trim() !== '');
     return (
       form.cli !== registryDefaults.cli ||
+      form.installPath !== registryDefaults.installPath ||
       form.resumeFlag !== registryDefaults.resumeFlag ||
       form.defaultArgs !== registryDefaults.defaultArgs ||
       form.extraArgs !== '' ||
@@ -227,6 +234,23 @@ const CustomCommandModal: React.FC<CustomCommandModalProps> = ({ isOpen, onClose
                   value={form.cli}
                   onChange={(e) => handleChange('cli', e.target.value)}
                   placeholder={registryDefaults.cli || 'CLI command'}
+                  className="font-mono text-sm"
+                />
+              </div>
+
+              {/* Agent install path */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="installPath" className="text-sm font-medium">
+                    Agent install path
+                  </Label>
+                  <FieldTooltip content="Optional absolute path to this agent executable. Leave empty to use PATH lookup." />
+                </div>
+                <Input
+                  id="installPath"
+                  value={form.installPath}
+                  onChange={(e) => handleChange('installPath', e.target.value)}
+                  placeholder="e.g. /opt/claude-code/bin/claude"
                   className="font-mono text-sm"
                 />
               </div>
