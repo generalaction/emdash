@@ -1,16 +1,13 @@
-import {
-  ExternalLink,
-  Globe,
-  Loader2,
-  RefreshCw,
-  RotateCcw,
-  Square,
-  Trash2,
-  Wrench,
-} from 'lucide-react';
+import { Ellipsis, Globe, Loader2, RefreshCw, RotateCcw, Square } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { rpc } from '@renderer/lib/ipc';
 import { Button } from '@renderer/lib/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@renderer/lib/ui/dropdown-menu';
 import { Input } from '@renderer/lib/ui/input';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { normalizeBrowserUrl, type BrowserSessionSnapshot } from '@shared/browser';
@@ -135,9 +132,6 @@ export function BrowserToolbar({
           </div>
         )}
       </form>
-      <ToolbarIconButton label="Open externally" disabled={!canOpenExternal} onClick={openExternal}>
-        <ExternalLink className="size-4" />
-      </ToolbarIconButton>
       {devServerUrls.slice(0, 3).map((url) => (
         <button
           key={url}
@@ -149,14 +143,30 @@ export function BrowserToolbar({
           {devServerLabel(url)}
         </button>
       ))}
-      {import.meta.env.DEV && (
-        <ToolbarIconButton label="DevTools" onClick={openDevTools}>
-          <Wrench className="size-4" />
-        </ToolbarIconButton>
-      )}
-      <ToolbarIconButton label="Clear browser storage" onClick={confirmClearStorage}>
-        <Trash2 className="size-4" />
-      </ToolbarIconButton>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="size-7 shrink-0"
+              aria-label="Browser actions"
+            />
+          }
+        >
+          <Ellipsis className="size-4" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-44">
+          <DropdownMenuItem disabled={!canOpenExternal} onClick={openExternal}>
+            Open externally
+          </DropdownMenuItem>
+          {import.meta.env.DEV && (
+            <DropdownMenuItem onClick={openDevTools}>Open DevTools</DropdownMenuItem>
+          )}
+          <DropdownMenuItem onClick={confirmClearStorage}>Clear browser storage</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
       {session.loadError && (
         <Tooltip>
           <TooltipTrigger
