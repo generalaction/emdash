@@ -1,0 +1,19 @@
+apps/emdash-desktop/src/main/core/agent-hooks/hook-config.test.ts
+  s_8ebf2157dc7db2::t_2d9bd564ccadc3 704-714
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "8766bb633af05c119bc1623514ef69315f89c423",
+  "prompts": {},
+  "sessions": {
+    "s_8ebf2157dc7db2": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019eac88-2cf7-7eb6-8b15-09f140db7aa7",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
