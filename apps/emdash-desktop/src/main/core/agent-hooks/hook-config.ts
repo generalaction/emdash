@@ -31,6 +31,7 @@ const DROID_SETTINGS_PATH = '.factory/settings.json';
 const AMP_PLUGIN_PATH = '.amp/plugins/emdash-hook.ts';
 const PI_EMDASH_EXTENSION_PATH = '.pi/extensions/emdash-hook.ts';
 const OPENCODE_PLUGIN_PATH = '.opencode/plugins/emdash-notifications.js';
+const KIRO_AGENT_CONFIG_PATH = '.kiro/agents/emdash.json';
 const GITIGNORE_PATH = '.gitignore';
 type HookConfigWriteOptions = { writeGitIgnoreEntries?: boolean };
 type CodexHookEvent = 'Stop' | 'PermissionRequest' | 'SessionStart';
@@ -57,6 +58,7 @@ type GrokHookEvent =
 type QwenHookEvent = 'PermissionRequest' | 'SessionEnd' | 'Stop';
 type DroidHookEvent = 'Notification' | 'Stop' | 'SessionStart';
 type DevinHookEvent = 'PermissionRequest' | 'SessionEnd' | 'Stop';
+type KiroHookEvent = 'agentSpawn' | 'userPromptSubmit' | 'preToolUse' | 'postToolUse' | 'stop';
 
 const HOOK_EVENT_MAP = [
   { eventType: 'notification', hookKey: 'Notification' },
@@ -102,6 +104,14 @@ const DEVIN_HOOK_EVENT_MAP = [
   { hookKey: 'Stop', eventType: 'stop' },
   { hookKey: 'SessionEnd', eventType: 'stop' },
 ] satisfies { hookKey: DevinHookEvent; eventType: 'stop' }[];
+
+const KIRO_HOOK_EVENT_MAP = [
+  { hookKey: 'agentSpawn', eventType: 'session' },
+  { hookKey: 'userPromptSubmit', eventType: 'start' },
+  { hookKey: 'preToolUse', eventType: 'start' },
+  { hookKey: 'postToolUse', eventType: 'start' },
+  { hookKey: 'stop', eventType: 'stop' },
+] satisfies { hookKey: KiroHookEvent; eventType: 'session' | 'start' | 'stop' }[];
 
 function buildKimiHookEntries(existing: unknown[], platform: NodeJS.Platform): unknown[] {
   const userEntries = existing.filter((entry) => !JSON.stringify(entry).includes(EMDASH_MARKER));
@@ -478,6 +488,42 @@ export class HookConfigWriter {
     return true;
   }
 
+  async writeKiroHooks(): Promise<boolean> {
+    if (!(await resolveCommandPath('kiro-cli', this.exec))) return false;
+
+    const config: Record<string, unknown> = (await this.fs.exists(KIRO_AGENT_CONFIG_PATH))
+      ? await this.fs
+          .read(KIRO_AGENT_CONFIG_PATH)
+          .then((r) => JSON.parse(r.content) ?? {})
+          .catch(() => ({}))
+      : {};
+
+    const hooks = (config.hooks ?? {}) as Record<string, unknown[]>;
+
+    for (const { hookKey, eventType } of KIRO_HOOK_EVENT_MAP) {
+      const existing = Array.isArray(hooks[hookKey]) ? hooks[hookKey] : [];
+      hooks[hookKey] = this.buildKiroHookEntries(
+        existing,
+        makeClaudeHookCommand(eventType, { platform: this.platform })
+      );
+    }
+
+    await this.fs.write(
+      KIRO_AGENT_CONFIG_PATH,
+      JSON.stringify(
+        {
+          ...config,
+          name: 'emdash',
+          description: 'Emdash-managed Kiro agent configuration for lifecycle hooks.',
+          hooks,
+        },
+        null,
+        2
+      ) + '\n'
+    );
+    return true;
+  }
+
   async writeForProvider(
     providerId: AgentProviderId,
     options: HookConfigWriteOptions = {}
@@ -560,6 +606,14 @@ export class HookConfigWriter {
       return wroteConfig;
     }
 
+    if (providerId === 'kiro') {
+      const wroteConfig = await this.writeKiroHooks();
+      if (wroteConfig && writeGitIgnoreEntries) {
+        await this.ensureGitIgnoreEntries([KIRO_AGENT_CONFIG_PATH]);
+      }
+      return wroteConfig;
+    }
+
     return false;
   }
 
@@ -578,6 +632,7 @@ export class HookConfigWriter {
           'pi',
           'opencode',
           'amp',
+          'kiro',
         ] as const
       ).map((providerId) =>
         this.writeForProvider(providerId, options).catch((err: Error) => {
@@ -595,6 +650,11 @@ export class HookConfigWriter {
   private buildCopilotHookEntries(existing: unknown[], command: string): unknown[] {
     const userEntries = existing.filter((entry) => !JSON.stringify(entry).includes(EMDASH_MARKER));
     return [...userEntries, { type: 'command', command }];
+  }
+
+  private buildKiroHookEntries(existing: unknown[], command: string): unknown[] {
+    const userEntries = existing.filter((entry) => !JSON.stringify(entry).includes(EMDASH_MARKER));
+    return [...userEntries, { command }];
   }
 
   private async removeLegacyCodexNotify(): Promise<void> {

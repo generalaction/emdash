@@ -679,4 +679,59 @@ describe('HookConfigWriter', () => {
     expect(fs.files.has('.amp/plugins/emdash-hook.ts')).toBe(false);
     expect(fs.files.has('.gitignore')).toBe(false);
   });
+
+  it('writes Kiro agent hooks and ignores the project agent config in git', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/kiro-cli');
+    const fs = new MemoryFs();
+    const writer = makeWriter(fs);
+
+    const wroteConfig = await writer.writeForProvider('kiro');
+
+    expect(wroteConfig).toBe(true);
+    const config = JSON.parse(fs.files.get('.kiro/agents/emdash.json')!);
+    expect(config.name).toBe('emdash');
+    expect(config.description).toContain('Emdash-managed Kiro agent configuration');
+    expect(config.hooks.agentSpawn[0].command).toContain('X-Emdash-Event-Type: session');
+    expect(config.hooks.agentSpawn[0].command).toContain('-d @-');
+    expect(config.hooks.userPromptSubmit[0].command).toContain('X-Emdash-Event-Type: start');
+    expect(config.hooks.preToolUse[0].command).toContain('X-Emdash-Event-Type: start');
+    expect(config.hooks.postToolUse[0].command).toContain('X-Emdash-Event-Type: start');
+    expect(config.hooks.stop[0].command).toContain('X-Emdash-Event-Type: stop');
+    expect(config.hooks.stop[0].command).toContain('X-Emdash-Pty-Id');
+    expect(fs.files.get('.gitignore')).toBe('.kiro/agents/emdash.json\n');
+  });
+
+  it('preserves unrelated Kiro hooks while replacing Emdash-managed entries', async () => {
+    mockResolveCommandPath.mockResolvedValue('/usr/local/bin/kiro-cli');
+    const fs = new MemoryFs();
+    fs.files.set(
+      '.kiro/agents/emdash.json',
+      JSON.stringify({
+        model: 'claude-sonnet-4',
+        hooks: {
+          stop: [{ command: 'echo user hook' }, { command: 'echo $EMDASH_HOOK_PORT' }],
+        },
+      })
+    );
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('kiro');
+
+    const config = JSON.parse(fs.files.get('.kiro/agents/emdash.json')!);
+    expect(config.model).toBe('claude-sonnet-4');
+    expect(config.hooks.stop).toHaveLength(2);
+    expect(config.hooks.stop[0].command).toBe('echo user hook');
+    expect(config.hooks.stop[1].command).toContain('X-Emdash-Event-Type: stop');
+  });
+
+  it('skips Kiro hooks when kiro-cli is unavailable', async () => {
+    mockResolveCommandPath.mockResolvedValue(undefined);
+    const fs = new MemoryFs();
+    const writer = makeWriter(fs);
+
+    await writer.writeForProvider('kiro');
+
+    expect(fs.files.has('.kiro/agents/emdash.json')).toBe(false);
+    expect(fs.files.has('.gitignore')).toBe(false);
+  });
 });
