@@ -38,7 +38,6 @@ function normalizePayload(
   }
 
   if (
-    !payload.notificationType &&
     providerId === 'gemini' &&
     eventType === 'notification' &&
     body.notification_type === 'ToolPermission'
