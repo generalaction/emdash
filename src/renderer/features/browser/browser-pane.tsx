@@ -183,7 +183,6 @@ export const BrowserPane = observer(function BrowserPane({ browserId }: { browse
       <BrowserToolbar
         session={session}
         adapter={adapter}
-        devServerUrls={devServers.urls}
         onNavigate={navigateTo}
         onReload={reload}
         onFocusUrl={(focus) => {

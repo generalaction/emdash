@@ -22,14 +22,12 @@ import type { BrowserWebviewAdapter } from './browser-webview-types';
 export function BrowserToolbar({
   session,
   adapter,
-  devServerUrls = [],
   onNavigate,
   onReload,
   onFocusUrl,
 }: {
   session: BrowserSessionSnapshot;
   adapter: BrowserWebviewAdapter | null;
-  devServerUrls?: string[];
   onNavigate?: (url: string) => boolean;
   onReload?: () => void;
   onFocusUrl?: (focus: () => void) => void;
@@ -132,17 +130,6 @@ export function BrowserToolbar({
           </div>
         )}
       </form>
-      {devServerUrls.slice(0, 3).map((url) => (
-        <button
-          key={url}
-          type="button"
-          className="max-w-32 shrink truncate rounded border border-border px-2 py-1 text-xs text-foreground-muted hover:bg-background-secondary-1"
-          onClick={() => navigateTo(url)}
-          title={url}
-        >
-          {devServerLabel(url)}
-        </button>
-      ))}
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
@@ -215,15 +202,6 @@ function ToolbarIconButton({
       <TooltipContent>{label}</TooltipContent>
     </Tooltip>
   );
-}
-
-function devServerLabel(url: string): string {
-  try {
-    const parsed = new URL(url);
-    return parsed.host;
-  } catch {
-    return url;
-  }
 }
 
 function urlRejectionMessage(reason: string): string {
