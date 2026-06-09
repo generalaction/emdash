@@ -9,8 +9,8 @@
     "git",
     "openai"
   ],
-  "license": "Apache-2.0",
   "homepage": "https://emdash.sh",
+  "license": "Apache-2.0",
   "author": {
     "name": "Emdash Contributors",
     "email": "support@emdash.sh"
