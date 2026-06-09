@@ -31,7 +31,7 @@
     "internalPattern": ["@/", "@root/", "@shared/", "@main/", "@renderer/"]
   },
   "sortTailwindcss": {
-    "stylesheet": "./apps/emdash-desktop/src/renderer/index.css"
+    "stylesheet": "./src/renderer/index.css"
   },
   "sortPackageJson": true
 }

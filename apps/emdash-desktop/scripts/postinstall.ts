@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -30,7 +31,15 @@ if (process.env.CI || process.env.EMDASH_SKIP_ELECTRON_REBUILD === '1') {
 function getElectronRebuildBin() {
   const binName = process.platform === 'win32' ? 'electron-rebuild.cmd' : 'electron-rebuild';
 
-  return path.resolve(__dirname, '..', 'node_modules', '.bin', binName);
+  // With pnpm workspaces + hoisted linker the binary lands in the workspace root
+  // node_modules/.bin. Check both the app-local location and the workspace root.
+  const appRoot = path.resolve(__dirname, '..');
+  const workspaceRoot = path.resolve(appRoot, '..', '..');
+  for (const base of [appRoot, workspaceRoot]) {
+    const candidate = path.join(base, 'node_modules', '.bin', binName);
+    if (existsSync(candidate)) return candidate;
+  }
+  return path.join(appRoot, 'node_modules', '.bin', binName);
 }
 
 function runElectronRebuild(onlyModules) {
