@@ -1,0 +1,23 @@
+apps/emdash-desktop/src/renderer/lib/hooks/use-multi-select.ts
+  s_f1573ead36abf3::t_2007cd13a9b1b5 10-12,23-28,30-51,55,60,65-66,68-73
+  s_f1573ead36abf3::t_df403d046399cf 67
+apps/emdash-desktop/src/renderer/features/tasks/conversations/sidebar-conversations-list.tsx
+  s_f1573ead36abf3::t_92b261b4f1a72e 13,32,251-257
+  s_f1573ead36abf3::t_29622e804e4182 334
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "7b6700f3068ea08023625fc80f566885d6aa6b5c",
+  "prompts": {},
+  "sessions": {
+    "s_f1573ead36abf3": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019eac8c-5769-7e0e-941c-33647e322956",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
