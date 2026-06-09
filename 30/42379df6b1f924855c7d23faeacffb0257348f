@@ -1,0 +1,29 @@
+apps/emdash-desktop/src/main/core/dependencies/install-runner.ts
+  s_5a6f2a14c6c91f::t_9cbb3c456d0964 41,61-88,90-92,99-101
+  s_5a6f2a14c6c91f::t_4d27f87c5af8c0 21-32
+apps/emdash-desktop/src/shared/core/dependencies.ts
+  s_5a6f2a14c6c91f::t_6754411525e661 33
+apps/emdash-desktop/src/renderer/lib/components/agent-selector/agent-install.ts
+  s_5a6f2a14c6c91f::t_5ad0508ce8942c 18-19
+apps/emdash-desktop/src/renderer/lib/components/agent-selector/use-agent-availability.ts
+  s_5a6f2a14c6c91f::t_7c9929df1e14f3 47-60,63
+apps/emdash-desktop/src/main/core/dependencies/install-runner.test.ts
+  s_5a6f2a14c6c91f::t_ce4d3f26309c8d 179
+  s_5a6f2a14c6c91f::t_e0a10c43b416a7 6-7,52-61,177-178,180-196
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.5.6",
+  "base_commit_sha": "3042379df6b1f924855c7d23faeacffb0257348f",
+  "prompts": {},
+  "sessions": {
+    "s_5a6f2a14c6c91f": {
+      "agent_id": {
+        "tool": "pi",
+        "id": "019eac92-d681-79d8-8aa5-47714821342f",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jan Burzinski <156842394+janburzinski@users.noreply.github.com>"
+    }
+  }
+}
