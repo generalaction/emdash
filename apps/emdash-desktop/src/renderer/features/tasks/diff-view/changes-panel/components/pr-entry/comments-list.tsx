@@ -1,6 +1,6 @@
-import { ExternalLink, MessageSquare } from 'lucide-react';
+import { ExternalLink as ExternalLinkIcon, MessageSquare } from 'lucide-react';
 import { useMemo } from 'react';
-import { rpc } from '@renderer/lib/ipc';
+import { ExternalLink } from '@renderer/lib/components/external-link';
 import { MarkdownRenderer } from '@renderer/lib/ui/markdown-renderer';
 import { RelativeTime } from '@renderer/lib/ui/relative-time';
 import { cn } from '@renderer/utils/utils';
@@ -71,12 +71,12 @@ function CommentItem({ comment }: { comment: PullRequestConversationItem }) {
           <MarkdownRenderer content={comment.body} variant="compact" allowHtml />
         </div>
       </div>
-      <button
+      <ExternalLink
+        href={comment.url}
         className="absolute top-2 right-3 hidden items-center justify-center rounded bg-background-1 px-1 py-0.5 text-foreground-muted group-hover:flex hover:text-foreground"
-        onClick={() => void rpc.app.openExternal(comment.url)}
       >
-        <ExternalLink className="size-3.5" />
-      </button>
+        <ExternalLinkIcon className="size-3.5" />
+      </ExternalLink>
     </div>
   );
 }

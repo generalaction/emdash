@@ -1,8 +1,14 @@
-import { CheckCircle2, ExternalLink, Loader2, MinusCircle, XCircle } from 'lucide-react';
+import {
+  CheckCircle2,
+  ExternalLink as ExternalLinkIcon,
+  Loader2,
+  MinusCircle,
+  XCircle,
+} from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useMemo } from 'react';
 import { useSyncCheckRuns } from '@renderer/features/tasks/diff-view/state/use-check-runs';
-import { rpc } from '@renderer/lib/ipc';
+import { ExternalLink } from '@renderer/lib/components/external-link';
 import { EmptyState } from '@renderer/lib/ui/empty-state';
 import {
   computeCheckBucket,
@@ -70,14 +76,13 @@ export function CheckRunItem({ check }: { check: CheckRun }) {
       <div className="flex shrink-0 items-center gap-2">
         {duration && <span className="text-xs text-foreground-passive">{duration}</span>}
         {detailsUrl && (
-          <button
-            type="button"
+          <ExternalLink
+            href={detailsUrl}
             aria-label={`Open ${check.name} check details`}
             className="absolute top-1/2 right-3 hidden -translate-y-1/2 items-center justify-center rounded bg-background-1 px-1 py-0.5 text-foreground-muted group-hover:flex hover:text-foreground"
-            onClick={() => void rpc.app.openExternal(detailsUrl)}
           >
-            <ExternalLink className="size-3.5" />
-          </button>
+            <ExternalLinkIcon className="size-3.5" />
+          </ExternalLink>
         )}
       </div>
     </div>

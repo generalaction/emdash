@@ -28,9 +28,9 @@ import {
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
 import { ConnectionStatusDot } from '@renderer/lib/components/connection-status-dot';
+import { ExternalLink } from '@renderer/lib/components/external-link';
 import { OpenInMenu } from '@renderer/lib/components/titlebar/open-in-menu';
 import { Titlebar } from '@renderer/lib/components/titlebar/Titlebar';
-import { rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { Badge } from '@renderer/lib/ui/badge';
 import { Button } from '@renderer/lib/ui/button';
@@ -420,11 +420,10 @@ function LinkedIssueBadge({ issue }: { issue: LinkedIssue }) {
     <Tooltip>
       <TooltipTrigger
         render={
-          <button
-            type="button"
-            disabled={!issue.url}
-            onClick={() => {
-              if (issue.url) void rpc.app.openExternal(issue.url);
+          <ExternalLink
+            href={issue.url ?? '#'}
+            onClick={(event) => {
+              if (!issue.url) event.preventDefault();
             }}
             className="hover:bg-muted/30 flex items-center gap-1 rounded-md border border-border px-1.5 py-0.5 text-xs text-foreground-muted disabled:cursor-default disabled:opacity-60"
           >
@@ -434,7 +433,7 @@ function LinkedIssueBadge({ issue }: { issue: LinkedIssue }) {
             ) : (
               <span className="font-mono">{issue.identifier}</span>
             )}
-          </button>
+          </ExternalLink>
         }
       />
       <TooltipContent>{issue.title || issue.identifier}</TooltipContent>

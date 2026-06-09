@@ -1,4 +1,4 @@
-import { ExternalLink, Link, Loader2 } from 'lucide-react';
+import { ExternalLink as ExternalLinkIcon, Link, Loader2 } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { type ReactNode, useCallback, useRef, useState } from 'react';
 import {
@@ -6,12 +6,12 @@ import {
   ISSUE_PROVIDER_ORDER,
 } from '@renderer/features/integrations/issue-provider-meta';
 import { PROVIDER_ICON_COMPONENTS } from '@renderer/features/integrations/provider-icons';
+import { ExternalLink } from '@renderer/lib/components/external-link';
 import { InlineMarkdown } from '@renderer/lib/components/inline-markdown';
 import {
   IssueStatusIndicator,
   toIssueStatus,
 } from '@renderer/lib/components/issue-status-indicator';
-import { rpc } from '@renderer/lib/ipc';
 import { useNavigate } from '@renderer/lib/layout/navigation-provider';
 import { Button } from '@renderer/lib/ui/button';
 import {
@@ -324,13 +324,15 @@ export function SelectedIssueValue({ issue }: { issue: LinkedIssue }) {
             <span className="mt-0.5 flex items-center justify-between gap-2">
               <span className="group flex min-w-0 items-center gap-1">
                 <div className="text-muted-foreground min-w-0 truncate">{issue.title}</div>
-                <button
+                <ExternalLink
+                  href={issue.url ?? '#'}
                   className="opacity-0 group-hover:opacity-100"
-                  disabled={!issue.url}
-                  onClick={() => issue.url && rpc.app.openExternal(issue.url)}
+                  onClick={(event) => {
+                    if (!issue.url) event.preventDefault();
+                  }}
                 >
-                  <ExternalLink className="size-3" />
-                </button>
+                  <ExternalLinkIcon className="size-3" />
+                </ExternalLink>
               </span>
               <span className="flex items-center gap-1">
                 <ProviderLogo provider={issue.provider} className="size-3 opacity-40" />

@@ -1,9 +1,9 @@
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink as ExternalLinkIcon } from 'lucide-react';
+import { ExternalLink } from '@renderer/lib/components/external-link';
 import { PrMergeLine } from '@renderer/lib/components/pr-merge-line';
 import { Popover, PopoverContent, PopoverTrigger } from '@renderer/lib/ui/popover';
 import { cn } from '@renderer/utils/utils';
 import { getPrNumber, type PullRequest } from '@shared/core/pull-requests/pull-requests';
-import { rpc } from '../ipc';
 import { Button } from '../ui/button';
 import { RelativeTime } from '../ui/relative-time';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
@@ -59,12 +59,12 @@ export function PrBadge({ variant = 'default', pr, className, hoverDelay }: PrBa
               <Tooltip>
                 <TooltipTrigger>
                   <Button
+                    render={<ExternalLink href={pr.url} />}
                     variant="ghost"
                     size="icon-xs"
                     className="cursor-pointer"
-                    onClick={() => rpc.app.openExternal(pr.url)}
                   >
-                    <ExternalLink className="size-3.5" />
+                    <ExternalLinkIcon className="size-3.5" />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>Open PR on GitHub</TooltipContent>

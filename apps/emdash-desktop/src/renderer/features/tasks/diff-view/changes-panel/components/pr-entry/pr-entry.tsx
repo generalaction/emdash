@@ -1,15 +1,15 @@
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink as ExternalLinkIcon } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useState } from 'react';
 import {
   useTaskViewContext,
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
+import { ExternalLink } from '@renderer/lib/components/external-link';
 import { PrMergeLine } from '@renderer/lib/components/pr-merge-line';
 import { PrNumberBadge } from '@renderer/lib/components/pr-number-badge';
 import { StatusIcon } from '@renderer/lib/components/pr-status-icon';
 import { toast } from '@renderer/lib/hooks/use-toast';
-import { rpc } from '@renderer/lib/ipc';
 import { type SplitButtonAction } from '@renderer/lib/ui/split-button';
 import { ToggleGroup, ToggleGroupItem } from '@renderer/lib/ui/toggle-group';
 import { cn } from '@renderer/utils/utils';
@@ -106,17 +106,14 @@ export const PullRequestEntry = observer(function PullRequestEntry({ pr }: { pr:
     <div className={cn('flex min-h-0 flex-1 flex-col border-t border-border')}>
       <div className="flex w-full flex-col gap-2 p-2.5">
         <div className="flex items-center justify-between gap-2">
-          <button
-            className="group relative flex min-w-0 items-center gap-2"
-            onClick={() => rpc.app.openExternal(pr.url)}
-          >
+          <ExternalLink href={pr.url} className="group relative flex min-w-0 items-center gap-2">
             <StatusIcon className="size-4" pr={pr} />
             <span className="min-w-0 flex-1 truncate text-sm font-normal">{pr.title}</span>
             <PrNumberBadge number={getPrNumber(pr) ?? 0} />
             <span className="absolute right-0 flex items-center bg-linear-to-r from-transparent to-background pr-0.5 pl-4 opacity-0 transition-opacity group-hover:opacity-100">
-              <ExternalLink className="size-3.5 text-foreground-muted" />
+              <ExternalLinkIcon className="size-3.5 text-foreground-muted" />
             </span>
-          </button>
+          </ExternalLink>
         </div>
         <PrMergeLine pr={pr} />
       </div>

@@ -86,6 +86,7 @@ apps/*/tooling/db/dev.db-shm
 apps/*/tooling/node-deps/node_modules/
 .pi/extensions/emdash-hook.ts
 .opencode/plugins/emdash-notifications.js
+.amp/plugins/emdash-hook.ts
 
 # Vitest / Browser testing
 .vitest-attachments/
