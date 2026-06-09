@@ -1,4 +1,3 @@
-import { wireAgentClassifier } from '@main/core/agent-hooks/classifier-wiring';
 import { workspaceTrustService } from '@main/core/agent-hooks/workspace-trust-service';
 import { ConversationSessionSupervisor } from '@main/core/conversations/conversation-session-supervisor';
 import { resolveAgentSessionCommandArgs } from '@main/core/conversations/resolve-agent-session-command';
@@ -180,15 +179,6 @@ export class SshConversationProvider implements ConversationProvider {
       }
 
       const pty = result.data;
-
-      // hooks not supported yet, rely on classifier for visual indicator
-      wireAgentClassifier({
-        pty,
-        providerId: conversation.providerId,
-        projectId: conversation.projectId,
-        taskId: conversation.taskId,
-        conversationId: conversation.id,
-      });
 
       pty.onExit((info) => {
         const { exitCode } = info;

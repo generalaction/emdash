@@ -1,5 +1,4 @@
 import net from 'node:net';
-import { stripAnsi } from '@main/core/agent-hooks/classifiers/base';
 import { events } from '@main/lib/events';
 import { hostPreviewEventChannel } from '@shared/events/hostPreviewEvents';
 import type { Pty } from '../pty/pty';
@@ -13,6 +12,14 @@ const MAX_BUFFER = 4096;
 
 function normalizeUrl(raw: string): string {
   return raw.replace('0.0.0.0', '127.0.0.1');
+}
+
+function stripAnsi(s: string): string {
+  return s
+    .replace(/\x1b\[[0-9;]*[A-Za-z]/g, '')
+    .replace(/\r/g, '')
+    .replace(/\x1b\][^\x07]*\x07/g, '')
+    .replace(/\x1b\][^\x1b]*\x1b\\/g, '');
 }
 
 function parseTarget(url: string): { host: string; port: number } | null {

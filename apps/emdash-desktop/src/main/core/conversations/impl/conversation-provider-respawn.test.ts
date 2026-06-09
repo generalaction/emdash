@@ -20,10 +20,6 @@ vi.mock('@main/core/agent-hooks/agent-hook-service', () => ({
   },
 }));
 
-vi.mock('@main/core/agent-hooks/classifier-wiring', () => ({
-  wireAgentClassifier: vi.fn(),
-}));
-
 vi.mock('@main/core/agent-hooks/claude-trust-service', () => ({
   claudeTrustService: {
     maybeAutoTrustLocal: vi.fn(),
@@ -101,7 +97,6 @@ vi.mock('@main/core/settings/settings-service', () => ({
 
 const { events } = await import('@main/lib/events');
 const { agentHookService } = await import('@main/core/agent-hooks/agent-hook-service');
-const { wireAgentClassifier } = await import('@main/core/agent-hooks/classifier-wiring');
 const { appSettingsService } = await import('@main/core/settings/settings-service');
 const { buildAgentSessionCommand } = await import('./agent-command');
 
@@ -205,7 +200,6 @@ describe('conversation provider respawn state', () => {
     vi.mocked(events.emit).mockClear();
     vi.mocked(agentHookService.getPort).mockReturnValue(0);
     vi.mocked(agentHookService.getToken).mockReturnValue('token');
-    vi.mocked(wireAgentClassifier).mockClear();
     vi.mocked(buildAgentSessionCommand).mockClear();
     ptySessionRegistry.unregister('project-1:task-1:conversation-1');
   });
@@ -287,7 +281,7 @@ describe('conversation provider respawn state', () => {
     );
   });
 
-  it('uses OpenCode hooks without the output classifier when hook config is available', async () => {
+  it('prepares OpenCode hooks when hook config is available', async () => {
     hookConfigWriteForProvider.mockResolvedValue(true);
     vi.mocked(agentHookService.getPort).mockReturnValue(1234);
     const exitHandlers: Array<(info: PtyExitInfo) => void> = [];
@@ -299,7 +293,6 @@ describe('conversation provider respawn state', () => {
     expect(hookConfigWriteForProvider).toHaveBeenCalledWith('opencode', {
       writeGitIgnoreEntries: true,
     });
-    expect(wireAgentClassifier).not.toHaveBeenCalled();
   });
 
   it('starts a local conversation fresh after a resumed session exits', async () => {
