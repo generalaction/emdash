@@ -1,5 +1,5 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Trash2, X } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { useCallback, useRef, useState } from 'react';
 import { formatConversationTitleForDisplay } from '@renderer/features/tasks/conversations/conversation-title-utils';
@@ -9,8 +9,10 @@ import {
   useWorkspaceViewModel,
 } from '@renderer/features/tasks/task-view-context';
 import AgentLogo from '@renderer/lib/components/agent-logo';
+import { ListPopoverCard } from '@renderer/lib/components/list-popover-card';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
+import { Checkbox } from '@renderer/lib/ui/checkbox';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -29,8 +31,14 @@ const ROW_HEIGHT = 32;
 
 const ConversationRow = observer(function ConversationRow({
   conversationId,
+  isSelected,
+  hasSelection,
+  onToggleSelect,
 }: {
   conversationId: string;
+  isSelected: boolean;
+  hasSelection: boolean;
+  onToggleSelect: (shiftKey: boolean) => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const committedRef = useRef(false);
@@ -76,8 +84,17 @@ const ConversationRow = observer(function ConversationRow({
   };
 
   const handleDoubleClick = () => {
+    if (hasSelection) return;
     tabGroupManager.openConversation(conversationId);
     handleRename();
+  };
+
+  const handleRowClick = (shiftKey: boolean) => {
+    if (shiftKey || hasSelection) {
+      onToggleSelect(shiftKey);
+      return;
+    }
+    tabGroupManager.openConversationPreview(conversationId);
   };
 
   const handleDelete = () => {
@@ -98,19 +115,35 @@ const ConversationRow = observer(function ConversationRow({
         <div
           role="button"
           tabIndex={0}
-          onClick={() => tabGroupManager.openConversationPreview(conversationId)}
+          onClick={(e) => handleRowClick(e.shiftKey)}
           onDoubleClick={handleDoubleClick}
           onKeyDown={(e) => {
             if (e.key === 'Enter' || e.key === ' ') {
               e.preventDefault();
-              tabGroupManager.openConversationPreview(conversationId);
+              handleRowClick(e.shiftKey);
             }
           }}
           className={cn(
-            'flex w-full items-center gap-2 h-8 rounded-md px-2 text-left text-sm text-foreground-muted transition-colors hover:bg-background-1 hover:text-foreground',
-            isActive && 'bg-background-2 text-foreground hover:bg-background-2'
+            'group flex w-full items-center gap-2 h-8 rounded-md px-2 text-left text-sm text-foreground-muted transition-colors hover:bg-background-1 hover:text-foreground',
+            isActive && 'bg-background-2 text-foreground hover:bg-background-2',
+            isSelected && 'bg-background-2 text-foreground hover:bg-background-2'
           )}
         >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className={cn(
+              'shrink-0 transition-opacity',
+              isSelected || hasSelection
+                ? 'opacity-100'
+                : 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100'
+            )}
+          >
+            <Checkbox
+              checked={isSelected}
+              onClick={(e) => onToggleSelect(e.shiftKey)}
+              aria-label="Select conversation"
+            />
+          </div>
           {config ? (
             <span className="flex size-4 shrink-0 items-center justify-center">
               <AgentLogo
@@ -172,11 +205,81 @@ const ConversationRow = observer(function ConversationRow({
   );
 });
 
+function SelectionBar({
+  count,
+  onClear,
+  onDelete,
+}: {
+  count: number;
+  onClear: () => void;
+  onDelete: () => void;
+}) {
+  if (count === 0) return null;
+
+  return (
+    <ListPopoverCard className="justify-between">
+      <span className="whitespace-nowrap text-foreground-muted">{count} selected</span>
+      <div className="flex items-center gap-2">
+        <Button variant="destructive" size="sm" onClick={onDelete}>
+          <Trash2 className="size-3.5" />
+          Delete
+        </Button>
+        <Button variant="ghost" size="icon-xs" onClick={onClear} aria-label="Clear selection">
+          <X className="size-3.5" />
+        </Button>
+      </div>
+    </ListPopoverCard>
+  );
+}
+
+function useConversationSelection(conversationIds: string[]) {
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
+  const selectedConversationIds = conversationIds.filter((id) => selectedIds.has(id));
+  const selectedCount = selectedConversationIds.length;
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+    setLastSelectedId(null);
+  };
+
+  const toggleSelect = (id: string, shiftKey: boolean) => {
+    if (shiftKey && lastSelectedId && lastSelectedId !== id) {
+      const fromIndex = conversationIds.indexOf(lastSelectedId);
+      const toIndex = conversationIds.indexOf(id);
+      if (fromIndex !== -1 && toIndex !== -1) {
+        const [start, end] = fromIndex < toIndex ? [fromIndex, toIndex] : [toIndex, fromIndex];
+        setSelectedIds(new Set(conversationIds.slice(start, end + 1)));
+        return;
+      }
+    }
+
+    const next = new Set(selectedIds);
+    if (next.has(id)) {
+      next.delete(id);
+      setLastSelectedId(next.size === 0 ? null : (Array.from(next).at(-1) ?? null));
+    } else {
+      next.add(id);
+      setLastSelectedId(id);
+    }
+    setSelectedIds(next);
+  };
+
+  return {
+    selectedIds,
+    selectedConversationIds,
+    selectedCount,
+    clearSelection,
+    toggleSelect,
+  };
+}
+
 export const SidebarConversationsList = observer(function SidebarConversationsList() {
   const { projectId, taskId } = useTaskViewContext();
   const taskView = useWorkspaceViewModel();
   const conversations = useConversations();
   const { tabGroupManager } = taskView;
+  const showConfirm = useShowModal('confirmActionModal');
   const showCreateConversationModal = useShowModal('createConversationModal');
   const conversationIds = Array.from(conversations.conversations.values())
     .sort((a, b) => {
@@ -185,6 +288,8 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
       return bTime - aTime;
     })
     .map((c) => c.data.id);
+  const { selectedIds, selectedConversationIds, selectedCount, clearSelection, toggleSelect } =
+    useConversationSelection(conversationIds);
 
   const parentRef = useRef<HTMLDivElement>(null);
 
@@ -194,6 +299,25 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
     estimateSize: () => ROW_HEIGHT,
     overscan: 5,
   });
+
+  const handleBulkDelete = () => {
+    const ids = selectedConversationIds;
+    if (ids.length === 0) return;
+
+    showConfirm({
+      title: ids.length === 1 ? 'Delete conversation' : 'Delete conversations',
+      description:
+        ids.length === 1
+          ? '1 conversation will be permanently deleted. This action cannot be undone.'
+          : `${ids.length} conversations will be permanently deleted. This action cannot be undone.`,
+      confirmLabel: 'Delete',
+      variant: 'destructive',
+      onSuccess: () => {
+        ids.forEach((id) => void conversations.deleteConversation(id));
+        clearSelection();
+      },
+    });
+  };
 
   const handleCreate = () => {
     showCreateConversationModal({
@@ -206,7 +330,7 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
   };
 
   return (
-    <div className="flex h-full w-full flex-col">
+    <div className="relative flex h-full w-full flex-col">
       <div className="flex shrink-0 items-center justify-between pt-2 pr-2 pb-1 pl-4">
         <MicroLabel>Conversations</MicroLabel>
         <Button size="icon-sm" variant="ghost" onClick={handleCreate}>
@@ -214,8 +338,16 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
         </Button>
       </div>
 
-      <div ref={parentRef} className="min-h-0 flex-1 overflow-y-auto px-2">
-        <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+      <div
+        ref={parentRef}
+        className={cn('min-h-0 flex-1 overflow-y-auto px-2', selectedCount > 0 && 'pb-20')}
+      >
+        <div
+          style={{
+            height: virtualizer.getTotalSize() + (selectedCount > 0 ? 80 : 0),
+            position: 'relative',
+          }}
+        >
           {virtualizer.getVirtualItems().map((virtualItem) => {
             const conversationId = conversationIds[virtualItem.index]!;
             return (
@@ -230,12 +362,19 @@ export const SidebarConversationsList = observer(function SidebarConversationsLi
                   transform: `translateY(${virtualItem.start}px)`,
                 }}
               >
-                <ConversationRow conversationId={conversationId} />
+                <ConversationRow
+                  conversationId={conversationId}
+                  isSelected={selectedIds.has(conversationId)}
+                  hasSelection={selectedCount > 0}
+                  onToggleSelect={(shiftKey) => toggleSelect(conversationId, shiftKey)}
+                />
               </div>
             );
           })}
         </div>
       </div>
+
+      <SelectionBar count={selectedCount} onClear={clearSelection} onDelete={handleBulkDelete} />
     </div>
   );
 });
