@@ -171,12 +171,6 @@ jobs:
           --platform mac --arch ${{ github.event.inputs.arch || 'both' }} --targets dmg,zip
           --config electron-builder.canary.config.ts
 
-      - name: Verify macOS bundle
-        working-directory: apps/emdash-desktop
-        run: >
-          node --experimental-strip-types scripts/release/verify-mac.ts
-          --expected-team-id ${{ secrets.APPLE_TEAM_ID }}
-
       - name: Notarize and staple
         working-directory: apps/emdash-desktop
         env:

@@ -33,8 +33,9 @@ runs:
         R2_ACCESS_KEY_ID: ${{ inputs.r2-access-key-id }}
         R2_SECRET_ACCESS_KEY: ${{ inputs.r2-secret-access-key }}
         R2_BUCKET: ${{ inputs.r2-bucket }}
+      working-directory: apps/emdash-desktop
       run: |
         ARGS=""
         if [ -n "${{ inputs.channel }}" ]; then ARGS="$ARGS --channel ${{ inputs.channel }}"; fi
         if [ -n "${{ inputs.prefix }}" ]; then ARGS="$ARGS --prefix ${{ inputs.prefix }}"; fi
-        node --experimental-strip-types apps/emdash-desktop/scripts/release/upload-r2.ts $ARGS
+        node --experimental-strip-types scripts/release/upload-r2.ts $ARGS
