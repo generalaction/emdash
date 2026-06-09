@@ -35,6 +35,8 @@ function clearCopiedAppSecrets(databasePath: string): void {
 }
 
 export function resolveDefaultDatabasePath(userDataPath: string): string {
+  fs.mkdirSync(userDataPath, { recursive: true });
+
   const currentPath = join(userDataPath, CURRENT_DB_FILENAME);
   if (fs.existsSync(currentPath)) {
     return currentPath;
