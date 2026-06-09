@@ -82,9 +82,9 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
     return [...all].sort((a, b) => {
       const ai = this.projectOrder.indexOf(a.id);
       const bi = this.projectOrder.indexOf(b.id);
-      if (ai === -1 && bi === -1) return 0;
-      if (ai === -1) return 1;
-      if (bi === -1) return -1;
+      if (ai === -1 && bi === -1) return this.compareSidebarProjects(a, b);
+      if (ai === -1) return -1;
+      if (bi === -1) return 1;
       return ai - bi;
     });
   }
@@ -244,6 +244,12 @@ export class SidebarStore implements Snapshottable<SidebarSnapshot> {
     const d = ib.localeCompare(ia);
     if (d !== 0) return d;
     return a.data.id.localeCompare(b.data.id);
+  }
+
+  private compareSidebarProjects(a: ProjectStore, b: ProjectStore): number {
+    const d = b.createdAt.localeCompare(a.createdAt);
+    if (d !== 0) return d;
+    return a.id.localeCompare(b.id);
   }
 
   private sortTasksForSidebar(tasks: TaskStore[]): TaskStore[] {
