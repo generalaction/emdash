@@ -1,6 +1,9 @@
+import { ArrowUpRight } from 'lucide-react';
 import { action, computed, makeObservable, observable, runInAction } from 'mobx';
+import { createElement } from 'react';
 import { toast } from 'sonner';
 import { events, rpc } from '@renderer/lib/ipc';
+import { appState } from '@renderer/lib/stores/app-state';
 import { menuCheckForUpdatesChannel } from '@shared/events/appEvents';
 import {
   updateAvailableEvent,
@@ -218,12 +221,57 @@ export class UpdateStore {
     }
   }
 
+  /** Dev-only: simulate an available update so the toast + upgrade flow can be tested. */
+  devSimulateAvailable(): void {
+    const version = this._bumpVersion(this.currentVersion);
+    runInAction(() => {
+      this.availableVersion = version;
+      this.state = { status: 'available', info: { version } };
+    });
+    this._showAvailableToast(version);
+  }
+
+  private _bumpVersion(version: string): string {
+    const parts = version.split('.');
+    const last = parts.length - 1;
+    const n = Number(parts[last]);
+    if (parts.length > 0 && Number.isFinite(n)) {
+      parts[last] = String(n + 1);
+      return parts.join('.');
+    }
+    return version ? `${version}-next` : '9.9.9';
+  }
+
   private _maybeToastAvailable(version: string): void {
     if (!this._shouldNotify(version)) return;
-    toast('Update Available', {
-      description: `Version ${version} is ready. Go to Settings to upgrade.`,
-    });
+    this._showAvailableToast(version);
     this._rememberNotified(version);
+  }
+
+  private _showAvailableToast(version: string): void {
+    toast('Update Available', {
+      description: `Version ${version} is ready to install.`,
+      duration: 10_000,
+      classNames: {
+        actionButton:
+          'group/action cursor-pointer transition-all duration-150 hover:bg-primary/85 active:scale-[0.97]',
+      },
+      action: {
+        label: createElement(
+          'span',
+          { className: 'flex items-center gap-1.5' },
+          'Update',
+          createElement(ArrowUpRight, {
+            className:
+              'size-3.5 transition-transform duration-200 group-hover/action:-translate-y-px group-hover/action:translate-x-px',
+          })
+        ),
+        onClick: () => {
+          appState.navigation.navigate('settings', { tab: 'general' });
+          void this.download();
+        },
+      },
+    });
   }
 
   private _shouldNotify(version: string): boolean {
