@@ -28,7 +28,7 @@ export function ReorderList<T>({
   children,
 }: ReorderListProps<T>) {
   return (
-    <Reorder.Group<T[], typeof as>
+    <Reorder.Group
       as={as}
       axis={axis}
       values={items}

@@ -371,6 +371,8 @@ export const jiraIssueProvider: IssueProvider = {
   type: 'jira',
   capabilities: ISSUE_PROVIDER_CAPABILITIES.jira,
 
+  isConfigured: () => jiraConnectionService.isConfigured(),
+
   checkConnection: () => jiraConnectionService.checkConnection(),
 
   listIssues: async (opts) => listIssues(opts.limit ?? 50),

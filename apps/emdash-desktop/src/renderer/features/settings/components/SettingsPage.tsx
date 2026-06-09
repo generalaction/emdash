@@ -6,7 +6,6 @@ import { cn } from '@renderer/utils/utils';
 import { AccountTab } from './AccountTab';
 import { CliAgentsList } from './CliAgentsList';
 import DefaultAgentSettingsCard from './DefaultAgentSettingsCard';
-import { GitHubAccountsSection } from './GitHubAccountsSection';
 import HiddenToolsSettingsCard from './HiddenToolsSettingsCard';
 import IntegrationsCard from './IntegrationsCard';
 import InterfaceSettingsCard from './InterfaceSettingsCard';
@@ -131,10 +130,7 @@ export function SettingsPage({
     integrations: {
       title: 'Integrations',
       description: 'Connect external services and tools.',
-      sections: [
-        { component: <GitHubAccountsSection /> },
-        { title: 'Issue providers', component: <IntegrationsCard /> },
-      ],
+      sections: [{ component: <IntegrationsCard /> }],
     },
     connections: {
       title: 'Connections',
@@ -200,7 +196,12 @@ export function SettingsPage({
           </div>
           {/* Content container */}
           {currentContent && (
-            <div className="min-h-0 min-w-0 flex-1 [scrollbar-gutter:stable] justify-center overflow-x-hidden overflow-y-auto">
+            <div
+              className={cn(
+                'min-h-0 min-w-0 flex-1 justify-center overflow-x-hidden overflow-y-auto',
+                '[scrollbar-gutter:stable]'
+              )}
+            >
               <div className="mx-auto w-full max-w-4xl space-y-8 px-4 py-10">
                 <PageHeader title={currentContent.title} description={currentContent.description} />
                 {currentContent.sections.map((section) => (

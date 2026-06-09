@@ -16,6 +16,11 @@ export type PrSyncApiError = {
   message: string;
 };
 
+export type PrSyncCancelledError = {
+  type: 'sync_cancelled';
+  message: string;
+};
+
 export type PrSyncNotFoundOrNoAccessError = {
   type: 'not_found_or_no_access';
   host: string;
@@ -26,6 +31,7 @@ export type PrSyncEngineError =
   | RepositoryRefParseError
   | GitHubApiAuthError
   | GitHubApiOperationError
+  | PrSyncCancelledError
   | PrSyncApiError;
 
 export function isPrSyncHostUnreachable(
@@ -59,6 +65,7 @@ export function prSyncEngineErrorMessage(error: PrSyncEngineError): string {
       return error.message;
     case 'host_unreachable':
       return `Unable to reach ${error.host}: ${error.reason}`;
+    case 'sync_cancelled':
     case 'api_error':
       return error.message;
   }

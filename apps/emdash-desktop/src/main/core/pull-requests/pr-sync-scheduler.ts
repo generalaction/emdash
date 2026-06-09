@@ -181,7 +181,7 @@ export class PrSyncScheduler implements IInitializable, IDisposable {
     const authContext = await this._resolveAuthContext(projectId, remoteUrl);
     if (!authContext) return;
     // sync() routes to full or incremental based on cursor state.
-    prSyncEngine.sync(remoteUrl, authContext);
+    void prSyncEngine.sync(remoteUrl, authContext);
   }
 
   private async _syncRemotes(projectId: string, remoteUrls: string[]): Promise<void> {

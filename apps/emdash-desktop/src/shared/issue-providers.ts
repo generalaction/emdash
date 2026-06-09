@@ -64,6 +64,7 @@ export const ISSUE_PROVIDER_CAPABILITIES: Record<IssueProviderType, IssueProvide
 export type ConnectionStatus = {
   connected: boolean;
   displayName?: string;
+  displayDetail?: string;
   error?: string;
   capabilities: IssueProviderCapabilities;
 };

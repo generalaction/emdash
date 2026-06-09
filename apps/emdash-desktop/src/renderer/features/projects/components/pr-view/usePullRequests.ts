@@ -72,7 +72,10 @@ export function usePullRequests(
 
   const refresh = useCallback(async () => {
     if (!projectId || !repositoryUrl) return;
-    await rpc.pullRequests.syncPullRequests(projectId);
+    const result = await rpc.pullRequests.syncPullRequests(projectId);
+    if (!result.success) {
+      throw new Error(pullRequestErrorMessage(result.error));
+    }
     await queryClient.invalidateQueries({ queryKey: prQueryKeys.list(projectId, repositoryUrl) });
     await queryClient.invalidateQueries({
       queryKey: prQueryKeys.filterOptions(repositoryUrl),

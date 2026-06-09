@@ -1,6 +1,5 @@
 import { homedir } from 'node:os';
 import { agentHookService } from '@main/core/agent-hooks/agent-hook-service';
-import { wireAgentClassifier } from '@main/core/agent-hooks/classifier-wiring';
 import { HookConfigWriter } from '@main/core/agent-hooks/hook-config';
 import { workspaceTrustService } from '@main/core/agent-hooks/workspace-trust-service';
 import { ConversationSessionSupervisor } from '@main/core/conversations/conversation-session-supervisor';
@@ -199,32 +198,6 @@ export class LocalConversationProvider implements ConversationProvider {
         cols: spawnSize.cols,
         rows: spawnSize.rows,
       });
-
-      /*
-       * Codex hooks can be skipped by the CLI in some live-session edge cases.
-       * Amp hooks only cover lifecycle events today, and Grok hook emission is
-       * still early-beta. Kimi hooks include the needed lifecycle events, but
-       * the new CLI/docs are still changing. Keep the output classifier active
-       * as a fallback so the UI can leave "working" and catch prompts.
-       */
-      const useHooksOnly =
-        hookActive &&
-        providerDef?.supportsHooks &&
-        hooksAvailable &&
-        conversation.providerId !== 'codex' &&
-        conversation.providerId !== 'grok' &&
-        conversation.providerId !== 'kimi' &&
-        conversation.providerId !== 'amp';
-
-      if (!useHooksOnly) {
-        wireAgentClassifier({
-          pty,
-          providerId: conversation.providerId,
-          projectId: conversation.projectId,
-          taskId: conversation.taskId,
-          conversationId: conversation.id,
-        });
-      }
 
       pty.onExit((info) => {
         const decision = this.supervisor.handleExit(sessionId, pty);

@@ -292,8 +292,14 @@ export class ProjectManagerStore {
         runInAction(() => {
           const current = this.projects.get(projectId);
           if (current && isUnmountedProject(current)) {
+            // Patch repositoryWorkspaceId from the main process response so the
+            // mounted project data is up-to-date (fixes stale null after creation).
+            const projectData = current.data;
+            if (openResult.data.repositoryWorkspaceId && projectData) {
+              projectData.repositoryWorkspaceId = openResult.data.repositoryWorkspaceId;
+            }
             current.transitionToMounted(
-              current.data,
+              projectData,
               savedSnapshot as ProjectViewSnapshot | undefined
             );
           }

@@ -9,6 +9,9 @@ apps/*/out/
 apps/*/release/
 apps/*/dist/
 
+# Temporary electron-builder deploy directories (created by scripts/release/build.ts)
+.emdash-deploy-*/
+
 # Logs
 *.log
 npm-debug.log*

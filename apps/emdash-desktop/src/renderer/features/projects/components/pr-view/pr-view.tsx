@@ -380,7 +380,11 @@ export const PullRequestView = observer(function PullRequestView() {
         isFetchingNextPage={isFetchingNextPage}
         fetchNextPage={fetchNextPage}
       />
-      <PrSyncStatusCard projectId={projectId} repositoryUrl={repositoryUrl} />
+      <PrSyncStatusCard
+        projectId={projectId}
+        repositoryUrl={repositoryUrl}
+        manualError={prs.length > 0 ? error : null}
+      />
     </div>
   );
 });

@@ -228,6 +228,7 @@ async function getIssueContext(opts: IssueContextOpts): Promise<IssueContextResu
 export const trelloIssueProvider: IssueProvider = {
   type: 'trello',
   capabilities: ISSUE_PROVIDER_CAPABILITIES.trello,
+  isConfigured: () => trelloConnectionService.isConfigured(),
   checkConnection: () => trelloConnectionService.checkConnection(),
   listIssues: async (opts: IssueQueryOpts) => listIssues(opts.limit ?? 50),
   searchIssues: async (opts: IssueSearchOpts) => searchIssues(opts.searchTerm, opts.limit ?? 20),

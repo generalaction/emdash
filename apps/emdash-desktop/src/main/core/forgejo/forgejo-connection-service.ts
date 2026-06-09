@@ -55,6 +55,23 @@ function isNotConfigured(error: unknown): boolean {
   return error instanceof Error && error.message === NOT_CONFIGURED_ERROR;
 }
 
+function hostFromInstanceUrl(instanceUrl: string): string {
+  try {
+    return new URL(instanceUrl).host;
+  } catch {
+    return instanceUrl;
+  }
+}
+
+function formatDisplayDetail(
+  username: string | undefined,
+  displayName: string | undefined,
+  instanceUrl: string
+): string {
+  const host = hostFromInstanceUrl(instanceUrl);
+  return username && displayName && username !== displayName ? `@${username} · ${host}` : host;
+}
+
 export class ForgejoConnectionService {
   private readonly FORGEJO_TOKEN_SECRET_KEY = 'emdash-forgejo-token';
 
@@ -113,7 +130,7 @@ export class ForgejoConnectionService {
 
   async checkConnection(): Promise<ConnectionStatus> {
     try {
-      const { client } = await this.requireAuth();
+      const { client, instanceUrl } = await this.requireAuth();
       const { data: user } = await userGetCurrent({ client, throwOnError: true });
 
       const username = user?.login ?? undefined;
@@ -122,6 +139,7 @@ export class ForgejoConnectionService {
       return {
         connected: true,
         displayName,
+        displayDetail: formatDisplayDetail(username, displayName, instanceUrl),
         capabilities: ISSUE_PROVIDER_CAPABILITIES.forgejo,
       };
     } catch (error) {
@@ -138,6 +156,12 @@ export class ForgejoConnectionService {
         capabilities: ISSUE_PROVIDER_CAPABILITIES.forgejo,
       };
     }
+  }
+
+  async isConfigured(): Promise<boolean> {
+    const connection = await this.readConnection();
+    if (!connection) return false;
+    return !!(await encryptedAppSecretsStore.getSecret(this.FORGEJO_TOKEN_SECRET_KEY));
   }
 
   async getClient(): Promise<Client | null> {

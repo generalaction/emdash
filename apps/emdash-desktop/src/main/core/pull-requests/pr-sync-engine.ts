@@ -49,6 +49,8 @@ import { assemblePullRequest } from './pr-utils';
 const PR_SYNC_MAX_COUNT = 300;
 const PR_ARCHIVE_AGE_MONTHS = 6;
 
+type RepositorySyncResult = Result<void, PrSyncEngineError>;
+
 type FullSyncCursor = {
   /** The `updatedAt` of the last PR we have seen (pagination cursor). */
   lastUpdatedAt: string;
@@ -74,6 +76,13 @@ type PrSyncAuthContext = Pick<GitHubApiAuthContext, 'accountId'>;
 
 function authContextKey(authContext: PrSyncAuthContext = {}): string {
   return authContext.accountId?.trim() || 'default';
+}
+
+function syncCancelledError(): PrSyncEngineError {
+  return {
+    type: 'sync_cancelled',
+    message: 'Pull request sync was cancelled.',
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -171,7 +180,7 @@ export class PrSyncEngine {
   private readonly kv = new KV<PrKvSchema>('pr');
 
   // Per-repository in-flight promise + AbortController
-  private readonly _inflight = new Map<string, Promise<void>>();
+  private readonly _inflight = new Map<string, Promise<RepositorySyncResult>>();
   private readonly _controllers = new Map<string, AbortController>();
   // Per-operation deduplication for single-PR and check-run syncs
   private readonly _singleInflight = new Map<
@@ -191,15 +200,16 @@ export class PrSyncEngine {
 
   /**
    * Smart sync: resumes a full sync if one is incomplete, otherwise runs an
-   * incremental sync. Deduplicated — no-op if a sync is already in-flight.
+   * incremental sync. Deduplicated — callers share the in-flight result.
    */
-  sync(repositoryUrl: string, authContext: PrSyncAuthContext = {}): void {
+  sync(repositoryUrl: string, authContext: PrSyncAuthContext = {}): Promise<RepositorySyncResult> {
     const key = `sync:${repositoryUrl}:${authContextKey(authContext)}`;
-    if (this._inflight.has(key)) {
+    const existing = this._inflight.get(key);
+    if (existing) {
       log.info('PrSyncEngine: sync already in flight, skipping', {
         repositoryUrl,
       });
-      return;
+      return existing;
     }
 
     const ctrl = new AbortController();
@@ -207,49 +217,60 @@ export class PrSyncEngine {
 
     const promise = this._getFullSyncCursor(repositoryUrl)
       .then((cursor) => {
-        if (ctrl.signal.aborted) return;
+        if (ctrl.signal.aborted) return err(syncCancelledError());
         return cursor?.done
           ? this._runIncrementalSync(repositoryUrl, ctrl.signal, authContext)
           : this._runFullSync(repositoryUrl, ctrl.signal, authContext);
       })
       .catch((e: unknown) => {
-        if ((e as { name?: string }).name !== 'AbortError') {
-          const repository = parseRepositoryRef(repositoryUrl);
-          const error = toPrApiError(
-            e,
-            'Unable to sync pull requests',
-            repository?.host,
-            repository?.nameWithOwner
-          );
-          if (isPrSyncHostUnreachable(error)) {
-            log.warn('PrSyncEngine: sync skipped; GitHub host unreachable', {
-              repositoryUrl,
-              host: error.host,
-              error: error.reason,
-            });
-            return;
-          }
-          log.error('PrSyncEngine: sync failed', {
-            repositoryUrl,
-            error: String(e),
-          });
+        if ((e as { name?: string }).name === 'AbortError') {
+          return err(syncCancelledError());
         }
+        const repository = parseRepositoryRef(repositoryUrl);
+        const error = toPrApiError(
+          e,
+          'Unable to sync pull requests',
+          repository?.host,
+          repository?.nameWithOwner
+        );
+        if (isPrSyncHostUnreachable(error)) {
+          log.warn('PrSyncEngine: sync failed; GitHub host unreachable', {
+            repositoryUrl,
+            host: error.host,
+            error: error.reason,
+          });
+          return err(error);
+        }
+        log.error('PrSyncEngine: sync failed', {
+          repositoryUrl,
+          error: String(e),
+        });
+        return err(error);
       })
       .finally(() => {
-        this._controllers.delete(key);
-        this._inflight.delete(key);
+        if (this._controllers.get(key) === ctrl) {
+          this._controllers.delete(key);
+        }
+        if (this._inflight.get(key) === promise) {
+          this._inflight.delete(key);
+        }
       });
 
     this._inflight.set(key, promise);
+    return promise;
   }
 
   /** Cancel any in-flight sync, wipe both cursors, and start a fresh full sync. */
-  forceFullSync(repositoryUrl: string, authContext: PrSyncAuthContext = {}): void {
+  async forceFullSync(
+    repositoryUrl: string,
+    authContext: PrSyncAuthContext = {}
+  ): Promise<RepositorySyncResult> {
     this.cancel(repositoryUrl);
-    void Promise.all([
+    await Promise.all([
       this.kv.del(`fullsync:${repositoryUrl}`),
       this.kv.del(`incrementalsync:${repositoryUrl}`),
-    ]).then(() => this.sync(repositoryUrl, authContext));
+    ]);
+    return this.sync(repositoryUrl, authContext);
   }
 
   /** Abort and discard any in-flight sync for this repository URL. */
@@ -312,7 +333,7 @@ export class PrSyncEngine {
     repositoryUrl: string,
     signal: AbortSignal,
     authContext: PrSyncAuthContext
-  ): Promise<void> {
+  ): Promise<RepositorySyncResult> {
     log.info('PrSyncEngine: runFullSync start', { repositoryUrl });
     const repository = parseRepositoryRefResult(repositoryUrl);
     if (!repository.success) {
@@ -322,7 +343,7 @@ export class PrSyncEngine {
         status: 'error',
         error: prSyncEngineErrorMessage(repository.error),
       });
-      return;
+      return err(repository.error);
     }
     const { owner, repo } = repository.data;
     const octokit = await this.getOctokit(repository.data.host, authContext);
@@ -337,7 +358,7 @@ export class PrSyncEngine {
         status: 'error',
         error: prSyncEngineErrorMessage(octokit.error),
       });
-      return;
+      return err(octokit.error);
     }
 
     // Resume from an existing cursor if available
@@ -355,7 +376,14 @@ export class PrSyncEngine {
 
     try {
       for (;;) {
-        if (signal.aborted) return;
+        if (signal.aborted) {
+          this._emitProgress({
+            remoteUrl: repositoryUrl,
+            kind: 'full',
+            status: 'cancelled',
+          });
+          return err(syncCancelledError());
+        }
 
         const response = await withRetry(
           () =>
@@ -419,6 +447,7 @@ export class PrSyncEngine {
         status: 'done',
         synced,
       });
+      return ok();
     } catch (e: unknown) {
       if ((e as { name?: string })?.name === 'AbortError') {
         this._emitProgress({
@@ -426,7 +455,7 @@ export class PrSyncEngine {
           kind: 'full',
           status: 'cancelled',
         });
-        return;
+        return err(syncCancelledError());
       }
       const error = toPrApiError(
         e,
@@ -440,7 +469,7 @@ export class PrSyncEngine {
         status: 'error',
         error: prSyncEngineErrorMessage(error),
       });
-      throw e;
+      return err(error);
     }
   }
 
@@ -455,7 +484,7 @@ export class PrSyncEngine {
     repositoryUrl: string,
     signal: AbortSignal,
     authContext: PrSyncAuthContext
-  ): Promise<void> {
+  ): Promise<RepositorySyncResult> {
     log.info('PrSyncEngine: runIncrementalSync started', { repositoryUrl });
 
     const repository = parseRepositoryRefResult(repositoryUrl);
@@ -466,7 +495,7 @@ export class PrSyncEngine {
         status: 'error',
         error: prSyncEngineErrorMessage(repository.error),
       });
-      return;
+      return err(repository.error);
     }
     const { owner, repo } = repository.data;
     const octokit = await this.getOctokit(repository.data.host, authContext);
@@ -481,7 +510,7 @@ export class PrSyncEngine {
         status: 'error',
         error: prSyncEngineErrorMessage(octokit.error),
       });
-      return;
+      return err(octokit.error);
     }
 
     const fullCursor = (await this.kv.get(`fullsync:${repositoryUrl}`)) as FullSyncCursor | null;
@@ -506,7 +535,14 @@ export class PrSyncEngine {
 
     try {
       for (;;) {
-        if (signal.aborted) return;
+        if (signal.aborted) {
+          this._emitProgress({
+            remoteUrl: repositoryUrl,
+            kind: 'incremental',
+            status: 'cancelled',
+          });
+          return err(syncCancelledError());
+        }
 
         const response = await withRetry(
           () =>
@@ -564,7 +600,7 @@ export class PrSyncEngine {
             status: 'done',
             synced,
           });
-          return;
+          return ok();
         }
 
         const done = reachedBoundary || !pageInfo.hasNextPage;
@@ -592,6 +628,7 @@ export class PrSyncEngine {
         status: 'done',
         synced,
       });
+      return ok();
     } catch (e: unknown) {
       if ((e as { name?: string })?.name === 'AbortError') {
         this._emitProgress({
@@ -599,7 +636,7 @@ export class PrSyncEngine {
           kind: 'incremental',
           status: 'cancelled',
         });
-        return;
+        return err(syncCancelledError());
       }
       const error = toPrApiError(
         e,
@@ -613,7 +650,7 @@ export class PrSyncEngine {
         status: 'error',
         error: prSyncEngineErrorMessage(error),
       });
-      throw e;
+      return err(error);
     }
   }
 

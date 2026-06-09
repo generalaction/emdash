@@ -108,6 +108,10 @@ export class FeaturebaseConnectionService {
     }
   }
 
+  async isConfigured(): Promise<boolean> {
+    return !!(await this.getStoredToken());
+  }
+
   async getClient(): Promise<FeaturebaseClient | null> {
     const token = await this.getStoredToken();
     if (!token) {

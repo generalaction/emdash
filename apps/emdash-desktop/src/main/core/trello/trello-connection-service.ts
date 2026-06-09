@@ -135,9 +135,14 @@ export class TrelloConnectionService {
       }
 
       const me = await this.fetchMe(credentials);
+      const displayName = me.fullName ?? me.username;
+      const displayDetail =
+        me.fullName && me.username && me.fullName !== me.username ? `@${me.username}` : undefined;
+
       return {
         connected: true,
-        displayName: me.fullName ?? me.username,
+        displayName,
+        displayDetail,
         capabilities: ISSUE_PROVIDER_CAPABILITIES.trello,
       };
     } catch (error) {
@@ -145,6 +150,10 @@ export class TrelloConnectionService {
         error instanceof Error ? error.message : 'Failed to verify Trello connection.';
       return { connected: false, error: message, capabilities: ISSUE_PROVIDER_CAPABILITIES.trello };
     }
+  }
+
+  async isConfigured(): Promise<boolean> {
+    return !!(await this.getStoredCredentials());
   }
 
   async getStoredCredentials(): Promise<TrelloCredentials | null> {

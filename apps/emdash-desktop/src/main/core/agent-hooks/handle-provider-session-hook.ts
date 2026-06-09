@@ -29,6 +29,7 @@ export async function handleProviderSessionHook(raw: RawHookRequest): Promise<vo
       parsed.providerId !== 'droid' &&
       parsed.providerId !== 'grok' &&
       parsed.providerId !== 'kimi' &&
+      parsed.providerId !== 'kiro' &&
       parsed.providerId !== 'opencode')
   ) {
     return;

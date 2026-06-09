@@ -108,10 +108,15 @@ export class AsanaConnectionService {
 
       const client = this.getClientForToken(token);
       const user = await this.fetchUser(client);
+      const workspaceName = user.workspaces?.[0]?.name;
+      const displayName = workspaceName ?? user.name;
+      const displayDetail =
+        workspaceName && user.name && workspaceName !== user.name ? user.name : undefined;
 
       return {
         connected: true,
-        displayName: user.workspaces?.[0]?.name ?? user.name,
+        displayName,
+        displayDetail,
         capabilities: ISSUE_PROVIDER_CAPABILITIES.asana,
       };
     } catch (error) {
@@ -121,6 +126,10 @@ export class AsanaConnectionService {
         capabilities: ISSUE_PROVIDER_CAPABILITIES.asana,
       };
     }
+  }
+
+  async isConfigured(): Promise<boolean> {
+    return !!(await this.getStoredToken());
   }
 
   async getClient(): Promise<AsanaClient | null> {
