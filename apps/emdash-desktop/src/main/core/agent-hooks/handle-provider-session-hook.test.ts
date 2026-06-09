@@ -190,6 +190,33 @@ describe('handleProviderSessionHook', () => {
     });
   });
 
+  it('persists Kiro session ids from agentSpawn hook payloads', async () => {
+    mockSetProviderSessionId.mockResolvedValue(true);
+    mockEnrichEvent.mockResolvedValue({
+      type: 'start',
+      providerId: 'kiro',
+      projectId: 'project-1',
+      taskId: 'task-1',
+      conversationId: 'conversation-1',
+      timestamp: 0,
+      payload: {},
+    });
+
+    await handleProviderSessionHook({
+      ptyId: 'kiro-conv-conversation-1',
+      type: 'session',
+      body: JSON.stringify({ session_id: 'abc123-def456-789' }),
+    });
+
+    expect(mockSetProviderSessionId).toHaveBeenCalledWith('conversation-1', 'abc123-def456-789');
+    expect(mockEvents.emit).toHaveBeenCalledWith(conversationChangedChannel, {
+      conversationId: 'conversation-1',
+      taskId: 'task-1',
+      projectId: 'project-1',
+      changes: { providerSessionId: 'abc123-def456-789' },
+    });
+  });
+
   it('keeps Droid session ids on the Droid validation path', async () => {
     await handleProviderSessionHook({
       ptyId: 'droid-conv-conversation-1',
