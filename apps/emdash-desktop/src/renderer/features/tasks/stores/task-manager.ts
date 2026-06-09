@@ -290,7 +290,11 @@ export class TaskManagerStore {
         previousPrStatuses.get(pr.url) !== 'merged'
     );
     if (isRegistered(store)) {
-      await this._archiveTaskIfMerged(store.data as Task, newlyMergedPrs);
+      await this._archiveTaskIfMerged(store.data as Task, newlyMergedPrs).catch(
+        (error: unknown) => {
+          console.error('Failed to auto-archive merged task', error);
+        }
+      );
     }
   }
 
