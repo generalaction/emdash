@@ -711,6 +711,10 @@ export class MonacoModelRegistry {
       this.reloadingFromDisk.delete(uri);
       runInAction(() => {
         this.dirtyUris.delete(uri);
+        // setValue fires onDidChangeContent, but it bails while reloadingFromDisk is
+        // set and never bumps bufferVersions — bump it here so preview renderers
+        // re-render (same reasoning as applyDiskUpdate).
+        this.bufferVersions.set(uri, (this.bufferVersions.get(uri) ?? 0) + 1);
       });
     }
     this.pendingConflicts.delete(uri);
@@ -840,6 +844,14 @@ export class MonacoModelRegistry {
         const fullRange = bufEntry.model.getFullModelRange();
         bufEntry.model.applyEdits([{ range: fullRange, text: newContent }], false);
         this.reloadingFromDisk.delete(bufferUri);
+        // applyEdits fires onDidChangeContent, but that listener bails out while
+        // reloadingFromDisk is set, so it never bumps bufferVersions. Bump it here
+        // so observer() renderers that read buffer text (the markdown/html/svg
+        // preview) re-render with the reloaded content instead of staying stale
+        // until the tab is remounted.
+        runInAction(() => {
+          this.bufferVersions.set(bufferUri, (this.bufferVersions.get(bufferUri) ?? 0) + 1);
+        });
       }
       // Clear dirty state — disk now matches buffer (either buffer was synced to disk, or
       // new disk content already matched existing buffer edits).

@@ -5,6 +5,7 @@ import { MonacoModelRegistry } from './monaco-model-registry';
 const rpcState = vi.hoisted(() => ({
   indexContent: 'base' as string | null,
   refContent: 'base' as string | null,
+  diskContent: 'base' as string,
 }));
 
 vi.mock('@renderer/lib/ipc', () => ({
@@ -13,7 +14,7 @@ vi.mock('@renderer/lib/ipc', () => ({
       fs: {
         readFile: vi.fn(async () => ({
           success: true,
-          data: { content: 'base', truncated: false, totalSize: 4 },
+          data: { content: rpcState.diskContent, truncated: false, totalSize: 4 },
         })),
       },
       git: {
@@ -105,6 +106,45 @@ describe('MonacoModelRegistry', () => {
   beforeEach(() => {
     rpcState.indexContent = 'base';
     rpcState.refContent = 'base';
+    rpcState.diskContent = 'base';
+  });
+
+  it('bumps bufferVersions when a disk reload updates a clean open buffer', async () => {
+    // Regression: a disk-driven reload (e.g. after discard) updates the buffer
+    // model's content, but the onDidChangeContent listener bails while
+    // reloadingFromDisk is set and never bumps bufferVersions. Read-only reactive
+    // consumers (the rendered markdown/html/svg preview) subscribe to
+    // bufferVersions, so without an explicit bump they stay stale until remount.
+    const registry = new MonacoModelRegistry();
+    registry.notifyMonacoReady(makeFakeMonaco() as never);
+
+    const projectId = 'project';
+    const workspaceId = 'workspace';
+    const root = `workspace:${workspaceId}`;
+    const filePath = 'README.md';
+    const language = 'markdown';
+
+    rpcState.diskContent = 'base';
+    const uri = await registry.registerModel(
+      projectId,
+      workspaceId,
+      root,
+      filePath,
+      language,
+      'disk'
+    );
+    await registry.registerModel(projectId, workspaceId, root, filePath, language, 'buffer');
+    const diskUri = registry.toDiskUri(uri);
+
+    expect(registry.getValue(uri)).toBe('base');
+    const versionBefore = registry.bufferVersions.get(uri) ?? 0;
+
+    // Simulate discard / external revert: disk now holds the reverted content.
+    rpcState.diskContent = 'reverted';
+    await registry.invalidateModel(diskUri);
+
+    expect(registry.getValue(uri)).toBe('reverted');
+    expect(registry.bufferVersions.get(uri) ?? 0).toBeGreaterThan(versionBefore);
   });
 
   it('clears a staged git model when the index no longer contains the file', async () => {
