@@ -129,6 +129,8 @@ describe('pullRequestController', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     dbMocks.select.mockReset();
+    mockPrSyncEngine.forceFullSync.mockResolvedValue(ok());
+    mockPrSyncEngine.sync.mockResolvedValue(ok());
   });
 
   it('rejects cross-host pull request creation before calling GitHub', async () => {
@@ -276,6 +278,35 @@ describe('pullRequestController', () => {
     expect(mockPrSyncEngine.sync).toHaveBeenCalledWith(
       'https://github.com/acme/repo',
       selectedAuthContext
+    );
+  });
+
+  it('forwards project-scoped PR sync failures', async () => {
+    mockProjectGithubContext();
+    mockPrSyncEngine.sync.mockResolvedValue(
+      err({
+        type: 'host_unreachable',
+        host: 'github.com',
+        reason: 'Connect Timeout Error',
+      })
+    );
+
+    await expect(pullRequestController.syncPullRequests('project-1')).resolves.toEqual(
+      err({ type: 'host_unreachable', host: 'github.com', reason: 'Connect Timeout Error' })
+    );
+  });
+
+  it('maps cancelled project-scoped PR syncs to sync failures', async () => {
+    mockProjectGithubContext();
+    mockPrSyncEngine.sync.mockResolvedValue(
+      err({
+        type: 'sync_cancelled',
+        message: 'Pull request sync was cancelled.',
+      })
+    );
+
+    await expect(pullRequestController.syncPullRequests('project-1')).resolves.toEqual(
+      err({ type: 'sync_failed', message: 'Pull request sync was cancelled.' })
     );
   });
 

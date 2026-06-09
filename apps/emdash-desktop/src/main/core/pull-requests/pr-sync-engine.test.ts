@@ -91,10 +91,62 @@ describe('PrSyncEngine', () => {
     );
     const engine = new PrSyncEngine(getOctokit);
 
-    engine.sync('https://github.com/acme/repo', { accountId: 'github.com:42' });
+    void engine.sync('https://github.com/acme/repo', { accountId: 'github.com:42' });
     await flushPromises();
 
     expect(getOctokit).toHaveBeenCalledWith('github.com', { accountId: 'github.com:42' });
+  });
+
+  it('returns the in-flight repository sync result to duplicate callers', async () => {
+    let resolveOctokit!: (value: Result<Octokit, GitHubApiAuthError>) => void;
+    const getOctokit = vi.fn<(host: string) => Promise<Result<Octokit, GitHubApiAuthError>>>(
+      () =>
+        new Promise((resolve) => {
+          resolveOctokit = resolve;
+        })
+    );
+    const engine = new PrSyncEngine(getOctokit);
+
+    const first = engine.sync('https://ghe.example.com/acme/repo');
+    await flushPromises();
+    const second = engine.sync('https://ghe.example.com/acme/repo');
+
+    expect(second).toBe(first);
+
+    resolveOctokit(
+      err({
+        type: 'auth_required',
+        host: 'ghe.example.com',
+        message: 'auth required',
+        hint: 'Run: gh auth login --hostname ghe.example.com',
+      })
+    );
+
+    const expected = err({
+      type: 'auth_required',
+      host: 'ghe.example.com',
+      message: 'auth required',
+      hint: 'Run: gh auth login --hostname ghe.example.com',
+    });
+    await expect(first).resolves.toEqual(expected);
+    await expect(second).resolves.toEqual(expected);
+    expect(getOctokit).toHaveBeenCalledTimes(1);
+  });
+
+  it('returns a cancelled result when a repository sync is aborted before completion', async () => {
+    const getOctokit = vi.fn().mockResolvedValue(ok(makeOctokit({})));
+    const engine = new PrSyncEngine(getOctokit);
+
+    const result = engine.sync('https://github.com/acme/repo');
+    engine.cancel('https://github.com/acme/repo');
+
+    await expect(result).resolves.toEqual(
+      err({
+        type: 'sync_cancelled',
+        message: 'Pull request sync was cancelled.',
+      })
+    );
+    expect(getOctokit).not.toHaveBeenCalled();
   });
 
   it('maps post-token PR API repository access failures to not-found-or-no-access errors', async () => {

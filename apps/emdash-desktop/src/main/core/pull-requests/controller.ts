@@ -29,7 +29,8 @@ type PrControllerFailureType =
   | 'files_failed'
   | 'comments_failed'
   | 'refresh_failed'
-  | 'checks_failed';
+  | 'checks_failed'
+  | 'sync_failed';
 
 type CreatePullRequestParams = {
   repositoryUrl: string;
@@ -114,6 +115,8 @@ function mapPrSyncEngineError(
         host: error.host,
         reason: error.reason,
       };
+    case 'sync_cancelled':
+      return { type: fallbackType, message: error.message };
     case 'api_error':
       return { type: fallbackType, message: error.message };
   }
@@ -196,7 +199,13 @@ export const pullRequestController = createRPCController({
       const context = await resolveProjectPullRequestContext(projectId);
       if (!context.success) return err(context.error);
 
-      prSyncEngine.forceFullSync(context.data.repositoryUrl, context.data.authContext);
+      const result = await prSyncEngine.forceFullSync(
+        context.data.repositoryUrl,
+        context.data.authContext
+      );
+      if (!result.success) {
+        return err<PullRequestError>(mapPrSyncEngineError(result.error, 'sync_failed'));
+      }
       return ok();
     } catch (error) {
       log.error('Failed to force full sync:', error);
@@ -223,7 +232,10 @@ export const pullRequestController = createRPCController({
         projectId,
         repositoryUrl: context.data.repositoryUrl,
       });
-      prSyncEngine.sync(context.data.repositoryUrl, context.data.authContext);
+      const result = await prSyncEngine.sync(context.data.repositoryUrl, context.data.authContext);
+      if (!result.success) {
+        return err<PullRequestError>(mapPrSyncEngineError(result.error, 'sync_failed'));
+      }
       return ok();
     } catch (error) {
       log.error('Failed to trigger sync:', error);

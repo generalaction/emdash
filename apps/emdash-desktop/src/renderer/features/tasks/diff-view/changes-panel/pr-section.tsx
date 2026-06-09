@@ -1,6 +1,7 @@
 import { Plus, RefreshCw } from 'lucide-react';
 import { observer } from 'mobx-react-lite';
 import { getPrSyncStore } from '@renderer/features/projects/stores/project-selectors';
+import { useToast } from '@renderer/lib/hooks/use-toast';
 import { rpc } from '@renderer/lib/ipc';
 import { useShowModal } from '@renderer/lib/modal/modal-provider';
 import { Button } from '@renderer/lib/ui/button';
@@ -8,6 +9,7 @@ import { EmptyState } from '@renderer/lib/ui/empty-state';
 import { SplitButton, type SplitButtonAction } from '@renderer/lib/ui/split-button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@renderer/lib/ui/tooltip';
 import { cn } from '@renderer/utils/utils';
+import { pullRequestErrorMessage } from '@shared/core/pull-requests/pull-requests';
 import { getTaskGitStore } from '../../stores/task-selectors';
 import {
   useTaskViewContext,
@@ -37,6 +39,7 @@ export const PullRequestsSection = observer(function PullRequestsSection({
   const pullRequests = prStore?.pullRequests ?? [];
   const currentPr = prStore?.currentPr;
   const showCreatePrModal = useShowModal('createPrModal');
+  const { toast } = useToast();
   const prSyncStore = getPrSyncStore(projectId);
 
   const hasOpenPr = pullRequests.some((p) => p.status === 'open');
@@ -77,6 +80,25 @@ export const PullRequestsSection = observer(function PullRequestsSection({
     { value: 'create-draft-pr', label: 'Create draft PR', action: () => onCreateDraftPr?.() },
   ];
 
+  const handleRefresh = async () => {
+    try {
+      const result = await rpc.pullRequests.syncPullRequests(projectId);
+      if (!result.success) {
+        toast({
+          title: 'Failed to refresh pull requests',
+          description: pullRequestErrorMessage(result.error),
+          variant: 'destructive',
+        });
+      }
+    } catch (error) {
+      toast({
+        title: 'Failed to refresh pull requests',
+        description: error instanceof Error ? error.message : String(error),
+        variant: 'destructive',
+      });
+    }
+  };
+
   const { mode: viewMode, setMode: setViewMode } = useChangesViewMode('pr');
 
   return (
@@ -112,7 +134,7 @@ export const PullRequestsSection = observer(function PullRequestsSection({
                 <Button
                   variant="outline"
                   size="icon-xs"
-                  onClick={() => void rpc.pullRequests.syncPullRequests(projectId)}
+                  onClick={() => void handleRefresh()}
                   disabled={isRefreshing}
                 >
                   <RefreshCw className={cn('size-3', isRefreshing && 'animate-spin')} />
