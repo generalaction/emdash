@@ -324,6 +324,39 @@ describe('pullRequestController', () => {
     );
   });
 
+  it('forwards force-full PR sync auth failures', async () => {
+    mockProjectGithubContext();
+    mockPrSyncEngine.forceFullSync.mockResolvedValue(
+      err({
+        type: 'auth_required',
+        host: 'github.com',
+        message: 'GitHub auth required',
+      })
+    );
+
+    await expect(pullRequestController.forceFullSyncPullRequests('project-1')).resolves.toEqual(
+      err({
+        type: 'github_auth_required',
+        host: 'github.com',
+        hint: 'Connect GitHub from account settings.',
+      })
+    );
+  });
+
+  it('maps cancelled force-full PR syncs to sync failures', async () => {
+    mockProjectGithubContext();
+    mockPrSyncEngine.forceFullSync.mockResolvedValue(
+      err({
+        type: 'sync_cancelled',
+        message: 'Pull request sync was cancelled.',
+      })
+    );
+
+    await expect(pullRequestController.forceFullSyncPullRequests('project-1')).resolves.toEqual(
+      err({ type: 'sync_failed', message: 'Pull request sync was cancelled.' })
+    );
+  });
+
   it('looks up task pull requests from the cached current workspace branch', async () => {
     mockProviderRepositoryUrl('https://github.com/acme/repo');
     queueDbSelectResult([{ workspaceId: 'workspace-1' }]);
