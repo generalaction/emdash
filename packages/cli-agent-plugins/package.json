@@ -2,15 +2,23 @@
   "name": "cli-agent-plugins",
   "version": "1.0.0",
   "description": "",
+  "keywords": [],
+  "license": "ISC",
+  "author": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "format": "oxfmt --write"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "packageManager": "pnpm@10.28.2",
+  "dependencies": {
+    "smol-toml": "^1.6.0"
+  },
   "devDependencies": {
-    "react": "^19.2.7"
-  }
+    "oxfmt": "^0.51.0",
+    "react": "^19.2.7",
+    "tsdown": "^0.22.2",
+    "vitest": "^4.1.8",
+    "zod": "^4.4.3"
+  },
+  "packageManager": "pnpm@10.28.2"
 }
